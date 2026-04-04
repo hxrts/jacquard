@@ -124,7 +124,7 @@ pub struct CapacityHint {
 pub struct TopologyLinkObservation {
     pub endpoint: LinkEndpoint,
     pub state: LinkRuntimeState,
-    pub median_rtt: DurationMs,
+    pub median_rtt_ms: DurationMs,
     pub loss_permille: RatioPermille,
-    pub last_seen_at: Tick,
+    pub last_seen_at_tick: Tick,
 }

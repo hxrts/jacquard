@@ -22,7 +22,7 @@ pub struct RoutingObjective {
     pub privacy_floor: RoutePrivacyClass,
     pub target_connectivity: RouteConnectivityClass,
     pub hold_fallback_policy: HoldFallbackPolicy,
-    pub latency_budget: Limit<DurationMs>,
+    pub latency_budget_ms: Limit<DurationMs>,
     pub privacy_priority: PriorityPoints,
     pub connectivity_priority: PriorityPoints,
 }
@@ -55,7 +55,7 @@ pub enum RouteConnectivityClass {
 pub struct RoutingObservations {
     pub reachable_neighbor_count: u32,
     pub route_family_count: u32,
-    pub median_rtt: DurationMs,
+    pub median_rtt_ms: DurationMs,
     pub loss_permille: RatioPermille,
     pub topology_churn_permille: RatioPermille,
     pub congestion_penalty_points: PenaltyPoints,

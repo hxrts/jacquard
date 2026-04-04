@@ -2,9 +2,9 @@
 
 use contour_core::{
     AdaptiveRoutingProfile, InstalledRoute, RouteAdmission, RouteAdmissionCheck, RouteCandidate,
-    RouteError, RouteHealth, RouteId, RouteMaintenanceDisposition, RouteMaintenanceTrigger,
-    RouteTransition, RoutingFamilyCapabilities, RoutingFamilyId, RoutingObjective,
-    RoutingObservations, TopologySnapshot,
+    RouteCommitment, RouteError, RouteHealth, RouteId, RouteMaintenanceResult,
+    RouteMaintenanceTrigger, RoutingFact, RoutingFamilyCapabilities, RoutingFamilyId,
+    RoutingObjective, RoutingObservations, TopologySnapshot,
 };
 
 /// Owns the privacy-versus-connectivity decision. In a mesh-only deployment,
@@ -24,11 +24,13 @@ pub trait RouteFamilyExtension {
 
     fn capabilities(&self) -> RoutingFamilyCapabilities;
 
+    /// Candidate enumeration consumes observational topology input and must
+    /// return advisory route candidates rather than proof-bearing witnesses.
     fn candidate_routes(
         &self,
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
-        topology: &TopologySnapshot,
+        topology: &RoutingFact<TopologySnapshot>,
     ) -> Vec<RouteCandidate>;
 
     /// Family-level feasibility check. May attach step bounds and cost estimates.
@@ -46,13 +48,21 @@ pub trait RouteFamilyExtension {
         candidate: RouteCandidate,
     ) -> Result<RouteAdmission, RouteError>;
 
+    /// Installation is the materialization step. Success must return an
+    /// `InstalledRoute` carrying a strong canonical handle.
     fn install_route(&mut self, admission: RouteAdmission) -> Result<InstalledRoute, RouteError>;
 
+    /// Every unresolved or recently resolved family-side obligation must be
+    /// expressible as an explicit route commitment.
+    fn route_commitments(&self, route: &InstalledRoute) -> Vec<RouteCommitment>;
+
+    /// Maintenance returns a typed semantic result so replacement, handoff, and
+    /// failure paths keep their payload rather than collapsing to a flag.
     fn maintain_route(
         &mut self,
         route: &mut InstalledRoute,
         trigger: RouteMaintenanceTrigger,
-    ) -> Result<RouteMaintenanceDisposition, RouteError>;
+    ) -> Result<RouteMaintenanceResult, RouteError>;
 
     fn teardown(&mut self, route_id: &RouteId);
 }
@@ -67,6 +77,8 @@ pub trait TopLevelRouter {
         &mut self,
         objective: RoutingObjective,
     ) -> Result<InstalledRoute, RouteError>;
+
+    fn route_commitments(&self, route_id: &RouteId) -> Result<Vec<RouteCommitment>, RouteError>;
 
     fn reselect_route(
         &mut self,
@@ -86,7 +98,7 @@ pub trait RoutingControlPlane {
         &mut self,
         route_id: &RouteId,
         trigger: RouteMaintenanceTrigger,
-    ) -> Result<RouteTransition, RouteError>;
+    ) -> Result<RouteMaintenanceResult, RouteError>;
 
     /// Periodic consistency sweep: expire leases, detect stale routes.
     fn anti_entropy_tick(&mut self) -> Result<(), RouteError>;
@@ -95,5 +107,10 @@ pub trait RoutingControlPlane {
 pub trait RoutingDataPlane {
     fn forward_payload(&mut self, route_id: &RouteId, payload: &[u8]) -> Result<(), RouteError>;
 
-    fn observe_route_health(&mut self, route_id: &RouteId) -> Result<RouteHealth, RouteError>;
+    /// Health reads are observational. They must not silently become canonical
+    /// route truth without an explicit control-plane publication step.
+    fn observe_route_health(
+        &mut self,
+        route_id: &RouteId,
+    ) -> Result<RoutingFact<RouteHealth>, RouteError>;
 }

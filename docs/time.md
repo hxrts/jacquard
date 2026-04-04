@@ -105,11 +105,11 @@ pub struct TimeoutPolicy {
     pub initial_backoff_ms: DurationMs,
     pub backoff_multiplier_permille: u16,
     pub backoff_ms_max: DurationMs,
-    pub overall_deadline_ms: DurationMs,
+    pub overall_timeout_ms: DurationMs,
 }
 ```
 
-This block defines a bounded local waiting policy. `attempt_count_max` limits retries. `initial_backoff_ms` and `backoff_ms_max` bound waiting. `overall_deadline_ms` gives the owner one total budget instead of several unrelated timeout domains.
+This block defines a bounded local waiting policy. `attempt_count_max` limits retries. `initial_backoff_ms` and `backoff_ms_max` bound waiting. `overall_timeout_ms` gives the owner one total budget instead of several unrelated timeout domains.
 
 Timeout policy should be used for:
 
@@ -169,6 +169,9 @@ The routing core should follow these rules:
 - Use `DurationMs` for timeout budgets and backoff values.
 - Use `OrderStamp` only for deterministic ordering, not for expiration.
 - Use `RouteEpoch` only for topology and reconfiguration versioning.
+- Name fields with the domain when the name alone is ambiguous:
+  `*_tick`, `*_ms`, and `*_epoch`.
+- Prefer `TimeWindow` for validity surfaces such as descriptor validity and lease validity.
 
 The routing core should reject these patterns:
 

@@ -17,7 +17,7 @@ pub struct TopologySnapshot {
     pub epoch: RouteEpoch,
     pub nodes: BTreeMap<NodeId, TopologyNodeObservation>,
     pub links: BTreeMap<(NodeId, NodeId), TopologyLinkObservation>,
-    pub last_updated_at: Tick,
+    pub last_updated_at_tick: Tick,
 }
 
 #[public_model]
@@ -27,7 +27,7 @@ pub struct TopologyNodeObservation {
     pub services: Vec<ServiceDescriptor>,
     pub endpoints: Vec<LinkEndpoint>,
     pub trust_class: PeerTrustClass,
-    pub last_seen_at: Tick,
+    pub last_seen_at_tick: Tick,
 }
 
 #[public_model]
@@ -55,7 +55,7 @@ pub struct RoutingFact<T> {
     pub value: T,
     pub evidence_class: RoutingEvidenceClass,
     pub trust_class: PeerTrustClass,
-    pub observed_at: Tick,
+    pub observed_at_tick: Tick,
 }
 
 #[cfg(test)]
@@ -74,7 +74,7 @@ mod tests {
                 services: Vec::new(),
                 endpoints: Vec::new(),
                 trust_class: PeerTrustClass::ControllerBound,
-                last_seen_at: Tick(2),
+                last_seen_at_tick: Tick(2),
             },
         );
         nodes.insert(
@@ -84,7 +84,7 @@ mod tests {
                 services: Vec::new(),
                 endpoints: Vec::new(),
                 trust_class: PeerTrustClass::ControllerBound,
-                last_seen_at: Tick(1),
+                last_seen_at_tick: Tick(1),
             },
         );
 

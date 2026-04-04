@@ -6,7 +6,8 @@ use thiserror::Error;
 
 use crate::{
     AdaptiveRoutingProfile, KnownValue, Limit, RouteConnectivityClass, RouteCost, RouteEpoch,
-    RouteId, RoutePrivacyClass, RoutingFamilyId, RoutingObjective, Tick, TransportClass,
+    RouteId, RoutePrivacyClass, RoutingFact, RoutingFamilyId, RoutingObjective, TimeWindow,
+    TransportClass,
 };
 
 #[public_model]
@@ -144,15 +145,26 @@ pub struct RouteSummary {
     pub connectivity: RouteConnectivityClass,
     pub transport_mix: Vec<TransportClass>,
     pub hop_count_hint: KnownValue<u8>,
-    pub expires_at: Tick,
+    pub valid_for: TimeWindow,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCandidate {
     pub summary: RouteSummary,
-    pub witness: RouteWitness,
+    /// Candidate enumeration is observational/advisory. It must not be treated
+    /// as proof-bearing admission evidence.
+    pub assessment: RoutingFact<RouteAssessment>,
     pub backend_ref: BackendRouteRef,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RouteAssessment {
+    pub estimated_privacy: RoutePrivacyClass,
+    pub estimated_connectivity: RouteConnectivityClass,
+    pub topology_epoch: RouteEpoch,
+    pub degradation: RouteDegradation,
 }
 
 #[public_model]
@@ -239,6 +251,7 @@ pub enum DegradationReason {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Family-owned opaque handle. Contour core never inspects the contents.
+/// This is a weak advisory reference and is not a canonical installed-route handle.
 pub struct BackendRouteRef {
     pub family: RoutingFamilyId,
     pub opaque_id: Vec<u8>,

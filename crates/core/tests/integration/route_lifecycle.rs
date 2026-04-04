@@ -4,11 +4,12 @@ use contour_core::{
     AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, ClaimStrength,
     ConnectivityRegime, DeliveryModelClass, DeploymentProfileId, FailureModelClass,
     FamilyFallbackPolicy, HoldFallbackPolicy, InstalledRoute, KnownValue, Limit, NodeDensityClass,
-    ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteConnectivityClass,
-    RouteCost, RouteDegradation, RouteEpoch, RouteHealth, RouteId, RouteLease, RoutePrivacyClass,
-    RouteProgressContract, RouteProgressState, RouteReplacementPolicy, RouteSummary,
-    RouteTransition, RouteWitness, RoutingAdmissionProfile, RoutingFamilyId, RoutingObjective,
-    RuntimeEnvelopeClass, ServiceFamily, Tick, TransportClass,
+    PeerTrustClass, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteAssessment,
+    RouteCandidate, RouteConnectivityClass, RouteCost, RouteDegradation, RouteEpoch, RouteHandle,
+    RouteHealth, RouteId, RouteLease, RoutePrivacyClass, RouteProgressContract, RouteProgressState,
+    RouteReplacementPolicy, RouteSummary, RouteTransition, RouteWitness, RoutingAdmissionProfile,
+    RoutingEvidenceClass, RoutingFact, RoutingFamilyId, RoutingObjective, RuntimeEnvelopeClass,
+    ServiceFamily, Tick, TimeWindow, TransportClass,
 };
 
 fn sample_objective() -> RoutingObjective {
@@ -19,7 +20,7 @@ fn sample_objective() -> RoutingObjective {
         privacy_floor: RoutePrivacyClass::None,
         target_connectivity: RouteConnectivityClass::Repairable,
         hold_fallback_policy: HoldFallbackPolicy::Allowed,
-        latency_budget: Limit::Limited(contour_core::DurationMs(250)),
+        latency_budget_ms: Limit::Limited(contour_core::DurationMs(250)),
         privacy_priority: contour_core::PriorityPoints(10),
         connectivity_priority: contour_core::PriorityPoints(20),
     }
@@ -44,7 +45,10 @@ fn sample_summary() -> RouteSummary {
         connectivity: RouteConnectivityClass::Repairable,
         transport_mix: vec![TransportClass::Proximity, TransportClass::LocalArea],
         hop_count_hint: KnownValue::Known(3),
-        expires_at: Tick(500),
+        valid_for: TimeWindow {
+            start_tick: Tick(100),
+            end_tick: Tick(500),
+        },
     }
 }
 
@@ -67,7 +71,7 @@ fn sample_route_cost() -> RouteCost {
         hop_count: 3,
         repair_attempt_count_max: Limit::Limited(2),
         hold_bytes_reserved: Limit::Limited(512),
-        cpu_work_units_max: Limit::Limited(40),
+        work_step_count_max: Limit::Limited(40),
     }
 }
 
@@ -78,13 +82,29 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
     let witness = sample_witness(admission_profile.clone());
     let candidate = RouteCandidate {
         summary: summary.clone(),
-        witness: witness.clone(),
+        assessment: RoutingFact {
+            value: RouteAssessment {
+                estimated_privacy: summary.privacy,
+                estimated_connectivity: summary.connectivity,
+                topology_epoch: RouteEpoch(4),
+                degradation: RouteDegradation::None,
+            },
+            evidence_class: RoutingEvidenceClass::Observed,
+            trust_class: PeerTrustClass::ControllerBound,
+            observed_at_tick: Tick(100),
+        },
         backend_ref: BackendRouteRef {
             family: RoutingFamilyId::Mesh,
             opaque_id: vec![1, 2, 3],
         },
     };
     let route = InstalledRoute {
+        handle: RouteHandle {
+            route_id: RouteId([5; 16]),
+            topology_epoch: RouteEpoch(4),
+            materialized_at_tick: Tick(101),
+            publication_id: [4; 16],
+        },
         admission: RouteAdmission {
             route_id: RouteId([5; 16]),
             objective,
@@ -109,20 +129,22 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
         lease: RouteLease {
             owner_node_id: contour_core::NodeId([9; 32]),
             lease_epoch: RouteEpoch(4),
-            leased_at: Tick(100),
-            expires_at: Tick(500),
+            valid_for: TimeWindow {
+                start_tick: Tick(100),
+                end_tick: Tick(500),
+            },
         },
         current_transition: RouteTransition::Established,
         health: RouteHealth {
             reachability_state: ReachabilityState::Reachable,
             stability_score: contour_core::HealthScore(900),
             congestion_penalty_points: contour_core::PenaltyPoints(12),
-            last_validated_at: Tick(110),
+            last_validated_at_tick: Tick(110),
         },
         progress: RouteProgressContract {
             productive_step_count_max: Limit::Limited(6),
             total_step_count_max: Limit::Limited(12),
-            last_progress_at: Tick(110),
+            last_progress_at_tick: Tick(110),
             state: RouteProgressState::Satisfied,
         },
     };
@@ -135,7 +157,12 @@ fn installed_route_can_be_built_from_shared_lifecycle_types() {
     let (candidate, route) = sample_route();
 
     assert_eq!(candidate.summary.family, RoutingFamilyId::Mesh);
+    assert_eq!(
+        candidate.assessment.value.estimated_connectivity,
+        RouteConnectivityClass::Repairable,
+    );
     assert_eq!(route.admission.summary.transport_mix.len(), 2);
+    assert_eq!(route.handle.route_id, RouteId([5; 16]));
     assert_eq!(route.lease.owner_node_id, contour_core::NodeId([9; 32]));
     assert_eq!(route.current_transition, RouteTransition::Established);
 }

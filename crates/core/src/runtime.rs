@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     HealthScore, Limit, NodeId, OrderStamp, PenaltyPoints, PriorityPoints, RouteAdmission,
-    RouteEpoch, RouteId, Tick, TimeoutPolicy,
+    RouteEpoch, RouteId, Tick, TimeWindow, TimeoutPolicy,
 };
 
 #[public_model]
@@ -41,8 +41,18 @@ impl PartialOrd for RouteOrderingKey {
 pub struct RouteLease {
     pub owner_node_id: NodeId,
     pub lease_epoch: RouteEpoch,
-    pub leased_at: Tick,
-    pub expires_at: Tick,
+    pub valid_for: TimeWindow,
+}
+
+#[must_use_handle]
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Canonical handle issued only after route installation has materially succeeded.
+pub struct RouteHandle {
+    pub route_id: RouteId,
+    pub topology_epoch: RouteEpoch,
+    pub materialized_at_tick: Tick,
+    pub publication_id: [u8; 16],
 }
 
 #[public_model]
@@ -53,7 +63,8 @@ pub struct RouteCost {
     pub hop_count: u8,
     pub repair_attempt_count_max: Limit<u32>,
     pub hold_bytes_reserved: Limit<u64>,
-    pub cpu_work_units_max: Limit<u32>,
+    /// Upper bound in deterministic abstract work steps, not host CPU time.
+    pub work_step_count_max: Limit<u32>,
 }
 
 #[public_model]
@@ -75,7 +86,7 @@ pub struct RouteOperationInstance {
     pub operation_id: crate::RouteOperationId,
     pub route_binding: RouteBinding,
     pub service_family: crate::ServiceFamily,
-    pub issued_at: Tick,
+    pub issued_at_tick: Tick,
 }
 
 #[public_model]
@@ -87,24 +98,44 @@ pub enum RouteBinding {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RouteOutstandingEffect {
+pub struct RouteCommitment {
     pub operation_id: crate::RouteOperationId,
+    pub route_binding: RouteBinding,
     pub owner_node_id: NodeId,
-    pub deadline: Tick,
+    pub deadline_tick: Tick,
     pub retry_policy: TimeoutPolicy,
-    pub state: RouteEffectState,
+    pub resolution: RouteCommitmentResolution,
 }
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum RouteEffectState {
+pub enum RouteCommitmentResolution {
     Pending,
     Blocked,
     Succeeded,
-    Failed,
+    Failed(RouteCommitmentFailure),
     TimedOut,
     Cancelled,
-    Invalidated,
+    Invalidated(RouteInvalidationReason),
+}
+
+#[public_model]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum RouteCommitmentFailure {
+    CapabilityRejected,
+    BackendUnavailable,
+    BudgetExceeded,
+    InvalidInput,
+    TransportRejected,
+}
+
+#[public_model]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum RouteInvalidationReason {
+    OwnershipTransferred,
+    TopologySuperseded,
+    LeaseExpired,
+    EvidenceWithdrawn,
 }
 
 #[must_use_handle]
@@ -124,7 +155,7 @@ pub struct RouteSemanticHandoff {
 pub struct RouteProgressContract {
     pub productive_step_count_max: Limit<u32>,
     pub total_step_count_max: Limit<u32>,
-    pub last_progress_at: Tick,
+    pub last_progress_at_tick: Tick,
     pub state: RouteProgressState,
 }
 
@@ -142,6 +173,7 @@ pub enum RouteProgressState {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstalledRoute {
+    pub handle: RouteHandle,
     pub admission: RouteAdmission,
     pub lease: RouteLease,
     pub current_transition: RouteTransition,
@@ -155,7 +187,7 @@ pub struct RouteHealth {
     pub reachability_state: ReachabilityState,
     pub stability_score: HealthScore,
     pub congestion_penalty_points: PenaltyPoints,
-    pub last_validated_at: Tick,
+    pub last_validated_at_tick: Tick,
 }
 
 #[public_model]
@@ -179,14 +211,34 @@ pub enum RouteMaintenanceTrigger {
 }
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-/// Family returns this from maintenance. ReplaceRoute escalates to the top-level router.
-pub enum RouteMaintenanceDisposition {
-    Continue,
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Family returns this from maintenance so the control plane can preserve the
+/// semantic payload of the decision rather than collapsing it to a single enum.
+pub struct RouteMaintenanceResult {
+    pub transition: RouteTransition,
+    pub outcome: RouteMaintenanceOutcome,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RouteMaintenanceOutcome {
+    Continued,
     Repaired,
-    ReplaceRoute,
-    HoldFallback,
-    Fail,
+    ReplacementRequired { trigger: RouteMaintenanceTrigger },
+    HandedOff(RouteSemanticHandoff),
+    HoldFallback { trigger: RouteMaintenanceTrigger },
+    Failed(RouteMaintenanceFailure),
+}
+
+#[public_model]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum RouteMaintenanceFailure {
+    LostReachability,
+    CapacityExceeded,
+    LeaseExpired,
+    BackendUnavailable,
+    InvalidEvidence,
+    PolicyRejected,
 }
 
 #[cfg(test)]

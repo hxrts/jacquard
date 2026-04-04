@@ -46,5 +46,5 @@ pub struct TimeoutPolicy {
     pub initial_backoff_ms: DurationMs,
     pub backoff_multiplier_permille: RatioPermille,
     pub backoff_ms_max: DurationMs,
-    pub overall_deadline_ms: DurationMs,
+    pub overall_timeout_ms: DurationMs,
 }
