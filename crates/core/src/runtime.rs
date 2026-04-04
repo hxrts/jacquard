@@ -1,3 +1,5 @@
+//! Installed route state, ordering, leases, transitions, and maintenance triggers.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -155,4 +157,25 @@ pub enum RouteMaintenanceDisposition {
     ReplaceRoute,
     HoldFallback,
     Fail,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn route_ordering_key_is_total() {
+        let low = RouteOrderingKey {
+            priority: crate::PriorityPoints(1),
+            topology_epoch: crate::RouteEpoch(2),
+            tie_break: crate::OrderStamp(3),
+        };
+        let high = RouteOrderingKey {
+            priority: crate::PriorityPoints(2),
+            topology_epoch: crate::RouteEpoch(2),
+            tie_break: crate::OrderStamp(3),
+        };
+
+        assert!(low < high);
+    }
 }

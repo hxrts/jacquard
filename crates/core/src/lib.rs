@@ -1,3 +1,5 @@
+//! Shared identifiers, data types, and constants for Contour routing.
+
 #![forbid(unsafe_code)]
 
 mod admission;
@@ -23,6 +25,3 @@ pub use policy::*;
 pub use runtime::*;
 pub use time::*;
 pub use topology::*;
-
-#[cfg(test)]
-mod tests;

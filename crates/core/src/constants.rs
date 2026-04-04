@@ -1,3 +1,5 @@
+//! Upper bounds for route, candidate, and payload dimensions.
+
 pub const ROUTE_HOP_COUNT_MAX: u8 = 16;
 pub const PROVIDER_CANDIDATE_COUNT_MAX: u16 = 32;
 pub const SERVICE_ENDPOINT_COUNT_MAX: u16 = 16;

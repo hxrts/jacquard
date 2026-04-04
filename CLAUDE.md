@@ -35,6 +35,12 @@ Run a single test: `cargo test -p <crate> <test_name>`
 
 Rust workspace with crates under `crates/`. Workspace-level `Cargo.toml` declares shared dependency versions. New crates go in `crates/<name>` and must be added to `workspace.members`.
 
+### Test layout
+
+Each crate should have a root `tests/` directory for higher-level tests. Organize that directory into subdirectories by test type such as `integration/`, `regression/`, or `property/` as needed.
+
+Unit tests should be co-located with the module they cover. Do not create or reintroduce catch-all files such as `src/tests.rs` for crate-wide test code.
+
 ### Telltale dependency
 
 Three Telltale crates are imported as local path dependencies (`../telltale/rust/{types,macros,runtime}`). The workspace `[workspace.dependencies]` table pins them; individual crates re-export via `{ workspace = true }`. The sibling telltale repo must be checked out at `../telltale`.

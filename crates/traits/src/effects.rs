@@ -1,3 +1,5 @@
+//! Time and ordering effect traits for deterministic routing.
+
 use contour_core::{OrderStamp, Tick};
 
 pub trait TimeEffects {

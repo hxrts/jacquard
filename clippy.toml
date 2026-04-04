@@ -1,0 +1,8 @@
+disallowed-methods = [
+  { path = "blake3::hash", reason = "Use the contour hasher trait boundary instead of calling BLAKE3 directly." },
+  { path = "blake3::keyed_hash", reason = "Use the contour hasher trait boundary instead of calling BLAKE3 directly." },
+  { path = "blake3::derive_key", reason = "Use the contour hasher trait boundary instead of calling BLAKE3 directly." },
+  { path = "blake3::Hasher::new", reason = "Use the contour hasher trait boundary instead of constructing a BLAKE3 hasher directly." },
+  { path = "blake3::Hasher::new_keyed", reason = "Use the contour hasher trait boundary instead of constructing a BLAKE3 hasher directly." },
+  { path = "blake3::Hasher::new_derive_key", reason = "Use the contour hasher trait boundary instead of constructing a BLAKE3 hasher directly." },
+]

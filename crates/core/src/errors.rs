@@ -1,3 +1,5 @@
+//! Error types for routing, transport, custody, and medium operations.
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

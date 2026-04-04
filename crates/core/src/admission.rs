@@ -1,3 +1,5 @@
+//! Route family capabilities, admission checks, candidates, and witnesses.
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

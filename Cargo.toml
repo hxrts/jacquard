@@ -11,6 +11,9 @@ edition = "2021"
 license = "Apache-2.0"
 authors = ["Sam Hart"]
 
+[workspace.lints.clippy]
+disallowed_methods = "deny"
+
 [workspace.dependencies]
 # local
 telltale-types   = { path = "../telltale/rust/types" }

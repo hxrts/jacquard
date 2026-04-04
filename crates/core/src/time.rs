@@ -1,3 +1,5 @@
+//! Deterministic time model and integer-scaled metric types.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(

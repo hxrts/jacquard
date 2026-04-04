@@ -1,3 +1,5 @@
+//! Content-addressed identifiers and digest types.
+
 use core::fmt;
 
 use serde::{Deserialize, Serialize};

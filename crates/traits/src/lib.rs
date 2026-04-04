@@ -1,3 +1,5 @@
+//! Trait definitions for the abstract routing contract and mesh family.
+
 #![forbid(unsafe_code)]
 
 mod effects;
@@ -8,6 +10,3 @@ pub use contour_core;
 pub use effects::*;
 pub use hashing::*;
 pub use routing::*;
-
-#[cfg(test)]
-mod tests;

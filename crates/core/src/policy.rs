@@ -1,3 +1,5 @@
+//! Routing objectives, adaptive profiles, and policy enums.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

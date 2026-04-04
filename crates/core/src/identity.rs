@@ -1,3 +1,5 @@
+//! Node, controller, route, and scope identifiers.
+
 use serde::{Deserialize, Serialize};
 
 use crate::RouteEpoch;

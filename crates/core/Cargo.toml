@@ -6,6 +6,9 @@ license.workspace = true
 authors.workspace = true
 description = "Shared identifiers, types, and constants for Contour routing"
 
+[lints]
+workspace = true
+
 [dependencies]
 serde      = { workspace = true }
 thiserror  = { workspace = true }

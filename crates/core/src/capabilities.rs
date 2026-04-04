@@ -1,3 +1,5 @@
+//! Capability tokens for route admission, ownership, evidence, and transitions.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(

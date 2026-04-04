@@ -6,6 +6,9 @@ license.workspace = true
 authors.workspace = true
 description = "Routing trait definitions for Contour"
 
+[lints]
+workspace = true
+
 [dependencies]
 contour-core = { path = "../core" }
 blake3 = "1"

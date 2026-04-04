@@ -1,3 +1,5 @@
+//! Transport protocols, link endpoints, service descriptors, and connectivity surfaces.
+
 use serde::{Deserialize, Serialize};
 
 use crate::{

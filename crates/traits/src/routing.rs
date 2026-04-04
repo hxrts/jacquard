@@ -1,3 +1,5 @@
+//! Abstract routing traits: adaptive controller, family extension, router, and control/data planes.
+
 use contour_core::{
     AdaptiveRoutingProfile, InstalledRoute, RouteAdmission, RouteAdmissionCheck, RouteCandidate,
     RouteError, RouteHealth, RouteId, RouteMaintenanceDisposition, RouteMaintenanceTrigger,
