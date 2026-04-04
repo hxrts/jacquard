@@ -10,7 +10,9 @@ mod hashing;
 mod routing;
 
 pub use contour_core;
-pub use contour_macros::{effect_handler, effect_trait};
+pub use contour_macros::{
+    bounded_value, effect_handler, effect_trait, id_type, must_use_handle, public_model,
+};
 pub use effects::*;
 pub use handler::*;
 pub use hashing::*;

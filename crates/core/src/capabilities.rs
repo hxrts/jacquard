@@ -1,23 +1,20 @@
 //! Capability tokens for route admission, ownership, evidence, and transitions.
 
+use contour_macros::{id_type, must_use_handle};
 use serde::{Deserialize, Serialize};
 
-#[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[must_use_handle]
+#[id_type]
 pub struct RouteAdmissionCapability(pub u64);
 
-#[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[must_use_handle]
+#[id_type]
 pub struct RouteOwnershipCapability(pub u64);
 
-#[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[must_use_handle]
+#[id_type]
 pub struct RouteEvidenceCapability(pub u64);
 
-#[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[must_use_handle]
+#[id_type]
 pub struct RouteTransitionCapability(pub u64);

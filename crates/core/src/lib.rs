@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 
+pub use contour_macros::{bounded_value, id_type, must_use_handle, public_model};
+
 mod admission;
 mod capabilities;
 mod connectivity;

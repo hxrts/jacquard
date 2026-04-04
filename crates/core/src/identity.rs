@@ -1,24 +1,13 @@
 //! Node, controller, route, and scope identifiers.
 
+use contour_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::RouteEpoch;
 
 macro_rules! bytes_newtype {
     ($name:ident, $size:expr) => {
-        #[derive(
-            Clone,
-            Copy,
-            Debug,
-            Default,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            Serialize,
-            Deserialize,
-        )]
+        #[id_type]
         pub struct $name(pub [u8; $size]);
     };
 }
@@ -38,6 +27,7 @@ bytes_newtype!(PathId, 16);
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ServiceId(pub Vec<u8>);
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DestinationId {
     Node(NodeId),
@@ -45,6 +35,7 @@ pub enum DestinationId {
     Gateway(GatewayDomainId),
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Attestable link between a node instance and its controlling authority.
 /// One controller may bind multiple nodes.
@@ -55,6 +46,7 @@ pub struct NodeBinding {
     pub proof: NodeBindingProof,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeBindingProof {
     Signature {

@@ -1,5 +1,6 @@
 //! Installed route state, ordering, leases, transitions, and maintenance triggers.
 
+use contour_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -7,6 +8,7 @@ use crate::{
     RouteEpoch, RouteId, Tick, TimeoutPolicy,
 };
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteOrderingKey {
     pub priority: PriorityPoints,
@@ -31,6 +33,8 @@ impl PartialOrd for RouteOrderingKey {
     }
 }
 
+#[must_use_handle]
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Lease-based route ownership. Prevents ambient mutable access.
 /// A bare RouteId is a weak reference; a lease is the strong one.
@@ -41,6 +45,7 @@ pub struct RouteLease {
     pub expires_at: Tick,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCost {
     pub message_count_max: Limit<u32>,
@@ -51,6 +56,7 @@ pub struct RouteCost {
     pub cpu_work_units_max: Limit<u32>,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteTransition {
     Established,
@@ -63,6 +69,7 @@ pub enum RouteTransition {
     Teardown,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteOperationInstance {
     pub operation_id: crate::RouteOperationId,
@@ -71,12 +78,14 @@ pub struct RouteOperationInstance {
     pub issued_at: Tick,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteBinding {
     Unbound,
     Bound(RouteId),
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteOutstandingEffect {
     pub operation_id: crate::RouteOperationId,
@@ -86,6 +95,7 @@ pub struct RouteOutstandingEffect {
     pub state: RouteEffectState,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteEffectState {
     Pending,
@@ -97,6 +107,8 @@ pub enum RouteEffectState {
     Invalidated,
 }
 
+#[must_use_handle]
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Explicit transfer of route ownership. Modeled as a move, not shared access.
 pub struct RouteSemanticHandoff {
@@ -107,6 +119,7 @@ pub struct RouteSemanticHandoff {
     pub receipt_id: [u8; 16],
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteProgressContract {
     pub productive_step_count_max: Limit<u32>,
@@ -115,6 +128,7 @@ pub struct RouteProgressContract {
     pub state: RouteProgressState,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteProgressState {
     Pending,
@@ -125,6 +139,7 @@ pub enum RouteProgressState {
     Failed,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstalledRoute {
     pub admission: RouteAdmission,
@@ -134,6 +149,7 @@ pub struct InstalledRoute {
     pub progress: RouteProgressContract,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteHealth {
     pub reachability_state: ReachabilityState,
@@ -142,12 +158,14 @@ pub struct RouteHealth {
     pub last_validated_at: Tick,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ReachabilityState {
     Reachable,
     Unreachable,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteMaintenanceTrigger {
     LinkDegraded,
@@ -160,6 +178,7 @@ pub enum RouteMaintenanceTrigger {
     AntiEntropyRequired,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Family returns this from maintenance. ReplaceRoute escalates to the top-level router.
 pub enum RouteMaintenanceDisposition {

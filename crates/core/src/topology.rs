@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use contour_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -9,6 +10,7 @@ use crate::{
     TopologyLinkObservation,
 };
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Local view of the neighborhood graph. BTreeMap ensures deterministic iteration order.
 pub struct TopologySnapshot {
@@ -18,6 +20,7 @@ pub struct TopologySnapshot {
     pub last_updated_at: Tick,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TopologyNodeObservation {
     pub controller_id: ControllerId,
@@ -27,6 +30,7 @@ pub struct TopologyNodeObservation {
     pub last_seen_at: Tick,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RoutingEvidenceClass {
     Observed,
@@ -34,6 +38,7 @@ pub enum RoutingEvidenceClass {
     AdmissionWitnessed,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum PeerTrustClass {
     LocalOwned,
@@ -42,6 +47,7 @@ pub enum PeerTrustClass {
     LowTrustRelay,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// A value tagged with its evidence provenance. Observed facts must not
 /// silently become authoritative routing truth.

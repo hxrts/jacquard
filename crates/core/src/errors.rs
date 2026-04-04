@@ -1,10 +1,12 @@
 //! Error types for routing, transport, custody, and medium operations.
 
+use contour_macros::public_model;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::RouteAdmissionRejection;
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum RouteError {
     #[error("route selection error: {0}")]
@@ -19,6 +21,7 @@ pub enum RouteError {
     Transport(#[from] TransportError),
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum RouteSelectionError {
     #[error("no candidate route was available")]
@@ -31,6 +34,7 @@ pub enum RouteSelectionError {
     PolicyConflict,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum RouteRuntimeError {
     #[error("route lease expired")]
@@ -47,6 +51,7 @@ pub enum RouteRuntimeError {
     Invalidated,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum RoutePolicyError {
     #[error("fallback is forbidden")]
@@ -57,6 +62,7 @@ pub enum RoutePolicyError {
     BudgetExceeded,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum CapabilityError {
     #[error("capability is unsupported")]
@@ -67,6 +73,7 @@ pub enum CapabilityError {
     BudgetExceeded,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum TransportError {
     #[error("transport is unavailable")]
@@ -77,6 +84,7 @@ pub enum TransportError {
     Rejected,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum MediumError {
     #[error("medium rejected the frame")]
@@ -87,6 +95,7 @@ pub enum MediumError {
     TimedOut,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum CustodyError {
     #[error("custody store is unavailable")]
@@ -97,6 +106,7 @@ pub enum CustodyError {
     Rejected,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum HoldError {
     #[error("hold service is unavailable")]
@@ -107,6 +117,7 @@ pub enum HoldError {
     Rejected,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum PathSetupError {
     #[error("path setup is unsupported")]

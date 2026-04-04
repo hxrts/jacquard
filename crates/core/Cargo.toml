@@ -10,5 +10,6 @@ description = "Shared identifiers, types, and constants for Contour routing"
 workspace = true
 
 [dependencies]
+contour-macros = { path = "../macros" }
 serde      = { workspace = true }
 thiserror  = { workspace = true }

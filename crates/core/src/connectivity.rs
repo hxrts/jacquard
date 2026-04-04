@@ -1,5 +1,6 @@
 //! Transport protocols, link endpoints, service descriptors, and connectivity surfaces.
 
+use contour_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -7,6 +8,7 @@ use crate::{
     NodeId, RatioPermille, Tick, TimeWindow,
 };
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Identifies a routing family. Mesh is first-party; External covers third-party plugins.
 pub enum RoutingFamilyId {
@@ -14,6 +16,7 @@ pub enum RoutingFamilyId {
     External { name: String, contract_id: String },
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ServiceFamily {
     Discover,
@@ -23,6 +26,7 @@ pub enum ServiceFamily {
     Hold,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum TransportProtocol {
     BleGatt,
@@ -34,6 +38,7 @@ pub enum TransportProtocol {
     Custom(String),
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum TransportClass {
     Proximity,
@@ -41,6 +46,7 @@ pub enum TransportClass {
     Backbone,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum EndpointAddress {
     Ble {
@@ -54,12 +60,14 @@ pub enum EndpointAddress {
     Opaque(Vec<u8>),
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum DeliverySemantics {
     UnorderedBestEffort,
     ReliableOrdered,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum LinkRuntimeState {
     Active,
@@ -68,6 +76,7 @@ pub enum LinkRuntimeState {
     Faulted,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LinkEndpoint {
     pub protocol: TransportProtocol,
@@ -77,6 +86,7 @@ pub struct LinkEndpoint {
     pub delivery_semantics: DeliverySemantics,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// What a node advertises as a shared service surface.
 /// Descriptors are shared facts. Local ranking is not published here.
@@ -91,6 +101,7 @@ pub struct ServiceDescriptor {
     pub capacity: KnownValue<CapacityHint>,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ServiceScope {
     Neighborhood(NeighborhoodId),
@@ -100,6 +111,7 @@ pub enum ServiceScope {
     Introduction { scope_token: Vec<u8> },
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapacityHint {
     pub saturation_permille: RatioPermille,
@@ -107,6 +119,7 @@ pub struct CapacityHint {
     pub hold_capacity_bytes: KnownValue<u64>,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TopologyLinkObservation {
     pub endpoint: LinkEndpoint,

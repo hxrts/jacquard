@@ -1,0 +1,5 @@
+error: public_model does not allow raw `bool`; model public semantics with an enum instead in public model fields
+ --> tests/regression/ui/public_model_bool_field.rs:5:14
+  |
+5 |     enabled: bool,
+  |              ^^^^

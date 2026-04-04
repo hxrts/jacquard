@@ -1,0 +1,5 @@
+error: id_type requires a tuple struct with exactly one field
+ --> tests/regression/ui/id_type_multi_field.rs:4:17
+  |
+4 | struct InvalidId(u8, u8);
+  |                 ^^^^^^^^

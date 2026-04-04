@@ -1,5 +1,6 @@
 //! Route family capabilities, admission checks, candidates, and witnesses.
 
+use contour_macros::public_model;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -8,6 +9,7 @@ use crate::{
     RouteId, RoutePrivacyClass, RoutingFamilyId, RoutingObjective, Tick, TransportClass,
 };
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoutingFamilyCapabilities {
     pub family: RoutingFamilyId,
@@ -21,24 +23,28 @@ pub struct RoutingFamilyCapabilities {
     pub route_shape_visibility: RouteShapeVisibility,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RepairSupport {
     Unsupported,
     Supported,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum HoldSupport {
     Unsupported,
     Supported,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum DecidableSupport {
     Unsupported,
     Supported,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantitativeBoundSupport {
     Unsupported,
@@ -46,6 +52,7 @@ pub enum QuantitativeBoundSupport {
     ProductiveAndSchedulerLifted,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ReconfigurationSupport {
     ReplaceOnly,
@@ -53,12 +60,14 @@ pub enum ReconfigurationSupport {
     FamilyDefined,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteShapeVisibility {
     Explicit,
     Opaque,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Premise profile: delivery, failure, and runtime assumptions under which
 /// the admission claim holds. Families declare these, the router compares them.
@@ -72,6 +81,7 @@ pub struct RoutingAdmissionProfile {
     pub claim_strength: ClaimStrength,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum DeliveryModelClass {
     FifoPerLink,
@@ -79,6 +89,7 @@ pub enum DeliveryModelClass {
     LossyBestEffort,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum FailureModelClass {
     Benign,
@@ -86,12 +97,14 @@ pub enum FailureModelClass {
     ByzantineInterface,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RuntimeEnvelopeClass {
     Canonical,
     EnvelopeAdmitted,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum NodeDensityClass {
     Sparse,
@@ -99,6 +112,7 @@ pub enum NodeDensityClass {
     Dense,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ConnectivityRegime {
     Stable,
@@ -106,6 +120,7 @@ pub enum ConnectivityRegime {
     PartitionProne,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum AdversaryRegime {
     Cooperative,
@@ -113,6 +128,7 @@ pub enum AdversaryRegime {
     ActiveAdversarial,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ClaimStrength {
     ExactUnderAssumptions,
@@ -120,6 +136,7 @@ pub enum ClaimStrength {
     InterfaceOnly,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteSummary {
     pub family: RoutingFamilyId,
@@ -130,6 +147,7 @@ pub struct RouteSummary {
     pub expires_at: Tick,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCandidate {
     pub summary: RouteSummary,
@@ -137,6 +155,7 @@ pub struct RouteCandidate {
     pub backend_ref: BackendRouteRef,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteAdmissionCheck {
     pub decision: AdmissionDecision,
@@ -146,12 +165,14 @@ pub struct RouteAdmissionCheck {
     pub route_cost: RouteCost,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum AdmissionDecision {
     Admissible,
     Rejected(RouteAdmissionRejection),
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error, Serialize, Deserialize)]
 pub enum RouteAdmissionRejection {
     #[error("privacy floor unsatisfied")]
@@ -172,6 +193,7 @@ pub enum RouteAdmissionRejection {
     BackendUnavailable,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteAdmission {
     pub route_id: RouteId,
@@ -182,6 +204,7 @@ pub struct RouteAdmission {
     pub witness: RouteWitness,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Proof-bearing explanation of what the admitted route actually delivers.
 /// If privacy was reduced for connectivity, that fact is explicit here.
@@ -195,12 +218,14 @@ pub struct RouteWitness {
     pub degradation: RouteDegradation,
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteDegradation {
     None,
     Degraded(DegradationReason),
 }
 
+#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum DegradationReason {
     SparseTopology,
@@ -211,6 +236,7 @@ pub enum DegradationReason {
     PolicyPreference,
 }
 
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Family-owned opaque handle. Contour core never inspects the contents.
 pub struct BackendRouteRef {
