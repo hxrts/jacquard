@@ -11,8 +11,11 @@ while IFS= read -r file; do
 done < <(rg --files -g '*.rs' crates/*/src | sort)
 
 exempt_files=(
-  "crates/core/src/constants.rs"
   "crates/core/src/lib.rs"
+  "crates/core/src/base/mod.rs"
+  "crates/core/src/base/constants.rs"
+  "crates/core/src/model/mod.rs"
+  "crates/core/src/routing/mod.rs"
   "crates/macros/src/bounded_value_macro.rs"
   "crates/macros/src/effect_handler_macro.rs"
   "crates/macros/src/effect_trait_macro.rs"

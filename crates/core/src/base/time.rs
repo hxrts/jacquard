@@ -19,6 +19,10 @@ pub struct OrderStamp(pub u64);
 #[id_type]
 pub struct RouteEpoch(pub u64);
 
+/// Deterministic quantity of bytes for budgets, capacities, and size limits.
+#[id_type]
+pub struct ByteCount(pub u64);
+
 /// Integer-scaled ratio, 0..=1000.
 #[bounded_value(max = 1000)]
 pub struct RatioPermille(pub u16);

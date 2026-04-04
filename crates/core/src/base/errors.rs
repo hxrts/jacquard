@@ -26,8 +26,8 @@ pub enum RouteError {
 pub enum RouteSelectionError {
     #[error("no candidate route was available")]
     NoCandidate,
-    #[error("privacy floor was not satisfied")]
-    PrivacyFloorUnsatisfied,
+    #[error("protection floor was not satisfied")]
+    ProtectionFloorUnsatisfied,
     #[error("candidate was inadmissible: {0}")]
     Inadmissible(RouteAdmissionRejection),
     #[error("routing policy conflict")]
@@ -41,8 +41,8 @@ pub enum RouteRuntimeError {
     LeaseExpired,
     #[error("stale owner attempted a mutation")]
     StaleOwner,
-    #[error("route transition was rejected")]
-    TransitionRejected,
+    #[error("route lifecycle event was rejected")]
+    LifecycleEventRejected,
     #[error("route maintenance failed")]
     MaintenanceFailed,
     #[error("route operation timed out")]

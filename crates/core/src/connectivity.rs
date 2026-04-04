@@ -4,21 +4,13 @@ use contour_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClusterId, ControllerId, DurationMs, GatewayDomainId, HomeId, KnownValue, NeighborhoodId,
-    NodeId, RatioPermille, Tick, TimeWindow,
+    Belief, BleDeviceId, BleProfileId, ByteCount, ClusterId, ControllerId, GatewayId, HomeId,
+    NeighborhoodId, NetworkHost, NodeId, RatioPermille, RouteFamilyId, TimeWindow,
 };
 
 #[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-/// Identifies a routing family. Mesh is first-party; External covers third-party plugins.
-pub enum RoutingFamilyId {
-    Mesh,
-    External { name: String, contract_id: String },
-}
-
-#[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum ServiceFamily {
+pub enum RouteServiceKind {
     Discover,
     Establish,
     Move,
@@ -39,22 +31,14 @@ pub enum TransportProtocol {
 }
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum TransportClass {
-    Proximity,
-    LocalArea,
-    Backbone,
-}
-
-#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum EndpointAddress {
     Ble {
-        device_id: Vec<u8>,
-        service_uuid: [u8; 16],
+        device_id: BleDeviceId,
+        profile_id: BleProfileId,
     },
     Ip {
-        host: String,
+        host: NetworkHost,
         port: u16,
     },
     Opaque(Vec<u8>),
@@ -62,7 +46,7 @@ pub enum EndpointAddress {
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum DeliverySemantics {
+pub enum EndpointDeliverySemantics {
     UnorderedBestEffort,
     ReliableOrdered,
 }
@@ -80,10 +64,9 @@ pub enum LinkRuntimeState {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LinkEndpoint {
     pub protocol: TransportProtocol,
-    pub class: TransportClass,
     pub address: EndpointAddress,
-    pub mtu_bytes: u32,
-    pub delivery_semantics: DeliverySemantics,
+    pub mtu_bytes: ByteCount,
+    pub delivery_semantics: EndpointDeliverySemantics,
 }
 
 #[public_model]
@@ -93,12 +76,12 @@ pub struct LinkEndpoint {
 pub struct ServiceDescriptor {
     pub provider_node_id: NodeId,
     pub controller_id: ControllerId,
-    pub family: ServiceFamily,
+    pub service_kind: RouteServiceKind,
     pub endpoints: Vec<LinkEndpoint>,
-    pub routing_families: Vec<RoutingFamilyId>,
+    pub routing_families: Vec<RouteFamilyId>,
     pub scope: ServiceScope,
     pub valid_for: TimeWindow,
-    pub capacity: KnownValue<CapacityHint>,
+    pub capacity: Belief<CapacityHint>,
 }
 
 #[public_model]
@@ -107,7 +90,7 @@ pub enum ServiceScope {
     Neighborhood(NeighborhoodId),
     Home(HomeId),
     Cluster(ClusterId),
-    GatewayDomain(GatewayDomainId),
+    Gateway(GatewayId),
     Introduction { scope_token: Vec<u8> },
 }
 
@@ -115,22 +98,8 @@ pub enum ServiceScope {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapacityHint {
     pub saturation_permille: RatioPermille,
-    pub repair_capacity: KnownValue<u32>,
-    pub hold_capacity_bytes: KnownValue<u64>,
-}
-
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TopologyLinkObservation {
-    pub endpoint: LinkEndpoint,
-    pub state: LinkRuntimeState,
-    pub median_rtt_ms: DurationMs,
-    pub transfer_rate_bytes_per_sec: KnownValue<u32>,
-    pub stability_horizon_ms: KnownValue<DurationMs>,
-    pub loss_permille: RatioPermille,
-    pub delivery_confidence_permille: KnownValue<RatioPermille>,
-    pub symmetry_permille: KnownValue<RatioPermille>,
-    pub last_seen_at_tick: Tick,
+    pub repair_capacity: Belief<u32>,
+    pub hold_capacity_bytes: Belief<ByteCount>,
 }
 
 #[public_model]
@@ -139,11 +108,11 @@ pub enum TransportIngressEvent {
     PayloadReceived {
         from_node_id: NodeId,
         endpoint: LinkEndpoint,
-        payload_bytes: Vec<u8>,
-        observed_at_tick: Tick,
+        payload: Vec<u8>,
+        observed_at_tick: crate::Tick,
     },
-    LinkStateObserved {
+    LinkObserved {
         remote_node_id: NodeId,
-        observation: TopologyLinkObservation,
+        observation: crate::Observation<crate::Link>,
     },
 }

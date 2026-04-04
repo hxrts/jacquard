@@ -4,8 +4,8 @@ use contour_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Observed, OrderStamp, RouteCommitmentId, RouteCommitmentResolution, RouteHandle, RouteHealth,
-    RouteId, RouteMaintenanceResult, RouteMaterializationProof, Tick,
+    Observation, OrderStamp, RouteCommitmentId, RouteCommitmentResolution, RouteHandle,
+    RouteHealth, RouteId, RouteMaintenanceResult, RouteMaterializationProof, Tick,
 };
 
 #[public_model]
@@ -26,7 +26,7 @@ pub enum RouteEvent {
     },
     RouteHealthObserved {
         route_id: RouteId,
-        health: Observed<RouteHealth>,
+        health: Observation<RouteHealth>,
     },
 }
 

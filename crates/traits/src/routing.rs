@@ -1,13 +1,13 @@
 //! Abstract routing traits: adaptive controller, route family, router, and control/data planes.
 
 use contour_core::{
-    AdaptiveRoutingProfile, InstalledRoute, Observed, RouteAdmission, RouteAdmissionCheck,
-    RouteCandidate, RouteCommitment, RouteError, RouteHealth, RouteId, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RoutingFamilyCapabilities, RoutingFamilyId, RoutingObjective,
-    RoutingPolicyInputs, TopologySnapshot,
+    AdaptiveRoutingProfile, Configuration, InstalledRoute, Observation, RouteAdmission,
+    RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError, RouteFamilyId, RouteHealth,
+    RouteId, RouteMaintenanceResult, RouteMaintenanceTrigger, RoutingFamilyCapabilities,
+    RoutingObjective, RoutingPolicyInputs,
 };
 
-/// Owns the privacy-versus-connectivity decision. In a mesh-only deployment,
+/// Owns the protection-versus-connectivity decision. In a mesh-only deployment,
 /// this may return a fixed profile. Richer policy comes from the embedding host.
 pub trait AdaptiveRoutingController {
     fn compute_profile(
@@ -20,7 +20,7 @@ pub trait AdaptiveRoutingController {
 /// The family boundary. Each route family (mesh, onion, etc.) implements
 /// this trait. Contour core interacts with families only through this surface.
 pub trait RouteFamily {
-    fn family_id(&self) -> RoutingFamilyId;
+    fn family_id(&self) -> RouteFamilyId;
 
     fn capabilities(&self) -> RoutingFamilyCapabilities;
 
@@ -30,7 +30,7 @@ pub trait RouteFamily {
         &self,
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
-        topology: &Observed<TopologySnapshot>,
+        topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate>;
 
     /// Family-level feasibility check. May attach step bounds and cost estimates.
@@ -109,5 +109,5 @@ pub trait RoutingDataPlane {
     fn observe_route_health(
         &mut self,
         route_id: &RouteId,
-    ) -> Result<Observed<RouteHealth>, RouteError>;
+    ) -> Result<Observation<RouteHealth>, RouteError>;
 }

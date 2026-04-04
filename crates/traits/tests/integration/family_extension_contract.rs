@@ -4,36 +4,44 @@ use std::collections::BTreeMap;
 
 use contour_traits::{
     contour_core::{
-        AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, ClaimStrength,
-        ConnectivityRegime, DeliveryModelClass, DeploymentProfileId, FailureModelClass,
-        FamilyFallbackPolicy, InstalledRoute, KnownValue, Limit, NodeDensityClass, Observed,
-        PeerTrustClass, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding,
-        RouteCandidate, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
-        RouteConnectivityClass, RouteCost, RouteDegradation, RouteEpoch, RouteEstimate,
-        RouteHandle, RouteHealth, RouteId, RouteLease, RouteMaintenanceOutcome,
+        AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief,
+        ByteCount, ClaimStrength, Configuration, ConnectivityRegime, DeliveryAssumptionClass,
+        DeploymentProfile, Environment, Estimate, Fact, FactBasis, FailureModelClass,
+        FamilyFallbackPolicy, InstalledRoute, Limit, NodeDensityClass, Observation, PublicationId,
+        ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding, RouteCandidate,
+        RouteCommitment, RouteCommitmentId, RouteCommitmentResolution, RouteConnectivityProfile,
+        RouteCost, RouteDegradation, RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle,
+        RouteHealth, RouteId, RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome,
         RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationProof,
-        RoutePrivacyClass, RouteProgressContract, RouteProgressState, RouteReplacementPolicy,
-        RouteSummary, RouteTransition, RouteWitness, RoutingAdmissionProfile, RoutingEvidenceClass,
-        RoutingFact, RoutingFamilyCapabilities, RoutingFamilyId, RoutingObjective,
-        RuntimeEnvelopeClass, ServiceFamily, Tick, TimeWindow, TopologySnapshot, TransportClass,
+        RoutePartitionClass, RouteProgressContract, RouteProgressState, RouteProtectionClass,
+        RouteRepairClass, RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness,
+        RoutingAdmissionProfile, RoutingEvidenceClass, RoutingFamilyCapabilities, RoutingObjective,
+        RuntimeEnvelopeClass, Tick, TimeWindow, TransportProtocol,
     },
     RouteFamily,
 };
+
+fn repairable_connected() -> RouteConnectivityProfile {
+    RouteConnectivityProfile {
+        repair: RouteRepairClass::Repairable,
+        partition: RoutePartitionClass::ConnectedOnly,
+    }
+}
 
 struct StubFamily {
     route: InstalledRoute,
 }
 
 impl RouteFamily for StubFamily {
-    fn family_id(&self) -> RoutingFamilyId {
-        RoutingFamilyId::Mesh
+    fn family_id(&self) -> RouteFamilyId {
+        RouteFamilyId::Mesh
     }
 
     fn capabilities(&self) -> RoutingFamilyCapabilities {
         RoutingFamilyCapabilities {
-            family: RoutingFamilyId::Mesh,
-            max_privacy: RoutePrivacyClass::LinkConfidential,
-            max_connectivity: RouteConnectivityClass::Repairable,
+            family: RouteFamilyId::Mesh,
+            max_protection: RouteProtectionClass::LinkProtected,
+            max_connectivity: repairable_connected(),
             repair_support: contour_traits::contour_core::RepairSupport::Supported,
             hold_support: contour_traits::contour_core::HoldSupport::Supported,
             decidable_admission: contour_traits::contour_core::DecidableSupport::Supported,
@@ -49,26 +57,23 @@ impl RouteFamily for StubFamily {
         &self,
         _objective: &RoutingObjective,
         _profile: &AdaptiveRoutingProfile,
-        _topology: &Observed<TopologySnapshot>,
+        _topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
         vec![RouteCandidate {
             summary: self.route.admission.summary.clone(),
-            estimate: Observed {
-                fact: RoutingFact {
-                    value: RouteEstimate {
-                        estimated_privacy: self.route.admission.summary.privacy,
-                        estimated_connectivity: self.route.admission.summary.connectivity,
-                        topology_epoch: self.route.admission.witness.topology_epoch,
-                        degradation: self.route.admission.witness.degradation,
-                    },
-                    evidence_class: RoutingEvidenceClass::Observed,
-                    trust_class: PeerTrustClass::ControllerBound,
-                    observed_at_tick: Tick(1),
+            estimate: Estimate {
+                value: RouteEstimate {
+                    estimated_protection: self.route.admission.summary.protection,
+                    estimated_connectivity: self.route.admission.summary.connectivity,
+                    topology_epoch: self.route.admission.witness.topology_epoch,
+                    degradation: self.route.admission.witness.degradation,
                 },
+                confidence_permille: contour_traits::contour_core::RatioPermille(1000),
+                updated_at_tick: Tick(1),
             },
             backend_ref: BackendRouteRef {
-                family: RoutingFamilyId::Mesh,
-                opaque_id: vec![1],
+                family: RouteFamilyId::Mesh,
+                backend_route_id: contour_traits::contour_core::BackendRouteId(vec![1]),
             },
         }]
     }
@@ -121,14 +126,14 @@ impl RouteFamily for StubFamily {
         route: &mut InstalledRoute,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, contour_traits::contour_core::RouteError> {
-        route.current_transition = RouteTransition::Repaired;
+        route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         let result = match trigger {
             RouteMaintenanceTrigger::LinkDegraded => RouteMaintenanceResult {
-                transition: RouteTransition::Repaired,
+                event: RouteLifecycleEvent::Repaired,
                 outcome: RouteMaintenanceOutcome::Repaired,
             },
             _ => RouteMaintenanceResult {
-                transition: route.current_transition,
+                event: route.last_lifecycle_event,
                 outcome: RouteMaintenanceOutcome::Continued,
             },
         };
@@ -145,22 +150,22 @@ fn sample_objective() -> RoutingObjective {
         destination: contour_traits::contour_core::DestinationId::Node(
             contour_traits::contour_core::NodeId([2; 32]),
         ),
-        service_family: ServiceFamily::Move,
-        target_privacy: RoutePrivacyClass::LinkConfidential,
-        privacy_floor: RoutePrivacyClass::None,
-        target_connectivity: RouteConnectivityClass::Repairable,
+        service_kind: RouteServiceKind::Move,
+        target_protection: RouteProtectionClass::LinkProtected,
+        protection_floor: RouteProtectionClass::None,
+        target_connectivity: repairable_connected(),
         hold_fallback_policy: contour_traits::contour_core::HoldFallbackPolicy::Allowed,
-        latency_budget_ms: Limit::Limited(contour_traits::contour_core::DurationMs(100)),
-        privacy_priority: contour_traits::contour_core::PriorityPoints(1),
+        latency_budget_ms: Limit::Bounded(contour_traits::contour_core::DurationMs(100)),
+        protection_priority: contour_traits::contour_core::PriorityPoints(1),
         connectivity_priority: contour_traits::contour_core::PriorityPoints(2),
     }
 }
 
 fn sample_profile() -> AdaptiveRoutingProfile {
     AdaptiveRoutingProfile {
-        selected_privacy: RoutePrivacyClass::LinkConfidential,
-        selected_connectivity: RouteConnectivityClass::Repairable,
-        deployment_profile: DeploymentProfileId::SparseLowPower,
+        selected_protection: RouteProtectionClass::LinkProtected,
+        selected_connectivity: repairable_connected(),
+        deployment_profile: DeploymentProfile::SparseLowPower,
         diversity_floor: 1,
         family_fallback_policy: FamilyFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
@@ -169,7 +174,7 @@ fn sample_profile() -> AdaptiveRoutingProfile {
 
 fn sample_admission_profile() -> RoutingAdmissionProfile {
     RoutingAdmissionProfile {
-        delivery_model: DeliveryModelClass::FifoPerLink,
+        delivery_assumption: DeliveryAssumptionClass::FifoPerLink,
         failure_model: FailureModelClass::CrashStop,
         runtime_envelope: RuntimeEnvelopeClass::Canonical,
         node_density_class: NodeDensityClass::Sparse,
@@ -185,24 +190,25 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
             route_id: RouteId([3; 16]),
             topology_epoch: RouteEpoch(1),
             materialized_at_tick: Tick(1),
-            publication_id: [7; 16],
+            publication_id: PublicationId([7; 16]),
         },
         materialization_proof: RouteMaterializationProof {
             route_id: RouteId([3; 16]),
             topology_epoch: RouteEpoch(1),
             materialized_at_tick: Tick(1),
-            publication_id: [7; 16],
-            witness: contour_traits::contour_core::Authoritative {
+            publication_id: PublicationId([7; 16]),
+            witness: Fact {
                 value: RouteWitness {
-                    objective_privacy: RoutePrivacyClass::LinkConfidential,
-                    delivered_privacy: RoutePrivacyClass::LinkConfidential,
-                    objective_connectivity: RouteConnectivityClass::Repairable,
-                    delivered_connectivity: RouteConnectivityClass::Repairable,
+                    objective_protection: RouteProtectionClass::LinkProtected,
+                    delivered_protection: RouteProtectionClass::LinkProtected,
+                    objective_connectivity: repairable_connected(),
+                    delivered_connectivity: repairable_connected(),
                     admission_profile: sample_admission_profile(),
                     topology_epoch: RouteEpoch(1),
                     degradation: RouteDegradation::None,
                 },
-                published_at_tick: Tick(1),
+                basis: FactBasis::Published,
+                established_at_tick: Tick(1),
             },
         },
         admission: RouteAdmission {
@@ -212,33 +218,37 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
             admission_check: RouteAdmissionCheck {
                 decision: AdmissionDecision::Admissible,
                 profile: sample_admission_profile(),
-                productive_step_bound: Limit::Limited(2),
-                total_step_bound: Limit::Limited(4),
+                productive_step_bound: Limit::Bounded(2),
+                total_step_bound: Limit::Bounded(4),
                 route_cost: RouteCost {
-                    message_count_max: Limit::Limited(4),
-                    byte_count_max: Limit::Limited(1024),
+                    message_count_max: Limit::Bounded(4),
+                    byte_count_max: Limit::Bounded(ByteCount(1024)),
                     hop_count: 2,
-                    repair_attempt_count_max: Limit::Limited(1),
-                    hold_bytes_reserved: Limit::Unlimited,
-                    work_step_count_max: Limit::Limited(8),
+                    repair_attempt_count_max: Limit::Bounded(1),
+                    hold_bytes_reserved: Limit::Unbounded,
+                    work_step_count_max: Limit::Bounded(8),
                 },
             },
             summary: RouteSummary {
-                family: RoutingFamilyId::Mesh,
-                privacy: RoutePrivacyClass::LinkConfidential,
-                connectivity: RouteConnectivityClass::Repairable,
-                transport_mix: vec![TransportClass::Proximity],
-                hop_count_hint: KnownValue::Known(2),
+                family: RouteFamilyId::Mesh,
+                protection: RouteProtectionClass::LinkProtected,
+                connectivity: repairable_connected(),
+                protocol_mix: vec![TransportProtocol::BleGatt],
+                hop_count_hint: Belief::Estimated(Estimate {
+                    value: 2,
+                    confidence_permille: contour_traits::contour_core::RatioPermille(1000),
+                    updated_at_tick: Tick(1),
+                }),
                 valid_for: TimeWindow {
                     start_tick: Tick(1),
                     end_tick: Tick(50),
                 },
             },
             witness: RouteWitness {
-                objective_privacy: RoutePrivacyClass::LinkConfidential,
-                delivered_privacy: RoutePrivacyClass::LinkConfidential,
-                objective_connectivity: RouteConnectivityClass::Repairable,
-                delivered_connectivity: RouteConnectivityClass::Repairable,
+                objective_protection: RouteProtectionClass::LinkProtected,
+                delivered_protection: RouteProtectionClass::LinkProtected,
+                objective_connectivity: repairable_connected(),
+                delivered_connectivity: repairable_connected(),
                 admission_profile: sample_admission_profile(),
                 topology_epoch: RouteEpoch(1),
                 degradation: RouteDegradation::None,
@@ -252,7 +262,7 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
                 end_tick: Tick(50),
             },
         },
-        current_transition: RouteTransition::Established,
+        last_lifecycle_event: RouteLifecycleEvent::Established,
         health: RouteHealth {
             reachability_state: ReachabilityState::Reachable,
             stability_score: contour_traits::contour_core::HealthScore(100),
@@ -260,20 +270,24 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
             last_validated_at_tick: Tick(1),
         },
         progress: RouteProgressContract {
-            productive_step_count_max: Limit::Limited(2),
-            total_step_count_max: Limit::Limited(4),
+            productive_step_count_max: Limit::Bounded(2),
+            total_step_count_max: Limit::Bounded(4),
             last_progress_at_tick: Tick(1),
             state: RouteProgressState::Pending,
         },
     }
 }
 
-fn empty_topology() -> TopologySnapshot {
-    TopologySnapshot {
+fn empty_configuration() -> Configuration {
+    Configuration {
         epoch: RouteEpoch(1),
         nodes: BTreeMap::new(),
         links: BTreeMap::new(),
-        last_updated_at_tick: Tick(0),
+        environment: Environment {
+            reachable_neighbor_count: 0,
+            churn_permille: contour_traits::contour_core::RatioPermille(0),
+            contention_permille: contour_traits::contour_core::RatioPermille(0),
+        },
     }
 }
 
@@ -283,13 +297,13 @@ fn route_family_extension_can_drive_candidate_to_installed_route() {
     let profile = sample_profile();
     let route = sample_route(objective.clone(), profile.clone());
     let mut family = StubFamily { route };
-    let topology = Observed {
-        fact: RoutingFact {
-            value: empty_topology(),
-            evidence_class: RoutingEvidenceClass::Observed,
-            trust_class: PeerTrustClass::ControllerBound,
-            observed_at_tick: Tick(0),
-        },
+    let topology = Observation {
+        value: empty_configuration(),
+        source_class: contour_traits::contour_core::FactSourceClass::Remote,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication:
+            contour_traits::contour_core::OriginAuthenticationClass::Authenticated,
+        observed_at_tick: Tick(0),
     };
     let candidates = family.candidate_routes(&objective, &profile, &topology);
     let candidate = candidates.into_iter().next().expect("candidate");
@@ -310,7 +324,7 @@ fn route_family_extension_can_drive_candidate_to_installed_route() {
     assert_eq!(
         maintenance,
         RouteMaintenanceResult {
-            transition: RouteTransition::Repaired,
+            event: RouteLifecycleEvent::Repaired,
             outcome: RouteMaintenanceOutcome::Repaired,
         },
     );
@@ -325,5 +339,8 @@ fn route_family_extension_can_drive_candidate_to_installed_route() {
         installed.materialization_proof.witness.value.topology_epoch,
         RouteEpoch(1),
     );
-    assert_eq!(installed.current_transition, RouteTransition::Repaired);
+    assert_eq!(
+        installed.last_lifecycle_event,
+        RouteLifecycleEvent::Repaired
+    );
 }

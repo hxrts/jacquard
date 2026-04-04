@@ -2,13 +2,13 @@
 
 Contour is a deterministic routing system for constrained and unstable networks. It provides a stable routing abstraction and one in-tree route family, `Mesh`. It is designed so a host can add an external routing family through the same contract.
 
-See [Core Types](010_core_types.md) for the model objects that carry the system. See [Time Model](020_time.md) for the deterministic time rules. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the routing-visible node, peer, link, and environment surfaces plus the estimation layer built on top of them. See [Routing Architecture](030_routing_architecture.md) for the crate and control-plane structure.
+See [Core Types](010_core_types.md) for the model objects that carry the system. See [Time Model](020_time.md) for the deterministic time rules. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the world primitives, observation surfaces, and estimation layer used for routing. See [Routing Architecture](030_routing_architecture.md) for the crate and control-plane structure.
 
 ## Scope
 
-Contour owns the shared routing contract, the first-party mesh family, the top-level router, runtime adapters, and simulation support. It does not own application policy, Aura-specific identity internals, or an in-tree onion implementation. Privacy versus connectivity policy may be supplied by a host, but Contour itself stays family-neutral at the contract layer.
+Contour owns the shared routing contract, the first-party mesh family, the top-level router, runtime adapters, and simulation support. It does not own application policy, Aura-specific identity internals, or an in-tree onion implementation. Protection-versus-connectivity policy may be supplied by a host, but Contour itself stays family-neutral at the contract layer.
 
-The central split is between shared facts and local runtime state. Service descriptors, topology observations, admission checks, and route witnesses are explicit shared objects. Adaptive policy, installed-route ownership, and family-private runtime state stay local.
+The central split is between shared facts and local runtime state. Service descriptors, topology observations, admission checks, and route witnesses are explicit shared objects. Adaptive policy, selected routing actions, installed-route ownership, and family-private runtime state stay local.
 
 Contour depends on Telltale for choreography projection, runtime structure, and simulation support. The routing model is shaped so admission, installation, maintenance, and replay remain explicit. The codebase is organized around shared model types, abstract trait boundaries, first-party mesh logic, router orchestration, and simulation.
 

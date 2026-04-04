@@ -4,9 +4,9 @@ use contour_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Authoritative, HealthScore, Limit, NodeId, OrderStamp, PenaltyPoints, PriorityPoints,
-    RouteAdmission, RouteCommitmentId, RouteEpoch, RouteId, RouteWitness, Tick, TimeWindow,
-    TimeoutPolicy,
+    ByteCount, Fact, HealthScore, Limit, NodeId, OrderStamp, PenaltyPoints, PriorityPoints,
+    PublicationId, ReceiptId, RouteAdmission, RouteCommitmentId, RouteEpoch, RouteId, RouteWitness,
+    Tick, TimeWindow, TimeoutPolicy,
 };
 
 #[public_model]
@@ -60,7 +60,7 @@ pub struct RouteHandle {
     pub route_id: RouteId,
     pub topology_epoch: RouteEpoch,
     pub materialized_at_tick: Tick,
-    pub publication_id: [u8; 16],
+    pub publication_id: PublicationId,
 }
 
 #[public_model]
@@ -69,25 +69,25 @@ pub struct RouteMaterializationProof {
     pub route_id: RouteId,
     pub topology_epoch: RouteEpoch,
     pub materialized_at_tick: Tick,
-    pub publication_id: [u8; 16],
-    pub witness: Authoritative<RouteWitness>,
+    pub publication_id: PublicationId,
+    pub witness: Fact<RouteWitness>,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCost {
     pub message_count_max: Limit<u32>,
-    pub byte_count_max: Limit<u64>,
+    pub byte_count_max: Limit<ByteCount>,
     pub hop_count: u8,
     pub repair_attempt_count_max: Limit<u32>,
-    pub hold_bytes_reserved: Limit<u64>,
+    pub hold_bytes_reserved: Limit<ByteCount>,
     /// Upper bound in deterministic abstract work steps, not host CPU time.
     pub work_step_count_max: Limit<u32>,
 }
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum RouteTransition {
+pub enum RouteLifecycleEvent {
     Established,
     Repaired,
     Replaced,
@@ -103,7 +103,7 @@ pub enum RouteTransition {
 pub struct RouteOperationInstance {
     pub operation_id: crate::RouteOperationId,
     pub route_binding: RouteBinding,
-    pub service_family: crate::ServiceFamily,
+    pub service_kind: crate::RouteServiceKind,
     pub issued_at_tick: Tick,
 }
 
@@ -166,7 +166,7 @@ pub struct RouteSemanticHandoff {
     pub from_node_id: NodeId,
     pub to_node_id: NodeId,
     pub handoff_epoch: RouteEpoch,
-    pub receipt_id: [u8; 16],
+    pub receipt_id: ReceiptId,
 }
 
 #[public_model]
@@ -196,7 +196,7 @@ pub struct InstalledRoute {
     pub materialization_proof: RouteMaterializationProof,
     pub admission: RouteAdmission,
     pub lease: RouteLease,
-    pub current_transition: RouteTransition,
+    pub last_lifecycle_event: RouteLifecycleEvent,
     pub health: RouteHealth,
     pub progress: RouteProgressContract,
 }
@@ -235,7 +235,7 @@ pub enum RouteMaintenanceTrigger {
 /// Family returns this from maintenance so the control plane can preserve the
 /// semantic payload of the decision rather than collapsing it to a single enum.
 pub struct RouteMaintenanceResult {
-    pub transition: RouteTransition,
+    pub event: RouteLifecycleEvent,
     pub outcome: RouteMaintenanceOutcome,
 }
 

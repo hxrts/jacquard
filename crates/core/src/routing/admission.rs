@@ -5,17 +5,17 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    AdaptiveRoutingProfile, KnownValue, Limit, Observed, RouteConnectivityClass, RouteCost,
-    RouteEpoch, RouteEstimate, RouteId, RoutePrivacyClass, RoutingFamilyId, RoutingObjective,
-    TimeWindow, TransportClass,
+    AdaptiveRoutingProfile, BackendRouteId, Belief, Estimate, Limit, RouteConnectivityProfile,
+    RouteCost, RouteEpoch, RouteEstimate, RouteFamilyId, RouteId, RouteProtectionClass,
+    RoutingObjective, TimeWindow, TransportProtocol,
 };
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoutingFamilyCapabilities {
-    pub family: RoutingFamilyId,
-    pub max_privacy: RoutePrivacyClass,
-    pub max_connectivity: RouteConnectivityClass,
+    pub family: RouteFamilyId,
+    pub max_protection: RouteProtectionClass,
+    pub max_connectivity: RouteConnectivityProfile,
     pub repair_support: RepairSupport,
     pub hold_support: HoldSupport,
     pub decidable_admission: DecidableSupport,
@@ -73,7 +73,7 @@ pub enum RouteShapeVisibility {
 /// Premise profile: delivery, failure, and runtime assumptions under which
 /// the admission claim holds. Families declare these, the router compares them.
 pub struct RoutingAdmissionProfile {
-    pub delivery_model: DeliveryModelClass,
+    pub delivery_assumption: DeliveryAssumptionClass,
     pub failure_model: FailureModelClass,
     pub runtime_envelope: RuntimeEnvelopeClass,
     pub node_density_class: NodeDensityClass,
@@ -84,7 +84,7 @@ pub struct RoutingAdmissionProfile {
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum DeliveryModelClass {
+pub enum DeliveryAssumptionClass {
     FifoPerLink,
     CausalPerNeighborhood,
     LossyBestEffort,
@@ -140,11 +140,11 @@ pub enum ClaimStrength {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteSummary {
-    pub family: RoutingFamilyId,
-    pub privacy: RoutePrivacyClass,
-    pub connectivity: RouteConnectivityClass,
-    pub transport_mix: Vec<TransportClass>,
-    pub hop_count_hint: KnownValue<u8>,
+    pub family: RouteFamilyId,
+    pub protection: RouteProtectionClass,
+    pub connectivity: RouteConnectivityProfile,
+    pub protocol_mix: Vec<TransportProtocol>,
+    pub hop_count_hint: Belief<u8>,
     pub valid_for: TimeWindow,
 }
 
@@ -154,7 +154,7 @@ pub struct RouteCandidate {
     pub summary: RouteSummary,
     /// Candidate enumeration is observational/advisory. It must not be treated
     /// as proof-bearing admission evidence.
-    pub estimate: Observed<RouteEstimate>,
+    pub estimate: Estimate<RouteEstimate>,
     pub backend_ref: BackendRouteRef,
 }
 
@@ -178,10 +178,10 @@ pub enum AdmissionDecision {
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error, Serialize, Deserialize)]
 pub enum RouteAdmissionRejection {
-    #[error("privacy floor unsatisfied")]
-    PrivacyFloorUnsatisfied,
+    #[error("protection floor unsatisfied")]
+    ProtectionFloorUnsatisfied,
     #[error("delivery model unsupported")]
-    DeliveryModelUnsupported,
+    DeliveryAssumptionUnsupported,
     #[error("capacity exceeded")]
     CapacityExceeded,
     #[error("budget exceeded")]
@@ -210,12 +210,12 @@ pub struct RouteAdmission {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Proof-bearing explanation of what the admitted route actually delivers.
-/// If privacy was reduced for connectivity, that fact is explicit here.
+/// If protection was reduced for connectivity, that fact is explicit here.
 pub struct RouteWitness {
-    pub objective_privacy: RoutePrivacyClass,
-    pub delivered_privacy: RoutePrivacyClass,
-    pub objective_connectivity: RouteConnectivityClass,
-    pub delivered_connectivity: RouteConnectivityClass,
+    pub objective_protection: RouteProtectionClass,
+    pub delivered_protection: RouteProtectionClass,
+    pub objective_connectivity: RouteConnectivityProfile,
+    pub delivered_connectivity: RouteConnectivityProfile,
     pub admission_profile: RoutingAdmissionProfile,
     pub topology_epoch: RouteEpoch,
     pub degradation: RouteDegradation,
@@ -244,6 +244,6 @@ pub enum DegradationReason {
 /// Family-owned opaque handle. Contour core never inspects the contents.
 /// This is a weak advisory reference and is not a canonical installed-route handle.
 pub struct BackendRouteRef {
-    pub family: RoutingFamilyId,
-    pub opaque_id: Vec<u8>,
+    pub family: RouteFamilyId,
+    pub backend_route_id: BackendRouteId,
 }

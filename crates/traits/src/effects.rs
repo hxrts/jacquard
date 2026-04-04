@@ -61,7 +61,7 @@ pub trait TransportEffects {
     fn send_transport(
         &mut self,
         endpoint: &contour_core::LinkEndpoint,
-        payload_bytes: &[u8],
+        payload: &[u8],
     ) -> Result<(), TransportError>;
 
     fn poll_transport(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError>;
@@ -145,7 +145,7 @@ mod tests {
         fn send_transport(
             &mut self,
             _endpoint: &contour_core::LinkEndpoint,
-            _payload_bytes: &[u8],
+            _payload: &[u8],
         ) -> Result<(), TransportError> {
             Ok(())
         }
