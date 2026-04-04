@@ -130,7 +130,7 @@ Timeout policy should not be used for:
 Some routing choices require a deterministic tie break.
 Wall clock is not an acceptable tie break.
 Floating-point scoring is not acceptable either.
-Contour should use `OrderStamp` or an explicit stable ordering rule.
+Contour should use `OrderStamp`, `DeterministicOrderKey<T>`, `RouteOrderingKey`, or another explicit stable ordering rule derived from the shared model.
 
 Typical uses for deterministic ordering are:
 
@@ -138,10 +138,11 @@ Typical uses for deterministic ordering are:
 - replay queue ordering
 - stable sorting of equal-cost routes
 - deterministic simulation output
+- commitment and maintenance work queues
 
 If two route candidates are equal under the main comparison rule, the implementation should use one explicit secondary rule.
 That rule should be stable across hosts.
-Examples include `NodeId` order, route identifier order, or `OrderStamp`.
+Examples include `NodeId` order, route identifier order, `OrderStamp`, or one of the shared deterministic ordering wrapper types.
 
 ## Time Effects
 
@@ -159,7 +160,7 @@ pub trait OrderEffects {
 }
 ```
 
-This block defines the minimum time boundary for the routing core. `TimeEffects` provides monotonic local time. `OrderEffects` provides deterministic ordering tokens when an explicit stable order is needed.
+This block defines the time and ordering slice of the abstract runtime surface. `TimeEffects` provides monotonic local time. `OrderEffects` provides deterministic ordering tokens when an explicit stable order is needed. The broader runtime surface also includes hashing, storage, audit, and transport effects, but those are separate from the time model itself.
 
 ## Domain Rules
 
@@ -172,6 +173,7 @@ The routing core should follow these rules:
 - Name fields with the domain when the name alone is ambiguous:
   `*_tick`, `*_ms`, and `*_epoch`.
 - Prefer `TimeWindow` for validity surfaces such as descriptor validity and lease validity.
+- Keep route publication, commitment, and audit timestamps in the `Tick` domain. For example, `materialized_at_tick`, `published_at_tick`, `deadline_tick`, and `emitted_at_tick` are all local monotonic instants.
 
 The routing core should reject these patterns:
 

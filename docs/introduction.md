@@ -16,6 +16,8 @@ Route families define which routing semantics are in use. Contour implements one
 
 Local adaptive policy governs route selection at runtime. Policy state is never shared as network truth. It remains local to the selecting node.
 
+Contour also separates observational facts from canonical routing truth. `Observed<T>` wraps topology, health, and candidate assessment data that is informative but not yet authoritative. `Authoritative<T>` wraps values that have been explicitly published as canonical route truth, such as the witness carried by a `RouteMaterializationProof`.
+
 ## Mesh Family
 
 `Mesh` is the baseline routing family. It uses explicit source-routed paths over a local topology graph. Route structure is visible, which buys repairability and transport mixing at the cost of exposing path shape.
@@ -30,7 +32,13 @@ Contour is a deterministic system. There are no floating-point types in stored s
 
 Fractional quantities use explicit integer scales. `RatioPermille` represents values from 0 to 1000. `PriorityPoints`, `HealthScore`, and `PenaltyPoints` carry implementation-scaled integer weights.
 
-The system also enforces explicit upper bounds for candidate sets, hop counts, queues, and payload sizes. There are no stored or protocol-facing `usize` fields.
+The system also enforces explicit upper bounds for candidate sets, hop counts, queues, payload sizes, retries, and abstract work budgets. `DeterministicOrderKey<T>` and `RouteOrderingKey` provide stable ordering without relying on host scheduling or wall clock tie breaks.
+
+## Shared Route Lifecycle
+
+Contour treats route establishment as an explicit lifecycle rather than an implicit cache mutation.
+
+`RouteCandidate` is observational and advisory. `RouteAdmissionCheck` and `RouteAdmission` make admissibility and witness generation explicit. `RouteHandle` is the strong canonical handle issued only when installation materially succeeds. `RouteMaterializationProof` binds that handle back to the authoritative witness that justified installation. `RouteCommitment` and `RouteCommitmentId` track unresolved or recently resolved family and router obligations in a replay-visible way.
 
 ## Time Model
 
@@ -39,6 +47,12 @@ Contour uses a typed deterministic time system rather than raw wall-clock APIs.
 `Tick` represents local monotonic time. `DurationMs` represents local durations and timeout budgets. `OrderStamp` provides deterministic ordering that does not depend on wall clock. `RouteEpoch` versions topology and reconfiguration state independently of elapsed time.
 
 These types govern descriptor validity windows, route expiry, replay windows, retry and backoff policy, maintenance scheduling, and local timeout ownership. Wall clock may exist at process boundaries and in logs, but the routing core operates on deterministic local time domains.
+
+## Runtime Effect Boundary
+
+Contour keeps pure routing logic separate from runtime services through a narrow effect surface. Time and ordering are only two parts of that boundary. Hashing, storage, audit emission, and transport ingress are also abstract runtime effects rather than direct platform calls.
+
+This keeps the shared model deterministic while still making room for native runtimes, tests, simulation, and Aura integration. The routing core requests capabilities through effect traits. Concrete runtimes provide handlers for those traits.
 
 ## Ownership Model
 
@@ -50,11 +64,11 @@ Contour uses four ownership levels to prevent multiple layers from accidentally 
 
 `ActorOwned` covers topology caches, provider health smoothing, adaptive controller state, the route-family registry, the installed-route table, and mesh runtime loops. Local selection state and adaptive profile state are runtime-local actor-owned data that must not be published as shared descriptors.
 
-`Observed` covers diagnostics, metrics export, UI and simulation views, and debug snapshots. Observed code may read route summaries and witnesses but may not invent canonical route state.
+`Observed` covers diagnostics, metrics export, UI and simulation views, debug snapshots, and observational wrappers such as `Observed<T>`. Observed code may read route summaries and witnesses but may not invent canonical route state.
 
 ## Extensibility
 
-The routing abstraction supports external route families through the `RouteFamilyExtension` trait boundary. An external family registers with the top-level router, declares its capability envelope, and participates in common adaptive selection. Contour core does not inspect family-private route internals.
+The routing abstraction supports external route families through the `RouteFamilyExtension` trait boundary. An external family registers with the top-level router, declares its capability envelope, produces observational candidates, emits admission checks and witnesses, installs routes with canonical handles, and surfaces commitments through the shared contract. Contour core does not inspect family-private route internals.
 
 The top-level router owns cross-family candidate comparison, fallback legality, and route replacement policy. Each family extension owns its internal route construction, maintenance, and teardown. This separation lets external families integrate without forcing their internal formats or path semantics into Contour core.
 
