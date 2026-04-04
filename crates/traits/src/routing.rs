@@ -1,4 +1,4 @@
-//! Abstract routing traits: adaptive controller, family extension, router, and control/data planes.
+//! Abstract routing traits: adaptive controller, route family, router, and control/data planes.
 
 use contour_core::{
     AdaptiveRoutingProfile, InstalledRoute, Observed, RouteAdmission, RouteAdmissionCheck,
@@ -17,9 +17,9 @@ pub trait AdaptiveRoutingController {
     ) -> AdaptiveRoutingProfile;
 }
 
-/// The extensibility boundary. Each route family (mesh, onion, etc.) implements
+/// The family boundary. Each route family (mesh, onion, etc.) implements
 /// this trait. Contour core interacts with families only through this surface.
-pub trait RouteFamilyExtension {
+pub trait RouteFamily {
     fn family_id(&self) -> RoutingFamilyId;
 
     fn capabilities(&self) -> RoutingFamilyCapabilities;
@@ -68,10 +68,7 @@ pub trait RouteFamilyExtension {
 }
 
 pub trait TopLevelRouter {
-    fn register_family(
-        &mut self,
-        extension: Box<dyn RouteFamilyExtension>,
-    ) -> Result<(), RouteError>;
+    fn register_family(&mut self, extension: Box<dyn RouteFamily>) -> Result<(), RouteError>;
 
     fn establish_route(
         &mut self,

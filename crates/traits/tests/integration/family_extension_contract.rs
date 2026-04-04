@@ -1,4 +1,4 @@
-//! Drive a stub RouteFamilyExtension through the full candidate-to-teardown lifecycle.
+//! Drive a stub RouteFamily through the full candidate-to-teardown lifecycle.
 
 use std::collections::BTreeMap;
 
@@ -17,14 +17,14 @@ use contour_traits::{
         RoutingFact, RoutingFamilyCapabilities, RoutingFamilyId, RoutingObjective,
         RuntimeEnvelopeClass, ServiceFamily, Tick, TimeWindow, TopologySnapshot, TransportClass,
     },
-    RouteFamilyExtension,
+    RouteFamily,
 };
 
 struct StubFamily {
     route: InstalledRoute,
 }
 
-impl RouteFamilyExtension for StubFamily {
+impl RouteFamily for StubFamily {
     fn family_id(&self) -> RoutingFamilyId {
         RoutingFamilyId::Mesh
     }
