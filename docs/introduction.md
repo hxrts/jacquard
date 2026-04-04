@@ -20,7 +20,7 @@ Local adaptive policy governs route selection at runtime. Policy state is never 
 
 `Mesh` is the baseline routing family. It uses explicit source-routed paths over a local topology graph. Route structure is visible, which buys repairability and transport mixing at the cost of exposing path shape.
 
-Mesh supports five operational modes through the shared service families. Discovery propagates neighbor advertisements and route exports. Establishment admits and installs concrete paths. Move forwards typed frames hop by hop. Repair patches, shortens, or extends degraded routes in place. Hold provides store-carry-forward custody during partitions.
+Mesh supports five operational modes through the shared service families. Discovery propagates neighbor advertisements and route exports. Establishment admits and installs concrete paths. Move forwards typed frames hop by hop. Repair patches, shortens, or extends degraded routes in place. Hold provides custody and deferred delivery during partitions.
 
 When local repair cannot preserve route viability, the mesh family returns a replacement request to the top-level router. The top-level router then decides whether to reselect from available candidates.
 

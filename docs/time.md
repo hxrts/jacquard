@@ -141,7 +141,7 @@ Typical uses for deterministic ordering are:
 
 If two route candidates are equal under the main comparison rule, the implementation should use one explicit secondary rule.
 That rule should be stable across hosts.
-Examples include `AuthorityId` order, route identifier order, or `OrderStamp`.
+Examples include `NodeId` order, route identifier order, or `OrderStamp`.
 
 ## Time Effects
 
