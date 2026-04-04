@@ -1,29 +1,32 @@
 //! Build an InstalledRoute from shared lifecycle types to verify structural coherence.
 
 use contour_core::{
-    AdaptiveRoutingProfile, AdversaryRegime, BackendRouteRef, ClaimStrength, ConnectivityRegime,
-    DeliveryModelClass, DeploymentProfileId, FailureModelClass, FamilyFallbackPolicy,
-    HoldFallbackPolicy, InstalledRoute, NodeDensityClass, ReachabilityState, RouteAdmission,
-    RouteAdmissionCheck, RouteCandidate, RouteConnectivityClass, RouteCost, RouteEpoch,
-    RouteHealth, RouteId, RouteLease, RoutePrivacyClass, RouteProgressContract, RouteProgressState,
-    RouteReplacementPolicy, RouteSummary, RouteTransition, RouteWitness, RoutingAdmissionProfile,
-    RoutingFamilyId, RoutingObjective, RuntimeEnvelopeClass, ServiceFamily, Tick, TransportClass,
+    AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, ClaimStrength,
+    ConnectivityRegime, DeliveryModelClass, DeploymentProfileId, FailureModelClass,
+    FamilyFallbackPolicy, HoldFallbackPolicy, InstalledRoute, KnownValue, Limit, NodeDensityClass,
+    ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteConnectivityClass,
+    RouteCost, RouteDegradation, RouteEpoch, RouteHealth, RouteId, RouteLease, RoutePrivacyClass,
+    RouteProgressContract, RouteProgressState, RouteReplacementPolicy, RouteSummary,
+    RouteTransition, RouteWitness, RoutingAdmissionProfile, RoutingFamilyId, RoutingObjective,
+    RuntimeEnvelopeClass, ServiceFamily, Tick, TransportClass,
 };
 
-#[test]
-fn installed_route_can_be_built_from_shared_lifecycle_types() {
-    let objective = RoutingObjective {
+fn sample_objective() -> RoutingObjective {
+    RoutingObjective {
         destination: contour_core::DestinationId::Node(contour_core::NodeId([7; 32])),
         service_family: ServiceFamily::Move,
         target_privacy: RoutePrivacyClass::LinkConfidential,
         privacy_floor: RoutePrivacyClass::None,
         target_connectivity: RouteConnectivityClass::Repairable,
         hold_fallback_policy: HoldFallbackPolicy::Allowed,
-        latency_budget: Some(contour_core::DurationMs(250)),
+        latency_budget: Limit::Limited(contour_core::DurationMs(250)),
         privacy_priority: contour_core::PriorityPoints(10),
         connectivity_priority: contour_core::PriorityPoints(20),
-    };
-    let admission_profile = RoutingAdmissionProfile {
+    }
+}
+
+fn sample_admission_profile() -> RoutingAdmissionProfile {
+    RoutingAdmissionProfile {
         delivery_model: DeliveryModelClass::FifoPerLink,
         failure_model: FailureModelClass::CrashStop,
         runtime_envelope: RuntimeEnvelopeClass::Canonical,
@@ -31,24 +34,48 @@ fn installed_route_can_be_built_from_shared_lifecycle_types() {
         connectivity_regime: ConnectivityRegime::Stable,
         adversary_regime: AdversaryRegime::Cooperative,
         claim_strength: ClaimStrength::ExactUnderAssumptions,
-    };
-    let summary = RouteSummary {
+    }
+}
+
+fn sample_summary() -> RouteSummary {
+    RouteSummary {
         family: RoutingFamilyId::Mesh,
         privacy: RoutePrivacyClass::LinkConfidential,
         connectivity: RouteConnectivityClass::Repairable,
         transport_mix: vec![TransportClass::Proximity, TransportClass::LocalArea],
-        hop_count_hint: Some(3),
+        hop_count_hint: KnownValue::Known(3),
         expires_at: Tick(500),
-    };
-    let witness = RouteWitness {
+    }
+}
+
+fn sample_witness(admission_profile: RoutingAdmissionProfile) -> RouteWitness {
+    RouteWitness {
         objective_privacy: RoutePrivacyClass::LinkConfidential,
         delivered_privacy: RoutePrivacyClass::LinkConfidential,
         objective_connectivity: RouteConnectivityClass::Repairable,
         delivered_connectivity: RouteConnectivityClass::Repairable,
-        admission_profile: admission_profile.clone(),
+        admission_profile,
         topology_epoch: RouteEpoch(4),
-        degradation_reason: None,
-    };
+        degradation: RouteDegradation::None,
+    }
+}
+
+fn sample_route_cost() -> RouteCost {
+    RouteCost {
+        message_count_max: Limit::Limited(12),
+        byte_count_max: Limit::Limited(2048),
+        hop_count: 3,
+        repair_attempt_count_max: Limit::Limited(2),
+        hold_bytes_reserved: Limit::Limited(512),
+        cpu_work_units_max: Limit::Limited(40),
+    }
+}
+
+fn sample_route() -> (RouteCandidate, InstalledRoute) {
+    let objective = sample_objective();
+    let admission_profile = sample_admission_profile();
+    let summary = sample_summary();
+    let witness = sample_witness(admission_profile.clone());
     let candidate = RouteCandidate {
         summary: summary.clone(),
         witness: witness.clone(),
@@ -57,37 +84,28 @@ fn installed_route_can_be_built_from_shared_lifecycle_types() {
             opaque_id: vec![1, 2, 3],
         },
     };
-    let admission = RouteAdmission {
-        route_id: RouteId([5; 16]),
-        objective,
-        profile: AdaptiveRoutingProfile {
-            selected_privacy: RoutePrivacyClass::LinkConfidential,
-            selected_connectivity: RouteConnectivityClass::Repairable,
-            deployment_profile: DeploymentProfileId::DenseInteractive,
-            diversity_floor: 1,
-            family_fallback_policy: FamilyFallbackPolicy::Allowed,
-            route_replacement_policy: RouteReplacementPolicy::Allowed,
-        },
-        admission_check: RouteAdmissionCheck {
-            admissible: true,
-            profile: admission_profile,
-            productive_step_bound: Some(4),
-            total_step_bound: Some(8),
-            route_cost: RouteCost {
-                message_count_max: Some(12),
-                byte_count_max: Some(2048),
-                hop_count: 3,
-                repair_attempt_count_max: Some(2),
-                hold_bytes_reserved: Some(512),
-                cpu_work_units_max: Some(40),
-            },
-            rejection_reason: None,
-        },
-        summary,
-        witness,
-    };
     let route = InstalledRoute {
-        admission,
+        admission: RouteAdmission {
+            route_id: RouteId([5; 16]),
+            objective,
+            profile: AdaptiveRoutingProfile {
+                selected_privacy: RoutePrivacyClass::LinkConfidential,
+                selected_connectivity: RouteConnectivityClass::Repairable,
+                deployment_profile: DeploymentProfileId::DenseInteractive,
+                diversity_floor: 1,
+                family_fallback_policy: FamilyFallbackPolicy::Allowed,
+                route_replacement_policy: RouteReplacementPolicy::Allowed,
+            },
+            admission_check: RouteAdmissionCheck {
+                decision: AdmissionDecision::Admissible,
+                profile: admission_profile,
+                productive_step_bound: Limit::Limited(4),
+                total_step_bound: Limit::Limited(8),
+                route_cost: sample_route_cost(),
+            },
+            summary,
+            witness,
+        },
         lease: RouteLease {
             owner_node_id: contour_core::NodeId([9; 32]),
             lease_epoch: RouteEpoch(4),
@@ -102,12 +120,19 @@ fn installed_route_can_be_built_from_shared_lifecycle_types() {
             last_validated_at: Tick(110),
         },
         progress: RouteProgressContract {
-            productive_step_count_max: Some(6),
-            total_step_count_max: Some(12),
+            productive_step_count_max: Limit::Limited(6),
+            total_step_count_max: Limit::Limited(12),
             last_progress_at: Tick(110),
             state: RouteProgressState::Satisfied,
         },
     };
+
+    (candidate, route)
+}
+
+#[test]
+fn installed_route_can_be_built_from_shared_lifecycle_types() {
+    let (candidate, route) = sample_route();
 
     assert_eq!(candidate.summary.family, RoutingFamilyId::Mesh);
     assert_eq!(route.admission.summary.transport_mix.len(), 2);

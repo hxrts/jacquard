@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    HealthScore, NodeId, OrderStamp, PenaltyPoints, PriorityPoints, RouteAdmission, RouteEpoch,
-    RouteId, Tick, TimeoutPolicy,
+    HealthScore, Limit, NodeId, OrderStamp, PenaltyPoints, PriorityPoints, RouteAdmission,
+    RouteEpoch, RouteId, Tick, TimeoutPolicy,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,12 +43,12 @@ pub struct RouteLease {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCost {
-    pub message_count_max: Option<u32>,
-    pub byte_count_max: Option<u64>,
+    pub message_count_max: Limit<u32>,
+    pub byte_count_max: Limit<u64>,
     pub hop_count: u8,
-    pub repair_attempt_count_max: Option<u32>,
-    pub hold_bytes_reserved: Option<u64>,
-    pub cpu_work_units_max: Option<u32>,
+    pub repair_attempt_count_max: Limit<u32>,
+    pub hold_bytes_reserved: Limit<u64>,
+    pub cpu_work_units_max: Limit<u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -66,9 +66,15 @@ pub enum RouteTransition {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteOperationInstance {
     pub operation_id: crate::RouteOperationId,
-    pub route_id: Option<RouteId>,
+    pub route_binding: RouteBinding,
     pub service_family: crate::ServiceFamily,
     pub issued_at: Tick,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum RouteBinding {
+    Unbound,
+    Bound(RouteId),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,8 +109,8 @@ pub struct RouteSemanticHandoff {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteProgressContract {
-    pub productive_step_count_max: Option<u32>,
-    pub total_step_count_max: Option<u32>,
+    pub productive_step_count_max: Limit<u32>,
+    pub total_step_count_max: Limit<u32>,
     pub last_progress_at: Tick,
     pub state: RouteProgressState,
 }

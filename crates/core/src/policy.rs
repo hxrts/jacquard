@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    DestinationId, DurationMs, HealthScore, PenaltyPoints, PriorityPoints, RatioPermille,
-    ServiceFamily,
+    DestinationId, DurationMs, HealthScore, KnownValue, Limit, PenaltyPoints, PriorityPoints,
+    RatioPermille, ServiceFamily,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,7 +20,7 @@ pub struct RoutingObjective {
     pub privacy_floor: RoutePrivacyClass,
     pub target_connectivity: RouteConnectivityClass,
     pub hold_fallback_policy: HoldFallbackPolicy,
-    pub latency_budget: Option<DurationMs>,
+    pub latency_budget: Limit<DurationMs>,
     pub privacy_priority: PriorityPoints,
     pub connectivity_priority: PriorityPoints,
 }
@@ -55,7 +55,7 @@ pub struct RoutingObservations {
     pub congestion_penalty_points: PenaltyPoints,
     pub partition_risk_permille: RatioPermille,
     pub direct_reachability_score: HealthScore,
-    pub available_hold_capacity_bytes: Option<u64>,
+    pub available_hold_capacity_bytes: KnownValue<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

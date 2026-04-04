@@ -5,4 +5,4 @@ pub const PROVIDER_CANDIDATE_COUNT_MAX: u16 = 32;
 pub const SERVICE_ENDPOINT_COUNT_MAX: u16 = 16;
 pub const ROUTE_PAYLOAD_BYTES_MAX: u32 = 64 * 1024;
 pub const REPAIR_STEP_COUNT_MAX: u8 = 8;
-pub const ENVELOPE_SIZE: usize = 1024;
+pub const ENVELOPE_BYTES_MAX: u32 = 1024;

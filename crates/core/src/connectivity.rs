@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClusterId, ControllerId, DurationMs, GatewayDomainId, HomeId, NeighborhoodId, NodeId,
-    RatioPermille, Tick, TimeWindow,
+    ClusterId, ControllerId, DurationMs, GatewayDomainId, HomeId, KnownValue, NeighborhoodId,
+    NodeId, RatioPermille, Tick, TimeWindow,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -88,7 +88,7 @@ pub struct ServiceDescriptor {
     pub routing_families: Vec<RoutingFamilyId>,
     pub scope: ServiceScope,
     pub valid_for: TimeWindow,
-    pub capacity: Option<CapacityHint>,
+    pub capacity: KnownValue<CapacityHint>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,8 +103,8 @@ pub enum ServiceScope {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapacityHint {
     pub saturation_permille: RatioPermille,
-    pub repair_capacity: Option<u32>,
-    pub hold_capacity_bytes: Option<u64>,
+    pub repair_capacity: KnownValue<u32>,
+    pub hold_capacity_bytes: KnownValue<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

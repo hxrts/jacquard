@@ -5,8 +5,10 @@ use contour_core::{Blake3Digest, ContentEncodingError, ContentId};
 pub trait Hashing {
     type Digest: Clone + Eq;
 
+    #[must_use]
     fn hash_bytes(&self, input: &[u8]) -> Self::Digest;
     /// Length-prefixed domain tag prevents ambiguous (domain, payload) pairs.
+    #[must_use]
     fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Self::Digest;
 }
 
@@ -37,6 +39,7 @@ pub trait ContentAddressable {
 
     fn canonical_bytes(&self) -> Result<Vec<u8>, ContentEncodingError>;
 
+    #[must_use = "dropping a computed content id usually means the artifact identity was not checked or recorded"]
     fn content_id<H: Hashing<Digest = Self::Digest>>(
         &self,
         hasher: &H,
@@ -54,6 +57,7 @@ pub trait TemplateAddressable {
 
     fn template_bytes(&self) -> Result<Vec<u8>, ContentEncodingError>;
 
+    #[must_use = "dropping a computed template id usually means the template identity was not checked or recorded"]
     fn template_id<H: Hashing<Digest = Self::Digest>>(
         &self,
         hasher: &H,

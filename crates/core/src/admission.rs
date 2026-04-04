@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    AdaptiveRoutingProfile, RouteConnectivityClass, RouteCost, RouteEpoch, RouteId,
-    RoutePrivacyClass, RoutingFamilyId, RoutingObjective, Tick, TransportClass,
+    AdaptiveRoutingProfile, KnownValue, Limit, RouteConnectivityClass, RouteCost, RouteEpoch,
+    RouteId, RoutePrivacyClass, RoutingFamilyId, RoutingObjective, Tick, TransportClass,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,7 +126,7 @@ pub struct RouteSummary {
     pub privacy: RoutePrivacyClass,
     pub connectivity: RouteConnectivityClass,
     pub transport_mix: Vec<TransportClass>,
-    pub hop_count_hint: Option<u8>,
+    pub hop_count_hint: KnownValue<u8>,
     pub expires_at: Tick,
 }
 
@@ -139,12 +139,17 @@ pub struct RouteCandidate {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteAdmissionCheck {
-    pub admissible: bool,
+    pub decision: AdmissionDecision,
     pub profile: RoutingAdmissionProfile,
-    pub productive_step_bound: Option<u32>,
-    pub total_step_bound: Option<u32>,
+    pub productive_step_bound: Limit<u32>,
+    pub total_step_bound: Limit<u32>,
     pub route_cost: RouteCost,
-    pub rejection_reason: Option<RouteAdmissionRejection>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum AdmissionDecision {
+    Admissible,
+    Rejected(RouteAdmissionRejection),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error, Serialize, Deserialize)]
@@ -187,7 +192,13 @@ pub struct RouteWitness {
     pub delivered_connectivity: RouteConnectivityClass,
     pub admission_profile: RoutingAdmissionProfile,
     pub topology_epoch: RouteEpoch,
-    pub degradation_reason: Option<DegradationReason>,
+    pub degradation: RouteDegradation,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum RouteDegradation {
+    None,
+    Degraded(DegradationReason),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
