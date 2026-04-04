@@ -18,6 +18,8 @@ Local adaptive policy governs route selection at runtime. Policy state is never 
 
 Contour also separates observational facts from canonical routing truth. `Observed<T>` wraps topology, health, and candidate assessment data that is informative but not yet authoritative. `Authoritative<T>` wraps values that have been explicitly published as canonical route truth, such as the witness carried by a `RouteMaterializationProof`.
 
+Within the observational layer, Contour now distinguishes node, peer, link, and neighborhood properties. Local relay budget, utilization, and retention horizon live in `NodeRoutingObservation`. Peer novelty, reach, and underserved-trajectory scoring live in `PeerRoutingObservation`. Transfer rate, contact stability, delivery confidence, and symmetry scoring live in `TopologyLinkObservation`. Aggregate density, churn, contention, bridging, and underserved-flow scoring live in `NeighborhoodObservation`.
+
 ## Mesh Family
 
 `Mesh` is the baseline routing family. It uses explicit source-routed paths over a local topology graph. Route structure is visible, which buys repairability and transport mixing at the cost of exposing path shape.

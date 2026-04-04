@@ -6,6 +6,18 @@ Identity is split on purpose. `NodeId` identifies one running Contour client. `C
 
 Time and ordering are typed. `Tick` models local monotonic time. `DurationMs` models timeout budgets. `OrderStamp` and `RouteOrderingKey` model deterministic ordering. `RouteEpoch` models topology and reconfiguration versioning rather than elapsed time. Field names carry their domain when needed, for example `*_tick`, `*_ms`, and `*_epoch`.
 
+## Node, Peer, Link, And Environment
+
+The shared model now distinguishes four routing-visible scopes.
+
+`NodeRoutingObservation` captures what the local node knows about itself in routing terms: relay budget, hold capacity, and information-summary state. `NodeRelayBudget` keeps relay work budget, utilization, and retention horizon explicit instead of collapsing them into one opaque score.
+
+`PeerRoutingObservation` captures routing-relevant properties of a neighbor without pretending those estimates are canonical fact. It includes relay budget, information summary, novelty estimate, reach score, and an `underserved_trajectory_score`. `TopologyNodeObservation` carries this peer-facing routing view as a `KnownValue` alongside the node's service and identity surfaces.
+
+`TopologyLinkObservation` now covers more than RTT and loss. It also carries transfer-rate estimates, contact-stability horizon, delivery-confidence estimates, and `symmetry_permille` so route families can reason about short-lived or asymmetric contacts without freezing bucket boundaries too early.
+
+`NeighborhoodObservation` captures aggregate environment state for the adaptive controller: reachable-neighbor count, churn, contention, bridging score, and `underserved_flow_score`. `RoutingObservations` now bundles explicit local-node and neighborhood observations rather than flattening every routing signal into one coarse struct.
+
 ## Route Lifecycle
 
 The route lifecycle is described through `Observed<T>`, `Authoritative<T>`, `RouteCandidate`, `RouteAdmissionCheck`, `RouteAdmission`, `RouteWitness`, `InstalledRoute`, `RouteHandle`, `RouteMaterializationProof`, `RouteLease`, and `RouteTransition`. `RouteCandidate` is observational and advisory. `RouteWitness` is produced only at admission. `RouteHandle` is the strong canonical handle issued only when installation materially succeeds, and `RouteMaterializationProof` is the authoritative publication record that binds that handle back to the witness used for materialization. `RouteSummary.valid_for` and `RouteLease.valid_for` use `TimeWindow` to keep validity explicit instead of spreading ad hoc start and expiry ticks across the model. These objects make route selection, admission, ownership, and mutation explicit. They also keep observational facts, authoritative publications, and family-private runtime state separate.

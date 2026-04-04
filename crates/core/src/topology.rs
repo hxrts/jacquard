@@ -6,8 +6,8 @@ use contour_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ControllerId, LinkEndpoint, NodeId, RouteEpoch, ServiceDescriptor, Tick,
-    TopologyLinkObservation,
+    ControllerId, DurationMs, HealthScore, KnownValue, LinkEndpoint, NodeId, RatioPermille,
+    RouteEpoch, ServiceDescriptor, Tick, TopologyLinkObservation,
 };
 
 #[public_model]
@@ -26,8 +26,56 @@ pub struct TopologyNodeObservation {
     pub controller_id: ControllerId,
     pub services: Vec<ServiceDescriptor>,
     pub endpoints: Vec<LinkEndpoint>,
+    pub routing_observation: KnownValue<PeerRoutingObservation>,
     pub trust_class: PeerTrustClass,
     pub last_seen_at_tick: Tick,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeRelayBudget {
+    pub relay_work_budget: KnownValue<u32>,
+    pub utilization_permille: RatioPermille,
+    pub retention_horizon_ms: KnownValue<DurationMs>,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum InformationSummaryEncoding {
+    BloomFilter,
+    InvertibleBloomLookupTable,
+    MinHashSketch,
+    Opaque { name: String },
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InformationSetSummary {
+    pub summary_encoding: InformationSummaryEncoding,
+    pub item_count: KnownValue<u32>,
+    pub byte_count: KnownValue<u64>,
+    pub false_positive_permille: KnownValue<RatioPermille>,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PeerNoveltyEstimate {
+    pub outbound_novel_item_count: KnownValue<u32>,
+    pub inbound_novel_item_count: KnownValue<u32>,
+    pub outbound_novel_byte_count: KnownValue<u64>,
+    pub inbound_novel_byte_count: KnownValue<u64>,
+    pub summary_encoding: InformationSummaryEncoding,
+    pub false_positive_permille: KnownValue<RatioPermille>,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PeerRoutingObservation {
+    pub relay_budget: KnownValue<NodeRelayBudget>,
+    pub information_summary: KnownValue<InformationSetSummary>,
+    pub novelty_estimate: KnownValue<PeerNoveltyEstimate>,
+    pub reach_score: KnownValue<HealthScore>,
+    pub underserved_trajectory_score: KnownValue<HealthScore>,
 }
 
 #[public_model]
@@ -88,6 +136,7 @@ mod tests {
                 controller_id: ControllerId([9; 32]),
                 services: Vec::new(),
                 endpoints: Vec::new(),
+                routing_observation: KnownValue::Unknown,
                 trust_class: PeerTrustClass::ControllerBound,
                 last_seen_at_tick: Tick(2),
             },
@@ -98,6 +147,7 @@ mod tests {
                 controller_id: ControllerId([8; 32]),
                 services: Vec::new(),
                 endpoints: Vec::new(),
+                routing_observation: KnownValue::Unknown,
                 trust_class: PeerTrustClass::ControllerBound,
                 last_seen_at_tick: Tick(1),
             },

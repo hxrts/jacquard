@@ -4,8 +4,8 @@ use contour_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    DestinationId, DurationMs, HealthScore, KnownValue, Limit, PenaltyPoints, PriorityPoints,
-    RatioPermille, ServiceFamily,
+    DestinationId, DurationMs, HealthScore, InformationSetSummary, KnownValue, Limit,
+    NodeRelayBudget, Observed, PriorityPoints, RatioPermille, ServiceFamily,
 };
 
 #[public_model]
@@ -53,15 +53,31 @@ pub enum RouteConnectivityClass {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoutingObservations {
-    pub reachable_neighbor_count: u32,
+    pub local_node: Observed<NodeRoutingObservation>,
+    pub neighborhood: Observed<NeighborhoodObservation>,
     pub route_family_count: u32,
     pub median_rtt_ms: DurationMs,
     pub loss_permille: RatioPermille,
-    pub topology_churn_permille: RatioPermille,
-    pub congestion_penalty_points: PenaltyPoints,
     pub partition_risk_permille: RatioPermille,
     pub direct_reachability_score: HealthScore,
-    pub available_hold_capacity_bytes: KnownValue<u64>,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeRoutingObservation {
+    pub relay_budget: NodeRelayBudget,
+    pub hold_capacity_bytes: KnownValue<u64>,
+    pub information_summary: KnownValue<InformationSetSummary>,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NeighborhoodObservation {
+    pub reachable_neighbor_count: u32,
+    pub churn_permille: RatioPermille,
+    pub contention_permille: RatioPermille,
+    pub bridging_score: KnownValue<HealthScore>,
+    pub underserved_flow_score: KnownValue<HealthScore>,
 }
 
 #[public_model]

@@ -125,7 +125,11 @@ pub struct TopologyLinkObservation {
     pub endpoint: LinkEndpoint,
     pub state: LinkRuntimeState,
     pub median_rtt_ms: DurationMs,
+    pub transfer_rate_bytes_per_sec: KnownValue<u32>,
+    pub stability_horizon_ms: KnownValue<DurationMs>,
     pub loss_permille: RatioPermille,
+    pub delivery_confidence_permille: KnownValue<RatioPermille>,
+    pub symmetry_permille: KnownValue<RatioPermille>,
     pub last_seen_at_tick: Tick,
 }
 
