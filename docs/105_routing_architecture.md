@@ -2,7 +2,7 @@
 
 Contour is organized around a small stable stack. `core` owns shared model types. `traits` owns the abstract routing and runtime-effect boundaries. Later crates implement mesh, router orchestration, transport adapters, and simulation on top of those two layers.
 
-See [Introduction](001_introduction.md) for repository scope. See [Core Types](010_core_types.md) for the semantic objects this architecture moves. See [Time Model](020_time.md) for the deterministic time and ordering rules that constrain the whole stack. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the routing-visible node, peer, link, and environment surfaces plus the estimation layer that the architecture consumes.
+See [Introduction](101_introduction.md) for repository scope. See [Core Types](102_core_types.md) for the semantic objects this architecture moves. See [Time Model](103_time.md) for the deterministic time and ordering rules that constrain the whole stack. See [Routing Observation Boundary](104_routing_observation_boundary.md) for the routing-visible node, peer, link, and environment surfaces plus the estimation layer that the architecture consumes.
 
 Inside `core`, the files are grouped to match this shape. `base/` holds cross-cutting primitives and fact wrappers. `model/` holds the world to action pipeline. `routing/` holds route lifecycle and runtime objects. Small transport and content files stay at the crate root for now.
 

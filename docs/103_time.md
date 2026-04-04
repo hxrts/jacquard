@@ -2,7 +2,7 @@
 
 Contour uses a typed deterministic time model. It does not treat wall clock as distributed truth. The routing core works with local monotonic time, bounded durations, deterministic ordering tokens, and topology epochs.
 
-See [Core Types](010_core_types.md) for the shared model objects that use these domains. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the observation and estimation surfaces that carry many of the time-shaped fields. See [Routing Architecture](030_routing_architecture.md) for the runtime layers that consume them.
+See [Core Types](102_core_types.md) for the shared model objects that use these domains. See [Routing Observation Boundary](104_routing_observation_boundary.md) for the observation and estimation surfaces that carry many of the time-shaped fields. See [Routing Architecture](105_routing_architecture.md) for the runtime layers that consume them.
 
 ## Time Domains
 

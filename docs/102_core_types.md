@@ -2,7 +2,7 @@
 
 This page focuses on the core primitives that other routing objects build on. It does not try to enumerate every type in `core`. The goal is to show the stable building blocks that make the rest of the system readable.
 
-See [Introduction](001_introduction.md) for repository scope. See [Time Model](020_time.md) for the time and ordering rules that shape many of these types. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the routing-visible observation and estimation surfaces. See [Routing Architecture](030_routing_architecture.md) for how crates and runtime layers use them.
+See [Introduction](101_introduction.md) for repository scope. See [Time Model](103_time.md) for the time and ordering rules that shape many of these types. See [Routing Observation Boundary](104_routing_observation_boundary.md) for the routing-visible observation and estimation surfaces. See [Routing Architecture](105_routing_architecture.md) for how crates and runtime layers use them.
 
 The `core` crate now groups these types into three internal areas. `base/` holds primitives such as identity, time, qualifiers, constants, errors, and fact wrappers. `model/` holds the world-to-action pipeline. `routing/` holds route lifecycle and runtime coordination objects.
 
@@ -59,6 +59,6 @@ This group of types shows two important boundaries. `NodeBinding` says who contr
 
 ## What Is Not Here
 
-This page stops at the shared building blocks. It does not try to describe how a route family turns observations into candidates or how the router decides between families. Those behaviors belong in [Routing Architecture](030_routing_architecture.md).
+This page stops at the shared building blocks. It does not try to describe how a route family turns observations into candidates or how the router decides between families. Those behaviors belong in [Routing Architecture](105_routing_architecture.md).
 
 The key point is that `core` defines the language of the system. Other crates use that language to express decision inputs, route-family behavior, router orchestration, and simulation.

@@ -2,7 +2,7 @@
 
 This page defines the abstraction boundary around the local node, peer connections, and local environment. The goal is to expose the information a routing algorithm needs without leaking raw device internals or physical-world details into the routing core.
 
-See [Core Types](010_core_types.md) for the main shared model objects. See [Routing Architecture](030_routing_architecture.md) for the layer boundary that consumes these types.
+See [Core Types](102_core_types.md) for the main shared model objects. See [Routing Architecture](105_routing_architecture.md) for the layer boundary that consumes these types.
 
 ## Purpose
 
