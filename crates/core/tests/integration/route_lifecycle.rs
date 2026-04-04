@@ -5,12 +5,12 @@ use contour_core::{
     ConnectivityRegime, DeliveryModelClass, DeploymentProfileId, FailureModelClass,
     FamilyFallbackPolicy, HoldFallbackPolicy, InstalledRoute, KnownValue, Limit, NodeDensityClass,
     Observed, PeerTrustClass, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
-    RouteAssessment, RouteCandidate, RouteConnectivityClass, RouteCost, RouteDegradation,
-    RouteEpoch, RouteHandle, RouteHealth, RouteId, RouteLease, RouteMaterializationProof,
-    RoutePrivacyClass, RouteProgressContract, RouteProgressState, RouteReplacementPolicy,
-    RouteSummary, RouteTransition, RouteWitness, RoutingAdmissionProfile, RoutingEvidenceClass,
-    RoutingFact, RoutingFamilyId, RoutingObjective, RuntimeEnvelopeClass, ServiceFamily, Tick,
-    TimeWindow, TransportClass,
+    RouteCandidate, RouteConnectivityClass, RouteCost, RouteDegradation, RouteEpoch, RouteEstimate,
+    RouteHandle, RouteHealth, RouteId, RouteLease, RouteMaterializationProof, RoutePrivacyClass,
+    RouteProgressContract, RouteProgressState, RouteReplacementPolicy, RouteSummary,
+    RouteTransition, RouteWitness, RoutingAdmissionProfile, RoutingEvidenceClass, RoutingFact,
+    RoutingFamilyId, RoutingObjective, RuntimeEnvelopeClass, ServiceFamily, Tick, TimeWindow,
+    TransportClass,
 };
 
 fn sample_objective() -> RoutingObjective {
@@ -83,9 +83,9 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
     let witness = sample_witness(admission_profile.clone());
     let candidate = RouteCandidate {
         summary: summary.clone(),
-        assessment: Observed {
+        estimate: Observed {
             fact: RoutingFact {
-                value: RouteAssessment {
+                value: RouteEstimate {
                     estimated_privacy: summary.privacy,
                     estimated_connectivity: summary.connectivity,
                     topology_epoch: RouteEpoch(4),
@@ -171,7 +171,7 @@ fn installed_route_can_be_built_from_shared_lifecycle_types() {
 
     assert_eq!(candidate.summary.family, RoutingFamilyId::Mesh);
     assert_eq!(
-        candidate.assessment.fact.value.estimated_connectivity,
+        candidate.estimate.fact.value.estimated_connectivity,
         RouteConnectivityClass::Repairable,
     );
     assert_eq!(route.admission.summary.transport_mix.len(), 2);

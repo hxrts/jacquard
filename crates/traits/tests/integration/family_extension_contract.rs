@@ -7,9 +7,9 @@ use contour_traits::{
         AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, ClaimStrength,
         ConnectivityRegime, DeliveryModelClass, DeploymentProfileId, FailureModelClass,
         FamilyFallbackPolicy, InstalledRoute, KnownValue, Limit, NodeDensityClass, Observed,
-        PeerTrustClass, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteAssessment,
-        RouteBinding, RouteCandidate, RouteCommitment, RouteCommitmentId,
-        RouteCommitmentResolution, RouteConnectivityClass, RouteCost, RouteDegradation, RouteEpoch,
+        PeerTrustClass, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding,
+        RouteCandidate, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
+        RouteConnectivityClass, RouteCost, RouteDegradation, RouteEpoch, RouteEstimate,
         RouteHandle, RouteHealth, RouteId, RouteLease, RouteMaintenanceOutcome,
         RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationProof,
         RoutePrivacyClass, RouteProgressContract, RouteProgressState, RouteReplacementPolicy,
@@ -53,9 +53,9 @@ impl RouteFamily for StubFamily {
     ) -> Vec<RouteCandidate> {
         vec![RouteCandidate {
             summary: self.route.admission.summary.clone(),
-            assessment: Observed {
+            estimate: Observed {
                 fact: RoutingFact {
-                    value: RouteAssessment {
+                    value: RouteEstimate {
                         estimated_privacy: self.route.admission.summary.privacy,
                         estimated_connectivity: self.route.admission.summary.connectivity,
                         topology_epoch: self.route.admission.witness.topology_epoch,

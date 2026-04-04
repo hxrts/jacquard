@@ -4,7 +4,7 @@ use contour_core::{
     AdaptiveRoutingProfile, InstalledRoute, Observed, RouteAdmission, RouteAdmissionCheck,
     RouteCandidate, RouteCommitment, RouteError, RouteHealth, RouteId, RouteMaintenanceResult,
     RouteMaintenanceTrigger, RoutingFamilyCapabilities, RoutingFamilyId, RoutingObjective,
-    RoutingObservations, TopologySnapshot,
+    RoutingPolicyInputs, TopologySnapshot,
 };
 
 /// Owns the privacy-versus-connectivity decision. In a mesh-only deployment,
@@ -13,7 +13,7 @@ pub trait AdaptiveRoutingController {
     fn compute_profile(
         &self,
         objective: &RoutingObjective,
-        observations: &RoutingObservations,
+        inputs: &RoutingPolicyInputs,
     ) -> AdaptiveRoutingProfile;
 }
 

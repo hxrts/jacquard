@@ -6,8 +6,8 @@ use thiserror::Error;
 
 use crate::{
     AdaptiveRoutingProfile, KnownValue, Limit, Observed, RouteConnectivityClass, RouteCost,
-    RouteEpoch, RouteId, RoutePrivacyClass, RoutingFamilyId, RoutingObjective, TimeWindow,
-    TransportClass,
+    RouteEpoch, RouteEstimate, RouteId, RoutePrivacyClass, RoutingFamilyId, RoutingObjective,
+    TimeWindow, TransportClass,
 };
 
 #[public_model]
@@ -154,17 +154,8 @@ pub struct RouteCandidate {
     pub summary: RouteSummary,
     /// Candidate enumeration is observational/advisory. It must not be treated
     /// as proof-bearing admission evidence.
-    pub assessment: Observed<RouteAssessment>,
+    pub estimate: Observed<RouteEstimate>,
     pub backend_ref: BackendRouteRef,
-}
-
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RouteAssessment {
-    pub estimated_privacy: RoutePrivacyClass,
-    pub estimated_connectivity: RouteConnectivityClass,
-    pub topology_epoch: RouteEpoch,
-    pub degradation: RouteDegradation,
 }
 
 #[public_model]

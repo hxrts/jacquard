@@ -2,7 +2,7 @@
 
 Contour is organized around a small stable stack. `core` owns shared model types. `traits` owns the abstract routing and runtime-effect boundaries. Later crates implement mesh, router orchestration, transport adapters, and simulation on top of those two layers.
 
-See [Introduction](001_introduction.md) for repository scope. See [Core Types](010_core_types.md) for the semantic objects this architecture moves. See [Time Model](020_time.md) for the deterministic time and ordering rules that constrain the whole stack. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the routing-visible node, peer, link, and environment surfaces that the architecture consumes.
+See [Introduction](001_introduction.md) for repository scope. See [Core Types](010_core_types.md) for the semantic objects this architecture moves. See [Time Model](020_time.md) for the deterministic time and ordering rules that constrain the whole stack. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the routing-visible node, peer, link, and environment surfaces plus the estimation layer that the architecture consumes.
 
 ## Planes
 
@@ -10,7 +10,7 @@ The routing contract separates control-plane work from data-plane work. The cont
 
 This split prevents forwarding code from inventing canonical route truth. Data-plane observations may report health or failures, but the control plane decides whether that changes the installed route.
 
-The control plane is also where the observation boundary is assembled into decisions. The router consumes local-node, peer, link, and neighborhood observations through the shared model. It does not consume raw device or physical-world details directly.
+The control plane is also where the observation boundary is assembled into decisions. The router consumes node intrinsics, local-node observations, peer estimates, link observations, and neighborhood estimates through the shared model. It does not consume raw device or physical-world details directly.
 
 ## Decision Path
 

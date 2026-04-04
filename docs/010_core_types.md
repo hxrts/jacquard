@@ -2,7 +2,7 @@
 
 This page focuses on the core primitives that other routing objects build on. It does not try to enumerate every type in `core`. The goal is to show the stable building blocks that make the rest of the system readable.
 
-See [Introduction](001_introduction.md) for repository scope. See [Time Model](020_time.md) for the time and ordering rules that shape many of these types. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the routing-visible observation surfaces. See [Routing Architecture](030_routing_architecture.md) for how crates and runtime layers use them.
+See [Introduction](001_introduction.md) for repository scope. See [Time Model](020_time.md) for the time and ordering rules that shape many of these types. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the routing-visible observation and estimation surfaces. See [Routing Architecture](030_routing_architecture.md) for how crates and runtime layers use them.
 
 ## Identity And Facts
 
@@ -45,7 +45,7 @@ This group of types shows two important boundaries. `NodeBinding` says who contr
 
 ## Shared Surfaces
 
-`TopologySnapshot` is the shared local view of the neighborhood. `TopologyNodeObservation` and `TopologyLinkObservation` carry node and link facts. `NodeRoutingObservation`, `PeerRoutingObservation`, and `NeighborhoodObservation` give the router explicit surfaces for self-state, peer estimates, and aggregate local conditions.
+`TopologySnapshot` is the shared local view of the neighborhood. `TopologyNodeObservation` and `TopologyLinkObservation` carry node and link facts. `NodeRoutingIntrinsics` and `NodeRoutingObservation` describe stable limits and current local state. `PeerRoutingEstimate` and `NeighborhoodEstimate` describe the derived routing summaries that sit between raw observation and policy. `NodeRoutingIntrinsics` is where hard limits like maximum connections, neighbor-state capacity, active-route capacity, maintenance budget, and hold ceilings belong.
 
 `RouteHandle`, `RouteMaterializationProof`, and `RouteCommitment` are the main runtime coordination objects in `core`. They are worth recognizing early because many later types point at them. They give the system strong route identity, proof-bearing materialization, and explicit outstanding work.
 
