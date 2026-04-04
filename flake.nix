@@ -35,6 +35,8 @@
           rustToolchain
           pkg-config
           just
+          mdbook
+          mdbook-mermaid
         ];
 
         buildInputs =

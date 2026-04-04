@@ -1,0 +1,18 @@
+[book]
+title = "Contour"
+authors = ["Sam Hart"]
+language = "en"
+src = "docs"
+
+[build]
+build-dir = "docs/book"
+
+[output.html]
+preferred-dark-theme = "rust"
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
+mathjax-support = true
+
+[output.html.playground]
+editable = false
+
+[preprocessor.mermaid]

@@ -1,10 +1,10 @@
 [package]
-name = "contour"
+name = "traits"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Adaptive mesh routing with choreographic protocols"
+description = "Routing trait definitions for Contour"
 
 [dependencies]
 telltale-types   = { workspace = true }

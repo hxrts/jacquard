@@ -1,5 +1,9 @@
 target/
 result
 .direnv/
+docs/book/
+mermaid-init.js
+mermaid.min.js
+theme/
 
 work/
