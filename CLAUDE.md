@@ -1,9 +1,5 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project
-
 Contour is an adaptive mesh routing system built on choreographic protocols. It uses Telltale for session types, choreography macros, and the effect-based runtime.
 
 Contour is fully deterministic. Core designs and implementations must avoid floating-point types, host-dependent ordering, and ambient randomness in routing or protocol state unless an explicit, deterministic abstraction says otherwise.
