@@ -1,0 +1,11 @@
+[package]
+name = "contour-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Shared identifiers, types, and constants for Contour routing"
+
+[dependencies]
+serde      = { workspace = true }
+thiserror  = { workspace = true }
