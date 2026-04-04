@@ -2,7 +2,7 @@
 
 Contour is a deterministic routing system for constrained and unstable networks. It provides a stable routing abstraction and one in-tree route family, `Mesh`. It is designed so a host can add an external routing family through the same contract.
 
-See [Core Types](010_core_types.md) for the model objects that carry the system. See [Time Model](020_time.md) for the deterministic time rules. See [Routing Architecture](030_routing_architecture.md) for the crate and control-plane structure.
+See [Core Types](010_core_types.md) for the model objects that carry the system. See [Time Model](020_time.md) for the deterministic time rules. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the routing-visible node, peer, link, and environment surfaces. See [Routing Architecture](030_routing_architecture.md) for the crate and control-plane structure.
 
 ## Scope
 

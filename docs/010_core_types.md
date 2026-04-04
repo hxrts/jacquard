@@ -1,8 +1,8 @@
 # Core Types
 
-This page focuses on the types that explain how Contour is put together. It does not try to enumerate every type in `core`. The goal is to show the system components through the objects that move between them.
+This page focuses on the core primitives that other routing objects build on. It does not try to enumerate every type in `core`. The goal is to show the stable building blocks that make the rest of the system readable.
 
-See [Introduction](001_introduction.md) for repository scope. See [Time Model](020_time.md) for the time and ordering rules that shape many of these types. See [Routing Architecture](030_routing_architecture.md) for how crates and runtime layers use them.
+See [Introduction](001_introduction.md) for repository scope. See [Time Model](020_time.md) for the time and ordering rules that shape many of these types. See [Routing Observation Boundary](025_routing_observation_boundary.md) for the routing-visible observation surfaces. See [Routing Architecture](030_routing_architecture.md) for how crates and runtime layers use them.
 
 ## Identity And Facts
 
@@ -37,47 +37,20 @@ pub struct Authoritative<T> {
 
 This group of types shows two important boundaries. `NodeBinding` says who controls a node. `Observed<T>` and `Authoritative<T>` say what kind of claim is being carried. Together they prevent the model from collapsing identity, evidence, and publication into one opaque record.
 
+## Time And Bounds
+
+`Tick`, `DurationMs`, `OrderStamp`, and `RouteEpoch` are the time and ordering primitives. They keep local time, bounded duration, deterministic ordering, and topology versioning distinct. `TimeWindow` and `TimeoutPolicy` are the first compound objects built on those primitives.
+
+`KnownValue<T>` and `Limit<T>` are the two main qualifier types. `KnownValue<T>` says whether a measured or inferred quantity is currently known. `Limit<T>` says whether a budget is bounded or explicitly unlimited. Together they keep uncertainty and resource policy explicit in the model.
+
+## Shared Surfaces
+
 `TopologySnapshot` is the shared local view of the neighborhood. `TopologyNodeObservation` and `TopologyLinkObservation` carry node and link facts. `NodeRoutingObservation`, `PeerRoutingObservation`, and `NeighborhoodObservation` give the router explicit surfaces for self-state, peer estimates, and aggregate local conditions.
 
-## Route Lifecycle
+`RouteHandle`, `RouteMaterializationProof`, and `RouteCommitment` are the main runtime coordination objects in `core`. They are worth recognizing early because many later types point at them. They give the system strong route identity, proof-bearing materialization, and explicit outstanding work.
 
-`RoutingObjective` states what one operation wants from routing. It carries destination, requested service family, privacy target, privacy floor, connectivity target, and bounded latency and fallback requirements.
+## What Is Not Here
 
-`RouteCandidate`, `RouteAdmissionCheck`, `RouteAdmission`, and `RouteWitness` describe the selection and admission path. `RouteCandidate` is observational. `RouteAdmissionCheck` says whether a family can justify a route under a stated profile. `RouteWitness` is the proof-bearing record of what the admitted route actually delivers.
+This page stops at the shared building blocks. It does not try to describe how a route family turns observations into candidates or how the router decides between families. Those behaviors belong in [Routing Architecture](030_routing_architecture.md).
 
-`InstalledRoute` is the object to keep in mind when reading the rest of the system. It ties together identity, admission, ownership, health, and progress. It is the point where a family-specific plan becomes canonical router state.
-
-`RouteHandle` is the strong handle issued at materialization time. `RouteMaterializationProof` binds that handle to the authoritative witness that justified installation. `RouteCommitment` tracks unresolved or recently resolved obligations such as setup, repair, or replacement work.
-
-## Runtime Boundary
-
-The most important traits live in the `traits` crate, but they are easiest to understand through the shared model they carry. `RouteFamilyExtension` is the family boundary. `TopLevelRouter`, `RoutingControlPlane`, and `RoutingDataPlane` are the router-facing orchestration surfaces.
-
-```rust
-pub trait RouteFamilyExtension {
-    fn candidate_routes(
-        &self,
-        objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
-        topology: &Observed<TopologySnapshot>,
-    ) -> Vec<RouteCandidate>;
-
-    fn admit_route(
-        &mut self,
-        objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
-        candidate: RouteCandidate,
-    ) -> Result<RouteAdmission, RouteError>;
-
-    fn install_route(
-        &mut self,
-        admission: RouteAdmission,
-    ) -> Result<InstalledRoute, RouteError>;
-}
-```
-
-This trait fragment shows the main semantic path. A family starts from observations. It turns those into candidates. It turns one candidate into an admitted route with a witness. It then materializes that route into canonical installed state. That sequence explains why the shared model puts so much weight on `Observed<T>`, `RouteAdmission`, and `InstalledRoute`.
-
-The runtime-effect traits keep platform concerns outside the pure routing model. `TimeEffects`, `OrderEffects`, `HashEffects`, `StorageEffects`, `AuditEffects`, and `TransportEffects` provide the narrow abstract runtime that mesh, router, and simulator code can depend on.
-
-The key point is that `core` types describe the stable semantic objects, and `traits` describe how those objects move. That is the contract surface other crates and external families build on.
+The key point is that `core` defines the language of the system. Other crates use that language to express decision inputs, route-family behavior, router orchestration, and simulation.
