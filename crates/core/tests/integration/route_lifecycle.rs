@@ -4,12 +4,13 @@ use contour_core::{
     AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, ClaimStrength,
     ConnectivityRegime, DeliveryModelClass, DeploymentProfileId, FailureModelClass,
     FamilyFallbackPolicy, HoldFallbackPolicy, InstalledRoute, KnownValue, Limit, NodeDensityClass,
-    PeerTrustClass, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteAssessment,
-    RouteCandidate, RouteConnectivityClass, RouteCost, RouteDegradation, RouteEpoch, RouteHandle,
-    RouteHealth, RouteId, RouteLease, RoutePrivacyClass, RouteProgressContract, RouteProgressState,
-    RouteReplacementPolicy, RouteSummary, RouteTransition, RouteWitness, RoutingAdmissionProfile,
-    RoutingEvidenceClass, RoutingFact, RoutingFamilyId, RoutingObjective, RuntimeEnvelopeClass,
-    ServiceFamily, Tick, TimeWindow, TransportClass,
+    Observed, PeerTrustClass, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
+    RouteAssessment, RouteCandidate, RouteConnectivityClass, RouteCost, RouteDegradation,
+    RouteEpoch, RouteHandle, RouteHealth, RouteId, RouteLease, RouteMaterializationProof,
+    RoutePrivacyClass, RouteProgressContract, RouteProgressState, RouteReplacementPolicy,
+    RouteSummary, RouteTransition, RouteWitness, RoutingAdmissionProfile, RoutingEvidenceClass,
+    RoutingFact, RoutingFamilyId, RoutingObjective, RuntimeEnvelopeClass, ServiceFamily, Tick,
+    TimeWindow, TransportClass,
 };
 
 fn sample_objective() -> RoutingObjective {
@@ -82,16 +83,18 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
     let witness = sample_witness(admission_profile.clone());
     let candidate = RouteCandidate {
         summary: summary.clone(),
-        assessment: RoutingFact {
-            value: RouteAssessment {
-                estimated_privacy: summary.privacy,
-                estimated_connectivity: summary.connectivity,
-                topology_epoch: RouteEpoch(4),
-                degradation: RouteDegradation::None,
+        assessment: Observed {
+            fact: RoutingFact {
+                value: RouteAssessment {
+                    estimated_privacy: summary.privacy,
+                    estimated_connectivity: summary.connectivity,
+                    topology_epoch: RouteEpoch(4),
+                    degradation: RouteDegradation::None,
+                },
+                evidence_class: RoutingEvidenceClass::Observed,
+                trust_class: PeerTrustClass::ControllerBound,
+                observed_at_tick: Tick(100),
             },
-            evidence_class: RoutingEvidenceClass::Observed,
-            trust_class: PeerTrustClass::ControllerBound,
-            observed_at_tick: Tick(100),
         },
         backend_ref: BackendRouteRef {
             family: RoutingFamilyId::Mesh,
@@ -104,6 +107,16 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
             topology_epoch: RouteEpoch(4),
             materialized_at_tick: Tick(101),
             publication_id: [4; 16],
+        },
+        materialization_proof: RouteMaterializationProof {
+            route_id: RouteId([5; 16]),
+            topology_epoch: RouteEpoch(4),
+            materialized_at_tick: Tick(101),
+            publication_id: [4; 16],
+            witness: contour_core::Authoritative {
+                value: witness.clone(),
+                published_at_tick: Tick(101),
+            },
         },
         admission: RouteAdmission {
             route_id: RouteId([5; 16]),
@@ -158,11 +171,15 @@ fn installed_route_can_be_built_from_shared_lifecycle_types() {
 
     assert_eq!(candidate.summary.family, RoutingFamilyId::Mesh);
     assert_eq!(
-        candidate.assessment.value.estimated_connectivity,
+        candidate.assessment.fact.value.estimated_connectivity,
         RouteConnectivityClass::Repairable,
     );
     assert_eq!(route.admission.summary.transport_mix.len(), 2);
     assert_eq!(route.handle.route_id, RouteId([5; 16]));
+    assert_eq!(
+        route.materialization_proof.witness.value.topology_epoch,
+        RouteEpoch(4),
+    );
     assert_eq!(route.lease.owner_node_id, contour_core::NodeId([9; 32]));
     assert_eq!(route.current_transition, RouteTransition::Established);
 }

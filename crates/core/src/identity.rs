@@ -22,6 +22,7 @@ bytes_newtype!(ClusterId, 16);
 bytes_newtype!(GatewayDomainId, 16);
 bytes_newtype!(RouteId, 16);
 bytes_newtype!(RouteOperationId, 16);
+bytes_newtype!(RouteCommitmentId, 16);
 bytes_newtype!(PathId, 16);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

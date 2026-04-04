@@ -4,9 +4,17 @@ use contour_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    HealthScore, Limit, NodeId, OrderStamp, PenaltyPoints, PriorityPoints, RouteAdmission,
-    RouteEpoch, RouteId, Tick, TimeWindow, TimeoutPolicy,
+    Authoritative, HealthScore, Limit, NodeId, OrderStamp, PenaltyPoints, PriorityPoints,
+    RouteAdmission, RouteCommitmentId, RouteEpoch, RouteId, RouteWitness, Tick, TimeWindow,
+    TimeoutPolicy,
 };
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct DeterministicOrderKey<K> {
+    pub stable_key: K,
+    pub tie_break: OrderStamp,
+}
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,6 +65,16 @@ pub struct RouteHandle {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RouteMaterializationProof {
+    pub route_id: RouteId,
+    pub topology_epoch: RouteEpoch,
+    pub materialized_at_tick: Tick,
+    pub publication_id: [u8; 16],
+    pub witness: Authoritative<RouteWitness>,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCost {
     pub message_count_max: Limit<u32>,
     pub byte_count_max: Limit<u64>,
@@ -99,6 +117,7 @@ pub enum RouteBinding {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCommitment {
+    pub commitment_id: RouteCommitmentId,
     pub operation_id: crate::RouteOperationId,
     pub route_binding: RouteBinding,
     pub owner_node_id: NodeId,
@@ -174,6 +193,7 @@ pub enum RouteProgressState {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstalledRoute {
     pub handle: RouteHandle,
+    pub materialization_proof: RouteMaterializationProof,
     pub admission: RouteAdmission,
     pub lease: RouteLease,
     pub current_transition: RouteTransition,

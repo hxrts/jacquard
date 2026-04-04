@@ -58,6 +58,21 @@ pub struct RoutingFact<T> {
     pub observed_at_tick: Tick,
 }
 
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Wrapper for values that are observational rather than canonical.
+pub struct Observed<T> {
+    pub fact: RoutingFact<T>,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Wrapper for values that have been authoritatively published.
+pub struct Authoritative<T> {
+    pub value: T,
+    pub published_at_tick: Tick,
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;

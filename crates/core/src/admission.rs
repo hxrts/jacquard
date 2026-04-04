@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    AdaptiveRoutingProfile, KnownValue, Limit, RouteConnectivityClass, RouteCost, RouteEpoch,
-    RouteId, RoutePrivacyClass, RoutingFact, RoutingFamilyId, RoutingObjective, TimeWindow,
+    AdaptiveRoutingProfile, KnownValue, Limit, Observed, RouteConnectivityClass, RouteCost,
+    RouteEpoch, RouteId, RoutePrivacyClass, RoutingFamilyId, RoutingObjective, TimeWindow,
     TransportClass,
 };
 
@@ -154,7 +154,7 @@ pub struct RouteCandidate {
     pub summary: RouteSummary,
     /// Candidate enumeration is observational/advisory. It must not be treated
     /// as proof-bearing admission evidence.
-    pub assessment: RoutingFact<RouteAssessment>,
+    pub assessment: Observed<RouteAssessment>,
     pub backend_ref: BackendRouteRef,
 }
 

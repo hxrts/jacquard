@@ -119,6 +119,26 @@ pub enum HoldError {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
+pub enum StorageError {
+    #[error("storage is unavailable")]
+    Unavailable,
+    #[error("storage key was missing")]
+    Missing,
+    #[error("storage write was rejected")]
+    Rejected,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
+pub enum AuditError {
+    #[error("audit sink is unavailable")]
+    Unavailable,
+    #[error("audit event was rejected")]
+    Rejected,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum PathSetupError {
     #[error("path setup is unsupported")]
     Unsupported,

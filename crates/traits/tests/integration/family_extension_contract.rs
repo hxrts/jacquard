@@ -6,11 +6,12 @@ use contour_traits::{
     contour_core::{
         AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, ClaimStrength,
         ConnectivityRegime, DeliveryModelClass, DeploymentProfileId, FailureModelClass,
-        FamilyFallbackPolicy, InstalledRoute, KnownValue, Limit, NodeDensityClass, PeerTrustClass,
-        ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteAssessment, RouteBinding,
-        RouteCandidate, RouteCommitment, RouteCommitmentResolution, RouteConnectivityClass,
-        RouteCost, RouteDegradation, RouteEpoch, RouteHandle, RouteHealth, RouteId, RouteLease,
-        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
+        FamilyFallbackPolicy, InstalledRoute, KnownValue, Limit, NodeDensityClass, Observed,
+        PeerTrustClass, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteAssessment,
+        RouteBinding, RouteCandidate, RouteCommitment, RouteCommitmentId,
+        RouteCommitmentResolution, RouteConnectivityClass, RouteCost, RouteDegradation, RouteEpoch,
+        RouteHandle, RouteHealth, RouteId, RouteLease, RouteMaintenanceOutcome,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationProof,
         RoutePrivacyClass, RouteProgressContract, RouteProgressState, RouteReplacementPolicy,
         RouteSummary, RouteTransition, RouteWitness, RoutingAdmissionProfile, RoutingEvidenceClass,
         RoutingFact, RoutingFamilyCapabilities, RoutingFamilyId, RoutingObjective,
@@ -48,20 +49,22 @@ impl RouteFamilyExtension for StubFamily {
         &self,
         _objective: &RoutingObjective,
         _profile: &AdaptiveRoutingProfile,
-        _topology: &RoutingFact<TopologySnapshot>,
+        _topology: &Observed<TopologySnapshot>,
     ) -> Vec<RouteCandidate> {
         vec![RouteCandidate {
             summary: self.route.admission.summary.clone(),
-            assessment: RoutingFact {
-                value: RouteAssessment {
-                    estimated_privacy: self.route.admission.summary.privacy,
-                    estimated_connectivity: self.route.admission.summary.connectivity,
-                    topology_epoch: self.route.admission.witness.topology_epoch,
-                    degradation: self.route.admission.witness.degradation,
+            assessment: Observed {
+                fact: RoutingFact {
+                    value: RouteAssessment {
+                        estimated_privacy: self.route.admission.summary.privacy,
+                        estimated_connectivity: self.route.admission.summary.connectivity,
+                        topology_epoch: self.route.admission.witness.topology_epoch,
+                        degradation: self.route.admission.witness.degradation,
+                    },
+                    evidence_class: RoutingEvidenceClass::Observed,
+                    trust_class: PeerTrustClass::ControllerBound,
+                    observed_at_tick: Tick(1),
                 },
-                evidence_class: RoutingEvidenceClass::Observed,
-                trust_class: PeerTrustClass::ControllerBound,
-                observed_at_tick: Tick(1),
             },
             backend_ref: BackendRouteRef {
                 family: RoutingFamilyId::Mesh,
@@ -97,6 +100,7 @@ impl RouteFamilyExtension for StubFamily {
 
     fn route_commitments(&self, route: &InstalledRoute) -> Vec<RouteCommitment> {
         vec![RouteCommitment {
+            commitment_id: RouteCommitmentId([8; 16]),
             operation_id: contour_traits::contour_core::RouteOperationId([6; 16]),
             route_binding: RouteBinding::Bound(route.admission.route_id),
             owner_node_id: route.lease.owner_node_id,
@@ -183,6 +187,24 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
             materialized_at_tick: Tick(1),
             publication_id: [7; 16],
         },
+        materialization_proof: RouteMaterializationProof {
+            route_id: RouteId([3; 16]),
+            topology_epoch: RouteEpoch(1),
+            materialized_at_tick: Tick(1),
+            publication_id: [7; 16],
+            witness: contour_traits::contour_core::Authoritative {
+                value: RouteWitness {
+                    objective_privacy: RoutePrivacyClass::LinkConfidential,
+                    delivered_privacy: RoutePrivacyClass::LinkConfidential,
+                    objective_connectivity: RouteConnectivityClass::Repairable,
+                    delivered_connectivity: RouteConnectivityClass::Repairable,
+                    admission_profile: sample_admission_profile(),
+                    topology_epoch: RouteEpoch(1),
+                    degradation: RouteDegradation::None,
+                },
+                published_at_tick: Tick(1),
+            },
+        },
         admission: RouteAdmission {
             route_id: RouteId([3; 16]),
             objective,
@@ -261,11 +283,13 @@ fn route_family_extension_can_drive_candidate_to_installed_route() {
     let profile = sample_profile();
     let route = sample_route(objective.clone(), profile.clone());
     let mut family = StubFamily { route };
-    let topology = RoutingFact {
-        value: empty_topology(),
-        evidence_class: RoutingEvidenceClass::Observed,
-        trust_class: PeerTrustClass::ControllerBound,
-        observed_at_tick: Tick(0),
+    let topology = Observed {
+        fact: RoutingFact {
+            value: empty_topology(),
+            evidence_class: RoutingEvidenceClass::Observed,
+            trust_class: PeerTrustClass::ControllerBound,
+            observed_at_tick: Tick(0),
+        },
     };
     let candidates = family.candidate_routes(&objective, &profile, &topology);
     let candidate = candidates.into_iter().next().expect("candidate");
@@ -291,10 +315,15 @@ fn route_family_extension_can_drive_candidate_to_installed_route() {
         },
     );
     assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].commitment_id, RouteCommitmentId([8; 16]));
     assert_eq!(
         commitments[0].route_binding,
         RouteBinding::Bound(installed.admission.route_id),
     );
     assert_eq!(installed.handle.route_id, RouteId([3; 16]));
+    assert_eq!(
+        installed.materialization_proof.witness.value.topology_epoch,
+        RouteEpoch(1),
+    );
     assert_eq!(installed.current_transition, RouteTransition::Repaired);
 }

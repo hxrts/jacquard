@@ -5,6 +5,7 @@
 pub use contour_macros::{bounded_value, id_type, must_use_handle, public_model};
 
 mod admission;
+mod audit;
 mod capabilities;
 mod connectivity;
 mod constants;
@@ -18,6 +19,7 @@ mod time;
 mod topology;
 
 pub use admission::*;
+pub use audit::*;
 pub use capabilities::*;
 pub use connectivity::*;
 pub use constants::*;

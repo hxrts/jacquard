@@ -1,10 +1,10 @@
 //! Abstract routing traits: adaptive controller, family extension, router, and control/data planes.
 
 use contour_core::{
-    AdaptiveRoutingProfile, InstalledRoute, RouteAdmission, RouteAdmissionCheck, RouteCandidate,
-    RouteCommitment, RouteError, RouteHealth, RouteId, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RoutingFact, RoutingFamilyCapabilities, RoutingFamilyId,
-    RoutingObjective, RoutingObservations, TopologySnapshot,
+    AdaptiveRoutingProfile, InstalledRoute, Observed, RouteAdmission, RouteAdmissionCheck,
+    RouteCandidate, RouteCommitment, RouteError, RouteHealth, RouteId, RouteMaintenanceResult,
+    RouteMaintenanceTrigger, RoutingFamilyCapabilities, RoutingFamilyId, RoutingObjective,
+    RoutingObservations, TopologySnapshot,
 };
 
 /// Owns the privacy-versus-connectivity decision. In a mesh-only deployment,
@@ -30,7 +30,7 @@ pub trait RouteFamilyExtension {
         &self,
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
-        topology: &RoutingFact<TopologySnapshot>,
+        topology: &Observed<TopologySnapshot>,
     ) -> Vec<RouteCandidate>;
 
     /// Family-level feasibility check. May attach step bounds and cost estimates.
@@ -112,5 +112,5 @@ pub trait RoutingDataPlane {
     fn observe_route_health(
         &mut self,
         route_id: &RouteId,
-    ) -> Result<RoutingFact<RouteHealth>, RouteError>;
+    ) -> Result<Observed<RouteHealth>, RouteError>;
 }

@@ -2,6 +2,8 @@
 
 use contour_core::{Blake3Digest, ContentEncodingError, ContentId};
 
+use crate::{effect_handler, HashEffects};
+
 pub trait Hashing {
     type Digest: Clone + Eq;
 
@@ -30,6 +32,17 @@ impl Hashing for Blake3Hashing {
         hasher.update(domain);
         hasher.update(input);
         Blake3Digest(*hasher.finalize().as_bytes())
+    }
+}
+
+#[effect_handler]
+impl HashEffects for Blake3Hashing {
+    fn hash_bytes(&self, input: &[u8]) -> Blake3Digest {
+        <Self as Hashing>::hash_bytes(self, input)
+    }
+
+    fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Blake3Digest {
+        <Self as Hashing>::hash_tagged(self, domain, input)
     }
 }
 

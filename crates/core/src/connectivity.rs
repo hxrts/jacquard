@@ -128,3 +128,18 @@ pub struct TopologyLinkObservation {
     pub loss_permille: RatioPermille,
     pub last_seen_at_tick: Tick,
 }
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TransportIngressEvent {
+    PayloadReceived {
+        from_node_id: NodeId,
+        endpoint: LinkEndpoint,
+        payload_bytes: Vec<u8>,
+        observed_at_tick: Tick,
+    },
+    LinkStateObserved {
+        remote_node_id: NodeId,
+        observation: TopologyLinkObservation,
+    },
+}
