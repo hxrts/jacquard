@@ -1,5 +1,5 @@
 [package]
-name = "traits"
+name = "contour-traits"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,16 +7,5 @@ authors.workspace = true
 description = "Routing trait definitions for Contour"
 
 [dependencies]
-telltale-types   = { workspace = true }
-telltale-macros  = { workspace = true }
-telltale-runtime = { workspace = true }
-
-futures     = { workspace = true }
-tokio       = { workspace = true }
-async-trait = { workspace = true }
-
-serde      = { workspace = true }
-serde_json = { workspace = true }
-
-thiserror = { workspace = true }
-tracing   = { workspace = true }
+contour-core = { path = "../core" }
+blake3 = "1"
