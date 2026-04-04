@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/contour",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Sam Hart"]
+
+[workspace.dependencies]
+# local
+telltale-types   = { path = "../telltale/rust/types" }
+telltale-macros  = { path = "../telltale/rust/macros" }
+telltale-runtime = { path = "../telltale/rust/runtime" }
+
+# async
+futures     = "0.3"
+tokio       = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# serialization
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# error handling
+thiserror = "1"
+anyhow    = "1"
+
+# tracing
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# utilities
+rand = "0.8"
+uuid = { version = "1", features = ["v4", "serde"] }

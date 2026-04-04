@@ -1,0 +1,22 @@
+[package]
+name = "contour"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Adaptive mesh routing with choreographic protocols"
+
+[dependencies]
+telltale-types   = { workspace = true }
+telltale-macros  = { workspace = true }
+telltale-runtime = { workspace = true }
+
+futures     = { workspace = true }
+tokio       = { workspace = true }
+async-trait = { workspace = true }
+
+serde      = { workspace = true }
+serde_json = { workspace = true }
+
+thiserror = { workspace = true }
+tracing   = { workspace = true }
