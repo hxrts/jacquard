@@ -12,7 +12,7 @@ Connectivity surfaces describe how a peer or service can be reached right now. A
 
 Service surfaces describe what a peer is willing to do. The five service families are `Discover`, `Establish`, `Move`, `Repair`, and `Hold`. A node may offer some or all of these depending on its role and capacity.
 
-Route families define which routing semantics are in use. Contour implements one first-party family, `Mesh`, and exposes a plugin boundary for external families. Each family owns its internal route construction, maintenance, and data-plane objects.
+Route families define which routing semantics are in use. Contour implements one first-party family, `Mesh`, and exposes an extension boundary for external families. Each family owns its internal route construction, maintenance, and data-plane objects.
 
 Local adaptive policy governs route selection at runtime. Policy state is never shared as network truth. It remains local to the selecting node.
 
@@ -54,9 +54,9 @@ Contour uses four ownership levels to prevent multiple layers from accidentally 
 
 ## Extensibility
 
-The routing abstraction supports external route families through the `RouteFamilyPlugin` trait boundary. An external family registers with the top-level router, declares its capability envelope, and participates in common adaptive selection. Contour core does not inspect family-private route internals.
+The routing abstraction supports external route families through the `RouteFamilyExtension` trait boundary. An external family registers with the top-level router, declares its capability envelope, and participates in common adaptive selection. Contour core does not inspect family-private route internals.
 
-The top-level router owns cross-family candidate comparison, fallback legality, and route replacement policy. Each family plugin owns its internal route construction, maintenance, and teardown. This separation lets external families integrate without forcing their internal formats or path semantics into Contour core.
+The top-level router owns cross-family candidate comparison, fallback legality, and route replacement policy. Each family extension owns its internal route construction, maintenance, and teardown. This separation lets external families integrate without forcing their internal formats or path semantics into Contour core.
 
 ## Choreography Direction
 
