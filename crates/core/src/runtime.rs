@@ -14,6 +14,7 @@ pub struct RouteOrderingKey {
     pub tie_break: OrderStamp,
 }
 
+// Lexicographic: priority first, then epoch, then deterministic tie-break.
 impl Ord for RouteOrderingKey {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         (self.priority, self.topology_epoch, self.tie_break).cmp(&(
@@ -31,6 +32,8 @@ impl PartialOrd for RouteOrderingKey {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Lease-based route ownership. Prevents ambient mutable access.
+/// A bare RouteId is a weak reference; a lease is the strong one.
 pub struct RouteLease {
     pub owner_node_id: NodeId,
     pub lease_epoch: RouteEpoch,
@@ -89,6 +92,7 @@ pub enum RouteEffectState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Explicit transfer of route ownership. Modeled as a move, not shared access.
 pub struct RouteSemanticHandoff {
     pub route_id: RouteId,
     pub from_node_id: NodeId,
@@ -151,6 +155,7 @@ pub enum RouteMaintenanceTrigger {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// Family returns this from maintenance. ReplaceRoute escalates to the top-level router.
 pub enum RouteMaintenanceDisposition {
     Continue,
     Repaired,

@@ -7,6 +7,8 @@ use contour_core::{
     RoutingObservations, TopologySnapshot,
 };
 
+/// Owns the privacy-versus-connectivity decision. In a mesh-only deployment,
+/// this may return a fixed profile. Richer policy comes from the embedding host.
 pub trait AdaptiveRoutingController {
     fn compute_profile(
         &self,
@@ -15,6 +17,8 @@ pub trait AdaptiveRoutingController {
     ) -> AdaptiveRoutingProfile;
 }
 
+/// The extensibility boundary. Each route family (mesh, onion, etc.) implements
+/// this trait. Contour core interacts with families only through this surface.
 pub trait RouteFamilyExtension {
     fn family_id(&self) -> RoutingFamilyId;
 
@@ -27,6 +31,7 @@ pub trait RouteFamilyExtension {
         topology: &TopologySnapshot,
     ) -> Vec<RouteCandidate>;
 
+    /// Family-level feasibility check. May attach step bounds and cost estimates.
     fn check_candidate(
         &self,
         objective: &RoutingObjective,
@@ -70,6 +75,7 @@ pub trait TopLevelRouter {
     ) -> Result<InstalledRoute, RouteError>;
 }
 
+/// Control plane owns route truth. Data plane owns forwarding over admitted truth.
 pub trait RoutingControlPlane {
     fn establish_route(
         &mut self,
@@ -82,6 +88,7 @@ pub trait RoutingControlPlane {
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteTransition, RouteError>;
 
+    /// Periodic consistency sweep: expire leases, detect stale routes.
     fn anti_entropy_tick(&mut self) -> Result<(), RouteError>;
 }
 

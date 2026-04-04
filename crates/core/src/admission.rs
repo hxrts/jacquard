@@ -60,6 +60,8 @@ pub enum RouteShapeVisibility {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Premise profile: delivery, failure, and runtime assumptions under which
+/// the admission claim holds. Families declare these, the router compares them.
 pub struct RoutingAdmissionProfile {
     pub delivery_model: DeliveryModelClass,
     pub failure_model: FailureModelClass,
@@ -176,6 +178,8 @@ pub struct RouteAdmission {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Proof-bearing explanation of what the admitted route actually delivers.
+/// If privacy was reduced for connectivity, that fact is explicit here.
 pub struct RouteWitness {
     pub objective_privacy: RoutePrivacyClass,
     pub delivered_privacy: RoutePrivacyClass,
@@ -197,6 +201,7 @@ pub enum DegradationReason {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Family-owned opaque handle. Contour core never inspects the contents.
 pub struct BackendRouteRef {
     pub family: RoutingFamilyId,
     pub opaque_id: Vec<u8>,

@@ -6,6 +6,7 @@ pub trait Hashing {
     type Digest: Clone + Eq;
 
     fn hash_bytes(&self, input: &[u8]) -> Self::Digest;
+    /// Length-prefixed domain tag prevents ambiguous (domain, payload) pairs.
     fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Self::Digest;
 }
 
@@ -22,6 +23,7 @@ impl Hashing for Blake3Hashing {
 
     fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Self::Digest {
         let mut hasher = blake3::Hasher::new();
+        // Length prefix separates "ab"+"c" from "a"+"bc".
         hasher.update(&(domain.len() as u32).to_le_bytes());
         hasher.update(domain);
         hasher.update(input);
@@ -29,6 +31,7 @@ impl Hashing for Blake3Hashing {
     }
 }
 
+/// Derive a content id from deterministic canonical serialization.
 pub trait ContentAddressable {
     type Digest: Clone + Eq;
 
@@ -45,6 +48,7 @@ pub trait ContentAddressable {
     }
 }
 
+/// Like ContentAddressable but for template/schema identity rather than instance identity.
 pub trait TemplateAddressable {
     type Digest: Clone + Eq;
 

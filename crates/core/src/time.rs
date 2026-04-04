@@ -5,26 +5,31 @@ use serde::{Deserialize, Serialize};
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
+/// Local monotonic time. Not wall clock.
 pub struct Tick(pub u64);
 
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
+/// Local duration. Used for timeouts, backoff, and validity windows.
 pub struct DurationMs(pub u32);
 
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
+/// Deterministic ordering that does not depend on wall clock.
 pub struct OrderStamp(pub u64);
 
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
+/// Topology and reconfiguration version, distinct from elapsed time.
 pub struct RouteEpoch(pub u64);
 
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
+/// Integer-scaled ratio, 0..=1000.
 pub struct RatioPermille(pub u16);
 
 #[derive(

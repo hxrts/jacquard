@@ -23,6 +23,8 @@ macro_rules! bytes_newtype {
     };
 }
 
+// NodeId identifies a running Contour participant instance.
+// ControllerId identifies the cryptographic actor behind one or more nodes.
 bytes_newtype!(NodeId, 32);
 bytes_newtype!(ControllerId, 32);
 bytes_newtype!(NeighborhoodId, 16);
@@ -44,6 +46,8 @@ pub enum DestinationId {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Attestable link between a node instance and its controlling authority.
+/// One controller may bind multiple nodes.
 pub struct NodeBinding {
     pub node_id: NodeId,
     pub controller_id: ControllerId,

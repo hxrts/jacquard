@@ -1,0 +1,7 @@
+error[E0046]: not all trait items implemented, missing: `__contour_handler_marker`
+ --> tests/regression/ui/missing_effect_handler.rs:5:1
+  |
+5 | impl TimeEffects for BadHandler {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `__contour_handler_marker` in implementation
+  |
+  = help: implement the missing item: `fn __contour_handler_marker(&self) -> HandlerToken<Self, (dyn TimeEffects + 'static)> { todo!() }`

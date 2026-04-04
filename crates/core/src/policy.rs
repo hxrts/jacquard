@@ -8,10 +8,15 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Hard and soft route requirements for one operation.
+/// The adaptive controller may move privacy from target toward floor
+/// when connectivity pressure rises.
 pub struct RoutingObjective {
     pub destination: DestinationId,
     pub service_family: ServiceFamily,
+    /// Preferred privacy posture before adaptation.
     pub target_privacy: RoutePrivacyClass,
+    /// Hard lower bound. Admission fails if no family can satisfy this.
     pub privacy_floor: RoutePrivacyClass,
     pub target_connectivity: RouteConnectivityClass,
     pub hold_fallback_policy: HoldFallbackPolicy,
@@ -54,6 +59,7 @@ pub struct RoutingObservations {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Output of the local adaptive controller. Runtime-local, never shared.
 pub struct AdaptiveRoutingProfile {
     pub selected_privacy: RoutePrivacyClass,
     pub selected_connectivity: RouteConnectivityClass,

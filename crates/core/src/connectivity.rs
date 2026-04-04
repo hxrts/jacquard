@@ -8,6 +8,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// Identifies a routing family. Mesh is first-party; External covers third-party plugins.
 pub enum RoutingFamilyId {
     Mesh,
     External { name: String, contract_id: String },
@@ -77,6 +78,8 @@ pub struct LinkEndpoint {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// What a node advertises as a shared service surface.
+/// Descriptors are shared facts. Local ranking is not published here.
 pub struct ServiceDescriptor {
     pub provider_node_id: NodeId,
     pub controller_id: ControllerId,

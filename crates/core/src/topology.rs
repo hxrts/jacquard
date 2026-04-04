@@ -10,6 +10,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Local view of the neighborhood graph. BTreeMap ensures deterministic iteration order.
 pub struct TopologySnapshot {
     pub epoch: RouteEpoch,
     pub nodes: BTreeMap<NodeId, TopologyNodeObservation>,
@@ -42,6 +43,8 @@ pub enum PeerTrustClass {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// A value tagged with its evidence provenance. Observed facts must not
+/// silently become authoritative routing truth.
 pub struct RoutingFact<T> {
     pub value: T,
     pub evidence_class: RoutingEvidenceClass,

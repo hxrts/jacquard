@@ -11,4 +11,8 @@ workspace = true
 
 [dependencies]
 contour-core = { path = "../core" }
+contour-macros = { path = "../macros" }
 blake3 = "1"
+
+[dev-dependencies]
+trybuild = "1"
