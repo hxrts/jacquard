@@ -6,3 +6,14 @@ disallowed-methods = [
   { path = "blake3::Hasher::new_keyed", reason = "Use the contour hasher trait boundary instead of constructing a BLAKE3 hasher directly." },
   { path = "blake3::Hasher::new_derive_key", reason = "Use the contour hasher trait boundary instead of constructing a BLAKE3 hasher directly." },
 ]
+
+disallowed-types = [
+  { path = "f32", reason = "Contour must remain fully deterministic and should not use floating-point types." },
+  { path = "f64", reason = "Contour must remain fully deterministic and should not use floating-point types." },
+  { path = "std::time::Instant", reason = "Use the typed contour time model instead of host wall-clock APIs." },
+  { path = "std::time::SystemTime", reason = "Use the typed contour time model instead of host wall-clock APIs." },
+  { path = "sha2::Sha256", reason = "Contour uses BLAKE3 for all hashing. Use the contour Hashing trait." },
+  { path = "sha2::Sha512", reason = "Contour uses BLAKE3 for all hashing. Use the contour Hashing trait." },
+  { path = "sha2::Sha384", reason = "Contour uses BLAKE3 for all hashing. Use the contour Hashing trait." },
+  { path = "sha2::Sha224", reason = "Contour uses BLAKE3 for all hashing. Use the contour Hashing trait." },
+]
