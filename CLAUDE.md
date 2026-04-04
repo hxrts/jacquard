@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Contour is an adaptive mesh routing system built on choreographic protocols. It uses Telltale (a sibling repo at `../telltale`) for session types, choreography macros, and the effect-based runtime.
+Contour is an adaptive mesh routing system built on choreographic protocols. It uses Telltale for session types, choreography macros, and the effect-based runtime.
 
 Contour is fully deterministic. Core designs and implementations must avoid floating-point types, host-dependent ordering, and ambient randomness in routing or protocol state unless an explicit, deterministic abstraction says otherwise.
 
-Contour should also use a typed deterministic time model in core code. Prefer injected time effects plus explicit types such as monotonic ticks, durations, and route epochs rather than raw wall-clock APIs or ad hoc `u64` timestamp fields.
+Contour uses a typed deterministic time model in core code. Use injected time effects plus explicit types such as monotonic ticks, durations, and route epochs rather than raw wall-clock APIs or ad hoc `u64` timestamp fields.
 
 ## Development environment
 
@@ -44,7 +44,3 @@ Unit tests should be co-located with the module they cover. Do not create or rei
 ### Telltale dependency
 
 Three Telltale crates are imported as local path dependencies (`../telltale/rust/{types,macros,runtime}`). The workspace `[workspace.dependencies]` table pins them; individual crates re-export via `{ workspace = true }`. The sibling telltale repo must be checked out at `../telltale`.
-
-## Git hooks
-
-Pre-commit hook (`.githooks/pre-commit`) runs format and compile checks on staged Rust files. Install with `just install-hooks`. Bypass with `git commit --no-verify`.
