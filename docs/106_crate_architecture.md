@@ -32,11 +32,13 @@ Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depen
 
 ## Crate Layout
 
-Inside `core`, files are grouped into three areas. `base/` holds cross-cutting primitives: identity, time, qualifiers, constants, and errors. `model/` holds the world-to-action pipeline: world objects, observations, estimation, policy, and action. `routing/` holds route lifecycle and runtime coordination objects: admission, runtime state, capabilities, and audit. Small transport and content files stay at the crate root.
+Inside `core`, files are grouped into three areas. `base/` holds cross-cutting primitives: identity, time, qualifiers, constants, and errors. `model/` holds the world-to-action pipeline: world objects, observations, estimation, policy, and action. `routing/` holds route lifecycle and runtime coordination objects: admission, committees, layering, runtime state, and audit. Small transport and content files stay at the crate root.
 
 This is also the main abstraction boundary for how opinionated Jacquard should be. `core` may define shared coordination result objects such as `CommitteeSelection`, identity-assurance qualifiers, and evidence classes. It must not define family-local committee scoring policy, require a leader, or turn one routing family's grouping heuristic into a workspace-wide law.
 
 The same minimality rule applies to family layering. `core` may define substrate requirements, substrate leases, and layer parameters. It must not make one family natively aware of another family or force one composition policy on every host.
+
+The same rule applies to authority. Jacquard does not currently standardize a separate capability-token system in `core`. Authority has to show up in the real route contracts: admitted routes, witnesses, proofs, leases, and explicit lifecycle transitions.
 
 ## Purity And Side Effects
 

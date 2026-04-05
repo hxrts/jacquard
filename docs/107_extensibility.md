@@ -116,7 +116,7 @@ An external family must treat these as the stable cross-crate contract:
 
 `RouteSummary`, `Estimate<RouteEstimate>`, `RouteAdmissionCheck`, `RouteWitness`, `RouteHandle`, `RouteLease`, `RouteMaterializationInput`, `RouteInstallation`, `RouteCommitment`, `RouteMaintenanceResult`, `CommitteeSelection`, `SubstrateRequirements`, `SubstrateLease`, `LayerParameters`, `Observation<T>`, and `Fact<T>`.
 
-It must not assume mesh route shape, mesh topology structure, or mesh-specific maintenance semantics.
+It must not assume mesh route shape, mesh topology structure, mesh-specific maintenance semantics, or a hidden capability-token authority model outside those shared route objects.
 
 ## Adaptive Policy
 
