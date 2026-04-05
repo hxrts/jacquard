@@ -1,4 +1,4 @@
-//! Drive a stub RouteFamily through the full candidate-to-teardown lifecycle.
+//! Drive a stub RouteFamily through router-owned materialization and teardown.
 
 use std::collections::BTreeMap;
 
@@ -12,14 +12,15 @@ use jacquard_traits::{
         Observation, PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
         RouteBinding, RouteCandidate, RouteCommitment, RouteCommitmentId,
         RouteCommitmentResolution, RouteConnectivityProfile, RouteCost, RouteDegradation,
-        RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteLease,
-        RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
-        RouteMaintenanceTrigger, RouteMaterializationProof, RoutePartitionClass,
-        RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteRepairClass,
-        RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness,
-        RoutingAdmissionProfile, RoutingEvidenceClass, RoutingFamilyCapabilities, RoutingObjective,
-        RuntimeEnvelopeClass, SubstrateCandidate, SubstrateCapabilities, SubstrateLease,
-        SubstrateRequirements, Tick, TimeWindow, TransportProtocol,
+        RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId,
+        RouteInstallation, RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+        RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
+        RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+        RouteServiceKind, RouteSummary, RouteWitness, RoutingAdmissionProfile,
+        RoutingEvidenceClass, RoutingFamilyCapabilities, RoutingObjective, RuntimeEnvelopeClass,
+        SubstrateCandidate, SubstrateCapabilities, SubstrateLease, SubstrateRequirements, Tick,
+        TimeWindow, TransportProtocol,
     },
     CommitteeSelector, LayerCoordinator, LayeredRouteFamily, LayeredRoutePlanner, RouteFamily,
     RoutePlanner, SubstratePlanner, SubstrateRuntime,
@@ -156,9 +157,17 @@ impl RoutePlanner for StubFamily {
 impl RouteFamily for StubFamily {
     fn materialize_route(
         &mut self,
-        _admission: RouteAdmission,
-    ) -> Result<MaterializedRoute, jacquard_traits::jacquard_core::RouteError> {
-        Ok(self.route.clone())
+        input: RouteMaterializationInput,
+    ) -> Result<RouteInstallation, jacquard_traits::jacquard_core::RouteError> {
+        assert_eq!(input.handle, self.route.handle);
+        assert_eq!(input.lease, self.route.lease);
+        assert_eq!(input.admission, self.route.admission);
+        Ok(RouteInstallation {
+            materialization_proof: self.route.materialization_proof.clone(),
+            last_lifecycle_event: self.route.last_lifecycle_event,
+            health: self.route.health.clone(),
+            progress: self.route.progress.clone(),
+        })
     }
 
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment> {
@@ -245,11 +254,17 @@ impl LayeredRoutePlanner for StubFamily {
 impl LayeredRouteFamily for StubFamily {
     fn materialize_route_on_substrate(
         &mut self,
-        _admission: RouteAdmission,
+        input: RouteMaterializationInput,
         _substrate: SubstrateLease,
         _parameters: LayerParameters,
-    ) -> Result<MaterializedRoute, jacquard_traits::jacquard_core::RouteError> {
-        Ok(self.route.clone())
+    ) -> Result<RouteInstallation, jacquard_traits::jacquard_core::RouteError> {
+        assert_eq!(input.handle, self.route.handle);
+        Ok(RouteInstallation {
+            materialization_proof: self.route.materialization_proof.clone(),
+            last_lifecycle_event: self.route.last_lifecycle_event,
+            health: self.route.health.clone(),
+            progress: self.route.progress.clone(),
+        })
     }
 }
 
@@ -358,31 +373,12 @@ fn sample_admission_profile() -> RoutingAdmissionProfile {
 }
 
 fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) -> MaterializedRoute {
-    MaterializedRoute {
+    let input = RouteMaterializationInput {
         handle: RouteHandle {
             route_id: RouteId([3; 16]),
             topology_epoch: RouteEpoch(1),
             materialized_at_tick: Tick(1),
             publication_id: PublicationId([7; 16]),
-        },
-        materialization_proof: RouteMaterializationProof {
-            route_id: RouteId([3; 16]),
-            topology_epoch: RouteEpoch(1),
-            materialized_at_tick: Tick(1),
-            publication_id: PublicationId([7; 16]),
-            witness: Fact {
-                value: RouteWitness {
-                    objective_protection: RouteProtectionClass::LinkProtected,
-                    delivered_protection: RouteProtectionClass::LinkProtected,
-                    objective_connectivity: repairable_connected(),
-                    delivered_connectivity: repairable_connected(),
-                    admission_profile: sample_admission_profile(),
-                    topology_epoch: RouteEpoch(1),
-                    degradation: RouteDegradation::None,
-                },
-                basis: FactBasis::Published,
-                established_at_tick: Tick(1),
-            },
         },
         admission: RouteAdmission {
             route_id: RouteId([3; 16]),
@@ -435,6 +431,27 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
                 end_tick: Tick(50),
             },
         },
+    };
+    let installation = RouteInstallation {
+        materialization_proof: RouteMaterializationProof {
+            route_id: RouteId([3; 16]),
+            topology_epoch: RouteEpoch(1),
+            materialized_at_tick: Tick(1),
+            publication_id: PublicationId([7; 16]),
+            witness: Fact {
+                value: RouteWitness {
+                    objective_protection: RouteProtectionClass::LinkProtected,
+                    delivered_protection: RouteProtectionClass::LinkProtected,
+                    objective_connectivity: repairable_connected(),
+                    delivered_connectivity: repairable_connected(),
+                    admission_profile: sample_admission_profile(),
+                    topology_epoch: RouteEpoch(1),
+                    degradation: RouteDegradation::None,
+                },
+                basis: FactBasis::Published,
+                established_at_tick: Tick(1),
+            },
+        },
         last_lifecycle_event: RouteLifecycleEvent::Activated,
         health: RouteHealth {
             reachability_state: ReachabilityState::Reachable,
@@ -448,6 +465,15 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
             last_progress_at_tick: Tick(1),
             state: RouteProgressState::Pending,
         },
+    };
+    MaterializedRoute::from_installation(input, installation)
+}
+
+fn materialization_input(route: &MaterializedRoute) -> RouteMaterializationInput {
+    RouteMaterializationInput {
+        handle: route.handle.clone(),
+        admission: route.admission.clone(),
+        lease: route.lease.clone(),
     }
 }
 
@@ -479,7 +505,9 @@ fn route_family_extension_can_drive_candidate_to_materialized_route() {
     let objective = sample_objective();
     let profile = sample_profile();
     let route = sample_route(objective.clone(), profile.clone());
-    let mut family = StubFamily { route };
+    let mut family = StubFamily {
+        route: route.clone(),
+    };
     let topology = Observation {
         value: empty_configuration(),
         source_class: jacquard_traits::jacquard_core::FactSourceClass::Remote,
@@ -496,7 +524,12 @@ fn route_family_extension_can_drive_candidate_to_materialized_route() {
     let admission = family
         .admit_route(&objective, &profile, candidate)
         .expect("admission");
-    let mut installed = family.materialize_route(admission).expect("materialize");
+    assert_eq!(admission, route.admission);
+    let installation = family
+        .materialize_route(materialization_input(&route))
+        .expect("materialize");
+    let mut installed =
+        MaterializedRoute::from_installation(materialization_input(&route), installation);
     let commitments = family.route_commitments(&installed);
     let maintenance = family
         .maintain_route(&mut installed, RouteMaintenanceTrigger::LinkDegraded)
@@ -591,9 +624,16 @@ fn substrate_and_layering_traits_support_policy_driven_composition() {
     let admission = layered_family
         .admit_route_on_substrate(&objective, &profile, &substrate, &parameters, candidate)
         .expect("layered admission");
-    let layered_route = layered_family
-        .materialize_route_on_substrate(admission, substrate.clone(), parameters.clone())
+    assert_eq!(admission, route.admission);
+    let layered_installation = layered_family
+        .materialize_route_on_substrate(
+            materialization_input(&route),
+            substrate.clone(),
+            parameters.clone(),
+        )
         .expect("layered route");
+    let layered_route =
+        MaterializedRoute::from_installation(materialization_input(&route), layered_installation);
     let substrate_health = provider
         .observe_substrate_health(&substrate)
         .expect("substrate health");

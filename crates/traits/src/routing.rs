@@ -3,9 +3,10 @@
 use jacquard_core::{
     AdaptiveRoutingProfile, CommitteeSelection, Configuration, LayerParameters, MaterializedRoute,
     Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError,
-    RouteFamilyId, RouteHealth, RouteId, RouteMaintenanceResult, RouteMaintenanceTrigger,
-    RoutingFamilyCapabilities, RoutingObjective, RoutingPolicyInputs, SubstrateCandidate,
-    SubstrateLease, SubstrateRequirements,
+    RouteFamilyId, RouteHealth, RouteId, RouteInstallation, RouteMaintenanceResult,
+    RouteMaintenanceTrigger, RouteMaterializationInput, RoutingFamilyCapabilities,
+    RoutingObjective, RoutingPolicyInputs, SubstrateCandidate, SubstrateLease,
+    SubstrateRequirements,
 };
 use jacquard_macros::purity;
 
@@ -104,10 +105,10 @@ pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
     #[must_use]
     fn materialize_route_on_substrate(
         &mut self,
-        admission: RouteAdmission,
+        input: RouteMaterializationInput,
         substrate: SubstrateLease,
         parameters: LayerParameters,
-    ) -> Result<MaterializedRoute, RouteError>;
+    ) -> Result<RouteInstallation, RouteError>;
 }
 
 #[purity(pure)]
@@ -157,13 +158,16 @@ pub trait RoutePlanner {
 ///
 /// Effectful runtime boundary.
 pub trait RouteFamily: RoutePlanner {
-    /// Materialization is the canonical route-realization step. Success must return an
-    /// `MaterializedRoute` carrying a strong canonical handle.
+    /// Realize runtime state for a route under router-owned canonical identity.
+    ///
+    /// The router allocates the canonical handle and lease first, then the
+    /// family installs the admitted route under that identity and returns the
+    /// family-owned installation artifacts.
     #[must_use]
     fn materialize_route(
         &mut self,
-        admission: RouteAdmission,
-    ) -> Result<MaterializedRoute, RouteError>;
+        input: RouteMaterializationInput,
+    ) -> Result<RouteInstallation, RouteError>;
 
     /// Every unresolved or recently resolved family-side obligation must be
     /// expressible as an explicit route commitment.

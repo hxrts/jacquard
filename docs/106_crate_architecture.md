@@ -68,9 +68,9 @@ Cross-crate invariants:
 
 Ownership by crate:
 
-- `jacquard-router` owns canonical route materialization, lease transfer, route replacement, canonical handle issuance, and top-level route-health publication.
+- `jacquard-router` owns canonical route identity, route materialization inputs, lease transfer, route replacement, canonical handle issuance, and top-level route-health publication.
 - a host-owned layer coordinator above the router may own cross-family migration policy and substrate selection policy
-- `jacquard-mesh` owns mesh-private forwarding state, topology caches, route repair state, route exports, family-side route commitments, deferred-delivery custody state, and any family-local committee scoring or misbehavior tracking.
+- `jacquard-mesh` owns mesh-private forwarding state, route realization artifacts, topology caches, route repair state, route exports, family-side route commitments, deferred-delivery custody state, and any family-local committee scoring or misbehavior tracking.
 - `jacquard-transport` owns local transport observations and device-facing adapter state only.
 - `jacquard-simulator` owns replay artifacts, scenario traces, and post-run analysis outputs. It does not own canonical route truth during a live run.
 - `jacquard-core` owns the shared vocabulary. It does not own live state.
@@ -80,6 +80,4 @@ Ownership by crate:
 
 `core::Configuration` is the shared graph-shaped world object. If mesh needs geometry, richer topology exports, or other spatial structure, those should live in `MeshConfiguration` or other mesh-owned types rather than being pushed into the base `Environment`. The same rule applies to any family-specific state. Family-private planning caches, forwarding tables, and custody stores belong in the family crate, not in `core`.
 
-The same minimality rule applies to coordination and layering. The shared boundary may expose the shape of a committee or witness-set result, substrate requirements, substrate leases, and layer parameters, but it should not force one committee algorithm, one leader model, one adversary heuristic, or one layering policy onto every family. That policy belongs in the family crate or embedding host.
-
-External route families should depend on `jacquard-core` and `jacquard-traits`. They should not depend on mesh internals, router internals, or simulator-private helpers. An external family must implement `RouteFamily` and treat `RouteSummary`, `Estimate<RouteEstimate>`, `RouteAdmissionCheck`, `RouteWitness`, `RouteHandle`, `RouteLease`, `RouteCommitment`, `RouteMaintenanceResult`, `CommitteeSelection`, `SubstrateRequirements`, `SubstrateLease`, `LayerParameters`, `Observation<T>`, and `Fact<T>` as the stable cross-crate contract. It must not assume mesh route shape, mesh topology structure, mesh-specific maintenance semantics, or that the shared committee or substrate abstraction implies direct family awareness.
+See [Extensibility](107_extensibility.md) for the full extension surface, dependency rules, and stable contract types.

@@ -1,4 +1,4 @@
-//! Build an MaterializedRoute from shared lifecycle types to verify structural coherence.
+//! Build a MaterializedRoute from router-owned identity and family installation state.
 
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief, ByteCount,
@@ -6,11 +6,12 @@ use jacquard_core::{
     FailureModelClass, FamilyFallbackPolicy, HoldFallbackPolicy, Limit, MaterializedRoute,
     MessageFlowAssumptionClass, NodeDensityClass, PublicationId, ReachabilityState, RouteAdmission,
     RouteAdmissionCheck, RouteCandidate, RouteConnectivityProfile, RouteCost, RouteDegradation,
-    RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteLease,
-    RouteLifecycleEvent, RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
-    RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-    RouteServiceKind, RouteSummary, RouteWitness, RoutingAdmissionProfile, RoutingObjective,
-    RuntimeEnvelopeClass, Tick, TimeWindow, TransportProtocol,
+    RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteInstallation,
+    RouteLease, RouteLifecycleEvent, RouteMaterializationInput, RouteMaterializationProof,
+    RoutePartitionClass, RouteProgressContract, RouteProgressState, RouteProtectionClass,
+    RouteRepairClass, RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness,
+    RoutingAdmissionProfile, RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
+    TransportProtocol,
 };
 
 fn repairable_connected() -> RouteConnectivityProfile {
@@ -109,23 +110,12 @@ fn sample_route() -> (RouteCandidate, MaterializedRoute) {
             backend_route_id: jacquard_core::BackendRouteId(vec![1, 2, 3]),
         },
     };
-    let route = MaterializedRoute {
+    let input = RouteMaterializationInput {
         handle: RouteHandle {
             route_id: RouteId([5; 16]),
             topology_epoch: RouteEpoch(4),
             materialized_at_tick: Tick(101),
             publication_id: PublicationId([4; 16]),
-        },
-        materialization_proof: RouteMaterializationProof {
-            route_id: RouteId([5; 16]),
-            topology_epoch: RouteEpoch(4),
-            materialized_at_tick: Tick(101),
-            publication_id: PublicationId([4; 16]),
-            witness: Fact {
-                value: witness.clone(),
-                basis: FactBasis::Published,
-                established_at_tick: Tick(101),
-            },
         },
         admission: RouteAdmission {
             route_id: RouteId([5; 16]),
@@ -146,7 +136,7 @@ fn sample_route() -> (RouteCandidate, MaterializedRoute) {
                 route_cost: sample_route_cost(),
             },
             summary,
-            witness,
+            witness: witness.clone(),
         },
         lease: RouteLease {
             owner_node_id: jacquard_core::NodeId([9; 32]),
@@ -154,6 +144,19 @@ fn sample_route() -> (RouteCandidate, MaterializedRoute) {
             valid_for: TimeWindow {
                 start_tick: Tick(100),
                 end_tick: Tick(500),
+            },
+        },
+    };
+    let installation = RouteInstallation {
+        materialization_proof: RouteMaterializationProof {
+            route_id: RouteId([5; 16]),
+            topology_epoch: RouteEpoch(4),
+            materialized_at_tick: Tick(101),
+            publication_id: PublicationId([4; 16]),
+            witness: Fact {
+                value: witness,
+                basis: FactBasis::Published,
+                established_at_tick: Tick(101),
             },
         },
         last_lifecycle_event: RouteLifecycleEvent::Activated,
@@ -170,6 +173,7 @@ fn sample_route() -> (RouteCandidate, MaterializedRoute) {
             state: RouteProgressState::Satisfied,
         },
     };
+    let route = MaterializedRoute::from_installation(input, installation);
 
     (candidate, route)
 }

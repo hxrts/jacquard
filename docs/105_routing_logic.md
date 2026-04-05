@@ -84,35 +84,31 @@ pub trait LayeredRoutePlanner {
 pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
     fn materialize_route_on_substrate(
         &mut self,
-        admission: RouteAdmission,
+        input: RouteMaterializationInput,
         substrate: SubstrateLease,
         parameters: LayerParameters,
-    ) -> Result<MaterializedRoute, RouteError>;
+    ) -> Result<RouteInstallation, RouteError>;
 }
 
 pub trait RouteFamily: RoutePlanner {
     fn materialize_route(
         &mut self,
-        admission: RouteAdmission,
-    ) -> Result<MaterializedRoute, RouteError>;
+        input: RouteMaterializationInput,
+    ) -> Result<RouteInstallation, RouteError>;
 }
 ```
 
-This split shows the main route-building sequence. The important point is that route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only at materialization. The planning side is deterministic and read-only with respect to canonical route state. Runtime mutation starts at `materialize_route`.
+This split shows the main route-building sequence. The important point is that route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only when the router allocates route identity and the family realizes that admitted route under the router-provided `RouteMaterializationInput`. The planning side is deterministic and read-only with respect to canonical route state. Runtime mutation starts at `materialize_route`.
 
 `CommitteeSelector` sits on the same planning side when a family uses it. Jacquard commits to the shared result shape of the committee, not to one universal committee-selection policy. Families may use leaderless threshold sets, role-differentiated committees, or no committee at all.
 
-`SubstratePlanner` and `LayeredRoutePlanner` stay on the deterministic planning side. `SubstrateRuntime` and `LayeredRouteFamily` own the effectful acquisition and materialization steps. That keeps layering aligned with the same purity rule as `RoutePlanner` versus `RouteFamily`, and it prevents composition from collapsing planning and runtime mutation into one trait.
+`SubstratePlanner` and `LayeredRoutePlanner` stay on the deterministic planning side. `SubstrateRuntime` and `LayeredRouteFamily` own the effectful acquisition and realization steps. That keeps layering aligned with the same purity rule as `RoutePlanner` versus `RouteFamily`, and it prevents composition from collapsing planning and runtime mutation into one trait.
 
 ## Family Boundary
 
-`RoutePlanner` is the deterministic planning boundary. `RouteFamily` is the effectful runtime boundary on top of it. A planner produces candidates, checks admission, and admits a route. A family runtime materializes it, publishes commitments, and handles maintenance. The top-level router stays family-neutral: it compares candidates, enforces fallback rules, tracks materialized routes, and coordinates maintenance.
+`RoutePlanner` is the deterministic planning boundary. `RouteFamily` is the effectful runtime boundary on top of it. A planner produces candidates, checks admission, and admits a route. The router allocates canonical route identity. The family runtime realizes that route under the router-owned handle and lease, publishes commitments, and handles maintenance. The top-level router stays family-neutral: it compares candidates, enforces fallback rules, tracks materialized routes, and coordinates maintenance.
 
-This is the chosen abstraction boundary for coordination as well. Shared code may see `CommitteeSelection`, evidence classes, and claim strength. Shared code should not see family-local scoring rules, GPS heuristics, clique layouts, or leader-election machinery.
-
-The same boundary applies to layering. Shared code may see substrate requirements, substrate leases, and layer parameters. Shared code should not see onion-private path construction, mesh-private repair scoring, or direct family-to-family calls.
-
-The same pure/effectful split applies inside mesh. `MeshTopologyModel` is read-only. `MeshTransport` is the effectful frame carrier. `CustodyStore` is the effectful retention boundary. `MeshRouteFamily` ties those parts together without collapsing them into one blob.
+See [Extensibility](107_extensibility.md) for the full extension surface, including route families, transports, effects, hashing, content addressing, and simulation.
 
 ## Runtime Boundary
 

@@ -7,11 +7,12 @@ use jacquard_traits::{
         LinkRuntimeState, LinkState, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
         PublicationId, RatioPermille, RouteAdmission, RouteAdmissionCheck, RouteBinding,
         RouteCommitment, RouteCommitmentId, RouteCommitmentResolution, RouteConnectivityProfile,
-        RouteCost, RouteEpoch, RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteLease,
-        RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
-        RouteMaintenanceTrigger, RouteMaterializationProof, RouteProtectionClass, RouteSummary,
-        RouteWitness, RoutingFamilyCapabilities, ServiceDescriptor, TransportError,
-        TransportIngressEvent, TransportProtocol,
+        RouteCost, RouteEpoch, RouteFamilyId, RouteHandle, RouteHealth, RouteId,
+        RouteInstallation, RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+        RouteMaterializationProof, RouteProtectionClass, RouteSummary, RouteWitness,
+        RoutingFamilyCapabilities, ServiceDescriptor, TransportError, TransportIngressEvent,
+        TransportProtocol,
     },
     CustodyStore, EffectHandler, MeshRouteFamily, MeshTopologyModel, MeshTransport, RouteFamily,
     RoutePlanner, TransportEffects,
@@ -215,14 +216,16 @@ impl RoutePlanner for StubMeshFamily {
 impl RouteFamily for StubMeshFamily {
     fn materialize_route(
         &mut self,
-        admission: RouteAdmission,
-    ) -> Result<
-        jacquard_traits::jacquard_core::MaterializedRoute,
-        jacquard_traits::jacquard_core::RouteError,
-    > {
-        let route = sample_materialized_route(admission);
+        input: RouteMaterializationInput,
+    ) -> Result<RouteInstallation, jacquard_traits::jacquard_core::RouteError> {
+        let route = sample_materialized_route(input);
         self.route = Some(route.clone());
-        Ok(route)
+        Ok(RouteInstallation {
+            materialization_proof: route.materialization_proof,
+            last_lifecycle_event: route.last_lifecycle_event,
+            health: route.health,
+            progress: route.progress,
+        })
     }
 
     fn route_commitments(
@@ -453,49 +456,37 @@ fn sample_route_admission(
 }
 
 fn sample_materialized_route(
-    admission: RouteAdmission,
+    input: RouteMaterializationInput,
 ) -> jacquard_traits::jacquard_core::MaterializedRoute {
-    jacquard_traits::jacquard_core::MaterializedRoute {
-        handle: RouteHandle {
-            route_id: admission.route_id,
-            topology_epoch: RouteEpoch(1),
-            materialized_at_tick: jacquard_traits::jacquard_core::Tick(1),
-            publication_id: PublicationId([9; 16]),
-        },
-        materialization_proof: RouteMaterializationProof {
-            route_id: admission.route_id,
-            topology_epoch: RouteEpoch(1),
-            materialized_at_tick: jacquard_traits::jacquard_core::Tick(1),
-            publication_id: PublicationId([9; 16]),
-            witness: Fact {
-                value: admission.witness.clone(),
-                basis: jacquard_traits::jacquard_core::FactBasis::Published,
-                established_at_tick: jacquard_traits::jacquard_core::Tick(1),
+    jacquard_traits::jacquard_core::MaterializedRoute::from_installation(
+        input.clone(),
+        RouteInstallation {
+            materialization_proof: RouteMaterializationProof {
+                route_id: input.admission.route_id,
+                topology_epoch: RouteEpoch(1),
+                materialized_at_tick: jacquard_traits::jacquard_core::Tick(1),
+                publication_id: PublicationId([9; 16]),
+                witness: Fact {
+                    value: input.admission.witness.clone(),
+                    basis: jacquard_traits::jacquard_core::FactBasis::Published,
+                    established_at_tick: jacquard_traits::jacquard_core::Tick(1),
+                },
+            },
+            last_lifecycle_event: RouteLifecycleEvent::Activated,
+            health: RouteHealth {
+                reachability_state: jacquard_traits::jacquard_core::ReachabilityState::Reachable,
+                stability_score: jacquard_traits::jacquard_core::HealthScore(1000),
+                congestion_penalty_points: jacquard_traits::jacquard_core::PenaltyPoints(0),
+                last_validated_at_tick: jacquard_traits::jacquard_core::Tick(1),
+            },
+            progress: jacquard_traits::jacquard_core::RouteProgressContract {
+                productive_step_count_max: jacquard_traits::jacquard_core::Limit::Bounded(1),
+                total_step_count_max: jacquard_traits::jacquard_core::Limit::Bounded(1),
+                last_progress_at_tick: jacquard_traits::jacquard_core::Tick(1),
+                state: jacquard_traits::jacquard_core::RouteProgressState::Satisfied,
             },
         },
-        lease: RouteLease {
-            owner_node_id: NodeId([1; 32]),
-            lease_epoch: RouteEpoch(1),
-            valid_for: jacquard_traits::jacquard_core::TimeWindow {
-                start_tick: jacquard_traits::jacquard_core::Tick(1),
-                end_tick: jacquard_traits::jacquard_core::Tick(10),
-            },
-        },
-        admission,
-        last_lifecycle_event: RouteLifecycleEvent::Activated,
-        health: RouteHealth {
-            reachability_state: jacquard_traits::jacquard_core::ReachabilityState::Reachable,
-            stability_score: jacquard_traits::jacquard_core::HealthScore(1000),
-            congestion_penalty_points: jacquard_traits::jacquard_core::PenaltyPoints(0),
-            last_validated_at_tick: jacquard_traits::jacquard_core::Tick(1),
-        },
-        progress: jacquard_traits::jacquard_core::RouteProgressContract {
-            productive_step_count_max: jacquard_traits::jacquard_core::Limit::Bounded(1),
-            total_step_count_max: jacquard_traits::jacquard_core::Limit::Bounded(1),
-            last_progress_at_tick: jacquard_traits::jacquard_core::Tick(1),
-            state: jacquard_traits::jacquard_core::RouteProgressState::Satisfied,
-        },
-    }
+    )
 }
 
 #[test]
