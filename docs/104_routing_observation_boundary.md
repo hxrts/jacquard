@@ -6,7 +6,11 @@ This page defines the abstraction boundary around the local node, peer connectio
 
 The routing core sees budget, novelty, stability, confidence, and aggregate neighborhood conditions. It does not see battery chemistry, radio chipset details, GPS coordinates, or raw signal traces. This keeps the model portable across devices and transports.
 
+That boundary is also where Jacquard avoids becoming too opinionated. The shared layer exposes evidence that a family may use for local coordination, but it does not tell every family how to score peers, how to form committees, or whether any committee must have a leader.
+
 Uncertain quantities are modeled as `Belief<T>`: either `Absent` or `Estimated(Estimate<T>)` with an explicit `confidence_permille`. Observations keep source and authentication separate. An `Observation<T>` may be local or remote, and its origin may be controlled, authenticated, or unauthenticated.
+
+`IdentityAssuranceClass` complements those provenance fields. It lets policy and committee selection distinguish weakly observed identities from stronger controller-bound or externally attested ones without collapsing that decision into the routing objects themselves.
 
 The model has four scopes: local node, link, peer, and environment. Each answers a different routing question. `world` defines the abstract objects. `observation` wraps them with provenance. `estimation` derives routing summaries. `policy` and `action` sit on top.
 
@@ -116,3 +120,5 @@ pub struct ConfigurationEstimate {
 These signals matter most in sparse and disrupted networks. A contact that looks mediocre in isolation may still be valuable if the neighborhood is sparse, churn is high, or the node bridges otherwise disjoint information sets.
 
 `Environment` should not include family-specific concerns. Richer geometry, spatial embeddings, or transport-specific structure should extend `Configuration` in the family layer rather than inflating the base environment type.
+
+The same rule applies to coordination policy. GPS-derived regions, graph embeddings, provider clusters, or other family-specific grouping logic may exist above this boundary, but they should remain family-private interpretations of shared observations rather than becoming part of the base environment model.

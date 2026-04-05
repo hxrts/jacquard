@@ -20,6 +20,8 @@ world
 
 The control plane owns candidate gathering, admission, materialization, commitments, maintenance, and anti-entropy. The data plane forwards payloads over already admitted route state. Data-plane observations may report health or failures, but the control plane decides whether that changes the active materialized route.
 
+If a family needs local coordination, that also lives in the control plane. A family may select a committee or witness set as part of planning, but those results are advisory inputs to canonical transitions. They are not canonical route truth by themselves.
+
 The link layer is a frame carrier. It reports reachability, MTU, loss, and timing. It does not own canonical ordering or traffic control. If a route family needs sequencing or causal behavior, that appears as a routing-level message-flow assumption rather than a transport guarantee. Keeping the transport surface simple avoids head-of-line stalls on unstable links and prevents baking one delivery policy into every route family.
 
 ## Decision Path
@@ -43,6 +45,15 @@ pub trait RoutePlanner {
     ) -> Result<RouteAdmission, RouteError>;
 }
 
+pub trait CommitteeSelector {
+    fn select_committee(
+        &self,
+        objective: &RoutingObjective,
+        profile: &AdaptiveRoutingProfile,
+        topology: &Observation<Configuration>,
+    ) -> Result<CommitteeSelection, RouteError>;
+}
+
 pub trait RouteFamily: RoutePlanner {
     fn materialize_route(
         &mut self,
@@ -53,9 +64,13 @@ pub trait RouteFamily: RoutePlanner {
 
 This split shows the main route-building sequence. The important point is that route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only at materialization. The planning side is deterministic and read-only with respect to canonical route state. Runtime mutation starts at `materialize_route`.
 
+`CommitteeSelector` sits on the same planning side when a family uses it. Jacquard commits to the shared result shape of the committee, not to one universal committee-selection policy. Families may use leaderless threshold sets, role-differentiated committees, or no committee at all.
+
 ## Family Boundary
 
 `RoutePlanner` is the deterministic planning boundary. `RouteFamily` is the effectful runtime boundary on top of it. A planner produces candidates, checks admission, and admits a route. A family runtime materializes it, publishes commitments, and handles maintenance. The top-level router stays family-neutral: it compares candidates, enforces fallback rules, tracks materialized routes, and coordinates maintenance.
+
+This is the chosen abstraction boundary for coordination as well. Shared code may see `CommitteeSelection`, evidence classes, and claim strength. Shared code should not see family-local scoring rules, GPS heuristics, clique layouts, or leader-election machinery.
 
 The same pure/effectful split applies inside mesh. `MeshTopologyModel` is read-only. `MeshTransport` is the effectful frame carrier. `CustodyStore` is the effectful retention boundary. `MeshRouteFamily` ties those parts together without collapsing them into one blob.
 

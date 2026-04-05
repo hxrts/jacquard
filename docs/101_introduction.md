@@ -12,12 +12,24 @@ The central split is between shared facts and local runtime state. Service descr
 
 Jacquard depends on Telltale for choreography projection, runtime structure, and simulation support. The routing model is shaped so admission, installation, maintenance, and replay remain explicit. The codebase is organized around shared model types, abstract trait boundaries, first-party mesh logic, router orchestration, and simulation.
 
+## Problem
+
+Jacquard is aimed at networks that are unstable, capacity-constrained, and potentially adversarial. Nodes may churn, links may degrade quickly, identities may be weak or partially authenticated, and local coordination may be necessary without any reliable global authority.
+
+That creates two competing pressures. The system needs stronger coordination than naive flooding or purely local heuristics, but it also cannot afford to hard-code one routing doctrine such as GPS-based clique membership, singleton leaders, or full consensus on every routing transition.
+
 ## System Shape
 
 The top-level routing contract is family-neutral. A family produces observational candidates, checks admission, admits a route, materializes it, publishes commitments, and handles family-local maintenance. The control plane owns canonical route truth. The data plane forwards over already admitted truth.
+
+When a family needs local coordination, Jacquard allows it to expose a shared coordination result such as a committee selection. Jacquard does not require that every family use committees, and it does not require that a committee have a distinguished leader.
 
 ## Design Commitments
 
 Jacquard is fully deterministic. It does not use floating-point scoring in the routing core. It uses typed time, typed ordering, explicit bounds, and explicit ownership objects instead of ambient runtime assumptions.
 
 Jacquard also keeps observation scopes explicit. Local node state, peer estimates, link estimates, and neighborhood aggregates are separate model surfaces. That split keeps routing logic honest about what is self-known, what is inferred about a peer, and what is only an aggregate local view.
+
+Jacquard is intentionally not too opinionated about family-local scoring, committee selection policy, or trust heuristics. The shared layer commits to the result shapes, evidence classes, ownership rules, and canonical transition path. The family layer owns the scoring rules, diversity logic, and misbehavior handling that depend on its routing semantics.
+
+Jacquard is also committed to a GPS-free core model. Absolute location may appear as a family-private hint, but it is not part of the shared routing truth and it is not required for local coordination.

@@ -8,7 +8,7 @@ This page describes the crate layout, the boundary rules, and the implementation
 
 `core` owns shared identifiers, data types, constants, error types, and the full model pipeline from world objects through observations, estimates, policy, and action. It must not grow behavioral traits for subcomponents. Derives, trivial constructors, and simple validation are allowed. Cross-crate behavioral interfaces are not.
 
-`traits` owns all cross-crate behavioral interfaces. This includes the routing contract (`RoutingController`, `RoutePlanner`, `RouteFamily`, `Router`, `RoutingControlPlane`, `RoutingDataPlane`), the runtime effect traits (`TimeEffects`, `OrderEffects`, `HashEffects`, `StorageEffects`, `AuditEffects`, `TransportEffects`), the mesh-specialized traits (`MeshTopologyModel`, `MeshTransport`, `CustodyStore`, `MeshRouteFamily`), and the simulator traits (`RoutingScenario`, `RoutingEnvironmentModel`, `RoutingSimulator`, `RoutingReplayView`).
+`traits` owns all cross-crate behavioral interfaces. This includes the routing contract (`RoutingController`, `CommitteeSelector`, `RoutePlanner`, `RouteFamily`, `Router`, `RoutingControlPlane`, `RoutingDataPlane`), the runtime effect traits (`TimeEffects`, `OrderEffects`, `HashEffects`, `StorageEffects`, `AuditEffects`, `TransportEffects`), the mesh-specialized traits (`MeshTopologyModel`, `MeshTransport`, `CustodyStore`, `MeshRouteFamily`), and the simulator traits (`RoutingScenario`, `RoutingEnvironmentModel`, `RoutingSimulator`, `RoutingReplayView`).
 
 ## Dependency Graph
 
@@ -34,6 +34,8 @@ Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depen
 
 Inside `core`, files are grouped into three areas. `base/` holds cross-cutting primitives: identity, time, qualifiers, constants, and errors. `model/` holds the world-to-action pipeline: world objects, observations, estimation, policy, and action. `routing/` holds route lifecycle and runtime coordination objects: admission, runtime state, capabilities, and audit. Small transport and content files stay at the crate root.
 
+This is also the main abstraction boundary for how opinionated Jacquard should be. `core` may define shared coordination result objects such as `CommitteeSelection`, identity-assurance qualifiers, and evidence classes. It must not define family-local committee scoring policy, require a leader, or turn one routing family's grouping heuristic into a workspace-wide law.
+
 ## Purity And Side Effects
 
 Jacquard treats purity and side effects as part of the trait contract.
@@ -57,11 +59,12 @@ Cross-crate invariants:
 - Canonical ordering must flow through shared ordering types. Crates must not invent crate-local tie-break schemes.
 - Canonical hashing and content IDs must flow through the shared hash and content-addressing boundaries.
 - Transport may observe links and carry bytes, but it may not invent route truth, publish canonical route health, or mutate materialized-route ownership.
+- GPS, absolute location, clique grids, and singleton leaders are not shared routing truth. If a family uses spatial hints or local coordination structures, those remain family-private interpretations above the shared observation boundary.
 
 Ownership by crate:
 
 - `jacquard-router` owns canonical route materialization, lease transfer, route replacement, canonical handle issuance, and top-level route-health publication.
-- `jacquard-mesh` owns mesh-private forwarding state, topology caches, route repair state, route exports, family-side route commitments, and deferred-delivery custody state.
+- `jacquard-mesh` owns mesh-private forwarding state, topology caches, route repair state, route exports, family-side route commitments, deferred-delivery custody state, and any family-local committee scoring or misbehavior tracking.
 - `jacquard-transport` owns local transport observations and device-facing adapter state only.
 - `jacquard-simulator` owns replay artifacts, scenario traces, and post-run analysis outputs. It does not own canonical route truth during a live run.
 - `jacquard-core` owns the shared vocabulary. It does not own live state.
@@ -71,4 +74,6 @@ Ownership by crate:
 
 `core::Configuration` is the shared graph-shaped world object. If mesh needs geometry, richer topology exports, or other spatial structure, those should live in `MeshConfiguration` or other mesh-owned types rather than being pushed into the base `Environment`. The same rule applies to any family-specific state. Family-private planning caches, forwarding tables, and custody stores belong in the family crate, not in `core`.
 
-External route families should depend on `jacquard-core` and `jacquard-traits`. They should not depend on mesh internals, router internals, or simulator-private helpers. An external family must implement `RouteFamily` and treat `RouteSummary`, `Estimate<RouteEstimate>`, `RouteAdmissionCheck`, `RouteWitness`, `RouteHandle`, `RouteLease`, `RouteCommitment`, `RouteMaintenanceResult`, `Observation<T>`, and `Fact<T>` as the stable cross-crate contract. It must not assume mesh route shape, mesh topology structure, or mesh-specific maintenance semantics.
+The same minimality rule applies to coordination. The shared boundary may expose the shape of a committee or witness-set result, but it should not force one committee algorithm, one leader model, or one adversary heuristic onto every family. That policy belongs in the family crate or embedding host.
+
+External route families should depend on `jacquard-core` and `jacquard-traits`. They should not depend on mesh internals, router internals, or simulator-private helpers. An external family must implement `RouteFamily` and treat `RouteSummary`, `Estimate<RouteEstimate>`, `RouteAdmissionCheck`, `RouteWitness`, `RouteHandle`, `RouteLease`, `RouteCommitment`, `RouteMaintenanceResult`, `CommitteeSelection`, `Observation<T>`, and `Fact<T>` as the stable cross-crate contract. It must not assume mesh route shape, mesh topology structure, mesh-specific maintenance semantics, or that the shared committee abstraction implies a distinguished leader.

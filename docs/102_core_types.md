@@ -41,6 +41,8 @@ This group of types shows two important boundaries. `NodeBinding` says who contr
 
 `FactSourceClass` and `OriginAuthenticationClass` are intentionally separate. One says whether the fact is local or remote. The other says whether the origin is controlled, authenticated, or unauthenticated. That keeps provenance and authentication from collapsing into one mixed enum.
 
+`IdentityAssuranceClass` is a second identity-facing qualifier. It says how strongly a node identity is grounded for routing-control decisions. That keeps "who claims to exist" separate from "how much committee or admission weight that identity should receive".
+
 ## Time And Bounds
 
 `Tick`, `DurationMs`, `OrderStamp`, `RouteEpoch`, and `ByteCount` are the core scalar units. They keep local time, bounded duration, deterministic ordering, topology versioning, and byte quantities distinct. `TimeWindow` and `TimeoutPolicy` are the first compound objects built on those primitives.
@@ -52,3 +54,5 @@ This group of types shows two important boundaries. `NodeBinding` says who contr
 `Configuration` is the shared world object the router reasons about. It is a wired-together set of `Node` and `Link` objects plus one `Environment`. `world` owns those instantiated world objects directly, with `Node` split into `NodeProfile` plus `NodeState` and `Link` split into `LinkProfile` plus `LinkState`. `Observation<T>` wraps those objects when they are locally seen or remotely reported. `PeerRoutingEstimate`, `ConfigurationEstimate`, and `RouteEstimate` describe the derived routing summaries that sit between raw observation and policy. `AdaptiveRoutingProfile` is the main shared action object produced by policy.
 
 `RouteHandle`, `RouteMaterializationProof`, and `RouteCommitment` are the main runtime coordination objects in `core`. They are worth recognizing early because many later types point at them. They give the system strong route identity, proof-bearing materialization, and explicit outstanding work.
+
+`CommitteeSelection` is the main shared coordination object. It carries a selected member set, role declarations, lease window, evidence basis, claim strength, and identity-assurance posture. The important boundary is that `core` exposes only the coordination result shape. It does not define one universal committee-selection algorithm, require a leader, or encode family-local scoring policy.
