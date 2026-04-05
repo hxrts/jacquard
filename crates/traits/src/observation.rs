@@ -27,6 +27,5 @@ pub trait ObservationExtensionDescriptor {
 /// later batch, diff, merge, checkpoint, or prioritize them, but the
 /// extension boundary itself stays focused on what was observed.
 pub trait ObservationExtension: ObservationExtensionDescriptor {
-    #[must_use]
     fn poll_observations(&mut self) -> Result<Vec<SharedObservation>, RouteError>;
 }

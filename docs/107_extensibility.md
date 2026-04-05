@@ -273,35 +273,35 @@ Every `MeshTransport` implementation automatically satisfies `TransportEffects` 
 
 If transport implementations grow substantial platform logic, they should be split into dedicated crates such as `jacquard-transport-ble` rather than expanding the stub `jacquard-transport` crate.
 
-## Custody Stores
+## Retention Stores
 
-A custody store holds opaque deferred-delivery payloads during partitions. It must not interpret higher-level routing semantics.
+A retention store holds opaque deferred-delivery payloads during partitions. It must not interpret higher-level routing semantics.
 
 ```rust
-pub trait CustodyStore {
-    fn put_custody_payload(
+pub trait RetentionStore {
+    fn retain_payload(
         &mut self,
         object_id: ContentId<Blake3Digest>,
         payload: Vec<u8>,
-    ) -> Result<(), CustodyError>;
+    ) -> Result<(), RetentionError>;
 
     #[must_use]
-    fn take_custody_payload(
+    fn take_retained_payload(
         &mut self,
         object_id: &ContentId<Blake3Digest>,
-    ) -> Result<Option<Vec<u8>>, CustodyError>;
+    ) -> Result<Option<Vec<u8>>, RetentionError>;
 
     #[must_use]
-    fn contains_custody_payload(
+    fn contains_retained_payload(
         &self,
         object_id: &ContentId<Blake3Digest>,
-    ) -> Result<bool, CustodyError>;
+    ) -> Result<bool, RetentionError>;
 }
 ```
 
 ## Mesh Subcomponents
 
-The mesh routing engine exposes its internal subcomponents through `MeshRoutingEngine`. This lets topology queries, transport I/O, and custody storage be swapped independently.
+The mesh routing engine exposes its internal subcomponents through `MeshRoutingEngine`. This lets topology queries, transport I/O, and retention storage be swapped independently.
 
 ```rust
 pub trait MeshTopologyModel {
@@ -333,17 +333,17 @@ pub trait MeshTopologyModel {
 pub trait MeshRoutingEngine: RoutingEngine {
     type TopologyModel: MeshTopologyModel;
     type Transport: MeshTransport;
-    type Custody: CustodyStore;
+    type Retention: RetentionStore;
 
     fn topology_model(&self) -> &Self::TopologyModel;
     fn transport(&self) -> &Self::Transport;
     fn transport_mut(&mut self) -> &mut Self::Transport;
-    fn custody_store(&self) -> &Self::Custody;
-    fn custody_store_mut(&mut self) -> &mut Self::Custody;
+    fn retention_store(&self) -> &Self::Retention;
+    fn retention_store_mut(&mut self) -> &mut Self::Retention;
 }
 ```
 
-`MeshTopologyModel` is read-only. `MeshTransport` and `CustodyStore` are effectful. The associated types on `MeshRoutingEngine` bind one concrete set of subcomponents per mesh implementation.
+`MeshTopologyModel` is read-only. `MeshTransport` and `RetentionStore` are effectful. The associated types on `MeshRoutingEngine` bind one concrete set of subcomponents per mesh implementation.
 
 ## Runtime Effects
 

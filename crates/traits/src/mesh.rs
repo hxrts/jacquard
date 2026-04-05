@@ -9,11 +9,11 @@
 //! - `MeshTransport` is effectful. It carries frames and reports transport
 //!   observations, but
 //!   it must not impose sequencing, traffic control, or routing truth.
-//! - `CustodyStore` is effectful. It stores opaque deferred-delivery payloads,
+//! - `RetentionStore` is effectful. It stores opaque deferred-delivery payloads,
 //!   but it must not interpret higher-level routing semantics.
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, CustodyError, Link, LinkEndpoint, Node, NodeId,
+    Blake3Digest, Configuration, ContentId, Link, LinkEndpoint, Node, NodeId, RetentionError,
     TransportError, TransportObservation, TransportProtocol,
 };
 use jacquard_macros::purity;
@@ -57,7 +57,6 @@ pub trait MeshTransport {
     fn send_frame(&mut self, endpoint: &LinkEndpoint, payload: &[u8])
         -> Result<(), TransportError>;
 
-    #[must_use]
     fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
 }
 
@@ -84,24 +83,22 @@ where
 /// Effectful deferred-delivery retention boundary.
 ///
 /// Effectful runtime boundary.
-pub trait CustodyStore {
-    fn put_custody_payload(
+pub trait RetentionStore {
+    fn retain_payload(
         &mut self,
         object_id: ContentId<Blake3Digest>,
         payload: Vec<u8>,
-    ) -> Result<(), CustodyError>;
+    ) -> Result<(), RetentionError>;
 
-    #[must_use]
-    fn take_custody_payload(
+    fn take_retained_payload(
         &mut self,
         object_id: &ContentId<Blake3Digest>,
-    ) -> Result<Option<Vec<u8>>, CustodyError>;
+    ) -> Result<Option<Vec<u8>>, RetentionError>;
 
-    #[must_use]
-    fn contains_custody_payload(
+    fn contains_retained_payload(
         &self,
         object_id: &ContentId<Blake3Digest>,
-    ) -> Result<bool, CustodyError>;
+    ) -> Result<bool, RetentionError>;
 }
 
 #[purity(effectful)]
@@ -115,7 +112,7 @@ pub trait CustodyStore {
 pub trait MeshRoutingEngine: RoutingEngine {
     type TopologyModel: MeshTopologyModel;
     type Transport: MeshTransport;
-    type Custody: CustodyStore;
+    type Retention: RetentionStore;
 
     fn topology_model(&self) -> &Self::TopologyModel;
 
@@ -123,7 +120,7 @@ pub trait MeshRoutingEngine: RoutingEngine {
 
     fn transport_mut(&mut self) -> &mut Self::Transport;
 
-    fn custody_store(&self) -> &Self::Custody;
+    fn retention_store(&self) -> &Self::Retention;
 
-    fn custody_store_mut(&mut self) -> &mut Self::Custody;
+    fn retention_store_mut(&mut self) -> &mut Self::Retention;
 }

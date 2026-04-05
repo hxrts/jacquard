@@ -1,4 +1,4 @@
-//! Error types for routing, transport, custody, and medium operations.
+//! Error types for routing, transport, retention, and medium operations.
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
@@ -97,12 +97,12 @@ pub enum MediumError {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum CustodyError {
-    #[error("custody store is unavailable")]
+pub enum RetentionError {
+    #[error("retention store is unavailable")]
     Unavailable,
-    #[error("custody store is full")]
+    #[error("retention store is full")]
     Full,
-    #[error("custody operation was rejected")]
+    #[error("retention operation was rejected")]
     Rejected,
 }
 

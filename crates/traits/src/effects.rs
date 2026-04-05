@@ -61,7 +61,6 @@ pub trait HashEffects {
 ///
 /// Effectful runtime boundary.
 pub trait StorageEffects {
-    #[must_use]
     fn load_bytes(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
 
     fn store_bytes(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError>;
@@ -89,7 +88,6 @@ pub trait TransportEffects {
         payload: &[u8],
     ) -> Result<(), TransportError>;
 
-    #[must_use]
     fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
 }
 

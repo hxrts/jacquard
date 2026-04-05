@@ -2,13 +2,13 @@
 # Verify every non-exempt crate source file uses at least one jacquard proc macro.
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$repo_root"
 
 rust_files=()
 while IFS= read -r file; do
   rust_files+=("$file")
-done < <(rg --files -g '*.rs' crates/*/src | sort)
+done < <(find crates -path '*/src/*.rs' -type f | sort)
 
 exempt_files=(
   "crates/core/src/lib.rs"

@@ -1,0 +1,11 @@
+# Check manifest — every entry must appear as a step name in both
+# the justfile ci-dry-run and at least one .github/workflows/*.yml file.
+# Case-insensitive substring match. Lines starting with # are ignored.
+Format Check
+Clippy
+Tests
+Docs Link Check
+Proc Macro Scope
+Trait Purity
+Crate Boundary
+No usize in Models

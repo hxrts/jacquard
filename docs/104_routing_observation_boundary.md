@@ -64,7 +64,7 @@ pub struct Observation<T> {
 }
 ```
 
-`NodeProfile` exposes device and local-policy constraints in a form the router can use without learning hardware details. `NodeState` says how much connection headroom, forwarding capacity, and retention space remain now. Routing decisions depend on future forwarding value, not only current free space. A node with spare capacity but a short `retention_horizon_ms` is a weak custody target.
+`NodeProfile` exposes device and local-policy constraints in a form the router can use without learning hardware details. `NodeState` says how much connection headroom, forwarding capacity, and retention space remain now. Routing decisions depend on future forwarding value, not only current free space. A node with spare capacity but a short `retention_horizon_ms` is a weak retention target.
 
 ## Peer And Connection
 

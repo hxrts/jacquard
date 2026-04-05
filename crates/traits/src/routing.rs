@@ -32,7 +32,6 @@ pub trait PolicyEngine {
 pub trait CommitteeSelector {
     type TopologyView;
 
-    #[must_use]
     fn select_committee(
         &self,
         objective: &RoutingObjective,
@@ -58,7 +57,6 @@ pub trait SubstratePlanner {
 /// Optional effectful boundary for families that can acquire and manage
 /// substrate leases after planning has selected one.
 pub trait SubstrateRuntime {
-    #[must_use]
     fn acquire_substrate(
         &mut self,
         candidate: SubstrateCandidate,
@@ -68,7 +66,6 @@ pub trait SubstrateRuntime {
 
     /// Runtime observation over an acquired substrate lease. This is read-only
     /// with respect to canonical route truth.
-    #[must_use]
     fn observe_substrate_health(
         &self,
         lease: &SubstrateLease,
@@ -88,7 +85,6 @@ pub trait LayeredRoutingEnginePlanner {
         parameters: &LayerParameters,
     ) -> Vec<RouteCandidate>;
 
-    #[must_use]
     fn admit_route_on_substrate(
         &self,
         objective: &RoutingObjective,
@@ -103,7 +99,6 @@ pub trait LayeredRoutingEnginePlanner {
 /// Optional effectful boundary for layered routing engines once planning has selected
 /// a substrate-backed route candidate.
 pub trait LayeredRoutingEngine: RoutingEngine + LayeredRoutingEnginePlanner {
-    #[must_use]
     fn materialize_route_on_substrate(
         &mut self,
         input: RouteMaterializationInput,
@@ -136,7 +131,6 @@ pub trait RoutingEnginePlanner {
     ) -> Vec<RouteCandidate>;
 
     /// Engine-level feasibility check. May attach step bounds and cost estimates.
-    #[must_use]
     fn check_candidate(
         &self,
         objective: &RoutingObjective,
@@ -144,7 +138,6 @@ pub trait RoutingEnginePlanner {
         candidate: &RouteCandidate,
     ) -> Result<RouteAdmissionCheck, RouteError>;
 
-    #[must_use]
     fn admit_route(
         &self,
         objective: &RoutingObjective,
@@ -165,7 +158,6 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     /// The router allocates the canonical handle and lease first, then the
     /// routing engine installs the admitted route under that identity and
     /// returns the engine-owned installation artifacts.
-    #[must_use]
     fn materialize_route(
         &mut self,
         input: RouteMaterializationInput,
@@ -173,12 +165,10 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
     /// Every unresolved or recently resolved engine-side obligation must be
     /// expressible as an explicit route commitment.
-    #[must_use]
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
     /// Maintenance returns a typed semantic result so replacement, handoff, and
     /// failure paths keep their payload rather than collapsing to a flag.
-    #[must_use]
     fn maintain_route(
         &mut self,
         route: &mut MaterializedRoute,
@@ -195,16 +185,13 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 pub trait Router {
     fn register_engine(&mut self, extension: Box<dyn RoutingEngine>) -> Result<(), RouteError>;
 
-    #[must_use]
     fn activate_route(
         &mut self,
         objective: RoutingObjective,
     ) -> Result<MaterializedRoute, RouteError>;
 
-    #[must_use]
     fn route_commitments(&self, route_id: &RouteId) -> Result<Vec<RouteCommitment>, RouteError>;
 
-    #[must_use]
     fn reselect_route(
         &mut self,
         route_id: &RouteId,
@@ -216,7 +203,6 @@ pub trait Router {
 /// Host-owned orchestration boundary for policy-driven composition across
 /// routing engines. This is where smooth transition and limited layering live.
 pub trait LayeringPolicyEngine {
-    #[must_use]
     fn activate_layered_route(
         &mut self,
         objective: RoutingObjective,
@@ -231,13 +217,11 @@ pub trait LayeringPolicyEngine {
 ///
 /// Effectful runtime boundary.
 pub trait RoutingControlPlane {
-    #[must_use]
     fn activate_route(
         &mut self,
         objective: RoutingObjective,
     ) -> Result<MaterializedRoute, RouteError>;
 
-    #[must_use]
     fn maintain_route(
         &mut self,
         route_id: &RouteId,
@@ -261,7 +245,6 @@ pub trait RoutingDataPlane {
 
     /// Health reads are observational. They must not silently become canonical
     /// route truth without an explicit control-plane publication step.
-    #[must_use]
     fn observe_route_health(
         &self,
         route_id: &RouteId,

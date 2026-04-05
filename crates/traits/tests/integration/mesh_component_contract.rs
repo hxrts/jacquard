@@ -2,18 +2,19 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        Belief, Blake3Digest, ByteCount, Configuration, ContentId, ControllerId, CustodyError,
-        DurationMs, Environment, Fact, InformationSetSummary, Link, LinkEndpoint, LinkProfile,
+        Belief, Blake3Digest, ByteCount, Configuration, ContentId, ControllerId, DurationMs,
+        Environment, Fact, InformationSetSummary, Link, LinkEndpoint, LinkProfile,
         LinkRuntimeState, LinkState, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
-        PublicationId, RatioPermille, RouteAdmission, RouteAdmissionCheck, RouteBinding,
-        RouteCommitment, RouteCommitmentId, RouteCommitmentResolution, RouteConnectivityProfile,
-        RouteCost, RouteEpoch, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
-        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
-        RouteMaterializationInput, RouteMaterializationProof, RouteProtectionClass, RouteSummary,
-        RouteWitness, RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor,
-        TransportError, TransportObservation, TransportProtocol,
+        PublicationId, RatioPermille, RetentionError, RouteAdmission, RouteAdmissionCheck,
+        RouteBinding, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
+        RouteConnectivityProfile, RouteCost, RouteEpoch, RouteHealth, RouteId, RouteInstallation,
+        RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
+        RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
+        RouteProtectionClass, RouteSummary, RouteWitness, RoutingEngineCapabilities,
+        RoutingEngineId, ServiceDescriptor, TransportError, TransportObservation,
+        TransportProtocol,
     },
-    CustodyStore, EffectHandler, MeshRoutingEngine, MeshTopologyModel, MeshTransport,
+    EffectHandler, MeshRoutingEngine, MeshTopologyModel, MeshTransport, RetentionStore,
     RoutingEngine, RoutingEnginePlanner, TransportEffects,
 };
 
@@ -102,31 +103,31 @@ impl MeshTransport for StubTransport {
     }
 }
 
-struct StubCustodyStore {
+struct StubRetentionStore {
     payloads: BTreeMap<ContentId<Blake3Digest>, Vec<u8>>,
 }
 
-impl CustodyStore for StubCustodyStore {
-    fn put_custody_payload(
+impl RetentionStore for StubRetentionStore {
+    fn retain_payload(
         &mut self,
         object_id: ContentId<Blake3Digest>,
         payload: Vec<u8>,
-    ) -> Result<(), CustodyError> {
+    ) -> Result<(), RetentionError> {
         self.payloads.insert(object_id, payload);
         Ok(())
     }
 
-    fn take_custody_payload(
+    fn take_retained_payload(
         &mut self,
         object_id: &ContentId<Blake3Digest>,
-    ) -> Result<Option<Vec<u8>>, CustodyError> {
+    ) -> Result<Option<Vec<u8>>, RetentionError> {
         Ok(self.payloads.remove(object_id))
     }
 
-    fn contains_custody_payload(
+    fn contains_retained_payload(
         &self,
         object_id: &ContentId<Blake3Digest>,
-    ) -> Result<bool, CustodyError> {
+    ) -> Result<bool, RetentionError> {
         Ok(self.payloads.contains_key(object_id))
     }
 }
@@ -134,7 +135,7 @@ impl CustodyStore for StubCustodyStore {
 struct StubMeshFamily {
     topology: StubTopologyModel,
     transport: StubTransport,
-    custody: StubCustodyStore,
+    retention: StubRetentionStore,
     route: Option<jacquard_traits::jacquard_core::MaterializedRoute>,
 }
 
@@ -266,7 +267,7 @@ impl RoutingEngine for StubMeshFamily {
 impl MeshRoutingEngine for StubMeshFamily {
     type TopologyModel = StubTopologyModel;
     type Transport = StubTransport;
-    type Custody = StubCustodyStore;
+    type Retention = StubRetentionStore;
 
     fn topology_model(&self) -> &Self::TopologyModel {
         &self.topology
@@ -280,12 +281,12 @@ impl MeshRoutingEngine for StubMeshFamily {
         &mut self.transport
     }
 
-    fn custody_store(&self) -> &Self::Custody {
-        &self.custody
+    fn retention_store(&self) -> &Self::Retention {
+        &self.retention
     }
 
-    fn custody_store_mut(&mut self) -> &mut Self::Custody {
-        &mut self.custody
+    fn retention_store_mut(&mut self) -> &mut Self::Retention {
+        &mut self.retention
     }
 }
 
@@ -521,27 +522,27 @@ fn mesh_transport_carries_frames_without_interpreting_them() {
 }
 
 #[test]
-fn custody_store_retains_and_releases_opaque_payloads() {
+fn retention_store_retains_and_releases_opaque_payloads() {
     let object_id = ContentId {
         digest: Blake3Digest([7; 32]),
     };
-    let mut custody = StubCustodyStore {
+    let mut retention = StubRetentionStore {
         payloads: BTreeMap::new(),
     };
 
-    custody
-        .put_custody_payload(object_id, b"payload".to_vec())
+    retention
+        .retain_payload(object_id, b"payload".to_vec())
         .expect("put payload");
-    assert!(custody
-        .contains_custody_payload(&object_id)
+    assert!(retention
+        .contains_retained_payload(&object_id)
         .expect("contains payload"));
 
-    let payload = custody
-        .take_custody_payload(&object_id)
+    let payload = retention
+        .take_retained_payload(&object_id)
         .expect("take payload");
     assert_eq!(payload, Some(b"payload".to_vec()));
-    assert!(!custody
-        .contains_custody_payload(&object_id)
+    assert!(!retention
+        .contains_retained_payload(&object_id)
         .expect("payload removed"));
 }
 
@@ -564,7 +565,7 @@ fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
             observations: Vec::new(),
             sent_frames: Vec::new(),
         },
-        custody: StubCustodyStore {
+        retention: StubRetentionStore {
             payloads: BTreeMap::new(),
         },
         route: None,
@@ -586,8 +587,8 @@ fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
         TransportProtocol::BleGatt
     );
     family
-        .custody_store_mut()
-        .put_custody_payload(
+        .retention_store_mut()
+        .retain_payload(
             ContentId {
                 digest: Blake3Digest([8; 32]),
             },
@@ -595,8 +596,8 @@ fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
         )
         .expect("store payload");
     assert!(family
-        .custody_store()
-        .contains_custody_payload(&ContentId {
+        .retention_store()
+        .contains_retained_payload(&ContentId {
             digest: Blake3Digest([8; 32]),
         })
         .expect("payload present"));

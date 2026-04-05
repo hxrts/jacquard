@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "ci-${{ github.ref }}"
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check:
+    name: Check, Lint, Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v24
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - name: Format Check
+        run: nix develop --command cargo fmt --all -- --check
+      - name: Clippy
+        run: nix develop --command cargo clippy --workspace -- -D warnings
+      - name: Tests
+        run: nix develop --command cargo test --workspace
+
+  policy:
+    name: Policy Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v24
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - name: Proc Macro Scope
+        run: nix develop --command ./scripts/check/proc-macro-scope.sh
+      - name: Trait Purity
+        run: nix develop --command ./scripts/check/trait-purity.sh
+      - name: Crate Boundary
+        run: nix develop --command ./scripts/check/crate-boundary.sh
+      - name: No usize in Models
+        run: nix develop --command ./scripts/check/no-usize-in-models.sh
