@@ -106,6 +106,9 @@ pub trait CustodyStore {
 #[purity(effectful)]
 /// Mesh-specialized route family boundary with explicit subcomponent ownership.
 ///
+/// Planning purity stays in `RoutePlanner` plus `MeshTopologyModel`. This trait
+/// only binds the effectful family runtime to its swappable subcomponents.
+///
 /// Effectful runtime boundary with read-only subcomponent accessors.
 pub trait MeshRouteFamily: RouteFamily {
     type TopologyModel: MeshTopologyModel;

@@ -100,6 +100,7 @@ pub struct RouteInstallation {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Explicit route budget envelope. Absence is not used to encode bound semantics.
 pub struct RouteCost {
     pub message_count_max: Limit<u32>,
     pub byte_count_max: Limit<ByteCount>,
