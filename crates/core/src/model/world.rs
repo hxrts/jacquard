@@ -98,7 +98,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
-    use crate::{NodeId, Tick};
+    use crate::NodeId;
 
     #[test]
     fn configuration_has_deterministic_node_key_order() {
