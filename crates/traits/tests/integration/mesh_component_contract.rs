@@ -3,16 +3,15 @@ use std::collections::BTreeMap;
 use jacquard_traits::{
     jacquard_core::{
         Belief, Blake3Digest, ByteCount, Configuration, ContentId, ControllerId, DurationMs,
-        Environment, Fact, InformationSetSummary, Link, LinkEndpoint, LinkProfile,
-        LinkRuntimeState, LinkState, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
-        PublicationId, RatioPermille, RetentionError, RouteAdmission, RouteAdmissionCheck,
-        RouteBinding, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
-        RouteConnectivityProfile, RouteCost, RouteEpoch, RouteHealth, RouteId, RouteInstallation,
-        RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
-        RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
-        RouteProtectionClass, RouteSummary, RouteWitness, RoutingEngineCapabilities,
-        RoutingEngineId, ServiceDescriptor, TransportError, TransportObservation,
-        TransportProtocol,
+        Environment, Fact, InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState, LinkState,
+        Node, NodeId, NodeProfile, NodeRelayBudget, NodeState, PublicationId, RatioPermille,
+        RetentionError, RouteAdmission, RouteAdmissionCheck, RouteBinding, RouteCommitment,
+        RouteCommitmentId, RouteCommitmentResolution, RouteConnectivityProfile, RouteCost,
+        RouteEpoch, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
+        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
+        RouteMaterializationInput, RouteMaterializationProof, RouteProtectionClass, RouteSummary,
+        RouteWitness, RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor,
+        TransportError, TransportObservation, TransportProtocol,
     },
     EffectHandler, MeshRoutingEngine, MeshTopologyModel, MeshTransport, RetentionStore,
     RoutingEngine, RoutingEnginePlanner, TransportEffects,
@@ -21,6 +20,9 @@ use jacquard_traits::{
 struct StubTopologyModel;
 
 impl MeshTopologyModel for StubTopologyModel {
+    type PeerEstimate = ();
+    type NeighborhoodEstimate = ();
+
     fn local_node(&self, local_node_id: &NodeId, configuration: &Configuration) -> Option<Node> {
         configuration.nodes.get(local_node_id).cloned()
     }
@@ -76,6 +78,23 @@ impl MeshTopologyModel for StubTopologyModel {
                 }
             })
             .collect()
+    }
+
+    fn peer_estimate(
+        &self,
+        _local_node_id: &NodeId,
+        _peer_node_id: &NodeId,
+        _configuration: &Configuration,
+    ) -> Option<Self::PeerEstimate> {
+        Some(())
+    }
+
+    fn neighborhood_estimate(
+        &self,
+        _local_node_id: &NodeId,
+        _configuration: &Configuration,
+    ) -> Option<Self::NeighborhoodEstimate> {
+        Some(())
     }
 }
 
@@ -345,9 +364,7 @@ fn sample_node(controller_seed: u8) -> Node {
 
 fn sample_link() -> Link {
     Link {
-        profile: LinkProfile {
-            endpoint: sample_endpoint(),
-        },
+        endpoint: sample_endpoint(),
         state: LinkState {
             state: LinkRuntimeState::Active,
             median_rtt_ms: DurationMs(5),

@@ -5,9 +5,9 @@ use std::collections::BTreeMap;
 use jacquard_traits::{
     jacquard_core::{
         Configuration, ControllerId, DeploymentProfile, Environment, FactSourceClass, Link,
-        LinkProfile, LinkRuntimeState, LinkState, Node, NodeId, NodeProfile, NodeState,
-        Observation, OriginAuthenticationClass, RatioPermille, RouteEpoch, RouteEvent,
-        RoutingAuditEvent, RoutingObjective, Tick,
+        LinkRuntimeState, LinkState, Node, NodeId, NodeProfile, NodeState, Observation,
+        OriginAuthenticationClass, RatioPermille, RouteEpoch, RouteEvent, RoutingAuditEvent,
+        RoutingObjective, Tick,
     },
     RoutingEnvironmentModel, RoutingReplayView, RoutingScenario, RoutingSimulator,
 };
@@ -227,15 +227,13 @@ fn sample_configuration() -> Configuration {
     links.insert(
         (local, remote),
         Link {
-            profile: LinkProfile {
-                endpoint: jacquard_traits::jacquard_core::LinkEndpoint {
-                    protocol: jacquard_traits::jacquard_core::TransportProtocol::BleGatt,
-                    address: jacquard_traits::jacquard_core::EndpointAddress::Ble {
-                        device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
-                        profile_id: jacquard_traits::jacquard_core::BleProfileId([2; 16]),
-                    },
-                    mtu_bytes: jacquard_traits::jacquard_core::ByteCount(512),
+            endpoint: jacquard_traits::jacquard_core::LinkEndpoint {
+                protocol: jacquard_traits::jacquard_core::TransportProtocol::BleGatt,
+                address: jacquard_traits::jacquard_core::EndpointAddress::Ble {
+                    device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
+                    profile_id: jacquard_traits::jacquard_core::BleProfileId([2; 16]),
                 },
+                mtu_bytes: jacquard_traits::jacquard_core::ByteCount(512),
             },
             state: LinkState {
                 state: LinkRuntimeState::Active,

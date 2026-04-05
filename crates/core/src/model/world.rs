@@ -48,13 +48,6 @@ pub struct Node {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Stable link capability and endpoint surface in the routing world model.
-pub struct LinkProfile {
-    pub endpoint: LinkEndpoint,
-}
-
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Current link state in the routing world model.
 pub struct LinkState {
     pub state: LinkRuntimeState,
@@ -70,7 +63,7 @@ pub struct LinkState {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Instantiated link object in the routing world model.
 pub struct Link {
-    pub profile: LinkProfile,
+    pub endpoint: LinkEndpoint,
     pub state: LinkState,
 }
 

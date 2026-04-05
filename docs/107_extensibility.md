@@ -10,7 +10,85 @@ The ordering matters. A team can extend the world without becoming a routing-eng
 
 ## World Extensions
 
-World extensions are the entry point for teams that know a specific radio stack, runtime environment, discovery surface, or device class. A world extension adds observed objects to the shared world through self-describing observational surfaces. It does not redefine the shared `Node` or `Link` schema in `jacquard-core`.
+World extensions are the entry point for teams that know a specific radio stack, runtime environment, discovery surface, or device class. The key idea is simple. Jacquard has one shared world schema in `jacquard-core`. A world extension adds observations of that schema. It does not define a private alternative node or link type.
+
+### Shared World Schema
+
+```rust
+pub struct NodeProfile {
+    pub services: Vec<ServiceDescriptor>,
+    pub endpoints: Vec<LinkEndpoint>,
+    pub connection_count_max: u32,
+    pub neighbor_state_count_max: u32,
+    pub simultaneous_transfer_count_max: u32,
+    pub active_route_count_max: u32,
+    pub relay_work_budget_max: u32,
+    pub maintenance_work_budget_max: u32,
+    pub hold_item_count_max: u32,
+    pub hold_capacity_bytes_max: ByteCount,
+}
+
+pub struct NodeState {
+    pub relay_budget: Belief<NodeRelayBudget>,
+    pub available_connection_count: Belief<u32>,
+    pub hold_capacity_available_bytes: Belief<ByteCount>,
+    pub information_summary: Belief<InformationSetSummary>,
+}
+
+pub struct Node {
+    pub controller_id: ControllerId,
+    pub profile: NodeProfile,
+    pub state: NodeState,
+}
+
+pub struct LinkState {
+    pub state: LinkRuntimeState,
+    pub median_rtt_ms: DurationMs,
+    pub transfer_rate_bytes_per_sec: Belief<u32>,
+    pub stability_horizon_ms: Belief<DurationMs>,
+    pub loss_permille: RatioPermille,
+    pub delivery_confidence_permille: Belief<RatioPermille>,
+    pub symmetry_permille: Belief<RatioPermille>,
+}
+
+pub struct Link {
+    pub endpoint: LinkEndpoint,
+    pub state: LinkState,
+}
+
+pub struct Environment {
+    pub reachable_neighbor_count: u32,
+    pub churn_permille: RatioPermille,
+    pub contention_permille: RatioPermille,
+}
+```
+
+This is the shared world schema that every world extension targets. A developer who wants to add a new observed node or link needs to construct these exact objects. The extension point is not schema definition. The extension point is emitting observations of these shared objects.
+
+### Schema-Bound Observation Surfaces
+
+```rust
+pub type NodeObservation = Observation<Node>;
+pub type LinkObservation = Observation<Link>;
+pub type EnvironmentObservation = Observation<Environment>;
+pub type ServiceObservation = Observation<ServiceDescriptor>;
+
+pub enum ObservedValue {
+    Node(Node),
+    Link(Link),
+    Environment(Environment),
+    Service(ServiceDescriptor),
+    Transport(TransportObservation),
+}
+
+pub type WorldObservation = Observation<ObservedValue>;
+```
+
+These aliases bind the shared world schema directly into the extension surface. `NodeObservation` is `Observation<Node>`. `LinkObservation` is `Observation<Link>`. The concrete `Node`, `Link`, and `Environment` schema is therefore already part of the trait contract before any trait method is shown.
+
+`WorldObservation` is the umbrella surface. `ObservedValue` makes that umbrella form self-describing. A host can consume the narrow forms when it wants object-specific handling and can consume the umbrella form when it wants one uniform world-observation stream.
+
+### Schema-Bound Facet Traits
 
 ```rust
 pub trait WorldExtensionDescriptor {
@@ -19,10 +97,6 @@ pub trait WorldExtensionDescriptor {
 
     #[must_use]
     fn supported_transports(&self) -> Vec<TransportProtocol>;
-}
-
-pub trait WorldExtension: WorldExtensionDescriptor {
-    fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, RouteError>;
 }
 
 pub trait NodeWorldExtension: WorldExtensionDescriptor {
@@ -48,11 +122,19 @@ pub trait TransportWorldExtension: WorldExtensionDescriptor {
 }
 ```
 
-`WorldExtensionDescriptor` is pure metadata. All world-extension polling traits are effectful. `WorldObservation` is `Observation<ObservedValue>`, so the payload itself says what was observed. The narrower facet traits exist for teams that only add one part of the world picture.
+These facet traits are already schema-bound. `NodeWorldExtension` is not a generic hook for inventing a new node model. It is a concrete contract that returns `Vec<NodeObservation>`, and `NodeObservation` is `Observation<Node>`. The same rule applies to links, environment, services, and transport observations.
 
-This is the main cooperative extension surface in Jacquard. One team may add observed BLE nodes. Another may add observed Wi-Fi links. Another may add platform-specific service or transport observations. A host merges those contributions into one world picture above this boundary. Routing engines then consume that merged picture through the shared routing traits.
+### Umbrella World Extension
 
-If a host wants batching, diffs, partial snapshots, merge policy, checkpointing, or prioritization, that happens above these traits. World extensions do not publish canonical route state directly. They contribute observations only.
+```rust
+pub trait WorldExtension: WorldExtensionDescriptor {
+    fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, RouteError>;
+}
+```
+
+`WorldExtensionDescriptor` is pure metadata. All world-extension polling traits are effectful. A team may implement the umbrella trait, one or more narrow facet traits, or both. A host may later batch, diff, merge, checkpoint, or prioritize these observations above this boundary.
+
+This is the main cooperative extension surface in Jacquard. One team may add observed BLE nodes. Another may add observed Wi-Fi links. Another may add platform-specific service or transport observations. A host merges those contributions into one world picture. Routing engines then consume that merged picture through the shared routing traits.
 
 ## Routing Engines
 
@@ -247,6 +329,9 @@ New transport implementations such as BLE GATT, Wi-Fi LAN, or QUIC implement `Me
 
 ```rust
 pub trait MeshTopologyModel {
+    type PeerEstimate;
+    type NeighborhoodEstimate;
+
     #[must_use]
     fn local_node(&self, local_node_id: &NodeId, configuration: &Configuration) -> Option<Node>;
 
@@ -266,6 +351,21 @@ pub trait MeshTopologyModel {
 
     #[must_use]
     fn adjacent_links(&self, local_node_id: &NodeId, configuration: &Configuration) -> Vec<Link>;
+
+    #[must_use]
+    fn peer_estimate(
+        &self,
+        local_node_id: &NodeId,
+        peer_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Option<Self::PeerEstimate>;
+
+    #[must_use]
+    fn neighborhood_estimate(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Option<Self::NeighborhoodEstimate>;
 }
 
 pub trait MeshRoutingEngine: RoutingEngine {
@@ -286,6 +386,8 @@ pub trait MeshRoutingEngine: RoutingEngine {
 ```
 
 `MeshTopologyModel` is read-only. `MeshTransport` and `RetentionStore` are effectful. `MeshRoutingEngine` binds one concrete topology model, one transport implementation, and one retention store to a mesh engine instance. This keeps mesh-specific internals swappable without exposing them as shared cross-engine assumptions.
+
+The associated estimate types are the important boundary here. If a mesh implementation wants novelty scores, reach estimates, bridge heuristics, or neighborhood flow signals, those stay mesh-owned behind `MeshTopologyModel`. They are not promoted into `jacquard-core` as shared `Node`, `Link`, or `Environment` schema.
 
 ## Runtime Effects
 

@@ -24,7 +24,15 @@ use crate::{effect_handler, RoutingEngine, TransportEffects};
 /// Deterministic, read-only topology queries used by the mesh planner/runtime.
 ///
 /// Read-only deterministic boundary.
+///
+/// Mesh-specific peer and neighborhood estimates belong behind this trait
+/// boundary rather than in `jacquard-core`. The associated estimate types let
+/// one mesh implementation expose novelty, reach, bridge, or flow heuristics to
+/// its own planner/runtime without turning them into shared cross-engine schema.
 pub trait MeshTopologyModel {
+    type PeerEstimate;
+    type NeighborhoodEstimate;
+
     #[must_use]
     fn local_node(&self, local_node_id: &NodeId, configuration: &Configuration) -> Option<Node>;
 
@@ -44,6 +52,21 @@ pub trait MeshTopologyModel {
 
     #[must_use]
     fn adjacent_links(&self, local_node_id: &NodeId, configuration: &Configuration) -> Vec<Link>;
+
+    #[must_use]
+    fn peer_estimate(
+        &self,
+        local_node_id: &NodeId,
+        peer_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Option<Self::PeerEstimate>;
+
+    #[must_use]
+    fn neighborhood_estimate(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Option<Self::NeighborhoodEstimate>;
 }
 
 #[purity(effectful)]

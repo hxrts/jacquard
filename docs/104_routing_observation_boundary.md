@@ -4,7 +4,7 @@ This page defines the abstraction boundary around the local node, peer connectio
 
 ## Purpose
 
-The routing core sees budget, novelty, stability, confidence, and aggregate neighborhood conditions. It does not see battery chemistry, radio chipset details, GPS coordinates, or raw signal traces. This keeps the model portable across devices and transports.
+The routing core sees budget, retention horizon, information summary, link quality, and aggregate neighborhood conditions. It does not see battery chemistry, radio chipset details, GPS coordinates, or raw signal traces. This keeps the model portable across devices and transports.
 
 That boundary is also where Jacquard avoids becoming too opinionated. The shared layer exposes evidence that a family may use for local coordination, but it does not tell every family how to score peers, how to form committees, or whether any committee must have a leader.
 
@@ -14,7 +14,7 @@ This boundary is observational only. It feeds planning, admission, and maintenan
 
 `IdentityAssuranceClass` complements those provenance fields. It lets policy and committee selection distinguish weakly observed identities from stronger controller-bound or externally attested ones without collapsing that decision into the routing objects themselves.
 
-The model has four scopes: local node, link, peer, and environment. Each answers a different routing question. `world` defines the abstract objects. `observation` wraps them with provenance. `estimation` derives routing summaries. `policy` and `action` sit on top.
+The model has three shared scopes: local node, link, and environment. `world` defines the abstract objects. `observation` wraps them with provenance. `estimation` stays family-neutral in `core`. Routing-engine-specific peer or neighborhood heuristics belong in the engine layer, not the shared world schema.
 
 World extensions contribute through plain `Observation<ObservedValue>` values. That means the extension boundary stays about what was observed, not about how one host may later batch, diff, coalesce, or partially apply those observations.
 
@@ -66,26 +66,14 @@ pub struct Observation<T> {
 
 `NodeProfile` exposes device and local-policy constraints in a form the router can use without learning hardware details. `NodeState` says how much connection headroom, forwarding capacity, and retention space remain now. Routing decisions depend on future forwarding value, not only current free space. A node with spare capacity but a short `retention_horizon_ms` is a weak retention target.
 
-## Peer And Connection
+## Link And Connection
 
-A peer is a `Node` plus a `PeerRoutingEstimate`. A connection is a `Link` split into `LinkProfile` (stable endpoint) and `LinkState` (changing quality).
+A connection is a `Link` with a stable `LinkEndpoint` and a changing `LinkState`.
 
 ```rust
 pub struct Link {
-    pub profile: LinkProfile,
-    pub state: LinkState,
-}
-
-pub struct LinkProfile {
     pub endpoint: LinkEndpoint,
-}
-
-pub struct PeerRoutingEstimate {
-    pub relay_budget: Belief<NodeRelayBudget>,
-    pub information_summary: Belief<InformationSetSummary>,
-    pub novelty_estimate: Belief<PeerNoveltyEstimate>,
-    pub reach_score: Belief<HealthScore>,
-    pub underserved_trajectory_score: Belief<HealthScore>,
+    pub state: LinkState,
 }
 
 pub struct LinkState {
@@ -99,13 +87,13 @@ pub struct LinkState {
 }
 ```
 
-`novelty_estimate` approximates what a peer has that this node lacks, and vice versa. `reach_score` is a local proxy for whether a peer can move information into other parts of the network. Both are intentionally abstract so the routing core consumes the score, not the method used to compute it.
-
 `transfer_rate_bytes_per_sec` answers whether a meaningful exchange fits inside the contact window. `stability_horizon_ms` answers how long the contact is likely to remain useful. `delivery_confidence_permille` and `symmetry_permille` answer whether the link supports exchange in the expected direction.
+
+If a mesh engine wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics, it should derive them above this shared boundary from `Node`, `Link`, `Environment`, and world observations. Those estimates are mesh-owned interpretations, not shared world objects.
 
 ## Environment
 
-`Environment` carries routing-engine-neutral aggregate conditions: density, churn, and contention. `ConfigurationEstimate` adds bridging value and underserved-flow scoring on top.
+`Environment` carries routing-engine-neutral aggregate conditions: density, churn, and contention.
 
 ```rust
 pub struct Environment {
@@ -113,16 +101,10 @@ pub struct Environment {
     pub churn_permille: RatioPermille,
     pub contention_permille: RatioPermille,
 }
-
-pub struct ConfigurationEstimate {
-    pub environment: Environment,
-    pub bridging_score: Belief<HealthScore>,
-    pub underserved_flow_score: Belief<HealthScore>,
-}
 ```
 
 These signals matter most in sparse and disrupted networks. A contact that looks mediocre in isolation may still be valuable if the neighborhood is sparse, churn is high, or the node bridges otherwise disjoint information sets.
 
 `Environment` should not include family-specific concerns. Richer geometry, spatial embeddings, or transport-specific structure should extend `Configuration` in the family layer rather than inflating the base environment type.
 
-The same rule applies to coordination policy. GPS-derived regions, graph embeddings, provider clusters, or other routing-engine-specific grouping logic may exist above this boundary, but they should remain engine-private interpretations of shared observations rather than becoming part of the base environment model.
+The same rule applies to coordination policy and derived heuristics. GPS-derived regions, graph embeddings, provider clusters, bridge scores, novelty rankings, or flow-direction estimates may exist above this boundary, but they should remain engine-private interpretations of shared observations rather than becoming part of the base environment model.

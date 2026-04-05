@@ -6,7 +6,7 @@ This page describes the crate layout, the boundary rules, and the implementation
 
 `core` defines what exists. `traits` defines what components are allowed to do.
 
-`core` owns shared identifiers, data types, constants, error types, and the full model pipeline from world objects through observations, estimates, policy, and action. It must not grow behavioral traits for subcomponents. Derives, trivial constructors, and simple validation are allowed. Cross-crate behavioral interfaces are not.
+`core` owns shared identifiers, data types, constants, error types, and the full model pipeline from world objects through observations, family-neutral estimates, policy, and action. It must not grow behavioral traits for subcomponents. Derives, trivial constructors, and simple validation are allowed. Cross-crate behavioral interfaces are not.
 
 `traits` owns all cross-crate behavioral interfaces. This includes the routing contract (`PolicyEngine`, `CommitteeSelector`, `SubstratePlanner`, `SubstrateRuntime`, `LayeredRoutingEnginePlanner`, `LayeredRoutingEngine`, `LayeringPolicyEngine`, `RoutingEnginePlanner`, `RoutingEngine`, `Router`, `RoutingControlPlane`, `RoutingDataPlane`), the runtime effect traits (`TimeEffects`, `OrderEffects`, `HashEffects`, `StorageEffects`, `AuditEffects`, `TransportEffects`), the mesh-specialized traits (`MeshTopologyModel`, `MeshTransport`, `RetentionStore`, `MeshRoutingEngine`), and the simulator traits (`RoutingScenario`, `RoutingEnvironmentModel`, `RoutingSimulator`, `RoutingReplayView`).
 
@@ -80,6 +80,6 @@ Ownership by crate:
 
 ## Extensibility
 
-`core::Configuration` is the shared graph-shaped world object. If mesh needs geometry, richer topology exports, or other spatial structure, those should live in `MeshConfiguration` or other mesh-owned types rather than being pushed into the base `Environment`. The same rule applies to any routing-engine-specific state. Engine-private planning caches, forwarding tables, and retention stores belong in the engine crate, not in `core`.
+`core::Configuration` is the shared graph-shaped world object. If mesh needs geometry, richer topology exports, peer novelty scores, bridge estimates, flow-direction estimates, or other engine-specific structure, those should live in mesh-owned types behind the mesh trait boundary rather than being pushed into the base `Environment` or shared estimate model. The same rule applies to any routing-engine-specific state. Engine-private planning caches, forwarding tables, retention stores, and derived peer or neighborhood heuristics belong in the engine crate, not in `core`.
 
 See [Extensibility](107_extensibility.md) for the full extension surface, dependency rules, and stable contract types.

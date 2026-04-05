@@ -4,9 +4,8 @@ use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ConfigurationEstimate, DestinationId, DurationMs, Estimate, HealthScore,
-    IdentityAssuranceClass, Limit, Node, Observation, PriorityPoints, RatioPermille,
-    RouteServiceKind,
+    DestinationId, DurationMs, Environment, HealthScore, IdentityAssuranceClass, Limit, Node,
+    Observation, PriorityPoints, RatioPermille, RouteServiceKind,
 };
 
 #[public_model]
@@ -74,7 +73,7 @@ pub struct RouteConnectivityProfile {
 /// Policy-stage inputs derived from local state and neighborhood estimates.
 pub struct RoutingPolicyInputs {
     pub local_node: Observation<Node>,
-    pub configuration: Estimate<ConfigurationEstimate>,
+    pub local_environment: Observation<Environment>,
     pub routing_engine_count: u32,
     pub median_rtt_ms: DurationMs,
     pub loss_permille: RatioPermille,

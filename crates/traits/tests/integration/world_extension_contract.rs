@@ -4,8 +4,8 @@
 use jacquard_traits::{
     jacquard_core::{
         Belief, ByteCount, ControllerId, DurationMs, EndpointAddress, Environment, FactSourceClass,
-        InformationSetSummary, Link, LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState, Node,
-        NodeId, NodeProfile, NodeRelayBudget, NodeState, Observation, ObservedValue,
+        InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState, LinkState, Node, NodeId,
+        NodeProfile, NodeRelayBudget, NodeState, Observation, ObservedValue,
         OriginAuthenticationClass, RatioPermille, RouteError, RoutingEngineId,
         RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
         TransportObservation, TransportProtocol, WorldObservation,
@@ -150,9 +150,7 @@ fn sample_node_observation() -> WorldObservation {
 fn sample_link_observation() -> WorldObservation {
     Observation {
         value: ObservedValue::Link(Link {
-            profile: LinkProfile {
-                endpoint: sample_endpoint(),
-            },
+            endpoint: sample_endpoint(),
             state: LinkState {
                 state: LinkRuntimeState::Active,
                 median_rtt_ms: DurationMs(7),
@@ -329,7 +327,7 @@ fn world_extension_facets_can_contribute_nodes_and_links_explicitly() {
         ControllerId([3; 32])
     );
     assert_eq!(
-        link_observations[0].value.profile.endpoint.protocol,
+        link_observations[0].value.endpoint.protocol,
         TransportProtocol::BleGatt
     );
 }
