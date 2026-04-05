@@ -10,9 +10,13 @@ That boundary is also where Jacquard avoids becoming too opinionated. The shared
 
 Uncertain quantities are modeled as `Belief<T>`: either `Absent` or `Estimated(Estimate<T>)` with an explicit `confidence_permille`. Observations keep source and authentication separate. An `Observation<T>` may be local or remote, and its origin may be controlled, authenticated, or unauthenticated.
 
+This boundary is observational only. It feeds planning, admission, and maintenance decisions, but it does not publish canonical route truth on its own. Promotion from observation to established routing state belongs to the control plane through explicit route objects and lifecycle transitions.
+
 `IdentityAssuranceClass` complements those provenance fields. It lets policy and committee selection distinguish weakly observed identities from stronger controller-bound or externally attested ones without collapsing that decision into the routing objects themselves.
 
 The model has four scopes: local node, link, peer, and environment. Each answers a different routing question. `world` defines the abstract objects. `observation` wraps them with provenance. `estimation` derives routing summaries. `policy` and `action` sit on top.
+
+Observation extensions contribute through plain `Observation<ObservedValue>` values. That means the extension boundary stays about what was observed, not about how one host may later batch, diff, coalesce, or partially apply those observations.
 
 ## Local Node
 
@@ -101,7 +105,7 @@ pub struct LinkState {
 
 ## Environment
 
-`Environment` carries family-neutral aggregate conditions: density, churn, and contention. `ConfigurationEstimate` adds bridging value and underserved-flow scoring on top.
+`Environment` carries routing-engine-neutral aggregate conditions: density, churn, and contention. `ConfigurationEstimate` adds bridging value and underserved-flow scoring on top.
 
 ```rust
 pub struct Environment {
@@ -121,4 +125,4 @@ These signals matter most in sparse and disrupted networks. A contact that looks
 
 `Environment` should not include family-specific concerns. Richer geometry, spatial embeddings, or transport-specific structure should extend `Configuration` in the family layer rather than inflating the base environment type.
 
-The same rule applies to coordination policy. GPS-derived regions, graph embeddings, provider clusters, or other family-specific grouping logic may exist above this boundary, but they should remain family-private interpretations of shared observations rather than becoming part of the base environment model.
+The same rule applies to coordination policy. GPS-derived regions, graph embeddings, provider clusters, or other routing-engine-specific grouping logic may exist above this boundary, but they should remain engine-private interpretations of shared observations rather than becoming part of the base environment model.

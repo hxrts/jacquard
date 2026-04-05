@@ -20,7 +20,7 @@ bytes_newtype!(HomeId, 16);
 bytes_newtype!(ClusterId, 16);
 bytes_newtype!(GatewayId, 16);
 bytes_newtype!(RouteId, 16);
-bytes_newtype!(RouteFamilyContractId, 16);
+bytes_newtype!(RoutingEngineContractId, 16);
 bytes_newtype!(RouteOperationId, 16);
 bytes_newtype!(RouteCommitmentId, 16);
 bytes_newtype!(CommitteeId, 16);
@@ -32,7 +32,7 @@ bytes_newtype!(ReceiptId, 16);
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ServiceId(pub Vec<u8>);
 
-/// Family-owned opaque route reference. Jacquard core never inspects the contents.
+/// Engine-owned opaque route reference. Jacquard core never inspects the contents.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct BackendRouteId(pub Vec<u8>);
 
@@ -52,12 +52,12 @@ pub enum NetworkHost {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-/// Identifies a route family contract. Mesh is first-party; External covers third-party families.
-pub enum RouteFamilyId {
+/// Identifies a routing-engine contract. Mesh is first-party; External covers third-party engines.
+pub enum RoutingEngineId {
     Mesh,
     External {
         name: String,
-        contract_id: RouteFamilyContractId,
+        contract_id: RoutingEngineContractId,
     },
 }
 

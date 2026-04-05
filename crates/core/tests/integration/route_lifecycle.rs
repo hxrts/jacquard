@@ -1,17 +1,17 @@
-//! Build a MaterializedRoute from router-owned identity and family installation state.
+//! Build a MaterializedRoute from router-owned identity and engine installation state.
 
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief, ByteCount,
     ClaimStrength, ConnectivityRegime, DeploymentProfile, Estimate, Fact, FactBasis,
-    FailureModelClass, FamilyFallbackPolicy, HoldFallbackPolicy, Limit, MaterializedRoute,
-    MessageFlowAssumptionClass, NodeDensityClass, PublicationId, ReachabilityState, RouteAdmission,
-    RouteAdmissionCheck, RouteCandidate, RouteConnectivityProfile, RouteCost, RouteDegradation,
-    RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteInstallation,
-    RouteLease, RouteLifecycleEvent, RouteMaterializationInput, RouteMaterializationProof,
-    RoutePartitionClass, RouteProgressContract, RouteProgressState, RouteProtectionClass,
-    RouteRepairClass, RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness,
-    RoutingAdmissionProfile, RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
-    TransportProtocol,
+    FailureModelClass, HoldFallbackPolicy, Limit, MaterializedRoute, MessageFlowAssumptionClass,
+    NodeDensityClass, PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
+    RouteCandidate, RouteConnectivityProfile, RouteCost, RouteDegradation, RouteEpoch,
+    RouteEstimate, RouteHandle, RouteHealth, RouteId, RouteInstallation, RouteLease,
+    RouteLifecycleEvent, RouteMaterializationInput, RouteMaterializationProof, RoutePartitionClass,
+    RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteRepairClass,
+    RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness, RoutingAdmissionProfile,
+    RoutingEngineFallbackPolicy, RoutingEngineId, RoutingObjective, RuntimeEnvelopeClass, Tick,
+    TimeWindow, TransportProtocol,
 };
 
 fn repairable_connected() -> RouteConnectivityProfile {
@@ -49,7 +49,7 @@ fn sample_admission_profile() -> RoutingAdmissionProfile {
 
 fn sample_summary() -> RouteSummary {
     RouteSummary {
-        family: RouteFamilyId::Mesh,
+        engine: RoutingEngineId::Mesh,
         protection: RouteProtectionClass::LinkProtected,
         connectivity: repairable_connected(),
         protocol_mix: vec![TransportProtocol::BleGatt, TransportProtocol::WifiLan],
@@ -106,7 +106,7 @@ fn sample_route() -> (RouteCandidate, MaterializedRoute) {
             updated_at_tick: Tick(100),
         },
         backend_ref: BackendRouteRef {
-            family: RouteFamilyId::Mesh,
+            engine: RoutingEngineId::Mesh,
             backend_route_id: jacquard_core::BackendRouteId(vec![1, 2, 3]),
         },
     };
@@ -125,7 +125,7 @@ fn sample_route() -> (RouteCandidate, MaterializedRoute) {
                 selected_connectivity: repairable_connected(),
                 deployment_profile: DeploymentProfile::DenseInteractive,
                 diversity_floor: 1,
-                family_fallback_policy: FamilyFallbackPolicy::Allowed,
+                routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
                 route_replacement_policy: RouteReplacementPolicy::Allowed,
             },
             admission_check: RouteAdmissionCheck {
@@ -182,7 +182,7 @@ fn sample_route() -> (RouteCandidate, MaterializedRoute) {
 fn materialized_route_can_be_built_from_shared_lifecycle_types() {
     let (candidate, route) = sample_route();
 
-    assert_eq!(candidate.summary.family, RouteFamilyId::Mesh);
+    assert_eq!(candidate.summary.engine, RoutingEngineId::Mesh);
     assert_eq!(
         candidate.estimate.value.estimated_connectivity,
         repairable_connected(),

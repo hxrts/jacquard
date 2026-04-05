@@ -1,4 +1,4 @@
-//! Committee-selection results shared across route families.
+//! Committee-selection results shared across routing engines.
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
@@ -33,9 +33,9 @@ pub struct CommitteeMember {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Family-selected coordination group.
+/// Routing-engine-selected coordination group.
 ///
-/// The selection policy remains family-local. This shared object only exposes
+/// The selection policy remains engine-local. This shared object only exposes
 /// the resulting membership, lease, and evidentiary posture to the rest of the
 /// control plane.
 pub struct CommitteeSelection {

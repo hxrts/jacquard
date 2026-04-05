@@ -7,20 +7,20 @@ use crate::{RouteConnectivityProfile, RouteProtectionClass};
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Output of the local adaptive controller. Runtime-local, never shared.
+/// Output of the local policy engine. Runtime-local, never shared.
 pub struct AdaptiveRoutingProfile {
     pub selected_protection: RouteProtectionClass,
     pub selected_connectivity: RouteConnectivityProfile,
     pub deployment_profile: DeploymentProfile,
     pub diversity_floor: u8,
-    pub family_fallback_policy: FamilyFallbackPolicy,
+    pub routing_engine_fallback_policy: RoutingEngineFallbackPolicy,
     pub route_replacement_policy: RouteReplacementPolicy,
 }
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-/// Whether the router may fall back from one family to another.
-pub enum FamilyFallbackPolicy {
+/// Whether the router may fall back from one routing engine to another.
+pub enum RoutingEngineFallbackPolicy {
     Forbidden,
     Allowed,
 }

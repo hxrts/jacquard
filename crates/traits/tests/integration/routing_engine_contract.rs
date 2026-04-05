@@ -1,4 +1,4 @@
-//! Drive a stub RouteFamily through router-owned materialization and teardown.
+//! Drive a stub RoutingEngine through router-owned materialization and teardown.
 
 use std::collections::BTreeMap;
 
@@ -7,23 +7,23 @@ use jacquard_traits::{
         AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief,
         ByteCount, ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
         Configuration, ConnectivityRegime, DeploymentProfile, Environment, Estimate, Fact,
-        FactBasis, FailureModelClass, FamilyFallbackPolicy, IdentityAssuranceClass, LayerParameter,
-        LayerParameters, Limit, MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass,
-        Observation, PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
-        RouteBinding, RouteCandidate, RouteCommitment, RouteCommitmentId,
-        RouteCommitmentResolution, RouteConnectivityProfile, RouteCost, RouteDegradation,
-        RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId,
-        RouteInstallation, RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome,
-        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-        RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
-        RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-        RouteServiceKind, RouteSummary, RouteWitness, RoutingAdmissionProfile,
-        RoutingEvidenceClass, RoutingFamilyCapabilities, RoutingObjective, RuntimeEnvelopeClass,
+        FactBasis, FailureModelClass, IdentityAssuranceClass, LayerParameter, LayerParameters,
+        Limit, MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass, Observation,
+        PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding,
+        RouteCandidate, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
+        RouteConnectivityProfile, RouteCost, RouteDegradation, RouteEpoch, RouteEstimate,
+        RouteHandle, RouteHealth, RouteId, RouteInstallation, RouteLease, RouteLifecycleEvent,
+        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
+        RouteMaterializationInput, RouteMaterializationProof, RoutePartitionClass,
+        RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteRepairClass,
+        RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness,
+        RoutingAdmissionProfile, RoutingEngineCapabilities, RoutingEngineFallbackPolicy,
+        RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RuntimeEnvelopeClass,
         SubstrateCandidate, SubstrateCapabilities, SubstrateLease, SubstrateRequirements, Tick,
         TimeWindow, TransportProtocol,
     },
-    CommitteeSelector, LayerCoordinator, LayeredRouteFamily, LayeredRoutePlanner, RouteFamily,
-    RoutePlanner, SubstratePlanner, SubstrateRuntime,
+    CommitteeSelector, LayeredRoutingEngine, LayeredRoutingEnginePlanner, LayeringPolicyEngine,
+    RoutingEngine, RoutingEnginePlanner, SubstratePlanner, SubstrateRuntime,
 };
 
 fn repairable_connected() -> RouteConnectivityProfile {
@@ -42,7 +42,7 @@ struct StubSubstrateProvider {
     route: MaterializedRoute,
 }
 
-struct StubLayerCoordinator {
+struct StubLayeringPolicyEngine {
     route: MaterializedRoute,
 }
 
@@ -89,14 +89,14 @@ impl CommitteeSelector for StubCommitteeSelector {
     }
 }
 
-impl RoutePlanner for StubFamily {
-    fn family_id(&self) -> RouteFamilyId {
-        RouteFamilyId::Mesh
+impl RoutingEnginePlanner for StubFamily {
+    fn engine_id(&self) -> RoutingEngineId {
+        RoutingEngineId::Mesh
     }
 
-    fn capabilities(&self) -> RoutingFamilyCapabilities {
-        RoutingFamilyCapabilities {
-            family: RouteFamilyId::Mesh,
+    fn capabilities(&self) -> RoutingEngineCapabilities {
+        RoutingEngineCapabilities {
+            engine: RoutingEngineId::Mesh,
             max_protection: RouteProtectionClass::LinkProtected,
             max_connectivity: repairable_connected(),
             repair_support: jacquard_traits::jacquard_core::RepairSupport::Supported,
@@ -129,7 +129,7 @@ impl RoutePlanner for StubFamily {
                 updated_at_tick: Tick(1),
             },
             backend_ref: BackendRouteRef {
-                family: RouteFamilyId::Mesh,
+                engine: RoutingEngineId::Mesh,
                 backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![1]),
             },
         }]
@@ -154,7 +154,7 @@ impl RoutePlanner for StubFamily {
     }
 }
 
-impl RouteFamily for StubFamily {
+impl RoutingEngine for StubFamily {
     fn materialize_route(
         &mut self,
         input: RouteMaterializationInput,
@@ -212,7 +212,7 @@ impl RouteFamily for StubFamily {
     }
 }
 
-impl LayeredRoutePlanner for StubFamily {
+impl LayeredRoutingEnginePlanner for StubFamily {
     fn candidate_routes_on_substrate(
         &self,
         _objective: &RoutingObjective,
@@ -233,7 +233,7 @@ impl LayeredRoutePlanner for StubFamily {
                 updated_at_tick: Tick(1),
             },
             backend_ref: BackendRouteRef {
-                family: RouteFamilyId::Mesh,
+                engine: RoutingEngineId::Mesh,
                 backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![9]),
             },
         }]
@@ -251,7 +251,7 @@ impl LayeredRoutePlanner for StubFamily {
     }
 }
 
-impl LayeredRouteFamily for StubFamily {
+impl LayeredRoutingEngine for StubFamily {
     fn materialize_route_on_substrate(
         &mut self,
         input: RouteMaterializationInput,
@@ -276,7 +276,7 @@ impl SubstratePlanner for StubSubstrateProvider {
     ) -> Vec<SubstrateCandidate> {
         vec![SubstrateCandidate {
             capabilities: SubstrateCapabilities {
-                family: RouteFamilyId::Mesh,
+                engine: RoutingEngineId::Mesh,
                 protection: RouteProtectionClass::LinkProtected,
                 connectivity: repairable_connected(),
                 mtu_bytes: ByteCount(1200),
@@ -321,11 +321,11 @@ impl SubstrateRuntime for StubSubstrateProvider {
     }
 }
 
-impl LayerCoordinator for StubLayerCoordinator {
+impl LayeringPolicyEngine for StubLayeringPolicyEngine {
     fn activate_layered_route(
         &mut self,
         _objective: RoutingObjective,
-        _outer_family: RouteFamilyId,
+        _outer_engine: RoutingEngineId,
         _substrate_requirements: SubstrateRequirements,
         _parameters: LayerParameters,
     ) -> Result<MaterializedRoute, jacquard_traits::jacquard_core::RouteError> {
@@ -355,7 +355,7 @@ fn sample_profile() -> AdaptiveRoutingProfile {
         selected_connectivity: repairable_connected(),
         deployment_profile: DeploymentProfile::SparseLowPower,
         diversity_floor: 1,
-        family_fallback_policy: FamilyFallbackPolicy::Allowed,
+        routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
     }
 }
@@ -399,7 +399,7 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
                 },
             },
             summary: RouteSummary {
-                family: RouteFamilyId::Mesh,
+                engine: RoutingEngineId::Mesh,
                 protection: RouteProtectionClass::LinkProtected,
                 connectivity: repairable_connected(),
                 protocol_mix: vec![TransportProtocol::BleGatt],
@@ -501,7 +501,7 @@ fn sample_substrate_requirements() -> SubstrateRequirements {
 }
 
 #[test]
-fn route_family_extension_can_drive_candidate_to_materialized_route() {
+fn routing_engine_contract_can_drive_candidate_to_materialized_route() {
     let objective = sample_objective();
     let profile = sample_profile();
     let route = sample_route(objective.clone(), profile.clone());
@@ -641,20 +641,20 @@ fn substrate_and_layering_traits_support_policy_driven_composition() {
         .release_substrate(&substrate)
         .expect("release substrate");
 
-    let mut coordinator = StubLayerCoordinator { route };
+    let mut coordinator = StubLayeringPolicyEngine { route };
     let coordinated = coordinator
         .activate_layered_route(
             sample_objective(),
-            RouteFamilyId::External {
+            RoutingEngineId::External {
                 name: "onion".into(),
-                contract_id: jacquard_traits::jacquard_core::RouteFamilyContractId([1; 16]),
+                contract_id: jacquard_traits::jacquard_core::RoutingEngineContractId([1; 16]),
             },
             sample_substrate_requirements(),
             parameters,
         )
         .expect("coordinated layered route");
 
-    assert_eq!(substrate.capabilities.family, RouteFamilyId::Mesh);
+    assert_eq!(substrate.capabilities.engine, RoutingEngineId::Mesh);
     assert_eq!(
         substrate_health.value.reachability_state,
         ReachabilityState::Reachable

@@ -1,4 +1,5 @@
-//! Trait definitions for the abstract routing contract and mesh family.
+//! Trait definitions for the abstract routing contract and the mesh routing
+//! engine.
 
 #![forbid(unsafe_code)]
 
@@ -8,6 +9,7 @@ mod effects;
 mod handler;
 mod hashing;
 mod mesh;
+mod observation;
 mod routing;
 mod simulator;
 
@@ -19,6 +21,7 @@ pub use jacquard_macros::{
     bounded_value, effect_handler, effect_trait, id_type, must_use_handle, public_model, purity,
 };
 pub use mesh::*;
+pub use observation::*;
 pub use routing::*;
 pub use simulator::*;
 

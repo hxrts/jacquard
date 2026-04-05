@@ -7,7 +7,7 @@
 
 use jacquard_core::{
     AuditError, Blake3Digest, OrderStamp, RoutingAuditEvent, StorageError, Tick, TransportError,
-    TransportIngressEvent,
+    TransportObservation,
 };
 use jacquard_macros::{effect_trait, purity};
 
@@ -78,7 +78,8 @@ pub trait AuditEffects {
 }
 
 #[effect_trait]
-/// Runtime frame send/poll boundary. This carries bytes and ingress only.
+/// Runtime frame send/poll boundary. This carries bytes and transport
+/// observations only.
 ///
 /// Effectful runtime boundary.
 pub trait TransportEffects {
@@ -89,7 +90,7 @@ pub trait TransportEffects {
     ) -> Result<(), TransportError>;
 
     #[must_use]
-    fn poll_transport(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError>;
+    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
 }
 
 #[purity(effectful)]
@@ -110,7 +111,7 @@ impl<T> RoutingRuntimeEffects for T where
 mod tests {
     use jacquard_core::{
         AuditError, Blake3Digest, OrderStamp, RoutingAuditEvent, StorageError, Tick,
-        TransportError, TransportIngressEvent,
+        TransportError, TransportObservation,
     };
 
     use super::{
@@ -178,7 +179,7 @@ mod tests {
             Ok(())
         }
 
-        fn poll_transport(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError> {
+        fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
             Ok(Vec::new())
         }
     }

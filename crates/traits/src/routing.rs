@@ -1,12 +1,12 @@
-//! Abstract routing traits: adaptive controller, route planner, route family, router, and control/data planes.
+//! Abstract routing traits: policy engines, routing engines, the router, and
+//! control/data planes.
 
 use jacquard_core::{
     AdaptiveRoutingProfile, CommitteeSelection, Configuration, LayerParameters, MaterializedRoute,
     Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError,
-    RouteFamilyId, RouteHealth, RouteId, RouteInstallation, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RoutingFamilyCapabilities,
-    RoutingObjective, RoutingPolicyInputs, SubstrateCandidate, SubstrateLease,
-    SubstrateRequirements,
+    RouteHealth, RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
+    RouteMaterializationInput, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
+    RoutingPolicyInputs, SubstrateCandidate, SubstrateLease, SubstrateRequirements,
 };
 use jacquard_macros::purity;
 
@@ -15,7 +15,7 @@ use jacquard_macros::purity;
 /// this may return a fixed profile. Richer policy comes from the embedding host.
 ///
 /// Pure deterministic boundary.
-pub trait RoutingController {
+pub trait PolicyEngine {
     #[must_use]
     fn compute_profile(
         &self,
@@ -25,10 +25,10 @@ pub trait RoutingController {
 }
 
 #[purity(pure)]
-/// Optional deterministic boundary for family-local committee selection.
+/// Optional deterministic boundary for engine-local committee selection.
 ///
 /// This trait makes the result shape abstract without forcing Jacquard core to
-/// standardize one committee algorithm across route families.
+/// standardize one committee algorithm across routing engines.
 pub trait CommitteeSelector {
     type TopologyView;
 
@@ -42,8 +42,9 @@ pub trait CommitteeSelector {
 }
 
 #[purity(pure)]
-/// Optional deterministic boundary for families that can advertise lower-layer
-/// carriage to other families or to a host-level layering daemon.
+/// Optional deterministic boundary for routing engines that can advertise
+/// lower-layer carriage to other routing engines or to a host-level policy
+/// engine.
 pub trait SubstratePlanner {
     #[must_use]
     fn candidate_substrates(
@@ -75,9 +76,9 @@ pub trait SubstrateRuntime {
 }
 
 #[purity(pure)]
-/// Optional deterministic boundary for families that can plan over an
+/// Optional deterministic boundary for routing engines that can plan over an
 /// already-admitted substrate route rather than only over direct local links.
-pub trait LayeredRoutePlanner {
+pub trait LayeredRoutingEnginePlanner {
     #[must_use]
     fn candidate_routes_on_substrate(
         &self,
@@ -99,9 +100,9 @@ pub trait LayeredRoutePlanner {
 }
 
 #[purity(effectful)]
-/// Optional effectful boundary for layered families once planning has selected
+/// Optional effectful boundary for layered routing engines once planning has selected
 /// a substrate-backed route candidate.
-pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
+pub trait LayeredRoutingEngine: RoutingEngine + LayeredRoutingEnginePlanner {
     #[must_use]
     fn materialize_route_on_substrate(
         &mut self,
@@ -112,17 +113,17 @@ pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
 }
 
 #[purity(pure)]
-/// The pure or near-pure planning surface for one route family. Planner methods
+/// The pure or near-pure planning surface for one routing engine. Planner methods
 /// should be deterministic with respect to their inputs and must not materialize,
 /// activate, or mutate canonical route state.
 ///
 /// Pure deterministic boundary.
-pub trait RoutePlanner {
+pub trait RoutingEnginePlanner {
     #[must_use]
-    fn family_id(&self) -> RouteFamilyId;
+    fn engine_id(&self) -> RoutingEngineId;
 
     #[must_use]
-    fn capabilities(&self) -> RoutingFamilyCapabilities;
+    fn capabilities(&self) -> RoutingEngineCapabilities;
 
     /// Candidate enumeration consumes observational topology input and must
     /// return advisory route candidates rather than proof-bearing witnesses.
@@ -134,7 +135,7 @@ pub trait RoutePlanner {
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate>;
 
-    /// Family-level feasibility check. May attach step bounds and cost estimates.
+    /// Engine-level feasibility check. May attach step bounds and cost estimates.
     #[must_use]
     fn check_candidate(
         &self,
@@ -153,23 +154,24 @@ pub trait RoutePlanner {
 }
 
 #[purity(effectful)]
-/// The effectful family boundary. Each route family (eg. mesh) implements
-/// this trait. Jacquard core interacts with family runtime state only through this surface.
+/// The effectful routing-engine boundary. Each routing engine (eg. mesh)
+/// implements this trait. Jacquard core interacts with engine runtime state
+/// only through this surface.
 ///
 /// Effectful runtime boundary.
-pub trait RouteFamily: RoutePlanner {
+pub trait RoutingEngine: RoutingEnginePlanner {
     /// Realize runtime state for a route under router-owned canonical identity.
     ///
     /// The router allocates the canonical handle and lease first, then the
-    /// family installs the admitted route under that identity and returns the
-    /// family-owned installation artifacts.
+    /// routing engine installs the admitted route under that identity and
+    /// returns the engine-owned installation artifacts.
     #[must_use]
     fn materialize_route(
         &mut self,
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError>;
 
-    /// Every unresolved or recently resolved family-side obligation must be
+    /// Every unresolved or recently resolved engine-side obligation must be
     /// expressible as an explicit route commitment.
     #[must_use]
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
@@ -187,11 +189,11 @@ pub trait RouteFamily: RoutePlanner {
 }
 
 #[purity(effectful)]
-/// Cross-family orchestration entry point.
+/// Cross-engine orchestration entry point.
 ///
 /// Effectful runtime boundary.
 pub trait Router {
-    fn register_family(&mut self, extension: Box<dyn RouteFamily>) -> Result<(), RouteError>;
+    fn register_engine(&mut self, extension: Box<dyn RoutingEngine>) -> Result<(), RouteError>;
 
     #[must_use]
     fn activate_route(
@@ -212,13 +214,13 @@ pub trait Router {
 
 #[purity(effectful)]
 /// Host-owned orchestration boundary for policy-driven composition across
-/// route families. This is where smooth transition and limited layering live.
-pub trait LayerCoordinator {
+/// routing engines. This is where smooth transition and limited layering live.
+pub trait LayeringPolicyEngine {
     #[must_use]
     fn activate_layered_route(
         &mut self,
         objective: RoutingObjective,
-        outer_family: RouteFamilyId,
+        outer_engine: RoutingEngineId,
         substrate_requirements: SubstrateRequirements,
         parameters: LayerParameters,
     ) -> Result<MaterializedRoute, RouteError>;

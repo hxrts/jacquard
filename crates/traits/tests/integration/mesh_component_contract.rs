@@ -7,15 +7,14 @@ use jacquard_traits::{
         LinkRuntimeState, LinkState, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
         PublicationId, RatioPermille, RouteAdmission, RouteAdmissionCheck, RouteBinding,
         RouteCommitment, RouteCommitmentId, RouteCommitmentResolution, RouteConnectivityProfile,
-        RouteCost, RouteEpoch, RouteFamilyId, RouteHealth, RouteId, RouteInstallation,
-        RouteLifecycleEvent, RouteMaintenanceOutcome,
-        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-        RouteMaterializationProof, RouteProtectionClass, RouteSummary, RouteWitness,
-        RoutingFamilyCapabilities, ServiceDescriptor, TransportError, TransportIngressEvent,
-        TransportProtocol,
+        RouteCost, RouteEpoch, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
+        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
+        RouteMaterializationInput, RouteMaterializationProof, RouteProtectionClass, RouteSummary,
+        RouteWitness, RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor,
+        TransportError, TransportObservation, TransportProtocol,
     },
-    CustodyStore, EffectHandler, MeshRouteFamily, MeshTopologyModel, MeshTransport, RouteFamily,
-    RoutePlanner, TransportEffects,
+    CustodyStore, EffectHandler, MeshRoutingEngine, MeshTopologyModel, MeshTransport,
+    RoutingEngine, RoutingEnginePlanner, TransportEffects,
 };
 
 struct StubTopologyModel;
@@ -80,7 +79,7 @@ impl MeshTopologyModel for StubTopologyModel {
 }
 
 struct StubTransport {
-    ingress: Vec<TransportIngressEvent>,
+    observations: Vec<TransportObservation>,
     sent_frames: Vec<Vec<u8>>,
 }
 
@@ -98,8 +97,8 @@ impl MeshTransport for StubTransport {
         Ok(())
     }
 
-    fn poll_ingress(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError> {
-        Ok(std::mem::take(&mut self.ingress))
+    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
+        Ok(std::mem::take(&mut self.observations))
     }
 }
 
@@ -139,14 +138,14 @@ struct StubMeshFamily {
     route: Option<jacquard_traits::jacquard_core::MaterializedRoute>,
 }
 
-impl RoutePlanner for StubMeshFamily {
-    fn family_id(&self) -> RouteFamilyId {
-        RouteFamilyId::Mesh
+impl RoutingEnginePlanner for StubMeshFamily {
+    fn engine_id(&self) -> RoutingEngineId {
+        RoutingEngineId::Mesh
     }
 
-    fn capabilities(&self) -> RoutingFamilyCapabilities {
-        RoutingFamilyCapabilities {
-            family: RouteFamilyId::Mesh,
+    fn capabilities(&self) -> RoutingEngineCapabilities {
+        RoutingEngineCapabilities {
+            engine: RoutingEngineId::Mesh,
             max_protection: RouteProtectionClass::LinkProtected,
             max_connectivity: RouteConnectivityProfile {
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
@@ -213,7 +212,7 @@ impl RoutePlanner for StubMeshFamily {
     }
 }
 
-impl RouteFamily for StubMeshFamily {
+impl RoutingEngine for StubMeshFamily {
     fn materialize_route(
         &mut self,
         input: RouteMaterializationInput,
@@ -264,7 +263,7 @@ impl RouteFamily for StubMeshFamily {
     fn teardown(&mut self, _route_id: &RouteId) {}
 }
 
-impl MeshRouteFamily for StubMeshFamily {
+impl MeshRoutingEngine for StubMeshFamily {
     type TopologyModel = StubTopologyModel;
     type Transport = StubTransport;
     type Custody = StubCustodyStore;
@@ -415,7 +414,7 @@ fn sample_route_admission(
             },
         },
         summary: RouteSummary {
-            family: RouteFamilyId::Mesh,
+            engine: RoutingEngineId::Mesh,
             protection: RouteProtectionClass::LinkProtected,
             connectivity: RouteConnectivityProfile {
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
@@ -505,17 +504,19 @@ fn mesh_topology_model_is_read_only_over_configuration_inputs() {
 fn mesh_transport_carries_frames_without_interpreting_them() {
     let endpoint = sample_endpoint();
     let mut transport = StubTransport {
-        ingress: Vec::new(),
+        observations: Vec::new(),
         sent_frames: Vec::new(),
     };
 
     transport
         .send_frame(&endpoint, b"frame")
         .expect("send frame");
-    let ingress = transport.poll_ingress().expect("poll ingress");
+    let observations = transport
+        .poll_observations()
+        .expect("poll transport observations");
 
     assert_eq!(transport.transport_id(), TransportProtocol::BleGatt);
-    assert!(ingress.is_empty());
+    assert!(observations.is_empty());
     assert_eq!(transport.sent_frames, vec![b"frame".to_vec()]);
 }
 
@@ -556,11 +557,11 @@ fn mesh_transport_is_also_a_transport_effect_handler() {
 }
 
 #[test]
-fn mesh_route_family_exposes_explicit_subcomponent_boundaries() {
+fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
     let mut family = StubMeshFamily {
         topology: StubTopologyModel,
         transport: StubTransport {
-            ingress: Vec::new(),
+            observations: Vec::new(),
             sent_frames: Vec::new(),
         },
         custody: StubCustodyStore {

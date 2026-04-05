@@ -1,9 +1,13 @@
-//! Observation-layer support types and observation aliases over world objects.
+//! Observation-layer support types, shared observed payloads, and observation
+//! aliases over world objects.
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
-use crate::{Belief, ByteCount, Configuration, DurationMs, Environment, Link, Node, RatioPermille};
+use crate::{
+    Belief, ByteCount, Configuration, DurationMs, Environment, Link, Node, RatioPermille,
+    ServiceDescriptor, TransportObservation,
+};
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -43,5 +47,26 @@ pub type LinkObservation = crate::Observation<Link>;
 /// Observation wrapper for one instantiated environment object.
 pub type EnvironmentObservation = crate::Observation<Environment>;
 
+/// Observation wrapper for one shared service descriptor.
+pub type ServiceObservation = crate::Observation<ServiceDescriptor>;
+
 /// Observation wrapper for one instantiated configuration.
 pub type ConfigurationObservation = crate::Observation<Configuration>;
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Self-describing observed payload surfaced by an observation extension.
+///
+/// Higher-level runtime layers may later wrap these observations into batches,
+/// diffs, partial snapshots, or other update shapes without changing what the
+/// extension boundary means.
+pub enum ObservedValue {
+    Node(Node),
+    Link(Link),
+    Environment(Environment),
+    Service(ServiceDescriptor),
+    Transport(TransportObservation),
+}
+
+/// Shared observation type emitted by observation extensions.
+pub type SharedObservation = crate::Observation<ObservedValue>;

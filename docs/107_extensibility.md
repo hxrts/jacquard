@@ -44,19 +44,19 @@ pub trait TemplateAddressable {
 
 `Blake3Hashing` is the default implementation. `ContentAddressable` is for immutable artifacts. `TemplateAddressable` is for partially-bound artifacts whose final identity is not yet resolved.
 
-## Route Families
+## Routing Engines
 
-A route family is a routing algorithm. Mesh is the first-party family. External families such as onion routing plug into the same contract without depending on mesh internals.
+A routing engine is a routing algorithm. Mesh is the first-party engine. External engines such as onion routing plug into the same contract without depending on mesh internals.
 
-A family implements two traits: `RoutePlanner` for deterministic planning and `RouteFamily` for effectful runtime behavior. The router interacts with all families through these traits only.
+A routing engine implements two traits: `RoutingEnginePlanner` for deterministic planning and `RoutingEngine` for effectful runtime behavior. The router interacts with all engines through these traits only.
 
 ```rust
-pub trait RoutePlanner {
+pub trait RoutingEnginePlanner {
     #[must_use]
-    fn family_id(&self) -> RouteFamilyId;
+    fn engine_id(&self) -> RoutingEngineId;
 
     #[must_use]
-    fn capabilities(&self) -> RoutingFamilyCapabilities;
+    fn capabilities(&self) -> RoutingEngineCapabilities;
 
     #[must_use]
     fn candidate_routes(
@@ -83,7 +83,7 @@ pub trait RoutePlanner {
     ) -> Result<RouteAdmission, RouteError>;
 }
 
-pub trait RouteFamily: RoutePlanner {
+pub trait RoutingEngine: RoutingEnginePlanner {
     #[must_use]
     fn materialize_route(
         &mut self,
@@ -104,26 +104,26 @@ pub trait RouteFamily: RoutePlanner {
 }
 ```
 
-`RoutePlanner` is pure. `RouteFamily` is effectful. The split keeps candidate production deterministic and testable while route realization owns runtime state mutation. The router allocates the canonical handle and lease first. The family then realizes the admitted route under that identity and returns `RouteInstallation`.
+`RoutingEnginePlanner` is pure. `RoutingEngine` is effectful. The split keeps candidate production deterministic and testable while route realization owns runtime state mutation. The router allocates the canonical handle and lease first. The routing engine then realizes the admitted route under that identity and returns `RouteInstallation`. The control plane assembles the final `MaterializedRoute` from that router-owned identity plus the engine-owned installation result.
 
 ### Dependency Rules
 
-External families should depend on `jacquard-core` and `jacquard-traits`. They should not depend on mesh internals, router internals, or simulator-private helpers.
+External routing engines should depend on `jacquard-core` and `jacquard-traits`. They should not depend on mesh internals, router internals, or simulator-private helpers.
 
 ### Stable Contract Types
 
-An external family must treat these as the stable cross-crate contract:
+An external routing engine must treat these as the stable cross-crate contract:
 
 `RouteSummary`, `Estimate<RouteEstimate>`, `RouteAdmissionCheck`, `RouteWitness`, `RouteHandle`, `RouteLease`, `RouteMaterializationInput`, `RouteInstallation`, `RouteCommitment`, `RouteMaintenanceResult`, `CommitteeSelection`, `SubstrateRequirements`, `SubstrateLease`, `LayerParameters`, `Observation<T>`, and `Fact<T>`.
 
-It must not assume mesh route shape, mesh topology structure, mesh-specific maintenance semantics, or a hidden capability-token authority model outside those shared route objects.
+It must not assume mesh route shape, mesh topology structure, mesh-specific maintenance semantics, or any authority model outside those shared route objects.
 
-## Adaptive Policy
+## Policy Engines
 
-The adaptive controller decides how much protection to trade for connectivity. A mesh-only deployment may return a fixed profile. A richer host such as Aura can supply cross-family policy.
+The policy engine decides how much protection to trade for connectivity. A mesh-only deployment may return a fixed profile. A richer host such as Aura can supply cross-engine policy.
 
 ```rust
-pub trait RoutingController {
+pub trait PolicyEngine {
     #[must_use]
     fn compute_profile(
         &self,
@@ -135,7 +135,7 @@ pub trait RoutingController {
 
 ## Committee Selection
 
-Families that use local coordination can expose committee results through an optional trait. Jacquard commits to the shared result shape, not to one algorithm. Leaderless threshold sets, role-differentiated committees, and no committee at all are valid realizations.
+Routing engines that use local coordination can expose committee results through an optional trait. Jacquard commits to the shared result shape, not to one algorithm. Leaderless threshold sets, role-differentiated committees, and no committee at all are valid realizations.
 
 ```rust
 pub trait CommitteeSelector {
@@ -153,7 +153,7 @@ pub trait CommitteeSelector {
 
 ## Layering
 
-Families that can serve as lower-layer carriers expose substrate planning and runtime traits. Families that can consume a substrate expose layered planning and materialization traits. A host-level coordinator owns the layering decision.
+Routing engines that can serve as lower-layer carriers expose substrate planning and runtime traits. Routing engines that can consume a substrate expose layered planning and materialization traits. A host-level policy engine owns the layering decision.
 
 ```rust
 pub trait SubstratePlanner {
@@ -181,7 +181,7 @@ pub trait SubstrateRuntime {
     ) -> Result<Observation<RouteHealth>, RouteError>;
 }
 
-pub trait LayeredRoutePlanner {
+pub trait LayeredRoutingEnginePlanner {
     #[must_use]
     fn candidate_routes_on_substrate(
         &self,
@@ -202,7 +202,7 @@ pub trait LayeredRoutePlanner {
     ) -> Result<RouteAdmission, RouteError>;
 }
 
-pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
+pub trait LayeredRoutingEngine: RoutingEngine + LayeredRoutingEnginePlanner {
     #[must_use]
     fn materialize_route_on_substrate(
         &mut self,
@@ -212,23 +212,46 @@ pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
     ) -> Result<RouteInstallation, RouteError>;
 }
 
-pub trait LayerCoordinator {
+pub trait LayeringPolicyEngine {
     #[must_use]
     fn activate_layered_route(
         &mut self,
         objective: RoutingObjective,
-        outer_family: RouteFamilyId,
+        outer_engine: RoutingEngineId,
         substrate_requirements: SubstrateRequirements,
         parameters: LayerParameters,
     ) -> Result<MaterializedRoute, RouteError>;
 }
 ```
 
-`SubstratePlanner` and `LayeredRoutePlanner` are pure. `SubstrateRuntime`, `LayeredRouteFamily`, and `LayerCoordinator` are effectful. Neither family needs direct awareness of the other. As with plain route realization, the canonical route handle and lease come from the router or host coordinator, not from the layered family itself.
+`SubstratePlanner` and `LayeredRoutingEnginePlanner` are pure. `SubstrateRuntime`, `LayeredRoutingEngine`, and `LayeringPolicyEngine` are effectful. Neither routing engine needs direct awareness of the other. As with plain route realization, the canonical route handle and lease come from the router or host policy engine, not from the layered routing engine itself, and the final materialized-route record is assembled above the routing-engine boundary.
+
+## Observation Extensions
+
+Jacquard is also extended by observation extensions. This is the boundary for teams that know a specific radio stack, runtime environment, or discovery surface and want to contribute shared observations without becoming a routing-engine author.
+
+The key goal is cooperative interoperability. One extension may contribute local BLE observations, another may contribute Wi-Fi transport observations, and another may contribute platform-specific service observations. The host merges those contributions into one shared model, and routing engines consume that shared model through their existing planning and runtime boundaries.
+
+```rust
+pub trait ObservationExtensionDescriptor {
+    #[must_use]
+    fn extension_id(&self) -> &str;
+
+    #[must_use]
+    fn supported_transports(&self) -> Vec<TransportProtocol>;
+}
+
+pub trait ObservationExtension: ObservationExtensionDescriptor {
+    #[must_use]
+    fn poll_observations(&mut self) -> Result<Vec<SharedObservation>, RouteError>;
+}
+```
+
+`ObservationExtensionDescriptor` is pure metadata. `ObservationExtension` is effectful. `SharedObservation` is just `Observation<ObservedValue>`, so the observed payload itself says what was observed. If a host wants to add batches, diffs, partial snapshots, merge policy, or prioritization, that happens above this trait. Extensions do not publish canonical route state directly, and they do not need direct awareness of one another to have a cooperative effect.
 
 ## Transports
 
-A transport is a frame carrier. It sends bytes and reports ingress events. It must not impose sequencing, traffic control, or routing truth.
+A transport is a frame carrier. It sends bytes and reports transport observations. It must not impose sequencing, traffic control, or routing truth.
 
 ```rust
 pub trait MeshTransport {
@@ -242,11 +265,11 @@ pub trait MeshTransport {
     ) -> Result<(), TransportError>;
 
     #[must_use]
-    fn poll_ingress(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError>;
+    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
 }
 ```
 
-Every `MeshTransport` implementation automatically satisfies `TransportEffects` through a blanket impl. New transports such as BLE GATT, Wi-Fi LAN, or QUIC implement `MeshTransport` and are registered with the mesh family.
+Every `MeshTransport` implementation automatically satisfies `TransportEffects` through a blanket impl. New transports such as BLE GATT, Wi-Fi LAN, or QUIC implement `MeshTransport` and are registered with the mesh routing engine.
 
 If transport implementations grow substantial platform logic, they should be split into dedicated crates such as `jacquard-transport-ble` rather than expanding the stub `jacquard-transport` crate.
 
@@ -278,7 +301,7 @@ pub trait CustodyStore {
 
 ## Mesh Subcomponents
 
-The mesh family exposes its internal subcomponents through `MeshRouteFamily`. This lets topology queries, transport I/O, and custody storage be swapped independently.
+The mesh routing engine exposes its internal subcomponents through `MeshRoutingEngine`. This lets topology queries, transport I/O, and custody storage be swapped independently.
 
 ```rust
 pub trait MeshTopologyModel {
@@ -307,7 +330,7 @@ pub trait MeshTopologyModel {
     ) -> Vec<Link>;
 }
 
-pub trait MeshRouteFamily: RouteFamily {
+pub trait MeshRoutingEngine: RoutingEngine {
     type TopologyModel: MeshTopologyModel;
     type Transport: MeshTransport;
     type Custody: CustodyStore;
@@ -320,7 +343,7 @@ pub trait MeshRouteFamily: RouteFamily {
 }
 ```
 
-`MeshTopologyModel` is read-only. `MeshTransport` and `CustodyStore` are effectful. The associated types on `MeshRouteFamily` bind one concrete set of subcomponents per mesh implementation.
+`MeshTopologyModel` is read-only. `MeshTransport` and `CustodyStore` are effectful. The associated types on `MeshRoutingEngine` bind one concrete set of subcomponents per mesh implementation.
 
 ## Runtime Effects
 
@@ -366,7 +389,7 @@ pub trait TransportEffects {
     ) -> Result<(), TransportError>;
 
     #[must_use]
-    fn poll_transport(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError>;
+    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
 }
 
 pub trait RoutingRuntimeEffects:

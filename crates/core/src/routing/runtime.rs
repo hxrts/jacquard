@@ -1,4 +1,4 @@
-//! Router-owned route identity, family installation results, and runtime lifecycle objects.
+//! Router-owned route identity, engine installation results, and runtime lifecycle objects.
 
 use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
@@ -75,9 +75,9 @@ pub struct RouteMaterializationProof {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Router-owned canonical route identity passed to a family during realization.
+/// Router-owned canonical route identity passed to a routing engine during realization.
 ///
-/// Families must realize admitted routes under this canonical identity instead
+/// Routing engines must realize admitted routes under this canonical identity instead
 /// of minting a competing handle or lease of their own.
 pub struct RouteMaterializationInput {
     pub handle: RouteHandle,
@@ -87,9 +87,9 @@ pub struct RouteMaterializationInput {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Family-owned installation result returned after realizing a canonical route.
+/// Engine-owned installation result returned after realizing a canonical route.
 ///
-/// This keeps router-owned identity separate from family-owned runtime state
+/// This keeps router-owned identity separate from engine-owned runtime state
 /// and proof artifacts.
 pub struct RouteInstallation {
     pub materialization_proof: RouteMaterializationProof,
@@ -230,7 +230,7 @@ pub struct MaterializedRoute {
 impl MaterializedRoute {
     #[must_use]
     /// Build the canonical route view from router-owned identity plus the
-    /// family-owned installation result.
+    /// engine-owned installation result.
     pub fn from_installation(
         input: RouteMaterializationInput,
         installation: RouteInstallation,
@@ -278,7 +278,7 @@ pub enum RouteMaintenanceTrigger {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Family returns this from maintenance so the control plane can preserve the
+/// Routing engine returns this from maintenance so the control plane can preserve the
 /// semantic payload of the decision rather than collapsing it to a single enum.
 pub struct RouteMaintenanceResult {
     pub event: RouteLifecycleEvent,

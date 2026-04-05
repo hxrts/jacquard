@@ -20,7 +20,7 @@ dylint_linting::impl_late_lint! {
     /// ### Example
     ///
     /// ```rust
-    /// pub trait RoutePlanner {
+    /// pub trait RoutingEnginePlanner {
     ///     fn plan(&self);
     /// }
     /// ```
@@ -29,7 +29,7 @@ dylint_linting::impl_late_lint! {
     ///
     /// ```rust
     /// #[purity(pure)]
-    /// pub trait RoutePlanner {
+    /// pub trait RoutingEnginePlanner {
     ///     fn plan(&self);
     /// }
     /// ```

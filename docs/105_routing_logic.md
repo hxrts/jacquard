@@ -1,6 +1,6 @@
 # Routing Logic
 
-This page describes how routing decisions are structured. It covers the pipeline from world state through policy to route materialization, the control/data plane split, and the decision path.
+This page describes how routing decisions are structured. It covers the pipeline from world state through policy to canonical route realization, the control/data plane split, and the decision path.
 
 ## Pipeline
 
@@ -18,20 +18,20 @@ world
 
 ## Planes
 
-The control plane owns candidate gathering, admission, materialization, commitments, maintenance, and anti-entropy. The data plane forwards payloads over already admitted route state. Data-plane observations may report health or failures, but the control plane decides whether that changes the active materialized route.
+The control plane owns candidate gathering, admission, canonical identity allocation, materialized-route assembly, commitments, maintenance, and anti-entropy. The data plane forwards payloads over already admitted route state. Data-plane observations may report health or failures, but the control plane decides whether that changes the active materialized route.
 
 If a family needs local coordination, that also lives in the control plane. A family may select a committee or witness set as part of planning, but those results are advisory inputs to canonical transitions. They are not canonical route truth by themselves.
 
-The link layer is a frame carrier. It reports reachability, MTU, loss, and timing. It does not own canonical ordering or traffic control. If a route family needs sequencing or causal behavior, that appears as a routing-level message-flow assumption rather than a transport guarantee. Keeping the transport surface simple avoids head-of-line stalls on unstable links and prevents baking one delivery policy into every route family.
+The link layer is a frame carrier. It reports reachability, MTU, loss, and timing. It does not own canonical ordering or traffic control. If a routing engine needs sequencing or causal behavior, that appears as a routing-level message-flow assumption rather than a transport guarantee. Keeping the transport surface simple avoids head-of-line stalls on unstable links and prevents baking one delivery policy into every routing engine.
 
-Layered composition follows the same rule. If one family uses another as a limited substrate, the layering decision belongs above both families in a host-owned coordinator. The lower layer exposes carrier capabilities and leases. The upper layer consumes those through a neutral contract. Neither family needs direct awareness of the other's private scoring or maintenance logic.
+Layered composition follows the same rule. If one routing engine uses another as a limited substrate, the layering decision belongs above both engines in a host-owned policy engine. The lower layer exposes carrier capabilities and leases. The upper layer consumes those through a neutral contract. Neither engine needs direct awareness of the other's private scoring or maintenance logic.
 
 ## Decision Path
 
-The routing decision path starts from `RoutingObjective` and `Observation<Configuration>`. A route planner turns those into `RouteCandidate` values. Each candidate carries an `Estimate<RouteEstimate>`, not a fact or published witness. The planner then checks one candidate, admits it under a stated profile, and a route family materializes it into `MaterializedRoute`.
+The routing decision path starts from `RoutingObjective` and `Observation<Configuration>`. A routing-engine planner turns those into `RouteCandidate` values. Each candidate carries an `Estimate<RouteEstimate>`, not a fact or published witness. The planner then checks one candidate and admits it under a stated profile. The router allocates canonical route identity, the routing engine realizes that admitted route under `RouteMaterializationInput`, and the control plane assembles the resulting `MaterializedRoute`.
 
 ```rust
-pub trait RoutePlanner {
+pub trait RoutingEnginePlanner {
     fn candidate_routes(
         &self,
         objective: &RoutingObjective,
@@ -71,7 +71,7 @@ pub trait SubstrateRuntime {
     ) -> Result<SubstrateLease, RouteError>;
 }
 
-pub trait LayeredRoutePlanner {
+pub trait LayeredRoutingEnginePlanner {
     fn candidate_routes_on_substrate(
         &self,
         objective: &RoutingObjective,
@@ -81,7 +81,7 @@ pub trait LayeredRoutePlanner {
     ) -> Vec<RouteCandidate>;
 }
 
-pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
+pub trait LayeredRoutingEngine: RoutingEngine + LayeredRoutingEnginePlanner {
     fn materialize_route_on_substrate(
         &mut self,
         input: RouteMaterializationInput,
@@ -90,7 +90,7 @@ pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
     ) -> Result<RouteInstallation, RouteError>;
 }
 
-pub trait RouteFamily: RoutePlanner {
+pub trait RoutingEngine: RoutingEnginePlanner {
     fn materialize_route(
         &mut self,
         input: RouteMaterializationInput,
@@ -98,17 +98,17 @@ pub trait RouteFamily: RoutePlanner {
 }
 ```
 
-This split shows the main route-building sequence. The important point is that route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only when the router allocates route identity and the family realizes that admitted route under the router-provided `RouteMaterializationInput`. The planning side is deterministic and read-only with respect to canonical route state. Runtime mutation starts at `materialize_route`.
+This split shows the main route-building sequence. The important point is that route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only when the router allocates route identity and the routing engine realizes that admitted route under the router-provided `RouteMaterializationInput`. The planning side is deterministic and read-only with respect to canonical route state. Runtime mutation starts at `materialize_route`, but canonical route ownership stays above the routing-engine boundary.
 
-`CommitteeSelector` sits on the same planning side when a family uses it. Jacquard commits to the shared result shape of the committee, not to one universal committee-selection policy. Families may use leaderless threshold sets, role-differentiated committees, or no committee at all.
+`CommitteeSelector` sits on the same planning side when a routing engine uses it. Jacquard commits to the shared result shape of the committee, not to one universal committee-selection policy. Routing engines may use leaderless threshold sets, role-differentiated committees, or no committee at all.
 
-`SubstratePlanner` and `LayeredRoutePlanner` stay on the deterministic planning side. `SubstrateRuntime` and `LayeredRouteFamily` own the effectful acquisition and realization steps. That keeps layering aligned with the same purity rule as `RoutePlanner` versus `RouteFamily`, and it prevents composition from collapsing planning and runtime mutation into one trait.
+`SubstratePlanner` and `LayeredRoutingEnginePlanner` stay on the deterministic planning side. `SubstrateRuntime` and `LayeredRoutingEngine` own the effectful acquisition and realization steps. That keeps layering aligned with the same purity rule as `RoutingEnginePlanner` versus `RoutingEngine`, and it prevents composition from collapsing planning and runtime mutation into one trait.
 
-## Family Boundary
+## Routing Engine Boundary
 
-`RoutePlanner` is the deterministic planning boundary. `RouteFamily` is the effectful runtime boundary on top of it. A planner produces candidates, checks admission, and admits a route. The router allocates canonical route identity. The family runtime realizes that route under the router-owned handle and lease, publishes commitments, and handles maintenance. The top-level router stays family-neutral: it compares candidates, enforces fallback rules, tracks materialized routes, and coordinates maintenance.
+`RoutingEnginePlanner` is the deterministic planning boundary. `RoutingEngine` is the effectful runtime boundary on top of it. A planner produces candidates, checks admission, and admits a route. The router allocates canonical route identity and assembles the final materialized-route record. The routing-engine runtime realizes the route under the router-owned handle and lease, publishes commitments, and handles maintenance. The top-level router stays routing-engine-neutral: it compares candidates, enforces fallback rules, tracks materialized routes, and coordinates maintenance.
 
-See [Extensibility](107_extensibility.md) for the full extension surface, including route families, transports, effects, hashing, content addressing, and simulation.
+See [Extensibility](107_extensibility.md) for the full extension surface, including routing engines, transports, effects, hashing, content addressing, and simulation.
 
 ## Runtime Boundary
 

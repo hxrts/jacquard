@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Belief, BleDeviceId, BleProfileId, ByteCount, ClusterId, ControllerId, GatewayId, HomeId,
-    NeighborhoodId, NetworkHost, NodeId, RatioPermille, RouteFamilyId, TimeWindow,
+    NeighborhoodId, NetworkHost, NodeId, RatioPermille, RoutingEngineId, TimeWindow,
 };
 
 #[public_model]
@@ -73,7 +73,7 @@ pub struct ServiceDescriptor {
     pub service_kind: RouteServiceKind,
     /// Bounded by [`SERVICE_ENDPOINT_COUNT_MAX`](crate::SERVICE_ENDPOINT_COUNT_MAX).
     pub endpoints: Vec<LinkEndpoint>,
-    pub routing_families: Vec<RouteFamilyId>,
+    pub routing_engines: Vec<RoutingEngineId>,
     pub scope: ServiceScope,
     pub valid_for: TimeWindow,
     pub capacity: Belief<CapacityHint>,
@@ -99,7 +99,7 @@ pub struct CapacityHint {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TransportIngressEvent {
+pub enum TransportObservation {
     PayloadReceived {
         from_node_id: NodeId,
         endpoint: LinkEndpoint,

@@ -1,4 +1,4 @@
-//! Route family capabilities, admission checks, candidates, and witnesses.
+//! Routing-engine capabilities, admission checks, candidates, and witnesses.
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
@@ -6,14 +6,14 @@ use thiserror::Error;
 
 use crate::{
     AdaptiveRoutingProfile, BackendRouteId, Belief, Estimate, Limit, RouteConnectivityProfile,
-    RouteCost, RouteEpoch, RouteEstimate, RouteFamilyId, RouteId, RouteProtectionClass,
+    RouteCost, RouteEpoch, RouteEstimate, RouteId, RouteProtectionClass, RoutingEngineId,
     RoutingObjective, TimeWindow, TransportProtocol,
 };
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RoutingFamilyCapabilities {
-    pub family: RouteFamilyId,
+pub struct RoutingEngineCapabilities {
+    pub engine: RoutingEngineId,
     pub max_protection: RouteProtectionClass,
     pub max_connectivity: RouteConnectivityProfile,
     pub repair_support: RepairSupport,
@@ -71,7 +71,7 @@ pub enum RouteShapeVisibility {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Premise profile: message-flow, failure, and runtime assumptions under which
-/// the admission claim holds. Families declare these, the router compares them.
+/// the admission claim holds. Routing engines declare these, the router compares them.
 pub struct RoutingAdmissionProfile {
     pub message_flow_assumption: MessageFlowAssumptionClass,
     pub failure_model: FailureModelClass,
@@ -140,7 +140,7 @@ pub enum ClaimStrength {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteSummary {
-    pub family: RouteFamilyId,
+    pub engine: RoutingEngineId,
     pub protection: RouteProtectionClass,
     pub connectivity: RouteConnectivityProfile,
     pub protocol_mix: Vec<TransportProtocol>,
@@ -242,9 +242,9 @@ pub enum DegradationReason {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Family-owned opaque handle. Jacquard core never inspects the contents.
+/// Engine-owned opaque handle. Jacquard core never inspects the contents.
 /// This is a weak advisory reference and is not a canonical installed-route handle.
 pub struct BackendRouteRef {
-    pub family: RouteFamilyId,
+    pub engine: RoutingEngineId,
     pub backend_route_id: BackendRouteId,
 }

@@ -6,18 +6,19 @@
 //! Effect boundary:
 //! - `MeshTopologyModel` is read-only. It should be deterministic with respect
 //!   to its inputs and must not mutate canonical route state.
-//! - `MeshTransport` is effectful. It carries frames and reports ingress, but
+//! - `MeshTransport` is effectful. It carries frames and reports transport
+//!   observations, but
 //!   it must not impose sequencing, traffic control, or routing truth.
 //! - `CustodyStore` is effectful. It stores opaque deferred-delivery payloads,
 //!   but it must not interpret higher-level routing semantics.
 
 use jacquard_core::{
     Blake3Digest, Configuration, ContentId, CustodyError, Link, LinkEndpoint, Node, NodeId,
-    TransportError, TransportIngressEvent, TransportProtocol,
+    TransportError, TransportObservation, TransportProtocol,
 };
 use jacquard_macros::purity;
 
-use crate::{effect_handler, RouteFamily, TransportEffects};
+use crate::{effect_handler, RoutingEngine, TransportEffects};
 
 #[purity(read_only)]
 /// Deterministic, read-only topology queries used by the mesh planner/runtime.
@@ -57,7 +58,7 @@ pub trait MeshTransport {
         -> Result<(), TransportError>;
 
     #[must_use]
-    fn poll_ingress(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError>;
+    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
 }
 
 // A concrete mesh transport adapter is also a concrete transport effect handler.
@@ -74,8 +75,8 @@ where
         self.send_frame(endpoint, payload)
     }
 
-    fn poll_transport(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError> {
-        self.poll_ingress()
+    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
+        self.poll_observations()
     }
 }
 
@@ -104,13 +105,14 @@ pub trait CustodyStore {
 }
 
 #[purity(effectful)]
-/// Mesh-specialized route family boundary with explicit subcomponent ownership.
+/// Mesh-specialized routing-engine boundary with explicit subcomponent ownership.
 ///
-/// Planning purity stays in `RoutePlanner` plus `MeshTopologyModel`. This trait
-/// only binds the effectful family runtime to its swappable subcomponents.
+/// Planning purity stays in `RoutingEnginePlanner` plus `MeshTopologyModel`.
+/// This trait only binds the effectful routing-engine runtime to its swappable
+/// subcomponents.
 ///
 /// Effectful runtime boundary with read-only subcomponent accessors.
-pub trait MeshRouteFamily: RouteFamily {
+pub trait MeshRoutingEngine: RoutingEngine {
     type TopologyModel: MeshTopologyModel;
     type Transport: MeshTransport;
     type Custody: CustodyStore;
