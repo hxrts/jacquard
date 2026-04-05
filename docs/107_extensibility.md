@@ -219,6 +219,12 @@ pub trait CommitteeSelector {
     ) -> Result<CommitteeSelection, RouteError>;
 }
 
+pub trait CommitteeCoordinatedEngine {
+    type Selector: CommitteeSelector;
+
+    fn committee_selector(&self) -> Option<&Self::Selector>;
+}
+
 pub trait SubstratePlanner {
     #[must_use]
     fn candidate_substrates(
@@ -282,7 +288,7 @@ pub trait LayeringPolicyEngine {
 }
 ```
 
-`PolicyEngine`, `CommitteeSelector`, `SubstratePlanner`, and `LayeredRoutingEnginePlanner` are pure planning or decision surfaces. `SubstrateRuntime`, `LayeredRoutingEngine`, and `LayeringPolicyEngine` are effectful. `CommitteeSelector` is optional. Jacquard commits to the result shape of `CommitteeSelection`. It does not standardize one committee algorithm. The substrate and layering traits are still forward-looking contract surfaces. They exist so host-owned composition can stabilize at the type boundary now, but the current in-tree coverage is still contract-oriented rather than a mature production layering stack.
+`PolicyEngine`, `CommitteeSelector`, `CommitteeCoordinatedEngine`, `SubstratePlanner`, and `LayeredRoutingEnginePlanner` are planning or read-only decision surfaces. `SubstrateRuntime`, `LayeredRoutingEngine`, and `LayeringPolicyEngine` are effectful. `CommitteeSelector` is optional. Jacquard commits to the result shape of `CommitteeSelection`. It does not standardize one committee-formation algorithm. `CommitteeCoordinatedEngine` is the optional read-only hook that lets an engine expose the swappable selector component it uses. Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band. The substrate and layering traits are still forward-looking contract surfaces. They exist so host-owned composition can stabilize at the type boundary now, but the current in-tree coverage is still contract-oriented rather than a mature production layering stack.
 
 Layering follows the same ownership rule as ordinary route realization. The canonical route handle and lease come from the router or host policy layer. A layered routing engine does not allocate canonical route identity for itself. The lower engine exposes substrate capabilities and leases. The upper engine consumes them through the shared substrate contract.
 

@@ -22,8 +22,9 @@ use jacquard_traits::{
         RuntimeEnvelopeClass, SubstrateCandidate, SubstrateCapabilities, SubstrateLease,
         SubstrateRequirements, Tick, TimeWindow, TransportProtocol,
     },
-    CommitteeSelector, LayeredRoutingEngine, LayeredRoutingEnginePlanner, LayeringPolicyEngine,
-    RoutingEngine, RoutingEnginePlanner, SubstratePlanner, SubstrateRuntime,
+    CommitteeCoordinatedEngine, CommitteeSelector, LayeredRoutingEngine,
+    LayeredRoutingEnginePlanner, LayeringPolicyEngine, RoutingEngine, RoutingEnginePlanner,
+    SubstratePlanner, SubstrateRuntime,
 };
 
 fn repairable_connected() -> RouteConnectivityProfile {
@@ -35,6 +36,7 @@ fn repairable_connected() -> RouteConnectivityProfile {
 
 struct StubFamily {
     route: MaterializedRoute,
+    selector: Option<StubCommitteeSelector>,
 }
 
 struct StubCommitteeSelector;
@@ -83,6 +85,14 @@ impl CommitteeSelector for StubCommitteeSelector {
                 },
             ],
         })
+    }
+}
+
+impl CommitteeCoordinatedEngine for StubFamily {
+    type Selector = StubCommitteeSelector;
+
+    fn committee_selector(&self) -> Option<&Self::Selector> {
+        self.selector.as_ref()
     }
 }
 
@@ -499,6 +509,7 @@ fn routing_engine_contract_can_drive_candidate_to_materialized_route() {
     let route = sample_route(objective.clone(), profile.clone());
     let mut family = StubFamily {
         route: route.clone(),
+        selector: None,
     };
     let topology = Observation {
         value: empty_configuration(),
@@ -586,6 +597,40 @@ fn committee_selector_trait_supports_shared_result_shape() {
 }
 
 #[test]
+fn committee_coordinated_engine_exposes_optional_swappable_selector() {
+    let route = sample_route(sample_objective(), sample_profile());
+    let family_with_selector = StubFamily {
+        route: route.clone(),
+        selector: Some(StubCommitteeSelector),
+    };
+    let family_without_selector = StubFamily {
+        route,
+        selector: None,
+    };
+
+    let selector = family_with_selector
+        .committee_selector()
+        .expect("selector should be present");
+    let committee = selector
+        .select_committee(
+            &sample_objective(),
+            &sample_profile(),
+            &Observation {
+                value: empty_configuration(),
+                source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
+                evidence_class: RoutingEvidenceClass::DirectObservation,
+                origin_authentication:
+                    jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
+                observed_at_tick: Tick(1),
+            },
+        )
+        .expect("committee selection should succeed");
+
+    assert_eq!(committee.committee_id, CommitteeId([5; 16]));
+    assert!(family_without_selector.committee_selector().is_none());
+}
+
+#[test]
 fn substrate_and_layering_traits_support_policy_driven_composition() {
     let objective = sample_objective();
     let profile = sample_profile();
@@ -616,6 +661,7 @@ fn substrate_and_layering_traits_support_policy_driven_composition() {
     };
     let mut layered_family = StubFamily {
         route: route.clone(),
+        selector: None,
     };
     let candidate = layered_family
         .candidate_routes_on_substrate(&objective, &profile, &substrate, &parameters)

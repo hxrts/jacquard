@@ -24,7 +24,7 @@ It also needs to support more than one routing engine being present at once. A h
 
 The top-level routing contract is routing-engine-neutral. A routing engine produces observational candidates, checks admission, admits a route, realizes it under router-provided canonical identity, publishes commitments, and handles engine-local maintenance. The control plane owns canonical route truth. The data plane forwards over already admitted truth.
 
-When a routing engine needs local coordination, Jacquard allows it to expose a shared coordination result such as a committee selection. Jacquard does not require that every routing engine use committees, and it does not require that a committee have a distinguished leader.
+When a routing engine needs local coordination, Jacquard allows it to expose a shared coordination result such as a committee selection. Jacquard does not require that every routing engine use committees, and it does not require that a committee have a distinguished leader. The shared layer standardizes the result shape, not the formation process. Formation may be engine-local, host-local, provisioned, or otherwise out of band.
 
 Jacquard also allows a host-owned policy engine to compose routing engines through a neutral substrate contract. That means multiple routing engines may be used together, but the shared layer does not treat one canonical route as simultaneously owned by several unrelated engines. Composition happens through explicit carrier leases and layer parameters above the routing-engine boundary.
 
@@ -34,7 +34,7 @@ Jacquard is fully deterministic. It does not use floating-point scoring in the r
 
 Jacquard also keeps observation scopes explicit. Local node state, peer estimates, link estimates, and neighborhood aggregates are separate model surfaces. That split keeps routing logic honest about what is self-known, what is inferred about a peer, and what is only an aggregate local view.
 
-Jacquard is intentionally not too opinionated about engine-local scoring, committee selection policy, or trust heuristics. The shared layer commits to the result shapes, evidence classes, ownership rules, and canonical transition path. The routing-engine layer owns the scoring rules, diversity logic, and misbehavior handling that depend on its routing semantics.
+Jacquard is intentionally not too opinionated about engine-local scoring, committee formation policy, or trust heuristics. The shared layer commits to the result shapes, evidence classes, ownership rules, and canonical transition path. The routing-engine layer owns the scoring rules, diversity logic, and misbehavior handling that depend on its routing semantics.
 
 Jacquard is also committed to one explicit service lifecycle: observation to candidate to admission to router-owned canonical identity allocation to family realization to materialized route to maintenance, replacement, or teardown. Major transitions stay typed and explicit. Data-plane health stays observational until the control plane publishes a canonical change.
 

@@ -41,6 +41,21 @@ pub trait CommitteeSelector {
     ) -> Result<CommitteeSelection, RouteError>;
 }
 
+#[purity(read_only)]
+/// Optional read-only boundary for routing engines that delegate committee
+/// formation to a swappable selector component.
+///
+/// Jacquard standardizes the shared `CommitteeSelection` result shape, not one
+/// universal formation process. Engines that use committees may expose the
+/// selector they depend on through this trait. Engines that do not use
+/// committees simply do not implement it.
+pub trait CommitteeCoordinatedEngine {
+    type Selector: CommitteeSelector;
+
+    #[must_use]
+    fn committee_selector(&self) -> Option<&Self::Selector>;
+}
+
 #[purity(pure)]
 /// Optional deterministic boundary for routing engines that can advertise
 /// lower-layer carriage to other routing engines or to a host-level policy
