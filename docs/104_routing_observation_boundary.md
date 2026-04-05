@@ -16,7 +16,7 @@ This boundary is observational only. It feeds planning, admission, and maintenan
 
 The model has four scopes: local node, link, peer, and environment. Each answers a different routing question. `world` defines the abstract objects. `observation` wraps them with provenance. `estimation` derives routing summaries. `policy` and `action` sit on top.
 
-Observation extensions contribute through plain `Observation<ObservedValue>` values. That means the extension boundary stays about what was observed, not about how one host may later batch, diff, coalesce, or partially apply those observations.
+World extensions contribute through plain `Observation<ObservedValue>` values. That means the extension boundary stays about what was observed, not about how one host may later batch, diff, coalesce, or partially apply those observations.
 
 ## Local Node
 

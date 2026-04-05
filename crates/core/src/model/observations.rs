@@ -55,7 +55,7 @@ pub type ConfigurationObservation = crate::Observation<Configuration>;
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Self-describing observed payload surfaced by an observation extension.
+/// Self-describing observed payload surfaced by a world extension.
 ///
 /// Higher-level runtime layers may later wrap these observations into batches,
 /// diffs, partial snapshots, or other update shapes without changing what the
@@ -68,5 +68,5 @@ pub enum ObservedValue {
     Transport(TransportObservation),
 }
 
-/// Shared observation type emitted by observation extensions.
-pub type SharedObservation = crate::Observation<ObservedValue>;
+/// World observation type emitted by world extensions.
+pub type WorldObservation = crate::Observation<ObservedValue>;

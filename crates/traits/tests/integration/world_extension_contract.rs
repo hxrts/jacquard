@@ -1,5 +1,5 @@
-//! Verify that observation extensions contribute self-describing observations
-//! without owning canonical route state.
+//! Verify that world extensions contribute self-describing observations without
+//! owning canonical route state.
 
 use jacquard_traits::{
     jacquard_core::{
@@ -7,19 +7,19 @@ use jacquard_traits::{
         InformationSetSummary, Link, LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState, Node,
         NodeId, NodeProfile, NodeRelayBudget, NodeState, Observation, ObservedValue,
         OriginAuthenticationClass, RatioPermille, RouteError, RoutingEngineId,
-        RoutingEvidenceClass, ServiceDescriptor, ServiceScope, SharedObservation, Tick, TimeWindow,
-        TransportObservation, TransportProtocol,
+        RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
+        TransportObservation, TransportProtocol, WorldObservation,
     },
-    ObservationExtension, ObservationExtensionDescriptor,
+    LinkWorldExtension, NodeWorldExtension, WorldExtension, WorldExtensionDescriptor,
 };
 
-struct StubObservationExtension {
-    observations: Vec<SharedObservation>,
+struct StubWorldExtension {
+    observations: Vec<WorldObservation>,
 }
 
-impl ObservationExtensionDescriptor for StubObservationExtension {
+impl WorldExtensionDescriptor for StubWorldExtension {
     fn extension_id(&self) -> &str {
-        "stub-observer"
+        "stub-world"
     }
 
     fn supported_transports(&self) -> Vec<TransportProtocol> {
@@ -27,9 +27,51 @@ impl ObservationExtensionDescriptor for StubObservationExtension {
     }
 }
 
-impl ObservationExtension for StubObservationExtension {
-    fn poll_observations(&mut self) -> Result<Vec<SharedObservation>, RouteError> {
+impl WorldExtension for StubWorldExtension {
+    fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, RouteError> {
         Ok(self.observations.clone())
+    }
+}
+
+impl NodeWorldExtension for StubWorldExtension {
+    fn poll_node_observations(
+        &mut self,
+    ) -> Result<Vec<jacquard_traits::jacquard_core::NodeObservation>, RouteError> {
+        Ok(self
+            .observations
+            .iter()
+            .filter_map(|observation| match &observation.value {
+                ObservedValue::Node(node) => Some(Observation {
+                    value: node.clone(),
+                    source_class: observation.source_class,
+                    evidence_class: observation.evidence_class,
+                    origin_authentication: observation.origin_authentication,
+                    observed_at_tick: observation.observed_at_tick,
+                }),
+                _ => None,
+            })
+            .collect())
+    }
+}
+
+impl LinkWorldExtension for StubWorldExtension {
+    fn poll_link_observations(
+        &mut self,
+    ) -> Result<Vec<jacquard_traits::jacquard_core::LinkObservation>, RouteError> {
+        Ok(self
+            .observations
+            .iter()
+            .filter_map(|observation| match &observation.value {
+                ObservedValue::Link(link) => Some(Observation {
+                    value: link.clone(),
+                    source_class: observation.source_class,
+                    evidence_class: observation.evidence_class,
+                    origin_authentication: observation.origin_authentication,
+                    observed_at_tick: observation.observed_at_tick,
+                }),
+                _ => None,
+            })
+            .collect())
     }
 }
 
@@ -95,7 +137,7 @@ fn sample_node() -> Node {
     }
 }
 
-fn sample_node_observation() -> SharedObservation {
+fn sample_node_observation() -> WorldObservation {
     Observation {
         value: ObservedValue::Node(sample_node()),
         source_class: FactSourceClass::Local,
@@ -105,7 +147,7 @@ fn sample_node_observation() -> SharedObservation {
     }
 }
 
-fn sample_link_observation() -> SharedObservation {
+fn sample_link_observation() -> WorldObservation {
     Observation {
         value: ObservedValue::Link(Link {
             profile: LinkProfile {
@@ -138,7 +180,7 @@ fn sample_link_observation() -> SharedObservation {
     }
 }
 
-fn sample_service_observation() -> SharedObservation {
+fn sample_service_observation() -> WorldObservation {
     Observation {
         value: ObservedValue::Service(ServiceDescriptor {
             provider_node_id: NodeId([8; 32]),
@@ -174,7 +216,7 @@ fn sample_service_observation() -> SharedObservation {
     }
 }
 
-fn sample_transport_observation() -> SharedObservation {
+fn sample_transport_observation() -> WorldObservation {
     Observation {
         value: ObservedValue::Transport(TransportObservation::PayloadReceived {
             from_node_id: NodeId([9; 32]),
@@ -190,8 +232,8 @@ fn sample_transport_observation() -> SharedObservation {
 }
 
 #[test]
-fn observation_extensions_publish_self_describing_observations() {
-    let mut extension = StubObservationExtension {
+fn world_extensions_publish_self_describing_observations() {
+    let mut extension = StubWorldExtension {
         observations: vec![
             sample_node_observation(),
             sample_link_observation(),
@@ -213,7 +255,7 @@ fn observation_extensions_publish_self_describing_observations() {
 
     let observations = extension.poll_observations().expect("observations");
 
-    assert_eq!(extension.extension_id(), "stub-observer");
+    assert_eq!(extension.extension_id(), "stub-world");
     assert_eq!(
         extension.supported_transports(),
         vec![TransportProtocol::BleGatt, TransportProtocol::WifiLan],
@@ -265,4 +307,29 @@ fn observation_extensions_publish_self_describing_observations() {
         },
         _ => panic!("expected transport observation"),
     }
+}
+
+#[test]
+fn world_extension_facets_can_contribute_nodes_and_links_explicitly() {
+    let mut extension = StubWorldExtension {
+        observations: vec![sample_node_observation(), sample_link_observation()],
+    };
+
+    let node_observations = extension
+        .poll_node_observations()
+        .expect("node observations");
+    let link_observations = extension
+        .poll_link_observations()
+        .expect("link observations");
+
+    assert_eq!(node_observations.len(), 1);
+    assert_eq!(link_observations.len(), 1);
+    assert_eq!(
+        node_observations[0].value.controller_id,
+        ControllerId([3; 32])
+    );
+    assert_eq!(
+        link_observations[0].value.profile.endpoint.protocol,
+        TransportProtocol::BleGatt
+    );
 }

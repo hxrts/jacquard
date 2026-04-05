@@ -9,9 +9,9 @@ mod effects;
 mod handler;
 mod hashing;
 mod mesh;
-mod observation;
 mod routing;
 mod simulator;
+mod world;
 
 pub use effects::*;
 pub use handler::*;
@@ -21,9 +21,9 @@ pub use jacquard_macros::{
     bounded_value, effect_handler, effect_trait, id_type, must_use_handle, public_model, purity,
 };
 pub use mesh::*;
-pub use observation::*;
 pub use routing::*;
 pub use simulator::*;
+pub use world::*;
 
 // Backing traits for the effect_trait / effect_handler proc macros.
 // These are never used directly. The macros emit impls against these
