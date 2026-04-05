@@ -5,20 +5,21 @@ use std::collections::BTreeMap;
 use jacquard_traits::{
     jacquard_core::{
         AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief,
-        ByteCount, ClaimStrength, Configuration, ConnectivityRegime, DeliveryAssumptionClass,
-        DeploymentProfile, Environment, Estimate, Fact, FactBasis, FailureModelClass,
-        FamilyFallbackPolicy, InstalledRoute, Limit, NodeDensityClass, Observation, PublicationId,
-        ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding, RouteCandidate,
-        RouteCommitment, RouteCommitmentId, RouteCommitmentResolution, RouteConnectivityProfile,
-        RouteCost, RouteDegradation, RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle,
-        RouteHealth, RouteId, RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome,
-        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationProof,
-        RoutePartitionClass, RouteProgressContract, RouteProgressState, RouteProtectionClass,
-        RouteRepairClass, RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness,
-        RoutingAdmissionProfile, RoutingEvidenceClass, RoutingFamilyCapabilities, RoutingObjective,
-        RuntimeEnvelopeClass, Tick, TimeWindow, TransportProtocol,
+        ByteCount, ClaimStrength, Configuration, ConnectivityRegime, DeploymentProfile,
+        Environment, Estimate, Fact, FactBasis, FailureModelClass, FamilyFallbackPolicy, Limit,
+        MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass, Observation,
+        PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding,
+        RouteCandidate, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
+        RouteConnectivityProfile, RouteCost, RouteDegradation, RouteEpoch, RouteEstimate,
+        RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteLease, RouteLifecycleEvent,
+        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
+        RouteMaterializationProof, RoutePartitionClass, RouteProgressContract, RouteProgressState,
+        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
+        RouteSummary, RouteWitness, RoutingAdmissionProfile, RoutingEvidenceClass,
+        RoutingFamilyCapabilities, RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
+        TransportProtocol,
     },
-    RouteFamily,
+    RouteFamily, RoutePlanner,
 };
 
 fn repairable_connected() -> RouteConnectivityProfile {
@@ -29,10 +30,10 @@ fn repairable_connected() -> RouteConnectivityProfile {
 }
 
 struct StubFamily {
-    route: InstalledRoute,
+    route: MaterializedRoute,
 }
 
-impl RouteFamily for StubFamily {
+impl RoutePlanner for StubFamily {
     fn family_id(&self) -> RouteFamilyId {
         RouteFamilyId::Mesh
     }
@@ -88,22 +89,24 @@ impl RouteFamily for StubFamily {
     }
 
     fn admit_route(
-        &mut self,
+        &self,
         _objective: &RoutingObjective,
         _profile: &AdaptiveRoutingProfile,
         _candidate: RouteCandidate,
     ) -> Result<RouteAdmission, jacquard_traits::jacquard_core::RouteError> {
         Ok(self.route.admission.clone())
     }
+}
 
-    fn install_route(
+impl RouteFamily for StubFamily {
+    fn materialize_route(
         &mut self,
         _admission: RouteAdmission,
-    ) -> Result<InstalledRoute, jacquard_traits::jacquard_core::RouteError> {
+    ) -> Result<MaterializedRoute, jacquard_traits::jacquard_core::RouteError> {
         Ok(self.route.clone())
     }
 
-    fn route_commitments(&self, route: &InstalledRoute) -> Vec<RouteCommitment> {
+    fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment> {
         vec![RouteCommitment {
             commitment_id: RouteCommitmentId([8; 16]),
             operation_id: jacquard_traits::jacquard_core::RouteOperationId([6; 16]),
@@ -123,7 +126,7 @@ impl RouteFamily for StubFamily {
 
     fn maintain_route(
         &mut self,
-        route: &mut InstalledRoute,
+        route: &mut MaterializedRoute,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError> {
         route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
@@ -174,7 +177,7 @@ fn sample_profile() -> AdaptiveRoutingProfile {
 
 fn sample_admission_profile() -> RoutingAdmissionProfile {
     RoutingAdmissionProfile {
-        delivery_assumption: DeliveryAssumptionClass::FifoPerLink,
+        message_flow_assumption: MessageFlowAssumptionClass::PerRouteSequenced,
         failure_model: FailureModelClass::CrashStop,
         runtime_envelope: RuntimeEnvelopeClass::Canonical,
         node_density_class: NodeDensityClass::Sparse,
@@ -184,8 +187,8 @@ fn sample_admission_profile() -> RoutingAdmissionProfile {
     }
 }
 
-fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) -> InstalledRoute {
-    InstalledRoute {
+fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) -> MaterializedRoute {
+    MaterializedRoute {
         handle: RouteHandle {
             route_id: RouteId([3; 16]),
             topology_epoch: RouteEpoch(1),
@@ -262,7 +265,7 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
                 end_tick: Tick(50),
             },
         },
-        last_lifecycle_event: RouteLifecycleEvent::Established,
+        last_lifecycle_event: RouteLifecycleEvent::Activated,
         health: RouteHealth {
             reachability_state: ReachabilityState::Reachable,
             stability_score: jacquard_traits::jacquard_core::HealthScore(100),
@@ -292,7 +295,7 @@ fn empty_configuration() -> Configuration {
 }
 
 #[test]
-fn route_family_extension_can_drive_candidate_to_installed_route() {
+fn route_family_extension_can_drive_candidate_to_materialized_route() {
     let objective = sample_objective();
     let profile = sample_profile();
     let route = sample_route(objective.clone(), profile.clone());
@@ -313,7 +316,7 @@ fn route_family_extension_can_drive_candidate_to_installed_route() {
     let admission = family
         .admit_route(&objective, &profile, candidate)
         .expect("admission");
-    let mut installed = family.install_route(admission).expect("install");
+    let mut installed = family.materialize_route(admission).expect("materialize");
     let commitments = family.route_commitments(&installed);
     let maintenance = family
         .maintain_route(&mut installed, RouteMaintenanceTrigger::LinkDegraded)

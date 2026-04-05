@@ -1,7 +1,7 @@
-//! Abstract routing traits: adaptive controller, route family, router, and control/data planes.
+//! Abstract routing traits: adaptive controller, route planner, route family, router, and control/data planes.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, Configuration, InstalledRoute, Observation, RouteAdmission,
+    AdaptiveRoutingProfile, Configuration, MaterializedRoute, Observation, RouteAdmission,
     RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError, RouteFamilyId, RouteHealth,
     RouteId, RouteMaintenanceResult, RouteMaintenanceTrigger, RoutingFamilyCapabilities,
     RoutingObjective, RoutingPolicyInputs,
@@ -9,7 +9,7 @@ use jacquard_core::{
 
 /// Owns the protection-versus-connectivity decision. In a mesh-only deployment,
 /// this may return a fixed profile. Richer policy comes from the embedding host.
-pub trait AdaptiveRoutingController {
+pub trait RoutingController {
     fn compute_profile(
         &self,
         objective: &RoutingObjective,
@@ -17,9 +17,10 @@ pub trait AdaptiveRoutingController {
     ) -> AdaptiveRoutingProfile;
 }
 
-/// The family boundary. Each route family (mesh, onion, etc.) implements
-/// this trait. Jacquard core interacts with families only through this surface.
-pub trait RouteFamily {
+/// The pure or near-pure planning surface for one route family. Planner methods
+/// should be deterministic with respect to their inputs and must not materialize,
+/// activate, or mutate canonical route state.
+pub trait RoutePlanner {
     fn family_id(&self) -> RouteFamilyId;
 
     fn capabilities(&self) -> RoutingFamilyCapabilities;
@@ -42,38 +43,46 @@ pub trait RouteFamily {
     ) -> Result<RouteAdmissionCheck, RouteError>;
 
     fn admit_route(
-        &mut self,
+        &self,
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         candidate: RouteCandidate,
     ) -> Result<RouteAdmission, RouteError>;
+}
 
-    /// Installation is the materialization step. Success must return an
-    /// `InstalledRoute` carrying a strong canonical handle.
-    fn install_route(&mut self, admission: RouteAdmission) -> Result<InstalledRoute, RouteError>;
+/// The effectful family boundary. Each route family (eg. mesh) implements
+/// this trait. Jacquard core interacts with family runtime state only through this surface.
+pub trait RouteFamily: RoutePlanner {
+
+    /// Materialization is the canonical route-realization step. Success must return an
+    /// `MaterializedRoute` carrying a strong canonical handle.
+    fn materialize_route(
+        &mut self,
+        admission: RouteAdmission,
+    ) -> Result<MaterializedRoute, RouteError>;
 
     /// Every unresolved or recently resolved family-side obligation must be
     /// expressible as an explicit route commitment.
-    fn route_commitments(&self, route: &InstalledRoute) -> Vec<RouteCommitment>;
+    fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
     /// Maintenance returns a typed semantic result so replacement, handoff, and
     /// failure paths keep their payload rather than collapsing to a flag.
     fn maintain_route(
         &mut self,
-        route: &mut InstalledRoute,
+        route: &mut MaterializedRoute,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError>;
 
     fn teardown(&mut self, route_id: &RouteId);
 }
 
-pub trait TopLevelRouter {
+pub trait Router {
     fn register_family(&mut self, extension: Box<dyn RouteFamily>) -> Result<(), RouteError>;
 
-    fn establish_route(
+    fn activate_route(
         &mut self,
         objective: RoutingObjective,
-    ) -> Result<InstalledRoute, RouteError>;
+    ) -> Result<MaterializedRoute, RouteError>;
 
     fn route_commitments(&self, route_id: &RouteId) -> Result<Vec<RouteCommitment>, RouteError>;
 
@@ -81,15 +90,15 @@ pub trait TopLevelRouter {
         &mut self,
         route_id: &RouteId,
         trigger: RouteMaintenanceTrigger,
-    ) -> Result<InstalledRoute, RouteError>;
+    ) -> Result<MaterializedRoute, RouteError>;
 }
 
 /// Control plane owns route truth. Data plane owns forwarding over admitted truth.
 pub trait RoutingControlPlane {
-    fn establish_route(
+    fn activate_route(
         &mut self,
         objective: RoutingObjective,
-    ) -> Result<InstalledRoute, RouteError>;
+    ) -> Result<MaterializedRoute, RouteError>;
 
     fn maintain_route(
         &mut self,

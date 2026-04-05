@@ -70,10 +70,10 @@ pub enum RouteShapeVisibility {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Premise profile: delivery, failure, and runtime assumptions under which
+/// Premise profile: message-flow, failure, and runtime assumptions under which
 /// the admission claim holds. Families declare these, the router compares them.
 pub struct RoutingAdmissionProfile {
-    pub delivery_assumption: DeliveryAssumptionClass,
+    pub message_flow_assumption: MessageFlowAssumptionClass,
     pub failure_model: FailureModelClass,
     pub runtime_envelope: RuntimeEnvelopeClass,
     pub node_density_class: NodeDensityClass,
@@ -84,10 +84,10 @@ pub struct RoutingAdmissionProfile {
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum DeliveryAssumptionClass {
-    FifoPerLink,
-    CausalPerNeighborhood,
-    LossyBestEffort,
+pub enum MessageFlowAssumptionClass {
+    BestEffort,
+    PerRouteSequenced,
+    NeighborhoodCausal,
 }
 
 #[public_model]

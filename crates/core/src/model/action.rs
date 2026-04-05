@@ -27,7 +27,7 @@ pub enum FamilyFallbackPolicy {
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-/// Whether an installed route may be replaced by a newly admitted route.
+/// Whether a materialized route may be replaced by a newly admitted route.
 pub enum RouteReplacementPolicy {
     Forbidden,
     Allowed,

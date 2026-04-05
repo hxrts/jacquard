@@ -12,7 +12,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteServiceKind {
     Discover,
-    Establish,
+    Activate,
     Move,
     Repair,
     Hold,
@@ -46,13 +46,6 @@ pub enum EndpointAddress {
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum EndpointDeliverySemantics {
-    UnorderedBestEffort,
-    ReliableOrdered,
-}
-
-#[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum LinkRuntimeState {
     Active,
     Degraded,
@@ -65,8 +58,9 @@ pub enum LinkRuntimeState {
 pub struct LinkEndpoint {
     pub protocol: TransportProtocol,
     pub address: EndpointAddress,
+    /// Link endpoints are frame carriers only. Ordering and traffic control live above
+    /// this layer in routing and protocol logic.
     pub mtu_bytes: ByteCount,
-    pub delivery_semantics: EndpointDeliverySemantics,
 }
 
 #[public_model]

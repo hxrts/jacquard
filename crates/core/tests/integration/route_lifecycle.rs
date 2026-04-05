@@ -1,16 +1,17 @@
-//! Build an InstalledRoute from shared lifecycle types to verify structural coherence.
+//! Build an MaterializedRoute from shared lifecycle types to verify structural coherence.
 
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief, ByteCount,
-    ClaimStrength, ConnectivityRegime, DeliveryAssumptionClass, DeploymentProfile, Estimate, Fact,
-    FactBasis, FailureModelClass, FamilyFallbackPolicy, HoldFallbackPolicy, InstalledRoute, Limit,
-    NodeDensityClass, PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
-    RouteCandidate, RouteConnectivityProfile, RouteCost, RouteDegradation, RouteEpoch,
-    RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteLease,
-    RouteLifecycleEvent, RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
-    RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-    RouteServiceKind, RouteSummary, RouteWitness, RoutingAdmissionProfile, RoutingObjective,
-    RuntimeEnvelopeClass, Tick, TimeWindow, TransportProtocol,
+    ClaimStrength, ConnectivityRegime, DeploymentProfile, Estimate, Fact, FactBasis,
+    FailureModelClass, FamilyFallbackPolicy, HoldFallbackPolicy, Limit, MaterializedRoute,
+    MessageFlowAssumptionClass, NodeDensityClass, PublicationId, ReachabilityState,
+    RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteConnectivityProfile, RouteCost,
+    RouteDegradation, RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId,
+    RouteLease, RouteLifecycleEvent, RouteMaterializationProof, RoutePartitionClass,
+    RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteRepairClass,
+    RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness,
+    RoutingAdmissionProfile, RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
+    TransportProtocol,
 };
 
 fn repairable_connected() -> RouteConnectivityProfile {
@@ -36,7 +37,7 @@ fn sample_objective() -> RoutingObjective {
 
 fn sample_admission_profile() -> RoutingAdmissionProfile {
     RoutingAdmissionProfile {
-        delivery_assumption: DeliveryAssumptionClass::FifoPerLink,
+        message_flow_assumption: MessageFlowAssumptionClass::PerRouteSequenced,
         failure_model: FailureModelClass::CrashStop,
         runtime_envelope: RuntimeEnvelopeClass::Canonical,
         node_density_class: NodeDensityClass::Moderate,
@@ -87,7 +88,7 @@ fn sample_route_cost() -> RouteCost {
     }
 }
 
-fn sample_route() -> (RouteCandidate, InstalledRoute) {
+fn sample_route() -> (RouteCandidate, MaterializedRoute) {
     let objective = sample_objective();
     let admission_profile = sample_admission_profile();
     let summary = sample_summary();
@@ -109,7 +110,7 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
             backend_route_id: jacquard_core::BackendRouteId(vec![1, 2, 3]),
         },
     };
-    let route = InstalledRoute {
+    let route = MaterializedRoute {
         handle: RouteHandle {
             route_id: RouteId([5; 16]),
             topology_epoch: RouteEpoch(4),
@@ -156,7 +157,7 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
                 end_tick: Tick(500),
             },
         },
-        last_lifecycle_event: RouteLifecycleEvent::Established,
+        last_lifecycle_event: RouteLifecycleEvent::Activated,
         health: RouteHealth {
             reachability_state: ReachabilityState::Reachable,
             stability_score: jacquard_core::HealthScore(900),
@@ -175,7 +176,7 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
 }
 
 #[test]
-fn installed_route_can_be_built_from_shared_lifecycle_types() {
+fn materialized_route_can_be_built_from_shared_lifecycle_types() {
     let (candidate, route) = sample_route();
 
     assert_eq!(candidate.summary.family, RouteFamilyId::Mesh);
@@ -190,5 +191,5 @@ fn installed_route_can_be_built_from_shared_lifecycle_types() {
         RouteEpoch(4),
     );
     assert_eq!(route.lease.owner_node_id, jacquard_core::NodeId([9; 32]));
-    assert_eq!(route.last_lifecycle_event, RouteLifecycleEvent::Established);
+    assert_eq!(route.last_lifecycle_event, RouteLifecycleEvent::Activated);
 }

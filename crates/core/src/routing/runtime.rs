@@ -88,7 +88,7 @@ pub struct RouteCost {
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteLifecycleEvent {
-    Established,
+    Activated,
     Repaired,
     Replaced,
     HandedOff,
@@ -191,7 +191,7 @@ pub enum RouteProgressState {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct InstalledRoute {
+pub struct MaterializedRoute {
     pub handle: RouteHandle,
     pub materialization_proof: RouteMaterializationProof,
     pub admission: RouteAdmission,
