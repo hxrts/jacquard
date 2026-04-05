@@ -1,10 +1,11 @@
 //! Abstract routing traits: adaptive controller, route planner, route family, router, and control/data planes.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, CommitteeSelection, Configuration, MaterializedRoute, Observation,
-    RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError,
+    AdaptiveRoutingProfile, CommitteeSelection, Configuration, LayerParameters, MaterializedRoute,
+    Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError,
     RouteFamilyId, RouteHealth, RouteId, RouteMaintenanceResult, RouteMaintenanceTrigger,
-    RoutingFamilyCapabilities, RoutingObjective, RoutingPolicyInputs,
+    RoutingFamilyCapabilities, RoutingObjective, RoutingPolicyInputs, SubstrateCandidate,
+    SubstrateLease, SubstrateRequirements,
 };
 
 /// Owns the protection-versus-connectivity decision. In a mesh-only deployment,
@@ -32,6 +33,66 @@ pub trait CommitteeSelector {
         profile: &AdaptiveRoutingProfile,
         topology: &Observation<Self::TopologyView>,
     ) -> Result<CommitteeSelection, RouteError>;
+}
+
+/// Optional deterministic boundary for families that can advertise lower-layer
+/// carriage to other families or to a host-level layering daemon.
+pub trait SubstratePlanner {
+    fn candidate_substrates(
+        &self,
+        requirements: &SubstrateRequirements,
+        topology: &Observation<Configuration>,
+    ) -> Vec<SubstrateCandidate>;
+}
+
+/// Optional effectful boundary for families that can acquire and manage
+/// substrate leases after planning has selected one.
+pub trait SubstrateRuntime {
+    fn acquire_substrate(
+        &mut self,
+        candidate: SubstrateCandidate,
+    ) -> Result<SubstrateLease, RouteError>;
+
+    fn release_substrate(&mut self, lease: &SubstrateLease) -> Result<(), RouteError>;
+
+    /// Runtime observation over an acquired substrate lease. This is read-only
+    /// with respect to canonical route truth.
+    fn observe_substrate_health(
+        &self,
+        lease: &SubstrateLease,
+    ) -> Result<Observation<RouteHealth>, RouteError>;
+}
+
+/// Optional deterministic boundary for families that can plan over an
+/// already-admitted substrate route rather than only over direct local links.
+pub trait LayeredRoutePlanner {
+    fn candidate_routes_on_substrate(
+        &self,
+        objective: &RoutingObjective,
+        profile: &AdaptiveRoutingProfile,
+        substrate: &SubstrateLease,
+        parameters: &LayerParameters,
+    ) -> Vec<RouteCandidate>;
+
+    fn admit_route_on_substrate(
+        &self,
+        objective: &RoutingObjective,
+        profile: &AdaptiveRoutingProfile,
+        substrate: &SubstrateLease,
+        parameters: &LayerParameters,
+        candidate: RouteCandidate,
+    ) -> Result<RouteAdmission, RouteError>;
+}
+
+/// Optional effectful boundary for layered families once planning has selected
+/// a substrate-backed route candidate.
+pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
+    fn materialize_route_on_substrate(
+        &mut self,
+        admission: RouteAdmission,
+        substrate: SubstrateLease,
+        parameters: LayerParameters,
+    ) -> Result<MaterializedRoute, RouteError>;
 }
 
 /// The pure or near-pure planning surface for one route family. Planner methods
@@ -113,6 +174,18 @@ pub trait Router {
         &mut self,
         route_id: &RouteId,
         trigger: RouteMaintenanceTrigger,
+    ) -> Result<MaterializedRoute, RouteError>;
+}
+
+/// Host-owned orchestration boundary for policy-driven composition across
+/// route families. This is where smooth transition and limited layering live.
+pub trait LayerCoordinator {
+    fn activate_layered_route(
+        &mut self,
+        objective: RoutingObjective,
+        outer_family: RouteFamilyId,
+        substrate_requirements: SubstrateRequirements,
+        parameters: LayerParameters,
     ) -> Result<MaterializedRoute, RouteError>;
 }
 

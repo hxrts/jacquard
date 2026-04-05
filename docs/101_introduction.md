@@ -18,11 +18,15 @@ Jacquard is aimed at networks that are unstable, capacity-constrained, and poten
 
 That creates two competing pressures. The system needs stronger coordination than naive flooding or purely local heuristics, but it also cannot afford to hard-code one routing doctrine such as GPS-based clique membership, singleton leaders, or full consensus on every routing transition.
 
+It also needs to support more than one routing family being present at once. A host such as Aura may want to run onion and mesh side by side, migrate traffic gradually from one to the other, or use one family as a limited lower-layer carrier for another. Those are different cases and should not be collapsed into one mechanism.
+
 ## System Shape
 
 The top-level routing contract is family-neutral. A family produces observational candidates, checks admission, admits a route, materializes it, publishes commitments, and handles family-local maintenance. The control plane owns canonical route truth. The data plane forwards over already admitted truth.
 
 When a family needs local coordination, Jacquard allows it to expose a shared coordination result such as a committee selection. Jacquard does not require that every family use committees, and it does not require that a committee have a distinguished leader.
+
+Jacquard also allows a host-owned layering daemon to compose families through a neutral substrate contract. That means multiple families may be used together, but the shared layer does not treat one canonical route as simultaneously owned by several unrelated families. Composition happens through explicit carrier leases and layer parameters above the family boundary.
 
 ## Design Commitments
 
@@ -33,3 +37,5 @@ Jacquard also keeps observation scopes explicit. Local node state, peer estimate
 Jacquard is intentionally not too opinionated about family-local scoring, committee selection policy, or trust heuristics. The shared layer commits to the result shapes, evidence classes, ownership rules, and canonical transition path. The family layer owns the scoring rules, diversity logic, and misbehavior handling that depend on its routing semantics.
 
 Jacquard is also committed to a GPS-free core model. Absolute location may appear as a family-private hint, but it is not part of the shared routing truth and it is not required for local coordination.
+
+Jacquard is equally committed to a composition boundary that stays narrow. The shared layer may expose substrate requirements, substrate leases, and layer parameters. It should not make mesh onion-aware, onion mesh-aware, or standardize one host policy for gradual migration.

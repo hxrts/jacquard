@@ -7,20 +7,22 @@ use jacquard_traits::{
         AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief,
         ByteCount, ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
         Configuration, ConnectivityRegime, DeploymentProfile, Environment, Estimate, Fact,
-        FactBasis, FailureModelClass, FamilyFallbackPolicy, IdentityAssuranceClass, Limit,
-        MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass, Observation,
-        PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding,
-        RouteCandidate, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
-        RouteConnectivityProfile, RouteCost, RouteDegradation, RouteEpoch, RouteEstimate,
-        RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteLease, RouteLifecycleEvent,
-        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
-        RouteMaterializationProof, RoutePartitionClass, RouteProgressContract, RouteProgressState,
-        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
-        RouteSummary, RouteWitness, RoutingAdmissionProfile, RoutingEvidenceClass,
-        RoutingFamilyCapabilities, RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
-        TransportProtocol,
+        FactBasis, FailureModelClass, FamilyFallbackPolicy, IdentityAssuranceClass, LayerParameter,
+        LayerParameters, Limit, MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass,
+        Observation, PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
+        RouteBinding, RouteCandidate, RouteCommitment, RouteCommitmentId,
+        RouteCommitmentResolution, RouteConnectivityProfile, RouteCost, RouteDegradation,
+        RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteLease,
+        RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
+        RouteMaintenanceTrigger, RouteMaterializationProof, RoutePartitionClass,
+        RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteRepairClass,
+        RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness,
+        RoutingAdmissionProfile, RoutingEvidenceClass, RoutingFamilyCapabilities, RoutingObjective,
+        RuntimeEnvelopeClass, SubstrateCandidate, SubstrateCapabilities, SubstrateLease,
+        SubstrateRequirements, Tick, TimeWindow, TransportProtocol,
     },
-    CommitteeSelector, RouteFamily, RoutePlanner,
+    CommitteeSelector, LayerCoordinator, LayeredRouteFamily, LayeredRoutePlanner, RouteFamily,
+    RoutePlanner, SubstratePlanner, SubstrateRuntime,
 };
 
 fn repairable_connected() -> RouteConnectivityProfile {
@@ -35,6 +37,13 @@ struct StubFamily {
 }
 
 struct StubCommitteeSelector;
+struct StubSubstrateProvider {
+    route: MaterializedRoute,
+}
+
+struct StubLayerCoordinator {
+    route: MaterializedRoute,
+}
 
 impl CommitteeSelector for StubCommitteeSelector {
     type TopologyView = Configuration;
@@ -194,6 +203,121 @@ impl RouteFamily for StubFamily {
     }
 }
 
+impl LayeredRoutePlanner for StubFamily {
+    fn candidate_routes_on_substrate(
+        &self,
+        _objective: &RoutingObjective,
+        _profile: &AdaptiveRoutingProfile,
+        _substrate: &SubstrateLease,
+        _parameters: &LayerParameters,
+    ) -> Vec<RouteCandidate> {
+        vec![RouteCandidate {
+            summary: self.route.admission.summary.clone(),
+            estimate: Estimate {
+                value: RouteEstimate {
+                    estimated_protection: self.route.admission.summary.protection,
+                    estimated_connectivity: self.route.admission.summary.connectivity,
+                    topology_epoch: self.route.admission.witness.topology_epoch,
+                    degradation: self.route.admission.witness.degradation,
+                },
+                confidence_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
+                updated_at_tick: Tick(1),
+            },
+            backend_ref: BackendRouteRef {
+                family: RouteFamilyId::Mesh,
+                backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![9]),
+            },
+        }]
+    }
+
+    fn admit_route_on_substrate(
+        &self,
+        _objective: &RoutingObjective,
+        _profile: &AdaptiveRoutingProfile,
+        _substrate: &SubstrateLease,
+        _parameters: &LayerParameters,
+        _candidate: RouteCandidate,
+    ) -> Result<RouteAdmission, jacquard_traits::jacquard_core::RouteError> {
+        Ok(self.route.admission.clone())
+    }
+}
+
+impl LayeredRouteFamily for StubFamily {
+    fn materialize_route_on_substrate(
+        &mut self,
+        _admission: RouteAdmission,
+        _substrate: SubstrateLease,
+        _parameters: LayerParameters,
+    ) -> Result<MaterializedRoute, jacquard_traits::jacquard_core::RouteError> {
+        Ok(self.route.clone())
+    }
+}
+
+impl SubstratePlanner for StubSubstrateProvider {
+    fn candidate_substrates(
+        &self,
+        _requirements: &SubstrateRequirements,
+        _topology: &Observation<Configuration>,
+    ) -> Vec<SubstrateCandidate> {
+        vec![SubstrateCandidate {
+            capabilities: SubstrateCapabilities {
+                family: RouteFamilyId::Mesh,
+                protection: RouteProtectionClass::LinkProtected,
+                connectivity: repairable_connected(),
+                mtu_bytes: ByteCount(1200),
+            },
+            expected_health: Some(self.route.health.clone()),
+        }]
+    }
+}
+
+impl SubstrateRuntime for StubSubstrateProvider {
+    fn acquire_substrate(
+        &mut self,
+        candidate: SubstrateCandidate,
+    ) -> Result<SubstrateLease, jacquard_traits::jacquard_core::RouteError> {
+        Ok(SubstrateLease {
+            capabilities: candidate.capabilities,
+            handle: self.route.handle.clone(),
+            lease: self.route.lease.clone(),
+        })
+    }
+
+    fn release_substrate(
+        &mut self,
+        lease: &SubstrateLease,
+    ) -> Result<(), jacquard_traits::jacquard_core::RouteError> {
+        assert_eq!(lease.handle.route_id, self.route.handle.route_id);
+        Ok(())
+    }
+
+    fn observe_substrate_health(
+        &self,
+        _lease: &SubstrateLease,
+    ) -> Result<Observation<RouteHealth>, jacquard_traits::jacquard_core::RouteError> {
+        Ok(Observation {
+            value: self.route.health.clone(),
+            source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::DirectObservation,
+            origin_authentication:
+                jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
+            observed_at_tick: Tick(1),
+        })
+    }
+}
+
+impl LayerCoordinator for StubLayerCoordinator {
+    fn activate_layered_route(
+        &mut self,
+        _objective: RoutingObjective,
+        _outer_family: RouteFamilyId,
+        _substrate_requirements: SubstrateRequirements,
+        _parameters: LayerParameters,
+    ) -> Result<MaterializedRoute, jacquard_traits::jacquard_core::RouteError> {
+        Ok(self.route.clone())
+    }
+}
+
 fn sample_objective() -> RoutingObjective {
     RoutingObjective {
         destination: jacquard_traits::jacquard_core::DestinationId::Node(
@@ -340,6 +464,16 @@ fn empty_configuration() -> Configuration {
     }
 }
 
+fn sample_substrate_requirements() -> SubstrateRequirements {
+    SubstrateRequirements {
+        min_protection: RouteProtectionClass::LinkProtected,
+        min_connectivity: repairable_connected(),
+        latency_budget_ms: Limit::Bounded(jacquard_traits::jacquard_core::DurationMs(50)),
+        mtu_floor_bytes: ByteCount(512),
+        identity_assurance_floor: IdentityAssuranceClass::WeakObserved,
+    }
+}
+
 #[test]
 fn route_family_extension_can_drive_candidate_to_materialized_route() {
     let objective = sample_objective();
@@ -415,4 +549,76 @@ fn committee_selector_trait_supports_shared_result_shape() {
     assert_eq!(committee.quorum_threshold, 2);
     assert_eq!(committee.members.len(), 2);
     assert_eq!(committee.members[0].role, CommitteeRole::Participant);
+}
+
+#[test]
+fn substrate_and_layering_traits_support_policy_driven_composition() {
+    let objective = sample_objective();
+    let profile = sample_profile();
+    let route = sample_route(objective.clone(), profile.clone());
+    let topology = Observation {
+        value: empty_configuration(),
+        source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication:
+            jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(1),
+    };
+
+    let mut provider = StubSubstrateProvider {
+        route: route.clone(),
+    };
+    let substrate_candidate = provider
+        .candidate_substrates(&sample_substrate_requirements(), &topology)
+        .into_iter()
+        .next()
+        .expect("substrate candidate");
+    let substrate = provider
+        .acquire_substrate(substrate_candidate)
+        .expect("substrate lease");
+
+    let parameters = LayerParameters {
+        items: vec![LayerParameter::PathLengthHint(2)],
+    };
+    let mut layered_family = StubFamily {
+        route: route.clone(),
+    };
+    let candidate = layered_family
+        .candidate_routes_on_substrate(&objective, &profile, &substrate, &parameters)
+        .into_iter()
+        .next()
+        .expect("layered candidate");
+    let admission = layered_family
+        .admit_route_on_substrate(&objective, &profile, &substrate, &parameters, candidate)
+        .expect("layered admission");
+    let layered_route = layered_family
+        .materialize_route_on_substrate(admission, substrate.clone(), parameters.clone())
+        .expect("layered route");
+    let substrate_health = provider
+        .observe_substrate_health(&substrate)
+        .expect("substrate health");
+    provider
+        .release_substrate(&substrate)
+        .expect("release substrate");
+
+    let mut coordinator = StubLayerCoordinator { route };
+    let coordinated = coordinator
+        .activate_layered_route(
+            sample_objective(),
+            RouteFamilyId::External {
+                name: "onion".into(),
+                contract_id: jacquard_traits::jacquard_core::RouteFamilyContractId([1; 16]),
+            },
+            sample_substrate_requirements(),
+            parameters,
+        )
+        .expect("coordinated layered route");
+
+    assert_eq!(substrate.capabilities.family, RouteFamilyId::Mesh);
+    assert_eq!(
+        substrate_health.value.reachability_state,
+        ReachabilityState::Reachable
+    );
+    assert_eq!(layered_route.handle.route_id, RouteId([3; 16]));
+    assert_eq!(coordinated.handle.route_id, RouteId([3; 16]));
 }

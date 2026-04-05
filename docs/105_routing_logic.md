@@ -24,6 +24,8 @@ If a family needs local coordination, that also lives in the control plane. A fa
 
 The link layer is a frame carrier. It reports reachability, MTU, loss, and timing. It does not own canonical ordering or traffic control. If a route family needs sequencing or causal behavior, that appears as a routing-level message-flow assumption rather than a transport guarantee. Keeping the transport surface simple avoids head-of-line stalls on unstable links and prevents baking one delivery policy into every route family.
 
+Layered composition follows the same rule. If one family uses another as a limited substrate, the layering decision belongs above both families in a host-owned coordinator. The lower layer exposes carrier capabilities and leases. The upper layer consumes those through a neutral contract. Neither family needs direct awareness of the other's private scoring or maintenance logic.
+
 ## Decision Path
 
 The routing decision path starts from `RoutingObjective` and `Observation<Configuration>`. A route planner turns those into `RouteCandidate` values. Each candidate carries an `Estimate<RouteEstimate>`, not a fact or published witness. The planner then checks one candidate, admits it under a stated profile, and a route family materializes it into `MaterializedRoute`.
@@ -54,6 +56,40 @@ pub trait CommitteeSelector {
     ) -> Result<CommitteeSelection, RouteError>;
 }
 
+pub trait SubstratePlanner {
+    fn candidate_substrates(
+        &self,
+        requirements: &SubstrateRequirements,
+        topology: &Observation<Configuration>,
+    ) -> Vec<SubstrateCandidate>;
+}
+
+pub trait SubstrateRuntime {
+    fn acquire_substrate(
+        &mut self,
+        candidate: SubstrateCandidate,
+    ) -> Result<SubstrateLease, RouteError>;
+}
+
+pub trait LayeredRoutePlanner {
+    fn candidate_routes_on_substrate(
+        &self,
+        objective: &RoutingObjective,
+        profile: &AdaptiveRoutingProfile,
+        substrate: &SubstrateLease,
+        parameters: &LayerParameters,
+    ) -> Vec<RouteCandidate>;
+}
+
+pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
+    fn materialize_route_on_substrate(
+        &mut self,
+        admission: RouteAdmission,
+        substrate: SubstrateLease,
+        parameters: LayerParameters,
+    ) -> Result<MaterializedRoute, RouteError>;
+}
+
 pub trait RouteFamily: RoutePlanner {
     fn materialize_route(
         &mut self,
@@ -66,11 +102,15 @@ This split shows the main route-building sequence. The important point is that r
 
 `CommitteeSelector` sits on the same planning side when a family uses it. Jacquard commits to the shared result shape of the committee, not to one universal committee-selection policy. Families may use leaderless threshold sets, role-differentiated committees, or no committee at all.
 
+`SubstratePlanner` and `LayeredRoutePlanner` stay on the deterministic planning side. `SubstrateRuntime` and `LayeredRouteFamily` own the effectful acquisition and materialization steps. That keeps layering aligned with the same purity rule as `RoutePlanner` versus `RouteFamily`, and it prevents composition from collapsing planning and runtime mutation into one trait.
+
 ## Family Boundary
 
 `RoutePlanner` is the deterministic planning boundary. `RouteFamily` is the effectful runtime boundary on top of it. A planner produces candidates, checks admission, and admits a route. A family runtime materializes it, publishes commitments, and handles maintenance. The top-level router stays family-neutral: it compares candidates, enforces fallback rules, tracks materialized routes, and coordinates maintenance.
 
 This is the chosen abstraction boundary for coordination as well. Shared code may see `CommitteeSelection`, evidence classes, and claim strength. Shared code should not see family-local scoring rules, GPS heuristics, clique layouts, or leader-election machinery.
+
+The same boundary applies to layering. Shared code may see substrate requirements, substrate leases, and layer parameters. Shared code should not see onion-private path construction, mesh-private repair scoring, or direct family-to-family calls.
 
 The same pure/effectful split applies inside mesh. `MeshTopologyModel` is read-only. `MeshTransport` is the effectful frame carrier. `CustodyStore` is the effectful retention boundary. `MeshRouteFamily` ties those parts together without collapsing them into one blob.
 
