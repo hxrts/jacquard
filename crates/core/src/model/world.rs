@@ -12,19 +12,24 @@ use crate::{
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Instantiated node object in the routing world model.
-pub struct Node {
-    pub controller_id: ControllerId,
+/// Stable node capability and service surface in the routing world model.
+pub struct NodeProfile {
     pub services: Vec<ServiceDescriptor>,
     pub endpoints: Vec<LinkEndpoint>,
-    pub connection_count_max: Belief<u32>,
-    pub neighbor_state_count_max: Belief<u32>,
-    pub simultaneous_transfer_count_max: Belief<u32>,
-    pub active_route_count_max: Belief<u32>,
-    pub relay_work_budget_max: Belief<u32>,
-    pub maintenance_work_budget_max: Belief<u32>,
-    pub hold_item_count_max: Belief<u32>,
-    pub hold_capacity_bytes_max: Belief<ByteCount>,
+    pub connection_count_max: u32,
+    pub neighbor_state_count_max: u32,
+    pub simultaneous_transfer_count_max: u32,
+    pub active_route_count_max: u32,
+    pub relay_work_budget_max: u32,
+    pub maintenance_work_budget_max: u32,
+    pub hold_item_count_max: u32,
+    pub hold_capacity_bytes_max: ByteCount,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Current node state in the routing world model.
+pub struct NodeState {
     pub relay_budget: Belief<NodeRelayBudget>,
     pub available_connection_count: Belief<u32>,
     pub hold_capacity_available_bytes: Belief<ByteCount>,
@@ -33,9 +38,24 @@ pub struct Node {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Instantiated link object in the routing world model.
-pub struct Link {
+/// Instantiated node object in the routing world model.
+pub struct Node {
+    pub controller_id: ControllerId,
+    pub profile: NodeProfile,
+    pub state: NodeState,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Stable link capability and endpoint surface in the routing world model.
+pub struct LinkProfile {
     pub endpoint: LinkEndpoint,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Current link state in the routing world model.
+pub struct LinkState {
     pub state: LinkRuntimeState,
     pub median_rtt_ms: DurationMs,
     pub transfer_rate_bytes_per_sec: Belief<u32>,
@@ -43,6 +63,14 @@ pub struct Link {
     pub loss_permille: RatioPermille,
     pub delivery_confidence_permille: Belief<RatioPermille>,
     pub symmetry_permille: Belief<RatioPermille>,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Instantiated link object in the routing world model.
+pub struct Link {
+    pub profile: LinkProfile,
+    pub state: LinkState,
 }
 
 #[public_model]
@@ -78,40 +106,48 @@ mod tests {
             NodeId([2; 32]),
             Node {
                 controller_id: ControllerId([9; 32]),
-                services: Vec::new(),
-                endpoints: Vec::new(),
-                connection_count_max: Belief::Absent,
-                neighbor_state_count_max: Belief::Absent,
-                simultaneous_transfer_count_max: Belief::Absent,
-                active_route_count_max: Belief::Absent,
-                relay_work_budget_max: Belief::Absent,
-                maintenance_work_budget_max: Belief::Absent,
-                hold_item_count_max: Belief::Absent,
-                hold_capacity_bytes_max: Belief::Absent,
-                relay_budget: Belief::Absent,
-                available_connection_count: Belief::Absent,
-                hold_capacity_available_bytes: Belief::Absent,
-                information_summary: Belief::Absent,
+                profile: NodeProfile {
+                    services: Vec::new(),
+                    endpoints: Vec::new(),
+                    connection_count_max: 0,
+                    neighbor_state_count_max: 0,
+                    simultaneous_transfer_count_max: 0,
+                    active_route_count_max: 0,
+                    relay_work_budget_max: 0,
+                    maintenance_work_budget_max: 0,
+                    hold_item_count_max: 0,
+                    hold_capacity_bytes_max: ByteCount(0),
+                },
+                state: NodeState {
+                    relay_budget: Belief::Absent,
+                    available_connection_count: Belief::Absent,
+                    hold_capacity_available_bytes: Belief::Absent,
+                    information_summary: Belief::Absent,
+                },
             },
         );
         nodes.insert(
             NodeId([1; 32]),
             Node {
                 controller_id: ControllerId([8; 32]),
-                services: Vec::new(),
-                endpoints: Vec::new(),
-                connection_count_max: Belief::Absent,
-                neighbor_state_count_max: Belief::Absent,
-                simultaneous_transfer_count_max: Belief::Absent,
-                active_route_count_max: Belief::Absent,
-                relay_work_budget_max: Belief::Absent,
-                maintenance_work_budget_max: Belief::Absent,
-                hold_item_count_max: Belief::Absent,
-                hold_capacity_bytes_max: Belief::Absent,
-                relay_budget: Belief::Absent,
-                available_connection_count: Belief::Absent,
-                hold_capacity_available_bytes: Belief::Absent,
-                information_summary: Belief::Absent,
+                profile: NodeProfile {
+                    services: Vec::new(),
+                    endpoints: Vec::new(),
+                    connection_count_max: 0,
+                    neighbor_state_count_max: 0,
+                    simultaneous_transfer_count_max: 0,
+                    active_route_count_max: 0,
+                    relay_work_budget_max: 0,
+                    maintenance_work_budget_max: 0,
+                    hold_item_count_max: 0,
+                    hold_capacity_bytes_max: ByteCount(0),
+                },
+                state: NodeState {
+                    relay_budget: Belief::Absent,
+                    available_connection_count: Belief::Absent,
+                    hold_capacity_available_bytes: Belief::Absent,
+                    information_summary: Belief::Absent,
+                },
             },
         );
 

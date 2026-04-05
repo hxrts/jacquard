@@ -53,12 +53,6 @@ This group of types shows two important boundaries. `NodeBinding` says who contr
 
 ## Shared Surfaces
 
-`Configuration` is the shared world object the router reasons about. It is a wired-together set of `Node` and `Link` objects plus one `Environment`. `world` owns those instantiated world objects directly. `Observation<T>` wraps those objects when they are locally seen or remotely reported. `PeerRoutingEstimate`, `ConfigurationEstimate`, and `RouteEstimate` describe the derived routing summaries that sit between raw observation and policy. `AdaptiveRoutingProfile` is the main shared action object produced by policy.
+`Configuration` is the shared world object the router reasons about. It is a wired-together set of `Node` and `Link` objects plus one `Environment`. `world` owns those instantiated world objects directly, with `Node` split into `NodeProfile` plus `NodeState` and `Link` split into `LinkProfile` plus `LinkState`. `Observation<T>` wraps those objects when they are locally seen or remotely reported. `PeerRoutingEstimate`, `ConfigurationEstimate`, and `RouteEstimate` describe the derived routing summaries that sit between raw observation and policy. `AdaptiveRoutingProfile` is the main shared action object produced by policy.
 
 `RouteHandle`, `RouteMaterializationProof`, and `RouteCommitment` are the main runtime coordination objects in `core`. They are worth recognizing early because many later types point at them. They give the system strong route identity, proof-bearing materialization, and explicit outstanding work.
-
-## What Is Not Here
-
-This page stops at the shared building blocks. It does not try to describe how a route family turns observations into candidates or how the router decides between families. Those behaviors belong in [Routing Architecture](105_routing_architecture.md).
-
-The key point is that `core` defines the language of the system. Other crates use that language to express decision inputs, route-family behavior, router orchestration, and simulation.

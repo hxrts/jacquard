@@ -34,16 +34,24 @@ The important split is between the world object and the observation wrapper. `No
 ```rust
 pub struct Node {
     pub controller_id: ControllerId,
+    pub profile: NodeProfile,
+    pub state: NodeState,
+}
+
+pub struct NodeProfile {
     pub services: Vec<ServiceDescriptor>,
     pub endpoints: Vec<LinkEndpoint>,
-    pub connection_count_max: Belief<u32>,
-    pub neighbor_state_count_max: Belief<u32>,
-    pub simultaneous_transfer_count_max: Belief<u32>,
-    pub active_route_count_max: Belief<u32>,
-    pub relay_work_budget_max: Belief<u32>,
-    pub maintenance_work_budget_max: Belief<u32>,
-    pub hold_item_count_max: Belief<u32>,
-    pub hold_capacity_bytes_max: Belief<ByteCount>,
+    pub connection_count_max: u32,
+    pub neighbor_state_count_max: u32,
+    pub simultaneous_transfer_count_max: u32,
+    pub active_route_count_max: u32,
+    pub relay_work_budget_max: u32,
+    pub maintenance_work_budget_max: u32,
+    pub hold_item_count_max: u32,
+    pub hold_capacity_bytes_max: ByteCount,
+}
+
+pub struct NodeState {
     pub relay_budget: Belief<NodeRelayBudget>,
     pub available_connection_count: Belief<u32>,
     pub hold_capacity_available_bytes: Belief<ByteCount>,
@@ -65,17 +73,17 @@ pub struct Observation<T> {
 }
 ```
 
-This snippet shows the intended level of abstraction. The router sees one node object with stable limits and current routing-visible node state. It does not see battery voltage, buffer implementation details, or operating-system power state directly.
+This snippet shows the intended level of abstraction. The router sees one node object split into stable profile and current state. It does not see battery voltage, buffer implementation details, or operating-system power state directly.
 
-The stable node-limit fields are part of `Node` itself. A node may only support a small number of concurrent connections. A node may only be able to track a bounded number of neighbors. A node may cap simultaneous transfers, active routes, repair work, retained items, and retained bytes for policy or transport reasons. These are device or local-policy constraints, but they are exposed in a form that the router can use without learning hardware details.
+`NodeProfile` carries the stable node-limit fields. A node may only support a small number of concurrent connections. A node may only be able to track a bounded number of neighbors. A node may cap simultaneous transfers, active routes, repair work, retained items, and retained bytes for policy or transport reasons. These are device or local-policy constraints, but they are exposed in a form that the router can use without learning hardware details.
 
-The current-state fields on `Node` say how much connection headroom remains now, how much forwarding work can still be accepted, and how much retained payload space is still available for deferred delivery.
+`NodeState` carries the current-state fields that say how much connection headroom remains now, how much forwarding work can still be accepted, and how much retained payload space is still available for deferred delivery.
 
 These fields exist because routing decisions depend on future forwarding value, not only on current free space. A node with spare capacity but a short `retention_horizon_ms` is a weak custody target. A node with moderate capacity and a long retention horizon may be a better relay for deferred delivery.
 
 ## Peer And Connection
 
-Peers and connections are split across world definition, observation, and estimation. A peer is described by the `Node` world object plus a `PeerRoutingEstimate`. A connection is described by the `Link` world object and whatever `Observation<Link>` claims the local node has accepted.
+Peers and connections are split across world definition, observation, and estimation. A peer is described by the `Node` world object plus a `PeerRoutingEstimate`. A connection is described by the `Link` world object, itself split into `LinkProfile` and `LinkState`, and whatever `Observation<Link>` claims the local node has accepted.
 
 ```rust
 pub struct PeerRoutingEstimate {
@@ -87,7 +95,15 @@ pub struct PeerRoutingEstimate {
 }
 
 pub struct Link {
+    pub profile: LinkProfile,
+    pub state: LinkState,
+}
+
+pub struct LinkProfile {
     pub endpoint: LinkEndpoint,
+}
+
+pub struct LinkState {
     pub state: LinkRuntimeState,
     pub median_rtt_ms: DurationMs,
     pub transfer_rate_bytes_per_sec: Belief<u32>,
@@ -104,11 +120,11 @@ This boundary keeps the router focused on actionable signals. It can reason abou
 
 `reach_score` is a local proxy for whether a peer can move information into other parts of the network. It is intentionally abstract. It may be derived from recent contact diversity, message-origin diversity, or other local evidence. The routing core should consume the score, not the device-specific method used to compute it.
 
-The connection surface stays similarly narrow. `transfer_rate_bytes_per_sec` answers whether a meaningful exchange fits inside the contact window. `stability_horizon_ms` answers how long the contact is likely to remain useful. `delivery_confidence_permille` and `symmetry_permille` answer whether the link can reliably support exchange in the expected direction.
+The connection surface stays similarly narrow. `LinkProfile` identifies the stable endpoint surface. `LinkState` carries the changing quality values. `transfer_rate_bytes_per_sec` answers whether a meaningful exchange fits inside the contact window. `stability_horizon_ms` answers how long the contact is likely to remain useful. `delivery_confidence_permille` and `symmetry_permille` answer whether the link can reliably support exchange in the expected direction.
 
 ## Environment
 
-The local environment is also a primitive. `Environment` carries the directly observed density, churn, and contention surfaces for the current configuration. `ConfigurationEstimate` adds bridging value and underserved-flow scoring on top of that environment.
+The local environment is also a primitive. `Environment` carries only the family-neutral aggregate conditions for the current configuration: density, churn, and contention. `ConfigurationEstimate` adds bridging value and underserved-flow scoring on top of that environment.
 
 ```rust
 pub struct Environment {
@@ -127,5 +143,7 @@ pub struct ConfigurationEstimate {
 This aggregate view is where Contour captures conditions that are not properties of one peer. Density answers how selective the router can be. Churn answers whether the topology is stable enough to wait for better opportunities. Contention answers whether the medium can absorb more exchange now. Bridging value and underserved-flow scoring answer whether the local node sits between weakly connected regions or near one-sided information flow.
 
 These environment signals are especially important in sparse and disrupted networks. A contact that looks mediocre in isolation may still be valuable if the neighborhood is sparse, churn is high, or the node appears to bridge otherwise disjoint information sets.
+
+The important boundary is that `Environment` is not the place to encode every family-specific concern. Topology already lives in `Configuration` through `nodes` and `links`. Richer geometry, spatial embeddings, or other transport- and family-specific structure should extend `Configuration` in the family layer, not be forced into the base `Environment` type.
 
 This separation is the core architectural point. `world` defines the possible routing world. `Observation<T>` turns instantiated world objects into local or remote claims. `estimation` updates beliefs over the partial `Configuration` that the node currently sees. That abstraction boundary makes the model portable, deterministic, and open to experimentation across different transports and devices.

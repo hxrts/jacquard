@@ -63,6 +63,8 @@ This trait fragment shows the main route-building sequence. The important point 
 
 The top-level router stays family-neutral. It compares candidates, enforces fallback rules, tracks installed routes, and coordinates maintenance. Family-private planning and runtime state stay behind the family boundary.
 
+This is also where family-specific world extensions belong. `core::Configuration` is the shared graph-shaped world object. If mesh needs geometry, richer topology exports, or other spatial structure, those should live in `MeshConfiguration` or other mesh-owned types rather than being pushed into the base `Environment`.
+
 ## Runtime Boundary
 
 The routing core does not call platform APIs directly. Hashing, storage, audit emission, transport ingress, time, and ordering all cross explicit runtime-effect traits. That is how native execution, tests, and simulation share one semantic model instead of drifting apart.
