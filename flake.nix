@@ -37,6 +37,8 @@
           just
           mdbook
           mdbook-mermaid
+          ripgrep
+          perl
         ];
 
         buildInputs =
