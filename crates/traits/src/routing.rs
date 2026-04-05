@@ -15,6 +15,7 @@ use jacquard_macros::purity;
 ///
 /// Pure deterministic boundary.
 pub trait RoutingController {
+    #[must_use]
     fn compute_profile(
         &self,
         objective: &RoutingObjective,
@@ -30,6 +31,7 @@ pub trait RoutingController {
 pub trait CommitteeSelector {
     type TopologyView;
 
+    #[must_use]
     fn select_committee(
         &self,
         objective: &RoutingObjective,
@@ -42,6 +44,7 @@ pub trait CommitteeSelector {
 /// Optional deterministic boundary for families that can advertise lower-layer
 /// carriage to other families or to a host-level layering daemon.
 pub trait SubstratePlanner {
+    #[must_use]
     fn candidate_substrates(
         &self,
         requirements: &SubstrateRequirements,
@@ -53,6 +56,7 @@ pub trait SubstratePlanner {
 /// Optional effectful boundary for families that can acquire and manage
 /// substrate leases after planning has selected one.
 pub trait SubstrateRuntime {
+    #[must_use]
     fn acquire_substrate(
         &mut self,
         candidate: SubstrateCandidate,
@@ -62,6 +66,7 @@ pub trait SubstrateRuntime {
 
     /// Runtime observation over an acquired substrate lease. This is read-only
     /// with respect to canonical route truth.
+    #[must_use]
     fn observe_substrate_health(
         &self,
         lease: &SubstrateLease,
@@ -72,6 +77,7 @@ pub trait SubstrateRuntime {
 /// Optional deterministic boundary for families that can plan over an
 /// already-admitted substrate route rather than only over direct local links.
 pub trait LayeredRoutePlanner {
+    #[must_use]
     fn candidate_routes_on_substrate(
         &self,
         objective: &RoutingObjective,
@@ -80,6 +86,7 @@ pub trait LayeredRoutePlanner {
         parameters: &LayerParameters,
     ) -> Vec<RouteCandidate>;
 
+    #[must_use]
     fn admit_route_on_substrate(
         &self,
         objective: &RoutingObjective,
@@ -94,6 +101,7 @@ pub trait LayeredRoutePlanner {
 /// Optional effectful boundary for layered families once planning has selected
 /// a substrate-backed route candidate.
 pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
+    #[must_use]
     fn materialize_route_on_substrate(
         &mut self,
         admission: RouteAdmission,
@@ -109,12 +117,15 @@ pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
 ///
 /// Pure deterministic boundary.
 pub trait RoutePlanner {
+    #[must_use]
     fn family_id(&self) -> RouteFamilyId;
 
+    #[must_use]
     fn capabilities(&self) -> RoutingFamilyCapabilities;
 
     /// Candidate enumeration consumes observational topology input and must
     /// return advisory route candidates rather than proof-bearing witnesses.
+    #[must_use]
     fn candidate_routes(
         &self,
         objective: &RoutingObjective,
@@ -123,6 +134,7 @@ pub trait RoutePlanner {
     ) -> Vec<RouteCandidate>;
 
     /// Family-level feasibility check. May attach step bounds and cost estimates.
+    #[must_use]
     fn check_candidate(
         &self,
         objective: &RoutingObjective,
@@ -130,6 +142,7 @@ pub trait RoutePlanner {
         candidate: &RouteCandidate,
     ) -> Result<RouteAdmissionCheck, RouteError>;
 
+    #[must_use]
     fn admit_route(
         &self,
         objective: &RoutingObjective,
@@ -146,6 +159,7 @@ pub trait RoutePlanner {
 pub trait RouteFamily: RoutePlanner {
     /// Materialization is the canonical route-realization step. Success must return an
     /// `MaterializedRoute` carrying a strong canonical handle.
+    #[must_use]
     fn materialize_route(
         &mut self,
         admission: RouteAdmission,
@@ -153,10 +167,12 @@ pub trait RouteFamily: RoutePlanner {
 
     /// Every unresolved or recently resolved family-side obligation must be
     /// expressible as an explicit route commitment.
+    #[must_use]
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
     /// Maintenance returns a typed semantic result so replacement, handoff, and
     /// failure paths keep their payload rather than collapsing to a flag.
+    #[must_use]
     fn maintain_route(
         &mut self,
         route: &mut MaterializedRoute,
@@ -173,13 +189,16 @@ pub trait RouteFamily: RoutePlanner {
 pub trait Router {
     fn register_family(&mut self, extension: Box<dyn RouteFamily>) -> Result<(), RouteError>;
 
+    #[must_use]
     fn activate_route(
         &mut self,
         objective: RoutingObjective,
     ) -> Result<MaterializedRoute, RouteError>;
 
+    #[must_use]
     fn route_commitments(&self, route_id: &RouteId) -> Result<Vec<RouteCommitment>, RouteError>;
 
+    #[must_use]
     fn reselect_route(
         &mut self,
         route_id: &RouteId,
@@ -191,6 +210,7 @@ pub trait Router {
 /// Host-owned orchestration boundary for policy-driven composition across
 /// route families. This is where smooth transition and limited layering live.
 pub trait LayerCoordinator {
+    #[must_use]
     fn activate_layered_route(
         &mut self,
         objective: RoutingObjective,
@@ -205,11 +225,13 @@ pub trait LayerCoordinator {
 ///
 /// Effectful runtime boundary.
 pub trait RoutingControlPlane {
+    #[must_use]
     fn activate_route(
         &mut self,
         objective: RoutingObjective,
     ) -> Result<MaterializedRoute, RouteError>;
 
+    #[must_use]
     fn maintain_route(
         &mut self,
         route_id: &RouteId,
@@ -233,6 +255,7 @@ pub trait RoutingDataPlane {
 
     /// Health reads are observational. They must not silently become canonical
     /// route truth without an explicit control-plane publication step.
+    #[must_use]
     fn observe_route_health(
         &self,
         route_id: &RouteId,

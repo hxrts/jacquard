@@ -31,6 +31,7 @@ impl<T> Effect for T where T: ?Sized + crate::__private::EffectDefinition + Send
 ///
 /// Effectful runtime boundary.
 pub trait TimeEffects {
+    #[must_use]
     fn now_tick(&self) -> Tick;
 }
 
@@ -39,6 +40,7 @@ pub trait TimeEffects {
 ///
 /// Effectful runtime boundary.
 pub trait OrderEffects {
+    #[must_use]
     fn next_order_stamp(&mut self) -> OrderStamp;
 }
 
@@ -47,8 +49,10 @@ pub trait OrderEffects {
 ///
 /// Effectful runtime boundary with deterministic methods.
 pub trait HashEffects {
+    #[must_use]
     fn hash_bytes(&self, input: &[u8]) -> Blake3Digest;
 
+    #[must_use]
     fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Blake3Digest;
 }
 
@@ -57,6 +61,7 @@ pub trait HashEffects {
 ///
 /// Effectful runtime boundary.
 pub trait StorageEffects {
+    #[must_use]
     fn load_bytes(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
 
     fn store_bytes(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError>;
@@ -83,6 +88,7 @@ pub trait TransportEffects {
         payload: &[u8],
     ) -> Result<(), TransportError>;
 
+    #[must_use]
     fn poll_transport(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError>;
 }
 

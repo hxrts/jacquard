@@ -47,5 +47,6 @@ pub struct CommitteeSelection {
     pub claim_strength: ClaimStrength,
     pub identity_assurance: IdentityAssuranceClass,
     pub quorum_threshold: u8,
+    /// Bounded by [`PROVIDER_CANDIDATE_COUNT_MAX`](crate::PROVIDER_CANDIDATE_COUNT_MAX).
     pub members: Vec<CommitteeMember>,
 }

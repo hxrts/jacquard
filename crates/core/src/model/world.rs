@@ -15,6 +15,7 @@ use crate::{
 /// Stable node capability and service surface in the routing world model.
 pub struct NodeProfile {
     pub services: Vec<ServiceDescriptor>,
+    /// Bounded by [`SERVICE_ENDPOINT_COUNT_MAX`](crate::SERVICE_ENDPOINT_COUNT_MAX).
     pub endpoints: Vec<LinkEndpoint>,
     pub connection_count_max: u32,
     pub neighbor_state_count_max: u32,
@@ -164,6 +165,5 @@ mod tests {
 
         let keys: Vec<_> = configuration.nodes.keys().copied().collect();
         assert_eq!(keys, vec![NodeId([1; 32]), NodeId([2; 32])]);
-        let _ = Tick(0);
     }
 }

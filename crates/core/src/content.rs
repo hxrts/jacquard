@@ -6,12 +6,7 @@ use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-macro_rules! bytes_newtype {
-    ($name:ident, $size:expr) => {
-        #[id_type]
-        pub struct $name(pub [u8; $size]);
-    };
-}
+use crate::base::bytes_newtype;
 
 bytes_newtype!(Blake3Digest, 32);
 

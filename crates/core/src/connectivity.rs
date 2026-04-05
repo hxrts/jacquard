@@ -71,6 +71,7 @@ pub struct ServiceDescriptor {
     pub provider_node_id: NodeId,
     pub controller_id: ControllerId,
     pub service_kind: RouteServiceKind,
+    /// Bounded by [`SERVICE_ENDPOINT_COUNT_MAX`](crate::SERVICE_ENDPOINT_COUNT_MAX).
     pub endpoints: Vec<LinkEndpoint>,
     pub routing_families: Vec<RouteFamilyId>,
     pub scope: ServiceScope,

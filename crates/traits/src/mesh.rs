@@ -24,20 +24,24 @@ use crate::{effect_handler, RouteFamily, TransportEffects};
 ///
 /// Read-only deterministic boundary.
 pub trait MeshTopologyModel {
+    #[must_use]
     fn local_node(&self, local_node_id: &NodeId, configuration: &Configuration) -> Option<Node>;
 
+    #[must_use]
     fn neighboring_nodes(
         &self,
         local_node_id: &NodeId,
         configuration: &Configuration,
     ) -> Vec<(NodeId, Node)>;
 
+    #[must_use]
     fn reachable_endpoints(
         &self,
         local_node_id: &NodeId,
         configuration: &Configuration,
     ) -> Vec<LinkEndpoint>;
 
+    #[must_use]
     fn adjacent_links(&self, local_node_id: &NodeId, configuration: &Configuration) -> Vec<Link>;
 }
 
@@ -46,11 +50,13 @@ pub trait MeshTopologyModel {
 ///
 /// Effectful runtime boundary.
 pub trait MeshTransport {
+    #[must_use]
     fn transport_id(&self) -> TransportProtocol;
 
     fn send_frame(&mut self, endpoint: &LinkEndpoint, payload: &[u8])
         -> Result<(), TransportError>;
 
+    #[must_use]
     fn poll_ingress(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError>;
 }
 
@@ -84,11 +90,13 @@ pub trait CustodyStore {
         payload: Vec<u8>,
     ) -> Result<(), CustodyError>;
 
+    #[must_use]
     fn take_custody_payload(
         &mut self,
         object_id: &ContentId<Blake3Digest>,
     ) -> Result<Option<Vec<u8>>, CustodyError>;
 
+    #[must_use]
     fn contains_custody_payload(
         &self,
         object_id: &ContentId<Blake3Digest>,

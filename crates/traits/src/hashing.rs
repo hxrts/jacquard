@@ -33,7 +33,9 @@ impl Hashing for Blake3Hashing {
     fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Self::Digest {
         let mut hasher = blake3::Hasher::new();
         // Length prefix separates "ab"+"c" from "a"+"bc".
-        hasher.update(&(domain.len() as u32).to_le_bytes());
+        let domain_len =
+            u32::try_from(domain.len()).expect("domain tag length exceeds u32");
+        hasher.update(&domain_len.to_le_bytes());
         hasher.update(domain);
         hasher.update(input);
         Blake3Digest(*hasher.finalize().as_bytes())

@@ -12,6 +12,9 @@ edition = "2021"
 license = "Apache-2.0"
 authors = ["Sam Hart"]
 
+[workspace.lints.rust]
+unused_must_use = "deny"
+
 [workspace.lints.clippy]
 dbg_macro = "deny"
 disallowed_methods = "deny"

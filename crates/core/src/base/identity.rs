@@ -7,12 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::RouteEpoch;
 
-macro_rules! bytes_newtype {
-    ($name:ident, $size:expr) => {
-        #[id_type]
-        pub struct $name(pub [u8; $size]);
-    };
-}
+use super::bytes_newtype;
 
 // NodeId identifies a running Jacquard participant instance.
 // ControllerId identifies the cryptographic actor behind one or more nodes.
@@ -33,12 +28,15 @@ bytes_newtype!(PathId, 16);
 bytes_newtype!(PublicationId, 16);
 bytes_newtype!(ReceiptId, 16);
 
+/// Opaque application-defined service identifier. Format is host-specific.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ServiceId(pub Vec<u8>);
 
+/// Family-owned opaque route reference. Jacquard core never inspects the contents.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct BackendRouteId(pub Vec<u8>);
 
+/// Platform-specific BLE device address. Format depends on the host BLE stack.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct BleDeviceId(pub Vec<u8>);
 

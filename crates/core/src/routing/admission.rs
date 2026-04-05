@@ -144,6 +144,7 @@ pub struct RouteSummary {
     pub protection: RouteProtectionClass,
     pub connectivity: RouteConnectivityProfile,
     pub protocol_mix: Vec<TransportProtocol>,
+    /// Bounded by [`ROUTE_HOP_COUNT_MAX`](crate::ROUTE_HOP_COUNT_MAX).
     pub hop_count_hint: Belief<u8>,
     pub valid_for: TimeWindow,
 }
