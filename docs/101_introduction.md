@@ -30,16 +30,14 @@ Jacquard also allows a host-owned policy engine to compose routing engines throu
 
 ## Design Commitments
 
-Jacquard is fully deterministic. It does not use floating-point scoring in the routing core. It uses typed time, typed ordering, explicit bounds, and explicit ownership objects instead of ambient runtime assumptions.
+Jacquard is fully deterministic. It uses typed time, typed ordering, explicit bounds, and explicit ownership objects instead of ambient runtime assumptions.
 
-Jacquard also keeps observation scopes explicit. Local node state, peer estimates, link estimates, and neighborhood aggregates are separate model surfaces. That split keeps routing logic honest about what is self-known, what is inferred about a peer, and what is only an aggregate local view.
+Observation scopes are kept explicit. Local node state, peer estimates, link estimates, and neighborhood aggregates are separate model surfaces. This split keeps routing logic honest about what is known unequivocally, what is inferred about a peer, and what is an aggregate local view.
 
-Jacquard is intentionally not too opinionated about engine-local scoring, committee formation policy, or trust heuristics. The shared layer commits to the result shapes, evidence classes, ownership rules, and canonical transition path. The routing-engine layer owns the scoring rules, diversity logic, and misbehavior handling that depend on its routing semantics.
+Jacquard is intentionally not opinionated about engine-local scoring, committee formation policy, or trust heuristics. The shared layer commits to the result shapes, evidence classes, ownership rules, and canonical transition path. The routing-engine layer owns the scoring rules, diversity logic, and misbehavior handling that depend on its routing semantics.
 
-Jacquard is also committed to one explicit service lifecycle: observation to candidate to admission to router-owned canonical identity allocation to family realization to materialized route to maintenance, replacement, or teardown. Major transitions stay typed and explicit. Data-plane health stays observational until the control plane publishes a canonical change.
+The system is committed to one explicit service lifecycle: observation to candidate to admission to router-owned canonical identity allocation to family realization to materialized route to maintenance, replacement, or teardown. Major transitions stay typed and explicit. Data-plane health stays observational until the control plane publishes a canonical change.
 
-Jacquard is also committed to a GPS-free core model. Absolute location may appear as an engine-private hint, but it is not part of the shared routing truth and it is not required for local coordination.
-
-Jacquard is equally committed to a composition boundary that stays narrow. The shared layer may expose substrate requirements, substrate leases, and layer parameters. It should not make mesh onion-aware, onion mesh-aware, or standardize one host policy for gradual migration.
+It is equally committed to a composition boundary that stays narrow. The shared layer may expose substrate requirements, substrate leases, and layer parameters. It should avoid leaky abstractions from one another into another or standardize one host policy for gradual migration.
 
 Jacquard is also meant to be the integration point where multiple teams can contribute device-specific expertise without forking the routing model. One team may contribute a BLE node world extension, another a Wi-Fi link world extension, and another a platform-specific transport or service world extension. The cooperative effect comes from merging those self-describing observations into one shared world picture above the routing-engine boundary, then letting routing engines incorporate observed nodes and links when their own criteria are met.
