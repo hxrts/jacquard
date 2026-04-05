@@ -94,6 +94,92 @@ serve: summary _gen-assets
     mdbook serve --open
     exit 1
 
+# run all CI checks locally
+ci-dry-run:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export CARGO_INCREMENTAL=0
+    export CARGO_TERM_COLOR=always
+    GREEN='\033[0;32m' RED='\033[0;31m' NC='\033[0m'
+    exit_code=0
+    current=0
+    STEPS=()
+    FAILURES=()
+    run_id="$(date +%Y%m%d-%H%M%S)"
+    log_root="${PWD}/artifacts/ci-dry-run/${run_id}"
+    mkdir -p "$log_root"
+
+    add_step() {
+        local name="$1" cmd="$2"
+        STEPS+=("${name}:::${cmd}")
+    }
+
+    slugify() {
+        printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-'
+    }
+
+    run_step() {
+        local name="$1" cmd="$2" slug log_path start_ts end_ts duration
+        current=$((current + 1))
+        slug="$(slugify "$name")"
+        log_path="$(printf '%s/%02d-%s.log' "$log_root" "$current" "$slug")"
+        printf "[%d/%d] %s... " "$current" "$total" "$name"
+        start_ts="$(date +%s)"
+        if bash -lc "$cmd" >"$log_path" 2>&1; then
+            end_ts="$(date +%s)"
+            duration=$((end_ts - start_ts))
+            echo -e "${GREEN}OK${NC} (${duration}s)"
+        else
+            end_ts="$(date +%s)"
+            duration=$((end_ts - start_ts))
+            echo -e "${RED}FAIL${NC} (${duration}s)"
+            echo "  log: $log_path"
+            tail -n 30 "$log_path" | sed 's/^/    /'
+            FAILURES+=("$name")
+            exit_code=1
+        fi
+    }
+
+    add_step "Preflight"           "./scripts/ci/preflight.sh"
+    add_step "Format Check"       "cargo fmt --all -- --check"
+    add_step "Clippy"             "cargo clippy --workspace -- -D warnings"
+    add_step "Tests"              "cargo test --workspace"
+    add_step "Docs Link Check"    "./scripts/check/docs-link-check.sh"
+    add_step "Proc Macro Scope"   "./scripts/check/proc-macro-scope.sh"
+    add_step "Docs Build"         "just book"
+
+    total=${#STEPS[@]}
+    echo "CI Dry Run"
+    echo "=========="
+    echo "Logs: $log_root"
+    echo ""
+
+    for step in "${STEPS[@]}"; do
+        name="${step%%:::*}"
+        cmd="${step#*:::}"
+        run_step "$name" "$cmd"
+    done
+
+    echo ""
+    if [ $exit_code -eq 0 ]; then
+        echo -e "${GREEN}All CI checks passed${NC}"
+    else
+        echo "Failed:"
+        for failure in "${FAILURES[@]}"; do
+            echo "  - $failure"
+        done
+        echo -e "${RED}Some CI checks failed${NC}"
+        exit 1
+    fi
+
+# fast environment sanity checks
+ci-preflight:
+    ./scripts/ci/preflight.sh
+
+# validate docs link integrity
+docs-link-check:
+    ./scripts/check/docs-link-check.sh
+
 # install git hooks
 install-hooks:
     git config core.hooksPath .githooks
