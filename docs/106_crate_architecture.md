@@ -50,6 +50,8 @@ Signature design follows the same split. Use `&self` for pure and read-only meth
 
 That is why Jacquard separates `RoutePlanner` from `RouteFamily`, `SubstratePlanner` from `SubstrateRuntime`, `LayeredRoutePlanner` from `LayeredRouteFamily`, `MeshTopologyModel` from `MeshTransport`, and `RoutingScenario` / `RoutingEnvironmentModel` from `RoutingSimulator`.
 
+This rule is enforced in three layers. Public trait definitions in `jacquard-traits` carry `#[purity(...)]` or `#[effect_trait]` annotations. The `#[purity(...)]` proc macro rejects obvious receiver-shape violations such as `&mut self` on pure traits. The repository also ships `scripts/check/trait-purity.sh` and a companion Dylint library for workspace-wide annotation checks.
+
 The routing core does not call platform APIs directly. Hashing, storage, audit emission, transport ingress, time, and ordering all cross explicit runtime-effect traits in `traits`. That is how native execution, tests, and simulation share one semantic model. The effect traits are narrower than the higher-level component traits. They model runtime capabilities, not whole subsystems. `RouteFamily`, `Router`, and `CustodyStore` are larger behavioral contracts and should not be forced through the effect layer.
 
 ## Invariants And Ownership

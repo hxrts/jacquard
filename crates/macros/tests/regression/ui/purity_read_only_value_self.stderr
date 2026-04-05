@@ -1,0 +1,5 @@
+error: #[purity(read_only)] does not allow by-value receivers; use `&self` or split the effectful method into a separate trait
+ --> tests/regression/ui/purity_read_only_value_self.rs:5:16
+  |
+5 |     fn consume(self);
+  |                ^^^^

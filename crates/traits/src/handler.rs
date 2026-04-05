@@ -6,6 +6,7 @@
 //! canonical routing truth or long-lived orchestration state.
 
 use crate::Effect;
+use jacquard_macros::purity;
 
 mod sealed {
     pub trait Sealed {}
@@ -13,6 +14,7 @@ mod sealed {
     impl<T> Sealed for T where T: ?Sized + Send + Sync + 'static {}
 }
 
+#[purity(effectful)]
 /// Marker trait for concrete implementations of one effect vocabulary.
 pub trait EffectHandler<E>: sealed::Sealed + Send + Sync + 'static
 where

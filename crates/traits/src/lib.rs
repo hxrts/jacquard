@@ -16,7 +16,7 @@ pub use handler::*;
 pub use hashing::*;
 pub use jacquard_core;
 pub use jacquard_macros::{
-    bounded_value, effect_handler, effect_trait, id_type, must_use_handle, public_model,
+    bounded_value, effect_handler, effect_trait, id_type, must_use_handle, public_model, purity,
 };
 pub use mesh::*;
 pub use routing::*;

@@ -1,0 +1,23 @@
+# Dylint lint library — requires nightly (just nightly-shell) and cargo-dylint (install-dylint).
+# Run: cargo dylint --path lints/trait_purity --all -- --all-targets
+
+[package]
+name = "jacquard-trait-purity"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Dylint checks for Jacquard trait purity/effect annotations"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+dylint_linting = "5.0.0"
+
+[features]
+rlib = ["dylint_linting/constituent"]
+
+[package.metadata.rust-analyzer]
+rustc_private = true
+
+[workspace]

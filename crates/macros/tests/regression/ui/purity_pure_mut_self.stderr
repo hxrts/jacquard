@@ -1,0 +1,5 @@
+error: #[purity(pure)] does not allow `&mut self`; split mutable/runtime behavior into a separate trait
+ --> tests/regression/ui/purity_pure_mut_self.rs:5:15
+  |
+5 |     fn mutate(&mut self);
+  |               ^^^^^^^^^

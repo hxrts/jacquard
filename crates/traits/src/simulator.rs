@@ -12,7 +12,9 @@ use jacquard_core::{
     Configuration, DeploymentProfile, Observation, RouteEvent, RoutingAuditEvent, RoutingObjective,
     Tick,
 };
+use jacquard_macros::purity;
 
+#[purity(pure)]
 /// Pure scenario description for a deterministic routing run.
 ///
 /// Pure deterministic boundary.
@@ -28,6 +30,7 @@ pub trait RoutingScenario {
     fn objectives(&self) -> &[RoutingObjective];
 }
 
+#[purity(pure)]
 /// Pure deterministic environment evolution over the shared world model.
 ///
 /// Pure deterministic boundary.
@@ -41,6 +44,7 @@ pub trait RoutingEnvironmentModel {
     ) -> (Observation<Configuration>, Vec<Self::EnvironmentArtifact>);
 }
 
+#[purity(effectful)]
 /// Effectful routing simulation harness.
 ///
 /// Effectful runtime boundary.
@@ -63,6 +67,7 @@ pub trait RoutingSimulator {
     ) -> Result<(Self::ReplayArtifact, Self::SimulationStats), Self::Error>;
 }
 
+#[purity(read_only)]
 /// Read-only inspection surface for replay-visible simulator artifacts.
 ///
 /// Read-only deterministic boundary.

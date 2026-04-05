@@ -9,7 +9,7 @@ use jacquard_core::{
     AuditError, Blake3Digest, OrderStamp, RoutingAuditEvent, StorageError, Tick, TransportError,
     TransportIngressEvent,
 };
-use jacquard_macros::effect_trait;
+use jacquard_macros::{effect_trait, purity};
 
 mod sealed {
     pub trait Sealed {}
@@ -17,6 +17,7 @@ mod sealed {
     impl<T> Sealed for T where T: ?Sized + crate::__private::EffectDefinition + Send + Sync + 'static {}
 }
 
+#[purity(read_only)]
 /// Marker trait for the abstract runtime effect vocabulary.
 ///
 /// Every effect trait in Jacquard should extend this trait so the effect surface
@@ -85,6 +86,7 @@ pub trait TransportEffects {
     fn poll_transport(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError>;
 }
 
+#[purity(effectful)]
 /// Aggregate marker for runtimes that provide the current minimal effect set.
 ///
 /// Effectful runtime boundary.

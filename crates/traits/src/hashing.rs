@@ -1,9 +1,11 @@
 //! Hashing traits and content-addressable identity for routing artifacts.
 
 use jacquard_core::{Blake3Digest, ContentEncodingError, ContentId};
+use jacquard_macros::purity;
 
 use crate::{effect_handler, HashEffects};
 
+#[purity(pure)]
 /// Pure deterministic hashing interface over one digest type.
 ///
 /// Pure deterministic boundary.
@@ -49,6 +51,7 @@ impl HashEffects for Blake3Hashing {
     }
 }
 
+#[purity(pure)]
 /// Derive a content id from deterministic canonical serialization.
 ///
 /// Pure deterministic boundary.
@@ -69,6 +72,7 @@ pub trait ContentAddressable {
     }
 }
 
+#[purity(pure)]
 /// Like ContentAddressable but for template/schema identity rather than instance identity.
 ///
 /// Pure deterministic boundary.

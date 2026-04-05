@@ -15,9 +15,11 @@ use jacquard_core::{
     Blake3Digest, Configuration, ContentId, CustodyError, Link, LinkEndpoint, Node, NodeId,
     TransportError, TransportIngressEvent, TransportProtocol,
 };
+use jacquard_macros::purity;
 
 use crate::{effect_handler, RouteFamily, TransportEffects};
 
+#[purity(read_only)]
 /// Deterministic, read-only topology queries used by the mesh planner/runtime.
 ///
 /// Read-only deterministic boundary.
@@ -39,6 +41,7 @@ pub trait MeshTopologyModel {
     fn adjacent_links(&self, local_node_id: &NodeId, configuration: &Configuration) -> Vec<Link>;
 }
 
+#[purity(effectful)]
 /// Effectful frame-carrier boundary for one mesh transport implementation.
 ///
 /// Effectful runtime boundary.
@@ -70,6 +73,7 @@ where
     }
 }
 
+#[purity(effectful)]
 /// Effectful deferred-delivery retention boundary.
 ///
 /// Effectful runtime boundary.
@@ -91,6 +95,7 @@ pub trait CustodyStore {
     ) -> Result<bool, CustodyError>;
 }
 
+#[purity(effectful)]
 /// Mesh-specialized route family boundary with explicit subcomponent ownership.
 ///
 /// Effectful runtime boundary with read-only subcomponent accessors.

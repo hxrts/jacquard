@@ -7,7 +7,9 @@ use jacquard_core::{
     RoutingFamilyCapabilities, RoutingObjective, RoutingPolicyInputs, SubstrateCandidate,
     SubstrateLease, SubstrateRequirements,
 };
+use jacquard_macros::purity;
 
+#[purity(pure)]
 /// Owns the protection-versus-connectivity decision. In a mesh-only deployment,
 /// this may return a fixed profile. Richer policy comes from the embedding host.
 ///
@@ -20,6 +22,7 @@ pub trait RoutingController {
     ) -> AdaptiveRoutingProfile;
 }
 
+#[purity(pure)]
 /// Optional deterministic boundary for family-local committee selection.
 ///
 /// This trait makes the result shape abstract without forcing Jacquard core to
@@ -35,6 +38,7 @@ pub trait CommitteeSelector {
     ) -> Result<CommitteeSelection, RouteError>;
 }
 
+#[purity(pure)]
 /// Optional deterministic boundary for families that can advertise lower-layer
 /// carriage to other families or to a host-level layering daemon.
 pub trait SubstratePlanner {
@@ -45,6 +49,7 @@ pub trait SubstratePlanner {
     ) -> Vec<SubstrateCandidate>;
 }
 
+#[purity(effectful)]
 /// Optional effectful boundary for families that can acquire and manage
 /// substrate leases after planning has selected one.
 pub trait SubstrateRuntime {
@@ -63,6 +68,7 @@ pub trait SubstrateRuntime {
     ) -> Result<Observation<RouteHealth>, RouteError>;
 }
 
+#[purity(pure)]
 /// Optional deterministic boundary for families that can plan over an
 /// already-admitted substrate route rather than only over direct local links.
 pub trait LayeredRoutePlanner {
@@ -84,6 +90,7 @@ pub trait LayeredRoutePlanner {
     ) -> Result<RouteAdmission, RouteError>;
 }
 
+#[purity(effectful)]
 /// Optional effectful boundary for layered families once planning has selected
 /// a substrate-backed route candidate.
 pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
@@ -95,6 +102,7 @@ pub trait LayeredRouteFamily: RouteFamily + LayeredRoutePlanner {
     ) -> Result<MaterializedRoute, RouteError>;
 }
 
+#[purity(pure)]
 /// The pure or near-pure planning surface for one route family. Planner methods
 /// should be deterministic with respect to their inputs and must not materialize,
 /// activate, or mutate canonical route state.
@@ -130,6 +138,7 @@ pub trait RoutePlanner {
     ) -> Result<RouteAdmission, RouteError>;
 }
 
+#[purity(effectful)]
 /// The effectful family boundary. Each route family (eg. mesh) implements
 /// this trait. Jacquard core interacts with family runtime state only through this surface.
 ///
@@ -157,6 +166,7 @@ pub trait RouteFamily: RoutePlanner {
     fn teardown(&mut self, route_id: &RouteId);
 }
 
+#[purity(effectful)]
 /// Cross-family orchestration entry point.
 ///
 /// Effectful runtime boundary.
@@ -177,6 +187,7 @@ pub trait Router {
     ) -> Result<MaterializedRoute, RouteError>;
 }
 
+#[purity(effectful)]
 /// Host-owned orchestration boundary for policy-driven composition across
 /// route families. This is where smooth transition and limited layering live.
 pub trait LayerCoordinator {
@@ -189,6 +200,7 @@ pub trait LayerCoordinator {
     ) -> Result<MaterializedRoute, RouteError>;
 }
 
+#[purity(effectful)]
 /// Control plane owns route truth. Data plane owns forwarding over admitted truth.
 ///
 /// Effectful runtime boundary.
@@ -208,6 +220,7 @@ pub trait RoutingControlPlane {
     fn anti_entropy_tick(&mut self) -> Result<(), RouteError>;
 }
 
+#[purity(effectful)]
 /// Forwarding and observational reads over already admitted route state.
 ///
 /// `observe_route_health` is read-only with respect to canonical routing truth.

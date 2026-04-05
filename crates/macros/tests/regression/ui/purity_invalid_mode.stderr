@@ -1,0 +1,5 @@
+error: expected one of: pure, read_only, effectful
+ --> tests/regression/ui/purity_invalid_mode.rs:3:10
+  |
+3 | #[purity(side_effecty)]
+  |          ^^^^^^^^^^^^

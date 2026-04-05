@@ -23,13 +23,14 @@ exempt_files=(
   "crates/macros/src/lib.rs"
   "crates/macros/src/must_use_handle_macro.rs"
   "crates/macros/src/public_model_macro.rs"
+  "crates/macros/src/purity_macro.rs"
   "crates/macros/src/support.rs"
   "crates/traits/src/hashing.rs"
   "crates/traits/src/lib.rs"
   "crates/traits/src/routing.rs"
 )
 
-pattern='#\[(effect_trait|effect_handler|id_type|bounded_value|must_use_handle|public_model)'
+pattern='#\[(effect_trait|effect_handler|id_type|bounded_value|must_use_handle|public_model|purity)'
 
 is_exempt() {
   local file="$1"
