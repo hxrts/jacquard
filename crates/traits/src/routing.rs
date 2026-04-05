@@ -9,6 +9,8 @@ use jacquard_core::{
 
 /// Owns the protection-versus-connectivity decision. In a mesh-only deployment,
 /// this may return a fixed profile. Richer policy comes from the embedding host.
+///
+/// Pure deterministic boundary.
 pub trait RoutingController {
     fn compute_profile(
         &self,
@@ -20,6 +22,8 @@ pub trait RoutingController {
 /// The pure or near-pure planning surface for one route family. Planner methods
 /// should be deterministic with respect to their inputs and must not materialize,
 /// activate, or mutate canonical route state.
+///
+/// Pure deterministic boundary.
 pub trait RoutePlanner {
     fn family_id(&self) -> RouteFamilyId;
 
@@ -52,8 +56,9 @@ pub trait RoutePlanner {
 
 /// The effectful family boundary. Each route family (eg. mesh) implements
 /// this trait. Jacquard core interacts with family runtime state only through this surface.
+///
+/// Effectful runtime boundary.
 pub trait RouteFamily: RoutePlanner {
-
     /// Materialization is the canonical route-realization step. Success must return an
     /// `MaterializedRoute` carrying a strong canonical handle.
     fn materialize_route(
@@ -76,6 +81,9 @@ pub trait RouteFamily: RoutePlanner {
     fn teardown(&mut self, route_id: &RouteId);
 }
 
+/// Cross-family orchestration entry point.
+///
+/// Effectful runtime boundary.
 pub trait Router {
     fn register_family(&mut self, extension: Box<dyn RouteFamily>) -> Result<(), RouteError>;
 
@@ -94,6 +102,8 @@ pub trait Router {
 }
 
 /// Control plane owns route truth. Data plane owns forwarding over admitted truth.
+///
+/// Effectful runtime boundary.
 pub trait RoutingControlPlane {
     fn activate_route(
         &mut self,
@@ -110,13 +120,20 @@ pub trait RoutingControlPlane {
     fn anti_entropy_tick(&mut self) -> Result<(), RouteError>;
 }
 
+/// Forwarding and observational reads over already admitted route state.
+///
+/// `observe_route_health` is read-only with respect to canonical routing truth.
+/// It may inspect data-plane state, but it must not publish canonical route
+/// changes on its own.
+///
+/// Effectful runtime boundary with read-only observation methods.
 pub trait RoutingDataPlane {
     fn forward_payload(&mut self, route_id: &RouteId, payload: &[u8]) -> Result<(), RouteError>;
 
     /// Health reads are observational. They must not silently become canonical
     /// route truth without an explicit control-plane publication step.
     fn observe_route_health(
-        &mut self,
+        &self,
         route_id: &RouteId,
     ) -> Result<Observation<RouteHealth>, RouteError>;
 }

@@ -26,16 +26,25 @@ pub trait Effect: sealed::Sealed + Send + Sync + 'static {}
 impl<T> Effect for T where T: ?Sized + crate::__private::EffectDefinition + Send + Sync + 'static {}
 
 #[effect_trait]
+/// Read-only runtime capability for monotonic logical time.
+///
+/// Effectful runtime boundary.
 pub trait TimeEffects {
     fn now_tick(&self) -> Tick;
 }
 
 #[effect_trait]
+/// Runtime capability for deterministic order-stamp allocation.
+///
+/// Effectful runtime boundary.
 pub trait OrderEffects {
     fn next_order_stamp(&mut self) -> OrderStamp;
 }
 
 #[effect_trait]
+/// Runtime hashing boundary used to keep hashing implementations swappable.
+///
+/// Effectful runtime boundary with deterministic methods.
 pub trait HashEffects {
     fn hash_bytes(&self, input: &[u8]) -> Blake3Digest;
 
@@ -43,6 +52,9 @@ pub trait HashEffects {
 }
 
 #[effect_trait]
+/// Runtime persistence boundary for opaque bytes.
+///
+/// Effectful runtime boundary.
 pub trait StorageEffects {
     fn load_bytes(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
 
@@ -52,11 +64,17 @@ pub trait StorageEffects {
 }
 
 #[effect_trait]
+/// Runtime audit-emission boundary for replay-visible events.
+///
+/// Effectful runtime boundary.
 pub trait AuditEffects {
     fn emit_audit(&mut self, event: RoutingAuditEvent) -> Result<(), AuditError>;
 }
 
 #[effect_trait]
+/// Runtime frame send/poll boundary. This carries bytes and ingress only.
+///
+/// Effectful runtime boundary.
 pub trait TransportEffects {
     fn send_transport(
         &mut self,
@@ -68,6 +86,8 @@ pub trait TransportEffects {
 }
 
 /// Aggregate marker for runtimes that provide the current minimal effect set.
+///
+/// Effectful runtime boundary.
 pub trait RoutingRuntimeEffects:
     TimeEffects + OrderEffects + HashEffects + StorageEffects + AuditEffects + TransportEffects
 {

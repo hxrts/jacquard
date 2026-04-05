@@ -4,6 +4,9 @@ use jacquard_core::{Blake3Digest, ContentEncodingError, ContentId};
 
 use crate::{effect_handler, HashEffects};
 
+/// Pure deterministic hashing interface over one digest type.
+///
+/// Pure deterministic boundary.
 pub trait Hashing {
     type Digest: Clone + Eq;
 
@@ -47,6 +50,8 @@ impl HashEffects for Blake3Hashing {
 }
 
 /// Derive a content id from deterministic canonical serialization.
+///
+/// Pure deterministic boundary.
 pub trait ContentAddressable {
     type Digest: Clone + Eq;
 
@@ -65,6 +70,8 @@ pub trait ContentAddressable {
 }
 
 /// Like ContentAddressable but for template/schema identity rather than instance identity.
+///
+/// Pure deterministic boundary.
 pub trait TemplateAddressable {
     type Digest: Clone + Eq;
 

@@ -4,14 +4,13 @@ use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief, ByteCount,
     ClaimStrength, ConnectivityRegime, DeploymentProfile, Estimate, Fact, FactBasis,
     FailureModelClass, FamilyFallbackPolicy, HoldFallbackPolicy, Limit, MaterializedRoute,
-    MessageFlowAssumptionClass, NodeDensityClass, PublicationId, ReachabilityState,
-    RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteConnectivityProfile, RouteCost,
-    RouteDegradation, RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId,
-    RouteLease, RouteLifecycleEvent, RouteMaterializationProof, RoutePartitionClass,
-    RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteRepairClass,
-    RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness,
-    RoutingAdmissionProfile, RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
-    TransportProtocol,
+    MessageFlowAssumptionClass, NodeDensityClass, PublicationId, ReachabilityState, RouteAdmission,
+    RouteAdmissionCheck, RouteCandidate, RouteConnectivityProfile, RouteCost, RouteDegradation,
+    RouteEpoch, RouteEstimate, RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteLease,
+    RouteLifecycleEvent, RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
+    RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+    RouteServiceKind, RouteSummary, RouteWitness, RoutingAdmissionProfile, RoutingObjective,
+    RuntimeEnvelopeClass, Tick, TimeWindow, TransportProtocol,
 };
 
 fn repairable_connected() -> RouteConnectivityProfile {

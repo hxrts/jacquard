@@ -2,15 +2,13 @@
 
 Jacquard is an adaptive mesh routing system built on choreographic protocols. It uses Telltale for session types, choreography macros, and the effect-based runtime.
 
-Jacquard is fully deterministic. Core designs and implementations must avoid floating-point types, host-dependent ordering, and ambient randomness in routing or protocol state unless an explicit, deterministic abstraction says otherwise.
+Jacquard is fully deterministic. No floating-point types, host-dependent ordering, or ambient randomness in routing or protocol state. Use typed time effects (`Tick`, `DurationMs`, `OrderStamp`, `RouteEpoch`) rather than raw wall-clock APIs or ad hoc `u64` timestamp fields.
 
-Jacquard uses a typed deterministic time model in core code. Use injected time effects plus explicit types such as monotonic ticks, durations, and route epochs rather than raw wall-clock APIs or ad hoc `u64` timestamp fields.
+See [Crate Architecture](docs/106_crate_architecture.md) for the dependency graph, cross-crate invariants, ownership rules, purity model, and extension boundary.
 
-## Development environment
+## Development
 
-The project uses a Nix flake for tooling. Enter the dev shell with `nix develop` or use direnv (`direnv allow`). All commands below assume you are inside the Nix shell.
-
-## Commands
+Enter the dev shell with `nix develop` or direnv (`direnv allow`).
 
 ```
 just check          # cargo check --workspace
@@ -18,25 +16,30 @@ just build          # cargo build --workspace
 just test           # cargo test --workspace
 just lint           # cargo clippy --workspace -- -D warnings
 just fmt            # cargo fmt --all
-just fmt-check      # cargo fmt --all -- --check
-just book           # build mdbook docs (also the default recipe)
-just serve          # live-reload doc server
-just summary        # regenerate docs/SUMMARY.md from doc files
+just book           # build mdbook docs (default recipe)
+just ci-dry-run     # run all CI checks locally
 just install-hooks  # enable .githooks/pre-commit
 ```
 
 Run a single test: `cargo test -p <crate> <test_name>`
 
-## Architecture
+## Crate rules
 
-Rust workspace with crates under `crates/`. Workspace-level `Cargo.toml` declares shared dependency versions. New crates go in `crates/<name>` and must be added to `workspace.members`.
+`core` defines what exists. `traits` defines what components are allowed to do. `core` must not grow behavioral traits. All cross-crate behavioral interfaces belong in `traits`. `core` and `traits` must remain runtime-free.
 
-### Test layout
+## Test layout
 
-Each crate should have a root `tests/` directory for higher-level tests. Organize that directory into subdirectories by test type such as `integration/`, `regression/`, or `property/` as needed.
+Unit tests co-locate with the module they cover. Higher-level tests go in `tests/` subdirectories by type (`integration/`, `regression/`, `property/`).
 
-Unit tests should be co-located with the module they cover. Do not create or reintroduce catch-all files such as `src/tests.rs` for crate-wide test code.
+### Testing focus by crate
 
-### Telltale dependency
+- `jacquard-core`: type invariants, canonical encoding, boundedness, deterministic ordering, content-addressing stability.
+- `jacquard-traits`: compile-only surface checks, trait-object and generic-boundary tests.
+- `jacquard-mesh`: deterministic candidate production, admission/materialization, commitment tracking, forwarding, repair, topology-change, observation handling.
+- `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, fallback legality, anti-entropy, adaptive-profile derivation.
+- `jacquard-transport`: adapter conformance verifying the transport layer does not leak routing semantics.
+- `jacquard-simulator`: scenario execution, replay, checkpoint/resume, regression scenarios across sparse, dense, partitioned, and adversarial settings.
+
+## Telltale dependency
 
 Three Telltale crates are imported as local path dependencies (`../telltale/rust/{types,macros,runtime}`). The workspace `[workspace.dependencies]` table pins them; individual crates re-export via `{ workspace = true }`. The sibling telltale repo must be checked out at `../telltale`.
