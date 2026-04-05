@@ -12,6 +12,7 @@ disallowed-types = [
   { path = "f64", reason = "Jacquard must remain fully deterministic and should not use floating-point types." },
   { path = "std::time::Instant", reason = "Use the typed jacquard time model instead of host wall-clock APIs." },
   { path = "std::time::SystemTime", reason = "Use the typed jacquard time model instead of host wall-clock APIs." },
+  { path = "std::time::Duration", reason = "Use DurationMs instead of std::time::Duration." },
   { path = "sha2::Sha256", reason = "Jacquard uses BLAKE3 for all hashing. Use the jacquard Hashing trait." },
   { path = "sha2::Sha512", reason = "Jacquard uses BLAKE3 for all hashing. Use the jacquard Hashing trait." },
   { path = "sha2::Sha384", reason = "Jacquard uses BLAKE3 for all hashing. Use the jacquard Hashing trait." },

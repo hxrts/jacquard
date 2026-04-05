@@ -13,14 +13,21 @@ license = "Apache-2.0"
 authors = ["Sam Hart"]
 
 [workspace.lints.rust]
+unreachable_pub = "warn"
 unused_must_use = "deny"
 
 [workspace.lints.clippy]
+as_conversions = "warn"
+cast_possible_truncation = "deny"
+cast_sign_loss = "deny"
 dbg_macro = "deny"
 disallowed_methods = "deny"
 disallowed_types = "deny"
+float_arithmetic = "deny"
+needless_pass_by_value = "warn"
 todo = "deny"
 unimplemented = "deny"
+wildcard_imports = "warn"
 
 [workspace.dependencies]
 # local

@@ -146,6 +146,9 @@ ci-dry-run:
     add_step "Tests"              "cargo test --workspace"
     add_step "Docs Link Check"    "./scripts/check/docs-link-check.sh"
     add_step "Proc Macro Scope"   "./scripts/check/proc-macro-scope.sh"
+    add_step "Trait Purity"       "./scripts/check/trait-purity.sh"
+    add_step "Crate Boundary"     "./scripts/check/crate-boundary.sh"
+    add_step "No usize in Models" "./scripts/check/no-usize-in-models.sh"
     add_step "Docs Build"         "just book"
 
     total=${#STEPS[@]}
