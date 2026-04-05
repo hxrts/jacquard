@@ -32,12 +32,23 @@ The routing decision path starts from `RoutingObjective` and `Observation<Config
 
 ```rust
 pub trait RoutingEnginePlanner {
+    fn engine_id(&self) -> RoutingEngineId;
+
+    fn capabilities(&self) -> RoutingEngineCapabilities;
+
     fn candidate_routes(
         &self,
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate>;
+
+    fn check_candidate(
+        &self,
+        objective: &RoutingObjective,
+        profile: &AdaptiveRoutingProfile,
+        candidate: &RouteCandidate,
+    ) -> Result<RouteAdmissionCheck, RouteError>;
 
     fn admit_route(
         &self,
@@ -48,11 +59,13 @@ pub trait RoutingEnginePlanner {
 }
 
 pub trait CommitteeSelector {
+    type TopologyView;
+
     fn select_committee(
         &self,
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
-        topology: &Observation<Configuration>,
+        topology: &Observation<Self::TopologyView>,
     ) -> Result<CommitteeSelection, RouteError>;
 }
 
@@ -69,6 +82,13 @@ pub trait SubstrateRuntime {
         &mut self,
         candidate: SubstrateCandidate,
     ) -> Result<SubstrateLease, RouteError>;
+
+    fn release_substrate(&mut self, lease: &SubstrateLease) -> Result<(), RouteError>;
+
+    fn observe_substrate_health(
+        &self,
+        lease: &SubstrateLease,
+    ) -> Result<Observation<RouteHealth>, RouteError>;
 }
 
 pub trait LayeredRoutingEnginePlanner {
@@ -95,6 +115,17 @@ pub trait RoutingEngine: RoutingEnginePlanner {
         &mut self,
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError>;
+
+    fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
+
+    fn maintain_route(
+        &mut self,
+        identity: &MaterializedRouteIdentity,
+        runtime: &mut RouteRuntimeState,
+        trigger: RouteMaintenanceTrigger,
+    ) -> Result<RouteMaintenanceResult, RouteError>;
+
+    fn teardown(&mut self, route_id: &RouteId);
 }
 ```
 
@@ -108,7 +139,7 @@ This split shows the main route-building sequence. The important point is that r
 
 `RoutingEnginePlanner` is the deterministic planning boundary. `RoutingEngine` is the effectful runtime boundary on top of it. A planner produces candidates, checks admission, and admits a route. The router allocates canonical route identity and assembles the final materialized-route record. The routing-engine runtime realizes the route under the router-owned handle and lease, publishes commitments, and handles maintenance. The top-level router stays routing-engine-neutral: it compares candidates, enforces fallback rules, tracks materialized routes, and coordinates maintenance.
 
-See [Extensibility](107_extensibility.md) for the full extension surface, including routing engines, transports, effects, hashing, content addressing, and simulation.
+See [Extensibility](107_extensibility.md) for the full extension surface, including world extensions, routing engines, mesh subcomponents, and runtime effects.
 
 ## Runtime Boundary
 
