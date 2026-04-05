@@ -80,8 +80,9 @@ if ! rustc --version | rg -q nightly; then
 fi
 
 if command -v cargo-dylint >/dev/null 2>&1; then
-  echo "trait-purity: running cargo dylint with local trait-purity library"
+  echo "trait-purity: running cargo dylint with local Jacquard lint libraries"
   cargo dylint --path lints/trait_purity --all -- --all-targets
+  cargo dylint --path lints/model_policy --all -- --all-targets
 else
   echo "trait-purity: cargo-dylint not installed; skipping Dylint run"
   echo "trait-purity: in the nightly shell, run 'install-dylint' once to enable the lint pass"

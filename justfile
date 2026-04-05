@@ -180,6 +180,10 @@ ci-preflight:
 docs-link-check:
     ./scripts/check/docs-link-check.sh
 
+# enter nightly shell for dylint and rustc_private lints (run install-dylint once inside)
+nightly-shell:
+    nix develop ./nix/nightly
+
 # install git hooks
 install-hooks:
     git config core.hooksPath .githooks

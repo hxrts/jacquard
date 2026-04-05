@@ -27,6 +27,8 @@ Run a single test: `cargo test -p <crate> <test_name>`
 
 `core` defines what exists. `traits` defines what components are allowed to do. `core` must not grow behavioral traits. All cross-crate behavioral interfaces belong in `traits`. `core` and `traits` must remain runtime-free.
 
+`macros` owns syntax-local code generation and annotation-site validation. `lints/` owns workspace policy checks that span files, naming conventions, or annotation presence. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint.
+
 ## Test layout
 
 Unit tests co-locate with the module they cover. Higher-level tests go in `tests/` subdirectories by type (`integration/`, `regression/`, `property/`).

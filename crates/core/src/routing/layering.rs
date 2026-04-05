@@ -1,6 +1,6 @@
 //! Shared layering and substrate objects for composing route families.
 
-use jacquard_macros::public_model;
+use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -40,6 +40,7 @@ pub struct SubstrateCandidate {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Strong substrate lease acquired from one family for use by another layer.
+#[must_use_handle]
 pub struct SubstrateLease {
     pub capabilities: SubstrateCapabilities,
     pub handle: RouteHandle,

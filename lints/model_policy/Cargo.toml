@@ -1,0 +1,22 @@
+# Dylint lint library for Jacquard model and annotation policy.
+
+[package]
+name = "jacquard-model-policy"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Dylint checks for Jacquard shared model annotation policy"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+dylint_linting = "5.0.0"
+
+[features]
+rlib = ["dylint_linting/constituent"]
+
+[package.metadata.rust-analyzer]
+rustc_private = true
+
+[workspace]

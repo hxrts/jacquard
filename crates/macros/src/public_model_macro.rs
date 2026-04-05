@@ -2,11 +2,10 @@
 
 use proc_macro::TokenStream;
 use quote::ToTokens;
-use syn::{Item, LitStr};
+use syn::Item;
 
 use crate::support::{
-    ensure_derive, ensure_must_use, public_model_derives, validate_public_model_enum,
-    validate_public_model_struct,
+    ensure_derive, public_model_derives, validate_public_model_enum, validate_public_model_struct,
 };
 
 pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -28,16 +27,6 @@ pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
             if let Err(error) = ensure_derive(&mut item_struct.attrs, &public_model_derives()) {
                 return error.to_compile_error().into();
-            }
-            if item_struct.ident.to_string().ends_with("Handle") {
-                let message = LitStr::new(
-                    &format!(
-                        "dropping `{}` discards a routing handle without making that choice explicit",
-                        item_struct.ident
-                    ),
-                    item_struct.ident.span(),
-                );
-                ensure_must_use(&mut item_struct.attrs, &message.value());
             }
 
             item_struct.into_token_stream().into()
