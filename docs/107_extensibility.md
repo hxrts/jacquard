@@ -196,7 +196,7 @@ External routing engines should depend on `jacquard-core` and `jacquard-traits`.
 
 ## Policy And Coordination
 
-Policy and coordination traits sit above or beside routing engines. They do not redefine route ownership. They decide how a host computes adaptive policy, how an engine may expose local coordination results, and how engines may be layered without direct engine-to-engine awareness.
+Policy and coordination traits are separate from route realization. They do not change who owns canonical route state. They decide how a host computes adaptive policy, how an engine may expose local coordination results, and how engines may be layered without direct engine-to-engine awareness.
 
 ```rust
 pub trait PolicyEngine {
