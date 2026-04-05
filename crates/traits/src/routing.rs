@@ -3,10 +3,11 @@
 
 use jacquard_core::{
     AdaptiveRoutingProfile, CommitteeSelection, Configuration, LayerParameters, MaterializedRoute,
-    Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError,
-    RouteHealth, RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
-    RouteMaterializationInput, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
-    RoutingPolicyInputs, SubstrateCandidate, SubstrateLease, SubstrateRequirements,
+    MaterializedRouteIdentity, Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate,
+    RouteCommitment, RouteError, RouteHealth, RouteId, RouteInstallation, RouteMaintenanceResult,
+    RouteMaintenanceTrigger, RouteMaterializationInput, RouteRuntimeState,
+    RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, RoutingPolicyInputs,
+    SubstrateCandidate, SubstrateLease, SubstrateRequirements,
 };
 use jacquard_macros::purity;
 
@@ -44,6 +45,10 @@ pub trait CommitteeSelector {
 /// Optional deterministic boundary for routing engines that can advertise
 /// lower-layer carriage to other routing engines or to a host-level policy
 /// engine.
+///
+/// This is a forward-looking contract surface. Jacquard commits to the shared
+/// shape of substrate planning, but there is no in-tree production engine using
+/// it yet beyond contract tests.
 pub trait SubstratePlanner {
     #[must_use]
     fn candidate_substrates(
@@ -56,6 +61,9 @@ pub trait SubstratePlanner {
 #[purity(effectful)]
 /// Optional effectful boundary for families that can acquire and manage
 /// substrate leases after planning has selected one.
+///
+/// This is a forward-looking contract surface. It exists so host-owned
+/// composition can stabilize before every in-tree engine uses it in production.
 pub trait SubstrateRuntime {
     fn acquire_substrate(
         &mut self,
@@ -75,6 +83,9 @@ pub trait SubstrateRuntime {
 #[purity(pure)]
 /// Optional deterministic boundary for routing engines that can plan over an
 /// already-admitted substrate route rather than only over direct local links.
+///
+/// This is a forward-looking contract surface. The planner/runtime split is
+/// intentional, but the semantics remain lightly exercised today.
 pub trait LayeredRoutingEnginePlanner {
     #[must_use]
     fn candidate_routes_on_substrate(
@@ -98,6 +109,9 @@ pub trait LayeredRoutingEnginePlanner {
 #[purity(effectful)]
 /// Optional effectful boundary for layered routing engines once planning has selected
 /// a substrate-backed route candidate.
+///
+/// This is a forward-looking contract surface. Contract tests cover the shape,
+/// not a mature in-tree layering implementation.
 pub trait LayeredRoutingEngine: RoutingEngine + LayeredRoutingEnginePlanner {
     fn materialize_route_on_substrate(
         &mut self,
@@ -167,11 +181,16 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     /// expressible as an explicit route commitment.
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
-    /// Maintenance returns a typed semantic result so replacement, handoff, and
-    /// failure paths keep their payload rather than collapsing to a flag.
+    /// Maintenance receives immutable router-owned route identity plus mutable
+    /// engine-owned runtime state. Engines must not mutate canonical handle,
+    /// lease, or admission through this surface.
+    ///
+    /// Maintenance returns a typed semantic result so replacement, handoff,
+    /// and failure paths keep their payload rather than collapsing to a flag.
     fn maintain_route(
         &mut self,
-        route: &mut MaterializedRoute,
+        identity: &MaterializedRouteIdentity,
+        runtime: &mut RouteRuntimeState,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError>;
 
@@ -202,6 +221,10 @@ pub trait Router {
 #[purity(effectful)]
 /// Host-owned orchestration boundary for policy-driven composition across
 /// routing engines. This is where smooth transition and limited layering live.
+///
+/// This is a forward-looking contract surface. Jacquard exposes it so hosts can
+/// build gradual migration and limited layering without engine cross-awareness,
+/// but current in-tree coverage is still contract-oriented.
 pub trait LayeringPolicyEngine {
     fn activate_layered_route(
         &mut self,

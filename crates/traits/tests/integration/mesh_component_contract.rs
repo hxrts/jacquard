@@ -4,14 +4,15 @@ use jacquard_traits::{
     jacquard_core::{
         Belief, Blake3Digest, ByteCount, Configuration, ContentId, ControllerId, DurationMs,
         Environment, Fact, InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState, LinkState,
-        Node, NodeId, NodeProfile, NodeRelayBudget, NodeState, PublicationId, RatioPermille,
-        RetentionError, RouteAdmission, RouteAdmissionCheck, RouteBinding, RouteCommitment,
-        RouteCommitmentId, RouteCommitmentResolution, RouteConnectivityProfile, RouteCost,
-        RouteEpoch, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
-        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
-        RouteMaterializationInput, RouteMaterializationProof, RouteProtectionClass, RouteSummary,
-        RouteWitness, RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor,
-        TransportError, TransportObservation, TransportProtocol,
+        MaterializedRouteIdentity, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
+        PublicationId, RatioPermille, RetentionError, RouteAdmission, RouteAdmissionCheck,
+        RouteBinding, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
+        RouteConnectivityProfile, RouteCost, RouteEpoch, RouteHealth, RouteId, RouteInstallation,
+        RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
+        RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
+        RouteProtectionClass, RouteRuntimeState, RouteSummary, RouteWitness,
+        RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor, TransportError,
+        TransportObservation, TransportProtocol,
     },
     EffectHandler, MeshRoutingEngine, MeshTopologyModel, MeshTransport, RetentionStore,
     RoutingEngine, RoutingEnginePlanner, TransportEffects,
@@ -199,7 +200,7 @@ impl RoutingEnginePlanner for StubMeshFamily {
     ) -> Result<RouteAdmissionCheck, jacquard_traits::jacquard_core::RouteError> {
         Ok(RouteAdmissionCheck {
             decision: jacquard_traits::jacquard_core::AdmissionDecision::Admissible,
-            profile: jacquard_traits::jacquard_core::RoutingAdmissionProfile {
+            profile: jacquard_traits::jacquard_core::AdmissionAssumptions {
                 message_flow_assumption:
                     jacquard_traits::jacquard_core::MessageFlowAssumptionClass::BestEffort,
                 failure_model: jacquard_traits::jacquard_core::FailureModelClass::Benign,
@@ -240,10 +241,10 @@ impl RoutingEngine for StubMeshFamily {
         let route = sample_materialized_route(input);
         self.route = Some(route.clone());
         Ok(RouteInstallation {
-            materialization_proof: route.materialization_proof,
-            last_lifecycle_event: route.last_lifecycle_event,
-            health: route.health,
-            progress: route.progress,
+            materialization_proof: route.identity.materialization_proof,
+            last_lifecycle_event: route.runtime.last_lifecycle_event,
+            health: route.runtime.health,
+            progress: route.runtime.progress,
         })
     }
 
@@ -270,10 +271,11 @@ impl RoutingEngine for StubMeshFamily {
 
     fn maintain_route(
         &mut self,
-        route: &mut jacquard_traits::jacquard_core::MaterializedRoute,
+        _identity: &MaterializedRouteIdentity,
+        runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError> {
-        route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
+        runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         Ok(RouteMaintenanceResult {
             event: RouteLifecycleEvent::Repaired,
             outcome: RouteMaintenanceOutcome::Repaired,
@@ -410,7 +412,7 @@ fn sample_route_admission(
         profile,
         admission_check: RouteAdmissionCheck {
             decision: jacquard_traits::jacquard_core::AdmissionDecision::Admissible,
-            profile: jacquard_traits::jacquard_core::RoutingAdmissionProfile {
+            profile: jacquard_traits::jacquard_core::AdmissionAssumptions {
                 message_flow_assumption:
                     jacquard_traits::jacquard_core::MessageFlowAssumptionClass::BestEffort,
                 failure_model: jacquard_traits::jacquard_core::FailureModelClass::Benign,
@@ -440,10 +442,11 @@ fn sample_route_admission(
             },
             protocol_mix: vec![TransportProtocol::BleGatt],
             hop_count_hint: Belief::Absent,
-            valid_for: jacquard_traits::jacquard_core::TimeWindow {
-                start_tick: jacquard_traits::jacquard_core::Tick(1),
-                end_tick: jacquard_traits::jacquard_core::Tick(2),
-            },
+            valid_for: jacquard_traits::jacquard_core::TimeWindow::new(
+                jacquard_traits::jacquard_core::Tick(1),
+                jacquard_traits::jacquard_core::Tick(2),
+            )
+            .expect("valid route summary window"),
         },
         witness: RouteWitness {
             objective_protection: RouteProtectionClass::LinkProtected,
@@ -456,7 +459,7 @@ fn sample_route_admission(
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
                 partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
-            admission_profile: jacquard_traits::jacquard_core::RoutingAdmissionProfile {
+            admission_profile: jacquard_traits::jacquard_core::AdmissionAssumptions {
                 message_flow_assumption:
                     jacquard_traits::jacquard_core::MessageFlowAssumptionClass::BestEffort,
                 failure_model: jacquard_traits::jacquard_core::FailureModelClass::Benign,

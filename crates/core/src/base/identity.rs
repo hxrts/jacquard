@@ -7,26 +7,24 @@ use serde::{Deserialize, Serialize};
 
 use crate::RouteEpoch;
 
-use super::bytes_newtype;
-
 // NodeId identifies a running Jacquard participant instance.
 // ControllerId identifies the cryptographic actor behind one or more nodes.
-bytes_newtype!(NodeId, 32);
-bytes_newtype!(ControllerId, 32);
-bytes_newtype!(KeyId, 32);
-bytes_newtype!(BleProfileId, 16);
-bytes_newtype!(NeighborhoodId, 16);
-bytes_newtype!(HomeId, 16);
-bytes_newtype!(ClusterId, 16);
-bytes_newtype!(GatewayId, 16);
-bytes_newtype!(RouteId, 16);
-bytes_newtype!(RoutingEngineContractId, 16);
-bytes_newtype!(RouteOperationId, 16);
-bytes_newtype!(RouteCommitmentId, 16);
-bytes_newtype!(CommitteeId, 16);
-bytes_newtype!(PathId, 16);
-bytes_newtype!(PublicationId, 16);
-bytes_newtype!(ReceiptId, 16);
+super::bytes_newtype!(NodeId, 32);
+super::bytes_newtype!(ControllerId, 32);
+super::bytes_newtype!(KeyId, 32);
+super::bytes_newtype!(BleProfileId, 16);
+super::bytes_newtype!(NeighborhoodId, 16);
+super::bytes_newtype!(HomeId, 16);
+super::bytes_newtype!(ClusterId, 16);
+super::bytes_newtype!(GatewayId, 16);
+super::bytes_newtype!(RouteId, 16);
+super::bytes_newtype!(RoutingEngineContractId, 16);
+super::bytes_newtype!(RouteOperationId, 16);
+super::bytes_newtype!(RouteCommitmentId, 16);
+super::bytes_newtype!(CommitteeId, 16);
+super::bytes_newtype!(PathId, 16);
+super::bytes_newtype!(PublicationId, 16);
+super::bytes_newtype!(ReceiptId, 16);
 
 /// Opaque application-defined service identifier. Format is host-specific.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

@@ -70,9 +70,9 @@ pub enum RouteShapeVisibility {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Premise profile: message-flow, failure, and runtime assumptions under which
+/// Assumption envelope: message-flow, failure, and runtime assumptions under which
 /// the admission claim holds. Routing engines declare these, the router compares them.
-pub struct RoutingAdmissionProfile {
+pub struct AdmissionAssumptions {
     pub message_flow_assumption: MessageFlowAssumptionClass,
     pub failure_model: FailureModelClass,
     pub runtime_envelope: RuntimeEnvelopeClass,
@@ -163,7 +163,7 @@ pub struct RouteCandidate {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteAdmissionCheck {
     pub decision: AdmissionDecision,
-    pub profile: RoutingAdmissionProfile,
+    pub profile: AdmissionAssumptions,
     pub productive_step_bound: Limit<u32>,
     pub total_step_bound: Limit<u32>,
     pub route_cost: RouteCost,
@@ -217,7 +217,7 @@ pub struct RouteWitness {
     pub delivered_protection: RouteProtectionClass,
     pub objective_connectivity: RouteConnectivityProfile,
     pub delivered_connectivity: RouteConnectivityProfile,
-    pub admission_profile: RoutingAdmissionProfile,
+    pub admission_profile: AdmissionAssumptions,
     pub topology_epoch: RouteEpoch,
     pub degradation: RouteDegradation,
 }

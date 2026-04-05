@@ -189,10 +189,7 @@ fn sample_service_observation() -> WorldObservation {
             scope: ServiceScope::Introduction {
                 scope_token: vec![9],
             },
-            valid_for: TimeWindow {
-                start_tick: Tick(2),
-                end_tick: Tick(20),
-            },
+            valid_for: TimeWindow::new(Tick(2), Tick(20)).expect("valid service window"),
             capacity: Belief::Estimated(jacquard_traits::jacquard_core::Estimate {
                 value: jacquard_traits::jacquard_core::CapacityHint {
                     saturation_permille: RatioPermille(100),

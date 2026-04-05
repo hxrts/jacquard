@@ -4,23 +4,23 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief,
-        ByteCount, ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
-        Configuration, ConnectivityRegime, DeploymentProfile, Environment, Estimate, Fact,
-        FactBasis, FailureModelClass, IdentityAssuranceClass, LayerParameter, LayerParameters,
-        Limit, MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass, Observation,
-        PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding,
-        RouteCandidate, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
-        RouteConnectivityProfile, RouteCost, RouteDegradation, RouteEpoch, RouteEstimate,
-        RouteHandle, RouteHealth, RouteId, RouteInstallation, RouteLease, RouteLifecycleEvent,
-        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
-        RouteMaterializationInput, RouteMaterializationProof, RoutePartitionClass,
-        RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteRepairClass,
-        RouteReplacementPolicy, RouteServiceKind, RouteSummary, RouteWitness,
-        RoutingAdmissionProfile, RoutingEngineCapabilities, RoutingEngineFallbackPolicy,
-        RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RuntimeEnvelopeClass,
-        SubstrateCandidate, SubstrateCapabilities, SubstrateLease, SubstrateRequirements, Tick,
-        TimeWindow, TransportProtocol,
+        AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision, AdversaryRegime,
+        BackendRouteRef, Belief, ByteCount, ClaimStrength, CommitteeId, CommitteeMember,
+        CommitteeRole, CommitteeSelection, Configuration, ConnectivityRegime, DeploymentProfile,
+        Environment, Estimate, Fact, FactBasis, FailureModelClass, IdentityAssuranceClass,
+        LayerParameter, LayerParameters, Limit, MaterializedRoute, MaterializedRouteIdentity,
+        MessageFlowAssumptionClass, NodeDensityClass, Observation, PublicationId,
+        ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding, RouteCandidate,
+        RouteCommitment, RouteCommitmentId, RouteCommitmentResolution, RouteConnectivityProfile,
+        RouteCost, RouteDegradation, RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId,
+        RouteInstallation, RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+        RouteMaterializationProof, RoutePartitionClass, RouteProgressContract, RouteProgressState,
+        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteRuntimeState,
+        RouteServiceKind, RouteSummary, RouteWitness, RoutingEngineCapabilities,
+        RoutingEngineFallbackPolicy, RoutingEngineId, RoutingEvidenceClass, RoutingObjective,
+        RuntimeEnvelopeClass, SubstrateCandidate, SubstrateCapabilities, SubstrateLease,
+        SubstrateRequirements, Tick, TimeWindow, TransportProtocol,
     },
     CommitteeSelector, LayeredRoutingEngine, LayeredRoutingEnginePlanner, LayeringPolicyEngine,
     RoutingEngine, RoutingEnginePlanner, SubstratePlanner, SubstrateRuntime,
@@ -59,10 +59,7 @@ impl CommitteeSelector for StubCommitteeSelector {
             committee_id: CommitteeId([5; 16]),
             topology_epoch: RouteEpoch(1),
             selected_at_tick: Tick(1),
-            valid_for: TimeWindow {
-                start_tick: Tick(1),
-                end_tick: Tick(10),
-            },
+            valid_for: TimeWindow::new(Tick(1), Tick(10)).expect("valid committee window"),
             evidence_basis: FactBasis::Observed,
             claim_strength: ClaimStrength::ConservativeUnderProfile,
             identity_assurance: IdentityAssuranceClass::ControllerBound,
@@ -117,13 +114,13 @@ impl RoutingEnginePlanner for StubFamily {
         _topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
         vec![RouteCandidate {
-            summary: self.route.admission.summary.clone(),
+            summary: self.route.identity.admission.summary.clone(),
             estimate: Estimate {
                 value: RouteEstimate {
-                    estimated_protection: self.route.admission.summary.protection,
-                    estimated_connectivity: self.route.admission.summary.connectivity,
-                    topology_epoch: self.route.admission.witness.topology_epoch,
-                    degradation: self.route.admission.witness.degradation,
+                    estimated_protection: self.route.identity.admission.summary.protection,
+                    estimated_connectivity: self.route.identity.admission.summary.connectivity,
+                    topology_epoch: self.route.identity.admission.witness.topology_epoch,
+                    degradation: self.route.identity.admission.witness.degradation,
                 },
                 confidence_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
                 updated_at_tick: Tick(1),
@@ -141,7 +138,7 @@ impl RoutingEnginePlanner for StubFamily {
         _profile: &AdaptiveRoutingProfile,
         _candidate: &RouteCandidate,
     ) -> Result<RouteAdmissionCheck, jacquard_traits::jacquard_core::RouteError> {
-        Ok(self.route.admission.admission_check.clone())
+        Ok(self.route.identity.admission.admission_check.clone())
     }
 
     fn admit_route(
@@ -150,7 +147,7 @@ impl RoutingEnginePlanner for StubFamily {
         _profile: &AdaptiveRoutingProfile,
         _candidate: RouteCandidate,
     ) -> Result<RouteAdmission, jacquard_traits::jacquard_core::RouteError> {
-        Ok(self.route.admission.clone())
+        Ok(self.route.identity.admission.clone())
     }
 }
 
@@ -159,14 +156,14 @@ impl RoutingEngine for StubFamily {
         &mut self,
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, jacquard_traits::jacquard_core::RouteError> {
-        assert_eq!(input.handle, self.route.handle);
-        assert_eq!(input.lease, self.route.lease);
-        assert_eq!(input.admission, self.route.admission);
+        assert_eq!(input.handle, self.route.identity.handle);
+        assert_eq!(input.lease, self.route.identity.lease);
+        assert_eq!(input.admission, self.route.identity.admission);
         Ok(RouteInstallation {
-            materialization_proof: self.route.materialization_proof.clone(),
-            last_lifecycle_event: self.route.last_lifecycle_event,
-            health: self.route.health.clone(),
-            progress: self.route.progress.clone(),
+            materialization_proof: self.route.identity.materialization_proof.clone(),
+            last_lifecycle_event: self.route.runtime.last_lifecycle_event,
+            health: self.route.runtime.health.clone(),
+            progress: self.route.runtime.progress.clone(),
         })
     }
 
@@ -174,8 +171,8 @@ impl RoutingEngine for StubFamily {
         vec![RouteCommitment {
             commitment_id: RouteCommitmentId([8; 16]),
             operation_id: jacquard_traits::jacquard_core::RouteOperationId([6; 16]),
-            route_binding: RouteBinding::Bound(route.admission.route_id),
-            owner_node_id: route.lease.owner_node_id,
+            route_binding: RouteBinding::Bound(route.identity.admission.route_id),
+            owner_node_id: route.identity.lease.owner_node_id,
             deadline_tick: Tick(10),
             retry_policy: jacquard_traits::jacquard_core::TimeoutPolicy {
                 attempt_count_max: 1,
@@ -190,17 +187,18 @@ impl RoutingEngine for StubFamily {
 
     fn maintain_route(
         &mut self,
-        route: &mut MaterializedRoute,
+        _identity: &MaterializedRouteIdentity,
+        runtime: &mut RouteRuntimeState,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError> {
-        route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
+        runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         let result = match trigger {
             RouteMaintenanceTrigger::LinkDegraded => RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Repaired,
                 outcome: RouteMaintenanceOutcome::Repaired,
             },
             _ => RouteMaintenanceResult {
-                event: route.last_lifecycle_event,
+                event: runtime.last_lifecycle_event,
                 outcome: RouteMaintenanceOutcome::Continued,
             },
         };
@@ -208,7 +206,7 @@ impl RoutingEngine for StubFamily {
     }
 
     fn teardown(&mut self, route_id: &RouteId) {
-        assert_eq!(*route_id, self.route.admission.route_id);
+        assert_eq!(*route_id, self.route.identity.admission.route_id);
     }
 }
 
@@ -221,13 +219,13 @@ impl LayeredRoutingEnginePlanner for StubFamily {
         _parameters: &LayerParameters,
     ) -> Vec<RouteCandidate> {
         vec![RouteCandidate {
-            summary: self.route.admission.summary.clone(),
+            summary: self.route.identity.admission.summary.clone(),
             estimate: Estimate {
                 value: RouteEstimate {
-                    estimated_protection: self.route.admission.summary.protection,
-                    estimated_connectivity: self.route.admission.summary.connectivity,
-                    topology_epoch: self.route.admission.witness.topology_epoch,
-                    degradation: self.route.admission.witness.degradation,
+                    estimated_protection: self.route.identity.admission.summary.protection,
+                    estimated_connectivity: self.route.identity.admission.summary.connectivity,
+                    topology_epoch: self.route.identity.admission.witness.topology_epoch,
+                    degradation: self.route.identity.admission.witness.degradation,
                 },
                 confidence_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
                 updated_at_tick: Tick(1),
@@ -247,7 +245,7 @@ impl LayeredRoutingEnginePlanner for StubFamily {
         _parameters: &LayerParameters,
         _candidate: RouteCandidate,
     ) -> Result<RouteAdmission, jacquard_traits::jacquard_core::RouteError> {
-        Ok(self.route.admission.clone())
+        Ok(self.route.identity.admission.clone())
     }
 }
 
@@ -258,12 +256,12 @@ impl LayeredRoutingEngine for StubFamily {
         _substrate: SubstrateLease,
         _parameters: LayerParameters,
     ) -> Result<RouteInstallation, jacquard_traits::jacquard_core::RouteError> {
-        assert_eq!(input.handle, self.route.handle);
+        assert_eq!(input.handle, self.route.identity.handle);
         Ok(RouteInstallation {
-            materialization_proof: self.route.materialization_proof.clone(),
-            last_lifecycle_event: self.route.last_lifecycle_event,
-            health: self.route.health.clone(),
-            progress: self.route.progress.clone(),
+            materialization_proof: self.route.identity.materialization_proof.clone(),
+            last_lifecycle_event: self.route.runtime.last_lifecycle_event,
+            health: self.route.runtime.health.clone(),
+            progress: self.route.runtime.progress.clone(),
         })
     }
 }
@@ -281,7 +279,7 @@ impl SubstratePlanner for StubSubstrateProvider {
                 connectivity: repairable_connected(),
                 mtu_bytes: ByteCount(1200),
             },
-            expected_health: Some(self.route.health.clone()),
+            expected_health: Some(self.route.runtime.health.clone()),
         }]
     }
 }
@@ -293,8 +291,8 @@ impl SubstrateRuntime for StubSubstrateProvider {
     ) -> Result<SubstrateLease, jacquard_traits::jacquard_core::RouteError> {
         Ok(SubstrateLease {
             capabilities: candidate.capabilities,
-            handle: self.route.handle.clone(),
-            lease: self.route.lease.clone(),
+            handle: self.route.identity.handle.clone(),
+            lease: self.route.identity.lease.clone(),
         })
     }
 
@@ -302,7 +300,7 @@ impl SubstrateRuntime for StubSubstrateProvider {
         &mut self,
         lease: &SubstrateLease,
     ) -> Result<(), jacquard_traits::jacquard_core::RouteError> {
-        assert_eq!(lease.handle.route_id, self.route.handle.route_id);
+        assert_eq!(lease.handle.route_id, self.route.identity.handle.route_id);
         Ok(())
     }
 
@@ -311,7 +309,7 @@ impl SubstrateRuntime for StubSubstrateProvider {
         _lease: &SubstrateLease,
     ) -> Result<Observation<RouteHealth>, jacquard_traits::jacquard_core::RouteError> {
         Ok(Observation {
-            value: self.route.health.clone(),
+            value: self.route.runtime.health.clone(),
             source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
             evidence_class: RoutingEvidenceClass::DirectObservation,
             origin_authentication:
@@ -360,8 +358,8 @@ fn sample_profile() -> AdaptiveRoutingProfile {
     }
 }
 
-fn sample_admission_profile() -> RoutingAdmissionProfile {
-    RoutingAdmissionProfile {
+fn sample_admission_assumptions() -> AdmissionAssumptions {
+    AdmissionAssumptions {
         message_flow_assumption: MessageFlowAssumptionClass::PerRouteSequenced,
         failure_model: FailureModelClass::CrashStop,
         runtime_envelope: RuntimeEnvelopeClass::Canonical,
@@ -386,7 +384,7 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
             profile,
             admission_check: RouteAdmissionCheck {
                 decision: AdmissionDecision::Admissible,
-                profile: sample_admission_profile(),
+                profile: sample_admission_assumptions(),
                 productive_step_bound: Limit::Bounded(2),
                 total_step_bound: Limit::Bounded(4),
                 route_cost: RouteCost {
@@ -408,17 +406,14 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
                     confidence_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
                     updated_at_tick: Tick(1),
                 }),
-                valid_for: TimeWindow {
-                    start_tick: Tick(1),
-                    end_tick: Tick(50),
-                },
+                valid_for: TimeWindow::new(Tick(1), Tick(50)).expect("valid route summary window"),
             },
             witness: RouteWitness {
                 objective_protection: RouteProtectionClass::LinkProtected,
                 delivered_protection: RouteProtectionClass::LinkProtected,
                 objective_connectivity: repairable_connected(),
                 delivered_connectivity: repairable_connected(),
-                admission_profile: sample_admission_profile(),
+                admission_profile: sample_admission_assumptions(),
                 topology_epoch: RouteEpoch(1),
                 degradation: RouteDegradation::None,
             },
@@ -426,10 +421,7 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
         lease: RouteLease {
             owner_node_id: jacquard_traits::jacquard_core::NodeId([9; 32]),
             lease_epoch: RouteEpoch(1),
-            valid_for: TimeWindow {
-                start_tick: Tick(1),
-                end_tick: Tick(50),
-            },
+            valid_for: TimeWindow::new(Tick(1), Tick(50)).expect("valid route lease window"),
         },
     };
     let installation = RouteInstallation {
@@ -444,7 +436,7 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
                     delivered_protection: RouteProtectionClass::LinkProtected,
                     objective_connectivity: repairable_connected(),
                     delivered_connectivity: repairable_connected(),
-                    admission_profile: sample_admission_profile(),
+                    admission_profile: sample_admission_assumptions(),
                     topology_epoch: RouteEpoch(1),
                     degradation: RouteDegradation::None,
                 },
@@ -471,9 +463,9 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
 
 fn materialization_input(route: &MaterializedRoute) -> RouteMaterializationInput {
     RouteMaterializationInput {
-        handle: route.handle.clone(),
-        admission: route.admission.clone(),
-        lease: route.lease.clone(),
+        handle: route.identity.handle.clone(),
+        admission: route.identity.admission.clone(),
+        lease: route.identity.lease.clone(),
     }
 }
 
@@ -524,7 +516,7 @@ fn routing_engine_contract_can_drive_candidate_to_materialized_route() {
     let admission = family
         .admit_route(&objective, &profile, candidate)
         .expect("admission");
-    assert_eq!(admission, route.admission);
+    assert_eq!(admission, route.identity.admission);
     let installation = family
         .materialize_route(materialization_input(&route))
         .expect("materialize");
@@ -532,9 +524,13 @@ fn routing_engine_contract_can_drive_candidate_to_materialized_route() {
         MaterializedRoute::from_installation(materialization_input(&route), installation);
     let commitments = family.route_commitments(&installed);
     let maintenance = family
-        .maintain_route(&mut installed, RouteMaintenanceTrigger::LinkDegraded)
+        .maintain_route(
+            &installed.identity,
+            &mut installed.runtime,
+            RouteMaintenanceTrigger::LinkDegraded,
+        )
         .expect("maintenance");
-    family.teardown(&installed.admission.route_id);
+    family.teardown(&installed.identity.admission.route_id);
 
     assert_eq!(check.decision, AdmissionDecision::Admissible);
     assert_eq!(
@@ -548,15 +544,20 @@ fn routing_engine_contract_can_drive_candidate_to_materialized_route() {
     assert_eq!(commitments[0].commitment_id, RouteCommitmentId([8; 16]));
     assert_eq!(
         commitments[0].route_binding,
-        RouteBinding::Bound(installed.admission.route_id),
+        RouteBinding::Bound(installed.identity.admission.route_id),
     );
-    assert_eq!(installed.handle.route_id, RouteId([3; 16]));
+    assert_eq!(installed.identity.handle.route_id, RouteId([3; 16]));
     assert_eq!(
-        installed.materialization_proof.witness.value.topology_epoch,
+        installed
+            .identity
+            .materialization_proof
+            .witness
+            .value
+            .topology_epoch,
         RouteEpoch(1),
     );
     assert_eq!(
-        installed.last_lifecycle_event,
+        installed.runtime.last_lifecycle_event,
         RouteLifecycleEvent::Repaired
     );
 }
@@ -624,7 +625,7 @@ fn substrate_and_layering_traits_support_policy_driven_composition() {
     let admission = layered_family
         .admit_route_on_substrate(&objective, &profile, &substrate, &parameters, candidate)
         .expect("layered admission");
-    assert_eq!(admission, route.admission);
+    assert_eq!(admission, route.identity.admission);
     let layered_installation = layered_family
         .materialize_route_on_substrate(
             materialization_input(&route),
@@ -659,6 +660,6 @@ fn substrate_and_layering_traits_support_policy_driven_composition() {
         substrate_health.value.reachability_state,
         ReachabilityState::Reachable
     );
-    assert_eq!(layered_route.handle.route_id, RouteId([3; 16]));
-    assert_eq!(coordinated.handle.route_id, RouteId([3; 16]));
+    assert_eq!(layered_route.identity.handle.route_id, RouteId([3; 16]));
+    assert_eq!(coordinated.identity.handle.route_id, RouteId([3; 16]));
 }

@@ -4,9 +4,9 @@ use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ByteCount, Fact, HealthScore, Limit, NodeId, OrderStamp, PenaltyPoints, PriorityPoints,
-    PublicationId, ReceiptId, RouteAdmission, RouteCommitmentId, RouteEpoch, RouteId, RouteWitness,
-    Tick, TimeWindow, TimeoutPolicy,
+    AdmissionDecision, ByteCount, Fact, HealthScore, Limit, NodeId, OrderStamp, PenaltyPoints,
+    PriorityPoints, PublicationId, ReceiptId, RouteAdmission, RouteCommitmentId, RouteEpoch,
+    RouteId, RouteRuntimeError, RouteWitness, Tick, TimeWindow, TimeoutPolicy,
 };
 
 #[public_model]
@@ -50,6 +50,21 @@ pub struct RouteLease {
     pub owner_node_id: NodeId,
     pub lease_epoch: RouteEpoch,
     pub valid_for: TimeWindow,
+}
+
+impl RouteLease {
+    #[must_use]
+    pub fn is_valid_at(&self, tick: Tick) -> bool {
+        self.valid_for.contains(tick)
+    }
+
+    pub fn ensure_valid_at(&self, tick: Tick) -> Result<(), RouteRuntimeError> {
+        if self.is_valid_at(tick) {
+            return Ok(());
+        }
+
+        Err(RouteRuntimeError::LeaseExpired)
+    }
 }
 
 #[must_use_handle]
@@ -217,14 +232,34 @@ pub enum RouteProgressState {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MaterializedRoute {
+/// Router-owned canonical identity and admission record for one live route.
+pub struct MaterializedRouteIdentity {
     pub handle: RouteHandle,
     pub materialization_proof: RouteMaterializationProof,
     pub admission: RouteAdmission,
     pub lease: RouteLease,
+}
+
+impl MaterializedRouteIdentity {
+    pub fn ensure_lease_valid_at(&self, tick: Tick) -> Result<(), RouteRuntimeError> {
+        self.lease.ensure_valid_at(tick)
+    }
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Engine-observed mutable runtime state for one live route.
+pub struct RouteRuntimeState {
     pub last_lifecycle_event: RouteLifecycleEvent,
     pub health: RouteHealth,
     pub progress: RouteProgressContract,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MaterializedRoute {
+    pub identity: MaterializedRouteIdentity,
+    pub runtime: RouteRuntimeState,
 }
 
 impl MaterializedRoute {
@@ -235,14 +270,43 @@ impl MaterializedRoute {
         input: RouteMaterializationInput,
         installation: RouteInstallation,
     ) -> Self {
+        assert_eq!(
+            input.admission.admission_check.decision,
+            AdmissionDecision::Admissible,
+            "route installation requires an admissible control-plane decision"
+        );
+        assert!(
+            input.admission.summary.protection >= input.admission.objective.protection_floor,
+            "route installation must satisfy the objective protection floor"
+        );
+        assert_eq!(
+            input.handle.route_id, input.admission.route_id,
+            "route materialization input must use one canonical route id"
+        );
+        assert_eq!(
+            input.handle.route_id, installation.materialization_proof.route_id,
+            "route installation proof must match the canonical route id"
+        );
+        assert_eq!(
+            input.handle.topology_epoch, installation.materialization_proof.topology_epoch,
+            "route installation proof must match the canonical topology epoch"
+        );
+        assert_eq!(
+            input.handle.publication_id, installation.materialization_proof.publication_id,
+            "route installation proof must match the canonical publication id"
+        );
         Self {
-            handle: input.handle,
-            materialization_proof: installation.materialization_proof,
-            admission: input.admission,
-            lease: input.lease,
-            last_lifecycle_event: installation.last_lifecycle_event,
-            health: installation.health,
-            progress: installation.progress,
+            identity: MaterializedRouteIdentity {
+                handle: input.handle,
+                materialization_proof: installation.materialization_proof,
+                admission: input.admission,
+                lease: input.lease,
+            },
+            runtime: RouteRuntimeState {
+                last_lifecycle_event: installation.last_lifecycle_event,
+                health: installation.health,
+                progress: installation.progress,
+            },
         }
     }
 }

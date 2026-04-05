@@ -27,7 +27,7 @@ Remote observation of another device clock must stay above the routing core. If 
 
 Jacquard accesses time and deterministic ordering through abstract effects. `TimeEffects` provides `Tick`. `OrderEffects` provides `OrderStamp`. This keeps production, tests, and simulation on one semantic model even when their underlying runtimes differ.
 
-`TimeWindow` and `TimeoutPolicy` are the main compound time objects in the model. `TimeWindow` is used for bounded validity. `TimeoutPolicy` is used for bounded retries and local waiting policy. Both stay in the deterministic time domain and avoid raw timestamp fields.
+`TimeWindow` and `TimeoutPolicy` are the main compound time objects in the model. `TimeWindow` is used for bounded validity. `TimeoutPolicy` is used for bounded retries and local waiting policy. Both stay in the deterministic time domain and avoid raw timestamp fields. `TimeWindow` is constructed through a validated constructor so invalid windows with `end_tick <= start_tick` are rejected at the type boundary instead of leaking into leases, service validity, or route admission.
 
 ```rust
 pub struct TimeoutPolicy {

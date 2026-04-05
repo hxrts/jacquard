@@ -28,7 +28,7 @@ Layered composition follows the same rule. If one routing engine uses another as
 
 ## Decision Path
 
-The routing decision path starts from `RoutingObjective` and `Observation<Configuration>`. A routing-engine planner turns those into `RouteCandidate` values. Each candidate carries an `Estimate<RouteEstimate>`, not a fact or published witness. The planner then checks one candidate and admits it under a stated profile. The router allocates canonical route identity, the routing engine realizes that admitted route under `RouteMaterializationInput`, and the control plane assembles the resulting `MaterializedRoute`.
+The routing decision path starts from `RoutingObjective` and `Observation<Configuration>`. A routing-engine planner turns those into `RouteCandidate` values. Each candidate carries an `Estimate<RouteEstimate>`, not a fact or published witness. The planner then checks one candidate and admits it under a stated profile. The router allocates canonical route identity, the routing engine realizes that admitted route under `RouteMaterializationInput`, and the control plane assembles the resulting `MaterializedRoute` from router-owned `MaterializedRouteIdentity` plus engine-owned `RouteRuntimeState`.
 
 ```rust
 pub trait RoutingEnginePlanner {
@@ -98,11 +98,11 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 }
 ```
 
-This split shows the main route-building sequence. The important point is that route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only when the router allocates route identity and the routing engine realizes that admitted route under the router-provided `RouteMaterializationInput`. The planning side is deterministic and read-only with respect to canonical route state. Runtime mutation starts at `materialize_route`, but canonical route ownership stays above the routing-engine boundary.
+This split shows the main route-building sequence. The important point is that route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only when the router allocates route identity and the routing engine realizes that admitted route under the router-provided `RouteMaterializationInput`. Activation is not a blind assembly step: the control plane must only activate admissible routes, must enforce the objective protection floor, and must treat expired leases as a typed runtime failure rather than silently continuing. The planning side is deterministic and read-only with respect to canonical route state. Runtime mutation starts at `materialize_route`, but canonical route ownership stays above the routing-engine boundary.
 
 `CommitteeSelector` sits on the same planning side when a routing engine uses it. Jacquard commits to the shared result shape of the committee, not to one universal committee-selection policy. Routing engines may use leaderless threshold sets, role-differentiated committees, or no committee at all.
 
-`SubstratePlanner` and `LayeredRoutingEnginePlanner` stay on the deterministic planning side. `SubstrateRuntime` and `LayeredRoutingEngine` own the effectful acquisition and realization steps. That keeps layering aligned with the same purity rule as `RoutingEnginePlanner` versus `RoutingEngine`, and it prevents composition from collapsing planning and runtime mutation into one trait.
+`SubstratePlanner` and `LayeredRoutingEnginePlanner` stay on the deterministic planning side. `SubstrateRuntime` and `LayeredRoutingEngine` own the effectful acquisition and realization steps. That keeps layering aligned with the same purity rule as `RoutingEnginePlanner` versus `RoutingEngine`, and it prevents composition from collapsing planning and runtime mutation into one trait. These layering traits are still forward-looking contract surfaces. They describe the intended shared composition boundary, but Jacquard does not yet treat the current trait-contract tests as proof of mature in-tree layering semantics.
 
 ## Routing Engine Boundary
 

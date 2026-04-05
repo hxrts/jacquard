@@ -4,4 +4,4 @@ error[E0046]: not all trait items implemented, missing: `__jacquard_handler_mark
 5 | impl TimeEffects for BadHandler {
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `__jacquard_handler_marker` in implementation
   |
-  = help: implement the missing item: `fn __jacquard_handler_marker<Self>(&self) -> HandlerToken<Self, (dyn TimeEffects + 'static)> { todo!() }`
+  = help: implement the missing item: `fn __jacquard_handler_marker(&self) -> HandlerToken<Self, (dyn TimeEffects + 'static)> { todo!() }`

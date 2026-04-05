@@ -5,3 +5,6 @@ mod domain_separation;
 
 #[path = "regression/effect_handler_enforcement.rs"]
 mod effect_handler_enforcement;
+
+#[path = "regression/route_identity_immutability.rs"]
+mod route_identity_immutability;

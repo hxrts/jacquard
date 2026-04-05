@@ -1,0 +1,13 @@
+error[E0594]: cannot assign to `identity.handle`, which is behind a `&` reference
+  --> tests/regression/ui/route_identity_mutation_in_maintenance.rs:69:9
+   |
+65 |           identity: &MaterializedRouteIdentity,
+   |           -------- this is an immutable reference
+...
+69 | /         identity.handle = RouteHandle {
+70 | |             route_id: RouteId([0; 16]),
+71 | |             topology_epoch: identity.handle.topology_epoch,
+72 | |             materialized_at_tick: identity.handle.materialized_at_tick,
+73 | |             publication_id: identity.handle.publication_id,
+74 | |         };
+   | |_________^ `identity` is a `&` reference, so it cannot be written to

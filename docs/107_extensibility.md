@@ -181,7 +181,8 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
     fn maintain_route(
         &mut self,
-        route: &mut MaterializedRoute,
+        identity: &MaterializedRouteIdentity,
+        runtime: &mut RouteRuntimeState,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError>;
 
@@ -189,7 +190,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 }
 ```
 
-`RoutingEnginePlanner` is pure. `RoutingEngine` is effectful. The split keeps candidate production deterministic and keeps runtime mutation inside explicit realization and maintenance methods. The router allocates canonical route identity first. The engine realizes the admitted route under that identity and returns `RouteInstallation`. The final `MaterializedRoute` is assembled above the engine boundary.
+`RoutingEnginePlanner` is pure. `RoutingEngine` is effectful. The split keeps candidate production deterministic and keeps runtime mutation inside explicit realization and maintenance methods. The router allocates canonical route identity first. The engine realizes the admitted route under that identity and returns `RouteInstallation`. The final `MaterializedRoute` is assembled above the engine boundary as router-owned identity plus engine-owned runtime state, and maintenance only receives the mutable runtime portion. That activation step also enforces the shared control-plane invariants: the admission decision must still be admissible, the realized protection must satisfy the objective protection floor, and lease validity must be checked explicitly before maintenance or publication proceeds.
 
 External routing engines should depend on `jacquard-core` and `jacquard-traits`. They should not depend on mesh internals, router internals, or simulator-private helpers. The stable shared contract includes `RouteSummary`, `Estimate<RouteEstimate>`, `RouteAdmissionCheck`, `RouteWitness`, `RouteHandle`, `RouteLease`, `RouteMaterializationInput`, `RouteInstallation`, `RouteCommitment`, `RouteMaintenanceResult`, `CommitteeSelection`, `SubstrateRequirements`, `SubstrateLease`, `LayerParameters`, `Observation<T>`, and `Fact<T>`. External engines must not assume mesh route shape, mesh topology structure, mesh-specific maintenance semantics, or any authority model outside those shared route objects.
 
@@ -281,7 +282,7 @@ pub trait LayeringPolicyEngine {
 }
 ```
 
-`PolicyEngine`, `CommitteeSelector`, `SubstratePlanner`, and `LayeredRoutingEnginePlanner` are pure planning or decision surfaces. `SubstrateRuntime`, `LayeredRoutingEngine`, and `LayeringPolicyEngine` are effectful. `CommitteeSelector` is optional. Jacquard commits to the result shape of `CommitteeSelection`. It does not standardize one committee algorithm.
+`PolicyEngine`, `CommitteeSelector`, `SubstratePlanner`, and `LayeredRoutingEnginePlanner` are pure planning or decision surfaces. `SubstrateRuntime`, `LayeredRoutingEngine`, and `LayeringPolicyEngine` are effectful. `CommitteeSelector` is optional. Jacquard commits to the result shape of `CommitteeSelection`. It does not standardize one committee algorithm. The substrate and layering traits are still forward-looking contract surfaces. They exist so host-owned composition can stabilize at the type boundary now, but the current in-tree coverage is still contract-oriented rather than a mature production layering stack.
 
 Layering follows the same ownership rule as ordinary route realization. The canonical route handle and lease come from the router or host policy layer. A layered routing engine does not allocate canonical route identity for itself. The lower engine exposes substrate capabilities and leases. The upper engine consumes them through the shared substrate contract.
 
