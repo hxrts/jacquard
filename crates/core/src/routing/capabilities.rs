@@ -1,6 +1,6 @@
 //! Capability tokens for route admission, ownership, evidence, and transitions.
 
-use contour_macros::{id_type, must_use_handle};
+use jacquard_macros::{id_type, must_use_handle};
 use serde::{Deserialize, Serialize};
 
 #[must_use_handle]

@@ -1,4 +1,4 @@
-//! Regression tests for contour-traits.
+//! Regression tests for jacquard-traits.
 
 #[path = "regression/domain_separation.rs"]
 mod domain_separation;

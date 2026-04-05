@@ -1,6 +1,6 @@
 //! Verify tagged hashing separates ambiguous domain/payload pairs.
 
-use contour_traits::{Blake3Hashing, Hashing};
+use jacquard_traits::{Blake3Hashing, Hashing};
 
 #[test]
 fn tagged_hashing_separates_ambiguous_domain_and_payload_pairs() {

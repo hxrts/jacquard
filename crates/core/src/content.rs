@@ -2,7 +2,7 @@
 
 use core::fmt;
 
-use contour_macros::{id_type, public_model};
+use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

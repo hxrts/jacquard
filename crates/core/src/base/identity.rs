@@ -2,7 +2,7 @@
 
 use std::net::IpAddr;
 
-use contour_macros::{id_type, public_model};
+use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::RouteEpoch;
@@ -14,7 +14,7 @@ macro_rules! bytes_newtype {
     };
 }
 
-// NodeId identifies a running Contour participant instance.
+// NodeId identifies a running Jacquard participant instance.
 // ControllerId identifies the cryptographic actor behind one or more nodes.
 bytes_newtype!(NodeId, 32);
 bytes_newtype!(ControllerId, 32);

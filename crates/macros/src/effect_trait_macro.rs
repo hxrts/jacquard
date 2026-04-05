@@ -17,9 +17,9 @@ pub(crate) fn expand(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item_trait.supertraits.push(parse_quote!('static));
     item_trait.items.push(parse_quote! {
         #[doc(hidden)]
-        fn __contour_handler_marker(
+        fn __jacquard_handler_marker(
             &self,
-        ) -> ::contour_traits::__private::HandlerToken<Self, dyn #ident>
+        ) -> ::jacquard_traits::__private::HandlerToken<Self, dyn #ident>
         where
             Self: Sized;
     });
@@ -27,7 +27,7 @@ pub(crate) fn expand(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #item_trait
 
-        impl ::contour_traits::__private::EffectDefinition for dyn #ident {}
+        impl ::jacquard_traits::__private::EffectDefinition for dyn #ident {}
     };
 
     expanded.into()

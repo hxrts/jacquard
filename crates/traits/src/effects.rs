@@ -1,15 +1,15 @@
 //! Effect vocabulary traits for deterministic routing.
 //!
-//! In Contour, an effect trait names a narrow abstract runtime capability that
+//! In Jacquard, an effect trait names a narrow abstract runtime capability that
 //! the pure routing core may request. It describes the operation vocabulary.
 //! It does not own supervision, background orchestration, or canonical routing
 //! truth. Concrete handlers live in the separate `handler` module.
 
-use contour_core::{
+use jacquard_core::{
     AuditError, Blake3Digest, OrderStamp, RoutingAuditEvent, StorageError, Tick, TransportError,
     TransportIngressEvent,
 };
-use contour_macros::effect_trait;
+use jacquard_macros::effect_trait;
 
 mod sealed {
     pub trait Sealed {}
@@ -19,7 +19,7 @@ mod sealed {
 
 /// Marker trait for the abstract runtime effect vocabulary.
 ///
-/// Every effect trait in Contour should extend this trait so the effect surface
+/// Every effect trait in Jacquard should extend this trait so the effect surface
 /// stays narrow, object-safe, and clearly separated from concrete handlers.
 pub trait Effect: sealed::Sealed + Send + Sync + 'static {}
 
@@ -60,7 +60,7 @@ pub trait AuditEffects {
 pub trait TransportEffects {
     fn send_transport(
         &mut self,
-        endpoint: &contour_core::LinkEndpoint,
+        endpoint: &jacquard_core::LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), TransportError>;
 
@@ -80,7 +80,7 @@ impl<T> RoutingRuntimeEffects for T where
 
 #[cfg(test)]
 mod tests {
-    use contour_core::{
+    use jacquard_core::{
         AuditError, Blake3Digest, OrderStamp, RoutingAuditEvent, StorageError, Tick,
         TransportError, TransportIngressEvent,
     };
@@ -144,7 +144,7 @@ mod tests {
     impl TransportEffects for DummyRuntime {
         fn send_transport(
             &mut self,
-            _endpoint: &contour_core::LinkEndpoint,
+            _endpoint: &jacquard_core::LinkEndpoint,
             _payload: &[u8],
         ) -> Result<(), TransportError> {
             Ok(())

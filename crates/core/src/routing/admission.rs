@@ -1,6 +1,6 @@
 //! Route family capabilities, admission checks, candidates, and witnesses.
 
-use contour_macros::public_model;
+use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -241,7 +241,7 @@ pub enum DegradationReason {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Family-owned opaque handle. Contour core never inspects the contents.
+/// Family-owned opaque handle. Jacquard core never inspects the contents.
 /// This is a weak advisory reference and is not a canonical installed-route handle.
 pub struct BackendRouteRef {
     pub family: RouteFamilyId,

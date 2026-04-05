@@ -2,20 +2,20 @@
 
 #![forbid(unsafe_code)]
 
-extern crate self as contour_traits;
+extern crate self as jacquard_traits;
 
 mod effects;
 mod handler;
 mod hashing;
 mod routing;
 
-pub use contour_core;
-pub use contour_macros::{
-    bounded_value, effect_handler, effect_trait, id_type, must_use_handle, public_model,
-};
 pub use effects::*;
 pub use handler::*;
 pub use hashing::*;
+pub use jacquard_core;
+pub use jacquard_macros::{
+    bounded_value, effect_handler, effect_trait, id_type, must_use_handle, public_model,
+};
 pub use routing::*;
 
 // Backing traits for the effect_trait / effect_handler proc macros.

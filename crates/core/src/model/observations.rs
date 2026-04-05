@@ -1,6 +1,6 @@
 //! Observation-layer support types and observation aliases over world objects.
 
-use contour_macros::public_model;
+use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{Belief, ByteCount, Configuration, DurationMs, Environment, Link, Node, RatioPermille};

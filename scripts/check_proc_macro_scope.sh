@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify every non-exempt crate source file uses at least one contour proc macro.
+# Verify every non-exempt crate source file uses at least one jacquard proc macro.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"

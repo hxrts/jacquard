@@ -1,4 +1,4 @@
-use contour_macros::{bounded_value, id_type, must_use_handle, public_model};
+use jacquard_macros::{bounded_value, id_type, must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 #[id_type]

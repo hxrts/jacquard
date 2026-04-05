@@ -1,6 +1,6 @@
 //! Deterministic time model and integer-scaled metric types.
 
-use contour_macros::{bounded_value, id_type, public_model};
+use jacquard_macros::{bounded_value, id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 /// Local monotonic time. Not wall clock.

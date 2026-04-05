@@ -1,6 +1,6 @@
 //! Installed route state, ordering, leases, transitions, and maintenance triggers.
 
-use contour_macros::{must_use_handle, public_model};
+use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{

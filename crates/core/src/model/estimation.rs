@@ -1,6 +1,6 @@
 //! Derived routing estimates that sit between observation collection and policy.
 
-use contour_macros::public_model;
+use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{

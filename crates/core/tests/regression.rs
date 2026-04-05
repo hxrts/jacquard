@@ -1,4 +1,4 @@
-//! Regression tests for contour-core.
+//! Regression tests for jacquard-core.
 
 #[path = "regression/error_conversion.rs"]
 mod error_conversion;

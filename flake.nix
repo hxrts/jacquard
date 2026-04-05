@@ -1,5 +1,5 @@
 {
-  description = "Contour - Adaptive mesh routing with choreographic protocols";
+  description = "Jacquard - Adaptive mesh routing with choreographic protocols";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -54,7 +54,7 @@
           inherit nativeBuildInputs buildInputs;
 
           shellHook = ''
-            echo "Contour development environment"
+            echo "Jacquard development environment"
             echo "Rust: $(rustc --version)"
           '';
         };

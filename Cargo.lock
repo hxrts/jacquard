@@ -51,36 +51,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
-name = "contour-core"
-version = "0.1.0"
-dependencies = [
- "contour-macros",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "contour-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "serde",
- "syn",
- "trybuild",
-]
-
-[[package]]
-name = "contour-traits"
-version = "0.1.0"
-dependencies = [
- "blake3",
- "contour-core",
- "contour-macros",
- "trybuild",
-]
-
-[[package]]
 name = "cpufeatures"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -128,6 +98,36 @@ name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+
+[[package]]
+name = "jacquard-core"
+version = "0.1.0"
+dependencies = [
+ "jacquard-macros",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "jacquard-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde",
+ "syn",
+ "trybuild",
+]
+
+[[package]]
+name = "jacquard-traits"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "jacquard-core",
+ "jacquard-macros",
+ "trybuild",
+]
 
 [[package]]
 name = "libc"

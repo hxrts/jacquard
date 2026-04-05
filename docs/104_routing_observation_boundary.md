@@ -10,12 +10,12 @@ The routing core should not need to know battery chemistry, radio chipset detail
 
 This boundary keeps the model portable across devices and transports. It also keeps experimentation focused on routing-visible signals instead of tying policy to one platform or one measurement stack.
 
-When a quantity is not directly required as hard truth, Contour models it as a `Belief<T>`. That keeps the model honest: the router either has no usable estimate yet, or it has an `Estimate<T>` plus an explicit `confidence_permille`.
+When a quantity is not directly required as hard truth, Jacquard models it as a `Belief<T>`. That keeps the model honest: the router either has no usable estimate yet, or it has an `Estimate<T>` plus an explicit `confidence_permille`.
 Observations also keep source and authentication separate. An `Observation<T>` may be local or remote, and its origin may be controlled, authenticated, or unauthenticated. The routing core should not collapse those into one trust bucket.
 
 The model is organized into four scopes. They are the local node, the link to a neighbor, the neighbor as a peer, and the local environment as an aggregate. Each scope answers a different routing question. The router should not collapse them into one device-shaped object.
 
-Contour also separates world definition from observation and estimation. `world` owns the abstract definition of a node, a connection, and the local environment, plus the `Configuration` type that wires them together. `observation` wraps those instantiated world objects with provenance. `estimation` derives routing-relevant peer and configuration summaries from those observations over time. `policy` consumes both the direct observations and the derived estimates. `action` records the selected routing posture that policy produced.
+Jacquard also separates world definition from observation and estimation. `world` owns the abstract definition of a node, a connection, and the local environment, plus the `Configuration` type that wires them together. `observation` wraps those instantiated world objects with provenance. `estimation` derives routing-relevant peer and configuration summaries from those observations over time. `policy` consumes both the direct observations and the derived estimates. `action` records the selected routing posture that policy produced.
 
 ```text
 world
@@ -140,7 +140,7 @@ pub struct ConfigurationEstimate {
 }
 ```
 
-This aggregate view is where Contour captures conditions that are not properties of one peer. Density answers how selective the router can be. Churn answers whether the topology is stable enough to wait for better opportunities. Contention answers whether the medium can absorb more exchange now. Bridging value and underserved-flow scoring answer whether the local node sits between weakly connected regions or near one-sided information flow.
+This aggregate view is where Jacquard captures conditions that are not properties of one peer. Density answers how selective the router can be. Churn answers whether the topology is stable enough to wait for better opportunities. Contention answers whether the medium can absorb more exchange now. Bridging value and underserved-flow scoring answer whether the local node sits between weakly connected regions or near one-sided information flow.
 
 These environment signals are especially important in sparse and disrupted networks. A contact that looks mediocre in isolation may still be valuable if the neighborhood is sparse, churn is high, or the node appears to bridge otherwise disjoint information sets.
 

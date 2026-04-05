@@ -24,20 +24,20 @@ pub(crate) fn expand(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let (impl_generics, _, where_clause) = generics.split_for_impl();
 
     item_impl.items.push(parse_quote! {
-        fn __contour_handler_marker(
+        fn __jacquard_handler_marker(
             &self,
-        ) -> ::contour_traits::__private::HandlerToken<Self, dyn #trait_path>
+        ) -> ::jacquard_traits::__private::HandlerToken<Self, dyn #trait_path>
         where
             Self: Sized,
         {
-            ::contour_traits::__private::HandlerToken(::core::marker::PhantomData)
+            ::jacquard_traits::__private::HandlerToken(::core::marker::PhantomData)
         }
     });
 
     let expanded = quote! {
         #item_impl
 
-        impl #impl_generics ::contour_traits::__private::HandlerDefinition<dyn #trait_path> for #self_ty #where_clause {}
+        impl #impl_generics ::jacquard_traits::__private::HandlerDefinition<dyn #trait_path> for #self_ty #where_clause {}
     };
 
     expanded.into()

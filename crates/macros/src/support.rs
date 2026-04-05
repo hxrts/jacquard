@@ -1,4 +1,4 @@
-//! Shared parsing and attribute utilities for Contour proc macros.
+//! Shared parsing and attribute utilities for Jacquard proc macros.
 
 use std::collections::BTreeSet;
 
@@ -191,10 +191,10 @@ fn bad_type_reason(ty: &Type) -> Option<&'static str> {
 
     match normalized.as_str() {
         "std::time::Instant" => {
-            return Some("`std::time::Instant`; use the typed Contour time model instead")
+            return Some("`std::time::Instant`; use the typed Jacquard time model instead")
         }
         "std::time::SystemTime" => {
-            return Some("`std::time::SystemTime`; use the typed Contour time model instead")
+            return Some("`std::time::SystemTime`; use the typed Jacquard time model instead")
         }
         _ => {}
     }

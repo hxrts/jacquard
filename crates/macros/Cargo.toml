@@ -1,10 +1,10 @@
 [package]
-name = "contour-macros"
+name = "jacquard-macros"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Procedural macros for Contour effect and handler boundaries"
+description = "Procedural macros for Jacquard effect and handler boundaries"
 
 [lib]
 proc-macro = true

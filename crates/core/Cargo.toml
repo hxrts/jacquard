@@ -1,15 +1,15 @@
 [package]
-name = "contour-core"
+name = "jacquard-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Shared identifiers, types, and constants for Contour routing"
+description = "Shared identifiers, types, and constants for Jacquard routing"
 
 [lints]
 workspace = true
 
 [dependencies]
-contour-macros = { path = "../macros" }
+jacquard-macros = { path = "../macros" }
 serde      = { workspace = true }
 thiserror  = { workspace = true }

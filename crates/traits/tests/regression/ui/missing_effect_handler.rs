@@ -1,4 +1,4 @@
-use contour_traits::{TimeEffects, contour_core::Tick};
+use jacquard_traits::{TimeEffects, jacquard_core::Tick};
 
 struct BadHandler;
 

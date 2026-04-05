@@ -1,4 +1,4 @@
-//! Concrete handler markers for Contour effect vocabularies.
+//! Concrete handler markers for Jacquard effect vocabularies.
 //!
 //! A handler is a concrete implementation of an effect trait. It performs the
 //! requested operation for one abstract effect vocabulary. Handlers should stay
@@ -31,7 +31,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use contour_core::{OrderStamp, Tick};
+    use jacquard_core::{OrderStamp, Tick};
 
     use crate::{effect_handler, EffectHandler, OrderEffects, TimeEffects};
 

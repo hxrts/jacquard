@@ -1,6 +1,6 @@
 //! Build an InstalledRoute from shared lifecycle types to verify structural coherence.
 
-use contour_core::{
+use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief, ByteCount,
     ClaimStrength, ConnectivityRegime, DeliveryAssumptionClass, DeploymentProfile, Estimate, Fact,
     FactBasis, FailureModelClass, FamilyFallbackPolicy, HoldFallbackPolicy, InstalledRoute, Limit,
@@ -22,15 +22,15 @@ fn repairable_connected() -> RouteConnectivityProfile {
 
 fn sample_objective() -> RoutingObjective {
     RoutingObjective {
-        destination: contour_core::DestinationId::Node(contour_core::NodeId([7; 32])),
+        destination: jacquard_core::DestinationId::Node(jacquard_core::NodeId([7; 32])),
         service_kind: RouteServiceKind::Move,
         target_protection: RouteProtectionClass::LinkProtected,
         protection_floor: RouteProtectionClass::None,
         target_connectivity: repairable_connected(),
         hold_fallback_policy: HoldFallbackPolicy::Allowed,
-        latency_budget_ms: Limit::Bounded(contour_core::DurationMs(250)),
-        protection_priority: contour_core::PriorityPoints(10),
-        connectivity_priority: contour_core::PriorityPoints(20),
+        latency_budget_ms: Limit::Bounded(jacquard_core::DurationMs(250)),
+        protection_priority: jacquard_core::PriorityPoints(10),
+        connectivity_priority: jacquard_core::PriorityPoints(20),
     }
 }
 
@@ -54,7 +54,7 @@ fn sample_summary() -> RouteSummary {
         protocol_mix: vec![TransportProtocol::BleGatt, TransportProtocol::WifiLan],
         hop_count_hint: Belief::Estimated(Estimate {
             value: 3,
-            confidence_permille: contour_core::RatioPermille(1000),
+            confidence_permille: jacquard_core::RatioPermille(1000),
             updated_at_tick: Tick(100),
         }),
         valid_for: TimeWindow {
@@ -101,12 +101,12 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
                 topology_epoch: RouteEpoch(4),
                 degradation: RouteDegradation::None,
             },
-            confidence_permille: contour_core::RatioPermille(1000),
+            confidence_permille: jacquard_core::RatioPermille(1000),
             updated_at_tick: Tick(100),
         },
         backend_ref: BackendRouteRef {
             family: RouteFamilyId::Mesh,
-            backend_route_id: contour_core::BackendRouteId(vec![1, 2, 3]),
+            backend_route_id: jacquard_core::BackendRouteId(vec![1, 2, 3]),
         },
     };
     let route = InstalledRoute {
@@ -149,7 +149,7 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
             witness,
         },
         lease: RouteLease {
-            owner_node_id: contour_core::NodeId([9; 32]),
+            owner_node_id: jacquard_core::NodeId([9; 32]),
             lease_epoch: RouteEpoch(4),
             valid_for: TimeWindow {
                 start_tick: Tick(100),
@@ -159,8 +159,8 @@ fn sample_route() -> (RouteCandidate, InstalledRoute) {
         last_lifecycle_event: RouteLifecycleEvent::Established,
         health: RouteHealth {
             reachability_state: ReachabilityState::Reachable,
-            stability_score: contour_core::HealthScore(900),
-            congestion_penalty_points: contour_core::PenaltyPoints(12),
+            stability_score: jacquard_core::HealthScore(900),
+            congestion_penalty_points: jacquard_core::PenaltyPoints(12),
             last_validated_at_tick: Tick(110),
         },
         progress: RouteProgressContract {
@@ -189,6 +189,6 @@ fn installed_route_can_be_built_from_shared_lifecycle_types() {
         route.materialization_proof.witness.value.topology_epoch,
         RouteEpoch(4),
     );
-    assert_eq!(route.lease.owner_node_id, contour_core::NodeId([9; 32]));
+    assert_eq!(route.lease.owner_node_id, jacquard_core::NodeId([9; 32]));
     assert_eq!(route.last_lifecycle_event, RouteLifecycleEvent::Established);
 }

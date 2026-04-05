@@ -1,6 +1,6 @@
 //! Abstract routing traits: adaptive controller, route family, router, and control/data planes.
 
-use contour_core::{
+use jacquard_core::{
     AdaptiveRoutingProfile, Configuration, InstalledRoute, Observation, RouteAdmission,
     RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError, RouteFamilyId, RouteHealth,
     RouteId, RouteMaintenanceResult, RouteMaintenanceTrigger, RoutingFamilyCapabilities,
@@ -18,7 +18,7 @@ pub trait AdaptiveRoutingController {
 }
 
 /// The family boundary. Each route family (mesh, onion, etc.) implements
-/// this trait. Contour core interacts with families only through this surface.
+/// this trait. Jacquard core interacts with families only through this surface.
 pub trait RouteFamily {
     fn family_id(&self) -> RouteFamilyId;
 

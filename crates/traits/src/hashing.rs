@@ -1,6 +1,6 @@
 //! Hashing traits and content-addressable identity for routing artifacts.
 
-use contour_core::{Blake3Digest, ContentEncodingError, ContentId};
+use jacquard_core::{Blake3Digest, ContentEncodingError, ContentId};
 
 use crate::{effect_handler, HashEffects};
 
@@ -84,7 +84,7 @@ pub trait TemplateAddressable {
 
 #[cfg(test)]
 mod tests {
-    use contour_core::{Blake3Digest, ContentEncodingError};
+    use jacquard_core::{Blake3Digest, ContentEncodingError};
 
     use super::{Blake3Hashing, ContentAddressable, Hashing};
 
@@ -112,9 +112,9 @@ mod tests {
     #[test]
     fn content_addressing_uses_canonical_bytes() {
         let hashing = Blake3Hashing;
-        let item = StaticContent(b"contour");
+        let item = StaticContent(b"jacquard");
         let content_id = item.content_id(&hashing).expect("content id");
 
-        assert_eq!(content_id.digest, hashing.hash_bytes(b"contour"));
+        assert_eq!(content_id.digest, hashing.hash_bytes(b"jacquard"));
     }
 }

@@ -1,4 +1,4 @@
-use contour_macros::public_model;
+use jacquard_macros::public_model;
 
 #[public_model]
 struct InvalidModel {

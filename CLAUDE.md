@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-Contour is an adaptive mesh routing system built on choreographic protocols. It uses Telltale for session types, choreography macros, and the effect-based runtime.
+Jacquard is an adaptive mesh routing system built on choreographic protocols. It uses Telltale for session types, choreography macros, and the effect-based runtime.
 
-Contour is fully deterministic. Core designs and implementations must avoid floating-point types, host-dependent ordering, and ambient randomness in routing or protocol state unless an explicit, deterministic abstraction says otherwise.
+Jacquard is fully deterministic. Core designs and implementations must avoid floating-point types, host-dependent ordering, and ambient randomness in routing or protocol state unless an explicit, deterministic abstraction says otherwise.
 
-Contour uses a typed deterministic time model in core code. Use injected time effects plus explicit types such as monotonic ticks, durations, and route epochs rather than raw wall-clock APIs or ad hoc `u64` timestamp fields.
+Jacquard uses a typed deterministic time model in core code. Use injected time effects plus explicit types such as monotonic ticks, durations, and route epochs rather than raw wall-clock APIs or ad hoc `u64` timestamp fields.
 
 ## Development environment
 

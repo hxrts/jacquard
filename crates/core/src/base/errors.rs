@@ -1,6 +1,6 @@
 //! Error types for routing, transport, custody, and medium operations.
 
-use contour_macros::public_model;
+use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

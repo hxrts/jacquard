@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use contour_traits::{
-    contour_core::{
+use jacquard_traits::{
+    jacquard_core::{
         AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief,
         ByteCount, ClaimStrength, Configuration, ConnectivityRegime, DeliveryAssumptionClass,
         DeploymentProfile, Environment, Estimate, Fact, FactBasis, FailureModelClass,
@@ -42,14 +42,14 @@ impl RouteFamily for StubFamily {
             family: RouteFamilyId::Mesh,
             max_protection: RouteProtectionClass::LinkProtected,
             max_connectivity: repairable_connected(),
-            repair_support: contour_traits::contour_core::RepairSupport::Supported,
-            hold_support: contour_traits::contour_core::HoldSupport::Supported,
-            decidable_admission: contour_traits::contour_core::DecidableSupport::Supported,
+            repair_support: jacquard_traits::jacquard_core::RepairSupport::Supported,
+            hold_support: jacquard_traits::jacquard_core::HoldSupport::Supported,
+            decidable_admission: jacquard_traits::jacquard_core::DecidableSupport::Supported,
             quantitative_bounds:
-                contour_traits::contour_core::QuantitativeBoundSupport::ProductiveOnly,
+                jacquard_traits::jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support:
-                contour_traits::contour_core::ReconfigurationSupport::ReplaceOnly,
-            route_shape_visibility: contour_traits::contour_core::RouteShapeVisibility::Explicit,
+                jacquard_traits::jacquard_core::ReconfigurationSupport::ReplaceOnly,
+            route_shape_visibility: jacquard_traits::jacquard_core::RouteShapeVisibility::Explicit,
         }
     }
 
@@ -68,12 +68,12 @@ impl RouteFamily for StubFamily {
                     topology_epoch: self.route.admission.witness.topology_epoch,
                     degradation: self.route.admission.witness.degradation,
                 },
-                confidence_permille: contour_traits::contour_core::RatioPermille(1000),
+                confidence_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
                 updated_at_tick: Tick(1),
             },
             backend_ref: BackendRouteRef {
                 family: RouteFamilyId::Mesh,
-                backend_route_id: contour_traits::contour_core::BackendRouteId(vec![1]),
+                backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![1]),
             },
         }]
     }
@@ -83,7 +83,7 @@ impl RouteFamily for StubFamily {
         _objective: &RoutingObjective,
         _profile: &AdaptiveRoutingProfile,
         _candidate: &RouteCandidate,
-    ) -> Result<RouteAdmissionCheck, contour_traits::contour_core::RouteError> {
+    ) -> Result<RouteAdmissionCheck, jacquard_traits::jacquard_core::RouteError> {
         Ok(self.route.admission.admission_check.clone())
     }
 
@@ -92,30 +92,30 @@ impl RouteFamily for StubFamily {
         _objective: &RoutingObjective,
         _profile: &AdaptiveRoutingProfile,
         _candidate: RouteCandidate,
-    ) -> Result<RouteAdmission, contour_traits::contour_core::RouteError> {
+    ) -> Result<RouteAdmission, jacquard_traits::jacquard_core::RouteError> {
         Ok(self.route.admission.clone())
     }
 
     fn install_route(
         &mut self,
         _admission: RouteAdmission,
-    ) -> Result<InstalledRoute, contour_traits::contour_core::RouteError> {
+    ) -> Result<InstalledRoute, jacquard_traits::jacquard_core::RouteError> {
         Ok(self.route.clone())
     }
 
     fn route_commitments(&self, route: &InstalledRoute) -> Vec<RouteCommitment> {
         vec![RouteCommitment {
             commitment_id: RouteCommitmentId([8; 16]),
-            operation_id: contour_traits::contour_core::RouteOperationId([6; 16]),
+            operation_id: jacquard_traits::jacquard_core::RouteOperationId([6; 16]),
             route_binding: RouteBinding::Bound(route.admission.route_id),
             owner_node_id: route.lease.owner_node_id,
             deadline_tick: Tick(10),
-            retry_policy: contour_traits::contour_core::TimeoutPolicy {
+            retry_policy: jacquard_traits::jacquard_core::TimeoutPolicy {
                 attempt_count_max: 1,
-                initial_backoff_ms: contour_traits::contour_core::DurationMs(5),
-                backoff_multiplier_permille: contour_traits::contour_core::RatioPermille(1000),
-                backoff_ms_max: contour_traits::contour_core::DurationMs(5),
-                overall_timeout_ms: contour_traits::contour_core::DurationMs(5),
+                initial_backoff_ms: jacquard_traits::jacquard_core::DurationMs(5),
+                backoff_multiplier_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
+                backoff_ms_max: jacquard_traits::jacquard_core::DurationMs(5),
+                overall_timeout_ms: jacquard_traits::jacquard_core::DurationMs(5),
             },
             resolution: RouteCommitmentResolution::Pending,
         }]
@@ -125,7 +125,7 @@ impl RouteFamily for StubFamily {
         &mut self,
         route: &mut InstalledRoute,
         trigger: RouteMaintenanceTrigger,
-    ) -> Result<RouteMaintenanceResult, contour_traits::contour_core::RouteError> {
+    ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError> {
         route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         let result = match trigger {
             RouteMaintenanceTrigger::LinkDegraded => RouteMaintenanceResult {
@@ -147,17 +147,17 @@ impl RouteFamily for StubFamily {
 
 fn sample_objective() -> RoutingObjective {
     RoutingObjective {
-        destination: contour_traits::contour_core::DestinationId::Node(
-            contour_traits::contour_core::NodeId([2; 32]),
+        destination: jacquard_traits::jacquard_core::DestinationId::Node(
+            jacquard_traits::jacquard_core::NodeId([2; 32]),
         ),
         service_kind: RouteServiceKind::Move,
         target_protection: RouteProtectionClass::LinkProtected,
         protection_floor: RouteProtectionClass::None,
         target_connectivity: repairable_connected(),
-        hold_fallback_policy: contour_traits::contour_core::HoldFallbackPolicy::Allowed,
-        latency_budget_ms: Limit::Bounded(contour_traits::contour_core::DurationMs(100)),
-        protection_priority: contour_traits::contour_core::PriorityPoints(1),
-        connectivity_priority: contour_traits::contour_core::PriorityPoints(2),
+        hold_fallback_policy: jacquard_traits::jacquard_core::HoldFallbackPolicy::Allowed,
+        latency_budget_ms: Limit::Bounded(jacquard_traits::jacquard_core::DurationMs(100)),
+        protection_priority: jacquard_traits::jacquard_core::PriorityPoints(1),
+        connectivity_priority: jacquard_traits::jacquard_core::PriorityPoints(2),
     }
 }
 
@@ -236,7 +236,7 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
                 protocol_mix: vec![TransportProtocol::BleGatt],
                 hop_count_hint: Belief::Estimated(Estimate {
                     value: 2,
-                    confidence_permille: contour_traits::contour_core::RatioPermille(1000),
+                    confidence_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
                     updated_at_tick: Tick(1),
                 }),
                 valid_for: TimeWindow {
@@ -255,7 +255,7 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
             },
         },
         lease: RouteLease {
-            owner_node_id: contour_traits::contour_core::NodeId([9; 32]),
+            owner_node_id: jacquard_traits::jacquard_core::NodeId([9; 32]),
             lease_epoch: RouteEpoch(1),
             valid_for: TimeWindow {
                 start_tick: Tick(1),
@@ -265,8 +265,8 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
         last_lifecycle_event: RouteLifecycleEvent::Established,
         health: RouteHealth {
             reachability_state: ReachabilityState::Reachable,
-            stability_score: contour_traits::contour_core::HealthScore(100),
-            congestion_penalty_points: contour_traits::contour_core::PenaltyPoints(0),
+            stability_score: jacquard_traits::jacquard_core::HealthScore(100),
+            congestion_penalty_points: jacquard_traits::jacquard_core::PenaltyPoints(0),
             last_validated_at_tick: Tick(1),
         },
         progress: RouteProgressContract {
@@ -285,8 +285,8 @@ fn empty_configuration() -> Configuration {
         links: BTreeMap::new(),
         environment: Environment {
             reachable_neighbor_count: 0,
-            churn_permille: contour_traits::contour_core::RatioPermille(0),
-            contention_permille: contour_traits::contour_core::RatioPermille(0),
+            churn_permille: jacquard_traits::jacquard_core::RatioPermille(0),
+            contention_permille: jacquard_traits::jacquard_core::RatioPermille(0),
         },
     }
 }
@@ -299,10 +299,10 @@ fn route_family_extension_can_drive_candidate_to_installed_route() {
     let mut family = StubFamily { route };
     let topology = Observation {
         value: empty_configuration(),
-        source_class: contour_traits::contour_core::FactSourceClass::Remote,
+        source_class: jacquard_traits::jacquard_core::FactSourceClass::Remote,
         evidence_class: RoutingEvidenceClass::DirectObservation,
         origin_authentication:
-            contour_traits::contour_core::OriginAuthenticationClass::Authenticated,
+            jacquard_traits::jacquard_core::OriginAuthenticationClass::Authenticated,
         observed_at_tick: Tick(0),
     };
     let candidates = family.candidate_routes(&objective, &profile, &topology);
