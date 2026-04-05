@@ -4,8 +4,9 @@ use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ConfigurationEstimate, DestinationId, DurationMs, Estimate, HealthScore, Limit, Node,
-    Observation, PriorityPoints, RatioPermille, RouteServiceKind,
+    ConfigurationEstimate, DestinationId, DurationMs, Estimate, HealthScore,
+    IdentityAssuranceClass, Limit, Node, Observation, PriorityPoints, RatioPermille,
+    RouteServiceKind,
 };
 
 #[public_model]
@@ -78,5 +79,7 @@ pub struct RoutingPolicyInputs {
     pub median_rtt_ms: DurationMs,
     pub loss_permille: RatioPermille,
     pub partition_risk_permille: RatioPermille,
+    pub adversary_pressure_permille: RatioPermille,
+    pub identity_assurance: IdentityAssuranceClass,
     pub direct_reachability_score: HealthScore,
 }

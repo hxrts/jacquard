@@ -1,10 +1,10 @@
 //! Abstract routing traits: adaptive controller, route planner, route family, router, and control/data planes.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, Configuration, MaterializedRoute, Observation, RouteAdmission,
-    RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError, RouteFamilyId, RouteHealth,
-    RouteId, RouteMaintenanceResult, RouteMaintenanceTrigger, RoutingFamilyCapabilities,
-    RoutingObjective, RoutingPolicyInputs,
+    AdaptiveRoutingProfile, CommitteeSelection, Configuration, MaterializedRoute, Observation,
+    RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError,
+    RouteFamilyId, RouteHealth, RouteId, RouteMaintenanceResult, RouteMaintenanceTrigger,
+    RoutingFamilyCapabilities, RoutingObjective, RoutingPolicyInputs,
 };
 
 /// Owns the protection-versus-connectivity decision. In a mesh-only deployment,
@@ -17,6 +17,21 @@ pub trait RoutingController {
         objective: &RoutingObjective,
         inputs: &RoutingPolicyInputs,
     ) -> AdaptiveRoutingProfile;
+}
+
+/// Optional deterministic boundary for family-local committee selection.
+///
+/// This trait makes the result shape abstract without forcing Jacquard core to
+/// standardize one committee algorithm across route families.
+pub trait CommitteeSelector {
+    type TopologyView;
+
+    fn select_committee(
+        &self,
+        objective: &RoutingObjective,
+        profile: &AdaptiveRoutingProfile,
+        topology: &Observation<Self::TopologyView>,
+    ) -> Result<CommitteeSelection, RouteError>;
 }
 
 /// The pure or near-pure planning surface for one route family. Planner methods

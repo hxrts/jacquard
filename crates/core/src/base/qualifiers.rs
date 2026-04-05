@@ -52,6 +52,16 @@ pub enum OriginAuthenticationClass {
 }
 
 #[public_model]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// How strongly a node identity is grounded for routing-control decisions.
+pub enum IdentityAssuranceClass {
+    WeakObserved,
+    ControllerBound,
+    Sponsored,
+    ExternallyAttested,
+}
+
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Raw local observation or received report with provenance attached.
 pub struct Observation<T> {

@@ -5,8 +5,9 @@ use std::collections::BTreeMap;
 use jacquard_traits::{
     jacquard_core::{
         AdaptiveRoutingProfile, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief,
-        ByteCount, ClaimStrength, Configuration, ConnectivityRegime, DeploymentProfile,
-        Environment, Estimate, Fact, FactBasis, FailureModelClass, FamilyFallbackPolicy, Limit,
+        ByteCount, ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
+        Configuration, ConnectivityRegime, DeploymentProfile, Environment, Estimate, Fact,
+        FactBasis, FailureModelClass, FamilyFallbackPolicy, IdentityAssuranceClass, Limit,
         MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass, Observation,
         PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding,
         RouteCandidate, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
@@ -19,7 +20,7 @@ use jacquard_traits::{
         RoutingFamilyCapabilities, RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
         TransportProtocol,
     },
-    RouteFamily, RoutePlanner,
+    CommitteeSelector, RouteFamily, RoutePlanner,
 };
 
 fn repairable_connected() -> RouteConnectivityProfile {
@@ -31,6 +32,51 @@ fn repairable_connected() -> RouteConnectivityProfile {
 
 struct StubFamily {
     route: MaterializedRoute,
+}
+
+struct StubCommitteeSelector;
+
+impl CommitteeSelector for StubCommitteeSelector {
+    type TopologyView = Configuration;
+
+    fn select_committee(
+        &self,
+        _objective: &RoutingObjective,
+        _profile: &AdaptiveRoutingProfile,
+        _topology: &Observation<Self::TopologyView>,
+    ) -> Result<CommitteeSelection, jacquard_traits::jacquard_core::RouteError> {
+        Ok(CommitteeSelection {
+            committee_id: CommitteeId([5; 16]),
+            topology_epoch: RouteEpoch(1),
+            selected_at_tick: Tick(1),
+            valid_for: TimeWindow {
+                start_tick: Tick(1),
+                end_tick: Tick(10),
+            },
+            evidence_basis: FactBasis::Observed,
+            claim_strength: ClaimStrength::ConservativeUnderProfile,
+            identity_assurance: IdentityAssuranceClass::ControllerBound,
+            quorum_threshold: 2,
+            members: vec![
+                CommitteeMember {
+                    node_id: jacquard_traits::jacquard_core::NodeId([1; 32]),
+                    controller_id: jacquard_traits::jacquard_core::ControllerId([1; 32]),
+                    role: CommitteeRole::Participant,
+                    trust_score: Belief::Estimated(Estimate {
+                        value: jacquard_traits::jacquard_core::HealthScore(900),
+                        confidence_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
+                        updated_at_tick: Tick(1),
+                    }),
+                },
+                CommitteeMember {
+                    node_id: jacquard_traits::jacquard_core::NodeId([2; 32]),
+                    controller_id: jacquard_traits::jacquard_core::ControllerId([2; 32]),
+                    role: CommitteeRole::Witness,
+                    trust_score: Belief::Absent,
+                },
+            ],
+        })
+    }
 }
 
 impl RoutePlanner for StubFamily {
@@ -346,4 +392,27 @@ fn route_family_extension_can_drive_candidate_to_materialized_route() {
         installed.last_lifecycle_event,
         RouteLifecycleEvent::Repaired
     );
+}
+
+#[test]
+fn committee_selector_trait_supports_shared_result_shape() {
+    let selector = StubCommitteeSelector;
+    let committee = selector
+        .select_committee(
+            &sample_objective(),
+            &sample_profile(),
+            &Observation {
+                value: empty_configuration(),
+                source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
+                evidence_class: RoutingEvidenceClass::DirectObservation,
+                origin_authentication:
+                    jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
+                observed_at_tick: Tick(1),
+            },
+        )
+        .expect("committee selection should succeed");
+
+    assert_eq!(committee.quorum_threshold, 2);
+    assert_eq!(committee.members.len(), 2);
+    assert_eq!(committee.members[0].role, CommitteeRole::Participant);
 }

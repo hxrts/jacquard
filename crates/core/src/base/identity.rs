@@ -28,6 +28,7 @@ bytes_newtype!(RouteId, 16);
 bytes_newtype!(RouteFamilyContractId, 16);
 bytes_newtype!(RouteOperationId, 16);
 bytes_newtype!(RouteCommitmentId, 16);
+bytes_newtype!(CommitteeId, 16);
 bytes_newtype!(PathId, 16);
 bytes_newtype!(PublicationId, 16);
 bytes_newtype!(ReceiptId, 16);

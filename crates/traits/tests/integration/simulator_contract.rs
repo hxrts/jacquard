@@ -62,7 +62,8 @@ impl RoutingEnvironmentModel for StubEnvironmentModel {
             Observation {
                 value: configuration.clone(),
                 source_class: FactSourceClass::Local,
-                evidence_class: jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+                evidence_class:
+                    jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
                 origin_authentication: OriginAuthenticationClass::Controlled,
                 observed_at_tick: at_tick,
             },
@@ -103,9 +104,11 @@ impl RoutingSimulator for StubSimulator {
             &scenario.initial_configuration.value,
             scenario.initial_configuration.observed_at_tick,
         );
-        let audit_events = artifacts
-            .into_iter()
-            .map(|StubEnvironmentArtifact::AdvancedTo(tick)| RoutingAuditEvent {
+        let audit_events =
+            artifacts
+                .into_iter()
+                .map(|StubEnvironmentArtifact::AdvancedTo(tick)| {
+                    RoutingAuditEvent {
                 order_stamp: jacquard_traits::jacquard_core::OrderStamp(1),
                 emitted_at_tick: tick,
                 event: RouteEvent::RouteHealthObserved {
@@ -126,8 +129,9 @@ impl RoutingSimulator for StubSimulator {
                         observed_at_tick: tick,
                     },
                 },
-            })
-            .collect();
+            }
+                })
+                .collect();
 
         Ok((
             StubReplayArtifact {
@@ -279,7 +283,10 @@ fn routing_scenario_is_a_pure_description_surface() {
 
     assert_eq!(scenario.name(), "smoke");
     assert_eq!(scenario.seed(), 7);
-    assert_eq!(scenario.deployment_profile(), &DeploymentProfile::SparseLowPower);
+    assert_eq!(
+        scenario.deployment_profile(),
+        &DeploymentProfile::SparseLowPower
+    );
     assert!(scenario.objectives().is_empty());
 }
 

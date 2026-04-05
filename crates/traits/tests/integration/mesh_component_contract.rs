@@ -3,15 +3,15 @@ use std::collections::BTreeMap;
 use jacquard_traits::{
     jacquard_core::{
         Belief, Blake3Digest, ByteCount, Configuration, ContentId, ControllerId, CustodyError,
-        DurationMs, Environment, InformationSetSummary, Link, LinkEndpoint, LinkProfile,
+        DurationMs, Environment, Fact, InformationSetSummary, Link, LinkEndpoint, LinkProfile,
         LinkRuntimeState, LinkState, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
         PublicationId, RatioPermille, RouteAdmission, RouteAdmissionCheck, RouteBinding,
         RouteCommitment, RouteCommitmentId, RouteCommitmentResolution, RouteConnectivityProfile,
-        RouteCost, RouteEpoch, RouteFamilyId, RouteHandle, RouteHealth, RouteId,
-        RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
+        RouteCost, RouteEpoch, RouteFamilyId, RouteHandle, RouteHealth, RouteId, RouteLease,
+        RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
         RouteMaintenanceTrigger, RouteMaterializationProof, RouteProtectionClass, RouteSummary,
         RouteWitness, RoutingFamilyCapabilities, ServiceDescriptor, TransportError,
-        TransportIngressEvent, TransportProtocol, Fact,
+        TransportIngressEvent, TransportProtocol,
     },
     CustodyStore, EffectHandler, MeshRouteFamily, MeshTopologyModel, MeshTransport, RouteFamily,
     RoutePlanner, TransportEffects,
@@ -216,7 +216,10 @@ impl RouteFamily for StubMeshFamily {
     fn materialize_route(
         &mut self,
         admission: RouteAdmission,
-    ) -> Result<jacquard_traits::jacquard_core::MaterializedRoute, jacquard_traits::jacquard_core::RouteError> {
+    ) -> Result<
+        jacquard_traits::jacquard_core::MaterializedRoute,
+        jacquard_traits::jacquard_core::RouteError,
+    > {
         let route = sample_materialized_route(admission);
         self.route = Some(route.clone());
         Ok(route)
@@ -575,12 +578,21 @@ fn mesh_route_family_exposes_explicit_subcomponent_boundaries() {
         route: None,
     };
 
-    assert_eq!(family.topology_model().adjacent_links(&NodeId([1; 32]), &sample_configuration()).len(), 1);
+    assert_eq!(
+        family
+            .topology_model()
+            .adjacent_links(&NodeId([1; 32]), &sample_configuration())
+            .len(),
+        1
+    );
     family
         .transport_mut()
         .send_frame(&sample_endpoint(), b"frame")
         .expect("send frame");
-    assert_eq!(family.transport().transport_id(), TransportProtocol::BleGatt);
+    assert_eq!(
+        family.transport().transport_id(),
+        TransportProtocol::BleGatt
+    );
     family
         .custody_store_mut()
         .put_custody_payload(
