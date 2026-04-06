@@ -108,3 +108,5 @@ These signals matter most in sparse and disrupted networks. A contact that looks
 `Environment` should not include family-specific concerns. Richer geometry, spatial embeddings, or transport-specific structure should extend `Configuration` in the family layer rather than inflating the base environment type.
 
 The same rule applies to coordination policy and derived heuristics. GPS-derived regions, graph embeddings, provider clusters, bridge scores, novelty rankings, or flow-direction estimates may exist above this boundary, but they should remain engine-private interpretations of shared observations rather than becoming part of the base environment model.
+
+One naming distinction matters here. A routing neighborhood is a local topological or observational context. It is not the same thing as `ServiceScope::Discovery`, which uses `DiscoveryScopeId` only as a discovery-scope label for advertised services.

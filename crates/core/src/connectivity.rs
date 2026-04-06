@@ -4,8 +4,8 @@ use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Belief, BleDeviceId, BleProfileId, ByteCount, ClusterId, ControllerId, GatewayId, HomeId,
-    NeighborhoodId, NetworkHost, NodeId, RatioPermille, RoutingEngineId, TimeWindow,
+    Belief, BleDeviceId, BleProfileId, ByteCount, ClusterId, ControllerId, DiscoveryScopeId,
+    GatewayId, HomeId, NetworkHost, NodeId, RatioPermille, RoutingEngineId, TimeWindow,
 };
 
 #[public_model]
@@ -82,7 +82,7 @@ pub struct ServiceDescriptor {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ServiceScope {
-    Neighborhood(NeighborhoodId),
+    Discovery(DiscoveryScopeId),
     Home(HomeId),
     Cluster(ClusterId),
     Gateway(GatewayId),

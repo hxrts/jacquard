@@ -13,7 +13,7 @@ super::bytes_newtype!(NodeId, 32);
 super::bytes_newtype!(ControllerId, 32);
 super::bytes_newtype!(KeyId, 32);
 super::bytes_newtype!(BleProfileId, 16);
-super::bytes_newtype!(NeighborhoodId, 16);
+super::bytes_newtype!(DiscoveryScopeId, 16);
 super::bytes_newtype!(HomeId, 16);
 super::bytes_newtype!(ClusterId, 16);
 super::bytes_newtype!(GatewayId, 16);

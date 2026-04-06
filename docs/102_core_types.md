@@ -62,3 +62,5 @@ Mesh-specific peer or neighborhood heuristics do not live here. Novelty scoring,
 `CommitteeSelection` is the main shared coordination object. It carries a selected member set, role declarations, lease window, evidence basis, claim strength, and identity-assurance posture. The important boundary is that `core` exposes only the coordination result shape. It does not define one universal committee-formation algorithm, require a leader, or encode engine-local scoring policy.
 
 `SubstrateRequirements`, `SubstrateCandidate`, `SubstrateLease`, and `LayerParameters` are the shared layering objects. They exist so a host-level orchestrator can compose families without teaching one family about another's internals. The important boundary is the same as for committees: `core` exposes the carrier contract shape, not the host policy that decides when onion should migrate to mesh or when onion may use mesh as a limited substrate.
+
+`DiscoveryScopeId` is separate from the routing concept of a neighborhood. It is only a service-scope identifier used in `ServiceScope::Discovery`. It does not name a routing authority set or a mesh-local topology object.
