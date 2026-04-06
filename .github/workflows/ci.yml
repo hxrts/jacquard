@@ -45,3 +45,5 @@ jobs:
         run: nix develop --command ./scripts/check/crate-boundary.sh
       - name: No usize in Models
         run: nix develop --command ./scripts/check/no-usize-in-models.sh
+      - name: Docs Semantic Drift
+        run: nix develop --command ./scripts/check/docs-semantic-drift.sh

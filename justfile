@@ -149,6 +149,7 @@ ci-dry-run:
     add_step "Trait Purity"       "./scripts/check/trait-purity.sh"
     add_step "Crate Boundary"     "./scripts/check/crate-boundary.sh"
     add_step "No usize in Models" "./scripts/check/no-usize-in-models.sh"
+    add_step "Semantic Drift"     "./scripts/check/docs-semantic-drift.sh"
     add_step "Docs Build"         "just book"
 
     total=${#STEPS[@]}
@@ -182,6 +183,10 @@ ci-preflight:
 # validate docs link integrity
 docs-link-check:
     ./scripts/check/docs-link-check.sh
+
+# detect stale backtick references in docs
+docs-semantic-drift:
+    ./scripts/check/docs-semantic-drift.sh
 
 # enter nightly shell for dylint and rustc_private lints (run install-dylint once inside)
 nightly-shell:
