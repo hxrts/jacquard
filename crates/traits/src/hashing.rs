@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[test]
-    fn blake3_hashing_is_deterministic() {
+    fn hashing_is_deterministic() {
         let hashing = Blake3Hashing;
         let digest_a = hashing.hash_tagged(b"route", b"payload");
         let digest_b = hashing.hash_tagged(b"route", b"payload");
