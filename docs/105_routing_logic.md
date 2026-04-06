@@ -94,24 +94,24 @@ Layering lets an overlay engine use mesh as a carrier without awareness of mesh-
 ```mermaid
 graph TD
     subgraph overlay["overlay engine"]
-        classify["role classification"]
-        posture["overlay posture"]
-        refresh["candidate refresh"]
-        activate["route activation"]
-        maintain["maintain / replace"]
+        o_plan["planning — role classification, candidate refresh"]
+        o_activate["activation — route materialization"]
+        o_maintain["maintenance — replace / teardown"]
 
-        classify --> posture --> refresh --> activate --> maintain
+        o_plan --> o_activate --> o_maintain
     end
 
     substrate["substrate lease"]
 
     subgraph mesh["mesh engine"]
-        topo["topology model"]
-        forward["forwarding / repair"]
-        retain["retention store"]
+        m_plan["planning — topology model, candidate production"]
+        m_activate["activation — route materialization"]
+        m_maintain["maintenance — forwarding, repair, retention"]
+
+        m_plan --> m_activate --> m_maintain
     end
 
-    maintain --> substrate --> mesh
+    o_maintain --> substrate --> m_plan
 ```
 
 The overlay engine's `engine_tick` drives the middleware stages shown above: classify the local node as member, bridge, or gateway, update overlay posture, then refresh candidates before any specific route is activated. Route activation, maintenance, and teardown still use the shared `RoutingEngine` traits.
