@@ -14,6 +14,8 @@ World extensions are the entry point for teams that know a specific radio stack,
 
 ### Shared World Schema
 
+Nodes are represented as a stable capability profile plus changing observed state.
+
 ```rust
 pub struct NodeProfile {
     pub services: Vec<ServiceDescriptor>,
@@ -40,6 +42,16 @@ pub struct Node {
     pub profile: NodeProfile,
     pub state: NodeState,
 }
+```
+
+Links are represented as a stable endpoint description plus changing observed link state.
+
+```rust
+pub struct LinkEndpoint {
+    pub protocol: TransportProtocol,
+    pub address: EndpointAddress,
+    pub mtu_bytes: ByteCount,
+}
 
 pub struct LinkState {
     pub state: LinkRuntimeState,
@@ -55,15 +67,134 @@ pub struct Link {
     pub endpoint: LinkEndpoint,
     pub state: LinkState,
 }
+```
 
+Environment captures shared local conditions around the current world view, and `Configuration` gathers the current world picture.
+
+```rust
 pub struct Environment {
     pub reachable_neighbor_count: u32,
     pub churn_permille: RatioPermille,
     pub contention_permille: RatioPermille,
 }
+
+pub struct Configuration {
+    pub epoch: RouteEpoch,
+    pub nodes: BTreeMap<NodeId, Node>,
+    pub links: BTreeMap<(NodeId, NodeId), Link>,
+    pub environment: Environment,
+}
 ```
 
-This is the shared world schema that every world extension targets. A developer who wants to add a new observed node or link needs to construct these exact objects. The extension point is not schema definition. The extension point is emitting observations of these shared objects.
+This is the shared world schema that every world extension targets. A developer who wants to add a new observed node or link needs to construct these exact objects. The extension point is not defining new world schema. The extension point is emitting self-describing observations over the shared world schema.
+
+### Example: Adding A New Device
+
+In practice, adding support for a new device means translating that device's capabilities into a concrete `NodeProfile`, pairing it with the current observed `NodeState`, and returning the result as a `NodeObservation`. In this example, the device is a BLE relay with one BLE endpoint, four concurrent connections, limited transfer concurrency, and a moderate local retention budget.
+
+```rust
+// Link objects describe the device's carrier endpoint and current observed link health.
+let ble_relay_endpoint = LinkEndpoint {
+    protocol: TransportProtocol::BleGatt,
+    address: EndpointAddress::Opaque(vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
+    mtu_bytes: ByteCount::new(185),
+};
+
+let ble_relay_link_state = LinkState {
+    state: LinkRuntimeState::Active,
+    median_rtt_ms: DurationMs::new(35),
+    transfer_rate_bytes_per_sec: Belief::Estimated(Estimate {
+        value: 12_000,
+        confidence_permille: RatioPermille::new(900).unwrap(),
+        updated_at_tick: Tick::new(42),
+    }),
+    stability_horizon_ms: Belief::Estimated(Estimate {
+        value: DurationMs::new(20_000),
+        confidence_permille: RatioPermille::new(850).unwrap(),
+        updated_at_tick: Tick::new(42),
+    }),
+    loss_permille: RatioPermille::new(15).unwrap(),
+    delivery_confidence_permille: Belief::Estimated(Estimate {
+        value: RatioPermille::new(970).unwrap(),
+        confidence_permille: RatioPermille::new(900).unwrap(),
+        updated_at_tick: Tick::new(42),
+    }),
+    symmetry_permille: Belief::Estimated(Estimate {
+        value: RatioPermille::new(950).unwrap(),
+        confidence_permille: RatioPermille::new(800).unwrap(),
+        updated_at_tick: Tick::new(42),
+    }),
+};
+
+let ble_relay_link = Link {
+    endpoint: ble_relay_endpoint.clone(),
+    state: ble_relay_link_state,
+};
+
+// Node objects describe the device's stable capabilities and current observed node state.
+let ble_relay_profile = NodeProfile {
+    services: vec![],
+    endpoints: vec![ble_relay_endpoint.clone()],
+    connection_count_max: 4,
+    neighbor_state_count_max: 16,
+    simultaneous_transfer_count_max: 2,
+    active_route_count_max: 8,
+    relay_work_budget_max: 64,
+    maintenance_work_budget_max: 32,
+    hold_item_count_max: 128,
+    hold_capacity_bytes_max: ByteCount::new(65_536).unwrap(),
+};
+
+let ble_relay_state = NodeState {
+    relay_budget: Belief::Absent,
+    available_connection_count: Belief::Absent,
+    hold_capacity_available_bytes: Belief::Absent,
+    information_summary: Belief::Absent,
+};
+
+let ble_relay_node = Node {
+    controller_id: ControllerId::new(7),
+    profile: ble_relay_profile,
+    state: ble_relay_state,
+};
+
+// Assembly turns those shared objects into a world extension that emits observations.
+struct BleRelayExtension;
+
+impl WorldExtensionDescriptor for BleRelayExtension {
+    fn extension_id(&self) -> &str {
+        "ble-relay"
+    }
+
+    fn supported_transports(&self) -> Vec<TransportProtocol> {
+        vec![TransportProtocol::Ble]
+    }
+}
+
+impl NodeWorldExtension for BleRelayExtension {
+    fn poll_node_observations(&mut self) -> Result<Vec<NodeObservation>, RouteError> {
+        Ok(vec![Observation {
+            value: ble_relay_node,
+            source_class: FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::DirectObservation,
+            origin_authentication: OriginAuthenticationClass::Controlled,
+            observed_at_tick: Tick(42),
+        }])
+    }
+}
+
+impl LinkWorldExtension for BleRelayExtension {
+    fn poll_link_observations(&mut self) -> Result<Vec<LinkObservation>, RouteError> {
+        Ok(vec![Observation {
+            value: ble_relay_link,
+            source_class: FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::DirectObservation,
+            origin_authentication: OriginAuthenticationClass::Controlled,
+            observed_at_tick: Tick(42),
+        }])
+    }
+}
+```
 
 ### Schema-Bound Observation Surfaces
 
