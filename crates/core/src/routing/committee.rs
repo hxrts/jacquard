@@ -4,8 +4,8 @@ use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Belief, ClaimStrength, CommitteeId, ControllerId, FactBasis, HealthScore,
-    IdentityAssuranceClass, NodeId, RouteEpoch, Tick, TimeWindow,
+    ClaimStrength, CommitteeId, ControllerId, FactBasis, IdentityAssuranceClass, NodeId,
+    RouteEpoch, Tick, TimeWindow,
 };
 
 #[public_model]
@@ -28,7 +28,6 @@ pub struct CommitteeMember {
     pub node_id: NodeId,
     pub controller_id: ControllerId,
     pub role: CommitteeRole,
-    pub trust_score: Belief<HealthScore>,
 }
 
 #[public_model]

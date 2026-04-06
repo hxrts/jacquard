@@ -6,9 +6,9 @@ use jacquard_traits::{
         Belief, ByteCount, ControllerId, DurationMs, EndpointAddress, Environment, FactSourceClass,
         InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState, LinkState, Node, NodeId,
         NodeProfile, NodeRelayBudget, NodeState, Observation, ObservedValue,
-        OriginAuthenticationClass, RatioPermille, RouteError, RoutingEngineId,
-        RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
-        TransportObservation, TransportProtocol, WorldObservation,
+        OriginAuthenticationClass, RatioPermille, RoutingEngineId, RoutingEvidenceClass,
+        ServiceDescriptor, ServiceScope, Tick, TimeWindow, TransportObservation, TransportProtocol,
+        WorldError, WorldObservation,
     },
     LinkWorldExtension, NodeWorldExtension, WorldExtension, WorldExtensionDescriptor,
 };
@@ -28,7 +28,7 @@ impl WorldExtensionDescriptor for StubWorldExtension {
 }
 
 impl WorldExtension for StubWorldExtension {
-    fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, RouteError> {
+    fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, WorldError> {
         Ok(self.observations.clone())
     }
 }
@@ -36,7 +36,7 @@ impl WorldExtension for StubWorldExtension {
 impl NodeWorldExtension for StubWorldExtension {
     fn poll_node_observations(
         &mut self,
-    ) -> Result<Vec<jacquard_traits::jacquard_core::NodeObservation>, RouteError> {
+    ) -> Result<Vec<jacquard_traits::jacquard_core::NodeObservation>, WorldError> {
         Ok(self
             .observations
             .iter()
@@ -57,7 +57,7 @@ impl NodeWorldExtension for StubWorldExtension {
 impl LinkWorldExtension for StubWorldExtension {
     fn poll_link_observations(
         &mut self,
-    ) -> Result<Vec<jacquard_traits::jacquard_core::LinkObservation>, RouteError> {
+    ) -> Result<Vec<jacquard_traits::jacquard_core::LinkObservation>, WorldError> {
         Ok(self
             .observations
             .iter()

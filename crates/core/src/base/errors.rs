@@ -139,6 +139,19 @@ pub enum RouteEventLogError {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
+pub enum WorldError {
+    #[error("world extension is unavailable")]
+    Unavailable,
+    #[error("world extension timed out")]
+    TimedOut,
+    #[error("world observation was rejected")]
+    Rejected,
+    #[error("world observation was invalid")]
+    Invalid,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum PathSetupError {
     #[error("path setup is unsupported")]
     Unsupported,

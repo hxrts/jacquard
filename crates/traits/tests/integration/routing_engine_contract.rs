@@ -56,8 +56,8 @@ impl CommitteeSelector for StubCommitteeSelector {
         _objective: &RoutingObjective,
         _profile: &AdaptiveRoutingProfile,
         _topology: &Observation<Self::TopologyView>,
-    ) -> Result<CommitteeSelection, jacquard_traits::jacquard_core::RouteError> {
-        Ok(CommitteeSelection {
+    ) -> Result<Option<CommitteeSelection>, jacquard_traits::jacquard_core::RouteError> {
+        Ok(Some(CommitteeSelection {
             committee_id: CommitteeId([5; 16]),
             topology_epoch: RouteEpoch(1),
             selected_at_tick: Tick(1),
@@ -71,20 +71,14 @@ impl CommitteeSelector for StubCommitteeSelector {
                     node_id: jacquard_traits::jacquard_core::NodeId([1; 32]),
                     controller_id: jacquard_traits::jacquard_core::ControllerId([1; 32]),
                     role: CommitteeRole::Participant,
-                    trust_score: Belief::Estimated(Estimate {
-                        value: jacquard_traits::jacquard_core::HealthScore(900),
-                        confidence_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
-                        updated_at_tick: Tick(1),
-                    }),
                 },
                 CommitteeMember {
                     node_id: jacquard_traits::jacquard_core::NodeId([2; 32]),
                     controller_id: jacquard_traits::jacquard_core::ControllerId([2; 32]),
                     role: CommitteeRole::Witness,
-                    trust_score: Belief::Absent,
                 },
             ],
-        })
+        }))
     }
 }
 
@@ -589,7 +583,8 @@ fn committee_selector_trait_supports_shared_result_shape() {
                 observed_at_tick: Tick(1),
             },
         )
-        .expect("committee selection should succeed");
+        .expect("committee selection should succeed")
+        .expect("committee should be present");
 
     assert_eq!(committee.quorum_threshold, 2);
     assert_eq!(committee.members.len(), 2);
@@ -624,7 +619,8 @@ fn committee_coordinated_engine_exposes_optional_swappable_selector() {
                 observed_at_tick: Tick(1),
             },
         )
-        .expect("committee selection should succeed");
+        .expect("committee selection should succeed")
+        .expect("committee should be present");
 
     assert_eq!(committee.committee_id, CommitteeId([5; 16]));
     assert!(family_without_selector.committee_selector().is_none());

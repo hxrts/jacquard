@@ -66,7 +66,7 @@ pub trait CommitteeSelector {
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         topology: &Observation<Self::TopologyView>,
-    ) -> Result<CommitteeSelection, RouteError>;
+    ) -> Result<Option<CommitteeSelection>, RouteError>;
 }
 
 pub trait CommitteeCoordinatedEngine {
@@ -137,7 +137,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
 This split shows the main route-building sequence. The important point is that route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only when the router allocates route identity and the routing engine realizes that admitted route under the router-provided `RouteMaterializationInput`. Activation is not a blind assembly step: the control plane must only activate admissible routes, must enforce the objective protection floor, and must treat expired leases as a typed runtime failure rather than silently continuing. The planning side is deterministic and read-only with respect to canonical route state. Runtime mutation starts at `materialize_route`, but canonical route ownership stays above the routing-engine boundary.
 
-`CommitteeSelector` sits on the same planning side when a routing engine uses it. Jacquard commits to the shared result shape of the committee, not to one universal committee-formation policy. Routing engines may use leaderless threshold sets, role-differentiated committees, or no committee at all. `CommitteeCoordinatedEngine` is the optional read-only hook that lets an engine expose the swappable selector component it is currently using. Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band.
+`CommitteeSelector` sits on the same planning side when a routing engine uses it. Jacquard commits to the shared result shape of the committee, not to one universal committee-formation policy. Routing engines may use leaderless threshold sets, role-differentiated committees, or no committee at all, so a selector may also return `None`. `CommitteeCoordinatedEngine` is the optional read-only hook that lets an engine expose the swappable selector component it is currently using. Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band.
 
 `SubstratePlanner` and `LayeredRoutingEnginePlanner` stay on the deterministic planning side. `SubstrateRuntime` and `LayeredRoutingEngine` own the effectful acquisition and realization steps. That keeps layering aligned with the same purity rule as `RoutingEnginePlanner` versus `RoutingEngine`, and it prevents composition from collapsing planning and runtime mutation into one trait. These layering traits are still forward-looking contract surfaces. They describe the intended shared composition boundary, but Jacquard does not yet treat the current trait-contract tests as proof of mature in-tree layering semantics.
 

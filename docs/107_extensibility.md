@@ -172,7 +172,7 @@ impl WorldExtensionDescriptor for BleRelayExtension {
 }
 
 impl NodeWorldExtension for BleRelayExtension {
-    fn poll_node_observations(&mut self) -> Result<Vec<NodeObservation>, RouteError> {
+    fn poll_node_observations(&mut self) -> Result<Vec<NodeObservation>, WorldError> {
         Ok(vec![Observation {
             value: ble_relay_node,
             source_class: FactSourceClass::Local,
@@ -184,7 +184,7 @@ impl NodeWorldExtension for BleRelayExtension {
 }
 
 impl LinkWorldExtension for BleRelayExtension {
-    fn poll_link_observations(&mut self) -> Result<Vec<LinkObservation>, RouteError> {
+    fn poll_link_observations(&mut self) -> Result<Vec<LinkObservation>, WorldError> {
         Ok(vec![Observation {
             value: ble_relay_link,
             source_class: FactSourceClass::Local,
@@ -210,29 +210,29 @@ pub trait WorldExtensionDescriptor {
 }
 
 pub trait NodeWorldExtension: WorldExtensionDescriptor {
-    fn poll_node_observations(&mut self) -> Result<Vec<NodeObservation>, RouteError>;
+    fn poll_node_observations(&mut self) -> Result<Vec<NodeObservation>, WorldError>;
 }
 
 pub trait LinkWorldExtension: WorldExtensionDescriptor {
-    fn poll_link_observations(&mut self) -> Result<Vec<LinkObservation>, RouteError>;
+    fn poll_link_observations(&mut self) -> Result<Vec<LinkObservation>, WorldError>;
 }
 
 pub trait EnvironmentWorldExtension: WorldExtensionDescriptor {
-    fn poll_environment_observations(&mut self) -> Result<Vec<EnvironmentObservation>, RouteError>;
+    fn poll_environment_observations(&mut self) -> Result<Vec<EnvironmentObservation>, WorldError>;
 }
 
 pub trait ServiceWorldExtension: WorldExtensionDescriptor {
-    fn poll_service_observations(&mut self) -> Result<Vec<ServiceObservation>, RouteError>;
+    fn poll_service_observations(&mut self) -> Result<Vec<ServiceObservation>, WorldError>;
 }
 
 pub trait TransportWorldExtension: WorldExtensionDescriptor {
     fn poll_transport_observations(
         &mut self,
-    ) -> Result<Vec<Observation<TransportObservation>>, RouteError>;
+    ) -> Result<Vec<Observation<TransportObservation>>, WorldError>;
 }
 ```
 
-A team that adds a new device will often implement `NodeWorldExtension`, `LinkWorldExtension`, or both. The other facets are available when an extension also emits environment, service, or transport observations.
+A team that adds a new device will often implement `NodeWorldExtension`, `LinkWorldExtension`, or both. The other facets are available when an extension also emits environment, service, or transport observations. These boundaries use `WorldError` rather than `RouteError` because a world extension contributes world input; it does not own routing semantics.
 
 ### Umbrella World Extension
 
@@ -240,7 +240,7 @@ This surface is optional. It is useful when an extension naturally wants to emit
 
 ```rust
 pub trait WorldExtension: WorldExtensionDescriptor {
-    fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, RouteError>;
+    fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, WorldError>;
 }
 ```
 
@@ -349,7 +349,7 @@ pub trait CommitteeSelector {
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         topology: &Observation<Self::TopologyView>,
-    ) -> Result<CommitteeSelection, RouteError>;
+    ) -> Result<Option<CommitteeSelection>, RouteError>;
 }
 
 pub trait CommitteeCoordinatedEngine {
@@ -421,7 +421,7 @@ pub trait LayeringPolicyEngine {
 }
 ```
 
-`PolicyEngine`, `CommitteeSelector`, `CommitteeCoordinatedEngine`, `SubstratePlanner`, and `LayeredRoutingEnginePlanner` are planning or read-only surfaces. `SubstrateRuntime`, `LayeredRoutingEngine`, and `LayeringPolicyEngine` are effectful. `CommitteeSelector` is optional: Jacquard standardizes the `CommitteeSelection` result shape, not one formation algorithm. Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band. The substrate and layering traits are still forward-looking contract surfaces for host-owned composition.
+`PolicyEngine`, `CommitteeSelector`, `CommitteeCoordinatedEngine`, `SubstratePlanner`, and `LayeredRoutingEnginePlanner` are planning or read-only surfaces. `SubstrateRuntime`, `LayeredRoutingEngine`, and `LayeringPolicyEngine` are effectful. `CommitteeSelector` is optional: Jacquard standardizes the `CommitteeSelection` result shape, not one formation algorithm, and selectors may return `None` when no committee applies. Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band. The substrate and layering traits are still forward-looking contract surfaces for host-owned composition.
 
 ## Mesh Specialization
 

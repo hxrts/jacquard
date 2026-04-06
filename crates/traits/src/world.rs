@@ -5,8 +5,8 @@
 //! ownership of canonical route state or forking the shared world schema.
 
 use jacquard_core::{
-    EnvironmentObservation, LinkObservation, NodeObservation, Observation, RouteError,
-    ServiceObservation, TransportObservation, TransportProtocol, WorldObservation,
+    EnvironmentObservation, LinkObservation, NodeObservation, Observation, ServiceObservation,
+    TransportObservation, TransportProtocol, WorldError, WorldObservation,
 };
 use jacquard_macros::purity;
 
@@ -30,7 +30,7 @@ pub trait WorldExtensionDescriptor {
 /// an extension add more observed node instances without redefining what a node
 /// is.
 pub trait NodeWorldExtension: WorldExtensionDescriptor {
-    fn poll_node_observations(&mut self) -> Result<Vec<NodeObservation>, RouteError>;
+    fn poll_node_observations(&mut self) -> Result<Vec<NodeObservation>, WorldError>;
 }
 
 #[purity(effectful)]
@@ -40,21 +40,21 @@ pub trait NodeWorldExtension: WorldExtensionDescriptor {
 /// an extension add more observed link instances without redefining what a link
 /// is.
 pub trait LinkWorldExtension: WorldExtensionDescriptor {
-    fn poll_link_observations(&mut self) -> Result<Vec<LinkObservation>, RouteError>;
+    fn poll_link_observations(&mut self) -> Result<Vec<LinkObservation>, WorldError>;
 }
 
 #[purity(effectful)]
 /// Effectful runtime boundary for extensions that contribute observed local or
 /// neighborhood environment state.
 pub trait EnvironmentWorldExtension: WorldExtensionDescriptor {
-    fn poll_environment_observations(&mut self) -> Result<Vec<EnvironmentObservation>, RouteError>;
+    fn poll_environment_observations(&mut self) -> Result<Vec<EnvironmentObservation>, WorldError>;
 }
 
 #[purity(effectful)]
 /// Effectful runtime boundary for extensions that contribute observed shared
 /// service descriptors.
 pub trait ServiceWorldExtension: WorldExtensionDescriptor {
-    fn poll_service_observations(&mut self) -> Result<Vec<ServiceObservation>, RouteError>;
+    fn poll_service_observations(&mut self) -> Result<Vec<ServiceObservation>, WorldError>;
 }
 
 #[purity(effectful)]
@@ -63,7 +63,7 @@ pub trait ServiceWorldExtension: WorldExtensionDescriptor {
 pub trait TransportWorldExtension: WorldExtensionDescriptor {
     fn poll_transport_observations(
         &mut self,
-    ) -> Result<Vec<Observation<TransportObservation>>, RouteError>;
+    ) -> Result<Vec<Observation<TransportObservation>>, WorldError>;
 }
 
 #[purity(effectful)]
@@ -72,7 +72,8 @@ pub trait TransportWorldExtension: WorldExtensionDescriptor {
 /// The extension adds plain self-describing observations to the shared world.
 /// Higher-level host logic may later batch, diff, merge, checkpoint, or
 /// prioritize them, but the extension boundary itself stays focused on what was
-/// observed.
+/// observed. These surfaces report `WorldError` because they contribute world
+/// input rather than owning routing semantics.
 pub trait WorldExtension: WorldExtensionDescriptor {
-    fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, RouteError>;
+    fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, WorldError>;
 }

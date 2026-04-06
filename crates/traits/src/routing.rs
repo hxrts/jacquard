@@ -29,7 +29,9 @@ pub trait PolicyEngine {
 /// Optional deterministic boundary for engine-local committee selection.
 ///
 /// This trait makes the result shape abstract without forcing Jacquard core to
-/// standardize one committee algorithm across routing engines.
+/// standardize one committee algorithm across routing engines. Selectors return
+/// `Some(CommitteeSelection)` when a committee applies and `None` when local
+/// coordination is not needed for the current regime or objective.
 pub trait CommitteeSelector {
     type TopologyView;
 
@@ -38,7 +40,7 @@ pub trait CommitteeSelector {
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         topology: &Observation<Self::TopologyView>,
-    ) -> Result<CommitteeSelection, RouteError>;
+    ) -> Result<Option<CommitteeSelection>, RouteError>;
 }
 
 #[purity(read_only)]
