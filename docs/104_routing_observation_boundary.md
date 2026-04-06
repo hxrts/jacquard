@@ -16,6 +16,36 @@ This boundary is observational only. It feeds planning, admission, and maintenan
 
 The model has three shared scopes: local node, link, and environment. `world` defines the abstract objects. `observation` wraps them with provenance. `estimation` stays family-neutral in `core`. Routing-engine-specific peer or neighborhood heuristics belong in the engine layer, not the shared world schema.
 
+```mermaid
+graph LR
+    subgraph world["world"]
+        node["Node"]
+        link["Link"]
+        env["Environment"]
+    end
+
+    subgraph observation["observation"]
+        obs_node["Observation‹Node›"]
+        obs_link["Observation‹Link›"]
+        obs_env["Observation‹Environment›"]
+    end
+
+    subgraph estimation["estimation"]
+        config["Configuration"]
+    end
+
+    policy["policy"]
+    action["action"]
+
+    node --> obs_node
+    link --> obs_link
+    env --> obs_env
+    obs_node --> config
+    obs_link --> config
+    obs_env --> config
+    config --> policy --> action
+```
+
 World extensions contribute through plain `Observation<ObservedValue>` values. That means the extension boundary stays about what was observed, not about how one host may later batch, diff, coalesce, or partially apply those observations.
 
 ## Local Node

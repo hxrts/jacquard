@@ -33,7 +33,6 @@ The routing decision path starts from `RoutingObjective` and `Observation<Config
 ```rust
 pub trait RoutingEnginePlanner {
     fn engine_id(&self) -> RoutingEngineId;
-
     fn capabilities(&self) -> RoutingEngineCapabilities;
 
     fn candidate_routes(
@@ -58,64 +57,6 @@ pub trait RoutingEnginePlanner {
     ) -> Result<RouteAdmission, RouteError>;
 }
 
-pub trait CommitteeSelector {
-    type TopologyView;
-
-    fn select_committee(
-        &self,
-        objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
-        topology: &Observation<Self::TopologyView>,
-    ) -> Result<Option<CommitteeSelection>, RouteError>;
-}
-
-pub trait CommitteeCoordinatedEngine {
-    type Selector: CommitteeSelector;
-
-    fn committee_selector(&self) -> Option<&Self::Selector>;
-}
-
-pub trait SubstratePlanner {
-    fn candidate_substrates(
-        &self,
-        requirements: &SubstrateRequirements,
-        topology: &Observation<Configuration>,
-    ) -> Vec<SubstrateCandidate>;
-}
-
-pub trait SubstrateRuntime {
-    fn acquire_substrate(
-        &mut self,
-        candidate: SubstrateCandidate,
-    ) -> Result<SubstrateLease, RouteError>;
-
-    fn release_substrate(&mut self, lease: &SubstrateLease) -> Result<(), RouteError>;
-
-    fn observe_substrate_health(
-        &self,
-        lease: &SubstrateLease,
-    ) -> Result<Observation<RouteHealth>, RouteError>;
-}
-
-pub trait LayeredRoutingEnginePlanner {
-    fn candidate_routes_on_substrate(
-        &self,
-        objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
-        substrate: &SubstrateLease,
-        parameters: &LayerParameters,
-    ) -> Vec<RouteCandidate>;
-}
-
-pub trait LayeredRoutingEngine: RoutingEngine + LayeredRoutingEnginePlanner {
-    fn materialize_route_on_substrate(
-        &mut self,
-        input: RouteMaterializationInput,
-        substrate: SubstrateLease,
-        parameters: LayerParameters,
-    ) -> Result<RouteInstallation, RouteError>;
-}
-
 pub trait RoutingEngine: RoutingEnginePlanner {
     fn materialize_route(
         &mut self,
@@ -124,9 +65,10 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
-    fn engine_tick(&mut self, topology: &Observation<Configuration>) -> Result<(), RouteError> {
-        Ok(())
-    }
+    fn engine_tick(
+        &mut self,
+        topology: &Observation<Configuration>,
+    ) -> Result<(), RouteError> { Ok(()) }
 
     fn maintain_route(
         &mut self,
@@ -139,20 +81,37 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 }
 ```
 
-This split shows the main route-building sequence. The important point is that route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only when the router allocates route identity and the routing engine realizes that admitted route under the router-provided `RouteMaterializationInput`. Activation is not a blind assembly step: the control plane must only activate admissible routes, must enforce the objective protection floor, and must treat expired leases as a typed runtime failure rather than silently continuing. The planning side is deterministic and read-only with respect to canonical route state. Runtime mutation starts at `materialize_route`, but canonical route ownership stays above the routing-engine boundary.
+Route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only when the router allocates route identity and the engine realizes the admitted route. The planning side is deterministic and read-only. Runtime mutation starts at `materialize_route`, but canonical route ownership stays above the engine boundary. The control plane must enforce the objective protection floor and treat expired leases as a typed failure.
 
-`engine_tick` is the optional engine-wide bootstrap and convergence hook. An engine may use it as an internal middleware-style loop to refresh local regime estimates, decay stale local state, update coordination posture, or prepare engine-private planning state before any specific route is active. The host or router drives that cadence through the control plane's existing periodic tick path.
+`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, or updating coordination posture before any specific route is active.
 
-`CommitteeSelector` sits on the same planning side when a routing engine uses it. Jacquard commits to the shared result shape of the committee, not to one universal committee-formation policy. Routing engines may use leaderless threshold sets, role-differentiated committees, or no committee at all, so a selector may also return `None`. `CommitteeCoordinatedEngine` is the optional read-only hook that lets an engine expose the swappable selector component it is currently using. Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band.
+Committee selection, substrate planning, and layered routing follow the same pure/effectful split. See [Extensibility](107_extensibility.md) for the full trait signatures.
 
-`SubstratePlanner` and `LayeredRoutingEnginePlanner` stay on the deterministic planning side. `SubstrateRuntime` and `LayeredRoutingEngine` own the effectful acquisition and realization steps. That keeps layering aligned with the same purity rule as `RoutingEnginePlanner` versus `RoutingEngine`, and it prevents composition from collapsing planning and runtime mutation into one trait. These layering traits are still forward-looking contract surfaces. They describe the intended shared composition boundary, but Jacquard does not yet treat the current trait-contract tests as proof of mature in-tree layering semantics.
+### Overlay Example
 
-## Routing Engine Boundary
+Layering lets an overlay engine use mesh as a carrier without awareness of mesh-private topology. Mesh provides substrate reachability inside one cluster. The overlay engine consumes those paths as leased substrates for inter-cluster carriage or egress.
 
-`RoutingEnginePlanner` is the deterministic planning boundary. `RoutingEngine` is the effectful runtime boundary on top of it. A planner produces candidates, checks admission, and admits a route. The router allocates canonical route identity and assembles the final materialized-route record. The routing-engine runtime realizes the route under the router-owned handle and lease, publishes commitments, handles maintenance, and may also advance engine-wide adaptive state through `engine_tick`. The top-level router stays routing-engine-neutral: it compares candidates, enforces fallback rules, tracks materialized routes, and coordinates maintenance.
+```mermaid
+graph TD
+    subgraph overlay["overlay engine"]
+        classify["role classification"]
+        posture["overlay posture"]
+        refresh["candidate refresh"]
+        activate["route activation"]
+        maintain["maintain / replace"]
 
-See [Extensibility](107_extensibility.md) for the full extension surface, including world extensions, routing engines, mesh subcomponents, and runtime effects.
+        classify --> posture --> refresh --> activate --> maintain
+    end
 
-## Runtime Boundary
+    substrate["substrate lease"]
 
-The routing core does not call platform APIs directly. Hashing, storage, route-event logging, transport ingress, time, and ordering all cross explicit shared boundaries. See [Crate Architecture](106_crate_architecture.md) for the full trait inventory and the simulator reuse argument.
+    subgraph mesh["mesh engine"]
+        topo["topology model"]
+        forward["forwarding / repair"]
+        retain["retention store"]
+    end
+
+    maintain --> substrate --> mesh
+```
+
+The overlay engine's `engine_tick` drives the middleware stages shown above: classify the local node as member, bridge, or gateway, update overlay posture, then refresh candidates before any specific route is activated. Route activation, maintenance, and teardown still use the shared `RoutingEngine` traits.
