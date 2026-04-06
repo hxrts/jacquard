@@ -248,6 +248,27 @@ pub trait WorldExtension: WorldExtensionDescriptor {
 
 This is the main cooperative extension surface in Jacquard. One team may add observed BLE nodes. Another may add observed Wi-Fi links. Another may add platform-specific service or transport observations. A host merges those contributions into one world picture. Routing engines then consume that merged picture through the shared routing traits.
 
+### Capability Advertisement
+
+Jacquard does not use one global "which algorithm are you running?" handshake. Instead, nodes advertise shared routing-engine participation and cooperative services through `ServiceDescriptor`.
+
+```rust
+pub struct ServiceDescriptor {
+    pub provider_node_id: NodeId,
+    pub controller_id: ControllerId,
+    pub service_kind: RouteServiceKind,
+    pub endpoints: Vec<LinkEndpoint>,
+    pub routing_engines: Vec<RoutingEngineId>,
+    pub scope: ServiceScope,
+    pub valid_for: TimeWindow,
+    pub capacity: Belief<CapacityHint>,
+}
+```
+
+This advertisement tells peers what the node can participate in and what it offers. It is enough for discovery and coarse selection.
+
+If stronger terms are needed, they should be negotiated narrowly and per service. For example, `Hold` may negotiate retention limits, and `Repair` may negotiate route-specific participation. Jacquard does not currently define one universal negotiation object for all services.
+
 ## Routing Engines
 
 A routing engine is a routing algorithm that consumes the shared world picture and realizes routes under router-provided identity. Mesh is the first-party engine. External engines such as onion routing plug into the same contract without depending on mesh internals.
