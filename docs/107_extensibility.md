@@ -6,7 +6,7 @@ This page describes the main extension surfaces in Jacquard. It focuses on the p
 
 Jacquard is extended at several layers. World extensions add observed objects to the shared world picture. Routing engines consume that world picture and produce route behavior. Policy and coordination traits decide how engines are selected, composed, or locally coordinated. Operational subcomponents and runtime effects support those higher layers.
 
-The ordering matters. A team can extend the world without becoming a routing-engine author. A team can add a routing engine without redefining the world schema. A host can add policy and layering behavior without modifying a routing engine. This separation is the main reason the system composes cleanly across teams.
+These layers are intentionally separate. A team can extend the world without becoming a routing-engine author. A team can add a routing engine without redefining the world schema. A host can add policy and layering behavior without modifying a routing engine. This separation is the main reason the system composes cleanly across teams.
 
 ## World Extensions
 
