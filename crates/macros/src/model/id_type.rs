@@ -40,7 +40,7 @@ pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
                 Self(value)
             }
 
-            pub const fn into_inner(self) -> #field_ty {
+            pub const fn get(self) -> #field_ty {
                 self.0
             }
         }

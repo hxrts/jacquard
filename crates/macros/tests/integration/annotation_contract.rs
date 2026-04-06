@@ -26,7 +26,7 @@ struct RouteDescriptor {
 #[test]
 fn id_type_exposes_construction_helpers() {
     let route_id = ExampleId::new(7);
-    assert_eq!(route_id.into_inner(), 7);
+    assert_eq!(route_id.get(), 7);
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn public_model_preserves_existing_derives() {
         mode: RouteMode::Mesh,
     };
 
-    assert_eq!(descriptor.route_id.into_inner(), 1);
+    assert_eq!(descriptor.route_id.get(), 1);
     assert!(RouteMode::Mesh < RouteMode::Deferred);
 }
 
