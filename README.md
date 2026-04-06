@@ -4,7 +4,7 @@ Adaptive routing for ad hoc shaped networks. The world model and shared routing 
 
 ## Development
 
-```
+```sh
 # enter dev shell
 nix develop
 
