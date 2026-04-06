@@ -1,12 +1,12 @@
 # Extensibility
 
-This page describes the main extension surfaces in Jacquard. It focuses on the production surfaces that other teams are expected to implement. It does not cover simulator hooks. See [Core Types](102_core_types.md) for the shared model vocabulary and [Routing Logic](105_routing_logic.md) for the route lifecycle that these traits participate in.
+This page describes the main extension surfaces in Jacquard. It focuses on the production surfaces that other teams are expected to implement.
 
 ## Extension Model
 
-Jacquard is extended at several layers. World extensions add observed objects to the shared world picture. Routing engines consume that world picture and produce route behavior. Policy and coordination traits decide how engines are selected, composed, or locally coordinated. Operational subcomponents and runtime effects support those higher layers.
+Jacquard is extended at several layers. World extensions add observed objects to the shared world picture. Routing engines consume that picture and produce route behavior. Policy and coordination traits decide how engines are selected, composed, or locally coordinated. Operational subcomponents and runtime effects support those higher layers.
 
-These layers are intentionally separate. A team can extend the world without becoming a routing-engine author. A team can add a routing engine without redefining the world schema. A host can add policy and layering behavior without modifying a routing engine. This separation is the main reason the system composes cleanly across teams.
+These layers stay separate on purpose. A team can extend the world without becoming a routing-engine author, add a routing engine without redefining the world schema, or add host policy without modifying a routing engine.
 
 ## World Extensions
 
@@ -196,30 +196,9 @@ impl LinkWorldExtension for BleRelayExtension {
 }
 ```
 
-### Schema-Bound Observation Surfaces
+### World Extension Trait Options
 
-```rust
-pub type NodeObservation = Observation<Node>;
-pub type LinkObservation = Observation<Link>;
-pub type EnvironmentObservation = Observation<Environment>;
-pub type ServiceObservation = Observation<ServiceDescriptor>;
-
-pub enum ObservedValue {
-    Node(Node),
-    Link(Link),
-    Environment(Environment),
-    Service(ServiceDescriptor),
-    Transport(TransportObservation),
-}
-
-pub type WorldObservation = Observation<ObservedValue>;
-```
-
-These aliases bind the shared world schema directly into the extension surface. `NodeObservation` is `Observation<Node>`. `LinkObservation` is `Observation<Link>`. The concrete `Node`, `Link`, and `Environment` schema is therefore already part of the trait contract before any trait method is shown.
-
-`WorldObservation` is the umbrella surface. `ObservedValue` makes that umbrella form self-describing. A host can consume the narrow forms when it wants object-specific handling and can consume the umbrella form when it wants one uniform world-observation stream.
-
-### Schema-Bound Facet Traits
+These are the main world-extension entry points. Most contributors implement only the ones that match the kinds of objects they observe.
 
 ```rust
 pub trait WorldExtensionDescriptor {
@@ -253,9 +232,11 @@ pub trait TransportWorldExtension: WorldExtensionDescriptor {
 }
 ```
 
-These facet traits are already schema-bound. `NodeWorldExtension` is not a generic hook for inventing a new node model. It is a concrete contract that returns `Vec<NodeObservation>`, and `NodeObservation` is `Observation<Node>`. The same rule applies to links, environment, services, and transport observations.
+A team that adds a new device will often implement `NodeWorldExtension`, `LinkWorldExtension`, or both. The other facets are available when an extension also emits environment, service, or transport observations.
 
 ### Umbrella World Extension
+
+This surface is optional. It is useful when an extension naturally wants to emit one combined world-observation stream instead of separate node, link, environment, service, or transport streams.
 
 ```rust
 pub trait WorldExtension: WorldExtensionDescriptor {
@@ -263,7 +244,7 @@ pub trait WorldExtension: WorldExtensionDescriptor {
 }
 ```
 
-`WorldExtensionDescriptor` is pure metadata. All world-extension polling traits are effectful. A team may implement the umbrella trait, one or more narrow facet traits, or both. A host may later batch, diff, merge, checkpoint, or prioritize these observations above this boundary.
+`WorldExtensionDescriptor` is pure metadata. `WorldExtension` is effectful. Use it when one extension discovers many kinds of observed objects together and the host prefers to ingest them as one self-describing stream. Higher-level batching, diffing, merging, and checkpointing still happen above this boundary.
 
 This is the main cooperative extension surface in Jacquard. One team may add observed BLE nodes. Another may add observed Wi-Fi links. Another may add platform-specific service or transport observations. A host merges those contributions into one world picture. Routing engines then consume that merged picture through the shared routing traits.
 
@@ -327,7 +308,7 @@ External routing engines should depend on `jacquard-core` and `jacquard-traits`.
 
 ## Policy And Coordination
 
-Policy and coordination traits are separate from route realization. They do not change who owns canonical route state. They decide how a host computes adaptive policy, how an engine may expose local coordination results, and how engines may be layered without direct engine-to-engine awareness.
+Policy and coordination traits are separate from route realization. They cover host policy, optional local coordination results, and engine layering without direct engine-to-engine awareness.
 
 ```rust
 pub trait PolicyEngine {
@@ -419,47 +400,7 @@ pub trait LayeringPolicyEngine {
 }
 ```
 
-`PolicyEngine`, `CommitteeSelector`, `CommitteeCoordinatedEngine`, `SubstratePlanner`, and `LayeredRoutingEnginePlanner` are planning or read-only decision surfaces. `SubstrateRuntime`, `LayeredRoutingEngine`, and `LayeringPolicyEngine` are effectful. `CommitteeSelector` is optional. Jacquard commits to the result shape of `CommitteeSelection`. It does not standardize one committee-formation algorithm. `CommitteeCoordinatedEngine` is the optional read-only hook that lets an engine expose the swappable selector component it uses. Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band. The substrate and layering traits are still forward-looking contract surfaces. They exist so host-owned composition can stabilize at the type boundary now, but the current in-tree coverage is still contract-oriented rather than a mature production layering stack.
-
-Layering follows the same ownership rule as ordinary route realization. The canonical route handle and lease come from the router or host policy layer. A layered routing engine does not allocate canonical route identity for itself. The lower engine exposes substrate capabilities and leases. The upper engine consumes them through the shared substrate contract.
-
-## Operational Subcomponents
-
-Operational subcomponents support routing engines at the boundary where bytes move or deferred delivery is stored. These are not top-level semantic extensions. They are narrow effectful support surfaces.
-
-```rust
-pub trait MeshTransport {
-    #[must_use]
-    fn transport_id(&self) -> TransportProtocol;
-
-    fn send_frame(&mut self, endpoint: &LinkEndpoint, payload: &[u8])
-        -> Result<(), TransportError>;
-
-    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
-}
-
-pub trait RetentionStore {
-    fn retain_payload(
-        &mut self,
-        object_id: ContentId<Blake3Digest>,
-        payload: Vec<u8>,
-    ) -> Result<(), RetentionError>;
-
-    fn take_retained_payload(
-        &mut self,
-        object_id: &ContentId<Blake3Digest>,
-    ) -> Result<Option<Vec<u8>>, RetentionError>;
-
-    fn contains_retained_payload(
-        &self,
-        object_id: &ContentId<Blake3Digest>,
-    ) -> Result<bool, RetentionError>;
-}
-```
-
-`MeshTransport` is a frame carrier. It sends bytes and reports transport observations. It must not impose sequencing, traffic control, or routing truth. `RetentionStore` holds opaque deferred-delivery payloads during partitions. It must not interpret higher-level routing semantics.
-
-New transport implementations such as BLE GATT, Wi-Fi LAN, or QUIC implement `MeshTransport` and are registered with the mesh routing engine. If transport implementations grow substantial platform logic, they should move into dedicated crates such as `jacquard-transport-ble`. `RetentionStore` stays intentionally narrow for the same reason.
+`PolicyEngine`, `CommitteeSelector`, `CommitteeCoordinatedEngine`, `SubstratePlanner`, and `LayeredRoutingEnginePlanner` are planning or read-only surfaces. `SubstrateRuntime`, `LayeredRoutingEngine`, and `LayeringPolicyEngine` are effectful. `CommitteeSelector` is optional: Jacquard standardizes the `CommitteeSelection` result shape, not one formation algorithm. Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band. The substrate and layering traits are still forward-looking contract surfaces for host-owned composition.
 
 ## Mesh Specialization
 
@@ -527,9 +468,51 @@ pub trait MeshRoutingEngine: RoutingEngine {
 
 The associated estimate types are the important boundary here. If a mesh implementation wants novelty scores, reach estimates, bridge heuristics, or neighborhood flow signals, those stay mesh-owned behind `MeshTopologyModel`. They are not promoted into `jacquard-core` as shared `Node`, `Link`, or `Environment` schema.
 
+## Operational Subcomponents
+
+Operational subcomponents support routing engines at the boundary where bytes move or deferred delivery is stored. They are narrow effectful support surfaces for transport I/O and retained payload storage.
+
+```rust
+pub trait MeshTransport {
+    #[must_use]
+    fn transport_id(&self) -> TransportProtocol;
+
+    fn send_frame(&mut self, endpoint: &LinkEndpoint, payload: &[u8])
+        -> Result<(), TransportError>;
+
+    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
+}
+```
+
+`MeshTransport` is the carrier boundary for sending frames and reporting transport observations.
+
+```rust
+pub trait RetentionStore {
+    fn retain_payload(
+        &mut self,
+        object_id: ContentId<Blake3Digest>,
+        payload: Vec<u8>,
+    ) -> Result<(), RetentionError>;
+
+    fn take_retained_payload(
+        &mut self,
+        object_id: &ContentId<Blake3Digest>,
+    ) -> Result<Option<Vec<u8>>, RetentionError>;
+
+    fn contains_retained_payload(
+        &self,
+        object_id: &ContentId<Blake3Digest>,
+    ) -> Result<bool, RetentionError>;
+}
+```
+
+`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions.
+
+New transport implementations such as BLE GATT, Wi-Fi LAN, or QUIC implement `MeshTransport` and are registered with the mesh routing engine. If transport implementations grow substantial platform logic, they should move into dedicated crates such as `jacquard-transport-ble`. `RetentionStore` stays intentionally narrow for the same reason.
+
 ## Runtime Effects
 
-Runtime effects are the lowest-level extensibility surface in this document. They expose narrow runtime capabilities to pure routing logic. They do not own route semantics, supervision, or canonical route state.
+Runtime effects are the lowest-level extensibility surface in this document. They expose narrow runtime capabilities to pure routing logic. They are useful when a runtime or host needs to swap out how routing code gets time, storage, hashing, transport, or audit services without changing the routing logic itself. They do not own route semantics, supervision, or canonical route state.
 
 ```rust
 pub trait TimeEffects {
@@ -577,4 +560,4 @@ pub trait RoutingRuntimeEffects:
 {}
 ```
 
-Each effect trait covers one concern. `RoutingRuntimeEffects` is the aggregate marker for runtimes that provide the current minimal effect set. This surface is lower-level than world extensions, routing engines, or policy traits. It exists so native execution, tests, and deterministic replay can share one routing model without sharing one concrete runtime.
+Each effect trait covers one concern. `RoutingRuntimeEffects` is the aggregate marker for runtimes that provide the current minimal effect set.
