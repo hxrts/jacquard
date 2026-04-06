@@ -133,7 +133,9 @@ let ble_relay_link = Link {
 
 // Node objects describe the device's stable capabilities and current observed node state.
 let ble_relay_profile = NodeProfile {
-    services: vec![],
+    services: vec![
+        /* Discover / Move / Hold descriptors for this node */
+    ],
     endpoints: vec![ble_relay_endpoint.clone()],
     connection_count_max: 4,
     neighbor_state_count_max: 16,
@@ -195,6 +197,8 @@ impl LinkWorldExtension for BleRelayExtension {
     }
 }
 ```
+
+In a real routing participant, that `services` list would normally advertise `Discover`, `Move`, and `Hold` for the engine contracts the node can join. The example keeps those descriptors abbreviated so the focus stays on mapping the device into the shared world schema.
 
 ### World Extension Trait Options
 
@@ -266,6 +270,15 @@ pub struct ServiceDescriptor {
 ```
 
 This advertisement tells peers what the node can participate in and what it offers. It is enough for discovery and coarse selection.
+
+For nodes that participate in routing at all, Jacquard should treat the default shared capability surface as:
+
+- `Discover` for service and route-relevant discovery
+- `Move` for admitted-route payload carriage
+- `Hold` for retention-backed delayed or partition-tolerant delivery
+- shared relay budget, connection headroom, hold capacity, link-quality observations, and coarse environment observations
+
+Routing engines may add stricter interpretation on top of that surface, but they should not need a second node-capability vocabulary just to participate.
 
 If stronger terms are needed, they should be negotiated narrowly and per service. For example, `Hold` may negotiate retention limits, and `Repair` may negotiate route-specific participation. Jacquard does not currently define one universal negotiation object for all services.
 
