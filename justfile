@@ -149,7 +149,7 @@ ci-dry-run:
     add_step "Trait Purity"       "./scripts/check/trait-purity.sh"
     add_step "Crate Boundary"     "./scripts/check/crate-boundary.sh"
     add_step "No usize in Models" "./scripts/check/no-usize-in-models.sh"
-    add_step "Semantic Drift"     "./scripts/check/docs-semantic-drift.sh"
+    add_step "Docs Semantic Drift" "./scripts/check/docs-semantic-drift.sh"
     add_step "Docs Build"         "just book"
 
     total=${#STEPS[@]}

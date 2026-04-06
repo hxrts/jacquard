@@ -55,6 +55,7 @@ checks=(
   "Clippy"
   "Tests"
   "Docs Link Check"
+  "Docs Semantic Drift"
   "Proc Macro Scope"
   "Trait Purity"
   "Crate Boundary"
