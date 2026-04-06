@@ -6,7 +6,7 @@ use jacquard_traits::{
     jacquard_core::{
         Configuration, ControllerId, DeploymentProfile, Environment, FactSourceClass, Link,
         LinkRuntimeState, LinkState, Node, NodeId, NodeProfile, NodeState, Observation,
-        OriginAuthenticationClass, RatioPermille, RouteEpoch, RouteEvent, RoutingAuditEvent,
+        OriginAuthenticationClass, RatioPermille, RouteEpoch, RouteEvent, RouteEventStamped,
         RoutingObjective, Tick,
     },
     RoutingEnvironmentModel, RoutingReplayView, RoutingScenario, RoutingSimulator,
@@ -75,7 +75,7 @@ impl RoutingEnvironmentModel for StubEnvironmentModel {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct StubReplayArtifact {
     route_events: Vec<RouteEvent>,
-    audit_events: Vec<RoutingAuditEvent>,
+    stamped_route_events: Vec<RouteEventStamped>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -104,39 +104,41 @@ impl RoutingSimulator for StubSimulator {
             &scenario.initial_configuration.value,
             scenario.initial_configuration.observed_at_tick,
         );
-        let audit_events =
+        let stamped_route_events =
             artifacts
                 .into_iter()
                 .map(|StubEnvironmentArtifact::AdvancedTo(tick)| {
-                    RoutingAuditEvent {
-                order_stamp: jacquard_traits::jacquard_core::OrderStamp(1),
-                emitted_at_tick: tick,
-                event: RouteEvent::RouteHealthObserved {
-                    route_id: jacquard_traits::jacquard_core::RouteId([1; 16]),
-                    health: Observation {
-                        value: jacquard_traits::jacquard_core::RouteHealth {
-                            reachability_state:
-                                jacquard_traits::jacquard_core::ReachabilityState::Reachable,
-                            stability_score: jacquard_traits::jacquard_core::HealthScore(1000),
-                            congestion_penalty_points:
-                                jacquard_traits::jacquard_core::PenaltyPoints(0),
-                            last_validated_at_tick: tick,
+                    RouteEventStamped {
+                        order_stamp: jacquard_traits::jacquard_core::OrderStamp(1),
+                        emitted_at_tick: tick,
+                        event: RouteEvent::RouteHealthObserved {
+                            route_id: jacquard_traits::jacquard_core::RouteId([1; 16]),
+                            health: Observation {
+                                value: jacquard_traits::jacquard_core::RouteHealth {
+                                    reachability_state:
+                                        jacquard_traits::jacquard_core::ReachabilityState::Reachable,
+                                    stability_score: jacquard_traits::jacquard_core::HealthScore(
+                                        1000,
+                                    ),
+                                    congestion_penalty_points:
+                                        jacquard_traits::jacquard_core::PenaltyPoints(0),
+                                    last_validated_at_tick: tick,
+                                },
+                                source_class: FactSourceClass::Local,
+                                evidence_class:
+                                    jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+                                origin_authentication: OriginAuthenticationClass::Controlled,
+                                observed_at_tick: tick,
+                            },
                         },
-                        source_class: FactSourceClass::Local,
-                        evidence_class:
-                            jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
-                        origin_authentication: OriginAuthenticationClass::Controlled,
-                        observed_at_tick: tick,
-                    },
-                },
-            }
+                    }
                 })
                 .collect();
 
         Ok((
             StubReplayArtifact {
                 route_events: Vec::new(),
-                audit_events,
+                stamped_route_events,
             },
             StubSimulationStats {
                 productive_step_count: 1,
@@ -164,8 +166,11 @@ impl RoutingReplayView for StubSimulator {
         &replay.route_events
     }
 
-    fn audit_events<'a>(&self, replay: &'a Self::ReplayArtifact) -> &'a [RoutingAuditEvent] {
-        &replay.audit_events
+    fn stamped_route_events<'a>(
+        &self,
+        replay: &'a Self::ReplayArtifact,
+    ) -> &'a [RouteEventStamped] {
+        &replay.stamped_route_events
     }
 }
 
@@ -300,7 +305,7 @@ fn routing_simulator_executes_and_replays_through_explicit_artifacts() {
     let (resumed, resumed_stats) = simulator.resume_replay(&replay).expect("resume replay");
 
     assert!(simulator.route_events(&replay).is_empty());
-    assert_eq!(simulator.audit_events(&replay).len(), 1);
+    assert_eq!(simulator.stamped_route_events(&replay).len(), 1);
     assert_eq!(stats.productive_step_count, 1);
     assert_eq!(resumed, replay);
     assert_eq!(resumed_stats.productive_step_count, 0);

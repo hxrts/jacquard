@@ -1,4 +1,4 @@
-//! Replay-visible route events and audit records.
+//! Replay-visible route events and stamped route-event records.
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,7 @@ pub enum RouteEvent {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RoutingAuditEvent {
+pub struct RouteEventStamped {
     pub order_stamp: OrderStamp,
     pub emitted_at_tick: Tick,
     pub event: RouteEvent,

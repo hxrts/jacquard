@@ -512,7 +512,7 @@ New transport implementations such as BLE GATT, Wi-Fi LAN, or QUIC implement `Me
 
 ## Runtime Effects
 
-Runtime effects are the lowest-level extensibility surface in this document. They expose narrow runtime capabilities to pure routing logic. They are useful when a runtime or host needs to swap out how routing code gets time, storage, hashing, transport, or audit services without changing the routing logic itself. They do not own route semantics, supervision, or canonical route state.
+Runtime effects are the lowest-level extensibility surface in this document. They expose narrow runtime capabilities to pure routing logic. They are useful when a runtime or host needs to swap out how routing code gets time, storage, transport, or route-event logging services without changing the routing logic itself. Hashing is modeled separately as a pure deterministic boundary, not a runtime effect. They do not own route semantics, supervision, or canonical route state.
 
 ```rust
 pub trait TimeEffects {
@@ -525,14 +525,6 @@ pub trait OrderEffects {
     fn next_order_stamp(&mut self) -> OrderStamp;
 }
 
-pub trait HashEffects {
-    #[must_use]
-    fn hash_bytes(&self, input: &[u8]) -> Blake3Digest;
-
-    #[must_use]
-    fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Blake3Digest;
-}
-
 pub trait StorageEffects {
     fn load_bytes(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
 
@@ -541,8 +533,11 @@ pub trait StorageEffects {
     fn remove_bytes(&mut self, key: &[u8]) -> Result<(), StorageError>;
 }
 
-pub trait AuditEffects {
-    fn emit_audit(&mut self, event: RoutingAuditEvent) -> Result<(), AuditError>;
+pub trait RouteEventLogEffects {
+    fn record_route_event(
+        &mut self,
+        event: RouteEventStamped,
+    ) -> Result<(), RouteEventLogError>;
 }
 
 pub trait TransportEffects {
@@ -556,7 +551,7 @@ pub trait TransportEffects {
 }
 
 pub trait RoutingRuntimeEffects:
-    TimeEffects + OrderEffects + HashEffects + StorageEffects + AuditEffects + TransportEffects
+    TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects + TransportEffects
 {}
 ```
 

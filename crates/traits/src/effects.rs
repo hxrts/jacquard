@@ -6,7 +6,7 @@
 //! truth. Concrete handlers live in the separate `handler` module.
 
 use jacquard_core::{
-    AuditError, Blake3Digest, OrderStamp, RoutingAuditEvent, StorageError, Tick, TransportError,
+    OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick, TransportError,
     TransportObservation,
 };
 use jacquard_macros::{effect_trait, purity};
@@ -45,18 +45,6 @@ pub trait OrderEffects {
 }
 
 #[effect_trait]
-/// Runtime hashing boundary used to keep hashing implementations swappable.
-///
-/// Effectful runtime boundary with deterministic methods.
-pub trait HashEffects {
-    #[must_use]
-    fn hash_bytes(&self, input: &[u8]) -> Blake3Digest;
-
-    #[must_use]
-    fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Blake3Digest;
-}
-
-#[effect_trait]
 /// Runtime persistence boundary for opaque bytes.
 ///
 /// Effectful runtime boundary.
@@ -69,11 +57,11 @@ pub trait StorageEffects {
 }
 
 #[effect_trait]
-/// Runtime audit-emission boundary for replay-visible events.
+/// Runtime route-event log boundary for replay-visible stamped events.
 ///
 /// Effectful runtime boundary.
-pub trait AuditEffects {
-    fn emit_audit(&mut self, event: RoutingAuditEvent) -> Result<(), AuditError>;
+pub trait RouteEventLogEffects {
+    fn record_route_event(&mut self, event: RouteEventStamped) -> Result<(), RouteEventLogError>;
 }
 
 #[effect_trait]
@@ -96,24 +84,24 @@ pub trait TransportEffects {
 ///
 /// Effectful runtime boundary.
 pub trait RoutingRuntimeEffects:
-    TimeEffects + OrderEffects + HashEffects + StorageEffects + AuditEffects + TransportEffects
+    TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects + TransportEffects
 {
 }
 
 impl<T> RoutingRuntimeEffects for T where
-    T: TimeEffects + OrderEffects + HashEffects + StorageEffects + AuditEffects + TransportEffects
+    T: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects + TransportEffects
 {
 }
 
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        AuditError, Blake3Digest, OrderStamp, RoutingAuditEvent, StorageError, Tick,
-        TransportError, TransportObservation,
+        OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick, TransportError,
+        TransportObservation,
     };
 
     use super::{
-        AuditEffects, Effect, HashEffects, OrderEffects, RoutingRuntimeEffects, StorageEffects,
+        Effect, OrderEffects, RouteEventLogEffects, RoutingRuntimeEffects, StorageEffects,
         TimeEffects, TransportEffects,
     };
     use crate::effect_handler;
@@ -135,17 +123,6 @@ mod tests {
     }
 
     #[effect_handler]
-    impl HashEffects for DummyRuntime {
-        fn hash_bytes(&self, _input: &[u8]) -> Blake3Digest {
-            Blake3Digest([3; 32])
-        }
-
-        fn hash_tagged(&self, _domain: &[u8], _input: &[u8]) -> Blake3Digest {
-            Blake3Digest([4; 32])
-        }
-    }
-
-    #[effect_handler]
     impl StorageEffects for DummyRuntime {
         fn load_bytes(&self, _key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
             Ok(None)
@@ -161,8 +138,11 @@ mod tests {
     }
 
     #[effect_handler]
-    impl AuditEffects for DummyRuntime {
-        fn emit_audit(&mut self, _event: RoutingAuditEvent) -> Result<(), AuditError> {
+    impl RouteEventLogEffects for DummyRuntime {
+        fn record_route_event(
+            &mut self,
+            _event: RouteEventStamped,
+        ) -> Result<(), RouteEventLogError> {
             Ok(())
         }
     }
@@ -198,9 +178,8 @@ mod tests {
     fn effect_traits_participate_in_the_effect_marker() {
         assert_effect::<dyn TimeEffects>();
         assert_effect::<dyn OrderEffects>();
-        assert_effect::<dyn HashEffects>();
         assert_effect::<dyn StorageEffects>();
-        assert_effect::<dyn AuditEffects>();
+        assert_effect::<dyn RouteEventLogEffects>();
         assert_effect::<dyn TransportEffects>();
     }
 

@@ -130,10 +130,10 @@ pub enum StorageError {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum AuditError {
-    #[error("audit sink is unavailable")]
+pub enum RouteEventLogError {
+    #[error("route-event log is unavailable")]
     Unavailable,
-    #[error("audit event was rejected")]
+    #[error("route-event log entry was rejected")]
     Rejected,
 }
 

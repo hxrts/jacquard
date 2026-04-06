@@ -149,4 +149,4 @@ See [Extensibility](107_extensibility.md) for the full extension surface, includ
 
 ## Runtime Boundary
 
-The routing core does not call platform APIs directly. Hashing, storage, audit emission, transport ingress, time, and ordering all cross explicit runtime-effect traits. See [Crate Architecture](106_crate_architecture.md) for the full effect trait inventory and the simulator reuse argument.
+The routing core does not call platform APIs directly. Hashing, storage, route-event logging, transport ingress, time, and ordering all cross explicit shared boundaries. See [Crate Architecture](106_crate_architecture.md) for the full trait inventory and the simulator reuse argument.
