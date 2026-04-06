@@ -198,6 +198,20 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     /// expressible as an explicit route commitment.
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
+    /// Optional engine-wide periodic progress hook.
+    ///
+    /// Engines may use this to refresh engine-private adaptive state, decay
+    /// stale observations, update coordination posture, or perform other
+    /// bootstrap and convergence logic that is not tied to one active route.
+    /// The default implementation is a no-op.
+    ///
+    /// This hook must not publish canonical route truth directly. Any
+    /// resulting activation, replacement, or maintenance decisions still flow
+    /// through the router/control-plane path.
+    fn engine_tick(&mut self, _topology: &Observation<Configuration>) -> Result<(), RouteError> {
+        Ok(())
+    }
+
     /// Maintenance receives immutable router-owned route identity plus mutable
     /// engine-owned runtime state. Engines must not mutate canonical handle,
     /// lease, or admission through this surface.
@@ -268,7 +282,8 @@ pub trait RoutingControlPlane {
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError>;
 
-    /// Periodic consistency sweep: expire leases, detect stale routes.
+    /// Periodic consistency sweep: refresh engine-wide adaptive state, expire
+    /// leases, and detect stale routes.
     fn anti_entropy_tick(&mut self) -> Result<(), RouteError>;
 }
 

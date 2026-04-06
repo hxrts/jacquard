@@ -568,6 +568,28 @@ fn routing_engine_contract_can_drive_candidate_to_materialized_route() {
 }
 
 #[test]
+fn routing_engine_supports_engine_wide_periodic_progress() {
+    let route = sample_route(sample_objective(), sample_profile());
+    let mut family = StubFamily {
+        route,
+        selector: None,
+    };
+
+    let topology = Observation {
+        value: empty_configuration(),
+        source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication:
+            jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(1),
+    };
+
+    family
+        .engine_tick(&topology)
+        .expect("default engine tick should succeed");
+}
+
+#[test]
 fn committee_selector_trait_supports_shared_result_shape() {
     let selector = StubCommitteeSelector;
     let committee = selector

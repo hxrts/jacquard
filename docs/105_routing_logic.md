@@ -124,6 +124,10 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
+    fn engine_tick(&mut self, topology: &Observation<Configuration>) -> Result<(), RouteError> {
+        Ok(())
+    }
+
     fn maintain_route(
         &mut self,
         identity: &MaterializedRouteIdentity,
@@ -137,13 +141,15 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
 This split shows the main route-building sequence. The important point is that route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only when the router allocates route identity and the routing engine realizes that admitted route under the router-provided `RouteMaterializationInput`. Activation is not a blind assembly step: the control plane must only activate admissible routes, must enforce the objective protection floor, and must treat expired leases as a typed runtime failure rather than silently continuing. The planning side is deterministic and read-only with respect to canonical route state. Runtime mutation starts at `materialize_route`, but canonical route ownership stays above the routing-engine boundary.
 
+`engine_tick` is the optional engine-wide bootstrap and convergence hook. An engine may use it as an internal middleware-style loop to refresh local regime estimates, decay stale local state, update coordination posture, or prepare engine-private planning state before any specific route is active. The host or router drives that cadence through the control plane's existing periodic tick path.
+
 `CommitteeSelector` sits on the same planning side when a routing engine uses it. Jacquard commits to the shared result shape of the committee, not to one universal committee-formation policy. Routing engines may use leaderless threshold sets, role-differentiated committees, or no committee at all, so a selector may also return `None`. `CommitteeCoordinatedEngine` is the optional read-only hook that lets an engine expose the swappable selector component it is currently using. Selector implementations may be engine-local, host-local, provisioned, or otherwise out of band.
 
 `SubstratePlanner` and `LayeredRoutingEnginePlanner` stay on the deterministic planning side. `SubstrateRuntime` and `LayeredRoutingEngine` own the effectful acquisition and realization steps. That keeps layering aligned with the same purity rule as `RoutingEnginePlanner` versus `RoutingEngine`, and it prevents composition from collapsing planning and runtime mutation into one trait. These layering traits are still forward-looking contract surfaces. They describe the intended shared composition boundary, but Jacquard does not yet treat the current trait-contract tests as proof of mature in-tree layering semantics.
 
 ## Routing Engine Boundary
 
-`RoutingEnginePlanner` is the deterministic planning boundary. `RoutingEngine` is the effectful runtime boundary on top of it. A planner produces candidates, checks admission, and admits a route. The router allocates canonical route identity and assembles the final materialized-route record. The routing-engine runtime realizes the route under the router-owned handle and lease, publishes commitments, and handles maintenance. The top-level router stays routing-engine-neutral: it compares candidates, enforces fallback rules, tracks materialized routes, and coordinates maintenance.
+`RoutingEnginePlanner` is the deterministic planning boundary. `RoutingEngine` is the effectful runtime boundary on top of it. A planner produces candidates, checks admission, and admits a route. The router allocates canonical route identity and assembles the final materialized-route record. The routing-engine runtime realizes the route under the router-owned handle and lease, publishes commitments, handles maintenance, and may also advance engine-wide adaptive state through `engine_tick`. The top-level router stays routing-engine-neutral: it compares candidates, enforces fallback rules, tracks materialized routes, and coordinates maintenance.
 
 See [Extensibility](107_extensibility.md) for the full extension surface, including world extensions, routing engines, mesh subcomponents, and runtime effects.
 

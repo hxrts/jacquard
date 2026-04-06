@@ -312,6 +312,10 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
+    fn engine_tick(&mut self, topology: &Observation<Configuration>) -> Result<(), RouteError> {
+        Ok(())
+    }
+
     fn maintain_route(
         &mut self,
         identity: &MaterializedRouteIdentity,
@@ -324,6 +328,8 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 ```
 
 `RoutingEnginePlanner` is pure. `RoutingEngine` is effectful. The split keeps candidate production deterministic and keeps runtime mutation inside explicit realization and maintenance methods. The router allocates canonical route identity first. The engine realizes the admitted route under that identity and returns `RouteInstallation`. The final `MaterializedRoute` is assembled above the engine boundary as router-owned identity plus engine-owned runtime state, and maintenance only receives the mutable runtime portion. That activation step also enforces the shared control-plane invariants: the admission decision must still be admissible, the realized protection must satisfy the objective protection floor, and lease validity must be checked explicitly before maintenance or publication proceeds.
+
+`engine_tick` is the optional engine-wide bootstrap and convergence hook. An engine may use it as an internal middleware-style loop to refresh local regime estimates, decay stale local state, update coordination posture, or prepare engine-private planning state before any specific route is active. The host or router drives that cadence through the control plane's existing periodic tick path; the hook itself does not publish canonical route truth directly.
 
 External routing engines should depend on `jacquard-core` and `jacquard-traits`. They should not depend on mesh internals, router internals, or simulator-private helpers. The stable shared contract includes `RouteSummary`, `Estimate<RouteEstimate>`, `RouteAdmissionCheck`, `RouteWitness`, `RouteHandle`, `RouteLease`, `RouteMaterializationInput`, `RouteInstallation`, `RouteCommitment`, `RouteMaintenanceResult`, `CommitteeSelection`, `SubstrateRequirements`, `SubstrateLease`, `LayerParameters`, `Observation<T>`, and `Fact<T>`. External engines must not assume mesh route shape, mesh topology structure, mesh-specific maintenance semantics, or any authority model outside those shared route objects.
 
