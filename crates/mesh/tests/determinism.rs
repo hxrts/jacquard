@@ -119,3 +119,21 @@ fn service_destination_ordering_is_stable_across_calls() {
     assert_eq!(first, second);
     assert_eq!(second, third);
 }
+
+// Two planning passes over the same topology snapshot must return
+// identical candidate lists in the same order, with the expected
+// candidate count from the sample fixture.
+#[test]
+fn candidate_ordering_matches_expected_count_and_is_stable() {
+    let engine = build_engine();
+    let topology = common::sample_configuration();
+    let objective = common::objective(DestinationId::Service(
+        jacquard_traits::jacquard_core::ServiceId(vec![1, 2, 3]),
+    ));
+    let profile = common::profile();
+
+    let first = engine.candidate_routes(&objective, &profile, &topology);
+    let second = engine.candidate_routes(&objective, &profile, &topology);
+    assert_eq!(first, second);
+    assert_eq!(first.len(), 3);
+}

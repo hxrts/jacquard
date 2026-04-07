@@ -82,6 +82,237 @@ where
     Hasher: Hashing<Digest = Blake3Digest>,
     Selector: CommitteeSelector<TopologyView = Configuration>,
 {
+    fn fallback_health_configuration(&self, cached: &super::CachedCandidate) -> Configuration {
+        Configuration {
+            epoch: cached.path.epoch,
+            nodes: BTreeMap::new(),
+            links: BTreeMap::new(),
+            environment: jacquard_core::Environment {
+                reachable_neighbor_count: 0,
+                churn_permille: jacquard_core::RatioPermille(0),
+                contention_permille: jacquard_core::RatioPermille(0),
+            },
+        }
+    }
+
+    fn route_health_for_materialization(
+        &self,
+        cached: &super::CachedCandidate,
+        now: jacquard_core::Tick,
+    ) -> RouteHealth {
+        RouteHealth {
+            reachability_state: ReachabilityState::Reachable,
+            stability_score: mesh_health_score(&self.latest_topology.as_ref().map_or_else(
+                || self.fallback_health_configuration(cached),
+                |topology| topology.value.clone(),
+            )),
+            congestion_penalty_points: PenaltyPoints(0),
+            last_validated_at_tick: now,
+        }
+    }
+
+    fn materialization_proof_for(
+        &self,
+        input: &RouteMaterializationInput,
+        now: jacquard_core::Tick,
+    ) -> RouteMaterializationProof {
+        RouteMaterializationProof {
+            route_id: input.handle.route_id,
+            topology_epoch: input.handle.topology_epoch,
+            materialized_at_tick: now,
+            publication_id: input.handle.publication_id,
+            witness: Fact {
+                value: input.admission.witness.clone(),
+                basis: FactBasis::Admitted,
+                established_at_tick: now,
+            },
+        }
+    }
+
+    fn installation_for(
+        &self,
+        _input: &RouteMaterializationInput,
+        cached: &super::CachedCandidate,
+        now: jacquard_core::Tick,
+        proof: RouteMaterializationProof,
+    ) -> RouteInstallation {
+        RouteInstallation {
+            materialization_proof: proof,
+            last_lifecycle_event: RouteLifecycleEvent::Activated,
+            health: self.route_health_for_materialization(cached, now),
+            progress: RouteProgressContract {
+                productive_step_count_max: cached.admission_check.productive_step_bound,
+                total_step_count_max: cached.admission_check.total_step_bound,
+                last_progress_at_tick: now,
+                state: RouteProgressState::Satisfied,
+            },
+        }
+    }
+
+    fn active_route_for_materialization(&self, cached: &super::CachedCandidate) -> ActiveMeshRoute {
+        ActiveMeshRoute {
+            path: cached.path.clone(),
+            committee: cached.committee.clone(),
+            current_epoch: cached.path.epoch,
+            last_lifecycle_event: RouteLifecycleEvent::Activated,
+            in_flight_frames: 0,
+            last_ack_at_tick: None,
+            repair_steps_remaining: limit_u32(cached.admission_check.productive_step_bound),
+            route_cost: cached.route_cost.clone(),
+            partition_mode: false,
+            retained_objects: BTreeSet::new(),
+            ordering_key: cached.ordering_key.clone(),
+        }
+    }
+
+    fn expired_lease_result(
+        &mut self,
+        identity: &MaterializedRouteIdentity,
+        runtime: &mut jacquard_core::RouteRuntimeState,
+    ) -> Result<RouteMaintenanceResult, RouteError> {
+        runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
+        runtime.progress.state = RouteProgressState::Failed;
+        let result = RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Expired,
+            outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LeaseExpired),
+        };
+        self.record_event(RouteEvent::RouteMaintenanceCompleted {
+            route_id: identity.handle.route_id,
+            result: result.clone(),
+        })?;
+        Ok(result)
+    }
+
+    fn apply_repair(
+        active_route: &mut ActiveMeshRoute,
+        runtime: &mut jacquard_core::RouteRuntimeState,
+        now: jacquard_core::Tick,
+    ) -> RouteMaintenanceResult {
+        active_route.repair_steps_remaining = active_route.repair_steps_remaining.saturating_sub(1);
+        active_route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
+        runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
+        runtime.progress.last_progress_at_tick = now;
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Repaired,
+            outcome: RouteMaintenanceOutcome::Repaired,
+        }
+    }
+
+    fn enter_partition_mode(
+        active_route: &mut ActiveMeshRoute,
+        runtime: &mut jacquard_core::RouteRuntimeState,
+        trigger: RouteMaintenanceTrigger,
+    ) -> RouteMaintenanceResult {
+        active_route.partition_mode = true;
+        active_route.last_lifecycle_event = RouteLifecycleEvent::EnteredPartitionMode;
+        runtime.last_lifecycle_event = RouteLifecycleEvent::EnteredPartitionMode;
+        runtime.progress.state = RouteProgressState::Blocked;
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::EnteredPartitionMode,
+            outcome: RouteMaintenanceOutcome::HoldFallback { trigger },
+        }
+    }
+
+    fn handoff_result(
+        identity: &MaterializedRouteIdentity,
+        active_route: &mut ActiveMeshRoute,
+        runtime: &mut jacquard_core::RouteRuntimeState,
+        handoff_receipt_id: jacquard_core::ReceiptId,
+    ) -> RouteMaintenanceResult {
+        let handoff = RouteSemanticHandoff {
+            route_id: identity.handle.route_id,
+            from_node_id: identity.lease.owner_node_id,
+            to_node_id: Self::handoff_target(active_route, identity.lease.owner_node_id),
+            handoff_epoch: active_route.current_epoch,
+            receipt_id: handoff_receipt_id,
+        };
+        active_route.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
+        runtime.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::HandedOff,
+            outcome: RouteMaintenanceOutcome::HandedOff(handoff),
+        }
+    }
+
+    fn replacement_required(trigger: RouteMaintenanceTrigger) -> RouteMaintenanceResult {
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Replaced,
+            outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
+        }
+    }
+
+    fn route_expired_result(
+        active_route: &mut ActiveMeshRoute,
+        runtime: &mut jacquard_core::RouteRuntimeState,
+    ) -> RouteMaintenanceResult {
+        active_route.last_lifecycle_event = RouteLifecycleEvent::Expired;
+        runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
+        runtime.progress.state = RouteProgressState::Failed;
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Expired,
+            outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LeaseExpired),
+        }
+    }
+
+    fn continue_result(
+        active_route: &ActiveMeshRoute,
+        runtime: &mut jacquard_core::RouteRuntimeState,
+        now: jacquard_core::Tick,
+    ) -> RouteMaintenanceResult {
+        runtime.progress.last_progress_at_tick = now;
+        RouteMaintenanceResult {
+            event: active_route.last_lifecycle_event,
+            outcome: RouteMaintenanceOutcome::Continued,
+        }
+    }
+
+    fn apply_maintenance_trigger(
+        identity: &MaterializedRouteIdentity,
+        active_route: &mut ActiveMeshRoute,
+        runtime: &mut jacquard_core::RouteRuntimeState,
+        trigger: RouteMaintenanceTrigger,
+        now: jacquard_core::Tick,
+        handoff_receipt_id: jacquard_core::ReceiptId,
+        latest_topology_epoch: Option<jacquard_core::RouteEpoch>,
+    ) -> RouteMaintenanceResult {
+        match trigger {
+            RouteMaintenanceTrigger::LinkDegraded => {
+                if active_route.repair_steps_remaining == 0 {
+                    Self::replacement_required(trigger)
+                } else {
+                    Self::apply_repair(active_route, runtime, now)
+                }
+            }
+            RouteMaintenanceTrigger::CapacityExceeded
+            | RouteMaintenanceTrigger::PartitionDetected => {
+                Self::enter_partition_mode(active_route, runtime, trigger)
+            }
+            RouteMaintenanceTrigger::PolicyShift => {
+                Self::handoff_result(identity, active_route, runtime, handoff_receipt_id)
+            }
+            RouteMaintenanceTrigger::EpochAdvanced => {
+                if let Some(epoch) = latest_topology_epoch {
+                    active_route.current_epoch = epoch;
+                }
+                if active_route.repair_steps_remaining > 0 {
+                    Self::apply_repair(active_route, runtime, now)
+                } else {
+                    Self::replacement_required(trigger)
+                }
+            }
+            RouteMaintenanceTrigger::LeaseExpiring => RouteMaintenanceResult {
+                event: active_route.last_lifecycle_event,
+                outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
+            },
+            RouteMaintenanceTrigger::RouteExpired => {
+                Self::route_expired_result(active_route, runtime)
+            }
+            RouteMaintenanceTrigger::AntiEntropyRequired => {
+                Self::continue_result(active_route, runtime, now)
+            }
+        }
+    }
+
     fn materialize_route_inner(
         &mut self,
         input: RouteMaterializationInput,
@@ -96,58 +327,9 @@ where
         let now = self.effects.now_tick();
         input.lease.ensure_valid_at(now)?;
 
-        let proof = RouteMaterializationProof {
-            route_id: input.handle.route_id,
-            topology_epoch: input.handle.topology_epoch,
-            materialized_at_tick: now,
-            publication_id: input.handle.publication_id,
-            witness: Fact {
-                value: input.admission.witness.clone(),
-                basis: FactBasis::Admitted,
-                established_at_tick: now,
-            },
-        };
-        let installation = RouteInstallation {
-            materialization_proof: proof.clone(),
-            last_lifecycle_event: RouteLifecycleEvent::Activated,
-            health: RouteHealth {
-                reachability_state: ReachabilityState::Reachable,
-                stability_score: mesh_health_score(&self.latest_topology.as_ref().map_or(
-                    Configuration {
-                        epoch: cached.path.epoch,
-                        nodes: BTreeMap::new(),
-                        links: BTreeMap::new(),
-                        environment: jacquard_core::Environment {
-                            reachable_neighbor_count: 0,
-                            churn_permille: jacquard_core::RatioPermille(0),
-                            contention_permille: jacquard_core::RatioPermille(0),
-                        },
-                    },
-                    |topology| topology.value.clone(),
-                )),
-                congestion_penalty_points: PenaltyPoints(0),
-                last_validated_at_tick: now,
-            },
-            progress: RouteProgressContract {
-                productive_step_count_max: cached.admission_check.productive_step_bound,
-                total_step_count_max: cached.admission_check.total_step_bound,
-                last_progress_at_tick: now,
-                state: RouteProgressState::Satisfied,
-            },
-        };
-        let active_route = ActiveMeshRoute {
-            path: cached.path.clone(),
-            committee: cached.committee.clone(),
-            current_epoch: cached.path.epoch,
-            last_lifecycle_event: RouteLifecycleEvent::Activated,
-            in_flight_frames: 0,
-            last_ack_at_tick: None,
-            repair_steps_remaining: limit_u32(cached.admission_check.productive_step_bound),
-            route_cost: cached.route_cost.clone(),
-            partition_mode: false,
-            retained_objects: BTreeSet::new(),
-            ordering_key: cached.ordering_key.clone(),
-        };
+        let proof = self.materialization_proof_for(&input, now);
+        let installation = self.installation_for(&input, &cached, now, proof.clone());
+        let active_route = self.active_route_for_materialization(&cached);
         self.store_checkpoint(&active_route)?;
         self.active_routes
             .insert(input.handle.route_id, active_route);
@@ -203,18 +385,12 @@ where
     ) -> Result<RouteMaintenanceResult, RouteError> {
         let now = self.effects.now_tick();
         let handoff_receipt_id = self.receipt_id_for_route(&identity.handle.route_id);
+        let latest_topology_epoch = self
+            .latest_topology
+            .as_ref()
+            .map(|topology| topology.value.epoch);
         if !identity.lease.is_valid_at(now) {
-            runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
-            runtime.progress.state = RouteProgressState::Failed;
-            let result = RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LeaseExpired),
-            };
-            self.record_event(RouteEvent::RouteMaintenanceCompleted {
-                route_id: identity.handle.route_id,
-                result: result.clone(),
-            })?;
-            return Ok(result);
+            return self.expired_lease_result(identity, runtime);
         }
 
         let active_route_snapshot;
@@ -223,97 +399,15 @@ where
                 .active_routes
                 .get_mut(&identity.handle.route_id)
                 .ok_or(RouteSelectionError::NoCandidate)?;
-            let result = match trigger {
-                RouteMaintenanceTrigger::LinkDegraded => {
-                    if active_route.repair_steps_remaining == 0 {
-                        RouteMaintenanceResult {
-                            event: RouteLifecycleEvent::Replaced,
-                            outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
-                        }
-                    } else {
-                        active_route.repair_steps_remaining =
-                            active_route.repair_steps_remaining.saturating_sub(1);
-                        active_route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
-                        runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
-                        runtime.progress.last_progress_at_tick = now;
-                        RouteMaintenanceResult {
-                            event: RouteLifecycleEvent::Repaired,
-                            outcome: RouteMaintenanceOutcome::Repaired,
-                        }
-                    }
-                }
-                RouteMaintenanceTrigger::CapacityExceeded
-                | RouteMaintenanceTrigger::PartitionDetected => {
-                    active_route.partition_mode = true;
-                    active_route.last_lifecycle_event = RouteLifecycleEvent::EnteredPartitionMode;
-                    runtime.last_lifecycle_event = RouteLifecycleEvent::EnteredPartitionMode;
-                    runtime.progress.state = RouteProgressState::Blocked;
-                    RouteMaintenanceResult {
-                        event: RouteLifecycleEvent::EnteredPartitionMode,
-                        outcome: RouteMaintenanceOutcome::HoldFallback { trigger },
-                    }
-                }
-                RouteMaintenanceTrigger::PolicyShift => {
-                    let handoff = RouteSemanticHandoff {
-                        route_id: identity.handle.route_id,
-                        from_node_id: identity.lease.owner_node_id,
-                        to_node_id: Self::handoff_target(
-                            active_route,
-                            identity.lease.owner_node_id,
-                        ),
-                        handoff_epoch: active_route.current_epoch,
-                        receipt_id: handoff_receipt_id,
-                    };
-                    active_route.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
-                    runtime.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
-                    RouteMaintenanceResult {
-                        event: RouteLifecycleEvent::HandedOff,
-                        outcome: RouteMaintenanceOutcome::HandedOff(handoff),
-                    }
-                }
-                RouteMaintenanceTrigger::EpochAdvanced => {
-                    if let Some(topology) = &self.latest_topology {
-                        active_route.current_epoch = topology.value.epoch;
-                    }
-                    if active_route.repair_steps_remaining > 0 {
-                        active_route.repair_steps_remaining =
-                            active_route.repair_steps_remaining.saturating_sub(1);
-                        active_route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
-                        runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
-                        RouteMaintenanceResult {
-                            event: RouteLifecycleEvent::Repaired,
-                            outcome: RouteMaintenanceOutcome::Repaired,
-                        }
-                    } else {
-                        RouteMaintenanceResult {
-                            event: RouteLifecycleEvent::Replaced,
-                            outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
-                        }
-                    }
-                }
-                RouteMaintenanceTrigger::LeaseExpiring => RouteMaintenanceResult {
-                    event: active_route.last_lifecycle_event,
-                    outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
-                },
-                RouteMaintenanceTrigger::RouteExpired => {
-                    active_route.last_lifecycle_event = RouteLifecycleEvent::Expired;
-                    runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
-                    runtime.progress.state = RouteProgressState::Failed;
-                    RouteMaintenanceResult {
-                        event: RouteLifecycleEvent::Expired,
-                        outcome: RouteMaintenanceOutcome::Failed(
-                            RouteMaintenanceFailure::LeaseExpired,
-                        ),
-                    }
-                }
-                RouteMaintenanceTrigger::AntiEntropyRequired => {
-                    runtime.progress.last_progress_at_tick = now;
-                    RouteMaintenanceResult {
-                        event: active_route.last_lifecycle_event,
-                        outcome: RouteMaintenanceOutcome::Continued,
-                    }
-                }
-            };
+            let result = Self::apply_maintenance_trigger(
+                identity,
+                active_route,
+                runtime,
+                trigger,
+                now,
+                handoff_receipt_id,
+                latest_topology_epoch,
+            );
             active_route_snapshot = active_route.clone();
             result
         };

@@ -1,7 +1,7 @@
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision, BackendRouteId, Belief,
-    Blake3Digest, Configuration, DestinationId, Estimate, Limit, NodeId, Observation,
-    RouteAdmission, RouteAdmissionCheck, RouteAdmissionRejection, RouteCandidate,
+    Blake3Digest, CommitteeSelection, Configuration, DestinationId, Estimate, Limit, NodeId,
+    Observation, RouteAdmission, RouteAdmissionCheck, RouteAdmissionRejection, RouteCandidate,
     RouteConnectivityProfile, RouteCost, RouteError, RouteEstimate, RoutePartitionClass,
     RouteProtectionClass, RouteRepairClass, RouteSelectionError, RouteServiceKind, RouteSummary,
     RouteWitness, RoutingObjective, Tick, TimeWindow, ROUTE_HOP_COUNT_MAX,
@@ -84,16 +84,11 @@ where
         }
     }
 
-    fn derive_candidate(
+    fn derive_segments(
         &self,
-        objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
-        topology: &Observation<Configuration>,
-        destination_node_id: NodeId,
+        configuration: &Configuration,
         node_path: &[NodeId],
-    ) -> Option<(BackendRouteId, CachedCandidate)> {
-        let configuration = &topology.value;
-        let destination_node = configuration.nodes.get(&destination_node_id)?;
+    ) -> Option<Vec<MeshRouteSegment>> {
         let segments = node_path
             .windows(2)
             .filter_map(|pair| {
@@ -108,41 +103,53 @@ where
         if segments.is_empty() || segments.len() > usize::from(ROUTE_HOP_COUNT_MAX) {
             return None;
         }
+        Some(segments)
+    }
 
-        let hold_capable = destination_node.profile.services.iter().any(|service| {
+    fn hold_capable_for_destination(
+        &self,
+        destination_node: &jacquard_core::Node,
+        observed_at_tick: Tick,
+    ) -> bool {
+        destination_node.profile.services.iter().any(|service| {
             service.service_kind == RouteServiceKind::Hold
                 && service.routing_engines.contains(&MESH_ENGINE_ID)
-                && service.valid_for.contains(topology.observed_at_tick)
-        });
-        let route_class = self.determine_route_class(objective, segments.len(), hold_capable);
-        let connectivity = self.route_connectivity_for_class(objective, &route_class);
-        let valid_for = TimeWindow::new(
-            topology.observed_at_tick,
-            Tick(topology.observed_at_tick.0 + MESH_CANDIDATE_VALIDITY_TICKS),
-        )
-        .expect("mesh candidates always use a positive validity window");
-        let protocol_mix = unique_protocol_mix(&segments);
-        let path_bytes = encode_path_bytes(node_path, &segments);
-        let backend_route_id = self.candidate_plan_token(node_path);
-        let route_id = self.route_id_for_backend(&backend_route_id);
-        let order_key = deterministic_order_key(route_id, &self.hashing, &path_bytes);
-        let route_cost = route_cost_for_segments(&segments, &route_class);
-        let degradation = degradation_for_candidate(configuration, &route_class);
-        let estimate = Estimate {
+                && service.valid_for.contains(observed_at_tick)
+        })
+    }
+
+    fn build_candidate_estimate(
+        &self,
+        topology: &Observation<Configuration>,
+        connectivity: RouteConnectivityProfile,
+        route_class: &MeshRouteClass,
+        segments: &[MeshRouteSegment],
+    ) -> Estimate<RouteEstimate> {
+        let configuration = &topology.value;
+        Estimate {
             value: RouteEstimate {
                 estimated_protection: RouteProtectionClass::LinkProtected,
                 estimated_connectivity: connectivity,
                 topology_epoch: configuration.epoch,
-                degradation,
+                degradation: degradation_for_candidate(configuration, route_class),
             },
-            confidence_permille: confidence_for_segments(&segments, configuration),
+            confidence_permille: confidence_for_segments(segments, configuration),
             updated_at_tick: topology.observed_at_tick,
-        };
-        let summary = RouteSummary {
+        }
+    }
+
+    fn build_candidate_summary(
+        &self,
+        topology: &Observation<Configuration>,
+        connectivity: RouteConnectivityProfile,
+        segments: &[MeshRouteSegment],
+        valid_for: TimeWindow,
+    ) -> RouteSummary {
+        RouteSummary {
             engine: MESH_ENGINE_ID,
             protection: RouteProtectionClass::LinkProtected,
             connectivity,
-            protocol_mix,
+            protocol_mix: unique_protocol_mix(segments),
             hop_count_hint: Belief::Estimated(Estimate {
                 value: u8::try_from(segments.len())
                     .expect("segment count is bounded by ROUTE_HOP_COUNT_MAX"),
@@ -150,8 +157,69 @@ where
                 updated_at_tick: topology.observed_at_tick,
             }),
             valid_for,
-        };
-        let admission_assumptions = mesh_admission_assumptions(profile, configuration);
+        }
+    }
+
+    fn build_candidate_path(
+        &self,
+        topology: &Observation<Configuration>,
+        objective: &RoutingObjective,
+        route_id: jacquard_core::RouteId,
+        segments: Vec<MeshRouteSegment>,
+        valid_for: TimeWindow,
+        route_class: MeshRouteClass,
+    ) -> MeshPath {
+        MeshPath {
+            route_id,
+            epoch: topology.value.epoch,
+            source: self.local_node_id,
+            destination: objective.destination.clone(),
+            segments,
+            valid_for,
+            route_class,
+        }
+    }
+
+    fn maybe_select_committee(
+        &self,
+        objective: &RoutingObjective,
+        profile: &AdaptiveRoutingProfile,
+        topology: &Observation<Configuration>,
+    ) -> Option<CommitteeSelection> {
+        self.selector.as_ref().and_then(|selector| {
+            selector
+                .select_committee(objective, profile, topology)
+                .ok()
+                .flatten()
+        })
+    }
+
+    fn candidate_for_path(
+        &self,
+        objective: &RoutingObjective,
+        profile: &AdaptiveRoutingProfile,
+        topology: &Observation<Configuration>,
+        node_path: &[NodeId],
+        destination_node: &jacquard_core::Node,
+    ) -> Option<(BackendRouteId, CachedCandidate)> {
+        let segments = self.derive_segments(&topology.value, node_path)?;
+        let hold_capable =
+            self.hold_capable_for_destination(destination_node, topology.observed_at_tick);
+        let route_class = self.determine_route_class(objective, segments.len(), hold_capable);
+        let connectivity = self.route_connectivity_for_class(objective, &route_class);
+        let valid_for = TimeWindow::new(
+            topology.observed_at_tick,
+            Tick(topology.observed_at_tick.0 + MESH_CANDIDATE_VALIDITY_TICKS),
+        )
+        .expect("mesh candidates always use a positive validity window");
+        let path_bytes = encode_path_bytes(node_path, &segments);
+        let backend_route_id = self.candidate_plan_token(node_path);
+        let route_id = self.route_id_for_backend(&backend_route_id);
+        let route_cost = route_cost_for_segments(&segments, &route_class);
+        let summary = self.build_candidate_summary(topology, connectivity, &segments, valid_for);
+        let estimate =
+            self.build_candidate_estimate(topology, connectivity, &route_class, &segments);
+        let admission_assumptions = mesh_admission_assumptions(profile, &topology.value);
         let admission_check = mesh_admission_check(
             objective,
             profile,
@@ -165,26 +233,21 @@ where
             objective_connectivity: objective.target_connectivity,
             delivered_connectivity: summary.connectivity,
             admission_profile: admission_assumptions,
-            topology_epoch: configuration.epoch,
+            topology_epoch: topology.value.epoch,
             degradation: estimate.value.degradation,
         };
-        let committee = self.selector.as_ref().and_then(|selector| {
-            selector
-                .select_committee(objective, profile, topology)
-                .ok()
-                .flatten()
-        });
-        let path = MeshPath {
+        let ordering_key = deterministic_order_key(route_id, &self.hashing, &path_bytes);
+        let committee = self.maybe_select_committee(objective, profile, topology);
+        let path = self.build_candidate_path(
+            topology,
+            objective,
             route_id,
-            epoch: configuration.epoch,
-            source: self.local_node_id,
-            destination: objective.destination.clone(),
             segments,
             valid_for,
             route_class,
-        };
+        );
         Some((
-            backend_route_id.clone(),
+            backend_route_id,
             CachedCandidate {
                 route_id,
                 summary,
@@ -194,9 +257,21 @@ where
                 path,
                 committee,
                 route_cost,
-                ordering_key: order_key,
+                ordering_key,
             },
         ))
+    }
+
+    fn derive_candidate(
+        &self,
+        objective: &RoutingObjective,
+        profile: &AdaptiveRoutingProfile,
+        topology: &Observation<Configuration>,
+        destination_node_id: NodeId,
+        node_path: &[NodeId],
+    ) -> Option<(BackendRouteId, CachedCandidate)> {
+        let destination_node = topology.value.nodes.get(&destination_node_id)?;
+        self.candidate_for_path(objective, profile, topology, node_path, destination_node)
     }
 
     fn derive_candidate_from_backend_ref(
@@ -253,37 +328,27 @@ where
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
         let configuration = &topology.value;
-        let paths = shortest_paths(&self.local_node_id, configuration);
-        let mut cached = Vec::new();
-        for (destination_node_id, node_path) in paths {
-            if destination_node_id == self.local_node_id {
-                continue;
-            }
-            let Some(destination_node) = configuration.nodes.get(&destination_node_id) else {
-                continue;
-            };
-            if !route_capable_for_engine(destination_node, &MESH_ENGINE_ID, configuration.epoch) {
-                continue;
-            }
-            if !objective_matches_node(
-                &destination_node_id,
-                destination_node,
-                objective,
-                &MESH_ENGINE_ID,
-                topology.observed_at_tick,
-            ) {
-                continue;
-            }
-            if let Some((backend_route_id, candidate)) = self.derive_candidate(
-                objective,
-                profile,
-                topology,
-                destination_node_id,
-                &node_path,
-            ) {
-                cached.push((backend_route_id, candidate));
-            }
-        }
+        let mut cached = shortest_paths(&self.local_node_id, configuration)
+            .into_iter()
+            .filter(|(destination_node_id, _)| *destination_node_id != self.local_node_id)
+            .filter_map(|(destination_node_id, node_path)| {
+                let destination_node = configuration.nodes.get(&destination_node_id)?;
+                if !route_capable_for_engine(destination_node, &MESH_ENGINE_ID, configuration.epoch)
+                {
+                    return None;
+                }
+                if !objective_matches_node(
+                    &destination_node_id,
+                    destination_node,
+                    objective,
+                    &MESH_ENGINE_ID,
+                    topology.observed_at_tick,
+                ) {
+                    return None;
+                }
+                self.candidate_for_path(objective, profile, topology, &node_path, destination_node)
+            })
+            .collect::<Vec<_>>();
 
         cached.sort_by_key(|(_backend_route_id, candidate)| {
             (

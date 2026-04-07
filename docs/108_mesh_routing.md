@@ -4,19 +4,17 @@
 
 ## Shared Inputs
 
-Mesh planning consumes the shared world picture from `jacquard-core`. The relevant types are `Observation<Configuration>`, `Node`, `Link`, `Environment`, `ServiceDescriptor`, and `NodeRelayBudget`. The engine reads these directly without forking the schema.
+Mesh planning consumes the shared world picture from `jacquard-core`. The engine reads `Observation<Configuration>`, `Node`, `Link`, `Environment`, `ServiceDescriptor`, and `NodeRelayBudget` without wrapping or reshaping them.
 
 The mesh engine treats `ServiceDescriptor` as the shared capability-advertisement plane. Route-capable mesh nodes expose the default Jacquard routing surface, which includes the `Discover`, `Move`, and `Hold` services along with relay headroom, hold capacity, link-quality observations, and coarse environment posture. Mesh does not add a second advertisement protocol or a mesh-global algorithm handshake on top of that surface.
 
 ## Deterministic Topology Model
 
-`DeterministicMeshTopologyModel` is the mesh-owned read-only query surface. It uses shared `Configuration` objects directly. It derives mesh-private estimates above the shared boundary.
-
-The mesh-private estimate types are `MeshPeerEstimate`, `MeshNeighborhoodEstimate`, `MeshMediumState`, and `MeshNodeIntrinsicState`. These types remain in `jacquard-mesh`. They are not promoted into the shared cross-engine schema.
+`DeterministicMeshTopologyModel` is the mesh-owned read-only query surface. It queries shared `Configuration` objects and then derives four mesh-private estimate types: `MeshPeerEstimate`, `MeshNeighborhoodEstimate`, `MeshMediumState`, and `MeshNodeIntrinsicState`. These estimates are encapsulated in `jacquard-mesh` so engine-specific scoring doesn't leak into the shared cross-engine schema.
 
 ## Planning and Admission
 
-The mesh engine implements the shared `RoutingEnginePlanner` contract directly. Candidate production proceeds in five deterministic steps:
+The mesh engine implements the shared `RoutingEnginePlanner` contract, which produces a candidate in five deterministic steps:
 
 1. read the current topology snapshot
 2. build shortest local node paths in a stable order
@@ -28,7 +26,7 @@ This algorithm produces a stable candidate ordering across replays.
 
 Admission and witness generation operate on shared result objects. The mesh engine returns `RouteCandidate`, `RouteAdmissionCheck`, `RouteAdmission`, and `RouteWitness` values. This keeps the mesh engine interoperable with the common router and layering surfaces.
 
-The clean rule is:
+The rule is:
 
 - if a planning judgment depends on observations, the current topology must be passed explicitly to the planner method that makes that judgment
 - `BackendRouteRef` stays opaque at the shared boundary, but in mesh it is a self-contained plan token rather than a cache key

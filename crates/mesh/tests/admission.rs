@@ -10,6 +10,7 @@
 mod common;
 
 use common::{build_engine, objective_with_floor, profile_with_connectivity, sample_configuration};
+use jacquard_mesh::MESH_ENGINE_ID;
 use jacquard_traits::{
     jacquard_core::{
         AdmissionDecision, DestinationId, NodeId, RouteAdmissionRejection, RoutePartitionClass,
@@ -129,4 +130,35 @@ fn admit_route_succeeds_for_partition_tolerant_deferred_delivery_path() {
         admission.admission_check.decision,
         AdmissionDecision::Admissible
     ));
+}
+
+// Repeated admission checks on the same candidate must agree, and the
+// admission record must carry the topology epoch and the mesh engine id
+// in its witness and summary so that the router can attribute the route.
+#[test]
+fn admission_emits_stable_check_and_witness_values() {
+    let engine = build_engine();
+    let topology = sample_configuration();
+    let objective = common::objective(DestinationId::Node(NodeId([3; 32])));
+    let profile = common::profile();
+
+    let candidate = engine
+        .candidate_routes(&objective, &profile, &topology)
+        .into_iter()
+        .next()
+        .expect("node destination should yield a candidate");
+    let first_check = engine
+        .check_candidate(&objective, &profile, &candidate, &topology)
+        .expect("candidate check");
+    let second_check = engine
+        .check_candidate(&objective, &profile, &candidate, &topology)
+        .expect("candidate check");
+    let admission = engine
+        .admit_route(&objective, &profile, candidate, &topology)
+        .expect("route admission");
+
+    assert_eq!(first_check, second_check);
+    assert_eq!(admission.admission_check, first_check);
+    assert_eq!(admission.witness.topology_epoch, topology.value.epoch);
+    assert_eq!(admission.summary.engine, MESH_ENGINE_ID);
 }
