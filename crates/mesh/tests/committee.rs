@@ -239,6 +239,7 @@ fn committee_selector_some_is_carried_into_active_route() {
         .expect("route admission");
     let route_id = admission.route_id;
     let input = materialization_input(admission, lease(Tick(2), Tick(12)));
+    engine.engine_tick(&topology).expect("prime mesh topology");
     engine
         .materialize_route(input)
         .expect("materialize route with committee");

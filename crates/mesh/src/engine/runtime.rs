@@ -48,7 +48,7 @@ where
         &mut self,
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError> {
-        self.materialize_route_inner(input)
+        self.materialize_route_inner(&input)
     }
 
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment> {
@@ -532,7 +532,7 @@ where
 {
     fn materialize_route_inner(
         &mut self,
-        input: RouteMaterializationInput,
+        input: &RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError> {
         // Two hard checks before any state change: the active-route
         // budget (replacements for an existing route_id bypass the cap),
@@ -547,14 +547,14 @@ where
         if self.latest_topology.is_none() {
             return Err(RouteError::Runtime(RouteRuntimeError::Invalidated));
         }
-        let (path, committee, ordering_key) = self.materialization_plan(&input)?;
+        let (path, committee, ordering_key) = self.materialization_plan(input)?;
         let now = self.effects.now_tick();
         input.lease.ensure_valid_at(now)?;
 
-        let proof = self.materialization_proof_for(&input, now);
-        let installation = self.installation_for(&input, now, proof.clone());
+        let proof = self.materialization_proof_for(input, now);
+        let installation = self.installation_for(input, now, proof.clone());
         let active_route =
-            self.active_route_for_materialization(&input, path, committee, ordering_key);
+            self.active_route_for_materialization(input, path, committee, ordering_key);
         let route_event = RouteEvent::RouteMaterialized {
             handle: input.handle.clone(),
             proof,

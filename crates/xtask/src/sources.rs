@@ -31,6 +31,7 @@ pub fn parse_workspace_sources() -> Result<Vec<ParsedSource>> {
         if rel_path.contains("/tests/")
             || rel_path.contains("/benches/")
             || rel_path.contains("/examples/")
+            || rel_path.starts_with("crates/xtask/fixtures/")
             || rel_path.ends_with("/build.rs")
         {
             continue;

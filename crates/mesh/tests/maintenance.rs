@@ -122,7 +122,7 @@ fn single_hop_policy_shift_advances_cursor_to_path_end() {
         .expect("active route remains installed");
     assert_eq!(active_route.current_owner_node_id, NodeId([4; 32]));
     assert_eq!(
-        active_route.next_hop_index as usize,
+        usize::from(active_route.next_hop_index),
         active_route.path.segments.len()
     );
 }

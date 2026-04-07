@@ -121,6 +121,7 @@ fn explicit_topology(root: &Path) -> Result<Vec<Violation>> {
     for path in rust_files(root.join("crates"))? {
         let rel_path = normalize_rel_path(root, &path);
         if rel_path.starts_with("crates/xtask/")
+            || rel_path.starts_with("crates/xtask/fixtures/")
             || rel_path.contains("/tests/")
             || rel_path.contains("/benches/")
             || rel_path.contains("/examples/")
@@ -189,6 +190,9 @@ fn shared_private_boundary(root: &Path) -> Result<Vec<Violation>> {
     for dir in ["crates/core/src", "crates/traits/src"] {
         for path in rust_files(root.join(dir))? {
             let rel = normalize_rel_path(root, &path);
+            if rel.starts_with("crates/xtask/fixtures/") {
+                continue;
+            }
             let contents =
                 fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
             for (idx, line) in contents.lines().enumerate() {
@@ -306,11 +310,21 @@ fn rust_files(dir: PathBuf) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
+fn is_validation_root(root: &Path) -> bool {
+    root.to_string_lossy()
+        .replace('\\', "/")
+        .ends_with("crates/xtask/fixtures/routing_invariants")
+}
+
 fn grep_rule(root: &Path, dirs: &[&str], pattern: &str, message: &str) -> Result<Vec<Violation>> {
     let re = Regex::new(pattern)?;
     let mut out = Vec::new();
     for dir in dirs {
         for path in rust_files(root.join(dir))? {
+            let path_str = path.to_string_lossy().replace('\\', "/");
+            if !is_validation_root(root) && path_str.contains("/crates/xtask/fixtures/") {
+                continue;
+            }
             let rel = normalize_rel_path(root, &path);
             let contents =
                 fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;

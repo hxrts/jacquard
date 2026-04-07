@@ -1,6 +1,6 @@
-//! Fast pre-commit gate. Runs fmt, clippy, and the relevant xtask
-//! checks scoped to the set of staged files so contributors get quick
-//! feedback before pushing.
+//! Fast pre-commit gate. Runs the staged-file gitignored guard plus
+//! `cargo fmt --check` and `cargo check` scoped to the affected crates
+//! so contributors get quick feedback before pushing.
 
 use std::{
     collections::BTreeSet,
