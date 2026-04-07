@@ -34,6 +34,10 @@ exempt_files=(
   "crates/traits/src/hashing.rs"
   "crates/traits/src/lib.rs"
   "crates/traits/src/routing.rs"
+  "crates/mesh/src/committee.rs"
+  "crates/mesh/src/engine.rs"
+  "crates/mesh/src/lib.rs"
+  "crates/mesh/src/topology.rs"
 )
 
 pattern='#\[(effect_trait|effect_handler|id_type|bounded_value|must_use_handle|public_model|purity)'

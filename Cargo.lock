@@ -120,6 +120,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-mesh"
+version = "0.1.0"
+dependencies = [
+ "jacquard-core",
+ "jacquard-traits",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "jacquard-traits"
 version = "0.1.0"
 dependencies = [
