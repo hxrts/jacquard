@@ -15,22 +15,23 @@ mod materialization;
 mod tick;
 
 use jacquard_core::{
-    Configuration, MaterializedRoute, MaterializedRouteIdentity, Observation, RouteCommitment,
-    RouteError, RouteEvent, RouteId, RouteInstallation, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RouteSelectionError, RoutingTickContext,
-    RoutingTickOutcome,
+    Configuration, MaterializedRoute, MaterializedRouteIdentity, Observation,
+    RouteCommitment, RouteError, RouteEvent, RouteId, RouteInstallation,
+    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+    RouteSelectionError, RoutingTickContext, RoutingTickOutcome,
 };
 use jacquard_traits::{CommitteeCoordinatedEngine, MeshRoutingEngine, RoutingEngine};
 
 use super::{
-    MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds, MeshTransportBounds,
+    MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
+    MeshTransportBounds,
 };
 
 struct MaintenanceContext<'a> {
-    identity: &'a MaterializedRouteIdentity,
-    now: jacquard_core::Tick,
+    identity:           &'a MaterializedRouteIdentity,
+    now:                jacquard_core::Tick,
     handoff_receipt_id: jacquard_core::ReceiptId,
-    latest_topology: Option<&'a Observation<Configuration>>,
+    latest_topology:    Option<&'a Observation<Configuration>>,
 }
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -55,7 +56,10 @@ where
         self.route_commitments_inner(route)
     }
 
-    fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
+    fn engine_tick(
+        &mut self,
+        tick: &RoutingTickContext,
+    ) -> Result<RoutingTickOutcome, RouteError> {
         self.engine_tick_inner(tick)
     }
 
@@ -127,7 +131,7 @@ where
         self.store_checkpoint(&next_active_route)?;
         if let Err(error) = self.record_event(RouteEvent::RouteMaintenanceCompleted {
             route_id: identity.handle.route_id,
-            result: result.clone(),
+            result:   result.clone(),
         }) {
             let _ = self.store_checkpoint(&original_active_route);
             return Err(error);
@@ -151,9 +155,9 @@ where
     Hasher: MeshHasherBounds,
     Selector: MeshSelectorBounds,
 {
+    type Retention = Retention;
     type TopologyModel = Topology;
     type Transport = Transport;
-    type Retention = Retention;
 
     fn topology_model(&self) -> &Self::TopologyModel {
         &self.topology_model
@@ -176,7 +180,8 @@ where
     }
 }
 
-impl<Topology, Transport, Retention, Effects, Hasher, Selector> CommitteeCoordinatedEngine
+impl<Topology, Transport, Retention, Effects, Hasher, Selector>
+    CommitteeCoordinatedEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Selector: MeshSelectorBounds,

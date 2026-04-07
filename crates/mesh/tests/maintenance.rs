@@ -12,6 +12,10 @@
 
 mod common;
 
+use common::{
+    engine::{activate_route, build_engine, lease},
+    fixtures::sample_configuration,
+};
 use jacquard_traits::{
     jacquard_core::{
         NodeId, RouteError, RouteMaintenanceFailure, RouteMaintenanceOutcome,
@@ -19,9 +23,6 @@ use jacquard_traits::{
     },
     MeshRoutingEngine, RoutingEngine, RoutingEnginePlanner,
 };
-
-use common::engine::{activate_route, build_engine, lease};
-use common::fixtures::sample_configuration;
 
 // CapacityExceeded is replacement pressure, not partition evidence. The
 // route must stay out of partition mode and return a typed replacement
@@ -78,8 +79,8 @@ fn policy_shift_rebases_runtime_to_the_next_owner_relative_hop() {
         )
         .expect("maintenance succeeds");
     let handoff = match result.outcome {
-        RouteMaintenanceOutcome::HandedOff(handoff) => handoff,
-        other => panic!("expected HandedOff, got {other:?}"),
+        | RouteMaintenanceOutcome::HandedOff(handoff) => handoff,
+        | other => panic!("expected HandedOff, got {other:?}"),
     };
     assert_eq!(handoff.from_node_id, NodeId([1; 32]));
     assert_eq!(handoff.to_node_id, NodeId([2; 32]));
@@ -121,8 +122,8 @@ fn single_hop_policy_shift_advances_cursor_to_path_end() {
         )
         .expect("single-hop handoff succeeds");
     let handoff = match result.outcome {
-        RouteMaintenanceOutcome::HandedOff(handoff) => handoff,
-        other => panic!("expected HandedOff, got {other:?}"),
+        | RouteMaintenanceOutcome::HandedOff(handoff) => handoff,
+        | other => panic!("expected HandedOff, got {other:?}"),
     };
     assert_eq!(handoff.to_node_id, NodeId([4; 32]));
     let active_route = engine
@@ -177,8 +178,12 @@ fn activate_connected_only_route(
     jacquard_traits::jacquard_core::MaterializedRouteIdentity,
     jacquard_traits::jacquard_core::RouteRuntimeState,
 ) {
-    use common::engine::{lease, materialization_input, objective, profile_with_connectivity};
-    use jacquard_traits::jacquard_core::{DestinationId, RoutePartitionClass, RouteRepairClass};
+    use common::engine::{
+        lease, materialization_input, objective, profile_with_connectivity,
+    };
+    use jacquard_traits::jacquard_core::{
+        DestinationId, RoutePartitionClass, RouteRepairClass,
+    };
 
     let goal = objective(DestinationId::Node(destination));
     let policy = profile_with_connectivity(
@@ -204,14 +209,14 @@ fn activate_connected_only_route(
 
     let runtime = jacquard_traits::jacquard_core::RouteRuntimeState {
         last_lifecycle_event: installation.last_lifecycle_event,
-        health: installation.health,
-        progress: installation.progress,
+        health:               installation.health,
+        progress:             installation.progress,
     };
     let identity = jacquard_traits::jacquard_core::MaterializedRouteIdentity {
-        handle: input.handle,
+        handle:                input.handle,
         materialization_proof: installation.materialization_proof,
-        admission: input.admission,
-        lease: input.lease,
+        admission:             input.admission,
+        lease:                 input.lease,
     };
     (identity, runtime)
 }

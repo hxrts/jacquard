@@ -7,14 +7,15 @@
 //! - `MeshTopologyModel` is read-only. It should be deterministic with respect
 //!   to its inputs and must not mutate canonical route state.
 //! - `MeshTransport` is effectful. It carries frames and reports transport
-//!   observations, but
-//!   it must not impose sequencing, traffic control, or routing truth.
-//! - `RetentionStore` is effectful. It stores opaque deferred-delivery payloads,
-//!   but it must not interpret higher-level routing semantics.
+//!   observations, but it must not impose sequencing, traffic control, or
+//!   routing truth.
+//! - `RetentionStore` is effectful. It stores opaque deferred-delivery
+//!   payloads, but it must not interpret higher-level routing semantics.
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, HealthScore, Link, LinkEndpoint, Node, NodeId,
-    RetentionError, Tick, TransportError, TransportObservation, TransportProtocol,
+    Blake3Digest, Configuration, ContentId, HealthScore, Link, LinkEndpoint, Node,
+    NodeId, RetentionError, Tick, TransportError, TransportObservation,
+    TransportProtocol,
 };
 use jacquard_macros::purity;
 
@@ -28,13 +29,18 @@ use crate::{effect_handler, RoutingEngine, TransportEffects};
 /// Mesh-specific peer and neighborhood estimates belong behind this trait
 /// boundary rather than in `jacquard-core`. The associated estimate types let
 /// one mesh implementation expose novelty, reach, bridge, or flow heuristics to
-/// its own planner/runtime without turning them into shared cross-engine schema.
+/// its own planner/runtime without turning them into shared cross-engine
+/// schema.
 pub trait MeshTopologyModel {
     type PeerEstimate;
     type NeighborhoodEstimate;
 
     #[must_use]
-    fn local_node(&self, local_node_id: &NodeId, configuration: &Configuration) -> Option<Node>;
+    fn local_node(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Option<Node>;
 
     #[must_use]
     fn neighboring_nodes(
@@ -51,7 +57,11 @@ pub trait MeshTopologyModel {
     ) -> Vec<LinkEndpoint>;
 
     #[must_use]
-    fn adjacent_links(&self, local_node_id: &NodeId, configuration: &Configuration) -> Vec<Link>;
+    fn adjacent_links(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Vec<Link>;
 
     #[must_use]
     fn peer_estimate(
@@ -97,7 +107,7 @@ pub trait MeshNeighborhoodEstimateAccess {
 /// generic byte stream effect.
 pub struct MeshFrame<'a> {
     pub endpoint: &'a LinkEndpoint,
-    pub payload: &'a [u8],
+    pub payload:  &'a [u8],
 }
 
 #[purity(effectful)]
@@ -110,10 +120,13 @@ pub trait MeshTransport {
 
     fn send_frame(&mut self, frame: MeshFrame<'_>) -> Result<(), TransportError>;
 
-    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
+    fn poll_observations(
+        &mut self,
+    ) -> Result<Vec<TransportObservation>, TransportError>;
 }
 
-// A concrete mesh transport adapter is also a concrete transport effect handler.
+// A concrete mesh transport adapter is also a concrete transport effect
+// handler.
 #[effect_handler]
 impl<T> TransportEffects for T
 where
@@ -155,7 +168,8 @@ pub trait RetentionStore {
 }
 
 #[purity(effectful)]
-/// Mesh-specialized routing-engine boundary with explicit subcomponent ownership.
+/// Mesh-specialized routing-engine boundary with explicit subcomponent
+/// ownership.
 ///
 /// Planning purity stays in `RoutingEnginePlanner` plus `MeshTopologyModel`.
 /// This trait only binds the effectful routing-engine runtime to its swappable

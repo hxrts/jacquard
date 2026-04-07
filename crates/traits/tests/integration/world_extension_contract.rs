@@ -3,12 +3,12 @@
 
 use jacquard_traits::{
     jacquard_core::{
-        Belief, ByteCount, ControllerId, DurationMs, EndpointAddress, Environment, FactSourceClass,
-        InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState, LinkState, Node, NodeId,
-        NodeProfile, NodeRelayBudget, NodeState, Observation, ObservedValue,
-        OriginAuthenticationClass, RatioPermille, RoutingEngineId, RoutingEvidenceClass,
-        ServiceDescriptor, ServiceScope, Tick, TimeWindow, TransportObservation, TransportProtocol,
-        WorldError, WorldObservation,
+        Belief, ByteCount, ControllerId, DurationMs, EndpointAddress, Environment,
+        FactSourceClass, InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState,
+        LinkState, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState, Observation,
+        ObservedValue, OriginAuthenticationClass, RatioPermille, RoutingEngineId,
+        RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
+        TransportObservation, TransportProtocol, WorldError, WorldObservation,
     },
     LinkWorldExtension, NodeWorldExtension, WorldExtension, WorldExtensionDescriptor,
 };
@@ -41,14 +41,14 @@ impl NodeWorldExtension for StubWorldExtension {
             .observations
             .iter()
             .filter_map(|observation| match &observation.value {
-                ObservedValue::Node(node) => Some(Observation {
-                    value: node.clone(),
-                    source_class: observation.source_class,
-                    evidence_class: observation.evidence_class,
+                | ObservedValue::Node(node) => Some(Observation {
+                    value:                 node.clone(),
+                    source_class:          observation.source_class,
+                    evidence_class:        observation.evidence_class,
                     origin_authentication: observation.origin_authentication,
-                    observed_at_tick: observation.observed_at_tick,
+                    observed_at_tick:      observation.observed_at_tick,
                 }),
-                _ => None,
+                | _ => None,
             })
             .collect())
     }
@@ -62,14 +62,14 @@ impl LinkWorldExtension for StubWorldExtension {
             .observations
             .iter()
             .filter_map(|observation| match &observation.value {
-                ObservedValue::Link(link) => Some(Observation {
-                    value: link.clone(),
-                    source_class: observation.source_class,
-                    evidence_class: observation.evidence_class,
+                | ObservedValue::Link(link) => Some(Observation {
+                    value:                 link.clone(),
+                    source_class:          observation.source_class,
+                    evidence_class:        observation.evidence_class,
                     origin_authentication: observation.origin_authentication,
-                    observed_at_tick: observation.observed_at_tick,
+                    observed_at_tick:      observation.observed_at_tick,
                 }),
-                _ => None,
+                | _ => None,
             })
             .collect())
     }
@@ -77,8 +77,8 @@ impl LinkWorldExtension for StubWorldExtension {
 
 fn sample_endpoint() -> LinkEndpoint {
     LinkEndpoint {
-        protocol: TransportProtocol::BleGatt,
-        address: EndpointAddress::Opaque(vec![1, 2, 3]),
+        protocol:  TransportProtocol::BleGatt,
+        address:   EndpointAddress::Opaque(vec![1, 2, 3]),
         mtu_bytes: ByteCount(512),
     }
 }
@@ -139,19 +139,19 @@ fn sample_node() -> Node {
 
 fn sample_node_observation() -> WorldObservation {
     Observation {
-        value: ObservedValue::Node(sample_node()),
-        source_class: FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
+        value:                 ObservedValue::Node(sample_node()),
+        source_class:          FactSourceClass::Local,
+        evidence_class:        RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(2),
+        observed_at_tick:      Tick(2),
     }
 }
 
 fn sample_link_observation() -> WorldObservation {
     Observation {
-        value: ObservedValue::Link(Link {
+        value:                 ObservedValue::Link(Link {
             endpoint: sample_endpoint(),
-            state: LinkState {
+            state:    LinkState {
                 state: LinkRuntimeState::Active,
                 median_rtt_ms: DurationMs(7),
                 transfer_rate_bytes_per_sec: Belief::Absent,
@@ -159,90 +159,98 @@ fn sample_link_observation() -> WorldObservation {
                 loss_permille: RatioPermille(0),
                 delivery_confidence_permille: Belief::Estimated(
                     jacquard_traits::jacquard_core::Estimate {
-                        value: RatioPermille(950),
+                        value:               RatioPermille(950),
                         confidence_permille: RatioPermille(900),
-                        updated_at_tick: Tick(2),
+                        updated_at_tick:     Tick(2),
                     },
                 ),
-                symmetry_permille: Belief::Estimated(jacquard_traits::jacquard_core::Estimate {
-                    value: RatioPermille(1000),
-                    confidence_permille: RatioPermille(900),
-                    updated_at_tick: Tick(2),
-                }),
+                symmetry_permille: Belief::Estimated(
+                    jacquard_traits::jacquard_core::Estimate {
+                        value:               RatioPermille(1000),
+                        confidence_permille: RatioPermille(900),
+                        updated_at_tick:     Tick(2),
+                    },
+                ),
             },
         }),
-        source_class: FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
+        source_class:          FactSourceClass::Local,
+        evidence_class:        RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(2),
+        observed_at_tick:      Tick(2),
     }
 }
 
 fn sample_service_observation() -> WorldObservation {
     Observation {
-        value: ObservedValue::Service(ServiceDescriptor {
+        value:                 ObservedValue::Service(ServiceDescriptor {
             provider_node_id: NodeId([8; 32]),
-            controller_id: ControllerId([3; 32]),
-            service_kind: jacquard_traits::jacquard_core::RouteServiceKind::Discover,
-            endpoints: vec![sample_endpoint()],
-            routing_engines: vec![RoutingEngineId::Mesh],
-            scope: ServiceScope::Introduction {
-                scope_token: vec![9],
-            },
-            valid_for: TimeWindow::new(Tick(2), Tick(20)).expect("valid service window"),
-            capacity: Belief::Estimated(jacquard_traits::jacquard_core::Estimate {
-                value: jacquard_traits::jacquard_core::CapacityHint {
-                    saturation_permille: RatioPermille(100),
-                    repair_capacity: Belief::Estimated(jacquard_traits::jacquard_core::Estimate {
-                        value: 2,
-                        confidence_permille: RatioPermille(900),
-                        updated_at_tick: Tick(2),
-                    }),
-                    hold_capacity_bytes: Belief::Absent,
+            controller_id:    ControllerId([3; 32]),
+            service_kind:
+                jacquard_traits::jacquard_core::RouteServiceKind::Discover,
+            endpoints:        vec![sample_endpoint()],
+            routing_engines:  vec![RoutingEngineId::Mesh],
+            scope:            ServiceScope::Introduction { scope_token: vec![9] },
+            valid_for:        TimeWindow::new(Tick(2), Tick(20))
+                .expect("valid service window"),
+            capacity:         Belief::Estimated(
+                jacquard_traits::jacquard_core::Estimate {
+                    value:               jacquard_traits::jacquard_core::CapacityHint {
+                        saturation_permille: RatioPermille(100),
+                        repair_capacity:     Belief::Estimated(
+                            jacquard_traits::jacquard_core::Estimate {
+                                value:               2,
+                                confidence_permille: RatioPermille(900),
+                                updated_at_tick:     Tick(2),
+                            },
+                        ),
+                        hold_capacity_bytes: Belief::Absent,
+                    },
+                    confidence_permille: RatioPermille(900),
+                    updated_at_tick:     Tick(2),
                 },
-                confidence_permille: RatioPermille(900),
-                updated_at_tick: Tick(2),
-            }),
+            ),
         }),
-        source_class: FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
+        source_class:          FactSourceClass::Local,
+        evidence_class:        RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(2),
+        observed_at_tick:      Tick(2),
     }
 }
 
 fn sample_transport_observation() -> WorldObservation {
     Observation {
-        value: ObservedValue::Transport(TransportObservation::PayloadReceived {
-            from_node_id: NodeId([9; 32]),
-            endpoint: sample_endpoint(),
-            payload: b"hello".to_vec(),
-            observed_at_tick: Tick(2),
-        }),
-        source_class: FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
+        value:                 ObservedValue::Transport(
+            TransportObservation::PayloadReceived {
+                from_node_id:     NodeId([9; 32]),
+                endpoint:         sample_endpoint(),
+                payload:          b"hello".to_vec(),
+                observed_at_tick: Tick(2),
+            },
+        ),
+        source_class:          FactSourceClass::Local,
+        evidence_class:        RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(2),
+        observed_at_tick:      Tick(2),
     }
 }
 
 #[test]
-// long-block-exception: this integration test keeps the emitted observation set and matching assertions together as one self-describing payload example.
+// long-block-exception: self-describing observation payload and assertions.
 fn world_extensions_publish_self_describing_observations() {
     let mut extension = StubWorldExtension {
         observations: vec![
             sample_node_observation(),
             sample_link_observation(),
             Observation {
-                value: ObservedValue::Environment(Environment {
+                value:                 ObservedValue::Environment(Environment {
                     reachable_neighbor_count: 1,
-                    churn_permille: RatioPermille(0),
-                    contention_permille: RatioPermille(100),
+                    churn_permille:           RatioPermille(0),
+                    contention_permille:      RatioPermille(100),
                 }),
-                source_class: FactSourceClass::Local,
-                evidence_class: RoutingEvidenceClass::DirectObservation,
+                source_class:          FactSourceClass::Local,
+                evidence_class:        RoutingEvidenceClass::DirectObservation,
                 origin_authentication: OriginAuthenticationClass::Controlled,
-                observed_at_tick: Tick(2),
+                observed_at_tick:      Tick(2),
             },
             sample_service_observation(),
             sample_transport_observation(),
@@ -267,41 +275,41 @@ fn world_extensions_publish_self_describing_observations() {
     assert!(matches!(observations[4].value, ObservedValue::Transport(_)));
 
     match &observations[0].value {
-        ObservedValue::Node(node) => assert_eq!(
+        | ObservedValue::Node(node) => assert_eq!(
             node.state.relay_budget,
             Belief::Estimated(jacquard_traits::jacquard_core::Estimate {
-                value: NodeRelayBudget {
-                    relay_work_budget: Belief::Estimated(
+                value:               NodeRelayBudget {
+                    relay_work_budget:    Belief::Estimated(
                         jacquard_traits::jacquard_core::Estimate {
-                            value: 8,
+                            value:               8,
                             confidence_permille: RatioPermille(900),
-                            updated_at_tick: Tick(2),
+                            updated_at_tick:     Tick(2),
                         }
                     ),
                     utilization_permille: RatioPermille(250),
                     retention_horizon_ms: Belief::Estimated(
                         jacquard_traits::jacquard_core::Estimate {
-                            value: DurationMs(500),
+                            value:               DurationMs(500),
                             confidence_permille: RatioPermille(900),
-                            updated_at_tick: Tick(2),
+                            updated_at_tick:     Tick(2),
                         },
                     ),
                 },
                 confidence_permille: RatioPermille(900),
-                updated_at_tick: Tick(2),
+                updated_at_tick:     Tick(2),
             }),
         ),
-        _ => panic!("expected node observation"),
+        | _ => panic!("expected node observation"),
     }
 
     match &observations[4].value {
-        ObservedValue::Transport(observation) => match observation {
-            TransportObservation::PayloadReceived { payload, .. } => {
+        | ObservedValue::Transport(observation) => match observation {
+            | TransportObservation::PayloadReceived { payload, .. } => {
                 assert_eq!(payload, &b"hello".to_vec());
-            }
-            _ => panic!("expected payload transport observation"),
+            },
+            | _ => panic!("expected payload transport observation"),
         },
-        _ => panic!("expected transport observation"),
+        | _ => panic!("expected transport observation"),
     }
 }
 

@@ -32,7 +32,9 @@ pub fn run() -> Result<()> {
     }
 
     if !missing.is_empty() {
-        eprintln!("trait-purity: public traits missing #[purity(...)] or #[effect_trait]:");
+        eprintln!(
+            "trait-purity: public traits missing #[purity(...)] or #[effect_trait]:"
+        );
         for entry in &missing {
             eprintln!("  {entry}");
         }

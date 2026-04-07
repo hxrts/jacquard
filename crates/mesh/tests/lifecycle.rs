@@ -8,6 +8,10 @@
 
 mod common;
 
+use common::{
+    engine::{activate_route, build_engine, lease},
+    fixtures::sample_configuration,
+};
 use jacquard_traits::{
     jacquard_core::{
         NodeId, ReachabilityState, RouteMaintenanceFailure, RouteMaintenanceOutcome,
@@ -16,9 +20,6 @@ use jacquard_traits::{
     MeshRoutingEngine, RetentionStore, RoutingEngine,
 };
 
-use common::engine::{activate_route, build_engine, lease};
-use common::fixtures::sample_configuration;
-
 // One materialized route should support payload forwarding, retention
 // store deposit and recovery, in-place repair on `LinkDegraded`, hold
 // fallback on `PartitionDetected`, automatic buffering while
@@ -26,7 +27,7 @@ use common::fixtures::sample_configuration;
 // lease-expiry failure once the engine clock has moved past the lease
 // window.
 #[test]
-// long-block-exception: this lifecycle scenario intentionally keeps the repair, partition, and retention transitions together so the active-route state machine is readable end to end.
+// long-block-exception: end-to-end repair/partition/retention state machine.
 fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
     let mut engine = build_engine();
     let topology = sample_configuration();
@@ -76,7 +77,7 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
     assert_eq!(
         hold_fallback.outcome,
         RouteMaintenanceOutcome::HoldFallback {
-            trigger: RouteMaintenanceTrigger::PartitionDetected,
+            trigger:               RouteMaintenanceTrigger::PartitionDetected,
             retained_object_count: 0,
         }
     );

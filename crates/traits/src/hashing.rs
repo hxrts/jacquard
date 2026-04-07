@@ -43,7 +43,8 @@ impl Hashing for Blake3Hashing {
     fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Self::Digest {
         let mut hasher = blake3::Hasher::new();
         // Length prefix separates "ab"+"c" from "a"+"bc".
-        let domain_len = u32::try_from(domain.len()).expect("domain tag length exceeds u32");
+        let domain_len =
+            u32::try_from(domain.len()).expect("domain tag length exceeds u32");
         hasher.update(&domain_len.to_le_bytes());
         hasher.update(domain);
         hasher.update(input);
@@ -66,14 +67,13 @@ pub trait ContentAddressable {
         hasher: &H,
     ) -> Result<ContentId<Self::Digest>, ContentEncodingError> {
         let canonical = self.canonical_bytes()?;
-        Ok(ContentId {
-            digest: hasher.hash_bytes(&canonical),
-        })
+        Ok(ContentId { digest: hasher.hash_bytes(&canonical) })
     }
 }
 
 #[purity(pure)]
-/// Like ContentAddressable but for template/schema identity rather than instance identity.
+/// Like ContentAddressable but for template/schema identity rather than
+/// instance identity.
 ///
 /// Pure deterministic boundary.
 pub trait TemplateAddressable {
@@ -87,9 +87,7 @@ pub trait TemplateAddressable {
         hasher: &H,
     ) -> Result<ContentId<Self::Digest>, ContentEncodingError> {
         let canonical = self.template_bytes()?;
-        Ok(ContentId {
-            digest: hasher.hash_bytes(&canonical),
-        })
+        Ok(ContentId { digest: hasher.hash_bytes(&canonical) })
     }
 }
 

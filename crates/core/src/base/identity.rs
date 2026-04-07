@@ -27,18 +27,27 @@ super::bytes_newtype!(PublicationId, 16);
 super::bytes_newtype!(ReceiptId, 16);
 
 /// Opaque application-defined service identifier. Format is host-specific.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct ServiceId(pub Vec<u8>);
 
-/// Engine-owned opaque route reference. Jacquard core never inspects the contents.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Engine-owned opaque route reference. Jacquard core never inspects the
+/// contents.
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct BackendRouteId(pub Vec<u8>);
 
 /// Platform-specific BLE device address. Format depends on the host BLE stack.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct BleDeviceId(pub Vec<u8>);
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct HostName(pub String);
 
 #[public_model]
@@ -50,11 +59,12 @@ pub enum NetworkHost {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-/// Identifies a routing-engine contract. Mesh is first-party; External covers third-party engines.
+/// Identifies a routing-engine contract. Mesh is first-party; External covers
+/// third-party engines.
 pub enum RoutingEngineId {
     Mesh,
     External {
-        name: String,
+        name:        String,
         contract_id: RoutingEngineContractId,
     },
 }
@@ -72,17 +82,17 @@ pub enum DestinationId {
 /// Attestable link between a node instance and its controlling authority.
 /// One controller may bind multiple nodes.
 pub struct NodeBinding {
-    pub node_id: NodeId,
+    pub node_id:       NodeId,
     pub controller_id: ControllerId,
     pub binding_epoch: RouteEpoch,
-    pub proof: NodeBindingProof,
+    pub proof:         NodeBindingProof,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeBindingProof {
     Signature {
-        key_id: KeyId,
+        key_id:          KeyId,
         signature_bytes: Vec<u8>,
     },
     Opaque(Vec<u8>),

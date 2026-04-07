@@ -120,11 +120,13 @@ fn source_file_path_for_span(source_map: &SourceMap, span: Span) -> PathBuf {
     ))
 }
 
-// Scans upward from the function signature line looking for
-// `// long-block-exception: <reason>`. Blank lines, doc comments, and
-// attribute lines are transparent. Any other non-blank line ends the
-// search with a negative result, so the marker must be the first thing
-// a reader encounters when scanning up from the signature.
+// Scans upward from the function signature line looking for a
+// contiguous `//` comment block whose joined text starts with
+// `long-block-exception: <reason>`. Blank lines, doc comments, and
+// attribute lines between the comment block and the signature are
+// transparent. Wrapping of the exception marker across multiple lines
+// (as produced by rustfmt's `wrap_comments`) is supported because the
+// lines are joined before the prefix check.
 fn has_long_block_exception(source_map: &SourceMap, fn_span: Span) -> bool {
     let path = source_file_path_for_span(source_map, fn_span);
     let Ok(contents) = std::fs::read_to_string(&path) else {
@@ -140,21 +142,53 @@ fn has_long_block_exception(source_map: &SourceMap, fn_span: Span) -> bool {
     let lines: Vec<&str> = contents.lines().collect();
     let upper = fn_line_index.min(lines.len());
 
+    // Walk up from the signature. Skip blank/doc/attr lines until we
+    // reach a `//` comment line, then collect the contiguous `//` block.
+    let mut block: Vec<&str> = Vec::new();
+    let mut in_block = false;
     for line in lines[..upper].iter().rev() {
         let trimmed = line.trim();
-        if trimmed.is_empty() {
+        let is_regular_line_comment = trimmed.starts_with("//")
+            && !trimmed.starts_with("///")
+            && !trimmed.starts_with("//!");
+
+        if is_regular_line_comment {
+            block.push(trimmed);
+            in_block = true;
             continue;
         }
-        if trimmed.starts_with("///") || trimmed.starts_with("//!") {
-            continue;
+
+        if in_block {
+            break;
         }
-        if trimmed.starts_with("#[") || trimmed.starts_with("#![") {
+
+        if trimmed.is_empty()
+            || trimmed.starts_with("///")
+            || trimmed.starts_with("//!")
+            || trimmed.starts_with("#[")
+            || trimmed.starts_with("#![")
+        {
             continue;
-        }
-        if let Some(rest) = trimmed.strip_prefix("// long-block-exception:") {
-            return !rest.trim().is_empty();
         }
         return false;
+    }
+
+    if block.is_empty() {
+        return false;
+    }
+
+    // `block` was collected bottom-to-top; reverse so we can join in file
+    // order and reconstruct the original logical comment regardless of
+    // how `wrap_comments` split it.
+    block.reverse();
+    let joined: String = block
+        .iter()
+        .map(|line| line.trim_start_matches("//").trim())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    if let Some(rest) = joined.strip_prefix("long-block-exception:") {
+        return !rest.trim().is_empty();
     }
     false
 }

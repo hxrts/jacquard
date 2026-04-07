@@ -3,17 +3,22 @@
 use std::cmp::Reverse;
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, Belief, Configuration, Estimate, Observation, RouteCandidate,
-    RouteConnectivityProfile, RouteEstimate, RouteSummary, RoutingObjective, TimeWindow,
+    AdaptiveRoutingProfile, Belief, Configuration, Estimate, Observation,
+    RouteCandidate, RouteConnectivityProfile, RouteEstimate, RouteSummary,
+    RoutingObjective, TimeWindow,
 };
 
-use super::super::support::{
-    confidence_for_segments, decode_backend_token, degradation_for_candidate,
-    node_path_from_plan_token, unique_protocol_mix,
+use super::{
+    super::support::{
+        confidence_for_segments, decode_backend_token, degradation_for_candidate,
+        node_path_from_plan_token, unique_protocol_mix,
+    },
+    MeshEngine,
 };
-use super::MeshEngine;
-use crate::engine::{CachedCandidate, MeshSelectorBounds, MESH_CANDIDATE_COUNT_MAX};
-use crate::{MeshRouteClass, MeshRouteSegment, MESH_ENGINE_ID};
+use crate::{
+    engine::{CachedCandidate, MeshSelectorBounds, MESH_CANDIDATE_COUNT_MAX},
+    MeshRouteClass, MeshRouteSegment, MESH_ENGINE_ID,
+};
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -31,10 +36,10 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
             connectivity,
             protocol_mix: unique_protocol_mix(segments),
             hop_count_hint: Belief::Estimated(Estimate {
-                value: u8::try_from(segments.len())
+                value:               u8::try_from(segments.len())
                     .expect("segment count is bounded by ROUTE_HOP_COUNT_MAX"),
                 confidence_permille: jacquard_core::RatioPermille(1000),
-                updated_at_tick: topology.observed_at_tick,
+                updated_at_tick:     topology.observed_at_tick,
             }),
             valid_for,
         }
@@ -49,14 +54,18 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     ) -> Estimate<RouteEstimate> {
         let configuration = &topology.value;
         Estimate {
-            value: RouteEstimate {
-                estimated_protection: jacquard_core::RouteProtectionClass::LinkProtected,
+            value:               RouteEstimate {
+                estimated_protection:
+                    jacquard_core::RouteProtectionClass::LinkProtected,
                 estimated_connectivity: connectivity,
-                topology_epoch: configuration.epoch,
-                degradation: degradation_for_candidate(configuration, route_class),
+                topology_epoch:         configuration.epoch,
+                degradation:            degradation_for_candidate(
+                    configuration,
+                    route_class,
+                ),
             },
             confidence_permille: confidence_for_segments(segments, configuration),
-            updated_at_tick: topology.observed_at_tick,
+            updated_at_tick:     topology.observed_at_tick,
         }
     }
 }
@@ -71,7 +80,8 @@ where
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         topology: &Observation<Configuration>,
-    ) -> Result<Option<jacquard_core::CommitteeSelection>, jacquard_core::RouteError> {
+    ) -> Result<Option<jacquard_core::CommitteeSelection>, jacquard_core::RouteError>
+    {
         self.selector.as_ref().map_or(Ok(None), |selector| {
             selector.select_committee(objective, profile, topology)
         })
@@ -96,7 +106,9 @@ where
         let configuration = &topology.value;
         self.weighted_paths(objective, topology)
             .into_iter()
-            .filter(|(_, node_path)| node_path.last().copied() != Some(self.local_node_id))
+            .filter(|(_, node_path)| {
+                node_path.last().copied() != Some(self.local_node_id)
+            })
             .filter_map(|(_, node_path)| {
                 let destination_node_id = *node_path.last()?;
                 let destination_node = configuration.nodes.get(&destination_node_id)?;
@@ -109,7 +121,13 @@ where
                 ) {
                     return None;
                 }
-                self.candidate_for_path(objective, profile, topology, &node_path, destination_node)
+                self.candidate_for_path(
+                    objective,
+                    profile,
+                    topology,
+                    &node_path,
+                    destination_node,
+                )
             })
             .collect()
     }
@@ -154,8 +172,8 @@ where
             .map(|(backend_route_id, candidate)| {
                 cache.insert(backend_route_id.clone(), candidate.clone());
                 RouteCandidate {
-                    summary: candidate.summary,
-                    estimate: candidate.estimate,
+                    summary:     candidate.summary,
+                    estimate:    candidate.estimate,
                     backend_ref: jacquard_core::BackendRouteRef {
                         engine: MESH_ENGINE_ID,
                         backend_route_id,

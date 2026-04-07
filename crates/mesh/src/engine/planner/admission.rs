@@ -1,9 +1,9 @@
 //! Admission judgment for mesh candidates.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision, Limit, RouteAdmissionCheck,
-    RouteAdmissionRejection, RouteCost, RoutePartitionClass, RouteRepairClass, RouteSummary,
-    RoutingObjective,
+    AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision, Limit,
+    RouteAdmissionCheck, RouteAdmissionRejection, RouteCost, RoutePartitionClass,
+    RouteRepairClass, RouteSummary, RoutingObjective,
 };
 
 pub(super) fn mesh_admission_check(

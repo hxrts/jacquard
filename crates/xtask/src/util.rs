@@ -13,13 +13,17 @@ use cargo_metadata::{Metadata, MetadataCommand};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Violation {
-    pub file: String,
-    pub line: usize,
+    pub file:    String,
+    pub line:    usize,
     pub message: String,
 }
 
 impl Violation {
-    pub fn new(file: impl Into<String>, line: usize, message: impl Into<String>) -> Self {
+    pub fn new(
+        file: impl Into<String>,
+        line: usize,
+        message: impl Into<String>,
+    ) -> Self {
         Self {
             file: file.into(),
             line,

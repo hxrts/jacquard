@@ -11,8 +11,8 @@ use crate::util::{normalize_rel_path, workspace_root};
 #[derive(Clone)]
 pub struct ParsedSource {
     pub rel_path: String,
-    pub file: File,
-    pub source: String,
+    pub file:     File,
+    pub source:   String,
 }
 
 pub fn parse_workspace_sources() -> Result<Vec<ParsedSource>> {
@@ -36,15 +36,11 @@ pub fn parse_workspace_sources() -> Result<Vec<ParsedSource>> {
         {
             continue;
         }
-        let source =
-            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
-        let file =
-            syn::parse_file(&source).with_context(|| format!("parsing {}", path.display()))?;
-        parsed.push(ParsedSource {
-            rel_path,
-            file,
-            source,
-        });
+        let source = std::fs::read_to_string(path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let file = syn::parse_file(&source)
+            .with_context(|| format!("parsing {}", path.display()))?;
+        parsed.push(ParsedSource { rel_path, file, source });
     }
     parsed.sort_by(|a, b| a.rel_path.cmp(&b.rel_path));
     Ok(parsed)
@@ -54,7 +50,7 @@ pub fn public_traits(source: &ParsedSource) -> impl Iterator<Item = &ItemTrait> 
     source.file.items.iter().filter_map(|item| match item {
         Item::Trait(item_trait) if matches!(item_trait.vis, Visibility::Public(_)) => {
             Some(item_trait)
-        }
+        },
         _ => None,
     })
 }

@@ -2,13 +2,14 @@
 
 mod common;
 
+use common::{
+    engine::{activate_route, build_engine, lease},
+    fixtures::sample_configuration,
+};
 use jacquard_traits::{
     jacquard_core::{NodeId, Tick},
     RoutingEngine,
 };
-
-use common::engine::{activate_route, build_engine, lease};
-use common::fixtures::sample_configuration;
 
 #[test]
 fn checkpointed_active_route_round_trips_across_engine_restart() {

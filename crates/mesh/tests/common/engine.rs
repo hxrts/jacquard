@@ -11,11 +11,12 @@
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
     jacquard_core::{
-        AdaptiveRoutingProfile, Configuration, DeploymentProfile, DestinationId, DurationMs,
-        HoldFallbackPolicy, Limit, MaterializedRouteIdentity, NodeId, Observation, PriorityPoints,
-        PublicationId, RouteConnectivityProfile, RouteHandle, RouteLease,
-        RouteMaterializationInput, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-        RouteReplacementPolicy, RouteRuntimeState, RouteServiceKind, RoutingEngineFallbackPolicy,
+        AdaptiveRoutingProfile, Configuration, DeploymentProfile, DestinationId,
+        DurationMs, HoldFallbackPolicy, Limit, MaterializedRouteIdentity, NodeId,
+        Observation, PriorityPoints, PublicationId, RouteConnectivityProfile,
+        RouteHandle, RouteLease, RouteMaterializationInput, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+        RouteRuntimeState, RouteServiceKind, RoutingEngineFallbackPolicy,
         RoutingObjective, RoutingTickContext, Tick, TimeWindow,
     },
     Blake3Hashing, RoutingEngine, RoutingEnginePlanner,
@@ -50,10 +51,7 @@ pub fn build_engine_for_node_at_tick(local_node_id: NodeId, now: Tick) -> TestEn
         DeterministicMeshTopologyModel::new(),
         TestTransport::default(),
         TestRetentionStore::default(),
-        TestRuntimeEffects {
-            now,
-            ..Default::default()
-        },
+        TestRuntimeEffects { now, ..Default::default() },
         Blake3Hashing,
     )
 }
@@ -103,12 +101,12 @@ pub fn profile_with_connectivity(
     partition: RoutePartitionClass,
 ) -> AdaptiveRoutingProfile {
     AdaptiveRoutingProfile {
-        selected_protection: RouteProtectionClass::LinkProtected,
-        selected_connectivity: RouteConnectivityProfile { repair, partition },
-        deployment_profile: DeploymentProfile::FieldPartitionTolerant,
-        diversity_floor: 1,
+        selected_protection:            RouteProtectionClass::LinkProtected,
+        selected_connectivity:          RouteConnectivityProfile { repair, partition },
+        deployment_profile:             DeploymentProfile::FieldPartitionTolerant,
+        diversity_floor:                1,
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
-        route_replacement_policy: RouteReplacementPolicy::Allowed,
+        route_replacement_policy:       RouteReplacementPolicy::Allowed,
     }
 }
 
@@ -118,8 +116,8 @@ pub fn profile_with_connectivity(
 pub fn lease(start: Tick, end: Tick) -> RouteLease {
     RouteLease {
         owner_node_id: LOCAL_NODE_ID,
-        lease_epoch: jacquard_traits::jacquard_core::RouteEpoch(2),
-        valid_for: TimeWindow::new(start, end).expect("valid lease window"),
+        lease_epoch:   jacquard_traits::jacquard_core::RouteEpoch(2),
+        valid_for:     TimeWindow::new(start, end).expect("valid lease window"),
     }
 }
 
@@ -182,14 +180,14 @@ pub fn activate_route(
 
     let runtime = RouteRuntimeState {
         last_lifecycle_event: installation.last_lifecycle_event,
-        health: installation.health,
-        progress: installation.progress,
+        health:               installation.health,
+        progress:             installation.progress,
     };
     let identity = MaterializedRouteIdentity {
-        handle: input.handle,
+        handle:                input.handle,
         materialization_proof: installation.materialization_proof,
-        admission: input.admission,
-        lease: input.lease,
+        admission:             input.admission,
+        lease:                 input.lease,
     };
     (identity, runtime)
 }

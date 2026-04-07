@@ -52,7 +52,9 @@ fn ensure_no_gitignored_files(root: &Path, staged_files: &[String]) -> Result<()
         .collect();
     if !ignored.is_empty() {
         println!("FAILED");
-        eprintln!("pre-commit: gitignored files must not be included in source control:");
+        eprintln!(
+            "pre-commit: gitignored files must not be included in source control:"
+        );
         for path in &ignored {
             eprintln!("  {path}");
         }
@@ -149,8 +151,8 @@ fn owning_packages(root: &Path, files: &[String]) -> Result<BTreeSet<String>> {
             if abs.starts_with(dir) {
                 let depth = dir.components().count();
                 match best {
-                    Some((_, best_depth)) if best_depth >= depth => {}
-                    _ => best = Some((name.as_str(), depth)),
+                    | Some((_, best_depth)) if best_depth >= depth => {},
+                    | _ => best = Some((name.as_str(), depth)),
                 }
             }
         }

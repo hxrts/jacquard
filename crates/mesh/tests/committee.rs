@@ -8,27 +8,34 @@
 
 mod common;
 
-use jacquard_mesh::{DeterministicCommitteeSelector, DeterministicMeshTopologyModel, MeshEngine};
+use std::collections::BTreeMap;
+
+use common::{
+    effects::{TestRetentionStore, TestRuntimeEffects, TestTransport},
+    engine::{
+        lease, materialization_input, objective, profile, profile_with_connectivity,
+        LOCAL_NODE_ID,
+    },
+    fixtures::{link, node, sample_configuration},
+};
+use jacquard_mesh::{
+    DeterministicCommitteeSelector, DeterministicMeshTopologyModel, MeshEngine,
+};
 use jacquard_traits::{
     jacquard_core::{
-        AdmissionDecision, Configuration, ControllerId, DestinationId, DiscoveryScopeId,
-        Environment, Node, NodeId, Observation, PenaltyPoints, RatioPermille,
-        RouteAdmissionRejection, RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass,
-        RouteRuntimeError, RoutingTickContext, ServiceId, ServiceScope, Tick,
+        AdmissionDecision, Configuration, ControllerId, DestinationId,
+        DiscoveryScopeId, Environment, Node, NodeId, Observation, PenaltyPoints,
+        RatioPermille, RouteAdmissionRejection, RouteEpoch, RouteError,
+        RoutePartitionClass, RouteRepairClass, RouteRuntimeError, RoutingTickContext,
+        ServiceId, ServiceScope, Tick,
     },
-    Blake3Hashing, CommitteeSelector, MeshTopologyModel, RoutingEngine, RoutingEnginePlanner,
+    Blake3Hashing, CommitteeSelector, MeshTopologyModel, RoutingEngine,
+    RoutingEnginePlanner,
 };
-
-use common::effects::{TestRetentionStore, TestRuntimeEffects, TestTransport};
-use common::engine::{
-    lease, materialization_input, objective, profile, profile_with_connectivity, LOCAL_NODE_ID,
-};
-use common::fixtures::{link, node, sample_configuration};
-use std::collections::BTreeMap;
 
 #[derive(Clone)]
 struct PreferredCommitteeTopologyModel {
-    base: jacquard_mesh::DeterministicMeshTopologyModel,
+    base:           jacquard_mesh::DeterministicMeshTopologyModel,
     preferred_peer: NodeId,
 }
 
@@ -42,8 +49,8 @@ impl PreferredCommitteeTopologyModel {
 }
 
 impl MeshTopologyModel for PreferredCommitteeTopologyModel {
-    type PeerEstimate = jacquard_mesh::MeshPeerEstimate;
     type NeighborhoodEstimate = jacquard_mesh::MeshNeighborhoodEstimate;
+    type PeerEstimate = jacquard_mesh::MeshPeerEstimate;
 
     fn local_node(
         &self,
@@ -91,12 +98,15 @@ impl MeshTopologyModel for PreferredCommitteeTopologyModel {
             configuration,
         )?;
         if *peer_node_id == self.preferred_peer {
-            estimate.relay_value_score = Some(jacquard_traits::jacquard_core::HealthScore(1000));
+            estimate.relay_value_score =
+                Some(jacquard_traits::jacquard_core::HealthScore(1000));
             estimate.retention_value_score =
                 Some(jacquard_traits::jacquard_core::HealthScore(1000));
         } else {
-            estimate.relay_value_score = Some(jacquard_traits::jacquard_core::HealthScore(0));
-            estimate.retention_value_score = Some(jacquard_traits::jacquard_core::HealthScore(0));
+            estimate.relay_value_score =
+                Some(jacquard_traits::jacquard_core::HealthScore(0));
+            estimate.retention_value_score =
+                Some(jacquard_traits::jacquard_core::HealthScore(0));
         }
         Some(estimate)
     }
@@ -174,7 +184,8 @@ impl CommitteeSelector for ErroringCommitteeSelector {
         _objective: &jacquard_traits::jacquard_core::RoutingObjective,
         _profile: &jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
         _topology: &jacquard_traits::jacquard_core::Observation<Self::TopologyView>,
-    ) -> Result<Option<jacquard_traits::jacquard_core::CommitteeSelection>, RouteError> {
+    ) -> Result<Option<jacquard_traits::jacquard_core::CommitteeSelection>, RouteError>
+    {
         Err(RouteError::Runtime(RouteRuntimeError::Invalidated))
     }
 }
@@ -188,16 +199,15 @@ type SelectorEngine<Selector> = MeshEngine<
     Selector,
 >;
 
-fn build_engine_with_selector<Selector>(selector: Selector) -> SelectorEngine<Selector> {
+fn build_engine_with_selector<Selector>(
+    selector: Selector,
+) -> SelectorEngine<Selector> {
     MeshEngine::with_committee_selector(
         LOCAL_NODE_ID,
         DeterministicMeshTopologyModel::new(),
         TestTransport::default(),
         TestRetentionStore::default(),
-        TestRuntimeEffects {
-            now: Tick(2),
-            ..Default::default()
-        },
+        TestRuntimeEffects { now: Tick(2), ..Default::default() },
         Blake3Hashing,
         selector,
     )
@@ -217,7 +227,7 @@ fn node_with_identity_and_scope(
     node
 }
 
-// long-block-exception: this topology fixture keeps the committee-diversity graph, services, and scopes together so the test inputs remain legible as one deterministic neighborhood.
+// long-block-exception: deterministic committee-diversity topology fixture.
 fn diversity_topology() -> Observation<Configuration> {
     let node_two = NodeId([2; 32]);
     let node_four = NodeId([4; 32]);
@@ -225,9 +235,9 @@ fn diversity_topology() -> Observation<Configuration> {
     let node_six = NodeId([6; 32]);
 
     Observation {
-        value: Configuration {
-            epoch: RouteEpoch(2),
-            nodes: BTreeMap::from([
+        value:                 Configuration {
+            epoch:       RouteEpoch(2),
+            nodes:       BTreeMap::from([
                 (LOCAL_NODE_ID, node(1)),
                 (
                     node_two,
@@ -262,7 +272,7 @@ fn diversity_topology() -> Observation<Configuration> {
                     ),
                 ),
             ]),
-            links: BTreeMap::from([
+            links:       BTreeMap::from([
                 ((LOCAL_NODE_ID, node_two), link(2, 980)),
                 ((LOCAL_NODE_ID, node_four), link(4, 960)),
                 ((LOCAL_NODE_ID, node_five), link(5, 940)),
@@ -270,15 +280,16 @@ fn diversity_topology() -> Observation<Configuration> {
             ]),
             environment: Environment {
                 reachable_neighbor_count: 4,
-                churn_permille: RatioPermille(120),
-                contention_permille: RatioPermille(110),
+                churn_permille:           RatioPermille(120),
+                contention_permille:      RatioPermille(110),
             },
         },
-        source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-        evidence_class: jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+        source_class:          jacquard_traits::jacquard_core::FactSourceClass::Local,
+        evidence_class:
+            jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
         origin_authentication:
             jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(2),
+        observed_at_tick:      Tick(2),
     }
 }
 
@@ -309,7 +320,8 @@ fn committee_selector_some_is_carried_into_active_route() {
     let topology = sample_configuration();
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
     let policy = profile();
-    let mut engine = build_engine_with_selector(DeterministicCommitteeSelector::new(LOCAL_NODE_ID));
+    let mut engine =
+        build_engine_with_selector(DeterministicCommitteeSelector::new(LOCAL_NODE_ID));
 
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
@@ -425,16 +437,16 @@ fn behavior_history_can_disqualify_otherwise_high_scoring_members() {
     let topology = diversity_topology();
     let goal = objective(DestinationId::Node(NodeId([6; 32])));
     let policy = profile();
-    let selector =
-        DeterministicCommitteeSelector::new(LOCAL_NODE_ID).with_behavior_history(BTreeMap::from([
-            (
-                NodeId([2; 32]),
-                jacquard_mesh::MeshBehaviorHistory {
-                    reliability_score: jacquard_traits::jacquard_core::HealthScore(100),
-                    misbehavior_penalty_points: PenaltyPoints(800),
-                },
-            ),
-        ]));
+    let selector = DeterministicCommitteeSelector::new(LOCAL_NODE_ID)
+        .with_behavior_history(BTreeMap::from([(
+            NodeId([2; 32]),
+            jacquard_mesh::MeshBehaviorHistory {
+                reliability_score:          jacquard_traits::jacquard_core::HealthScore(
+                    100,
+                ),
+                misbehavior_penalty_points: PenaltyPoints(800),
+            },
+        )]));
 
     let committee = selector
         .select_committee(&goal, &policy, &topology)

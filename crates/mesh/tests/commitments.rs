@@ -6,15 +6,17 @@
 
 mod common;
 
+use common::{
+    engine::{activate_route, build_engine, lease},
+    fixtures::sample_configuration,
+};
 use jacquard_traits::{
     jacquard_core::{
-        MaterializedRoute, NodeId, RouteCommitmentResolution, RouteMaintenanceTrigger, Tick,
+        MaterializedRoute, NodeId, RouteCommitmentResolution, RouteMaintenanceTrigger,
+        Tick,
     },
     RoutingEngine,
 };
-
-use common::engine::{activate_route, build_engine, lease};
-use common::fixtures::sample_configuration;
 
 fn materialized_route_for(
     identity: jacquard_traits::jacquard_core::MaterializedRouteIdentity,
@@ -24,7 +26,7 @@ fn materialized_route_for(
 }
 
 #[test]
-// long-block-exception: this commitment test keeps the steady, repair, partition, and handoff posture checks in one place so the v1 single-commitment contract is obvious.
+// long-block-exception: steady/repair/partition/handoff posture in one block.
 fn v1_mesh_exposes_one_commitment_per_route_across_runtime_postures() {
     let topology = sample_configuration();
     let mut engine = build_engine();

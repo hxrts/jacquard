@@ -11,19 +11,20 @@ mod common;
 
 use std::collections::BTreeMap;
 
+use common::{
+    effects::{TestRetentionStore, TestRuntimeEffects, TestTransport},
+    engine::{build_engine, objective, profile, LOCAL_NODE_ID},
+    fixtures::{link, node, sample_configuration},
+};
+use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, DestinationId, Environment, FactSourceClass, NodeId, Observation,
-        OriginAuthenticationClass, RatioPermille, RouteEpoch, RoutingEvidenceClass, ServiceId,
-        Tick,
+        Configuration, DestinationId, Environment, FactSourceClass, NodeId,
+        Observation, OriginAuthenticationClass, RatioPermille, RouteEpoch,
+        RoutingEvidenceClass, ServiceId, Tick,
     },
     HashDigestBytes, Hashing, RoutingEnginePlanner,
 };
-
-use common::effects::{TestRetentionStore, TestRuntimeEffects, TestTransport};
-use common::engine::{build_engine, objective, profile, LOCAL_NODE_ID};
-use common::fixtures::{link, node, sample_configuration};
-use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 
 fn permuted_topology() -> Observation<Configuration> {
     // Same logical graph as `sample_configuration`, built by inserting
@@ -48,20 +49,20 @@ fn permuted_topology() -> Observation<Configuration> {
     links.insert((local_node_id, node_two_id), link(2, 950));
 
     Observation {
-        value: Configuration {
+        value:                 Configuration {
             epoch: RouteEpoch(2),
             nodes,
             links,
             environment: Environment {
                 reachable_neighbor_count: 3,
-                churn_permille: RatioPermille(150),
-                contention_permille: RatioPermille(120),
+                churn_permille:           RatioPermille(150),
+                contention_permille:      RatioPermille(120),
             },
         },
-        source_class: FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
+        source_class:          FactSourceClass::Local,
+        evidence_class:        RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(2),
+        observed_at_tick:      Tick(2),
     }
 }
 
@@ -174,10 +175,7 @@ fn mesh_engine_accepts_non_blake3_hashing_for_route_identity() {
         DeterministicMeshTopologyModel::new(),
         TestTransport::default(),
         TestRetentionStore::default(),
-        TestRuntimeEffects {
-            now: Tick(2),
-            ..Default::default()
-        },
+        TestRuntimeEffects { now: Tick(2), ..Default::default() },
         AltHashing,
     );
     let topology = sample_configuration();

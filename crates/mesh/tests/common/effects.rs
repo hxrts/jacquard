@@ -11,22 +11,22 @@ use std::collections::BTreeMap;
 use jacquard_traits::{
     effect_handler,
     jacquard_core::{
-        Blake3Digest, ContentId, LinkEndpoint, OrderStamp, RetentionError, RouteEventLogError,
-        RouteEventStamped, StorageError, Tick, TransportError, TransportObservation,
-        TransportProtocol,
+        Blake3Digest, ContentId, LinkEndpoint, OrderStamp, RetentionError,
+        RouteEventLogError, RouteEventStamped, StorageError, Tick, TransportError,
+        TransportObservation, TransportProtocol,
     },
-    MeshFrame, MeshTransport, OrderEffects, RetentionStore, RouteEventLogEffects, StorageEffects,
-    TimeEffects,
+    MeshFrame, MeshTransport, OrderEffects, RetentionStore, RouteEventLogEffects,
+    StorageEffects, TimeEffects,
 };
 
 #[derive(Default)]
 pub struct TestRuntimeEffects {
-    pub now: Tick,
-    pub next_order: u64,
-    pub storage: BTreeMap<Vec<u8>, Vec<u8>>,
-    pub store_bytes_call_count: u32,
-    pub events: Vec<RouteEventStamped>,
-    pub fail_store_bytes: bool,
+    pub now:                     Tick,
+    pub next_order:              u64,
+    pub storage:                 BTreeMap<Vec<u8>, Vec<u8>>,
+    pub store_bytes_call_count:  u32,
+    pub events:                  Vec<RouteEventStamped>,
+    pub fail_store_bytes:        bool,
     pub fail_record_route_event: bool,
 }
 
@@ -68,7 +68,10 @@ impl StorageEffects for TestRuntimeEffects {
 
 #[effect_handler]
 impl RouteEventLogEffects for TestRuntimeEffects {
-    fn record_route_event(&mut self, event: RouteEventStamped) -> Result<(), RouteEventLogError> {
+    fn record_route_event(
+        &mut self,
+        event: RouteEventStamped,
+    ) -> Result<(), RouteEventLogError> {
         if self.fail_record_route_event {
             return Err(RouteEventLogError::Unavailable);
         }
@@ -79,7 +82,7 @@ impl RouteEventLogEffects for TestRuntimeEffects {
 
 #[derive(Default)]
 pub struct TestTransport {
-    pub sent_frames: Vec<(LinkEndpoint, Vec<u8>)>,
+    pub sent_frames:  Vec<(LinkEndpoint, Vec<u8>)>,
     pub observations: Vec<TransportObservation>,
 }
 
@@ -94,7 +97,9 @@ impl MeshTransport for TestTransport {
         Ok(())
     }
 
-    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
+    fn poll_observations(
+        &mut self,
+    ) -> Result<Vec<TransportObservation>, TransportError> {
         Ok(std::mem::take(&mut self.observations))
     }
 }

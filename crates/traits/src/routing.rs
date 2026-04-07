@@ -2,19 +2,21 @@
 //! control/data planes.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, CommitteeSelection, Configuration, LayerParameters, MaterializedRoute,
-    MaterializedRouteIdentity, Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate,
-    RouteCommitment, RouteError, RouteHealth, RouteId, RouteInstallation, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RouteRuntimeState,
-    RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, RoutingPolicyInputs,
-    RoutingTickChange, RoutingTickContext, RoutingTickOutcome, SubstrateCandidate, SubstrateLease,
+    AdaptiveRoutingProfile, CommitteeSelection, Configuration, LayerParameters,
+    MaterializedRoute, MaterializedRouteIdentity, Observation, RouteAdmission,
+    RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError, RouteHealth,
+    RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
+    RouteMaterializationInput, RouteRuntimeState, RoutingEngineCapabilities,
+    RoutingEngineId, RoutingObjective, RoutingPolicyInputs, RoutingTickChange,
+    RoutingTickContext, RoutingTickOutcome, SubstrateCandidate, SubstrateLease,
     SubstrateRequirements,
 };
 use jacquard_macros::purity;
 
 #[purity(pure)]
 /// Owns the protection-versus-connectivity decision. In a mesh-only deployment,
-/// this may return a fixed profile. Richer policy comes from the embedding host.
+/// this may return a fixed profile. Richer policy comes from the embedding
+/// host.
 ///
 /// Pure deterministic boundary.
 pub trait PolicyEngine {
@@ -125,8 +127,8 @@ pub trait LayeredRoutingEnginePlanner {
 }
 
 #[purity(effectful)]
-/// Optional effectful boundary for layered routing engines once planning has selected
-/// a substrate-backed route candidate.
+/// Optional effectful boundary for layered routing engines once planning has
+/// selected a substrate-backed route candidate.
 ///
 /// This is a forward-looking contract surface. Contract tests cover the shape,
 /// not a mature in-tree layering implementation.
@@ -140,9 +142,9 @@ pub trait LayeredRoutingEngine: RoutingEngine + LayeredRoutingEnginePlanner {
 }
 
 #[purity(pure)]
-/// The pure or near-pure planning surface for one routing engine. Planner methods
-/// should be deterministic with respect to their inputs and must not materialize,
-/// activate, or mutate canonical route state.
+/// The pure or near-pure planning surface for one routing engine. Planner
+/// methods should be deterministic with respect to their inputs and must not
+/// materialize, activate, or mutate canonical route state.
 ///
 /// Pure deterministic boundary.
 pub trait RoutingEnginePlanner {
@@ -223,10 +225,13 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     /// This hook must not publish canonical route truth directly. Any
     /// resulting activation, replacement, or maintenance decisions still flow
     /// through the router/control-plane path.
-    fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
+    fn engine_tick(
+        &mut self,
+        tick: &RoutingTickContext,
+    ) -> Result<RoutingTickOutcome, RouteError> {
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,
-            change: RoutingTickChange::NoChange,
+            change:         RoutingTickChange::NoChange,
         })
     }
 
@@ -251,14 +256,20 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 ///
 /// Effectful runtime boundary.
 pub trait Router {
-    fn register_engine(&mut self, extension: Box<dyn RoutingEngine>) -> Result<(), RouteError>;
+    fn register_engine(
+        &mut self,
+        extension: Box<dyn RoutingEngine>,
+    ) -> Result<(), RouteError>;
 
     fn activate_route(
         &mut self,
         objective: RoutingObjective,
     ) -> Result<MaterializedRoute, RouteError>;
 
-    fn route_commitments(&self, route_id: &RouteId) -> Result<Vec<RouteCommitment>, RouteError>;
+    fn route_commitments(
+        &self,
+        route_id: &RouteId,
+    ) -> Result<Vec<RouteCommitment>, RouteError>;
 
     fn reselect_route(
         &mut self,
@@ -285,7 +296,8 @@ pub trait LayeringPolicyEngine {
 }
 
 #[purity(effectful)]
-/// Control plane owns route truth. Data plane owns forwarding over admitted truth.
+/// Control plane owns route truth. Data plane owns forwarding over admitted
+/// truth.
 ///
 /// Effectful runtime boundary.
 pub trait RoutingControlPlane {
@@ -314,7 +326,11 @@ pub trait RoutingControlPlane {
 ///
 /// Effectful runtime boundary with read-only observation methods.
 pub trait RoutingDataPlane {
-    fn forward_payload(&mut self, route_id: &RouteId, payload: &[u8]) -> Result<(), RouteError>;
+    fn forward_payload(
+        &mut self,
+        route_id: &RouteId,
+        payload: &[u8],
+    ) -> Result<(), RouteError>;
 
     /// Health reads are observational. They must not silently become canonical
     /// route truth without an explicit control-plane publication step.

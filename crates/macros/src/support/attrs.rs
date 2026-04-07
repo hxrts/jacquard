@@ -5,7 +5,10 @@ use std::collections::BTreeSet;
 use quote::ToTokens;
 use syn::{parse_quote, punctuated::Punctuated, Attribute, Path, Token};
 
-pub(crate) fn ensure_derive(attrs: &mut Vec<Attribute>, required: &[Path]) -> syn::Result<()> {
+pub(crate) fn ensure_derive(
+    attrs: &mut Vec<Attribute>,
+    required: &[Path],
+) -> syn::Result<()> {
     let mut existing = BTreeSet::new();
 
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("derive")) {

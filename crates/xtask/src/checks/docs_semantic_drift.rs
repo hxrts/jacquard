@@ -134,12 +134,8 @@ const EXTERNAL_PREFIXES: &[&str] = &[
     "telltale",
 ];
 
-const PLANNED_CRATES: &[&str] = &[
-    "jacquard-mesh",
-    "jacquard-router",
-    "jacquard-transport",
-    "jacquard-simulator",
-];
+const PLANNED_CRATES: &[&str] =
+    &["jacquard-mesh", "jacquard-router", "jacquard-transport", "jacquard-simulator"];
 
 pub fn run() -> Result<()> {
     let root = workspace_root()?;
@@ -161,10 +157,12 @@ pub fn run() -> Result<()> {
         let parser = Parser::new_ext(&contents, Options::empty());
         for event in parser {
             match event {
-                Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(_)))
-                | Event::Start(Tag::CodeBlock(CodeBlockKind::Indented)) => in_code_block = true,
-                Event::End(TagEnd::CodeBlock) => in_code_block = false,
-                Event::Code(snippet) if !in_code_block => {
+                | Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(_)))
+                | Event::Start(Tag::CodeBlock(CodeBlockKind::Indented)) => {
+                    in_code_block = true
+                },
+                | Event::End(TagEnd::CodeBlock) => in_code_block = false,
+                | Event::Code(snippet) if !in_code_block => {
                     check_snippet(
                         &rel_file,
                         &snippet,
@@ -173,8 +171,8 @@ pub fn run() -> Result<()> {
                         &just_recipes,
                         &mut errors,
                     );
-                }
-                _ => {}
+                },
+                | _ => {},
             }
         }
     }
@@ -265,11 +263,9 @@ fn check_snippet(
 
 fn looks_like_path(snippet: &str) -> bool {
     matches!(snippet, "CLAUDE.md" | "Cargo.toml" | "justfile")
-        || [
-            "docs/", "crates/", "scripts/", "lints/", "nix/", ".github/", "work/",
-        ]
-        .iter()
-        .any(|prefix| snippet.starts_with(prefix))
+        || ["docs/", "crates/", "scripts/", "lints/", "nix/", ".github/", "work/"]
+            .iter()
+            .any(|prefix| snippet.starts_with(prefix))
 }
 
 fn root_identifier(snippet: &str) -> Option<&str> {

@@ -18,13 +18,13 @@ pub fn run(args: Vec<String>) -> Result<()> {
     };
     let rest = &args[1..];
     match name {
-        "crate-boundary" => crate_boundary::run(),
-        "docs-link-check" => docs_link_check::run(),
-        "docs-semantic-drift" => docs_semantic_drift::run(),
-        "no-usize-in-models" => no_usize_in_models::run(),
-        "proc-macro-scope" => proc_macro_scope::run(),
-        "routing-invariants" => routing_invariants::run(rest),
-        "trait-purity" => trait_purity::run(),
-        other => bail!("xtask: unknown check: {other}"),
+        | "crate-boundary" => crate_boundary::run(),
+        | "docs-link-check" => docs_link_check::run(),
+        | "docs-semantic-drift" => docs_semantic_drift::run(),
+        | "no-usize-in-models" => no_usize_in_models::run(),
+        | "proc-macro-scope" => proc_macro_scope::run(),
+        | "routing-invariants" => routing_invariants::run(rest),
+        | "trait-purity" => trait_purity::run(),
+        | other => bail!("xtask: unknown check: {other}"),
     }
 }

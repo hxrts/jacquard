@@ -27,27 +27,27 @@ mod types;
 use std::{cell::RefCell, collections::BTreeMap};
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, NodeId, Observation, ReceiptId, RouteCommitmentId,
-    RouteConnectivityProfile, RouteEpoch, RouteError, RouteEvent, RouteEventStamped, RouteId,
-    RoutePartitionClass, RouteRuntimeError, RouteSelectionError, RoutingEngineCapabilities,
-    RoutingEngineId, TransportObservation,
+    Blake3Digest, Configuration, ContentId, NodeId, Observation, ReceiptId,
+    RouteCommitmentId, RouteConnectivityProfile, RouteEpoch, RouteError, RouteEvent,
+    RouteEventStamped, RouteId, RoutePartitionClass, RouteRuntimeError,
+    RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId,
+    TransportObservation,
 };
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, MeshFrame};
-
-use crate::committee::NoCommitteeSelector;
-
+pub(crate) use support::DOMAIN_TAG_COMMITTEE_ID;
 use trait_bounds::{
     MeshEffectsBounds, MeshHasherBounds, MeshRetentionBounds, MeshSelectorBounds,
     MeshTopologyBounds, MeshTransportBounds,
 };
 use types::{ActiveMeshRoute, CachedCandidate};
-
-pub(crate) use support::DOMAIN_TAG_COMMITTEE_ID;
 pub use types::{
     MeshCommitteeStatus, MeshControlState, MeshForwardingState, MeshHandoffState,
-    MeshObservedRemoteLink, MeshPath, MeshRepairState, MeshRouteAntiEntropyState, MeshRouteClass,
-    MeshRouteSegment, MeshTransportFreshness, MeshTransportObservationSummary,
+    MeshObservedRemoteLink, MeshPath, MeshRepairState, MeshRouteAntiEntropyState,
+    MeshRouteClass, MeshRouteSegment, MeshTransportFreshness,
+    MeshTransportObservationSummary,
 };
+
+use crate::committee::NoCommitteeSelector;
 
 // Public Engine Identity And Capability Surface
 
@@ -89,18 +89,19 @@ const MESH_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 // repair, hold, and decidable-admission support. This is the static
 // capability envelope the router sees during engine registration.
 pub const MESH_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilities {
-    engine: RoutingEngineId::Mesh,
-    max_protection: jacquard_core::RouteProtectionClass::LinkProtected,
-    max_connectivity: RouteConnectivityProfile {
-        repair: jacquard_core::RouteRepairClass::Repairable,
+    engine:                  RoutingEngineId::Mesh,
+    max_protection:          jacquard_core::RouteProtectionClass::LinkProtected,
+    max_connectivity:        RouteConnectivityProfile {
+        repair:    jacquard_core::RouteRepairClass::Repairable,
         partition: RoutePartitionClass::PartitionTolerant,
     },
-    repair_support: jacquard_core::RepairSupport::Supported,
-    hold_support: jacquard_core::HoldSupport::Supported,
-    decidable_admission: jacquard_core::DecidableSupport::Supported,
-    quantitative_bounds: jacquard_core::QuantitativeBoundSupport::ProductiveAndSchedulerLifted,
+    repair_support:          jacquard_core::RepairSupport::Supported,
+    hold_support:            jacquard_core::HoldSupport::Supported,
+    decidable_admission:     jacquard_core::DecidableSupport::Supported,
+    quantitative_bounds:
+        jacquard_core::QuantitativeBoundSupport::ProductiveAndSchedulerLifted,
     reconfiguration_support: jacquard_core::ReconfigurationSupport::LinkAndDelegate,
-    route_shape_visibility: jacquard_core::RouteShapeVisibility::Explicit,
+    route_shape_visibility:  jacquard_core::RouteShapeVisibility::Explicit,
 };
 
 // `candidate_cache` memoizes planning work so `check_candidate` and
@@ -228,7 +229,9 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     }
 
     #[must_use]
-    pub fn transport_observation_summary(&self) -> Option<&MeshTransportObservationSummary> {
+    pub fn transport_observation_summary(
+        &self,
+    ) -> Option<&MeshTransportObservationSummary> {
         self.last_transport_summary.as_ref()
     }
 
@@ -315,8 +318,9 @@ where
             .cloned()
             .ok_or(RouteRuntimeError::Invalidated)?;
         if partition_mode {
-            self.retain_for_route(route_id, payload)
-                .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))?;
+            self.retain_for_route(route_id, payload).map_err(|_| {
+                RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)
+            })?;
             return Ok(());
         }
 
@@ -334,7 +338,9 @@ where
         Ok(())
     }
 
-    pub fn poll_transport_observations(&mut self) -> Result<Vec<TransportObservation>, RouteError> {
+    pub fn poll_transport_observations(
+        &mut self,
+    ) -> Result<Vec<TransportObservation>, RouteError> {
         self.transport.poll_observations().map_err(RouteError::from)
     }
 }
@@ -356,7 +362,8 @@ where
         // This runs before the store write so we never leak bytes into
         // the retention store that the engine cannot track.
         if let Some(active_route) = self.active_routes.get(route_id) {
-            if active_route.anti_entropy.retained_objects.len() >= MESH_RETAINED_PER_ROUTE_COUNT_MAX
+            if active_route.anti_entropy.retained_objects.len()
+                >= MESH_RETAINED_PER_ROUTE_COUNT_MAX
             {
                 return Err(jacquard_core::RetentionError::Full);
             }
@@ -429,7 +436,11 @@ where
         ReceiptId(receipt_id)
     }
 
-    fn retention_object_id(&self, route_id: &RouteId, payload: &[u8]) -> ContentId<Blake3Digest> {
+    fn retention_object_id(
+        &self,
+        route_id: &RouteId,
+        payload: &[u8],
+    ) -> ContentId<Blake3Digest> {
         let mut tagged = route_id.0.to_vec();
         tagged.extend_from_slice(payload);
         let digest = self
@@ -437,9 +448,7 @@ where
             .hash_tagged(support::DOMAIN_TAG_RETENTION, &tagged);
         let content_digest =
             Blake3Hashing.hash_tagged(support::DOMAIN_TAG_RETENTION, digest.as_bytes());
-        ContentId {
-            digest: content_digest,
-        }
+        ContentId { digest: content_digest }
     }
 }
 
@@ -450,8 +459,14 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Effects: MeshEffectsBounds,
 {
-    fn store_checkpoint(&mut self, active_route: &ActiveMeshRoute) -> Result<(), RouteError> {
-        let key = support::route_storage_key(&self.local_node_id, &active_route.path.route_id);
+    fn store_checkpoint(
+        &mut self,
+        active_route: &ActiveMeshRoute,
+    ) -> Result<(), RouteError> {
+        let key = support::route_storage_key(
+            &self.local_node_id,
+            &active_route.path.route_id,
+        );
         let value = support::checkpoint_bytes(active_route);
         self.effects
             .store_bytes(&key, &value)

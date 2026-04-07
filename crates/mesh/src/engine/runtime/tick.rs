@@ -3,18 +3,19 @@
 use jacquard_core::{
     MaterializedRoute, MaterializedRouteIdentity, RouteBinding, RouteCommitment,
     RouteCommitmentResolution, RouteError, RouteEvent, RouteInvalidationReason,
-    RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
-    RouteOperationId, RouteProgressState, RouteRuntimeError, RoutingTickChange, RoutingTickContext,
-    RoutingTickOutcome, TimeoutPolicy,
+    RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
+    RouteMaintenanceResult, RouteOperationId, RouteProgressState, RouteRuntimeError,
+    RoutingTickChange, RoutingTickContext, RoutingTickOutcome, TimeoutPolicy,
 };
 
-use super::super::{
-    support::topology_epoch_storage_key, MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
-    MESH_COMMITMENT_BACKOFF_MS_MAX, MESH_COMMITMENT_INITIAL_BACKOFF_MS,
-    MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
-};
 use super::{
-    MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds, MeshTransportBounds,
+    super::{
+        support::topology_epoch_storage_key, MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
+        MESH_COMMITMENT_BACKOFF_MS_MAX, MESH_COMMITMENT_INITIAL_BACKOFF_MS,
+        MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
+    },
+    MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
+    MeshTransportBounds,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -38,12 +39,14 @@ where
         next_runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
         next_runtime.progress.state = RouteProgressState::Failed;
         let result = RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Expired,
-            outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LeaseExpired),
+            event:   RouteLifecycleEvent::Expired,
+            outcome: RouteMaintenanceOutcome::Failed(
+                RouteMaintenanceFailure::LeaseExpired,
+            ),
         };
         self.record_event(RouteEvent::RouteMaintenanceCompleted {
             route_id: identity.handle.route_id,
-            result: result.clone(),
+            result:   result.clone(),
         })?;
         *runtime = next_runtime;
         Ok(result)
@@ -56,20 +59,29 @@ where
         let resolution = if route.identity.lease.is_valid_at(self.effects.now_tick()) {
             RouteCommitmentResolution::Pending
         } else {
-            RouteCommitmentResolution::Invalidated(RouteInvalidationReason::LeaseExpired)
+            RouteCommitmentResolution::Invalidated(
+                RouteInvalidationReason::LeaseExpired,
+            )
         };
         vec![RouteCommitment {
-            commitment_id: self.commitment_id_for_route(&route.identity.handle.route_id),
+            commitment_id: self
+                .commitment_id_for_route(&route.identity.handle.route_id),
             operation_id: RouteOperationId(route.identity.handle.route_id.0),
             route_binding: RouteBinding::Bound(route.identity.handle.route_id),
             owner_node_id: route.identity.lease.owner_node_id,
             deadline_tick: route.identity.lease.valid_for.end_tick(),
             retry_policy: TimeoutPolicy {
-                attempt_count_max: MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
-                initial_backoff_ms: jacquard_core::DurationMs(MESH_COMMITMENT_INITIAL_BACKOFF_MS),
+                attempt_count_max:           MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
+                initial_backoff_ms:          jacquard_core::DurationMs(
+                    MESH_COMMITMENT_INITIAL_BACKOFF_MS,
+                ),
                 backoff_multiplier_permille: jacquard_core::RatioPermille(1000),
-                backoff_ms_max: jacquard_core::DurationMs(MESH_COMMITMENT_BACKOFF_MS_MAX),
-                overall_timeout_ms: jacquard_core::DurationMs(MESH_COMMITMENT_OVERALL_TIMEOUT_MS),
+                backoff_ms_max:              jacquard_core::DurationMs(
+                    MESH_COMMITMENT_BACKOFF_MS_MAX,
+                ),
+                overall_timeout_ms:          jacquard_core::DurationMs(
+                    MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
+                ),
             },
             resolution,
         }]
@@ -80,7 +92,8 @@ where
         tick: &RoutingTickContext,
     ) -> Result<RoutingTickOutcome, RouteError> {
         let topology = &tick.topology;
-        let prior_topology_epoch = self.latest_topology.as_ref().map(|seen| seen.value.epoch);
+        let prior_topology_epoch =
+            self.latest_topology.as_ref().map(|seen| seen.value.epoch);
         let prior_transport_summary = self.last_transport_summary.clone();
         let prior_control_state = self.control_state.clone();
         let prior_checkpointed_epoch = self.last_checkpointed_topology_epoch;
@@ -102,8 +115,9 @@ where
             Self::summarize_transport_observations(&observations),
             topology.observed_at_tick,
         );
-        self.control_state =
-            Some(self.next_control_state(topology, self.last_transport_summary.as_ref()));
+        self.control_state = Some(
+            self.next_control_state(topology, self.last_transport_summary.as_ref()),
+        );
         let change = if prior_topology_epoch != Some(topology.value.epoch)
             || prior_transport_summary != self.last_transport_summary
             || prior_control_state != self.control_state

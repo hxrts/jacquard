@@ -6,25 +6,32 @@
 //! truth. Concrete handlers live in the separate `handler` module.
 
 use jacquard_core::{
-    OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick, TransportError,
-    TransportObservation,
+    OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick,
+    TransportError, TransportObservation,
 };
 use jacquard_macros::{effect_trait, purity};
 
 mod sealed {
     pub trait Sealed {}
 
-    impl<T> Sealed for T where T: ?Sized + crate::__private::EffectDefinition + Send + Sync + 'static {}
+    impl<T> Sealed for T where
+        T: ?Sized + crate::__private::EffectDefinition + Send + Sync + 'static
+    {
+    }
 }
 
 #[purity(read_only)]
 /// Marker trait for the abstract runtime effect vocabulary.
 ///
-/// Every effect trait in Jacquard should extend this trait so the effect surface
-/// stays narrow, object-safe, and clearly separated from concrete handlers.
+/// Every effect trait in Jacquard should extend this trait so the effect
+/// surface stays narrow, object-safe, and clearly separated from concrete
+/// handlers.
 pub trait Effect: sealed::Sealed + Send + Sync + 'static {}
 
-impl<T> Effect for T where T: ?Sized + crate::__private::EffectDefinition + Send + Sync + 'static {}
+impl<T> Effect for T where
+    T: ?Sized + crate::__private::EffectDefinition + Send + Sync + 'static
+{
+}
 
 #[effect_trait]
 /// Read-only runtime capability for monotonic logical time.
@@ -61,7 +68,10 @@ pub trait StorageEffects {
 ///
 /// Effectful runtime boundary.
 pub trait RouteEventLogEffects {
-    fn record_route_event(&mut self, event: RouteEventStamped) -> Result<(), RouteEventLogError>;
+    fn record_route_event(
+        &mut self,
+        event: RouteEventStamped,
+    ) -> Result<(), RouteEventLogError>;
 }
 
 #[effect_trait]
@@ -89,20 +99,24 @@ pub trait RoutingRuntimeEffects:
 }
 
 impl<T> RoutingRuntimeEffects for T where
-    T: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects + TransportEffects
+    T: TimeEffects
+        + OrderEffects
+        + StorageEffects
+        + RouteEventLogEffects
+        + TransportEffects
 {
 }
 
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick, TransportError,
-        TransportObservation,
+        OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick,
+        TransportError, TransportObservation,
     };
 
     use super::{
-        Effect, OrderEffects, RouteEventLogEffects, RoutingRuntimeEffects, StorageEffects,
-        TimeEffects, TransportEffects,
+        Effect, OrderEffects, RouteEventLogEffects, RoutingRuntimeEffects,
+        StorageEffects, TimeEffects, TransportEffects,
     };
     use crate::effect_handler;
 
@@ -128,7 +142,11 @@ mod tests {
             Ok(None)
         }
 
-        fn store_bytes(&mut self, _key: &[u8], _value: &[u8]) -> Result<(), StorageError> {
+        fn store_bytes(
+            &mut self,
+            _key: &[u8],
+            _value: &[u8],
+        ) -> Result<(), StorageError> {
             Ok(())
         }
 
@@ -157,7 +175,9 @@ mod tests {
             Ok(())
         }
 
-        fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
+        fn poll_transport(
+            &mut self,
+        ) -> Result<Vec<TransportObservation>, TransportError> {
             Ok(Vec::new())
         }
     }

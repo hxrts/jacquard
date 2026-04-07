@@ -1,31 +1,32 @@
 //! Optional committee coordination for mesh.
 //!
-//! `NoCommitteeSelector` is the always-`None` default. `DeterministicCommitteeSelector`
-//! is the in-tree implementation used when an engine opts in. Committee output
-//! is advisory evidence only: canonical route admission, witnesses, and lease
-//! ownership still flow through the shared router boundary. This module also
-//! exposes the helpers that derive mesh admission assumptions and health
-//! scores from the shared `Configuration`.
+//! `NoCommitteeSelector` is the always-`None` default.
+//! `DeterministicCommitteeSelector` is the in-tree implementation used when an
+//! engine opts in. Committee output is advisory evidence only: canonical route
+//! admission, witnesses, and lease ownership still flow through the shared
+//! router boundary. This module also exposes the helpers that derive mesh
+//! admission assumptions and health scores from the shared `Configuration`.
 
 use core::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
 use bincode::Options;
 use jacquard_core::{
-    AdaptiveRoutingProfile, AdmissionAssumptions, ClaimStrength, CommitteeId, CommitteeMember,
-    CommitteeRole, CommitteeSelection, Configuration, ControllerId, FactBasis, HealthScore,
-    IdentityAssuranceClass, NodeDensityClass, NodeId, Observation, PenaltyPoints,
-    RouteConnectivityProfile, RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass,
-    RoutingEngineId, RoutingObjective, ServiceScope, Tick, TimeWindow,
+    AdaptiveRoutingProfile, AdmissionAssumptions, ClaimStrength, CommitteeId,
+    CommitteeMember, CommitteeRole, CommitteeSelection, Configuration, ControllerId,
+    FactBasis, HealthScore, IdentityAssuranceClass, NodeDensityClass, NodeId,
+    Observation, PenaltyPoints, RouteConnectivityProfile, RouteEpoch, RouteError,
+    RoutePartitionClass, RouteRepairClass, RoutingEngineId, RoutingObjective,
+    ServiceScope, Tick, TimeWindow,
 };
 use jacquard_traits::{
-    Blake3Hashing, CommitteeSelector, HashDigestBytes, Hashing, MeshNeighborhoodEstimateAccess,
-    MeshPeerEstimateAccess, MeshTopologyModel,
+    Blake3Hashing, CommitteeSelector, HashDigestBytes, Hashing,
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshTopologyModel,
 };
 
 use crate::topology::{
-    adjacent_node_ids, bounded_health_score, optional_health_score_value, route_capable_for_engine,
-    DeterministicMeshTopologyModel,
+    adjacent_node_ids, bounded_health_score, optional_health_score_value,
+    route_capable_for_engine, DeterministicMeshTopologyModel,
 };
 
 /// Default maximum committee size for `DeterministicCommitteeSelector`.
@@ -66,7 +67,7 @@ const MESH_COMMITTEE_BEHAVIOR_PENALTY_CEILING: u32 = 400;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshBehaviorHistory {
-    pub reliability_score: HealthScore,
+    pub reliability_score:          HealthScore,
     pub misbehavior_penalty_points: PenaltyPoints,
 }
 
@@ -77,9 +78,9 @@ struct CommitteeDiversityKey {
 
 #[derive(Clone, Debug)]
 struct CommitteeCandidate {
-    score: u32,
+    score:         u32,
     controller_id: ControllerId,
-    node_id: NodeId,
+    node_id:       NodeId,
     diversity_key: CommitteeDiversityKey,
 }
 
@@ -104,11 +105,11 @@ pub struct DeterministicCommitteeSelector<
     Topology = DeterministicMeshTopologyModel,
     Hasher = Blake3Hashing,
 > {
-    pub local_node_id: NodeId,
-    pub engine_id: RoutingEngineId,
-    pub membership_cap: usize,
-    pub topology_model: Topology,
-    pub hashing: Hasher,
+    pub local_node_id:    NodeId,
+    pub engine_id:        RoutingEngineId,
+    pub membership_cap:   usize,
+    pub topology_model:   Topology,
+    pub hashing:          Hasher,
     pub behavior_history: BTreeMap<NodeId, MeshBehaviorHistory>,
 }
 
@@ -121,7 +122,10 @@ impl DeterministicCommitteeSelector<DeterministicMeshTopologyModel, Blake3Hashin
 
 impl<Topology> DeterministicCommitteeSelector<Topology, Blake3Hashing> {
     #[must_use]
-    pub fn with_topology_model(local_node_id: NodeId, topology_model: Topology) -> Self {
+    pub fn with_topology_model(
+        local_node_id: NodeId,
+        topology_model: Topology,
+    ) -> Self {
         Self {
             local_node_id,
             engine_id: RoutingEngineId::Mesh,
@@ -174,16 +178,14 @@ where
         let scope = node.profile.services.iter().find_map(|service| {
             if service.routing_engines.contains(&self.engine_id) {
                 match service.scope {
-                    ServiceScope::Discovery(scope) => Some(scope),
-                    _ => None,
+                    | ServiceScope::Discovery(scope) => Some(scope),
+                    | _ => None,
                 }
             } else {
                 None
             }
         });
-        Some(CommitteeDiversityKey {
-            discovery_scope: scope,
-        })
+        Some(CommitteeDiversityKey { discovery_scope: scope })
     }
 
     fn committee_eligible(
@@ -232,7 +234,8 @@ where
             configuration,
         )?;
         let relay_score = optional_health_score_value(estimate.relay_value_score());
-        let retention_score = optional_health_score_value(estimate.retention_value_score());
+        let retention_score =
+            optional_health_score_value(estimate.retention_value_score());
         let stability_score = optional_health_score_value(estimate.stability_score());
         let service_score = optional_health_score_value(estimate.service_score());
         let behavior_bonus = self
@@ -249,14 +252,16 @@ where
         // peer without the required routing services can never outrank a
         // peer that has them, regardless of relay or link quality.
         Some(CommitteeCandidate {
-            score: relay_score
+            score:         relay_score
                 .saturating_add(retention_score)
                 .saturating_add(stability_score)
-                .saturating_add(service_score.saturating_mul(MESH_COMMITTEE_SERVICE_WEIGHT))
+                .saturating_add(
+                    service_score.saturating_mul(MESH_COMMITTEE_SERVICE_WEIGHT),
+                )
                 .saturating_add(behavior_bonus)
                 .saturating_sub(behavior_penalty),
             controller_id: node.controller_id,
-            node_id: *peer_node_id,
+            node_id:       *peer_node_id,
             diversity_key: self.discovery_scope_key(peer_node_id, configuration)?,
         })
     }
@@ -274,15 +279,18 @@ where
             return false;
         };
         let density_score = optional_health_score_value(estimate.density_score());
-        let service_stability = optional_health_score_value(estimate.service_stability_score());
-        let partition_risk = optional_health_score_value(estimate.partition_risk_score());
+        let service_stability =
+            optional_health_score_value(estimate.service_stability_score());
+        let partition_risk =
+            optional_health_score_value(estimate.partition_risk_score());
         density_score > 0
             && service_stability >= MESH_COMMITTEE_SERVICE_STABILITY_FLOOR
             && service_stability >= partition_risk
     }
 }
 
-impl<Topology, Hasher> CommitteeSelector for DeterministicCommitteeSelector<Topology, Hasher>
+impl<Topology, Hasher> CommitteeSelector
+    for DeterministicCommitteeSelector<Topology, Hasher>
 where
     Topology: MeshTopologyModel,
     Topology::PeerEstimate: MeshPeerEstimateAccess,
@@ -479,13 +487,18 @@ pub fn mesh_admission_assumptions(
 ) -> AdmissionAssumptions {
     let churn = configuration.environment.churn_permille.get();
     AdmissionAssumptions {
-        message_flow_assumption: jacquard_core::MessageFlowAssumptionClass::PerRouteSequenced,
-        failure_model: jacquard_core::FailureModelClass::Benign,
-        runtime_envelope: jacquard_core::RuntimeEnvelopeClass::Canonical,
-        node_density_class: density_class(configuration.environment.reachable_neighbor_count),
-        connectivity_regime: connectivity_regime(churn),
-        adversary_regime: jacquard_core::AdversaryRegime::BenignUntrusted,
-        claim_strength: if profile.selected_connectivity.repair == RouteRepairClass::Repairable {
+        message_flow_assumption:
+            jacquard_core::MessageFlowAssumptionClass::PerRouteSequenced,
+        failure_model:           jacquard_core::FailureModelClass::Benign,
+        runtime_envelope:        jacquard_core::RuntimeEnvelopeClass::Canonical,
+        node_density_class:      density_class(
+            configuration.environment.reachable_neighbor_count,
+        ),
+        connectivity_regime:     connectivity_regime(churn),
+        adversary_regime:        jacquard_core::AdversaryRegime::BenignUntrusted,
+        claim_strength:          if profile.selected_connectivity.repair
+            == RouteRepairClass::Repairable
+        {
             ClaimStrength::ExactUnderAssumptions
         } else {
             ClaimStrength::ConservativeUnderProfile
@@ -494,9 +507,11 @@ pub fn mesh_admission_assumptions(
 }
 
 #[must_use]
-pub fn mesh_route_connectivity(profile: &AdaptiveRoutingProfile) -> RouteConnectivityProfile {
+pub fn mesh_route_connectivity(
+    profile: &AdaptiveRoutingProfile,
+) -> RouteConnectivityProfile {
     RouteConnectivityProfile {
-        repair: profile.selected_connectivity.repair,
+        repair:    profile.selected_connectivity.repair,
         partition: profile.selected_connectivity.partition,
     }
 }
@@ -506,10 +521,10 @@ pub fn mesh_health_score(configuration: &Configuration) -> HealthScore {
     // Mesh health stays on the shared 0..=HEALTH_SCORE_MAX scale. The score
     // rewards both usable neighbor density and environmental stability instead
     // of letting either dominate alone:
-    // - density_score measures how close the local neighborhood is to a dense
-    //   mesh regime, saturating once dense membership is reached.
-    // - stability_score measures how calm the environment is after averaging
-    //   churn and contention penalties.
+    // - density_score measures how close the local neighborhood is to a dense mesh
+    //   regime, saturating once dense membership is reached.
+    // - stability_score measures how calm the environment is after averaging churn
+    //   and contention penalties.
     // The final score is the midpoint of the two so sparse-but-calm and
     // dense-but-chaotic regimes both land below a balanced middle regime.
     let density_score = if DENSITY_DENSE_NEIGHBOR_MIN == 0 {
@@ -519,12 +534,16 @@ pub fn mesh_health_score(configuration: &Configuration) -> HealthScore {
             .environment
             .reachable_neighbor_count
             .min(DENSITY_DENSE_NEIGHBOR_MIN);
-        bounded_health_score(capped_neighbors.saturating_mul(1000) / DENSITY_DENSE_NEIGHBOR_MIN)
+        bounded_health_score(
+            capped_neighbors.saturating_mul(1000) / DENSITY_DENSE_NEIGHBOR_MIN,
+        )
     };
     let churn_penalty = u32::from(configuration.environment.churn_permille.get());
-    let contention_penalty = u32::from(configuration.environment.contention_permille.get());
-    let stability_score =
-        bounded_health_score(1000_u32.saturating_sub((churn_penalty + contention_penalty) / 2));
+    let contention_penalty =
+        u32::from(configuration.environment.contention_permille.get());
+    let stability_score = bounded_health_score(
+        1000_u32.saturating_sub((churn_penalty + contention_penalty) / 2),
+    );
     bounded_health_score((density_score.0 + stability_score.0) / 2)
 }
 
@@ -553,11 +572,15 @@ where
     Hasher: Hashing,
     Hasher::Digest: HashDigestBytes,
 {
-    fn committee_id_for(&self, objective: &RoutingObjective, epoch: RouteEpoch) -> CommitteeId {
+    fn committee_id_for(
+        &self,
+        objective: &RoutingObjective,
+        epoch: RouteEpoch,
+    ) -> CommitteeId {
         #[derive(serde::Serialize)]
         struct CommitteeSeed<'a> {
             destination: &'a jacquard_core::DestinationId,
-            epoch: RouteEpoch,
+            epoch:       RouteEpoch,
         }
 
         let payload = bincode::DefaultOptions::new()
@@ -578,25 +601,29 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
+    use jacquard_core::{
+        AdaptiveRoutingProfile, Belief, BleDeviceId, BleProfileId, ByteCount,
+        Configuration, ControllerId, DeploymentProfile, DestinationId, Environment,
+        Estimate, FactSourceClass, HoldFallbackPolicy, Limit, Link, LinkEndpoint,
+        LinkRuntimeState, LinkState, Node, NodeProfile, NodeRelayBudget, NodeState,
+        Observation, OriginAuthenticationClass, PriorityPoints, RatioPermille,
+        RouteConnectivityProfile, RouteEpoch, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+        RouteServiceKind, RoutingEngineFallbackPolicy, RoutingEvidenceClass,
+        RoutingObjective, ServiceDescriptor, ServiceId, ServiceScope, Tick, TimeWindow,
+        TransportProtocol,
+    };
+
     use super::*;
     use crate::HEALTH_SCORE_MAX;
-    use jacquard_core::{
-        AdaptiveRoutingProfile, Belief, BleDeviceId, BleProfileId, ByteCount, Configuration,
-        ControllerId, DeploymentProfile, DestinationId, Environment, Estimate, FactSourceClass,
-        HoldFallbackPolicy, Limit, Link, LinkEndpoint, LinkRuntimeState, LinkState, Node,
-        NodeProfile, NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass,
-        PriorityPoints, RatioPermille, RouteConnectivityProfile, RouteEpoch, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
-        RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective, ServiceDescriptor,
-        ServiceId, ServiceScope, Tick, TimeWindow, TransportProtocol,
-    };
-    use std::collections::BTreeMap;
 
     fn ble_endpoint(byte: u8) -> LinkEndpoint {
         LinkEndpoint {
-            protocol: TransportProtocol::BleGatt,
-            address: jacquard_core::EndpointAddress::Ble {
-                device_id: BleDeviceId(vec![byte]),
+            protocol:  TransportProtocol::BleGatt,
+            address:   jacquard_core::EndpointAddress::Ble {
+                device_id:  BleDeviceId(vec![byte]),
                 profile_id: BleProfileId([byte; 16]),
             },
             mtu_bytes: ByteCount(256),
@@ -608,23 +635,21 @@ mod tests {
         controller_id: ControllerId,
     ) -> Vec<ServiceDescriptor> {
         let valid_for = TimeWindow::new(Tick(0), Tick(100)).unwrap();
-        [
-            RouteServiceKind::Discover,
-            RouteServiceKind::Move,
-            RouteServiceKind::Hold,
-        ]
-        .into_iter()
-        .map(|kind| ServiceDescriptor {
-            provider_node_id: node_id,
-            controller_id,
-            service_kind: kind,
-            endpoints: vec![ble_endpoint(node_id.0[0])],
-            routing_engines: vec![RoutingEngineId::Mesh],
-            scope: ServiceScope::Discovery(jacquard_core::DiscoveryScopeId([7; 16])),
-            valid_for,
-            capacity: Belief::Absent,
-        })
-        .collect()
+        [RouteServiceKind::Discover, RouteServiceKind::Move, RouteServiceKind::Hold]
+            .into_iter()
+            .map(|kind| ServiceDescriptor {
+                provider_node_id: node_id,
+                controller_id,
+                service_kind: kind,
+                endpoints: vec![ble_endpoint(node_id.0[0])],
+                routing_engines: vec![RoutingEngineId::Mesh],
+                scope: ServiceScope::Discovery(jacquard_core::DiscoveryScopeId(
+                    [7; 16],
+                )),
+                valid_for,
+                capacity: Belief::Absent,
+            })
+            .collect()
     }
 
     fn node(byte: u8) -> Node {
@@ -645,30 +670,30 @@ mod tests {
                 hold_capacity_bytes_max: ByteCount(2048),
             },
             state: NodeState {
-                relay_budget: Belief::Estimated(Estimate {
-                    value: NodeRelayBudget {
-                        relay_work_budget: Belief::Estimated(Estimate {
-                            value: 4,
+                relay_budget:                  Belief::Estimated(Estimate {
+                    value:               NodeRelayBudget {
+                        relay_work_budget:    Belief::Estimated(Estimate {
+                            value:               4,
                             confidence_permille: RatioPermille(1000),
-                            updated_at_tick: Tick(0),
+                            updated_at_tick:     Tick(0),
                         }),
                         utilization_permille: RatioPermille(100),
                         retention_horizon_ms: Belief::Absent,
                     },
                     confidence_permille: RatioPermille(1000),
-                    updated_at_tick: Tick(0),
+                    updated_at_tick:     Tick(0),
                 }),
-                available_connection_count: Belief::Estimated(Estimate {
-                    value: 4,
+                available_connection_count:    Belief::Estimated(Estimate {
+                    value:               4,
                     confidence_permille: RatioPermille(1000),
-                    updated_at_tick: Tick(0),
+                    updated_at_tick:     Tick(0),
                 }),
                 hold_capacity_available_bytes: Belief::Estimated(Estimate {
-                    value: ByteCount(2048),
+                    value:               ByteCount(2048),
                     confidence_permille: RatioPermille(1000),
-                    updated_at_tick: Tick(0),
+                    updated_at_tick:     Tick(0),
                 }),
-                information_summary: Belief::Absent,
+                information_summary:           Belief::Absent,
             },
         }
     }
@@ -676,21 +701,21 @@ mod tests {
     fn link(byte: u8) -> Link {
         Link {
             endpoint: ble_endpoint(byte),
-            state: LinkState {
+            state:    LinkState {
                 state: LinkRuntimeState::Active,
                 median_rtt_ms: jacquard_core::DurationMs(40),
                 transfer_rate_bytes_per_sec: Belief::Absent,
                 stability_horizon_ms: Belief::Absent,
                 loss_permille: RatioPermille(20),
                 delivery_confidence_permille: Belief::Estimated(Estimate {
-                    value: RatioPermille(950),
+                    value:               RatioPermille(950),
                     confidence_permille: RatioPermille(1000),
-                    updated_at_tick: Tick(0),
+                    updated_at_tick:     Tick(0),
                 }),
                 symmetry_permille: Belief::Estimated(Estimate {
-                    value: RatioPermille(900),
+                    value:               RatioPermille(900),
                     confidence_permille: RatioPermille(1000),
-                    updated_at_tick: Tick(0),
+                    updated_at_tick:     Tick(0),
                 }),
             },
         }
@@ -709,36 +734,36 @@ mod tests {
             ((local, NodeId([3; 32])), link(3)),
         ]);
         Observation {
-            value: Configuration {
+            value:                 Configuration {
                 epoch: RouteEpoch(0),
                 nodes,
                 links,
                 environment: Environment {
                     reachable_neighbor_count: neighbor_count,
-                    churn_permille: RatioPermille(100),
-                    contention_permille: RatioPermille(100),
+                    churn_permille:           RatioPermille(100),
+                    contention_permille:      RatioPermille(100),
                 },
             },
-            source_class: FactSourceClass::Local,
-            evidence_class: RoutingEvidenceClass::DirectObservation,
+            source_class:          FactSourceClass::Local,
+            evidence_class:        RoutingEvidenceClass::DirectObservation,
             origin_authentication: OriginAuthenticationClass::Controlled,
-            observed_at_tick: Tick(0),
+            observed_at_tick:      Tick(0),
         }
     }
 
     fn objective_for_service(bytes: Vec<u8>) -> RoutingObjective {
         RoutingObjective {
-            destination: DestinationId::Service(ServiceId(bytes)),
-            service_kind: RouteServiceKind::Move,
-            target_protection: RouteProtectionClass::LinkProtected,
-            protection_floor: RouteProtectionClass::LinkProtected,
-            target_connectivity: RouteConnectivityProfile {
-                repair: RouteRepairClass::Repairable,
+            destination:           DestinationId::Service(ServiceId(bytes)),
+            service_kind:          RouteServiceKind::Move,
+            target_protection:     RouteProtectionClass::LinkProtected,
+            protection_floor:      RouteProtectionClass::LinkProtected,
+            target_connectivity:   RouteConnectivityProfile {
+                repair:    RouteRepairClass::Repairable,
                 partition: RoutePartitionClass::PartitionTolerant,
             },
-            hold_fallback_policy: HoldFallbackPolicy::Allowed,
-            latency_budget_ms: Limit::Unbounded,
-            protection_priority: PriorityPoints(0),
+            hold_fallback_policy:  HoldFallbackPolicy::Allowed,
+            latency_budget_ms:     Limit::Unbounded,
+            protection_priority:   PriorityPoints(0),
             connectivity_priority: PriorityPoints(0),
         }
     }
@@ -748,12 +773,15 @@ mod tests {
         partition: RoutePartitionClass,
     ) -> AdaptiveRoutingProfile {
         AdaptiveRoutingProfile {
-            selected_protection: RouteProtectionClass::LinkProtected,
-            selected_connectivity: RouteConnectivityProfile { repair, partition },
-            deployment_profile: DeploymentProfile::FieldPartitionTolerant,
-            diversity_floor: 1,
+            selected_protection:            RouteProtectionClass::LinkProtected,
+            selected_connectivity:          RouteConnectivityProfile {
+                repair,
+                partition,
+            },
+            deployment_profile:             DeploymentProfile::FieldPartitionTolerant,
+            diversity_floor:                1,
             routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
-            route_replacement_policy: RouteReplacementPolicy::Allowed,
+            route_replacement_policy:       RouteReplacementPolicy::Allowed,
         }
     }
 
@@ -779,7 +807,8 @@ mod tests {
     // Same property for the partition axis: a connected-only profile has no
     // need for committee-coordinated partition tolerance.
     #[test]
-    fn select_committee_returns_none_when_profile_does_not_require_partition_tolerance() {
+    fn select_committee_returns_none_when_profile_does_not_require_partition_tolerance()
+    {
         let selector = DeterministicCommitteeSelector::new(NodeId([1; 32]));
         let topology = topology_with_neighbor_count(3);
         let objective = objective_for_service(vec![1, 2]);
@@ -835,20 +864,20 @@ mod tests {
     #[test]
     fn mesh_health_score_is_clamped_to_health_score_max() {
         let topology = Observation {
-            value: Configuration {
-                epoch: RouteEpoch(0),
-                nodes: BTreeMap::from([(NodeId([1; 32]), node(1))]),
-                links: BTreeMap::new(),
+            value:                 Configuration {
+                epoch:       RouteEpoch(0),
+                nodes:       BTreeMap::from([(NodeId([1; 32]), node(1))]),
+                links:       BTreeMap::new(),
                 environment: Environment {
                     reachable_neighbor_count: 99,
-                    churn_permille: RatioPermille(0),
-                    contention_permille: RatioPermille(0),
+                    churn_permille:           RatioPermille(0),
+                    contention_permille:      RatioPermille(0),
                 },
             },
-            source_class: FactSourceClass::Local,
-            evidence_class: RoutingEvidenceClass::DirectObservation,
+            source_class:          FactSourceClass::Local,
+            evidence_class:        RoutingEvidenceClass::DirectObservation,
             origin_authentication: OriginAuthenticationClass::Controlled,
-            observed_at_tick: Tick(0),
+            observed_at_tick:      Tick(0),
         };
 
         assert_eq!(

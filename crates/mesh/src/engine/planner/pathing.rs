@@ -6,9 +6,9 @@ use std::{
 };
 
 use jacquard_core::{
-    Belief, Configuration, DestinationId, Estimate, NodeId, Observation, RouteConnectivityProfile,
-    RoutePartitionClass, RouteRepairClass, RouteServiceKind, RoutingObjective, Tick,
-    ROUTE_HOP_COUNT_MAX,
+    Belief, Configuration, DestinationId, Estimate, NodeId, Observation,
+    RouteConnectivityProfile, RoutePartitionClass, RouteRepairClass, RouteServiceKind,
+    RoutingObjective, Tick, ROUTE_HOP_COUNT_MAX,
 };
 use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 
@@ -16,8 +16,9 @@ use super::{
     MeshEngine, PATH_METRIC_BASE_HOP_COST, PATH_METRIC_DEFERRED_DELIVERY_BONUS,
     PATH_METRIC_DIVERSITY_BONUS, PATH_METRIC_PROTOCOL_REPEAT_PENALTY,
 };
-use crate::topology::estimate_hop_link;
-use crate::{MeshRouteClass, MeshRouteSegment, MESH_ENGINE_ID};
+use crate::{
+    topology::estimate_hop_link, MeshRouteClass, MeshRouteSegment, MESH_ENGINE_ID,
+};
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -38,10 +39,16 @@ where
         let mut score = 0_u32;
 
         for (index, segment) in segments.iter().enumerate() {
-            let from_node_id = node_path.get(index).copied().unwrap_or(self.local_node_id);
+            let from_node_id =
+                node_path.get(index).copied().unwrap_or(self.local_node_id);
             score = score.saturating_add(
-                self.edge_metric_score(objective, topology, &from_node_id, &segment.node_id)
-                    .unwrap_or(PATH_METRIC_BASE_HOP_COST.saturating_mul(4)),
+                self.edge_metric_score(
+                    objective,
+                    topology,
+                    &from_node_id,
+                    &segment.node_id,
+                )
+                .unwrap_or(PATH_METRIC_BASE_HOP_COST.saturating_mul(4)),
             );
             if protocol_mix.contains(&segment.endpoint.protocol) {
                 score = score.saturating_add(PATH_METRIC_PROTOCOL_REPEAT_PENALTY);
@@ -86,7 +93,8 @@ where
                 continue;
             }
 
-            for neighbor in crate::topology::adjacent_node_ids(&current, configuration) {
+            for neighbor in crate::topology::adjacent_node_ids(&current, configuration)
+            {
                 if path.contains(&neighbor) {
                     continue;
                 }
@@ -121,7 +129,8 @@ where
         if matches!(objective.destination, DestinationId::Gateway(_)) {
             MeshRouteClass::Gateway
         } else if hold_capable
-            && objective.hold_fallback_policy == jacquard_core::HoldFallbackPolicy::Allowed
+            && objective.hold_fallback_policy
+                == jacquard_core::HoldFallbackPolicy::Allowed
             && hop_count > 1
         {
             MeshRouteClass::DeferredDelivery
@@ -141,14 +150,22 @@ where
             let Some(destination_node_id) = node_path.last().copied() else {
                 return false;
             };
-            return crate::topology::adjacent_node_ids(&self.local_node_id, configuration)
-                .into_iter()
-                .filter(|candidate| *candidate != destination_node_id)
-                .any(|candidate| {
-                    estimate_hop_link(&self.local_node_id, &candidate, configuration).is_some()
-                        && estimate_hop_link(&candidate, &destination_node_id, configuration)
-                            .is_some()
-                });
+            return crate::topology::adjacent_node_ids(
+                &self.local_node_id,
+                configuration,
+            )
+            .into_iter()
+            .filter(|candidate| *candidate != destination_node_id)
+            .any(|candidate| {
+                estimate_hop_link(&self.local_node_id, &candidate, configuration)
+                    .is_some()
+                    && estimate_hop_link(
+                        &candidate,
+                        &destination_node_id,
+                        configuration,
+                    )
+                    .is_some()
+            });
         }
 
         let next_hop = node_path.get(1).copied();
@@ -164,13 +181,16 @@ where
             let from_node_id = pair[0];
             let to_node_id = pair[1];
             let path_nodes = node_path.iter().copied().collect::<BTreeSet<_>>();
-            let has_bypass = crate::topology::adjacent_node_ids(&from_node_id, configuration)
-                .into_iter()
-                .filter(|candidate| !path_nodes.contains(candidate))
-                .any(|candidate| {
-                    estimate_hop_link(&from_node_id, &candidate, configuration).is_some()
-                        && estimate_hop_link(&candidate, &to_node_id, configuration).is_some()
-                });
+            let has_bypass =
+                crate::topology::adjacent_node_ids(&from_node_id, configuration)
+                    .into_iter()
+                    .filter(|candidate| !path_nodes.contains(candidate))
+                    .any(|candidate| {
+                        estimate_hop_link(&from_node_id, &candidate, configuration)
+                            .is_some()
+                            && estimate_hop_link(&candidate, &to_node_id, configuration)
+                                .is_some()
+                    });
             if has_bypass {
                 return true;
             }
@@ -191,7 +211,7 @@ where
             RouteRepairClass::BestEffort
         };
         match route_class {
-            MeshRouteClass::DeferredDelivery => RouteConnectivityProfile {
+            | MeshRouteClass::DeferredDelivery => RouteConnectivityProfile {
                 repair,
                 partition: if objective.hold_fallback_policy
                     == jacquard_core::HoldFallbackPolicy::Allowed
@@ -201,7 +221,7 @@ where
                     RoutePartitionClass::ConnectedOnly
                 },
             },
-            _ => RouteConnectivityProfile {
+            | _ => RouteConnectivityProfile {
                 repair,
                 partition: RoutePartitionClass::ConnectedOnly,
             },
@@ -216,10 +236,7 @@ where
         let mut segments = Vec::with_capacity(node_path.len().saturating_sub(1));
         for pair in node_path.windows(2) {
             let (endpoint, _) = estimate_hop_link(&pair[0], &pair[1], configuration)?;
-            segments.push(MeshRouteSegment {
-                node_id: pair[1],
-                endpoint,
-            });
+            segments.push(MeshRouteSegment { node_id: pair[1], endpoint });
         }
         if segments.is_empty() || segments.len() > usize::from(ROUTE_HOP_COUNT_MAX) {
             return None;

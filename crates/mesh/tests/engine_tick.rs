@@ -8,23 +8,26 @@ mod common;
 
 use std::collections::BTreeMap;
 
+use common::{
+    engine::{
+        build_engine, lease, materialization_input, objective,
+        profile_with_connectivity,
+    },
+    fixtures::sample_configuration,
+};
 use jacquard_mesh::{MeshTransportFreshness, MeshTransportObservationSummary};
 use jacquard_traits::{
     jacquard_core::{
-        Belief, DestinationId, DurationMs, EndpointAddress, Estimate, FactSourceClass, HealthScore,
-        Link, LinkEndpoint, LinkRuntimeState, LinkState, NodeId, Observation,
-        OriginAuthenticationClass, PenaltyPoints, RatioPermille, RouteError,
-        RouteMaintenanceOutcome, RouteMaintenanceTrigger, RoutePartitionClass, RouteRepairClass,
-        RouteRuntimeError, RoutingEvidenceClass, RoutingTickChange, RoutingTickContext, Tick,
-        TransportObservation, TransportProtocol,
+        Belief, DestinationId, DurationMs, EndpointAddress, Estimate, FactSourceClass,
+        HealthScore, Link, LinkEndpoint, LinkRuntimeState, LinkState, NodeId,
+        Observation, OriginAuthenticationClass, PenaltyPoints, RatioPermille,
+        RouteError, RouteMaintenanceOutcome, RouteMaintenanceTrigger,
+        RoutePartitionClass, RouteRepairClass, RouteRuntimeError, RoutingEvidenceClass,
+        RoutingTickChange, RoutingTickContext, Tick, TransportObservation,
+        TransportProtocol,
     },
     MeshRoutingEngine, RoutingEngine, RoutingEnginePlanner,
 };
-
-use common::engine::{
-    build_engine, lease, materialization_input, objective, profile_with_connectivity,
-};
-use common::fixtures::sample_configuration;
 
 fn connected_only_policy() -> jacquard_traits::jacquard_core::AdaptiveRoutingProfile {
     profile_with_connectivity(
@@ -40,38 +43,42 @@ fn direct_goal() -> jacquard_traits::jacquard_core::RoutingObjective {
 fn low_quality_link_observation() -> TransportObservation {
     TransportObservation::LinkObserved {
         remote_node_id: NodeId([4; 32]),
-        observation: Observation {
-            value: Link {
+        observation:    Observation {
+            value:                 Link {
                 endpoint: LinkEndpoint {
-                    protocol: TransportProtocol::BleGatt,
-                    address: EndpointAddress::Ble {
-                        device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![4]),
-                        profile_id: jacquard_traits::jacquard_core::BleProfileId([4; 16]),
+                    protocol:  TransportProtocol::BleGatt,
+                    address:   EndpointAddress::Ble {
+                        device_id:  jacquard_traits::jacquard_core::BleDeviceId(vec![
+                            4,
+                        ]),
+                        profile_id: jacquard_traits::jacquard_core::BleProfileId(
+                            [4; 16],
+                        ),
                     },
                     mtu_bytes: jacquard_traits::jacquard_core::ByteCount(256),
                 },
-                state: LinkState {
+                state:    LinkState {
                     state: LinkRuntimeState::Active,
                     median_rtt_ms: DurationMs(40),
                     transfer_rate_bytes_per_sec: Belief::Absent,
                     stability_horizon_ms: Belief::Absent,
                     loss_permille: RatioPermille(400),
                     delivery_confidence_permille: Belief::Estimated(Estimate {
-                        value: RatioPermille(600),
+                        value:               RatioPermille(600),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick: Tick(2),
+                        updated_at_tick:     Tick(2),
                     }),
                     symmetry_permille: Belief::Estimated(Estimate {
-                        value: RatioPermille(900),
+                        value:               RatioPermille(900),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick: Tick(2),
+                        updated_at_tick:     Tick(2),
                     }),
                 },
             },
-            source_class: FactSourceClass::Local,
-            evidence_class: RoutingEvidenceClass::DirectObservation,
+            source_class:          FactSourceClass::Local,
+            evidence_class:        RoutingEvidenceClass::DirectObservation,
             origin_authentication: OriginAuthenticationClass::Controlled,
-            observed_at_tick: Tick(2),
+            observed_at_tick:      Tick(2),
         },
     }
 }
@@ -102,7 +109,7 @@ fn materialization_before_first_tick_fails_closed() {
 }
 
 #[test]
-// long-block-exception: this integration test keeps the tick inputs and resulting health surface in one place so the transport-to-health update path is easy to audit end to end.
+// long-block-exception: transport-to-health update path in one audit block.
 fn engine_tick_transport_observations_change_health_inputs() {
     let topology = sample_configuration();
     let goal = direct_goal();
@@ -205,18 +212,18 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
     assert_eq!(
         left_summary,
         MeshTransportObservationSummary {
-            last_observed_at_tick: Some(Tick(2)),
-            payload_event_count: 0,
-            observed_link_count: 1,
-            reachable_remote_count: 1,
-            freshness: MeshTransportFreshness::Fresh,
-            stability_score: HealthScore(750),
+            last_observed_at_tick:     Some(Tick(2)),
+            payload_event_count:       0,
+            observed_link_count:       1,
+            reachable_remote_count:    1,
+            freshness:                 MeshTransportFreshness::Fresh,
+            stability_score:           HealthScore(750),
             congestion_penalty_points: PenaltyPoints(4),
-            remote_links: BTreeMap::from([(
+            remote_links:              BTreeMap::from([(
                 NodeId([4; 32]),
                 jacquard_mesh::MeshObservedRemoteLink {
-                    last_observed_at_tick: Tick(2),
-                    stability_score: HealthScore(750),
+                    last_observed_at_tick:     Tick(2),
+                    stability_score:           HealthScore(750),
                     congestion_penalty_points: PenaltyPoints(4),
                 },
             )]),
@@ -288,7 +295,9 @@ fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
     let mut refreshed_topology = topology.clone();
     refreshed_topology.observed_at_tick = Tick(6);
     let mut refreshed_observation = low_quality_link_observation();
-    if let TransportObservation::LinkObserved { observation, .. } = &mut refreshed_observation {
+    if let TransportObservation::LinkObserved { observation, .. } =
+        &mut refreshed_observation
+    {
         observation.observed_at_tick = Tick(6);
     }
     engine
@@ -330,7 +339,7 @@ fn repeated_ticks_on_the_same_epoch_do_not_rewrite_epoch_checkpoint() {
 }
 
 #[test]
-// long-block-exception: this scenario test keeps the full route setup, degraded suffix, and resulting route-scoped health assertions together because splitting it obscures the suffix logic.
+// long-block-exception: route setup, degraded suffix, and assertions together.
 fn route_health_is_scoped_to_the_active_route_suffix() {
     let topology = sample_configuration();
     let mut engine = build_engine();
@@ -356,20 +365,22 @@ fn route_health_is_scoped_to_the_active_route_suffix() {
             &topology,
         )
         .expect("route-three admission");
-    let route_three_input = materialization_input(route_three_admission, lease(Tick(2), Tick(20)));
+    let route_three_input =
+        materialization_input(route_three_admission, lease(Tick(2), Tick(20)));
     let route_three_installation = engine
         .materialize_route(route_three_input.clone())
         .expect("route-three materialization");
-    let route_three_identity = jacquard_traits::jacquard_core::MaterializedRouteIdentity {
-        handle: route_three_input.handle,
-        materialization_proof: route_three_installation.materialization_proof,
-        admission: route_three_input.admission,
-        lease: route_three_input.lease,
-    };
+    let route_three_identity =
+        jacquard_traits::jacquard_core::MaterializedRouteIdentity {
+            handle:                route_three_input.handle,
+            materialization_proof: route_three_installation.materialization_proof,
+            admission:             route_three_input.admission,
+            lease:                 route_three_input.lease,
+        };
     let mut route_three_runtime = jacquard_traits::jacquard_core::RouteRuntimeState {
         last_lifecycle_event: route_three_installation.last_lifecycle_event,
-        health: route_three_installation.health,
-        progress: route_three_installation.progress,
+        health:               route_three_installation.health,
+        progress:             route_three_installation.progress,
     };
 
     let route_four_goal = direct_goal();
@@ -387,20 +398,22 @@ fn route_health_is_scoped_to_the_active_route_suffix() {
             &topology,
         )
         .expect("route-four admission");
-    let route_four_input = materialization_input(route_four_admission, lease(Tick(2), Tick(20)));
+    let route_four_input =
+        materialization_input(route_four_admission, lease(Tick(2), Tick(20)));
     let route_four_installation = engine
         .materialize_route(route_four_input.clone())
         .expect("route-four materialization");
-    let route_four_identity = jacquard_traits::jacquard_core::MaterializedRouteIdentity {
-        handle: route_four_input.handle,
-        materialization_proof: route_four_installation.materialization_proof,
-        admission: route_four_input.admission,
-        lease: route_four_input.lease,
-    };
+    let route_four_identity =
+        jacquard_traits::jacquard_core::MaterializedRouteIdentity {
+            handle:                route_four_input.handle,
+            materialization_proof: route_four_installation.materialization_proof,
+            admission:             route_four_input.admission,
+            lease:                 route_four_input.lease,
+        };
     let mut route_four_runtime = jacquard_traits::jacquard_core::RouteRuntimeState {
         last_lifecycle_event: route_four_installation.last_lifecycle_event,
-        health: route_four_installation.health,
-        progress: route_four_installation.progress,
+        health:               route_four_installation.health,
+        progress:             route_four_installation.progress,
     };
 
     let mut broken_topology = topology.clone();
@@ -438,7 +451,7 @@ fn route_health_is_scoped_to_the_active_route_suffix() {
 }
 
 #[test]
-// long-block-exception: this posture test reads most clearly with the calm and pressured engines constructed side by side and compared in one block.
+// long-block-exception: calm and pressured engines compared side by side.
 fn high_transport_pressure_changes_repair_posture() {
     let topology = sample_configuration();
     let mut calm_engine = build_engine();
@@ -456,10 +469,10 @@ fn high_transport_pressure_changes_repair_posture() {
         NodeId([3; 32]),
         lease(Tick(2), Tick(20)),
     );
-    pressured_engine.transport_mut().observations.extend([
-        low_quality_link_observation(),
-        low_quality_link_observation(),
-    ]);
+    pressured_engine
+        .transport_mut()
+        .observations
+        .extend([low_quality_link_observation(), low_quality_link_observation()]);
 
     calm_engine
         .maintain_route(
@@ -518,10 +531,10 @@ fn anti_entropy_required_consumes_bounded_control_pressure() {
         NodeId([3; 32]),
         lease(Tick(2), Tick(20)),
     );
-    engine.transport_mut().observations.extend([
-        low_quality_link_observation(),
-        low_quality_link_observation(),
-    ]);
+    engine
+        .transport_mut()
+        .observations
+        .extend([low_quality_link_observation(), low_quality_link_observation()]);
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("refresh tick");

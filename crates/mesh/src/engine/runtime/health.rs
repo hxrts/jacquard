@@ -3,53 +3,53 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use jacquard_core::{
-    Configuration, HealthScore, Observation, PenaltyPoints, ReachabilityState, RouteHealth,
-    TransportObservation,
+    Configuration, HealthScore, Observation, PenaltyPoints, ReachabilityState,
+    RouteHealth, TransportObservation,
 };
 use jacquard_traits::MeshNeighborhoodEstimateAccess;
 
-use super::super::{
-    ActiveMeshRoute, MeshControlState, MeshObservedRemoteLink, MeshTransportFreshness,
-    MeshTransportObservationSummary,
-};
 use super::{
-    MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds, MeshTransportBounds,
+    super::{
+        ActiveMeshRoute, MeshControlState, MeshObservedRemoteLink,
+        MeshTransportFreshness, MeshTransportObservationSummary,
+    },
+    MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
+    MeshTransportBounds,
 };
 
 struct TransportObservationAccumulator {
-    last_observed_at_tick: Option<jacquard_core::Tick>,
-    payload_event_count: u16,
-    observed_link_count: u16,
+    last_observed_at_tick:  Option<jacquard_core::Tick>,
+    payload_event_count:    u16,
+    observed_link_count:    u16,
     reachable_remote_nodes: BTreeSet<jacquard_core::NodeId>,
-    stability_sum: u32,
-    loss_sum: u32,
-    remote_links: BTreeMap<jacquard_core::NodeId, MeshObservedRemoteLink>,
+    stability_sum:          u32,
+    loss_sum:               u32,
+    remote_links:           BTreeMap<jacquard_core::NodeId, MeshObservedRemoteLink>,
 }
 
 impl TransportObservationAccumulator {
     fn new() -> Self {
         Self {
-            last_observed_at_tick: None,
-            payload_event_count: 0,
-            observed_link_count: 0,
+            last_observed_at_tick:  None,
+            payload_event_count:    0,
+            observed_link_count:    0,
             reachable_remote_nodes: BTreeSet::new(),
-            stability_sum: 0,
-            loss_sum: 0,
-            remote_links: BTreeMap::new(),
+            stability_sum:          0,
+            loss_sum:               0,
+            remote_links:           BTreeMap::new(),
         }
     }
 
     fn observe(&mut self, observation: &TransportObservation) {
         match observation {
-            TransportObservation::PayloadReceived {
+            | TransportObservation::PayloadReceived {
                 from_node_id,
                 observed_at_tick,
                 ..
             } => self.observe_payload(*from_node_id, *observed_at_tick),
-            TransportObservation::LinkObserved {
-                remote_node_id,
-                observation,
-            } => self.observe_link(*remote_node_id, observation),
+            | TransportObservation::LinkObserved { remote_node_id, observation } => {
+                self.observe_link(*remote_node_id, observation)
+            },
         }
     }
 
@@ -98,12 +98,16 @@ impl TransportObservationAccumulator {
         observation: &Observation<jacquard_core::Link>,
     ) -> HealthScore {
         let delivery = match &observation.value.state.delivery_confidence_permille {
-            jacquard_core::Belief::Absent => 0,
-            jacquard_core::Belief::Estimated(estimate) => u32::from(estimate.value.get()),
+            | jacquard_core::Belief::Absent => 0,
+            | jacquard_core::Belief::Estimated(estimate) => {
+                u32::from(estimate.value.get())
+            },
         };
         let symmetry = match &observation.value.state.symmetry_permille {
-            jacquard_core::Belief::Absent => 0,
-            jacquard_core::Belief::Estimated(estimate) => u32::from(estimate.value.get()),
+            | jacquard_core::Belief::Absent => 0,
+            | jacquard_core::Belief::Estimated(estimate) => {
+                u32::from(estimate.value.get())
+            },
         };
         HealthScore((delivery.saturating_add(symmetry)) / 2)
     }
@@ -174,7 +178,8 @@ where
         let previous = previous?.clone();
         let last_observed_at_tick = previous.last_observed_at_tick?;
         let quiet_ticks = now.0.saturating_sub(last_observed_at_tick.0);
-        let freshness = Self::transport_freshness_for_quiet_ticks(quiet_ticks, QUIET_STALE_TICKS);
+        let freshness =
+            Self::transport_freshness_for_quiet_ticks(quiet_ticks, QUIET_STALE_TICKS);
         let decay = u32::try_from(quiet_ticks)
             .unwrap_or(u32::MAX)
             .saturating_mul(QUIET_DECAY_STEP);
@@ -185,7 +190,9 @@ where
             observed_link_count: 0,
             reachable_remote_count: previous.reachable_remote_count,
             freshness,
-            stability_score: HealthScore(previous.stability_score.0.saturating_sub(decay)),
+            stability_score: HealthScore(
+                previous.stability_score.0.saturating_sub(decay),
+            ),
             congestion_penalty_points: previous.congestion_penalty_points,
             remote_links: Self::decayed_remote_links(previous.remote_links, decay),
         })
@@ -234,19 +241,21 @@ where
             .as_ref()
             .and_then(|estimate| estimate.repair_pressure_score())
             .map_or(0, |score| score.0);
-        let transport_stability = self.transport_stability_score(previous, transport_summary);
+        let transport_stability =
+            self.transport_stability_score(previous, transport_summary);
         let observed_pressure = Self::observed_pressure_score(transport_summary);
-        let anti_entropy_pressure = self.anti_entropy_pressure(previous, observed_pressure);
+        let anti_entropy_pressure =
+            self.anti_entropy_pressure(previous, observed_pressure);
         let repair_pressure = neighborhood_repair_pressure
             .saturating_add(observed_pressure / 2)
             .min(1000);
 
         MeshControlState {
-            last_updated_at_tick: topology.observed_at_tick,
+            last_updated_at_tick:      topology.observed_at_tick,
             transport_stability_score: HealthScore(transport_stability.min(1000)),
-            repair_pressure_score: HealthScore(repair_pressure),
-            anti_entropy: super::super::types::MeshAntiEntropyState {
-                pressure_score: HealthScore(anti_entropy_pressure),
+            repair_pressure_score:     HealthScore(repair_pressure),
+            anti_entropy:              super::super::types::MeshAntiEntropyState {
+                pressure_score:         HealthScore(anti_entropy_pressure),
                 last_refreshed_at_tick: previous
                     .and_then(|state| state.anti_entropy.last_refreshed_at_tick),
             },
@@ -267,12 +276,14 @@ where
             })
     }
 
-    fn observed_pressure_score(transport_summary: Option<&MeshTransportObservationSummary>) -> u32 {
+    fn observed_pressure_score(
+        transport_summary: Option<&MeshTransportObservationSummary>,
+    ) -> u32 {
         transport_summary.map_or(0, |summary| {
             let quiet_pressure = match summary.freshness {
-                MeshTransportFreshness::Fresh => 0,
-                MeshTransportFreshness::Quiet => 100,
-                MeshTransportFreshness::Stale => 250,
+                | MeshTransportFreshness::Fresh => 0,
+                | MeshTransportFreshness::Quiet => 100,
+                | MeshTransportFreshness::Stale => 250,
             };
             quiet_pressure
                 + summary.congestion_penalty_points.0.saturating_mul(50)
@@ -311,7 +322,8 @@ where
             return false;
         }
         self.control_state.as_ref().is_none_or(|state| {
-            !(state.repair_pressure_score.0 > 300 && active_route.repair.steps_remaining <= 1)
+            !(state.repair_pressure_score.0 > 300
+                && active_route.repair.steps_remaining <= 1)
         })
     }
 
@@ -327,17 +339,17 @@ where
             return Self::unknown_route_health(now);
         };
 
-        let remaining_segments =
-            &active_route.path.segments[usize::from(active_route.forwarding.next_hop_index)..];
+        let remaining_segments = &active_route.path.segments
+            [usize::from(active_route.forwarding.next_hop_index)..];
         if remaining_segments.is_empty() {
             return Self::terminal_route_health(topology.observed_at_tick);
         }
 
         let mut health = RouteHealth {
-            reachability_state: ReachabilityState::Reachable,
-            stability_score: HealthScore(1000),
+            reachability_state:        ReachabilityState::Reachable,
+            stability_score:           HealthScore(1000),
             congestion_penalty_points: PenaltyPoints(0),
-            last_validated_at_tick: topology.observed_at_tick,
+            last_validated_at_tick:    topology.observed_at_tick,
         };
         Self::apply_first_hop_transport_summary(
             &mut health,
@@ -351,19 +363,19 @@ where
 
     fn unknown_route_health(now: jacquard_core::Tick) -> RouteHealth {
         RouteHealth {
-            reachability_state: ReachabilityState::Unknown,
-            stability_score: HealthScore(0),
+            reachability_state:        ReachabilityState::Unknown,
+            stability_score:           HealthScore(0),
             congestion_penalty_points: PenaltyPoints(0),
-            last_validated_at_tick: now,
+            last_validated_at_tick:    now,
         }
     }
 
     fn terminal_route_health(validated_at_tick: jacquard_core::Tick) -> RouteHealth {
         RouteHealth {
-            reachability_state: ReachabilityState::Reachable,
-            stability_score: HealthScore(1000),
+            reachability_state:        ReachabilityState::Reachable,
+            stability_score:           HealthScore(1000),
             congestion_penalty_points: PenaltyPoints(0),
-            last_validated_at_tick: validated_at_tick,
+            last_validated_at_tick:    validated_at_tick,
         }
     }
 
@@ -403,8 +415,8 @@ where
         active_route: &ActiveMeshRoute,
         topology: &Observation<Configuration>,
     ) {
-        let remaining_segments =
-            &active_route.path.segments[usize::from(active_route.forwarding.next_hop_index)..];
+        let remaining_segments = &active_route.path.segments
+            [usize::from(active_route.forwarding.next_hop_index)..];
         let mut current_node_id = active_route.forwarding.current_owner_node_id;
         for segment in remaining_segments {
             let Some(link) = crate::topology::adjacent_link_between(
@@ -422,21 +434,26 @@ where
 
     fn apply_link_health(health: &mut RouteHealth, link: &jacquard_core::Link) {
         let delivery = match &link.state.delivery_confidence_permille {
-            jacquard_core::Belief::Absent => None,
-            jacquard_core::Belief::Estimated(estimate) => Some(u32::from(estimate.value.get())),
+            | jacquard_core::Belief::Absent => None,
+            | jacquard_core::Belief::Estimated(estimate) => {
+                Some(u32::from(estimate.value.get()))
+            },
         };
         let symmetry = match &link.state.symmetry_permille {
-            jacquard_core::Belief::Absent => None,
-            jacquard_core::Belief::Estimated(estimate) => Some(u32::from(estimate.value.get())),
+            | jacquard_core::Belief::Absent => None,
+            | jacquard_core::Belief::Estimated(estimate) => {
+                Some(u32::from(estimate.value.get()))
+            },
         };
         let link_stability = match (delivery, symmetry) {
-            (Some(delivery), Some(symmetry)) => Some((delivery + symmetry) / 2),
-            (Some(delivery), None) => Some(delivery),
-            (None, Some(symmetry)) => Some(symmetry),
-            (None, None) => None,
+            | (Some(delivery), Some(symmetry)) => Some((delivery + symmetry) / 2),
+            | (Some(delivery), None) => Some(delivery),
+            | (None, Some(symmetry)) => Some(symmetry),
+            | (None, None) => None,
         };
         if let Some(link_stability) = link_stability {
-            health.stability_score = HealthScore(health.stability_score.0.min(link_stability));
+            health.stability_score =
+                HealthScore(health.stability_score.0.min(link_stability));
         }
         health.congestion_penalty_points = PenaltyPoints(
             health

@@ -3,20 +3,22 @@
 use std::collections::BTreeSet;
 
 use jacquard_core::{
-    Configuration, Fact, FactBasis, Observation, RouteError, RouteEvent, RouteInstallation,
-    RouteLifecycleEvent, RouteMaterializationInput, RouteMaterializationProof,
-    RouteProgressContract, RouteProgressState, RouteRuntimeError,
+    Configuration, Fact, FactBasis, Observation, RouteError, RouteEvent,
+    RouteInstallation, RouteLifecycleEvent, RouteMaterializationInput,
+    RouteMaterializationProof, RouteProgressContract, RouteProgressState,
+    RouteRuntimeError,
 };
 
-use super::super::{
-    support::{
-        decode_backend_token, deterministic_order_key, encode_path_bytes, limit_u32,
-        node_path_from_plan_token,
-    },
-    ActiveMeshRoute, MeshCommitteeStatus, MESH_ACTIVE_ROUTE_COUNT_MAX,
-};
 use super::{
-    MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds, MeshTransportBounds,
+    super::{
+        support::{
+            decode_backend_token, deterministic_order_key, encode_path_bytes,
+            limit_u32, node_path_from_plan_token,
+        },
+        ActiveMeshRoute, MeshCommitteeStatus, MESH_ACTIVE_ROUTE_COUNT_MAX,
+    },
+    MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
+    MeshTransportBounds,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -37,13 +39,13 @@ where
         now: jacquard_core::Tick,
     ) -> RouteMaterializationProof {
         RouteMaterializationProof {
-            route_id: input.handle.route_id,
-            topology_epoch: input.handle.topology_epoch,
+            route_id:             input.handle.route_id,
+            topology_epoch:       input.handle.topology_epoch,
             materialized_at_tick: now,
-            publication_id: input.handle.publication_id,
-            witness: Fact {
-                value: input.admission.witness.clone(),
-                basis: FactBasis::Admitted,
+            publication_id:       input.handle.publication_id,
+            witness:              Fact {
+                value:               input.admission.witness.clone(),
+                basis:               FactBasis::Admitted,
                 established_at_tick: now,
             },
         }
@@ -57,13 +59,19 @@ where
     ) -> RouteInstallation {
         RouteInstallation {
             materialization_proof: proof,
-            last_lifecycle_event: RouteLifecycleEvent::Activated,
-            health: self.current_route_health(None, now),
-            progress: RouteProgressContract {
-                productive_step_count_max: input.admission.admission_check.productive_step_bound,
-                total_step_count_max: input.admission.admission_check.total_step_bound,
-                last_progress_at_tick: now,
-                state: RouteProgressState::Satisfied,
+            last_lifecycle_event:  RouteLifecycleEvent::Activated,
+            health:                self.current_route_health(None, now),
+            progress:              RouteProgressContract {
+                productive_step_count_max: input
+                    .admission
+                    .admission_check
+                    .productive_step_bound,
+                total_step_count_max:      input
+                    .admission
+                    .admission_check
+                    .total_step_bound,
+                last_progress_at_tick:     now,
+                state:                     RouteProgressState::Satisfied,
             },
         }
     }
@@ -84,21 +92,23 @@ where
             ordering_key,
             forwarding: super::super::MeshForwardingState {
                 current_owner_node_id: input.lease.owner_node_id,
-                next_hop_index: 0,
-                in_flight_frames: 0,
-                last_ack_at_tick: None,
+                next_hop_index:        0,
+                in_flight_frames:      0,
+                last_ack_at_tick:      None,
             },
             repair: super::super::MeshRepairState {
-                steps_remaining: limit_u32(input.admission.admission_check.productive_step_bound),
+                steps_remaining:       limit_u32(
+                    input.admission.admission_check.productive_step_bound,
+                ),
                 last_repaired_at_tick: None,
             },
             handoff: super::super::MeshHandoffState {
-                last_receipt_id: None,
+                last_receipt_id:      None,
                 last_handoff_at_tick: None,
             },
             anti_entropy: super::super::MeshRouteAntiEntropyState {
-                partition_mode: false,
-                retained_objects: BTreeSet::new(),
+                partition_mode:       false,
+                retained_objects:     BTreeSet::new(),
                 last_refresh_at_tick: None,
             },
         }
@@ -129,29 +139,31 @@ where
 
         let derived_route_id =
             self.route_id_for_backend(&input.admission.backend_ref.backend_route_id)?;
-        if derived_route_id != input.admission.route_id || derived_route_id != input.handle.route_id
+        if derived_route_id != input.admission.route_id
+            || derived_route_id != input.handle.route_id
         {
             return Err(RouteRuntimeError::Invalidated.into());
         }
 
         let node_path = node_path_from_plan_token(&plan);
         let path_bytes = encode_path_bytes(&node_path, &plan.segments);
-        let ordering_key = deterministic_order_key(derived_route_id, &self.hashing, &path_bytes);
+        let ordering_key =
+            deterministic_order_key(derived_route_id, &self.hashing, &path_bytes);
         let path = super::super::MeshPath {
-            route_id: derived_route_id,
-            epoch: plan.epoch,
-            source: plan.source,
+            route_id:    derived_route_id,
+            epoch:       plan.epoch,
+            source:      plan.source,
             destination: plan.destination,
-            segments: plan.segments,
-            valid_for: plan.valid_for,
+            segments:    plan.segments,
+            valid_for:   plan.valid_for,
             route_class: plan.route_class,
         };
         let committee = match plan.committee_status {
-            MeshCommitteeStatus::Selected(selection) => Some(selection),
-            MeshCommitteeStatus::NotApplicable => None,
-            MeshCommitteeStatus::SelectorFailed => {
+            | MeshCommitteeStatus::Selected(selection) => Some(selection),
+            | MeshCommitteeStatus::NotApplicable => None,
+            | MeshCommitteeStatus::SelectorFailed => {
                 return Err(RouteRuntimeError::Invalidated.into());
-            }
+            },
         };
         Ok((path, committee, ordering_key))
     }
@@ -222,10 +234,8 @@ where
             health: self.current_route_health(Some(&active_route), now),
             ..installation
         };
-        let route_event = RouteEvent::RouteMaterialized {
-            handle: input.handle.clone(),
-            proof,
-        };
+        let route_event =
+            RouteEvent::RouteMaterialized { handle: input.handle.clone(), proof };
         self.store_checkpoint(&active_route)?;
         if let Err(error) = self.record_event(route_event) {
             if let Some(previous_active_route) = previous_active_route.as_ref() {

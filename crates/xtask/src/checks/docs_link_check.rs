@@ -21,10 +21,10 @@ pub fn run() -> Result<()> {
 
 #[derive(Default)]
 struct LinkScanReport {
-    checked: usize,
-    missing: Vec<String>,
+    checked:    usize,
+    missing:    Vec<String>,
     work_links: Vec<String>,
-    abs_links: Vec<String>,
+    abs_links:  Vec<String>,
 }
 
 fn scan_links(root: &Path, docs_root: &Path) -> Result<LinkScanReport> {
@@ -44,8 +44,8 @@ fn scan_file_links(
     report: &mut LinkScanReport,
 ) -> Result<()> {
     let rel_file = normalize_rel_path(root, file);
-    let contents =
-        std::fs::read_to_string(file).with_context(|| format!("reading {}", file.display()))?;
+    let contents = std::fs::read_to_string(file)
+        .with_context(|| format!("reading {}", file.display()))?;
     let parser = Parser::new_ext(&contents, Options::empty());
 
     for event in parser {
@@ -71,7 +71,11 @@ fn should_skip_target(target: &str) -> bool {
         || target.starts_with('#')
 }
 
-fn record_link_policy_violations(rel_file: &str, target: &str, report: &mut LinkScanReport) {
+fn record_link_policy_violations(
+    rel_file: &str,
+    target: &str,
+    report: &mut LinkScanReport,
+) {
     if target.contains("work/") {
         report.work_links.push(format!("{rel_file} -> {target}"));
     }

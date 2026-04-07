@@ -16,45 +16,45 @@ type RuleFn = fn(&Path) -> Result<Vec<Violation>>;
 
 struct Rule {
     description: &'static str,
-    collect: RuleFn,
+    collect:     RuleFn,
 }
 
 const RULES: &[Rule] = &[
     Rule {
         description: "explicit-topology planner signatures",
-        collect: explicit_topology,
+        collect:     explicit_topology,
     },
     Rule {
         description: "world-extension error purity",
-        collect: world_error_purity,
+        collect:     world_error_purity,
     },
     Rule {
         description: "shared/private boundary",
-        collect: shared_private_boundary,
+        collect:     shared_private_boundary,
     },
     Rule {
         description: "planner cache is optimization only",
-        collect: planner_cache_dependence,
+        collect:     planner_cache_dependence,
     },
     Rule {
         description: "fail-closed mutation ordering",
-        collect: fail_closed_ordering,
+        collect:     fail_closed_ordering,
     },
     Rule {
         description: "Tick/RouteEpoch separation",
-        collect: tick_epoch_conflation,
+        collect:     tick_epoch_conflation,
     },
     Rule {
         description: "committee failure is not silently erased",
-        collect: committee_swallow,
+        collect:     committee_swallow,
     },
     Rule {
         description: "namespaced storage keys",
-        collect: storage_key_scope,
+        collect:     storage_key_scope,
     },
     Rule {
         description: "no synthetic authoritative-state fallback",
-        collect: synthetic_fallback,
+        collect:     synthetic_fallback,
     },
 ];
 
@@ -62,13 +62,15 @@ pub fn run(args: &[String]) -> Result<()> {
     let mut validate = false;
     for arg in args {
         match arg.as_str() {
-            "-h" | "--help" => {
-                println!("Usage: cargo xtask check routing-invariants [--validate|--strict]");
+            | "-h" | "--help" => {
+                println!(
+                    "Usage: cargo xtask check routing-invariants [--validate|--strict]"
+                );
                 return Ok(());
-            }
-            "--validate" => validate = true,
-            "--strict" => {}
-            other => bail!("routing-invariants: unknown argument: {other}"),
+            },
+            | "--validate" => validate = true,
+            | "--strict" => {},
+            | other => bail!("routing-invariants: unknown argument: {other}"),
         }
     }
 
@@ -81,8 +83,9 @@ pub fn run(args: &[String]) -> Result<()> {
     let mut matched_rules = 0usize;
 
     for rule in RULES {
-        let violations = (rule.collect)(&root)
-            .with_context(|| format!("routing-invariants: collecting {}", rule.description))?;
+        let violations = (rule.collect)(&root).with_context(|| {
+            format!("routing-invariants: collecting {}", rule.description)
+        })?;
         if violations.is_empty() {
             println!("routing-invariants: {}: OK", rule.description);
         } else {
@@ -128,8 +131,8 @@ fn explicit_topology(root: &Path) -> Result<Vec<Violation>> {
         {
             continue;
         }
-        let source =
-            fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+        let source = fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
         let lines: Vec<&str> = source.lines().collect();
         let mut idx = 0usize;
         while idx < lines.len() {
@@ -168,8 +171,8 @@ fn explicit_topology(root: &Path) -> Result<Vec<Violation>> {
 fn world_error_purity(root: &Path) -> Result<Vec<Violation>> {
     let path = root.join("crates/traits/src/world.rs");
     let rel = normalize_rel_path(root, &path);
-    let contents =
-        fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let contents = fs::read_to_string(&path)
+        .with_context(|| format!("reading {}", path.display()))?;
     Ok(contents
         .lines()
         .enumerate()
@@ -194,8 +197,8 @@ fn shared_private_boundary(root: &Path) -> Result<Vec<Violation>> {
             if rel.starts_with("crates/xtask/fixtures/") {
                 continue;
             }
-            let contents =
-                fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+            let contents = fs::read_to_string(&path)
+                .with_context(|| format!("reading {}", path.display()))?;
             for (idx, line) in contents.lines().enumerate() {
                 if re.is_match(line)
                     && !allowed_trait_boundary_types
@@ -233,7 +236,10 @@ fn fail_closed_ordering(root: &Path) -> Result<Vec<Violation>> {
 
     if let (Some(insert_line), Some(record_line)) = (
         first_line_containing(&lines, &["self.active_routes", ".insert("]),
-        first_line_containing(&lines, &["self.record_event(RouteEvent::RouteMaterialized"]),
+        first_line_containing(
+            &lines,
+            &["self.record_event(RouteEvent::RouteMaterialized"],
+        ),
     ) {
         if insert_line < record_line {
             out.push(Violation::new(
@@ -246,7 +252,10 @@ fn fail_closed_ordering(root: &Path) -> Result<Vec<Violation>> {
 
     if let (Some(apply_line), Some(checkpoint_line)) = (
         first_line_containing(&lines, &["Self::apply_maintenance_trigger("]),
-        first_line_containing(&lines, &["self.store_checkpoint(&active_route_snapshot)"]),
+        first_line_containing(
+            &lines,
+            &["self.store_checkpoint(&active_route_snapshot)"],
+        ),
     ) {
         if apply_line < checkpoint_line {
             out.push(Violation::new(
@@ -321,18 +330,24 @@ fn is_validation_root(root: &Path) -> bool {
         .ends_with("crates/xtask/fixtures/routing_invariants")
 }
 
-fn grep_rule(root: &Path, dirs: &[&str], pattern: &str, message: &str) -> Result<Vec<Violation>> {
+fn grep_rule(
+    root: &Path,
+    dirs: &[&str],
+    pattern: &str,
+    message: &str,
+) -> Result<Vec<Violation>> {
     let re = Regex::new(pattern)?;
     let mut out = Vec::new();
     for dir in dirs {
         for path in rust_files(root.join(dir))? {
             let path_str = path.to_string_lossy().replace('\\', "/");
-            if !is_validation_root(root) && path_str.contains("/crates/xtask/fixtures/") {
+            if !is_validation_root(root) && path_str.contains("/crates/xtask/fixtures/")
+            {
                 continue;
             }
             let rel = normalize_rel_path(root, &path);
-            let contents =
-                fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+            let contents = fs::read_to_string(&path)
+                .with_context(|| format!("reading {}", path.display()))?;
             for (idx, line) in contents.lines().enumerate() {
                 if re.is_match(line) {
                     out.push(Violation::new(rel.clone(), idx + 1, message));

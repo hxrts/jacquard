@@ -44,15 +44,15 @@ pub fn run() -> Result<()> {
 
         for item in &source.file.items {
             match item {
-                Item::Struct(item_struct) => {
+                | Item::Struct(item_struct) => {
                     collect_struct_fields(
                         &source.rel_path,
                         item_struct.ident.to_string(),
                         &item_struct.fields,
                         &mut violations,
                     );
-                }
-                Item::Enum(item_enum) => {
+                },
+                | Item::Enum(item_enum) => {
                     for variant in &item_enum.variants {
                         collect_struct_fields(
                             &source.rel_path,
@@ -61,8 +61,8 @@ pub fn run() -> Result<()> {
                             &mut violations,
                         );
                     }
-                }
-                _ => {}
+                },
+                | _ => {},
             }
         }
     }
@@ -81,7 +81,12 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-fn collect_struct_fields(rel_path: &str, owner: String, fields: &Fields, out: &mut Vec<Violation>) {
+fn collect_struct_fields(
+    rel_path: &str,
+    owner: String,
+    fields: &Fields,
+    out: &mut Vec<Violation>,
+) {
     for field in fields {
         if type_has_usize(&field.ty) {
             out.push(Violation::new(

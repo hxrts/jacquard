@@ -7,15 +7,15 @@ use syn::{parse_macro_input, parse_quote, ItemImpl};
 pub(crate) fn expand(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let item_impl = parse_macro_input!(item as ItemImpl);
     let trait_path = match &item_impl.trait_ {
-        Some((_, path, _)) => path.clone(),
-        None => {
+        | Some((_, path, _)) => path.clone(),
+        | None => {
             return syn::Error::new_spanned(
                 &item_impl.self_ty,
                 "#[effect_handler] can only be applied to trait impls",
             )
             .to_compile_error()
             .into();
-        }
+        },
     };
 
     let mut item_impl = item_impl;

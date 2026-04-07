@@ -5,15 +5,17 @@
 
 mod common;
 
+use common::{
+    engine::{build_engine_at_tick, lease, materialization_input, objective, profile},
+    fixtures::sample_configuration,
+};
 use jacquard_traits::{
     jacquard_core::{
-        DestinationId, NodeId, RouteEpoch, RouteError, RouteRuntimeError, RoutingTickContext, Tick,
+        DestinationId, NodeId, RouteEpoch, RouteError, RouteRuntimeError,
+        RoutingTickContext, Tick,
     },
     RoutingEngine, RoutingEnginePlanner,
 };
-
-use common::engine::{build_engine_at_tick, lease, materialization_input, objective, profile};
-use common::fixtures::sample_configuration;
 
 #[test]
 fn materialize_route_succeeds_after_engine_tick_clears_candidate_cache() {

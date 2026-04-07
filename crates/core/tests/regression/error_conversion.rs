@@ -9,9 +9,9 @@ fn route_error_preserves_selection_rejection_context() {
     ));
 
     match error {
-        RouteError::Selection(RouteSelectionError::Inadmissible(reason)) => {
+        | RouteError::Selection(RouteSelectionError::Inadmissible(reason)) => {
             assert_eq!(reason, RouteAdmissionRejection::ProtectionFloorUnsatisfied);
-        }
-        other => panic!("unexpected error shape: {other}"),
+        },
+        | other => panic!("unexpected error shape: {other}"),
     }
 }

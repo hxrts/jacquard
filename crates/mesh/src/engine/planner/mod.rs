@@ -17,14 +17,17 @@ mod pathing;
 mod publishing;
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, AdmissionDecision, Configuration, Observation, RouteAdmission,
-    RouteAdmissionCheck, RouteCandidate, RouteError, RouteSelectionError, RoutingObjective,
+    AdaptiveRoutingProfile, AdmissionDecision, Configuration, Observation,
+    RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
+    RouteSelectionError, RoutingObjective,
 };
 use jacquard_traits::{
     MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, RoutingEnginePlanner,
 };
 
-use super::{MeshEngine, MeshHasherBounds, MeshSelectorBounds, MESH_CAPABILITIES, MESH_ENGINE_ID};
+use super::{
+    MeshEngine, MeshHasherBounds, MeshSelectorBounds, MESH_CAPABILITIES, MESH_ENGINE_ID,
+};
 use crate::topology::objective_matches_node;
 
 const PATH_METRIC_BASE_HOP_COST: u32 = 1_000;
@@ -115,62 +118,61 @@ where
             )?;
 
         match cached.admission_check.decision {
-            AdmissionDecision::Admissible => Ok(RouteAdmission {
-                route_id: cached.route_id,
-                backend_ref: candidate.backend_ref,
-                objective: objective.clone(),
-                profile: profile.clone(),
+            | AdmissionDecision::Admissible => Ok(RouteAdmission {
+                route_id:        cached.route_id,
+                backend_ref:     candidate.backend_ref,
+                objective:       objective.clone(),
+                profile:         profile.clone(),
                 admission_check: cached.admission_check,
-                summary: cached.summary,
-                witness: cached.witness,
+                summary:         cached.summary,
+                witness:         cached.witness,
             }),
-            AdmissionDecision::Rejected(rejection) => {
+            | AdmissionDecision::Rejected(rejection) => {
                 Err(RouteSelectionError::Inadmissible(rejection).into())
-            }
+            },
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::admission::mesh_admission_check;
-    use super::*;
-    use crate::engine::support::CommitteeStatus;
-    use crate::MESH_ENGINE_ID;
     use jacquard_core::{
-        AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength, ConnectivityRegime,
-        DestinationId, Estimate, FailureModelClass, HoldFallbackPolicy, Limit,
-        MessageFlowAssumptionClass, NodeDensityClass, NodeId, RatioPermille,
-        RouteAdmissionRejection, RouteConnectivityProfile, RouteCost, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteServiceKind, RouteSummary,
-        RuntimeEnvelopeClass, Tick, TimeWindow,
+        AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength,
+        ConnectivityRegime, DestinationId, Estimate, FailureModelClass,
+        HoldFallbackPolicy, Limit, MessageFlowAssumptionClass, NodeDensityClass,
+        NodeId, RatioPermille, RouteAdmissionRejection, RouteConnectivityProfile,
+        RouteCost, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+        RouteServiceKind, RouteSummary, RuntimeEnvelopeClass, Tick, TimeWindow,
     };
+
+    use super::{admission::mesh_admission_check, *};
+    use crate::{engine::support::CommitteeStatus, MESH_ENGINE_ID};
 
     fn neutral_assumptions() -> AdmissionAssumptions {
         AdmissionAssumptions {
             message_flow_assumption: MessageFlowAssumptionClass::PerRouteSequenced,
-            failure_model: FailureModelClass::Benign,
-            runtime_envelope: RuntimeEnvelopeClass::Canonical,
-            node_density_class: NodeDensityClass::Sparse,
-            connectivity_regime: ConnectivityRegime::Stable,
-            adversary_regime: AdversaryRegime::BenignUntrusted,
-            claim_strength: ClaimStrength::ConservativeUnderProfile,
+            failure_model:           FailureModelClass::Benign,
+            runtime_envelope:        RuntimeEnvelopeClass::Canonical,
+            node_density_class:      NodeDensityClass::Sparse,
+            connectivity_regime:     ConnectivityRegime::Stable,
+            adversary_regime:        AdversaryRegime::BenignUntrusted,
+            claim_strength:          ClaimStrength::ConservativeUnderProfile,
         }
     }
 
     fn objective_with_floor(floor: RouteProtectionClass) -> RoutingObjective {
         RoutingObjective {
-            destination: DestinationId::Node(NodeId([3; 32])),
-            service_kind: RouteServiceKind::Move,
-            target_protection: floor,
-            protection_floor: floor,
-            target_connectivity: RouteConnectivityProfile {
-                repair: RouteRepairClass::Repairable,
+            destination:           DestinationId::Node(NodeId([3; 32])),
+            service_kind:          RouteServiceKind::Move,
+            target_protection:     floor,
+            protection_floor:      floor,
+            target_connectivity:   RouteConnectivityProfile {
+                repair:    RouteRepairClass::Repairable,
                 partition: RoutePartitionClass::ConnectedOnly,
             },
-            hold_fallback_policy: HoldFallbackPolicy::Allowed,
-            latency_budget_ms: Limit::Unbounded,
-            protection_priority: jacquard_core::PriorityPoints(0),
+            hold_fallback_policy:  HoldFallbackPolicy::Allowed,
+            latency_budget_ms:     Limit::Unbounded,
+            protection_priority:   jacquard_core::PriorityPoints(0),
             connectivity_priority: jacquard_core::PriorityPoints(0),
         }
     }
@@ -180,12 +182,18 @@ mod tests {
         partition: RoutePartitionClass,
     ) -> AdaptiveRoutingProfile {
         AdaptiveRoutingProfile {
-            selected_protection: RouteProtectionClass::LinkProtected,
-            selected_connectivity: RouteConnectivityProfile { repair, partition },
-            deployment_profile: jacquard_core::DeploymentProfile::FieldPartitionTolerant,
-            diversity_floor: 1,
-            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
-            route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
+            selected_protection:            RouteProtectionClass::LinkProtected,
+            selected_connectivity:          RouteConnectivityProfile {
+                repair,
+                partition,
+            },
+            deployment_profile:
+                jacquard_core::DeploymentProfile::FieldPartitionTolerant,
+            diversity_floor:                1,
+            routing_engine_fallback_policy:
+                jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            route_replacement_policy:
+                jacquard_core::RouteReplacementPolicy::Allowed,
         }
     }
 
@@ -200,9 +208,9 @@ mod tests {
             connectivity: RouteConnectivityProfile { repair, partition },
             protocol_mix: Vec::new(),
             hop_count_hint: Belief::Estimated(Estimate {
-                value: 1_u8,
+                value:               1_u8,
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick: Tick(0),
+                updated_at_tick:     Tick(0),
             }),
             valid_for: TimeWindow::new(Tick(0), Tick(100)).unwrap(),
         }
@@ -210,12 +218,12 @@ mod tests {
 
     fn unit_route_cost() -> RouteCost {
         RouteCost {
-            message_count_max: Limit::Bounded(1),
-            byte_count_max: Limit::Bounded(jacquard_core::ByteCount(1024)),
-            hop_count: 1,
+            message_count_max:        Limit::Bounded(1),
+            byte_count_max:           Limit::Bounded(jacquard_core::ByteCount(1024)),
+            hop_count:                1,
             repair_attempt_count_max: Limit::Bounded(1),
-            hold_bytes_reserved: Limit::Bounded(jacquard_core::ByteCount(0)),
-            work_step_count_max: Limit::Bounded(2),
+            hold_bytes_reserved:      Limit::Bounded(jacquard_core::ByteCount(0)),
+            work_step_count_max:      Limit::Bounded(2),
         }
     }
 
@@ -241,7 +249,9 @@ mod tests {
         );
         assert_eq!(
             check.decision,
-            AdmissionDecision::Rejected(RouteAdmissionRejection::ProtectionFloorUnsatisfied),
+            AdmissionDecision::Rejected(
+                RouteAdmissionRejection::ProtectionFloorUnsatisfied
+            ),
         );
     }
 
@@ -342,7 +352,9 @@ mod tests {
         );
         assert_eq!(
             check.decision,
-            AdmissionDecision::Rejected(RouteAdmissionRejection::ProtectionFloorUnsatisfied),
+            AdmissionDecision::Rejected(
+                RouteAdmissionRejection::ProtectionFloorUnsatisfied
+            ),
         );
     }
 

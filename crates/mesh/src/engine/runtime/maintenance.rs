@@ -3,17 +3,18 @@
 use jacquard_core::{
     Configuration, MaterializedRouteIdentity, RouteError, RouteLifecycleEvent,
     RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteProgressState, RouteRuntimeError, RouteSemanticHandoff,
+    RouteMaintenanceTrigger, RouteProgressState, RouteRuntimeError,
+    RouteSemanticHandoff,
 };
 use jacquard_traits::MeshFrame;
 
-use super::super::{
-    support::{route_cost_for_segments, shortest_paths},
-    ActiveMeshRoute,
-};
 use super::{
-    MaintenanceContext, MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
-    MeshTransportBounds,
+    super::{
+        support::{route_cost_for_segments, shortest_paths},
+        ActiveMeshRoute,
+    },
+    MaintenanceContext, MeshEffectsBounds, MeshEngine, MeshHasherBounds,
+    MeshSelectorBounds, MeshTransportBounds,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -33,13 +34,14 @@ where
         runtime: &mut jacquard_core::RouteRuntimeState,
         now: jacquard_core::Tick,
     ) -> RouteMaintenanceResult {
-        active_route.repair.steps_remaining = active_route.repair.steps_remaining.saturating_sub(1);
+        active_route.repair.steps_remaining =
+            active_route.repair.steps_remaining.saturating_sub(1);
         active_route.repair.last_repaired_at_tick = Some(now);
         active_route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         runtime.progress.last_progress_at_tick = now;
         RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Repaired,
+            event:   RouteLifecycleEvent::Repaired,
             outcome: RouteMaintenanceOutcome::Repaired,
         }
     }
@@ -54,7 +56,7 @@ where
         runtime.last_lifecycle_event = RouteLifecycleEvent::EnteredPartitionMode;
         runtime.progress.state = RouteProgressState::Blocked;
         RouteMaintenanceResult {
-            event: RouteLifecycleEvent::EnteredPartitionMode,
+            event:   RouteLifecycleEvent::EnteredPartitionMode,
             outcome: RouteMaintenanceOutcome::HoldFallback {
                 trigger,
                 retained_object_count: u32::try_from(
@@ -75,28 +77,31 @@ where
             return Err(RouteRuntimeError::Invalidated.into());
         };
         let handoff = RouteSemanticHandoff {
-            route_id: identity.handle.route_id,
-            from_node_id: active_route.forwarding.current_owner_node_id,
-            to_node_id: next_owner,
+            route_id:      identity.handle.route_id,
+            from_node_id:  active_route.forwarding.current_owner_node_id,
+            to_node_id:    next_owner,
             handoff_epoch: active_route.current_epoch,
-            receipt_id: handoff_receipt_id,
+            receipt_id:    handoff_receipt_id,
         };
         active_route.forwarding.current_owner_node_id = next_owner;
         active_route.forwarding.next_hop_index =
             active_route.forwarding.next_hop_index.saturating_add(1);
         active_route.handoff.last_receipt_id = Some(handoff_receipt_id);
-        active_route.handoff.last_handoff_at_tick = Some(runtime.progress.last_progress_at_tick);
+        active_route.handoff.last_handoff_at_tick =
+            Some(runtime.progress.last_progress_at_tick);
         active_route.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         runtime.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         Ok(RouteMaintenanceResult {
-            event: RouteLifecycleEvent::HandedOff,
+            event:   RouteLifecycleEvent::HandedOff,
             outcome: RouteMaintenanceOutcome::HandedOff(handoff),
         })
     }
 
-    fn replacement_required(trigger: RouteMaintenanceTrigger) -> RouteMaintenanceResult {
+    fn replacement_required(
+        trigger: RouteMaintenanceTrigger,
+    ) -> RouteMaintenanceResult {
         RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Replaced,
+            event:   RouteLifecycleEvent::Replaced,
             outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
         }
     }
@@ -109,8 +114,10 @@ where
         runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
         runtime.progress.state = RouteProgressState::Failed;
         RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Expired,
-            outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LeaseExpired),
+            event:   RouteLifecycleEvent::Expired,
+            outcome: RouteMaintenanceOutcome::Failed(
+                RouteMaintenanceFailure::LeaseExpired,
+            ),
         }
     }
 
@@ -121,12 +128,14 @@ where
     ) -> RouteMaintenanceResult {
         runtime.progress.last_progress_at_tick = now;
         RouteMaintenanceResult {
-            event: active_route.last_lifecycle_event,
+            event:   active_route.last_lifecycle_event,
             outcome: RouteMaintenanceOutcome::Continued,
         }
     }
 
-    fn final_destination_node_id(active_route: &ActiveMeshRoute) -> Option<jacquard_core::NodeId> {
+    fn final_destination_node_id(
+        active_route: &ActiveMeshRoute,
+    ) -> Option<jacquard_core::NodeId> {
         active_route
             .path
             .segments
@@ -139,14 +148,16 @@ where
         active_route: &mut ActiveMeshRoute,
         topology: &Configuration,
     ) -> bool {
-        let Some(destination_node_id) = Self::final_destination_node_id(active_route) else {
+        let Some(destination_node_id) = Self::final_destination_node_id(active_route)
+        else {
             return false;
         };
         if active_route.forwarding.current_owner_node_id == destination_node_id {
             return false;
         }
 
-        let shortest = shortest_paths(&active_route.forwarding.current_owner_node_id, topology);
+        let shortest =
+            shortest_paths(&active_route.forwarding.current_owner_node_id, topology);
         let Some(node_path) = shortest.get(&destination_node_id) else {
             return false;
         };
@@ -203,7 +214,9 @@ where
             let Some(payload) = self
                 .retention
                 .take_retained_payload(&object_id)
-                .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))?
+                .map_err(|_| {
+                    RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)
+                })?
             else {
                 active_route
                     .anti_entropy
@@ -214,7 +227,7 @@ where
 
             if let Err(error) = self.transport.send_frame(MeshFrame {
                 endpoint: &next_segment.endpoint,
-                payload: &payload,
+                payload:  &payload,
             }) {
                 let _ = self.retention.retain_payload(object_id, payload);
                 return Err(RouteError::from(error));
@@ -251,7 +264,7 @@ where
         runtime.progress.last_progress_at_tick = now;
         runtime.progress.state = RouteProgressState::Satisfied;
         Ok(Some(RouteMaintenanceResult {
-            event: RouteLifecycleEvent::RecoveredFromPartition,
+            event:   RouteLifecycleEvent::RecoveredFromPartition,
             outcome: RouteMaintenanceOutcome::Continued,
         }))
     }
@@ -264,14 +277,17 @@ where
         context: &MaintenanceContext<'_>,
     ) -> Result<RouteMaintenanceResult, RouteError> {
         match trigger {
-            RouteMaintenanceTrigger::LinkDegraded | RouteMaintenanceTrigger::EpochAdvanced => {
+            | RouteMaintenanceTrigger::LinkDegraded
+            | RouteMaintenanceTrigger::EpochAdvanced => {
                 self.handle_repair_trigger(active_route, runtime, trigger, context)
-            }
-            RouteMaintenanceTrigger::CapacityExceeded => Ok(Self::replacement_required(trigger)),
-            RouteMaintenanceTrigger::PartitionDetected => {
+            },
+            | RouteMaintenanceTrigger::CapacityExceeded => {
+                Ok(Self::replacement_required(trigger))
+            },
+            | RouteMaintenanceTrigger::PartitionDetected => {
                 Ok(Self::enter_partition_mode(active_route, runtime, trigger))
-            }
-            RouteMaintenanceTrigger::PolicyShift => {
+            },
+            | RouteMaintenanceTrigger::PolicyShift => {
                 let _ = self.flush_retained_payloads(active_route)?;
                 Self::handoff_result(
                     context.identity,
@@ -279,24 +295,26 @@ where
                     runtime,
                     context.handoff_receipt_id,
                 )
-            }
-            RouteMaintenanceTrigger::LeaseExpiring => Ok(RouteMaintenanceResult {
-                event: active_route.last_lifecycle_event,
+            },
+            | RouteMaintenanceTrigger::LeaseExpiring => Ok(RouteMaintenanceResult {
+                event:   active_route.last_lifecycle_event,
                 outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
             }),
-            RouteMaintenanceTrigger::RouteExpired => {
+            | RouteMaintenanceTrigger::RouteExpired => {
                 Ok(Self::route_expired_result(active_route, runtime))
-            }
-            RouteMaintenanceTrigger::AntiEntropyRequired => {
+            },
+            | RouteMaintenanceTrigger::AntiEntropyRequired => {
                 self.consume_anti_entropy_pressure(context.now);
-                if let Some(recovered) =
-                    self.recover_from_partition_if_possible(active_route, runtime, context.now)?
-                {
+                if let Some(recovered) = self.recover_from_partition_if_possible(
+                    active_route,
+                    runtime,
+                    context.now,
+                )? {
                     Ok(recovered)
                 } else {
                     Ok(Self::continue_result(active_route, runtime, context.now))
                 }
-            }
+            },
         }
     }
 
@@ -310,9 +328,9 @@ where
         if !self.repair_allowed(active_route) {
             return Ok(Self::replacement_required(trigger));
         }
-        let repaired = context
-            .latest_topology
-            .is_some_and(|topology| self.repair_remaining_suffix(active_route, &topology.value));
+        let repaired = context.latest_topology.is_some_and(|topology| {
+            self.repair_remaining_suffix(active_route, &topology.value)
+        });
         if !repaired {
             return Ok(Self::replacement_required(trigger));
         }

@@ -8,19 +8,22 @@
 
 mod common;
 
+use std::collections::BTreeMap;
+
+use common::{
+    effects::{TestRetentionStore, TestRuntimeEffects, TestTransport},
+    engine::{materialization_input, objective, profile, LOCAL_NODE_ID},
+    fixtures::{link, node, sample_configuration},
+};
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, DestinationId, Environment, Node, NodeId, Observation, RatioPermille,
-        RouteEpoch, RoutingObjective, RoutingTickContext, ServiceId, Tick, TransportProtocol,
+        Configuration, DestinationId, Environment, Node, NodeId, Observation,
+        RatioPermille, RouteEpoch, RoutingObjective, RoutingTickContext, ServiceId,
+        Tick, TransportProtocol,
     },
     Blake3Hashing, MeshTopologyModel, RoutingEngine, RoutingEnginePlanner,
 };
-
-use common::effects::{TestRetentionStore, TestRuntimeEffects, TestTransport};
-use common::engine::{materialization_input, objective, profile, LOCAL_NODE_ID};
-use common::fixtures::{link, node, sample_configuration};
-use std::collections::BTreeMap;
 
 // The deterministic topology model must surface mesh-private intrinsic
 // node state, per-protocol medium counts, and a non-trivial
@@ -35,7 +38,11 @@ fn topology_model_exposes_medium_and_node_intrinsic_support() {
         .expect("local node intrinsic state");
     let medium = model.medium_state(&NodeId([1; 32]), &topology.value);
     let neighborhood = model
-        .neighborhood_estimate(&NodeId([1; 32]), topology.observed_at_tick, &topology.value)
+        .neighborhood_estimate(
+            &NodeId([1; 32]),
+            topology.observed_at_tick,
+            &topology.value,
+        )
         .expect("neighborhood estimate");
 
     assert_eq!(intrinsic.available_connection_count, 4);
@@ -48,7 +55,7 @@ fn topology_model_exposes_medium_and_node_intrinsic_support() {
 
 #[derive(Clone)]
 struct PreferredPeerTopologyModel {
-    base: DeterministicMeshTopologyModel,
+    base:           DeterministicMeshTopologyModel,
     preferred_peer: NodeId,
 }
 
@@ -62,8 +69,8 @@ impl PreferredPeerTopologyModel {
 }
 
 impl MeshTopologyModel for PreferredPeerTopologyModel {
-    type PeerEstimate = jacquard_mesh::MeshPeerEstimate;
     type NeighborhoodEstimate = jacquard_mesh::MeshNeighborhoodEstimate;
+    type PeerEstimate = jacquard_mesh::MeshPeerEstimate;
 
     fn local_node(
         &self,
@@ -111,11 +118,15 @@ impl MeshTopologyModel for PreferredPeerTopologyModel {
             configuration,
         )?;
         if *peer_node_id == self.preferred_peer {
-            estimate.relay_value_score = Some(jacquard_traits::jacquard_core::HealthScore(1000));
-            estimate.service_score = Some(jacquard_traits::jacquard_core::HealthScore(1000));
+            estimate.relay_value_score =
+                Some(jacquard_traits::jacquard_core::HealthScore(1000));
+            estimate.service_score =
+                Some(jacquard_traits::jacquard_core::HealthScore(1000));
         } else {
-            estimate.relay_value_score = Some(jacquard_traits::jacquard_core::HealthScore(0));
-            estimate.service_score = Some(jacquard_traits::jacquard_core::HealthScore(0));
+            estimate.relay_value_score =
+                Some(jacquard_traits::jacquard_core::HealthScore(0));
+            estimate.service_score =
+                Some(jacquard_traits::jacquard_core::HealthScore(0));
         }
         Some(estimate)
     }
@@ -154,7 +165,8 @@ fn build_preferred_engine(preferred_peer: NodeId) -> PreferredEngine {
 }
 
 fn service_objective() -> RoutingObjective {
-    let mut objective = common::engine::objective(DestinationId::Service(ServiceId(vec![9; 16])));
+    let mut objective =
+        common::engine::objective(DestinationId::Service(ServiceId(vec![9; 16])));
     objective.service_kind = jacquard_traits::jacquard_core::RouteServiceKind::Move;
     objective
 }
@@ -165,15 +177,15 @@ fn equal_hop_quality_configuration() -> Observation<Configuration> {
     let destination = NodeId([5; 32]);
 
     Observation {
-        value: Configuration {
-            epoch: RouteEpoch(9),
-            nodes: BTreeMap::from([
+        value:                 Configuration {
+            epoch:       RouteEpoch(9),
+            nodes:       BTreeMap::from([
                 (LOCAL_NODE_ID, node(1)),
                 (node_two, node(2)),
                 (node_three, node(3)),
                 (destination, node(5)),
             ]),
-            links: BTreeMap::from([
+            links:       BTreeMap::from([
                 ((LOCAL_NODE_ID, node_two), link(2, 950)),
                 ((node_two, destination), link(5, 950)),
                 ((LOCAL_NODE_ID, node_three), link(3, 650)),
@@ -181,15 +193,16 @@ fn equal_hop_quality_configuration() -> Observation<Configuration> {
             ]),
             environment: Environment {
                 reachable_neighbor_count: 3,
-                churn_permille: RatioPermille(100),
-                contention_permille: RatioPermille(100),
+                churn_permille:           RatioPermille(100),
+                contention_permille:      RatioPermille(100),
             },
         },
-        source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-        evidence_class: jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+        source_class:          jacquard_traits::jacquard_core::FactSourceClass::Local,
+        evidence_class:
+            jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
         origin_authentication:
             jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(9),
+        observed_at_tick:      Tick(9),
     }
 }
 
@@ -221,7 +234,8 @@ fn metric_aware_search_prefers_higher_quality_equal_hop_path() {
     let topology = equal_hop_quality_configuration();
     let goal = objective(DestinationId::Node(NodeId([5; 32])));
     let policy = profile();
-    let mut engine = common::engine::build_engine_for_node_at_tick(LOCAL_NODE_ID, Tick(9));
+    let mut engine =
+        common::engine::build_engine_for_node_at_tick(LOCAL_NODE_ID, Tick(9));
 
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
@@ -236,9 +250,12 @@ fn metric_aware_search_prefers_higher_quality_equal_hop_path() {
         .expect("admit route");
     let lease = jacquard_traits::jacquard_core::RouteLease {
         owner_node_id: LOCAL_NODE_ID,
-        lease_epoch: RouteEpoch(9),
-        valid_for: jacquard_traits::jacquard_core::TimeWindow::new(Tick(9), Tick(20))
-            .expect("valid lease"),
+        lease_epoch:   RouteEpoch(9),
+        valid_for:     jacquard_traits::jacquard_core::TimeWindow::new(
+            Tick(9),
+            Tick(20),
+        )
+        .expect("valid lease"),
     };
     let installation = engine
         .materialize_route(materialization_input(admission, lease))

@@ -2,20 +2,23 @@
 
 mod common;
 
+use common::{
+    engine::{
+        activate_route, build_engine, lease, objective, profile,
+        profile_with_connectivity,
+    },
+    fixtures::sample_configuration,
+};
 use jacquard_mesh::MESH_CAPABILITIES;
 use jacquard_traits::{
     jacquard_core::{
-        AdmissionDecision, DecidableSupport, DestinationId, HoldSupport, NodeId, RepairSupport,
-        RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceTrigger, RoutePartitionClass,
-        RouteRepairClass, RouteShapeVisibility, Tick,
+        AdmissionDecision, DecidableSupport, DestinationId, HoldSupport, NodeId,
+        RepairSupport, RouteLifecycleEvent, RouteMaintenanceOutcome,
+        RouteMaintenanceTrigger, RoutePartitionClass, RouteRepairClass,
+        RouteShapeVisibility, Tick,
     },
     RoutingEngine, RoutingEnginePlanner,
 };
-
-use common::engine::{
-    activate_route, build_engine, lease, objective, profile, profile_with_connectivity,
-};
-use common::fixtures::sample_configuration;
 
 #[test]
 fn mesh_capability_surface_matches_the_advertised_constant() {
@@ -24,7 +27,8 @@ fn mesh_capability_surface_matches_the_advertised_constant() {
 }
 
 #[test]
-fn advertised_hold_and_partition_tolerance_are_exercised_by_deferred_delivery_admission() {
+fn advertised_hold_and_partition_tolerance_are_exercised_by_deferred_delivery_admission(
+) {
     let engine = build_engine();
     let topology = sample_configuration();
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
