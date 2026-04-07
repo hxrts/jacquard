@@ -1,34 +1,26 @@
-# Routing Logic
+# Routing Decisions
 
-This page describes how routing decisions are structured. It covers the pipeline from world state through policy to canonical route realization, the control/data plane split, and the decision path.
-
-## Pipeline
-
-Jacquard's shared model is organized as a pipeline:
-
-```text
-world
-  -> observation
-  -> estimation
-  -> policy
-  -> action
-```
-
-`world` defines the abstract objects and configuration the router reasons about. `observation` wraps instantiated world objects with provenance. `estimation` derives routing-relevant beliefs from those observations. `policy` computes what should be done. `action` records the selected routing action, such as the current `AdaptiveRoutingProfile`.
+This page picks up the routing pipeline at estimation and walks through policy, action, and route realization. It covers the control and data plane split, the candidate-to-materialization decision path, and the routing-engine boundary. See [Pipeline and World Observations](104_routing_observation_boundary.md) for the world and observation stages that feed into this page.
 
 ## Planes
 
-The control plane owns candidate gathering, admission, canonical identity allocation, materialized-route assembly, commitments, maintenance, and anti-entropy. The data plane forwards payloads over already admitted route state. Data-plane observations may report health or failures, but the control plane decides whether that changes the active materialized route.
+The control plane owns candidate gathering, admission, canonical identity allocation, materialized-route assembly, commitments, maintenance, and anti-entropy. The data plane forwards payloads over already admitted route state. Data-plane observations may report health or failures. The control plane decides whether any of that changes the active materialized route.
 
-If a routing engine needs local coordination, that also lives in the control plane. An engine may select a committee or witness set as part of planning, but those results are advisory inputs to canonical transitions. They are not canonical route truth by themselves.
+Local coordination also belongs to the control plane. A routing engine may select a committee or witness set as part of planning. Those results are advisory inputs to canonical transitions rather than canonical route truth.
 
-The link layer is a frame carrier. It reports reachability, MTU, loss, and timing. It does not own canonical ordering or traffic control. If a routing engine needs sequencing or causal behavior, that appears as a routing-level message-flow assumption rather than a transport guarantee. Keeping the transport surface simple avoids head-of-line stalls on unstable links and prevents baking one delivery policy into every routing engine.
+The link layer is a frame carrier. It reports reachability, MTU, loss, and timing. It does not own canonical ordering or traffic control. A routing engine that needs sequencing or causal behavior expresses it as a routing-level message-flow assumption rather than a transport guarantee.
 
-Layered composition follows the same rule. If one routing engine uses another as a limited substrate, the layering decision belongs above both engines in a host-owned policy engine. The lower layer exposes carrier capabilities and leases. The upper layer consumes those through a neutral contract. Neither engine needs direct awareness of the other's private scoring or maintenance logic.
+### Layered Composition
+
+Layered composition follows the same rule as plane separation. If one routing engine uses another as a limited substrate, the layering decision belongs above both engines in a host-owned policy engine.
+
+The lower engine exposes carrier capabilities and leases. The upper engine consumes those through a neutral contract. Neither engine needs direct awareness of the other's private scoring or maintenance logic.
 
 ## Decision Path
 
-The routing decision path starts from `RoutingObjective` and `Observation<Configuration>`. A routing-engine planner turns those into `RouteCandidate` values. Each candidate carries an `Estimate<RouteEstimate>`, not a fact or published witness. The planner then checks one candidate and admits it under a stated profile. The router allocates canonical route identity, the routing engine realizes that admitted route under `RouteMaterializationInput`, and the control plane assembles the resulting `MaterializedRoute` from router-owned `MaterializedRouteIdentity` plus engine-owned `RouteRuntimeState`.
+The routing decision path starts from a `RoutingObjective` and a current `Observation<Configuration>`. A routing-engine planner turns those into `RouteCandidate` values. Each candidate carries an `Estimate<RouteEstimate>` rather than a fact or published witness.
+
+The planner checks a candidate and admits it under a stated profile. The router then allocates canonical route identity. The routing engine realizes that admitted route under `RouteMaterializationInput`. The control plane assembles the final `MaterializedRoute` from router-owned `MaterializedRouteIdentity` plus engine-owned `RouteRuntimeState`.
 
 ```rust
 pub trait RoutingEnginePlanner {
@@ -83,11 +75,15 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 }
 ```
 
-Route construction starts from shared observations, becomes inferential during candidate production, becomes proof-bearing at admission, and becomes canonical only when the router allocates route identity and the engine realizes the admitted route. The planning side is deterministic and read-only. Runtime mutation starts at `materialize_route`, but canonical route ownership stays above the engine boundary. The control plane must enforce the objective protection floor and treat expired leases as a typed failure.
+`RoutingEnginePlanner` is the pure planning surface. Runtime mutation is confined to `RoutingEngine::materialize_route`, `maintain_route`, and `teardown`. The control plane enforces the objective protection floor at materialization. Expired leases surface as a typed failure rather than silently continuing.
 
-`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, or updating coordination posture before any specific route is active.
+### Contract Rules
 
-Committee selection, substrate planning, and layered routing follow the same pure/effectful split. See [Extensibility](107_extensibility.md) for the full trait signatures.
+Two implementation rules keep the planning surface honest. First, any planning or admission judgment that depends on observed world state must receive `&Observation<Configuration>` explicitly rather than reading an ambient topology snapshot. Second, planner caches are optimization only.
+
+Cache misses must still lead to the same planning or admission result for the same topology. Admitted routes must carry enough opaque engine-private plan state forward that materialization can proceed without a planner-cache lookup. Successful lifecycle transitions must remain replay-visible before public or durable state is committed.
+
+`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, or updating coordination posture before any specific route is active. Committee selection, substrate planning, and layered routing follow the same pure and effectful split. See [Extensibility](107_extensibility.md) for the full trait signatures.
 
 ### Overlay Example
 
@@ -96,9 +92,9 @@ Layering lets an overlay engine use mesh as a carrier without awareness of mesh-
 ```mermaid
 graph TD
     subgraph overlay["overlay engine"]
-        o_plan["planning — role classification, candidate refresh"]
-        o_activate["activation — route materialization"]
-        o_maintain["maintenance — replace / teardown"]
+        o_plan["planning: role classification, candidate refresh"]
+        o_activate["activation: route materialization"]
+        o_maintain["maintenance: replace or teardown"]
 
         o_plan --> o_activate --> o_maintain
     end
@@ -106,9 +102,9 @@ graph TD
     substrate["substrate lease"]
 
     subgraph mesh["mesh engine"]
-        m_plan["planning — topology model, candidate production"]
-        m_activate["activation — route materialization"]
-        m_maintain["maintenance — forwarding, repair, retention"]
+        m_plan["planning: topology model, candidate production"]
+        m_activate["activation: route materialization"]
+        m_maintain["maintenance: forwarding, repair, retention"]
 
         m_plan --> m_activate --> m_maintain
     end
@@ -116,4 +112,4 @@ graph TD
     o_maintain --> substrate --> m_plan
 ```
 
-The overlay engine's `engine_tick` drives the middleware stages shown above: classify the local node as member, bridge, or gateway, update overlay posture, then refresh candidates before any specific route is activated. Route activation, maintenance, and teardown still use the shared `RoutingEngine` traits.
+The overlay engine's `engine_tick` drives the middleware stages shown above. It classifies the local node as member, bridge, or gateway. It then refreshes overlay posture and candidate state before any specific route is activated. Route activation, maintenance, and teardown still use the shared `RoutingEngine` traits.

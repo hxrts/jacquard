@@ -1,20 +1,12 @@
-# Routing Observation Boundary
+# Pipeline and World Observations
 
-This page defines the abstraction boundary around the local node, peer connections, and local environment. The goal is to expose the information a routing algorithm needs without leaking raw device internals or physical-world details into the routing core.
+This page introduces Jacquard's shared routing pipeline and then covers the first two stages in detail. The world schema and the observation layer that wraps it both live in `jacquard-core`. They are family-neutral surfaces that every routing engine consumes.
 
-## Purpose
+## Pipeline
 
-The routing core sees budget, retention horizon, information summary, link quality, and aggregate neighborhood conditions. It does not see battery chemistry, radio chipset details, GPS coordinates, or raw signal traces. This keeps the model portable across devices and transports.
+Jacquard's shared model is organized as a five-stage pipeline. `world` defines the abstract objects the router reasons about. `observation` wraps those objects with explicit provenance. `estimation` derives routing-relevant beliefs from the observation stream.
 
-That boundary is also where Jacquard avoids becoming too opinionated. The shared layer exposes evidence that a routing engine may use for local coordination, but it does not tell every engine how to score peers, how to form committees, or whether any committee must have a leader.
-
-Uncertain quantities are modeled as `Belief<T>`: either `Absent` or `Estimated(Estimate<T>)` with an explicit `confidence_permille`. Observations keep source and authentication separate. An `Observation<T>` may be local or remote, and its origin may be controlled, authenticated, or unauthenticated.
-
-This boundary is observational only. It feeds planning, admission, and maintenance decisions, but it does not publish canonical route truth on its own. Promotion from observation to established routing state belongs to the control plane through explicit route objects and lifecycle transitions.
-
-`IdentityAssuranceClass` complements those provenance fields. It lets policy and committee selection distinguish weakly observed identities from stronger controller-bound or externally attested ones without collapsing that decision into the routing objects themselves.
-
-The model has three shared scopes: local node, link, and environment. `world` defines the abstract objects. `observation` wraps them with provenance. `estimation` stays family-neutral in `core`. Routing-engine-specific peer or neighborhood heuristics belong in the engine layer, not the shared world schema.
+`policy` turns beliefs into the currently selected routing action. `action` records that selection as an `AdaptiveRoutingProfile`. The stages stay distinct even when one runtime computes several of them in a single component.
 
 ```mermaid
 graph LR
@@ -46,11 +38,15 @@ graph LR
     config --> policy --> action
 ```
 
-World extensions contribute through plain `Observation<ObservedValue>` values. That means the extension boundary stays about what was observed, not about how one host may later batch, diff, coalesce, or partially apply those observations.
+The rest of this page covers `world` and `observation`. See [Routing Decisions](105_routing_logic.md) for how `estimation`, `policy`, and `action` turn observations into realized routes.
 
-## Local Node
+## World Schema
 
-`Node` is split into `NodeProfile` (stable limits) and `NodeState` (current conditions). `Observation<Node>` is one local or remote claim about that node.
+The world has three shared scopes: local node, link, and environment. These types are routing-engine-neutral and live in `jacquard-core`. Routing engines consume them without forking the schema. An engine that wants richer structure derives it above this boundary as engine-private state.
+
+### Node
+
+`Node` is split into `NodeProfile` for stable limits and `NodeState` for current conditions. Both sub-objects live alongside a controller id that authenticates the node.
 
 ```rust
 pub struct Node {
@@ -84,19 +80,11 @@ pub struct NodeRelayBudget {
     pub utilization_permille: RatioPermille,
     pub retention_horizon_ms: Belief<DurationMs>,
 }
-
-pub struct Observation<T> {
-    pub value: T,
-    pub source_class: FactSourceClass,
-    pub evidence_class: RoutingEvidenceClass,
-    pub origin_authentication: OriginAuthenticationClass,
-    pub observed_at_tick: Tick,
-}
 ```
 
-`NodeProfile` exposes device and local-policy constraints in a form the router can use without learning hardware details. `NodeState` says how much connection headroom, forwarding capacity, and retention space remain now. Routing decisions depend on future forwarding value, not only current free space. A node with spare capacity but a short `retention_horizon_ms` is a weak retention target.
+`NodeProfile` exposes device and policy constraints in a form the router can use without learning hardware details. `NodeState` says how much connection headroom, forwarding capacity, and retention space remain now. A node with spare capacity but a short `retention_horizon_ms` is a weak retention target because routing decisions depend on future forwarding value rather than current free space alone.
 
-## Link And Connection
+### Link
 
 A connection is a `Link` with a stable `LinkEndpoint` and a changing `LinkState`.
 
@@ -119,11 +107,11 @@ pub struct LinkState {
 
 `transfer_rate_bytes_per_sec` answers whether a meaningful exchange fits inside the contact window. `stability_horizon_ms` answers how long the contact is likely to remain useful. `delivery_confidence_permille` and `symmetry_permille` answer whether the link supports exchange in the expected direction.
 
-If a mesh engine wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics, it should derive them above this shared boundary from `Node`, `Link`, `Environment`, and world observations. Those estimates are mesh-owned interpretations, not shared world objects.
+A routing engine that wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics derives them above this shared boundary. Those estimates stay engine-owned rather than being promoted into the shared schema. See [Routing Decisions](105_routing_logic.md) for how engines consume the shared link signals.
 
-## Environment
+### Environment
 
-`Environment` carries routing-engine-neutral aggregate conditions: density, churn, and contention.
+`Environment` carries routing-engine-neutral aggregate conditions.
 
 ```rust
 pub struct Environment {
@@ -133,10 +121,49 @@ pub struct Environment {
 }
 ```
 
-These signals matter most in sparse and disrupted networks. A contact that looks mediocre in isolation may still be valuable if the neighborhood is sparse, churn is high, or the node bridges otherwise disjoint information sets.
+Density, churn, and contention matter most in sparse and disrupted networks. A contact that looks mediocre in isolation may still be valuable if the neighborhood is sparse or if the node bridges otherwise disjoint information sets.
 
-`Environment` should not include engine-specific concerns. Richer geometry, spatial embeddings, or transport-specific structure should extend `Configuration` in the engine layer rather than inflating the base environment type.
+Richer geometry, spatial embeddings, and transport-specific structure do not inflate the base environment type. GPS-derived regions, graph embeddings, provider clusters, bridge scores, and novelty rankings stay engine-private rather than becoming part of the base environment model.
 
-The same rule applies to coordination policy and derived heuristics. GPS-derived regions, graph embeddings, provider clusters, bridge scores, novelty rankings, or flow-direction estimates may exist above this boundary, but they should remain engine-private interpretations of shared observations rather than becoming part of the base environment model.
+### Configuration
 
-One naming distinction matters here. A routing neighborhood is a local topological or observational context. It is not the same thing as `ServiceScope::Discovery`, which uses `DiscoveryScopeId` only as a discovery-scope label for advertised services.
+`Configuration` wires the three world scopes into one routable view.
+
+```rust
+pub struct Configuration {
+    pub epoch: RouteEpoch,
+    pub nodes: BTreeMap<NodeId, Node>,
+    pub links: BTreeMap<(NodeId, NodeId), Link>,
+    pub environment: Environment,
+}
+```
+
+One `Configuration` holds the current `epoch`, the node map, the link map keyed by ordered node-id pairs, and one `Environment`. A routing-engine planner receives this object wrapped as `Observation<Configuration>` and treats it as the authoritative view for that planning pass.
+
+## Observation
+
+The observation stage wraps each world object with provenance. `Observation<Node>`, `Observation<Link>`, and `Observation<Environment>` are the common scoped forms. `Observation<Configuration>` is the aggregated view a routing-engine planner consumes.
+
+Jacquard uses an epistemic ladder so raw observation stays distinct from inferred belief and from established routing truth. `Observation<T>` is the base wrapper. `Estimate<T>` adds an explicit `confidence_permille`. `Fact<T>` marks values the control plane is willing to publish as routing truth.
+
+`Belief<T>` wraps an optional estimate with an explicit `Absent` variant. Code can then tell "no estimate yet" from "estimated with low confidence" without unwrapping defaults. See [Core Types](102_core_types.md) for the full type definitions.
+
+### Provenance Qualifiers
+
+Observations carry four separate provenance qualifiers. Keeping them separate prevents one opaque enum from collapsing source, evidence, authentication, and identity-grounding into a single decision.
+
+`FactSourceClass` says whether the observation is local or remote. `RoutingEvidenceClass` records what evidence backs the claim. `OriginAuthenticationClass` records how strongly the origin is authenticated. `IdentityAssuranceClass` on a node identity records how strongly that identity is grounded for committee or admission weight.
+
+## The Observation Boundary
+
+The routing core sees budget, retention horizon, link quality, and aggregate neighborhood conditions. It does not see device internals, radio chipset details, or raw signal traces. Keeping the boundary observational is what makes the model portable across devices and transports.
+
+The boundary is observational only. It feeds planning, admission, and maintenance decisions. It does not publish canonical route truth on its own. Promotion from observation to established routing state belongs to the control plane through explicit route objects and lifecycle transitions.
+
+Engine-specific peer or neighborhood heuristics live above this boundary. A mesh engine that wants novelty, reach, bridge, or flow-gradient estimates derives them from `Node`, `Link`, `Environment`, and world observations without promoting those derived estimates into the shared schema.
+
+## Extending the World
+
+World extensions are the entry path for observed nodes, links, environments, services, and transport activity. An extension emits `Observation<ObservedValue>` values that wrap objects conforming to the shared schema rather than defining a private alternative.
+
+This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [Extensibility](107_extensibility.md) for the trait surface and an end-to-end BLE relay example.
