@@ -22,6 +22,35 @@ use crate::topology::{
     adjacent_link_between, adjacent_node_ids, route_capable_for_engine, service_surface_score,
 };
 
+/// Default maximum committee size for `DeterministicCommitteeSelector`.
+pub const MESH_COMMITTEE_MEMBERSHIP_CAP: usize = 3;
+
+/// Committee validity window, measured in ticks.
+pub const MESH_COMMITTEE_VALIDITY_TICKS: u64 = 8;
+
+/// Minimum reachable neighbor count required before forming a committee.
+/// Below this, mesh does not attempt local coordination.
+pub const MESH_COMMITTEE_MIN_NEIGHBOR_COUNT: u32 = 2;
+
+/// Churn threshold (permille) at which the admission assumptions flip to
+/// `PartitionProne`.
+pub const CHURN_PARTITION_PRONE_PERMILLE: u16 = 600;
+
+/// Churn threshold (permille) at which the admission assumptions flip to
+/// `HighChurn`.
+pub const CHURN_HIGH_CHURN_PERMILLE: u16 = 250;
+
+/// Neighbor count at or above which a node density is classified `Dense`.
+pub const DENSITY_DENSE_NEIGHBOR_MIN: u32 = 8;
+
+/// Neighbor count at or above which a node density is classified `Moderate`.
+pub const DENSITY_MODERATE_NEIGHBOR_MIN: u32 = 3;
+
+/// Weight multiplier applied to service score so it dominates committee
+/// membership ranking. A peer without the required routing services is
+/// never a viable committee member regardless of other signals.
+const MESH_COMMITTEE_SERVICE_WEIGHT: u32 = 100;
+
 #[derive(Clone, Debug)]
 pub struct NoCommitteeSelector;
 
@@ -51,7 +80,7 @@ impl DeterministicCommitteeSelector {
         Self {
             local_node_id,
             engine_id: RoutingEngineId::Mesh,
-            membership_cap: 3,
+            membership_cap: MESH_COMMITTEE_MEMBERSHIP_CAP,
         }
     }
 
@@ -83,11 +112,13 @@ impl DeterministicCommitteeSelector {
         );
         let service_score =
             service_surface_score(&node.profile.services, &self.engine_id, configuration.epoch);
-        // Service score dominates by design: a peer without the required
-        // routing services is not a viable committee member regardless of
-        // its relay or link quality.
+        // Service score is weighted by `MESH_COMMITTEE_SERVICE_WEIGHT` so a
+        // peer without the required routing services can never outrank a
+        // peer that has them, regardless of relay or link quality.
         Some((
-            relay_score + stability_score + service_score.saturating_mul(100),
+            relay_score
+                + stability_score
+                + service_score.saturating_mul(MESH_COMMITTEE_SERVICE_WEIGHT),
             node.controller_id,
         ))
     }
@@ -114,7 +145,8 @@ impl CommitteeSelector for DeterministicCommitteeSelector {
                 profile.selected_connectivity.partition,
                 RoutePartitionClass::PartitionTolerant
             )
-            && configuration.environment.reachable_neighbor_count >= 2;
+            && configuration.environment.reachable_neighbor_count
+                >= MESH_COMMITTEE_MIN_NEIGHBOR_COUNT;
         if !should_coordinate {
             return Ok(None);
         }
@@ -154,8 +186,11 @@ impl CommitteeSelector for DeterministicCommitteeSelector {
             )
             .collect::<Vec<_>>();
 
-        let quorum_threshold = u8::try_from((members.len() / 2) + 1).unwrap_or(u8::MAX);
-        let validity_end = Tick(current_tick.0 + 8);
+        // Bounded by MESH_COMMITTEE_MEMBERSHIP_CAP above, so the cast is
+        // infallible.
+        let quorum_threshold = u8::try_from((members.len() / 2) + 1)
+            .expect("committee size is bounded by MESH_COMMITTEE_MEMBERSHIP_CAP");
+        let validity_end = Tick(current_tick.0 + MESH_COMMITTEE_VALIDITY_TICKS);
         let committee_id = committee_id_for(objective, configuration.epoch);
 
         Ok(Some(CommitteeSelection {
@@ -181,14 +216,15 @@ pub fn mesh_admission_assumptions(
     profile: &AdaptiveRoutingProfile,
     configuration: &Configuration,
 ) -> AdmissionAssumptions {
+    let churn = configuration.environment.churn_permille.get();
     AdmissionAssumptions {
         message_flow_assumption: jacquard_core::MessageFlowAssumptionClass::PerRouteSequenced,
         failure_model: jacquard_core::FailureModelClass::Benign,
         runtime_envelope: jacquard_core::RuntimeEnvelopeClass::Canonical,
         node_density_class: density_class(configuration.environment.reachable_neighbor_count),
-        connectivity_regime: if configuration.environment.churn_permille.get() > 600 {
+        connectivity_regime: if churn > CHURN_PARTITION_PRONE_PERMILLE {
             jacquard_core::ConnectivityRegime::PartitionProne
-        } else if configuration.environment.churn_permille.get() > 250 {
+        } else if churn > CHURN_HIGH_CHURN_PERMILLE {
             jacquard_core::ConnectivityRegime::HighChurn
         } else {
             jacquard_core::ConnectivityRegime::Stable
@@ -222,9 +258,9 @@ pub fn mesh_health_score(configuration: &Configuration) -> HealthScore {
 }
 
 fn density_class(neighbor_count: u32) -> NodeDensityClass {
-    if neighbor_count >= 8 {
+    if neighbor_count >= DENSITY_DENSE_NEIGHBOR_MIN {
         NodeDensityClass::Dense
-    } else if neighbor_count >= 3 {
+    } else if neighbor_count >= DENSITY_MODERATE_NEIGHBOR_MIN {
         NodeDensityClass::Moderate
     } else {
         NodeDensityClass::Sparse

@@ -24,11 +24,11 @@ use jacquard_core::{
     RouteEstimate, RouteEvent, RouteEventStamped, RouteHealth, RouteId, RouteInstallation,
     RouteInvalidationReason, RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
     RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-    RouteMaterializationProof, RouteOperationId, RoutePartitionClass, RouteProgressContract,
-    RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteRuntimeError,
-    RouteSelectionError, RouteSemanticHandoff, RouteServiceKind, RouteSummary, RouteWitness,
-    RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, Tick, TimeWindow, TimeoutPolicy,
-    TransportObservation,
+    RouteMaterializationProof, RouteOperationId, RoutePartitionClass, RoutePolicyError,
+    RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteRepairClass,
+    RouteRuntimeError, RouteSelectionError, RouteSemanticHandoff, RouteServiceKind, RouteSummary,
+    RouteWitness, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, Tick, TimeWindow,
+    TimeoutPolicy, TransportObservation, ROUTE_HOP_COUNT_MAX,
 };
 use jacquard_traits::{
     CommitteeCoordinatedEngine, CommitteeSelector, Hashing, MeshRoutingEngine, MeshTopologyModel,
@@ -45,6 +45,35 @@ use crate::{
 };
 
 pub const MESH_ENGINE_ID: RoutingEngineId = RoutingEngineId::Mesh;
+
+/// Maximum number of concurrently active materialized routes this engine
+/// will hold. New materializations past this point fail with
+/// `RoutePolicyError::BudgetExceeded`.
+pub const MESH_ACTIVE_ROUTE_COUNT_MAX: usize = 64;
+
+/// Maximum number of candidate entries the planner emits per tick.
+/// Sorting and truncation happen after BFS so the cap is deterministic.
+pub const MESH_CANDIDATE_COUNT_MAX: usize = 32;
+
+/// Maximum number of retained payload objects tracked per active route.
+pub const MESH_RETAINED_PER_ROUTE_COUNT_MAX: usize = 32;
+
+/// Validity window applied to newly derived mesh candidates, in ticks.
+pub const MESH_CANDIDATE_VALIDITY_TICKS: u64 = 12;
+
+/// Per-hop byte cost used in `RouteCost` derivation.
+pub const MESH_PER_HOP_BYTE_COST: u64 = 1024;
+
+/// Hold capacity reserved for deferred-delivery routes, in bytes.
+pub const MESH_HOLD_RESERVED_BYTES: u64 = 1024;
+
+// Route-commitment retry budget. Mesh uses a short, fixed policy because
+// commitments represent already-admitted routes; exceeding the budget is
+// a teardown signal rather than a reason to keep retrying.
+const MESH_COMMITMENT_ATTEMPT_COUNT_MAX: u32 = 2;
+const MESH_COMMITMENT_INITIAL_BACKOFF_MS: u32 = 25;
+const MESH_COMMITMENT_BACKOFF_MS_MAX: u32 = 25;
+const MESH_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 
 // Mesh advertises link-level protection, explicit route shape, and full
 // repair, hold, and decidable-admission support. This is the static
@@ -270,6 +299,14 @@ where
         route_id: &RouteId,
         payload: &[u8],
     ) -> Result<ContentId<Blake3Digest>, jacquard_core::RetentionError> {
+        // Reject retention when the per-route object budget is exhausted.
+        // This runs before the store write so we never leak bytes into
+        // the retention store that the engine cannot track.
+        if let Some(active_route) = self.active_routes.get(route_id) {
+            if active_route.retained_objects.len() >= MESH_RETAINED_PER_ROUTE_COUNT_MAX {
+                return Err(jacquard_core::RetentionError::Full);
+            }
+        }
         let object_id = self.retention_object_id(route_id, payload);
         self.retention.retain_payload(object_id, payload.to_vec())?;
         if let Some(active_route) = self.active_routes.get_mut(route_id) {
@@ -396,7 +433,9 @@ where
                 })
             })
             .collect::<Vec<_>>();
-        if segments.is_empty() {
+        // Reject routes that would exceed the workspace-wide hop limit
+        // rather than silently truncating via `u8::try_from`.
+        if segments.is_empty() || segments.len() > usize::from(ROUTE_HOP_COUNT_MAX) {
             return None;
         }
 
@@ -409,7 +448,7 @@ where
         let connectivity = self.route_connectivity_for_class(objective, &route_class);
         let valid_for = TimeWindow::new(
             topology.observed_at_tick,
-            Tick(topology.observed_at_tick.0 + 12),
+            Tick(topology.observed_at_tick.0 + MESH_CANDIDATE_VALIDITY_TICKS),
         )
         .expect("mesh candidates always use a positive validity window");
         let protocol_mix = unique_protocol_mix(&segments);
@@ -435,7 +474,10 @@ where
             connectivity,
             protocol_mix,
             hop_count_hint: Belief::Estimated(Estimate {
-                value: u8::try_from(segments.len()).unwrap_or(u8::MAX),
+                // Bounded by the `> ROUTE_HOP_COUNT_MAX` reject above, so
+                // the cast is infallible in practice.
+                value: u8::try_from(segments.len())
+                    .expect("segment count is bounded by ROUTE_HOP_COUNT_MAX"),
                 confidence_permille: jacquard_core::RatioPermille(1000),
                 updated_at_tick: topology.observed_at_tick,
             }),
@@ -603,6 +645,9 @@ where
                 candidate.ordering_key.tie_break,
             )
         });
+        // Cap the candidate set after sorting so the best-ranked candidates
+        // survive and the cache size stays bounded.
+        cached.truncate(MESH_CANDIDATE_COUNT_MAX);
 
         let mut cache = self.candidate_cache.borrow_mut();
         cache.clear();
@@ -727,6 +772,10 @@ where
     }
 
     fn teardown(&mut self, route_id: &RouteId) {
+        // Checkpoint removal is best-effort during teardown: the route is
+        // going away regardless, and leaving stale bytes behind is less
+        // harmful than refusing to drop the in-memory active route. A
+        // later `engine_tick` will overwrite the stale entry.
         let _ = self.remove_checkpoint(route_id);
         self.active_routes.remove(route_id);
     }
@@ -749,6 +798,12 @@ where
         &mut self,
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError> {
+        // Refuse materialization if the active-route budget is exhausted,
+        // unless the request is re-materializing an existing route_id.
+        let is_replacement = self.active_routes.contains_key(&input.handle.route_id);
+        if !is_replacement && self.active_routes.len() >= MESH_ACTIVE_ROUTE_COUNT_MAX {
+            return Err(RouteError::Policy(RoutePolicyError::BudgetExceeded));
+        }
         // Refuse materialization if the router-owned lease has already
         // expired. This is a typed runtime failure, not a silent fallthrough.
         let cached = self
@@ -832,11 +887,11 @@ where
             owner_node_id: route.identity.lease.owner_node_id,
             deadline_tick: route.identity.lease.valid_for.end_tick(),
             retry_policy: TimeoutPolicy {
-                attempt_count_max: 2,
-                initial_backoff_ms: jacquard_core::DurationMs(25),
+                attempt_count_max: MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
+                initial_backoff_ms: jacquard_core::DurationMs(MESH_COMMITMENT_INITIAL_BACKOFF_MS),
                 backoff_multiplier_permille: jacquard_core::RatioPermille(1000),
-                backoff_ms_max: jacquard_core::DurationMs(25),
-                overall_timeout_ms: jacquard_core::DurationMs(50),
+                backoff_ms_max: jacquard_core::DurationMs(MESH_COMMITMENT_BACKOFF_MS_MAX),
+                overall_timeout_ms: jacquard_core::DurationMs(MESH_COMMITMENT_OVERALL_TIMEOUT_MS),
             },
             resolution,
         }]
@@ -1200,14 +1255,17 @@ fn route_cost_for_segments(
     segments: &[MeshRouteSegment],
     route_class: &MeshRouteClass,
 ) -> RouteCost {
-    let hop_count = u8::try_from(segments.len()).unwrap_or(u8::MAX);
+    // Segment count is bounded by ROUTE_HOP_COUNT_MAX in `derive_candidate`
+    // so the cast is infallible.
+    let hop_count =
+        u8::try_from(segments.len()).expect("segment count is bounded by ROUTE_HOP_COUNT_MAX");
     let hold_reserved = match route_class {
-        MeshRouteClass::DeferredDelivery => ByteCount(1024),
+        MeshRouteClass::DeferredDelivery => ByteCount(MESH_HOLD_RESERVED_BYTES),
         _ => ByteCount(0),
     };
     RouteCost {
         message_count_max: Limit::Bounded(u32::from(hop_count)),
-        byte_count_max: Limit::Bounded(ByteCount(u64::from(hop_count) * 1024)),
+        byte_count_max: Limit::Bounded(ByteCount(u64::from(hop_count) * MESH_PER_HOP_BYTE_COST)),
         hop_count,
         repair_attempt_count_max: Limit::Bounded(u32::from(hop_count)),
         hold_bytes_reserved: Limit::Bounded(hold_reserved),
@@ -1222,13 +1280,13 @@ fn route_cost_for_summary(summary: &RouteSummary) -> RouteCost {
     };
     let hold_reserved = if summary.connectivity.partition == RoutePartitionClass::PartitionTolerant
     {
-        ByteCount(1024)
+        ByteCount(MESH_HOLD_RESERVED_BYTES)
     } else {
         ByteCount(0)
     };
     RouteCost {
         message_count_max: Limit::Bounded(u32::from(hop_count)),
-        byte_count_max: Limit::Bounded(ByteCount(u64::from(hop_count) * 1024)),
+        byte_count_max: Limit::Bounded(ByteCount(u64::from(hop_count) * MESH_PER_HOP_BYTE_COST)),
         hop_count,
         repair_attempt_count_max: Limit::Bounded(u32::from(hop_count)),
         hold_bytes_reserved: Limit::Bounded(hold_reserved),

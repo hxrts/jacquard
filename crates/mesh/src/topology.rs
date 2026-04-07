@@ -14,6 +14,19 @@ use jacquard_core::{
 };
 use jacquard_traits::MeshTopologyModel;
 
+/// Number of routable service kinds (Discover, Move, Hold) a node must
+/// advertise to be considered route-capable for this engine.
+pub const MESH_REQUIRED_SERVICE_COUNT: u32 = 3;
+
+/// Upper bound for HealthScore values produced by this crate.
+/// Matches the shared `RatioPermille` scale so scores compose cleanly
+/// with confidence and loss metrics elsewhere.
+pub const HEALTH_SCORE_MAX: u32 = 1000;
+
+/// Multiplier applied to reachable-neighbor counts when scaling them
+/// into the HealthScore range in `neighborhood_estimate`.
+pub const DENSITY_SCORE_SCALE: u32 = 100;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshPeerEstimate {
     pub relay_value_score: HealthScore,
@@ -182,7 +195,7 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
             Belief::Estimated(estimate) => {
                 // Higher is better, so invert utilization.
                 let utilization = u32::from(estimate.value.utilization_permille.get());
-                HealthScore(1000_u32.saturating_sub(utilization))
+                HealthScore(HEALTH_SCORE_MAX.saturating_sub(utilization))
             }
         };
 
@@ -191,7 +204,7 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
             .hold_capacity_available_bytes
             .into_estimate()
             .map_or(0, |estimate| clamp_u64_to_u32(estimate.value.0));
-        let retention_value = HealthScore(retention_capacity.min(1000));
+        let retention_value = HealthScore(retention_capacity.min(HEALTH_SCORE_MAX));
 
         let stability = (u32::from(
             link.state
@@ -234,7 +247,7 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
         } = configuration.environment;
 
         let density_source = reachable_neighbor_count.max(neighbor_count);
-        let density_score = HealthScore(density_source.saturating_mul(100));
+        let density_score = HealthScore(density_source.saturating_mul(DENSITY_SCORE_SCALE));
         let repair_pressure_score = HealthScore(u32::from(churn_permille.get()));
         let partition_risk_score = HealthScore(
             u32::from(churn_permille.get()) / 2 + u32::from(contention_permille.get()) / 2,
@@ -252,7 +265,7 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
                     )
                 })
                 .sum::<u32>()
-                .min(1000),
+                .min(HEALTH_SCORE_MAX),
         );
 
         Some(MeshNeighborhoodEstimate {
@@ -271,7 +284,8 @@ pub(crate) fn route_capable_for_engine(
     engine_id: &RoutingEngineId,
     current_epoch: jacquard_core::RouteEpoch,
 ) -> bool {
-    service_surface_score(&node.profile.services, engine_id, current_epoch) >= 3
+    service_surface_score(&node.profile.services, engine_id, current_epoch)
+        >= MESH_REQUIRED_SERVICE_COUNT
 }
 
 // Destination matching: a Node destination matches by node-id only; a
