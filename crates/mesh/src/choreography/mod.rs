@@ -14,6 +14,5 @@ mod hold_replay;
 mod repair;
 mod runtime;
 
-pub(crate) use artifacts::MeshProtocolKind;
 pub(crate) use effects::MeshProtocolRuntimeAdapter;
 pub(crate) use runtime::MeshGuestRuntime;

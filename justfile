@@ -73,10 +73,13 @@ _gen-assets:
     # Patch mermaid-init.js with null guards for mdbook 0.5.x theme buttons
     sed -i.bak 's/document\.getElementById(\(.*\))\.addEventListener/const el = document.getElementById(\1); if (el) el.addEventListener/' mermaid-init.js && rm -f mermaid-init.js.bak
     # Generate theme/index.hbs with MathJax v2 inline $ config injected before MathJax loads
+    tmp_theme_dir="/tmp/mdbook-theme-gen"
     mkdir -p theme
-    mdbook init --theme /tmp/mdbook-theme-gen <<< $'n\n' > /dev/null 2>&1
-    sed 's|<script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>|<script>window.MathJax = { tex2jax: { inlineMath: [["$","$"],["\\\\(","\\\\)"]], displayMath: [["$$","$$"],["\\\\[","\\\\]"]], processEscapes: true } };</script>\n        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>|' /tmp/mdbook-theme-gen/theme/index.hbs > theme/index.hbs
-    rm -rf /tmp/mdbook-theme-gen
+    rm -rf "$tmp_theme_dir"
+    mdbook init "$tmp_theme_dir" --theme <<< $'n\n' > /dev/null 2>&1
+    test -f "$tmp_theme_dir/theme/index.hbs"
+    sed 's|<script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>|<script>window.MathJax = { tex2jax: { inlineMath: [["$","$"],["\\\\(","\\\\)"]], displayMath: [["$$","$$"],["\\\\[","\\\\]"]], processEscapes: true } };</script>\n        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>|' "$tmp_theme_dir/theme/index.hbs" > theme/index.hbs
+    rm -rf "$tmp_theme_dir"
 
 # Clean transient build assets
 _clean-assets:

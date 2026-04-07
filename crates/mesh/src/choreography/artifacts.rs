@@ -38,25 +38,21 @@ impl MeshProtocolKind {
 pub(crate) struct MeshProtocolSessionKey(pub(crate) String);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct MeshCompiledProtocolSpec {
+pub(crate) struct MeshProtocolSpec {
     pub(crate) kind:          MeshProtocolKind,
     pub(crate) source_path:   &'static str,
     pub(crate) protocol_name: String,
     pub(crate) role_names:    Vec<String>,
 }
 
-pub(crate) fn runtime_protocol_spec(
+pub(crate) fn protocol_spec(
     kind: MeshProtocolKind,
-) -> Result<&'static MeshCompiledProtocolSpec, String> {
-    static FORWARDING: OnceLock<Result<MeshCompiledProtocolSpec, String>> =
-        OnceLock::new();
-    static ACTIVATION: OnceLock<Result<MeshCompiledProtocolSpec, String>> =
-        OnceLock::new();
-    static REPAIR: OnceLock<Result<MeshCompiledProtocolSpec, String>> = OnceLock::new();
-    static HANDOFF: OnceLock<Result<MeshCompiledProtocolSpec, String>> =
-        OnceLock::new();
-    static HOLD_REPLAY: OnceLock<Result<MeshCompiledProtocolSpec, String>> =
-        OnceLock::new();
+) -> Result<&'static MeshProtocolSpec, String> {
+    static FORWARDING: OnceLock<Result<MeshProtocolSpec, String>> = OnceLock::new();
+    static ACTIVATION: OnceLock<Result<MeshProtocolSpec, String>> = OnceLock::new();
+    static REPAIR: OnceLock<Result<MeshProtocolSpec, String>> = OnceLock::new();
+    static HANDOFF: OnceLock<Result<MeshProtocolSpec, String>> = OnceLock::new();
+    static HOLD_REPLAY: OnceLock<Result<MeshProtocolSpec, String>> = OnceLock::new();
 
     let slot = match kind {
         | MeshProtocolKind::ForwardingHop => &FORWARDING,
@@ -71,7 +67,7 @@ pub(crate) fn runtime_protocol_spec(
         .map_err(Clone::clone)
 }
 
-fn build_spec(kind: MeshProtocolKind) -> MeshCompiledProtocolSpec {
+fn build_spec(kind: MeshProtocolKind) -> MeshProtocolSpec {
     match kind {
         | MeshProtocolKind::ForwardingHop => spec_from(
             kind,
@@ -111,8 +107,8 @@ fn spec_from(
     source_path: &'static str,
     protocol_name: &'static str,
     role_names: &[&'static str],
-) -> MeshCompiledProtocolSpec {
-    MeshCompiledProtocolSpec {
+) -> MeshProtocolSpec {
+    MeshProtocolSpec {
         kind,
         source_path,
         protocol_name: protocol_name.to_owned(),
@@ -122,11 +118,11 @@ fn spec_from(
 
 #[cfg(test)]
 mod tests {
-    use super::{runtime_protocol_spec, MeshProtocolKind};
+    use super::{protocol_spec, MeshProtocolKind};
 
     #[test]
     fn runtime_protocol_specs_match_inline_generated_protocols() {
-        let forwarding = runtime_protocol_spec(MeshProtocolKind::ForwardingHop)
+        let forwarding = protocol_spec(MeshProtocolKind::ForwardingHop)
             .expect("forwarding protocol spec");
         assert_eq!(forwarding.protocol_name, "ForwardingHop");
         assert!(forwarding
@@ -138,9 +134,12 @@ mod tests {
             "crates/mesh/src/choreography/forwarding.rs"
         );
 
-        let repair = runtime_protocol_spec(MeshProtocolKind::Repair)
-            .expect("repair protocol spec");
+        let repair =
+            protocol_spec(MeshProtocolKind::Repair).expect("repair protocol spec");
         assert_eq!(repair.protocol_name, "BoundedSuffixRepair");
-        assert!(repair.role_names.iter().any(|role| role == "Observer"));
+        assert!(repair
+            .role_names
+            .iter()
+            .any(|role| role == "CandidateRelay"));
     }
 }

@@ -17,7 +17,7 @@ use telltale::{
 #[cfg(test)]
 use super::effects::{MeshCheckpointEnvelope, MeshHeldPayload};
 use super::{
-    artifacts::{runtime_protocol_spec, MeshProtocolKind},
+    artifacts::{protocol_spec, MeshProtocolKind},
     effects::{MeshChoreoFrame, MeshProtocolObservation, MeshProtocolRuntime},
     runtime::{route_session, MeshGuestRuntime},
 };
@@ -149,7 +149,7 @@ where
             | Some("generated-dropped") => "generated-dropped",
             | _ => "generated-observed",
         };
-        let Ok(spec) = runtime_protocol_spec(MeshProtocolKind::ForwardingHop) else {
+        let Ok(spec) = protocol_spec(MeshProtocolKind::ForwardingHop) else {
             return;
         };
         let mut shared = self.shared.borrow_mut();
