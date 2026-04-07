@@ -150,6 +150,8 @@ ci-dry-run:
     add_step "Trait Purity"       "cargo xtask check trait-purity"
     add_step "Crate Boundary"     "cargo xtask check crate-boundary"
     add_step "No usize in Models" "cargo xtask check no-usize-in-models"
+    add_step "Mesh Choreography"  "cargo xtask check mesh-choreography"
+    add_step "Mesh Choreography Validate" "cargo xtask check mesh-choreography --validate"
     add_step "Routing Invariants" "cargo xtask check routing-invariants"
     add_step "Routing Invariants Validate" "cargo xtask check routing-invariants --validate"
     add_step "Install cargo-dylint" "nix develop ./nix/nightly --command install-dylint"

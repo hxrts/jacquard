@@ -596,6 +596,7 @@ dependencies = [
  "regex",
  "serde_json",
  "syn",
+ "telltale",
  "walkdir",
 ]
 

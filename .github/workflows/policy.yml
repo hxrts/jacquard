@@ -32,6 +32,10 @@ jobs:
         run: nix develop --command cargo xtask check crate-boundary
       - name: No usize in Models
         run: nix develop --command cargo xtask check no-usize-in-models
+      - name: Mesh Choreography
+        run: nix develop --command cargo xtask check mesh-choreography
+      - name: Mesh Choreography Validate
+        run: nix develop --command cargo xtask check mesh-choreography --validate
       - name: Routing Invariants
         run: nix develop --command cargo xtask check routing-invariants
       - name: Routing Invariants Validate
