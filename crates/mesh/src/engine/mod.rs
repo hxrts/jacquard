@@ -30,7 +30,7 @@ use jacquard_core::{
     Blake3Digest, Configuration, ContentId, NodeId, Observation, ReceiptId,
     RouteCommitmentId, RouteConnectivityProfile, RouteEpoch, RouteError, RouteEvent,
     RouteId, RoutePartitionClass, RouteRuntimeError, RouteSelectionError,
-    RoutingEngineCapabilities, RoutingEngineId, TransportObservation,
+    RoutingEngineCapabilities, RoutingEngineId,
 };
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing};
 pub(crate) use support::DOMAIN_TAG_COMMITTEE_ID;
@@ -366,11 +366,6 @@ where
         Ok(())
     }
 
-    pub fn poll_transport_observations(
-        &mut self,
-    ) -> Result<Vec<TransportObservation>, RouteError> {
-        self.choreography_runtime().poll_transport_ingress()
-    }
 }
 
 // Retention-Facing Helpers

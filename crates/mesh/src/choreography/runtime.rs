@@ -218,12 +218,6 @@ where
         Ok(observations)
     }
 
-    pub(crate) fn poll_transport_ingress(
-        &mut self,
-    ) -> Result<Vec<TransportObservation>, RouteError> {
-        self.effects.poll_mesh_ingress().map_err(RouteError::from)
-    }
-
     fn protocol_step<T, F>(
         &mut self,
         protocol: MeshProtocolKind,
