@@ -35,7 +35,7 @@ use jacquard_traits::{
 
 #[derive(Clone)]
 struct PreferredCommitteeTopologyModel {
-    base: jacquard_mesh::DeterministicMeshTopologyModel,
+    base:           jacquard_mesh::DeterministicMeshTopologyModel,
     preferred_peer: NodeId,
 }
 
@@ -235,9 +235,9 @@ fn diversity_topology() -> Observation<Configuration> {
     let node_six = NodeId([6; 32]);
 
     Observation {
-        value: Configuration {
-            epoch: RouteEpoch(2),
-            nodes: BTreeMap::from([
+        value:                 Configuration {
+            epoch:       RouteEpoch(2),
+            nodes:       BTreeMap::from([
                 (LOCAL_NODE_ID, node(1)),
                 (
                     node_two,
@@ -272,7 +272,7 @@ fn diversity_topology() -> Observation<Configuration> {
                     ),
                 ),
             ]),
-            links: BTreeMap::from([
+            links:       BTreeMap::from([
                 ((LOCAL_NODE_ID, node_two), link(2, 980)),
                 ((LOCAL_NODE_ID, node_four), link(4, 960)),
                 ((LOCAL_NODE_ID, node_five), link(5, 940)),
@@ -280,16 +280,16 @@ fn diversity_topology() -> Observation<Configuration> {
             ]),
             environment: Environment {
                 reachable_neighbor_count: 4,
-                churn_permille: RatioPermille(120),
-                contention_permille: RatioPermille(110),
+                churn_permille:           RatioPermille(120),
+                contention_permille:      RatioPermille(110),
             },
         },
-        source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
+        source_class:          jacquard_traits::jacquard_core::FactSourceClass::Local,
         evidence_class:
             jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
         origin_authentication:
             jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(2),
+        observed_at_tick:      Tick(2),
     }
 }
 
@@ -441,7 +441,9 @@ fn behavior_history_can_disqualify_otherwise_high_scoring_members() {
         .with_behavior_history(BTreeMap::from([(
             NodeId([2; 32]),
             jacquard_mesh::MeshBehaviorHistory {
-                reliability_score: jacquard_traits::jacquard_core::HealthScore(100),
+                reliability_score:          jacquard_traits::jacquard_core::HealthScore(
+                    100,
+                ),
                 misbehavior_penalty_points: PenaltyPoints(800),
             },
         )]));

@@ -1,21 +1,16 @@
-//! Mesh choreography artifact catalog and compile path.
+//! Mesh choreography metadata catalog.
 //!
-//! Mesh runtime code reaches for choreography protocols by kind, not by file
-//! name. This module is the lookup layer that maps a protocol kind to its
-//! source text, compiles it through Telltale's normal choreography pipeline,
-//! and keeps the forwarding helper protocol and the larger `.tell` artifacts on
-//! one internal path.
+//! Control flow intuition: runtime code refers to protocols by
+//! `MeshProtocolKind` and resolves small stable metadata from this module. The
+//! actual protocol bodies live inline in sibling modules via `tell!`; this
+//! catalog only keeps the names and role lists that checkpoints and
+//! observations need.
 
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
-use telltale::{compile_choreography, CompileArtifactsError, CompiledChoreography};
 
-const FORWARDING_HOP_DSL: &str = include_str!("forwarding.tell");
-const ACTIVATION_DSL: &str = include_str!("activation.tell");
-const REPAIR_DSL: &str = include_str!("repair.tell");
-const HANDOFF_DSL: &str = include_str!("handoff.tell");
-const HOLD_REPLAY_DSL: &str = include_str!("hold_replay.tell");
+use super::{activation, forwarding, handoff, hold_replay, repair};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum MeshProtocolKind {
@@ -42,67 +37,24 @@ impl MeshProtocolKind {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct MeshProtocolSessionKey(pub(crate) String);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct MeshProtocolArtifact {
-    pub(crate) kind: MeshProtocolKind,
-    pub(crate) source_path: &'static str,
-    pub(crate) source: &'static str,
-}
-
-impl MeshProtocolArtifact {
-    #[must_use]
-    pub(crate) const fn for_kind(kind: MeshProtocolKind) -> Self {
-        match kind {
-            | MeshProtocolKind::ForwardingHop => Self {
-                kind,
-                source_path: "crates/mesh/src/choreography/forwarding.tell",
-                source: FORWARDING_HOP_DSL,
-            },
-            | MeshProtocolKind::Activation => Self {
-                kind,
-                source_path: "crates/mesh/src/choreography/activation.tell",
-                source: ACTIVATION_DSL,
-            },
-            | MeshProtocolKind::Repair => Self {
-                kind,
-                source_path: "crates/mesh/src/choreography/repair.tell",
-                source: REPAIR_DSL,
-            },
-            | MeshProtocolKind::Handoff => Self {
-                kind,
-                source_path: "crates/mesh/src/choreography/handoff.tell",
-                source: HANDOFF_DSL,
-            },
-            | MeshProtocolKind::HoldReplay => Self {
-                kind,
-                source_path: "crates/mesh/src/choreography/hold_replay.tell",
-                source: HOLD_REPLAY_DSL,
-            },
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshCompiledProtocolSpec {
-    pub(crate) kind: MeshProtocolKind,
-    pub(crate) source_path: &'static str,
+    pub(crate) kind:          MeshProtocolKind,
+    pub(crate) source_path:   &'static str,
     pub(crate) protocol_name: String,
-    pub(crate) role_names: Vec<String>,
-}
-
-pub(crate) fn compile_protocol(
-    kind: MeshProtocolKind,
-) -> Result<CompiledChoreography, CompileArtifactsError> {
-    compile_choreography(MeshProtocolArtifact::for_kind(kind).source)
+    pub(crate) role_names:    Vec<String>,
 }
 
 pub(crate) fn runtime_protocol_spec(
     kind: MeshProtocolKind,
 ) -> Result<&'static MeshCompiledProtocolSpec, String> {
-    static FORWARDING: OnceLock<Result<MeshCompiledProtocolSpec, String>> = OnceLock::new();
-    static ACTIVATION: OnceLock<Result<MeshCompiledProtocolSpec, String>> = OnceLock::new();
+    static FORWARDING: OnceLock<Result<MeshCompiledProtocolSpec, String>> =
+        OnceLock::new();
+    static ACTIVATION: OnceLock<Result<MeshCompiledProtocolSpec, String>> =
+        OnceLock::new();
     static REPAIR: OnceLock<Result<MeshCompiledProtocolSpec, String>> = OnceLock::new();
-    static HANDOFF: OnceLock<Result<MeshCompiledProtocolSpec, String>> = OnceLock::new();
+    static HANDOFF: OnceLock<Result<MeshCompiledProtocolSpec, String>> =
+        OnceLock::new();
     static HOLD_REPLAY: OnceLock<Result<MeshCompiledProtocolSpec, String>> =
         OnceLock::new();
 
@@ -114,79 +66,81 @@ pub(crate) fn runtime_protocol_spec(
         | MeshProtocolKind::HoldReplay => &HOLD_REPLAY,
     };
 
-    slot
-        .get_or_init(|| build_runtime_protocol_spec(kind).map_err(|err| err.to_string()))
+    slot.get_or_init(|| Ok(build_spec(kind)))
         .as_ref()
         .map_err(Clone::clone)
 }
 
-fn build_runtime_protocol_spec(
+fn build_spec(kind: MeshProtocolKind) -> MeshCompiledProtocolSpec {
+    match kind {
+        | MeshProtocolKind::ForwardingHop => spec_from(
+            kind,
+            forwarding::SOURCE_PATH,
+            forwarding::PROTOCOL_NAME,
+            forwarding::ROLE_NAMES,
+        ),
+        | MeshProtocolKind::Activation => spec_from(
+            kind,
+            activation::SOURCE_PATH,
+            activation::PROTOCOL_NAME,
+            activation::ROLE_NAMES,
+        ),
+        | MeshProtocolKind::Repair => spec_from(
+            kind,
+            repair::SOURCE_PATH,
+            repair::PROTOCOL_NAME,
+            repair::ROLE_NAMES,
+        ),
+        | MeshProtocolKind::Handoff => spec_from(
+            kind,
+            handoff::SOURCE_PATH,
+            handoff::PROTOCOL_NAME,
+            handoff::ROLE_NAMES,
+        ),
+        | MeshProtocolKind::HoldReplay => spec_from(
+            kind,
+            hold_replay::SOURCE_PATH,
+            hold_replay::PROTOCOL_NAME,
+            hold_replay::ROLE_NAMES,
+        ),
+    }
+}
+
+fn spec_from(
     kind: MeshProtocolKind,
-) -> Result<MeshCompiledProtocolSpec, CompileArtifactsError> {
-    let artifact = MeshProtocolArtifact::for_kind(kind);
-    let compiled = compile_protocol(kind)?;
-    Ok(MeshCompiledProtocolSpec {
+    source_path: &'static str,
+    protocol_name: &'static str,
+    role_names: &[&'static str],
+) -> MeshCompiledProtocolSpec {
+    MeshCompiledProtocolSpec {
         kind,
-        source_path: artifact.source_path,
-        protocol_name: compiled.choreography.name.to_string(),
-        role_names: compiled.role_names(),
-    })
+        source_path,
+        protocol_name: protocol_name.to_owned(),
+        role_names: role_names.iter().map(|role| (*role).to_owned()).collect(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        compile_choreography, compile_protocol, runtime_protocol_spec,
-        MeshProtocolArtifact, MeshProtocolKind,
-    };
-
-    fn protocol_name(kind: MeshProtocolKind) -> &'static str {
-        match kind {
-            | MeshProtocolKind::ForwardingHop => "ForwardingHop",
-            | MeshProtocolKind::Activation => "ActivationHandshake",
-            | MeshProtocolKind::Repair => "BoundedSuffixRepair",
-            | MeshProtocolKind::Handoff => "SemanticHandoff",
-            | MeshProtocolKind::HoldReplay => "HoldReplayExchange",
-        }
-    }
+    use super::{runtime_protocol_spec, MeshProtocolKind};
 
     #[test]
-    fn every_mesh_protocol_artifact_compiles() {
-        for kind in [
-            MeshProtocolKind::ForwardingHop,
-            MeshProtocolKind::Activation,
-            MeshProtocolKind::Repair,
-            MeshProtocolKind::Handoff,
-            MeshProtocolKind::HoldReplay,
-        ] {
-            let artifact = MeshProtocolArtifact::for_kind(kind);
-            let compiled = compile_protocol(kind).unwrap_or_else(|err| {
-                panic!("compile {}: {err}", artifact.source_path)
-            });
-            assert_eq!(compiled.choreography.name, protocol_name(kind));
-            assert!(
-                !compiled.role_names().is_empty(),
-                "compiled choreography should declare roles"
-            );
-        }
-    }
+    fn runtime_protocol_specs_match_inline_generated_protocols() {
+        let forwarding = runtime_protocol_spec(MeshProtocolKind::ForwardingHop)
+            .expect("forwarding protocol spec");
+        assert_eq!(forwarding.protocol_name, "ForwardingHop");
+        assert!(forwarding
+            .role_names
+            .iter()
+            .any(|role| role == "CurrentOwner"));
+        assert_eq!(
+            forwarding.source_path,
+            "crates/mesh/src/choreography/forwarding.rs"
+        );
 
-    #[test]
-    fn forwarding_hop_source_compiles() {
-        let compiled = compile_choreography(super::FORWARDING_HOP_DSL)
-            .expect("compile forwarding hop");
-        assert_eq!(compiled.choreography.name, "ForwardingHop");
-        assert!(compiled.role_names().contains(&"CurrentOwner".to_string()));
-        assert!(compiled.role_names().contains(&"NextHop".to_string()));
-        assert!(compiled.role_names().contains(&"Observer".to_string()));
-    }
-
-    #[test]
-    fn runtime_protocol_specs_are_derived_from_compiled_artifacts() {
-        let spec = runtime_protocol_spec(MeshProtocolKind::Repair)
+        let repair = runtime_protocol_spec(MeshProtocolKind::Repair)
             .expect("repair protocol spec");
-        assert_eq!(spec.protocol_name, "BoundedSuffixRepair");
-        assert!(spec.role_names.iter().any(|role| role == "CurrentOwner"));
-        assert_eq!(spec.source_path, "crates/mesh/src/choreography/repair.tell");
+        assert_eq!(repair.protocol_name, "BoundedSuffixRepair");
+        assert!(repair.role_names.iter().any(|role| role == "Observer"));
     }
 }

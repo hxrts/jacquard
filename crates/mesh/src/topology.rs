@@ -36,24 +36,24 @@ pub const DENSITY_SCORE_SCALE: u32 = 100;
 pub struct MeshServiceRequirements {
     pub discover: bool,
     pub activate: bool,
-    pub move_: bool,
-    pub repair: bool,
-    pub hold: bool,
+    pub move_:    bool,
+    pub repair:   bool,
+    pub hold:     bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshPeerEstimate {
-    pub relay_value_score: Option<HealthScore>,
+    pub relay_value_score:     Option<HealthScore>,
     pub retention_value_score: Option<HealthScore>,
-    pub stability_score: Option<HealthScore>,
-    pub service_score: Option<HealthScore>,
+    pub stability_score:       Option<HealthScore>,
+    pub service_score:         Option<HealthScore>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshNeighborhoodEstimate {
-    pub density_score: Option<HealthScore>,
-    pub repair_pressure_score: Option<HealthScore>,
-    pub partition_risk_score: Option<HealthScore>,
+    pub density_score:           Option<HealthScore>,
+    pub repair_pressure_score:   Option<HealthScore>,
+    pub partition_risk_score:    Option<HealthScore>,
     pub service_stability_score: Option<HealthScore>,
 }
 
@@ -95,16 +95,16 @@ impl MeshNeighborhoodEstimateAccess for MeshNeighborhoodEstimate {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshMediumState {
-    pub protocol_counts: BTreeMap<TransportProtocol, u32>,
-    pub loss_floor_permille: RatioPermille,
+    pub protocol_counts:         BTreeMap<TransportProtocol, u32>,
+    pub loss_floor_permille:     RatioPermille,
     pub symmetry_floor_permille: RatioPermille,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshNodeIntrinsicState {
-    pub available_connection_count: u32,
+    pub available_connection_count:    u32,
     pub hold_capacity_available_bytes: ByteCount,
-    pub relay_budget: Option<NodeRelayBudget>,
+    pub relay_budget:                  Option<NodeRelayBudget>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -124,13 +124,13 @@ impl DeterministicMeshTopologyModel {
     ) -> Option<MeshNodeIntrinsicState> {
         let node = configuration.nodes.get(local_node_id)?;
         Some(MeshNodeIntrinsicState {
-            available_connection_count: belief_u32(
+            available_connection_count:    belief_u32(
                 node.state.available_connection_count,
             ),
             hold_capacity_available_bytes: belief_byte_count(
                 node.state.hold_capacity_available_bytes,
             ),
-            relay_budget: match &node.state.relay_budget {
+            relay_budget:                  match &node.state.relay_budget {
                 | Belief::Absent => None,
                 | Belief::Estimated(estimate) => Some(estimate.value.clone()),
             },
@@ -606,10 +606,10 @@ mod tests {
 
     fn empty_node_state() -> NodeState {
         NodeState {
-            relay_budget: Belief::Absent,
-            available_connection_count: Belief::Absent,
+            relay_budget:                  Belief::Absent,
+            available_connection_count:    Belief::Absent,
             hold_capacity_available_bytes: Belief::Absent,
-            information_summary: Belief::Absent,
+            information_summary:           Belief::Absent,
         }
     }
 
@@ -635,49 +635,51 @@ mod tests {
     ) -> ServiceDescriptor {
         ServiceDescriptor {
             provider_node_id: NodeId([0; 32]),
-            controller_id: ControllerId([0; 32]),
-            service_kind: kind,
-            endpoints: Vec::new(),
-            routing_engines: vec![engine],
-            scope: ServiceScope::Discovery(jacquard_core::DiscoveryScopeId([0; 16])),
-            valid_for: validity,
-            capacity: Belief::Absent,
+            controller_id:    ControllerId([0; 32]),
+            service_kind:     kind,
+            endpoints:        Vec::new(),
+            routing_engines:  vec![engine],
+            scope:            ServiceScope::Discovery(jacquard_core::DiscoveryScopeId(
+                [0; 16],
+            )),
+            valid_for:        validity,
+            capacity:         Belief::Absent,
         }
     }
 
     fn node_with_services(services: Vec<ServiceDescriptor>) -> Node {
         Node {
             controller_id: ControllerId([0; 32]),
-            profile: NodeProfile { services, ..empty_node_profile() },
-            state: empty_node_state(),
+            profile:       NodeProfile { services, ..empty_node_profile() },
+            state:         empty_node_state(),
         }
     }
 
     fn active_link(byte: u8, confidence: u16) -> Link {
         Link {
             endpoint: LinkEndpoint {
-                protocol: TransportProtocol::BleGatt,
-                address: jacquard_core::EndpointAddress::Ble {
-                    device_id: BleDeviceId(vec![byte]),
+                protocol:  TransportProtocol::BleGatt,
+                address:   jacquard_core::EndpointAddress::Ble {
+                    device_id:  BleDeviceId(vec![byte]),
                     profile_id: BleProfileId([byte; 16]),
                 },
                 mtu_bytes: ByteCount(256),
             },
-            state: LinkState {
+            state:    LinkState {
                 state: LinkRuntimeState::Active,
                 median_rtt_ms: jacquard_core::DurationMs(20),
                 transfer_rate_bytes_per_sec: Belief::Absent,
                 stability_horizon_ms: Belief::Absent,
                 loss_permille: RatioPermille(0),
                 delivery_confidence_permille: Belief::Estimated(Estimate {
-                    value: RatioPermille(confidence),
+                    value:               RatioPermille(confidence),
                     confidence_permille: RatioPermille(1000),
-                    updated_at_tick: Tick(0),
+                    updated_at_tick:     Tick(0),
                 }),
                 symmetry_permille: Belief::Estimated(Estimate {
-                    value: RatioPermille(900),
+                    value:               RatioPermille(900),
                     confidence_permille: RatioPermille(1000),
-                    updated_at_tick: Tick(0),
+                    updated_at_tick:     Tick(0),
                 }),
             },
         }
@@ -717,7 +719,7 @@ mod tests {
     fn route_capable_filters_by_engine_id() {
         let validity = TimeWindow::new(Tick(0), Tick(100)).unwrap();
         let other_engine = RoutingEngineId::External {
-            name: "external-test".into(),
+            name:        "external-test".into(),
             contract_id: jacquard_core::RoutingEngineContractId([1; 16]),
         };
         let foreign = node_with_services(vec![
@@ -739,8 +741,8 @@ mod tests {
         let peer = NodeId([2; 32]);
         let validity = TimeWindow::new(Tick(0), Tick(100)).unwrap();
         let configuration = Configuration {
-            epoch: RouteEpoch(0),
-            nodes: BTreeMap::from([
+            epoch:       RouteEpoch(0),
+            nodes:       BTreeMap::from([
                 (local, node_with_services(vec![])),
                 (
                     peer,
@@ -763,18 +765,18 @@ mod tests {
                     ]),
                 ),
             ]),
-            links: BTreeMap::from([(
+            links:       BTreeMap::from([(
                 (local, peer),
                 Link {
                     endpoint: LinkEndpoint {
-                        protocol: TransportProtocol::BleGatt,
-                        address: jacquard_core::EndpointAddress::Ble {
-                            device_id: BleDeviceId(vec![2]),
+                        protocol:  TransportProtocol::BleGatt,
+                        address:   jacquard_core::EndpointAddress::Ble {
+                            device_id:  BleDeviceId(vec![2]),
                             profile_id: BleProfileId([2; 16]),
                         },
                         mtu_bytes: ByteCount(256),
                     },
-                    state: LinkState {
+                    state:    LinkState {
                         state: LinkRuntimeState::Active,
                         median_rtt_ms: jacquard_core::DurationMs(20),
                         transfer_rate_bytes_per_sec: Belief::Absent,
@@ -787,8 +789,8 @@ mod tests {
             )]),
             environment: Environment {
                 reachable_neighbor_count: 1,
-                churn_permille: RatioPermille(0),
-                contention_permille: RatioPermille(0),
+                churn_permille:           RatioPermille(0),
+                contention_permille:      RatioPermille(0),
             },
         };
         let model = DeterministicMeshTopologyModel::new();
@@ -860,8 +862,8 @@ mod tests {
         let peer = NodeId([2; 32]);
         let long_validity = TimeWindow::new(Tick(0), Tick(100)).unwrap();
         let mut configuration = Configuration {
-            epoch: RouteEpoch(0),
-            nodes: BTreeMap::from([
+            epoch:       RouteEpoch(0),
+            nodes:       BTreeMap::from([
                 (local, node_with_services(vec![])),
                 (
                     peer,
@@ -884,11 +886,11 @@ mod tests {
                     ]),
                 ),
             ]),
-            links: BTreeMap::from([((local, peer), active_link(2, 950))]),
+            links:       BTreeMap::from([((local, peer), active_link(2, 950))]),
             environment: Environment {
                 reachable_neighbor_count: 1,
-                churn_permille: RatioPermille(0),
-                contention_permille: RatioPermille(0),
+                churn_permille:           RatioPermille(0),
+                contention_permille:      RatioPermille(0),
             },
         };
         let model = DeterministicMeshTopologyModel::new();
@@ -909,13 +911,13 @@ mod tests {
     fn neighborhood_density_score_is_clamped_to_health_score_max() {
         let local = NodeId([1; 32]);
         let configuration = Configuration {
-            epoch: RouteEpoch(0),
-            nodes: BTreeMap::from([(local, node_with_services(vec![]))]),
-            links: BTreeMap::new(),
+            epoch:       RouteEpoch(0),
+            nodes:       BTreeMap::from([(local, node_with_services(vec![]))]),
+            links:       BTreeMap::new(),
             environment: Environment {
                 reachable_neighbor_count: 99,
-                churn_permille: RatioPermille(0),
-                contention_permille: RatioPermille(0),
+                churn_permille:           RatioPermille(0),
+                contention_permille:      RatioPermille(0),
             },
         };
         let model = DeterministicMeshTopologyModel::new();
@@ -937,17 +939,17 @@ mod tests {
             service(RouteServiceKind::Hold, RoutingEngineId::Mesh, validity),
         ]);
         let objective = RoutingObjective {
-            destination: DestinationId::Node(NodeId([7; 32])),
-            service_kind: RouteServiceKind::Move,
-            target_protection: jacquard_core::RouteProtectionClass::LinkProtected,
-            protection_floor: jacquard_core::RouteProtectionClass::LinkProtected,
-            target_connectivity: jacquard_core::RouteConnectivityProfile {
-                repair: jacquard_core::RouteRepairClass::Repairable,
+            destination:           DestinationId::Node(NodeId([7; 32])),
+            service_kind:          RouteServiceKind::Move,
+            target_protection:     jacquard_core::RouteProtectionClass::LinkProtected,
+            protection_floor:      jacquard_core::RouteProtectionClass::LinkProtected,
+            target_connectivity:   jacquard_core::RouteConnectivityProfile {
+                repair:    jacquard_core::RouteRepairClass::Repairable,
                 partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
-            hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
-            latency_budget_ms: jacquard_core::Limit::Unbounded,
-            protection_priority: jacquard_core::PriorityPoints(0),
+            hold_fallback_policy:  jacquard_core::HoldFallbackPolicy::Allowed,
+            latency_budget_ms:     jacquard_core::Limit::Unbounded,
+            protection_priority:   jacquard_core::PriorityPoints(0),
             connectivity_priority: jacquard_core::PriorityPoints(0),
         };
 
@@ -974,9 +976,9 @@ mod tests {
         let left = NodeId([1; 32]);
         let right = NodeId([2; 32]);
         let endpoint = LinkEndpoint {
-            protocol: TransportProtocol::BleGatt,
-            address: jacquard_core::EndpointAddress::Ble {
-                device_id: jacquard_core::BleDeviceId(vec![1]),
+            protocol:  TransportProtocol::BleGatt,
+            address:   jacquard_core::EndpointAddress::Ble {
+                device_id:  jacquard_core::BleDeviceId(vec![1]),
                 profile_id: jacquard_core::BleProfileId([1; 16]),
             },
             mtu_bytes: ByteCount(256),
@@ -994,13 +996,13 @@ mod tests {
             },
         };
         let configuration = Configuration {
-            epoch: RouteEpoch(0),
-            nodes: BTreeMap::new(),
-            links: BTreeMap::from([((left, right), link)]),
+            epoch:       RouteEpoch(0),
+            nodes:       BTreeMap::new(),
+            links:       BTreeMap::from([((left, right), link)]),
             environment: Environment {
                 reachable_neighbor_count: 0,
-                churn_permille: RatioPermille(0),
-                contention_permille: RatioPermille(0),
+                churn_permille:           RatioPermille(0),
+                contention_permille:      RatioPermille(0),
             },
         };
 
@@ -1013,13 +1015,13 @@ mod tests {
     #[test]
     fn adjacent_node_ids_returns_empty_for_missing_node_or_empty_graph() {
         let empty = Configuration {
-            epoch: RouteEpoch(0),
-            nodes: BTreeMap::new(),
-            links: BTreeMap::new(),
+            epoch:       RouteEpoch(0),
+            nodes:       BTreeMap::new(),
+            links:       BTreeMap::new(),
             environment: Environment {
                 reachable_neighbor_count: 0,
-                churn_permille: RatioPermille(0),
-                contention_permille: RatioPermille(0),
+                churn_permille:           RatioPermille(0),
+                contention_permille:      RatioPermille(0),
             },
         };
         assert!(adjacent_node_ids(&NodeId([1; 32]), &empty).is_empty());

@@ -28,10 +28,10 @@ use super::{
 };
 
 struct MaintenanceContext<'a> {
-    identity: &'a MaterializedRouteIdentity,
-    now: jacquard_core::Tick,
+    identity:           &'a MaterializedRouteIdentity,
+    now:                jacquard_core::Tick,
     handoff_receipt_id: jacquard_core::ReceiptId,
-    latest_topology: Option<&'a Observation<Configuration>>,
+    latest_topology:    Option<&'a Observation<Configuration>>,
 }
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -132,7 +132,7 @@ where
         self.store_checkpoint(&next_active_route)?;
         if let Err(error) = self.record_event(RouteEvent::RouteMaintenanceCompleted {
             route_id: identity.handle.route_id,
-            result: result.clone(),
+            result:   result.clone(),
         }) {
             let _ = self.store_checkpoint(&original_active_route);
             return Err(error);

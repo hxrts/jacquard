@@ -14,15 +14,15 @@ use crate::{
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoutingEngineCapabilities {
-    pub engine: RoutingEngineId,
-    pub max_protection: RouteProtectionClass,
-    pub max_connectivity: RouteConnectivityProfile,
-    pub repair_support: RepairSupport,
-    pub hold_support: HoldSupport,
-    pub decidable_admission: DecidableSupport,
-    pub quantitative_bounds: QuantitativeBoundSupport,
+    pub engine:                  RoutingEngineId,
+    pub max_protection:          RouteProtectionClass,
+    pub max_connectivity:        RouteConnectivityProfile,
+    pub repair_support:          RepairSupport,
+    pub hold_support:            HoldSupport,
+    pub decidable_admission:     DecidableSupport,
+    pub quantitative_bounds:     QuantitativeBoundSupport,
     pub reconfiguration_support: ReconfigurationSupport,
-    pub route_shape_visibility: RouteShapeVisibility,
+    pub route_shape_visibility:  RouteShapeVisibility,
 }
 
 #[public_model]
@@ -88,12 +88,12 @@ pub enum RouteShapeVisibility {
 /// compares them.
 pub struct AdmissionAssumptions {
     pub message_flow_assumption: MessageFlowAssumptionClass,
-    pub failure_model: FailureModelClass,
-    pub runtime_envelope: RuntimeEnvelopeClass,
-    pub node_density_class: NodeDensityClass,
-    pub connectivity_regime: ConnectivityRegime,
-    pub adversary_regime: AdversaryRegime,
-    pub claim_strength: ClaimStrength,
+    pub failure_model:           FailureModelClass,
+    pub runtime_envelope:        RuntimeEnvelopeClass,
+    pub node_density_class:      NodeDensityClass,
+    pub connectivity_regime:     ConnectivityRegime,
+    pub adversary_regime:        AdversaryRegime,
+    pub claim_strength:          ClaimStrength,
 }
 
 #[public_model]
@@ -168,13 +168,13 @@ pub enum ClaimStrength {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteSummary {
-    pub engine: RoutingEngineId,
-    pub protection: RouteProtectionClass,
-    pub connectivity: RouteConnectivityProfile,
-    pub protocol_mix: Vec<TransportProtocol>,
+    pub engine:         RoutingEngineId,
+    pub protection:     RouteProtectionClass,
+    pub connectivity:   RouteConnectivityProfile,
+    pub protocol_mix:   Vec<TransportProtocol>,
     /// Bounded by [`ROUTE_HOP_COUNT_MAX`](crate::ROUTE_HOP_COUNT_MAX).
     pub hop_count_hint: Belief<u8>,
-    pub valid_for: TimeWindow,
+    pub valid_for:      TimeWindow,
 }
 
 // Advisory only: a RouteCandidate is never proof-bearing evidence.
@@ -182,21 +182,21 @@ pub struct RouteSummary {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCandidate {
-    pub summary: RouteSummary,
+    pub summary:     RouteSummary,
     /// Candidate enumeration is observational/advisory. It must not be treated
     /// as proof-bearing admission evidence.
-    pub estimate: Estimate<RouteEstimate>,
+    pub estimate:    Estimate<RouteEstimate>,
     pub backend_ref: BackendRouteRef,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteAdmissionCheck {
-    pub decision: AdmissionDecision,
-    pub profile: AdmissionAssumptions,
+    pub decision:              AdmissionDecision,
+    pub profile:               AdmissionAssumptions,
     pub productive_step_bound: Limit<u32>,
-    pub total_step_bound: Limit<u32>,
-    pub route_cost: RouteCost,
+    pub total_step_bound:      Limit<u32>,
+    pub route_cost:            RouteCost,
 }
 
 #[public_model]
@@ -234,13 +234,13 @@ pub enum RouteAdmissionRejection {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteAdmission {
-    pub route_id: RouteId,
-    pub backend_ref: BackendRouteRef,
-    pub objective: RoutingObjective,
-    pub profile: AdaptiveRoutingProfile,
+    pub route_id:        RouteId,
+    pub backend_ref:     BackendRouteRef,
+    pub objective:       RoutingObjective,
+    pub profile:         AdaptiveRoutingProfile,
     pub admission_check: RouteAdmissionCheck,
-    pub summary: RouteSummary,
-    pub witness: RouteWitness,
+    pub summary:         RouteSummary,
+    pub witness:         RouteWitness,
 }
 
 #[public_model]
@@ -248,13 +248,13 @@ pub struct RouteAdmission {
 /// Proof-bearing explanation of what the admitted route actually delivers.
 /// If protection was reduced for connectivity, that fact is explicit here.
 pub struct RouteWitness {
-    pub objective_protection: RouteProtectionClass,
-    pub delivered_protection: RouteProtectionClass,
+    pub objective_protection:   RouteProtectionClass,
+    pub delivered_protection:   RouteProtectionClass,
     pub objective_connectivity: RouteConnectivityProfile,
     pub delivered_connectivity: RouteConnectivityProfile,
-    pub admission_profile: AdmissionAssumptions,
-    pub topology_epoch: RouteEpoch,
-    pub degradation: RouteDegradation,
+    pub admission_profile:      AdmissionAssumptions,
+    pub topology_epoch:         RouteEpoch,
+    pub degradation:            RouteDegradation,
 }
 
 #[public_model]
@@ -285,6 +285,6 @@ pub enum DegradationReason {
 /// This is a weak advisory reference and is not a canonical installed-route
 /// handle.
 pub struct BackendRouteRef {
-    pub engine: RoutingEngineId,
+    pub engine:           RoutingEngineId,
     pub backend_route_id: BackendRouteId,
 }

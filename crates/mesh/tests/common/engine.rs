@@ -104,12 +104,12 @@ pub fn profile_with_connectivity(
     partition: RoutePartitionClass,
 ) -> AdaptiveRoutingProfile {
     AdaptiveRoutingProfile {
-        selected_protection: RouteProtectionClass::LinkProtected,
-        selected_connectivity: RouteConnectivityProfile { repair, partition },
-        deployment_profile: DeploymentProfile::FieldPartitionTolerant,
-        diversity_floor: 1,
+        selected_protection:            RouteProtectionClass::LinkProtected,
+        selected_connectivity:          RouteConnectivityProfile { repair, partition },
+        deployment_profile:             DeploymentProfile::FieldPartitionTolerant,
+        diversity_floor:                1,
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
-        route_replacement_policy: RouteReplacementPolicy::Allowed,
+        route_replacement_policy:       RouteReplacementPolicy::Allowed,
     }
 }
 
@@ -119,8 +119,8 @@ pub fn profile_with_connectivity(
 pub fn lease(start: Tick, end: Tick) -> RouteLease {
     RouteLease {
         owner_node_id: LOCAL_NODE_ID,
-        lease_epoch: sample_configuration().value.epoch,
-        valid_for: TimeWindow::new(start, end).expect("valid lease window"),
+        lease_epoch:   sample_configuration().value.epoch,
+        valid_for:     TimeWindow::new(start, end).expect("valid lease window"),
     }
 }
 
@@ -194,14 +194,14 @@ pub fn activate_route_with_profile(
 
     let runtime = RouteRuntimeState {
         last_lifecycle_event: installation.last_lifecycle_event,
-        health: installation.health,
-        progress: installation.progress,
+        health:               installation.health,
+        progress:             installation.progress,
     };
     let identity = MaterializedRouteIdentity {
-        handle: input.handle,
+        handle:                input.handle,
         materialization_proof: installation.materialization_proof,
-        admission: input.admission,
-        lease: input.lease,
+        admission:             input.admission,
+        lease:                 input.lease,
     };
     debug_assert_eq!(
         materialization_tick, identity.handle.materialized_at_tick,

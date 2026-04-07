@@ -77,7 +77,7 @@ The internal split is:
   - semantic handoff
   - hold / replay exchange
 
-Larger multi-role protocols live as `.tell` sources compiled through the normal Telltale pipeline. Small helper protocols can stay inline with `tell!` when adjacency to Rust glue materially improves readability.
+Mesh protocols now live inline in the mesh crate as `tell!` definitions. That keeps the generated protocol/session code adjacent to the Rust host logic that enters those protocols and avoids a second file-based choreography source of truth.
 
 Mesh also keeps one mesh-owned choreography interpreter surface above the shared runtime traits. That interpreter maps protocol-local requests onto the existing Jacquard boundaries:
 

@@ -33,10 +33,10 @@ pub struct NodeProfile {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Current node state in the routing world model.
 pub struct NodeState {
-    pub relay_budget: Belief<NodeRelayBudget>,
-    pub available_connection_count: Belief<u32>,
+    pub relay_budget:                  Belief<NodeRelayBudget>,
+    pub available_connection_count:    Belief<u32>,
     pub hold_capacity_available_bytes: Belief<ByteCount>,
-    pub information_summary: Belief<InformationSetSummary>,
+    pub information_summary:           Belief<InformationSetSummary>,
 }
 
 #[public_model]
@@ -44,8 +44,8 @@ pub struct NodeState {
 /// Instantiated node object in the routing world model.
 pub struct Node {
     pub controller_id: ControllerId,
-    pub profile: NodeProfile,
-    pub state: NodeState,
+    pub profile:       NodeProfile,
+    pub state:         NodeState,
 }
 
 #[public_model]
@@ -66,7 +66,7 @@ pub struct LinkState {
 /// Instantiated link object in the routing world model.
 pub struct Link {
     pub endpoint: LinkEndpoint,
-    pub state: LinkState,
+    pub state:    LinkState,
 }
 
 #[public_model]
@@ -74,8 +74,8 @@ pub struct Link {
 /// Instantiated local environment object in the routing world model.
 pub struct Environment {
     pub reachable_neighbor_count: u32,
-    pub churn_permille: RatioPermille,
-    pub contention_permille: RatioPermille,
+    pub churn_permille:           RatioPermille,
+    pub contention_permille:      RatioPermille,
 }
 
 #[public_model]
@@ -83,9 +83,9 @@ pub struct Environment {
 /// Wired-together routing configuration. In practice this is often a partial
 /// local view.
 pub struct Configuration {
-    pub epoch: RouteEpoch,
-    pub nodes: BTreeMap<NodeId, Node>,
-    pub links: BTreeMap<(NodeId, NodeId), Link>,
+    pub epoch:       RouteEpoch,
+    pub nodes:       BTreeMap<NodeId, Node>,
+    pub links:       BTreeMap<(NodeId, NodeId), Link>,
     pub environment: Environment,
 }
 
@@ -99,7 +99,7 @@ mod tests {
     fn empty_node(controller_byte: u8) -> Node {
         Node {
             controller_id: ControllerId([controller_byte; 32]),
-            profile: NodeProfile {
+            profile:       NodeProfile {
                 services: Vec::new(),
                 endpoints: Vec::new(),
                 connection_count_max: 0,
@@ -111,11 +111,11 @@ mod tests {
                 hold_item_count_max: 0,
                 hold_capacity_bytes_max: ByteCount(0),
             },
-            state: NodeState {
-                relay_budget: Belief::Absent,
-                available_connection_count: Belief::Absent,
+            state:         NodeState {
+                relay_budget:                  Belief::Absent,
+                available_connection_count:    Belief::Absent,
                 hold_capacity_available_bytes: Belief::Absent,
-                information_summary: Belief::Absent,
+                information_summary:           Belief::Absent,
             },
         }
     }
@@ -132,8 +132,8 @@ mod tests {
             links: BTreeMap::new(),
             environment: Environment {
                 reachable_neighbor_count: 0,
-                churn_permille: RatioPermille(0),
-                contention_permille: RatioPermille(0),
+                churn_permille:           RatioPermille(0),
+                contention_permille:      RatioPermille(0),
             },
         };
 

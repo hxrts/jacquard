@@ -21,12 +21,12 @@ use jacquard_traits::{
 
 #[derive(Default)]
 pub struct TestRuntimeEffects {
-    pub now: Tick,
-    pub next_order: u64,
-    pub storage: BTreeMap<Vec<u8>, Vec<u8>>,
-    pub store_bytes_call_count: u32,
-    pub events: Vec<RouteEventStamped>,
-    pub fail_store_bytes: bool,
+    pub now:                     Tick,
+    pub next_order:              u64,
+    pub storage:                 BTreeMap<Vec<u8>, Vec<u8>>,
+    pub store_bytes_call_count:  u32,
+    pub events:                  Vec<RouteEventStamped>,
+    pub fail_store_bytes:        bool,
     pub fail_record_route_event: bool,
 }
 
@@ -82,7 +82,7 @@ impl RouteEventLogEffects for TestRuntimeEffects {
 
 #[derive(Default)]
 pub struct TestTransport {
-    pub sent_frames: Vec<(LinkEndpoint, Vec<u8>)>,
+    pub sent_frames:  Vec<(LinkEndpoint, Vec<u8>)>,
     pub observations: Vec<TransportObservation>,
 }
 

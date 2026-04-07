@@ -45,14 +45,14 @@ where
         next_runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
         next_runtime.progress.state = RouteProgressState::Failed;
         let result = RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Expired,
+            event:   RouteLifecycleEvent::Expired,
             outcome: RouteMaintenanceOutcome::Failed(
                 RouteMaintenanceFailure::LeaseExpired,
             ),
         };
         self.record_event(RouteEvent::RouteMaintenanceCompleted {
             route_id: identity.handle.route_id,
-            result: result.clone(),
+            result:   result.clone(),
         })?;
         *runtime = next_runtime;
         Ok(result)
@@ -80,15 +80,15 @@ where
             owner_node_id: route.identity.lease.owner_node_id,
             deadline_tick: route.identity.lease.valid_for.end_tick(),
             retry_policy: TimeoutPolicy {
-                attempt_count_max: MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
-                initial_backoff_ms: jacquard_core::DurationMs(
+                attempt_count_max:           MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
+                initial_backoff_ms:          jacquard_core::DurationMs(
                     MESH_COMMITMENT_INITIAL_BACKOFF_MS,
                 ),
                 backoff_multiplier_permille: jacquard_core::RatioPermille(1000),
-                backoff_ms_max: jacquard_core::DurationMs(
+                backoff_ms_max:              jacquard_core::DurationMs(
                     MESH_COMMITMENT_BACKOFF_MS_MAX,
                 ),
-                overall_timeout_ms: jacquard_core::DurationMs(
+                overall_timeout_ms:          jacquard_core::DurationMs(
                     MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
                 ),
             },

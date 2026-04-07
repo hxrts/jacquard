@@ -64,7 +64,7 @@ pub enum NetworkHost {
 pub enum RoutingEngineId {
     Mesh,
     External {
-        name: String,
+        name:        String,
         contract_id: RoutingEngineContractId,
     },
 }
@@ -82,15 +82,18 @@ pub enum DestinationId {
 /// Attestable link between a node instance and its controlling authority.
 /// One controller may bind multiple nodes.
 pub struct NodeBinding {
-    pub node_id: NodeId,
+    pub node_id:       NodeId,
     pub controller_id: ControllerId,
     pub binding_epoch: RouteEpoch,
-    pub proof: NodeBindingProof,
+    pub proof:         NodeBindingProof,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeBindingProof {
-    Signature { key_id: KeyId, signature_bytes: Vec<u8> },
+    Signature {
+        key_id:          KeyId,
+        signature_bytes: Vec<u8>,
+    },
     Opaque(Vec<u8>),
 }

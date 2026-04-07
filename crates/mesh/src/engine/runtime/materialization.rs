@@ -43,13 +43,13 @@ where
         now: jacquard_core::Tick,
     ) -> RouteMaterializationProof {
         RouteMaterializationProof {
-            route_id: input.handle.route_id,
-            topology_epoch: input.handle.topology_epoch,
+            route_id:             input.handle.route_id,
+            topology_epoch:       input.handle.topology_epoch,
             materialized_at_tick: now,
-            publication_id: input.handle.publication_id,
-            witness: Fact {
-                value: input.admission.witness.clone(),
-                basis: FactBasis::Admitted,
+            publication_id:       input.handle.publication_id,
+            witness:              Fact {
+                value:               input.admission.witness.clone(),
+                basis:               FactBasis::Admitted,
                 established_at_tick: now,
             },
         }
@@ -63,16 +63,19 @@ where
     ) -> RouteInstallation {
         RouteInstallation {
             materialization_proof: proof,
-            last_lifecycle_event: RouteLifecycleEvent::Activated,
-            health: self.current_route_health(None, now),
-            progress: RouteProgressContract {
+            last_lifecycle_event:  RouteLifecycleEvent::Activated,
+            health:                self.current_route_health(None, now),
+            progress:              RouteProgressContract {
                 productive_step_count_max: input
                     .admission
                     .admission_check
                     .productive_step_bound,
-                total_step_count_max: input.admission.admission_check.total_step_bound,
-                last_progress_at_tick: now,
-                state: RouteProgressState::Satisfied,
+                total_step_count_max:      input
+                    .admission
+                    .admission_check
+                    .total_step_bound,
+                last_progress_at_tick:     now,
+                state:                     RouteProgressState::Satisfied,
             },
         }
     }
@@ -93,12 +96,12 @@ where
             ordering_key,
             forwarding: super::super::MeshForwardingState {
                 current_owner_node_id: input.lease.owner_node_id,
-                next_hop_index: 0,
-                in_flight_frames: 0,
-                last_ack_at_tick: None,
+                next_hop_index:        0,
+                in_flight_frames:      0,
+                last_ack_at_tick:      None,
             },
             repair: super::super::MeshRepairState {
-                steps_remaining: limit_u32(
+                steps_remaining:       limit_u32(
                     input.admission.admission_check.productive_step_bound,
                 ),
                 last_repaired_at_tick: None,
@@ -144,12 +147,12 @@ where
         let ordering_key =
             deterministic_order_key(derived_route_id, &self.hashing, &path_bytes);
         let path = super::super::MeshPath {
-            route_id: derived_route_id,
-            epoch: plan.epoch,
-            source: plan.source,
+            route_id:    derived_route_id,
+            epoch:       plan.epoch,
+            source:      plan.source,
             destination: plan.destination,
-            segments: plan.segments,
-            valid_for: plan.valid_for,
+            segments:    plan.segments,
+            valid_for:   plan.valid_for,
             route_class: plan.route_class,
         };
         let committee = match plan.committee_status {
@@ -237,14 +240,11 @@ where
         let route_event =
             RouteEvent::RouteMaterialized { handle: input.handle.clone(), proof };
         self.store_checkpoint(&active_route)?;
-        if let Err(error) = self
-            .choreography_runtime()
-            .mark_route_protocol_step(
-                crate::choreography::MeshProtocolKind::Activation,
-                &route_id,
-                "materialized",
-            )
-        {
+        if let Err(error) = self.choreography_runtime().mark_route_protocol_step(
+            crate::choreography::MeshProtocolKind::Activation,
+            &route_id,
+            "materialized",
+        ) {
             if let Some(previous_active_route) = previous_active_route.as_ref() {
                 let _ = self.store_checkpoint(previous_active_route);
             } else {

@@ -5,9 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::util::{normalize_rel_path, workspace_root, Violation};
 use anyhow::{bail, Context, Result};
 use telltale::compile_choreography;
+
+use crate::util::{normalize_rel_path, workspace_root, Violation};
 
 pub fn run(args: &[String]) -> Result<()> {
     let validate = args.iter().any(|arg| arg == "--validate");

@@ -1,12 +1,17 @@
 //! Mesh-local Telltale choreography surface.
 //!
 //! This module is the internal boundary between Jacquard mesh planning/runtime
-//! code and Telltale's choreography compiler/runtime surfaces. Larger mesh
-//! protocols live as `.tell` sources compiled through the normal Telltale
-//! pipeline, while very small protocols can stay inline next to Rust glue.
+//! code and Telltale's generated protocol surfaces. Mesh protocols are defined
+//! inline with `tell!` so the generated session/effect code lives next to the
+//! Rust host logic that enters those protocols.
 
+mod activation;
 mod artifacts;
 mod effects;
+mod forwarding;
+mod handoff;
+mod hold_replay;
+mod repair;
 mod runtime;
 
 pub(crate) use artifacts::MeshProtocolKind;

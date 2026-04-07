@@ -41,7 +41,7 @@ pub struct PenaltyPoints(pub u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TimeWindow {
     start_tick: Tick,
-    end_tick: Tick,
+    end_tick:   Tick,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
@@ -80,11 +80,11 @@ impl TimeWindow {
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TimeoutPolicy {
-    pub attempt_count_max: u32,
-    pub initial_backoff_ms: DurationMs,
+    pub attempt_count_max:           u32,
+    pub initial_backoff_ms:          DurationMs,
     pub backoff_multiplier_permille: RatioPermille,
-    pub backoff_ms_max: DurationMs,
-    pub overall_timeout_ms: DurationMs,
+    pub backoff_ms_max:              DurationMs,
+    pub overall_timeout_ms:          DurationMs,
 }
 
 #[cfg(test)]

@@ -23,16 +23,17 @@ use super::{
         MeshCheckpointEnvelope, MeshChoreoFrame, MeshHeldPayload,
         MeshProtocolObservation, MeshProtocolRuntime,
     },
+    forwarding,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct MeshProtocolCheckpoint {
-    protocol: MeshProtocolKind,
-    protocol_name: String,
-    role_names: Vec<String>,
-    source_path: String,
-    session: MeshProtocolSessionKey,
-    detail: String,
+    protocol:        MeshProtocolKind,
+    protocol_name:   String,
+    role_names:      Vec<String>,
+    source_path:     String,
+    session:         MeshProtocolSessionKey,
+    detail:          String,
     last_updated_at: Tick,
 }
 
@@ -40,7 +41,7 @@ type RuntimeSpecResolver =
     fn(MeshProtocolKind) -> Result<&'static MeshCompiledProtocolSpec, String>;
 
 pub(crate) struct MeshGuestRuntime<E> {
-    effects: E,
+    effects:      E,
     resolve_spec: RuntimeSpecResolver,
 }
 
@@ -56,10 +57,16 @@ where
         effects: E,
         resolve_spec: RuntimeSpecResolver,
     ) -> Self {
-        Self {
-            effects,
-            resolve_spec,
-        }
+        Self { effects, resolve_spec }
+    }
+
+    pub(super) fn protocol_runtime_mut(&mut self) -> &mut E {
+        &mut self.effects
+    }
+
+    #[cfg(test)]
+    pub(super) fn protocol_runtime_ref(&self) -> &E {
+        &self.effects
     }
 
     pub(crate) fn mark_route_protocol_step(
@@ -68,12 +75,9 @@ where
         route_id: &RouteId,
         detail: &'static str,
     ) -> Result<(), RouteError> {
-        self.protocol_step(
-            protocol,
-            route_session(protocol, route_id),
-            detail,
-            |_| Ok(()),
-        )
+        self.protocol_step(protocol, route_session(protocol, route_id), detail, |_| {
+            Ok(())
+        })
     }
 
     pub(crate) fn clear_route_protocols(
@@ -116,15 +120,7 @@ where
             MeshProtocolKind::ForwardingHop,
             route_session(MeshProtocolKind::ForwardingHop, route_id),
             "sent",
-            |runtime| {
-                runtime
-                    .effects
-                    .send_mesh_frame(&MeshChoreoFrame {
-                        endpoint,
-                        payload: payload.to_vec(),
-                    })
-                    .map_err(RouteError::from)
-            },
+            |runtime| forwarding::execute(runtime, route_id, endpoint, payload),
         )
     }
 
@@ -139,11 +135,13 @@ where
             route_session(MeshProtocolKind::HoldReplay, route_id),
             "retained",
             |runtime| {
-                runtime.effects.store_held_payload(&MeshHeldPayload {
-                    object_id,
-                    payload: payload.to_vec(),
-                })
-                .map_err(retention_failure)?;
+                runtime
+                    .effects
+                    .store_held_payload(&MeshHeldPayload {
+                        object_id,
+                        payload: payload.to_vec(),
+                    })
+                    .map_err(retention_failure)?;
                 Ok(())
             },
         )
@@ -245,12 +243,12 @@ where
         detail: &'static str,
     ) -> Result<(), RouteError> {
         let checkpoint = MeshProtocolCheckpoint {
-            protocol: spec.kind,
-            protocol_name: spec.protocol_name.clone(),
-            role_names: spec.role_names.clone(),
-            source_path: spec.source_path.to_owned(),
-            session: session.clone(),
-            detail: detail.to_owned(),
+            protocol:        spec.kind,
+            protocol_name:   spec.protocol_name.clone(),
+            role_names:      spec.role_names.clone(),
+            source_path:     spec.source_path.to_owned(),
+            session:         session.clone(),
+            detail:          detail.to_owned(),
             last_updated_at: self.effects.now_tick(),
         };
         let key = protocol_checkpoint_key(spec.kind, &session);
@@ -341,8 +339,9 @@ mod tests {
         MeshProtocolCheckpoint,
     };
     use crate::choreography::{
-        artifacts::{MeshProtocolKind, MeshProtocolSessionKey},
-        artifacts::MeshCompiledProtocolSpec,
+        artifacts::{
+            MeshCompiledProtocolSpec, MeshProtocolKind, MeshProtocolSessionKey,
+        },
         effects::{
             MeshCheckpointEnvelope, MeshProtocolObservation, MeshProtocolRuntime,
         },
@@ -350,10 +349,10 @@ mod tests {
 
     #[derive(Default)]
     struct FakeEffects {
-        checkpoints: BTreeMap<Vec<u8>, Vec<u8>>,
+        checkpoints:  BTreeMap<Vec<u8>, Vec<u8>>,
         observations: Vec<MeshProtocolObservation>,
-        ingress: Vec<TransportObservation>,
-        next_order: u64,
+        ingress:      Vec<TransportObservation>,
+        next_order:   u64,
     }
 
     #[effect_handler]
@@ -520,12 +519,10 @@ mod tests {
         assert_eq!(runtime.effects.observations.len(), 3);
         assert_eq!(hold_checkpoint.detail, "retained");
         assert_eq!(hold_checkpoint.protocol_name, "HoldReplayExchange");
-        assert!(
-            hold_checkpoint
-                .role_names
-                .iter()
-                .any(|role| role == "PartitionedOwner")
-        );
+        assert!(hold_checkpoint
+            .role_names
+            .iter()
+            .any(|role| role == "PartitionedOwner"));
         assert_eq!(tick_checkpoint.detail, "tick");
         assert_eq!(
             runtime.effects.observations[1].protocol_name,
@@ -535,15 +532,14 @@ mod tests {
 
     #[test]
     fn guest_runtime_fails_closed_when_protocol_spec_resolution_fails() {
-        fn failing_spec(_: MeshProtocolKind) -> Result<&'static MeshCompiledProtocolSpec, String>
-        {
+        fn failing_spec(
+            _: MeshProtocolKind,
+        ) -> Result<&'static MeshCompiledProtocolSpec, String> {
             Err("broken artifact".into())
         }
 
-        let mut runtime = MeshGuestRuntime::with_spec_resolver(
-            FakeEffects::default(),
-            failing_spec,
-        );
+        let mut runtime =
+            MeshGuestRuntime::with_spec_resolver(FakeEffects::default(), failing_spec);
         let error = runtime
             .mark_route_protocol_step(
                 MeshProtocolKind::Activation,
@@ -552,10 +548,7 @@ mod tests {
             )
             .expect_err("invalid protocol artifact should fail closed");
 
-        assert_eq!(
-            error,
-            RouteError::Runtime(RouteRuntimeError::Invalidated)
-        );
+        assert_eq!(error, RouteError::Runtime(RouteRuntimeError::Invalidated));
         assert!(runtime.effects.checkpoints.is_empty());
         assert!(runtime.effects.observations.is_empty());
     }

@@ -60,6 +60,7 @@ const MARKERS: &[&str] = &[
     "#[must_use_handle",
     "#[public_model",
     "#[purity",
+    "tell! {",
 ];
 
 pub fn run() -> Result<()> {

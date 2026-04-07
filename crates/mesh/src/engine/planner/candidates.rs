@@ -148,13 +148,13 @@ where
             &plan.committee_status,
         );
         let witness = RouteWitness {
-            objective_protection: objective.target_protection,
-            delivered_protection: summary.protection,
+            objective_protection:   objective.target_protection,
+            delivered_protection:   summary.protection,
             objective_connectivity: objective.target_connectivity,
             delivered_connectivity: summary.connectivity,
-            admission_profile: admission_assumptions,
-            topology_epoch: topology.value.epoch,
-            degradation: estimate.value.degradation,
+            admission_profile:      admission_assumptions,
+            topology_epoch:         topology.value.epoch,
+            degradation:            estimate.value.degradation,
         };
         let path_bytes = encode_path_bytes(node_path, segments);
         let ordering_key =

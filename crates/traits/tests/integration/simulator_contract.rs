@@ -15,11 +15,11 @@ use jacquard_traits::{
 
 #[derive(Clone)]
 struct StubScenario {
-    name: String,
-    seed: u64,
-    deployment_profile: DeploymentProfile,
+    name:                  String,
+    seed:                  u64,
+    deployment_profile:    DeploymentProfile,
     initial_configuration: Observation<Configuration>,
-    objectives: Vec<RoutingObjective>,
+    objectives:            Vec<RoutingObjective>,
 }
 
 impl RoutingScenario for StubScenario {
@@ -75,7 +75,7 @@ impl RoutingEnvironmentModel for StubEnvironmentModel {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct StubReplayArtifact {
-    route_events: Vec<RouteEvent>,
+    route_events:         Vec<RouteEvent>,
     stamped_route_events: Vec<RouteEventStamped>,
 }
 
@@ -176,7 +176,7 @@ fn sample_configuration() -> Configuration {
         local,
         Node {
             controller_id: ControllerId([1; 32]),
-            profile: NodeProfile {
+            profile:       NodeProfile {
                 services: Vec::new(),
                 endpoints: Vec::new(),
                 connection_count_max: 4,
@@ -190,13 +190,15 @@ fn sample_configuration() -> Configuration {
                     1024,
                 ),
             },
-            state: NodeState {
-                relay_budget: jacquard_traits::jacquard_core::Belief::Absent,
+            state:         NodeState {
+                relay_budget:
+                    jacquard_traits::jacquard_core::Belief::Absent,
                 available_connection_count:
                     jacquard_traits::jacquard_core::Belief::Absent,
                 hold_capacity_available_bytes:
                     jacquard_traits::jacquard_core::Belief::Absent,
-                information_summary: jacquard_traits::jacquard_core::Belief::Absent,
+                information_summary:
+                    jacquard_traits::jacquard_core::Belief::Absent,
             },
         },
     );
@@ -204,7 +206,7 @@ fn sample_configuration() -> Configuration {
         remote,
         Node {
             controller_id: ControllerId([2; 32]),
-            profile: NodeProfile {
+            profile:       NodeProfile {
                 services: Vec::new(),
                 endpoints: Vec::new(),
                 connection_count_max: 4,
@@ -218,13 +220,15 @@ fn sample_configuration() -> Configuration {
                     1024,
                 ),
             },
-            state: NodeState {
-                relay_budget: jacquard_traits::jacquard_core::Belief::Absent,
+            state:         NodeState {
+                relay_budget:
+                    jacquard_traits::jacquard_core::Belief::Absent,
                 available_connection_count:
                     jacquard_traits::jacquard_core::Belief::Absent,
                 hold_capacity_available_bytes:
                     jacquard_traits::jacquard_core::Belief::Absent,
-                information_summary: jacquard_traits::jacquard_core::Belief::Absent,
+                information_summary:
+                    jacquard_traits::jacquard_core::Belief::Absent,
             },
         },
     );
@@ -234,14 +238,14 @@ fn sample_configuration() -> Configuration {
         (local, remote),
         Link {
             endpoint: jacquard_traits::jacquard_core::LinkEndpoint {
-                protocol: jacquard_traits::jacquard_core::TransportProtocol::BleGatt,
-                address: jacquard_traits::jacquard_core::EndpointAddress::Ble {
-                    device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
+                protocol:  jacquard_traits::jacquard_core::TransportProtocol::BleGatt,
+                address:   jacquard_traits::jacquard_core::EndpointAddress::Ble {
+                    device_id:  jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
                     profile_id: jacquard_traits::jacquard_core::BleProfileId([2; 16]),
                 },
                 mtu_bytes: jacquard_traits::jacquard_core::ByteCount(512),
             },
-            state: LinkState {
+            state:    LinkState {
                 state: LinkRuntimeState::Active,
                 median_rtt_ms: jacquard_traits::jacquard_core::DurationMs(5),
                 transfer_rate_bytes_per_sec:
@@ -261,26 +265,26 @@ fn sample_configuration() -> Configuration {
         links,
         environment: Environment {
             reachable_neighbor_count: 1,
-            churn_permille: RatioPermille(0),
-            contention_permille: RatioPermille(0),
+            churn_permille:           RatioPermille(0),
+            contention_permille:      RatioPermille(0),
         },
     }
 }
 
 fn sample_scenario() -> StubScenario {
     StubScenario {
-        name: "smoke".to_owned(),
-        seed: 7,
-        deployment_profile: DeploymentProfile::SparseLowPower,
+        name:                  "smoke".to_owned(),
+        seed:                  7,
+        deployment_profile:    DeploymentProfile::SparseLowPower,
         initial_configuration: Observation {
-            value: sample_configuration(),
-            source_class: FactSourceClass::Local,
+            value:                 sample_configuration(),
+            source_class:          FactSourceClass::Local,
             evidence_class:
                 jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
             origin_authentication: OriginAuthenticationClass::Controlled,
-            observed_at_tick: Tick(1),
+            observed_at_tick:      Tick(1),
         },
-        objectives: Vec::new(),
+        objectives:            Vec::new(),
     }
 }
 
