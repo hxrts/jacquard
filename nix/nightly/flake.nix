@@ -1,11 +1,13 @@
 {
   description = "Jacquard nightly tooling shell for Dylint and rustc_private-based checks";
 
+  # Inputs are declared directly (not followed from the root flake via
+  # `path:../..`) because newer nix rejects mutable path locks on CI.
+  # Keep these pins in rough sync with the root flake manually.
   inputs = {
-    jacquard-root.url = "path:../..";
-    nixpkgs.follows = "jacquard-root/nixpkgs";
-    rust-overlay.follows = "jacquard-root/rust-overlay";
-    flake-utils.follows = "jacquard-root/flake-utils";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs =
