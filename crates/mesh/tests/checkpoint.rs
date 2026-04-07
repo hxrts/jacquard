@@ -11,10 +11,7 @@ use jacquard_traits::{
     RoutingEngine,
 };
 
-fn has_protocol_checkpoint(
-    engine: &common::engine::TestEngine,
-    prefix: &str,
-) -> bool {
+fn has_protocol_checkpoint(engine: &common::engine::TestEngine, prefix: &str) -> bool {
     engine.runtime_effects().storage.keys().any(|key| {
         std::str::from_utf8(key).is_ok_and(|value| value.starts_with(prefix))
     })
@@ -135,7 +132,10 @@ fn protocol_checkpoints_round_trip_without_hidden_runtime_state() {
         .engine_tick(&common::engine::tick_context(&topology))
         .expect("record tick protocol checkpoint");
 
-    assert!(has_protocol_checkpoint(&original, "mesh/protocol/activation/"));
+    assert!(has_protocol_checkpoint(
+        &original,
+        "mesh/protocol/activation/"
+    ));
     assert!(has_protocol_checkpoint(&original, "mesh/protocol/repair/"));
     assert!(has_protocol_checkpoint(
         &original,

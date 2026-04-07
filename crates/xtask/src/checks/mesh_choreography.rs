@@ -78,7 +78,9 @@ fn choreography_sources_are_valid(root: &Path) -> Result<Vec<Violation>> {
             out.push(Violation::new(
                 rel,
                 1,
-                format!("mesh choreography source must compile through telltale: {error}"),
+                format!(
+                    "mesh choreography source must compile through telltale: {error}"
+                ),
             ));
         }
     }
@@ -155,7 +157,9 @@ fn no_mesh_choreography_types_in_shared_crates(root: &Path) -> Result<Vec<Violat
     Ok(out)
 }
 
-fn router_does_not_depend_on_mesh_private_choreography(root: &Path) -> Result<Vec<Violation>> {
+fn router_does_not_depend_on_mesh_private_choreography(
+    root: &Path,
+) -> Result<Vec<Violation>> {
     let router_root = root.join("crates/router/src");
     if !router_root.exists() {
         return Ok(Vec::new());

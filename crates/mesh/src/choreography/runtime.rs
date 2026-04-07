@@ -228,7 +228,6 @@ where
             });
         Ok(())
     }
-
 }
 
 pub(crate) fn route_session(
@@ -290,7 +289,9 @@ mod tests {
     };
     use crate::choreography::{
         artifacts::{MeshProtocolKind, MeshProtocolSessionKey},
-        effects::{MeshCheckpointEnvelope, MeshProtocolObservation, MeshProtocolRuntime},
+        effects::{
+            MeshCheckpointEnvelope, MeshProtocolObservation, MeshProtocolRuntime,
+        },
     };
 
     #[derive(Default)]

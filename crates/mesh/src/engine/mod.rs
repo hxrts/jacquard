@@ -297,7 +297,8 @@ where
 {
     fn choreography_runtime(
         &mut self,
-    ) -> MeshGuestRuntime<MeshProtocolRuntimeAdapter<'_, Transport, Retention, Effects>> {
+    ) -> MeshGuestRuntime<MeshProtocolRuntimeAdapter<'_, Transport, Retention, Effects>>
+    {
         MeshGuestRuntime::new(MeshProtocolRuntimeAdapter {
             transport: &mut self.transport,
             retention: &mut self.retention,
