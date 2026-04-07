@@ -2,15 +2,15 @@
 
 Jacquard is a deterministic routing system for constrained and unstable networks. It provides a stable routing abstraction and one in-tree routing engine, `Mesh`. It is designed so a host can add an external routing engine through the same contract.
 
-See [Core Types](102_core_types.md) for the model objects that carry the system. See [Time Model](103_time.md) for the deterministic time rules. See [Pipeline and World Observations](104_pipeline_observations.md) for the shared pipeline, the world schema, and the observation layer. See [Routing Decisions](105_routing_logic.md) for the decision path and routing-engine boundary. See [Crate Architecture](106_crate_architecture.md) for separation of concerns and implementation policies.
+See [Core Types](102_core_types.md) for the model objects that carry the system. See [Time Model](103_time.md) for the deterministic time rules. See [Pipeline and World Observations](104_pipeline_observations.md) for the shared pipeline, the world schema, and the observation layer. See [Routing Decisions](105_routing_logic.md) for the decision path and routing-engine boundary. See [Crate Architecture](999_crate_architecture.md) for separation of concerns and implementation policies.
 
 ## Scope
 
-Jacquard owns the shared routing contract, the first-party mesh routing engine, the top-level router, runtime adapters, and simulation support. Protection-versus-connectivity policy may be supplied by a host, but Jacquard itself stays routing-engine-neutral at the contract layer.
+Jacquard owns the shared routing contract and the first-party mesh routing engine today. The top-level router, runtime adapters, and simulation harness are planned future crates that land alongside the router control plane and simulator work. Protection-versus-connectivity policy may be supplied by a host, but Jacquard itself stays routing-engine-neutral at the contract layer.
 
 The central split is between shared facts and local runtime state. Service descriptors, topology observations, admission checks, and route witnesses are explicit shared objects. Adaptive policy, selected routing actions, installed-route ownership, and engine-private runtime state stay local.
 
-Jacquard depends on Telltale for choreography projection, runtime structure, and simulation support. The routing model is shaped so admission, installation, maintenance, and replay remain explicit. The codebase is organized around shared model types, abstract trait boundaries, first-party mesh logic, router orchestration, and simulation.
+The routing model is shaped so admission, installation, maintenance, and replay remain explicit. The codebase is organized around shared model types, abstract trait boundaries, and first-party mesh logic, with router orchestration and simulation reserved as future crates.
 
 ## Problem
 
@@ -35,6 +35,8 @@ Jacquard is fully deterministic. It uses typed time, typed ordering, explicit bo
 Observation scopes are kept explicit. Local node state, peer estimates, link estimates, and neighborhood aggregates are separate model surfaces. This split keeps routing logic honest about what is known unequivocally, what is inferred about a peer, and what is an aggregate local view.
 
 Jacquard is intentionally not opinionated about engine-local scoring, committee formation policy, or trust heuristics. The shared layer commits to the result shapes, evidence classes, ownership rules, and canonical transition path. The routing-engine layer owns the scoring rules, diversity logic, and misbehavior handling that depend on its routing semantics.
+
+### Lifecycle and Integration
 
 The system is committed to one explicit service lifecycle: observation to candidate to admission to router-owned canonical identity allocation to family realization to materialized route to maintenance, replacement, or teardown. Major transitions stay typed and explicit. Data-plane health stays observational until the control plane publishes a canonical change.
 

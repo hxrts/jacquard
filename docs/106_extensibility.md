@@ -236,7 +236,7 @@ pub trait TransportWorldExtension: WorldExtensionDescriptor {
 }
 ```
 
-A team that adds a new device will often implement `NodeWorldExtension`, `LinkWorldExtension`, or both. The other facets are available when an extension also emits environment, service, or transport observations. These boundaries use `WorldError` rather than `RouteError` because a world extension contributes world input; it does not own routing semantics.
+A team that adds a new device will often implement `NodeWorldExtension`, `LinkWorldExtension`, or both. The other facets are available when an extension also emits environment, service, or transport observations. These boundaries use `WorldError` rather than `RouteError` because a world extension contributes world input. It does not own routing semantics.
 
 ### Umbrella World Extension
 
@@ -344,7 +344,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
 `RoutingEnginePlanner` is pure. `RoutingEngine` is effectful. The split keeps candidate production deterministic and keeps runtime mutation inside explicit realization and maintenance methods. The router allocates canonical route identity first. The engine realizes the admitted route under that identity and returns `RouteInstallation`. The final `MaterializedRoute` is assembled above the engine boundary as router-owned identity plus engine-owned runtime state, and maintenance only receives the mutable runtime portion. That activation step also enforces the shared control-plane invariants: the admission decision must still be admissible, the realized protection must satisfy the objective protection floor, and lease validity must be checked explicitly before maintenance or publication proceeds.
 
-`engine_tick` is the optional engine-wide bootstrap and convergence hook. An engine may use it as an internal middleware-style loop to refresh local regime estimates, decay stale local state, update coordination posture, or prepare engine-private planning state before any specific route is active. The host or router drives that cadence through the control plane's existing periodic tick path; the hook itself does not publish canonical route truth directly.
+`engine_tick` is the optional engine-wide bootstrap and convergence hook. An engine may use it as an internal middleware-style loop to refresh local regime estimates, decay stale local state, update coordination posture, or prepare engine-private planning state before any specific route is active. The host or router drives that cadence through the control plane's existing periodic tick path. The hook itself does not publish canonical route truth directly.
 
 Two contract rules are worth keeping explicit. If a planning or admission judgment depends on observations, the current topology must be passed into that method directly rather than read from ambient engine state. And if an engine keeps planner caches, those caches are memoization only: cache hits and misses must not change the semantic result for the same topology.
 

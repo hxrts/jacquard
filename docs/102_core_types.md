@@ -1,6 +1,6 @@
 # Core Types
 
-This page focuses on the core primitives that other routing objects build on. See [Crate Architecture](106_crate_architecture.md) for the internal directory layout of `core`.
+This page focuses on the core primitives that other routing objects build on. See [Crate Architecture](999_crate_architecture.md) for the internal directory layout of `core`.
 
 ## Identity, Observation, And Fact
 

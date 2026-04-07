@@ -166,4 +166,4 @@ Engine-specific peer or neighborhood heuristics live above this boundary. A mesh
 
 World extensions are the entry path for observed nodes, links, environments, services, and transport activity. An extension emits `Observation<ObservedValue>` values that wrap objects conforming to the shared schema rather than defining a private alternative.
 
-This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [Extensibility](107_extensibility.md) for the trait surface and an end-to-end BLE relay example.
+This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [Extensibility](106_extensibility.md) for the trait surface and an end-to-end BLE relay example.

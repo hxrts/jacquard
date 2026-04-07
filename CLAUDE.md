@@ -4,7 +4,7 @@ Jacquard is an adaptive mesh routing system built on choreographic protocols. It
 
 Jacquard is fully deterministic. No floating-point types, host-dependent ordering, or ambient randomness in routing or protocol state. Use typed time effects (`Tick`, `DurationMs`, `OrderStamp`, `RouteEpoch`) rather than raw wall-clock APIs or ad hoc `u64` timestamp fields.
 
-See [Crate Architecture](docs/106_crate_architecture.md) for the dependency graph, cross-crate invariants, ownership rules, purity model, and extension boundary.
+See [Crate Architecture](docs/999_crate_architecture.md) for the dependency graph, cross-crate invariants, ownership rules, purity model, and extension boundary.
 
 ## Development
 

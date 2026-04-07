@@ -83,7 +83,9 @@ Two implementation rules keep the planning surface honest. First, any planning o
 
 Cache misses must still lead to the same planning or admission result for the same topology. Admitted routes must carry enough opaque engine-private plan state forward that materialization can proceed without a planner-cache lookup. Materialization must fail closed when required observed topology is missing. Successful lifecycle transitions must remain replay-visible before public or durable state is committed, so engines should stage the next runtime state off to the side until checkpointing and route-event logging succeed.
 
-`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, retaining bounded observational summaries, or updating coordination posture before any specific route is active. Committee selection, substrate planning, and layered routing follow the same pure and effectful split. See [Extensibility](107_extensibility.md) for the full trait signatures.
+Route health should also stay route-scoped rather than engine-global. When an engine can validate the active route's remaining suffix against current observations, it should publish route-local reachability and stability. When it cannot, it should use an explicit unknown reachability state rather than silently treating the route as healthy or dead from unrelated engine-level signals.
+
+`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, retaining bounded observational summaries, or updating coordination posture before any specific route is active. In richer engines that can include maintaining bounded repair pressure, anti-entropy pressure, or transport-derived health posture. Committee selection, substrate planning, and layered routing follow the same pure and effectful split. See [Extensibility](106_extensibility.md) for the full trait signatures.
 
 ### Overlay Example
 
