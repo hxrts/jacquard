@@ -38,6 +38,8 @@ pub mod __private {
 
     pub trait HandlerDefinition<E: ?Sized> {}
 
+    // fn() -> (*const T, *const E) makes both T and E invariant without
+    // adding Send/Sync bounds that bare *const pointers would impose.
     pub struct HandlerToken<T: ?Sized, E: ?Sized>(
         pub PhantomData<fn() -> (*const T, *const E)>,
     );

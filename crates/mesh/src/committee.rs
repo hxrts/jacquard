@@ -238,14 +238,11 @@ where
             optional_health_score_value(estimate.retention_value_score());
         let stability_score = optional_health_score_value(estimate.stability_score());
         let service_score = optional_health_score_value(estimate.service_score());
-        let behavior_bonus = self
-            .behavior_history
-            .get(peer_node_id)
+        let behavior_entry = self.behavior_history.get(peer_node_id);
+        let behavior_bonus = behavior_entry
             .map(|history| history.reliability_score.0 / 2)
             .unwrap_or(0);
-        let behavior_penalty = self
-            .behavior_history
-            .get(peer_node_id)
+        let behavior_penalty = behavior_entry
             .map(|history| history.misbehavior_penalty_points.0)
             .unwrap_or(0);
         // Service score is weighted by `MESH_COMMITTEE_SERVICE_WEIGHT` so a
@@ -379,6 +376,9 @@ where
         ranked
     }
 
+    // First pass: prefer cross-scope and cross-controller candidates.
+    // Second pass: if a quorum-capable committee (>=2) was not formed,
+    // relax the diversity constraint so coordination is possible at all.
     fn select_diverse_members(
         &self,
         ranked: Vec<(Reverse<u32>, ControllerId, CommitteeDiversityKey, NodeId)>,
@@ -459,9 +459,12 @@ where
         current_tick: Tick,
         members: Vec<CommitteeMember>,
     ) -> CommitteeSelection {
+        // Simple majority quorum: floor(n/2) + 1. The u8 cast is safe
+        // because MESH_COMMITTEE_MEMBERSHIP_CAP (3) keeps the max at 2.
         let quorum_threshold = u8::try_from((members.len() / 2) + 1)
             .expect("committee size is bounded by MESH_COMMITTEE_MEMBERSHIP_CAP");
-        let validity_end = Tick(current_tick.0 + MESH_COMMITTEE_VALIDITY_TICKS);
+        let validity_end =
+            Tick(current_tick.0.saturating_add(MESH_COMMITTEE_VALIDITY_TICKS));
         CommitteeSelection {
             committee_id: self.committee_id_for(objective, configuration.epoch),
             topology_epoch: configuration.epoch,
@@ -619,6 +622,10 @@ mod tests {
     use super::*;
     use crate::HEALTH_SCORE_MAX;
 
+    // These fixture builders intentionally stay local to the committee unit
+    // tests. They pin exact controller/service layouts for committee scoring
+    // and diversity behavior, while the integration fixtures are broader
+    // end-to-end network shapes owned by `tests/common`.
     fn ble_endpoint(byte: u8) -> LinkEndpoint {
         LinkEndpoint {
             protocol:  TransportProtocol::BleGatt,

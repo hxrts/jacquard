@@ -42,7 +42,9 @@ impl Hashing for Blake3Hashing {
 
     fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Self::Digest {
         let mut hasher = blake3::Hasher::new();
-        // Length prefix separates "ab"+"c" from "a"+"bc".
+        // Only the domain is length-prefixed: input is the final field so its
+        // length is implicit from the stream end. Domain tags over u32 are
+        // programming errors, not recoverable runtime failures.
         let domain_len =
             u32::try_from(domain.len()).expect("domain tag length exceeds u32");
         hasher.update(&domain_len.to_le_bytes());

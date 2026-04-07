@@ -55,6 +55,9 @@ pub fn public_traits(source: &ParsedSource) -> impl Iterator<Item = &ItemTrait> 
     })
 }
 
+// Raw text split rather than the syn AST so identifiers in string
+// literals, comments, and macro expansions are all captured for
+// docs-semantic-drift matching.
 pub fn all_identifiers(parsed: &[ParsedSource]) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for source in parsed {

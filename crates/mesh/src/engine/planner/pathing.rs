@@ -57,7 +57,11 @@ where
             }
         }
 
-        let diversity_count = u32::try_from(protocol_mix.len()).unwrap_or(u32::MAX);
+        let u32_max_as_usize =
+            usize::try_from(u32::MAX).expect("u32::MAX fits on supported targets");
+        debug_assert!(protocol_mix.len() <= u32_max_as_usize);
+        let diversity_count = u32::try_from(protocol_mix.len())
+            .expect("protocol diversity is bounded by segment count");
         let diversity_bonus = diversity_count
             .saturating_sub(1)
             .saturating_mul(PATH_METRIC_DIVERSITY_BONUS);
@@ -82,6 +86,9 @@ where
 
         while let Some(Reverse((score, path))) = frontier.pop() {
             let current = *path.last().expect("weighted path frontier is never empty");
+            // Tie-break on path lexicographically so equal-cost routes
+            // collapse to a single deterministic winner regardless of
+            // BFS visit order.
             if let Some((best_score, best_path)) = best_paths.get(&current) {
                 if score > *best_score || (score == *best_score && path > *best_path) {
                     continue;
@@ -141,6 +148,9 @@ where
         }
     }
 
+    // Three cases by path length: (1) 1-hop — only a shared neighbor can
+    // bridge; (2) multi-hop with alternate first-hop — repair is possible;
+    // (3) multi-hop — scan each segment pair for a bypass node.
     pub(super) fn local_repair_slack(
         &self,
         configuration: &Configuration,
@@ -238,6 +248,8 @@ where
             let (endpoint, _) = estimate_hop_link(&pair[0], &pair[1], configuration)?;
             segments.push(MeshRouteSegment { node_id: pair[1], endpoint });
         }
+        // Empty segments means node_path had one entry (local node is the
+        // destination) — not a valid route. Also reject paths past the cap.
         if segments.is_empty() || segments.len() > usize::from(ROUTE_HOP_COUNT_MAX) {
             return None;
         }

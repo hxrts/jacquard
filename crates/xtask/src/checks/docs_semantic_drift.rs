@@ -208,6 +208,9 @@ fn check_snippet(
     if snippet.is_empty() {
         return;
     }
+    // Kebab-case spans (e.g. `jacquard-core`) are crate names handled
+    // elsewhere; skip here to avoid false positives in the PascalCase
+    // and `::` checks.
     if snippet.contains('-') && !snippet.contains('/') && !snippet.contains("::") {
         return;
     }

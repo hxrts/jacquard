@@ -82,9 +82,7 @@ where
         topology: &Observation<Configuration>,
     ) -> Result<Option<jacquard_core::CommitteeSelection>, jacquard_core::RouteError>
     {
-        self.selector.as_ref().map_or(Ok(None), |selector| {
-            selector.select_committee(objective, profile, topology)
-        })
+        self.selector.select_committee(objective, profile, topology)
     }
 }
 
@@ -150,6 +148,9 @@ where
                     )
                 })
                 .unwrap_or(0);
+            // Sort: lower path_metric_score first, then higher preference
+            // (Reverse), then stable_key + tie_break for a total
+            // deterministic order when cost and preference are equal.
             (
                 candidate.path_metric_score,
                 Reverse(preference),
@@ -165,6 +166,8 @@ where
         cached: Vec<(jacquard_core::BackendRouteId, CachedCandidate)>,
     ) -> Vec<RouteCandidate> {
         let mut cache = self.candidate_cache.borrow_mut();
+        // Clear the full cache before inserting new candidates. Stale
+        // entries from prior planning cycles must not survive across calls.
         cache.clear();
 
         cached

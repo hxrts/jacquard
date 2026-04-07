@@ -21,6 +21,8 @@
 mod planner;
 mod runtime;
 mod support;
+#[cfg(test)]
+mod test_helpers;
 mod trait_bounds;
 mod types;
 
@@ -81,6 +83,8 @@ pub const MESH_BACKEND_ROUTE_ID_BYTES_MAX: usize = 2048;
 // commitments represent already-admitted routes; exceeding the budget is
 // a teardown signal rather than a reason to keep retrying.
 const MESH_COMMITMENT_ATTEMPT_COUNT_MAX: u32 = 2;
+// Fixed-delay by design: commitments cover already-admitted routes, so
+// the retry ceiling intentionally equals the initial backoff.
 const MESH_COMMITMENT_INITIAL_BACKOFF_MS: u32 = 25;
 const MESH_COMMITMENT_BACKOFF_MS_MAX: u32 = 25;
 const MESH_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
@@ -126,7 +130,7 @@ pub struct MeshEngine<
     retention: Retention,
     effects: Effects,
     hashing: Hasher,
-    selector: Option<Selector>,
+    selector: Selector,
     latest_topology: Option<Observation<Configuration>>,
     last_transport_summary: Option<MeshTransportObservationSummary>,
     control_state: Option<types::MeshControlState>,
@@ -156,7 +160,7 @@ impl<Topology, Transport, Retention, Effects, Hasher>
             retention,
             effects,
             hashing,
-            selector: Some(NoCommitteeSelector),
+            selector: NoCommitteeSelector,
             latest_topology: None,
             last_transport_summary: None,
             control_state: None,
@@ -189,7 +193,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
             retention,
             effects,
             hashing,
-            selector: Some(selector),
+            selector,
             latest_topology: None,
             last_transport_summary: None,
             control_state: None,
@@ -252,6 +256,8 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         else {
             return Ok(None);
         };
+        // Epoch is stored as raw LE bytes (not bincode) for cheap comparison.
+        // A wrong length means storage corruption; fail closed.
         if bytes.len() != std::mem::size_of::<u64>() {
             return Err(RouteError::Runtime(RouteRuntimeError::Invalidated));
         }
@@ -328,6 +334,8 @@ where
             endpoint: &next_segment.endpoint,
             payload,
         })?;
+        // Re-borrow mutably after send: the earlier shared borrow for
+        // `next_segment` must be fully released before taking &mut.
         let active_route = self
             .active_routes
             .get_mut(route_id)
@@ -446,6 +454,9 @@ where
         let digest = self
             .hashing
             .hash_tagged(support::DOMAIN_TAG_RETENTION, &tagged);
+        // ContentId requires a concrete Blake3Digest. Hash the pluggable
+        // digest bytes through Blake3Hashing to get the required concrete
+        // type while still binding the result to the retention domain tag.
         let content_digest =
             Blake3Hashing.hash_tagged(support::DOMAIN_TAG_RETENTION, digest.as_bytes());
         ContentId { digest: content_digest }

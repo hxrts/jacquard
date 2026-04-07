@@ -182,6 +182,10 @@ where
                 configuration,
             )
             .map(|estimate| {
+                // Weights are intentionally asymmetric: service surface
+                // (÷2) is the primary edge bonus; relay/stability (÷4)
+                // contribute equally; retention (÷8) is a secondary signal
+                // for deferred-delivery routes only.
                 optional_health_score_value(estimate.relay_value_score()) / 4
                     + optional_health_score_value(estimate.retention_value_score()) / 8
                     + optional_health_score_value(estimate.stability_score()) / 4

@@ -23,6 +23,9 @@ pub(crate) fn expand(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let generics = item_impl.generics.clone();
     let (impl_generics, _, where_clause) = generics.split_for_impl();
 
+    // PhantomData satisfies HandlerToken's type parameter. No runtime
+    // data is held; this method exists only to prove the impl
+    // relationship at compile time.
     item_impl.items.push(parse_quote! {
         fn __jacquard_handler_marker(
             &self,

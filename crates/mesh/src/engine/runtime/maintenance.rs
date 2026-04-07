@@ -165,6 +165,9 @@ where
             return false;
         };
 
+        // Truncate to the already-traversed prefix, then graft the BFS
+        // repair suffix onto it. Guards against a stale hop index that
+        // exceeds the current segment list length.
         let suffix_start = usize::from(active_route.forwarding.next_hop_index);
         if suffix_start > active_route.path.segments.len() {
             return false;
@@ -192,23 +195,24 @@ where
     fn flush_retained_payloads(
         &mut self,
         active_route: &mut ActiveMeshRoute,
-    ) -> Result<u32, RouteError> {
+    ) -> Result<(), RouteError> {
         let Some(next_segment) = active_route
             .path
             .segments
             .get(usize::from(active_route.forwarding.next_hop_index))
             .cloned()
         else {
-            return Ok(0);
+            return Ok(());
         };
 
+        // Snapshot before iterating because successful sends remove entries
+        // from `retained_objects` as the loop progresses.
         let retained_object_ids = active_route
             .anti_entropy
             .retained_objects
             .iter()
             .cloned()
             .collect::<Vec<_>>();
-        let mut flushed = 0_u32;
 
         for object_id in retained_object_ids {
             let Some(payload) = self
@@ -240,10 +244,9 @@ where
             active_route.forwarding.in_flight_frames =
                 active_route.forwarding.in_flight_frames.saturating_add(1);
             active_route.forwarding.last_ack_at_tick = Some(self.effects.now_tick());
-            flushed = flushed.saturating_add(1);
         }
 
-        Ok(flushed)
+        Ok(())
     }
 
     fn recover_from_partition_if_possible(
@@ -256,7 +259,7 @@ where
             return Ok(None);
         }
 
-        let _released_count = self.flush_retained_payloads(active_route)?;
+        self.flush_retained_payloads(active_route)?;
         active_route.anti_entropy.partition_mode = false;
         active_route.anti_entropy.last_refresh_at_tick = Some(now);
         active_route.last_lifecycle_event = RouteLifecycleEvent::RecoveredFromPartition;
@@ -288,7 +291,10 @@ where
                 Ok(Self::enter_partition_mode(active_route, runtime, trigger))
             },
             | RouteMaintenanceTrigger::PolicyShift => {
-                let _ = self.flush_retained_payloads(active_route)?;
+                // Flush retained payloads before advancing the owner:
+                // after handoff current_owner_node_id changes, making
+                // the endpoint used by flush_retained_payloads wrong.
+                self.flush_retained_payloads(active_route)?;
                 Self::handoff_result(
                     context.identity,
                     active_route,
@@ -296,10 +302,9 @@ where
                     context.handoff_receipt_id,
                 )
             },
-            | RouteMaintenanceTrigger::LeaseExpiring => Ok(RouteMaintenanceResult {
-                event:   active_route.last_lifecycle_event,
-                outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
-            }),
+            | RouteMaintenanceTrigger::LeaseExpiring => {
+                Ok(Self::replacement_required(trigger))
+            },
             | RouteMaintenanceTrigger::RouteExpired => {
                 Ok(Self::route_expired_result(active_route, runtime))
             },
@@ -328,15 +333,14 @@ where
         if !self.repair_allowed(active_route) {
             return Ok(Self::replacement_required(trigger));
         }
-        let repaired = context.latest_topology.is_some_and(|topology| {
-            self.repair_remaining_suffix(active_route, &topology.value)
-        });
+        let Some(topology) = context.latest_topology else {
+            return Ok(Self::replacement_required(trigger));
+        };
+        let repaired = self.repair_remaining_suffix(active_route, &topology.value);
         if !repaired {
             return Ok(Self::replacement_required(trigger));
         }
-        if let Some(topology) = context.latest_topology {
-            active_route.current_epoch = topology.value.epoch;
-        }
+        active_route.current_epoch = topology.value.epoch;
         let result = Self::apply_repair(active_route, runtime, context.now);
         if let Some(recovered) =
             self.recover_from_partition_if_possible(active_route, runtime, context.now)?

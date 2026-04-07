@@ -45,8 +45,20 @@ const RULES: &[Rule] = &[
         collect:     tick_epoch_conflation,
     },
     Rule {
+        description: "checked routing score arithmetic",
+        collect:     checked_score_arithmetic,
+    },
+    Rule {
+        description: "typed wrapper arithmetic uses checked reconstruction",
+        collect:     typed_wrapper_arithmetic,
+    },
+    Rule {
         description: "committee failure is not silently erased",
         collect:     committee_swallow,
+    },
+    Rule {
+        description: "null-object selectors are not wrapped in dead Option state",
+        collect:     selector_null_object,
     },
     Rule {
         description: "namespaced storage keys",
@@ -55,6 +67,10 @@ const RULES: &[Rule] = &[
     Rule {
         description: "no synthetic authoritative-state fallback",
         collect:     synthetic_fallback,
+    },
+    Rule {
+        description: "routing thresholds use named constants",
+        collect:     named_thresholds,
     },
 ];
 
@@ -98,6 +114,9 @@ pub fn run(args: &[String]) -> Result<()> {
         }
     }
 
+    // --validate mode requires every rule to fire at least once on the
+    // fixture tree. A rule that does not fire means the fixture is stale
+    // — fixtures must stay current with the live rule set.
     if validate {
         if matched_rules != RULES.len() {
             bail!(
@@ -278,12 +297,55 @@ fn tick_epoch_conflation(root: &Path) -> Result<Vec<Violation>> {
     )
 }
 
+fn checked_score_arithmetic(root: &Path) -> Result<Vec<Violation>> {
+    let mut out = Vec::new();
+    let re = Regex::new(
+        r"quiet_pressure\s*\n?\s*\+\s*summary\.congestion_penalty_points\.0\.saturating_mul\(50\)",
+    )?;
+    for path in rust_files(root.join("crates/mesh/src"))? {
+        let rel = normalize_rel_path(root, &path);
+        let contents = fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        if re.is_match(&contents) {
+            let line = first_line_containing(
+                &contents.lines().collect::<Vec<_>>(),
+                &["quiet_pressure"],
+            )
+            .unwrap_or(1);
+            out.push(Violation::new(
+                rel,
+                line,
+                "bounded routing score arithmetic uses plain + instead of saturating_add",
+            ));
+        }
+    }
+    Ok(out)
+}
+
+fn typed_wrapper_arithmetic(root: &Path) -> Result<Vec<Violation>> {
+    grep_rule(
+        root,
+        &["crates"],
+        r"(Tick|RouteEpoch)\([^)]*\.0\s*\+\s*[A-Z_a-z0-9]+",
+        "typed time/version wrapper is reconstructed with unchecked raw-field addition",
+    )
+}
+
 fn committee_swallow(root: &Path) -> Result<Vec<Violation>> {
     grep_rule(
         root,
         &["crates/mesh/src"],
         r"\.ok\(\)\.flatten\(\)",
         "committee selector error is being silently erased",
+    )
+}
+
+fn selector_null_object(root: &Path) -> Result<Vec<Violation>> {
+    grep_rule(
+        root,
+        &["crates/mesh/src"],
+        r"selector:\s+Option<Selector>",
+        "null-object selector is wrapped in dead Option state",
     )
 }
 
@@ -302,6 +364,15 @@ fn synthetic_fallback(root: &Path) -> Result<Vec<Violation>> {
         &["crates/mesh/src"],
         r"fallback_health_configuration|map_or_else\(\s*\|\|\s*self\.fallback_health_configuration",
         "synthetic authoritative-state fallback detected",
+    )
+}
+
+fn named_thresholds(root: &Path) -> Result<Vec<Violation>> {
+    grep_rule(
+        root,
+        &["crates/mesh/src"],
+        r">\s*600\b",
+        "routing threshold literal should be a named constant",
     )
 }
 
@@ -341,6 +412,9 @@ fn grep_rule(
     for dir in dirs {
         for path in rust_files(root.join(dir))? {
             let path_str = path.to_string_lossy().replace('\\', "/");
+            // Skip fixture files in normal runs but include them under
+            // --validate, where root IS the fixture tree and rules must
+            // fire against its synthetic violations.
             if !is_validation_root(root) && path_str.contains("/crates/xtask/fixtures/")
             {
                 continue;

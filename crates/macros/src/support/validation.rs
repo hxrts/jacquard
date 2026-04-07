@@ -86,6 +86,9 @@ fn bad_type_reason(ty: &Type) -> Option<&'static str> {
     }
 }
 
+// Recurse into bad_type_reason so that Option<bool>, Option<f64>, and
+// other Option-wrapped forbidden types are caught transitively, not
+// just bare forbidden types at the top level.
 fn option_inner_reason(path: &Path) -> Option<&'static str> {
     let PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =
         &path.segments.last()?.arguments

@@ -146,6 +146,9 @@ fn owning_packages(root: &Path, files: &[String]) -> Result<BTreeSet<String>> {
     let mut packages = BTreeSet::new();
     for rel in files {
         let abs = root.join(rel);
+        // Longest-prefix-wins: a file may match multiple package dirs;
+        // the deepest (most specific) package dir wins to avoid
+        // attributing a crate file to a parent workspace member.
         let mut best: Option<(&str, usize)> = None;
         for (name, dir) in &package_dirs {
             if abs.starts_with(dir) {

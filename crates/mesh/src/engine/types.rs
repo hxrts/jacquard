@@ -58,13 +58,13 @@ pub struct MeshRepairState {
     pub last_repaired_at_tick: Option<Tick>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeshHandoffState {
     pub last_receipt_id:      Option<ReceiptId>,
     pub last_handoff_at_tick: Option<Tick>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeshRouteAntiEntropyState {
     pub partition_mode:       bool,
     pub retained_objects:     BTreeSet<ContentId<Blake3Digest>>,

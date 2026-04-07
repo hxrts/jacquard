@@ -1,7 +1,5 @@
 //! Materialization planning and installation helpers for mesh runtime.
 
-use std::collections::BTreeSet;
-
 use jacquard_core::{
     Configuration, Fact, FactBasis, Observation, RouteError, RouteEvent,
     RouteInstallation, RouteLifecycleEvent, RouteMaterializationInput,
@@ -102,15 +100,8 @@ where
                 ),
                 last_repaired_at_tick: None,
             },
-            handoff: super::super::MeshHandoffState {
-                last_receipt_id:      None,
-                last_handoff_at_tick: None,
-            },
-            anti_entropy: super::super::MeshRouteAntiEntropyState {
-                partition_mode:       false,
-                retained_objects:     BTreeSet::new(),
-                last_refresh_at_tick: None,
-            },
+            handoff: super::super::MeshHandoffState::default(),
+            anti_entropy: super::super::MeshRouteAntiEntropyState::default(),
         }
     }
 
@@ -161,6 +152,9 @@ where
         let committee = match plan.committee_status {
             | MeshCommitteeStatus::Selected(selection) => Some(selection),
             | MeshCommitteeStatus::NotApplicable => None,
+            // SelectorFailed in the plan token means admission should have
+            // rejected this candidate. Reaching materialization here is an
+            // upstream invariant violation; fail closed.
             | MeshCommitteeStatus::SelectorFailed => {
                 return Err(RouteRuntimeError::Invalidated.into());
             },
@@ -210,6 +204,9 @@ where
         input: &RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError> {
         let route_id = input.handle.route_id;
+        // Replacements re-use an existing route slot so the budget cap is
+        // skipped — an already-active route does not consume an extra slot
+        // when re-materialized.
         let previous_active_route = self.active_routes.get(&route_id).cloned();
         let is_replacement = previous_active_route.is_some();
         if !is_replacement && self.active_routes.len() >= MESH_ACTIVE_ROUTE_COUNT_MAX {

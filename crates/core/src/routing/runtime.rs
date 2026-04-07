@@ -64,7 +64,9 @@ pub struct RoutingTickOutcome {
     pub change:         RoutingTickChange,
 }
 
-// Lexicographic: priority first, then epoch, then deterministic tie-break.
+// Manual Ord (not derived) keeps the priority-first, then-epoch,
+// then-tie-break lexicographic order explicit and independent of field
+// declaration order.
 impl Ord for RouteOrderingKey {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         (self.priority, self.topology_epoch, self.tie_break).cmp(&(
@@ -325,6 +327,8 @@ impl MaterializedRoute {
         input: RouteMaterializationInput,
         installation: RouteInstallation,
     ) -> Self {
+        // Invariant assertions: from_installation is a trusted router-internal
+        // path. These are programming-error guards, not recoverable failures.
         assert_eq!(
             input.admission.admission_check.decision,
             AdmissionDecision::Admissible,

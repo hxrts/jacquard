@@ -304,15 +304,17 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
         // reads as a nontrivial score). Repair pressure tracks churn
         // directly. Partition risk averages churn and contention since
         // either signal alone can predict local isolation.
-        let neighbor_count =
-            u32::try_from(adjacent_node_ids(local_node_id, configuration).len())
-                .ok()?;
+        let neighbor_ids = adjacent_node_ids(local_node_id, configuration);
+        let neighbor_count = u32::try_from(neighbor_ids.len()).ok()?;
         let Environment {
             reachable_neighbor_count,
             churn_permille,
             contention_permille,
         } = configuration.environment;
 
+        // Take the larger of topology-observed links and the self-reported
+        // reachable count: indirect neighbor knowledge can exceed local
+        // link map entries, and density must not be understated.
         let density_source = reachable_neighbor_count.max(neighbor_count);
         let density_score = Some(bounded_health_score(
             density_source.saturating_mul(DENSITY_SCORE_SCALE),
@@ -324,8 +326,12 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
                 + u32::from(contention_permille.get()) / 2,
         ));
 
+        // Sum (not average) across neighbors then clamp. Sum rewards
+        // having more service-capable neighbors: a dense neighborhood
+        // saturates the cap faster than a sparse one with equal per-node
+        // score.
         let service_stability_score = Some(bounded_health_score(
-            adjacent_node_ids(local_node_id, configuration)
+            neighbor_ids
                 .into_iter()
                 .filter_map(|peer_id| configuration.nodes.get(&peer_id))
                 .map(|node| {
@@ -649,14 +655,6 @@ mod tests {
         }
     }
 
-    fn node_with_absent_runtime_services(services: Vec<ServiceDescriptor>) -> Node {
-        Node {
-            controller_id: ControllerId([0; 32]),
-            profile:       NodeProfile { services, ..empty_node_profile() },
-            state:         empty_node_state(),
-        }
-    }
-
     fn active_link(byte: u8, confidence: u16) -> Link {
         Link {
             endpoint: LinkEndpoint {
@@ -748,7 +746,7 @@ mod tests {
                 (local, node_with_services(vec![])),
                 (
                     peer,
-                    node_with_absent_runtime_services(vec![
+                    node_with_services(vec![
                         service(
                             RouteServiceKind::Discover,
                             RoutingEngineId::Mesh,

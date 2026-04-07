@@ -11,6 +11,9 @@ use jacquard_core::{
 };
 use jacquard_macros::{effect_trait, purity};
 
+// `Sealed` is satisfied only via `EffectDefinition`, which is emitted
+// exclusively by the `#[effect_trait]` proc macro. External crates
+// cannot implement `Effect` directly.
 mod sealed {
     pub trait Sealed {}
 

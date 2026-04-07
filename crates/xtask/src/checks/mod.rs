@@ -8,6 +8,7 @@ pub mod no_usize_in_models;
 pub mod pre_commit;
 pub mod proc_macro_scope;
 pub mod routing_invariants;
+pub mod test_boundaries;
 pub mod trait_purity;
 
 use anyhow::{bail, Result};
@@ -24,6 +25,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "no-usize-in-models" => no_usize_in_models::run(),
         | "proc-macro-scope" => proc_macro_scope::run(),
         | "routing-invariants" => routing_invariants::run(rest),
+        | "test-boundaries" => test_boundaries::run(),
         | "trait-purity" => trait_purity::run(),
         | other => bail!("xtask: unknown check: {other}"),
     }

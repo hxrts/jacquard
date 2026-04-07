@@ -31,9 +31,27 @@ rustc_session::declare_lint! {
 }
 
 rustc_session::declare_lint! {
+    pub CHECKED_SCORE_ARITHMETIC,
+    Warn,
+    "bounded routing score arithmetic should use checked/saturating composition",
+}
+
+rustc_session::declare_lint! {
+    pub TYPED_WRAPPER_ARITHMETIC,
+    Warn,
+    "typed time/version wrappers should not use unchecked raw-field addition",
+}
+
+rustc_session::declare_lint! {
     pub COMMITTEE_SWALLOW,
     Warn,
     "committee selector failures should not be silently erased",
+}
+
+rustc_session::declare_lint! {
+    pub NULL_OBJECT_SELECTOR,
+    Warn,
+    "null-object selectors should not be wrapped in dead Option state",
 }
 
 rustc_session::declare_lint! {
@@ -54,6 +72,12 @@ rustc_session::declare_lint! {
     "routing code should fail closed rather than synthesizing authoritative state",
 }
 
+rustc_session::declare_lint! {
+    pub NAMED_THRESHOLDS,
+    Warn,
+    "routing thresholds in production code should use named constants",
+}
+
 #[allow(unsafe_code)]
 #[expect(clippy::no_mangle_with_rust_abi)]
 #[unsafe(no_mangle)]
@@ -63,27 +87,39 @@ pub fn register_lints(sess: &Session, lint_store: &mut LintStore) {
         PLANNER_CACHE_DEPENDENCE,
         FAIL_CLOSED_ORDERING,
         TICK_EPOCH_CONFLATION,
+        CHECKED_SCORE_ARITHMETIC,
+        TYPED_WRAPPER_ARITHMETIC,
         COMMITTEE_SWALLOW,
+        NULL_OBJECT_SELECTOR,
         ROUTER_IDENTITY_MUTATION,
         UNSCOPED_STORAGE_KEYS,
         SYNTHETIC_FALLBACK,
+        NAMED_THRESHOLDS,
     ]);
     lint_store.register_late_pass(|_| Box::new(PlannerCacheDependence::default()));
     lint_store.register_late_pass(|_| Box::new(FailClosedOrdering::default()));
     lint_store.register_late_pass(|_| Box::new(TickEpochConflation::default()));
+    lint_store.register_late_pass(|_| Box::new(CheckedScoreArithmetic::default()));
+    lint_store.register_late_pass(|_| Box::new(TypedWrapperArithmetic::default()));
     lint_store.register_late_pass(|_| Box::new(CommitteeSwallow::default()));
+    lint_store.register_late_pass(|_| Box::new(NullObjectSelector::default()));
     lint_store.register_late_pass(|_| Box::new(RouterIdentityMutation::default()));
     lint_store.register_late_pass(|_| Box::new(UnscopedStorageKeys::default()));
     lint_store.register_late_pass(|_| Box::new(SyntheticFallback::default()));
+    lint_store.register_late_pass(|_| Box::new(NamedThresholds::default()));
 }
 
 rustc_session::impl_lint_pass!(PlannerCacheDependence => [PLANNER_CACHE_DEPENDENCE]);
 rustc_session::impl_lint_pass!(FailClosedOrdering => [FAIL_CLOSED_ORDERING]);
 rustc_session::impl_lint_pass!(TickEpochConflation => [TICK_EPOCH_CONFLATION]);
+rustc_session::impl_lint_pass!(CheckedScoreArithmetic => [CHECKED_SCORE_ARITHMETIC]);
+rustc_session::impl_lint_pass!(TypedWrapperArithmetic => [TYPED_WRAPPER_ARITHMETIC]);
 rustc_session::impl_lint_pass!(CommitteeSwallow => [COMMITTEE_SWALLOW]);
+rustc_session::impl_lint_pass!(NullObjectSelector => [NULL_OBJECT_SELECTOR]);
 rustc_session::impl_lint_pass!(RouterIdentityMutation => [ROUTER_IDENTITY_MUTATION]);
 rustc_session::impl_lint_pass!(UnscopedStorageKeys => [UNSCOPED_STORAGE_KEYS]);
 rustc_session::impl_lint_pass!(SyntheticFallback => [SYNTHETIC_FALLBACK]);
+rustc_session::impl_lint_pass!(NamedThresholds => [NAMED_THRESHOLDS]);
 
 #[derive(Default)]
 struct PlannerCacheDependence {
@@ -101,7 +137,22 @@ struct TickEpochConflation {
 }
 
 #[derive(Default)]
+struct CheckedScoreArithmetic {
+    seen_files: BTreeSet<String>,
+}
+
+#[derive(Default)]
+struct TypedWrapperArithmetic {
+    seen_files: BTreeSet<String>,
+}
+
+#[derive(Default)]
 struct CommitteeSwallow {
+    seen_files: BTreeSet<String>,
+}
+
+#[derive(Default)]
+struct NullObjectSelector {
     seen_files: BTreeSet<String>,
 }
 
@@ -120,10 +171,15 @@ struct SyntheticFallback {
     seen_files: BTreeSet<String>,
 }
 
+#[derive(Default)]
+struct NamedThresholds {
+    seen_files: BTreeSet<String>,
+}
+
 impl<'tcx> LateLintPass<'tcx> for PlannerCacheDependence {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.ends_with("crates/mesh/src/engine/runtime.rs") {
+            if !rel.contains("crates/mesh/src/engine/runtime") {
                 return None;
             }
             let line = first_line_matching(contents, &Regex::new(r"find_cached_candidate_by_route_id\(").ok()?)?;
@@ -138,7 +194,7 @@ impl<'tcx> LateLintPass<'tcx> for PlannerCacheDependence {
 impl<'tcx> LateLintPass<'tcx> for FailClosedOrdering {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.ends_with("crates/mesh/src/engine/runtime.rs") {
+            if !rel.contains("crates/mesh/src/engine/runtime") {
                 return None;
             }
             let insert_line = line_position(contents, "self.active_routes.insert(");
@@ -189,16 +245,79 @@ impl<'tcx> LateLintPass<'tcx> for TickEpochConflation {
     }
 }
 
+impl<'tcx> LateLintPass<'tcx> for CheckedScoreArithmetic {
+    fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        scan_once(cx, item, &mut self.seen_files, |rel, contents| {
+            if !rel.ends_with("crates/mesh/src/engine/runtime/health.rs") {
+                return None;
+            }
+            let re = Regex::new(
+                r"quiet_pressure\s*\n?\s*\+\s*summary\.congestion_penalty_points\.0\.saturating_mul\(50\)",
+            )
+            .ok()?;
+            if !re.is_match(contents) {
+                return None;
+            }
+            let line = first_line_matching(
+                contents,
+                &Regex::new(r"quiet_pressure").ok()?,
+            )?;
+            Some((
+                CHECKED_SCORE_ARITHMETIC,
+                format!(
+                    "{rel}:{line}: bounded routing score arithmetic uses plain + instead of saturating_add"
+                ),
+            ))
+        });
+    }
+}
+
+impl<'tcx> LateLintPass<'tcx> for TypedWrapperArithmetic {
+    fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        scan_once(cx, item, &mut self.seen_files, |rel, contents| {
+            if !rel.contains("/crates/") {
+                return None;
+            }
+            let line = first_line_matching(
+                contents,
+                &Regex::new(r"(Tick|RouteEpoch)\([^)]*\.0\s*\+\s*[A-Z_a-z0-9]+").ok()?,
+            )?;
+            Some((
+                TYPED_WRAPPER_ARITHMETIC,
+                format!(
+                    "{rel}:{line}: typed time/version wrapper is reconstructed with unchecked raw-field addition"
+                ),
+            ))
+        });
+    }
+}
+
 impl<'tcx> LateLintPass<'tcx> for CommitteeSwallow {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.ends_with("crates/mesh/src/engine/planner.rs") {
+            if !rel.contains("crates/mesh/src/engine/planner") {
                 return None;
             }
             let line = first_line_matching(contents, &Regex::new(r"\.ok\(\)\.flatten\(\)").ok()?)?;
             Some((
                 COMMITTEE_SWALLOW,
                 format!("{rel}:{line}: committee selector error is being silently erased"),
+            ))
+        });
+    }
+}
+
+impl<'tcx> LateLintPass<'tcx> for NullObjectSelector {
+    fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        scan_once(cx, item, &mut self.seen_files, |rel, contents| {
+            if !rel.ends_with("crates/mesh/src/engine/mod.rs") {
+                return None;
+            }
+            let line =
+                first_line_matching(contents, &Regex::new(r"selector:\s+Option<Selector>").ok()?)?;
+            Some((
+                NULL_OBJECT_SELECTOR,
+                format!("{rel}:{line}: null-object selector is wrapped in dead Option state"),
             ))
         });
     }
@@ -253,6 +372,21 @@ impl<'tcx> LateLintPass<'tcx> for SyntheticFallback {
             Some((
                 SYNTHETIC_FALLBACK,
                 format!("{rel}:{line}: synthetic authoritative-state fallback detected"),
+            ))
+        });
+    }
+}
+
+impl<'tcx> LateLintPass<'tcx> for NamedThresholds {
+    fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        scan_once(cx, item, &mut self.seen_files, |rel, contents| {
+            if !rel.contains("/crates/mesh/src/") {
+                return None;
+            }
+            let line = first_line_matching(contents, &Regex::new(r">\s*600\b").ok()?)?;
+            Some((
+                NAMED_THRESHOLDS,
+                format!("{rel}:{line}: routing threshold literal should be a named constant"),
             ))
         });
     }

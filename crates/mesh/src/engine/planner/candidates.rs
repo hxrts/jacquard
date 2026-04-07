@@ -67,7 +67,12 @@ where
             self.determine_route_class(objective, segments.len(), hold_capable);
         let valid_for = TimeWindow::new(
             topology.observed_at_tick,
-            Tick(topology.observed_at_tick.0 + MESH_CANDIDATE_VALIDITY_TICKS),
+            Tick(
+                topology
+                    .observed_at_tick
+                    .0
+                    .saturating_add(MESH_CANDIDATE_VALIDITY_TICKS),
+            ),
         )
         .expect("mesh candidates always use a positive validity window");
         let committee_status = super::super::support::committee_status(

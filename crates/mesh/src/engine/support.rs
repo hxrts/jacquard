@@ -53,6 +53,7 @@ const PLAN_TOKEN_ENCODING_VERSION: u8 = 1;
 const ROUTE_IDENTITY_ENCODING_VERSION: u8 = 1;
 const CHECKPOINT_ENCODING_VERSION: u8 = 1;
 const PATH_ENCODING_VERSION: u8 = 1;
+const MESH_DEGRADATION_PRESSURE_THRESHOLD_PERMILLE: u16 = 600;
 
 pub(super) fn committee_status(
     result: Result<Option<CommitteeSelection>, jacquard_core::RouteError>,
@@ -64,6 +65,9 @@ pub(super) fn committee_status(
     }
 }
 
+// `allow_trailing_bytes` is required because decode_versioned strips the
+// leading version byte before passing the rest to bincode, which would
+// otherwise reject the slice as oversized.
 fn canonical_options() -> impl Options {
     bincode::DefaultOptions::new()
         .with_fixint_encoding()
@@ -245,9 +249,13 @@ pub(super) fn degradation_for_candidate(
 ) -> RouteDegradation {
     if matches!(route_class, MeshRouteClass::DeferredDelivery) {
         RouteDegradation::Degraded(DegradationReason::PartitionRisk)
-    } else if configuration.environment.contention_permille.get() > 600 {
+    } else if configuration.environment.contention_permille.get()
+        > MESH_DEGRADATION_PRESSURE_THRESHOLD_PERMILLE
+    {
         RouteDegradation::Degraded(DegradationReason::CapacityPressure)
-    } else if configuration.environment.churn_permille.get() > 600 {
+    } else if configuration.environment.churn_permille.get()
+        > MESH_DEGRADATION_PRESSURE_THRESHOLD_PERMILLE
+    {
         RouteDegradation::Degraded(DegradationReason::LinkInstability)
     } else {
         RouteDegradation::None
@@ -259,18 +267,18 @@ pub(super) fn degradation_for_candidate(
 // site. Shared route cost reflects the chosen path's hop count,
 // delivery confidence, symmetry, loss-derived congestion, protocol
 // diversity, and deferred-delivery hold reservation.
-pub(super) fn route_cost_for_segments(
-    node_path: &[NodeId],
-    segments: &[MeshRouteSegment],
-    route_class: &MeshRouteClass,
-    configuration: &Configuration,
-) -> RouteCost {
-    let hop_count = u8::try_from(segments.len())
-        .expect("segment count is bounded by ROUTE_HOP_COUNT_MAX");
-    let hold_reserved = match route_class {
+fn hold_reserved_bytes(route_class: &MeshRouteClass) -> ByteCount {
+    match route_class {
         | MeshRouteClass::DeferredDelivery => ByteCount(MESH_HOLD_RESERVED_BYTES),
         | _ => ByteCount(0),
-    };
+    }
+}
+
+fn route_quality_penalties(
+    node_path: &[NodeId],
+    segments: &[MeshRouteSegment],
+    configuration: &Configuration,
+) -> (u32, u32, u32) {
     let confidence = u32::from(confidence_for_segments(segments, configuration).get());
     let delivery_penalty = (1000_u32.saturating_sub(confidence)) / 100;
     let (symmetry_penalty, congestion_penalty) = segments.iter().enumerate().fold(
@@ -296,9 +304,35 @@ pub(super) fn route_cost_for_segments(
             (symmetry_penalty, congestion_penalty)
         },
     );
-    let protocol_diversity =
-        u32::try_from(unique_protocol_mix(segments).len()).unwrap_or(u32::MAX);
-    let diversity_bonus = protocol_diversity.saturating_sub(1);
+    (delivery_penalty, symmetry_penalty, congestion_penalty)
+}
+
+fn protocol_diversity_bonus(segments: &[MeshRouteSegment]) -> u32 {
+    let protocol_mix = unique_protocol_mix(segments);
+    let u32_max_as_usize =
+        usize::try_from(u32::MAX).expect("u32::MAX fits on supported targets");
+    debug_assert!(protocol_mix.len() <= u32_max_as_usize);
+    u32::try_from(protocol_mix.len())
+        .expect("protocol diversity is bounded by segment count")
+        .saturating_sub(1)
+}
+
+pub(super) fn route_cost_for_segments(
+    node_path: &[NodeId],
+    segments: &[MeshRouteSegment],
+    route_class: &MeshRouteClass,
+    configuration: &Configuration,
+) -> RouteCost {
+    let hop_count = u8::try_from(segments.len())
+        .expect("segment count is bounded by ROUTE_HOP_COUNT_MAX");
+    let hold_reserved = hold_reserved_bytes(route_class);
+    let (delivery_penalty, symmetry_penalty, congestion_penalty) =
+        route_quality_penalties(node_path, segments, configuration);
+    let diversity_bonus = protocol_diversity_bonus(segments);
+    // path_penalty adds slack proportional to link quality across all cost
+    // fields. The +1 in work_step_count_max accounts for the local
+    // materialization step. Byte budget scales penalty by 128 to stay
+    // above per-hop cost.
     let path_penalty = delivery_penalty
         .saturating_add(symmetry_penalty)
         .saturating_add(congestion_penalty)
@@ -357,86 +391,14 @@ pub(super) fn limit_u32(limit: Limit<u32>) -> u32 {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        AdaptiveRoutingProfile, AdmissionAssumptions, AdversaryRegime, Belief,
-        ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
-        ConnectivityRegime, ContentId, ControllerId, Environment, FailureModelClass,
-        HoldFallbackPolicy, HostName, LinkEndpoint, MessageFlowAssumptionClass,
-        NetworkHost, NodeDensityClass, RatioPermille, RouteConnectivityProfile,
-        RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-        RouteServiceKind, RouteSummary, RoutingObjective, RuntimeEnvelopeClass, Tick,
-        TimeWindow,
+        Belief, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
+        ContentId, ControllerId, Environment, HostName, LinkEndpoint, NetworkHost,
+        RatioPermille, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, Tick,
     };
 
     use super::*;
-    use crate::{MeshPath, MESH_ENGINE_ID};
-
-    fn neutral_assumptions() -> AdmissionAssumptions {
-        AdmissionAssumptions {
-            message_flow_assumption: MessageFlowAssumptionClass::PerRouteSequenced,
-            failure_model:           FailureModelClass::Benign,
-            runtime_envelope:        RuntimeEnvelopeClass::Canonical,
-            node_density_class:      NodeDensityClass::Sparse,
-            connectivity_regime:     ConnectivityRegime::Stable,
-            adversary_regime:        AdversaryRegime::BenignUntrusted,
-            claim_strength:          ClaimStrength::ConservativeUnderProfile,
-        }
-    }
-
-    fn objective_with_floor(floor: RouteProtectionClass) -> RoutingObjective {
-        RoutingObjective {
-            destination:           jacquard_core::DestinationId::Node(NodeId([3; 32])),
-            service_kind:          RouteServiceKind::Move,
-            target_protection:     floor,
-            protection_floor:      floor,
-            target_connectivity:   RouteConnectivityProfile {
-                repair:    RouteRepairClass::Repairable,
-                partition: RoutePartitionClass::ConnectedOnly,
-            },
-            hold_fallback_policy:  HoldFallbackPolicy::Allowed,
-            latency_budget_ms:     Limit::Unbounded,
-            protection_priority:   jacquard_core::PriorityPoints(0),
-            connectivity_priority: jacquard_core::PriorityPoints(0),
-        }
-    }
-
-    fn profile_with(
-        repair: RouteRepairClass,
-        partition: RoutePartitionClass,
-    ) -> AdaptiveRoutingProfile {
-        AdaptiveRoutingProfile {
-            selected_protection:            RouteProtectionClass::LinkProtected,
-            selected_connectivity:          RouteConnectivityProfile {
-                repair,
-                partition,
-            },
-            deployment_profile:
-                jacquard_core::DeploymentProfile::FieldPartitionTolerant,
-            diversity_floor:                1,
-            routing_engine_fallback_policy:
-                jacquard_core::RoutingEngineFallbackPolicy::Allowed,
-            route_replacement_policy:
-                jacquard_core::RouteReplacementPolicy::Allowed,
-        }
-    }
-
-    fn summary_with(
-        protection: RouteProtectionClass,
-        repair: RouteRepairClass,
-        partition: RoutePartitionClass,
-    ) -> RouteSummary {
-        RouteSummary {
-            engine: MESH_ENGINE_ID,
-            protection,
-            connectivity: RouteConnectivityProfile { repair, partition },
-            protocol_mix: Vec::new(),
-            hop_count_hint: Belief::Estimated(jacquard_core::Estimate {
-                value:               1_u8,
-                confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(0),
-            }),
-            valid_for: TimeWindow::new(Tick(0), Tick(100)).unwrap(),
-        }
-    }
+    use crate::{engine::test_helpers::*, MeshPath};
 
     #[test]
     fn storage_keys_are_scoped_by_local_node_id() {
@@ -452,17 +414,6 @@ mod tests {
             topology_epoch_storage_key(&left_node),
             topology_epoch_storage_key(&right_node)
         );
-    }
-
-    fn unit_route_cost() -> RouteCost {
-        RouteCost {
-            message_count_max:        Limit::Bounded(1),
-            byte_count_max:           Limit::Bounded(ByteCount(1024)),
-            hop_count:                1,
-            repair_attempt_count_max: Limit::Bounded(1),
-            hold_bytes_reserved:      Limit::Bounded(ByteCount(0)),
-            work_step_count_max:      Limit::Bounded(2),
-        }
     }
 
     #[test]

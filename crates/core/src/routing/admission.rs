@@ -177,6 +177,8 @@ pub struct RouteSummary {
     pub valid_for:      TimeWindow,
 }
 
+// Advisory only: a RouteCandidate is never proof-bearing evidence.
+// RouteAdmission is the proof-bearing counterpart after the admission check.
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCandidate {

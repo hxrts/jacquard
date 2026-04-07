@@ -125,8 +125,8 @@ pub trait MeshTransport {
     ) -> Result<Vec<TransportObservation>, TransportError>;
 }
 
-// A concrete mesh transport adapter is also a concrete transport effect
-// handler.
+// Blanket impl: any MeshTransport automatically satisfies TransportEffects
+// so implementors only need one specialized trait, not two.
 #[effect_handler]
 impl<T> TransportEffects for T
 where

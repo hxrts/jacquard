@@ -146,6 +146,7 @@ ci-dry-run:
     add_step "Tests"              "cargo test --workspace"
     add_step "Docs Link Check"    "cargo xtask check docs-link-check"
     add_step "Proc Macro Scope"   "cargo xtask check proc-macro-scope"
+    add_step "Test Boundaries"    "cargo xtask check test-boundaries"
     add_step "Trait Purity"       "cargo xtask check trait-purity"
     add_step "Crate Boundary"     "cargo xtask check crate-boundary"
     add_step "No usize in Models" "cargo xtask check no-usize-in-models"
@@ -193,6 +194,10 @@ docs-link-check:
 # detect stale backtick references in docs
 docs-semantic-drift:
     cargo xtask check docs-semantic-drift
+
+# enforce unit-test / integration-test boundary rules
+test-boundaries:
+    cargo xtask check test-boundaries
 
 # enforce routing correctness invariants
 routing-invariants:

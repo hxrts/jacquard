@@ -22,7 +22,10 @@ use jacquard_traits::{
     Blake3Hashing, RoutingEngine, RoutingEnginePlanner,
 };
 
-use super::effects::{TestRetentionStore, TestRuntimeEffects, TestTransport};
+use super::{
+    effects::{TestRetentionStore, TestRuntimeEffects, TestTransport},
+    fixtures::sample_configuration,
+};
 
 /// Concrete `MeshEngine` instantiation used by every integration test.
 pub type TestEngine = MeshEngine<
@@ -116,7 +119,7 @@ pub fn profile_with_connectivity(
 pub fn lease(start: Tick, end: Tick) -> RouteLease {
     RouteLease {
         owner_node_id: LOCAL_NODE_ID,
-        lease_epoch:   jacquard_traits::jacquard_core::RouteEpoch(2),
+        lease_epoch:   sample_configuration().value.epoch,
         valid_for:     TimeWindow::new(start, end).expect("valid lease window"),
     }
 }
@@ -160,7 +163,17 @@ pub fn activate_route(
     lease_value: RouteLease,
 ) -> (MaterializedRouteIdentity, RouteRuntimeState) {
     let goal = objective(DestinationId::Node(destination));
-    let policy = profile();
+    activate_route_with_profile(engine, topology, goal, profile(), lease_value)
+}
+
+pub fn activate_route_with_profile(
+    engine: &mut TestEngine,
+    topology: &Observation<Configuration>,
+    goal: RoutingObjective,
+    policy: AdaptiveRoutingProfile,
+    lease_value: RouteLease,
+) -> (MaterializedRouteIdentity, RouteRuntimeState) {
+    let materialization_tick = lease_value.valid_for.start_tick();
 
     engine
         .engine_tick(&tick_context(topology))
@@ -189,5 +202,9 @@ pub fn activate_route(
         admission:             input.admission,
         lease:                 input.lease,
     };
+    debug_assert_eq!(
+        materialization_tick, identity.handle.materialized_at_tick,
+        "materialization_input should use the lease start tick",
+    );
     (identity, runtime)
 }

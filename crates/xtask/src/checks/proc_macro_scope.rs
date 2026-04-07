@@ -44,6 +44,7 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/mesh/src/engine/runtime/mod.rs",
     "crates/mesh/src/engine/runtime/tick.rs",
     "crates/mesh/src/engine/support.rs",
+    "crates/mesh/src/engine/test_helpers.rs",
     "crates/mesh/src/engine/trait_bounds.rs",
     "crates/mesh/src/engine/types.rs",
     "crates/mesh/src/lib.rs",

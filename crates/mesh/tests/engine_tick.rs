@@ -10,8 +10,8 @@ use std::collections::BTreeMap;
 
 use common::{
     engine::{
-        build_engine, lease, materialization_input, objective,
-        profile_with_connectivity,
+        activate_route_with_profile, build_engine, lease, materialization_input,
+        objective, profile_with_connectivity,
     },
     fixtures::sample_configuration,
 };
@@ -112,57 +112,34 @@ fn materialization_before_first_tick_fails_closed() {
 // long-block-exception: transport-to-health update path in one audit block.
 fn engine_tick_transport_observations_change_health_inputs() {
     let topology = sample_configuration();
-    let goal = direct_goal();
-    let policy = connected_only_policy();
-
     let mut plain_engine = build_engine();
-    plain_engine
-        .engine_tick(&RoutingTickContext::new(topology.clone()))
-        .expect("plain tick");
-    let plain_candidate = plain_engine
-        .candidate_routes(&goal, &policy, &topology)
-        .into_iter()
-        .next()
-        .expect("plain candidate");
-    let plain_admission = plain_engine
-        .admit_route(&goal, &policy, plain_candidate, &topology)
-        .expect("plain admission");
-    let plain_installation = plain_engine
-        .materialize_route(materialization_input(
-            plain_admission,
-            lease(Tick(2), Tick(12)),
-        ))
-        .expect("plain materialization");
+    let (_, plain_runtime) = activate_route_with_profile(
+        &mut plain_engine,
+        &topology,
+        direct_goal(),
+        connected_only_policy(),
+        lease(Tick(2), Tick(12)),
+    );
 
     let mut observed_engine = build_engine();
     observed_engine
         .transport_mut()
         .observations
         .push(low_quality_link_observation());
-    observed_engine
-        .engine_tick(&RoutingTickContext::new(topology.clone()))
-        .expect("observed tick");
-    let observed_candidate = observed_engine
-        .candidate_routes(&goal, &policy, &topology)
-        .into_iter()
-        .next()
-        .expect("observed candidate");
-    let observed_admission = observed_engine
-        .admit_route(&goal, &policy, observed_candidate, &topology)
-        .expect("observed admission");
-    let observed_installation = observed_engine
-        .materialize_route(materialization_input(
-            observed_admission,
-            lease(Tick(2), Tick(12)),
-        ))
-        .expect("observed materialization");
+    let (_, observed_runtime) = activate_route_with_profile(
+        &mut observed_engine,
+        &topology,
+        direct_goal(),
+        connected_only_policy(),
+        lease(Tick(2), Tick(12)),
+    );
 
     assert_eq!(
-        plain_installation.health.congestion_penalty_points,
+        plain_runtime.health.congestion_penalty_points,
         PenaltyPoints(0)
     );
     assert_eq!(
-        observed_installation.health.congestion_penalty_points,
+        observed_runtime.health.congestion_penalty_points,
         PenaltyPoints(4),
     );
     assert_eq!(
@@ -172,7 +149,7 @@ fn engine_tick_transport_observations_change_health_inputs() {
             .observed_link_count,
         1,
     );
-    assert_eq!(observed_installation.health.last_validated_at_tick, Tick(2),);
+    assert_eq!(observed_runtime.health.last_validated_at_tick, Tick(2),);
 }
 
 #[test]
@@ -344,77 +321,24 @@ fn route_health_is_scoped_to_the_active_route_suffix() {
     let topology = sample_configuration();
     let mut engine = build_engine();
 
-    let route_three_goal = objective(DestinationId::Node(NodeId([3; 32])));
-    let route_three_policy = profile_with_connectivity(
-        RouteRepairClass::Repairable,
-        RoutePartitionClass::PartitionTolerant,
+    let (route_three_identity, mut route_three_runtime) = activate_route_with_profile(
+        &mut engine,
+        &topology,
+        objective(DestinationId::Node(NodeId([3; 32]))),
+        profile_with_connectivity(
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::PartitionTolerant,
+        ),
+        lease(Tick(2), Tick(20)),
     );
-    engine
-        .engine_tick(&RoutingTickContext::new(topology.clone()))
-        .expect("initial tick");
-    let route_three_candidate = engine
-        .candidate_routes(&route_three_goal, &route_three_policy, &topology)
-        .into_iter()
-        .next()
-        .expect("route-three candidate");
-    let route_three_admission = engine
-        .admit_route(
-            &route_three_goal,
-            &route_three_policy,
-            route_three_candidate,
-            &topology,
-        )
-        .expect("route-three admission");
-    let route_three_input =
-        materialization_input(route_three_admission, lease(Tick(2), Tick(20)));
-    let route_three_installation = engine
-        .materialize_route(route_three_input.clone())
-        .expect("route-three materialization");
-    let route_three_identity =
-        jacquard_traits::jacquard_core::MaterializedRouteIdentity {
-            handle:                route_three_input.handle,
-            materialization_proof: route_three_installation.materialization_proof,
-            admission:             route_three_input.admission,
-            lease:                 route_three_input.lease,
-        };
-    let mut route_three_runtime = jacquard_traits::jacquard_core::RouteRuntimeState {
-        last_lifecycle_event: route_three_installation.last_lifecycle_event,
-        health:               route_three_installation.health,
-        progress:             route_three_installation.progress,
-    };
 
-    let route_four_goal = direct_goal();
-    let route_four_policy = connected_only_policy();
-    let route_four_candidate = engine
-        .candidate_routes(&route_four_goal, &route_four_policy, &topology)
-        .into_iter()
-        .next()
-        .expect("route-four candidate");
-    let route_four_admission = engine
-        .admit_route(
-            &route_four_goal,
-            &route_four_policy,
-            route_four_candidate,
-            &topology,
-        )
-        .expect("route-four admission");
-    let route_four_input =
-        materialization_input(route_four_admission, lease(Tick(2), Tick(20)));
-    let route_four_installation = engine
-        .materialize_route(route_four_input.clone())
-        .expect("route-four materialization");
-    let route_four_identity =
-        jacquard_traits::jacquard_core::MaterializedRouteIdentity {
-            handle:                route_four_input.handle,
-            materialization_proof: route_four_installation.materialization_proof,
-            admission:             route_four_input.admission,
-            lease:                 route_four_input.lease,
-        };
-    let mut route_four_runtime = jacquard_traits::jacquard_core::RouteRuntimeState {
-        last_lifecycle_event: route_four_installation.last_lifecycle_event,
-        health:               route_four_installation.health,
-        progress:             route_four_installation.progress,
-    };
+    let (route_four_identity, mut route_four_runtime) = activate_route_with_profile(
+        &mut engine,
+        &topology,
+        direct_goal(),
+        connected_only_policy(),
+        lease(Tick(2), Tick(20)),
+    );
 
     let mut broken_topology = topology.clone();
     broken_topology

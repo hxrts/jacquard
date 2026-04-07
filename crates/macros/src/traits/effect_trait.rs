@@ -15,6 +15,9 @@ pub(crate) fn expand(_attr: TokenStream, item: TokenStream) -> TokenStream {
         .supertraits
         .push(parse_quote!(::core::marker::Sync));
     item_trait.supertraits.push(parse_quote!('static));
+    // Inject a sealed marker method that binds the concrete type to the
+    // trait at compile time. `where Self: Sized` keeps the trait
+    // object-safe; `#[doc(hidden)]` hides it from public docs.
     item_trait.items.push(parse_quote! {
         #[doc(hidden)]
         fn __jacquard_handler_marker(

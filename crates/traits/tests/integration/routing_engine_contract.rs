@@ -690,12 +690,12 @@ fn committee_selector_trait_supports_shared_result_shape() {
             &sample_objective(),
             &sample_profile(),
             &Observation {
-                value: empty_configuration(),
-                source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-                evidence_class: RoutingEvidenceClass::DirectObservation,
+                value:                 empty_configuration(),
+                source_class:          jacquard_traits::jacquard_core::FactSourceClass::Local,
+                evidence_class:        RoutingEvidenceClass::DirectObservation,
                 origin_authentication:
                     jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-                observed_at_tick: Tick(1),
+                observed_at_tick:      Tick(1),
             },
         )
         .expect("committee selection should succeed")
@@ -723,12 +723,12 @@ fn committee_coordinated_engine_exposes_optional_swappable_selector() {
             &sample_objective(),
             &sample_profile(),
             &Observation {
-                value: empty_configuration(),
-                source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-                evidence_class: RoutingEvidenceClass::DirectObservation,
+                value:                 empty_configuration(),
+                source_class:          jacquard_traits::jacquard_core::FactSourceClass::Local,
+                evidence_class:        RoutingEvidenceClass::DirectObservation,
                 origin_authentication:
                     jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-                observed_at_tick: Tick(1),
+                observed_at_tick:      Tick(1),
             },
         )
         .expect("committee selection should succeed")

@@ -24,6 +24,8 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
       - name: Proc Macro Scope
         run: nix develop --command cargo xtask check proc-macro-scope
+      - name: Test Boundaries
+        run: nix develop --command cargo xtask check test-boundaries
       - name: Trait Purity
         run: nix develop --command cargo xtask check trait-purity
       - name: Crate Boundary

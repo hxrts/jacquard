@@ -69,6 +69,8 @@ impl TimeWindow {
         self.end_tick
     }
 
+    // Half-open interval [start_tick, end_tick): start is included, end is
+    // excluded. Matches standard lease-boundary semantics.
     #[must_use]
     pub fn contains(&self, tick: Tick) -> bool {
         self.start_tick <= tick && tick < self.end_tick

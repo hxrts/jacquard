@@ -116,6 +116,9 @@ impl TransportObservationAccumulator {
         let last_observed_at_tick = self.last_observed_at_tick?;
         let reachable_remote_count =
             u16::try_from(self.reachable_remote_nodes.len()).unwrap_or(u16::MAX);
+        // Payload events confirm reachability but carry no link-quality
+        // data. Use 500 (mid-scale) as "reachable, unknown quality"
+        // rather than collapsing to zero.
         let stability_score = if self.observed_link_count > 0 {
             HealthScore(self.stability_sum / u32::from(self.observed_link_count))
         } else if self.payload_event_count > 0 {
@@ -184,6 +187,9 @@ where
             .unwrap_or(u32::MAX)
             .saturating_mul(QUIET_DECAY_STEP);
 
+        // Preserve reachable_remote_count so the topology model retains
+        // neighbor knowledge during quiet periods. Zero the per-tick
+        // counters to avoid double-counting across ticks.
         Some(MeshTransportObservationSummary {
             last_observed_at_tick: Some(last_observed_at_tick),
             payload_event_count: 0,
@@ -246,6 +252,9 @@ where
         let observed_pressure = Self::observed_pressure_score(transport_summary);
         let anti_entropy_pressure =
             self.anti_entropy_pressure(previous, observed_pressure);
+        // Halve observed pressure before adding to the neighborhood signal.
+        // This keeps transient congestion spikes from overwhelming a stable
+        // topology reading. Combined score is capped at the 0..=1000 scale.
         let repair_pressure = neighborhood_repair_pressure
             .saturating_add(observed_pressure / 2)
             .min(1000);
@@ -280,14 +289,14 @@ where
         transport_summary: Option<&MeshTransportObservationSummary>,
     ) -> u32 {
         transport_summary.map_or(0, |summary| {
-            let quiet_pressure = match summary.freshness {
+            let quiet_pressure: u32 = match summary.freshness {
                 | MeshTransportFreshness::Fresh => 0,
                 | MeshTransportFreshness::Quiet => 100,
                 | MeshTransportFreshness::Stale => 250,
             };
             quiet_pressure
-                + summary.congestion_penalty_points.0.saturating_mul(50)
-                + 1000_u32.saturating_sub(summary.stability_score.0) / 2
+                .saturating_add(summary.congestion_penalty_points.0.saturating_mul(50))
+                .saturating_add(1000_u32.saturating_sub(summary.stability_score.0) / 2)
         })
     }
 
@@ -317,6 +326,9 @@ where
         }
     }
 
+    // Suppress the last repair step under moderate mesh pressure (>300) to
+    // avoid burning the final budget during a transient congestion burst.
+    // Repairs are unrestricted when multiple steps remain.
     pub(super) fn repair_allowed(&self, active_route: &ActiveMeshRoute) -> bool {
         if active_route.repair.steps_remaining == 0 {
             return false;

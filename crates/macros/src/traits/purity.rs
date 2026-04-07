@@ -76,6 +76,8 @@ fn validate_trait(item_trait: &ItemTrait, purity: PurityClass) -> syn::Result<()
                 return Ok(());
             }
 
+            // effectful requires at least one &mut self method. A trait
+            // with only &self methods belongs in read_only or pure.
             if !methods.iter().any(|method| {
                 matches!(
                     method.sig.receiver(),

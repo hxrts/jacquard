@@ -36,6 +36,8 @@ impl Violation {
     }
 }
 
+// Walk upward rather than invoking `cargo metadata`: xtask lives inside
+// the workspace so CARGO_MANIFEST_DIR is always a crate subdirectory.
 pub fn workspace_root() -> Result<PathBuf> {
     let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     while dir.pop() {

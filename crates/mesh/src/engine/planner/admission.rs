@@ -14,9 +14,12 @@ pub(super) fn mesh_admission_check(
     assumptions: &AdmissionAssumptions,
     committee_status: &super::super::support::CommitteeStatus,
 ) -> RouteAdmissionCheck {
-    let backend_unavailable = profile.selected_connectivity.partition
+    // Two distinct cases share this rejection: (1) profile requires partition
+    // tolerance but this route cannot provide it; (2) the committee selector
+    // failed, making local coordination impossible.
+    let backend_unavailable = (profile.selected_connectivity.partition
         == RoutePartitionClass::PartitionTolerant
-        && summary.connectivity.partition != RoutePartitionClass::PartitionTolerant
+        && summary.connectivity.partition != RoutePartitionClass::PartitionTolerant)
         || matches!(
             committee_status,
             super::super::support::CommitteeStatus::SelectorFailed

@@ -100,25 +100,25 @@ fn sample_node() -> Node {
         },
         state: NodeState {
             relay_budget: Belief::Estimated(jacquard_traits::jacquard_core::Estimate {
-                value: NodeRelayBudget {
-                    relay_work_budget: Belief::Estimated(
+                value:               NodeRelayBudget {
+                    relay_work_budget:    Belief::Estimated(
                         jacquard_traits::jacquard_core::Estimate {
-                            value: 8,
+                            value:               8,
                             confidence_permille: RatioPermille(900),
-                            updated_at_tick: Tick(2),
+                            updated_at_tick:     Tick(2),
                         },
                     ),
                     utilization_permille: RatioPermille(250),
                     retention_horizon_ms: Belief::Estimated(
                         jacquard_traits::jacquard_core::Estimate {
-                            value: DurationMs(500),
+                            value:               DurationMs(500),
                             confidence_permille: RatioPermille(900),
-                            updated_at_tick: Tick(2),
+                            updated_at_tick:     Tick(2),
                         },
                     ),
                 },
                 confidence_permille: RatioPermille(900),
-                updated_at_tick: Tick(2),
+                updated_at_tick:     Tick(2),
             }),
             available_connection_count: Belief::Absent,
             hold_capacity_available_bytes: Belief::Absent,
@@ -284,7 +284,7 @@ fn world_extensions_publish_self_describing_observations() {
                             value:               8,
                             confidence_permille: RatioPermille(900),
                             updated_at_tick:     Tick(2),
-                        }
+                        },
                     ),
                     utilization_permille: RatioPermille(250),
                     retention_horizon_ms: Belief::Estimated(

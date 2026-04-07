@@ -66,6 +66,9 @@ where
         vec![RouteCommitment {
             commitment_id: self
                 .commitment_id_for_route(&route.identity.handle.route_id),
+            // OperationId reuses RouteId bytes directly; the route id is
+            // already a stable content address for this path, so no
+            // separate derivation is needed.
             operation_id: RouteOperationId(route.identity.handle.route_id.0),
             route_binding: RouteBinding::Bound(route.identity.handle.route_id),
             owner_node_id: route.identity.lease.owner_node_id,
@@ -118,6 +121,9 @@ where
         self.control_state = Some(
             self.next_control_state(topology, self.last_transport_summary.as_ref()),
         );
+        // Include had_cached_candidates: a tick that clears a non-empty
+        // cache invalidates prior plan tokens and must be reported as a
+        // state update even when topology and transport are unchanged.
         let change = if prior_topology_epoch != Some(topology.value.epoch)
             || prior_transport_summary != self.last_transport_summary
             || prior_control_state != self.control_state

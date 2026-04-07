@@ -13,15 +13,19 @@
 mod common;
 
 use common::{
-    engine::{activate_route, build_engine, lease},
+    engine::{
+        activate_route, activate_route_with_profile, build_engine, lease, objective,
+        profile_with_connectivity,
+    },
     fixtures::sample_configuration,
 };
 use jacquard_traits::{
     jacquard_core::{
-        NodeId, RouteError, RouteMaintenanceFailure, RouteMaintenanceOutcome,
-        RouteMaintenanceTrigger, RouteRuntimeError, RoutingTickContext, Tick,
+        DestinationId, NodeId, RouteError, RouteMaintenanceFailure,
+        RouteMaintenanceOutcome, RouteMaintenanceTrigger, RoutePartitionClass,
+        RouteRepairClass, RouteRuntimeError, Tick,
     },
-    MeshRoutingEngine, RoutingEngine, RoutingEnginePlanner,
+    MeshRoutingEngine, RoutingEngine,
 };
 
 // CapacityExceeded is replacement pressure, not partition evidence. The
@@ -111,8 +115,16 @@ fn policy_shift_rebases_runtime_to_the_next_owner_relative_hop() {
 fn single_hop_policy_shift_advances_cursor_to_path_end() {
     let mut engine = build_engine();
     let topology = sample_configuration();
-    let (identity, mut runtime) =
-        activate_connected_only_route(&mut engine, &topology, NodeId([4; 32]));
+    let (identity, mut runtime) = activate_route_with_profile(
+        &mut engine,
+        &topology,
+        objective(DestinationId::Node(NodeId([4; 32]))),
+        profile_with_connectivity(
+            RouteRepairClass::BestEffort,
+            RoutePartitionClass::ConnectedOnly,
+        ),
+        lease(Tick(2), Tick(1000)),
+    );
 
     let result = engine
         .maintain_route(
@@ -145,8 +157,16 @@ fn single_hop_policy_shift_advances_cursor_to_path_end() {
 fn repeated_policy_shift_after_full_handoff_fails_closed() {
     let mut engine = build_engine();
     let topology = sample_configuration();
-    let (identity, mut runtime) =
-        activate_connected_only_route(&mut engine, &topology, NodeId([4; 32]));
+    let (identity, mut runtime) = activate_route_with_profile(
+        &mut engine,
+        &topology,
+        objective(DestinationId::Node(NodeId([4; 32]))),
+        profile_with_connectivity(
+            RouteRepairClass::BestEffort,
+            RoutePartitionClass::ConnectedOnly,
+        ),
+        lease(Tick(2), Tick(1000)),
+    );
 
     engine
         .maintain_route(
@@ -166,59 +186,6 @@ fn repeated_policy_shift_after_full_handoff_fails_closed() {
         error,
         RouteError::Runtime(RouteRuntimeError::Invalidated)
     ));
-}
-
-fn activate_connected_only_route(
-    engine: &mut common::engine::TestEngine,
-    topology: &jacquard_traits::jacquard_core::Observation<
-        jacquard_traits::jacquard_core::Configuration,
-    >,
-    destination: NodeId,
-) -> (
-    jacquard_traits::jacquard_core::MaterializedRouteIdentity,
-    jacquard_traits::jacquard_core::RouteRuntimeState,
-) {
-    use common::engine::{
-        lease, materialization_input, objective, profile_with_connectivity,
-    };
-    use jacquard_traits::jacquard_core::{
-        DestinationId, RoutePartitionClass, RouteRepairClass,
-    };
-
-    let goal = objective(DestinationId::Node(destination));
-    let policy = profile_with_connectivity(
-        RouteRepairClass::BestEffort,
-        RoutePartitionClass::ConnectedOnly,
-    );
-
-    engine
-        .engine_tick(&RoutingTickContext::new(topology.clone()))
-        .expect("engine tick");
-    let candidate = engine
-        .candidate_routes(&goal, &policy, topology)
-        .into_iter()
-        .next()
-        .expect("candidate");
-    let admission = engine
-        .admit_route(&goal, &policy, candidate, topology)
-        .expect("admission");
-    let input = materialization_input(admission, lease(Tick(2), Tick(1000)));
-    let installation = engine
-        .materialize_route(input.clone())
-        .expect("materialization");
-
-    let runtime = jacquard_traits::jacquard_core::RouteRuntimeState {
-        last_lifecycle_event: installation.last_lifecycle_event,
-        health:               installation.health,
-        progress:             installation.progress,
-    };
-    let identity = jacquard_traits::jacquard_core::MaterializedRouteIdentity {
-        handle:                input.handle,
-        materialization_proof: installation.materialization_proof,
-        admission:             input.admission,
-        lease:                 input.lease,
-    };
-    (identity, runtime)
 }
 
 // EpochAdvanced with repair budget remaining bumps the active epoch and

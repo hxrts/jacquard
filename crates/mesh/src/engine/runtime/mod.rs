@@ -189,6 +189,6 @@ where
     type Selector = Selector;
 
     fn committee_selector(&self) -> Option<&Self::Selector> {
-        self.selector.as_ref()
+        Some(&self.selector)
     }
 }
