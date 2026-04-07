@@ -447,13 +447,13 @@ mod tests {
         let hold_checkpoint = load_checkpoint(
             &runtime,
             MeshProtocolKind::HoldReplay,
-            route_session(MeshProtocolKind::HoldReplay, &RouteId([3; 16])),
+            &route_session(MeshProtocolKind::HoldReplay, &RouteId([3; 16])),
         )
         .expect("hold checkpoint present");
         let tick_checkpoint = load_checkpoint(
             &runtime,
             MeshProtocolKind::ForwardingHop,
-            tick_session(RouteEpoch(2)),
+            &tick_session(RouteEpoch(2)),
         )
         .expect("tick checkpoint present");
 
@@ -467,12 +467,12 @@ mod tests {
     fn load_checkpoint(
         runtime: &MeshGuestRuntime<FakeEffects>,
         protocol: MeshProtocolKind,
-        session: MeshProtocolSessionKey,
+        session: &MeshProtocolSessionKey,
     ) -> Option<MeshProtocolCheckpoint> {
         let bytes = runtime
             .effects
             .checkpoints
-            .get(&protocol_checkpoint_key(protocol, &session))?
+            .get(&protocol_checkpoint_key(protocol, session))?
             .clone();
         decode_checkpoint_bytes(&bytes)
     }

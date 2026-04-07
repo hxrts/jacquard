@@ -1,4 +1,4 @@
-//! Shared unit-test helpers for mesh engine modules.
+//! Admission-test fixtures for route objectives, profiles, summaries, and costs.
 
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionAssumptions, AdversaryRegime, Belief,
@@ -9,9 +9,9 @@ use jacquard_core::{
     RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
 };
 
-use crate::MESH_ENGINE_ID;
+use jacquard_mesh::MESH_ENGINE_ID;
 
-pub(super) fn neutral_assumptions() -> AdmissionAssumptions {
+pub fn neutral_assumptions() -> AdmissionAssumptions {
     AdmissionAssumptions {
         message_flow_assumption: MessageFlowAssumptionClass::PerRouteSequenced,
         failure_model: FailureModelClass::Benign,
@@ -23,7 +23,7 @@ pub(super) fn neutral_assumptions() -> AdmissionAssumptions {
     }
 }
 
-pub(super) fn objective_with_floor(floor: RouteProtectionClass) -> RoutingObjective {
+pub fn objective_with_floor(floor: RouteProtectionClass) -> RoutingObjective {
     RoutingObjective {
         destination: DestinationId::Node(NodeId([3; 32])),
         service_kind: RouteServiceKind::Move,
@@ -40,7 +40,7 @@ pub(super) fn objective_with_floor(floor: RouteProtectionClass) -> RoutingObject
     }
 }
 
-pub(super) fn profile_with(
+pub fn profile_with(
     repair: RouteRepairClass,
     partition: RoutePartitionClass,
 ) -> AdaptiveRoutingProfile {
@@ -55,7 +55,7 @@ pub(super) fn profile_with(
     }
 }
 
-pub(super) fn summary_with(
+pub fn summary_with(
     protection: RouteProtectionClass,
     repair: RouteRepairClass,
     partition: RoutePartitionClass,
@@ -74,7 +74,7 @@ pub(super) fn summary_with(
     }
 }
 
-pub(super) fn unit_route_cost() -> RouteCost {
+pub fn unit_route_cost() -> RouteCost {
     RouteCost {
         message_count_max: Limit::Bounded(1),
         byte_count_max: Limit::Bounded(jacquard_core::ByteCount(1024)),

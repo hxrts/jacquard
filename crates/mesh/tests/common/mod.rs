@@ -9,6 +9,7 @@
 #![allow(dead_code)]
 #![allow(unreachable_pub)]
 
+pub mod admission_fixtures;
 pub mod effects;
 pub mod engine;
 pub mod fixtures;

@@ -244,7 +244,7 @@ where
 
             if let Err(error) = self.choreography_runtime().replay_to_next_hop(
                 &active_route.path.route_id,
-                object_id.clone(),
+                object_id,
                 next_segment.endpoint.clone(),
                 payload.clone(),
             ) {

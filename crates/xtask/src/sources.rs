@@ -11,8 +11,8 @@ use crate::util::{normalize_rel_path, workspace_root};
 #[derive(Clone)]
 pub struct ParsedSource {
     pub rel_path: String,
-    pub file: File,
-    pub source: String,
+    pub file:     File,
+    pub source:   String,
 }
 
 pub fn parse_workspace_sources() -> Result<Vec<ParsedSource>> {

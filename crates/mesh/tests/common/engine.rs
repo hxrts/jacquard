@@ -163,14 +163,15 @@ pub fn activate_route(
     lease_value: RouteLease,
 ) -> (MaterializedRouteIdentity, RouteRuntimeState) {
     let goal = objective(DestinationId::Node(destination));
-    activate_route_with_profile(engine, topology, goal, profile(), lease_value)
+    let policy = profile();
+    activate_route_with_profile(engine, topology, &goal, &policy, lease_value)
 }
 
 pub fn activate_route_with_profile(
     engine: &mut TestEngine,
     topology: &Observation<Configuration>,
-    goal: RoutingObjective,
-    policy: AdaptiveRoutingProfile,
+    goal: &RoutingObjective,
+    policy: &AdaptiveRoutingProfile,
     lease_value: RouteLease,
 ) -> (MaterializedRouteIdentity, RouteRuntimeState) {
     let materialization_tick = lease_value.valid_for.start_tick();
@@ -179,12 +180,12 @@ pub fn activate_route_with_profile(
         .engine_tick(&tick_context(topology))
         .expect("engine tick");
     let candidate = engine
-        .candidate_routes(&goal, &policy, topology)
+        .candidate_routes(goal, policy, topology)
         .into_iter()
         .next()
         .expect("activate_route requires at least one candidate");
     let admission = engine
-        .admit_route(&goal, &policy, candidate, topology)
+        .admit_route(goal, policy, candidate, topology)
         .expect("activate_route admission");
     let input = materialization_input(admission, lease_value);
     let installation = engine

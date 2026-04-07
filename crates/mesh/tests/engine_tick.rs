@@ -114,8 +114,8 @@ fn engine_tick_transport_observations_change_health_inputs() {
     let (_, plain_runtime) = activate_route_with_profile(
         &mut plain_engine,
         &topology,
-        direct_goal(),
-        connected_only_policy(),
+        &direct_goal(),
+        &connected_only_policy(),
         lease(Tick(2), Tick(12)),
     );
 
@@ -127,8 +127,8 @@ fn engine_tick_transport_observations_change_health_inputs() {
     let (_, observed_runtime) = activate_route_with_profile(
         &mut observed_engine,
         &topology,
-        direct_goal(),
-        connected_only_policy(),
+        &direct_goal(),
+        &connected_only_policy(),
         lease(Tick(2), Tick(12)),
     );
 
@@ -322,8 +322,8 @@ fn route_health_is_scoped_to_the_active_route_suffix() {
     let (route_three_identity, mut route_three_runtime) = activate_route_with_profile(
         &mut engine,
         &topology,
-        objective(DestinationId::Node(NodeId([3; 32]))),
-        profile_with_connectivity(
+        &objective(DestinationId::Node(NodeId([3; 32]))),
+        &profile_with_connectivity(
             RouteRepairClass::Repairable,
             RoutePartitionClass::PartitionTolerant,
         ),
@@ -333,8 +333,8 @@ fn route_health_is_scoped_to_the_active_route_suffix() {
     let (route_four_identity, mut route_four_runtime) = activate_route_with_profile(
         &mut engine,
         &topology,
-        direct_goal(),
-        connected_only_policy(),
+        &direct_goal(),
+        &connected_only_policy(),
         lease(Tick(2), Tick(20)),
     );
 

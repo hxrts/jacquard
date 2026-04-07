@@ -70,7 +70,7 @@ const RULES: &[Rule] = &[
     },
     Rule {
         description: "routing thresholds use named constants",
-        collect: named_thresholds,
+        collect:     named_thresholds,
     },
 ];
 

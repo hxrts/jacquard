@@ -337,6 +337,7 @@ mod tests {
         }
     }
 
+    // long-block-exception: comprehensive adapter contract verification
     #[test]
     fn fake_mesh_choreo_adapter_maps_runtime_actions() {
         let endpoint = LinkEndpoint {

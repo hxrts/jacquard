@@ -391,14 +391,98 @@ pub(super) fn limit_u32(limit: Limit<u32>) -> u32 {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        Belief, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
-        ContentId, ControllerId, Environment, HostName, LinkEndpoint, NetworkHost,
-        RatioPermille, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
-        RouteRepairClass, Tick,
+        AdaptiveRoutingProfile, AdmissionAssumptions, AdversaryRegime, Belief,
+        ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole,
+        CommitteeSelection, ConnectivityRegime, ContentId, ControllerId,
+        DestinationId, Environment, Estimate, FailureModelClass,
+        HoldFallbackPolicy, HostName, Limit, LinkEndpoint,
+        MessageFlowAssumptionClass, NetworkHost, NodeDensityClass,
+        RatioPermille, RouteConnectivityProfile, RouteCost, RouteEpoch,
+        RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+        RouteServiceKind, RouteSummary, RoutingObjective, RuntimeEnvelopeClass,
+        Tick,
     };
 
     use super::*;
-    use crate::{engine::test_helpers::*, MeshPath};
+    use crate::{MeshPath, MESH_ENGINE_ID};
+
+    fn neutral_assumptions() -> AdmissionAssumptions {
+        AdmissionAssumptions {
+            message_flow_assumption: MessageFlowAssumptionClass::PerRouteSequenced,
+            failure_model: FailureModelClass::Benign,
+            runtime_envelope: RuntimeEnvelopeClass::Canonical,
+            node_density_class: NodeDensityClass::Sparse,
+            connectivity_regime: ConnectivityRegime::Stable,
+            adversary_regime: AdversaryRegime::BenignUntrusted,
+            claim_strength: ClaimStrength::ConservativeUnderProfile,
+        }
+    }
+
+    fn objective_with_floor(
+        floor: RouteProtectionClass,
+    ) -> RoutingObjective {
+        RoutingObjective {
+            destination: DestinationId::Node(NodeId([3; 32])),
+            service_kind: RouteServiceKind::Move,
+            target_protection: floor,
+            protection_floor: floor,
+            target_connectivity: RouteConnectivityProfile {
+                repair: RouteRepairClass::Repairable,
+                partition: RoutePartitionClass::ConnectedOnly,
+            },
+            hold_fallback_policy: HoldFallbackPolicy::Allowed,
+            latency_budget_ms: Limit::Unbounded,
+            protection_priority: jacquard_core::PriorityPoints(0),
+            connectivity_priority: jacquard_core::PriorityPoints(0),
+        }
+    }
+
+    fn profile_with(
+        repair: RouteRepairClass,
+        partition: RoutePartitionClass,
+    ) -> AdaptiveRoutingProfile {
+        AdaptiveRoutingProfile {
+            selected_protection: RouteProtectionClass::LinkProtected,
+            selected_connectivity: RouteConnectivityProfile { repair, partition },
+            deployment_profile:
+                jacquard_core::DeploymentProfile::FieldPartitionTolerant,
+            diversity_floor: 1,
+            routing_engine_fallback_policy:
+                jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            route_replacement_policy:
+                jacquard_core::RouteReplacementPolicy::Allowed,
+        }
+    }
+
+    fn summary_with(
+        protection: RouteProtectionClass,
+        repair: RouteRepairClass,
+        partition: RoutePartitionClass,
+    ) -> RouteSummary {
+        RouteSummary {
+            engine: MESH_ENGINE_ID,
+            protection,
+            connectivity: RouteConnectivityProfile { repair, partition },
+            protocol_mix: Vec::new(),
+            hop_count_hint: Belief::Estimated(Estimate {
+                value: 1_u8,
+                confidence_permille: RatioPermille(1000),
+                updated_at_tick: Tick(0),
+            }),
+            valid_for: TimeWindow::new(Tick(0), Tick(100)).unwrap(),
+        }
+    }
+
+    fn unit_route_cost() -> RouteCost {
+        RouteCost {
+            message_count_max: Limit::Bounded(1),
+            byte_count_max: Limit::Bounded(jacquard_core::ByteCount(1024)),
+            hop_count: 1,
+            repair_attempt_count_max: Limit::Bounded(1),
+            hold_bytes_reserved: Limit::Bounded(jacquard_core::ByteCount(0)),
+            work_step_count_max: Limit::Bounded(2),
+        }
+    }
 
     #[test]
     fn storage_keys_are_scoped_by_local_node_id() {

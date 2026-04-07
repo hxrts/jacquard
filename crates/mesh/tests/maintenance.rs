@@ -118,8 +118,8 @@ fn single_hop_policy_shift_advances_cursor_to_path_end() {
     let (identity, mut runtime) = activate_route_with_profile(
         &mut engine,
         &topology,
-        objective(DestinationId::Node(NodeId([4; 32]))),
-        profile_with_connectivity(
+        &objective(DestinationId::Node(NodeId([4; 32]))),
+        &profile_with_connectivity(
             RouteRepairClass::BestEffort,
             RoutePartitionClass::ConnectedOnly,
         ),
@@ -160,8 +160,8 @@ fn repeated_policy_shift_after_full_handoff_fails_closed() {
     let (identity, mut runtime) = activate_route_with_profile(
         &mut engine,
         &topology,
-        objective(DestinationId::Node(NodeId([4; 32]))),
-        profile_with_connectivity(
+        &objective(DestinationId::Node(NodeId([4; 32]))),
+        &profile_with_connectivity(
             RouteRepairClass::BestEffort,
             RoutePartitionClass::ConnectedOnly,
         ),
