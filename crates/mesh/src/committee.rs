@@ -16,10 +16,11 @@ use jacquard_core::{
     RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass, RoutingEngineId,
     RoutingObjective, Tick, TimeWindow,
 };
-use jacquard_traits::CommitteeSelector;
+use jacquard_traits::{CommitteeSelector, MeshTopologyModel};
 
 use crate::topology::{
-    adjacent_link_between, adjacent_node_ids, route_capable_for_engine, service_surface_score,
+    adjacent_node_ids, optional_health_score_value, route_capable_for_engine,
+    DeterministicMeshTopologyModel, MeshNeighborhoodEstimate, MeshPeerEstimate,
 };
 
 /// Default maximum committee size for `DeterministicCommitteeSelector`.
@@ -51,6 +52,11 @@ pub const DENSITY_MODERATE_NEIGHBOR_MIN: u32 = 3;
 /// never a viable committee member regardless of other signals.
 const MESH_COMMITTEE_SERVICE_WEIGHT: u32 = 100;
 
+/// Minimum mesh-private service stability required before local coordination
+/// is worthwhile. This reads through `MeshNeighborhoodEstimate` so committee
+/// gating and candidate ordering use the same topology-model interpretation.
+const MESH_COMMITTEE_SERVICE_STABILITY_FLOOR: u32 = 500;
+
 #[derive(Clone, Debug)]
 pub struct NoCommitteeSelector;
 
@@ -68,63 +74,95 @@ impl CommitteeSelector for NoCommitteeSelector {
 }
 
 #[derive(Clone, Debug)]
-pub struct DeterministicCommitteeSelector {
+pub struct DeterministicCommitteeSelector<Topology = DeterministicMeshTopologyModel> {
     pub local_node_id: NodeId,
     pub engine_id: RoutingEngineId,
     pub membership_cap: usize,
+    pub topology_model: Topology,
 }
 
-impl DeterministicCommitteeSelector {
+impl DeterministicCommitteeSelector<DeterministicMeshTopologyModel> {
     #[must_use]
     pub fn new(local_node_id: NodeId) -> Self {
+        Self::with_topology_model(local_node_id, DeterministicMeshTopologyModel::new())
+    }
+}
+
+impl<Topology> DeterministicCommitteeSelector<Topology> {
+    #[must_use]
+    pub fn with_topology_model(local_node_id: NodeId, topology_model: Topology) -> Self {
         Self {
             local_node_id,
             engine_id: RoutingEngineId::Mesh,
             membership_cap: MESH_COMMITTEE_MEMBERSHIP_CAP,
+            topology_model,
         }
     }
+}
 
+impl<Topology> DeterministicCommitteeSelector<Topology>
+where
+    Topology: MeshTopologyModel<
+        PeerEstimate = MeshPeerEstimate,
+        NeighborhoodEstimate = MeshNeighborhoodEstimate,
+    >,
+{
     fn membership_score(
         &self,
         peer_node_id: &NodeId,
+        observed_at_tick: Tick,
         configuration: &Configuration,
     ) -> Option<(u32, ControllerId)> {
         let node = configuration.nodes.get(peer_node_id)?;
-        let link = adjacent_link_between(&self.local_node_id, peer_node_id, configuration)?;
-        let relay_score = match &node.state.relay_budget {
-            jacquard_core::Belief::Absent => 0,
-            jacquard_core::Belief::Estimated(estimate) => {
-                1000_u32.saturating_sub(u32::from(estimate.value.utilization_permille.get()))
-            }
-        };
-        let stability_score = u32::from(
-            link.state
-                .delivery_confidence_permille
-                .into_estimate()
-                .map_or(jacquard_core::RatioPermille(0), |estimate| estimate.value)
-                .get(),
-        ) + u32::from(
-            link.state
-                .symmetry_permille
-                .into_estimate()
-                .map_or(jacquard_core::RatioPermille(0), |estimate| estimate.value)
-                .get(),
-        );
-        let service_score =
-            service_surface_score(&node.profile.services, &self.engine_id, configuration.epoch);
+        let estimate = self.topology_model.peer_estimate(
+            &self.local_node_id,
+            peer_node_id,
+            observed_at_tick,
+            configuration,
+        )?;
+        let relay_score = optional_health_score_value(estimate.relay_value_score);
+        let retention_score = optional_health_score_value(estimate.retention_value_score);
+        let stability_score = optional_health_score_value(estimate.stability_score);
+        let service_score = optional_health_score_value(estimate.service_score);
         // Service score is weighted by `MESH_COMMITTEE_SERVICE_WEIGHT` so a
         // peer without the required routing services can never outrank a
         // peer that has them, regardless of relay or link quality.
         Some((
-            relay_score
+            relay_score.saturating_add(retention_score)
                 + stability_score
                 + service_score.saturating_mul(MESH_COMMITTEE_SERVICE_WEIGHT),
             node.controller_id,
         ))
     }
+
+    fn neighborhood_allows_coordination(
+        &self,
+        observed_at_tick: Tick,
+        configuration: &Configuration,
+    ) -> bool {
+        let Some(estimate) = self.topology_model.neighborhood_estimate(
+            &self.local_node_id,
+            observed_at_tick,
+            configuration,
+        ) else {
+            return false;
+        };
+        let density_score = optional_health_score_value(estimate.density_score);
+        let service_stability = optional_health_score_value(estimate.service_stability_score);
+        let partition_risk = optional_health_score_value(estimate.partition_risk_score);
+        density_score > 0
+            && service_stability >= MESH_COMMITTEE_SERVICE_STABILITY_FLOOR
+            && service_stability >= partition_risk
+    }
 }
 
-impl CommitteeSelector for DeterministicCommitteeSelector {
+impl<Topology> CommitteeSelector for DeterministicCommitteeSelector<Topology>
+where
+    Topology: MeshTopologyModel<
+        PeerEstimate = MeshPeerEstimate,
+        NeighborhoodEstimate = MeshNeighborhoodEstimate,
+    >,
+{
     type TopologyView = Configuration;
 
     fn select_committee(
@@ -146,7 +184,8 @@ impl CommitteeSelector for DeterministicCommitteeSelector {
                 RoutePartitionClass::PartitionTolerant
             )
             && configuration.environment.reachable_neighbor_count
-                >= MESH_COMMITTEE_MIN_NEIGHBOR_COUNT;
+                >= MESH_COMMITTEE_MIN_NEIGHBOR_COUNT
+            && self.neighborhood_allows_coordination(current_tick, configuration);
         if !should_coordinate {
             return Ok(None);
         }
@@ -155,11 +194,11 @@ impl CommitteeSelector for DeterministicCommitteeSelector {
             .into_iter()
             .filter(|peer_node_id| {
                 configuration.nodes.get(peer_node_id).is_some_and(|node| {
-                    route_capable_for_engine(node, &self.engine_id, configuration.epoch)
+                    route_capable_for_engine(node, &self.engine_id, current_tick)
                 })
             })
             .filter_map(|peer_node_id| {
-                self.membership_score(&peer_node_id, configuration)
+                self.membership_score(&peer_node_id, current_tick, configuration)
                     .map(|(score, controller_id)| (Reverse(score), controller_id, peer_node_id))
             })
             .collect();
@@ -287,19 +326,6 @@ fn committee_id_for(objective: &RoutingObjective, epoch: RouteEpoch) -> Committe
     bytes[..8].copy_from_slice(&seed[..8]);
     bytes[8..].copy_from_slice(&epoch.0.to_le_bytes());
     CommitteeId(bytes)
-}
-
-trait BeliefExt<T> {
-    fn into_estimate(self) -> Option<jacquard_core::Estimate<T>>;
-}
-
-impl<T> BeliefExt<T> for jacquard_core::Belief<T> {
-    fn into_estimate(self) -> Option<jacquard_core::Estimate<T>> {
-        match self {
-            jacquard_core::Belief::Absent => None,
-            jacquard_core::Belief::Estimated(estimate) => Some(estimate),
-        }
-    }
 }
 
 #[cfg(test)]

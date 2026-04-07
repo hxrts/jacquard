@@ -3,11 +3,14 @@
 //! Candidate production runs a five-step deterministic pipeline: BFS from
 //! the local node, filter by engine capability and objective match, derive
 //! a self-contained `BackendRouteId` plan token plus admission check,
-//! sort by hop count and deterministic order key, then truncate to
+//! sort by hop count, mesh-private topology-model preference, and
+//! deterministic order key, then truncate to
 //! `MESH_CANDIDATE_COUNT_MAX`. `check_candidate` and `admit_route` take
 //! topology explicitly and re-derive from the plan token on cache miss,
 //! so the candidate cache is an optimization rather than a required
 //! piece of engine state.
+
+use std::cmp::Reverse;
 
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision, BackendRouteId, Belief,
@@ -22,21 +25,74 @@ use jacquard_traits::RoutingEnginePlanner;
 use super::{
     support::{
         confidence_for_segments, decode_backend_token, degradation_for_candidate,
-        deterministic_order_key, encode_path_bytes, route_cost_for_segments, shortest_paths,
-        unique_protocol_mix,
+        deterministic_order_key, encode_backend_token, encode_path_bytes,
+        node_path_from_plan_token, route_cost_for_segments, shortest_paths, unique_protocol_mix,
+        MeshPlanToken,
     },
-    CachedCandidate, MeshEngine, MeshHasherBounds, MeshPath, MeshRouteClass, MeshRouteSegment,
+    CachedCandidate, MeshEngine, MeshHasherBounds, MeshRouteClass, MeshRouteSegment,
     MeshSelectorBounds, MESH_CANDIDATE_COUNT_MAX, MESH_CANDIDATE_VALIDITY_TICKS, MESH_CAPABILITIES,
     MESH_ENGINE_ID,
 };
 use crate::{
     committee::mesh_admission_assumptions,
-    topology::{estimate_hop_link, objective_matches_node, route_capable_for_engine},
+    topology::{
+        estimate_hop_link, objective_matches_node, optional_health_score_value,
+        route_capable_for_engine,
+    },
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+where
+    Topology: super::MeshTopologyBounds,
 {
+    fn candidate_preference_score(
+        &self,
+        topology: &Observation<Configuration>,
+        node_path: &[NodeId],
+    ) -> u32 {
+        let first_hop = node_path.get(1).copied();
+        let peer_score = first_hop
+            .and_then(|peer_node_id| {
+                self.topology_model.peer_estimate(
+                    &self.local_node_id,
+                    &peer_node_id,
+                    topology.observed_at_tick,
+                    &topology.value,
+                )
+            })
+            .map(|estimate| {
+                optional_health_score_value(estimate.relay_value_score)
+                    .saturating_add(optional_health_score_value(estimate.retention_value_score))
+                    .saturating_add(optional_health_score_value(estimate.stability_score))
+                    .saturating_add(optional_health_score_value(estimate.service_score))
+            })
+            .unwrap_or(0);
+        let neighborhood = self.topology_model.neighborhood_estimate(
+            &self.local_node_id,
+            topology.observed_at_tick,
+            &topology.value,
+        );
+        let neighborhood_bonus = neighborhood
+            .as_ref()
+            .map(|estimate| {
+                optional_health_score_value(estimate.density_score).saturating_add(
+                    optional_health_score_value(estimate.service_stability_score),
+                )
+            })
+            .unwrap_or(0);
+        let neighborhood_penalty = neighborhood
+            .as_ref()
+            .map(|estimate| {
+                optional_health_score_value(estimate.repair_pressure_score)
+                    .saturating_add(optional_health_score_value(estimate.partition_risk_score))
+            })
+            .unwrap_or(0);
+        peer_score
+            .saturating_add(neighborhood_bonus)
+            .saturating_sub(neighborhood_penalty)
+    }
+
     // Route class order of precedence: a Gateway destination always
     // yields Gateway; otherwise multi-hop routes to hold-capable
     // destinations with hold-fallback allowed become DeferredDelivery;
@@ -114,11 +170,31 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         destination_node: &jacquard_core::Node,
         observed_at_tick: Tick,
     ) -> bool {
-        destination_node.profile.services.iter().any(|service| {
+        let service_advertised = destination_node.profile.services.iter().any(|service| {
             service.service_kind == RouteServiceKind::Hold
                 && service.routing_engines.contains(&MESH_ENGINE_ID)
                 && service.valid_for.contains(observed_at_tick)
-        })
+                && matches!(
+                    service.capacity,
+                    Belief::Estimated(Estimate {
+                        value: jacquard_core::CapacityHint {
+                            hold_capacity_bytes: Belief::Estimated(Estimate { value, .. }),
+                            ..
+                        },
+                        ..
+                    }) if value.0 > 0
+                )
+        });
+        let state_ready = matches!(
+            destination_node.state.hold_capacity_available_bytes,
+            Belief::Estimated(Estimate { value, .. }) if value.0 > 0
+        );
+
+        // Deferred delivery is only honest when the destination both
+        // advertises Hold for mesh and currently reports positive hold
+        // capacity in shared node state. Advertisement alone is a
+        // capability claim, not current readiness.
+        service_advertised && state_ready
     }
 
     fn build_candidate_summary(
@@ -140,26 +216,6 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
                 updated_at_tick: topology.observed_at_tick,
             }),
             valid_for,
-        }
-    }
-
-    fn build_candidate_path(
-        &self,
-        topology: &Observation<Configuration>,
-        objective: &RoutingObjective,
-        route_id: jacquard_core::RouteId,
-        segments: Vec<MeshRouteSegment>,
-        valid_for: TimeWindow,
-        route_class: MeshRouteClass,
-    ) -> MeshPath {
-        MeshPath {
-            route_id,
-            epoch: topology.value.epoch,
-            source: self.local_node_id,
-            destination: objective.destination.clone(),
-            segments,
-            valid_for,
-            route_class,
         }
     }
 }
@@ -198,12 +254,9 @@ where
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         topology: &Observation<Configuration>,
-    ) -> Option<CommitteeSelection> {
-        self.selector.as_ref().and_then(|selector| {
-            selector
-                .select_committee(objective, profile, topology)
-                .ok()
-                .flatten()
+    ) -> Result<Option<CommitteeSelection>, RouteError> {
+        self.selector.as_ref().map_or(Ok(None), |selector| {
+            selector.select_committee(objective, profile, topology)
         })
     }
 }
@@ -211,6 +264,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
+    Topology: super::MeshTopologyBounds,
     Hasher: MeshHasherBounds,
     Selector: MeshSelectorBounds,
 {
@@ -237,21 +291,39 @@ where
             Tick(topology.observed_at_tick.0 + MESH_CANDIDATE_VALIDITY_TICKS),
         )
         .expect("mesh candidates always use a positive validity window");
+        let committee = self.maybe_select_committee(objective, profile, topology);
+        let selected_committee = match &committee {
+            Ok(selected) => selected.clone(),
+            Err(_) => None,
+        };
+        let plan = MeshPlanToken {
+            epoch: topology.value.epoch,
+            source: self.local_node_id,
+            destination: objective.destination.clone(),
+            segments: segments.clone(),
+            valid_for,
+            route_class: route_class.clone(),
+            committee: selected_committee.clone(),
+        };
         let path_bytes = encode_path_bytes(node_path, &segments);
-        let backend_route_id = self.candidate_plan_token(node_path);
+        let backend_route_id = encode_backend_token(&plan);
         let route_id = self.route_id_for_backend(&backend_route_id);
         let route_cost = route_cost_for_segments(&segments, &route_class);
         let summary = self.build_candidate_summary(topology, connectivity, &segments, valid_for);
         let estimate =
             self.build_candidate_estimate(topology, connectivity, &route_class, &segments);
         let admission_assumptions = mesh_admission_assumptions(profile, &topology.value);
-        let admission_check = mesh_admission_check(
+        let mut admission_check = mesh_admission_check(
             objective,
             profile,
             &summary,
             &route_cost,
             &admission_assumptions,
         );
+        if committee.is_err() {
+            admission_check.decision =
+                AdmissionDecision::Rejected(RouteAdmissionRejection::BackendUnavailable);
+        }
         let witness = RouteWitness {
             objective_protection: objective.target_protection,
             delivered_protection: summary.protection,
@@ -262,15 +334,6 @@ where
             degradation: estimate.value.degradation,
         };
         let ordering_key = deterministic_order_key(route_id, &self.hashing, &path_bytes);
-        let committee = self.maybe_select_committee(objective, profile, topology);
-        let path = self.build_candidate_path(
-            topology,
-            objective,
-            route_id,
-            segments,
-            valid_for,
-            route_class,
-        );
         Some((
             backend_route_id,
             CachedCandidate {
@@ -279,32 +342,16 @@ where
                 estimate,
                 admission_check,
                 witness,
-                path,
-                committee,
-                route_cost,
                 ordering_key,
             },
         ))
     }
 
-    fn derive_candidate(
-        &self,
-        objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
-        topology: &Observation<Configuration>,
-        destination_node_id: NodeId,
-        node_path: &[NodeId],
-    ) -> Option<(BackendRouteId, CachedCandidate)> {
-        let destination_node = topology.value.nodes.get(&destination_node_id)?;
-        self.candidate_for_path(objective, profile, topology, node_path, destination_node)
-    }
-
     // The cache-miss path for `check_candidate` and `admit_route`.
-    // Decodes the self-contained plan token back into a node path, then
-    // re-derives the candidate against the supplied topology. The final
-    // equality check on `backend_route_id` detects tokens that decode
-    // successfully but would have produced a different candidate under
-    // the current topology (e.g. if the caller passed a handcrafted ref).
+    // Decodes the self-contained plan token, verifies that the explicit
+    // topology still supports the encoded path and route class, then
+    // re-derives the shared planning judgment. Materialization later
+    // decodes the same token without consulting the candidate cache.
     fn derive_candidate_from_backend_ref(
         &self,
         objective: &RoutingObjective,
@@ -312,17 +359,32 @@ where
         topology: &Observation<Configuration>,
         backend_route_id: &BackendRouteId,
     ) -> Result<CachedCandidate, RouteError> {
-        let node_path =
+        let plan =
             decode_backend_token(backend_route_id).ok_or(RouteSelectionError::NoCandidate)?;
+        if plan.source != self.local_node_id || plan.destination != objective.destination {
+            return Err(RouteSelectionError::NoCandidate.into());
+        }
+        let node_path = node_path_from_plan_token(&plan);
         let destination_node_id = *node_path.last().ok_or(RouteSelectionError::NoCandidate)?;
+        let destination_node = topology
+            .value
+            .nodes
+            .get(&destination_node_id)
+            .ok_or(RouteSelectionError::NoCandidate)?;
+        let hold_capable =
+            self.hold_capable_for_destination(destination_node, topology.observed_at_tick);
+        let route_class = self.determine_route_class(objective, plan.segments.len(), hold_capable);
+        if route_class != plan.route_class {
+            return Err(RouteSelectionError::NoCandidate.into());
+        }
+        let derived_segments = self
+            .derive_segments(&topology.value, &node_path)
+            .ok_or(RouteSelectionError::NoCandidate)?;
+        if derived_segments != plan.segments {
+            return Err(RouteSelectionError::NoCandidate.into());
+        }
         let (derived_backend_ref, candidate) = self
-            .derive_candidate(
-                objective,
-                profile,
-                topology,
-                destination_node_id,
-                &node_path,
-            )
+            .candidate_for_path(objective, profile, topology, &node_path, destination_node)
             .ok_or(RouteSelectionError::NoCandidate)?;
         if &derived_backend_ref != backend_route_id {
             return Err(RouteSelectionError::NoCandidate.into());
@@ -334,6 +396,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEnginePlanner
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
+    Topology: super::MeshTopologyBounds,
     Hasher: MeshHasherBounds,
     Selector: MeshSelectorBounds,
 {
@@ -353,17 +416,21 @@ where
     ) -> Vec<RouteCandidate> {
         // Five-step deterministic pipeline: BFS shortest paths, filter
         // to route-capable destinations matching the objective, build a
-        // cached candidate per path, sort by hop count and order key,
-        // then truncate to MESH_CANDIDATE_COUNT_MAX. The deterministic
-        // sort makes candidate ordering stable across replays.
+        // cached candidate per path, sort by hop count, topology-model
+        // preference, and order key, then truncate to
+        // MESH_CANDIDATE_COUNT_MAX. The deterministic sort makes
+        // candidate ordering stable across replays.
         let configuration = &topology.value;
         let mut cached = shortest_paths(&self.local_node_id, configuration)
             .into_iter()
             .filter(|(destination_node_id, _)| *destination_node_id != self.local_node_id)
             .filter_map(|(destination_node_id, node_path)| {
                 let destination_node = configuration.nodes.get(&destination_node_id)?;
-                if !route_capable_for_engine(destination_node, &MESH_ENGINE_ID, configuration.epoch)
-                {
+                if !route_capable_for_engine(
+                    destination_node,
+                    &MESH_ENGINE_ID,
+                    topology.observed_at_tick,
+                ) {
                     return None;
                 }
                 if !objective_matches_node(
@@ -379,9 +446,16 @@ where
             })
             .collect::<Vec<_>>();
 
-        cached.sort_by_key(|(_backend_route_id, candidate)| {
+        cached.sort_by_key(|(backend_route_id, candidate)| {
+            let preference = decode_backend_token(backend_route_id)
+                .map(|plan| {
+                    let node_path = node_path_from_plan_token(&plan);
+                    self.candidate_preference_score(topology, &node_path)
+                })
+                .unwrap_or(0);
             (
-                candidate.path.segments.len(),
+                usize::from(candidate.admission_check.route_cost.hop_count),
+                Reverse(preference),
                 candidate.ordering_key.stable_key,
                 candidate.ordering_key.tie_break,
             )
@@ -461,6 +535,7 @@ where
         match cached.admission_check.decision {
             AdmissionDecision::Admissible => Ok(RouteAdmission {
                 route_id: cached.route_id,
+                backend_ref: candidate.backend_ref,
                 objective: objective.clone(),
                 profile: profile.clone(),
                 admission_check: cached.admission_check,

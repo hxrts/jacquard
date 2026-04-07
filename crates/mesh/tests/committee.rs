@@ -8,14 +8,106 @@
 
 mod common;
 
-use jacquard_mesh::DeterministicCommitteeSelector;
+use jacquard_mesh::{DeterministicCommitteeSelector, DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
-    jacquard_core::{DestinationId, NodeId, ServiceId},
-    CommitteeSelector,
+    jacquard_core::{
+        AdmissionDecision, Configuration, DestinationId, Node, NodeId, RouteAdmissionRejection,
+        RouteError, RoutePartitionClass, RouteRepairClass, RouteRuntimeError, ServiceId, Tick,
+    },
+    Blake3Hashing, CommitteeSelector, MeshTopologyModel, RoutingEngine, RoutingEnginePlanner,
 };
 
-use common::engine::{objective, profile};
+use common::effects::{TestRetentionStore, TestRuntimeEffects, TestTransport};
+use common::engine::{
+    lease, materialization_input, objective, profile, profile_with_connectivity, LOCAL_NODE_ID,
+};
 use common::fixtures::sample_configuration;
+
+#[derive(Clone)]
+struct PreferredCommitteeTopologyModel {
+    base: jacquard_mesh::DeterministicMeshTopologyModel,
+    preferred_peer: NodeId,
+}
+
+impl PreferredCommitteeTopologyModel {
+    fn new(preferred_peer: NodeId) -> Self {
+        Self {
+            base: jacquard_mesh::DeterministicMeshTopologyModel::new(),
+            preferred_peer,
+        }
+    }
+}
+
+impl MeshTopologyModel for PreferredCommitteeTopologyModel {
+    type PeerEstimate = jacquard_mesh::MeshPeerEstimate;
+    type NeighborhoodEstimate = jacquard_mesh::MeshNeighborhoodEstimate;
+
+    fn local_node(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &jacquard_traits::jacquard_core::Configuration,
+    ) -> Option<Node> {
+        self.base.local_node(local_node_id, configuration)
+    }
+
+    fn neighboring_nodes(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &jacquard_traits::jacquard_core::Configuration,
+    ) -> Vec<(NodeId, Node)> {
+        self.base.neighboring_nodes(local_node_id, configuration)
+    }
+
+    fn reachable_endpoints(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &jacquard_traits::jacquard_core::Configuration,
+    ) -> Vec<jacquard_traits::jacquard_core::LinkEndpoint> {
+        self.base.reachable_endpoints(local_node_id, configuration)
+    }
+
+    fn adjacent_links(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &jacquard_traits::jacquard_core::Configuration,
+    ) -> Vec<jacquard_traits::jacquard_core::Link> {
+        self.base.adjacent_links(local_node_id, configuration)
+    }
+
+    fn peer_estimate(
+        &self,
+        local_node_id: &NodeId,
+        peer_node_id: &NodeId,
+        observed_at_tick: jacquard_traits::jacquard_core::Tick,
+        configuration: &jacquard_traits::jacquard_core::Configuration,
+    ) -> Option<Self::PeerEstimate> {
+        let mut estimate = self.base.peer_estimate(
+            local_node_id,
+            peer_node_id,
+            observed_at_tick,
+            configuration,
+        )?;
+        if *peer_node_id == self.preferred_peer {
+            estimate.relay_value_score = Some(jacquard_traits::jacquard_core::HealthScore(1000));
+            estimate.retention_value_score =
+                Some(jacquard_traits::jacquard_core::HealthScore(1000));
+        } else {
+            estimate.relay_value_score = Some(jacquard_traits::jacquard_core::HealthScore(0));
+            estimate.retention_value_score = Some(jacquard_traits::jacquard_core::HealthScore(0));
+        }
+        Some(estimate)
+    }
+
+    fn neighborhood_estimate(
+        &self,
+        local_node_id: &NodeId,
+        observed_at_tick: jacquard_traits::jacquard_core::Tick,
+        configuration: &jacquard_traits::jacquard_core::Configuration,
+    ) -> Option<Self::NeighborhoodEstimate> {
+        self.base
+            .neighborhood_estimate(local_node_id, observed_at_tick, configuration)
+    }
+}
 
 // Two calls to the selector on the same inputs must return the same
 // `Option<CommitteeSelection>`. The standard sample fixture should
@@ -36,4 +128,158 @@ fn committee_selection_is_optional_and_deterministic() {
 
     assert_eq!(first, second);
     assert!(first.is_some());
+}
+
+#[test]
+fn committee_selection_reads_through_topology_model_estimates() {
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Service(ServiceId(vec![9, 9])));
+    let policy = profile();
+
+    let selector_for_node_two = DeterministicCommitteeSelector::with_topology_model(
+        NodeId([1; 32]),
+        PreferredCommitteeTopologyModel::new(NodeId([2; 32])),
+    );
+    let selector_for_node_four = DeterministicCommitteeSelector::with_topology_model(
+        NodeId([1; 32]),
+        PreferredCommitteeTopologyModel::new(NodeId([4; 32])),
+    );
+
+    let committee_two = selector_for_node_two
+        .select_committee(&goal, &policy, &topology)
+        .expect("selector result")
+        .expect("committee");
+    let committee_four = selector_for_node_four
+        .select_committee(&goal, &policy, &topology)
+        .expect("selector result")
+        .expect("committee");
+
+    assert_ne!(
+        committee_two.members[0].node_id,
+        committee_four.members[0].node_id
+    );
+}
+
+#[derive(Clone)]
+struct ErroringCommitteeSelector;
+
+impl CommitteeSelector for ErroringCommitteeSelector {
+    type TopologyView = Configuration;
+
+    fn select_committee(
+        &self,
+        _objective: &jacquard_traits::jacquard_core::RoutingObjective,
+        _profile: &jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
+        _topology: &jacquard_traits::jacquard_core::Observation<Self::TopologyView>,
+    ) -> Result<Option<jacquard_traits::jacquard_core::CommitteeSelection>, RouteError> {
+        Err(RouteError::Runtime(RouteRuntimeError::Invalidated))
+    }
+}
+
+type SelectorEngine<Selector> = MeshEngine<
+    DeterministicMeshTopologyModel,
+    TestTransport,
+    TestRetentionStore,
+    TestRuntimeEffects,
+    Blake3Hashing,
+    Selector,
+>;
+
+fn build_engine_with_selector<Selector>(selector: Selector) -> SelectorEngine<Selector> {
+    MeshEngine::with_committee_selector(
+        LOCAL_NODE_ID,
+        DeterministicMeshTopologyModel::new(),
+        TestTransport::default(),
+        TestRetentionStore::default(),
+        TestRuntimeEffects {
+            now: Tick(2),
+            ..Default::default()
+        },
+        Blake3Hashing,
+        selector,
+    )
+}
+
+#[test]
+fn committee_selector_none_keeps_candidate_admissible() {
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Node(NodeId([4; 32])));
+    let policy = profile_with_connectivity(
+        RouteRepairClass::Repairable,
+        RoutePartitionClass::ConnectedOnly,
+    );
+    let engine = build_engine_with_selector(jacquard_mesh::NoCommitteeSelector);
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("candidate");
+    let check = engine
+        .check_candidate(&goal, &policy, &candidate, &topology)
+        .expect("admission check");
+
+    assert_eq!(check.decision, AdmissionDecision::Admissible);
+}
+
+#[test]
+fn committee_selector_some_is_carried_into_active_route() {
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let policy = profile();
+    let mut engine = build_engine_with_selector(DeterministicCommitteeSelector::new(LOCAL_NODE_ID));
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("candidate");
+    let admission = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect("route admission");
+    let route_id = admission.route_id;
+    let input = materialization_input(admission, lease(Tick(2), Tick(12)));
+    engine
+        .materialize_route(input)
+        .expect("materialize route with committee");
+
+    assert!(engine
+        .active_route(&route_id)
+        .expect("active route")
+        .committee
+        .is_some());
+}
+
+#[test]
+fn committee_selector_errors_surface_as_backend_unavailable() {
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Node(NodeId([4; 32])));
+    let policy = profile_with_connectivity(
+        RouteRepairClass::Repairable,
+        RoutePartitionClass::ConnectedOnly,
+    );
+    let engine = build_engine_with_selector(ErroringCommitteeSelector);
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("candidate");
+    let check = engine
+        .check_candidate(&goal, &policy, &candidate, &topology)
+        .expect("admission check");
+
+    assert_eq!(
+        check.decision,
+        AdmissionDecision::Rejected(RouteAdmissionRejection::BackendUnavailable),
+    );
+    let admission = engine.admit_route(&goal, &policy, candidate, &topology);
+    assert!(matches!(
+        admission,
+        Err(RouteError::Selection(
+            jacquard_traits::jacquard_core::RouteSelectionError::Inadmissible(
+                RouteAdmissionRejection::BackendUnavailable,
+            ),
+        ))
+    ));
 }

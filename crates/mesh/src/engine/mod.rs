@@ -28,7 +28,7 @@ use std::{cell::RefCell, collections::BTreeMap};
 
 use jacquard_core::{
     Blake3Digest, Configuration, ContentId, NodeId, Observation, ReceiptId, RouteCommitmentId,
-    RouteConnectivityProfile, RouteError, RouteEvent, RouteEventStamped, RouteId,
+    RouteConnectivityProfile, RouteEpoch, RouteError, RouteEvent, RouteEventStamped, RouteId,
     RoutePartitionClass, RouteRuntimeError, RouteSelectionError, RoutingEngineCapabilities,
     RoutingEngineId, TransportObservation,
 };
@@ -41,7 +41,7 @@ use trait_bounds::{
 };
 use types::{ActiveMeshRoute, CachedCandidate};
 
-pub use types::{MeshPath, MeshRouteClass, MeshRouteSegment};
+pub use types::{MeshPath, MeshRouteClass, MeshRouteSegment, MeshTransportObservationSummary};
 
 // Public Engine Identity And Capability Surface
 
@@ -95,12 +95,11 @@ pub const MESH_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabiliti
 };
 
 // `candidate_cache` memoizes planning work so `check_candidate` and
-// `admit_route` can reuse the admission check, witness, and path derived
-// during `candidate_routes` without reconstructing them. The cache is an
+// `admit_route` can reuse the admission check and witness derived during
+// `candidate_routes` without recomputing them. The cache is an
 // optimization only: `BackendRouteRef` is a self-contained opaque plan
-// token, so mesh can re-derive candidate state from an explicit topology
-// observation on cache miss. It is `RefCell<...>` because the planner
-// trait methods take `&self`.
+// token, so planner cache misses and materialization must still work.
+// It is `RefCell<...>` because the planner trait methods take `&self`.
 // `active_routes` holds the mesh-private runtime state for each
 // materialized route. Canonical identity lives on the router side.
 pub struct MeshEngine<
@@ -119,6 +118,7 @@ pub struct MeshEngine<
     hashing: Hasher,
     selector: Option<Selector>,
     latest_topology: Option<Observation<Configuration>>,
+    last_transport_summary: Option<MeshTransportObservationSummary>,
     candidate_cache: RefCell<BTreeMap<jacquard_core::BackendRouteId, CachedCandidate>>,
     active_routes: BTreeMap<RouteId, ActiveMeshRoute>,
 }
@@ -146,6 +146,7 @@ impl<Topology, Transport, Retention, Effects, Hasher>
             hashing,
             selector: Some(NoCommitteeSelector),
             latest_topology: None,
+            last_transport_summary: None,
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
         }
@@ -176,6 +177,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
             hashing,
             selector: Some(selector),
             latest_topology: None,
+            last_transport_summary: None,
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
         }
@@ -209,6 +211,52 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     pub fn active_route_count(&self) -> usize {
         self.active_routes.len()
     }
+
+    #[must_use]
+    pub fn transport_observation_summary(&self) -> Option<&MeshTransportObservationSummary> {
+        self.last_transport_summary.as_ref()
+    }
+
+    pub fn checkpointed_topology_epoch(&self) -> Result<Option<RouteEpoch>, RouteError>
+    where
+        Effects: MeshEffectsBounds,
+    {
+        let key = support::topology_epoch_storage_key(&self.local_node_id);
+        let Some(bytes) = self
+            .effects
+            .load_bytes(&key)
+            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?
+        else {
+            return Ok(None);
+        };
+        if bytes.len() != std::mem::size_of::<u64>() {
+            return Err(RouteError::Runtime(RouteRuntimeError::Invalidated));
+        }
+        let mut epoch_bytes = [0_u8; 8];
+        epoch_bytes.copy_from_slice(&bytes);
+        Ok(Some(RouteEpoch(u64::from_le_bytes(epoch_bytes))))
+    }
+
+    pub fn restore_checkpointed_route(
+        &mut self,
+        route_id: &RouteId,
+    ) -> Result<Option<ActiveMeshRoute>, RouteError>
+    where
+        Effects: MeshEffectsBounds,
+    {
+        let key = support::route_storage_key(&self.local_node_id, route_id);
+        let Some(bytes) = self
+            .effects
+            .load_bytes(&key)
+            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?
+        else {
+            return Ok(None);
+        };
+        let active_route = support::decode_checkpoint_bytes(&bytes)
+            .ok_or(RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+        self.active_routes.insert(*route_id, active_route.clone());
+        Ok(Some(active_route))
+    }
 }
 
 // Transport-Facing Helpers
@@ -224,20 +272,24 @@ where
         route_id: &RouteId,
         payload: &[u8],
     ) -> Result<(), RouteError> {
-        // Hop-by-hop forwarding in mesh always targets the first segment
-        // of the source-routed path. Downstream hops own their own step.
-        // `in_flight_frames` saturates so long-lived routes cannot wrap.
+        // Forwarding is owner-relative. The active route stores the
+        // current owner and the index of the next segment from that
+        // owner's point of view. Old owners fail closed after handoff,
+        // and the next owner sees the remaining suffix.
         let active_route = self
             .active_routes
             .get_mut(route_id)
             .ok_or(RouteSelectionError::NoCandidate)?;
-        let first_segment = active_route
+        if active_route.current_owner_node_id != self.local_node_id {
+            return Err(RouteRuntimeError::StaleOwner.into());
+        }
+        let next_segment = active_route
             .path
             .segments
-            .first()
-            .ok_or(RouteSelectionError::NoCandidate)?;
+            .get(usize::from(active_route.next_hop_index))
+            .ok_or(RouteRuntimeError::Invalidated)?;
         self.transport
-            .send_transport(&first_segment.endpoint, payload)?;
+            .send_transport(&next_segment.endpoint, payload)?;
         active_route.in_flight_frames = active_route.in_flight_frames.saturating_add(1);
         active_route.last_ack_at_tick = Some(self.effects.now_tick());
         Ok(())
@@ -304,14 +356,11 @@ where
     // ("mesh-route-id", "mesh-commitment", "mesh-handoff-receipt",
     // "mesh-retention") prevent cross-domain collisions even when two
     // derivations happen to share bytes.
-    fn candidate_plan_token(&self, node_path: &[NodeId]) -> jacquard_core::BackendRouteId {
-        support::encode_backend_token(node_path)
-    }
-
     fn route_id_for_backend(&self, backend_route_id: &jacquard_core::BackendRouteId) -> RouteId {
-        let digest = self
-            .hashing
-            .hash_tagged(b"mesh-route-id", &backend_route_id.0);
+        let route_key_bytes = support::decode_backend_token(backend_route_id)
+            .map(|plan| support::encode_route_identity_bytes(&plan))
+            .unwrap_or_else(|| backend_route_id.0.clone());
+        let digest = self.hashing.hash_tagged(b"mesh-route-id", &route_key_bytes);
         let mut route_id = [0_u8; 16];
         route_id.copy_from_slice(&digest.0[..16]);
         RouteId(route_id)
@@ -349,16 +398,8 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Effects: MeshEffectsBounds,
 {
-    fn find_cached_candidate_by_route_id(&self, route_id: &RouteId) -> Option<CachedCandidate> {
-        self.candidate_cache
-            .borrow()
-            .values()
-            .find(|candidate| &candidate.route_id == route_id)
-            .cloned()
-    }
-
     fn store_checkpoint(&mut self, active_route: &ActiveMeshRoute) -> Result<(), RouteError> {
-        let key = support::route_storage_key(&active_route.path.route_id);
+        let key = support::route_storage_key(&self.local_node_id, &active_route.path.route_id);
         let value = support::checkpoint_bytes(active_route);
         self.effects
             .store_bytes(&key, &value)
@@ -367,7 +408,7 @@ where
 
     fn remove_checkpoint(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
         self.effects
-            .remove_bytes(&support::route_storage_key(route_id))
+            .remove_bytes(&support::route_storage_key(&self.local_node_id, route_id))
             .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
     }
 
@@ -382,14 +423,14 @@ where
             .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
     }
 
-    // Handoff target is the next-hop segment of the active path, or the
-    // current lease owner if the path has no segments (degenerate case
-    // that should only occur in tests with a direct single-hop route).
-    fn handoff_target(active_route: &ActiveMeshRoute, owner_node_id: NodeId) -> NodeId {
+    // Handoff target is the next owner in the owner-relative path view.
+    // Once the cursor reaches the end of the path, no further handoff
+    // is valid and the caller must fail closed.
+    fn handoff_target(active_route: &ActiveMeshRoute) -> Option<NodeId> {
         active_route
             .path
             .segments
-            .first()
-            .map_or(owner_node_id, |segment| segment.node_id)
+            .get(usize::from(active_route.next_hop_index))
+            .map(|segment| segment.node_id)
     }
 }

@@ -116,6 +116,7 @@ fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInst
         },
         admission: RouteAdmission {
             route_id: RouteId([5; 16]),
+            backend_ref: candidate.backend_ref.clone(),
             objective,
             profile: AdaptiveRoutingProfile {
                 selected_protection: RouteProtectionClass::LinkProtected,

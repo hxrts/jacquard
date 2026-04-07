@@ -13,6 +13,6 @@ workspace = true
 jacquard-core = { path = "../core" }
 jacquard-traits = { path = "../traits" }
 serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
-serde_json = { workspace = true }

@@ -24,6 +24,8 @@ pub struct TestRuntimeEffects {
     pub next_order: u64,
     pub storage: BTreeMap<Vec<u8>, Vec<u8>>,
     pub events: Vec<RouteEventStamped>,
+    pub fail_store_bytes: bool,
+    pub fail_record_route_event: bool,
 }
 
 #[effect_handler]
@@ -48,6 +50,9 @@ impl StorageEffects for TestRuntimeEffects {
     }
 
     fn store_bytes(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
+        if self.fail_store_bytes {
+            return Err(StorageError::Unavailable);
+        }
         self.storage.insert(key.to_vec(), value.to_vec());
         Ok(())
     }
@@ -61,6 +66,9 @@ impl StorageEffects for TestRuntimeEffects {
 #[effect_handler]
 impl RouteEventLogEffects for TestRuntimeEffects {
     fn record_route_event(&mut self, event: RouteEventStamped) -> Result<(), RouteEventLogError> {
+        if self.fail_record_route_event {
+            return Err(RouteEventLogError::Unavailable);
+        }
         self.events.push(event);
         Ok(())
     }

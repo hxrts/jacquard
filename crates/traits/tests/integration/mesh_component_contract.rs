@@ -11,7 +11,7 @@ use jacquard_traits::{
         RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
         RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
         RouteProtectionClass, RouteRuntimeState, RouteSummary, RouteWitness,
-        RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor, TransportError,
+        RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor, Tick, TransportError,
         TransportObservation, TransportProtocol,
     },
     EffectHandler, MeshRoutingEngine, MeshTopologyModel, MeshTransport, RetentionStore,
@@ -85,6 +85,7 @@ impl MeshTopologyModel for StubTopologyModel {
         &self,
         _local_node_id: &NodeId,
         _peer_node_id: &NodeId,
+        _observed_at_tick: Tick,
         _configuration: &Configuration,
     ) -> Option<Self::PeerEstimate> {
         Some(())
@@ -93,6 +94,7 @@ impl MeshTopologyModel for StubTopologyModel {
     fn neighborhood_estimate(
         &self,
         _local_node_id: &NodeId,
+        _observed_at_tick: Tick,
         _configuration: &Configuration,
     ) -> Option<Self::NeighborhoodEstimate> {
         Some(())
@@ -410,6 +412,10 @@ fn sample_route_admission(
 ) -> RouteAdmission {
     RouteAdmission {
         route_id: RouteId([3; 16]),
+        backend_ref: jacquard_traits::jacquard_core::BackendRouteRef {
+            engine: jacquard_traits::jacquard_core::RoutingEngineId::Mesh,
+            backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![1, 2, 3]),
+        },
         objective,
         profile,
         admission_check: RouteAdmissionCheck {

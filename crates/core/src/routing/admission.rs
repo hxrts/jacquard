@@ -201,6 +201,7 @@ pub enum RouteAdmissionRejection {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteAdmission {
     pub route_id: RouteId,
+    pub backend_ref: BackendRouteRef,
     pub objective: RoutingObjective,
     pub profile: AdaptiveRoutingProfile,
     pub admission_check: RouteAdmissionCheck,

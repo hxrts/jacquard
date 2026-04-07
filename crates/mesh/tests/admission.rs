@@ -12,8 +12,9 @@ mod common;
 use jacquard_mesh::MESH_ENGINE_ID;
 use jacquard_traits::{
     jacquard_core::{
-        AdmissionDecision, DestinationId, NodeId, RouteAdmissionRejection, RouteError,
-        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteSelectionError,
+        AdmissionDecision, Belief, ByteCount, DestinationId, Estimate, NodeId,
+        RouteAdmissionRejection, RouteError, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, RouteSelectionError, Tick,
     },
     RoutingEnginePlanner,
 };
@@ -162,4 +163,42 @@ fn admission_emits_stable_check_and_witness_values() {
     assert_eq!(admission.admission_check, first_check);
     assert_eq!(admission.witness.topology_epoch, topology.value.epoch);
     assert_eq!(admission.summary.engine, MESH_ENGINE_ID);
+}
+
+// A Hold advertisement alone is not enough for deferred delivery. The
+// destination must also report positive currently available hold
+// capacity in shared node state, otherwise the route falls back to a
+// non-partition-tolerant class and admission rejects it under the
+// standard partition-tolerant profile.
+#[test]
+fn hold_advertised_without_available_capacity_is_not_deferred_delivery_capable() {
+    let engine = build_engine();
+    let mut topology = sample_configuration();
+    let destination = topology
+        .value
+        .nodes
+        .get_mut(&NodeId([3; 32]))
+        .expect("destination node present");
+    destination.state.hold_capacity_available_bytes = Belief::Estimated(Estimate {
+        value: ByteCount(0),
+        confidence_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
+        updated_at_tick: Tick(2),
+    });
+
+    let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let policy = profile();
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("multi-hop candidate should still be produced");
+    let check = engine
+        .check_candidate(&goal, &policy, &candidate, &topology)
+        .expect("candidate check should succeed");
+
+    assert!(matches!(
+        check.decision,
+        AdmissionDecision::Rejected(RouteAdmissionRejection::BackendUnavailable)
+    ));
 }

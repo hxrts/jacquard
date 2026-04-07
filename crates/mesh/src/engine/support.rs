@@ -12,16 +12,29 @@ use std::{
 };
 
 use jacquard_core::{
-    BackendRouteId, Belief, Blake3Digest, ByteCount, Configuration, DegradationReason,
-    DeterministicOrderKey, Limit, NodeId, OrderStamp, RouteCost, RouteDegradation, RouteId,
+    BackendRouteId, Belief, Blake3Digest, ByteCount, CommitteeSelection, Configuration,
+    DegradationReason, DestinationId, DeterministicOrderKey, Limit, NodeId, OrderStamp, RouteCost,
+    RouteDegradation, RouteEpoch, RouteId, TimeWindow,
 };
 use jacquard_traits::Hashing;
+use serde::{Deserialize, Serialize};
 
 use super::{
     ActiveMeshRoute, MeshRouteClass, MeshRouteSegment, MESH_HOLD_RESERVED_BYTES,
     MESH_PER_HOP_BYTE_COST,
 };
 use crate::topology::{adjacent_link_between, adjacent_node_ids};
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(super) struct MeshPlanToken {
+    pub(super) epoch: RouteEpoch,
+    pub(super) source: NodeId,
+    pub(super) destination: DestinationId,
+    pub(super) segments: Vec<MeshRouteSegment>,
+    pub(super) valid_for: TimeWindow,
+    pub(super) route_class: MeshRouteClass,
+    pub(super) committee: Option<CommitteeSelection>,
+}
 
 // Unweighted BFS. Returns the shortest node path from the local node
 // to every reachable node using the sorted neighbor order from
@@ -79,43 +92,44 @@ pub(super) fn encode_path_bytes(path: &[NodeId], segments: &[MeshRouteSegment]) 
     bytes
 }
 
-// Self-contained plan token: version byte, path length, then 32 bytes
-// per NodeId. Unlike a hash-based cache key, this round-trips back to
-// the full node path so `check_candidate` and `admit_route` can
-// re-derive the candidate on cache miss without needing a side map.
-pub(super) fn encode_backend_token(path: &[NodeId]) -> BackendRouteId {
-    let mut bytes = Vec::with_capacity(2 + path.len() * 32);
-    bytes.push(1);
-    let path_len = u8::try_from(path.len()).expect("mesh backend token path length exceeds u8");
-    bytes.push(path_len);
-    for node_id in path {
-        bytes.extend_from_slice(&node_id.0);
-    }
-    BackendRouteId(bytes)
+pub(super) fn node_path_from_plan_token(plan: &MeshPlanToken) -> Vec<NodeId> {
+    let mut path = Vec::with_capacity(plan.segments.len() + 1);
+    path.push(plan.source);
+    path.extend(plan.segments.iter().map(|segment| segment.node_id));
+    path
 }
 
-// Inverse of `encode_backend_token`. Rejects unknown versions, empty
-// paths, and length mismatches rather than silently truncating, so a
-// hand-crafted or corrupted token fails the caller with None.
-pub(super) fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<Vec<NodeId>> {
-    let bytes = &backend_route_id.0;
-    let (&version, rest) = bytes.split_first()?;
-    if version != 1 {
-        return None;
-    }
-    let (&path_len_u8, payload) = rest.split_first()?;
-    let path_len = usize::from(path_len_u8);
-    if path_len == 0 || payload.len() != path_len.saturating_mul(32) {
-        return None;
+pub(super) fn encode_route_identity_bytes(plan: &MeshPlanToken) -> Vec<u8> {
+    #[derive(Serialize)]
+    struct MeshRouteIdentity<'a> {
+        source: &'a NodeId,
+        destination: &'a DestinationId,
+        segments: &'a [MeshRouteSegment],
+        route_class: &'a MeshRouteClass,
     }
 
-    let mut path = Vec::with_capacity(path_len);
-    for chunk in payload.chunks_exact(32) {
-        let mut node_id = [0_u8; 32];
-        node_id.copy_from_slice(chunk);
-        path.push(NodeId(node_id));
-    }
-    Some(path)
+    serde_json::to_vec(&MeshRouteIdentity {
+        source: &plan.source,
+        destination: &plan.destination,
+        segments: &plan.segments,
+        route_class: &plan.route_class,
+    })
+    .expect("mesh route identity bytes are always serializable")
+}
+
+// Self-contained plan token: a serialized mesh-private route plan
+// carrying the path, route class, validity window, and optional
+// committee result. Planner cache entries may be dropped; materialize
+// and planner cache-miss paths decode this token instead of depending
+// on ambient mutable engine state.
+pub(super) fn encode_backend_token(plan: &MeshPlanToken) -> BackendRouteId {
+    BackendRouteId(serde_json::to_vec(plan).expect("mesh plan tokens are always serializable"))
+}
+
+// Inverse of `encode_backend_token`. Invalid or hand-crafted bytes fail
+// closed with None rather than being partially decoded.
+pub(super) fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<MeshPlanToken> {
+    serde_json::from_slice(&backend_route_id.0).ok()
 }
 
 pub(super) fn deterministic_order_key<H: Hashing<Digest = Blake3Digest>>(
@@ -197,17 +211,25 @@ pub(super) fn route_cost_for_segments(
 }
 
 pub(super) fn checkpoint_bytes(active_route: &ActiveMeshRoute) -> Vec<u8> {
-    let mut bytes = active_route.path.route_id.0.to_vec();
-    bytes.extend_from_slice(&active_route.current_epoch.0.to_le_bytes());
-    bytes.extend_from_slice(&active_route.route_cost.hop_count.to_le_bytes());
-    bytes.extend_from_slice(&active_route.repair_steps_remaining.to_le_bytes());
-    bytes.push(u8::from(active_route.partition_mode));
-    bytes
+    serde_json::to_vec(active_route).expect("mesh checkpoints are always serializable")
 }
 
-pub(super) fn route_storage_key(route_id: &RouteId) -> Vec<u8> {
-    let mut key = b"mesh/route/".to_vec();
+pub(super) fn decode_checkpoint_bytes(bytes: &[u8]) -> Option<ActiveMeshRoute> {
+    serde_json::from_slice(bytes).ok()
+}
+
+pub(super) fn route_storage_key(local_node_id: &NodeId, route_id: &RouteId) -> Vec<u8> {
+    let mut key = b"mesh/".to_vec();
+    key.extend_from_slice(&local_node_id.0);
+    key.extend_from_slice(b"/route/");
     key.extend_from_slice(&route_id.0);
+    key
+}
+
+pub(super) fn topology_epoch_storage_key(local_node_id: &NodeId) -> Vec<u8> {
+    let mut key = b"mesh/".to_vec();
+    key.extend_from_slice(&local_node_id.0);
+    key.extend_from_slice(b"/topology-epoch");
     key
 }
 
@@ -304,6 +326,22 @@ mod tests {
             }),
             valid_for: TimeWindow::new(Tick(0), Tick(100)).unwrap(),
         }
+    }
+
+    #[test]
+    fn storage_keys_are_scoped_by_local_node_id() {
+        let left_node = NodeId([1; 32]);
+        let right_node = NodeId([9; 32]);
+        let route_id = RouteId([7; 16]);
+
+        assert_ne!(
+            route_storage_key(&left_node, &route_id),
+            route_storage_key(&right_node, &route_id)
+        );
+        assert_ne!(
+            topology_epoch_storage_key(&left_node),
+            topology_epoch_storage_key(&right_node)
+        );
     }
 
     fn unit_route_cost() -> RouteCost {

@@ -13,7 +13,7 @@
 //!   but it must not interpret higher-level routing semantics.
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, Link, LinkEndpoint, Node, NodeId, RetentionError,
+    Blake3Digest, Configuration, ContentId, Link, LinkEndpoint, Node, NodeId, RetentionError, Tick,
     TransportError, TransportObservation, TransportProtocol,
 };
 use jacquard_macros::purity;
@@ -58,6 +58,7 @@ pub trait MeshTopologyModel {
         &self,
         local_node_id: &NodeId,
         peer_node_id: &NodeId,
+        observed_at_tick: Tick,
         configuration: &Configuration,
     ) -> Option<Self::PeerEstimate>;
 
@@ -65,6 +66,7 @@ pub trait MeshTopologyModel {
     fn neighborhood_estimate(
         &self,
         local_node_id: &NodeId,
+        observed_at_tick: Tick,
         configuration: &Configuration,
     ) -> Option<Self::NeighborhoodEstimate>;
 }

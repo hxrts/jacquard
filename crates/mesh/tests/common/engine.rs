@@ -41,8 +41,12 @@ pub fn build_engine() -> TestEngine {
 }
 
 pub fn build_engine_at_tick(now: Tick) -> TestEngine {
+    build_engine_for_node_at_tick(LOCAL_NODE_ID, now)
+}
+
+pub fn build_engine_for_node_at_tick(local_node_id: NodeId, now: Tick) -> TestEngine {
     MeshEngine::without_committee_selector(
-        LOCAL_NODE_ID,
+        local_node_id,
         DeterministicMeshTopologyModel::new(),
         TestTransport::default(),
         TestRetentionStore::default(),

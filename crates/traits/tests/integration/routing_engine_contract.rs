@@ -386,6 +386,10 @@ fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) ->
         },
         admission: RouteAdmission {
             route_id: RouteId([3; 16]),
+            backend_ref: BackendRouteRef {
+                engine: RoutingEngineId::Mesh,
+                backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![1, 2, 3]),
+            },
             objective,
             profile,
             admission_check: RouteAdmissionCheck {
