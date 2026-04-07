@@ -21,8 +21,10 @@ use common::fixtures::sample_configuration;
 
 // One materialized route should support payload forwarding, retention
 // store deposit and recovery, in-place repair on `LinkDegraded`, hold
-// fallback on `PartitionDetected`, and a typed lease-expiry failure
-// once the engine clock has moved past the lease window.
+// fallback on `PartitionDetected`, automatic buffering while
+// partitioned, replay of retained payloads on recovery, and a typed
+// lease-expiry failure once the engine clock has moved past the lease
+// window.
 #[test]
 fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
     let mut engine = build_engine();
@@ -74,8 +76,50 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         hold_fallback.outcome,
         RouteMaintenanceOutcome::HoldFallback {
             trigger: RouteMaintenanceTrigger::PartitionDetected,
+            retained_object_count: 0,
         }
     );
+    engine
+        .forward_payload(&route_id, b"held-during-partition")
+        .expect("partitioned forwarding retains payload");
+    assert_eq!(
+        engine.transport().sent_frames.len(),
+        1,
+        "partitioned forwarding should buffer rather than send immediately"
+    );
+    assert_eq!(
+        engine
+            .active_route(&route_id)
+            .expect("active route present")
+            .anti_entropy
+            .retained_objects
+            .len(),
+        1
+    );
+
+    let recovered = engine
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            RouteMaintenanceTrigger::AntiEntropyRequired,
+        )
+        .expect("anti-entropy recovery");
+    assert_eq!(recovered.outcome, RouteMaintenanceOutcome::Continued);
+    assert_eq!(
+        runtime.last_lifecycle_event,
+        jacquard_traits::jacquard_core::RouteLifecycleEvent::RecoveredFromPartition
+    );
+    assert!(engine
+        .transport()
+        .sent_frames
+        .iter()
+        .any(|(_endpoint, payload)| payload == b"held-during-partition"));
+    assert!(engine
+        .active_route(&route_id)
+        .expect("active route present")
+        .anti_entropy
+        .retained_objects
+        .is_empty());
 
     engine.runtime_effects_mut().now = Tick(12);
     let expired = engine
@@ -89,7 +133,7 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         expired.outcome,
         RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LeaseExpired)
     );
-    assert_eq!(engine.runtime_effects().events.len(), 4);
+    assert_eq!(engine.runtime_effects().events.len(), 5);
     assert!(matches!(
         runtime.health.reachability_state,
         ReachabilityState::Reachable

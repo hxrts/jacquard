@@ -10,13 +10,17 @@ mod common;
 
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
-    jacquard_core::{DestinationId, Node, NodeId, RoutingObjective, ServiceId, TransportProtocol},
-    Blake3Hashing, MeshTopologyModel, RoutingEnginePlanner,
+    jacquard_core::{
+        Configuration, DestinationId, Environment, Node, NodeId, Observation, RatioPermille,
+        RouteEpoch, RoutingObjective, ServiceId, Tick, TransportProtocol,
+    },
+    Blake3Hashing, MeshTopologyModel, RoutingEngine, RoutingEnginePlanner,
 };
 
 use common::effects::{TestRetentionStore, TestRuntimeEffects, TestTransport};
-use common::engine::{profile, LOCAL_NODE_ID};
-use common::fixtures::sample_configuration;
+use common::engine::{materialization_input, objective, profile, LOCAL_NODE_ID};
+use common::fixtures::{link, node, sample_configuration};
+use std::collections::BTreeMap;
 
 // The deterministic topology model must surface mesh-private intrinsic
 // node state, per-protocol medium counts, and a non-trivial
@@ -155,6 +159,40 @@ fn service_objective() -> RoutingObjective {
     objective
 }
 
+fn equal_hop_quality_configuration() -> Observation<Configuration> {
+    let node_two = NodeId([2; 32]);
+    let node_three = NodeId([3; 32]);
+    let destination = NodeId([5; 32]);
+
+    Observation {
+        value: Configuration {
+            epoch: RouteEpoch(9),
+            nodes: BTreeMap::from([
+                (LOCAL_NODE_ID, node(1)),
+                (node_two, node(2)),
+                (node_three, node(3)),
+                (destination, node(5)),
+            ]),
+            links: BTreeMap::from([
+                ((LOCAL_NODE_ID, node_two), link(2, 950)),
+                ((node_two, destination), link(5, 950)),
+                ((LOCAL_NODE_ID, node_three), link(3, 650)),
+                ((node_three, destination), link(6, 650)),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 3,
+                churn_permille: RatioPermille(100),
+                contention_permille: RatioPermille(100),
+            },
+        },
+        source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
+        evidence_class: jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+        origin_authentication:
+            jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(9),
+    }
+}
+
 #[test]
 fn topology_model_estimates_can_change_candidate_ordering_deterministically() {
     let topology = sample_configuration();
@@ -176,4 +214,36 @@ fn topology_model_estimates_can_change_candidate_ordering_deterministically() {
         .expect("first candidate with node four preference");
 
     assert_ne!(first_two.backend_ref, first_four.backend_ref);
+}
+
+#[test]
+fn metric_aware_search_prefers_higher_quality_equal_hop_path() {
+    let topology = equal_hop_quality_configuration();
+    let goal = objective(DestinationId::Node(NodeId([5; 32])));
+    let policy = profile();
+    let mut engine = common::engine::build_engine_for_node_at_tick(LOCAL_NODE_ID, Tick(9));
+
+    engine.engine_tick(&topology).expect("engine tick");
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("candidate to destination five");
+    let admission = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect("admit route");
+    let lease = jacquard_traits::jacquard_core::RouteLease {
+        owner_node_id: LOCAL_NODE_ID,
+        lease_epoch: RouteEpoch(9),
+        valid_for: jacquard_traits::jacquard_core::TimeWindow::new(Tick(9), Tick(20))
+            .expect("valid lease"),
+    };
+    let installation = engine
+        .materialize_route(materialization_input(admission, lease))
+        .expect("materialize route");
+
+    let route = engine
+        .active_route(&installation.materialization_proof.route_id)
+        .expect("active route");
+    assert_eq!(route.path.segments[0].node_id, NodeId([2; 32]));
 }

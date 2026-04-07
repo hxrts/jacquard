@@ -323,6 +323,7 @@ pub struct RouteHealth {
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ReachabilityState {
+    Unknown,
     Reachable,
     Unreachable,
 }
@@ -354,9 +355,14 @@ pub struct RouteMaintenanceResult {
 pub enum RouteMaintenanceOutcome {
     Continued,
     Repaired,
-    ReplacementRequired { trigger: RouteMaintenanceTrigger },
+    ReplacementRequired {
+        trigger: RouteMaintenanceTrigger,
+    },
     HandedOff(RouteSemanticHandoff),
-    HoldFallback { trigger: RouteMaintenanceTrigger },
+    HoldFallback {
+        trigger: RouteMaintenanceTrigger,
+        retained_object_count: u32,
+    },
     Failed(RouteMaintenanceFailure),
 }
 

@@ -41,7 +41,11 @@ use trait_bounds::{
 };
 use types::{ActiveMeshRoute, CachedCandidate};
 
-pub use types::{MeshPath, MeshRouteClass, MeshRouteSegment, MeshTransportObservationSummary};
+pub use types::{
+    MeshControlState, MeshForwardingState, MeshHandoffState, MeshObservedRemoteLink, MeshPath,
+    MeshRepairState, MeshRouteAntiEntropyState, MeshRouteClass, MeshRouteSegment,
+    MeshTransportObservationSummary,
+};
 
 // Public Engine Identity And Capability Surface
 
@@ -119,6 +123,7 @@ pub struct MeshEngine<
     selector: Option<Selector>,
     latest_topology: Option<Observation<Configuration>>,
     last_transport_summary: Option<MeshTransportObservationSummary>,
+    control_state: Option<types::MeshControlState>,
     candidate_cache: RefCell<BTreeMap<jacquard_core::BackendRouteId, CachedCandidate>>,
     active_routes: BTreeMap<RouteId, ActiveMeshRoute>,
 }
@@ -147,6 +152,7 @@ impl<Topology, Transport, Retention, Effects, Hasher>
             selector: Some(NoCommitteeSelector),
             latest_topology: None,
             last_transport_summary: None,
+            control_state: None,
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
         }
@@ -178,6 +184,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
             selector: Some(selector),
             latest_topology: None,
             last_transport_summary: None,
+            control_state: None,
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
         }
@@ -215,6 +222,11 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     #[must_use]
     pub fn transport_observation_summary(&self) -> Option<&MeshTransportObservationSummary> {
         self.last_transport_summary.as_ref()
+    }
+
+    #[must_use]
+    pub fn control_state(&self) -> Option<&types::MeshControlState> {
+        self.control_state.as_ref()
     }
 
     pub fn checkpointed_topology_epoch(&self) -> Result<Option<RouteEpoch>, RouteError>
@@ -265,7 +277,9 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Transport: MeshTransportBounds,
+    Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
+    Hasher: MeshHasherBounds,
 {
     pub fn forward_payload(
         &mut self,
@@ -275,23 +289,38 @@ where
         // Forwarding is owner-relative. The active route stores the
         // current owner and the index of the next segment from that
         // owner's point of view. Old owners fail closed after handoff,
-        // and the next owner sees the remaining suffix.
+        // and the next owner sees the remaining suffix. When the route
+        // is in partition mode, forwarding becomes deferred delivery:
+        // payloads are retained under the route instead of being sent.
+        let active_route = self
+            .active_routes
+            .get(route_id)
+            .ok_or(RouteSelectionError::NoCandidate)?;
+        if active_route.forwarding.current_owner_node_id != self.local_node_id {
+            return Err(RouteRuntimeError::StaleOwner.into());
+        }
+        let partition_mode = active_route.anti_entropy.partition_mode;
+        let next_segment = active_route
+            .path
+            .segments
+            .get(usize::from(active_route.forwarding.next_hop_index))
+            .cloned()
+            .ok_or(RouteRuntimeError::Invalidated)?;
+        if partition_mode {
+            self.retain_for_route(route_id, payload)
+                .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))?;
+            return Ok(());
+        }
+
+        self.transport
+            .send_transport(&next_segment.endpoint, payload)?;
         let active_route = self
             .active_routes
             .get_mut(route_id)
             .ok_or(RouteSelectionError::NoCandidate)?;
-        if active_route.current_owner_node_id != self.local_node_id {
-            return Err(RouteRuntimeError::StaleOwner.into());
-        }
-        let next_segment = active_route
-            .path
-            .segments
-            .get(usize::from(active_route.next_hop_index))
-            .ok_or(RouteRuntimeError::Invalidated)?;
-        self.transport
-            .send_transport(&next_segment.endpoint, payload)?;
-        active_route.in_flight_frames = active_route.in_flight_frames.saturating_add(1);
-        active_route.last_ack_at_tick = Some(self.effects.now_tick());
+        active_route.forwarding.in_flight_frames =
+            active_route.forwarding.in_flight_frames.saturating_add(1);
+        active_route.forwarding.last_ack_at_tick = Some(self.effects.now_tick());
         Ok(())
     }
 
@@ -317,14 +346,15 @@ where
         // This runs before the store write so we never leak bytes into
         // the retention store that the engine cannot track.
         if let Some(active_route) = self.active_routes.get(route_id) {
-            if active_route.retained_objects.len() >= MESH_RETAINED_PER_ROUTE_COUNT_MAX {
+            if active_route.anti_entropy.retained_objects.len() >= MESH_RETAINED_PER_ROUTE_COUNT_MAX
+            {
                 return Err(jacquard_core::RetentionError::Full);
             }
         }
         let object_id = self.retention_object_id(route_id, payload);
         self.retention.retain_payload(object_id, payload.to_vec())?;
         if let Some(active_route) = self.active_routes.get_mut(route_id) {
-            active_route.retained_objects.insert(object_id);
+            active_route.anti_entropy.retained_objects.insert(object_id);
         }
         Ok(object_id)
     }
@@ -337,7 +367,7 @@ where
         let payload = self.retention.take_retained_payload(object_id)?;
         if payload.is_some() {
             if let Some(active_route) = self.active_routes.get_mut(route_id) {
-                active_route.retained_objects.remove(object_id);
+                active_route.anti_entropy.retained_objects.remove(object_id);
             }
         }
         Ok(payload)
@@ -430,7 +460,7 @@ where
         active_route
             .path
             .segments
-            .get(usize::from(active_route.next_hop_index))
+            .get(usize::from(active_route.forwarding.next_hop_index))
             .map(|segment| segment.node_id)
     }
 }

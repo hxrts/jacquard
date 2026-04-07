@@ -80,6 +80,13 @@ pub struct NodeRelayBudget {
     pub utilization_permille: RatioPermille,
     pub retention_horizon_ms: Belief<DurationMs>,
 }
+
+pub struct InformationSetSummary {
+    pub summary_encoding: InformationSummaryEncoding,
+    pub item_count: Belief<u32>,
+    pub byte_count: Belief<ByteCount>,
+    pub false_positive_permille: Belief<RatioPermille>,
+}
 ```
 
 `NodeProfile` exposes device and policy constraints in a form the router can use without learning hardware details. `NodeState` says how much connection headroom, forwarding capacity, and retention space remain now. A node with spare capacity but a short `retention_horizon_ms` is a weak retention target because routing decisions depend on future forwarding value rather than current free space alone.

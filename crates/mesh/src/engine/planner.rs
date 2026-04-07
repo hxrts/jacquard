@@ -1,16 +1,16 @@
 //! `RoutingEnginePlanner` implementation for `MeshEngine`.
 //!
-//! Candidate production runs a five-step deterministic pipeline: BFS from
-//! the local node, filter by engine capability and objective match, derive
-//! a self-contained `BackendRouteId` plan token plus admission check,
-//! sort by hop count, mesh-private topology-model preference, and
+//! Candidate production runs a five-step deterministic pipeline: metric-aware
+//! path search from the local node, filter by engine capability and objective
+//! match, derive a self-contained `BackendRouteId` plan token plus admission
+//! check, sort by path metric, mesh-private topology-model preference, and
 //! deterministic order key, then truncate to
 //! `MESH_CANDIDATE_COUNT_MAX`. `check_candidate` and `admit_route` take
 //! topology explicitly and re-derive from the plan token on cache miss,
 //! so the candidate cache is an optimization rather than a required
 //! piece of engine state.
 
-use std::cmp::Reverse;
+use std::{cmp::Reverse, collections::BinaryHeap};
 
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision, BackendRouteId, Belief,
@@ -26,8 +26,7 @@ use super::{
     support::{
         confidence_for_segments, decode_backend_token, degradation_for_candidate,
         deterministic_order_key, encode_backend_token, encode_path_bytes,
-        node_path_from_plan_token, route_cost_for_segments, shortest_paths, unique_protocol_mix,
-        MeshPlanToken,
+        node_path_from_plan_token, route_cost_for_segments, unique_protocol_mix, MeshPlanToken,
     },
     CachedCandidate, MeshEngine, MeshHasherBounds, MeshRouteClass, MeshRouteSegment,
     MeshSelectorBounds, MESH_CANDIDATE_COUNT_MAX, MESH_CANDIDATE_VALIDITY_TICKS, MESH_CAPABILITIES,
@@ -40,6 +39,14 @@ use crate::{
         route_capable_for_engine,
     },
 };
+
+const PATH_METRIC_BASE_HOP_COST: u32 = 1_000;
+const PATH_METRIC_DELIVERY_PENALTY_WEIGHT: u32 = 2;
+const PATH_METRIC_LOSS_PENALTY_WEIGHT: u32 = 2;
+const PATH_METRIC_SYMMETRY_PENALTY_WEIGHT: u32 = 1;
+const PATH_METRIC_PROTOCOL_REPEAT_PENALTY: u32 = 125;
+const PATH_METRIC_DIVERSITY_BONUS: u32 = 75;
+const PATH_METRIC_DEFERRED_DELIVERY_BONUS: u32 = 150;
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -93,6 +100,152 @@ where
             .saturating_sub(neighborhood_penalty)
     }
 
+    fn edge_metric_score(
+        &self,
+        topology: &Observation<Configuration>,
+        from_node_id: &NodeId,
+        to_node_id: &NodeId,
+    ) -> Option<u32> {
+        let configuration = &topology.value;
+        let (_, link_state) = estimate_hop_link(from_node_id, to_node_id, configuration)?;
+        let delivery_penalty = match link_state.delivery_confidence_permille {
+            Belief::Absent => 1000,
+            Belief::Estimated(estimate) => 1000_u32.saturating_sub(u32::from(estimate.value.get())),
+        };
+        let symmetry_penalty = match link_state.symmetry_permille {
+            Belief::Absent => 1000,
+            Belief::Estimated(estimate) => 1000_u32.saturating_sub(u32::from(estimate.value.get())),
+        };
+        let loss_penalty = u32::from(link_state.loss_permille.get());
+
+        let peer_bonus = self
+            .topology_model
+            .peer_estimate(
+                from_node_id,
+                to_node_id,
+                topology.observed_at_tick,
+                configuration,
+            )
+            .map(|estimate| {
+                optional_health_score_value(estimate.relay_value_score) / 4
+                    + optional_health_score_value(estimate.retention_value_score) / 8
+                    + optional_health_score_value(estimate.stability_score) / 4
+                    + optional_health_score_value(estimate.service_score) / 2
+            })
+            .unwrap_or(0);
+        let neighborhood = self.topology_model.neighborhood_estimate(
+            to_node_id,
+            topology.observed_at_tick,
+            configuration,
+        );
+        let neighborhood_penalty = neighborhood
+            .as_ref()
+            .map(|estimate| {
+                optional_health_score_value(estimate.repair_pressure_score) / 2
+                    + optional_health_score_value(estimate.partition_risk_score) / 2
+            })
+            .unwrap_or(0);
+        let neighborhood_bonus = neighborhood
+            .as_ref()
+            .map(|estimate| {
+                optional_health_score_value(estimate.density_score) / 4
+                    + optional_health_score_value(estimate.service_stability_score) / 2
+            })
+            .unwrap_or(0);
+
+        Some(
+            PATH_METRIC_BASE_HOP_COST
+                .saturating_add(
+                    delivery_penalty.saturating_mul(PATH_METRIC_DELIVERY_PENALTY_WEIGHT),
+                )
+                .saturating_add(loss_penalty.saturating_mul(PATH_METRIC_LOSS_PENALTY_WEIGHT))
+                .saturating_add(
+                    symmetry_penalty.saturating_mul(PATH_METRIC_SYMMETRY_PENALTY_WEIGHT),
+                )
+                .saturating_add(neighborhood_penalty)
+                .saturating_sub(peer_bonus.saturating_add(neighborhood_bonus)),
+        )
+    }
+
+    fn path_metric_score(
+        &self,
+        topology: &Observation<Configuration>,
+        node_path: &[NodeId],
+        segments: &[MeshRouteSegment],
+        route_class: &MeshRouteClass,
+    ) -> u32 {
+        let mut protocol_mix = Vec::new();
+        let mut score = 0_u32;
+
+        for (index, segment) in segments.iter().enumerate() {
+            let from_node_id = node_path.get(index).copied().unwrap_or(self.local_node_id);
+            score = score.saturating_add(
+                self.edge_metric_score(topology, &from_node_id, &segment.node_id)
+                    .unwrap_or(PATH_METRIC_BASE_HOP_COST.saturating_mul(4)),
+            );
+            if protocol_mix.contains(&segment.endpoint.protocol) {
+                score = score.saturating_add(PATH_METRIC_PROTOCOL_REPEAT_PENALTY);
+            } else {
+                protocol_mix.push(segment.endpoint.protocol.clone());
+            }
+        }
+
+        let diversity_count = u32::try_from(protocol_mix.len()).unwrap_or(u32::MAX);
+        let diversity_bonus = diversity_count
+            .saturating_sub(1)
+            .saturating_mul(PATH_METRIC_DIVERSITY_BONUS);
+        score = score.saturating_sub(diversity_bonus);
+
+        if matches!(route_class, MeshRouteClass::DeferredDelivery) {
+            score = score.saturating_sub(PATH_METRIC_DEFERRED_DELIVERY_BONUS);
+        }
+
+        score
+    }
+
+    fn weighted_paths(&self, topology: &Observation<Configuration>) -> Vec<(u32, Vec<NodeId>)> {
+        let configuration = &topology.value;
+        let mut best_paths = std::collections::BTreeMap::<NodeId, (u32, Vec<NodeId>)>::new();
+        let mut frontier = BinaryHeap::new();
+        frontier.push(Reverse((0_u32, vec![self.local_node_id])));
+
+        while let Some(Reverse((score, path))) = frontier.pop() {
+            let current = *path.last().expect("weighted path frontier is never empty");
+            if let Some((best_score, best_path)) = best_paths.get(&current) {
+                if score > *best_score || (score == *best_score && path > *best_path) {
+                    continue;
+                }
+            }
+            best_paths.insert(current, (score, path.clone()));
+
+            if path.len().saturating_sub(1) >= usize::from(ROUTE_HOP_COUNT_MAX) {
+                continue;
+            }
+
+            for neighbor in crate::topology::adjacent_node_ids(&current, configuration) {
+                if path.contains(&neighbor) {
+                    continue;
+                }
+                let Some(edge_score) = self.edge_metric_score(topology, &current, &neighbor) else {
+                    continue;
+                };
+                let mut next_path = path.clone();
+                next_path.push(neighbor);
+                let next_score = score.saturating_add(edge_score);
+                if let Some((best_score, best_path)) = best_paths.get(&neighbor) {
+                    if next_score > *best_score
+                        || (next_score == *best_score && next_path >= *best_path)
+                    {
+                        continue;
+                    }
+                }
+                frontier.push(Reverse((next_score, next_path)));
+            }
+        }
+
+        best_paths.into_values().collect()
+    }
+
     // Route class order of precedence: a Gateway destination always
     // yields Gateway; otherwise multi-hop routes to hold-capable
     // destinations with hold-fallback allowed become DeferredDelivery;
@@ -140,7 +293,7 @@ where
         }
     }
 
-    fn derive_segments(
+    pub(super) fn derive_segments(
         &self,
         configuration: &Configuration,
         node_path: &[NodeId],
@@ -286,6 +439,8 @@ where
             self.hold_capable_for_destination(destination_node, topology.observed_at_tick);
         let route_class = self.determine_route_class(objective, segments.len(), hold_capable);
         let connectivity = self.route_connectivity_for_class(objective, &route_class);
+        let path_metric_score =
+            self.path_metric_score(topology, node_path, &segments, &route_class);
         let valid_for = TimeWindow::new(
             topology.observed_at_tick,
             Tick(topology.observed_at_tick.0 + MESH_CANDIDATE_VALIDITY_TICKS),
@@ -308,7 +463,8 @@ where
         let path_bytes = encode_path_bytes(node_path, &segments);
         let backend_route_id = encode_backend_token(&plan);
         let route_id = self.route_id_for_backend(&backend_route_id);
-        let route_cost = route_cost_for_segments(&segments, &route_class);
+        let route_cost =
+            route_cost_for_segments(node_path, &segments, &route_class, &topology.value);
         let summary = self.build_candidate_summary(topology, connectivity, &segments, valid_for);
         let estimate =
             self.build_candidate_estimate(topology, connectivity, &route_class, &segments);
@@ -338,6 +494,7 @@ where
             backend_route_id,
             CachedCandidate {
                 route_id,
+                path_metric_score,
                 summary,
                 estimate,
                 admission_check,
@@ -352,7 +509,7 @@ where
     // topology still supports the encoded path and route class, then
     // re-derives the shared planning judgment. Materialization later
     // decodes the same token without consulting the candidate cache.
-    fn derive_candidate_from_backend_ref(
+    pub(super) fn derive_candidate_from_backend_ref(
         &self,
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
@@ -362,6 +519,10 @@ where
         let plan =
             decode_backend_token(backend_route_id).ok_or(RouteSelectionError::NoCandidate)?;
         if plan.source != self.local_node_id || plan.destination != objective.destination {
+            return Err(RouteSelectionError::NoCandidate.into());
+        }
+        if plan.epoch != topology.value.epoch || !plan.valid_for.contains(topology.observed_at_tick)
+        {
             return Err(RouteSelectionError::NoCandidate.into());
         }
         let node_path = node_path_from_plan_token(&plan);
@@ -414,17 +575,19 @@ where
         profile: &AdaptiveRoutingProfile,
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
-        // Five-step deterministic pipeline: BFS shortest paths, filter
-        // to route-capable destinations matching the objective, build a
-        // cached candidate per path, sort by hop count, topology-model
-        // preference, and order key, then truncate to
+        // Five-step deterministic pipeline: weighted deterministic path
+        // search, filter to route-capable destinations matching the
+        // objective, build a cached candidate per path, sort by path
+        // metric, topology-model preference, and order key, then truncate to
         // MESH_CANDIDATE_COUNT_MAX. The deterministic sort makes
         // candidate ordering stable across replays.
         let configuration = &topology.value;
-        let mut cached = shortest_paths(&self.local_node_id, configuration)
+        let mut cached = self
+            .weighted_paths(topology)
             .into_iter()
-            .filter(|(destination_node_id, _)| *destination_node_id != self.local_node_id)
-            .filter_map(|(destination_node_id, node_path)| {
+            .filter(|(_, node_path)| node_path.last().copied() != Some(self.local_node_id))
+            .filter_map(|(_, node_path)| {
+                let destination_node_id = *node_path.last()?;
                 let destination_node = configuration.nodes.get(&destination_node_id)?;
                 if !route_capable_for_engine(
                     destination_node,
@@ -454,7 +617,7 @@ where
                 })
                 .unwrap_or(0);
             (
-                usize::from(candidate.admission_check.route_cost.hop_count),
+                candidate.path_metric_score,
                 Reverse(preference),
                 candidate.ordering_key.stable_key,
                 candidate.ordering_key.tie_break,

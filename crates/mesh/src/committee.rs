@@ -8,18 +8,19 @@
 //! scores from the shared `Configuration`.
 
 use core::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet};
 
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionAssumptions, ClaimStrength, CommitteeId, CommitteeMember,
     CommitteeRole, CommitteeSelection, Configuration, ControllerId, FactBasis, HealthScore,
-    IdentityAssuranceClass, NodeDensityClass, NodeId, Observation, RouteConnectivityProfile,
-    RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass, RoutingEngineId,
-    RoutingObjective, Tick, TimeWindow,
+    IdentityAssuranceClass, NodeDensityClass, NodeId, Observation, PenaltyPoints,
+    RouteConnectivityProfile, RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass,
+    RoutingEngineId, RoutingObjective, ServiceScope, Tick, TimeWindow,
 };
 use jacquard_traits::{CommitteeSelector, MeshTopologyModel};
 
 use crate::topology::{
-    adjacent_node_ids, optional_health_score_value, route_capable_for_engine,
+    adjacent_node_ids, bounded_health_score, optional_health_score_value, route_capable_for_engine,
     DeterministicMeshTopologyModel, MeshNeighborhoodEstimate, MeshPeerEstimate,
 };
 
@@ -56,6 +57,27 @@ const MESH_COMMITTEE_SERVICE_WEIGHT: u32 = 100;
 /// is worthwhile. This reads through `MeshNeighborhoodEstimate` so committee
 /// gating and candidate ordering use the same topology-model interpretation.
 const MESH_COMMITTEE_SERVICE_STABILITY_FLOOR: u32 = 500;
+const MESH_COMMITTEE_BEHAVIOR_RELIABILITY_FLOOR: u32 = 400;
+const MESH_COMMITTEE_BEHAVIOR_PENALTY_CEILING: u32 = 400;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MeshBehaviorHistory {
+    pub reliability_score: HealthScore,
+    pub misbehavior_penalty_points: PenaltyPoints,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct CommitteeDiversityKey {
+    discovery_scope: Option<jacquard_core::DiscoveryScopeId>,
+}
+
+#[derive(Clone, Debug)]
+struct CommitteeCandidate {
+    score: u32,
+    controller_id: ControllerId,
+    node_id: NodeId,
+    diversity_key: CommitteeDiversityKey,
+}
 
 #[derive(Clone, Debug)]
 pub struct NoCommitteeSelector;
@@ -79,6 +101,7 @@ pub struct DeterministicCommitteeSelector<Topology = DeterministicMeshTopologyMo
     pub engine_id: RoutingEngineId,
     pub membership_cap: usize,
     pub topology_model: Topology,
+    pub behavior_history: BTreeMap<NodeId, MeshBehaviorHistory>,
 }
 
 impl DeterministicCommitteeSelector<DeterministicMeshTopologyModel> {
@@ -96,7 +119,17 @@ impl<Topology> DeterministicCommitteeSelector<Topology> {
             engine_id: RoutingEngineId::Mesh,
             membership_cap: MESH_COMMITTEE_MEMBERSHIP_CAP,
             topology_model,
+            behavior_history: BTreeMap::new(),
         }
+    }
+
+    #[must_use]
+    pub fn with_behavior_history(
+        mut self,
+        behavior_history: BTreeMap<NodeId, MeshBehaviorHistory>,
+    ) -> Self {
+        self.behavior_history = behavior_history;
+        self
     }
 }
 
@@ -107,12 +140,65 @@ where
         NeighborhoodEstimate = MeshNeighborhoodEstimate,
     >,
 {
-    fn membership_score(
+    fn discovery_scope_key(
+        &self,
+        peer_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Option<CommitteeDiversityKey> {
+        let node = configuration.nodes.get(peer_node_id)?;
+        let scope = node.profile.services.iter().find_map(|service| {
+            if service.routing_engines.contains(&self.engine_id) {
+                match service.scope {
+                    ServiceScope::Discovery(scope) => Some(scope),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        });
+        Some(CommitteeDiversityKey {
+            discovery_scope: scope,
+        })
+    }
+
+    fn committee_eligible(
         &self,
         peer_node_id: &NodeId,
         observed_at_tick: Tick,
         configuration: &Configuration,
-    ) -> Option<(u32, ControllerId)> {
+    ) -> bool {
+        let Some(node) = configuration.nodes.get(peer_node_id) else {
+            return false;
+        };
+        if !route_capable_for_engine(node, &self.engine_id, observed_at_tick) {
+            return false;
+        }
+        let Some(estimate) = self.topology_model.peer_estimate(
+            &self.local_node_id,
+            peer_node_id,
+            observed_at_tick,
+            configuration,
+        ) else {
+            return false;
+        };
+        if optional_health_score_value(estimate.service_score) == 0 {
+            return false;
+        }
+        self.behavior_history
+            .get(peer_node_id)
+            .is_none_or(|history| {
+                history.reliability_score.0 >= MESH_COMMITTEE_BEHAVIOR_RELIABILITY_FLOOR
+                    && history.misbehavior_penalty_points.0
+                        <= MESH_COMMITTEE_BEHAVIOR_PENALTY_CEILING
+            })
+    }
+
+    fn membership_candidate(
+        &self,
+        peer_node_id: &NodeId,
+        observed_at_tick: Tick,
+        configuration: &Configuration,
+    ) -> Option<CommitteeCandidate> {
         let node = configuration.nodes.get(peer_node_id)?;
         let estimate = self.topology_model.peer_estimate(
             &self.local_node_id,
@@ -124,15 +210,30 @@ where
         let retention_score = optional_health_score_value(estimate.retention_value_score);
         let stability_score = optional_health_score_value(estimate.stability_score);
         let service_score = optional_health_score_value(estimate.service_score);
+        let behavior_bonus = self
+            .behavior_history
+            .get(peer_node_id)
+            .map(|history| history.reliability_score.0 / 2)
+            .unwrap_or(0);
+        let behavior_penalty = self
+            .behavior_history
+            .get(peer_node_id)
+            .map(|history| history.misbehavior_penalty_points.0)
+            .unwrap_or(0);
         // Service score is weighted by `MESH_COMMITTEE_SERVICE_WEIGHT` so a
         // peer without the required routing services can never outrank a
         // peer that has them, regardless of relay or link quality.
-        Some((
-            relay_score.saturating_add(retention_score)
-                + stability_score
-                + service_score.saturating_mul(MESH_COMMITTEE_SERVICE_WEIGHT),
-            node.controller_id,
-        ))
+        Some(CommitteeCandidate {
+            score: relay_score
+                .saturating_add(retention_score)
+                .saturating_add(stability_score)
+                .saturating_add(service_score.saturating_mul(MESH_COMMITTEE_SERVICE_WEIGHT))
+                .saturating_add(behavior_bonus)
+                .saturating_sub(behavior_penalty),
+            controller_id: node.controller_id,
+            node_id: *peer_node_id,
+            diversity_key: self.discovery_scope_key(peer_node_id, configuration)?,
+        })
     }
 
     fn neighborhood_allows_coordination(
@@ -193,13 +294,18 @@ where
         let mut ranked: Vec<_> = adjacent_node_ids(&self.local_node_id, configuration)
             .into_iter()
             .filter(|peer_node_id| {
-                configuration.nodes.get(peer_node_id).is_some_and(|node| {
-                    route_capable_for_engine(node, &self.engine_id, current_tick)
-                })
+                self.committee_eligible(peer_node_id, current_tick, configuration)
             })
             .filter_map(|peer_node_id| {
-                self.membership_score(&peer_node_id, current_tick, configuration)
-                    .map(|(score, controller_id)| (Reverse(score), controller_id, peer_node_id))
+                self.membership_candidate(&peer_node_id, current_tick, configuration)
+                    .map(|candidate| {
+                        (
+                            Reverse(candidate.score),
+                            candidate.controller_id,
+                            candidate.diversity_key.clone(),
+                            candidate.node_id,
+                        )
+                    })
             })
             .collect();
         ranked.sort();
@@ -208,22 +314,60 @@ where
             return Ok(None);
         }
 
-        let members = ranked
-            .into_iter()
-            .take(self.membership_cap)
-            .enumerate()
-            .map(
-                |(index, (_score, controller_id, node_id))| CommitteeMember {
+        let mut seen_controllers = BTreeSet::new();
+        let mut seen_diversity_keys = BTreeSet::new();
+        let mut members = Vec::new();
+        let mut deferred_candidates = Vec::new();
+
+        for (_score, controller_id, diversity_key, node_id) in ranked {
+            if seen_controllers.contains(&controller_id) {
+                continue;
+            }
+            if seen_diversity_keys.contains(&diversity_key) {
+                deferred_candidates.push((controller_id, diversity_key, node_id));
+                continue;
+            }
+            seen_controllers.insert(controller_id);
+            seen_diversity_keys.insert(diversity_key);
+            members.push(CommitteeMember {
+                node_id,
+                controller_id,
+                role: if members.is_empty() {
+                    CommitteeRole::Participant
+                } else {
+                    CommitteeRole::Witness
+                },
+            });
+            if members.len() >= self.membership_cap {
+                break;
+            }
+        }
+
+        if members.len() < 2 {
+            for (controller_id, diversity_key, node_id) in deferred_candidates {
+                if seen_controllers.contains(&controller_id) {
+                    continue;
+                }
+                seen_controllers.insert(controller_id);
+                seen_diversity_keys.insert(diversity_key);
+                members.push(CommitteeMember {
                     node_id,
                     controller_id,
-                    role: if index == 0 {
+                    role: if members.is_empty() {
                         CommitteeRole::Participant
                     } else {
                         CommitteeRole::Witness
                     },
-                },
-            )
-            .collect::<Vec<_>>();
+                });
+                if members.len() >= 2 {
+                    break;
+                }
+            }
+        }
+
+        if members.len() < 2 {
+            return Ok(None);
+        }
 
         // Bounded by MESH_COMMITTEE_MEMBERSHIP_CAP above, so the cast is
         // infallible.
@@ -293,7 +437,7 @@ pub fn mesh_health_score(configuration: &Configuration) -> HealthScore {
         .saturating_mul(100);
     let churn_penalty = u32::from(configuration.environment.churn_permille.get());
     let contention_penalty = u32::from(configuration.environment.contention_permille.get());
-    HealthScore(reachable.saturating_sub((churn_penalty + contention_penalty) / 2))
+    bounded_health_score(reachable.saturating_sub((churn_penalty + contention_penalty) / 2))
 }
 
 fn density_class(neighbor_count: u32) -> NodeDensityClass {
@@ -331,6 +475,7 @@ fn committee_id_for(objective: &RoutingObjective, epoch: RouteEpoch) -> Committe
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::HEALTH_SCORE_MAX;
     use jacquard_core::{
         AdaptiveRoutingProfile, Belief, BleDeviceId, BleProfileId, ByteCount, Configuration,
         ContentId, ControllerId, DeploymentProfile, DestinationId, Environment, Estimate,
@@ -582,6 +727,31 @@ mod tests {
         let committee = result.expect("committee should be selected");
         assert!(!committee.members.is_empty());
         assert!(committee.quorum_threshold >= 1);
+    }
+
+    #[test]
+    fn mesh_health_score_is_clamped_to_health_score_max() {
+        let topology = Observation {
+            value: Configuration {
+                epoch: RouteEpoch(0),
+                nodes: BTreeMap::from([(NodeId([1; 32]), node(1))]),
+                links: BTreeMap::new(),
+                environment: Environment {
+                    reachable_neighbor_count: 99,
+                    churn_permille: RatioPermille(0),
+                    contention_permille: RatioPermille(0),
+                },
+            },
+            source_class: FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::DirectObservation,
+            origin_authentication: OriginAuthenticationClass::Controlled,
+            observed_at_tick: Tick(0),
+        };
+
+        assert_eq!(
+            mesh_health_score(&topology.value),
+            HealthScore(HEALTH_SCORE_MAX)
+        );
     }
 
     // ContentId is unused here but included for parity with the broader

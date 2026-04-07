@@ -123,6 +123,10 @@ impl DeterministicMeshTopologyModel {
     }
 }
 
+pub(crate) fn bounded_health_score(value: u32) -> HealthScore {
+    HealthScore(value.min(HEALTH_SCORE_MAX))
+}
+
 impl MeshTopologyModel for DeterministicMeshTopologyModel {
     type PeerEstimate = MeshPeerEstimate;
     type NeighborhoodEstimate = MeshNeighborhoodEstimate;
@@ -197,7 +201,9 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
             Belief::Estimated(estimate) => {
                 // Higher is better, so invert utilization.
                 let utilization = u32::from(estimate.value.utilization_permille.get());
-                Some(HealthScore(HEALTH_SCORE_MAX.saturating_sub(utilization)))
+                Some(bounded_health_score(
+                    HEALTH_SCORE_MAX.saturating_sub(utilization),
+                ))
             }
         };
 
@@ -205,7 +211,7 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
             .state
             .hold_capacity_available_bytes
             .into_estimate()
-            .map(|estimate| HealthScore(clamp_u64_to_u32(estimate.value.0).min(HEALTH_SCORE_MAX)));
+            .map(|estimate| bounded_health_score(clamp_u64_to_u32(estimate.value.0)));
 
         let confidence = link
             .state
@@ -215,7 +221,7 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
         let symmetry =
             belief_ratio(link.state.symmetry_permille).map(|value| u32::from(value.get()));
         let stability = mean_score(confidence, symmetry).map(HealthScore);
-        let service_score = Some(HealthScore(service_surface_health_score(
+        let service_score = Some(bounded_health_score(service_surface_health_score(
             &peer.profile.services,
             &RoutingEngineId::Mesh,
             observed_at_tick,
@@ -249,15 +255,15 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
         } = configuration.environment;
 
         let density_source = reachable_neighbor_count.max(neighbor_count);
-        let density_score = Some(HealthScore(
+        let density_score = Some(bounded_health_score(
             density_source.saturating_mul(DENSITY_SCORE_SCALE),
         ));
-        let repair_pressure_score = Some(HealthScore(u32::from(churn_permille.get())));
-        let partition_risk_score = Some(HealthScore(
+        let repair_pressure_score = Some(bounded_health_score(u32::from(churn_permille.get())));
+        let partition_risk_score = Some(bounded_health_score(
             u32::from(churn_permille.get()) / 2 + u32::from(contention_permille.get()) / 2,
         ));
 
-        let service_stability_score = Some(HealthScore(
+        let service_stability_score = Some(bounded_health_score(
             adjacent_node_ids(local_node_id, configuration)
                 .into_iter()
                 .filter_map(|peer_id| configuration.nodes.get(&peer_id))
@@ -268,8 +274,7 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
                         observed_at_tick,
                     )
                 })
-                .sum::<u32>()
-                .min(HEALTH_SCORE_MAX),
+                .sum::<u32>(),
         ));
 
         Some(MeshNeighborhoodEstimate {
@@ -741,6 +746,27 @@ mod tests {
             .service_score;
 
         assert_eq!(score_at_epoch_zero, score_at_epoch_seventy_seven);
+    }
+
+    #[test]
+    fn neighborhood_density_score_is_clamped_to_health_score_max() {
+        let local = NodeId([1; 32]);
+        let configuration = Configuration {
+            epoch: RouteEpoch(0),
+            nodes: BTreeMap::from([(local, node_with_services(vec![]))]),
+            links: BTreeMap::new(),
+            environment: Environment {
+                reachable_neighbor_count: 99,
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
+            },
+        };
+        let model = DeterministicMeshTopologyModel::new();
+        let estimate = model
+            .neighborhood_estimate(&local, Tick(0), &configuration)
+            .expect("neighborhood estimate");
+
+        assert_eq!(estimate.density_score, Some(HealthScore(HEALTH_SCORE_MAX)));
     }
 
     // A Node destination matches strictly by node-id. A non-matching id

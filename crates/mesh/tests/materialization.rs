@@ -6,7 +6,7 @@
 mod common;
 
 use jacquard_traits::{
-    jacquard_core::{DestinationId, NodeId, RouteError, RouteRuntimeError, Tick},
+    jacquard_core::{DestinationId, NodeId, RouteEpoch, RouteError, RouteRuntimeError, Tick},
     RoutingEngine, RoutingEnginePlanner,
 };
 
@@ -133,4 +133,93 @@ fn materialize_route_rolls_back_when_event_logging_fails() {
         1,
         "materialization rollback should leave only the topology epoch checkpoint"
     );
+}
+
+#[test]
+fn materialize_route_fails_closed_for_mismatched_handle_epoch() {
+    let mut engine = build_engine_at_tick(Tick(2));
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let policy = profile();
+
+    engine.engine_tick(&topology).expect("engine tick");
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("candidate");
+    let admission = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect("admission");
+    let mut input = materialization_input(admission, lease(Tick(2), Tick(20)));
+    input.handle.topology_epoch = RouteEpoch(99);
+
+    let error = engine
+        .materialize_route(input)
+        .expect_err("epoch-mismatched materialization must fail closed");
+    assert!(matches!(
+        error,
+        RouteError::Runtime(RouteRuntimeError::Invalidated)
+    ));
+}
+
+#[test]
+fn materialize_route_fails_closed_when_latest_topology_epoch_has_advanced() {
+    let mut engine = build_engine_at_tick(Tick(2));
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let policy = profile();
+
+    engine.engine_tick(&topology).expect("initial engine tick");
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("candidate");
+    let admission = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect("admission");
+    let input = materialization_input(admission, lease(Tick(2), Tick(20)));
+
+    let mut advanced_topology = topology.clone();
+    advanced_topology.value.epoch = RouteEpoch(3);
+    engine
+        .engine_tick(&advanced_topology)
+        .expect("advanced topology tick");
+
+    let error = engine
+        .materialize_route(input)
+        .expect_err("stale admitted topology epoch must fail closed");
+    assert!(matches!(
+        error,
+        RouteError::Runtime(RouteRuntimeError::Invalidated)
+    ));
+}
+
+#[test]
+fn materialize_route_fails_closed_when_plan_token_has_expired() {
+    let mut engine = build_engine_at_tick(Tick(2));
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let policy = profile();
+
+    engine.engine_tick(&topology).expect("engine tick");
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("candidate");
+    let admission = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect("admission");
+    let input = materialization_input(admission, lease(Tick(20), Tick(30)));
+    engine.runtime_effects_mut().now = Tick(20);
+
+    let error = engine
+        .materialize_route(input)
+        .expect_err("expired admitted plan token must fail closed");
+    assert!(matches!(
+        error,
+        RouteError::Runtime(RouteRuntimeError::Invalidated)
+    ));
 }

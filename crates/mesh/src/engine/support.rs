@@ -2,9 +2,9 @@
 //!
 //! Every function in this module is a deterministic function of its
 //! inputs: no runtime state, no effects, no hidden context. Includes
-//! the BFS path finder, the self-contained `BackendRouteId` encoding
-//! and decoding, byte encoders used by tagged hashing, and the
-//! `RouteCost` derivation.
+//! the repair-time shortest-path helper, the self-contained
+//! `BackendRouteId` encoding and decoding, byte encoders used by
+//! tagged hashing, and the `RouteCost` derivation.
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -189,10 +189,14 @@ pub(super) fn degradation_for_candidate(
 
 // Segment count is bounded by `ROUTE_HOP_COUNT_MAX` in the planner's
 // `derive_segments`, so the cast to u8 is infallible at every call
-// site. Hold reservation is only charged for deferred-delivery routes.
+// site. Shared route cost reflects the chosen path's hop count,
+// delivery confidence, symmetry, loss-derived congestion, protocol
+// diversity, and deferred-delivery hold reservation.
 pub(super) fn route_cost_for_segments(
+    node_path: &[NodeId],
     segments: &[MeshRouteSegment],
     route_class: &MeshRouteClass,
+    configuration: &Configuration,
 ) -> RouteCost {
     let hop_count =
         u8::try_from(segments.len()).expect("segment count is bounded by ROUTE_HOP_COUNT_MAX");
@@ -200,13 +204,48 @@ pub(super) fn route_cost_for_segments(
         MeshRouteClass::DeferredDelivery => ByteCount(MESH_HOLD_RESERVED_BYTES),
         _ => ByteCount(0),
     };
+    let confidence = u32::from(confidence_for_segments(segments, configuration).get());
+    let delivery_penalty = (1000_u32.saturating_sub(confidence)) / 100;
+    let (symmetry_penalty, congestion_penalty) = segments.iter().enumerate().fold(
+        (0_u32, 0_u32),
+        |(symmetry_penalty, congestion_penalty), (index, segment)| {
+            let previous_node = node_path.get(index).copied().unwrap_or(segment.node_id);
+            let Some(link) = adjacent_link_between(&previous_node, &segment.node_id, configuration)
+            else {
+                return (symmetry_penalty, congestion_penalty);
+            };
+            let symmetry_penalty = symmetry_penalty.saturating_add(
+                link.state
+                    .symmetry_permille
+                    .into_estimate()
+                    .map_or(10, |estimate| {
+                        (1000_u32.saturating_sub(u32::from(estimate.value.get()))) / 100
+                    }),
+            );
+            let congestion_penalty =
+                congestion_penalty.saturating_add(u32::from(link.state.loss_permille.get()) / 100);
+            (symmetry_penalty, congestion_penalty)
+        },
+    );
+    let protocol_diversity = u32::try_from(unique_protocol_mix(segments).len()).unwrap_or(u32::MAX);
+    let diversity_bonus = protocol_diversity.saturating_sub(1);
+    let path_penalty = delivery_penalty
+        .saturating_add(symmetry_penalty)
+        .saturating_add(congestion_penalty)
+        .saturating_sub(diversity_bonus);
     RouteCost {
-        message_count_max: Limit::Bounded(u32::from(hop_count)),
-        byte_count_max: Limit::Bounded(ByteCount(u64::from(hop_count) * MESH_PER_HOP_BYTE_COST)),
+        message_count_max: Limit::Bounded(u32::from(hop_count).saturating_add(path_penalty)),
+        byte_count_max: Limit::Bounded(ByteCount(
+            u64::from(hop_count) * MESH_PER_HOP_BYTE_COST + u64::from(path_penalty) * 128,
+        )),
         hop_count,
-        repair_attempt_count_max: Limit::Bounded(u32::from(hop_count)),
+        repair_attempt_count_max: Limit::Bounded(u32::from(hop_count).saturating_add(path_penalty)),
         hold_bytes_reserved: Limit::Bounded(hold_reserved),
-        work_step_count_max: Limit::Bounded(u32::from(hop_count) + 1),
+        work_step_count_max: Limit::Bounded(
+            u32::from(hop_count)
+                .saturating_add(1)
+                .saturating_add(path_penalty),
+        ),
     }
 }
 

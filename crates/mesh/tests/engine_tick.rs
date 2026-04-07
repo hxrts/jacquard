@@ -6,14 +6,16 @@
 
 mod common;
 
+use std::collections::BTreeMap;
+
 use jacquard_mesh::MeshTransportObservationSummary;
 use jacquard_traits::{
     jacquard_core::{
         Belief, DestinationId, DurationMs, EndpointAddress, Estimate, FactSourceClass, HealthScore,
         Link, LinkEndpoint, LinkRuntimeState, LinkState, NodeId, Observation,
-        OriginAuthenticationClass, PenaltyPoints, RatioPermille, RouteError, RoutePartitionClass,
-        RouteRepairClass, RouteRuntimeError, RoutingEvidenceClass, Tick, TransportObservation,
-        TransportProtocol,
+        OriginAuthenticationClass, PenaltyPoints, RatioPermille, RouteError,
+        RouteMaintenanceOutcome, RouteMaintenanceTrigger, RoutePartitionClass, RouteRepairClass,
+        RouteRuntimeError, RoutingEvidenceClass, Tick, TransportObservation, TransportProtocol,
     },
     MeshRoutingEngine, RoutingEngine, RoutingEnginePlanner,
 };
@@ -198,6 +200,225 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
             reachable_remote_count: 1,
             stability_score: HealthScore(750),
             congestion_penalty_points: PenaltyPoints(4),
+            remote_links: BTreeMap::from([(
+                NodeId([4; 32]),
+                jacquard_mesh::MeshObservedRemoteLink {
+                    last_observed_at_tick: Tick(2),
+                    stability_score: HealthScore(750),
+                    congestion_penalty_points: PenaltyPoints(4),
+                },
+            )]),
         }
     );
+    assert_eq!(left.control_state(), right.control_state());
+}
+
+#[test]
+fn route_health_is_scoped_to_the_active_route_suffix() {
+    let topology = sample_configuration();
+    let mut engine = build_engine();
+
+    let route_three_goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let route_three_policy = profile_with_connectivity(
+        RouteRepairClass::Repairable,
+        RoutePartitionClass::PartitionTolerant,
+    );
+    engine.engine_tick(&topology).expect("initial tick");
+    let route_three_candidate = engine
+        .candidate_routes(&route_three_goal, &route_three_policy, &topology)
+        .into_iter()
+        .next()
+        .expect("route-three candidate");
+    let route_three_admission = engine
+        .admit_route(
+            &route_three_goal,
+            &route_three_policy,
+            route_three_candidate,
+            &topology,
+        )
+        .expect("route-three admission");
+    let route_three_input = materialization_input(route_three_admission, lease(Tick(2), Tick(20)));
+    let route_three_installation = engine
+        .materialize_route(route_three_input.clone())
+        .expect("route-three materialization");
+    let route_three_identity = jacquard_traits::jacquard_core::MaterializedRouteIdentity {
+        handle: route_three_input.handle,
+        materialization_proof: route_three_installation.materialization_proof,
+        admission: route_three_input.admission,
+        lease: route_three_input.lease,
+    };
+    let mut route_three_runtime = jacquard_traits::jacquard_core::RouteRuntimeState {
+        last_lifecycle_event: route_three_installation.last_lifecycle_event,
+        health: route_three_installation.health,
+        progress: route_three_installation.progress,
+    };
+
+    let route_four_goal = direct_goal();
+    let route_four_policy = connected_only_policy();
+    let route_four_candidate = engine
+        .candidate_routes(&route_four_goal, &route_four_policy, &topology)
+        .into_iter()
+        .next()
+        .expect("route-four candidate");
+    let route_four_admission = engine
+        .admit_route(
+            &route_four_goal,
+            &route_four_policy,
+            route_four_candidate,
+            &topology,
+        )
+        .expect("route-four admission");
+    let route_four_input = materialization_input(route_four_admission, lease(Tick(2), Tick(20)));
+    let route_four_installation = engine
+        .materialize_route(route_four_input.clone())
+        .expect("route-four materialization");
+    let route_four_identity = jacquard_traits::jacquard_core::MaterializedRouteIdentity {
+        handle: route_four_input.handle,
+        materialization_proof: route_four_installation.materialization_proof,
+        admission: route_four_input.admission,
+        lease: route_four_input.lease,
+    };
+    let mut route_four_runtime = jacquard_traits::jacquard_core::RouteRuntimeState {
+        last_lifecycle_event: route_four_installation.last_lifecycle_event,
+        health: route_four_installation.health,
+        progress: route_four_installation.progress,
+    };
+
+    let mut broken_topology = topology.clone();
+    broken_topology
+        .value
+        .links
+        .remove(&(NodeId([2; 32]), NodeId([3; 32])));
+    engine
+        .engine_tick(&broken_topology)
+        .expect("broken-topology tick");
+
+    engine
+        .maintain_route(
+            &route_three_identity,
+            &mut route_three_runtime,
+            jacquard_traits::jacquard_core::RouteMaintenanceTrigger::AntiEntropyRequired,
+        )
+        .expect("route-three maintenance");
+    engine
+        .maintain_route(
+            &route_four_identity,
+            &mut route_four_runtime,
+            jacquard_traits::jacquard_core::RouteMaintenanceTrigger::AntiEntropyRequired,
+        )
+        .expect("route-four maintenance");
+
+    assert_eq!(
+        route_three_runtime.health.reachability_state,
+        jacquard_traits::jacquard_core::ReachabilityState::Unreachable
+    );
+    assert_eq!(
+        route_four_runtime.health.reachability_state,
+        jacquard_traits::jacquard_core::ReachabilityState::Reachable
+    );
+}
+
+#[test]
+fn high_transport_pressure_changes_repair_posture() {
+    let topology = sample_configuration();
+    let mut calm_engine = build_engine();
+    let mut pressured_engine = build_engine();
+
+    let (calm_identity, mut calm_runtime) = common::engine::activate_route(
+        &mut calm_engine,
+        &topology,
+        NodeId([3; 32]),
+        lease(Tick(2), Tick(20)),
+    );
+    let (pressured_identity, mut pressured_runtime) = common::engine::activate_route(
+        &mut pressured_engine,
+        &topology,
+        NodeId([3; 32]),
+        lease(Tick(2), Tick(20)),
+    );
+    pressured_engine.transport_mut().observations.extend([
+        low_quality_link_observation(),
+        low_quality_link_observation(),
+    ]);
+
+    calm_engine
+        .maintain_route(
+            &calm_identity,
+            &mut calm_runtime,
+            RouteMaintenanceTrigger::EpochAdvanced,
+        )
+        .expect("calm repair budget reduction");
+    pressured_engine
+        .maintain_route(
+            &pressured_identity,
+            &mut pressured_runtime,
+            RouteMaintenanceTrigger::EpochAdvanced,
+        )
+        .expect("pressured repair budget reduction");
+
+    calm_engine.engine_tick(&topology).expect("calm tick");
+    pressured_engine
+        .engine_tick(&topology)
+        .expect("pressured tick");
+
+    let calm = calm_engine
+        .maintain_route(
+            &calm_identity,
+            &mut calm_runtime,
+            RouteMaintenanceTrigger::LinkDegraded,
+        )
+        .expect("calm degraded maintenance");
+    let pressured = pressured_engine
+        .maintain_route(
+            &pressured_identity,
+            &mut pressured_runtime,
+            RouteMaintenanceTrigger::LinkDegraded,
+        )
+        .expect("pressured degraded maintenance");
+
+    assert_eq!(calm.outcome, RouteMaintenanceOutcome::Repaired);
+    assert!(matches!(
+        pressured.outcome,
+        RouteMaintenanceOutcome::ReplacementRequired {
+            trigger: RouteMaintenanceTrigger::LinkDegraded,
+        }
+    ));
+}
+
+#[test]
+fn anti_entropy_required_consumes_bounded_control_pressure() {
+    let topology = sample_configuration();
+    let mut engine = build_engine();
+
+    let (identity, mut runtime) = common::engine::activate_route(
+        &mut engine,
+        &topology,
+        NodeId([3; 32]),
+        lease(Tick(2), Tick(20)),
+    );
+    engine.transport_mut().observations.extend([
+        low_quality_link_observation(),
+        low_quality_link_observation(),
+    ]);
+    engine.engine_tick(&topology).expect("refresh tick");
+    let before = engine
+        .control_state()
+        .expect("control state after tick")
+        .anti_entropy
+        .pressure_score;
+
+    engine
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            RouteMaintenanceTrigger::AntiEntropyRequired,
+        )
+        .expect("anti-entropy maintenance");
+    let after = engine
+        .control_state()
+        .expect("control state after anti-entropy")
+        .anti_entropy
+        .pressure_score;
+
+    assert!(after.0 < before.0);
 }

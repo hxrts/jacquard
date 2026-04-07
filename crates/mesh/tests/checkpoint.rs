@@ -2,7 +2,10 @@
 
 mod common;
 
-use jacquard_traits::jacquard_core::{NodeId, Tick};
+use jacquard_traits::{
+    jacquard_core::{NodeId, Tick},
+    RoutingEngine,
+};
 
 use common::engine::{activate_route, build_engine, lease};
 use common::fixtures::sample_configuration;
@@ -45,4 +48,57 @@ fn checkpointed_active_route_round_trips_across_engine_restart() {
             .expect("restored route present"),
         &original_active_route
     );
+}
+
+#[test]
+fn checkpoint_round_trip_preserves_richer_runtime_substates() {
+    let topology = sample_configuration();
+    let mut original = build_engine();
+    let (identity, mut runtime) = activate_route(
+        &mut original,
+        &topology,
+        NodeId([3; 32]),
+        lease(Tick(2), Tick(1000)),
+    );
+
+    original
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            jacquard_traits::jacquard_core::RouteMaintenanceTrigger::EpochAdvanced,
+        )
+        .expect("record repair state");
+    original
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            jacquard_traits::jacquard_core::RouteMaintenanceTrigger::CapacityExceeded,
+        )
+        .expect("enter partition mode");
+    original
+        .forward_payload(&identity.handle.route_id, b"checkpointed payload")
+        .expect("buffer retained payload");
+    original
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            jacquard_traits::jacquard_core::RouteMaintenanceTrigger::PolicyShift,
+        )
+        .expect("record handoff state");
+
+    let original_active_route = original
+        .active_route(&identity.handle.route_id)
+        .expect("active route present")
+        .clone();
+    let stored_bytes = original.runtime_effects().storage.clone();
+
+    let mut recovered = build_engine();
+    recovered.runtime_effects_mut().storage = stored_bytes;
+
+    let restored = recovered
+        .restore_checkpointed_route(&identity.handle.route_id)
+        .expect("restore checkpointed route")
+        .expect("checkpointed route present");
+
+    assert_eq!(restored, original_active_route);
 }

@@ -11,8 +11,10 @@ mod common;
 use jacquard_mesh::{DeterministicCommitteeSelector, DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
     jacquard_core::{
-        AdmissionDecision, Configuration, DestinationId, Node, NodeId, RouteAdmissionRejection,
-        RouteError, RoutePartitionClass, RouteRepairClass, RouteRuntimeError, ServiceId, Tick,
+        AdmissionDecision, Configuration, ControllerId, DestinationId, DiscoveryScopeId,
+        Environment, Node, NodeId, Observation, PenaltyPoints, RatioPermille,
+        RouteAdmissionRejection, RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass,
+        RouteRuntimeError, ServiceId, ServiceScope, Tick,
     },
     Blake3Hashing, CommitteeSelector, MeshTopologyModel, RoutingEngine, RoutingEnginePlanner,
 };
@@ -21,7 +23,8 @@ use common::effects::{TestRetentionStore, TestRuntimeEffects, TestTransport};
 use common::engine::{
     lease, materialization_input, objective, profile, profile_with_connectivity, LOCAL_NODE_ID,
 };
-use common::fixtures::sample_configuration;
+use common::fixtures::{link, node, sample_configuration};
+use std::collections::BTreeMap;
 
 #[derive(Clone)]
 struct PreferredCommitteeTopologyModel {
@@ -200,6 +203,84 @@ fn build_engine_with_selector<Selector>(selector: Selector) -> SelectorEngine<Se
     )
 }
 
+fn node_with_identity_and_scope(
+    node_byte: u8,
+    controller_id: ControllerId,
+    discovery_scope: DiscoveryScopeId,
+) -> Node {
+    let mut node = node(node_byte);
+    node.controller_id = controller_id;
+    for service in &mut node.profile.services {
+        service.controller_id = controller_id;
+        service.scope = ServiceScope::Discovery(discovery_scope);
+    }
+    node
+}
+
+fn diversity_topology() -> Observation<Configuration> {
+    let node_two = NodeId([2; 32]);
+    let node_four = NodeId([4; 32]);
+    let node_five = NodeId([5; 32]);
+    let node_six = NodeId([6; 32]);
+
+    Observation {
+        value: Configuration {
+            epoch: RouteEpoch(2),
+            nodes: BTreeMap::from([
+                (LOCAL_NODE_ID, node(1)),
+                (
+                    node_two,
+                    node_with_identity_and_scope(
+                        2,
+                        ControllerId([2; 32]),
+                        DiscoveryScopeId([2; 16]),
+                    ),
+                ),
+                (
+                    node_four,
+                    node_with_identity_and_scope(
+                        4,
+                        ControllerId([2; 32]),
+                        DiscoveryScopeId([4; 16]),
+                    ),
+                ),
+                (
+                    node_five,
+                    node_with_identity_and_scope(
+                        5,
+                        ControllerId([5; 32]),
+                        DiscoveryScopeId([2; 16]),
+                    ),
+                ),
+                (
+                    node_six,
+                    node_with_identity_and_scope(
+                        6,
+                        ControllerId([6; 32]),
+                        DiscoveryScopeId([6; 16]),
+                    ),
+                ),
+            ]),
+            links: BTreeMap::from([
+                ((LOCAL_NODE_ID, node_two), link(2, 980)),
+                ((LOCAL_NODE_ID, node_four), link(4, 960)),
+                ((LOCAL_NODE_ID, node_five), link(5, 940)),
+                ((LOCAL_NODE_ID, node_six), link(6, 920)),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 4,
+                churn_permille: RatioPermille(120),
+                contention_permille: RatioPermille(110),
+            },
+        },
+        source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
+        evidence_class: jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+        origin_authentication:
+            jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(2),
+    }
+}
+
 #[test]
 fn committee_selector_none_keeps_candidate_admissible() {
     let topology = sample_configuration();
@@ -283,4 +364,56 @@ fn committee_selector_errors_surface_as_backend_unavailable() {
             ),
         ))
     ));
+}
+
+#[test]
+fn committee_selection_enforces_controller_and_discovery_scope_diversity() {
+    let selector = DeterministicCommitteeSelector::new(LOCAL_NODE_ID);
+    let topology = diversity_topology();
+    let goal = objective(DestinationId::Node(NodeId([6; 32])));
+    let policy = profile();
+
+    let committee = selector
+        .select_committee(&goal, &policy, &topology)
+        .expect("selector result")
+        .expect("committee");
+    let member_ids = committee
+        .members
+        .iter()
+        .map(|member| member.node_id)
+        .collect::<Vec<_>>();
+
+    assert!(member_ids.contains(&NodeId([2; 32])));
+    assert!(member_ids.contains(&NodeId([6; 32])));
+    assert!(!member_ids.contains(&NodeId([4; 32])));
+    assert!(!member_ids.contains(&NodeId([5; 32])));
+}
+
+#[test]
+fn behavior_history_can_disqualify_otherwise_high_scoring_members() {
+    let topology = diversity_topology();
+    let goal = objective(DestinationId::Node(NodeId([6; 32])));
+    let policy = profile();
+    let selector =
+        DeterministicCommitteeSelector::new(LOCAL_NODE_ID).with_behavior_history(BTreeMap::from([
+            (
+                NodeId([2; 32]),
+                jacquard_mesh::MeshBehaviorHistory {
+                    reliability_score: jacquard_traits::jacquard_core::HealthScore(100),
+                    misbehavior_penalty_points: PenaltyPoints(800),
+                },
+            ),
+        ]));
+
+    let committee = selector
+        .select_committee(&goal, &policy, &topology)
+        .expect("selector result")
+        .expect("committee");
+    let member_ids = committee
+        .members
+        .iter()
+        .map(|member| member.node_id)
+        .collect::<Vec<_>>();
+
+    assert!(!member_ids.contains(&NodeId([2; 32])));
 }

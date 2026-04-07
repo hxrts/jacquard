@@ -17,7 +17,7 @@ use jacquard_traits::{
         NodeId, RouteError, RouteMaintenanceFailure, RouteMaintenanceOutcome,
         RouteMaintenanceTrigger, RouteRuntimeError, Tick,
     },
-    RoutingEngine, RoutingEnginePlanner,
+    MeshRoutingEngine, RoutingEngine, RoutingEnginePlanner,
 };
 
 use common::engine::{activate_route, build_engine, lease};
@@ -47,6 +47,7 @@ fn capacity_exceeded_enters_partition_mode_and_returns_hold_fallback() {
         result.outcome,
         RouteMaintenanceOutcome::HoldFallback {
             trigger: RouteMaintenanceTrigger::CapacityExceeded,
+            retained_object_count: 0,
         }
     );
 }
@@ -83,8 +84,11 @@ fn policy_shift_rebases_runtime_to_the_next_owner_relative_hop() {
     let active_route = engine
         .active_route(&identity.handle.route_id)
         .expect("active route remains installed");
-    assert_eq!(active_route.current_owner_node_id, NodeId([2; 32]));
-    assert_eq!(active_route.next_hop_index, 1);
+    assert_eq!(
+        active_route.forwarding.current_owner_node_id,
+        NodeId([2; 32])
+    );
+    assert_eq!(active_route.forwarding.next_hop_index, 1);
 
     let error = engine
         .forward_payload(&identity.handle.route_id, b"payload")
@@ -120,9 +124,12 @@ fn single_hop_policy_shift_advances_cursor_to_path_end() {
     let active_route = engine
         .active_route(&identity.handle.route_id)
         .expect("active route remains installed");
-    assert_eq!(active_route.current_owner_node_id, NodeId([4; 32]));
     assert_eq!(
-        usize::from(active_route.next_hop_index),
+        active_route.forwarding.current_owner_node_id,
+        NodeId([4; 32])
+    );
+    assert_eq!(
+        usize::from(active_route.forwarding.next_hop_index),
         active_route.path.segments.len()
     );
 }
@@ -348,6 +355,50 @@ fn anti_entropy_required_is_a_progress_refresh_in_v1_mesh() {
     assert!(runtime.progress.last_progress_at_tick > before);
 }
 
+#[test]
+fn policy_shift_flushes_retained_payloads_before_handoff() {
+    let mut engine = build_engine();
+    let topology = sample_configuration();
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        NodeId([3; 32]),
+        lease(Tick(2), Tick(1000)),
+    );
+
+    engine
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            RouteMaintenanceTrigger::PartitionDetected,
+        )
+        .expect("partition maintenance");
+    engine
+        .forward_payload(&identity.handle.route_id, b"held-before-handoff")
+        .expect("partitioned forwarding retains payload");
+
+    let result = engine
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            RouteMaintenanceTrigger::PolicyShift,
+        )
+        .expect("handoff succeeds");
+    assert!(matches!(
+        result.outcome,
+        RouteMaintenanceOutcome::HandedOff(_)
+    ));
+    let active_route = engine
+        .active_route(&identity.handle.route_id)
+        .expect("active route remains installed");
+    assert!(active_route.anti_entropy.retained_objects.is_empty());
+    assert!(engine
+        .transport()
+        .sent_frames
+        .iter()
+        .any(|(_endpoint, payload)| payload == b"held-before-handoff"));
+}
+
 // Repeated LinkDegraded triggers must eventually exhaust the repair
 // budget. Once the budget is gone, the next LinkDegraded must escalate
 // to ReplacementRequired rather than continuing to report Repaired.
@@ -364,7 +415,7 @@ fn link_degraded_consumes_one_repair_budget_step_in_v1_mesh() {
 
     let before = engine
         .active_route(&identity.handle.route_id)
-        .map(|route| route.repair_steps_remaining)
+        .map(|route| route.repair.steps_remaining)
         .expect("active route exists");
     let result = engine
         .maintain_route(
@@ -375,7 +426,7 @@ fn link_degraded_consumes_one_repair_budget_step_in_v1_mesh() {
         .expect("maintenance succeeds");
     let after = engine
         .active_route(&identity.handle.route_id)
-        .map(|route| route.repair_steps_remaining)
+        .map(|route| route.repair.steps_remaining)
         .expect("active route exists after repair");
 
     assert_eq!(result.outcome, RouteMaintenanceOutcome::Repaired);
@@ -398,7 +449,7 @@ fn repair_budget_exhausts_and_escalates_to_replacement() {
 
     let initial_budget = engine
         .active_route(&identity.handle.route_id)
-        .map(|route| route.repair_steps_remaining)
+        .map(|route| route.repair.steps_remaining)
         .expect("active route exists");
     assert!(initial_budget > 0, "repair budget should be positive");
 

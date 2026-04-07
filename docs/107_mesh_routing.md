@@ -63,7 +63,14 @@ Discovery enters mesh through the shared world picture: nodes, links, environmen
 
 ## Runtime and Repair
 
-Materialization stores a mesh-private active-route object under the router-owned canonical identity. In v1 that object contains the explicit `MeshPath`, optional `CommitteeSelection`, the current owner node, the owner-relative next-hop cursor, the repair budget, in-flight forwarding counters, last-ack tick, partition-mode flag, retained-object set, and a deterministic ordering key. Canonical route identity, admission, and lease ownership remain outside this mesh-private runtime object.
+Materialization stores a mesh-private active-route object under the router-owned canonical identity. In v1 that object contains the explicit `MeshPath`, optional `CommitteeSelection`, and a deterministic ordering key plus four route-private substates:
+
+- `MeshForwardingState` for current owner, owner-relative next-hop cursor, in-flight frames, and last ack
+- `MeshRepairState` for bounded repair budget and last repair tick
+- `MeshHandoffState` for the last handoff receipt and handoff tick
+- `MeshRouteAntiEntropyState` for partition mode, retained objects, and last anti-entropy refresh
+
+Canonical route identity, admission, and lease ownership remain outside this mesh-private runtime object.
 
 Mesh decodes the admitted opaque backend ref during materialization instead of recovering route shape from planner cache state. Token decode alone is not enough. The runtime re-derives the candidate against the latest observed topology and fails closed if the plan epoch, handle epoch, witness epoch, latest topology epoch, or plan validity window do not still agree.
 

@@ -51,6 +51,40 @@ fn advertised_hold_and_partition_tolerance_are_exercised_by_deferred_delivery_ad
 }
 
 #[test]
+fn advertised_hold_support_is_exercised_by_partition_buffering() {
+    let mut engine = build_engine();
+    let topology = sample_configuration();
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        NodeId([3; 32]),
+        lease(Tick(2), Tick(1000)),
+    );
+
+    engine
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            RouteMaintenanceTrigger::PartitionDetected,
+        )
+        .expect("partition maintenance");
+    engine
+        .forward_payload(&identity.handle.route_id, b"buffer-me")
+        .expect("partitioned forwarding retains payload");
+
+    assert_eq!(MESH_CAPABILITIES.hold_support, HoldSupport::Supported);
+    assert_eq!(
+        engine
+            .active_route(&identity.handle.route_id)
+            .expect("active route")
+            .anti_entropy
+            .retained_objects
+            .len(),
+        1
+    );
+}
+
+#[test]
 fn advertised_repair_support_is_exercised_by_link_degraded_maintenance() {
     let mut engine = build_engine();
     let topology = sample_configuration();
