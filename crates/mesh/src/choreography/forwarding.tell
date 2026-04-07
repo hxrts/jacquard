@@ -1,0 +1,56 @@
+profile Replay fairness eventual admissibility replay escalation_window bounded
+
+type MeshProtocolError =
+  | Unavailable
+  | Rejected
+
+type alias HopFrame =
+{
+  routeId : String
+  payloadDigest : String
+}
+
+type alias ForwardReceipt =
+{
+  routeId : String
+  acceptedBy : Role
+}
+
+effect MeshRuntime
+  command forwardFrame : HopFrame -> Result MeshProtocolError ForwardReceipt
+  {
+    class : best_effort
+    progress : immediate
+    region : fragment
+    agreement_use : none
+    reentrancy : allow
+  }
+  observe pollIngress : Session -> PresenceView
+  {
+    class : observational
+    progress : immediate
+    region : fragment
+    agreement_use : forbidden
+    reentrancy : allow
+  }
+
+effect MeshAudit
+  observe record : AuditEvent -> Unit
+  {
+    class : observational
+    progress : immediate
+    region : global
+    agreement_use : forbidden
+    reentrancy : allow
+  }
+
+protocol ForwardingHop uses MeshRuntime, MeshAudit under Replay =
+  roles CurrentOwner, NextHop, Observer
+  CurrentOwner -> NextHop : Forward(String, String)
+  choice NextHop at
+    | Accepted =>
+      NextHop -> CurrentOwner : Forwarded(String)
+      NextHop -> Observer : Forwarded(String)
+    | Rejected =>
+      NextHop -> CurrentOwner : Dropped(String)
+      NextHop -> Observer : Dropped(String)

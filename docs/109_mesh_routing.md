@@ -59,6 +59,35 @@ Each tick ingests the latest topology observation, refreshes the mesh-private es
 
 Discovery enters mesh through the shared world picture: nodes, links, environment, and service advertisements are already merged into `Observation<Configuration>` before the engine plans. Richer route exports, neighbor-advertisement choreography, and mesh-private anti-entropy state remain future mesh work rather than hidden v1 runtime behavior.
 
+## Internal Choreography Surface
+
+Mesh now carries a private Telltale choreography layer inside `jacquard-mesh`. This does not change the shared Jacquard routing contract. Router-facing planning, admission, materialization, maintenance, and tick flow still use the shared `RoutingEngine` and `MeshRoutingEngine` traits.
+
+The internal split is:
+
+- planner-local deterministic Rust:
+  - topology interpretation
+  - candidate search and ranking
+  - committee scoring
+  - route-health derivation
+- choreography-backed cooperative protocols:
+  - forwarding hop
+  - activation handshake
+  - bounded suffix repair
+  - semantic handoff
+  - hold / replay exchange
+
+Larger multi-role protocols live as `.tell` sources compiled through the normal Telltale pipeline. Small helper protocols can stay inline with `tell!` when adjacency to Rust glue materially improves readability.
+
+Mesh also keeps one mesh-owned choreography interpreter surface above the shared runtime traits. That interpreter maps protocol-local requests onto the existing Jacquard boundaries:
+
+- `MeshTransport` for endpoint-addressed frame sends and ingress observations
+- `RetentionStore` for deferred-delivery payload storage
+- `RouteEventLogEffects` for replay-visible route events
+- router-owned checkpoint orchestration for persisted mesh-private state
+
+This is intentionally still mesh-private. The router should only observe shared route objects, shared tick context, shared tick outcome, and shared checkpoint orchestration. It should not depend on mesh-private choreography payloads or generated effect interfaces.
+
 ## Runtime and Repair
 
 Materialization stores a mesh-private active-route object under the router-owned canonical identity. In v1 that object contains the explicit `MeshPath`, optional `CommitteeSelection`, and a deterministic ordering key plus four route-private substates:

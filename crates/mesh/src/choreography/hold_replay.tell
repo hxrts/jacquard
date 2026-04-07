@@ -1,0 +1,59 @@
+profile Replay fairness eventual admissibility replay escalation_window bounded
+
+type MeshProtocolError =
+  | Unavailable
+  | Rejected
+  | TimedOut
+
+type alias HeldPayload =
+{
+  routeId : String
+  payloadDigest : String
+}
+
+type alias HoldReceipt =
+{
+  routeId : String
+  storedBy : Role
+}
+
+effect MeshRuntime
+  command storeHeldPayload : HeldPayload -> Result MeshProtocolError HoldReceipt
+  {
+    class : best_effort
+    progress : immediate
+    region : fragment
+    agreement_use : none
+    reentrancy : allow
+  }
+  command replayHeldPayload : HeldPayload -> Result MeshProtocolError HoldReceipt
+  {
+    class : best_effort
+    progress : immediate
+    region : fragment
+    agreement_use : none
+    reentrancy : allow
+  }
+
+effect MeshAudit
+  observe record : AuditEvent -> Unit
+  {
+    class : observational
+    progress : immediate
+    region : global
+    agreement_use : forbidden
+    reentrancy : allow
+  }
+
+protocol HoldReplayExchange uses MeshRuntime, MeshAudit under Replay =
+  roles PartitionedOwner, Holder, Recipient, Observer
+  PartitionedOwner -> Holder : StoreHeldPayload { routeId : String, payloadDigest : String }
+  Holder -> Observer : Stored { routeId : String }
+  Holder -> Recipient : ReplayHeldPayload { routeId : String, payloadDigest : String }
+  choice Recipient at
+    | Replayed =>
+      Recipient -> Holder : ReplayAccepted { routeId : String }
+      Holder -> PartitionedOwner : Released { routeId : String }
+    | Deferred =>
+      Recipient -> Holder : ReplayDeferred { routeId : String }
+      Holder -> PartitionedOwner : StillHeld { routeId : String }

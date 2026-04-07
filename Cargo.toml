@@ -33,6 +33,7 @@ wildcard_imports = "warn"
 
 [workspace.dependencies]
 # local
+telltale        = { path = "../telltale" }
 telltale-types   = { path = "../telltale/rust/types" }
 telltale-macros  = { path = "../telltale/rust/macros" }
 telltale-runtime = { path = "../telltale/rust/runtime" }

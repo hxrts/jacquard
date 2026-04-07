@@ -5,7 +5,9 @@
 //! read-only [`MeshTopologyModel`] over shared `Configuration` objects and
 //! the mesh-private estimate types. `committee` is the optional
 //! [`CommitteeSelector`] used for local coordination when the profile asks
-//! for repair plus partition tolerance.
+//! for repair plus partition tolerance. `choreography` is the internal
+//! Telltale-backed protocol surface that will gradually absorb cooperative
+//! mesh runtime behavior without changing the public Jacquard routing traits.
 //!
 //! [`MeshEngine`]: engine::MeshEngine
 //! [`RoutingEnginePlanner`]: jacquard_traits::RoutingEnginePlanner
@@ -15,6 +17,7 @@
 
 #![forbid(unsafe_code)]
 
+mod choreography;
 mod committee;
 mod engine;
 mod topology;
