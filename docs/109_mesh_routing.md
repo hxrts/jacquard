@@ -88,6 +88,10 @@ Mesh also keeps one mesh-owned choreography interpreter surface above the shared
 
 This is intentionally still mesh-private. The router should only observe shared route objects, shared tick context, shared tick outcome, and shared checkpoint orchestration. It should not depend on mesh-private choreography payloads or generated effect interfaces.
 
+The generated or protocol-local Telltale effect interfaces are not the shared Jacquard effect contract. They stay inside `jacquard-mesh` as implementation-facing protocol surfaces. Concrete host adapters still implement the shared traits from `jacquard-traits`, and the mesh choreography interpreter translates protocol-local requests onto those stable cross-engine traits instead of replacing them.
+
+At runtime, mesh entry points now cross one private guest-runtime layer before touching transport, retention, or route-event logging directly. `forward_payload`, materialization-side activation bookkeeping, maintenance-side repair and handoff bookkeeping, retained-payload replay, and tick ingress all enter that mesh-local choreography boundary first. The guest runtime stores small protocol checkpoints keyed by protocol kind plus route or tick session so recovery does not depend on hidden in-memory sequencing state.
+
 ## Runtime and Repair
 
 Materialization stores a mesh-private active-route object under the router-owned canonical identity. In v1 that object contains the explicit `MeshPath`, optional `CommitteeSelection`, and a deterministic ordering key plus four route-private substates:
@@ -108,6 +112,8 @@ Route health is derived from the active route's remaining suffix rather than fro
 ### Lifecycle and Maintenance
 
 Lifecycle sequencing is explicit and fail-closed. Mesh validates first, builds the next active-route state off to the side, persists the checkpoint, records the route event, and only then publishes the in-memory runtime mutation. If checkpoint or route-event logging fails, the new state is not committed.
+
+Protocol checkpoints follow the same fail-closed rule. Mesh writes or updates the protocol checkpoint through the choreography guest runtime before treating that step as complete, and rollback paths remove route-scoped protocol checkpoints when materialization or teardown does not commit.
 
 Maintenance is expressed through the shared `RouteMaintenanceResult` surface. In v1 mesh, repair means a bounded local suffix-repair algorithm over the latest observed topology. `LinkDegraded` and `EpochAdvanced` attempt to recompute the remaining suffix from the current owner to the final destination, consume one repair step on success, and escalate to typed replacement when no bounded patch is available or the repair budget is exhausted.
 
@@ -134,6 +140,8 @@ The mesh engine uses the shared `RetentionStore` boundary for deferred-delivery 
 Retained payload identity flows through the shared `Hashing` boundary. Route and runtime checkpoints flow through the shared storage and route-event-log effects. Storage keys and runtime checkpoints are scoped by the local engine identity so multiple local mesh engines can share one backend without overwriting one another.
 
 V1 mesh supports a scoped checkpoint round-trip for mesh-private active-route state and the latest topology epoch. That recovery surface is intentionally narrow: it restores the mesh-owned runtime object keyed by `RouteId`, while canonical route identity and lease ownership remain on the router side.
+
+The choreography layer adds a second scoped recovery surface: protocol checkpoints are keyed by protocol kind plus route session or tick session and round-trip through the same storage boundary. Route recovery still uses the active-route checkpoint; protocol recovery uses the protocol checkpoint catalog. Neither requires ambient hidden state outside the engine-owned checkpoint store.
 
 ## Swappable Trait Surface
 

@@ -28,10 +28,10 @@ use super::{
 };
 
 struct MaintenanceContext<'a> {
-    identity:           &'a MaterializedRouteIdentity,
-    now:                jacquard_core::Tick,
+    identity: &'a MaterializedRouteIdentity,
+    now: jacquard_core::Tick,
     handoff_receipt_id: jacquard_core::ReceiptId,
-    latest_topology:    Option<&'a Observation<Configuration>>,
+    latest_topology: Option<&'a Observation<Configuration>>,
 }
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -78,6 +78,7 @@ where
         // less harmful than refusing to drop the in-memory active
         // route. v1 mesh does not reconcile orphaned checkpoints later;
         // hosts that care about storage hygiene must sweep them out of band.
+        let _ = self.choreography_runtime().clear_route_protocols(route_id);
         let _ = self.remove_checkpoint(route_id);
         self.active_routes.remove(route_id);
     }
@@ -131,7 +132,7 @@ where
         self.store_checkpoint(&next_active_route)?;
         if let Err(error) = self.record_event(RouteEvent::RouteMaintenanceCompleted {
             route_id: identity.handle.route_id,
-            result:   result.clone(),
+            result: result.clone(),
         }) {
             let _ = self.store_checkpoint(&original_active_route);
             return Err(error);

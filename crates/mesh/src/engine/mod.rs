@@ -31,11 +31,10 @@ use std::{cell::RefCell, collections::BTreeMap};
 use jacquard_core::{
     Blake3Digest, Configuration, ContentId, NodeId, Observation, ReceiptId,
     RouteCommitmentId, RouteConnectivityProfile, RouteEpoch, RouteError, RouteEvent,
-    RouteEventStamped, RouteId, RoutePartitionClass, RouteRuntimeError,
-    RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId,
-    TransportObservation,
+    RouteId, RoutePartitionClass, RouteRuntimeError, RouteSelectionError,
+    RoutingEngineCapabilities, RoutingEngineId, TransportObservation,
 };
-use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, MeshFrame};
+use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing};
 pub(crate) use support::DOMAIN_TAG_COMMITTEE_ID;
 use trait_bounds::{
     MeshEffectsBounds, MeshHasherBounds, MeshRetentionBounds, MeshSelectorBounds,
@@ -49,6 +48,7 @@ pub use types::{
     MeshTransportObservationSummary,
 };
 
+use crate::choreography::{MeshGuestRuntime, MeshProtocolRuntimeAdapter};
 use crate::committee::NoCommitteeSelector;
 
 // Public Engine Identity And Capability Surface
@@ -93,19 +93,19 @@ const MESH_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 // repair, hold, and decidable-admission support. This is the static
 // capability envelope the router sees during engine registration.
 pub const MESH_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilities {
-    engine:                  RoutingEngineId::Mesh,
-    max_protection:          jacquard_core::RouteProtectionClass::LinkProtected,
-    max_connectivity:        RouteConnectivityProfile {
-        repair:    jacquard_core::RouteRepairClass::Repairable,
+    engine: RoutingEngineId::Mesh,
+    max_protection: jacquard_core::RouteProtectionClass::LinkProtected,
+    max_connectivity: RouteConnectivityProfile {
+        repair: jacquard_core::RouteRepairClass::Repairable,
         partition: RoutePartitionClass::PartitionTolerant,
     },
-    repair_support:          jacquard_core::RepairSupport::Supported,
-    hold_support:            jacquard_core::HoldSupport::Supported,
-    decidable_admission:     jacquard_core::DecidableSupport::Supported,
+    repair_support: jacquard_core::RepairSupport::Supported,
+    hold_support: jacquard_core::HoldSupport::Supported,
+    decidable_admission: jacquard_core::DecidableSupport::Supported,
     quantitative_bounds:
         jacquard_core::QuantitativeBoundSupport::ProductiveAndSchedulerLifted,
     reconfiguration_support: jacquard_core::ReconfigurationSupport::LinkAndDelegate,
-    route_shape_visibility:  jacquard_core::RouteShapeVisibility::Explicit,
+    route_shape_visibility: jacquard_core::RouteShapeVisibility::Explicit,
 };
 
 // `candidate_cache` memoizes planning work so `check_candidate` and
@@ -288,6 +288,24 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     }
 }
 
+impl<Topology, Transport, Retention, Effects, Hasher, Selector>
+    MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+where
+    Transport: MeshTransportBounds,
+    Retention: MeshRetentionBounds,
+    Effects: MeshEffectsBounds,
+{
+    fn choreography_runtime(
+        &mut self,
+    ) -> MeshGuestRuntime<MeshProtocolRuntimeAdapter<'_, Transport, Retention, Effects>> {
+        MeshGuestRuntime::new(MeshProtocolRuntimeAdapter {
+            transport: &mut self.transport,
+            retention: &mut self.retention,
+            effects: &mut self.effects,
+        })
+    }
+}
+
 // Transport-Facing Helpers
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -330,10 +348,11 @@ where
             return Ok(());
         }
 
-        self.transport.send_frame(MeshFrame {
-            endpoint: &next_segment.endpoint,
+        self.choreography_runtime().forwarding_hop(
+            route_id,
+            next_segment.endpoint,
             payload,
-        })?;
+        )?;
         // Re-borrow mutably after send: the earlier shared borrow for
         // `next_segment` must be fully released before taking &mut.
         let active_route = self
@@ -349,7 +368,7 @@ where
     pub fn poll_transport_observations(
         &mut self,
     ) -> Result<Vec<TransportObservation>, RouteError> {
-        self.transport.poll_observations().map_err(RouteError::from)
+        self.choreography_runtime().poll_transport_ingress()
     }
 }
 
@@ -358,7 +377,9 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
+    Transport: MeshTransportBounds,
     Retention: MeshRetentionBounds,
+    Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
 {
     pub fn retain_for_route(
@@ -377,7 +398,8 @@ where
             }
         }
         let object_id = self.retention_object_id(route_id, payload);
-        self.retention.retain_payload(object_id, payload.to_vec())?;
+        self.choreography_runtime()
+            .retain_for_replay(route_id, object_id, payload)?;
         if let Some(active_route) = self.active_routes.get_mut(route_id) {
             active_route.anti_entropy.retained_objects.insert(object_id);
         }
@@ -389,7 +411,9 @@ where
         route_id: &RouteId,
         object_id: &ContentId<Blake3Digest>,
     ) -> Result<Option<Vec<u8>>, jacquard_core::RetentionError> {
-        let payload = self.retention.take_retained_payload(object_id)?;
+        let payload = self
+            .choreography_runtime()
+            .recover_held_payload(route_id, object_id)?;
         if payload.is_some() {
             if let Some(active_route) = self.active_routes.get_mut(route_id) {
                 active_route.anti_entropy.retained_objects.remove(object_id);
@@ -468,6 +492,8 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
+    Transport: MeshTransportBounds,
+    Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
 {
     fn store_checkpoint(
@@ -491,14 +517,7 @@ where
     }
 
     fn record_event(&mut self, event: RouteEvent) -> Result<(), RouteError> {
-        let stamped = RouteEventStamped {
-            order_stamp: self.effects.next_order_stamp(),
-            emitted_at_tick: self.effects.now_tick(),
-            event,
-        };
-        self.effects
-            .record_route_event(stamped)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+        self.choreography_runtime().record_route_event(event)
     }
 
     // Handoff target is the next owner in the owner-relative path view.

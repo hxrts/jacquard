@@ -170,10 +170,22 @@ fn materialize_route_rolls_back_when_event_logging_fails() {
     ));
     assert_eq!(engine.active_route_count(), 0);
     assert!(engine.runtime_effects().events.is_empty());
+    let remaining_keys = engine
+        .runtime_effects()
+        .storage
+        .keys()
+        .map(|key| String::from_utf8_lossy(key).into_owned())
+        .collect::<Vec<_>>();
     assert_eq!(
-        engine.runtime_effects().storage.len(),
-        1,
-        "materialization rollback should leave only the topology epoch checkpoint"
+        remaining_keys,
+        vec![
+            format!(
+                "mesh/{}/topology-epoch",
+                "\u{1}".repeat(32)
+            ),
+            "mesh/protocol/forwarding/tick-epoch-2".to_string(),
+        ],
+        "materialization rollback should leave only the persistent tick and topology checkpoints"
     );
 }
 

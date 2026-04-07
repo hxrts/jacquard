@@ -51,6 +51,8 @@ Cache misses must still lead to the same planning or admission result for the sa
 
 `engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, retaining bounded observational summaries, or updating coordination posture before any specific route is active. In richer engines that can include maintaining bounded repair pressure, anti-entropy pressure, or transport-derived health posture. See [Routing Engines](108_routing_engines.md) for the full trait signatures.
 
+First-party mesh now routes protocol-side runtime work through a private choreography guest runtime before it touches transport, retention, route-event logging, or protocol checkpoint storage. That keeps the public lifecycle contract unchanged while making forwarding, repair, handoff, hold/replay, and tick-ingress sequencing explicit and replay-friendly inside the owning engine crate.
+
 ## Active Route
 
 A `MaterializedRoute` is split into router-owned `MaterializedRouteIdentity` and engine-owned `RouteRuntimeState`. The data plane forwards payloads through `RoutingDataPlane::forward_payload` against the materialized route. The control plane consumes data-plane health signals as observational input but does not promote them into canonical state without an explicit lifecycle event.

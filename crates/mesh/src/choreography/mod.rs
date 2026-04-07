@@ -7,3 +7,7 @@
 
 mod artifacts;
 mod effects;
+mod runtime;
+
+pub(crate) use effects::MeshProtocolRuntimeAdapter;
+pub(crate) use runtime::MeshGuestRuntime;

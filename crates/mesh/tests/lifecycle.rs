@@ -77,7 +77,7 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
     assert_eq!(
         hold_fallback.outcome,
         RouteMaintenanceOutcome::HoldFallback {
-            trigger:               RouteMaintenanceTrigger::PartitionDetected,
+            trigger: RouteMaintenanceTrigger::PartitionDetected,
             retained_object_count: 0,
         }
     );

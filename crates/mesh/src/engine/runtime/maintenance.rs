@@ -13,7 +13,6 @@ use jacquard_core::{
     RouteMaintenanceTrigger, RouteProgressState, RouteRuntimeError,
     RouteSemanticHandoff,
 };
-use jacquard_traits::MeshFrame;
 
 use super::{
     super::{
@@ -37,20 +36,24 @@ where
     Selector: MeshSelectorBounds,
 {
     fn apply_repair(
+        &mut self,
+        route_id: &jacquard_core::RouteId,
         active_route: &mut ActiveMeshRoute,
         runtime: &mut jacquard_core::RouteRuntimeState,
         now: jacquard_core::Tick,
-    ) -> RouteMaintenanceResult {
+    ) -> Result<RouteMaintenanceResult, RouteError> {
         active_route.repair.steps_remaining =
             active_route.repair.steps_remaining.saturating_sub(1);
         active_route.repair.last_repaired_at_tick = Some(now);
         active_route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         runtime.progress.last_progress_at_tick = now;
-        RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Repaired,
+        self.choreography_runtime()
+            .repair_checkpoint(route_id, "repaired")?;
+        Ok(RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Repaired,
             outcome: RouteMaintenanceOutcome::Repaired,
-        }
+        })
     }
 
     fn enter_partition_mode(
@@ -63,7 +66,7 @@ where
         runtime.last_lifecycle_event = RouteLifecycleEvent::EnteredPartitionMode;
         runtime.progress.state = RouteProgressState::Blocked;
         RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::EnteredPartitionMode,
+            event: RouteLifecycleEvent::EnteredPartitionMode,
             outcome: RouteMaintenanceOutcome::HoldFallback {
                 trigger,
                 retained_object_count: u32::try_from(
@@ -75,6 +78,7 @@ where
     }
 
     fn handoff_result(
+        &mut self,
         identity: &MaterializedRouteIdentity,
         active_route: &mut ActiveMeshRoute,
         runtime: &mut jacquard_core::RouteRuntimeState,
@@ -84,11 +88,11 @@ where
             return Err(RouteRuntimeError::Invalidated.into());
         };
         let handoff = RouteSemanticHandoff {
-            route_id:      identity.handle.route_id,
-            from_node_id:  active_route.forwarding.current_owner_node_id,
-            to_node_id:    next_owner,
+            route_id: identity.handle.route_id,
+            from_node_id: active_route.forwarding.current_owner_node_id,
+            to_node_id: next_owner,
             handoff_epoch: active_route.current_epoch,
-            receipt_id:    handoff_receipt_id,
+            receipt_id: handoff_receipt_id,
         };
         active_route.forwarding.current_owner_node_id = next_owner;
         active_route.forwarding.next_hop_index =
@@ -98,8 +102,10 @@ where
             Some(runtime.progress.last_progress_at_tick);
         active_route.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         runtime.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
+        self.choreography_runtime()
+            .handoff_checkpoint(&identity.handle.route_id, "handed-off")?;
         Ok(RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::HandedOff,
+            event: RouteLifecycleEvent::HandedOff,
             outcome: RouteMaintenanceOutcome::HandedOff(handoff),
         })
     }
@@ -108,7 +114,7 @@ where
         trigger: RouteMaintenanceTrigger,
     ) -> RouteMaintenanceResult {
         RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Replaced,
+            event: RouteLifecycleEvent::Replaced,
             outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
         }
     }
@@ -121,7 +127,7 @@ where
         runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
         runtime.progress.state = RouteProgressState::Failed;
         RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Expired,
+            event: RouteLifecycleEvent::Expired,
             outcome: RouteMaintenanceOutcome::Failed(
                 RouteMaintenanceFailure::LeaseExpired,
             ),
@@ -135,7 +141,7 @@ where
     ) -> RouteMaintenanceResult {
         runtime.progress.last_progress_at_tick = now;
         RouteMaintenanceResult {
-            event:   active_route.last_lifecycle_event,
+            event: active_route.last_lifecycle_event,
             outcome: RouteMaintenanceOutcome::Continued,
         }
     }
@@ -223,8 +229,8 @@ where
 
         for object_id in retained_object_ids {
             let Some(payload) = self
-                .retention
-                .take_retained_payload(&object_id)
+                .choreography_runtime()
+                .recover_held_payload(&active_route.path.route_id, &object_id)
                 .map_err(|_| {
                     RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)
                 })?
@@ -236,12 +242,18 @@ where
                 continue;
             };
 
-            if let Err(error) = self.transport.send_frame(MeshFrame {
-                endpoint: &next_segment.endpoint,
-                payload:  &payload,
-            }) {
-                let _ = self.retention.retain_payload(object_id, payload);
-                return Err(RouteError::from(error));
+            if let Err(error) = self.choreography_runtime().replay_to_next_hop(
+                &active_route.path.route_id,
+                object_id.clone(),
+                next_segment.endpoint.clone(),
+                payload.clone(),
+            ) {
+                let _ = self.choreography_runtime().retain_for_replay(
+                    &active_route.path.route_id,
+                    object_id,
+                    &payload,
+                );
+                return Err(error);
             }
 
             active_route
@@ -274,7 +286,7 @@ where
         runtime.progress.last_progress_at_tick = now;
         runtime.progress.state = RouteProgressState::Satisfied;
         Ok(Some(RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::RecoveredFromPartition,
+            event: RouteLifecycleEvent::RecoveredFromPartition,
             outcome: RouteMaintenanceOutcome::Continued,
         }))
     }
@@ -302,7 +314,7 @@ where
                 // after handoff current_owner_node_id changes, making
                 // the endpoint used by flush_retained_payloads wrong.
                 self.flush_retained_payloads(active_route)?;
-                Self::handoff_result(
+                self.handoff_result(
                     context.identity,
                     active_route,
                     runtime,
@@ -348,7 +360,12 @@ where
             return Ok(Self::replacement_required(trigger));
         }
         active_route.current_epoch = topology.value.epoch;
-        let result = Self::apply_repair(active_route, runtime, context.now);
+        let result = self.apply_repair(
+            &context.identity.handle.route_id,
+            active_route,
+            runtime,
+            context.now,
+        )?;
         if let Some(recovered) =
             self.recover_from_partition_if_possible(active_route, runtime, context.now)?
         {

@@ -25,25 +25,25 @@ use super::{
 };
 
 struct TransportObservationAccumulator {
-    last_observed_at_tick:  Option<jacquard_core::Tick>,
-    payload_event_count:    u16,
-    observed_link_count:    u16,
+    last_observed_at_tick: Option<jacquard_core::Tick>,
+    payload_event_count: u16,
+    observed_link_count: u16,
     reachable_remote_nodes: BTreeSet<jacquard_core::NodeId>,
-    stability_sum:          u32,
-    loss_sum:               u32,
-    remote_links:           BTreeMap<jacquard_core::NodeId, MeshObservedRemoteLink>,
+    stability_sum: u32,
+    loss_sum: u32,
+    remote_links: BTreeMap<jacquard_core::NodeId, MeshObservedRemoteLink>,
 }
 
 impl TransportObservationAccumulator {
     fn new() -> Self {
         Self {
-            last_observed_at_tick:  None,
-            payload_event_count:    0,
-            observed_link_count:    0,
+            last_observed_at_tick: None,
+            payload_event_count: 0,
+            observed_link_count: 0,
             reachable_remote_nodes: BTreeSet::new(),
-            stability_sum:          0,
-            loss_sum:               0,
-            remote_links:           BTreeMap::new(),
+            stability_sum: 0,
+            loss_sum: 0,
+            remote_links: BTreeMap::new(),
         }
     }
 
@@ -267,11 +267,11 @@ where
             .min(1000);
 
         MeshControlState {
-            last_updated_at_tick:      topology.observed_at_tick,
+            last_updated_at_tick: topology.observed_at_tick,
             transport_stability_score: HealthScore(transport_stability.min(1000)),
-            repair_pressure_score:     HealthScore(repair_pressure),
-            anti_entropy:              super::super::types::MeshAntiEntropyState {
-                pressure_score:         HealthScore(anti_entropy_pressure),
+            repair_pressure_score: HealthScore(repair_pressure),
+            anti_entropy: super::super::types::MeshAntiEntropyState {
+                pressure_score: HealthScore(anti_entropy_pressure),
                 last_refreshed_at_tick: previous
                     .and_then(|state| state.anti_entropy.last_refreshed_at_tick),
             },
@@ -365,10 +365,10 @@ where
         }
 
         let mut health = RouteHealth {
-            reachability_state:        ReachabilityState::Reachable,
-            stability_score:           HealthScore(1000),
+            reachability_state: ReachabilityState::Reachable,
+            stability_score: HealthScore(1000),
             congestion_penalty_points: PenaltyPoints(0),
-            last_validated_at_tick:    topology.observed_at_tick,
+            last_validated_at_tick: topology.observed_at_tick,
         };
         Self::apply_first_hop_transport_summary(
             &mut health,
@@ -382,19 +382,19 @@ where
 
     fn unknown_route_health(now: jacquard_core::Tick) -> RouteHealth {
         RouteHealth {
-            reachability_state:        ReachabilityState::Unknown,
-            stability_score:           HealthScore(0),
+            reachability_state: ReachabilityState::Unknown,
+            stability_score: HealthScore(0),
             congestion_penalty_points: PenaltyPoints(0),
-            last_validated_at_tick:    now,
+            last_validated_at_tick: now,
         }
     }
 
     fn terminal_route_health(validated_at_tick: jacquard_core::Tick) -> RouteHealth {
         RouteHealth {
-            reachability_state:        ReachabilityState::Reachable,
-            stability_score:           HealthScore(1000),
+            reachability_state: ReachabilityState::Reachable,
+            stability_score: HealthScore(1000),
             congestion_penalty_points: PenaltyPoints(0),
-            last_validated_at_tick:    validated_at_tick,
+            last_validated_at_tick: validated_at_tick,
         }
     }
 

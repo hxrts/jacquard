@@ -119,13 +119,13 @@ where
 
         match cached.admission_check.decision {
             | AdmissionDecision::Admissible => Ok(RouteAdmission {
-                route_id:        cached.route_id,
-                backend_ref:     candidate.backend_ref,
-                objective:       objective.clone(),
-                profile:         profile.clone(),
+                route_id: cached.route_id,
+                backend_ref: candidate.backend_ref,
+                objective: objective.clone(),
+                profile: profile.clone(),
                 admission_check: cached.admission_check,
-                summary:         cached.summary,
-                witness:         cached.witness,
+                summary: cached.summary,
+                witness: cached.witness,
             }),
             | AdmissionDecision::Rejected(rejection) => {
                 Err(RouteSelectionError::Inadmissible(rejection).into())

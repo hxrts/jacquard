@@ -49,20 +49,20 @@ fn permuted_topology() -> Observation<Configuration> {
     links.insert((local_node_id, node_two_id), link(2, 950));
 
     Observation {
-        value:                 Configuration {
+        value: Configuration {
             epoch: RouteEpoch(2),
             nodes,
             links,
             environment: Environment {
                 reachable_neighbor_count: 3,
-                churn_permille:           RatioPermille(150),
-                contention_permille:      RatioPermille(120),
+                churn_permille: RatioPermille(150),
+                contention_permille: RatioPermille(120),
             },
         },
-        source_class:          FactSourceClass::Local,
-        evidence_class:        RoutingEvidenceClass::DirectObservation,
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick:      Tick(2),
+        observed_at_tick: Tick(2),
     }
 }
 
