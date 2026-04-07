@@ -49,7 +49,11 @@ where
         runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         runtime.progress.last_progress_at_tick = now;
         self.choreography_runtime()
-            .repair_checkpoint(route_id, "repaired")?;
+            .mark_route_protocol_step(
+                crate::choreography::MeshProtocolKind::Repair,
+                route_id,
+                "repaired",
+            )?;
         Ok(RouteMaintenanceResult {
             event: RouteLifecycleEvent::Repaired,
             outcome: RouteMaintenanceOutcome::Repaired,
@@ -103,7 +107,11 @@ where
         active_route.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         runtime.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         self.choreography_runtime()
-            .handoff_checkpoint(&identity.handle.route_id, "handed-off")?;
+            .mark_route_protocol_step(
+                crate::choreography::MeshProtocolKind::Handoff,
+                &identity.handle.route_id,
+                "handed-off",
+            )?;
         Ok(RouteMaintenanceResult {
             event: RouteLifecycleEvent::HandedOff,
             outcome: RouteMaintenanceOutcome::HandedOff(handoff),

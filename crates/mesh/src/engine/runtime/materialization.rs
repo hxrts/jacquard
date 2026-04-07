@@ -239,7 +239,11 @@ where
         self.store_checkpoint(&active_route)?;
         if let Err(error) = self
             .choreography_runtime()
-            .activation_checkpoint(&route_id, "materialized")
+            .mark_route_protocol_step(
+                crate::choreography::MeshProtocolKind::Activation,
+                &route_id,
+                "materialized",
+            )
         {
             if let Some(previous_active_route) = previous_active_route.as_ref() {
                 let _ = self.store_checkpoint(previous_active_route);

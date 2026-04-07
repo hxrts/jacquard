@@ -44,6 +44,8 @@ pub(crate) struct MeshCheckpointEnvelope {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshProtocolObservation {
     pub(crate) protocol: MeshProtocolKind,
+    pub(crate) protocol_name: String,
+    pub(crate) role_names: Vec<String>,
     pub(crate) session: MeshProtocolSessionKey,
     pub(crate) detail: &'static str,
 }
@@ -409,6 +411,8 @@ mod tests {
 
         adapter.emit_protocol_observation(MeshProtocolObservation {
             protocol: MeshProtocolKind::Activation,
+            protocol_name: "ActivationHandshake".into(),
+            role_names: vec!["CurrentOwner".into(), "Destination".into()],
             session: MeshProtocolSessionKey("activation#1".into()),
             detail: "accepted",
         });

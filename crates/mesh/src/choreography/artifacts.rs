@@ -6,19 +6,15 @@
 //! and keeps the forwarding helper protocol and the larger `.tell` artifacts on
 //! one internal path.
 
+use std::sync::OnceLock;
+
 use serde::{Deserialize, Serialize};
-#[cfg(test)]
 use telltale::{compile_choreography, CompileArtifactsError, CompiledChoreography};
 
-#[cfg(test)]
 const FORWARDING_HOP_DSL: &str = include_str!("forwarding.tell");
-#[cfg(test)]
 const ACTIVATION_DSL: &str = include_str!("activation.tell");
-#[cfg(test)]
 const REPAIR_DSL: &str = include_str!("repair.tell");
-#[cfg(test)]
 const HANDOFF_DSL: &str = include_str!("handoff.tell");
-#[cfg(test)]
 const HOLD_REPLAY_DSL: &str = include_str!("hold_replay.tell");
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,7 +42,6 @@ impl MeshProtocolKind {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct MeshProtocolSessionKey(pub(crate) String);
 
-#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct MeshProtocolArtifact {
     pub(crate) kind: MeshProtocolKind,
@@ -54,7 +49,6 @@ pub(crate) struct MeshProtocolArtifact {
     pub(crate) source: &'static str,
 }
 
-#[cfg(test)]
 impl MeshProtocolArtifact {
     #[must_use]
     pub(crate) const fn for_kind(kind: MeshProtocolKind) -> Self {
@@ -88,17 +82,62 @@ impl MeshProtocolArtifact {
     }
 }
 
-#[cfg(test)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MeshCompiledProtocolSpec {
+    pub(crate) kind: MeshProtocolKind,
+    pub(crate) source_path: &'static str,
+    pub(crate) protocol_name: String,
+    pub(crate) role_names: Vec<String>,
+}
+
 pub(crate) fn compile_protocol(
     kind: MeshProtocolKind,
 ) -> Result<CompiledChoreography, CompileArtifactsError> {
     compile_choreography(MeshProtocolArtifact::for_kind(kind).source)
 }
 
+pub(crate) fn runtime_protocol_spec(
+    kind: MeshProtocolKind,
+) -> Result<&'static MeshCompiledProtocolSpec, String> {
+    static FORWARDING: OnceLock<Result<MeshCompiledProtocolSpec, String>> = OnceLock::new();
+    static ACTIVATION: OnceLock<Result<MeshCompiledProtocolSpec, String>> = OnceLock::new();
+    static REPAIR: OnceLock<Result<MeshCompiledProtocolSpec, String>> = OnceLock::new();
+    static HANDOFF: OnceLock<Result<MeshCompiledProtocolSpec, String>> = OnceLock::new();
+    static HOLD_REPLAY: OnceLock<Result<MeshCompiledProtocolSpec, String>> =
+        OnceLock::new();
+
+    let slot = match kind {
+        | MeshProtocolKind::ForwardingHop => &FORWARDING,
+        | MeshProtocolKind::Activation => &ACTIVATION,
+        | MeshProtocolKind::Repair => &REPAIR,
+        | MeshProtocolKind::Handoff => &HANDOFF,
+        | MeshProtocolKind::HoldReplay => &HOLD_REPLAY,
+    };
+
+    slot
+        .get_or_init(|| build_runtime_protocol_spec(kind).map_err(|err| err.to_string()))
+        .as_ref()
+        .map_err(Clone::clone)
+}
+
+fn build_runtime_protocol_spec(
+    kind: MeshProtocolKind,
+) -> Result<MeshCompiledProtocolSpec, CompileArtifactsError> {
+    let artifact = MeshProtocolArtifact::for_kind(kind);
+    let compiled = compile_protocol(kind)?;
+    Ok(MeshCompiledProtocolSpec {
+        kind,
+        source_path: artifact.source_path,
+        protocol_name: compiled.choreography.name.to_string(),
+        role_names: compiled.role_names(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        compile_choreography, compile_protocol, MeshProtocolArtifact, MeshProtocolKind,
+        compile_choreography, compile_protocol, runtime_protocol_spec,
+        MeshProtocolArtifact, MeshProtocolKind,
     };
 
     fn protocol_name(kind: MeshProtocolKind) -> &'static str {
@@ -140,5 +179,14 @@ mod tests {
         assert!(compiled.role_names().contains(&"CurrentOwner".to_string()));
         assert!(compiled.role_names().contains(&"NextHop".to_string()));
         assert!(compiled.role_names().contains(&"Observer".to_string()));
+    }
+
+    #[test]
+    fn runtime_protocol_specs_are_derived_from_compiled_artifacts() {
+        let spec = runtime_protocol_spec(MeshProtocolKind::Repair)
+            .expect("repair protocol spec");
+        assert_eq!(spec.protocol_name, "BoundedSuffixRepair");
+        assert!(spec.role_names.iter().any(|role| role == "CurrentOwner"));
+        assert_eq!(spec.source_path, "crates/mesh/src/choreography/repair.tell");
     }
 }
