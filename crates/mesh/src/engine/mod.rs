@@ -365,7 +365,6 @@ where
         active_route.forwarding.last_ack_at_tick = Some(self.effects.now_tick());
         Ok(())
     }
-
 }
 
 // Retention-Facing Helpers
