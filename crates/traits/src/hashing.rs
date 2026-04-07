@@ -4,11 +4,23 @@ use jacquard_core::{Blake3Digest, ContentEncodingError, ContentId};
 use jacquard_macros::purity;
 
 #[purity(pure)]
+/// View a digest as canonical bytes without committing to one hash algorithm.
+pub trait HashDigestBytes {
+    fn as_bytes(&self) -> &[u8];
+}
+
+impl HashDigestBytes for Blake3Digest {
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[purity(pure)]
 /// Pure deterministic hashing interface over one digest type.
 ///
 /// Pure deterministic boundary.
 pub trait Hashing {
-    type Digest: Clone + Eq;
+    type Digest: Clone + Eq + HashDigestBytes;
 
     #[must_use]
     fn hash_bytes(&self, input: &[u8]) -> Self::Digest;
@@ -85,7 +97,7 @@ pub trait TemplateAddressable {
 mod tests {
     use jacquard_core::{Blake3Digest, ContentEncodingError};
 
-    use super::{Blake3Hashing, ContentAddressable, Hashing};
+    use super::{Blake3Hashing, ContentAddressable, HashDigestBytes, Hashing};
 
     struct StaticContent(&'static [u8]);
 
@@ -115,5 +127,11 @@ mod tests {
         let content_id = item.content_id(&hashing).expect("content id");
 
         assert_eq!(content_id.digest, hashing.hash_bytes(b"jacquard"));
+    }
+
+    #[test]
+    fn blake3_digest_exposes_bytes() {
+        let digest = Blake3Hashing.hash_bytes(b"jacquard");
+        assert_eq!(digest.as_bytes().len(), 32);
     }
 }

@@ -151,6 +151,10 @@ ci-dry-run:
     add_step "No usize in Models" "cargo xtask check no-usize-in-models"
     add_step "Routing Invariants" "cargo xtask check routing-invariants"
     add_step "Routing Invariants Validate" "cargo xtask check routing-invariants --validate"
+    add_step "Install cargo-dylint" "nix develop ./nix/nightly --command install-dylint"
+    add_step "Dylint Trait Purity" "nix develop ./nix/nightly --command cargo dylint --path lints/trait_purity --all -- --all-targets"
+    add_step "Dylint Model Policy" "nix develop ./nix/nightly --command cargo dylint --path lints/model_policy --all -- --all-targets"
+    add_step "Dylint Routing Invariants" "nix develop ./nix/nightly --command cargo dylint --path lints/routing_invariants --all -- --all-targets"
     add_step "Docs Semantic Drift" "cargo xtask check docs-semantic-drift"
     add_step "Docs Build"         "just book"
 

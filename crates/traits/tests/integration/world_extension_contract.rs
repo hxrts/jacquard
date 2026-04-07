@@ -227,6 +227,7 @@ fn sample_transport_observation() -> WorldObservation {
 }
 
 #[test]
+// long-block-exception: this integration test keeps the emitted observation set and matching assertions together as one self-describing payload example.
 fn world_extensions_publish_self_describing_observations() {
     let mut extension = StubWorldExtension {
         observations: vec![

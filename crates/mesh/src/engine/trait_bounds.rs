@@ -6,34 +6,31 @@
 //! `jacquard-traits`. Every alias has a blanket impl, so referring to
 //! an alias is identical to inlining its full trait list.
 
-use jacquard_core::{Blake3Digest, Configuration};
+use jacquard_core::Configuration;
 use jacquard_traits::{
-    CommitteeSelector, Hashing, MeshTransport, OrderEffects, RetentionStore, RouteEventLogEffects,
-    StorageEffects, TimeEffects, TransportEffects,
+    CommitteeSelector, HashDigestBytes, Hashing, MeshNeighborhoodEstimateAccess,
+    MeshPeerEstimateAccess, MeshTransport, OrderEffects, RetentionStore, RouteEventLogEffects,
+    StorageEffects, TimeEffects,
 };
 
-pub(crate) trait MeshTopologyBounds:
-    jacquard_traits::MeshTopologyModel<
-    PeerEstimate = crate::topology::MeshPeerEstimate,
-    NeighborhoodEstimate = crate::topology::MeshNeighborhoodEstimate,
->
+pub(crate) trait MeshTopologyBounds: jacquard_traits::MeshTopologyModel
+where
+    Self::PeerEstimate: MeshPeerEstimateAccess,
+    Self::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
 {
 }
 
-impl<T> MeshTopologyBounds for T where
-    T: jacquard_traits::MeshTopologyModel<
-        PeerEstimate = crate::topology::MeshPeerEstimate,
-        NeighborhoodEstimate = crate::topology::MeshNeighborhoodEstimate,
-    >
+impl<T> MeshTopologyBounds for T
+where
+    T: jacquard_traits::MeshTopologyModel,
+    T::PeerEstimate: MeshPeerEstimateAccess,
+    T::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
 {
 }
 
-pub(crate) trait MeshTransportBounds:
-    MeshTransport + TransportEffects + Send + Sync + 'static
-{
-}
+pub(crate) trait MeshTransportBounds: MeshTransport + Send + Sync + 'static {}
 
-impl<T> MeshTransportBounds for T where T: MeshTransport + TransportEffects + Send + Sync + 'static {}
+impl<T> MeshTransportBounds for T where T: MeshTransport + Send + Sync + 'static {}
 
 pub(crate) trait MeshRetentionBounds: RetentionStore {}
 
@@ -49,9 +46,18 @@ impl<T> MeshEffectsBounds for T where
 {
 }
 
-pub(crate) trait MeshHasherBounds: Hashing<Digest = Blake3Digest> {}
+pub(crate) trait MeshHasherBounds: Hashing
+where
+    Self::Digest: HashDigestBytes,
+{
+}
 
-impl<T> MeshHasherBounds for T where T: Hashing<Digest = Blake3Digest> {}
+impl<T> MeshHasherBounds for T
+where
+    T: Hashing,
+    T::Digest: HashDigestBytes,
+{
+}
 
 pub(crate) trait MeshSelectorBounds:
     CommitteeSelector<TopologyView = Configuration>

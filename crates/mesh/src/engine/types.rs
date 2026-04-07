@@ -26,6 +26,13 @@ pub struct MeshRouteSegment {
     pub endpoint: LinkEndpoint,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum MeshCommitteeStatus {
+    NotApplicable,
+    Selected(CommitteeSelection),
+    SelectorFailed,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeshPath {
     pub route_id: RouteId,
@@ -91,9 +98,17 @@ pub struct MeshTransportObservationSummary {
     pub payload_event_count: u16,
     pub observed_link_count: u16,
     pub reachable_remote_count: u16,
+    pub freshness: MeshTransportFreshness,
     pub stability_score: HealthScore,
     pub congestion_penalty_points: PenaltyPoints,
     pub remote_links: BTreeMap<NodeId, MeshObservedRemoteLink>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MeshTransportFreshness {
+    Fresh,
+    Quiet,
+    Stale,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

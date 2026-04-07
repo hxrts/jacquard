@@ -187,6 +187,7 @@ fn world_error_purity(root: &Path) -> Result<Vec<Violation>> {
 fn shared_private_boundary(root: &Path) -> Result<Vec<Violation>> {
     let mut out = Vec::new();
     let re = Regex::new(r"pub (struct|enum|type)\s+(Mesh|Onion|Field)[A-Z]\w*")?;
+    let allowed_trait_boundary_types = ["MeshFrame"];
     for dir in ["crates/core/src", "crates/traits/src"] {
         for path in rust_files(root.join(dir))? {
             let rel = normalize_rel_path(root, &path);
@@ -196,7 +197,11 @@ fn shared_private_boundary(root: &Path) -> Result<Vec<Violation>> {
             let contents =
                 fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
             for (idx, line) in contents.lines().enumerate() {
-                if re.is_match(line) {
+                if re.is_match(line)
+                    && !allowed_trait_boundary_types
+                        .iter()
+                        .any(|name| line.contains(name))
+                {
                     out.push(Violation::new(
                         rel.clone(),
                         idx + 1,
@@ -219,7 +224,7 @@ fn planner_cache_dependence(root: &Path) -> Result<Vec<Violation>> {
 }
 
 fn fail_closed_ordering(root: &Path) -> Result<Vec<Violation>> {
-    let runtime_file = root.join("crates/mesh/src/engine/runtime.rs");
+    let runtime_file = root.join("crates/mesh/src/engine/runtime/mod.rs");
     let rel = normalize_rel_path(root, &runtime_file);
     let contents = fs::read_to_string(&runtime_file)
         .with_context(|| format!("reading {}", runtime_file.display()))?;

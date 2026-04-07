@@ -18,10 +18,36 @@ pub fn run() -> Result<()> {
     let root = workspace_root()?;
     let staged_files = staged_files(&root)?;
 
+    ensure_no_gitignored_files(&root, &staged_files)?;
+    let staged_rs = staged_rust_files(staged_files);
+    let crates = affected_crates(&root, &staged_rs)?;
+
+    run_optional_cargo_check(
+        "Checking formatting",
+        &root,
+        &crates,
+        "fmt",
+        &["--", "--check"],
+        "Run `cargo fmt --all` to fix formatting",
+    )?;
+    run_optional_cargo_check(
+        "Checking compilation",
+        &root,
+        &crates,
+        "check",
+        &["--all-targets", "--all-features"],
+        "",
+    )?;
+
+    println!("Pre-commit checks passed!");
+    Ok(())
+}
+
+fn ensure_no_gitignored_files(root: &Path, staged_files: &[String]) -> Result<()> {
     print!("Checking for gitignored files... ");
     let ignored: Vec<String> = staged_files
         .iter()
-        .filter(|path| is_gitignored(&root, path))
+        .filter(|path| is_gitignored(root, path))
         .cloned()
         .collect();
     if !ignored.is_empty() {
@@ -34,51 +60,45 @@ pub fn run() -> Result<()> {
         bail!("pre-commit failed");
     }
     println!("OK");
+    Ok(())
+}
 
-    let staged_rs: Vec<String> = staged_files
+fn staged_rust_files(staged_files: Vec<String>) -> Vec<String> {
+    staged_files
         .into_iter()
         .filter(|path| path.ends_with(".rs"))
-        .collect();
+        .collect()
+}
 
-    print!("Checking formatting... ");
+fn affected_crates(root: &Path, staged_rs: &[String]) -> Result<BTreeSet<String>> {
     if staged_rs.is_empty() {
+        return Ok(BTreeSet::new());
+    }
+    owning_packages(root, staged_rs)
+}
+
+fn run_optional_cargo_check(
+    label: &str,
+    root: &Path,
+    crates: &BTreeSet<String>,
+    subcommand: &str,
+    extra_args: &[&str],
+    help_message: &str,
+) -> Result<()> {
+    print!("{label}... ");
+    if crates.is_empty() {
         println!("OK (no Rust files staged)");
-    } else {
-        let crates = owning_packages(&root, &staged_rs)?;
-        if crates.is_empty() {
-            println!("OK (no crates affected)");
-        } else {
-            run_cargo(
-                &root,
-                "fmt",
-                &package_args(&crates),
-                &["--", "--check"],
-                "Run `cargo fmt --all` to fix formatting",
-            )?;
-            println!("OK");
-        }
+        return Ok(());
     }
 
-    print!("Checking compilation... ");
-    if staged_rs.is_empty() {
-        println!("OK (no Rust files staged)");
-    } else {
-        let crates = owning_packages(&root, &staged_rs)?;
-        if crates.is_empty() {
-            println!("OK (no crates affected)");
-        } else {
-            run_cargo(
-                &root,
-                "check",
-                &package_args(&crates),
-                &["--all-targets", "--all-features"],
-                "",
-            )?;
-            println!("OK");
-        }
-    }
-
-    println!("Pre-commit checks passed!");
+    run_cargo(
+        root,
+        subcommand,
+        &package_args(crates),
+        extra_args,
+        help_message,
+    )?;
+    println!("OK");
     Ok(())
 }
 

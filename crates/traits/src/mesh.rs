@@ -13,8 +13,8 @@
 //!   but it must not interpret higher-level routing semantics.
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, Link, LinkEndpoint, Node, NodeId, RetentionError, Tick,
-    TransportError, TransportObservation, TransportProtocol,
+    Blake3Digest, Configuration, ContentId, HealthScore, Link, LinkEndpoint, Node, NodeId,
+    RetentionError, Tick, TransportError, TransportObservation, TransportProtocol,
 };
 use jacquard_macros::purity;
 
@@ -71,6 +71,35 @@ pub trait MeshTopologyModel {
     ) -> Option<Self::NeighborhoodEstimate>;
 }
 
+#[purity(read_only)]
+/// Score components mesh consumes from a peer-local estimate.
+pub trait MeshPeerEstimateAccess {
+    fn relay_value_score(&self) -> Option<HealthScore>;
+    fn retention_value_score(&self) -> Option<HealthScore>;
+    fn stability_score(&self) -> Option<HealthScore>;
+    fn service_score(&self) -> Option<HealthScore>;
+}
+
+#[purity(read_only)]
+/// Score components mesh consumes from a neighborhood-local estimate.
+pub trait MeshNeighborhoodEstimateAccess {
+    fn density_score(&self) -> Option<HealthScore>;
+    fn repair_pressure_score(&self) -> Option<HealthScore>;
+    fn partition_risk_score(&self) -> Option<HealthScore>;
+    fn service_stability_score(&self) -> Option<HealthScore>;
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Frame-shaped send envelope used by `MeshTransport`.
+///
+/// Mesh keeps a transport-specialized carrier boundary because routing and
+/// replay care about explicit endpoint/frame sends rather than only about a
+/// generic byte stream effect.
+pub struct MeshFrame<'a> {
+    pub endpoint: &'a LinkEndpoint,
+    pub payload: &'a [u8],
+}
+
 #[purity(effectful)]
 /// Effectful frame-carrier boundary for one mesh transport implementation.
 ///
@@ -79,8 +108,7 @@ pub trait MeshTransport {
     #[must_use]
     fn transport_id(&self) -> TransportProtocol;
 
-    fn send_frame(&mut self, endpoint: &LinkEndpoint, payload: &[u8])
-        -> Result<(), TransportError>;
+    fn send_frame(&mut self, frame: MeshFrame<'_>) -> Result<(), TransportError>;
 
     fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
 }
@@ -96,7 +124,7 @@ where
         endpoint: &LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), TransportError> {
-        self.send_frame(endpoint, payload)
+        self.send_frame(MeshFrame { endpoint, payload })
     }
 
     fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {

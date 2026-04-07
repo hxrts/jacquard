@@ -93,57 +93,35 @@ mod tests {
     use super::*;
     use crate::NodeId;
 
+    fn empty_node(controller_byte: u8) -> Node {
+        Node {
+            controller_id: ControllerId([controller_byte; 32]),
+            profile: NodeProfile {
+                services: Vec::new(),
+                endpoints: Vec::new(),
+                connection_count_max: 0,
+                neighbor_state_count_max: 0,
+                simultaneous_transfer_count_max: 0,
+                active_route_count_max: 0,
+                relay_work_budget_max: 0,
+                maintenance_work_budget_max: 0,
+                hold_item_count_max: 0,
+                hold_capacity_bytes_max: ByteCount(0),
+            },
+            state: NodeState {
+                relay_budget: Belief::Absent,
+                available_connection_count: Belief::Absent,
+                hold_capacity_available_bytes: Belief::Absent,
+                information_summary: Belief::Absent,
+            },
+        }
+    }
+
     #[test]
     fn configuration_has_deterministic_node_key_order() {
         let mut nodes = BTreeMap::new();
-        nodes.insert(
-            NodeId([2; 32]),
-            Node {
-                controller_id: ControllerId([9; 32]),
-                profile: NodeProfile {
-                    services: Vec::new(),
-                    endpoints: Vec::new(),
-                    connection_count_max: 0,
-                    neighbor_state_count_max: 0,
-                    simultaneous_transfer_count_max: 0,
-                    active_route_count_max: 0,
-                    relay_work_budget_max: 0,
-                    maintenance_work_budget_max: 0,
-                    hold_item_count_max: 0,
-                    hold_capacity_bytes_max: ByteCount(0),
-                },
-                state: NodeState {
-                    relay_budget: Belief::Absent,
-                    available_connection_count: Belief::Absent,
-                    hold_capacity_available_bytes: Belief::Absent,
-                    information_summary: Belief::Absent,
-                },
-            },
-        );
-        nodes.insert(
-            NodeId([1; 32]),
-            Node {
-                controller_id: ControllerId([8; 32]),
-                profile: NodeProfile {
-                    services: Vec::new(),
-                    endpoints: Vec::new(),
-                    connection_count_max: 0,
-                    neighbor_state_count_max: 0,
-                    simultaneous_transfer_count_max: 0,
-                    active_route_count_max: 0,
-                    relay_work_budget_max: 0,
-                    maintenance_work_budget_max: 0,
-                    hold_item_count_max: 0,
-                    hold_capacity_bytes_max: ByteCount(0),
-                },
-                state: NodeState {
-                    relay_budget: Belief::Absent,
-                    available_connection_count: Belief::Absent,
-                    hold_capacity_available_bytes: Belief::Absent,
-                    information_summary: Belief::Absent,
-                },
-            },
-        );
+        nodes.insert(NodeId([2; 32]), empty_node(9));
+        nodes.insert(NodeId([1; 32]), empty_node(8));
 
         let configuration = Configuration {
             epoch: RouteEpoch(1),

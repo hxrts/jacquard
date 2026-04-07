@@ -10,6 +10,7 @@
 use core::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
+use bincode::Options;
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionAssumptions, ClaimStrength, CommitteeId, CommitteeMember,
     CommitteeRole, CommitteeSelection, Configuration, ControllerId, FactBasis, HealthScore,
@@ -17,11 +18,14 @@ use jacquard_core::{
     RouteConnectivityProfile, RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass,
     RoutingEngineId, RoutingObjective, ServiceScope, Tick, TimeWindow,
 };
-use jacquard_traits::{CommitteeSelector, MeshTopologyModel};
+use jacquard_traits::{
+    Blake3Hashing, CommitteeSelector, HashDigestBytes, Hashing, MeshNeighborhoodEstimateAccess,
+    MeshPeerEstimateAccess, MeshTopologyModel,
+};
 
 use crate::topology::{
     adjacent_node_ids, bounded_health_score, optional_health_score_value, route_capable_for_engine,
-    DeterministicMeshTopologyModel, MeshNeighborhoodEstimate, MeshPeerEstimate,
+    DeterministicMeshTopologyModel,
 };
 
 /// Default maximum committee size for `DeterministicCommitteeSelector`.
@@ -96,22 +100,26 @@ impl CommitteeSelector for NoCommitteeSelector {
 }
 
 #[derive(Clone, Debug)]
-pub struct DeterministicCommitteeSelector<Topology = DeterministicMeshTopologyModel> {
+pub struct DeterministicCommitteeSelector<
+    Topology = DeterministicMeshTopologyModel,
+    Hasher = Blake3Hashing,
+> {
     pub local_node_id: NodeId,
     pub engine_id: RoutingEngineId,
     pub membership_cap: usize,
     pub topology_model: Topology,
+    pub hashing: Hasher,
     pub behavior_history: BTreeMap<NodeId, MeshBehaviorHistory>,
 }
 
-impl DeterministicCommitteeSelector<DeterministicMeshTopologyModel> {
+impl DeterministicCommitteeSelector<DeterministicMeshTopologyModel, Blake3Hashing> {
     #[must_use]
     pub fn new(local_node_id: NodeId) -> Self {
         Self::with_topology_model(local_node_id, DeterministicMeshTopologyModel::new())
     }
 }
 
-impl<Topology> DeterministicCommitteeSelector<Topology> {
+impl<Topology> DeterministicCommitteeSelector<Topology, Blake3Hashing> {
     #[must_use]
     pub fn with_topology_model(local_node_id: NodeId, topology_model: Topology) -> Self {
         Self {
@@ -119,10 +127,13 @@ impl<Topology> DeterministicCommitteeSelector<Topology> {
             engine_id: RoutingEngineId::Mesh,
             membership_cap: MESH_COMMITTEE_MEMBERSHIP_CAP,
             topology_model,
+            hashing: Blake3Hashing,
             behavior_history: BTreeMap::new(),
         }
     }
+}
 
+impl<Topology, Hasher> DeterministicCommitteeSelector<Topology, Hasher> {
     #[must_use]
     pub fn with_behavior_history(
         mut self,
@@ -131,14 +142,28 @@ impl<Topology> DeterministicCommitteeSelector<Topology> {
         self.behavior_history = behavior_history;
         self
     }
+
+    #[must_use]
+    pub fn with_hashing<NextHasher>(
+        self,
+        hashing: NextHasher,
+    ) -> DeterministicCommitteeSelector<Topology, NextHasher> {
+        DeterministicCommitteeSelector {
+            local_node_id: self.local_node_id,
+            engine_id: self.engine_id,
+            membership_cap: self.membership_cap,
+            topology_model: self.topology_model,
+            hashing,
+            behavior_history: self.behavior_history,
+        }
+    }
 }
 
-impl<Topology> DeterministicCommitteeSelector<Topology>
+impl<Topology, Hasher> DeterministicCommitteeSelector<Topology, Hasher>
 where
-    Topology: MeshTopologyModel<
-        PeerEstimate = MeshPeerEstimate,
-        NeighborhoodEstimate = MeshNeighborhoodEstimate,
-    >,
+    Topology: MeshTopologyModel,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
 {
     fn discovery_scope_key(
         &self,
@@ -181,7 +206,7 @@ where
         ) else {
             return false;
         };
-        if optional_health_score_value(estimate.service_score) == 0 {
+        if optional_health_score_value(estimate.service_score()) == 0 {
             return false;
         }
         self.behavior_history
@@ -206,10 +231,10 @@ where
             observed_at_tick,
             configuration,
         )?;
-        let relay_score = optional_health_score_value(estimate.relay_value_score);
-        let retention_score = optional_health_score_value(estimate.retention_value_score);
-        let stability_score = optional_health_score_value(estimate.stability_score);
-        let service_score = optional_health_score_value(estimate.service_score);
+        let relay_score = optional_health_score_value(estimate.relay_value_score());
+        let retention_score = optional_health_score_value(estimate.retention_value_score());
+        let stability_score = optional_health_score_value(estimate.stability_score());
+        let service_score = optional_health_score_value(estimate.service_score());
         let behavior_bonus = self
             .behavior_history
             .get(peer_node_id)
@@ -248,21 +273,22 @@ where
         ) else {
             return false;
         };
-        let density_score = optional_health_score_value(estimate.density_score);
-        let service_stability = optional_health_score_value(estimate.service_stability_score);
-        let partition_risk = optional_health_score_value(estimate.partition_risk_score);
+        let density_score = optional_health_score_value(estimate.density_score());
+        let service_stability = optional_health_score_value(estimate.service_stability_score());
+        let partition_risk = optional_health_score_value(estimate.partition_risk_score());
         density_score > 0
             && service_stability >= MESH_COMMITTEE_SERVICE_STABILITY_FLOOR
             && service_stability >= partition_risk
     }
 }
 
-impl<Topology> CommitteeSelector for DeterministicCommitteeSelector<Topology>
+impl<Topology, Hasher> CommitteeSelector for DeterministicCommitteeSelector<Topology, Hasher>
 where
-    Topology: MeshTopologyModel<
-        PeerEstimate = MeshPeerEstimate,
-        NeighborhoodEstimate = MeshNeighborhoodEstimate,
-    >,
+    Topology: MeshTopologyModel,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
+    Hasher: Hashing,
+    Hasher::Digest: HashDigestBytes,
 {
     type TopologyView = Configuration;
 
@@ -274,23 +300,56 @@ where
     ) -> Result<Option<CommitteeSelection>, RouteError> {
         let configuration = &topology.value;
         let current_tick = topology.observed_at_tick;
+        if !self.should_coordinate(profile, current_tick, configuration) {
+            return Ok(None);
+        }
 
-        // Committees only exist when the profile actually needs coordinated
-        // repair and partition tolerance and the neighborhood is not a
-        // degenerate 1-peer case. Otherwise there is nothing to coordinate.
-        let should_coordinate = profile.selected_connectivity.repair
-            == RouteRepairClass::Repairable
+        let ranked = self.ranked_candidates(current_tick, configuration);
+        if ranked.len() < 2 {
+            return Ok(None);
+        }
+        let members = self.select_diverse_members(ranked);
+        if members.len() < 2 {
+            return Ok(None);
+        }
+        Ok(Some(self.committee_selection(
+            objective,
+            configuration,
+            current_tick,
+            members,
+        )))
+    }
+}
+
+impl<Topology, Hasher> DeterministicCommitteeSelector<Topology, Hasher>
+where
+    Topology: MeshTopologyModel,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
+    Hasher: Hashing,
+    Hasher::Digest: HashDigestBytes,
+{
+    fn should_coordinate(
+        &self,
+        profile: &AdaptiveRoutingProfile,
+        current_tick: Tick,
+        configuration: &Configuration,
+    ) -> bool {
+        profile.selected_connectivity.repair == RouteRepairClass::Repairable
             && matches!(
                 profile.selected_connectivity.partition,
                 RoutePartitionClass::PartitionTolerant
             )
             && configuration.environment.reachable_neighbor_count
                 >= MESH_COMMITTEE_MIN_NEIGHBOR_COUNT
-            && self.neighborhood_allows_coordination(current_tick, configuration);
-        if !should_coordinate {
-            return Ok(None);
-        }
+            && self.neighborhood_allows_coordination(current_tick, configuration)
+    }
 
+    fn ranked_candidates(
+        &self,
+        current_tick: Tick,
+        configuration: &Configuration,
+    ) -> Vec<(Reverse<u32>, ControllerId, CommitteeDiversityKey, NodeId)> {
         let mut ranked: Vec<_> = adjacent_node_ids(&self.local_node_id, configuration)
             .into_iter()
             .filter(|peer_node_id| {
@@ -309,11 +368,13 @@ where
             })
             .collect();
         ranked.sort();
+        ranked
+    }
 
-        if ranked.len() < 2 {
-            return Ok(None);
-        }
-
+    fn select_diverse_members(
+        &self,
+        ranked: Vec<(Reverse<u32>, ControllerId, CommitteeDiversityKey, NodeId)>,
+    ) -> Vec<CommitteeMember> {
         let mut seen_controllers = BTreeSet::new();
         let mut seen_diversity_keys = BTreeSet::new();
         let mut members = Vec::new();
@@ -327,19 +388,16 @@ where
                 deferred_candidates.push((controller_id, diversity_key, node_id));
                 continue;
             }
-            seen_controllers.insert(controller_id);
-            seen_diversity_keys.insert(diversity_key);
-            members.push(CommitteeMember {
-                node_id,
+            Self::push_committee_member(
+                &mut members,
+                &mut seen_controllers,
+                &mut seen_diversity_keys,
                 controller_id,
-                role: if members.is_empty() {
-                    CommitteeRole::Participant
-                } else {
-                    CommitteeRole::Witness
-                },
-            });
+                diversity_key,
+                node_id,
+            );
             if members.len() >= self.membership_cap {
-                break;
+                return members;
             }
         }
 
@@ -348,36 +406,56 @@ where
                 if seen_controllers.contains(&controller_id) {
                     continue;
                 }
-                seen_controllers.insert(controller_id);
-                seen_diversity_keys.insert(diversity_key);
-                members.push(CommitteeMember {
-                    node_id,
+                Self::push_committee_member(
+                    &mut members,
+                    &mut seen_controllers,
+                    &mut seen_diversity_keys,
                     controller_id,
-                    role: if members.is_empty() {
-                        CommitteeRole::Participant
-                    } else {
-                        CommitteeRole::Witness
-                    },
-                });
+                    diversity_key,
+                    node_id,
+                );
                 if members.len() >= 2 {
                     break;
                 }
             }
         }
 
-        if members.len() < 2 {
-            return Ok(None);
-        }
+        members
+    }
 
-        // Bounded by MESH_COMMITTEE_MEMBERSHIP_CAP above, so the cast is
-        // infallible.
+    fn push_committee_member(
+        members: &mut Vec<CommitteeMember>,
+        seen_controllers: &mut BTreeSet<ControllerId>,
+        seen_diversity_keys: &mut BTreeSet<CommitteeDiversityKey>,
+        controller_id: ControllerId,
+        diversity_key: CommitteeDiversityKey,
+        node_id: NodeId,
+    ) {
+        seen_controllers.insert(controller_id);
+        seen_diversity_keys.insert(diversity_key);
+        members.push(CommitteeMember {
+            node_id,
+            controller_id,
+            role: if members.is_empty() {
+                CommitteeRole::Participant
+            } else {
+                CommitteeRole::Witness
+            },
+        });
+    }
+
+    fn committee_selection(
+        &self,
+        objective: &RoutingObjective,
+        configuration: &Configuration,
+        current_tick: Tick,
+        members: Vec<CommitteeMember>,
+    ) -> CommitteeSelection {
         let quorum_threshold = u8::try_from((members.len() / 2) + 1)
             .expect("committee size is bounded by MESH_COMMITTEE_MEMBERSHIP_CAP");
         let validity_end = Tick(current_tick.0 + MESH_COMMITTEE_VALIDITY_TICKS);
-        let committee_id = committee_id_for(objective, configuration.epoch);
-
-        Ok(Some(CommitteeSelection {
-            committee_id,
+        CommitteeSelection {
+            committee_id: self.committee_id_for(objective, configuration.epoch),
             topology_epoch: configuration.epoch,
             selected_at_tick: current_tick,
             valid_for: TimeWindow::new(current_tick, validity_end)
@@ -387,7 +465,7 @@ where
             identity_assurance: IdentityAssuranceClass::ControllerBound,
             quorum_threshold,
             members,
-        }))
+        }
     }
 }
 
@@ -405,13 +483,7 @@ pub fn mesh_admission_assumptions(
         failure_model: jacquard_core::FailureModelClass::Benign,
         runtime_envelope: jacquard_core::RuntimeEnvelopeClass::Canonical,
         node_density_class: density_class(configuration.environment.reachable_neighbor_count),
-        connectivity_regime: if churn > CHURN_PARTITION_PRONE_PERMILLE {
-            jacquard_core::ConnectivityRegime::PartitionProne
-        } else if churn > CHURN_HIGH_CHURN_PERMILLE {
-            jacquard_core::ConnectivityRegime::HighChurn
-        } else {
-            jacquard_core::ConnectivityRegime::Stable
-        },
+        connectivity_regime: connectivity_regime(churn),
         adversary_regime: jacquard_core::AdversaryRegime::BenignUntrusted,
         claim_strength: if profile.selected_connectivity.repair == RouteRepairClass::Repairable {
             ClaimStrength::ExactUnderAssumptions
@@ -431,13 +503,29 @@ pub fn mesh_route_connectivity(profile: &AdaptiveRoutingProfile) -> RouteConnect
 
 #[must_use]
 pub fn mesh_health_score(configuration: &Configuration) -> HealthScore {
-    let reachable = configuration
-        .environment
-        .reachable_neighbor_count
-        .saturating_mul(100);
+    // Mesh health stays on the shared 0..=HEALTH_SCORE_MAX scale. The score
+    // rewards both usable neighbor density and environmental stability instead
+    // of letting either dominate alone:
+    // - density_score measures how close the local neighborhood is to a dense
+    //   mesh regime, saturating once dense membership is reached.
+    // - stability_score measures how calm the environment is after averaging
+    //   churn and contention penalties.
+    // The final score is the midpoint of the two so sparse-but-calm and
+    // dense-but-chaotic regimes both land below a balanced middle regime.
+    let density_score = if DENSITY_DENSE_NEIGHBOR_MIN == 0 {
+        bounded_health_score(0)
+    } else {
+        let capped_neighbors = configuration
+            .environment
+            .reachable_neighbor_count
+            .min(DENSITY_DENSE_NEIGHBOR_MIN);
+        bounded_health_score(capped_neighbors.saturating_mul(1000) / DENSITY_DENSE_NEIGHBOR_MIN)
+    };
     let churn_penalty = u32::from(configuration.environment.churn_permille.get());
     let contention_penalty = u32::from(configuration.environment.contention_permille.get());
-    bounded_health_score(reachable.saturating_sub((churn_penalty + contention_penalty) / 2))
+    let stability_score =
+        bounded_health_score(1000_u32.saturating_sub((churn_penalty + contention_penalty) / 2));
+    bounded_health_score((density_score.0 + stability_score.0) / 2)
 }
 
 fn density_class(neighbor_count: u32) -> NodeDensityClass {
@@ -450,26 +538,42 @@ fn density_class(neighbor_count: u32) -> NodeDensityClass {
     }
 }
 
-fn committee_id_for(objective: &RoutingObjective, epoch: RouteEpoch) -> CommitteeId {
-    let mut bytes = [0_u8; 16];
-    let seed = match &objective.destination {
-        jacquard_core::DestinationId::Node(node_id) => node_id.0,
-        jacquard_core::DestinationId::Service(service_id) => {
-            let mut seed = [0_u8; 32];
-            for (index, byte) in service_id.0.iter().take(32).enumerate() {
-                seed[index] = *byte;
-            }
-            seed
+fn connectivity_regime(churn_permille: u16) -> jacquard_core::ConnectivityRegime {
+    if churn_permille > CHURN_PARTITION_PRONE_PERMILLE {
+        jacquard_core::ConnectivityRegime::PartitionProne
+    } else if churn_permille > CHURN_HIGH_CHURN_PERMILLE {
+        jacquard_core::ConnectivityRegime::HighChurn
+    } else {
+        jacquard_core::ConnectivityRegime::Stable
+    }
+}
+
+impl<Topology, Hasher> DeterministicCommitteeSelector<Topology, Hasher>
+where
+    Hasher: Hashing,
+    Hasher::Digest: HashDigestBytes,
+{
+    fn committee_id_for(&self, objective: &RoutingObjective, epoch: RouteEpoch) -> CommitteeId {
+        #[derive(serde::Serialize)]
+        struct CommitteeSeed<'a> {
+            destination: &'a jacquard_core::DestinationId,
+            epoch: RouteEpoch,
         }
-        jacquard_core::DestinationId::Gateway(gateway_id) => {
-            let mut seed = [0_u8; 32];
-            seed[..16].copy_from_slice(&gateway_id.0);
-            seed
-        }
-    };
-    bytes[..8].copy_from_slice(&seed[..8]);
-    bytes[8..].copy_from_slice(&epoch.0.to_le_bytes());
-    CommitteeId(bytes)
+
+        let payload = bincode::DefaultOptions::new()
+            .with_fixint_encoding()
+            .serialize(&CommitteeSeed {
+                destination: &objective.destination,
+                epoch,
+            })
+            .expect("committee seed is always serializable");
+        let digest = self
+            .hashing
+            .hash_tagged(crate::engine::DOMAIN_TAG_COMMITTEE_ID, &payload);
+        let mut bytes = [0_u8; 16];
+        bytes.copy_from_slice(&digest.as_bytes()[..16]);
+        CommitteeId(bytes)
+    }
 }
 
 #[cfg(test)]
@@ -478,14 +582,13 @@ mod tests {
     use crate::HEALTH_SCORE_MAX;
     use jacquard_core::{
         AdaptiveRoutingProfile, Belief, BleDeviceId, BleProfileId, ByteCount, Configuration,
-        ContentId, ControllerId, DeploymentProfile, DestinationId, Environment, Estimate,
-        FactSourceClass, HoldFallbackPolicy, Limit, Link, LinkEndpoint, LinkRuntimeState,
-        LinkState, Node, NodeProfile, NodeRelayBudget, NodeState, Observation,
-        OriginAuthenticationClass, PriorityPoints, RatioPermille, RouteConnectivityProfile,
-        RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-        RouteReplacementPolicy, RouteServiceKind, RoutingEngineFallbackPolicy,
-        RoutingEvidenceClass, RoutingObjective, ServiceDescriptor, ServiceId, ServiceScope, Tick,
-        TimeWindow, TransportProtocol,
+        ControllerId, DeploymentProfile, DestinationId, Environment, Estimate, FactSourceClass,
+        HoldFallbackPolicy, Limit, Link, LinkEndpoint, LinkRuntimeState, LinkState, Node,
+        NodeProfile, NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass,
+        PriorityPoints, RatioPermille, RouteConnectivityProfile, RouteEpoch, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
+        RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective, ServiceDescriptor,
+        ServiceId, ServiceScope, Tick, TimeWindow, TransportProtocol,
     };
     use std::collections::BTreeMap;
 
@@ -754,8 +857,61 @@ mod tests {
         );
     }
 
-    // ContentId is unused here but included for parity with the broader
-    // mesh tests so the import block stays consistent.
-    #[allow(dead_code)]
-    fn _content_id_marker(_: ContentId<jacquard_core::Blake3Digest>) {}
+    #[test]
+    fn mesh_health_score_prefers_balanced_middle_regime_over_extremes() {
+        let sparse_calm = topology_with_neighbor_count(1);
+        let mut dense_chaotic = topology_with_neighbor_count(8);
+        dense_chaotic.value.environment.churn_permille = RatioPermille(900);
+        dense_chaotic.value.environment.contention_permille = RatioPermille(900);
+        let mut balanced = topology_with_neighbor_count(4);
+        balanced.value.environment.churn_permille = RatioPermille(350);
+        balanced.value.environment.contention_permille = RatioPermille(350);
+
+        let sparse_score = mesh_health_score(&sparse_calm.value);
+        let dense_chaotic_score = mesh_health_score(&dense_chaotic.value);
+        let balanced_score = mesh_health_score(&balanced.value);
+
+        assert!(balanced_score.0 > sparse_score.0);
+        assert!(balanced_score.0 > dense_chaotic_score.0);
+    }
+
+    #[test]
+    fn connectivity_regime_thresholds_are_explicit() {
+        assert_eq!(
+            connectivity_regime(CHURN_HIGH_CHURN_PERMILLE),
+            jacquard_core::ConnectivityRegime::Stable
+        );
+        assert_eq!(
+            connectivity_regime(CHURN_HIGH_CHURN_PERMILLE + 1),
+            jacquard_core::ConnectivityRegime::HighChurn
+        );
+        assert_eq!(
+            connectivity_regime(CHURN_PARTITION_PRONE_PERMILLE),
+            jacquard_core::ConnectivityRegime::HighChurn
+        );
+        assert_eq!(
+            connectivity_regime(CHURN_PARTITION_PRONE_PERMILLE + 1),
+            jacquard_core::ConnectivityRegime::PartitionProne
+        );
+    }
+
+    #[test]
+    fn density_class_thresholds_are_explicit() {
+        assert_eq!(
+            density_class(DENSITY_MODERATE_NEIGHBOR_MIN.saturating_sub(1)),
+            NodeDensityClass::Sparse
+        );
+        assert_eq!(
+            density_class(DENSITY_MODERATE_NEIGHBOR_MIN),
+            NodeDensityClass::Moderate
+        );
+        assert_eq!(
+            density_class(DENSITY_DENSE_NEIGHBOR_MIN.saturating_sub(1)),
+            NodeDensityClass::Moderate
+        );
+        assert_eq!(
+            density_class(DENSITY_DENSE_NEIGHBOR_MIN),
+            NodeDensityClass::Dense
+        );
+    }
 }

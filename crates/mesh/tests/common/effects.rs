@@ -15,7 +15,8 @@ use jacquard_traits::{
         RouteEventStamped, StorageError, Tick, TransportError, TransportObservation,
         TransportProtocol,
     },
-    MeshTransport, OrderEffects, RetentionStore, RouteEventLogEffects, StorageEffects, TimeEffects,
+    MeshFrame, MeshTransport, OrderEffects, RetentionStore, RouteEventLogEffects, StorageEffects,
+    TimeEffects,
 };
 
 #[derive(Default)]
@@ -23,6 +24,7 @@ pub struct TestRuntimeEffects {
     pub now: Tick,
     pub next_order: u64,
     pub storage: BTreeMap<Vec<u8>, Vec<u8>>,
+    pub store_bytes_call_count: u32,
     pub events: Vec<RouteEventStamped>,
     pub fail_store_bytes: bool,
     pub fail_record_route_event: bool,
@@ -53,6 +55,7 @@ impl StorageEffects for TestRuntimeEffects {
         if self.fail_store_bytes {
             return Err(StorageError::Unavailable);
         }
+        self.store_bytes_call_count = self.store_bytes_call_count.saturating_add(1);
         self.storage.insert(key.to_vec(), value.to_vec());
         Ok(())
     }
@@ -85,12 +88,9 @@ impl MeshTransport for TestTransport {
         TransportProtocol::BleGatt
     }
 
-    fn send_frame(
-        &mut self,
-        endpoint: &LinkEndpoint,
-        payload: &[u8],
-    ) -> Result<(), TransportError> {
-        self.sent_frames.push((endpoint.clone(), payload.to_vec()));
+    fn send_frame(&mut self, frame: MeshFrame<'_>) -> Result<(), TransportError> {
+        self.sent_frames
+            .push((frame.endpoint.clone(), frame.payload.to_vec()));
         Ok(())
     }
 

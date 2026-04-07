@@ -26,6 +26,7 @@ use common::fixtures::sample_configuration;
 // lease-expiry failure once the engine clock has moved past the lease
 // window.
 #[test]
+// long-block-exception: this lifecycle scenario intentionally keeps the repair, partition, and retention transitions together so the active-route state machine is readable end to end.
 fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
     let mut engine = build_engine();
     let topology = sample_configuration();

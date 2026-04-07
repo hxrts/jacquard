@@ -8,7 +8,7 @@ mod common;
 
 use std::collections::BTreeMap;
 
-use jacquard_mesh::MeshTransportObservationSummary;
+use jacquard_mesh::{MeshTransportFreshness, MeshTransportObservationSummary};
 use jacquard_traits::{
     jacquard_core::{
         Belief, DestinationId, DurationMs, EndpointAddress, Estimate, FactSourceClass, HealthScore,
@@ -27,7 +27,7 @@ use common::fixtures::sample_configuration;
 
 fn connected_only_policy() -> jacquard_traits::jacquard_core::AdaptiveRoutingProfile {
     profile_with_connectivity(
-        RouteRepairClass::Repairable,
+        RouteRepairClass::BestEffort,
         RoutePartitionClass::ConnectedOnly,
     )
 }
@@ -101,6 +101,7 @@ fn materialization_before_first_tick_fails_closed() {
 }
 
 #[test]
+// long-block-exception: this integration test keeps the tick inputs and resulting health surface in one place so the transport-to-health update path is easy to audit end to end.
 fn engine_tick_transport_observations_change_health_inputs() {
     let topology = sample_configuration();
     let goal = direct_goal();
@@ -198,6 +199,7 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
             payload_event_count: 0,
             observed_link_count: 1,
             reachable_remote_count: 1,
+            freshness: MeshTransportFreshness::Fresh,
             stability_score: HealthScore(750),
             congestion_penalty_points: PenaltyPoints(4),
             remote_links: BTreeMap::from([(
@@ -214,6 +216,101 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
 }
 
 #[test]
+fn quiet_tick_preserves_still_fresh_transport_summary() {
+    let topology = sample_configuration();
+    let mut engine = build_engine();
+    engine
+        .transport_mut()
+        .observations
+        .push(low_quality_link_observation());
+
+    engine.engine_tick(&topology).expect("observed tick");
+    let initial = engine
+        .transport_observation_summary()
+        .expect("fresh summary")
+        .clone();
+
+    let mut quiet_topology = topology.clone();
+    quiet_topology.observed_at_tick = Tick(3);
+    engine.engine_tick(&quiet_topology).expect("quiet tick");
+    let quiet = engine
+        .transport_observation_summary()
+        .expect("quiet summary")
+        .clone();
+
+    assert_eq!(quiet.freshness, MeshTransportFreshness::Quiet);
+    assert_eq!(quiet.last_observed_at_tick, initial.last_observed_at_tick);
+    assert_eq!(quiet.payload_event_count, 0);
+    assert_eq!(quiet.observed_link_count, 0);
+    assert!(quiet.stability_score.0 < initial.stability_score.0);
+}
+
+#[test]
+fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
+    let topology = sample_configuration();
+    let mut engine = build_engine();
+    engine
+        .transport_mut()
+        .observations
+        .push(low_quality_link_observation());
+    engine.engine_tick(&topology).expect("observed tick");
+
+    for tick in [Tick(3), Tick(4), Tick(5)] {
+        let mut quiet_topology = topology.clone();
+        quiet_topology.observed_at_tick = tick;
+        engine.engine_tick(&quiet_topology).expect("quiet tick");
+    }
+
+    let stale = engine
+        .transport_observation_summary()
+        .expect("stale summary")
+        .clone();
+    assert_eq!(stale.freshness, MeshTransportFreshness::Stale);
+
+    let mut refreshed_topology = topology.clone();
+    refreshed_topology.observed_at_tick = Tick(6);
+    let mut refreshed_observation = low_quality_link_observation();
+    if let TransportObservation::LinkObserved { observation, .. } = &mut refreshed_observation {
+        observation.observed_at_tick = Tick(6);
+    }
+    engine
+        .transport_mut()
+        .observations
+        .push(refreshed_observation);
+    engine
+        .engine_tick(&refreshed_topology)
+        .expect("refresh tick");
+    let refreshed = engine
+        .transport_observation_summary()
+        .expect("refreshed summary")
+        .clone();
+    assert_eq!(refreshed.freshness, MeshTransportFreshness::Fresh);
+    assert!(refreshed.stability_score.0 >= stale.stability_score.0);
+}
+
+#[test]
+fn repeated_ticks_on_the_same_epoch_do_not_rewrite_epoch_checkpoint() {
+    let topology = sample_configuration();
+    let mut engine = build_engine();
+
+    engine.engine_tick(&topology).expect("first tick");
+    let writes_after_first_tick = engine.runtime_effects().store_bytes_call_count;
+
+    let mut same_epoch_topology = topology.clone();
+    same_epoch_topology.observed_at_tick = Tick(3);
+    engine
+        .engine_tick(&same_epoch_topology)
+        .expect("second same-epoch tick");
+
+    assert_eq!(
+        engine.runtime_effects().store_bytes_call_count,
+        writes_after_first_tick,
+        "same-epoch ticks should not rewrite the topology checkpoint",
+    );
+}
+
+#[test]
+// long-block-exception: this scenario test keeps the full route setup, degraded suffix, and resulting route-scoped health assertions together because splitting it obscures the suffix logic.
 fn route_health_is_scoped_to_the_active_route_suffix() {
     let topology = sample_configuration();
     let mut engine = build_engine();
@@ -319,6 +416,7 @@ fn route_health_is_scoped_to_the_active_route_suffix() {
 }
 
 #[test]
+// long-block-exception: this posture test reads most clearly with the calm and pressured engines constructed side by side and compared in one block.
 fn high_transport_pressure_changes_repair_posture() {
     let topology = sample_configuration();
     let mut calm_engine = build_engine();

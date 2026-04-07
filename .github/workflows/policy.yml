@@ -30,6 +30,8 @@ jobs:
         run: nix develop --command cargo xtask check crate-boundary
       - name: No usize in Models
         run: nix develop --command cargo xtask check no-usize-in-models
+      - name: Routing Invariants
+        run: nix develop --command cargo xtask check routing-invariants
       - name: Routing Invariants Validate
         run: nix develop --command cargo xtask check routing-invariants --validate
       - name: Install cargo-dylint

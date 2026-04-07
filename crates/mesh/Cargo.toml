@@ -14,5 +14,6 @@ jacquard-core = { path = "../core" }
 jacquard-traits = { path = "../traits" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+bincode = { workspace = true }
 
 [dev-dependencies]

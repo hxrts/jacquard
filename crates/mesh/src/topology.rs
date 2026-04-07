@@ -12,7 +12,7 @@ use jacquard_core::{
     Node, NodeId, NodeRelayBudget, RatioPermille, RouteServiceKind, RoutingEngineId,
     RoutingObjective, ServiceDescriptor, ServiceId, ServiceScope, Tick, TransportProtocol,
 };
-use jacquard_traits::MeshTopologyModel;
+use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshTopologyModel};
 
 /// Number of routable service kinds (Discover, Move, Hold) a node must
 /// advertise to be considered route-capable for this engine.
@@ -26,6 +26,15 @@ pub const HEALTH_SCORE_MAX: u32 = 1000;
 /// Multiplier applied to reachable-neighbor counts when scaling them
 /// into the HealthScore range in `neighborhood_estimate`.
 pub const DENSITY_SCORE_SCALE: u32 = 100;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MeshServiceRequirements {
+    pub discover: bool,
+    pub activate: bool,
+    pub move_: bool,
+    pub repair: bool,
+    pub hold: bool,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshPeerEstimate {
@@ -41,6 +50,42 @@ pub struct MeshNeighborhoodEstimate {
     pub repair_pressure_score: Option<HealthScore>,
     pub partition_risk_score: Option<HealthScore>,
     pub service_stability_score: Option<HealthScore>,
+}
+
+impl MeshPeerEstimateAccess for MeshPeerEstimate {
+    fn relay_value_score(&self) -> Option<HealthScore> {
+        self.relay_value_score
+    }
+
+    fn retention_value_score(&self) -> Option<HealthScore> {
+        self.retention_value_score
+    }
+
+    fn stability_score(&self) -> Option<HealthScore> {
+        self.stability_score
+    }
+
+    fn service_score(&self) -> Option<HealthScore> {
+        self.service_score
+    }
+}
+
+impl MeshNeighborhoodEstimateAccess for MeshNeighborhoodEstimate {
+    fn density_score(&self) -> Option<HealthScore> {
+        self.density_score
+    }
+
+    fn repair_pressure_score(&self) -> Option<HealthScore> {
+        self.repair_pressure_score
+    }
+
+    fn partition_risk_score(&self) -> Option<HealthScore> {
+        self.partition_risk_score
+    }
+
+    fn service_stability_score(&self) -> Option<HealthScore> {
+        self.service_stability_score
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -207,16 +252,10 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
             }
         };
 
-        let retention_capacity = peer
-            .state
-            .hold_capacity_available_bytes
-            .into_estimate()
+        let retention_capacity = belief_into_estimate(peer.state.hold_capacity_available_bytes)
             .map(|estimate| bounded_health_score(clamp_u64_to_u32(estimate.value.0)));
 
-        let confidence = link
-            .state
-            .delivery_confidence_permille
-            .into_estimate()
+        let confidence = belief_into_estimate(link.state.delivery_confidence_permille)
             .map(|estimate| u32::from(estimate.value.get()));
         let symmetry =
             belief_ratio(link.state.symmetry_permille).map(|value| u32::from(value.get()));
@@ -297,6 +336,22 @@ pub(crate) fn route_capable_for_engine(
         >= MESH_REQUIRED_SERVICE_COUNT
 }
 
+pub(crate) fn service_requirements_for_objective(
+    objective: &RoutingObjective,
+    require_hold: bool,
+) -> MeshServiceRequirements {
+    let mut requirements = MeshServiceRequirements::default();
+    match objective.service_kind {
+        RouteServiceKind::Discover => requirements.discover = true,
+        RouteServiceKind::Activate => requirements.activate = true,
+        RouteServiceKind::Move => requirements.move_ = true,
+        RouteServiceKind::Repair => requirements.repair = true,
+        RouteServiceKind::Hold => requirements.hold = true,
+    }
+    requirements.hold |= require_hold;
+    requirements
+}
+
 // Destination matching: a Node destination matches by node-id only; a
 // Gateway destination requires a gateway-scoped service; a Service
 // destination requires any service of the requested kind on this engine.
@@ -308,7 +363,13 @@ pub(crate) fn objective_matches_node(
     engine_id: &RoutingEngineId,
     current_tick: jacquard_core::Tick,
 ) -> bool {
-    if !route_capable_for_engine(node, engine_id, current_tick) {
+    let requirements = service_requirements_for_objective(objective, false);
+    if !services_meet_requirements(
+        &node.profile.services,
+        engine_id,
+        current_tick,
+        requirements,
+    ) {
         return false;
     }
 
@@ -361,23 +422,48 @@ pub(crate) fn service_surface_score(
     engine_id: &RoutingEngineId,
     current_tick: Tick,
 ) -> u32 {
-    let has_discover = services.iter().any(|service| {
-        service.service_kind == RouteServiceKind::Discover
-            && service.routing_engines.contains(engine_id)
-            && service.valid_for.contains(current_tick)
-    });
-    let has_move = services.iter().any(|service| {
-        service.service_kind == RouteServiceKind::Move
-            && service.routing_engines.contains(engine_id)
-            && service.valid_for.contains(current_tick)
-    });
-    let has_hold = services.iter().any(|service| {
-        service.service_kind == RouteServiceKind::Hold
-            && service.routing_engines.contains(engine_id)
-            && service.valid_for.contains(current_tick)
-    });
+    service_surface_score_for_requirements(
+        services,
+        engine_id,
+        current_tick,
+        MeshServiceRequirements {
+            discover: true,
+            move_: true,
+            hold: true,
+            ..MeshServiceRequirements::default()
+        },
+    )
+}
 
-    u32::from(has_discover) + u32::from(has_move) + u32::from(has_hold)
+pub(crate) fn service_surface_score_for_requirements(
+    services: &[ServiceDescriptor],
+    engine_id: &RoutingEngineId,
+    current_tick: Tick,
+    requirements: MeshServiceRequirements,
+) -> u32 {
+    let has_kind = |kind: RouteServiceKind| {
+        services.iter().any(|service| {
+            service.service_kind == kind
+                && service.routing_engines.contains(engine_id)
+                && service.valid_for.contains(current_tick)
+        })
+    };
+
+    u32::from(requirements.discover && has_kind(RouteServiceKind::Discover))
+        + u32::from(requirements.activate && has_kind(RouteServiceKind::Activate))
+        + u32::from(requirements.move_ && has_kind(RouteServiceKind::Move))
+        + u32::from(requirements.repair && has_kind(RouteServiceKind::Repair))
+        + u32::from(requirements.hold && has_kind(RouteServiceKind::Hold))
+}
+
+pub(crate) fn services_meet_requirements(
+    services: &[ServiceDescriptor],
+    engine_id: &RoutingEngineId,
+    current_tick: Tick,
+    requirements: MeshServiceRequirements,
+) -> bool {
+    service_surface_score_for_requirements(services, engine_id, current_tick, requirements)
+        == required_service_count(requirements)
 }
 
 pub(crate) fn service_surface_health_score(
@@ -385,16 +471,55 @@ pub(crate) fn service_surface_health_score(
     engine_id: &RoutingEngineId,
     current_tick: Tick,
 ) -> u32 {
-    let service_count = service_surface_score(services, engine_id, current_tick);
-    if service_count >= MESH_REQUIRED_SERVICE_COUNT {
+    service_surface_health_score_for_requirements(
+        services,
+        engine_id,
+        current_tick,
+        MeshServiceRequirements {
+            discover: true,
+            move_: true,
+            hold: true,
+            ..MeshServiceRequirements::default()
+        },
+    )
+}
+
+pub(crate) fn service_surface_health_score_for_requirements(
+    services: &[ServiceDescriptor],
+    engine_id: &RoutingEngineId,
+    current_tick: Tick,
+    requirements: MeshServiceRequirements,
+) -> u32 {
+    let required = required_service_count(requirements);
+    if required == 0 {
+        return HEALTH_SCORE_MAX;
+    }
+    let service_count =
+        service_surface_score_for_requirements(services, engine_id, current_tick, requirements);
+    if service_count >= required {
         HEALTH_SCORE_MAX
     } else {
-        service_count.saturating_mul(HEALTH_SCORE_MAX / MESH_REQUIRED_SERVICE_COUNT)
+        service_count.saturating_mul(HEALTH_SCORE_MAX / required)
     }
+}
+
+fn required_service_count(requirements: MeshServiceRequirements) -> u32 {
+    u32::from(requirements.discover)
+        + u32::from(requirements.activate)
+        + u32::from(requirements.move_)
+        + u32::from(requirements.repair)
+        + u32::from(requirements.hold)
 }
 
 pub(crate) fn optional_health_score_value(score: Option<HealthScore>) -> u32 {
     score.map_or(0, |score| score.0)
+}
+
+pub(crate) fn belief_into_estimate<T>(belief: Belief<T>) -> Option<jacquard_core::Estimate<T>> {
+    match belief {
+        Belief::Absent => None,
+        Belief::Estimated(estimate) => Some(estimate),
+    }
 }
 
 pub(crate) fn estimate_hop_link(
@@ -407,17 +532,15 @@ pub(crate) fn estimate_hop_link(
 }
 
 fn belief_u32(belief: Belief<u32>) -> u32 {
-    belief.into_estimate().map_or(0, |estimate| estimate.value)
+    belief_into_estimate(belief).map_or(0, |estimate| estimate.value)
 }
 
 fn belief_byte_count(belief: Belief<ByteCount>) -> ByteCount {
-    belief
-        .into_estimate()
-        .map_or(ByteCount(0), |estimate| estimate.value)
+    belief_into_estimate(belief).map_or(ByteCount(0), |estimate| estimate.value)
 }
 
 fn belief_ratio(belief: Belief<RatioPermille>) -> Option<RatioPermille> {
-    belief.into_estimate().map(|estimate| estimate.value)
+    belief_into_estimate(belief).map(|estimate| estimate.value)
 }
 
 fn clamp_u64_to_u32(value: u64) -> u32 {
@@ -430,19 +553,6 @@ fn mean_score(left: Option<u32>, right: Option<u32>) -> Option<u32> {
         (Some(left), None) => Some(left),
         (None, Some(right)) => Some(right),
         (None, None) => None,
-    }
-}
-
-trait BeliefExt<T> {
-    fn into_estimate(self) -> Option<jacquard_core::Estimate<T>>;
-}
-
-impl<T> BeliefExt<T> for Belief<T> {
-    fn into_estimate(self) -> Option<jacquard_core::Estimate<T>> {
-        match self {
-            Belief::Absent => None,
-            Belief::Estimated(estimate) => Some(estimate),
-        }
     }
 }
 

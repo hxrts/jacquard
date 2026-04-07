@@ -85,6 +85,7 @@ fn sample_route_cost() -> RouteCost {
     }
 }
 
+// long-block-exception: dense integration-test fixture assembly keeps candidate, input, and installation visibly aligned in one place.
 fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInstallation) {
     let objective = sample_objective();
     let admission_profile = sample_admission_assumptions();

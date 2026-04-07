@@ -11,19 +11,20 @@ use std::{
     convert::TryFrom,
 };
 
+use bincode::Options;
 use jacquard_core::{
-    BackendRouteId, Belief, Blake3Digest, ByteCount, CommitteeSelection, Configuration,
-    DegradationReason, DestinationId, DeterministicOrderKey, Limit, NodeId, OrderStamp, RouteCost,
-    RouteDegradation, RouteEpoch, RouteId, TimeWindow,
+    BackendRouteId, ByteCount, CommitteeSelection, Configuration, DegradationReason, DestinationId,
+    DeterministicOrderKey, Limit, NodeId, OrderStamp, RouteCost, RouteDegradation, RouteEpoch,
+    RouteId, TimeWindow,
 };
-use jacquard_traits::Hashing;
+use jacquard_traits::{HashDigestBytes, Hashing};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ActiveMeshRoute, MeshRouteClass, MeshRouteSegment, MESH_HOLD_RESERVED_BYTES,
-    MESH_PER_HOP_BYTE_COST,
+    ActiveMeshRoute, MeshCommitteeStatus, MeshRouteClass, MeshRouteSegment,
+    MESH_HOLD_RESERVED_BYTES, MESH_PER_HOP_BYTE_COST,
 };
-use crate::topology::{adjacent_link_between, adjacent_node_ids};
+use crate::topology::{adjacent_link_between, adjacent_node_ids, belief_into_estimate};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct MeshPlanToken {
@@ -33,7 +34,59 @@ pub(super) struct MeshPlanToken {
     pub(super) segments: Vec<MeshRouteSegment>,
     pub(super) valid_for: TimeWindow,
     pub(super) route_class: MeshRouteClass,
-    pub(super) committee: Option<CommitteeSelection>,
+    // Keep committee status self-contained inside the token so cache misses,
+    // engine restarts, and materialization re-derivation preserve the exact
+    // admission semantics without reintroducing planner cache dependence.
+    pub(super) committee_status: MeshCommitteeStatus,
+}
+
+pub(super) use super::MeshCommitteeStatus as CommitteeStatus;
+
+pub(crate) const DOMAIN_TAG_ROUTE_ID: &[u8] = b"mesh-route-id";
+pub(crate) const DOMAIN_TAG_COMMITMENT: &[u8] = b"mesh-commitment";
+pub(crate) const DOMAIN_TAG_HANDOFF_RECEIPT: &[u8] = b"mesh-handoff-receipt";
+pub(crate) const DOMAIN_TAG_RETENTION: &[u8] = b"mesh-retention";
+pub(crate) const DOMAIN_TAG_COMMITTEE_ID: &[u8] = b"mesh-committee-id";
+pub(crate) const DOMAIN_TAG_ORDER_KEY: &[u8] = b"mesh-order-key";
+
+const PLAN_TOKEN_ENCODING_VERSION: u8 = 1;
+const ROUTE_IDENTITY_ENCODING_VERSION: u8 = 1;
+const CHECKPOINT_ENCODING_VERSION: u8 = 1;
+const PATH_ENCODING_VERSION: u8 = 1;
+
+pub(super) fn committee_status(
+    result: Result<Option<CommitteeSelection>, jacquard_core::RouteError>,
+) -> MeshCommitteeStatus {
+    match result {
+        Ok(Some(selection)) => MeshCommitteeStatus::Selected(selection),
+        Ok(None) => MeshCommitteeStatus::NotApplicable,
+        Err(_) => MeshCommitteeStatus::SelectorFailed,
+    }
+}
+
+fn canonical_options() -> impl Options {
+    bincode::DefaultOptions::new()
+        .with_fixint_encoding()
+        .allow_trailing_bytes()
+}
+
+fn encode_versioned<T: Serialize>(version: u8, value: &T) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(32);
+    bytes.push(version);
+    bytes.extend(
+        canonical_options()
+            .serialize(value)
+            .expect("mesh canonical bytes are always serializable"),
+    );
+    bytes
+}
+
+fn decode_versioned<T: for<'de> Deserialize<'de>>(bytes: &[u8], version: u8) -> Option<T> {
+    let (encoded_version, rest) = bytes.split_first()?;
+    if *encoded_version != version {
+        return None;
+    }
+    canonical_options().deserialize(rest).ok()
 }
 
 // Unweighted BFS. Returns the shortest node path from the local node
@@ -81,15 +134,13 @@ pub(super) fn unique_protocol_mix(
 }
 
 pub(super) fn encode_path_bytes(path: &[NodeId], segments: &[MeshRouteSegment]) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    for node_id in path {
-        bytes.extend_from_slice(&node_id.0);
+    #[derive(Serialize)]
+    struct PathEncoding<'a> {
+        path: &'a [NodeId],
+        segments: &'a [MeshRouteSegment],
     }
-    for segment in segments {
-        bytes.extend_from_slice(&segment.node_id.0);
-        bytes.extend_from_slice(&segment.endpoint.mtu_bytes.0.to_le_bytes());
-    }
-    bytes
+
+    encode_versioned(PATH_ENCODING_VERSION, &PathEncoding { path, segments })
 }
 
 pub(super) fn node_path_from_plan_token(plan: &MeshPlanToken) -> Vec<NodeId> {
@@ -108,13 +159,19 @@ pub(super) fn encode_route_identity_bytes(plan: &MeshPlanToken) -> Vec<u8> {
         route_class: &'a MeshRouteClass,
     }
 
-    serde_json::to_vec(&MeshRouteIdentity {
-        source: &plan.source,
-        destination: &plan.destination,
-        segments: &plan.segments,
-        route_class: &plan.route_class,
-    })
-    .expect("mesh route identity bytes are always serializable")
+    // Route ids in v1 mesh are path identities rather than per-epoch instance
+    // identities. The epoch stays in the plan token and materialization proof,
+    // but the stable route id is derived from source, destination, route class,
+    // and the concrete segment path only.
+    encode_versioned(
+        ROUTE_IDENTITY_ENCODING_VERSION,
+        &MeshRouteIdentity {
+            source: &plan.source,
+            destination: &plan.destination,
+            segments: &plan.segments,
+            route_class: &plan.route_class,
+        },
+    )
 }
 
 // Self-contained plan token: a serialized mesh-private route plan
@@ -123,23 +180,23 @@ pub(super) fn encode_route_identity_bytes(plan: &MeshPlanToken) -> Vec<u8> {
 // and planner cache-miss paths decode this token instead of depending
 // on ambient mutable engine state.
 pub(super) fn encode_backend_token(plan: &MeshPlanToken) -> BackendRouteId {
-    BackendRouteId(serde_json::to_vec(plan).expect("mesh plan tokens are always serializable"))
+    BackendRouteId(encode_versioned(PLAN_TOKEN_ENCODING_VERSION, plan))
 }
 
 // Inverse of `encode_backend_token`. Invalid or hand-crafted bytes fail
 // closed with None rather than being partially decoded.
 pub(super) fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<MeshPlanToken> {
-    serde_json::from_slice(&backend_route_id.0).ok()
+    decode_versioned(&backend_route_id.0, PLAN_TOKEN_ENCODING_VERSION)
 }
 
-pub(super) fn deterministic_order_key<H: Hashing<Digest = Blake3Digest>>(
+pub(super) fn deterministic_order_key<H: Hashing>(
     route_id: RouteId,
     hashing: &H,
     path_bytes: &[u8],
 ) -> DeterministicOrderKey<RouteId> {
-    let digest = hashing.hash_tagged(b"mesh-order-key", path_bytes);
+    let digest = hashing.hash_tagged(DOMAIN_TAG_ORDER_KEY, path_bytes);
     let mut tie_break_bytes = [0_u8; 8];
-    tie_break_bytes.copy_from_slice(&digest.0[..8]);
+    tie_break_bytes.copy_from_slice(&digest.as_bytes()[..8]);
     DeterministicOrderKey {
         stable_key: route_id,
         tie_break: OrderStamp(u64::from_le_bytes(tie_break_bytes)),
@@ -159,9 +216,7 @@ pub(super) fn confidence_for_segments(
         if let Some(from) = previous {
             if let Some(link) = adjacent_link_between(&from, &segment.node_id, configuration) {
                 confidence = confidence.min(
-                    link.state
-                        .delivery_confidence_permille
-                        .into_estimate()
+                    belief_into_estimate(link.state.delivery_confidence_permille)
                         .map_or(jacquard_core::RatioPermille(0), |estimate| estimate.value)
                         .get(),
                 );
@@ -215,12 +270,9 @@ pub(super) fn route_cost_for_segments(
                 return (symmetry_penalty, congestion_penalty);
             };
             let symmetry_penalty = symmetry_penalty.saturating_add(
-                link.state
-                    .symmetry_permille
-                    .into_estimate()
-                    .map_or(10, |estimate| {
-                        (1000_u32.saturating_sub(u32::from(estimate.value.get()))) / 100
-                    }),
+                belief_into_estimate(link.state.symmetry_permille).map_or(10, |estimate| {
+                    (1000_u32.saturating_sub(u32::from(estimate.value.get()))) / 100
+                }),
             );
             let congestion_penalty =
                 congestion_penalty.saturating_add(u32::from(link.state.loss_permille.get()) / 100);
@@ -250,11 +302,11 @@ pub(super) fn route_cost_for_segments(
 }
 
 pub(super) fn checkpoint_bytes(active_route: &ActiveMeshRoute) -> Vec<u8> {
-    serde_json::to_vec(active_route).expect("mesh checkpoints are always serializable")
+    encode_versioned(CHECKPOINT_ENCODING_VERSION, active_route)
 }
 
 pub(super) fn decode_checkpoint_bytes(bytes: &[u8]) -> Option<ActiveMeshRoute> {
-    serde_json::from_slice(bytes).ok()
+    decode_versioned(bytes, CHECKPOINT_ENCODING_VERSION)
 }
 
 pub(super) fn route_storage_key(local_node_id: &NodeId, route_id: &RouteId) -> Vec<u8> {
@@ -279,27 +331,16 @@ pub(super) fn limit_u32(limit: Limit<u32>) -> u32 {
     }
 }
 
-trait BeliefExt<T> {
-    fn into_estimate(self) -> Option<jacquard_core::Estimate<T>>;
-}
-
-impl<T> BeliefExt<T> for Belief<T> {
-    fn into_estimate(self) -> Option<jacquard_core::Estimate<T>> {
-        match self {
-            Belief::Absent => None,
-            Belief::Estimated(estimate) => Some(estimate),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MeshPath;
     use crate::MESH_ENGINE_ID;
     use jacquard_core::{
-        AdaptiveRoutingProfile, AdmissionAssumptions, AdversaryRegime, ClaimStrength,
-        ConnectivityRegime, ContentId, Environment, FailureModelClass, HoldFallbackPolicy,
-        LinkEndpoint, MessageFlowAssumptionClass, NodeDensityClass, RatioPermille,
+        AdaptiveRoutingProfile, AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength,
+        CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection, ConnectivityRegime,
+        ContentId, ControllerId, Environment, FailureModelClass, HoldFallbackPolicy, HostName,
+        LinkEndpoint, MessageFlowAssumptionClass, NetworkHost, NodeDensityClass, RatioPermille,
         RouteConnectivityProfile, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
         RouteRepairClass, RouteServiceKind, RouteSummary, RoutingObjective, RuntimeEnvelopeClass,
         Tick, TimeWindow,
@@ -487,6 +528,222 @@ mod tests {
             digest: hashing.hash_tagged(b"mesh-retention", &tagged_c),
         };
         assert_ne!(id_a_first, id_c);
+    }
+
+    fn sample_plan_token() -> MeshPlanToken {
+        MeshPlanToken {
+            epoch: RouteEpoch(2),
+            source: NodeId([1; 32]),
+            destination: jacquard_core::DestinationId::Node(NodeId([3; 32])),
+            segments: vec![
+                MeshRouteSegment {
+                    node_id: NodeId([2; 32]),
+                    endpoint: LinkEndpoint {
+                        protocol: jacquard_core::TransportProtocol::BleGatt,
+                        address: jacquard_core::EndpointAddress::Ble {
+                            device_id: jacquard_core::BleDeviceId(vec![2]),
+                            profile_id: jacquard_core::BleProfileId([2; 16]),
+                        },
+                        mtu_bytes: ByteCount(256),
+                    },
+                },
+                MeshRouteSegment {
+                    node_id: NodeId([3; 32]),
+                    endpoint: LinkEndpoint {
+                        protocol: jacquard_core::TransportProtocol::WifiLan,
+                        address: jacquard_core::EndpointAddress::Ip {
+                            host: NetworkHost::Name(HostName("relay-3".into())),
+                            port: 4040,
+                        },
+                        mtu_bytes: ByteCount(1400),
+                    },
+                },
+            ],
+            valid_for: TimeWindow::new(Tick(2), Tick(14)).unwrap(),
+            route_class: MeshRouteClass::DeferredDelivery,
+            committee_status: CommitteeStatus::Selected(CommitteeSelection {
+                committee_id: CommitteeId([9; 16]),
+                topology_epoch: RouteEpoch(2),
+                selected_at_tick: Tick(2),
+                valid_for: TimeWindow::new(Tick(2), Tick(10)).unwrap(),
+                evidence_basis: jacquard_core::FactBasis::Estimated,
+                claim_strength: jacquard_core::ClaimStrength::ConservativeUnderProfile,
+                identity_assurance: jacquard_core::IdentityAssuranceClass::ControllerBound,
+                quorum_threshold: 1,
+                members: vec![CommitteeMember {
+                    node_id: NodeId([2; 32]),
+                    controller_id: ControllerId([2; 32]),
+                    role: CommitteeRole::Participant,
+                }],
+            }),
+        }
+    }
+
+    fn sample_active_route() -> ActiveMeshRoute {
+        let plan = sample_plan_token();
+        ActiveMeshRoute {
+            path: MeshPath {
+                route_id: RouteId([7; 16]),
+                epoch: plan.epoch,
+                source: plan.source,
+                destination: plan.destination,
+                segments: plan.segments,
+                valid_for: plan.valid_for,
+                route_class: plan.route_class,
+            },
+            committee: match plan.committee_status {
+                CommitteeStatus::Selected(selection) => Some(selection),
+                _ => None,
+            },
+            current_epoch: RouteEpoch(2),
+            last_lifecycle_event: jacquard_core::RouteLifecycleEvent::Activated,
+            route_cost: unit_route_cost(),
+            ordering_key: DeterministicOrderKey {
+                stable_key: RouteId([7; 16]),
+                tie_break: OrderStamp(17),
+            },
+            forwarding: super::super::MeshForwardingState {
+                current_owner_node_id: NodeId([1; 32]),
+                next_hop_index: 1,
+                in_flight_frames: 2,
+                last_ack_at_tick: Some(Tick(3)),
+            },
+            repair: super::super::MeshRepairState {
+                steps_remaining: 3,
+                last_repaired_at_tick: Some(Tick(4)),
+            },
+            handoff: super::super::MeshHandoffState {
+                last_receipt_id: Some(jacquard_core::ReceiptId([5; 16])),
+                last_handoff_at_tick: Some(Tick(5)),
+            },
+            anti_entropy: super::super::MeshRouteAntiEntropyState {
+                partition_mode: true,
+                retained_objects: std::iter::once(ContentId {
+                    digest: jacquard_core::Blake3Digest([6; 32]),
+                })
+                .collect(),
+                last_refresh_at_tick: Some(Tick(6)),
+            },
+        }
+    }
+
+    fn hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    #[test]
+    fn canonical_encodings_round_trip() {
+        let plan = sample_plan_token();
+        let checkpointed_route = sample_active_route();
+        let backend = encode_backend_token(&plan);
+        assert_eq!(decode_backend_token(&backend), Some(plan));
+        let checkpoint = checkpoint_bytes(&checkpointed_route);
+        assert_eq!(
+            decode_checkpoint_bytes(&checkpoint),
+            Some(checkpointed_route)
+        );
+    }
+
+    #[test]
+    fn mesh_domain_tags_are_unique() {
+        let tags = [
+            DOMAIN_TAG_ROUTE_ID,
+            DOMAIN_TAG_COMMITMENT,
+            DOMAIN_TAG_HANDOFF_RECEIPT,
+            DOMAIN_TAG_RETENTION,
+            DOMAIN_TAG_COMMITTEE_ID,
+            DOMAIN_TAG_ORDER_KEY,
+        ];
+        let unique = tags.into_iter().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(unique.len(), 6);
+    }
+
+    #[test]
+    fn canonical_bytes_snapshot_values() {
+        let plan = sample_plan_token();
+        let checkpointed_route = sample_active_route();
+        let route_identity = encode_route_identity_bytes(&plan);
+        let route_id_digest =
+            jacquard_traits::Blake3Hashing.hash_tagged(DOMAIN_TAG_ROUTE_ID, &route_identity);
+        let route_id = &route_id_digest.as_bytes()[..16];
+        assert_eq!(
+            hex(&encode_backend_token(&plan).0),
+            "01020000000000000001010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000000000000100000000000000020202020202020202020202020202020200010000000000000303030303030303030303030303030303030303030303030303030303030303030000000100000001000000070000000000000072656c61792d33c80f780500000000000002000000000000000e000000000000000300000001000000090909090909090909090909090909090200000000000000020000000000000002000000000000000a000000000000000100000001000000010000000101000000000000000202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020200000000"
+        );
+        assert_eq!(
+            hex(&route_identity),
+            "0101010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000000000000100000000000000020202020202020202020202020202020200010000000000000303030303030303030303030303030303030303030303030303030303030303030000000100000001000000070000000000000072656c61792d33c80f780500000000000003000000"
+        );
+        assert_eq!(hex(route_id), "f98f7e44a7904e4f3b3d7ec88a1feafb");
+        assert_eq!(
+            hex(&checkpoint_bytes(&checkpointed_route)),
+            "0107070707070707070707070707070707020000000000000001010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000000000000100000000000000020202020202020202020202020202020200010000000000000303030303030303030303030303030303030303030303030303030303030303030000000100000001000000070000000000000072656c61792d33c80f780500000000000002000000000000000e000000000000000300000001090909090909090909090909090909090200000000000000020000000000000002000000000000000a00000000000000010000000100000001000000010100000000000000020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020000000002000000000000000000000001000000010000000100000000040000000000000101000000010000000100000000000000000000000100000002000000070707070707070707070707070707071100000000000000010101010101010101010101010101010101010101010101010101010101010101020000000103000000000000000300000001040000000000000001050505050505050505050505050505050105000000000000000101000000000000000606060606060606060606060606060606060606060606060606060606060606010600000000000000"
+        );
+    }
+
+    #[test]
+    fn backend_route_id_size_is_bounded() {
+        let mut plan = sample_plan_token();
+        plan.segments = (0..usize::from(jacquard_core::ROUTE_HOP_COUNT_MAX))
+            .map(|index| {
+                let byte = u8::try_from(index + 1).unwrap_or(u8::MAX);
+                MeshRouteSegment {
+                    node_id: NodeId([byte; 32]),
+                    endpoint: LinkEndpoint {
+                        protocol: jacquard_core::TransportProtocol::Custom(format!("mesh-{byte}")),
+                        address: jacquard_core::EndpointAddress::Opaque(vec![byte; 32]),
+                        mtu_bytes: ByteCount(1400),
+                    },
+                }
+            })
+            .collect();
+
+        let encoded = encode_backend_token(&plan);
+        assert!(encoded.0.len() <= crate::engine::MESH_BACKEND_ROUTE_ID_BYTES_MAX);
+    }
+
+    #[test]
+    fn route_id_is_path_identity_across_epochs() {
+        let mut older = sample_plan_token();
+        let mut newer = sample_plan_token();
+        older.epoch = RouteEpoch(2);
+        newer.epoch = RouteEpoch(99);
+
+        let older_identity = encode_route_identity_bytes(&older);
+        let newer_identity = encode_route_identity_bytes(&newer);
+        assert_eq!(older_identity, newer_identity);
+    }
+
+    #[test]
+    fn path_bytes_distinguish_transport_and_endpoint_variants() {
+        let path = vec![NodeId([1; 32]), NodeId([2; 32])];
+        let ble_segments = vec![MeshRouteSegment {
+            node_id: NodeId([2; 32]),
+            endpoint: LinkEndpoint {
+                protocol: jacquard_core::TransportProtocol::BleGatt,
+                address: jacquard_core::EndpointAddress::Ble {
+                    device_id: jacquard_core::BleDeviceId(vec![2]),
+                    profile_id: jacquard_core::BleProfileId([2; 16]),
+                },
+                mtu_bytes: ByteCount(256),
+            },
+        }];
+        let wifi_segments = vec![MeshRouteSegment {
+            node_id: NodeId([2; 32]),
+            endpoint: LinkEndpoint {
+                protocol: jacquard_core::TransportProtocol::WifiLan,
+                address: jacquard_core::EndpointAddress::Ip {
+                    host: NetworkHost::Name(HostName("relay-2".into())),
+                    port: 4040,
+                },
+                mtu_bytes: ByteCount(1400),
+            },
+        }];
+
+        assert_ne!(
+            encode_path_bytes(&path, &ble_segments),
+            encode_path_bytes(&path, &wifi_segments)
+        );
     }
 
     #[test]

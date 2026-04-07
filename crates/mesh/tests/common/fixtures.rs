@@ -68,6 +68,7 @@ pub fn route_capable_services(
     .collect()
 }
 
+// long-block-exception: this shared mesh fixture intentionally assembles the full route-capable node surface in one place so tests inherit a single canonical participant shape.
 pub fn node(node_byte: u8) -> Node {
     let node_id = NodeId([node_byte; 32]);
     let controller_id = ControllerId([node_byte; 32]);

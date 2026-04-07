@@ -376,6 +376,7 @@ fn sample_admission_assumptions() -> AdmissionAssumptions {
     }
 }
 
+// long-block-exception: this shared route fixture keeps the full canonical route assembly visible for contract tests.
 fn sample_route(objective: RoutingObjective, profile: AdaptiveRoutingProfile) -> MaterializedRoute {
     let input = RouteMaterializationInput {
         handle: RouteHandle {
@@ -503,6 +504,7 @@ fn sample_substrate_requirements() -> SubstrateRequirements {
 }
 
 #[test]
+// long-block-exception: end-to-end contract test keeps the full candidate-to-materialized route flow in one visible assertion path.
 fn routing_engine_contract_can_drive_candidate_to_materialized_route() {
     let objective = sample_objective();
     let profile = sample_profile();
@@ -655,6 +657,7 @@ fn committee_coordinated_engine_exposes_optional_swappable_selector() {
 }
 
 #[test]
+// long-block-exception: layering contract coverage is easiest to review when the full composition chain stays in one test body.
 fn substrate_and_layering_traits_support_policy_driven_composition() {
     let objective = sample_objective();
     let profile = sample_profile();

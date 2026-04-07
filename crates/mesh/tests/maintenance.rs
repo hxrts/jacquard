@@ -23,10 +23,11 @@ use jacquard_traits::{
 use common::engine::{activate_route, build_engine, lease};
 use common::fixtures::sample_configuration;
 
-// CapacityExceeded must drive the route into partition mode and produce
-// HoldFallback with the trigger preserved on the outcome.
+// CapacityExceeded is replacement pressure, not partition evidence. The
+// route must stay out of partition mode and return a typed replacement
+// requirement.
 #[test]
-fn capacity_exceeded_enters_partition_mode_and_returns_hold_fallback() {
+fn capacity_exceeded_requires_replacement_without_entering_partition_mode() {
     let mut engine = build_engine();
     let topology = sample_configuration();
     let (identity, mut runtime) = activate_route(
@@ -45,11 +46,14 @@ fn capacity_exceeded_enters_partition_mode_and_returns_hold_fallback() {
         .expect("maintenance succeeds");
     assert_eq!(
         result.outcome,
-        RouteMaintenanceOutcome::HoldFallback {
+        RouteMaintenanceOutcome::ReplacementRequired {
             trigger: RouteMaintenanceTrigger::CapacityExceeded,
-            retained_object_count: 0,
         }
     );
+    let active_route = engine
+        .active_route(&identity.handle.route_id)
+        .expect("active route remains installed");
+    assert!(!active_route.anti_entropy.partition_mode);
 }
 
 // PolicyShift must produce a HandedOff outcome carrying a populated
@@ -178,7 +182,7 @@ fn activate_connected_only_route(
 
     let goal = objective(DestinationId::Node(destination));
     let policy = profile_with_connectivity(
-        RouteRepairClass::Repairable,
+        RouteRepairClass::BestEffort,
         RoutePartitionClass::ConnectedOnly,
     );
 

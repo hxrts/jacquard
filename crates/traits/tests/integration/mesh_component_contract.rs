@@ -14,7 +14,7 @@ use jacquard_traits::{
         RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor, Tick, TransportError,
         TransportObservation, TransportProtocol,
     },
-    EffectHandler, MeshRoutingEngine, MeshTopologyModel, MeshTransport, RetentionStore,
+    EffectHandler, MeshFrame, MeshRoutingEngine, MeshTopologyModel, MeshTransport, RetentionStore,
     RoutingEngine, RoutingEnginePlanner, TransportEffects,
 };
 
@@ -111,12 +111,8 @@ impl MeshTransport for StubTransport {
         TransportProtocol::BleGatt
     }
 
-    fn send_frame(
-        &mut self,
-        _endpoint: &LinkEndpoint,
-        payload: &[u8],
-    ) -> Result<(), TransportError> {
-        self.sent_frames.push(payload.to_vec());
+    fn send_frame(&mut self, frame: MeshFrame<'_>) -> Result<(), TransportError> {
+        self.sent_frames.push(frame.payload.to_vec());
         Ok(())
     }
 
@@ -406,6 +402,7 @@ fn sample_configuration() -> Configuration {
     }
 }
 
+// long-block-exception: this integration fixture builds one fully populated shared admission object for contract coverage.
 fn sample_route_admission(
     objective: jacquard_traits::jacquard_core::RoutingObjective,
     profile: jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
@@ -538,7 +535,10 @@ fn mesh_transport_carries_frames_without_interpreting_them() {
     };
 
     transport
-        .send_frame(&endpoint, b"frame")
+        .send_frame(MeshFrame {
+            endpoint: &endpoint,
+            payload: b"frame",
+        })
         .expect("send frame");
     let observations = transport
         .poll_observations()
@@ -608,7 +608,10 @@ fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
     );
     family
         .transport_mut()
-        .send_frame(&sample_endpoint(), b"frame")
+        .send_frame(MeshFrame {
+            endpoint: &sample_endpoint(),
+            payload: b"frame",
+        })
         .expect("send frame");
     assert_eq!(
         family.transport().transport_id(),

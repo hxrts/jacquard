@@ -32,6 +32,7 @@ use jacquard_core::{
     RoutePartitionClass, RouteRuntimeError, RouteSelectionError, RoutingEngineCapabilities,
     RoutingEngineId, TransportObservation,
 };
+use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, MeshFrame};
 
 use crate::committee::NoCommitteeSelector;
 
@@ -41,10 +42,11 @@ use trait_bounds::{
 };
 use types::{ActiveMeshRoute, CachedCandidate};
 
+pub(crate) use support::DOMAIN_TAG_COMMITTEE_ID;
 pub use types::{
-    MeshControlState, MeshForwardingState, MeshHandoffState, MeshObservedRemoteLink, MeshPath,
-    MeshRepairState, MeshRouteAntiEntropyState, MeshRouteClass, MeshRouteSegment,
-    MeshTransportObservationSummary,
+    MeshCommitteeStatus, MeshControlState, MeshForwardingState, MeshHandoffState,
+    MeshObservedRemoteLink, MeshPath, MeshRepairState, MeshRouteAntiEntropyState, MeshRouteClass,
+    MeshRouteSegment, MeshTransportFreshness, MeshTransportObservationSummary,
 };
 
 // Public Engine Identity And Capability Surface
@@ -71,6 +73,9 @@ pub const MESH_PER_HOP_BYTE_COST: u64 = 1024;
 
 /// Hold capacity reserved for deferred-delivery routes, in bytes.
 pub const MESH_HOLD_RESERVED_BYTES: u64 = 1024;
+
+/// Maximum canonical byte length for a v1 mesh backend plan token.
+pub const MESH_BACKEND_ROUTE_ID_BYTES_MAX: usize = 2048;
 
 // Route-commitment retry budget. Mesh uses a short, fixed policy because
 // commitments represent already-admitted routes; exceeding the budget is
@@ -124,6 +129,7 @@ pub struct MeshEngine<
     latest_topology: Option<Observation<Configuration>>,
     last_transport_summary: Option<MeshTransportObservationSummary>,
     control_state: Option<types::MeshControlState>,
+    last_checkpointed_topology_epoch: Option<RouteEpoch>,
     candidate_cache: RefCell<BTreeMap<jacquard_core::BackendRouteId, CachedCandidate>>,
     active_routes: BTreeMap<RouteId, ActiveMeshRoute>,
 }
@@ -153,6 +159,7 @@ impl<Topology, Transport, Retention, Effects, Hasher>
             latest_topology: None,
             last_transport_summary: None,
             control_state: None,
+            last_checkpointed_topology_epoch: None,
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
         }
@@ -185,6 +192,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
             latest_topology: None,
             last_transport_summary: None,
             control_state: None,
+            last_checkpointed_topology_epoch: None,
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
         }
@@ -312,8 +320,10 @@ where
             return Ok(());
         }
 
-        self.transport
-            .send_transport(&next_segment.endpoint, payload)?;
+        self.transport.send_frame(MeshFrame {
+            endpoint: &next_segment.endpoint,
+            payload,
+        })?;
         let active_route = self
             .active_routes
             .get_mut(route_id)
@@ -325,7 +335,7 @@ where
     }
 
     pub fn poll_transport_observations(&mut self) -> Result<Vec<TransportObservation>, RouteError> {
-        self.transport.poll_transport().map_err(RouteError::from)
+        self.transport.poll_observations().map_err(RouteError::from)
     }
 }
 
@@ -386,37 +396,49 @@ where
     // ("mesh-route-id", "mesh-commitment", "mesh-handoff-receipt",
     // "mesh-retention") prevent cross-domain collisions even when two
     // derivations happen to share bytes.
-    fn route_id_for_backend(&self, backend_route_id: &jacquard_core::BackendRouteId) -> RouteId {
-        let route_key_bytes = support::decode_backend_token(backend_route_id)
-            .map(|plan| support::encode_route_identity_bytes(&plan))
-            .unwrap_or_else(|| backend_route_id.0.clone());
-        let digest = self.hashing.hash_tagged(b"mesh-route-id", &route_key_bytes);
+    fn route_id_for_backend(
+        &self,
+        backend_route_id: &jacquard_core::BackendRouteId,
+    ) -> Result<RouteId, RouteError> {
+        let plan = support::decode_backend_token(backend_route_id)
+            .ok_or(RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+        let route_key_bytes = support::encode_route_identity_bytes(&plan);
+        let digest = self
+            .hashing
+            .hash_tagged(support::DOMAIN_TAG_ROUTE_ID, &route_key_bytes);
         let mut route_id = [0_u8; 16];
-        route_id.copy_from_slice(&digest.0[..16]);
-        RouteId(route_id)
+        route_id.copy_from_slice(&digest.as_bytes()[..16]);
+        Ok(RouteId(route_id))
     }
 
     fn commitment_id_for_route(&self, route_id: &RouteId) -> RouteCommitmentId {
-        let digest = self.hashing.hash_tagged(b"mesh-commitment", &route_id.0);
+        let digest = self
+            .hashing
+            .hash_tagged(support::DOMAIN_TAG_COMMITMENT, &route_id.0);
         let mut commitment_id = [0_u8; 16];
-        commitment_id.copy_from_slice(&digest.0[..16]);
+        commitment_id.copy_from_slice(&digest.as_bytes()[..16]);
         RouteCommitmentId(commitment_id)
     }
 
     fn receipt_id_for_route(&self, route_id: &RouteId) -> ReceiptId {
         let digest = self
             .hashing
-            .hash_tagged(b"mesh-handoff-receipt", &route_id.0);
+            .hash_tagged(support::DOMAIN_TAG_HANDOFF_RECEIPT, &route_id.0);
         let mut receipt_id = [0_u8; 16];
-        receipt_id.copy_from_slice(&digest.0[..16]);
+        receipt_id.copy_from_slice(&digest.as_bytes()[..16]);
         ReceiptId(receipt_id)
     }
 
     fn retention_object_id(&self, route_id: &RouteId, payload: &[u8]) -> ContentId<Blake3Digest> {
         let mut tagged = route_id.0.to_vec();
         tagged.extend_from_slice(payload);
+        let digest = self
+            .hashing
+            .hash_tagged(support::DOMAIN_TAG_RETENTION, &tagged);
+        let content_digest =
+            Blake3Hashing.hash_tagged(support::DOMAIN_TAG_RETENTION, digest.as_bytes());
         ContentId {
-            digest: self.hashing.hash_tagged(b"mesh-retention", &tagged),
+            digest: content_digest,
         }
     }
 }

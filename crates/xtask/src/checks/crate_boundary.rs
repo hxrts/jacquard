@@ -8,8 +8,25 @@ use crate::util::workspace_metadata;
 
 pub fn run() -> Result<()> {
     let metadata = workspace_metadata()?;
-    let mut violations = Vec::new();
+    let violations = forbidden_dependency_violations(&metadata);
 
+    if !violations.is_empty() {
+        for violation in &violations {
+            eprintln!("{violation}");
+        }
+        eprintln!();
+        eprintln!(
+            "crate-boundary: found {} forbidden dependency edge(s)",
+            violations.len()
+        );
+        bail!("crate-boundary failed");
+    }
+
+    println!("crate-boundary: dependency graph is valid");
+    Ok(())
+}
+
+fn forbidden_dependency_violations(metadata: &cargo_metadata::Metadata) -> Vec<String> {
     let forbidden = [
         (
             "jacquard-core",
@@ -38,6 +55,7 @@ pub fn run() -> Result<()> {
         ),
     ];
 
+    let mut violations = Vec::new();
     for (package_name, blocked) in forbidden {
         let Some(package) = metadata
             .packages
@@ -58,19 +76,5 @@ pub fn run() -> Result<()> {
             }
         }
     }
-
-    if !violations.is_empty() {
-        for violation in &violations {
-            eprintln!("{violation}");
-        }
-        eprintln!();
-        eprintln!(
-            "crate-boundary: found {} forbidden dependency edge(s)",
-            violations.len()
-        );
-        bail!("crate-boundary failed");
-    }
-
-    println!("crate-boundary: dependency graph is valid");
-    Ok(())
+    violations
 }

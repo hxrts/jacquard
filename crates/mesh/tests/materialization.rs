@@ -100,6 +100,34 @@ fn materialize_route_fails_closed_for_mismatched_backend_plan_token() {
 }
 
 #[test]
+fn materialize_route_fails_closed_for_corrupted_backend_plan_token() {
+    let mut engine = build_engine_at_tick(Tick(2));
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let policy = profile();
+
+    engine.engine_tick(&topology).expect("engine tick");
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("candidate");
+    let mut admission = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect("admission");
+    admission.backend_ref.backend_route_id.0 = vec![0xff, 0x00, 0xaa];
+    let input = materialization_input(admission, lease(Tick(2), Tick(20)));
+
+    let error = engine
+        .materialize_route(input)
+        .expect_err("corrupted backend token must fail closed");
+    assert!(matches!(
+        error,
+        RouteError::Runtime(RouteRuntimeError::Invalidated)
+    ));
+}
+
+#[test]
 fn materialize_route_rolls_back_when_event_logging_fails() {
     let mut engine = build_engine_at_tick(Tick(2));
     let topology = sample_configuration();

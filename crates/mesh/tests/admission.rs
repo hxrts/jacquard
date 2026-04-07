@@ -14,7 +14,7 @@ use jacquard_traits::{
     jacquard_core::{
         AdmissionDecision, Belief, ByteCount, DestinationId, Estimate, NodeId,
         RouteAdmissionRejection, RouteError, RoutePartitionClass, RouteProtectionClass,
-        RouteRepairClass, RouteSelectionError, Tick,
+        RouteRepairClass, RouteSelectionError, RouteServiceKind, Tick,
     },
     RoutingEnginePlanner,
 };
@@ -23,6 +23,22 @@ use common::engine::{
     build_engine, objective, objective_with_floor, profile, profile_with_connectivity,
 };
 use common::fixtures::sample_configuration;
+
+fn keep_only_move_service(
+    topology: &mut jacquard_traits::jacquard_core::Observation<
+        jacquard_traits::jacquard_core::Configuration,
+    >,
+    node_id: NodeId,
+) {
+    let node = topology
+        .value
+        .nodes
+        .get_mut(&node_id)
+        .expect("destination node present");
+    node.profile
+        .services
+        .retain(|service| service.service_kind == RouteServiceKind::Move);
+}
 
 // A candidate produced by the mesh engine always carries LinkProtected
 // summary protection. Asking for a TopologyProtected floor must drive
@@ -37,7 +53,7 @@ fn admit_route_rejects_when_summary_protection_is_below_floor() {
         RouteProtectionClass::TopologyProtected,
     );
     let policy = profile_with_connectivity(
-        RouteRepairClass::Repairable,
+        RouteRepairClass::BestEffort,
         RoutePartitionClass::PartitionTolerant,
     );
 
@@ -65,14 +81,11 @@ fn admit_route_rejects_when_summary_protection_is_below_floor() {
     ));
 }
 
-// Mesh candidates always advertise repairable connectivity, so the
-// BranchingInfeasible branch is unreachable through `candidate_routes`.
-// The unit test in engine.rs covers it directly. Here we drive the
-// partition mismatch branch by asking for a 1-hop Direct route, which
-// the engine produces with ConnectedOnly partition support, against a
-// PartitionTolerant profile.
+// Direct routes without credible patch space are now classified
+// BestEffort. A repair-demanding profile must reject them through the
+// same end-to-end admission path the router uses.
 #[test]
-fn admit_route_rejects_when_profile_requires_partition_tolerance_and_summary_does_not() {
+fn admit_route_rejects_when_profile_requires_repair_and_candidate_is_best_effort() {
     let engine = build_engine();
     let topology = sample_configuration();
     let goal = objective_with_floor(
@@ -82,7 +95,7 @@ fn admit_route_rejects_when_profile_requires_partition_tolerance_and_summary_doe
     );
     let policy = profile_with_connectivity(
         RouteRepairClass::Repairable,
-        RoutePartitionClass::PartitionTolerant,
+        RoutePartitionClass::ConnectedOnly,
     );
 
     let candidate = engine
@@ -95,8 +108,49 @@ fn admit_route_rejects_when_profile_requires_partition_tolerance_and_summary_doe
         .expect("check_candidate should succeed");
     assert!(matches!(
         check.decision,
-        AdmissionDecision::Rejected(RouteAdmissionRejection::BackendUnavailable)
+        AdmissionDecision::Rejected(RouteAdmissionRejection::BranchingInfeasible)
     ));
+
+    let admission_error = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect_err("admit_route must reject best-effort repair mismatch");
+    assert!(matches!(
+        admission_error,
+        RouteError::Selection(RouteSelectionError::Inadmissible(
+            RouteAdmissionRejection::BranchingInfeasible
+        ))
+    ));
+}
+
+// Asking for partition tolerance against a direct route still exercises
+// the partition mismatch path independently of the new repair
+// classification.
+#[test]
+fn admit_route_rejects_when_profile_requires_partition_tolerance_and_summary_does_not() {
+    let engine = build_engine();
+    let topology = sample_configuration();
+    let goal = objective_with_floor(
+        DestinationId::Node(NodeId([2; 32])),
+        RouteProtectionClass::LinkProtected,
+        RouteProtectionClass::LinkProtected,
+    );
+    let policy = profile_with_connectivity(
+        RouteRepairClass::BestEffort,
+        RoutePartitionClass::PartitionTolerant,
+    );
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("direct path candidate should be produced");
+    let check = engine
+        .check_candidate(&goal, &policy, &candidate, &topology)
+        .expect("check_candidate should succeed");
+    assert_eq!(
+        check.decision,
+        AdmissionDecision::Rejected(RouteAdmissionRejection::BackendUnavailable)
+    );
 
     let admission_error = engine
         .admit_route(&goal, &policy, candidate, &topology)
@@ -106,6 +160,59 @@ fn admit_route_rejects_when_profile_requires_partition_tolerance_and_summary_doe
         RouteError::Selection(RouteSelectionError::Inadmissible(
             RouteAdmissionRejection::BackendUnavailable
         ))
+    ));
+}
+
+#[test]
+fn move_only_destination_is_still_reachable_when_hold_fallback_is_forbidden() {
+    let engine = build_engine();
+    let mut topology = sample_configuration();
+    keep_only_move_service(&mut topology, NodeId([4; 32]));
+
+    let mut goal = objective(DestinationId::Node(NodeId([4; 32])));
+    goal.hold_fallback_policy = jacquard_traits::jacquard_core::HoldFallbackPolicy::Forbidden;
+    let policy = profile_with_connectivity(
+        RouteRepairClass::BestEffort,
+        RoutePartitionClass::ConnectedOnly,
+    );
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("move-only direct destination should still produce a candidate");
+    let admission = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect("non-deferred move-only destination should be admissible");
+    assert!(matches!(
+        admission.admission_check.decision,
+        AdmissionDecision::Admissible
+    ));
+}
+
+#[test]
+fn move_only_destination_is_still_reachable_when_hold_is_allowed_but_not_needed() {
+    let engine = build_engine();
+    let mut topology = sample_configuration();
+    keep_only_move_service(&mut topology, NodeId([4; 32]));
+
+    let goal = objective(DestinationId::Node(NodeId([4; 32])));
+    let policy = profile_with_connectivity(
+        RouteRepairClass::BestEffort,
+        RoutePartitionClass::ConnectedOnly,
+    );
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("move-only direct destination should still produce a candidate");
+    let admission = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect("direct non-deferred path should not require hold");
+    assert!(matches!(
+        admission.admission_check.decision,
+        AdmissionDecision::Admissible
     ));
 }
 
@@ -197,6 +304,32 @@ fn hold_advertised_without_available_capacity_is_not_deferred_delivery_capable()
         .check_candidate(&goal, &policy, &candidate, &topology)
         .expect("candidate check should succeed");
 
+    assert!(matches!(
+        check.decision,
+        AdmissionDecision::Rejected(RouteAdmissionRejection::BackendUnavailable)
+    ));
+}
+
+#[test]
+fn deferred_delivery_still_requires_real_hold_service() {
+    let engine = build_engine();
+    let mut topology = sample_configuration();
+    keep_only_move_service(&mut topology, NodeId([3; 32]));
+
+    let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let policy = profile_with_connectivity(
+        RouteRepairClass::Repairable,
+        RoutePartitionClass::PartitionTolerant,
+    );
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("multi-hop candidate should still be produced");
+    let check = engine
+        .check_candidate(&goal, &policy, &candidate, &topology)
+        .expect("candidate check should succeed");
     assert!(matches!(
         check.decision,
         AdmissionDecision::Rejected(RouteAdmissionRejection::BackendUnavailable)

@@ -174,6 +174,7 @@ impl RoutingReplayView for StubSimulator {
     }
 }
 
+// long-block-exception: simulator fixture assembly keeps the full world shape visible for contract coverage.
 fn sample_configuration() -> Configuration {
     let local = NodeId([1; 32]);
     let remote = NodeId([2; 32]);

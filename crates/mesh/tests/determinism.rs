@@ -17,11 +17,13 @@ use jacquard_traits::{
         OriginAuthenticationClass, RatioPermille, RouteEpoch, RoutingEvidenceClass, ServiceId,
         Tick,
     },
-    RoutingEnginePlanner,
+    HashDigestBytes, Hashing, RoutingEnginePlanner,
 };
 
-use common::engine::{build_engine, objective, profile};
+use common::effects::{TestRetentionStore, TestRuntimeEffects, TestTransport};
+use common::engine::{build_engine, objective, profile, LOCAL_NODE_ID};
 use common::fixtures::{link, node, sample_configuration};
+use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 
 fn permuted_topology() -> Observation<Configuration> {
     // Same logical graph as `sample_configuration`, built by inserting
@@ -133,4 +135,55 @@ fn candidate_ordering_matches_expected_count_and_is_stable() {
     let second = engine.candidate_routes(&goal, &policy, &topology);
     assert_eq!(first, second);
     assert_eq!(first.len(), 3);
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct AltDigest([u8; 32]);
+
+impl HashDigestBytes for AltDigest {
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct AltHashing;
+
+impl Hashing for AltHashing {
+    type Digest = AltDigest;
+
+    fn hash_bytes(&self, input: &[u8]) -> Self::Digest {
+        let mut bytes = [0_u8; 32];
+        for (index, byte) in input.iter().enumerate() {
+            bytes[index % 32] = bytes[index % 32].wrapping_add(*byte);
+        }
+        AltDigest(bytes)
+    }
+
+    fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Self::Digest {
+        let mut tagged = domain.to_vec();
+        tagged.extend_from_slice(input);
+        self.hash_bytes(&tagged)
+    }
+}
+
+#[test]
+fn mesh_engine_accepts_non_blake3_hashing_for_route_identity() {
+    let engine = MeshEngine::without_committee_selector(
+        LOCAL_NODE_ID,
+        DeterministicMeshTopologyModel::new(),
+        TestTransport::default(),
+        TestRetentionStore::default(),
+        TestRuntimeEffects {
+            now: Tick(2),
+            ..Default::default()
+        },
+        AltHashing,
+    );
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let policy = profile();
+
+    let candidates = engine.candidate_routes(&goal, &policy, &topology);
+    assert!(!candidates.is_empty());
 }

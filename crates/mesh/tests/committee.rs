@@ -217,6 +217,7 @@ fn node_with_identity_and_scope(
     node
 }
 
+// long-block-exception: this topology fixture keeps the committee-diversity graph, services, and scopes together so the test inputs remain legible as one deterministic neighborhood.
 fn diversity_topology() -> Observation<Configuration> {
     let node_two = NodeId([2; 32]);
     let node_four = NodeId([4; 32]);
@@ -286,7 +287,7 @@ fn committee_selector_none_keeps_candidate_admissible() {
     let topology = sample_configuration();
     let goal = objective(DestinationId::Node(NodeId([4; 32])));
     let policy = profile_with_connectivity(
-        RouteRepairClass::Repairable,
+        RouteRepairClass::BestEffort,
         RoutePartitionClass::ConnectedOnly,
     );
     let engine = build_engine_with_selector(jacquard_mesh::NoCommitteeSelector);
@@ -337,7 +338,7 @@ fn committee_selector_errors_surface_as_backend_unavailable() {
     let topology = sample_configuration();
     let goal = objective(DestinationId::Node(NodeId([4; 32])));
     let policy = profile_with_connectivity(
-        RouteRepairClass::Repairable,
+        RouteRepairClass::BestEffort,
         RoutePartitionClass::ConnectedOnly,
     );
     let engine = build_engine_with_selector(ErroringCommitteeSelector);
@@ -364,6 +365,32 @@ fn committee_selector_errors_surface_as_backend_unavailable() {
             ),
         ))
     ));
+}
+
+#[test]
+fn committee_selector_failure_survives_cache_eviction_via_plan_token() {
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Node(NodeId([4; 32])));
+    let policy = profile_with_connectivity(
+        RouteRepairClass::BestEffort,
+        RoutePartitionClass::ConnectedOnly,
+    );
+    let mut engine = build_engine_with_selector(ErroringCommitteeSelector);
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("candidate");
+    engine.engine_tick(&topology).expect("evict planner cache");
+    let check = engine
+        .check_candidate(&goal, &policy, &candidate, &topology)
+        .expect("cache-miss admission check");
+
+    assert_eq!(
+        check.decision,
+        AdmissionDecision::Rejected(RouteAdmissionRejection::BackendUnavailable),
+    );
 }
 
 #[test]
