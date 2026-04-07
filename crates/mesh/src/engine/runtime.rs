@@ -23,8 +23,8 @@ use jacquard_core::{
 use jacquard_traits::{CommitteeCoordinatedEngine, MeshRoutingEngine, RoutingEngine};
 
 use super::{
-    support::limit_u32, ActiveMeshRoute, MeshEffectsDeps, MeshEngine, MeshHasherDeps,
-    MeshSelectorDeps, MeshTransportDeps, MESH_ACTIVE_ROUTE_COUNT_MAX,
+    support::limit_u32, ActiveMeshRoute, MeshEffectsBounds, MeshEngine, MeshHasherBounds,
+    MeshSelectorBounds, MeshTransportBounds, MESH_ACTIVE_ROUTE_COUNT_MAX,
     MESH_COMMITMENT_ATTEMPT_COUNT_MAX, MESH_COMMITMENT_BACKOFF_MS_MAX,
     MESH_COMMITMENT_INITIAL_BACKOFF_MS, MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
 };
@@ -33,10 +33,10 @@ use crate::committee::mesh_health_score;
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportDeps,
-    Effects: MeshEffectsDeps,
-    Hasher: MeshHasherDeps,
-    Selector: MeshSelectorDeps,
+    Transport: MeshTransportBounds,
+    Effects: MeshEffectsBounds,
+    Hasher: MeshHasherBounds,
+    Selector: MeshSelectorBounds,
 {
     fn materialize_route(
         &mut self,
@@ -75,9 +75,9 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportDeps,
-    Effects: MeshEffectsDeps,
-    Hasher: MeshHasherDeps,
+    Transport: MeshTransportBounds,
+    Effects: MeshEffectsBounds,
+    Hasher: MeshHasherBounds,
 {
     // Bootstrap fallback used only when an engine is asked to materialize
     // a route before the first `engine_tick` has populated
@@ -369,9 +369,9 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportDeps,
-    Effects: MeshEffectsDeps,
-    Hasher: MeshHasherDeps,
+    Transport: MeshTransportBounds,
+    Effects: MeshEffectsBounds,
+    Hasher: MeshHasherBounds,
 {
     fn materialize_route_inner(
         &mut self,
@@ -452,12 +452,12 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> MeshRoutingEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Topology: super::MeshTopologyDeps,
-    Transport: MeshTransportDeps,
-    Retention: super::MeshRetentionDeps,
-    Effects: MeshEffectsDeps,
-    Hasher: MeshHasherDeps,
-    Selector: MeshSelectorDeps,
+    Topology: super::MeshTopologyBounds,
+    Transport: MeshTransportBounds,
+    Retention: super::MeshRetentionBounds,
+    Effects: MeshEffectsBounds,
+    Hasher: MeshHasherBounds,
+    Selector: MeshSelectorBounds,
 {
     type TopologyModel = Topology;
     type Transport = Transport;
@@ -487,7 +487,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> CommitteeCoordinatedEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Selector: MeshSelectorDeps,
+    Selector: MeshSelectorBounds,
 {
     type Selector = Selector;
 

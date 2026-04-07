@@ -11,15 +11,17 @@
 //! This module owns the engine type, workspace constants, and the
 //! non-trait helper methods (`forward_payload`, `retain_for_route`, the
 //! hash-derived ID helpers). `planner` implements `RoutingEnginePlanner`,
-//! `runtime` implements `RoutingEngine`/`MeshRoutingEngine`, and `support`
-//! holds the pure helpers shared between them.
+//! `runtime` implements `RoutingEngine`/`MeshRoutingEngine`, `support`
+//! holds the pure helpers shared between them, `types` defines the
+//! mesh-private object model, and `trait_bounds` defines the internal
+//! bound aliases used in `impl` headers.
 
 #![allow(private_bounds)]
 
-mod deps;
 mod planner;
 mod runtime;
 mod support;
+mod trait_bounds;
 mod types;
 
 use std::{cell::RefCell, collections::BTreeMap};
@@ -33,9 +35,9 @@ use jacquard_core::{
 
 use crate::committee::NoCommitteeSelector;
 
-use deps::{
-    MeshEffectsDeps, MeshHasherDeps, MeshRetentionDeps, MeshSelectorDeps, MeshTopologyDeps,
-    MeshTransportDeps,
+use trait_bounds::{
+    MeshEffectsBounds, MeshHasherBounds, MeshRetentionBounds, MeshSelectorBounds,
+    MeshTopologyBounds, MeshTransportBounds,
 };
 use types::{ActiveMeshRoute, CachedCandidate};
 
@@ -214,8 +216,8 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportDeps,
-    Effects: MeshEffectsDeps,
+    Transport: MeshTransportBounds,
+    Effects: MeshEffectsBounds,
 {
     pub fn forward_payload(
         &mut self,
@@ -251,8 +253,8 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Retention: MeshRetentionDeps,
-    Hasher: MeshHasherDeps,
+    Retention: MeshRetentionBounds,
+    Hasher: MeshHasherBounds,
 {
     pub fn retain_for_route(
         &mut self,
@@ -295,7 +297,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Hasher: MeshHasherDeps,
+    Hasher: MeshHasherBounds,
 {
     // The four ID helpers below all derive stable content addresses from
     // a route-specific byte input using tagged hashing. Domain tags
@@ -345,7 +347,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Effects: MeshEffectsDeps,
+    Effects: MeshEffectsBounds,
 {
     fn find_cached_candidate_by_route_id(&self, route_id: &RouteId) -> Option<CachedCandidate> {
         self.candidate_cache

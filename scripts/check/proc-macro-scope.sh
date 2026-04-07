@@ -35,7 +35,12 @@ exempt_files=(
   "crates/traits/src/lib.rs"
   "crates/traits/src/routing.rs"
   "crates/mesh/src/committee.rs"
-  "crates/mesh/src/engine.rs"
+  "crates/mesh/src/engine/mod.rs"
+  "crates/mesh/src/engine/planner.rs"
+  "crates/mesh/src/engine/runtime.rs"
+  "crates/mesh/src/engine/support.rs"
+  "crates/mesh/src/engine/trait_bounds.rs"
+  "crates/mesh/src/engine/types.rs"
   "crates/mesh/src/lib.rs"
   "crates/mesh/src/topology.rs"
 )

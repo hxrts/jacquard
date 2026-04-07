@@ -25,8 +25,8 @@ use super::{
         deterministic_order_key, encode_path_bytes, route_cost_for_segments, shortest_paths,
         unique_protocol_mix,
     },
-    CachedCandidate, MeshEngine, MeshHasherDeps, MeshPath, MeshRouteClass, MeshRouteSegment,
-    MeshSelectorDeps, MESH_CANDIDATE_COUNT_MAX, MESH_CANDIDATE_VALIDITY_TICKS, MESH_CAPABILITIES,
+    CachedCandidate, MeshEngine, MeshHasherBounds, MeshPath, MeshRouteClass, MeshRouteSegment,
+    MeshSelectorBounds, MESH_CANDIDATE_COUNT_MAX, MESH_CANDIDATE_VALIDITY_TICKS, MESH_CAPABILITIES,
     MESH_ENGINE_ID,
 };
 use crate::{
@@ -191,7 +191,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Selector: MeshSelectorDeps,
+    Selector: MeshSelectorBounds,
 {
     fn maybe_select_committee(
         &self,
@@ -211,8 +211,8 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Hasher: MeshHasherDeps,
-    Selector: MeshSelectorDeps,
+    Hasher: MeshHasherBounds,
+    Selector: MeshSelectorBounds,
 {
     // Assembles a candidate from a BFS node path: segments, route class,
     // validity window, plan token, route id, cost, summary, estimate,
@@ -334,8 +334,8 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEnginePlanner
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Hasher: MeshHasherDeps,
-    Selector: MeshSelectorDeps,
+    Hasher: MeshHasherBounds,
+    Selector: MeshSelectorBounds,
 {
     fn engine_id(&self) -> jacquard_core::RoutingEngineId {
         MESH_ENGINE_ID
