@@ -1,15 +1,23 @@
+//! `RoutingEnginePlanner` implementation for `MeshEngine`.
+//!
+//! Candidate production runs a five-step deterministic pipeline: BFS from
+//! the local node, filter by engine capability and objective match, derive
+//! a self-contained `BackendRouteId` plan token plus admission check,
+//! sort by hop count and deterministic order key, then truncate to
+//! `MESH_CANDIDATE_COUNT_MAX`. `check_candidate` and `admit_route` take
+//! topology explicitly and re-derive from the plan token on cache miss,
+//! so the candidate cache is an optimization rather than a required
+//! piece of engine state.
+
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision, BackendRouteId, Belief,
-    Blake3Digest, CommitteeSelection, Configuration, DestinationId, Estimate, Limit, NodeId,
-    Observation, RouteAdmission, RouteAdmissionCheck, RouteAdmissionRejection, RouteCandidate,
+    CommitteeSelection, Configuration, DestinationId, Estimate, Limit, NodeId, Observation,
+    RouteAdmission, RouteAdmissionCheck, RouteAdmissionRejection, RouteCandidate,
     RouteConnectivityProfile, RouteCost, RouteError, RouteEstimate, RoutePartitionClass,
     RouteProtectionClass, RouteRepairClass, RouteSelectionError, RouteServiceKind, RouteSummary,
     RouteWitness, RoutingObjective, Tick, TimeWindow, ROUTE_HOP_COUNT_MAX,
 };
-use jacquard_traits::{
-    CommitteeSelector, Hashing, MeshTopologyModel, MeshTransport, OrderEffects, RetentionStore,
-    RouteEventLogEffects, RoutingEnginePlanner, StorageEffects, TimeEffects,
-};
+use jacquard_traits::RoutingEnginePlanner;
 
 use super::{
     support::{
@@ -17,30 +25,22 @@ use super::{
         deterministic_order_key, encode_path_bytes, route_cost_for_segments, shortest_paths,
         unique_protocol_mix,
     },
-    CachedCandidate, MeshEngine, MeshPath, MeshRouteClass, MeshRouteSegment,
-    MESH_CANDIDATE_COUNT_MAX, MESH_CANDIDATE_VALIDITY_TICKS, MESH_CAPABILITIES, MESH_ENGINE_ID,
+    CachedCandidate, MeshEngine, MeshHasherDeps, MeshPath, MeshRouteClass, MeshRouteSegment,
+    MeshSelectorDeps, MESH_CANDIDATE_COUNT_MAX, MESH_CANDIDATE_VALIDITY_TICKS, MESH_CAPABILITIES,
+    MESH_ENGINE_ID,
 };
 use crate::{
     committee::mesh_admission_assumptions,
-    topology::{
-        estimate_hop_link, objective_matches_node, route_capable_for_engine,
-        MeshNeighborhoodEstimate, MeshPeerEstimate,
-    },
+    topology::{estimate_hop_link, objective_matches_node, route_capable_for_engine},
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
-where
-    Topology: MeshTopologyModel<
-        PeerEstimate = MeshPeerEstimate,
-        NeighborhoodEstimate = MeshNeighborhoodEstimate,
-    >,
-    Transport: MeshTransport + Send + Sync + 'static,
-    Retention: RetentionStore,
-    Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
-    Hasher: Hashing<Digest = Blake3Digest>,
-    Selector: CommitteeSelector<TopologyView = Configuration>,
 {
+    // Route class order of precedence: a Gateway destination always
+    // yields Gateway; otherwise multi-hop routes to hold-capable
+    // destinations with hold-fallback allowed become DeferredDelivery;
+    // single-hop routes are Direct; everything else is MultiHop.
     fn determine_route_class(
         &self,
         objective: &RoutingObjective,
@@ -100,6 +100,9 @@ where
                 })
             })
             .collect::<Vec<_>>();
+        // Paths that would exceed the workspace hop limit are rejected
+        // here rather than silently truncated. This keeps the hop count
+        // representable in a u8 everywhere downstream.
         if segments.is_empty() || segments.len() > usize::from(ROUTE_HOP_COUNT_MAX) {
             return None;
         }
@@ -116,26 +119,6 @@ where
                 && service.routing_engines.contains(&MESH_ENGINE_ID)
                 && service.valid_for.contains(observed_at_tick)
         })
-    }
-
-    fn build_candidate_estimate(
-        &self,
-        topology: &Observation<Configuration>,
-        connectivity: RouteConnectivityProfile,
-        route_class: &MeshRouteClass,
-        segments: &[MeshRouteSegment],
-    ) -> Estimate<RouteEstimate> {
-        let configuration = &topology.value;
-        Estimate {
-            value: RouteEstimate {
-                estimated_protection: RouteProtectionClass::LinkProtected,
-                estimated_connectivity: connectivity,
-                topology_epoch: configuration.epoch,
-                degradation: degradation_for_candidate(configuration, route_class),
-            },
-            confidence_permille: confidence_for_segments(segments, configuration),
-            updated_at_tick: topology.observed_at_tick,
-        }
     }
 
     fn build_candidate_summary(
@@ -179,7 +162,37 @@ where
             route_class,
         }
     }
+}
 
+impl<Topology, Transport, Retention, Effects, Hasher, Selector>
+    MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+{
+    fn build_candidate_estimate(
+        &self,
+        topology: &Observation<Configuration>,
+        connectivity: RouteConnectivityProfile,
+        route_class: &MeshRouteClass,
+        segments: &[MeshRouteSegment],
+    ) -> Estimate<RouteEstimate> {
+        let configuration = &topology.value;
+        Estimate {
+            value: RouteEstimate {
+                estimated_protection: RouteProtectionClass::LinkProtected,
+                estimated_connectivity: connectivity,
+                topology_epoch: configuration.epoch,
+                degradation: degradation_for_candidate(configuration, route_class),
+            },
+            confidence_permille: confidence_for_segments(segments, configuration),
+            updated_at_tick: topology.observed_at_tick,
+        }
+    }
+}
+
+impl<Topology, Transport, Retention, Effects, Hasher, Selector>
+    MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+where
+    Selector: MeshSelectorDeps,
+{
     fn maybe_select_committee(
         &self,
         objective: &RoutingObjective,
@@ -193,7 +206,19 @@ where
                 .flatten()
         })
     }
+}
 
+impl<Topology, Transport, Retention, Effects, Hasher, Selector>
+    MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+where
+    Hasher: MeshHasherDeps,
+    Selector: MeshSelectorDeps,
+{
+    // Assembles a candidate from a BFS node path: segments, route class,
+    // validity window, plan token, route id, cost, summary, estimate,
+    // admission assumptions, admission check, witness, order key, and
+    // optional committee. Every derivation is a function of the inputs
+    // so re-running on cache miss produces the same CachedCandidate.
     fn candidate_for_path(
         &self,
         objective: &RoutingObjective,
@@ -274,6 +299,12 @@ where
         self.candidate_for_path(objective, profile, topology, node_path, destination_node)
     }
 
+    // The cache-miss path for `check_candidate` and `admit_route`.
+    // Decodes the self-contained plan token back into a node path, then
+    // re-derives the candidate against the supplied topology. The final
+    // equality check on `backend_route_id` detects tokens that decode
+    // successfully but would have produced a different candidate under
+    // the current topology (e.g. if the caller passed a handcrafted ref).
     fn derive_candidate_from_backend_ref(
         &self,
         objective: &RoutingObjective,
@@ -303,15 +334,8 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEnginePlanner
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Topology: MeshTopologyModel<
-        PeerEstimate = MeshPeerEstimate,
-        NeighborhoodEstimate = MeshNeighborhoodEstimate,
-    >,
-    Transport: MeshTransport + Send + Sync + 'static,
-    Retention: RetentionStore,
-    Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
-    Hasher: Hashing<Digest = Blake3Digest>,
-    Selector: CommitteeSelector<TopologyView = Configuration>,
+    Hasher: MeshHasherDeps,
+    Selector: MeshSelectorDeps,
 {
     fn engine_id(&self) -> jacquard_core::RoutingEngineId {
         MESH_ENGINE_ID
@@ -327,6 +351,11 @@ where
         profile: &AdaptiveRoutingProfile,
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
+        // Five-step deterministic pipeline: BFS shortest paths, filter
+        // to route-capable destinations matching the objective, build a
+        // cached candidate per path, sort by hop count and order key,
+        // then truncate to MESH_CANDIDATE_COUNT_MAX. The deterministic
+        // sort makes candidate ordering stable across replays.
         let configuration = &topology.value;
         let mut cached = shortest_paths(&self.local_node_id, configuration)
             .into_iter()
@@ -385,6 +414,10 @@ where
         candidate: &RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
+        // Cache hit is the fast path. On cache miss (e.g. after an
+        // engine_tick cleared the cache) we re-derive from the plan
+        // token against the supplied topology. Same inputs produce the
+        // same admission check either way.
         if let Some(cached) = self
             .candidate_cache
             .borrow()
@@ -441,6 +474,11 @@ where
     }
 }
 
+// Admission has three rejection paths and one admit path. Order
+// matters: the protection floor is the hard security invariant so it
+// is checked first. Repair and partition mismatches are the
+// profile-driven connectivity requirements checked only after
+// protection passes.
 fn mesh_admission_check(
     objective: &RoutingObjective,
     profile: &AdaptiveRoutingProfile,

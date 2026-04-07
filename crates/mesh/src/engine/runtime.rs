@@ -1,43 +1,42 @@
+//! `RoutingEngine` and `MeshRoutingEngine` implementations for `MeshEngine`.
+//!
+//! Materialization enforces the active-route budget, verifies lease
+//! validity, assembles the mesh-private `ActiveMeshRoute` record, and
+//! checkpoints it before recording a lifecycle event. Maintenance
+//! dispatches per `RouteMaintenanceTrigger` into small helpers that
+//! each return a typed `RouteMaintenanceResult`. `engine_tick` is the
+//! engine-internal middleware loop that refreshes the latest topology,
+//! clears stale candidate-cache entries, checkpoints the current epoch,
+//! and polls transport ingress.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use jacquard_core::{
-    Blake3Digest, Configuration, Fact, FactBasis, MaterializedRoute, MaterializedRouteIdentity,
-    Observation, PenaltyPoints, ReachabilityState, RouteBinding, RouteCommitment,
-    RouteCommitmentResolution, RouteError, RouteEvent, RouteHealth, RouteId, RouteInstallation,
-    RouteInvalidationReason, RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
-    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-    RouteMaterializationProof, RouteOperationId, RoutePolicyError, RouteProgressContract,
-    RouteProgressState, RouteRuntimeError, RouteSelectionError, RouteSemanticHandoff,
-    TimeoutPolicy,
+    Configuration, Fact, FactBasis, MaterializedRoute, MaterializedRouteIdentity, Observation,
+    PenaltyPoints, ReachabilityState, RouteBinding, RouteCommitment, RouteCommitmentResolution,
+    RouteError, RouteEvent, RouteHealth, RouteId, RouteInstallation, RouteInvalidationReason,
+    RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
+    RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
+    RouteOperationId, RoutePolicyError, RouteProgressContract, RouteProgressState,
+    RouteRuntimeError, RouteSelectionError, RouteSemanticHandoff, TimeoutPolicy,
 };
-use jacquard_traits::{
-    CommitteeCoordinatedEngine, CommitteeSelector, Hashing, MeshRoutingEngine, MeshTopologyModel,
-    MeshTransport, OrderEffects, RetentionStore, RouteEventLogEffects, RoutingEngine,
-    StorageEffects, TimeEffects, TransportEffects,
-};
+use jacquard_traits::{CommitteeCoordinatedEngine, MeshRoutingEngine, RoutingEngine};
 
 use super::{
-    support::limit_u32, ActiveMeshRoute, MeshEngine, MESH_ACTIVE_ROUTE_COUNT_MAX,
+    support::limit_u32, ActiveMeshRoute, MeshEffectsDeps, MeshEngine, MeshHasherDeps,
+    MeshSelectorDeps, MeshTransportDeps, MESH_ACTIVE_ROUTE_COUNT_MAX,
     MESH_COMMITMENT_ATTEMPT_COUNT_MAX, MESH_COMMITMENT_BACKOFF_MS_MAX,
     MESH_COMMITMENT_INITIAL_BACKOFF_MS, MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
 };
-use crate::{
-    committee::mesh_health_score,
-    topology::{MeshNeighborhoodEstimate, MeshPeerEstimate},
-};
+use crate::committee::mesh_health_score;
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Topology: MeshTopologyModel<
-        PeerEstimate = MeshPeerEstimate,
-        NeighborhoodEstimate = MeshNeighborhoodEstimate,
-    >,
-    Transport: MeshTransport + Send + Sync + 'static,
-    Retention: RetentionStore,
-    Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
-    Hasher: Hashing<Digest = Blake3Digest>,
-    Selector: CommitteeSelector<TopologyView = Configuration>,
+    Transport: MeshTransportDeps,
+    Effects: MeshEffectsDeps,
+    Hasher: MeshHasherDeps,
+    Selector: MeshSelectorDeps,
 {
     fn materialize_route(
         &mut self,
@@ -64,6 +63,10 @@ where
     }
 
     fn teardown(&mut self, route_id: &RouteId) {
+        // Checkpoint removal is best-effort during teardown: the route
+        // is going away regardless, and leaving stale bytes behind is
+        // less harmful than refusing to drop the in-memory active
+        // route. The next `engine_tick` reconciles the storage side.
         let _ = self.remove_checkpoint(route_id);
         self.active_routes.remove(route_id);
     }
@@ -72,16 +75,15 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Topology: MeshTopologyModel<
-        PeerEstimate = MeshPeerEstimate,
-        NeighborhoodEstimate = MeshNeighborhoodEstimate,
-    >,
-    Transport: MeshTransport + Send + Sync + 'static,
-    Retention: RetentionStore,
-    Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
-    Hasher: Hashing<Digest = Blake3Digest>,
-    Selector: CommitteeSelector<TopologyView = Configuration>,
+    Transport: MeshTransportDeps,
+    Effects: MeshEffectsDeps,
+    Hasher: MeshHasherDeps,
 {
+    // Bootstrap fallback used only when an engine is asked to materialize
+    // a route before the first `engine_tick` has populated
+    // `latest_topology`. `mesh_health_score` of this empty configuration
+    // is HealthScore(0), which correctly represents "no observed
+    // stability yet" until the first tick arrives.
     fn fallback_health_configuration(&self, cached: &super::CachedCandidate) -> Configuration {
         Configuration {
             epoch: cached.path.epoch,
@@ -266,6 +268,14 @@ where
         }
     }
 
+    // Trigger dispatch. `LinkDegraded` attempts local repair or
+    // escalates to replacement when the repair budget is gone.
+    // `CapacityExceeded` and `PartitionDetected` enter hold-fallback.
+    // `PolicyShift` hands off. `EpochAdvanced` bumps the epoch and
+    // treats it as a repair step. `LeaseExpiring` and `RouteExpired`
+    // terminate. `AntiEntropyRequired` only refreshes progress
+    // tracking. Lease expiry is checked by the caller before this
+    // method runs, so none of these branches need to double-check it.
     fn apply_maintenance_trigger(
         identity: &MaterializedRouteIdentity,
         active_route: &mut ActiveMeshRoute,
@@ -313,33 +323,6 @@ where
         }
     }
 
-    fn materialize_route_inner(
-        &mut self,
-        input: RouteMaterializationInput,
-    ) -> Result<RouteInstallation, RouteError> {
-        let is_replacement = self.active_routes.contains_key(&input.handle.route_id);
-        if !is_replacement && self.active_routes.len() >= MESH_ACTIVE_ROUTE_COUNT_MAX {
-            return Err(RouteError::Policy(RoutePolicyError::BudgetExceeded));
-        }
-        let cached = self
-            .find_cached_candidate_by_route_id(&input.admission.route_id)
-            .ok_or(RouteSelectionError::NoCandidate)?;
-        let now = self.effects.now_tick();
-        input.lease.ensure_valid_at(now)?;
-
-        let proof = self.materialization_proof_for(&input, now);
-        let installation = self.installation_for(&input, &cached, now, proof.clone());
-        let active_route = self.active_route_for_materialization(&cached);
-        self.store_checkpoint(&active_route)?;
-        self.active_routes
-            .insert(input.handle.route_id, active_route);
-        self.record_event(RouteEvent::RouteMaterialized {
-            handle: input.handle,
-            proof,
-        })?;
-        Ok(installation)
-    }
-
     fn route_commitments_inner(&self, route: &MaterializedRoute) -> Vec<RouteCommitment> {
         let resolution = if route.identity.lease.is_valid_at(self.effects.now_tick()) {
             RouteCommitmentResolution::Pending
@@ -367,6 +350,11 @@ where
         &mut self,
         topology: &Observation<Configuration>,
     ) -> Result<(), RouteError> {
+        // Engine-internal middleware loop: refresh the cached topology
+        // observation, evict the stale candidate cache, checkpoint the
+        // current epoch, and poll transport ingress. Route activation,
+        // maintenance, and teardown still happen through the shared
+        // trait methods rather than inside this tick.
         self.latest_topology = Some(topology.clone());
         self.candidate_cache.borrow_mut().clear();
         let epoch_bytes = topology.value.epoch.0.to_le_bytes();
@@ -375,6 +363,45 @@ where
             .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?;
         let _observations = self.transport.poll_transport()?;
         Ok(())
+    }
+}
+
+impl<Topology, Transport, Retention, Effects, Hasher, Selector>
+    MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+where
+    Transport: MeshTransportDeps,
+    Effects: MeshEffectsDeps,
+    Hasher: MeshHasherDeps,
+{
+    fn materialize_route_inner(
+        &mut self,
+        input: RouteMaterializationInput,
+    ) -> Result<RouteInstallation, RouteError> {
+        // Two hard checks before any state change: the active-route
+        // budget (replacements for an existing route_id bypass the cap),
+        // and the router-owned lease validity. Lease expiry is a typed
+        // runtime failure, not a silent fallthrough.
+        let is_replacement = self.active_routes.contains_key(&input.handle.route_id);
+        if !is_replacement && self.active_routes.len() >= MESH_ACTIVE_ROUTE_COUNT_MAX {
+            return Err(RouteError::Policy(RoutePolicyError::BudgetExceeded));
+        }
+        let cached = self
+            .find_cached_candidate_by_route_id(&input.admission.route_id)
+            .ok_or(RouteSelectionError::NoCandidate)?;
+        let now = self.effects.now_tick();
+        input.lease.ensure_valid_at(now)?;
+
+        let proof = self.materialization_proof_for(&input, now);
+        let installation = self.installation_for(&input, &cached, now, proof.clone());
+        let active_route = self.active_route_for_materialization(&cached);
+        self.store_checkpoint(&active_route)?;
+        self.active_routes
+            .insert(input.handle.route_id, active_route);
+        self.record_event(RouteEvent::RouteMaterialized {
+            handle: input.handle,
+            proof,
+        })?;
+        Ok(installation)
     }
 
     fn maintain_route_inner(
@@ -425,15 +452,12 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> MeshRoutingEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Topology: MeshTopologyModel<
-        PeerEstimate = MeshPeerEstimate,
-        NeighborhoodEstimate = MeshNeighborhoodEstimate,
-    >,
-    Transport: MeshTransport + Send + Sync + 'static,
-    Retention: RetentionStore,
-    Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
-    Hasher: Hashing<Digest = Blake3Digest>,
-    Selector: CommitteeSelector<TopologyView = Configuration>,
+    Topology: super::MeshTopologyDeps,
+    Transport: MeshTransportDeps,
+    Retention: super::MeshRetentionDeps,
+    Effects: MeshEffectsDeps,
+    Hasher: MeshHasherDeps,
+    Selector: MeshSelectorDeps,
 {
     type TopologyModel = Topology;
     type Transport = Transport;
@@ -463,13 +487,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> CommitteeCoordinatedEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Topology: MeshTopologyModel<
-        PeerEstimate = MeshPeerEstimate,
-        NeighborhoodEstimate = MeshNeighborhoodEstimate,
-    >,
-    Transport: MeshTransport + Send + Sync + 'static,
-    Retention: RetentionStore,
-    Selector: CommitteeSelector<TopologyView = Configuration>,
+    Selector: MeshSelectorDeps,
 {
     type Selector = Selector;
 

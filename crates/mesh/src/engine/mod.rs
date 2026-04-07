@@ -5,8 +5,16 @@
 //! under production adapters, tests, and simulation. Planning is a pure
 //! read against explicit topology observations. Runtime mutation is
 //! confined to `materialize_route`, `maintain_route`, and `teardown`.
-//! Canonical route identity, handles, and leases flow in from the router;
-//! this crate never invents them.
+//! Canonical route identity, handles, and leases come exclusively
+//! from the router.
+//!
+//! This module owns the engine type, workspace constants, and the
+//! non-trait helper methods (`forward_payload`, `retain_for_route`, the
+//! hash-derived ID helpers). `planner` implements `RoutingEnginePlanner`,
+//! `runtime` implements `RoutingEngine`/`MeshRoutingEngine`, and `support`
+//! holds the pure helpers shared between them.
+
+#![allow(private_bounds)]
 
 mod planner;
 mod runtime;
@@ -30,6 +38,51 @@ use jacquard_traits::{
 };
 
 use crate::committee::NoCommitteeSelector;
+
+pub(crate) trait MeshTopologyDeps:
+    jacquard_traits::MeshTopologyModel<
+    PeerEstimate = crate::topology::MeshPeerEstimate,
+    NeighborhoodEstimate = crate::topology::MeshNeighborhoodEstimate,
+>
+{
+}
+
+impl<T> MeshTopologyDeps for T where
+    T: jacquard_traits::MeshTopologyModel<
+        PeerEstimate = crate::topology::MeshPeerEstimate,
+        NeighborhoodEstimate = crate::topology::MeshNeighborhoodEstimate,
+    >
+{
+}
+
+pub(crate) trait MeshTransportDeps:
+    MeshTransport + TransportEffects + Send + Sync + 'static
+{
+}
+
+impl<T> MeshTransportDeps for T where T: MeshTransport + TransportEffects + Send + Sync + 'static {}
+
+pub(crate) trait MeshRetentionDeps: RetentionStore {}
+
+impl<T> MeshRetentionDeps for T where T: RetentionStore {}
+
+pub(crate) trait MeshEffectsDeps:
+    TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects
+{
+}
+
+impl<T> MeshEffectsDeps for T where
+    T: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects
+{
+}
+
+pub(crate) trait MeshHasherDeps: Hashing<Digest = Blake3Digest> {}
+
+impl<T> MeshHasherDeps for T where T: Hashing<Digest = Blake3Digest> {}
+
+pub(crate) trait MeshSelectorDeps: CommitteeSelector<TopologyView = Configuration> {}
+
+impl<T> MeshSelectorDeps for T where T: CommitteeSelector<TopologyView = Configuration> {}
 
 pub const MESH_ENGINE_ID: RoutingEngineId = RoutingEngineId::Mesh;
 
@@ -249,21 +302,17 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Topology: jacquard_traits::MeshTopologyModel<
-        PeerEstimate = crate::topology::MeshPeerEstimate,
-        NeighborhoodEstimate = crate::topology::MeshNeighborhoodEstimate,
-    >,
-    Transport: MeshTransport + Send + Sync + 'static,
-    Retention: RetentionStore,
-    Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
-    Hasher: Hashing<Digest = Blake3Digest>,
-    Selector: CommitteeSelector<TopologyView = Configuration>,
+    Transport: MeshTransportDeps,
+    Effects: MeshEffectsDeps,
 {
     pub fn forward_payload(
         &mut self,
         route_id: &RouteId,
         payload: &[u8],
     ) -> Result<(), RouteError> {
+        // Hop-by-hop forwarding in mesh always targets the first segment
+        // of the source-routed path. Downstream hops own their own step.
+        // `in_flight_frames` saturates so long-lived routes cannot wrap.
         let active_route = self
             .active_routes
             .get_mut(route_id)
@@ -283,7 +332,14 @@ where
     pub fn poll_transport_observations(&mut self) -> Result<Vec<TransportObservation>, RouteError> {
         self.transport.poll_transport().map_err(RouteError::from)
     }
+}
 
+impl<Topology, Transport, Retention, Effects, Hasher, Selector>
+    MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+where
+    Retention: MeshRetentionDeps,
+    Hasher: MeshHasherDeps,
+{
     pub fn retain_for_route(
         &mut self,
         route_id: &RouteId,
@@ -318,7 +374,18 @@ where
         }
         Ok(payload)
     }
+}
 
+impl<Topology, Transport, Retention, Effects, Hasher, Selector>
+    MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+where
+    Hasher: MeshHasherDeps,
+{
+    // The four ID helpers below all derive stable content addresses from
+    // a route-specific byte input using tagged hashing. Domain tags
+    // ("mesh-route-id", "mesh-commitment", "mesh-handoff-receipt",
+    // "mesh-retention") prevent cross-domain collisions even when two
+    // derivations happen to share bytes.
     fn candidate_plan_token(&self, node_path: &[NodeId]) -> jacquard_core::BackendRouteId {
         support::encode_backend_token(node_path)
     }
@@ -355,7 +422,13 @@ where
             digest: self.hashing.hash_tagged(b"mesh-retention", &tagged),
         }
     }
+}
 
+impl<Topology, Transport, Retention, Effects, Hasher, Selector>
+    MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+where
+    Effects: MeshEffectsDeps,
+{
     fn find_cached_candidate_by_route_id(&self, route_id: &RouteId) -> Option<CachedCandidate> {
         self.candidate_cache
             .borrow()
@@ -389,6 +462,9 @@ where
             .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
     }
 
+    // Handoff target is the next-hop segment of the active path, or the
+    // current lease owner if the path has no segments (degenerate case
+    // that should only occur in tests with a direct single-hop route).
     fn handoff_target(active_route: &ActiveMeshRoute, owner_node_id: NodeId) -> NodeId {
         active_route
             .path
