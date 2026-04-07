@@ -38,7 +38,7 @@ pub enum TransportProtocol {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum EndpointAddress {
     Ble {
-        device_id:  BleDeviceId,
+        device_id: BleDeviceId,
         profile_id: BleProfileId,
     },
     Ip {
@@ -62,8 +62,8 @@ pub enum LinkRuntimeState {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LinkEndpoint {
-    pub protocol:  TransportProtocol,
-    pub address:   EndpointAddress,
+    pub protocol: TransportProtocol,
+    pub address: EndpointAddress,
     /// Link endpoints are frame carriers only. Ordering and traffic control
     /// live above this layer in routing and protocol logic.
     pub mtu_bytes: ByteCount,
@@ -75,15 +75,15 @@ pub struct LinkEndpoint {
 /// Descriptors are shared facts. Local ranking is not published here.
 pub struct ServiceDescriptor {
     pub provider_node_id: NodeId,
-    pub controller_id:    ControllerId,
-    pub service_kind:     RouteServiceKind,
+    pub controller_id: ControllerId,
+    pub service_kind: RouteServiceKind,
     /// Bounded by
     /// [`SERVICE_ENDPOINT_COUNT_MAX`](crate::SERVICE_ENDPOINT_COUNT_MAX).
-    pub endpoints:        Vec<LinkEndpoint>,
-    pub routing_engines:  Vec<RoutingEngineId>,
-    pub scope:            ServiceScope,
-    pub valid_for:        TimeWindow,
-    pub capacity:         Belief<CapacityHint>,
+    pub endpoints: Vec<LinkEndpoint>,
+    pub routing_engines: Vec<RoutingEngineId>,
+    pub scope: ServiceScope,
+    pub valid_for: TimeWindow,
+    pub capacity: Belief<CapacityHint>,
 }
 
 #[public_model]
@@ -100,7 +100,7 @@ pub enum ServiceScope {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapacityHint {
     pub saturation_permille: RatioPermille,
-    pub repair_capacity:     Belief<u32>,
+    pub repair_capacity: Belief<u32>,
     pub hold_capacity_bytes: Belief<ByteCount>,
 }
 
@@ -108,13 +108,13 @@ pub struct CapacityHint {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransportObservation {
     PayloadReceived {
-        from_node_id:     NodeId,
-        endpoint:         LinkEndpoint,
-        payload:          Vec<u8>,
+        from_node_id: NodeId,
+        endpoint: LinkEndpoint,
+        payload: Vec<u8>,
         observed_at_tick: crate::Tick,
     },
     LinkObserved {
         remote_node_id: NodeId,
-        observation:    crate::Observation<crate::Link>,
+        observation: crate::Observation<crate::Link>,
     },
 }

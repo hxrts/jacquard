@@ -107,7 +107,7 @@ pub trait MeshNeighborhoodEstimateAccess {
 /// generic byte stream effect.
 pub struct MeshFrame<'a> {
     pub endpoint: &'a LinkEndpoint,
-    pub payload:  &'a [u8],
+    pub payload: &'a [u8],
 }
 
 #[purity(effectful)]

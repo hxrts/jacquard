@@ -55,6 +55,8 @@ The effect surface is what lets one routing engine compile against one set of tr
 
 This is what keeps Jacquard testable end-to-end without forking the routing model. A test that wants to advance time, drop a frame, or simulate a storage failure does so by swapping the effect implementation, not by editing the routing engine. The same engine binary participates in deterministic replay because every nondeterministic input crosses one of these traits.
 
+First-party mesh adds one private layer above these shared traits: Telltale-generated choreography effect interfaces used only inside `jacquard-mesh`. Those generated interfaces are not promoted into `jacquard-traits`. Instead, mesh interprets its private protocol requests onto the stable shared effect traits through a concrete host/runtime adapter.
+
 ## Determinism Contract
 
 Each effect trait carries rules that runtimes must honor for routing logic to remain deterministic. `TimeEffects::now_tick` must be monotonic non-decreasing within a runtime instance, since replay and expiry checks depend on that ordering. The clock may pause or skip ahead under simulator control but must never move backward. `OrderEffects::next_order_stamp` must be strictly increasing and never repeat within a runtime instance, because stamps participate in canonical ordering and a duplicate would corrupt deterministic tie-breaking.

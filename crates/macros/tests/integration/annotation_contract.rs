@@ -20,7 +20,7 @@ enum RouteMode {
 #[public_model]
 struct RouteDescriptor {
     route_id: ExampleId,
-    mode:     RouteMode,
+    mode: RouteMode,
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn bounded_value_rejects_out_of_range_values() {
 fn public_model_preserves_existing_derives() {
     let descriptor = RouteDescriptor {
         route_id: ExampleId::new(1),
-        mode:     RouteMode::Mesh,
+        mode: RouteMode::Mesh,
     };
 
     assert_eq!(descriptor.route_id.get(), 1);

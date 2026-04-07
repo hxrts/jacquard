@@ -15,15 +15,15 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct DeterministicOrderKey<K> {
     pub stable_key: K,
-    pub tie_break:  OrderStamp,
+    pub tie_break: OrderStamp,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteOrderingKey {
-    pub priority:       PriorityPoints,
+    pub priority: PriorityPoints,
     pub topology_epoch: RouteEpoch,
-    pub tie_break:      OrderStamp,
+    pub tie_break: OrderStamp,
 }
 
 #[public_model]
@@ -61,7 +61,7 @@ pub enum RoutingTickChange {
 /// tick changed engine-private state while keeping engine internals private.
 pub struct RoutingTickOutcome {
     pub topology_epoch: RouteEpoch,
-    pub change:         RoutingTickChange,
+    pub change: RoutingTickChange,
 }
 
 // Manual Ord (not derived) keeps the priority-first, then-epoch,
@@ -90,8 +90,8 @@ impl PartialOrd for RouteOrderingKey {
 /// A bare RouteId is a weak reference; a lease is the strong one.
 pub struct RouteLease {
     pub owner_node_id: NodeId,
-    pub lease_epoch:   RouteEpoch,
-    pub valid_for:     TimeWindow,
+    pub lease_epoch: RouteEpoch,
+    pub valid_for: TimeWindow,
 }
 
 impl RouteLease {
@@ -115,20 +115,20 @@ impl RouteLease {
 /// Canonical handle issued only after route installation has materially
 /// succeeded.
 pub struct RouteHandle {
-    pub route_id:             RouteId,
-    pub topology_epoch:       RouteEpoch,
+    pub route_id: RouteId,
+    pub topology_epoch: RouteEpoch,
     pub materialized_at_tick: Tick,
-    pub publication_id:       PublicationId,
+    pub publication_id: PublicationId,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteMaterializationProof {
-    pub route_id:             RouteId,
-    pub topology_epoch:       RouteEpoch,
+    pub route_id: RouteId,
+    pub topology_epoch: RouteEpoch,
     pub materialized_at_tick: Tick,
-    pub publication_id:       PublicationId,
-    pub witness:              Fact<RouteWitness>,
+    pub publication_id: PublicationId,
+    pub witness: Fact<RouteWitness>,
 }
 
 #[public_model]
@@ -139,9 +139,9 @@ pub struct RouteMaterializationProof {
 /// Routing engines must realize admitted routes under this canonical identity
 /// instead of minting a competing handle or lease of their own.
 pub struct RouteMaterializationInput {
-    pub handle:    RouteHandle,
+    pub handle: RouteHandle,
     pub admission: RouteAdmission,
-    pub lease:     RouteLease,
+    pub lease: RouteLease,
 }
 
 #[public_model]
@@ -152,9 +152,9 @@ pub struct RouteMaterializationInput {
 /// and proof artifacts.
 pub struct RouteInstallation {
     pub materialization_proof: RouteMaterializationProof,
-    pub last_lifecycle_event:  RouteLifecycleEvent,
-    pub health:                RouteHealth,
-    pub progress:              RouteProgressContract,
+    pub last_lifecycle_event: RouteLifecycleEvent,
+    pub health: RouteHealth,
+    pub progress: RouteProgressContract,
 }
 
 #[public_model]
@@ -162,13 +162,13 @@ pub struct RouteInstallation {
 /// Explicit route budget envelope. Absence is not used to encode bound
 /// semantics.
 pub struct RouteCost {
-    pub message_count_max:        Limit<u32>,
-    pub byte_count_max:           Limit<ByteCount>,
-    pub hop_count:                u8,
+    pub message_count_max: Limit<u32>,
+    pub byte_count_max: Limit<ByteCount>,
+    pub hop_count: u8,
     pub repair_attempt_count_max: Limit<u32>,
-    pub hold_bytes_reserved:      Limit<ByteCount>,
+    pub hold_bytes_reserved: Limit<ByteCount>,
     /// Upper bound in deterministic abstract work steps, not host CPU time.
-    pub work_step_count_max:      Limit<u32>,
+    pub work_step_count_max: Limit<u32>,
 }
 
 #[public_model]
@@ -189,9 +189,9 @@ pub enum RouteLifecycleEvent {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteOperationInstance {
-    pub operation_id:   crate::RouteOperationId,
-    pub route_binding:  RouteBinding,
-    pub service_kind:   crate::RouteServiceKind,
+    pub operation_id: crate::RouteOperationId,
+    pub route_binding: RouteBinding,
+    pub service_kind: crate::RouteServiceKind,
     pub issued_at_tick: Tick,
 }
 
@@ -208,12 +208,12 @@ pub enum RouteBinding {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCommitment {
     pub commitment_id: RouteCommitmentId,
-    pub operation_id:  crate::RouteOperationId,
+    pub operation_id: crate::RouteOperationId,
     pub route_binding: RouteBinding,
     pub owner_node_id: NodeId,
     pub deadline_tick: Tick,
-    pub retry_policy:  TimeoutPolicy,
-    pub resolution:    RouteCommitmentResolution,
+    pub retry_policy: TimeoutPolicy,
+    pub resolution: RouteCommitmentResolution,
 }
 
 #[public_model]
@@ -258,20 +258,20 @@ pub enum RouteInvalidationReason {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Explicit transfer of route ownership. Modeled as a move, not shared access.
 pub struct RouteSemanticHandoff {
-    pub route_id:      RouteId,
-    pub from_node_id:  NodeId,
-    pub to_node_id:    NodeId,
+    pub route_id: RouteId,
+    pub from_node_id: NodeId,
+    pub to_node_id: NodeId,
     pub handoff_epoch: RouteEpoch,
-    pub receipt_id:    ReceiptId,
+    pub receipt_id: ReceiptId,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteProgressContract {
     pub productive_step_count_max: Limit<u32>,
-    pub total_step_count_max:      Limit<u32>,
-    pub last_progress_at_tick:     Tick,
-    pub state:                     RouteProgressState,
+    pub total_step_count_max: Limit<u32>,
+    pub last_progress_at_tick: Tick,
+    pub state: RouteProgressState,
 }
 
 #[public_model]
@@ -291,10 +291,10 @@ pub enum RouteProgressState {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Router-owned canonical identity and admission record for one live route.
 pub struct MaterializedRouteIdentity {
-    pub handle:                RouteHandle,
+    pub handle: RouteHandle,
     pub materialization_proof: RouteMaterializationProof,
-    pub admission:             RouteAdmission,
-    pub lease:                 RouteLease,
+    pub admission: RouteAdmission,
+    pub lease: RouteLease,
 }
 
 impl MaterializedRouteIdentity {
@@ -308,15 +308,15 @@ impl MaterializedRouteIdentity {
 /// Engine-observed mutable runtime state for one live route.
 pub struct RouteRuntimeState {
     pub last_lifecycle_event: RouteLifecycleEvent,
-    pub health:               RouteHealth,
-    pub progress:             RouteProgressContract,
+    pub health: RouteHealth,
+    pub progress: RouteProgressContract,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MaterializedRoute {
     pub identity: MaterializedRouteIdentity,
-    pub runtime:  RouteRuntimeState,
+    pub runtime: RouteRuntimeState,
 }
 
 impl MaterializedRoute {
@@ -359,15 +359,15 @@ impl MaterializedRoute {
         );
         Self {
             identity: MaterializedRouteIdentity {
-                handle:                input.handle,
+                handle: input.handle,
                 materialization_proof: installation.materialization_proof,
-                admission:             input.admission,
-                lease:                 input.lease,
+                admission: input.admission,
+                lease: input.lease,
             },
-            runtime:  RouteRuntimeState {
+            runtime: RouteRuntimeState {
                 last_lifecycle_event: installation.last_lifecycle_event,
-                health:               installation.health,
-                progress:             installation.progress,
+                health: installation.health,
+                progress: installation.progress,
             },
         }
     }
@@ -376,10 +376,10 @@ impl MaterializedRoute {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteHealth {
-    pub reachability_state:        ReachabilityState,
-    pub stability_score:           HealthScore,
+    pub reachability_state: ReachabilityState,
+    pub stability_score: HealthScore,
     pub congestion_penalty_points: PenaltyPoints,
-    pub last_validated_at_tick:    Tick,
+    pub last_validated_at_tick: Tick,
 }
 
 #[public_model]
@@ -413,7 +413,7 @@ pub enum RouteMaintenanceTrigger {
 /// preserve the semantic payload of the decision rather than collapsing it to a
 /// single enum.
 pub struct RouteMaintenanceResult {
-    pub event:   RouteLifecycleEvent,
+    pub event: RouteLifecycleEvent,
     pub outcome: RouteMaintenanceOutcome,
 }
 
@@ -427,7 +427,7 @@ pub enum RouteMaintenanceOutcome {
     },
     HandedOff(RouteSemanticHandoff),
     HoldFallback {
-        trigger:               RouteMaintenanceTrigger,
+        trigger: RouteMaintenanceTrigger,
         retained_object_count: u32,
     },
     Failed(RouteMaintenanceFailure),
@@ -453,14 +453,14 @@ mod tests {
     #[test]
     fn route_ordering_key_is_total() {
         let low = RouteOrderingKey {
-            priority:       crate::PriorityPoints(1),
+            priority: crate::PriorityPoints(1),
             topology_epoch: crate::RouteEpoch(2),
-            tie_break:      crate::OrderStamp(3),
+            tie_break: crate::OrderStamp(3),
         };
         let high = RouteOrderingKey {
-            priority:       crate::PriorityPoints(2),
+            priority: crate::PriorityPoints(2),
             topology_epoch: crate::RouteEpoch(2),
-            tie_break:      crate::OrderStamp(3),
+            tie_break: crate::OrderStamp(3),
         };
 
         assert!(low < high);

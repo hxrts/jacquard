@@ -66,6 +66,8 @@ The routing core does not call platform APIs directly. Hashing, storage, route-e
 
 The effect traits are narrower than the higher-level component traits. They model runtime capabilities, not whole subsystems. `RoutingEngine`, `Router`, and `RetentionStore` are larger behavioral contracts and should not be forced through the effect layer.
 
+First-party mesh keeps one additional internal layer above those shared effects: mesh-private choreography effect interfaces generated from Telltale protocols. Those generated interfaces are not promoted into `jacquard-traits`. Concrete host/runtime adapters implement the shared effect traits, and `jacquard-mesh` interprets its private choreography requests in terms of those stable shared boundaries.
+
 ## Invariants
 
 - No crate may use floating-point types in routing logic, routing state, routing policy, or simulator verdicts.
@@ -85,7 +87,7 @@ Each crate owns a narrow slice of runtime state.
 |---|---|
 | `jacquard-core` | Shared vocabulary. No live state. |
 | `jacquard-traits` | Compile-time boundaries. No runtime state. |
-| `jacquard-mesh` | Mesh-private forwarding state, topology caches, repair state, retention state, and engine-local committee scoring. |
+| `jacquard-mesh` | Mesh-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
 | `jacquard-router` (future) | Canonical route identity, materialization inputs, leases, handle issuance, top-level route-health publication. |
 | `jacquard-transport` (future) | Local transport observations and device-facing adapter state. |
 | `jacquard-simulator` (future) | Replay artifacts, scenario traces, post-run analysis. No canonical route truth during a live run. |
@@ -97,3 +99,5 @@ A host-owned policy engine above the router may own cross-engine migration polic
 `core::Configuration` is the shared graph-shaped world object. Engine-specific structure such as topology exports, peer novelty, bridge estimates, planning caches, and forwarding tables belongs in the engine crate behind its trait boundary rather than in `core`.
 
 The extension surface is split across [World Extensions](107_world_extensions.md), [Routing Engines](108_routing_engines.md), [Runtime Effects](104_runtime_effects.md), and [Mesh Routing](109_mesh_routing.md).
+
+For first-party mesh specifically, Telltale stays an internal implementation substrate. Shared crates remain runtime-free. The future router may drive mesh through shared planning, tick, maintenance, and checkpoint orchestration, but it must not depend on mesh-private choreography payloads, protocol session keys, or guest-runtime internals.

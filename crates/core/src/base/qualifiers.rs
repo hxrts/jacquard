@@ -29,9 +29,9 @@ pub enum Belief<T> {
 )]
 /// Belief update derived from one or more observations.
 pub struct Estimate<T> {
-    pub value:               T,
+    pub value: T,
     pub confidence_permille: RatioPermille,
-    pub updated_at_tick:     Tick,
+    pub updated_at_tick: Tick,
 }
 
 #[public_model]
@@ -79,11 +79,11 @@ pub enum IdentityAssuranceClass {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Raw local observation or received report with provenance attached.
 pub struct Observation<T> {
-    pub value:                 T,
-    pub source_class:          FactSourceClass,
-    pub evidence_class:        RoutingEvidenceClass,
+    pub value: T,
+    pub source_class: FactSourceClass,
+    pub evidence_class: RoutingEvidenceClass,
     pub origin_authentication: OriginAuthenticationClass,
-    pub observed_at_tick:      Tick,
+    pub observed_at_tick: Tick,
 }
 
 #[public_model]
@@ -103,7 +103,7 @@ pub enum FactBasis {
 /// Definitive routing truth established from observations, estimates, or
 /// publication.
 pub struct Fact<T> {
-    pub value:               T,
-    pub basis:               FactBasis,
+    pub value: T,
+    pub basis: FactBasis,
     pub established_at_tick: Tick,
 }
