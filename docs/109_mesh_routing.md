@@ -116,6 +116,120 @@ Storage keys and runtime checkpoints are scoped by the local engine identity so 
 
 V1 mesh now supports a scoped checkpoint round-trip for mesh-private active-route state and the latest topology epoch. That recovery surface is intentionally narrow: it restores the mesh-owned runtime object keyed by `RouteId`, while canonical route identity and lease ownership still remain on the router side.
 
+## Swappable Trait Surface
+
+The mesh engine exposes its internal seams as four traits in `jacquard-traits`. Substituting any of them replaces one mesh subcomponent without forking the engine.
+
+### Topology Model
+
+```rust
+pub trait MeshTopologyModel {
+    type PeerEstimate;
+    type NeighborhoodEstimate;
+
+    #[must_use]
+    fn local_node(&self, local_node_id: &NodeId, configuration: &Configuration) -> Option<Node>;
+
+    #[must_use]
+    fn neighboring_nodes(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Vec<(NodeId, Node)>;
+
+    #[must_use]
+    fn reachable_endpoints(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Vec<LinkEndpoint>;
+
+    #[must_use]
+    fn adjacent_links(&self, local_node_id: &NodeId, configuration: &Configuration) -> Vec<Link>;
+
+    #[must_use]
+    fn peer_estimate(
+        &self,
+        local_node_id: &NodeId,
+        peer_node_id: &NodeId,
+        observed_at_tick: Tick,
+        configuration: &Configuration,
+    ) -> Option<Self::PeerEstimate>;
+
+    #[must_use]
+    fn neighborhood_estimate(
+        &self,
+        local_node_id: &NodeId,
+        observed_at_tick: Tick,
+        configuration: &Configuration,
+    ) -> Option<Self::NeighborhoodEstimate>;
+}
+```
+
+`MeshTopologyModel` is read-only. The associated estimate types are the important boundary. If a mesh implementation wants novelty scores, reach estimates, bridge heuristics, or neighborhood flow signals, those stay mesh-owned behind `MeshTopologyModel`. They are not promoted into `jacquard-core` as shared `Node`, `Link`, or `Environment` schema.
+
+### Engine Binding
+
+```rust
+pub trait MeshRoutingEngine: RoutingEngine {
+    type TopologyModel: MeshTopologyModel;
+    type Transport: MeshTransport;
+    type Retention: RetentionStore;
+
+    fn topology_model(&self) -> &Self::TopologyModel;
+
+    fn transport(&self) -> &Self::Transport;
+
+    fn transport_mut(&mut self) -> &mut Self::Transport;
+
+    fn retention_store(&self) -> &Self::Retention;
+
+    fn retention_store_mut(&mut self) -> &mut Self::Retention;
+}
+```
+
+`MeshRoutingEngine` binds one concrete topology model, one transport implementation, and one retention store to a mesh engine instance. This keeps mesh-specific internals swappable without exposing them as shared cross-engine assumptions, while still letting mesh route choice depend on mesh-owned peer and neighborhood estimates behind that boundary.
+
+### Transport
+
+```rust
+pub trait MeshTransport {
+    #[must_use]
+    fn transport_id(&self) -> TransportProtocol;
+
+    fn send_frame(&mut self, endpoint: &LinkEndpoint, payload: &[u8])
+        -> Result<(), TransportError>;
+
+    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
+}
+```
+
+`MeshTransport` is the carrier boundary for sending frames and reporting transport observations. Any implementation that satisfies `MeshTransport` automatically satisfies `TransportEffects` from [Runtime Effects](108_runtime_effects.md) via blanket impl, so a mesh transport adapter doubles as a host transport effect handler.
+
+### Retention
+
+```rust
+pub trait RetentionStore {
+    fn retain_payload(
+        &mut self,
+        object_id: ContentId<Blake3Digest>,
+        payload: Vec<u8>,
+    ) -> Result<(), RetentionError>;
+
+    fn take_retained_payload(
+        &mut self,
+        object_id: &ContentId<Blake3Digest>,
+    ) -> Result<Option<Vec<u8>>, RetentionError>;
+
+    fn contains_retained_payload(
+        &self,
+        object_id: &ContentId<Blake3Digest>,
+    ) -> Result<bool, RetentionError>;
+}
+```
+
+`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. New transport implementations such as BLE GATT, Wi-Fi LAN, or QUIC implement `MeshTransport` and are registered with the mesh routing engine. If transport implementations grow substantial platform logic, they should move into dedicated crates such as `jacquard-transport-ble`. `RetentionStore` stays intentionally narrow for the same reason.
+
 ## Runtime Services
 
 `jacquard-mesh` routes host capabilities through the shared trait surfaces from `jacquard-traits`. It does not define parallel mesh-only runtime traits.

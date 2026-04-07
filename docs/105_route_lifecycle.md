@@ -1,6 +1,25 @@
-# Routing Decisions
+# Route Lifecycle
 
-This page picks up the routing pipeline at estimation and walks through policy, action, and route realization. It covers the control and data plane split, the candidate-to-materialization decision path, and the routing-engine boundary. See [Pipeline and World Observations](104_pipeline_observations.md) for the world and observation stages that feed into this page.
+This page describes how a route moves from a routing objective through candidate production, admission, materialization, active forwarding, maintenance, and teardown. See [Pipeline and World Observations](104_pipeline_observations.md) for the world and observation stages that feed into the lifecycle, and [Routing Engines](107_routing_engines.md) for the trait surface engines implement to participate in it.
+
+## Lifecycle Overview
+
+```mermaid
+stateDiagram-v2
+    [*] --> Planning
+    Planning --> Admitted : check_candidate, admit_route
+    Admitted --> Active : router allocates handle, engine materializes
+    Active --> Active : forward_payload
+    Active --> Maintaining : maintenance trigger
+    Maintaining --> Active : Repaired / Continued / HoldFallback / HandedOff
+    Maintaining --> Planning : ReplacementRequired
+    Maintaining --> [*] : Failed
+    Active --> [*] : teardown
+```
+
+A route starts as a `RoutingObjective` paired with an `Observation<Configuration>`. The planner produces candidates, the engine admits one against the current observed topology, the router allocates canonical identity, and the engine realizes the admitted route as a `MaterializedRoute`.
+
+Forwarding then happens through the data plane against that materialized route. Maintenance triggers can repair, hand off, drop into hold-fallback, or escalate to replacement. Replacement loops back to the planning step under the same objective. Teardown closes the lifecycle from any active state.
 
 ## Planes
 
@@ -22,59 +41,6 @@ The routing decision path starts from a `RoutingObjective` and a current `Observ
 
 The planner checks a candidate and admits it under a stated profile. The router then allocates canonical route identity. The routing engine realizes that admitted route under `RouteMaterializationInput`. The control plane assembles the final `MaterializedRoute` from router-owned `MaterializedRouteIdentity` plus engine-owned `RouteRuntimeState`.
 
-```rust
-pub trait RoutingEnginePlanner {
-    fn engine_id(&self) -> RoutingEngineId;
-    fn capabilities(&self) -> RoutingEngineCapabilities;
-
-    fn candidate_routes(
-        &self,
-        objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
-        topology: &Observation<Configuration>,
-    ) -> Vec<RouteCandidate>;
-
-    fn check_candidate(
-        &self,
-        objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
-        candidate: &RouteCandidate,
-        topology: &Observation<Configuration>,
-    ) -> Result<RouteAdmissionCheck, RouteError>;
-
-    fn admit_route(
-        &self,
-        objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
-        candidate: RouteCandidate,
-        topology: &Observation<Configuration>,
-    ) -> Result<RouteAdmission, RouteError>;
-}
-
-pub trait RoutingEngine: RoutingEnginePlanner {
-    fn materialize_route(
-        &mut self,
-        input: RouteMaterializationInput,
-    ) -> Result<RouteInstallation, RouteError>;
-
-    fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
-
-    fn engine_tick(
-        &mut self,
-        topology: &Observation<Configuration>,
-    ) -> Result<(), RouteError> { Ok(()) }
-
-    fn maintain_route(
-        &mut self,
-        identity: &MaterializedRouteIdentity,
-        runtime: &mut RouteRuntimeState,
-        trigger: RouteMaintenanceTrigger,
-    ) -> Result<RouteMaintenanceResult, RouteError>;
-
-    fn teardown(&mut self, route_id: &RouteId);
-}
-```
-
 `RoutingEnginePlanner` is the pure planning surface. Runtime mutation is confined to `RoutingEngine::materialize_route`, `maintain_route`, and `teardown`. The control plane enforces the objective protection floor at materialization. Expired leases surface as a typed failure rather than silently continuing.
 
 ### Contract Rules
@@ -83,11 +49,23 @@ Two implementation rules keep the planning surface honest. First, any planning o
 
 Cache misses must still lead to the same planning or admission result for the same topology. Admitted routes must carry enough opaque engine-private plan state forward that materialization can proceed without a planner-cache lookup. Materialization must fail closed when required observed topology is missing. Successful lifecycle transitions must remain replay-visible before public or durable state is committed, so engines should stage the next runtime state off to the side until checkpointing and route-event logging succeed.
 
-Route health should also stay route-scoped rather than engine-global. When an engine can validate the active route's remaining suffix against current observations, it should publish route-local reachability and stability. When it cannot, it should use an explicit unknown reachability state rather than silently treating the route as healthy or dead from unrelated engine-level signals.
+`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, retaining bounded observational summaries, or updating coordination posture before any specific route is active. In richer engines that can include maintaining bounded repair pressure, anti-entropy pressure, or transport-derived health posture. See [Routing Engines](107_routing_engines.md) for the full trait signatures.
 
-`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, retaining bounded observational summaries, or updating coordination posture before any specific route is active. In richer engines that can include maintaining bounded repair pressure, anti-entropy pressure, or transport-derived health posture. Committee selection, substrate planning, and layered routing follow the same pure and effectful split. See [Extensibility](106_extensibility.md) for the full trait signatures.
+## Active Route
 
-### Overlay Example
+A `MaterializedRoute` is split into router-owned `MaterializedRouteIdentity` and engine-owned `RouteRuntimeState`. The data plane forwards payloads through `RoutingDataPlane::forward_payload` against the materialized route. The control plane consumes data-plane health signals as observational input but does not promote them into canonical state without an explicit lifecycle event.
+
+Route health stays route-scoped rather than engine-global. When an engine can validate the active route's remaining suffix against current observations, it should publish route-local reachability and stability. When it cannot, it should use an explicit unknown reachability state rather than silently treating the route as healthy or dead from unrelated engine-level signals.
+
+## Maintenance
+
+Maintenance is expressed through `RoutingEngine::maintain_route`, which receives a `RouteMaintenanceTrigger` and returns a typed `RouteMaintenanceResult`. The trigger names what happened: `LinkDegraded`, `EpochAdvanced`, `CapacityExceeded`, `PartitionDetected`, `PolicyShift`, `AntiEntropyRequired`, `LeaseExpiring`, or `RouteExpired`. The result wraps an outcome variant: `Continued`, `Repaired`, `HoldFallback`, `HandedOff`, `ReplacementRequired`, or `Failed`.
+
+`ReplacementRequired` returns the route to the planning stage with the same objective. The control plane treats it as the explicit replace path, not an in-place engine mutation. The engine never publishes canonical changes by side channel.
+
+`RoutingEngine::teardown` is the explicit lifecycle terminator and may be called from any active state. Lease expiry is the second terminal path. When the router-owned lease window passes, maintenance returns `Failed` with a lease-expired reason regardless of which trigger arrived.
+
+## Overlay Example
 
 Layering lets an overlay engine use mesh as a carrier without awareness of mesh-private topology. Mesh provides substrate reachability inside one cluster. The overlay engine consumes those paths as leased substrates for inter-cluster carriage or egress.
 

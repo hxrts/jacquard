@@ -96,4 +96,4 @@ A host-owned policy engine above the router may own cross-engine migration polic
 
 `core::Configuration` is the shared graph-shaped world object. Engine-specific structure such as topology exports, peer novelty, bridge estimates, planning caches, and forwarding tables belongs in the engine crate behind its trait boundary rather than in `core`.
 
-See [Extensibility](106_extensibility.md) for the full extension surface, dependency rules, and stable contract types.
+The extension surface is split across [World Extensions](106_world_extensions.md), [Routing Engines](107_routing_engines.md), [Runtime Effects](108_runtime_effects.md), and [Mesh Routing](109_mesh_routing.md).
