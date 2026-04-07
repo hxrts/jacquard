@@ -8,12 +8,14 @@
 
 mod common;
 
-use common::sample_configuration;
 use jacquard_mesh::DeterministicCommitteeSelector;
 use jacquard_traits::{
     jacquard_core::{DestinationId, NodeId, ServiceId},
     CommitteeSelector,
 };
+
+use common::engine::{objective, profile};
+use common::fixtures::sample_configuration;
 
 // Two calls to the selector on the same inputs must return the same
 // `Option<CommitteeSelection>`. The standard sample fixture should
@@ -22,14 +24,14 @@ use jacquard_traits::{
 fn committee_selection_is_optional_and_deterministic() {
     let selector = DeterministicCommitteeSelector::new(NodeId([1; 32]));
     let topology = sample_configuration();
-    let objective = common::objective(DestinationId::Service(ServiceId(vec![9, 9])));
-    let profile = common::profile();
+    let goal = objective(DestinationId::Service(ServiceId(vec![9, 9])));
+    let policy = profile();
 
     let first = selector
-        .select_committee(&objective, &profile, &topology)
+        .select_committee(&goal, &policy, &topology)
         .expect("selector result");
     let second = selector
-        .select_committee(&objective, &profile, &topology)
+        .select_committee(&goal, &policy, &topology)
         .expect("selector result");
 
     assert_eq!(first, second);

@@ -5,28 +5,29 @@
 //! checks that two calls on the same `Configuration` agree. These tests
 //! check stronger properties: byte-identical candidate output across
 //! independently constructed engines, and across logically equivalent
-//! topologies built with different insertion orders. If something inside
-//! the engine accidentally depends on hash-map iteration order or
-//! pointer identity, these tests will catch it.
+//! topologies built with different insertion orders.
 
 mod common;
 
 use std::collections::BTreeMap;
 
-use common::{build_engine, link, node};
 use jacquard_traits::{
     jacquard_core::{
         Configuration, DestinationId, Environment, FactSourceClass, NodeId, Observation,
-        OriginAuthenticationClass, RatioPermille, RouteEpoch, RoutingEvidenceClass, Tick,
+        OriginAuthenticationClass, RatioPermille, RouteEpoch, RoutingEvidenceClass, ServiceId,
+        Tick,
     },
     RoutingEnginePlanner,
 };
 
+use common::engine::{build_engine, objective, profile};
+use common::fixtures::{link, node, sample_configuration};
+
 fn permuted_topology() -> Observation<Configuration> {
-    // Same logical graph as `common::sample_configuration`, built by
-    // inserting nodes and links in the reverse order. BTreeMap normalizes
-    // ordering by key, so the resulting Configuration must be byte-equal
-    // to the original. This locks in the property that the engine never
+    // Same logical graph as `sample_configuration`, built by inserting
+    // nodes and links in the reverse order. BTreeMap normalizes ordering
+    // by key, so the resulting Configuration must be byte-equal to the
+    // original. This locks in the property that the engine never
     // accidentally introduces a HashMap-style ordering dependency.
     let local_node_id = NodeId([1; 32]);
     let node_two_id = NodeId([2; 32]);
@@ -70,12 +71,12 @@ fn permuted_topology() -> Observation<Configuration> {
 fn independent_engines_produce_identical_candidates() {
     let engine_a = build_engine();
     let engine_b = build_engine();
-    let topology = common::sample_configuration();
-    let objective = common::objective(DestinationId::Node(NodeId([3; 32])));
-    let profile = common::profile();
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let policy = profile();
 
-    let candidates_a = engine_a.candidate_routes(&objective, &profile, &topology);
-    let candidates_b = engine_b.candidate_routes(&objective, &profile, &topology);
+    let candidates_a = engine_a.candidate_routes(&goal, &policy, &topology);
+    let candidates_b = engine_b.candidate_routes(&goal, &policy, &topology);
     assert_eq!(candidates_a, candidates_b);
     assert!(!candidates_a.is_empty());
 }
@@ -87,16 +88,16 @@ fn independent_engines_produce_identical_candidates() {
 #[test]
 fn permuted_insertion_order_produces_identical_candidates() {
     let engine = build_engine();
-    let original = common::sample_configuration();
+    let original = sample_configuration();
     let permuted = permuted_topology();
 
     // First confirm the test fixture is what we claim it is.
     assert_eq!(original.value, permuted.value);
 
-    let objective = common::objective(DestinationId::Node(NodeId([3; 32])));
-    let profile = common::profile();
-    let original_candidates = engine.candidate_routes(&objective, &profile, &original);
-    let permuted_candidates = engine.candidate_routes(&objective, &profile, &permuted);
+    let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let policy = profile();
+    let original_candidates = engine.candidate_routes(&goal, &policy, &original);
+    let permuted_candidates = engine.candidate_routes(&goal, &policy, &permuted);
     assert_eq!(original_candidates, permuted_candidates);
 }
 
@@ -107,15 +108,13 @@ fn permuted_insertion_order_produces_identical_candidates() {
 #[test]
 fn service_destination_ordering_is_stable_across_calls() {
     let engine = build_engine();
-    let topology = common::sample_configuration();
-    let objective = common::objective(DestinationId::Service(
-        jacquard_traits::jacquard_core::ServiceId(vec![1, 2, 3]),
-    ));
-    let profile = common::profile();
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Service(ServiceId(vec![1, 2, 3])));
+    let policy = profile();
 
-    let first = engine.candidate_routes(&objective, &profile, &topology);
-    let second = engine.candidate_routes(&objective, &profile, &topology);
-    let third = engine.candidate_routes(&objective, &profile, &topology);
+    let first = engine.candidate_routes(&goal, &policy, &topology);
+    let second = engine.candidate_routes(&goal, &policy, &topology);
+    let third = engine.candidate_routes(&goal, &policy, &topology);
     assert_eq!(first, second);
     assert_eq!(second, third);
 }
@@ -126,14 +125,12 @@ fn service_destination_ordering_is_stable_across_calls() {
 #[test]
 fn candidate_ordering_matches_expected_count_and_is_stable() {
     let engine = build_engine();
-    let topology = common::sample_configuration();
-    let objective = common::objective(DestinationId::Service(
-        jacquard_traits::jacquard_core::ServiceId(vec![1, 2, 3]),
-    ));
-    let profile = common::profile();
+    let topology = sample_configuration();
+    let goal = objective(DestinationId::Service(ServiceId(vec![1, 2, 3])));
+    let policy = profile();
 
-    let first = engine.candidate_routes(&objective, &profile, &topology);
-    let second = engine.candidate_routes(&objective, &profile, &topology);
+    let first = engine.candidate_routes(&goal, &policy, &topology);
+    let second = engine.candidate_routes(&goal, &policy, &topology);
     assert_eq!(first, second);
     assert_eq!(first.len(), 3);
 }

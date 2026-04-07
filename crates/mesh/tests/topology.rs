@@ -8,12 +8,13 @@
 
 mod common;
 
-use common::sample_configuration;
 use jacquard_mesh::DeterministicMeshTopologyModel;
 use jacquard_traits::{
     jacquard_core::{NodeId, TransportProtocol},
     MeshTopologyModel,
 };
+
+use common::fixtures::sample_configuration;
 
 // The deterministic topology model must surface mesh-private intrinsic
 // node state, per-protocol medium counts, and a non-trivial
