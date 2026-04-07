@@ -148,8 +148,11 @@ struct CachedCandidate {
 
 // `candidate_cache` memoizes planning work so `check_candidate` and
 // `admit_route` can reuse the admission check, witness, and path derived
-// during `candidate_routes` without reconstructing them. It is
-// `RefCell<...>` because the planner trait methods take `&self`.
+// during `candidate_routes` without reconstructing them. The cache is an
+// optimization only: `BackendRouteRef` is a self-contained opaque plan
+// token, so mesh can re-derive candidate state from an explicit topology
+// observation on cache miss. It is `RefCell<...>` because the planner
+// trait methods take `&self`.
 // `active_routes` holds the mesh-private runtime state for each
 // materialized route. Canonical identity lives on the router side.
 pub struct MeshEngine<
@@ -329,13 +332,8 @@ where
         Ok(payload)
     }
 
-    fn candidate_cache_key(&self, path_bytes: &[u8]) -> BackendRouteId {
-        BackendRouteId(
-            self.hashing
-                .hash_tagged(b"mesh-backend-route", path_bytes)
-                .0
-                .to_vec(),
-        )
+    fn candidate_plan_token(&self, node_path: &[NodeId]) -> BackendRouteId {
+        encode_backend_token(node_path)
     }
 
     fn route_id_for_backend(&self, backend_route_id: &BackendRouteId) -> RouteId {
@@ -453,7 +451,7 @@ where
         .expect("mesh candidates always use a positive validity window");
         let protocol_mix = unique_protocol_mix(&segments);
         let path_bytes = encode_path_bytes(node_path, &segments);
-        let backend_route_id = self.candidate_cache_key(&path_bytes);
+        let backend_route_id = self.candidate_plan_token(node_path);
         let route_id = self.route_id_for_backend(&backend_route_id);
         let order_key = deterministic_order_key(route_id, &self.hashing, &path_bytes);
         let route_cost = route_cost_for_segments(&segments, &route_class);
@@ -529,6 +527,31 @@ where
                 ordering_key: order_key,
             },
         ))
+    }
+
+    fn derive_candidate_from_backend_ref(
+        &self,
+        objective: &RoutingObjective,
+        profile: &AdaptiveRoutingProfile,
+        topology: &Observation<Configuration>,
+        backend_route_id: &BackendRouteId,
+    ) -> Result<CachedCandidate, RouteError> {
+        let node_path =
+            decode_backend_token(backend_route_id).ok_or(RouteSelectionError::NoCandidate)?;
+        let destination_node_id = *node_path.last().ok_or(RouteSelectionError::NoCandidate)?;
+        let (derived_backend_ref, candidate) = self
+            .derive_candidate(
+                objective,
+                profile,
+                topology,
+                destination_node_id,
+                &node_path,
+            )
+            .ok_or(RouteSelectionError::NoCandidate)?;
+        if &derived_backend_ref != backend_route_id {
+            return Err(RouteSelectionError::NoCandidate.into());
+        }
+        Ok(candidate)
     }
 
     fn find_cached_candidate_by_route_id(&self, route_id: &RouteId) -> Option<CachedCandidate> {
@@ -675,6 +698,7 @@ where
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         candidate: &RouteCandidate,
+        topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
         if let Some(cached) = self
             .candidate_cache
@@ -683,26 +707,13 @@ where
         {
             return Ok(cached.admission_check.clone());
         }
-
-        Ok(mesh_admission_check(
+        let derived = self.derive_candidate_from_backend_ref(
             objective,
             profile,
-            &candidate.summary,
-            &route_cost_for_summary(&candidate.summary),
-            &mesh_admission_assumptions(
-                profile,
-                &Configuration {
-                    epoch: candidate.estimate.value.topology_epoch,
-                    nodes: BTreeMap::new(),
-                    links: BTreeMap::new(),
-                    environment: jacquard_core::Environment {
-                        reachable_neighbor_count: 0,
-                        churn_permille: jacquard_core::RatioPermille(0),
-                        contention_permille: jacquard_core::RatioPermille(0),
-                    },
-                },
-            ),
-        ))
+            topology,
+            &candidate.backend_ref.backend_route_id,
+        )?;
+        Ok(derived.admission_check)
     }
 
     fn admit_route(
@@ -710,13 +721,24 @@ where
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         candidate: RouteCandidate,
+        topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError> {
         let cached = self
             .candidate_cache
             .borrow()
             .get(&candidate.backend_ref.backend_route_id)
             .cloned()
-            .ok_or(RouteSelectionError::NoCandidate)?;
+            .map_or_else(
+                || {
+                    self.derive_candidate_from_backend_ref(
+                        objective,
+                        profile,
+                        topology,
+                        &candidate.backend_ref.backend_route_id,
+                    )
+                },
+                Ok,
+            )?;
 
         match cached.admission_check.decision {
             AdmissionDecision::Admissible => Ok(RouteAdmission {
@@ -1165,6 +1187,38 @@ fn encode_path_bytes(path: &[NodeId], segments: &[MeshRouteSegment]) -> Vec<u8> 
     bytes
 }
 
+fn encode_backend_token(path: &[NodeId]) -> BackendRouteId {
+    let mut bytes = Vec::with_capacity(2 + path.len() * 32);
+    bytes.push(1);
+    let path_len = u8::try_from(path.len()).expect("mesh backend token path length exceeds u8");
+    bytes.push(path_len);
+    for node_id in path {
+        bytes.extend_from_slice(&node_id.0);
+    }
+    BackendRouteId(bytes)
+}
+
+fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<Vec<NodeId>> {
+    let bytes = &backend_route_id.0;
+    let (&version, rest) = bytes.split_first()?;
+    if version != 1 {
+        return None;
+    }
+    let (&path_len_u8, payload) = rest.split_first()?;
+    let path_len = usize::from(path_len_u8);
+    if path_len == 0 || payload.len() != path_len.saturating_mul(32) {
+        return None;
+    }
+
+    let mut path = Vec::with_capacity(path_len);
+    for chunk in payload.chunks_exact(32) {
+        let mut node_id = [0_u8; 32];
+        node_id.copy_from_slice(chunk);
+        path.push(NodeId(node_id));
+    }
+    Some(path)
+}
+
 fn deterministic_order_key<H: Hashing<Digest = Blake3Digest>>(
     route_id: RouteId,
     hashing: &H,
@@ -1262,27 +1316,6 @@ fn route_cost_for_segments(
     let hold_reserved = match route_class {
         MeshRouteClass::DeferredDelivery => ByteCount(MESH_HOLD_RESERVED_BYTES),
         _ => ByteCount(0),
-    };
-    RouteCost {
-        message_count_max: Limit::Bounded(u32::from(hop_count)),
-        byte_count_max: Limit::Bounded(ByteCount(u64::from(hop_count) * MESH_PER_HOP_BYTE_COST)),
-        hop_count,
-        repair_attempt_count_max: Limit::Bounded(u32::from(hop_count)),
-        hold_bytes_reserved: Limit::Bounded(hold_reserved),
-        work_step_count_max: Limit::Bounded(u32::from(hop_count) + 1),
-    }
-}
-
-fn route_cost_for_summary(summary: &RouteSummary) -> RouteCost {
-    let hop_count = match summary.hop_count_hint {
-        Belief::Absent => 1,
-        Belief::Estimated(estimate) => estimate.value,
-    };
-    let hold_reserved = if summary.connectivity.partition == RoutePartitionClass::PartitionTolerant
-    {
-        ByteCount(MESH_HOLD_RESERVED_BYTES)
-    } else {
-        ByteCount(0)
     };
     RouteCost {
         message_count_max: Limit::Bounded(u32::from(hop_count)),

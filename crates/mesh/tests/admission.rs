@@ -41,7 +41,7 @@ fn admit_route_rejects_when_summary_protection_is_below_floor() {
         .next()
         .expect("a candidate should still be produced before admission filtering");
     let check = engine
-        .check_candidate(&objective, &profile, &candidate)
+        .check_candidate(&objective, &profile, &candidate, &topology)
         .expect("check_candidate should succeed even when the decision is rejection");
     assert!(matches!(
         check.decision,
@@ -49,13 +49,13 @@ fn admit_route_rejects_when_summary_protection_is_below_floor() {
     ));
 
     let admission_error = engine
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect_err("admit_route must return Inadmissible for protection floor regression");
     assert!(matches!(
         admission_error,
-        jacquard_traits::jacquard_core::RouteError::Selection(
-            RouteSelectionError::Inadmissible(RouteAdmissionRejection::ProtectionFloorUnsatisfied)
-        )
+        jacquard_traits::jacquard_core::RouteError::Selection(RouteSelectionError::Inadmissible(
+            RouteAdmissionRejection::ProtectionFloorUnsatisfied
+        ))
     ));
 }
 
@@ -88,7 +88,7 @@ fn admit_route_rejects_when_profile_requires_partition_tolerance_and_summary_doe
         .next()
         .expect("direct path candidate should be produced");
     let check = engine
-        .check_candidate(&objective, &profile, &candidate)
+        .check_candidate(&objective, &profile, &candidate, &topology)
         .expect("check_candidate should succeed");
     assert!(matches!(
         check.decision,
@@ -96,13 +96,13 @@ fn admit_route_rejects_when_profile_requires_partition_tolerance_and_summary_doe
     ));
 
     let admission_error = engine
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect_err("admit_route must reject partition mismatch");
     assert!(matches!(
         admission_error,
-        jacquard_traits::jacquard_core::RouteError::Selection(
-            RouteSelectionError::Inadmissible(RouteAdmissionRejection::BackendUnavailable)
-        )
+        jacquard_traits::jacquard_core::RouteError::Selection(RouteSelectionError::Inadmissible(
+            RouteAdmissionRejection::BackendUnavailable
+        ))
     ));
 }
 
@@ -123,7 +123,7 @@ fn admit_route_succeeds_for_partition_tolerant_deferred_delivery_path() {
         .next()
         .expect("multi-hop candidate should be produced");
     let admission = engine
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect("admit_route should succeed");
     assert!(matches!(
         admission.admission_check.decision,

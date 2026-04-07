@@ -41,7 +41,7 @@ fn materialize_test_route() -> (
         .next()
         .expect("candidate available");
     let admission = engine
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect("admission");
     let input = RouteMaterializationInput {
         handle: RouteHandle {

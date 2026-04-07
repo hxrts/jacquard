@@ -197,6 +197,7 @@ impl RoutingEnginePlanner for StubMeshFamily {
         _objective: &jacquard_traits::jacquard_core::RoutingObjective,
         _profile: &jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
         _candidate: &jacquard_traits::jacquard_core::RouteCandidate,
+        _topology: &jacquard_traits::jacquard_core::Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, jacquard_traits::jacquard_core::RouteError> {
         Ok(RouteAdmissionCheck {
             decision: jacquard_traits::jacquard_core::AdmissionDecision::Admissible,
@@ -228,6 +229,7 @@ impl RoutingEnginePlanner for StubMeshFamily {
         objective: &jacquard_traits::jacquard_core::RoutingObjective,
         profile: &jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
         _candidate: jacquard_traits::jacquard_core::RouteCandidate,
+        _topology: &jacquard_traits::jacquard_core::Observation<Configuration>,
     ) -> Result<RouteAdmission, jacquard_traits::jacquard_core::RouteError> {
         Ok(sample_route_admission(objective.clone(), profile.clone()))
     }

@@ -33,7 +33,7 @@ fn materialize_route_succeeds_at_lease_start_tick() {
         .next()
         .expect("candidate");
     let admission = engine
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect("admission");
     let input = RouteMaterializationInput {
         handle: RouteHandle {
@@ -71,7 +71,7 @@ fn materialize_route_fails_at_lease_end_tick() {
         .next()
         .expect("candidate");
     let admission = engine
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect("admission");
     let input = RouteMaterializationInput {
         handle: RouteHandle {
@@ -114,7 +114,7 @@ fn maintain_route_succeeds_one_tick_before_lease_end() {
         .next()
         .expect("candidate");
     let admission = engine
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect("admission");
     let input = RouteMaterializationInput {
         handle: RouteHandle {
@@ -130,7 +130,9 @@ fn maintain_route_succeeds_one_tick_before_lease_end() {
             valid_for: TimeWindow::new(Tick(2), Tick(10)).expect("valid lease"),
         },
     };
-    let installation = engine.materialize_route(input.clone()).expect("materialization");
+    let installation = engine
+        .materialize_route(input.clone())
+        .expect("materialization");
     let mut runtime = RouteRuntimeState {
         last_lifecycle_event: installation.last_lifecycle_event,
         health: installation.health,
@@ -145,7 +147,11 @@ fn maintain_route_succeeds_one_tick_before_lease_end() {
 
     engine.runtime_effects_mut().now = Tick(9);
     let result = engine
-        .maintain_route(&identity, &mut runtime, RouteMaintenanceTrigger::AntiEntropyRequired)
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            RouteMaintenanceTrigger::AntiEntropyRequired,
+        )
         .expect("maintenance at tick 9 should succeed");
     assert!(!matches!(
         result.outcome,
@@ -169,7 +175,7 @@ fn maintain_route_fails_at_lease_end_tick() {
         .next()
         .expect("candidate");
     let admission = engine
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect("admission");
     let input = RouteMaterializationInput {
         handle: RouteHandle {
@@ -185,7 +191,9 @@ fn maintain_route_fails_at_lease_end_tick() {
             valid_for: TimeWindow::new(Tick(2), Tick(10)).expect("valid lease"),
         },
     };
-    let installation = engine.materialize_route(input.clone()).expect("materialization");
+    let installation = engine
+        .materialize_route(input.clone())
+        .expect("materialization");
     let mut runtime = RouteRuntimeState {
         last_lifecycle_event: installation.last_lifecycle_event,
         health: installation.health,

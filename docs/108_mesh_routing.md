@@ -28,6 +28,12 @@ This algorithm produces a stable candidate ordering across replays.
 
 Admission and witness generation operate on shared result objects. The mesh engine returns `RouteCandidate`, `RouteAdmissionCheck`, `RouteAdmission`, and `RouteWitness` values. This keeps the mesh engine interoperable with the common router and layering surfaces.
 
+The clean rule is:
+
+- if a planning judgment depends on observations, the current topology must be passed explicitly to the planner method that makes that judgment
+- `BackendRouteRef` stays opaque at the shared boundary, but in mesh it is a self-contained plan token rather than a cache key
+- mesh may memoize derived candidates internally, but cache hits and misses must produce the same result for the same topology
+
 ## Engine Middleware
 
 `RoutingEngine::engine_tick` is the engine-wide progress hook for mesh. Inside `jacquard-mesh`, this hook is the engine-internal middleware loop.

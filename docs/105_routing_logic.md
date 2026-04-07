@@ -47,6 +47,7 @@ pub trait RoutingEnginePlanner {
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         candidate: &RouteCandidate,
+        topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError>;
 
     fn admit_route(
@@ -54,6 +55,7 @@ pub trait RoutingEnginePlanner {
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         candidate: RouteCandidate,
+        topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError>;
 }
 

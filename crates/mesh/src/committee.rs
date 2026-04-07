@@ -308,12 +308,13 @@ mod tests {
     use jacquard_core::{
         AdaptiveRoutingProfile, Belief, BleDeviceId, BleProfileId, ByteCount, Configuration,
         ContentId, ControllerId, DeploymentProfile, DestinationId, Environment, Estimate,
-        FactSourceClass, HoldFallbackPolicy, Limit, Link, LinkEndpoint, LinkRuntimeState, LinkState,
-        Node, NodeProfile, NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass,
-        PriorityPoints, RatioPermille, RouteConnectivityProfile, RouteEpoch, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
-        RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective, ServiceDescriptor,
-        ServiceId, ServiceScope, Tick, TimeWindow, TransportProtocol,
+        FactSourceClass, HoldFallbackPolicy, Limit, Link, LinkEndpoint, LinkRuntimeState,
+        LinkState, Node, NodeProfile, NodeRelayBudget, NodeState, Observation,
+        OriginAuthenticationClass, PriorityPoints, RatioPermille, RouteConnectivityProfile,
+        RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+        RouteReplacementPolicy, RouteServiceKind, RoutingEngineFallbackPolicy,
+        RoutingEvidenceClass, RoutingObjective, ServiceDescriptor, ServiceId, ServiceScope, Tick,
+        TimeWindow, TransportProtocol,
     };
     use std::collections::BTreeMap;
 
@@ -328,7 +329,10 @@ mod tests {
         }
     }
 
-    fn route_capable_services(node_id: NodeId, controller_id: ControllerId) -> Vec<ServiceDescriptor> {
+    fn route_capable_services(
+        node_id: NodeId,
+        controller_id: ControllerId,
+    ) -> Vec<ServiceDescriptor> {
         let valid_for = TimeWindow::new(Tick(0), Tick(100)).unwrap();
         [
             RouteServiceKind::Discover,

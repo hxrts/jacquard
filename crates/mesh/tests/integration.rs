@@ -407,13 +407,13 @@ fn mesh_admission_emits_stable_check_and_witness_values() {
         .next()
         .expect("node destination should yield a candidate");
     let first_check = engine
-        .check_candidate(&objective, &profile, &candidate)
+        .check_candidate(&objective, &profile, &candidate, &topology)
         .expect("candidate check");
     let second_check = engine
-        .check_candidate(&objective, &profile, &candidate)
+        .check_candidate(&objective, &profile, &candidate, &topology)
         .expect("candidate check");
     let admission = engine
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect("route admission");
 
     assert_eq!(first_check, second_check);
@@ -485,7 +485,7 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         .next()
         .expect("candidate");
     let admission = engine
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect("admission");
     let input = RouteMaterializationInput {
         handle: RouteHandle {

@@ -8,9 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use jacquard_mesh::{
-    DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID,
-};
+use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID};
 use jacquard_traits::{
     effect_handler,
     jacquard_core::{

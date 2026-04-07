@@ -161,19 +161,33 @@ pub trait RoutingEnginePlanner {
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate>;
 
-    /// Engine-level feasibility check. May attach step bounds and cost estimates.
+    /// Engine-level feasibility check against the current observed topology.
+    ///
+    /// Rule:
+    /// - if a planning judgment depends on observations, that observation
+    ///   context must be explicit in the method inputs
+    /// - backend refs may be opaque engine-private plan tokens, but engines
+    ///   must not depend semantically on hidden mutable planner caches
     fn check_candidate(
         &self,
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         candidate: &RouteCandidate,
+        topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError>;
 
+    /// Admit one candidate against the current observed topology.
+    ///
+    /// Candidate admission may reuse internal memoization, but the topology
+    /// argument remains authoritative. Engines must be able to re-derive the
+    /// admission result from the candidate plus explicit observation context
+    /// rather than depending on ambient planner state.
     fn admit_route(
         &self,
         objective: &RoutingObjective,
         profile: &AdaptiveRoutingProfile,
         candidate: RouteCandidate,
+        topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError>;
 }
 

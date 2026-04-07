@@ -141,6 +141,7 @@ impl RoutingEnginePlanner for StubFamily {
         _objective: &RoutingObjective,
         _profile: &AdaptiveRoutingProfile,
         _candidate: &RouteCandidate,
+        _topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, jacquard_traits::jacquard_core::RouteError> {
         Ok(self.route.identity.admission.admission_check.clone())
     }
@@ -150,6 +151,7 @@ impl RoutingEnginePlanner for StubFamily {
         _objective: &RoutingObjective,
         _profile: &AdaptiveRoutingProfile,
         _candidate: RouteCandidate,
+        _topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, jacquard_traits::jacquard_core::RouteError> {
         Ok(self.route.identity.admission.clone())
     }
@@ -516,10 +518,10 @@ fn routing_engine_contract_can_drive_candidate_to_materialized_route() {
     let candidates = family.candidate_routes(&objective, &profile, &topology);
     let candidate = candidates.into_iter().next().expect("candidate");
     let check = family
-        .check_candidate(&objective, &profile, &candidate)
+        .check_candidate(&objective, &profile, &candidate, &topology)
         .expect("admission check");
     let admission = family
-        .admit_route(&objective, &profile, candidate)
+        .admit_route(&objective, &profile, candidate, &topology)
         .expect("admission");
     assert_eq!(admission, route.identity.admission);
     let installation = family
