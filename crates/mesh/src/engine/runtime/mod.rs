@@ -17,7 +17,8 @@ mod tick;
 use jacquard_core::{
     Configuration, MaterializedRoute, MaterializedRouteIdentity, Observation, RouteCommitment,
     RouteError, RouteEvent, RouteId, RouteInstallation, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RouteSelectionError,
+    RouteMaintenanceTrigger, RouteMaterializationInput, RouteSelectionError, RoutingTickContext,
+    RoutingTickOutcome,
 };
 use jacquard_traits::{CommitteeCoordinatedEngine, MeshRoutingEngine, RoutingEngine};
 
@@ -54,8 +55,8 @@ where
         self.route_commitments_inner(route)
     }
 
-    fn engine_tick(&mut self, topology: &Observation<Configuration>) -> Result<(), RouteError> {
-        self.engine_tick_inner(topology)
+    fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
+        self.engine_tick_inner(tick)
     }
 
     fn maintain_route(

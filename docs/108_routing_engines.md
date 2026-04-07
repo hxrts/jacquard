@@ -47,8 +47,14 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
-    fn engine_tick(&mut self, topology: &Observation<Configuration>) -> Result<(), RouteError> {
-        Ok(())
+    fn engine_tick(
+        &mut self,
+        tick: &RoutingTickContext,
+    ) -> Result<RoutingTickOutcome, RouteError> {
+        Ok(RoutingTickOutcome {
+            topology_epoch: tick.topology.value.epoch,
+            change: RoutingTickChange::NoChange,
+        })
     }
 
     fn maintain_route(
@@ -68,7 +74,7 @@ That activation step also enforces the shared control-plane invariants. The admi
 
 ## Engine Tick
 
-`engine_tick` is the optional engine-wide bootstrap and convergence hook. An engine may use it as an internal middleware-style loop to refresh local regime estimates, decay stale local state, update coordination posture, or prepare engine-private planning state before any specific route is active. The host or router drives that cadence through the control plane's existing periodic tick path. The hook itself does not publish canonical route truth directly.
+`engine_tick` is the optional engine-wide bootstrap and convergence hook. The router or host owns cadence and passes a shared `RoutingTickContext` containing the authoritative merged topology observation for that step. The engine returns a small `RoutingTickOutcome` so the router can observe whether the tick changed engine-private state without standardizing engine internals. The hook itself does not publish canonical route truth directly.
 
 ## Contract Rules
 

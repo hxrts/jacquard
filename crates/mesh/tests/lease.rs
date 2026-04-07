@@ -10,7 +10,7 @@ mod common;
 use jacquard_traits::{
     jacquard_core::{
         DestinationId, NodeId, RouteError, RouteMaintenanceFailure, RouteMaintenanceOutcome,
-        RouteMaintenanceTrigger, RouteRuntimeError, Tick,
+        RouteMaintenanceTrigger, RouteRuntimeError, RoutingTickContext, Tick,
     },
     RoutingEngine, RoutingEnginePlanner,
 };
@@ -29,7 +29,9 @@ fn materialize_route_succeeds_at_lease_start_tick() {
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
     let policy = profile();
 
-    engine.engine_tick(&topology).expect("engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()
@@ -53,7 +55,9 @@ fn materialize_route_fails_at_lease_end_tick() {
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
     let policy = profile();
 
-    engine.engine_tick(&topology).expect("engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()

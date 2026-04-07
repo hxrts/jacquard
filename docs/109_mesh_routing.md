@@ -44,7 +44,7 @@ Mesh route ids are path identities in v1. The stable route id is derived from so
 
 ## Engine Middleware
 
-`RoutingEngine::engine_tick` is the engine-wide progress hook for mesh. Inside `jacquard-mesh`, this hook is the engine-internal middleware loop.
+`RoutingEngine::engine_tick` is the engine-wide progress hook for mesh. The router or host supplies a shared `RoutingTickContext`, and mesh returns a `RoutingTickOutcome` that reports whether the tick changed mesh-private state. Inside `jacquard-mesh`, this hook is the engine-internal middleware loop.
 
 ```text
 topology observation

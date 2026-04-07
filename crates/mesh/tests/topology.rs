@@ -12,7 +12,7 @@ use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
     jacquard_core::{
         Configuration, DestinationId, Environment, Node, NodeId, Observation, RatioPermille,
-        RouteEpoch, RoutingObjective, ServiceId, Tick, TransportProtocol,
+        RouteEpoch, RoutingObjective, RoutingTickContext, ServiceId, Tick, TransportProtocol,
     },
     Blake3Hashing, MeshTopologyModel, RoutingEngine, RoutingEnginePlanner,
 };
@@ -223,7 +223,9 @@ fn metric_aware_search_prefers_higher_quality_equal_hop_path() {
     let policy = profile();
     let mut engine = common::engine::build_engine_for_node_at_tick(LOCAL_NODE_ID, Tick(9));
 
-    engine.engine_tick(&topology).expect("engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()

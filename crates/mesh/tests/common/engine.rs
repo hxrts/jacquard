@@ -16,7 +16,7 @@ use jacquard_traits::{
         PublicationId, RouteConnectivityProfile, RouteHandle, RouteLease,
         RouteMaterializationInput, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
         RouteReplacementPolicy, RouteRuntimeState, RouteServiceKind, RoutingEngineFallbackPolicy,
-        RoutingObjective, Tick, TimeWindow,
+        RoutingObjective, RoutingTickContext, Tick, TimeWindow,
     },
     Blake3Hashing, RoutingEngine, RoutingEnginePlanner,
 };
@@ -123,6 +123,10 @@ pub fn lease(start: Tick, end: Tick) -> RouteLease {
     }
 }
 
+pub fn tick_context(topology: &Observation<Configuration>) -> RoutingTickContext {
+    RoutingTickContext::new(topology.clone())
+}
+
 /// Assemble a `RouteMaterializationInput` from an admission and a lease,
 /// using a deterministic publication id and the lease start tick as the
 /// materialization tick.
@@ -160,7 +164,9 @@ pub fn activate_route(
     let goal = objective(DestinationId::Node(destination));
     let policy = profile();
 
-    engine.engine_tick(topology).expect("engine tick");
+    engine
+        .engine_tick(&tick_context(topology))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, topology)
         .into_iter()

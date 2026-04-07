@@ -54,7 +54,7 @@ Jacquard treats purity and side effects as part of the trait contract.
 
 Signature design follows the same split. Use `&self` for pure and read-only methods. Use `&mut self` only when the method has explicit state mutation or side effects. Do not mix pure planning and effectful runtime mutation in one trait unless the split is impossible and documented.
 
-That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `SubstratePlanner` from `SubstrateRuntime`, `LayeredRoutingEnginePlanner` from `LayeredRoutingEngine`, and `MeshTopologyModel` from the frame-shaped `MeshTransport` carrier boundary.
+That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `SubstratePlanner` from `SubstrateRuntime`, `LayeredRoutingEnginePlanner` from `LayeredRoutingEngine`, and `MeshTopologyModel` from the frame-shaped `MeshTransport` carrier boundary. The shared tick lifecycle follows the same rule: router-owned cadence and `RoutingTickContext` / `RoutingTickOutcome` live at the contract layer, while engine-specific control loops and control-state contents stay inside the owning engine crate.
 
 ## Enforcement
 

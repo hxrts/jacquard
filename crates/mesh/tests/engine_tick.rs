@@ -15,7 +15,8 @@ use jacquard_traits::{
         Link, LinkEndpoint, LinkRuntimeState, LinkState, NodeId, Observation,
         OriginAuthenticationClass, PenaltyPoints, RatioPermille, RouteError,
         RouteMaintenanceOutcome, RouteMaintenanceTrigger, RoutePartitionClass, RouteRepairClass,
-        RouteRuntimeError, RoutingEvidenceClass, Tick, TransportObservation, TransportProtocol,
+        RouteRuntimeError, RoutingEvidenceClass, RoutingTickChange, RoutingTickContext, Tick,
+        TransportObservation, TransportProtocol,
     },
     MeshRoutingEngine, RoutingEngine, RoutingEnginePlanner,
 };
@@ -108,7 +109,9 @@ fn engine_tick_transport_observations_change_health_inputs() {
     let policy = connected_only_policy();
 
     let mut plain_engine = build_engine();
-    plain_engine.engine_tick(&topology).expect("plain tick");
+    plain_engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("plain tick");
     let plain_candidate = plain_engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()
@@ -130,7 +133,7 @@ fn engine_tick_transport_observations_change_health_inputs() {
         .observations
         .push(low_quality_link_observation());
     observed_engine
-        .engine_tick(&topology)
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("observed tick");
     let observed_candidate = observed_engine
         .candidate_routes(&goal, &policy, &topology)
@@ -179,8 +182,15 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
         .observations
         .push(low_quality_link_observation());
 
-    left.engine_tick(&topology).expect("left tick");
-    right.engine_tick(&topology).expect("right tick");
+    let left_outcome = left
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("left tick");
+    let right_outcome = right
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("right tick");
+    assert_eq!(left_outcome, right_outcome);
+    assert_eq!(left_outcome.topology_epoch, topology.value.epoch);
+    assert_eq!(left_outcome.change, RoutingTickChange::PrivateStateUpdated);
 
     let left_summary = left
         .transport_observation_summary()
@@ -224,7 +234,9 @@ fn quiet_tick_preserves_still_fresh_transport_summary() {
         .observations
         .push(low_quality_link_observation());
 
-    engine.engine_tick(&topology).expect("observed tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("observed tick");
     let initial = engine
         .transport_observation_summary()
         .expect("fresh summary")
@@ -232,7 +244,9 @@ fn quiet_tick_preserves_still_fresh_transport_summary() {
 
     let mut quiet_topology = topology.clone();
     quiet_topology.observed_at_tick = Tick(3);
-    engine.engine_tick(&quiet_topology).expect("quiet tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(quiet_topology.clone()))
+        .expect("quiet tick");
     let quiet = engine
         .transport_observation_summary()
         .expect("quiet summary")
@@ -253,12 +267,16 @@ fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
         .transport_mut()
         .observations
         .push(low_quality_link_observation());
-    engine.engine_tick(&topology).expect("observed tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("observed tick");
 
     for tick in [Tick(3), Tick(4), Tick(5)] {
         let mut quiet_topology = topology.clone();
         quiet_topology.observed_at_tick = tick;
-        engine.engine_tick(&quiet_topology).expect("quiet tick");
+        engine
+            .engine_tick(&RoutingTickContext::new(quiet_topology.clone()))
+            .expect("quiet tick");
     }
 
     let stale = engine
@@ -278,7 +296,7 @@ fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
         .observations
         .push(refreshed_observation);
     engine
-        .engine_tick(&refreshed_topology)
+        .engine_tick(&RoutingTickContext::new(refreshed_topology.clone()))
         .expect("refresh tick");
     let refreshed = engine
         .transport_observation_summary()
@@ -293,13 +311,15 @@ fn repeated_ticks_on_the_same_epoch_do_not_rewrite_epoch_checkpoint() {
     let topology = sample_configuration();
     let mut engine = build_engine();
 
-    engine.engine_tick(&topology).expect("first tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("first tick");
     let writes_after_first_tick = engine.runtime_effects().store_bytes_call_count;
 
     let mut same_epoch_topology = topology.clone();
     same_epoch_topology.observed_at_tick = Tick(3);
     engine
-        .engine_tick(&same_epoch_topology)
+        .engine_tick(&RoutingTickContext::new(same_epoch_topology.clone()))
         .expect("second same-epoch tick");
 
     assert_eq!(
@@ -320,7 +340,9 @@ fn route_health_is_scoped_to_the_active_route_suffix() {
         RouteRepairClass::Repairable,
         RoutePartitionClass::PartitionTolerant,
     );
-    engine.engine_tick(&topology).expect("initial tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("initial tick");
     let route_three_candidate = engine
         .candidate_routes(&route_three_goal, &route_three_policy, &topology)
         .into_iter()
@@ -387,7 +409,7 @@ fn route_health_is_scoped_to_the_active_route_suffix() {
         .links
         .remove(&(NodeId([2; 32]), NodeId([3; 32])));
     engine
-        .engine_tick(&broken_topology)
+        .engine_tick(&RoutingTickContext::new(broken_topology.clone()))
         .expect("broken-topology tick");
 
     engine
@@ -454,9 +476,11 @@ fn high_transport_pressure_changes_repair_posture() {
         )
         .expect("pressured repair budget reduction");
 
-    calm_engine.engine_tick(&topology).expect("calm tick");
+    calm_engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("calm tick");
     pressured_engine
-        .engine_tick(&topology)
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("pressured tick");
 
     let calm = calm_engine
@@ -498,7 +522,9 @@ fn anti_entropy_required_consumes_bounded_control_pressure() {
         low_quality_link_observation(),
         low_quality_link_observation(),
     ]);
-    engine.engine_tick(&topology).expect("refresh tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("refresh tick");
     let before = engine
         .control_state()
         .expect("control state after tick")

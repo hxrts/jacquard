@@ -19,8 +19,9 @@ use jacquard_traits::{
         RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteRuntimeState,
         RouteServiceKind, RouteSummary, RouteWitness, RoutingEngineCapabilities,
         RoutingEngineFallbackPolicy, RoutingEngineId, RoutingEvidenceClass, RoutingObjective,
-        RuntimeEnvelopeClass, SubstrateCandidate, SubstrateCapabilities, SubstrateLease,
-        SubstrateRequirements, Tick, TimeWindow, TransportProtocol,
+        RoutingTickChange, RoutingTickContext, RuntimeEnvelopeClass, SubstrateCandidate,
+        SubstrateCapabilities, SubstrateLease, SubstrateRequirements, Tick, TimeWindow,
+        TransportProtocol,
     },
     CommitteeCoordinatedEngine, CommitteeSelector, LayeredRoutingEngine,
     LayeredRoutingEnginePlanner, LayeringPolicyEngine, RoutingEngine, RoutingEnginePlanner,
@@ -592,9 +593,11 @@ fn routing_engine_supports_engine_wide_periodic_progress() {
         observed_at_tick: Tick(1),
     };
 
-    family
-        .engine_tick(&topology)
+    let outcome = family
+        .engine_tick(&RoutingTickContext::new(topology))
         .expect("default engine tick should succeed");
+    assert_eq!(outcome.topology_epoch, RouteEpoch(1));
+    assert_eq!(outcome.change, RoutingTickChange::NoChange);
 }
 
 #[test]

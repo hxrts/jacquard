@@ -14,7 +14,7 @@ use jacquard_traits::{
         AdmissionDecision, Configuration, ControllerId, DestinationId, DiscoveryScopeId,
         Environment, Node, NodeId, Observation, PenaltyPoints, RatioPermille,
         RouteAdmissionRejection, RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass,
-        RouteRuntimeError, ServiceId, ServiceScope, Tick,
+        RouteRuntimeError, RoutingTickContext, ServiceId, ServiceScope, Tick,
     },
     Blake3Hashing, CommitteeSelector, MeshTopologyModel, RoutingEngine, RoutingEnginePlanner,
 };
@@ -321,7 +321,9 @@ fn committee_selector_some_is_carried_into_active_route() {
         .expect("route admission");
     let route_id = admission.route_id;
     let input = materialization_input(admission, lease(Tick(2), Tick(12)));
-    engine.engine_tick(&topology).expect("prime mesh topology");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("prime mesh topology");
     engine
         .materialize_route(input)
         .expect("materialize route with committee");
@@ -382,7 +384,9 @@ fn committee_selector_failure_survives_cache_eviction_via_plan_token() {
         .into_iter()
         .next()
         .expect("candidate");
-    engine.engine_tick(&topology).expect("evict planner cache");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("evict planner cache");
     let check = engine
         .check_candidate(&goal, &policy, &candidate, &topology)
         .expect("cache-miss admission check");

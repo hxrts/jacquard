@@ -7,7 +7,8 @@ use jacquard_core::{
     RouteCommitment, RouteError, RouteHealth, RouteId, RouteInstallation, RouteMaintenanceResult,
     RouteMaintenanceTrigger, RouteMaterializationInput, RouteRuntimeState,
     RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, RoutingPolicyInputs,
-    SubstrateCandidate, SubstrateLease, SubstrateRequirements,
+    RoutingTickChange, RoutingTickContext, RoutingTickOutcome, SubstrateCandidate, SubstrateLease,
+    SubstrateRequirements,
 };
 use jacquard_macros::purity;
 
@@ -222,8 +223,11 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     /// This hook must not publish canonical route truth directly. Any
     /// resulting activation, replacement, or maintenance decisions still flow
     /// through the router/control-plane path.
-    fn engine_tick(&mut self, _topology: &Observation<Configuration>) -> Result<(), RouteError> {
-        Ok(())
+    fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
+        Ok(RoutingTickOutcome {
+            topology_epoch: tick.topology.value.epoch,
+            change: RoutingTickChange::NoChange,
+        })
     }
 
     /// Maintenance receives immutable router-owned route identity plus mutable

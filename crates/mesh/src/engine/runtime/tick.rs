@@ -1,10 +1,11 @@
 //! Engine tick, route commitments, and lease-expiry helpers for mesh runtime.
 
 use jacquard_core::{
-    Configuration, MaterializedRoute, MaterializedRouteIdentity, Observation, RouteBinding,
-    RouteCommitment, RouteCommitmentResolution, RouteError, RouteEvent, RouteInvalidationReason,
+    MaterializedRoute, MaterializedRouteIdentity, RouteBinding, RouteCommitment,
+    RouteCommitmentResolution, RouteError, RouteEvent, RouteInvalidationReason,
     RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
-    RouteOperationId, RouteProgressState, RouteRuntimeError, TimeoutPolicy,
+    RouteOperationId, RouteProgressState, RouteRuntimeError, RoutingTickChange, RoutingTickContext,
+    RoutingTickOutcome, TimeoutPolicy,
 };
 
 use super::super::{
@@ -76,8 +77,15 @@ where
 
     pub(super) fn engine_tick_inner(
         &mut self,
-        topology: &Observation<Configuration>,
-    ) -> Result<(), RouteError> {
+        tick: &RoutingTickContext,
+    ) -> Result<RoutingTickOutcome, RouteError> {
+        let topology = &tick.topology;
+        let prior_topology_epoch = self.latest_topology.as_ref().map(|seen| seen.value.epoch);
+        let prior_transport_summary = self.last_transport_summary.clone();
+        let prior_control_state = self.control_state.clone();
+        let prior_checkpointed_epoch = self.last_checkpointed_topology_epoch;
+        let had_cached_candidates = !self.candidate_cache.borrow().is_empty();
+
         self.latest_topology = Some(topology.clone());
         self.candidate_cache.borrow_mut().clear();
         if self.last_checkpointed_topology_epoch != Some(topology.value.epoch) {
@@ -96,6 +104,19 @@ where
         );
         self.control_state =
             Some(self.next_control_state(topology, self.last_transport_summary.as_ref()));
-        Ok(())
+        let change = if prior_topology_epoch != Some(topology.value.epoch)
+            || prior_transport_summary != self.last_transport_summary
+            || prior_control_state != self.control_state
+            || prior_checkpointed_epoch != self.last_checkpointed_topology_epoch
+            || had_cached_candidates
+        {
+            RoutingTickChange::PrivateStateUpdated
+        } else {
+            RoutingTickChange::NoChange
+        };
+        Ok(RoutingTickOutcome {
+            topology_epoch: topology.value.epoch,
+            change,
+        })
     }
 }

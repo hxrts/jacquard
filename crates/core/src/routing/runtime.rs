@@ -4,9 +4,10 @@ use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AdmissionDecision, ByteCount, Fact, HealthScore, Limit, NodeId, OrderStamp, PenaltyPoints,
-    PriorityPoints, PublicationId, ReceiptId, RouteAdmission, RouteCommitmentId, RouteEpoch,
-    RouteId, RouteRuntimeError, RouteWitness, Tick, TimeWindow, TimeoutPolicy,
+    AdmissionDecision, ByteCount, Configuration, Fact, HealthScore, Limit, NodeId, Observation,
+    OrderStamp, PenaltyPoints, PriorityPoints, PublicationId, ReceiptId, RouteAdmission,
+    RouteCommitmentId, RouteEpoch, RouteId, RouteRuntimeError, RouteWitness, Tick, TimeWindow,
+    TimeoutPolicy,
 };
 
 #[public_model]
@@ -22,6 +23,42 @@ pub struct RouteOrderingKey {
     pub priority: PriorityPoints,
     pub topology_epoch: RouteEpoch,
     pub tie_break: OrderStamp,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Shared router-owned cadence input for one engine progress step.
+///
+/// The router or host decides when a tick happens and which merged world
+/// observation is authoritative for that step. Engines consume this context
+/// but do not invent their own ambient topology input.
+pub struct RoutingTickContext {
+    pub topology: Observation<Configuration>,
+}
+
+impl RoutingTickContext {
+    #[must_use]
+    pub fn new(topology: Observation<Configuration>) -> Self {
+        Self { topology }
+    }
+}
+
+#[public_model]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum RoutingTickChange {
+    NoChange,
+    PrivateStateUpdated,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Shared report shape returned by one engine progress step.
+///
+/// This gives the router a minimal, engine-neutral summary of whether the
+/// tick changed engine-private state while keeping engine internals private.
+pub struct RoutingTickOutcome {
+    pub topology_epoch: RouteEpoch,
+    pub change: RoutingTickChange,
 }
 
 // Lexicographic: priority first, then epoch, then deterministic tie-break.

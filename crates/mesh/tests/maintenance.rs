@@ -15,7 +15,7 @@ mod common;
 use jacquard_traits::{
     jacquard_core::{
         NodeId, RouteError, RouteMaintenanceFailure, RouteMaintenanceOutcome,
-        RouteMaintenanceTrigger, RouteRuntimeError, Tick,
+        RouteMaintenanceTrigger, RouteRuntimeError, RoutingTickContext, Tick,
     },
     MeshRoutingEngine, RoutingEngine, RoutingEnginePlanner,
 };
@@ -186,7 +186,9 @@ fn activate_connected_only_route(
         RoutePartitionClass::ConnectedOnly,
     );
 
-    engine.engine_tick(topology).expect("engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, topology)
         .into_iter()

@@ -6,7 +6,9 @@
 mod common;
 
 use jacquard_traits::{
-    jacquard_core::{DestinationId, NodeId, RouteEpoch, RouteError, RouteRuntimeError, Tick},
+    jacquard_core::{
+        DestinationId, NodeId, RouteEpoch, RouteError, RouteRuntimeError, RoutingTickContext, Tick,
+    },
     RoutingEngine, RoutingEnginePlanner,
 };
 
@@ -20,7 +22,9 @@ fn materialize_route_succeeds_after_engine_tick_clears_candidate_cache() {
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
     let policy = profile();
 
-    engine.engine_tick(&topology).expect("initial engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("initial engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()
@@ -32,7 +36,7 @@ fn materialize_route_succeeds_after_engine_tick_clears_candidate_cache() {
     let input = materialization_input(admission, lease(Tick(2), Tick(20)));
 
     engine
-        .engine_tick(&topology)
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("second engine tick clears the planner cache");
     engine
         .materialize_route(input)
@@ -47,7 +51,9 @@ fn materialize_route_succeeds_after_candidate_cache_rebuild() {
     let destination_four = objective(DestinationId::Node(NodeId([4; 32])));
     let policy = profile();
 
-    engine.engine_tick(&topology).expect("engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&destination_three, &policy, &topology)
         .into_iter()
@@ -72,7 +78,9 @@ fn materialize_route_fails_closed_for_mismatched_backend_plan_token() {
     let alternate_goal = objective(DestinationId::Node(NodeId([4; 32])));
     let policy = profile();
 
-    engine.engine_tick(&topology).expect("engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()
@@ -106,7 +114,9 @@ fn materialize_route_fails_closed_for_corrupted_backend_plan_token() {
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
     let policy = profile();
 
-    engine.engine_tick(&topology).expect("engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()
@@ -134,7 +144,9 @@ fn materialize_route_rolls_back_when_event_logging_fails() {
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
     let policy = profile();
 
-    engine.engine_tick(&topology).expect("engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()
@@ -170,7 +182,9 @@ fn materialize_route_fails_closed_for_mismatched_handle_epoch() {
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
     let policy = profile();
 
-    engine.engine_tick(&topology).expect("engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()
@@ -198,7 +212,9 @@ fn materialize_route_fails_closed_when_latest_topology_epoch_has_advanced() {
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
     let policy = profile();
 
-    engine.engine_tick(&topology).expect("initial engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("initial engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()
@@ -212,7 +228,7 @@ fn materialize_route_fails_closed_when_latest_topology_epoch_has_advanced() {
     let mut advanced_topology = topology.clone();
     advanced_topology.value.epoch = RouteEpoch(3);
     engine
-        .engine_tick(&advanced_topology)
+        .engine_tick(&RoutingTickContext::new(advanced_topology.clone()))
         .expect("advanced topology tick");
 
     let error = engine
@@ -231,7 +247,9 @@ fn materialize_route_fails_closed_when_plan_token_has_expired() {
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
     let policy = profile();
 
-    engine.engine_tick(&topology).expect("engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("engine tick");
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)
         .into_iter()
