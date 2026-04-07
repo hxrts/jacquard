@@ -12,5 +12,5 @@ extern crate rustc_lint;
 extern crate rustc_middle;
 extern crate rustc_span;
 
-mod handle_like_must_use;
+mod handle_like;
 mod source_scan;
