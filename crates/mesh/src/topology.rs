@@ -413,3 +413,232 @@ impl<T> BeliefExt<T> for Belief<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jacquard_core::{
+        ControllerId, DestinationId, NodeProfile, NodeState, RouteEpoch, ServiceDescriptor, Tick,
+        TimeWindow,
+    };
+
+    fn empty_node_state() -> NodeState {
+        NodeState {
+            relay_budget: Belief::Absent,
+            available_connection_count: Belief::Absent,
+            hold_capacity_available_bytes: Belief::Absent,
+            information_summary: Belief::Absent,
+        }
+    }
+
+    fn empty_node_profile() -> NodeProfile {
+        NodeProfile {
+            services: Vec::new(),
+            endpoints: Vec::new(),
+            connection_count_max: 0,
+            neighbor_state_count_max: 0,
+            simultaneous_transfer_count_max: 0,
+            active_route_count_max: 0,
+            relay_work_budget_max: 0,
+            maintenance_work_budget_max: 0,
+            hold_item_count_max: 0,
+            hold_capacity_bytes_max: ByteCount(0),
+        }
+    }
+
+    fn service(
+        kind: RouteServiceKind,
+        engine: RoutingEngineId,
+        validity: TimeWindow,
+    ) -> ServiceDescriptor {
+        ServiceDescriptor {
+            provider_node_id: NodeId([0; 32]),
+            controller_id: ControllerId([0; 32]),
+            service_kind: kind,
+            endpoints: Vec::new(),
+            routing_engines: vec![engine],
+            scope: ServiceScope::Discovery(jacquard_core::DiscoveryScopeId([0; 16])),
+            valid_for: validity,
+            capacity: Belief::Absent,
+        }
+    }
+
+    fn node_with_services(services: Vec<ServiceDescriptor>) -> Node {
+        Node {
+            controller_id: ControllerId([0; 32]),
+            profile: NodeProfile {
+                services,
+                ..empty_node_profile()
+            },
+            state: empty_node_state(),
+        }
+    }
+
+    // A node must advertise all three of Discover, Move, and Hold to count
+    // as route-capable. Two services is one short and should be rejected.
+    #[test]
+    fn route_capable_requires_all_three_services() {
+        let validity = TimeWindow::new(Tick(0), Tick(100)).unwrap();
+        let two_of_three = node_with_services(vec![
+            service(RouteServiceKind::Discover, RoutingEngineId::Mesh, validity),
+            service(RouteServiceKind::Move, RoutingEngineId::Mesh, validity),
+        ]);
+        assert!(!route_capable_for_engine(
+            &two_of_three,
+            &RoutingEngineId::Mesh,
+            RouteEpoch(0),
+        ));
+
+        let all_three = node_with_services(vec![
+            service(RouteServiceKind::Discover, RoutingEngineId::Mesh, validity),
+            service(RouteServiceKind::Move, RoutingEngineId::Mesh, validity),
+            service(RouteServiceKind::Hold, RoutingEngineId::Mesh, validity),
+        ]);
+        assert!(route_capable_for_engine(
+            &all_three,
+            &RoutingEngineId::Mesh,
+            RouteEpoch(0),
+        ));
+    }
+
+    // Service descriptors carry an engine id list. A node that lists all
+    // three services for a different engine must not be treated as
+    // route-capable for mesh.
+    #[test]
+    fn route_capable_filters_by_engine_id() {
+        let validity = TimeWindow::new(Tick(0), Tick(100)).unwrap();
+        let other_engine = RoutingEngineId::External {
+            name: "external-test".into(),
+            contract_id: jacquard_core::RoutingEngineContractId([1; 16]),
+        };
+        let foreign = node_with_services(vec![
+            service(RouteServiceKind::Discover, other_engine.clone(), validity),
+            service(RouteServiceKind::Move, other_engine.clone(), validity),
+            service(RouteServiceKind::Hold, other_engine, validity),
+        ]);
+        assert!(!route_capable_for_engine(
+            &foreign,
+            &RoutingEngineId::Mesh,
+            RouteEpoch(0),
+        ));
+    }
+
+    // Services advertise a validity window. Once the current tick falls
+    // outside that window the service must be ignored, even if the kind
+    // and engine id match.
+    #[test]
+    fn route_capable_rejects_expired_service_windows() {
+        let expired = TimeWindow::new(Tick(0), Tick(5)).unwrap();
+        let stale = node_with_services(vec![
+            service(RouteServiceKind::Discover, RoutingEngineId::Mesh, expired),
+            service(RouteServiceKind::Move, RoutingEngineId::Mesh, expired),
+            service(RouteServiceKind::Hold, RoutingEngineId::Mesh, expired),
+        ]);
+        // Epoch 10 maps to Tick(10), which is outside the [0, 5) window.
+        assert!(!route_capable_for_engine(
+            &stale,
+            &RoutingEngineId::Mesh,
+            RouteEpoch(10),
+        ));
+    }
+
+    // A Node destination matches strictly by node-id. A non-matching id
+    // must be rejected even if the candidate node is otherwise route-capable.
+    #[test]
+    fn objective_matches_node_destination_requires_exact_id() {
+        let validity = TimeWindow::new(Tick(0), Tick(100)).unwrap();
+        let candidate = node_with_services(vec![
+            service(RouteServiceKind::Discover, RoutingEngineId::Mesh, validity),
+            service(RouteServiceKind::Move, RoutingEngineId::Mesh, validity),
+            service(RouteServiceKind::Hold, RoutingEngineId::Mesh, validity),
+        ]);
+        let objective = RoutingObjective {
+            destination: DestinationId::Node(NodeId([7; 32])),
+            service_kind: RouteServiceKind::Move,
+            target_protection: jacquard_core::RouteProtectionClass::LinkProtected,
+            protection_floor: jacquard_core::RouteProtectionClass::LinkProtected,
+            target_connectivity: jacquard_core::RouteConnectivityProfile {
+                repair: jacquard_core::RouteRepairClass::Repairable,
+                partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
+            },
+            hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
+            latency_budget_ms: jacquard_core::Limit::Unbounded,
+            protection_priority: jacquard_core::PriorityPoints(0),
+            connectivity_priority: jacquard_core::PriorityPoints(0),
+        };
+
+        assert!(objective_matches_node(
+            &NodeId([7; 32]),
+            &candidate,
+            &objective,
+            &RoutingEngineId::Mesh,
+            Tick(1),
+        ));
+        assert!(!objective_matches_node(
+            &NodeId([8; 32]),
+            &candidate,
+            &objective,
+            &RoutingEngineId::Mesh,
+            Tick(1),
+        ));
+    }
+
+    // Links are stored as ordered key pairs but modeled as undirected, so
+    // a lookup must succeed regardless of which node id is supplied first.
+    #[test]
+    fn adjacent_link_between_handles_both_orderings() {
+        let left = NodeId([1; 32]);
+        let right = NodeId([2; 32]);
+        let endpoint = LinkEndpoint {
+            protocol: TransportProtocol::BleGatt,
+            address: jacquard_core::EndpointAddress::Ble {
+                device_id: jacquard_core::BleDeviceId(vec![1]),
+                profile_id: jacquard_core::BleProfileId([1; 16]),
+            },
+            mtu_bytes: ByteCount(256),
+        };
+        let link = Link {
+            endpoint,
+            state: LinkState {
+                state: jacquard_core::LinkRuntimeState::Active,
+                median_rtt_ms: jacquard_core::DurationMs(40),
+                transfer_rate_bytes_per_sec: Belief::Absent,
+                stability_horizon_ms: Belief::Absent,
+                loss_permille: RatioPermille(0),
+                delivery_confidence_permille: Belief::Absent,
+                symmetry_permille: Belief::Absent,
+            },
+        };
+        let configuration = Configuration {
+            epoch: RouteEpoch(0),
+            nodes: BTreeMap::new(),
+            links: BTreeMap::from([((left, right), link)]),
+            environment: Environment {
+                reachable_neighbor_count: 0,
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
+            },
+        };
+
+        assert!(adjacent_link_between(&left, &right, &configuration).is_some());
+        assert!(adjacent_link_between(&right, &left, &configuration).is_some());
+    }
+
+    // Querying neighbors of an absent node or an empty graph must return
+    // an empty list rather than panicking.
+    #[test]
+    fn adjacent_node_ids_returns_empty_for_missing_node_or_empty_graph() {
+        let empty = Configuration {
+            epoch: RouteEpoch(0),
+            nodes: BTreeMap::new(),
+            links: BTreeMap::new(),
+            environment: Environment {
+                reachable_neighbor_count: 0,
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
+            },
+        };
+        assert!(adjacent_node_ids(&NodeId([1; 32]), &empty).is_empty());
+        assert!(adjacent_node_ids(&NodeId([99; 32]), &empty).is_empty());
+    }
+}

@@ -1328,3 +1328,302 @@ impl<T> BeliefExt<T> for Belief<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jacquard_core::{
+        AdmissionAssumptions, AdversaryRegime, ClaimStrength, ConnectivityRegime, Environment,
+        FailureModelClass, MessageFlowAssumptionClass, NodeDensityClass, RatioPermille, RouteEpoch,
+        RuntimeEnvelopeClass, TimeWindow,
+    };
+
+    fn neutral_assumptions() -> AdmissionAssumptions {
+        AdmissionAssumptions {
+            message_flow_assumption: MessageFlowAssumptionClass::PerRouteSequenced,
+            failure_model: FailureModelClass::Benign,
+            runtime_envelope: RuntimeEnvelopeClass::Canonical,
+            node_density_class: NodeDensityClass::Sparse,
+            connectivity_regime: ConnectivityRegime::Stable,
+            adversary_regime: AdversaryRegime::BenignUntrusted,
+            claim_strength: ClaimStrength::ConservativeUnderProfile,
+        }
+    }
+
+    fn objective_with_floor(floor: RouteProtectionClass) -> RoutingObjective {
+        RoutingObjective {
+            destination: DestinationId::Node(NodeId([3; 32])),
+            service_kind: RouteServiceKind::Move,
+            target_protection: floor,
+            protection_floor: floor,
+            target_connectivity: RouteConnectivityProfile {
+                repair: RouteRepairClass::Repairable,
+                partition: RoutePartitionClass::ConnectedOnly,
+            },
+            hold_fallback_policy: HoldFallbackPolicy::Allowed,
+            latency_budget_ms: Limit::Unbounded,
+            protection_priority: jacquard_core::PriorityPoints(0),
+            connectivity_priority: jacquard_core::PriorityPoints(0),
+        }
+    }
+
+    fn profile_with(
+        repair: RouteRepairClass,
+        partition: RoutePartitionClass,
+    ) -> AdaptiveRoutingProfile {
+        AdaptiveRoutingProfile {
+            selected_protection: RouteProtectionClass::LinkProtected,
+            selected_connectivity: RouteConnectivityProfile { repair, partition },
+            deployment_profile: jacquard_core::DeploymentProfile::FieldPartitionTolerant,
+            diversity_floor: 1,
+            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
+        }
+    }
+
+    fn summary_with(
+        protection: RouteProtectionClass,
+        repair: RouteRepairClass,
+        partition: RoutePartitionClass,
+    ) -> RouteSummary {
+        RouteSummary {
+            engine: MESH_ENGINE_ID,
+            protection,
+            connectivity: RouteConnectivityProfile { repair, partition },
+            protocol_mix: Vec::new(),
+            hop_count_hint: Belief::Estimated(Estimate {
+                value: 1_u8,
+                confidence_permille: RatioPermille(1000),
+                updated_at_tick: Tick(0),
+            }),
+            valid_for: TimeWindow::new(Tick(0), Tick(100)).unwrap(),
+        }
+    }
+
+    fn unit_route_cost() -> RouteCost {
+        RouteCost {
+            message_count_max: Limit::Bounded(1),
+            byte_count_max: Limit::Bounded(ByteCount(1024)),
+            hop_count: 1,
+            repair_attempt_count_max: Limit::Bounded(1),
+            hold_bytes_reserved: Limit::Bounded(ByteCount(0)),
+            work_step_count_max: Limit::Bounded(2),
+        }
+    }
+
+    // Protection floor regression is the hard security check. A summary at
+    // LinkProtected against a TopologyProtected floor must be rejected
+    // with ProtectionFloorUnsatisfied.
+    #[test]
+    fn admission_check_rejects_protection_floor_regression() {
+        let objective = objective_with_floor(RouteProtectionClass::TopologyProtected);
+        let profile = profile_with(
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::ConnectedOnly,
+        );
+        let summary = summary_with(
+            RouteProtectionClass::LinkProtected,
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::ConnectedOnly,
+        );
+        let check = mesh_admission_check(
+            &objective,
+            &profile,
+            &summary,
+            &unit_route_cost(),
+            &neutral_assumptions(),
+        );
+        assert_eq!(
+            check.decision,
+            AdmissionDecision::Rejected(
+                jacquard_core::RouteAdmissionRejection::ProtectionFloorUnsatisfied,
+            ),
+        );
+    }
+
+    // When the profile demands repairable connectivity but the summary
+    // does not provide it, admission must fail with BranchingInfeasible.
+    #[test]
+    fn admission_check_rejects_repair_mismatch() {
+        let objective = objective_with_floor(RouteProtectionClass::LinkProtected);
+        let profile = profile_with(
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::ConnectedOnly,
+        );
+        let summary = summary_with(
+            RouteProtectionClass::LinkProtected,
+            RouteRepairClass::BestEffort,
+            RoutePartitionClass::ConnectedOnly,
+        );
+        let check = mesh_admission_check(
+            &objective,
+            &profile,
+            &summary,
+            &unit_route_cost(),
+            &neutral_assumptions(),
+        );
+        assert_eq!(
+            check.decision,
+            AdmissionDecision::Rejected(
+                jacquard_core::RouteAdmissionRejection::BranchingInfeasible,
+            ),
+        );
+    }
+
+    // When the profile demands partition tolerance but the summary is
+    // connected-only, admission must fail with BackendUnavailable.
+    #[test]
+    fn admission_check_rejects_partition_mismatch() {
+        let objective = objective_with_floor(RouteProtectionClass::LinkProtected);
+        let profile = profile_with(
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::PartitionTolerant,
+        );
+        let summary = summary_with(
+            RouteProtectionClass::LinkProtected,
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::ConnectedOnly,
+        );
+        let check = mesh_admission_check(
+            &objective,
+            &profile,
+            &summary,
+            &unit_route_cost(),
+            &neutral_assumptions(),
+        );
+        assert_eq!(
+            check.decision,
+            AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::BackendUnavailable),
+        );
+    }
+
+    // A profile and summary that match should produce an admissible
+    // decision so the rejection cases above are tested against a known
+    // positive baseline.
+    #[test]
+    fn admission_check_admits_matching_profile_and_summary() {
+        let objective = objective_with_floor(RouteProtectionClass::LinkProtected);
+        let profile = profile_with(
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::PartitionTolerant,
+        );
+        let summary = summary_with(
+            RouteProtectionClass::LinkProtected,
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::PartitionTolerant,
+        );
+        let check = mesh_admission_check(
+            &objective,
+            &profile,
+            &summary,
+            &unit_route_cost(),
+            &neutral_assumptions(),
+        );
+        assert_eq!(check.decision, AdmissionDecision::Admissible);
+    }
+
+    fn link_with_protocol(protocol: jacquard_core::TransportProtocol) -> jacquard_core::Link {
+        jacquard_core::Link {
+            endpoint: LinkEndpoint {
+                protocol,
+                address: jacquard_core::EndpointAddress::Ble {
+                    device_id: jacquard_core::BleDeviceId(vec![0]),
+                    profile_id: jacquard_core::BleProfileId([0; 16]),
+                },
+                mtu_bytes: ByteCount(256),
+            },
+            state: jacquard_core::LinkState {
+                state: jacquard_core::LinkRuntimeState::Active,
+                median_rtt_ms: jacquard_core::DurationMs(40),
+                transfer_rate_bytes_per_sec: Belief::Absent,
+                stability_horizon_ms: Belief::Absent,
+                loss_permille: RatioPermille(0),
+                delivery_confidence_permille: Belief::Absent,
+                symmetry_permille: Belief::Absent,
+            },
+        }
+    }
+
+    // BFS on a configuration containing only the local node should yield
+    // a single entry mapping the local node to a one-element path.
+    #[test]
+    fn shortest_paths_returns_only_local_node_for_singleton_graph() {
+        let local = NodeId([1; 32]);
+        let configuration = Configuration {
+            epoch: RouteEpoch(0),
+            nodes: BTreeMap::new(),
+            links: BTreeMap::new(),
+            environment: Environment {
+                reachable_neighbor_count: 0,
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
+            },
+        };
+        let paths = shortest_paths(&local, &configuration);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths.get(&local).map(Vec::len), Some(1));
+    }
+
+    // BFS must skip nodes that are present in the graph but disconnected
+    // from the local node. Only the connected component containing the
+    // local node should appear in the result.
+    #[test]
+    fn shortest_paths_skips_disconnected_components() {
+        let local = NodeId([1; 32]);
+        let connected = NodeId([2; 32]);
+        let isolated = NodeId([3; 32]);
+        let configuration = Configuration {
+            epoch: RouteEpoch(0),
+            nodes: BTreeMap::new(),
+            links: BTreeMap::from([(
+                (local, connected),
+                link_with_protocol(jacquard_core::TransportProtocol::BleGatt),
+            )]),
+            environment: Environment {
+                reachable_neighbor_count: 1,
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
+            },
+        };
+        let paths = shortest_paths(&local, &configuration);
+        assert!(paths.contains_key(&local));
+        assert!(paths.contains_key(&connected));
+        assert!(!paths.contains_key(&isolated));
+    }
+
+    // The retention object id is computed by tagged hashing over the
+    // route id concatenated with the payload bytes. Two calls with the
+    // same inputs must produce identical content ids, and changing
+    // either input must produce a different one.
+    #[test]
+    fn retention_object_id_is_stable_across_calls() {
+        use jacquard_traits::Hashing;
+        let hashing = jacquard_traits::Blake3Hashing;
+        let route_a = RouteId([1; 16]);
+        let route_b = RouteId([2; 16]);
+
+        let mut tagged_a = route_a.0.to_vec();
+        tagged_a.extend_from_slice(b"payload");
+        let id_a_first = ContentId {
+            digest: hashing.hash_tagged(b"mesh-retention", &tagged_a),
+        };
+        let id_a_second = ContentId {
+            digest: hashing.hash_tagged(b"mesh-retention", &tagged_a),
+        };
+        assert_eq!(id_a_first, id_a_second);
+
+        let mut tagged_b = route_b.0.to_vec();
+        tagged_b.extend_from_slice(b"payload");
+        let id_b = ContentId {
+            digest: hashing.hash_tagged(b"mesh-retention", &tagged_b),
+        };
+        assert_ne!(id_a_first, id_b);
+
+        let mut tagged_c = route_a.0.to_vec();
+        tagged_c.extend_from_slice(b"different");
+        let id_c = ContentId {
+            digest: hashing.hash_tagged(b"mesh-retention", &tagged_c),
+        };
+        assert_ne!(id_a_first, id_c);
+    }
+}

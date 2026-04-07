@@ -301,3 +301,261 @@ impl<T> BeliefExt<T> for jacquard_core::Belief<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jacquard_core::{
+        AdaptiveRoutingProfile, Belief, BleDeviceId, BleProfileId, ByteCount, Configuration,
+        ContentId, ControllerId, DeploymentProfile, DestinationId, Environment, Estimate,
+        FactSourceClass, HoldFallbackPolicy, Limit, Link, LinkEndpoint, LinkRuntimeState, LinkState,
+        Node, NodeProfile, NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass,
+        PriorityPoints, RatioPermille, RouteConnectivityProfile, RouteEpoch, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
+        RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective, ServiceDescriptor,
+        ServiceId, ServiceScope, Tick, TimeWindow, TransportProtocol,
+    };
+    use std::collections::BTreeMap;
+
+    fn ble_endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint {
+            protocol: TransportProtocol::BleGatt,
+            address: jacquard_core::EndpointAddress::Ble {
+                device_id: BleDeviceId(vec![byte]),
+                profile_id: BleProfileId([byte; 16]),
+            },
+            mtu_bytes: ByteCount(256),
+        }
+    }
+
+    fn route_capable_services(node_id: NodeId, controller_id: ControllerId) -> Vec<ServiceDescriptor> {
+        let valid_for = TimeWindow::new(Tick(0), Tick(100)).unwrap();
+        [
+            RouteServiceKind::Discover,
+            RouteServiceKind::Move,
+            RouteServiceKind::Hold,
+        ]
+        .into_iter()
+        .map(|kind| ServiceDescriptor {
+            provider_node_id: node_id,
+            controller_id,
+            service_kind: kind,
+            endpoints: vec![ble_endpoint(node_id.0[0])],
+            routing_engines: vec![RoutingEngineId::Mesh],
+            scope: ServiceScope::Discovery(jacquard_core::DiscoveryScopeId([7; 16])),
+            valid_for,
+            capacity: Belief::Absent,
+        })
+        .collect()
+    }
+
+    fn node(byte: u8) -> Node {
+        let node_id = NodeId([byte; 32]);
+        let controller_id = ControllerId([byte; 32]);
+        Node {
+            controller_id,
+            profile: NodeProfile {
+                services: route_capable_services(node_id, controller_id),
+                endpoints: vec![ble_endpoint(byte)],
+                connection_count_max: 4,
+                neighbor_state_count_max: 4,
+                simultaneous_transfer_count_max: 2,
+                active_route_count_max: 2,
+                relay_work_budget_max: 8,
+                maintenance_work_budget_max: 8,
+                hold_item_count_max: 4,
+                hold_capacity_bytes_max: ByteCount(2048),
+            },
+            state: NodeState {
+                relay_budget: Belief::Estimated(Estimate {
+                    value: NodeRelayBudget {
+                        relay_work_budget: Belief::Estimated(Estimate {
+                            value: 4,
+                            confidence_permille: RatioPermille(1000),
+                            updated_at_tick: Tick(0),
+                        }),
+                        utilization_permille: RatioPermille(100),
+                        retention_horizon_ms: Belief::Absent,
+                    },
+                    confidence_permille: RatioPermille(1000),
+                    updated_at_tick: Tick(0),
+                }),
+                available_connection_count: Belief::Estimated(Estimate {
+                    value: 4,
+                    confidence_permille: RatioPermille(1000),
+                    updated_at_tick: Tick(0),
+                }),
+                hold_capacity_available_bytes: Belief::Estimated(Estimate {
+                    value: ByteCount(2048),
+                    confidence_permille: RatioPermille(1000),
+                    updated_at_tick: Tick(0),
+                }),
+                information_summary: Belief::Absent,
+            },
+        }
+    }
+
+    fn link(byte: u8) -> Link {
+        Link {
+            endpoint: ble_endpoint(byte),
+            state: LinkState {
+                state: LinkRuntimeState::Active,
+                median_rtt_ms: jacquard_core::DurationMs(40),
+                transfer_rate_bytes_per_sec: Belief::Absent,
+                stability_horizon_ms: Belief::Absent,
+                loss_permille: RatioPermille(20),
+                delivery_confidence_permille: Belief::Estimated(Estimate {
+                    value: RatioPermille(950),
+                    confidence_permille: RatioPermille(1000),
+                    updated_at_tick: Tick(0),
+                }),
+                symmetry_permille: Belief::Estimated(Estimate {
+                    value: RatioPermille(900),
+                    confidence_permille: RatioPermille(1000),
+                    updated_at_tick: Tick(0),
+                }),
+            },
+        }
+    }
+
+    fn topology_with_neighbor_count(neighbor_count: u32) -> Observation<Configuration> {
+        // Always builds a local node (id 1) connected to two route-capable
+        // peers, then advertises an environment with `neighbor_count` so we
+        // can probe the reachable_neighbor_count guard independently of the
+        // adjacency map.
+        let local = NodeId([1; 32]);
+        let mut nodes = BTreeMap::from([(local, node(1)), (NodeId([2; 32]), node(2))]);
+        nodes.insert(NodeId([3; 32]), node(3));
+        let links = BTreeMap::from([
+            ((local, NodeId([2; 32])), link(2)),
+            ((local, NodeId([3; 32])), link(3)),
+        ]);
+        Observation {
+            value: Configuration {
+                epoch: RouteEpoch(0),
+                nodes,
+                links,
+                environment: Environment {
+                    reachable_neighbor_count: neighbor_count,
+                    churn_permille: RatioPermille(100),
+                    contention_permille: RatioPermille(100),
+                },
+            },
+            source_class: FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::DirectObservation,
+            origin_authentication: OriginAuthenticationClass::Controlled,
+            observed_at_tick: Tick(0),
+        }
+    }
+
+    fn objective_for_service(bytes: Vec<u8>) -> RoutingObjective {
+        RoutingObjective {
+            destination: DestinationId::Service(ServiceId(bytes)),
+            service_kind: RouteServiceKind::Move,
+            target_protection: RouteProtectionClass::LinkProtected,
+            protection_floor: RouteProtectionClass::LinkProtected,
+            target_connectivity: RouteConnectivityProfile {
+                repair: RouteRepairClass::Repairable,
+                partition: RoutePartitionClass::PartitionTolerant,
+            },
+            hold_fallback_policy: HoldFallbackPolicy::Allowed,
+            latency_budget_ms: Limit::Unbounded,
+            protection_priority: PriorityPoints(0),
+            connectivity_priority: PriorityPoints(0),
+        }
+    }
+
+    fn profile_with(
+        repair: RouteRepairClass,
+        partition: RoutePartitionClass,
+    ) -> AdaptiveRoutingProfile {
+        AdaptiveRoutingProfile {
+            selected_protection: RouteProtectionClass::LinkProtected,
+            selected_connectivity: RouteConnectivityProfile { repair, partition },
+            deployment_profile: DeploymentProfile::FieldPartitionTolerant,
+            diversity_floor: 1,
+            routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
+            route_replacement_policy: RouteReplacementPolicy::Allowed,
+        }
+    }
+
+    // The selector returns Some only when the profile actually requires the
+    // coordinated capabilities a committee provides. A best-effort repair
+    // profile must return None even on a healthy neighborhood.
+    #[test]
+    fn select_committee_returns_none_when_profile_does_not_require_repair() {
+        let selector = DeterministicCommitteeSelector::new(NodeId([1; 32]));
+        let topology = topology_with_neighbor_count(3);
+        let objective = objective_for_service(vec![1, 2]);
+        let profile = profile_with(
+            RouteRepairClass::BestEffort,
+            RoutePartitionClass::PartitionTolerant,
+        );
+
+        let result = selector
+            .select_committee(&objective, &profile, &topology)
+            .unwrap();
+        assert!(result.is_none());
+    }
+
+    // Same property for the partition axis: a connected-only profile has no
+    // need for committee-coordinated partition tolerance.
+    #[test]
+    fn select_committee_returns_none_when_profile_does_not_require_partition_tolerance() {
+        let selector = DeterministicCommitteeSelector::new(NodeId([1; 32]));
+        let topology = topology_with_neighbor_count(3);
+        let objective = objective_for_service(vec![1, 2]);
+        let profile = profile_with(
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::ConnectedOnly,
+        );
+
+        let result = selector
+            .select_committee(&objective, &profile, &topology)
+            .unwrap();
+        assert!(result.is_none());
+    }
+
+    // Below the minimum neighbor count the selector should bail out, even
+    // when the profile is asking for a committee.
+    #[test]
+    fn select_committee_returns_none_when_neighborhood_too_small() {
+        let selector = DeterministicCommitteeSelector::new(NodeId([1; 32]));
+        let topology = topology_with_neighbor_count(1);
+        let objective = objective_for_service(vec![1, 2]);
+        let profile = profile_with(
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::PartitionTolerant,
+        );
+
+        let result = selector
+            .select_committee(&objective, &profile, &topology)
+            .unwrap();
+        assert!(result.is_none());
+    }
+
+    // When all guards pass and the neighborhood has multiple route-capable
+    // peers, the selector returns Some with a non-empty member list.
+    #[test]
+    fn select_committee_returns_some_when_all_conditions_met() {
+        let selector = DeterministicCommitteeSelector::new(NodeId([1; 32]));
+        let topology = topology_with_neighbor_count(3);
+        let objective = objective_for_service(vec![1, 2]);
+        let profile = profile_with(
+            RouteRepairClass::Repairable,
+            RoutePartitionClass::PartitionTolerant,
+        );
+
+        let result = selector
+            .select_committee(&objective, &profile, &topology)
+            .unwrap();
+        let committee = result.expect("committee should be selected");
+        assert!(!committee.members.is_empty());
+        assert!(committee.quorum_threshold >= 1);
+    }
+
+    // ContentId is unused here but included for parity with the broader
+    // mesh tests so the import block stays consistent.
+    #[allow(dead_code)]
+    fn _content_id_marker(_: ContentId<jacquard_core::Blake3Digest>) {}
+}

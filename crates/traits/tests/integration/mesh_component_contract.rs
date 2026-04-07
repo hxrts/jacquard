@@ -238,7 +238,7 @@ impl RoutingEngine for StubMeshFamily {
         &mut self,
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, jacquard_traits::jacquard_core::RouteError> {
-        let route = sample_materialized_route(input);
+        let route = sample_materialized_route(&input);
         self.route = Some(route.clone());
         Ok(RouteInstallation {
             materialization_proof: route.identity.materialization_proof,
@@ -476,7 +476,7 @@ fn sample_route_admission(
 }
 
 fn sample_materialized_route(
-    input: RouteMaterializationInput,
+    input: &RouteMaterializationInput,
 ) -> jacquard_traits::jacquard_core::MaterializedRoute {
     jacquard_traits::jacquard_core::MaterializedRoute::from_installation(
         input.clone(),

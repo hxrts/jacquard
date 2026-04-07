@@ -1,7 +1,15 @@
+//! Shared fixtures for the mesh integration tests.
+//!
+//! Each `tests/*.rs` file is its own crate, so this module is included via
+//! `mod common;` in the test files that need a configured `MeshEngine`.
+
+#![allow(dead_code)]
+#![allow(unreachable_pub)]
+
 use std::collections::BTreeMap;
 
 use jacquard_mesh::{
-    DeterministicCommitteeSelector, DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID,
+    DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID,
 };
 use jacquard_traits::{
     effect_handler,
@@ -11,25 +19,22 @@ use jacquard_traits::{
         Environment, Estimate, FactSourceClass, HoldFallbackPolicy, InformationSetSummary,
         InformationSummaryEncoding, Limit, Link, LinkEndpoint, LinkRuntimeState, LinkState, Node,
         NodeId, NodeProfile, NodeRelayBudget, NodeState, Observation, OrderStamp,
-        OriginAuthenticationClass, PublicationId, ReachabilityState, RetentionError,
-        RouteConnectivityProfile, RouteEpoch, RouteHandle, RouteLease, RouteMaintenanceOutcome,
-        RouteMaintenanceTrigger, RouteMaterializationInput, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
-        RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective, ServiceDescriptor,
-        ServiceId, ServiceScope, Tick, TimeWindow, TransportError, TransportObservation,
+        OriginAuthenticationClass, RetentionError, RouteConnectivityProfile, RouteEpoch,
+        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+        RouteServiceKind, RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
+        ServiceDescriptor, ServiceScope, Tick, TimeWindow, TransportError, TransportObservation,
         TransportProtocol,
     },
-    Blake3Hashing, CommitteeSelector, MeshRoutingEngine, MeshTopologyModel, MeshTransport,
-    OrderEffects, RetentionStore, RouteEventLogEffects, RoutingEngine, RoutingEnginePlanner,
+    Blake3Hashing, MeshTransport, OrderEffects, RetentionStore, RouteEventLogEffects,
     StorageEffects, TimeEffects,
 };
 
 #[derive(Default)]
-struct TestRuntimeEffects {
-    now: Tick,
-    next_order: u64,
-    storage: BTreeMap<Vec<u8>, Vec<u8>>,
-    events: Vec<jacquard_traits::jacquard_core::RouteEventStamped>,
+pub struct TestRuntimeEffects {
+    pub now: Tick,
+    pub next_order: u64,
+    pub storage: BTreeMap<Vec<u8>, Vec<u8>>,
+    pub events: Vec<jacquard_traits::jacquard_core::RouteEventStamped>,
 }
 
 #[effect_handler]
@@ -86,9 +91,9 @@ impl RouteEventLogEffects for TestRuntimeEffects {
 }
 
 #[derive(Default)]
-struct TestTransport {
-    sent_frames: Vec<(LinkEndpoint, Vec<u8>)>,
-    observations: Vec<TransportObservation>,
+pub struct TestTransport {
+    pub sent_frames: Vec<(LinkEndpoint, Vec<u8>)>,
+    pub observations: Vec<TransportObservation>,
 }
 
 impl MeshTransport for TestTransport {
@@ -111,8 +116,8 @@ impl MeshTransport for TestTransport {
 }
 
 #[derive(Default)]
-struct TestRetentionStore {
-    payloads: BTreeMap<ContentId<Blake3Digest>, Vec<u8>>,
+pub struct TestRetentionStore {
+    pub payloads: BTreeMap<ContentId<Blake3Digest>, Vec<u8>>,
 }
 
 impl RetentionStore for TestRetentionStore {
@@ -140,14 +145,14 @@ impl RetentionStore for TestRetentionStore {
     }
 }
 
-fn mesh_connectivity(partition: RoutePartitionClass) -> RouteConnectivityProfile {
+pub fn mesh_connectivity(partition: RoutePartitionClass) -> RouteConnectivityProfile {
     RouteConnectivityProfile {
         repair: RouteRepairClass::Repairable,
         partition,
     }
 }
 
-fn objective(destination: DestinationId) -> RoutingObjective {
+pub fn objective(destination: DestinationId) -> RoutingObjective {
     RoutingObjective {
         destination,
         service_kind: RouteServiceKind::Move,
@@ -161,7 +166,25 @@ fn objective(destination: DestinationId) -> RoutingObjective {
     }
 }
 
-fn profile() -> AdaptiveRoutingProfile {
+pub fn objective_with_floor(
+    destination: DestinationId,
+    target: RouteProtectionClass,
+    floor: RouteProtectionClass,
+) -> RoutingObjective {
+    RoutingObjective {
+        destination,
+        service_kind: RouteServiceKind::Move,
+        target_protection: target,
+        protection_floor: floor,
+        target_connectivity: mesh_connectivity(RoutePartitionClass::PartitionTolerant),
+        hold_fallback_policy: HoldFallbackPolicy::Allowed,
+        latency_budget_ms: Limit::Bounded(jacquard_traits::jacquard_core::DurationMs(250)),
+        protection_priority: jacquard_traits::jacquard_core::PriorityPoints(10),
+        connectivity_priority: jacquard_traits::jacquard_core::PriorityPoints(20),
+    }
+}
+
+pub fn profile() -> AdaptiveRoutingProfile {
     AdaptiveRoutingProfile {
         selected_protection: RouteProtectionClass::LinkProtected,
         selected_connectivity: mesh_connectivity(RoutePartitionClass::PartitionTolerant),
@@ -172,7 +195,21 @@ fn profile() -> AdaptiveRoutingProfile {
     }
 }
 
-fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
+pub fn profile_with_connectivity(
+    repair: RouteRepairClass,
+    partition: RoutePartitionClass,
+) -> AdaptiveRoutingProfile {
+    AdaptiveRoutingProfile {
+        selected_protection: RouteProtectionClass::LinkProtected,
+        selected_connectivity: RouteConnectivityProfile { repair, partition },
+        deployment_profile: DeploymentProfile::FieldPartitionTolerant,
+        diversity_floor: 1,
+        routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
+        route_replacement_policy: RouteReplacementPolicy::Allowed,
+    }
+}
+
+pub fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
     LinkEndpoint {
         protocol: TransportProtocol::BleGatt,
         address: EndpointAddress::Ble {
@@ -183,7 +220,10 @@ fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
     }
 }
 
-fn route_capable_services(node_id: NodeId, controller_id: ControllerId) -> Vec<ServiceDescriptor> {
+pub fn route_capable_services(
+    node_id: NodeId,
+    controller_id: ControllerId,
+) -> Vec<ServiceDescriptor> {
     let valid_for = TimeWindow::new(Tick(1), Tick(20)).expect("valid service window");
     [
         RouteServiceKind::Discover,
@@ -220,7 +260,7 @@ fn route_capable_services(node_id: NodeId, controller_id: ControllerId) -> Vec<S
     .collect()
 }
 
-fn node(node_byte: u8) -> Node {
+pub fn node(node_byte: u8) -> Node {
     let node_id = NodeId([node_byte; 32]);
     let controller_id = ControllerId([node_byte; 32]);
     Node {
@@ -291,7 +331,7 @@ fn node(node_byte: u8) -> Node {
     }
 }
 
-fn link(device_byte: u8, confidence: u16) -> Link {
+pub fn link(device_byte: u8, confidence: u16) -> Link {
     Link {
         endpoint: ble_endpoint(device_byte),
         state: LinkState {
@@ -322,7 +362,7 @@ fn link(device_byte: u8, confidence: u16) -> Link {
     }
 }
 
-fn sample_configuration() -> Observation<Configuration> {
+pub fn sample_configuration() -> Observation<Configuration> {
     let local_node_id = NodeId([1; 32]);
     let node_two_id = NodeId([2; 32]);
     let node_three_id = NodeId([3; 32]);
@@ -355,13 +395,15 @@ fn sample_configuration() -> Observation<Configuration> {
     }
 }
 
-fn build_engine() -> MeshEngine<
+pub type TestEngine = MeshEngine<
     DeterministicMeshTopologyModel,
     TestTransport,
     TestRetentionStore,
     TestRuntimeEffects,
     Blake3Hashing,
-> {
+>;
+
+pub fn build_engine() -> TestEngine {
     MeshEngine::without_committee_selector(
         NodeId([1; 32]),
         DeterministicMeshTopologyModel::new(),
@@ -375,215 +417,16 @@ fn build_engine() -> MeshEngine<
     )
 }
 
-// Two planning passes over the same topology snapshot must return identical
-// candidate lists in the same order, with the expected candidate count.
-#[test]
-fn candidate_ordering_is_deterministic_for_the_same_topology_snapshot() {
-    let engine = build_engine();
-    let topology = sample_configuration();
-    let objective = objective(DestinationId::Service(ServiceId(vec![1, 2, 3])));
-    let profile = profile();
-
-    let first = engine.candidate_routes(&objective, &profile, &topology);
-    let second = engine.candidate_routes(&objective, &profile, &topology);
-
-    assert_eq!(first, second);
-    assert_eq!(first.len(), 3);
-}
-
-// Repeated admission checks on the same candidate must agree, and the resulting
-// admission must carry the topology epoch and the mesh engine id in its witness
-// and summary.
-#[test]
-fn mesh_admission_emits_stable_check_and_witness_values() {
-    let engine = build_engine();
-    let topology = sample_configuration();
-    let objective = objective(DestinationId::Node(NodeId([3; 32])));
-    let profile = profile();
-
-    let candidate = engine
-        .candidate_routes(&objective, &profile, &topology)
-        .into_iter()
-        .next()
-        .expect("node destination should yield a candidate");
-    let first_check = engine
-        .check_candidate(&objective, &profile, &candidate)
-        .expect("candidate check");
-    let second_check = engine
-        .check_candidate(&objective, &profile, &candidate)
-        .expect("candidate check");
-    let admission = engine
-        .admit_route(&objective, &profile, candidate)
-        .expect("route admission");
-
-    assert_eq!(first_check, second_check);
-    assert_eq!(admission.admission_check, first_check);
-    assert_eq!(admission.witness.topology_epoch, topology.value.epoch);
-    assert_eq!(admission.summary.engine, MESH_ENGINE_ID);
-}
-
-// The deterministic committee selector must produce the same Some/None result
-// across calls on the same inputs, confirming both determinism and the optional
-// return shape required by `CommitteeSelector`.
-#[test]
-fn committee_selection_is_optional_and_deterministic() {
-    let selector = DeterministicCommitteeSelector::new(NodeId([1; 32]));
-    let topology = sample_configuration();
-    let objective = objective(DestinationId::Service(ServiceId(vec![9, 9])));
-    let profile = profile();
-
-    let first = selector
-        .select_committee(&objective, &profile, &topology)
-        .expect("selector result");
-    let second = selector
-        .select_committee(&objective, &profile, &topology)
-        .expect("selector result");
-
-    assert_eq!(first, second);
-    assert!(first.is_some());
-}
-
-// The deterministic topology model must surface mesh-private intrinsic node
-// state, per-protocol medium counts, and a non-trivial neighborhood density
-// estimate from a shared `Configuration`.
-#[test]
-fn topology_model_exposes_medium_and_node_intrinsic_support() {
-    let topology = sample_configuration();
-    let model = DeterministicMeshTopologyModel::new();
-
-    let intrinsic = model
-        .node_intrinsic_state(&NodeId([1; 32]), &topology.value)
-        .expect("local node intrinsic state");
-    let medium = model.medium_state(&NodeId([1; 32]), &topology.value);
-    let neighborhood = model
-        .neighborhood_estimate(&NodeId([1; 32]), &topology.value)
-        .expect("neighborhood estimate");
-
-    assert_eq!(intrinsic.available_connection_count, 4);
-    assert_eq!(
-        medium.protocol_counts.get(&TransportProtocol::BleGatt),
-        Some(&2)
-    );
-    assert!(neighborhood.density_score.0 > 0);
-}
-
-// End-to-end check that an admitted route forwards payloads, retains and
-// recovers deferred-delivery payloads through the retention store, repairs on
-// `LinkDegraded`, falls back to hold on `PartitionDetected`, and reports a
-// typed lease-expiry failure once the lease window has elapsed.
-#[test]
-fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
-    let mut engine = build_engine();
-    let topology = sample_configuration();
-    let objective = objective(DestinationId::Node(NodeId([3; 32])));
-    let profile = profile();
-
-    engine.engine_tick(&topology).expect("engine tick");
-    let candidate = engine
-        .candidate_routes(&objective, &profile, &topology)
-        .into_iter()
-        .next()
-        .expect("candidate");
-    let admission = engine
-        .admit_route(&objective, &profile, candidate)
-        .expect("admission");
-    let input = RouteMaterializationInput {
-        handle: RouteHandle {
-            route_id: admission.route_id,
-            topology_epoch: topology.value.epoch,
-            materialized_at_tick: Tick(2),
-            publication_id: PublicationId([7; 16]),
+pub fn build_engine_at_tick(now: Tick) -> TestEngine {
+    MeshEngine::without_committee_selector(
+        NodeId([1; 32]),
+        DeterministicMeshTopologyModel::new(),
+        TestTransport::default(),
+        TestRetentionStore::default(),
+        TestRuntimeEffects {
+            now,
+            ..Default::default()
         },
-        admission: admission.clone(),
-        lease: RouteLease {
-            owner_node_id: NodeId([1; 32]),
-            lease_epoch: topology.value.epoch,
-            valid_for: TimeWindow::new(Tick(2), Tick(10)).expect("valid lease"),
-        },
-    };
-    let installation = engine
-        .materialize_route(input.clone())
-        .expect("materialization");
-    let mut runtime = jacquard_traits::jacquard_core::RouteRuntimeState {
-        last_lifecycle_event: installation.last_lifecycle_event,
-        health: installation.health,
-        progress: installation.progress,
-    };
-
-    engine
-        .forward_payload(&admission.route_id, b"mesh-payload")
-        .expect("forwarding");
-    assert_eq!(engine.transport().sent_frames.len(), 1);
-
-    let retained = engine
-        .retain_for_route(&admission.route_id, b"partition-buffer")
-        .expect("retain payload");
-    assert!(engine
-        .retention_store()
-        .contains_retained_payload(&retained)
-        .expect("retention lookup"));
-    assert_eq!(
-        engine
-            .recover_retained_payload(&admission.route_id, &retained)
-            .expect("recover payload"),
-        Some(b"partition-buffer".to_vec())
-    );
-
-    let repaired = engine
-        .maintain_route(
-            &jacquard_traits::jacquard_core::MaterializedRouteIdentity {
-                handle: input.handle.clone(),
-                materialization_proof: installation.materialization_proof.clone(),
-                admission: input.admission.clone(),
-                lease: input.lease.clone(),
-            },
-            &mut runtime,
-            RouteMaintenanceTrigger::LinkDegraded,
-        )
-        .expect("repair");
-    assert_eq!(repaired.outcome, RouteMaintenanceOutcome::Repaired);
-
-    let hold_fallback = engine
-        .maintain_route(
-            &jacquard_traits::jacquard_core::MaterializedRouteIdentity {
-                handle: input.handle.clone(),
-                materialization_proof: installation.materialization_proof.clone(),
-                admission: input.admission.clone(),
-                lease: input.lease.clone(),
-            },
-            &mut runtime,
-            RouteMaintenanceTrigger::PartitionDetected,
-        )
-        .expect("partition maintenance");
-    assert_eq!(
-        hold_fallback.outcome,
-        RouteMaintenanceOutcome::HoldFallback {
-            trigger: RouteMaintenanceTrigger::PartitionDetected,
-        }
-    );
-
-    engine.runtime_effects_mut().now = Tick(12);
-    let expired = engine
-        .maintain_route(
-            &jacquard_traits::jacquard_core::MaterializedRouteIdentity {
-                handle: input.handle,
-                materialization_proof: installation.materialization_proof,
-                admission: input.admission,
-                lease: input.lease,
-            },
-            &mut runtime,
-            RouteMaintenanceTrigger::AntiEntropyRequired,
-        )
-        .expect("lease expiry maintenance");
-    assert_eq!(
-        expired.outcome,
-        RouteMaintenanceOutcome::Failed(
-            jacquard_traits::jacquard_core::RouteMaintenanceFailure::LeaseExpired,
-        )
-    );
-    assert_eq!(engine.runtime_effects().events.len(), 4);
-    assert!(matches!(
-        runtime.health.reachability_state,
-        ReachabilityState::Reachable
-    ));
+        Blake3Hashing,
+    )
 }
