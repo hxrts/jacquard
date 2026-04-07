@@ -38,7 +38,7 @@ graph LR
     config --> policy --> action
 ```
 
-The rest of this page covers `world` and `observation`. See [Route Lifecycle](105_route_lifecycle.md) for how `estimation`, `policy`, and `action` turn observations into realized routes.
+The rest of this page covers `world` and `observation`. See [Route Lifecycle](106_route_lifecycle.md) for how `estimation`, `policy`, and `action` turn observations into realized routes.
 
 ## World Schema
 
@@ -120,7 +120,7 @@ pub struct LinkState {
 
 `transfer_rate_bytes_per_sec` answers whether a meaningful exchange fits inside the contact window. `stability_horizon_ms` answers how long the contact is likely to remain useful. `delivery_confidence_permille` and `symmetry_permille` answer whether the link supports exchange in the expected direction.
 
-A routing engine that wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics derives them above this shared boundary. Those estimates stay engine-owned rather than being promoted into the shared schema. See [Route Lifecycle](105_route_lifecycle.md) for how engines consume the shared link signals.
+A routing engine that wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics derives them above this shared boundary. Those estimates stay engine-owned rather than being promoted into the shared schema. See [Route Lifecycle](106_route_lifecycle.md) for how engines consume the shared link signals.
 
 ### Environment
 
@@ -179,4 +179,4 @@ Engine-specific peer or neighborhood heuristics live above this boundary. A mesh
 
 World extensions are the entry path for observed nodes, links, environments, services, and transport activity. An extension emits `Observation<ObservedValue>` values that wrap objects conforming to the shared schema rather than defining a private alternative.
 
-This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [World Extensions](106_world_extensions.md) for the trait surface and an end-to-end BLE relay example.
+This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [World Extensions](107_world_extensions.md) for the trait surface and an end-to-end BLE relay example.

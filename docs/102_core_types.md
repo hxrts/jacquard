@@ -43,24 +43,30 @@ This group of types shows two important boundaries. `NodeBinding` says who contr
 
 `IdentityAssuranceClass` is a second identity-facing qualifier. It says how strongly a node identity is grounded for routing-control decisions. That keeps "who claims to exist" separate from "how much committee or admission weight that identity should receive".
 
-## Time And Bounds
+## Time And Qualifiers
 
-`Tick`, `DurationMs`, `OrderStamp`, `RouteEpoch`, and `ByteCount` are the core scalar units. They keep local time, bounded duration, deterministic ordering, topology versioning, and byte quantities distinct. `TimeWindow` and `TimeoutPolicy` are the first compound objects built on those primitives. `TimeWindow` is a validated value, not an open record: callers construct it through `TimeWindow::new(start_tick, end_tick)`, which enforces `end_tick > start_tick`.
+`Tick`, `DurationMs`, `OrderStamp`, `RouteEpoch`, and `ByteCount` are the core scalar units. They keep local time, bounded duration, deterministic ordering, topology versioning, and byte quantities distinct at the type level. `TimeWindow` and `TimeoutPolicy` are the first compound objects built on those primitives. See [Time Model](103_time.md) for the full time-domain rules and the validated `TimeWindow::new` constructor.
 
-`Belief<T>` and `Limit<T>` are the two main qualifier types. `Belief<T>` is the Bayesian-flavored wrapper for optional estimate state. It distinguishes `Absent` from `Estimated(Estimate<T>)`, so the model can say both whether an estimate exists and how strong it is. `Limit<T>` says whether a budget is bounded or explicitly unlimited. Together they keep uncertainty and resource policy explicit in the model.
+`Belief<T>` and `Limit<T>` are the two main qualifier types. `Belief<T>` distinguishes `Absent` from `Estimated(Estimate<T>)`, so the model can say both whether an estimate exists and how strong it is. `Limit<T>` says whether a budget is bounded or explicitly unlimited.
 
-## Shared Surfaces
+## World Schema
 
-`Configuration` is the shared world object the router reasons about. It is a wired-together set of `Node` and `Link` objects plus one `Environment`. `world` owns those instantiated world objects directly, with `Node` split into `NodeProfile` plus `NodeState` and `Link` carrying a stable `LinkEndpoint` plus `LinkState`. `Observation<T>` wraps those objects when they are locally seen or remotely reported. `RouteEstimate` is the shared family-neutral route summary that sits between raw observation and admission. `AdaptiveRoutingProfile` is the main shared action object produced by policy.
-
-`ObservedValue` and `WorldObservation` are the shared observation surfaces for world-extension code. A world extension emits plain `Observation<ObservedValue>` items, and the payload says what was observed: node state, link state, environment state, service state, or a transport-level observation. Jacquard also exposes narrower world-extension facets for contributors that only add nodes, links, environment state, services, or transport activity to the shared picture. In both cases the shared `Node` and `Link` schema stays in `core`; extensions add observed instances and reports, not new schema forks. If a host wants to batch, diff, merge, checkpoint, or partially apply those observations, that happens above the extension boundary.
+`Configuration` is the shared graph-shaped world object the router reasons about. It wires together `Node`, `Link`, and `Environment`. World extensions emit `Observation<ObservedValue>` items that contribute to that picture. See [Pipeline and World Observations](105_pipeline_observations.md) for the full schema and the observation surface.
 
 Mesh-specific peer or neighborhood heuristics do not live here. Novelty scoring, bridge detection, reach estimation, and similar derived mesh signals stay behind the mesh trait boundary as engine-owned estimate types. `core` carries the world facts those heuristics are computed from, not the heuristics themselves.
 
-`RouteHandle`, `RouteLease`, `RouteMaterializationInput`, `RouteInstallation`, `RouteMaterializationProof`, and `RouteCommitment` are the main runtime coordination objects in `core`. They are worth recognizing early because many later types point at them. The important ownership split is explicit: the router allocates canonical route identity through `RouteHandle`, `RouteLease`, and `RouteMaterializationInput`, while the family returns `RouteInstallation` and `RouteMaterializationProof` to describe what it actually realized under that identity. Live routes then remain split into router-owned `MaterializedRouteIdentity` and engine-mutable `RouteRuntimeState`, composed as `MaterializedRoute`. Canonical route state does not come directly from a transport callback or raw health observation. Activation also carries structural invariants: the admission decision must be admissible, the realized protection must satisfy the objective protection floor, and lease validity must be checked explicitly before publication or maintenance continues.
+## Route Lifecycle Objects
 
-`CommitteeSelection` is the main shared coordination object. It carries a selected member set, role declarations, lease window, evidence basis, claim strength, and identity-assurance posture. The important boundary is that `core` exposes only the coordination result shape. It does not define one universal committee-formation algorithm, require a leader, or encode engine-local scoring policy.
+`RouteHandle`, `RouteLease`, `RouteMaterializationInput`, `RouteInstallation`, `RouteMaterializationProof`, and `RouteCommitment` are the main runtime coordination objects in `core`. The router allocates canonical route identity through `RouteHandle`, `RouteLease`, and `RouteMaterializationInput`. The engine returns `RouteInstallation` and `RouteMaterializationProof` to describe what it realized under that identity.
 
-`SubstrateRequirements`, `SubstrateCandidate`, `SubstrateLease`, and `LayerParameters` are the shared layering objects. They exist so a host-level orchestrator can compose families without teaching one family about another's internals. The important boundary is the same as for committees: `core` exposes the carrier contract shape, not the host policy that decides when onion should migrate to mesh or when onion may use mesh as a limited substrate.
+Live routes are split into router-owned `MaterializedRouteIdentity` and engine-mutable `RouteRuntimeState`, composed as `MaterializedRoute`. Canonical route state does not come directly from a transport callback or raw health observation. Activation enforces the structural invariants. The admission decision must be admissible, the realized protection must satisfy the objective protection floor, and lease validity must be checked explicitly before publication or maintenance continues.
 
-`DiscoveryScopeId` is separate from the routing concept of a neighborhood. It is only a service-scope identifier used in `ServiceScope::Discovery`. It does not name a routing authority set or a mesh-local topology object.
+See [Route Lifecycle](106_route_lifecycle.md) for the full lifecycle flow from objective through teardown.
+
+## Coordination And Layering
+
+`CommitteeSelection` is the main shared coordination object. It carries a selected member set, role declarations, lease window, evidence basis, claim strength, and identity-assurance posture. `core` exposes only the coordination result shape. It does not define one universal committee-formation algorithm, require a leader, or encode engine-local scoring policy.
+
+`SubstrateRequirements`, `SubstrateCandidate`, `SubstrateLease`, and `LayerParameters` are the shared layering objects. They exist so a host-level orchestrator can compose engines without teaching one engine about another's internals. `core` exposes the carrier contract shape, not the host policy that decides when one engine should migrate to another.
+
+`DiscoveryScopeId` is separate from the routing concept of a neighborhood. It is only a service-scope identifier used in `ServiceScope::Discovery`. It does not name a routing authority set or an engine-local topology object.

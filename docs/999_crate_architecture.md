@@ -54,7 +54,7 @@ Jacquard treats purity and side effects as part of the trait contract.
 
 Signature design follows the same split. Use `&self` for pure and read-only methods. Use `&mut self` only when the method has explicit state mutation or side effects. Do not mix pure planning and effectful runtime mutation in one trait unless the split is impossible and documented.
 
-That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `SubstratePlanner` from `SubstrateRuntime`, `LayeredRoutingEnginePlanner` from `LayeredRoutingEngine`, and `MeshTopologyModel` from `MeshTransport`.
+That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `SubstratePlanner` from `SubstrateRuntime`, `LayeredRoutingEnginePlanner` from `LayeredRoutingEngine`, and `MeshTopologyModel` from the frame-shaped `MeshTransport` carrier boundary.
 
 ## Enforcement
 
@@ -96,4 +96,4 @@ A host-owned policy engine above the router may own cross-engine migration polic
 
 `core::Configuration` is the shared graph-shaped world object. Engine-specific structure such as topology exports, peer novelty, bridge estimates, planning caches, and forwarding tables belongs in the engine crate behind its trait boundary rather than in `core`.
 
-The extension surface is split across [World Extensions](106_world_extensions.md), [Routing Engines](107_routing_engines.md), [Runtime Effects](108_runtime_effects.md), and [Mesh Routing](109_mesh_routing.md).
+The extension surface is split across [World Extensions](107_world_extensions.md), [Routing Engines](108_routing_engines.md), [Runtime Effects](104_runtime_effects.md), and [Mesh Routing](109_mesh_routing.md).

@@ -8,13 +8,13 @@ Mesh planning consumes the shared world picture from `jacquard-core`. The engine
 
 The mesh engine treats `ServiceDescriptor` as the shared capability-advertisement plane. Route-capable mesh nodes expose the default Jacquard routing surface, which includes the `Discover`, `Move`, and `Hold` services along with relay headroom, hold capacity, link-quality observations, and coarse environment posture. Mesh does not add a second advertisement protocol or a mesh-global algorithm handshake on top of that surface.
 
-The static `MESH_CAPABILITIES` envelope is exercised by contract tests. The in-tree mesh crate proves its `Repair`, `Hold`, partition-tolerance, decidable-admission, and explicit-route-shape claims against live planner and runtime behavior rather than leaving them as unchecked constants.
+The static `MESH_CAPABILITIES` envelope is exercised by contract tests. The in-tree mesh crate proves its `Repair`, `Hold`, partition-tolerance, decidable-admission, and explicit-route-shape claims against live planner and runtime behavior.
 
 ## Deterministic Topology Model
 
 `DeterministicMeshTopologyModel` is the mesh-owned read-only query surface. It queries shared `Configuration` objects and then derives four mesh-private estimate types: `MeshPeerEstimate`, `MeshNeighborhoodEstimate`, `MeshMediumState`, and `MeshNodeIntrinsicState`. These estimates are encapsulated in `jacquard-mesh` so engine-specific scoring doesn't leak into the shared cross-engine schema.
 
-The mesh estimate vocabulary is intentionally narrow. Peer and neighborhood estimates expose optional score components, so unknown and zero remain distinct without turning those mesh-private components into shared observed facts. Those mesh-private scores are also clamped to the crate's `HealthScore` range so composition stays bounded. Where service validity matters, the topology model receives `observed_at_tick` explicitly rather than reinterpreting `RouteEpoch` as time. Mesh now uses the peer and neighborhood estimates directly in candidate ordering and committee selection, so swapping the topology model can change mesh-private route preference and coordination behavior without changing the shared world schema.
+Peer and neighborhood estimates expose optional score components, so unknown and zero remain distinct without turning those mesh-private components into shared observed facts. The components are clamped to the crate's `HealthScore` range so composition stays bounded. Where service validity matters, the topology model receives `observed_at_tick` explicitly rather than reinterpreting `RouteEpoch` as time. Mesh uses these estimates directly in candidate ordering and committee selection, so swapping the topology model changes mesh-private route preference and coordination behavior without changing the shared world schema.
 
 ## Planning and Admission
 
@@ -32,9 +32,7 @@ Deferred-delivery classification is deliberately stricter than capability advert
 
 ### Admission Contract
 
-Admission and witness generation operate on shared result objects. The mesh engine returns `RouteCandidate`, `RouteAdmissionCheck`, `RouteAdmission`, and `RouteWitness` values. This keeps the mesh engine interoperable with the common router and layering surfaces.
-
-The rule is:
+Admission and witness generation operate on shared result objects. The mesh engine returns `RouteCandidate`, `RouteAdmissionCheck`, `RouteAdmission`, and `RouteWitness` values. This keeps mesh interoperable with the common router and layering surfaces. The routing-invariants check in `crates/xtask/src/checks/routing_invariants.rs` enforces the planning rules below.
 
 - if a planning judgment depends on observations, the current topology must be passed explicitly to the planner method that makes that judgment
 - `BackendRouteRef` stays opaque at the shared boundary, but in mesh it is a self-contained plan token rather than a cache key
@@ -42,7 +40,7 @@ The rule is:
 - admitted routes carry that opaque backend ref forward so `materialize_route` can decode the selected mesh plan without searching planner cache state
 - materialization still revalidates that decoded plan against the latest observed topology, the shared topology epoch, and the plan validity window before issuing a proof
 
-These rules are enforced in-repo. See `crates/xtask/src/checks/routing_invariants.rs` for the live rule set.
+Mesh route ids are path identities in v1. The stable route id is derived from source, destination, route class, and concrete segment path. Epoch stays in the plan token and proof instead of becoming part of the stable route identity. Mesh-private plan tokens, route-identity bytes, ordering keys, and runtime checkpoints all use the same versioned canonical binary encoding policy so replay, hashing, and checkpoint recovery stay aligned.
 
 ## Engine Middleware
 
@@ -57,7 +55,7 @@ topology observation
   -> checkpoint current mesh runtime state
 ```
 
-Each tick ingests the latest topology observation, refreshes the mesh-private estimate caches, summarizes the latest bounded transport observations, and folds that evidence into a bounded control state. In v1 that control state carries transport stability, repair pressure, and anti-entropy pressure with deterministic decay. Mesh uses it to tighten route health, escalate repair posture under sustained pressure, and make `AntiEntropyRequired` consume real anti-entropy debt rather than acting as pure bookkeeping. The hook then evicts stale candidate entries and writes the scoped topology-epoch checkpoint. The host or router still provides the tick cadence.
+Each tick ingests the latest topology observation, refreshes the mesh-private estimate caches, summarizes the latest bounded transport observations, and folds that evidence into a bounded control state. In v1 that control state carries transport stability, repair pressure, and anti-entropy pressure with deterministic decay. Mesh uses it to tighten route health, escalate repair posture under sustained pressure, and make `AntiEntropyRequired` consume real anti-entropy debt rather than acting as pure bookkeeping. The hook then evicts stale candidate entries and writes the scoped topology-epoch checkpoint.
 
 Discovery enters mesh through the shared world picture: nodes, links, environment, and service advertisements are already merged into `Observation<Configuration>` before the engine plans. Richer route exports, neighbor-advertisement choreography, and mesh-private anti-entropy state remain future mesh work rather than hidden v1 runtime behavior.
 
@@ -72,9 +70,7 @@ Materialization stores a mesh-private active-route object under the router-owned
 
 Canonical route identity, admission, and lease ownership remain outside this mesh-private runtime object.
 
-Mesh decodes the admitted opaque backend ref during materialization instead of recovering route shape from planner cache state. Token decode alone is not enough. The runtime re-derives the candidate against the latest observed topology and fails closed if the plan epoch, handle epoch, witness epoch, latest topology epoch, or plan validity window do not still agree.
-
-Materialization fails closed until the engine has observed topology through `engine_tick`. Mesh no longer synthesizes a pre-observation route health or an empty-world fallback to get past activation.
+Mesh decodes the admitted opaque backend ref during materialization instead of recovering route shape from planner cache state. Token decode alone is not enough. The runtime re-derives the candidate against the latest observed topology and fails closed if the plan epoch, handle epoch, witness epoch, latest topology epoch, or plan validity window do not still agree. Materialization itself fails closed until the engine has observed topology through `engine_tick`, so mesh no longer synthesizes a pre-observation route health or an empty-world fallback.
 
 ### Route Health
 
@@ -86,7 +82,7 @@ Lifecycle sequencing is explicit and fail-closed. Mesh validates first, builds t
 
 Maintenance is expressed through the shared `RouteMaintenanceResult` surface. In v1 mesh, repair means a bounded local suffix-repair algorithm over the latest observed topology. `LinkDegraded` and `EpochAdvanced` attempt to recompute the remaining suffix from the current owner to the final destination, consume one repair step on success, and escalate to typed replacement when no bounded patch is available or the repair budget is exhausted.
 
-`CapacityExceeded` and `PartitionDetected` enter partition mode and report the current retained-object count through `HoldFallback`. `PolicyShift` performs handoff. `AntiEntropyRequired` can flush retained payloads and recover from partition mode. Lease-expiry remains a typed failure.
+`CapacityExceeded` returns `ReplacementRequired` without flipping partition mode, since it indicates replacement pressure rather than partition evidence. `PartitionDetected` enters partition mode and reports the current retained-object count through `HoldFallback`. `PolicyShift` performs handoff and `AntiEntropyRequired` flushes retained payloads to recover. V1 mesh exposes one current commitment per route, so repair, handoff, and deferred-delivery posture stay inside the route runtime state rather than becoming separate concurrent commitments.
 
 ### Forwarding
 
@@ -96,29 +92,23 @@ Old owners fail closed with `StaleOwner`, exhausted owner-relative paths fail wi
 
 ## Optional Committee Coordination
 
-Mesh can attach a swappable `CommitteeSelector`. `DeterministicCommitteeSelector` is the optional in-tree implementation.
+Mesh can attach a swappable `CommitteeSelector`, with `DeterministicCommitteeSelector` as the optional in-tree implementation. The selector returns `Option<CommitteeSelection>` rather than assuming a committee always exists. The in-tree selector reads the mesh neighborhood estimate for committee gating and the mesh peer estimate for ranking. Route ordering and local coordination stay on the same topology-model interpretation.
 
-The selector returns `Option<CommitteeSelection>` rather than assuming a committee always exists. In the in-tree selector, committee gating reads the mesh neighborhood estimate and committee ranking reads the mesh peer estimate. Route ordering and local coordination stay on the same topology-model interpretation.
+Committee eligibility is stricter than forwarding value alone. A member must be route-capable for mesh, must present a usable shared service surface, and may be disqualified by bounded behavior-history penalties before ranking happens. Selection is diversity-constrained: controller diversity is mandatory, and discovery-scope diversity is enforced when alternatives exist. If discovery-scope diversity would suppress the minimum viable committee, mesh falls back to controller-only diversity rather than silently disabling coordination.
 
-Committee eligibility is stricter than forwarding value alone. A member must be route-capable for mesh, must present a usable shared service surface, and may be disqualified by bounded behavior-history penalties before ranking happens at all.
+`None` means no committee applies, and a selector error is not silently downgraded to `None`. Mesh surfaces a selector error as a typed inadmissible candidate using `BackendUnavailable`. The result is advisory coordination evidence only and does not replace canonical route admission, route witness, or route lease ownership.
 
-Selection is diversity-constrained. Controller diversity is mandatory, and discovery-scope diversity is enforced when alternatives exist. If discovery-scope diversity would suppress the minimum viable committee, mesh falls back to controller-only diversity rather than silently disabling coordination.
+## Retention and Storage
 
-`None` means no committee applies. A selector error is not silently downgraded to `None`. Mesh surfaces it as a typed inadmissible candidate using `BackendUnavailable`. The result is advisory coordination evidence only and does not replace canonical route admission, route witness, or route lease ownership.
+The mesh engine uses the shared `RetentionStore` boundary for deferred-delivery payloads. While a route is in partition mode, `forward_payload` buffers payloads into the retention store instead of sending them immediately. Mesh then flushes those retained payloads on recovery or before handoff when a next hop becomes available. The typed partition fallback surface remains `RouteMaintenanceOutcome::HoldFallback`, which now carries the retained-object count visible on the route at the time the fallback was entered.
 
-## Retention and Partition Handling
+Retained payload identity flows through the shared `Hashing` boundary. Route and runtime checkpoints flow through the shared storage and route-event-log effects. Storage keys and runtime checkpoints are scoped by the local engine identity so multiple local mesh engines can share one backend without overwriting one another.
 
-The mesh engine treats retention as part of the routing-engine contract. It uses the shared `RetentionStore` boundary for deferred-delivery payloads. While a route is in partition mode, `forward_payload` buffers payloads into the retention store instead of sending them immediately. Mesh then flushes those retained payloads on recovery or before handoff when a next hop becomes available. The typed partition fallback surface remains `RouteMaintenanceOutcome::HoldFallback`, which now carries the retained-object count visible on the route at the time the fallback was entered.
-
-Retained payload identity flows through the shared `Hashing` boundary. Route and runtime checkpoints flow through the shared storage and route-event-log effects.
-
-Storage keys and runtime checkpoints are scoped by the local engine identity so multiple local mesh engines can share one backend without overwriting one another.
-
-V1 mesh now supports a scoped checkpoint round-trip for mesh-private active-route state and the latest topology epoch. That recovery surface is intentionally narrow: it restores the mesh-owned runtime object keyed by `RouteId`, while canonical route identity and lease ownership still remain on the router side.
+V1 mesh supports a scoped checkpoint round-trip for mesh-private active-route state and the latest topology epoch. That recovery surface is intentionally narrow: it restores the mesh-owned runtime object keyed by `RouteId`, while canonical route identity and lease ownership remain on the router side.
 
 ## Swappable Trait Surface
 
-The mesh engine exposes its internal seams as four traits in `jacquard-traits`. Substituting any of them replaces one mesh subcomponent without forking the engine.
+The mesh engine exposes its internal seams as four traits in `jacquard-traits`. Substituting any of them replaces one mesh subcomponent without forking the engine. For host runtime effects beyond these mesh-specific seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
 
 ### Topology Model
 
@@ -193,18 +183,22 @@ pub trait MeshRoutingEngine: RoutingEngine {
 ### Transport
 
 ```rust
+pub struct MeshFrame<'a> {
+    pub endpoint: &'a LinkEndpoint,
+    pub payload: &'a [u8],
+}
+
 pub trait MeshTransport {
     #[must_use]
     fn transport_id(&self) -> TransportProtocol;
 
-    fn send_frame(&mut self, endpoint: &LinkEndpoint, payload: &[u8])
-        -> Result<(), TransportError>;
+    fn send_frame(&mut self, frame: MeshFrame<'_>) -> Result<(), TransportError>;
 
     fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
 }
 ```
 
-`MeshTransport` is the carrier boundary for sending frames and reporting transport observations. Any implementation that satisfies `MeshTransport` automatically satisfies `TransportEffects` from [Runtime Effects](108_runtime_effects.md) via blanket impl, so a mesh transport adapter doubles as a host transport effect handler.
+`MeshTransport` is the frame-carrier boundary for sending explicit endpoint-addressed mesh frames and reporting transport observations. Mesh routes forwarding through this frame-shaped trait directly. Any implementation that satisfies `MeshTransport` also satisfies `TransportEffects` from [Runtime Effects](104_runtime_effects.md) via blanket impl, so a mesh transport adapter can double as a host transport effect handler without collapsing the mesh-specific carrier boundary. New transport implementations such as BLE GATT, Wi-Fi LAN, or QUIC implement this trait and register with the mesh routing engine, with substantial platform logic moving into dedicated crates such as `jacquard-transport-ble`.
 
 ### Retention
 
@@ -228,10 +222,4 @@ pub trait RetentionStore {
 }
 ```
 
-`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. New transport implementations such as BLE GATT, Wi-Fi LAN, or QUIC implement `MeshTransport` and are registered with the mesh routing engine. If transport implementations grow substantial platform logic, they should move into dedicated crates such as `jacquard-transport-ble`. `RetentionStore` stays intentionally narrow for the same reason.
-
-## Runtime Services
-
-`jacquard-mesh` routes host capabilities through the shared trait surfaces from `jacquard-traits`. It does not define parallel mesh-only runtime traits.
-
-The mesh engine consumes `MeshTransport` for frame send and transport observations, and `RetentionStore` for deferred-delivery payload storage. It also uses the `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` runtime surfaces. This concentrates mesh-specific logic in the mesh crate while preserving the stable runtime boundary.
+`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. It stays intentionally narrow so platform-specific persistence can substitute without forcing the rest of the mesh engine to know about it.
