@@ -1,0 +1,47 @@
+# Jacquard rustfmt configuration.
+#
+# Many of the options below are nightly-only, so `unstable_features = true`
+# is required. Formatting is run through the nightly toolchain provided by
+# `nix/nightly/flake.nix`. See `just fmt` and `just fmt-check`.
+
+# Use unstable features (required for many good options)
+unstable_features = true
+
+# --- Line width & wrapping ---
+max_width = 100
+use_small_heuristics = "Max"
+
+# --- Function + struct layout ---
+fn_params_layout = "Tall"
+struct_lit_width = 40
+struct_variant_width = 40
+
+# --- Imports ---
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+
+# --- Chains & method calls ---
+chain_width = 60
+format_code_in_doc_comments = true
+
+# --- Control flow ---
+match_block_trailing_comma = true
+match_arm_blocks = true
+
+# --- Trailing commas (VERY important for diffs) ---
+trailing_comma = "Vertical"
+
+# --- Where clauses ---
+where_single_line = false
+
+# --- Blank lines / density ---
+blank_lines_upper_bound = 1
+blank_lines_lower_bound = 0
+
+# --- Misc readability ---
+reorder_impl_items = true
+use_field_init_shorthand = true
+
+# --- Comments ---
+wrap_comments = true
+comment_width = 80

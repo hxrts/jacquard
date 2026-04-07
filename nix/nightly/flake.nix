@@ -71,6 +71,16 @@
           fi
           exec dylint-link "$@"
         '';
+
+        # Nightly `cargo fmt` wrapper. Bypasses the rustup-linking
+        # `cargoWrapper` above so contributors and CI can run
+        # `cargo-fmt-nightly --all` without first running `install-dylint`.
+        # This invokes the nix-native nightly cargo directly, which finds the
+        # nightly rustfmt colocated in the same toolchain directory.
+        cargoFmtNightly = pkgs.writeShellScriptBin "cargo-fmt-nightly" ''
+          set -euo pipefail
+          exec ${rustToolchainNightly}/bin/cargo fmt "$@"
+        '';
       in
       {
         devShells.default = pkgs.mkShell {
@@ -81,6 +91,7 @@
               rustToolchainNightly
               installDylint
               dylintLinkWrapper
+              cargoFmtNightly
               pkg-config
               git
               just

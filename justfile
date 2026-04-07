@@ -17,13 +17,13 @@ test:
 lint:
     cargo clippy --workspace -- -D warnings
 
-# format code
+# format code (uses nightly rustfmt for unstable rustfmt.toml options)
 fmt:
-    cargo fmt --all
+    nix develop ./nix/nightly --command cargo-fmt-nightly --all
 
-# check formatting
+# check formatting (uses nightly rustfmt for unstable rustfmt.toml options)
 fmt-check:
-    cargo fmt --all -- --check
+    nix develop ./nix/nightly --command cargo-fmt-nightly --all -- --check
 
 # Generate docs/SUMMARY.md from Markdown files in docs/ and subfolders
 summary:
@@ -141,7 +141,7 @@ ci-dry-run:
     }
 
     add_step "Preflight"           "./scripts/preflight.sh"
-    add_step "Format Check"       "cargo fmt --all -- --check"
+    add_step "Format Check"       "nix develop ./nix/nightly --command cargo-fmt-nightly --all -- --check"
     add_step "Clippy"             "cargo clippy --workspace -- -D warnings"
     add_step "Tests"              "cargo test --workspace"
     add_step "Docs Link Check"    "cargo xtask check docs-link-check"
