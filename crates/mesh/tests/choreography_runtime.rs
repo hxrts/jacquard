@@ -105,9 +105,23 @@ fn forwarding_and_partition_hold_use_protocol_runtime_paths() {
 }
 
 #[test]
-fn engine_tick_records_tick_protocol_checkpoint() {
+fn engine_tick_records_tick_and_cooperative_protocol_checkpoints() {
     let mut engine = build_engine();
     let topology = sample_configuration();
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        NodeId([3; 32]),
+        lease(Tick(2), Tick(20)),
+    );
+
+    engine
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            RouteMaintenanceTrigger::PartitionDetected,
+        )
+        .expect("enter partition mode");
 
     engine
         .engine_tick(&tick_context(&topology))
@@ -116,6 +130,18 @@ fn engine_tick_records_tick_protocol_checkpoint() {
     assert!(has_protocol_checkpoint(
         &engine,
         "mesh/protocol/forwarding/tick-epoch-"
+    ));
+    assert!(has_protocol_checkpoint(
+        &engine,
+        "mesh/protocol/neighbor-advertisement/tick-epoch-"
+    ));
+    assert!(has_protocol_checkpoint(
+        &engine,
+        "mesh/protocol/route-export/"
+    ));
+    assert!(has_protocol_checkpoint(
+        &engine,
+        "mesh/protocol/anti-entropy/"
     ));
 }
 
@@ -135,6 +161,14 @@ fn teardown_clears_route_scoped_protocol_checkpoints_but_keeps_tick_state() {
     assert!(!has_protocol_checkpoint(
         &engine,
         "mesh/protocol/activation/activation-"
+    ));
+    assert!(!has_protocol_checkpoint(
+        &engine,
+        "mesh/protocol/route-export/"
+    ));
+    assert!(!has_protocol_checkpoint(
+        &engine,
+        "mesh/protocol/anti-entropy/"
     ));
     assert!(has_protocol_checkpoint(
         &engine,

@@ -10,7 +10,10 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-use super::{activation, forwarding, handoff, hold_replay, repair};
+use super::{
+    activation, anti_entropy, forwarding, handoff, hold_replay, neighbor_advertisement,
+    repair, route_export,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum MeshProtocolKind {
@@ -19,6 +22,9 @@ pub(crate) enum MeshProtocolKind {
     Repair,
     Handoff,
     HoldReplay,
+    RouteExport,
+    NeighborAdvertisement,
+    AntiEntropy,
 }
 
 impl MeshProtocolKind {
@@ -30,6 +36,9 @@ impl MeshProtocolKind {
             | Self::Repair => "repair",
             | Self::Handoff => "handoff",
             | Self::HoldReplay => "hold-replay",
+            | Self::RouteExport => "route-export",
+            | Self::NeighborAdvertisement => "neighbor-advertisement",
+            | Self::AntiEntropy => "anti-entropy",
         }
     }
 }
@@ -53,6 +62,10 @@ pub(crate) fn protocol_spec(
     static REPAIR: OnceLock<Result<MeshProtocolSpec, String>> = OnceLock::new();
     static HANDOFF: OnceLock<Result<MeshProtocolSpec, String>> = OnceLock::new();
     static HOLD_REPLAY: OnceLock<Result<MeshProtocolSpec, String>> = OnceLock::new();
+    static ROUTE_EXPORT: OnceLock<Result<MeshProtocolSpec, String>> = OnceLock::new();
+    static NEIGHBOR_ADVERTISEMENT: OnceLock<Result<MeshProtocolSpec, String>> =
+        OnceLock::new();
+    static ANTI_ENTROPY: OnceLock<Result<MeshProtocolSpec, String>> = OnceLock::new();
 
     let slot = match kind {
         | MeshProtocolKind::ForwardingHop => &FORWARDING,
@@ -60,6 +73,9 @@ pub(crate) fn protocol_spec(
         | MeshProtocolKind::Repair => &REPAIR,
         | MeshProtocolKind::Handoff => &HANDOFF,
         | MeshProtocolKind::HoldReplay => &HOLD_REPLAY,
+        | MeshProtocolKind::RouteExport => &ROUTE_EXPORT,
+        | MeshProtocolKind::NeighborAdvertisement => &NEIGHBOR_ADVERTISEMENT,
+        | MeshProtocolKind::AntiEntropy => &ANTI_ENTROPY,
     };
 
     slot.get_or_init(|| Ok(build_spec(kind)))
@@ -98,6 +114,24 @@ fn build_spec(kind: MeshProtocolKind) -> MeshProtocolSpec {
             hold_replay::SOURCE_PATH,
             hold_replay::PROTOCOL_NAME,
             hold_replay::ROLE_NAMES,
+        ),
+        | MeshProtocolKind::RouteExport => spec_from(
+            kind,
+            route_export::SOURCE_PATH,
+            route_export::PROTOCOL_NAME,
+            route_export::ROLE_NAMES,
+        ),
+        | MeshProtocolKind::NeighborAdvertisement => spec_from(
+            kind,
+            neighbor_advertisement::SOURCE_PATH,
+            neighbor_advertisement::PROTOCOL_NAME,
+            neighbor_advertisement::ROLE_NAMES,
+        ),
+        | MeshProtocolKind::AntiEntropy => spec_from(
+            kind,
+            anti_entropy::SOURCE_PATH,
+            anti_entropy::PROTOCOL_NAME,
+            anti_entropy::ROLE_NAMES,
         ),
     }
 }
@@ -141,5 +175,17 @@ mod tests {
             .role_names
             .iter()
             .any(|role| role == "CandidateRelay"));
+
+        let export = protocol_spec(MeshProtocolKind::RouteExport)
+            .expect("route export protocol spec");
+        assert_eq!(export.protocol_name, "RouteExportExchange");
+
+        let neighbor = protocol_spec(MeshProtocolKind::NeighborAdvertisement)
+            .expect("neighbor advertisement protocol spec");
+        assert_eq!(neighbor.protocol_name, "NeighborAdvertisementExchange");
+
+        let anti_entropy = protocol_spec(MeshProtocolKind::AntiEntropy)
+            .expect("anti-entropy protocol spec");
+        assert_eq!(anti_entropy.protocol_name, "AntiEntropyExchange");
     }
 }

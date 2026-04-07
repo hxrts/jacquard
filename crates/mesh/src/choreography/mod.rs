@@ -6,13 +6,19 @@
 //! Rust host logic that enters those protocols.
 
 mod activation;
+mod anti_entropy;
 mod artifacts;
 mod effects;
 mod forwarding;
 mod handoff;
 mod hold_replay;
+mod neighbor_advertisement;
 mod repair;
+mod route_export;
 mod runtime;
 
 pub(crate) use effects::MeshProtocolRuntimeAdapter;
-pub(crate) use runtime::MeshGuestRuntime;
+pub(crate) use runtime::{
+    MeshAntiEntropySnapshot, MeshGuestRuntime, MeshNeighborAdvertisementSnapshot,
+    MeshRouteExportSnapshot,
+};

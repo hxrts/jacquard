@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use common::{
     engine::{
         activate_route_with_profile, build_engine, lease, materialization_input,
-        objective, profile_with_connectivity,
+        objective, profile_with_connectivity, LOCAL_NODE_ID,
     },
     fixtures::sample_configuration,
 };
@@ -296,11 +296,22 @@ fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
 fn repeated_ticks_on_the_same_epoch_do_not_rewrite_epoch_checkpoint() {
     let topology = sample_configuration();
     let mut engine = build_engine();
+    let topology_epoch_key = {
+        let mut key = b"mesh/".to_vec();
+        key.extend_from_slice(&LOCAL_NODE_ID.0);
+        key.extend_from_slice(b"/topology-epoch");
+        key
+    };
 
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("first tick");
-    let writes_after_first_tick = engine.runtime_effects().store_bytes_call_count;
+    let stored_after_first_tick = engine
+        .runtime_effects()
+        .storage
+        .get(&topology_epoch_key)
+        .cloned()
+        .expect("topology epoch checkpoint");
 
     let mut same_epoch_topology = topology.clone();
     same_epoch_topology.observed_at_tick = Tick(3);
@@ -309,9 +320,9 @@ fn repeated_ticks_on_the_same_epoch_do_not_rewrite_epoch_checkpoint() {
         .expect("second same-epoch tick");
 
     assert_eq!(
-        engine.runtime_effects().store_bytes_call_count,
-        writes_after_first_tick,
-        "same-epoch ticks should not rewrite the topology checkpoint",
+        engine.runtime_effects().storage.get(&topology_epoch_key),
+        Some(&stored_after_first_tick),
+        "same-epoch ticks should preserve the topology epoch checkpoint bytes",
     );
 }
 

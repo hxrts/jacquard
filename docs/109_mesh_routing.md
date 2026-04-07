@@ -55,9 +55,9 @@ topology observation
   -> checkpoint current mesh runtime state
 ```
 
-Each tick ingests the latest topology observation, refreshes the mesh-private estimate caches, summarizes the latest bounded transport observations, and folds that evidence into a bounded control state. In v1 that control state carries transport stability, repair pressure, and anti-entropy pressure with deterministic decay. Mesh uses it to tighten route health, escalate repair posture under sustained pressure, and make `AntiEntropyRequired` consume real anti-entropy debt rather than acting as pure bookkeeping. The hook then evicts stale candidate entries and writes the scoped topology-epoch checkpoint.
+Each tick ingests the latest topology observation, refreshes the mesh-private estimate caches, summarizes the latest bounded transport observations, and folds that evidence into a bounded control state. In v1 that control state carries transport stability, repair pressure, and anti-entropy pressure with deterministic decay. Mesh uses it to tighten route health, escalate repair posture under sustained pressure, make `AntiEntropyRequired` consume real anti-entropy debt rather than acting as pure bookkeeping, and drive the cooperative route-export, neighbor-advertisement, and anti-entropy protocol exchanges described below. The hook then evicts stale candidate entries and writes the scoped topology-epoch checkpoint.
 
-Discovery enters mesh through the shared world picture: nodes, links, environment, and service advertisements are already merged into `Observation<Configuration>` before the engine plans. Richer route exports, neighbor-advertisement choreography, and mesh-private anti-entropy state remain future mesh work rather than hidden v1 runtime behavior.
+Discovery enters mesh through the shared world picture: nodes, links, environment, and service advertisements are already merged into `Observation<Configuration>` before the engine plans. Mesh then derives its route-export, neighbor-advertisement, and anti-entropy choreography payloads from those shared observations plus active shared route objects rather than maintaining a second hidden advertisement schema.
 
 ## Internal Choreography Surface
 
@@ -76,6 +76,9 @@ The internal split is:
   - bounded suffix repair
   - semantic handoff
   - hold / replay exchange
+  - route export exchange
+  - neighbor advertisement exchange
+  - anti-entropy exchange
 
 Mesh protocols now live inline in the mesh crate as `tell!` definitions. That keeps the generated protocol/session code adjacent to the Rust host logic that enters those protocols and avoids a second file-based choreography source of truth.
 
@@ -90,7 +93,7 @@ This is intentionally still mesh-private. The router should only observe shared 
 
 The generated or protocol-local Telltale effect interfaces are not the shared Jacquard effect contract. They stay inside `jacquard-mesh` as implementation-facing protocol surfaces. Concrete host adapters still implement the shared traits from `jacquard-traits`, and the mesh choreography interpreter translates protocol-local requests onto those stable cross-engine traits instead of replacing them.
 
-At runtime, mesh entry points now cross one private guest-runtime layer before touching transport, retention, or route-event logging directly. `forward_payload`, materialization-side activation, maintenance-side repair and handoff, retained-payload replay, and tick ingress all enter that mesh-local choreography boundary first. The guest runtime resolves stable inline protocol metadata for the protocol being entered, fails closed if that metadata is unavailable, and then records small protocol checkpoints keyed by protocol kind plus route or tick session so recovery does not depend on hidden in-memory sequencing state.
+At runtime, mesh entry points now cross one private guest-runtime layer before touching transport, retention, or route-event logging directly. `forward_payload`, materialization-side activation, maintenance-side repair and handoff, retained-payload replay, tick ingress, route export, neighbor advertisement, and anti-entropy exchange all enter that mesh-local choreography boundary first. The guest runtime resolves stable inline protocol metadata for the protocol being entered, fails closed if that metadata is unavailable, and then records small protocol checkpoints keyed by protocol kind plus route or tick session so recovery does not depend on hidden in-memory sequencing state.
 
 ## Runtime and Repair
 

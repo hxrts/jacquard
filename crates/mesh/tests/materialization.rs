@@ -184,8 +184,9 @@ fn materialize_route_rolls_back_when_event_logging_fails() {
                 "\u{1}".repeat(32)
             ),
             "mesh/protocol/forwarding/tick-epoch-2".to_string(),
+            "mesh/protocol/neighbor-advertisement/tick-epoch-2".to_string(),
         ],
-        "materialization rollback should leave only the persistent tick and topology checkpoints"
+        "materialization rollback should leave only the persistent tick-scoped and topology checkpoints"
     );
 }
 

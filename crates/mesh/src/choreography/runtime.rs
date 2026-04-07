@@ -9,18 +9,18 @@
 
 use bincode::Options;
 use jacquard_core::{
-    Blake3Digest, ContentId, LinkEndpoint, RouteEpoch, RouteError, RouteEvent, RouteId,
-    RouteRuntimeError, Tick, TransportObservation,
+    Blake3Digest, ContentId, HealthScore, LinkEndpoint, NodeId, RouteEpoch, RouteError,
+    RouteEvent, RouteId, RouteRuntimeError, Tick, TransportObservation,
 };
 use serde::{Deserialize, Serialize};
 
 use super::{
-    activation,
+    activation, anti_entropy,
     artifacts::{
         protocol_spec, MeshProtocolKind, MeshProtocolSessionKey, MeshProtocolSpec,
     },
     effects::{MeshCheckpointEnvelope, MeshProtocolObservation, MeshProtocolRuntime},
-    forwarding, handoff, hold_replay, repair,
+    forwarding, handoff, hold_replay, neighbor_advertisement, repair, route_export,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,6 +32,27 @@ pub(crate) struct MeshProtocolCheckpoint {
     session:         MeshProtocolSessionKey,
     detail:          String,
     last_updated_at: Tick,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MeshRouteExportSnapshot {
+    pub(crate) route_class:    String,
+    pub(crate) hop_count:      u32,
+    pub(crate) partition_mode: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MeshNeighborAdvertisementSnapshot {
+    pub(crate) local_node_id:           NodeId,
+    pub(crate) service_count:           u32,
+    pub(crate) adjacent_neighbor_count: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MeshAntiEntropySnapshot {
+    pub(crate) retained_count: u32,
+    pub(crate) pressure_score: HealthScore,
+    pub(crate) partition_mode: bool,
 }
 
 type RuntimeSpecResolver =
@@ -74,8 +95,12 @@ where
         self.protocol_step(
             MeshProtocolKind::Activation,
             route_session(MeshProtocolKind::Activation, route_id),
-            "activated",
             |runtime| activation::execute(runtime, route_id, epoch),
+        )?;
+        self.protocol_detail_checkpoint(
+            MeshProtocolKind::Activation,
+            route_session(MeshProtocolKind::Activation, route_id),
+            "activated",
         )
     }
 
@@ -86,8 +111,12 @@ where
         self.protocol_step(
             MeshProtocolKind::Repair,
             route_session(MeshProtocolKind::Repair, route_id),
-            "repaired",
             |runtime| repair::execute(runtime, route_id),
+        )?;
+        self.protocol_detail_checkpoint(
+            MeshProtocolKind::Repair,
+            route_session(MeshProtocolKind::Repair, route_id),
+            "repaired",
         )
     }
 
@@ -98,8 +127,12 @@ where
         self.protocol_step(
             MeshProtocolKind::Handoff,
             route_session(MeshProtocolKind::Handoff, route_id),
-            "handed-off",
             |runtime| handoff::execute(runtime, route_id),
+        )?;
+        self.protocol_detail_checkpoint(
+            MeshProtocolKind::Handoff,
+            route_session(MeshProtocolKind::Handoff, route_id),
+            "handed-off",
         )
     }
 
@@ -113,6 +146,8 @@ where
             MeshProtocolKind::Handoff,
             MeshProtocolKind::ForwardingHop,
             MeshProtocolKind::HoldReplay,
+            MeshProtocolKind::RouteExport,
+            MeshProtocolKind::AntiEntropy,
         ] {
             self.effects
                 .remove_protocol_checkpoint(&protocol_checkpoint_key(
@@ -142,8 +177,63 @@ where
         self.protocol_step(
             MeshProtocolKind::ForwardingHop,
             route_session(MeshProtocolKind::ForwardingHop, route_id),
-            "sent",
             |runtime| forwarding::execute(runtime, route_id, endpoint, payload),
+        )?;
+        self.protocol_detail_checkpoint(
+            MeshProtocolKind::ForwardingHop,
+            route_session(MeshProtocolKind::ForwardingHop, route_id),
+            "sent",
+        )
+    }
+
+    pub(crate) fn route_export_exchange(
+        &mut self,
+        route_id: &RouteId,
+        snapshot: &MeshRouteExportSnapshot,
+    ) -> Result<(), RouteError> {
+        let detail = self.protocol_step(
+            MeshProtocolKind::RouteExport,
+            route_session(MeshProtocolKind::RouteExport, route_id),
+            |runtime| route_export::execute(runtime, route_id, snapshot),
+        )?;
+        self.protocol_detail_checkpoint(
+            MeshProtocolKind::RouteExport,
+            route_session(MeshProtocolKind::RouteExport, route_id),
+            detail,
+        )
+    }
+
+    pub(crate) fn neighbor_advertisement_exchange(
+        &mut self,
+        epoch: RouteEpoch,
+        snapshot: &MeshNeighborAdvertisementSnapshot,
+    ) -> Result<(), RouteError> {
+        let detail = self.protocol_step(
+            MeshProtocolKind::NeighborAdvertisement,
+            tick_session(epoch),
+            |runtime| neighbor_advertisement::execute(runtime, epoch, snapshot),
+        )?;
+        self.protocol_detail_checkpoint(
+            MeshProtocolKind::NeighborAdvertisement,
+            tick_session(epoch),
+            detail,
+        )
+    }
+
+    pub(crate) fn anti_entropy_exchange(
+        &mut self,
+        route_id: &RouteId,
+        snapshot: &MeshAntiEntropySnapshot,
+    ) -> Result<(), RouteError> {
+        let detail = self.protocol_step(
+            MeshProtocolKind::AntiEntropy,
+            route_session(MeshProtocolKind::AntiEntropy, route_id),
+            |runtime| anti_entropy::execute(runtime, route_id, snapshot),
+        )?;
+        self.protocol_detail_checkpoint(
+            MeshProtocolKind::AntiEntropy,
+            route_session(MeshProtocolKind::AntiEntropy, route_id),
+            detail,
         )
     }
 
@@ -156,8 +246,13 @@ where
         self.protocol_step(
             MeshProtocolKind::HoldReplay,
             route_session(MeshProtocolKind::HoldReplay, route_id),
-            "retained",
             |runtime| hold_replay::retain(runtime, route_id, object_id, payload),
+        )
+        .map_err(|_| jacquard_core::RetentionError::Unavailable)?;
+        self.protocol_detail_checkpoint(
+            MeshProtocolKind::HoldReplay,
+            route_session(MeshProtocolKind::HoldReplay, route_id),
+            "retained",
         )
         .map_err(|_| jacquard_core::RetentionError::Unavailable)
     }
@@ -172,10 +267,14 @@ where
         self.protocol_step(
             MeshProtocolKind::HoldReplay,
             route_session(MeshProtocolKind::HoldReplay, route_id),
-            "replayed",
             |runtime| {
                 hold_replay::replay(runtime, route_id, object_id, endpoint, payload)
             },
+        )?;
+        self.protocol_detail_checkpoint(
+            MeshProtocolKind::HoldReplay,
+            route_session(MeshProtocolKind::HoldReplay, route_id),
+            "replayed",
         )
     }
 
@@ -191,7 +290,7 @@ where
             self.protocol_checkpoint(
                 spec,
                 route_session(MeshProtocolKind::HoldReplay, route_id),
-                "released",
+                Some("released"),
             )
             .map_err(|_| jacquard_core::RetentionError::Unavailable)?;
         }
@@ -203,17 +302,21 @@ where
         epoch: RouteEpoch,
     ) -> Result<Vec<TransportObservation>, RouteError> {
         let mut observations = Vec::new();
-        self.protocol_step(
+        let detail = self.protocol_step(
             MeshProtocolKind::ForwardingHop,
             tick_session(epoch),
-            "tick",
             |runtime| {
                 observations = runtime
                     .effects
                     .poll_mesh_ingress()
                     .map_err(RouteError::from)?;
-                Ok(())
+                Ok("tick")
             },
+        )?;
+        self.protocol_detail_checkpoint(
+            MeshProtocolKind::ForwardingHop,
+            tick_session(epoch),
+            detail,
         )?;
         Ok(observations)
     }
@@ -222,7 +325,6 @@ where
         &mut self,
         protocol: MeshProtocolKind,
         session: MeshProtocolSessionKey,
-        detail: &'static str,
         action: F,
     ) -> Result<T, RouteError>
     where
@@ -230,15 +332,25 @@ where
     {
         let spec = (self.resolve_spec)(protocol).map_err(protocol_failure)?;
         let result = action(self)?;
-        self.protocol_checkpoint(spec, session, detail)?;
+        self.protocol_checkpoint(spec, session, None)?;
         Ok(result)
+    }
+
+    fn protocol_detail_checkpoint(
+        &mut self,
+        protocol: MeshProtocolKind,
+        session: MeshProtocolSessionKey,
+        detail: &'static str,
+    ) -> Result<(), RouteError> {
+        let spec = (self.resolve_spec)(protocol).map_err(protocol_failure)?;
+        self.protocol_checkpoint(spec, session, Some(detail))
     }
 
     fn protocol_checkpoint(
         &mut self,
         spec: &MeshProtocolSpec,
         session: MeshProtocolSessionKey,
-        detail: &'static str,
+        detail: Option<&'static str>,
     ) -> Result<(), RouteError> {
         let checkpoint = MeshProtocolCheckpoint {
             protocol:        spec.kind,
@@ -246,19 +358,20 @@ where
             role_names:      spec.role_names.clone(),
             source_path:     spec.source_path.to_owned(),
             session:         session.clone(),
-            detail:          detail.to_owned(),
+            detail:          detail.unwrap_or("entered").to_owned(),
             last_updated_at: self.effects.now_tick(),
         };
         let key = protocol_checkpoint_key(spec.kind, &session);
         let bytes = checkpoint_bytes(&checkpoint);
-        if self
+        if let Some(existing) = self
             .effects
             .load_protocol_checkpoint(&key)
             .map_err(storage_failure)?
-            .as_deref()
-            == Some(bytes.as_slice())
+            .and_then(|bytes| decode_checkpoint_bytes(&bytes))
         {
-            return Ok(());
+            if checkpoint_matches_without_timestamp(&existing, &checkpoint) {
+                return Ok(());
+            }
         }
         self.effects
             .store_protocol_checkpoint(&MeshCheckpointEnvelope { key, bytes })
@@ -269,7 +382,7 @@ where
                 protocol_name: spec.protocol_name.clone(),
                 role_names: spec.role_names.clone(),
                 session,
-                detail,
+                detail: detail.unwrap_or("entered"),
             });
         Ok(())
     }
@@ -305,6 +418,18 @@ fn checkpoint_bytes(checkpoint: &MeshProtocolCheckpoint) -> Vec<u8> {
     bytes
 }
 
+fn checkpoint_matches_without_timestamp(
+    existing: &MeshProtocolCheckpoint,
+    candidate: &MeshProtocolCheckpoint,
+) -> bool {
+    existing.protocol == candidate.protocol
+        && existing.protocol_name == candidate.protocol_name
+        && existing.role_names == candidate.role_names
+        && existing.source_path == candidate.source_path
+        && existing.session == candidate.session
+        && existing.detail == candidate.detail
+}
+
 fn hex_bytes(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
@@ -315,6 +440,17 @@ fn storage_failure(_: jacquard_core::StorageError) -> RouteError {
 
 fn protocol_failure(_: String) -> RouteError {
     RouteError::Runtime(RouteRuntimeError::Invalidated)
+}
+
+fn decode_checkpoint_bytes(bytes: &[u8]) -> Option<MeshProtocolCheckpoint> {
+    let (version, body) = bytes.split_first()?;
+    if *version != 1 {
+        return None;
+    }
+    bincode::DefaultOptions::new()
+        .with_fixint_encoding()
+        .deserialize(body)
+        .ok()
 }
 
 #[cfg(test)]

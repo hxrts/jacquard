@@ -6,7 +6,6 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
-use telltale::compile_choreography;
 
 use crate::util::{normalize_rel_path, workspace_root, Violation};
 
@@ -51,7 +50,9 @@ pub fn run(args: &[String]) -> Result<()> {
 
 fn collect_violations(root: &Path) -> Result<Vec<Violation>> {
     let mut out = Vec::new();
-    out.extend(choreography_sources_are_valid(root)?);
+    out.extend(no_parallel_tell_tree(root)?);
+    out.extend(required_inline_protocol_modules_exist(root)?);
+    out.extend(inline_protocol_modules_are_valid(root)?);
     out.extend(forbidden_runtime_effect_calls(root)?);
     out.extend(shared_crates_remain_runtime_free(root)?);
     out.extend(no_mesh_choreography_types_in_shared_crates(root)?);
@@ -59,29 +60,93 @@ fn collect_violations(root: &Path) -> Result<Vec<Violation>> {
     Ok(out)
 }
 
-fn choreography_sources_are_valid(root: &Path) -> Result<Vec<Violation>> {
+fn no_parallel_tell_tree(root: &Path) -> Result<Vec<Violation>> {
     let mut out = Vec::new();
     let choreography_root = root.join("crates/mesh/src/choreography");
-    for path in tell_files(&choreography_root)? {
+    for path in files_with_extension(&choreography_root, "tell")? {
+        let rel = normalize_rel_path(root, &path);
+        out.push(Violation::new(
+            rel,
+            1,
+            "mesh choreography must use inline `tell!` modules; parallel `.tell` sources are forbidden",
+        ));
+    }
+    Ok(out)
+}
+
+fn required_inline_protocol_modules_exist(root: &Path) -> Result<Vec<Violation>> {
+    let expected = [
+        "activation.rs",
+        "anti_entropy.rs",
+        "forwarding.rs",
+        "handoff.rs",
+        "hold_replay.rs",
+        "neighbor_advertisement.rs",
+        "repair.rs",
+        "route_export.rs",
+    ];
+    let choreography_root = root.join("crates/mesh/src/choreography");
+    let mut out = Vec::new();
+    for expected_file in expected {
+        let path = choreography_root.join(expected_file);
+        if !path.exists() {
+            out.push(Violation::new(
+                normalize_rel_path(root, &path),
+                1,
+                "required inline mesh choreography module is missing",
+            ));
+        }
+    }
+    Ok(out)
+}
+
+fn inline_protocol_modules_are_valid(root: &Path) -> Result<Vec<Violation>> {
+    let mut out = Vec::new();
+    let choreography_root = root.join("crates/mesh/src/choreography");
+    for path in rust_files(&choreography_root)? {
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if matches!(
+            file_name,
+            "artifacts.rs" | "effects.rs" | "mod.rs" | "runtime.rs"
+        ) {
+            continue;
+        }
         let rel = normalize_rel_path(root, &path);
         let contents = fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
-
-        if !contents.contains("uses MeshRuntime, MeshAudit") {
+        if !contents.contains("tell! {") {
             out.push(Violation::new(
                 rel.clone(),
                 1,
-                "mesh choreography sources must declare explicit `uses MeshRuntime, MeshAudit`",
+                "inline mesh choreography modules must declare a `tell!` protocol",
             ));
         }
-
-        if let Err(error) = compile_choreography(&contents) {
+        for required in [
+            "pub(crate) const SOURCE_PATH",
+            "pub(crate) const PROTOCOL_NAME",
+            "pub(crate) const ROLE_NAMES",
+        ] {
+            if !contents.contains(required) {
+                out.push(Violation::new(
+                    rel.clone(),
+                    1,
+                    format!(
+                        "inline mesh choreography module must contain `{required}`"
+                    ),
+                ));
+            }
+        }
+        let has_entrypoint = contents.contains("pub(crate) fn execute")
+            || (file_name == "hold_replay.rs"
+                && contents.contains("pub(crate) fn retain")
+                && contents.contains("pub(crate) fn replay"));
+        if !has_entrypoint {
             out.push(Violation::new(
-                rel,
+                rel.clone(),
                 1,
-                format!(
-                    "mesh choreography source must compile through telltale: {error}"
-                ),
+                "inline mesh choreography module must expose its public protocol entrypoint",
             ));
         }
     }
@@ -190,10 +255,6 @@ fn router_does_not_depend_on_mesh_private_choreography(
 
 fn rust_files(dir: &Path) -> Result<Vec<PathBuf>> {
     files_with_extension(dir, "rs")
-}
-
-fn tell_files(dir: &Path) -> Result<Vec<PathBuf>> {
-    files_with_extension(dir, "tell")
 }
 
 fn files_with_extension(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {
