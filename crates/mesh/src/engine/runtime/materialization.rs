@@ -1,4 +1,10 @@
-//! Materialization planning and installation helpers for mesh runtime.
+//! Materialization validation and active-route installation.
+//!
+//! Control flow: runtime entry points first decode and validate the backend
+//! plan token against the explicit admission and latest topology. Once that
+//! passes, this module assembles the materialization proof, shared
+//! installation object, and mesh-private active-route state that gets
+//! checkpointed and inserted into the live route table.
 
 use jacquard_core::{
     Configuration, Fact, FactBasis, Observation, RouteError, RouteEvent,

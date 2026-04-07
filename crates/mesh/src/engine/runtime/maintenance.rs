@@ -1,4 +1,11 @@
-//! Route-maintenance transitions for mesh runtime.
+//! Route-maintenance state machine for active mesh routes.
+//!
+//! Control flow: `maintain_route` snapshots router-owned state first, then
+//! dispatches here on the typed maintenance trigger. This module applies the
+//! concrete mesh transition: repair the remaining suffix, enter or recover
+//! from partition mode, hand the route off, or escalate to replacement or
+//! failure. It mutates only mesh-private runtime state and returns the shared
+//! maintenance outcome.
 
 use jacquard_core::{
     Configuration, MaterializedRouteIdentity, RouteError, RouteLifecycleEvent,

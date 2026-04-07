@@ -12,9 +12,9 @@
 
 mod admission;
 mod candidates;
-mod metrics;
 mod pathing;
 mod publishing;
+mod scoring;
 
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionDecision, Configuration, Observation,

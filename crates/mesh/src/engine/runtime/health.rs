@@ -1,4 +1,10 @@
-//! Transport-summary and route-health helpers for mesh runtime.
+//! Engine-private health synthesis from topology, transport, and active-route state.
+//!
+//! Control flow: `engine_tick` folds raw transport observations into a bounded
+//! summary and control state, then runtime operations ask this module to turn
+//! the latest topology plus the active route suffix into route-scoped health.
+//! The result is the shared `RouteHealth` surface without exposing mesh's
+//! private accumulators directly.
 
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -1,4 +1,9 @@
-//! Candidate summary, estimate, and cache publication helpers.
+//! Shared-candidate publication and planner cache population.
+//!
+//! Control flow: once a candidate has been fully derived, this module builds
+//! the shared `RouteSummary`/`RouteEstimate`, applies final ordering and
+//! truncation, stores the memoized candidate entry, and publishes the shared
+//! `RouteCandidate` values the router sees.
 
 use std::cmp::Reverse;
 

@@ -1,4 +1,10 @@
-//! Candidate-token assembly and cache-miss re-derivation.
+//! Candidate assembly and plan-token re-derivation.
+//!
+//! Control flow: path search hands this module a concrete node path. We turn
+//! that into mesh segments, classify the route, derive route cost/summary/
+//! witness/admission state, and encode the result into a self-contained
+//! backend token. The same logic is also used on cache miss so planner state
+//! stays memoization-only rather than semantic.
 
 use jacquard_core::{
     AdaptiveRoutingProfile, BackendRouteId, Configuration, NodeId, Observation,

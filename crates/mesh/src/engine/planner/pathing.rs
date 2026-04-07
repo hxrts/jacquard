@@ -1,4 +1,10 @@
-//! Path search, route class, and connectivity derivation for mesh planning.
+//! Deterministic path search and route-shape derivation for mesh planning.
+//!
+//! Control flow: starting from the explicit topology observation, this module
+//! searches outward from the local node, scores feasible next hops, and
+//! chooses weighted paths. It then converts the winning node path into mesh
+//! segments, route class, and connectivity posture that later planner stages
+//! can publish and admit.
 
 use std::{
     cmp::Reverse,

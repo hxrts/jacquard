@@ -1,4 +1,10 @@
-//! Admission judgment for mesh candidates.
+//! Final admission judgment for an already-derived mesh candidate.
+//!
+//! Control flow: candidate assembly produces a shared `RouteSummary`, a
+//! computed `RouteCost`, and any committee outcome. This module folds those
+//! pieces together with the requested objective/profile and returns the
+//! typed `RouteAdmissionCheck` that `check_candidate` and `admit_route` both
+//! expose.
 
 use jacquard_core::{
     AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision, Limit,
