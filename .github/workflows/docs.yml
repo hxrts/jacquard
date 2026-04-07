@@ -35,7 +35,7 @@ jobs:
       - uses: cachix/install-nix-action@v24
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-      - run: nix develop --command just docs-link-check
+      - run: nix develop --command cargo xtask check docs-link-check
 
   semantic-drift:
     name: Docs Semantic Drift
@@ -45,7 +45,7 @@ jobs:
       - uses: cachix/install-nix-action@v24
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-      - run: nix develop --command ./scripts/check/docs-semantic-drift.sh
+      - run: nix develop --command cargo xtask check docs-semantic-drift
 
   build:
     name: Docs Build

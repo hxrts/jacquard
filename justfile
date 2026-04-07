@@ -140,16 +140,17 @@ ci-dry-run:
         fi
     }
 
-    add_step "Preflight"           "./scripts/ci/preflight.sh"
+    add_step "Preflight"           "./scripts/preflight.sh"
     add_step "Format Check"       "cargo fmt --all -- --check"
     add_step "Clippy"             "cargo clippy --workspace -- -D warnings"
     add_step "Tests"              "cargo test --workspace"
-    add_step "Docs Link Check"    "./scripts/check/docs-link-check.sh"
-    add_step "Proc Macro Scope"   "./scripts/check/proc-macro-scope.sh"
-    add_step "Trait Purity"       "./scripts/check/trait-purity.sh"
-    add_step "Crate Boundary"     "./scripts/check/crate-boundary.sh"
-    add_step "No usize in Models" "./scripts/check/no-usize-in-models.sh"
-    add_step "Docs Semantic Drift" "./scripts/check/docs-semantic-drift.sh"
+    add_step "Docs Link Check"    "cargo xtask check docs-link-check"
+    add_step "Proc Macro Scope"   "cargo xtask check proc-macro-scope"
+    add_step "Trait Purity"       "cargo xtask check trait-purity"
+    add_step "Crate Boundary"     "cargo xtask check crate-boundary"
+    add_step "No usize in Models" "cargo xtask check no-usize-in-models"
+    add_step "Routing Invariants" "cargo xtask check routing-invariants"
+    add_step "Docs Semantic Drift" "cargo xtask check docs-semantic-drift"
     add_step "Docs Build"         "just book"
 
     total=${#STEPS[@]}
@@ -178,15 +179,19 @@ ci-dry-run:
 
 # fast environment sanity checks
 ci-preflight:
-    ./scripts/ci/preflight.sh
+    ./scripts/preflight.sh
 
 # validate docs link integrity
 docs-link-check:
-    ./scripts/check/docs-link-check.sh
+    cargo xtask check docs-link-check
 
 # detect stale backtick references in docs
 docs-semantic-drift:
-    ./scripts/check/docs-semantic-drift.sh
+    cargo xtask check docs-semantic-drift
+
+# enforce routing correctness invariants
+routing-invariants:
+    cargo xtask check routing-invariants
 
 # enter nightly shell for dylint and rustc_private lints (run install-dylint once inside)
 nightly-shell:
