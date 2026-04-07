@@ -12,23 +12,25 @@ This page describes the crate layout, the boundary rules, and the implementation
 
 ## Dependency Graph
 
+The workspace today contains four crates: `jacquard-core`, `jacquard-traits`, `jacquard-macros`, and `jacquard-mesh`. The graph below also shows `jacquard-router`, `jacquard-transport`, and `jacquard-simulator` as future crates that land once the router control plane, transport adapters, and simulator harness come online.
+
 ```
 jacquard-core
     ↑
 jacquard-traits
     ↑
-jacquard-mesh ──→ jacquard-router ←── jacquard-transport
+jacquard-mesh ──→ jacquard-router (future) ←── jacquard-transport (future)
       │               │
-      └──────→ jacquard-simulator
+      └──────→ jacquard-simulator (future)
 ```
 
-Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits`. The router depends on mesh only through the `RoutingEngine` trait, not through mesh internals. The simulator depends on core, traits, mesh, and router, and uses `telltale-simulator` as the execution base.
+Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits`. The future router will depend on mesh only through the `RoutingEngine` trait, not through mesh internals. The future simulator will depend on core, traits, mesh, and router, and will use `telltale-simulator` as the execution base.
 
 `jacquard-core` and `jacquard-traits` must remain runtime-free. They may not depend on `telltale-runtime`.
 
-`jacquard-core` compiles first with no workspace dependencies. `jacquard-traits` compiles against core. Mesh and transport compile against core and traits in parallel. The router compiles against core, traits, and mesh. The simulator compiles last against all of the above plus the Telltale simulator crates.
+`jacquard-core` compiles first with no workspace dependencies. `jacquard-traits` compiles against core. Mesh compiles against core and traits. Future transport adapters will compile against core and traits in parallel with mesh. The future router will compile against core, traits, and mesh. The future simulator will compile last against all of the above plus the Telltale simulator crates.
 
-`jacquard-transport` is transitional. In this phase it provides structural stubs that satisfy trait signatures without real radio integration. If transport implementations grow substantial platform logic, split them into dedicated crates such as `jacquard-transport-ble` and `jacquard-transport-wifi`.
+The future `jacquard-transport` crate is transitional. It will start as structural stubs that satisfy trait signatures without real radio integration. If transport implementations grow substantial platform logic, they should move into dedicated crates such as `jacquard-transport-ble` and `jacquard-transport-wifi`.
 
 ## Crate Layout
 
@@ -70,13 +72,13 @@ Cross-crate invariants:
 
 Ownership by crate:
 
-- `jacquard-router` owns canonical route identity, route materialization inputs, lease transfer, route replacement, canonical handle issuance, and top-level route-health publication.
-- a host-owned policy engine above the router may own cross-engine migration policy and substrate selection policy
-- `jacquard-mesh` owns mesh-private forwarding state, route realization artifacts, topology caches, route repair state, route exports, engine-side route commitments, deferred-delivery retention state, and any engine-local committee scoring or misbehavior tracking.
-- `jacquard-transport` owns local transport observations and device-facing adapter state only.
-- `jacquard-simulator` owns replay artifacts, scenario traces, and post-run analysis outputs. It does not own canonical route truth during a live run.
 - `jacquard-core` owns the shared vocabulary. It does not own live state.
 - `jacquard-traits` owns compile-time boundaries. It does not own runtime state.
+- `jacquard-mesh` owns mesh-private forwarding state, route realization artifacts, topology caches, route repair state, route exports, engine-side route commitments, deferred-delivery retention state, and any engine-local committee scoring or misbehavior tracking.
+- `jacquard-router` (future) will own canonical route identity, route materialization inputs, lease transfer, route replacement, canonical handle issuance, and top-level route-health publication.
+- a host-owned policy engine above the router may own cross-engine migration policy and substrate selection policy.
+- `jacquard-transport` (future) will own local transport observations and device-facing adapter state only.
+- `jacquard-simulator` (future) will own replay artifacts, scenario traces, and post-run analysis outputs. It will not own canonical route truth during a live run.
 
 ## Extensibility
 

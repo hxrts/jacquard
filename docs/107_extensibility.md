@@ -97,32 +97,32 @@ In practice, adding support for a new device means translating that device's cap
 let ble_relay_endpoint = LinkEndpoint {
     protocol: TransportProtocol::BleGatt,
     address: EndpointAddress::Opaque(vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
-    mtu_bytes: ByteCount::new(185),
+    mtu_bytes: ByteCount(185),
 };
 
 let ble_relay_link_state = LinkState {
     state: LinkRuntimeState::Active,
-    median_rtt_ms: DurationMs::new(35),
+    median_rtt_ms: DurationMs(35),
     transfer_rate_bytes_per_sec: Belief::Estimated(Estimate {
         value: 12_000,
-        confidence_permille: RatioPermille::new(900).unwrap(),
-        updated_at_tick: Tick::new(42),
+        confidence_permille: RatioPermille(900),
+        updated_at_tick: Tick(42),
     }),
     stability_horizon_ms: Belief::Estimated(Estimate {
-        value: DurationMs::new(20_000),
-        confidence_permille: RatioPermille::new(850).unwrap(),
-        updated_at_tick: Tick::new(42),
+        value: DurationMs(20_000),
+        confidence_permille: RatioPermille(850),
+        updated_at_tick: Tick(42),
     }),
-    loss_permille: RatioPermille::new(15).unwrap(),
+    loss_permille: RatioPermille(15),
     delivery_confidence_permille: Belief::Estimated(Estimate {
-        value: RatioPermille::new(970).unwrap(),
-        confidence_permille: RatioPermille::new(900).unwrap(),
-        updated_at_tick: Tick::new(42),
+        value: RatioPermille(970),
+        confidence_permille: RatioPermille(900),
+        updated_at_tick: Tick(42),
     }),
     symmetry_permille: Belief::Estimated(Estimate {
-        value: RatioPermille::new(950).unwrap(),
-        confidence_permille: RatioPermille::new(800).unwrap(),
-        updated_at_tick: Tick::new(42),
+        value: RatioPermille(950),
+        confidence_permille: RatioPermille(800),
+        updated_at_tick: Tick(42),
     }),
 };
 
@@ -144,7 +144,7 @@ let ble_relay_profile = NodeProfile {
     relay_work_budget_max: 64,
     maintenance_work_budget_max: 32,
     hold_item_count_max: 128,
-    hold_capacity_bytes_max: ByteCount::new(65_536).unwrap(),
+    hold_capacity_bytes_max: ByteCount(65_536),
 };
 
 let ble_relay_state = NodeState {
@@ -155,7 +155,7 @@ let ble_relay_state = NodeState {
 };
 
 let ble_relay_node = Node {
-    controller_id: ControllerId::new(7),
+    controller_id: ControllerId([7; 32]),
     profile: ble_relay_profile,
     state: ble_relay_state,
 };
@@ -169,7 +169,7 @@ impl WorldExtensionDescriptor for BleRelayExtension {
     }
 
     fn supported_transports(&self) -> Vec<TransportProtocol> {
-        vec![TransportProtocol::Ble]
+        vec![TransportProtocol::BleGatt]
     }
 }
 

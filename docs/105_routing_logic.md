@@ -20,7 +20,7 @@ world
 
 The control plane owns candidate gathering, admission, canonical identity allocation, materialized-route assembly, commitments, maintenance, and anti-entropy. The data plane forwards payloads over already admitted route state. Data-plane observations may report health or failures, but the control plane decides whether that changes the active materialized route.
 
-If a family needs local coordination, that also lives in the control plane. A family may select a committee or witness set as part of planning, but those results are advisory inputs to canonical transitions. They are not canonical route truth by themselves.
+If a routing engine needs local coordination, that also lives in the control plane. An engine may select a committee or witness set as part of planning, but those results are advisory inputs to canonical transitions. They are not canonical route truth by themselves.
 
 The link layer is a frame carrier. It reports reachability, MTU, loss, and timing. It does not own canonical ordering or traffic control. If a routing engine needs sequencing or causal behavior, that appears as a routing-level message-flow assumption rather than a transport guarantee. Keeping the transport surface simple avoids head-of-line stalls on unstable links and prevents baking one delivery policy into every routing engine.
 
