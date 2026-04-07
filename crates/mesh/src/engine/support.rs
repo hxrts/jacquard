@@ -1,3 +1,11 @@
+//! Pure helper functions shared between `planner` and `runtime`.
+//!
+//! Every function in this module is a deterministic function of its
+//! inputs: no runtime state, no effects, no hidden context. Includes
+//! the BFS path finder, the self-contained `BackendRouteId` encoding
+//! and decoding, byte encoders used by tagged hashing, and the
+//! `RouteCost` derivation.
+
 use std::{
     collections::{BTreeMap, VecDeque},
     convert::TryFrom,
@@ -15,6 +23,10 @@ use super::{
 };
 use crate::topology::{adjacent_link_between, adjacent_node_ids};
 
+// Unweighted BFS. Returns the shortest node path from the local node
+// to every reachable node using the sorted neighbor order from
+// `adjacent_node_ids`. Sorted neighbor order is what makes the result
+// deterministic across runs on the same configuration.
 pub(super) fn shortest_paths(
     local_node_id: &NodeId,
     configuration: &Configuration,
@@ -67,6 +79,10 @@ pub(super) fn encode_path_bytes(path: &[NodeId], segments: &[MeshRouteSegment]) 
     bytes
 }
 
+// Self-contained plan token: version byte, path length, then 32 bytes
+// per NodeId. Unlike a hash-based cache key, this round-trips back to
+// the full node path so `check_candidate` and `admit_route` can
+// re-derive the candidate on cache miss without needing a side map.
 pub(super) fn encode_backend_token(path: &[NodeId]) -> BackendRouteId {
     let mut bytes = Vec::with_capacity(2 + path.len() * 32);
     bytes.push(1);
@@ -78,6 +94,9 @@ pub(super) fn encode_backend_token(path: &[NodeId]) -> BackendRouteId {
     BackendRouteId(bytes)
 }
 
+// Inverse of `encode_backend_token`. Rejects unknown versions, empty
+// paths, and length mismatches rather than silently truncating, so a
+// hand-crafted or corrupted token fails the caller with None.
 pub(super) fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<Vec<NodeId>> {
     let bytes = &backend_route_id.0;
     let (&version, rest) = bytes.split_first()?;
@@ -113,6 +132,9 @@ pub(super) fn deterministic_order_key<H: Hashing<Digest = Blake3Digest>>(
     }
 }
 
+// Candidate confidence is the worst-hop delivery confidence along the
+// path. A single weak link drags the whole route down, which is the
+// correct semantic for an ordered hop-by-hop source route.
 pub(super) fn confidence_for_segments(
     segments: &[MeshRouteSegment],
     configuration: &Configuration,
@@ -151,6 +173,9 @@ pub(super) fn degradation_for_candidate(
     }
 }
 
+// Segment count is bounded by `ROUTE_HOP_COUNT_MAX` in the planner's
+// `derive_segments`, so the cast to u8 is infallible at every call
+// site. Hold reservation is only charged for deferred-delivery routes.
 pub(super) fn route_cost_for_segments(
     segments: &[MeshRouteSegment],
     route_class: &MeshRouteClass,

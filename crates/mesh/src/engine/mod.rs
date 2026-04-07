@@ -16,73 +16,32 @@
 
 #![allow(private_bounds)]
 
+mod deps;
 mod planner;
 mod runtime;
 mod support;
+mod types;
 
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
-};
+use std::{cell::RefCell, collections::BTreeMap};
 
 use jacquard_core::{
-    Blake3Digest, CommitteeSelection, Configuration, ContentId, DestinationId,
-    DeterministicOrderKey, LinkEndpoint, NodeId, Observation, ReceiptId, RouteCommitmentId,
-    RouteConnectivityProfile, RouteCost, RouteError, RouteEvent, RouteEventStamped, RouteId,
-    RouteLifecycleEvent, RoutePartitionClass, RouteRuntimeError, RouteSelectionError, RouteSummary,
-    RoutingEngineCapabilities, RoutingEngineId, Tick, TimeWindow, TransportObservation,
-};
-use jacquard_traits::{
-    CommitteeSelector, Hashing, MeshTransport, OrderEffects, RetentionStore, RouteEventLogEffects,
-    StorageEffects, TimeEffects, TransportEffects,
+    Blake3Digest, Configuration, ContentId, NodeId, Observation, ReceiptId, RouteCommitmentId,
+    RouteConnectivityProfile, RouteError, RouteEvent, RouteEventStamped, RouteId,
+    RoutePartitionClass, RouteRuntimeError, RouteSelectionError, RoutingEngineCapabilities,
+    RoutingEngineId, TransportObservation,
 };
 
 use crate::committee::NoCommitteeSelector;
 
-pub(crate) trait MeshTopologyDeps:
-    jacquard_traits::MeshTopologyModel<
-    PeerEstimate = crate::topology::MeshPeerEstimate,
-    NeighborhoodEstimate = crate::topology::MeshNeighborhoodEstimate,
->
-{
-}
+use deps::{
+    MeshEffectsDeps, MeshHasherDeps, MeshRetentionDeps, MeshSelectorDeps, MeshTopologyDeps,
+    MeshTransportDeps,
+};
+use types::{ActiveMeshRoute, CachedCandidate};
 
-impl<T> MeshTopologyDeps for T where
-    T: jacquard_traits::MeshTopologyModel<
-        PeerEstimate = crate::topology::MeshPeerEstimate,
-        NeighborhoodEstimate = crate::topology::MeshNeighborhoodEstimate,
-    >
-{
-}
+pub use types::{MeshPath, MeshRouteClass, MeshRouteSegment};
 
-pub(crate) trait MeshTransportDeps:
-    MeshTransport + TransportEffects + Send + Sync + 'static
-{
-}
-
-impl<T> MeshTransportDeps for T where T: MeshTransport + TransportEffects + Send + Sync + 'static {}
-
-pub(crate) trait MeshRetentionDeps: RetentionStore {}
-
-impl<T> MeshRetentionDeps for T where T: RetentionStore {}
-
-pub(crate) trait MeshEffectsDeps:
-    TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects
-{
-}
-
-impl<T> MeshEffectsDeps for T where
-    T: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects
-{
-}
-
-pub(crate) trait MeshHasherDeps: Hashing<Digest = Blake3Digest> {}
-
-impl<T> MeshHasherDeps for T where T: Hashing<Digest = Blake3Digest> {}
-
-pub(crate) trait MeshSelectorDeps: CommitteeSelector<TopologyView = Configuration> {}
-
-impl<T> MeshSelectorDeps for T where T: CommitteeSelector<TopologyView = Configuration> {}
+// Public Engine Identity And Capability Surface
 
 pub const MESH_ENGINE_ID: RoutingEngineId = RoutingEngineId::Mesh;
 
@@ -133,59 +92,6 @@ pub const MESH_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabiliti
     route_shape_visibility: jacquard_core::RouteShapeVisibility::Explicit,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MeshRouteClass {
-    Direct,
-    MultiHop,
-    Gateway,
-    DeferredDelivery,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MeshRouteSegment {
-    pub node_id: NodeId,
-    pub endpoint: LinkEndpoint,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MeshPath {
-    pub route_id: RouteId,
-    pub epoch: jacquard_core::RouteEpoch,
-    pub source: NodeId,
-    pub destination: DestinationId,
-    pub segments: Vec<MeshRouteSegment>,
-    pub valid_for: TimeWindow,
-    pub route_class: MeshRouteClass,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ActiveMeshRoute {
-    pub path: MeshPath,
-    pub committee: Option<CommitteeSelection>,
-    pub current_epoch: jacquard_core::RouteEpoch,
-    pub last_lifecycle_event: RouteLifecycleEvent,
-    pub in_flight_frames: u32,
-    pub last_ack_at_tick: Option<Tick>,
-    pub repair_steps_remaining: u32,
-    pub route_cost: RouteCost,
-    pub partition_mode: bool,
-    pub retained_objects: BTreeSet<ContentId<Blake3Digest>>,
-    pub ordering_key: DeterministicOrderKey<RouteId>,
-}
-
-#[derive(Clone, Debug)]
-struct CachedCandidate {
-    route_id: RouteId,
-    summary: RouteSummary,
-    estimate: jacquard_core::Estimate<jacquard_core::RouteEstimate>,
-    admission_check: jacquard_core::RouteAdmissionCheck,
-    witness: jacquard_core::RouteWitness,
-    path: MeshPath,
-    committee: Option<CommitteeSelection>,
-    route_cost: RouteCost,
-    ordering_key: DeterministicOrderKey<RouteId>,
-}
-
 // `candidate_cache` memoizes planning work so `check_candidate` and
 // `admit_route` can reuse the admission check, witness, and path derived
 // during `candidate_routes` without reconstructing them. The cache is an
@@ -215,6 +121,8 @@ pub struct MeshEngine<
     active_routes: BTreeMap<RouteId, ActiveMeshRoute>,
 }
 
+// Engine Construction
+
 impl<Topology, Transport, Retention, Effects, Hasher>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, NoCommitteeSelector>
 {
@@ -241,6 +149,8 @@ impl<Topology, Transport, Retention, Effects, Hasher>
         }
     }
 }
+
+// Engine State Access
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -299,6 +209,8 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     }
 }
 
+// Transport-Facing Helpers
+
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
@@ -333,6 +245,8 @@ where
         self.transport.poll_transport().map_err(RouteError::from)
     }
 }
+
+// Retention-Facing Helpers
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -375,6 +289,8 @@ where
         Ok(payload)
     }
 }
+
+// Hash-Derived Mesh Identifiers
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -423,6 +339,8 @@ where
         }
     }
 }
+
+// Checkpointing, Event Recording, And Route Lookup
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
