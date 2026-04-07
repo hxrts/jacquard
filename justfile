@@ -150,6 +150,7 @@ ci-dry-run:
     add_step "Crate Boundary"     "cargo xtask check crate-boundary"
     add_step "No usize in Models" "cargo xtask check no-usize-in-models"
     add_step "Routing Invariants" "cargo xtask check routing-invariants"
+    add_step "Routing Invariants Validate" "cargo xtask check routing-invariants --validate"
     add_step "Docs Semantic Drift" "cargo xtask check docs-semantic-drift"
     add_step "Docs Build"         "just book"
 
@@ -192,6 +193,10 @@ docs-semantic-drift:
 # enforce routing correctness invariants
 routing-invariants:
     cargo xtask check routing-invariants
+
+# validate routing-invariant checks against seeded fixtures
+routing-invariants-validate:
+    cargo xtask check routing-invariants --validate
 
 # enter nightly shell for dylint and rustc_private lints (run install-dylint once inside)
 nightly-shell:

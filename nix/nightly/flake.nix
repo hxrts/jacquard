@@ -32,9 +32,44 @@
           ];
         };
 
+        cargoWrapper = pkgs.writeShellScriptBin "cargo" ''
+          set -euo pipefail
+          if [ -z "''${RUSTUP_TOOLCHAIN:-}" ]; then
+            host="$(rustc -vV | awk '/^host: / { print $2 }')"
+            export RUSTUP_TOOLCHAIN="jacquard-nightly-''${host}"
+          fi
+          exec "$HOME/.cargo/bin/cargo" "$@"
+        '';
+
         installDylint = pkgs.writeShellScriptBin "install-dylint" ''
           set -euo pipefail
-          cargo install --locked cargo-dylint dylint-link
+          dylint_repo="''${XDG_CACHE_HOME:-$HOME/.cache}/jacquard/dylint"
+          dylint_rev="4bd91ce7729b74c7ee5664bbb588f7baf30b4a09"
+          mkdir -p "$(dirname "$dylint_repo")"
+          if [ ! -d "$dylint_repo/.git" ]; then
+            git clone https://github.com/trailofbits/dylint.git "$dylint_repo"
+          fi
+          git -C "$dylint_repo" fetch --tags origin
+          git -C "$dylint_repo" checkout --force "$dylint_rev"
+          ${rustToolchainNightly}/bin/cargo install --locked --force --path "$dylint_repo/cargo-dylint"
+          ${rustToolchainNightly}/bin/cargo install --locked --force --path "$dylint_repo/dylint-link"
+          host="$(rustc -vV | awk '/^host: / { print $2 }')"
+          toolchain_name="jacquard-nightly-''${host}"
+          toolchain_root="$(dirname "$(dirname "$(command -v rustc)")")"
+          rustup toolchain remove "$toolchain_name" >/dev/null 2>&1 || true
+          rustup toolchain link "$toolchain_name" "$toolchain_root"
+          if [ -d "$PWD/lints" ]; then
+            (cd "$PWD/lints" && rustup override set "$toolchain_name" >/dev/null)
+          fi
+        '';
+
+        dylintLinkWrapper = pkgs.writeShellScriptBin "jacquard-dylint-link" ''
+          set -euo pipefail
+          if [ -z "''${RUSTUP_TOOLCHAIN:-}" ]; then
+            host="$(rustc -vV | awk '/^host: / { print $2 }')"
+            export RUSTUP_TOOLCHAIN="jacquard-nightly-''${host}"
+          fi
+          exec dylint-link "$@"
         '';
       in
       {
@@ -42,13 +77,17 @@
           packages =
             with pkgs;
             [
+              cargoWrapper
               rustToolchainNightly
               installDylint
+              dylintLinkWrapper
               pkg-config
+              git
               just
               ripgrep
               perl
               openssl
+              zlib
             ]
             ++ lib.optionals stdenv.isDarwin [
               libiconv

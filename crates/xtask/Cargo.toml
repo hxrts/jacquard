@@ -1,0 +1,18 @@
+[package]
+name = "jacquard-xtask"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+cargo_metadata = "0.18"
+camino = "1"
+ignore = "0.4"
+pulldown-cmark = "0.10"
+regex = "1"
+serde_json.workspace = true
+syn = { version = "2", features = ["full", "visit"] }
+walkdir = "2"

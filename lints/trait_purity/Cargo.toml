@@ -12,7 +12,7 @@ description = "Dylint checks for Jacquard trait purity/effect annotations"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-dylint_linting = "5.0.0"
+dylint_linting = { git = "https://github.com/trailofbits/dylint.git", rev = "4bd91ce7729b74c7ee5664bbb588f7baf30b4a09", package = "dylint_linting" }
 
 [features]
 rlib = ["dylint_linting/constituent"]

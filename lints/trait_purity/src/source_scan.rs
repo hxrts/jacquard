@@ -5,7 +5,8 @@ use rustc_span::source_map::SourceMap;
 
 pub(crate) fn source_has_trait_purity_marker(source_map: &SourceMap, item: &Item<'_>) -> bool {
     let file = source_map.lookup_source_file(item.span.lo());
-    let Ok(contents) = std::fs::read_to_string(&file.name.prefer_remapped_unconditionally()) else {
+    let path = format!("{}", file.name.prefer_remapped_unconditionally());
+    let Ok(contents) = std::fs::read_to_string(path) else {
         return false;
     };
     let line_index = source_map
