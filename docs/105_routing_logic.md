@@ -1,6 +1,6 @@
 # Routing Decisions
 
-This page picks up the routing pipeline at estimation and walks through policy, action, and route realization. It covers the control and data plane split, the candidate-to-materialization decision path, and the routing-engine boundary. See [Pipeline and World Observations](104_routing_observation_boundary.md) for the world and observation stages that feed into this page.
+This page picks up the routing pipeline at estimation and walks through policy, action, and route realization. It covers the control and data plane split, the candidate-to-materialization decision path, and the routing-engine boundary. See [Pipeline and World Observations](104_pipeline_observations.md) for the world and observation stages that feed into this page.
 
 ## Planes
 
@@ -81,9 +81,9 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
 Two implementation rules keep the planning surface honest. First, any planning or admission judgment that depends on observed world state must receive `&Observation<Configuration>` explicitly rather than reading an ambient topology snapshot. Second, planner caches are optimization only.
 
-Cache misses must still lead to the same planning or admission result for the same topology. Admitted routes must carry enough opaque engine-private plan state forward that materialization can proceed without a planner-cache lookup. Successful lifecycle transitions must remain replay-visible before public or durable state is committed.
+Cache misses must still lead to the same planning or admission result for the same topology. Admitted routes must carry enough opaque engine-private plan state forward that materialization can proceed without a planner-cache lookup. Materialization must fail closed when required observed topology is missing. Successful lifecycle transitions must remain replay-visible before public or durable state is committed, so engines should stage the next runtime state off to the side until checkpointing and route-event logging succeed.
 
-`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, or updating coordination posture before any specific route is active. Committee selection, substrate planning, and layered routing follow the same pure and effectful split. See [Extensibility](107_extensibility.md) for the full trait signatures.
+`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, retaining bounded observational summaries, or updating coordination posture before any specific route is active. Committee selection, substrate planning, and layered routing follow the same pure and effectful split. See [Extensibility](107_extensibility.md) for the full trait signatures.
 
 ### Overlay Example
 

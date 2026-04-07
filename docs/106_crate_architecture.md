@@ -12,7 +12,7 @@ This page describes the crate layout, the boundary rules, and the implementation
 
 ## Dependency Graph
 
-The workspace today contains four crates: `jacquard-core`, `jacquard-traits`, `jacquard-macros`, and `jacquard-mesh`. The graph below also shows `jacquard-router`, `jacquard-transport`, and `jacquard-simulator` as future crates that land once the router control plane, transport adapters, and simulator harness come online.
+The workspace today contains five crates: `jacquard-core`, `jacquard-traits`, `jacquard-macros`, `jacquard-mesh`, and `jacquard-xtask`. The graph below also shows `jacquard-router`, `jacquard-transport`, and `jacquard-simulator` as future crates that land once the router control plane, transport adapters, and simulator harness come online.
 
 ```
 jacquard-core
@@ -22,6 +22,8 @@ jacquard-traits
 jacquard-mesh ──→ jacquard-router (future) ←── jacquard-transport (future)
       │               │
       └──────→ jacquard-simulator (future)
+
+jacquard-xtask
 ```
 
 Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits`. The future router will depend on mesh only through the `RoutingEngine` trait, not through mesh internals. The future simulator will depend on core, traits, mesh, and router, and will use `telltale-simulator` as the execution base.
@@ -54,7 +56,9 @@ Signature design follows the same split. Use `&self` for pure and read-only meth
 
 That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `SubstratePlanner` from `SubstrateRuntime`, `LayeredRoutingEnginePlanner` from `LayeredRoutingEngine`, `MeshTopologyModel` from `MeshTransport`, and `RoutingScenario` / `RoutingEnvironmentModel` from `RoutingSimulator`.
 
-This rule is enforced in three layers. Public trait definitions in `jacquard-traits` carry `#[purity(...)]` or `#[effect_trait]` annotations. The `#[purity(...)]` proc macro rejects obvious receiver-shape violations such as `&mut self` on pure traits. The repository also ships `scripts/check/trait-purity.sh` and a companion Dylint library for workspace-wide annotation checks.
+This rule is enforced in three layers. Public trait definitions in `jacquard-traits` carry `#[purity(...)]` or `#[effect_trait]` annotations. The `#[purity(...)]` proc macro rejects obvious receiver-shape violations such as `&mut self` on pure traits. The repository also ships `cargo xtask` as the stable workspace check surface and three nightly Dylint libraries: `lints/trait_purity`, `lints/model_policy`, and `lints/routing_invariants`.
+
+Routing invariants use the same enforcement pattern. The repository-level routing-invariants lane runs through `cargo xtask check routing-invariants` and checks explicit-topology planner signatures, `Tick`/`RouteEpoch` separation, world-extension error purity, and several fail-closed mesh runtime rules. Those checks start in `jacquard-mesh`, but they are written to extend to the router, simulator adapters, and future external engines.
 
 The routing core does not call platform APIs directly. Hashing, storage, route-event logging, transport observations, time, and ordering all cross explicit shared boundaries in `traits`. That is how native execution, tests, and simulation share one semantic model. The effect traits are narrower than the higher-level component traits. They model runtime capabilities, not whole subsystems. `RoutingEngine`, `Router`, and `RetentionStore` are larger behavioral contracts and should not be forced through the effect layer.
 
@@ -64,6 +68,7 @@ Cross-crate invariants:
 
 - No crate may use floating-point types in routing logic, routing state, routing policy, or simulator verdicts.
 - No crate may treat wall-clock time as distributed semantic truth.
+- `Tick` is time and `RouteEpoch` is configuration/versioning. Crates must not convert between them by rewrapping the inner integer.
 - Canonical ordering must flow through shared ordering types. Crates must not invent crate-local tie-break schemes.
 - Canonical hashing and content IDs must flow through the shared hash and content-addressing boundaries.
 - Transport may observe links and carry bytes, but it may not invent route truth, publish canonical route health, or mutate materialized-route ownership.

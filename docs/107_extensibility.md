@@ -346,6 +346,8 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
 `engine_tick` is the optional engine-wide bootstrap and convergence hook. An engine may use it as an internal middleware-style loop to refresh local regime estimates, decay stale local state, update coordination posture, or prepare engine-private planning state before any specific route is active. The host or router drives that cadence through the control plane's existing periodic tick path; the hook itself does not publish canonical route truth directly.
 
+Two contract rules are worth keeping explicit. If a planning or admission judgment depends on observations, the current topology must be passed into that method directly rather than read from ambient engine state. And if an engine keeps planner caches, those caches are memoization only: cache hits and misses must not change the semantic result for the same topology.
+
 External routing engines should depend on `jacquard-core` and `jacquard-traits`. They should not depend on mesh internals, router internals, or simulator-private helpers. The stable shared contract includes `RouteSummary`, `Estimate<RouteEstimate>`, `RouteAdmissionCheck`, `RouteWitness`, `RouteHandle`, `RouteLease`, `RouteMaterializationInput`, `RouteInstallation`, `RouteCommitment`, `RouteMaintenanceResult`, `CommitteeSelection`, `SubstrateRequirements`, `SubstrateLease`, `LayerParameters`, `Observation<T>`, and `Fact<T>`. External engines must not assume mesh route shape, mesh topology structure, mesh-specific maintenance semantics, or any authority model outside those shared route objects.
 
 ## Policy And Coordination
@@ -478,6 +480,7 @@ pub trait MeshTopologyModel {
         &self,
         local_node_id: &NodeId,
         peer_node_id: &NodeId,
+        observed_at_tick: Tick,
         configuration: &Configuration,
     ) -> Option<Self::PeerEstimate>;
 
@@ -485,6 +488,7 @@ pub trait MeshTopologyModel {
     fn neighborhood_estimate(
         &self,
         local_node_id: &NodeId,
+        observed_at_tick: Tick,
         configuration: &Configuration,
     ) -> Option<Self::NeighborhoodEstimate>;
 }
@@ -506,7 +510,7 @@ pub trait MeshRoutingEngine: RoutingEngine {
 }
 ```
 
-`MeshTopologyModel` is read-only. `MeshTransport` and `RetentionStore` are effectful. `MeshRoutingEngine` binds one concrete topology model, one transport implementation, and one retention store to a mesh engine instance. This keeps mesh-specific internals swappable without exposing them as shared cross-engine assumptions.
+`MeshTopologyModel` is read-only. `MeshTransport` and `RetentionStore` are effectful. `MeshRoutingEngine` binds one concrete topology model, one transport implementation, and one retention store to a mesh engine instance. This keeps mesh-specific internals swappable without exposing them as shared cross-engine assumptions, while still letting mesh route choice depend on mesh-owned peer and neighborhood estimates behind that boundary.
 
 The associated estimate types are the important boundary here. If a mesh implementation wants novelty scores, reach estimates, bridge heuristics, or neighborhood flow signals, those stay mesh-owned behind `MeshTopologyModel`. They are not promoted into `jacquard-core` as shared `Node`, `Link`, or `Environment` schema.
 
