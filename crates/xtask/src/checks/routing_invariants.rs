@@ -74,6 +74,7 @@ const RULES: &[Rule] = &[
     },
 ];
 
+// long-block-exception: rule coordination workflow with validation mode
 pub fn run(args: &[String]) -> Result<()> {
     let mut validate = false;
     for arg in args {

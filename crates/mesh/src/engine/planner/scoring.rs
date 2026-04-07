@@ -2,8 +2,9 @@
 //!
 //! Control flow: weighted path search yields feasible node paths first. This
 //! module then computes the ranking signals layered on top of that search:
-//! per-hop penalties, topology-model preference, deterministic tie-break inputs,
-//! letting the planner sort candidates without changing their shared shape.
+//! per-hop penalties, topology-model preference, deterministic tie-break
+//! inputs, letting the planner sort candidates without changing their shared
+//! shape.
 
 use jacquard_core::{Belief, Configuration, NodeId, Observation, RoutingObjective};
 use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};

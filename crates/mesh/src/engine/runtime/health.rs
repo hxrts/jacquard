@@ -1,4 +1,5 @@
-//! Engine-private health synthesis from topology, transport, and active-route state.
+//! Engine-private health synthesis from topology, transport, and active-route
+//! state.
 //!
 //! Control flow: `engine_tick` folds raw transport observations into a bounded
 //! summary and control state, then runtime operations ask this module to turn
