@@ -6,7 +6,8 @@ use jacquard_core::{
     MaterializedRoute, MaterializedRouteIdentity, Observation, RouteAdmission,
     RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError, RouteHealth,
     RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
-    RouteMaterializationInput, RouteRuntimeState, RoutingEngineCapabilities,
+    RouteMaterializationInput, RouteRuntimeState, RouteSemanticHandoff,
+    RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
     RoutingEngineId, RoutingObjective, RoutingPolicyInputs, RoutingTickChange,
     RoutingTickContext, RoutingTickOutcome, SubstrateCandidate, SubstrateLease,
     SubstrateRequirements,
@@ -231,7 +232,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     ) -> Result<RoutingTickOutcome, RouteError> {
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,
-            change: RoutingTickChange::NoChange,
+            change:         RoutingTickChange::NoChange,
         })
     }
 
@@ -276,6 +277,12 @@ pub trait Router {
         route_id: &RouteId,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<MaterializedRoute, RouteError>;
+
+    fn transfer_route_lease(
+        &mut self,
+        route_id: &RouteId,
+        handoff: RouteSemanticHandoff,
+    ) -> Result<MaterializedRoute, RouteError>;
 }
 
 #[purity(effectful)]
@@ -310,11 +317,11 @@ pub trait RoutingControlPlane {
         &mut self,
         route_id: &RouteId,
         trigger: RouteMaintenanceTrigger,
-    ) -> Result<RouteMaintenanceResult, RouteError>;
+    ) -> Result<RouterMaintenanceOutcome, RouteError>;
 
     /// Periodic consistency sweep: refresh engine-wide adaptive state, expire
     /// leases, and detect stale routes.
-    fn anti_entropy_tick(&mut self) -> Result<(), RouteError>;
+    fn anti_entropy_tick(&mut self) -> Result<RouterTickOutcome, RouteError>;
 }
 
 #[purity(effectful)]

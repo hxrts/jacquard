@@ -10,7 +10,7 @@
 use bincode::Options;
 use jacquard_core::{
     Blake3Digest, ContentId, HealthScore, LinkEndpoint, NodeId, RouteEpoch, RouteError,
-    RouteEvent, RouteId, RouteRuntimeError, Tick, TransportObservation,
+    RouteId, RouteRuntimeError, Tick, TransportObservation,
 };
 use serde::{Deserialize, Serialize};
 
@@ -157,15 +157,6 @@ where
                 .map_err(storage_failure)?;
         }
         Ok(())
-    }
-
-    pub(crate) fn record_route_event(
-        &mut self,
-        event: RouteEvent,
-    ) -> Result<(), RouteError> {
-        self.effects
-            .record_route_event(event)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
     }
 
     pub(crate) fn forwarding_hop(
@@ -459,10 +450,10 @@ mod tests {
 
     use bincode::Options;
     use jacquard_core::{
-        Blake3Digest, ContentId, OrderStamp, RouteEpoch, RouteError, RouteId,
-        RouteRuntimeError, StorageError, Tick, TransportObservation,
+        Blake3Digest, ContentId, RouteEpoch, RouteError, RouteId, RouteRuntimeError,
+        StorageError, Tick, TransportObservation,
     };
-    use jacquard_traits::{effect_handler, OrderEffects, StorageEffects, TimeEffects};
+    use jacquard_traits::{effect_handler, StorageEffects, TimeEffects};
 
     use super::{
         protocol_checkpoint_key, route_session, tick_session, MeshGuestRuntime,
@@ -480,21 +471,12 @@ mod tests {
         checkpoints:  BTreeMap<Vec<u8>, Vec<u8>>,
         observations: Vec<MeshProtocolObservation>,
         ingress:      Vec<TransportObservation>,
-        next_order:   u64,
     }
 
     #[effect_handler]
     impl TimeEffects for FakeEffects {
         fn now_tick(&self) -> Tick {
             Tick(4)
-        }
-    }
-
-    #[effect_handler]
-    impl OrderEffects for FakeEffects {
-        fn next_order_stamp(&mut self) -> OrderStamp {
-            self.next_order += 1;
-            OrderStamp(self.next_order)
         }
     }
 
@@ -521,11 +503,6 @@ mod tests {
     impl MeshProtocolRuntime for FakeEffects {
         fn now_tick(&self) -> Tick {
             Tick(4)
-        }
-
-        fn next_order_stamp(&mut self) -> OrderStamp {
-            self.next_order += 1;
-            OrderStamp(self.next_order)
         }
 
         fn send_mesh_frame(
@@ -560,13 +537,6 @@ mod tests {
             _object_id: &ContentId<Blake3Digest>,
         ) -> Result<Option<Vec<u8>>, jacquard_core::RetentionError> {
             Ok(None)
-        }
-
-        fn record_protocol_event(
-            &mut self,
-            _event: jacquard_core::RouteEventStamped,
-        ) -> Result<(), jacquard_core::RouteEventLogError> {
-            Ok(())
         }
 
         fn load_protocol_checkpoint(

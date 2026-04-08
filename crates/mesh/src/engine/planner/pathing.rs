@@ -80,10 +80,11 @@ where
         score
     }
 
-    /// Returns true if `(score, path)` is dominated by `(best_score, best_path)`,
-    /// meaning the candidate should not replace the current best entry. Equal
-    /// scores tie-break lexicographically on path so equal-cost routes collapse
-    /// deterministically regardless of frontier visit order.
+    /// Returns true if `(score, path)` is dominated by `(best_score,
+    /// best_path)`, meaning the candidate should not replace the current
+    /// best entry. Equal scores tie-break lexicographically on path so
+    /// equal-cost routes collapse deterministically regardless of frontier
+    /// visit order.
     fn is_dominated(
         score: u32,
         path: &[NodeId],
@@ -130,7 +131,12 @@ where
                 next_path.push(neighbor);
                 let next_score = score.saturating_add(edge_score);
                 if let Some((best_score, best_path)) = best_paths.get(&neighbor) {
-                    if Self::is_dominated(next_score, &next_path, *best_score, best_path) {
+                    if Self::is_dominated(
+                        next_score,
+                        &next_path,
+                        *best_score,
+                        best_path,
+                    ) {
                         continue;
                     }
                 }

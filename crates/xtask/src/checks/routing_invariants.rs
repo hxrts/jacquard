@@ -41,6 +41,10 @@ const RULES: &[Rule] = &[
         collect:     fail_closed_ordering,
     },
     Rule {
+        description: "router canonical publication avoids in-place mutation",
+        collect:     router_snapshot_publication,
+    },
+    Rule {
         description: "Tick/RouteEpoch separation",
         collect:     tick_epoch_conflation,
     },
@@ -71,6 +75,10 @@ const RULES: &[Rule] = &[
     Rule {
         description: "routing thresholds use named constants",
         collect:     named_thresholds,
+    },
+    Rule {
+        description: "mock transport remains observational",
+        collect:     mock_transport_boundary,
     },
 ];
 
@@ -298,6 +306,15 @@ fn tick_epoch_conflation(root: &Path) -> Result<Vec<Violation>> {
     )
 }
 
+fn router_snapshot_publication(root: &Path) -> Result<Vec<Violation>> {
+    grep_rule(
+        root,
+        &["crates/router/src"],
+        r"active_routes\.get_mut\(|published_commitments\.get_mut\(",
+        "router mutates canonical published state in place instead of staging a next snapshot",
+    )
+}
+
 fn checked_score_arithmetic(root: &Path) -> Result<Vec<Violation>> {
     let mut out = Vec::new();
     let re = Regex::new(
@@ -374,6 +391,15 @@ fn named_thresholds(root: &Path) -> Result<Vec<Violation>> {
         &["crates/mesh/src"],
         r">\s*600\b",
         "routing threshold literal should be a named constant",
+    )
+}
+
+fn mock_transport_boundary(root: &Path) -> Result<Vec<Violation>> {
+    grep_rule(
+        root,
+        &["crates/mock-transport/src"],
+        r"\b(MaterializedRoute|RouteHandle|RouteCommitment|RouteLease)\b",
+        "mock transport crosses into canonical route-truth vocabulary",
     )
 }
 

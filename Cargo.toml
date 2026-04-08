@@ -4,6 +4,9 @@ members = [
   "crates/core",
   "crates/macros",
   "crates/mesh",
+  "crates/mock-device",
+  "crates/mock-transport",
+  "crates/router",
   "crates/traits",
   "crates/xtask",
 ]

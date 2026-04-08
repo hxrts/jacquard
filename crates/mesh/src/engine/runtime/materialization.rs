@@ -7,10 +7,9 @@
 //! checkpointed and inserted into the live route table.
 
 use jacquard_core::{
-    Configuration, Fact, FactBasis, Observation, RouteError, RouteEvent,
-    RouteInstallation, RouteLifecycleEvent, RouteMaterializationInput,
-    RouteMaterializationProof, RouteProgressContract, RouteProgressState,
-    RouteRuntimeError,
+    Configuration, Fact, FactBasis, Observation, RouteError, RouteInstallation,
+    RouteLifecycleEvent, RouteMaterializationInput, RouteMaterializationProof,
+    RouteProgressContract, RouteProgressState, RouteRuntimeError,
 };
 
 use super::{
@@ -237,22 +236,11 @@ where
             health: self.current_route_health(Some(&active_route), now),
             ..installation
         };
-        let route_event =
-            RouteEvent::RouteMaterialized { handle: input.handle.clone(), proof };
         self.store_checkpoint(&active_route)?;
         if let Err(error) = self
             .choreography_runtime()
             .activation_handshake(&route_id, input.handle.topology_epoch)
         {
-            if let Some(previous_active_route) = previous_active_route.as_ref() {
-                let _ = self.store_checkpoint(previous_active_route);
-            } else {
-                let _ = self.remove_checkpoint(&route_id);
-            }
-            return Err(error);
-        }
-        if let Err(error) = self.record_event(route_event) {
-            let _ = self.choreography_runtime().clear_route_protocols(&route_id);
             if let Some(previous_active_route) = previous_active_route.as_ref() {
                 let _ = self.store_checkpoint(previous_active_route);
             } else {

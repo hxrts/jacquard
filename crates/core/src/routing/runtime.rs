@@ -64,6 +64,46 @@ pub struct RoutingTickOutcome {
     pub change:         RoutingTickChange,
 }
 
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Canonical route mutation published by the router after consuming typed
+/// engine evidence.
+pub enum RouterCanonicalMutation {
+    None,
+    RouteReplaced {
+        previous_route_id: RouteId,
+        route:             Box<MaterializedRoute>,
+    },
+    LeaseTransferred {
+        route_id: RouteId,
+        handoff:  RouteSemanticHandoff,
+        lease:    RouteLease,
+    },
+    RouteExpired {
+        route_id: RouteId,
+    },
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Control-plane result after one maintenance step. The engine result remains
+/// intact, while any canonical mutation is surfaced explicitly at the router
+/// layer.
+pub struct RouterMaintenanceOutcome {
+    pub engine_result:      RouteMaintenanceResult,
+    pub canonical_mutation: RouterCanonicalMutation,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Router-owned tick outcome that keeps engine-private change reporting
+/// separate from canonical route mutation.
+pub struct RouterTickOutcome {
+    pub topology_epoch:     RouteEpoch,
+    pub engine_change:      RoutingTickChange,
+    pub canonical_mutation: RouterCanonicalMutation,
+}
+
 // Manual Ord (not derived) keeps the priority-first, then-epoch,
 // then-tie-break lexicographic order explicit and independent of field
 // declaration order.

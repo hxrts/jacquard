@@ -28,8 +28,8 @@ use std::{cell::RefCell, collections::BTreeMap};
 
 use jacquard_core::{
     Blake3Digest, Configuration, ContentId, NodeId, Observation, ReceiptId,
-    RouteCommitmentId, RouteConnectivityProfile, RouteEpoch, RouteError, RouteEvent,
-    RouteId, RoutePartitionClass, RouteRuntimeError, RouteSelectionError,
+    RouteCommitmentId, RouteConnectivityProfile, RouteEpoch, RouteError, RouteId,
+    RoutePartitionClass, RouteRuntimeError, RouteSelectionError,
     RoutingEngineCapabilities, RoutingEngineId,
 };
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing};
@@ -509,10 +509,6 @@ where
         self.effects
             .remove_bytes(&support::route_storage_key(&self.local_node_id, route_id))
             .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
-    }
-
-    fn record_event(&mut self, event: RouteEvent) -> Result<(), RouteError> {
-        self.choreography_runtime().record_route_event(event)
     }
 
     // Handoff target is the next owner in the owner-relative path view.

@@ -1,21 +1,20 @@
 [package]
-name = "jacquard-mesh"
+name = "jacquard-router"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "First-party deterministic mesh routing engine for Jacquard"
+description = "Mesh-only canonical router for Jacquard"
 
 [lints]
 workspace = true
 
 [dependencies]
-jacquard-core = { path = "../core" }
-jacquard-traits = { path = "../traits" }
-telltale = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
 bincode = { workspace = true }
+jacquard-core = { path = "../core" }
+jacquard-mesh = { path = "../mesh" }
+jacquard-traits = { path = "../traits" }
+serde = { workspace = true }
 
 [dev-dependencies]
 jacquard-mock-transport = { path = "../mock-transport" }

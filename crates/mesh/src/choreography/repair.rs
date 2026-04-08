@@ -87,15 +87,11 @@ async fn candidate_relay_role(role: &mut CandidateRelay) -> ProtocolResult<()> {
             | CandidateRelayChoice1::RepairAccepted(
                 RepairAccepted { route_id: _ },
                 end,
-            ) => {
-                Ok(((), end))
-            },
+            ) => Ok(((), end)),
             | CandidateRelayChoice1::RepairRejected(
                 RepairRejected { route_id: _ },
                 end,
-            ) => {
-                Ok(((), end))
-            },
+            ) => Ok(((), end)),
         }
     })
     .await

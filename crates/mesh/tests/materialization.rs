@@ -140,7 +140,7 @@ fn materialize_route_fails_closed_for_corrupted_backend_plan_token() {
 }
 
 #[test]
-fn materialize_route_rolls_back_when_event_logging_fails() {
+fn materialize_route_does_not_depend_on_router_event_logging() {
     let mut engine = build_engine_at_tick(Tick(2));
     let topology = sample_configuration();
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
@@ -160,34 +160,34 @@ fn materialize_route_rolls_back_when_event_logging_fails() {
     let input = materialization_input(admission, lease(Tick(2), Tick(20)));
 
     engine.runtime_effects_mut().fail_record_route_event = true;
-    let error = engine
+    let installation = engine
         .materialize_route(input.clone())
-        .expect_err("event log failure must fail closed");
+        .expect("engine materialization stays independent of router event logging");
 
-    assert!(matches!(
-        error,
-        RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)
-    ));
-    assert_eq!(engine.active_route_count(), 0);
+    assert_eq!(engine.active_route_count(), 1);
     assert!(engine.runtime_effects().events.is_empty());
+    assert_eq!(
+        installation.materialization_proof.route_id,
+        input.handle.route_id,
+    );
     let remaining_keys = engine
         .runtime_effects()
         .storage
         .keys()
         .map(|key| String::from_utf8_lossy(key).into_owned())
         .collect::<Vec<_>>();
-    assert_eq!(
-        remaining_keys,
-        vec![
-            format!(
-                "mesh/{}/topology-epoch",
-                "\u{1}".repeat(32)
-            ),
-            "mesh/protocol/forwarding/tick-epoch-2".to_string(),
-            "mesh/protocol/neighbor-advertisement/tick-epoch-2".to_string(),
-        ],
-        "materialization rollback should leave only the persistent tick-scoped and topology checkpoints"
-    );
+    assert!(remaining_keys
+        .iter()
+        .any(|key| key == &format!("mesh/{}/topology-epoch", "\u{1}".repeat(32))));
+    assert!(remaining_keys
+        .iter()
+        .any(|key| key.starts_with(&format!("mesh/{}/route/", "\u{1}".repeat(32)))));
+    assert!(remaining_keys
+        .iter()
+        .any(|key| key == "mesh/protocol/forwarding/tick-epoch-2"));
+    assert!(remaining_keys
+        .iter()
+        .any(|key| key == "mesh/protocol/neighbor-advertisement/tick-epoch-2"));
 }
 
 #[test]

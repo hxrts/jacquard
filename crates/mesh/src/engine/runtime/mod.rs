@@ -16,9 +16,9 @@ mod tick;
 
 use jacquard_core::{
     Configuration, MaterializedRoute, MaterializedRouteIdentity, Observation,
-    RouteCommitment, RouteError, RouteEvent, RouteId, RouteInstallation,
-    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-    RouteSelectionError, RoutingTickContext, RoutingTickOutcome,
+    RouteCommitment, RouteError, RouteId, RouteInstallation, RouteMaintenanceResult,
+    RouteMaintenanceTrigger, RouteMaterializationInput, RouteSelectionError,
+    RoutingTickContext, RoutingTickOutcome,
 };
 use jacquard_traits::{CommitteeCoordinatedEngine, MeshRoutingEngine, RoutingEngine};
 
@@ -130,13 +130,6 @@ where
 
         next_runtime.health = self.current_route_health(Some(&next_active_route), now);
         self.store_checkpoint(&next_active_route)?;
-        if let Err(error) = self.record_event(RouteEvent::RouteMaintenanceCompleted {
-            route_id: identity.handle.route_id,
-            result:   result.clone(),
-        }) {
-            let _ = self.store_checkpoint(&original_active_route);
-            return Err(error);
-        }
         self.active_routes
             .insert(identity.handle.route_id, next_active_route);
         *runtime = next_runtime;

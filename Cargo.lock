@@ -568,10 +568,42 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "jacquard-core",
+ "jacquard-mock-transport",
  "jacquard-traits",
  "serde",
  "serde_json",
  "telltale",
+]
+
+[[package]]
+name = "jacquard-mock-device"
+version = "0.1.0"
+dependencies = [
+ "jacquard-core",
+ "jacquard-mesh",
+ "jacquard-mock-transport",
+ "jacquard-router",
+ "jacquard-traits",
+]
+
+[[package]]
+name = "jacquard-mock-transport"
+version = "0.1.0"
+dependencies = [
+ "jacquard-core",
+ "jacquard-traits",
+]
+
+[[package]]
+name = "jacquard-router"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "jacquard-core",
+ "jacquard-mesh",
+ "jacquard-mock-transport",
+ "jacquard-traits",
+ "serde",
 ]
 
 [[package]]

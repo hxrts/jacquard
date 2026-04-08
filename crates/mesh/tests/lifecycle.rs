@@ -135,7 +135,10 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         expired.outcome,
         RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LeaseExpired)
     );
-    assert_eq!(engine.runtime_effects().events.len(), 5);
+    assert!(
+        engine.runtime_effects().events.is_empty(),
+        "canonical lifecycle events are now router-owned rather than engine-owned"
+    );
     assert!(matches!(
         runtime.health.reachability_state,
         ReachabilityState::Reachable

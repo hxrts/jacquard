@@ -1,0 +1,16 @@
+[package]
+name = "jacquard-mock-transport"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "In-memory mesh transport and retention harness for Jacquard tests"
+
+[lints]
+workspace = true
+
+[dependencies]
+jacquard-core = { path = "../core" }
+jacquard-traits = { path = "../traits" }
+
+[dev-dependencies]

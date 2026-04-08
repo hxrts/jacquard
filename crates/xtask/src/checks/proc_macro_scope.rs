@@ -50,6 +50,11 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/mesh/src/engine/types.rs",
     "crates/mesh/src/lib.rs",
     "crates/mesh/src/topology.rs",
+    "crates/mock-device/src/lib.rs",
+    "crates/mock-device/src/mesh.rs",
+    "crates/router/src/lib.rs",
+    "crates/router/src/mesh_router.rs",
+    "crates/router/src/runtime.rs",
 ];
 
 const MARKERS: &[&str] = &[

@@ -8,7 +8,7 @@
 
 use jacquard_core::{
     MaterializedRoute, MaterializedRouteIdentity, RouteBinding, RouteCommitment,
-    RouteCommitmentResolution, RouteError, RouteEvent, RouteInvalidationReason,
+    RouteCommitmentResolution, RouteError, RouteInvalidationReason,
     RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
     RouteMaintenanceResult, RouteOperationId, RouteProgressState, RouteRuntimeError,
     RoutingTickChange, RoutingTickContext, RoutingTickOutcome, TimeoutPolicy,
@@ -41,7 +41,7 @@ where
 {
     pub(super) fn expired_lease_result(
         &mut self,
-        identity: &MaterializedRouteIdentity,
+        _identity: &MaterializedRouteIdentity,
         runtime: &mut jacquard_core::RouteRuntimeState,
     ) -> Result<RouteMaintenanceResult, RouteError> {
         let mut next_runtime = runtime.clone();
@@ -53,10 +53,6 @@ where
                 RouteMaintenanceFailure::LeaseExpired,
             ),
         };
-        self.record_event(RouteEvent::RouteMaintenanceCompleted {
-            route_id: identity.handle.route_id,
-            result:   result.clone(),
-        })?;
         *runtime = next_runtime;
         Ok(result)
     }

@@ -297,10 +297,6 @@ mod tests {
             Tick(1)
         }
 
-        fn next_order_stamp(&mut self) -> jacquard_core::OrderStamp {
-            jacquard_core::OrderStamp(1)
-        }
-
         fn send_mesh_frame(
             &mut self,
             frame: &MeshChoreoFrame,
@@ -334,13 +330,6 @@ mod tests {
             _object_id: &jacquard_core::ContentId<jacquard_core::Blake3Digest>,
         ) -> Result<Option<Vec<u8>>, jacquard_core::RetentionError> {
             Ok(None)
-        }
-
-        fn record_protocol_event(
-            &mut self,
-            _event: jacquard_core::RouteEventStamped,
-        ) -> Result<(), jacquard_core::RouteEventLogError> {
-            Ok(())
         }
 
         fn load_protocol_checkpoint(
