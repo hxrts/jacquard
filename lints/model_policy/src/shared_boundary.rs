@@ -12,7 +12,7 @@ rustc_session::declare_lint! {
     ///
     /// ### Why is this bad?
     ///
-    /// Shared crates define family-neutral schema and contracts. Mesh-, onion-,
+    /// Shared crates define engine-neutral schema and contracts. Mesh-, onion-,
     /// and field-specific runtime vocabulary belongs in engine crates.
     pub SHARED_PRIVATE_BOUNDARY,
     Warn,

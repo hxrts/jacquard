@@ -6,7 +6,7 @@ This page describes the crate layout, the boundary rules, and the implementation
 
 `core` defines what exists. `traits` defines what components are allowed to do.
 
-`core` owns shared identifiers, data types, constants, error types, and the full model pipeline from world objects through observations, family-neutral estimates, policy, and action. Derives, trivial constructors, and simple validation are allowed. Cross-crate behavioral interfaces belong in `traits`.
+`core` owns shared identifiers, data types, constants, error types, and the full model pipeline from world objects through observations, engine-neutral estimates, policy, and action. Derives, trivial constructors, and simple validation are allowed. Cross-crate behavioral interfaces belong in `traits`.
 
 `traits` owns the cross-crate behavioral interfaces, grouped below by purpose. The layering subset is forward-looking. The shared shape is part of the stable design, but in-tree coverage is still contract-oriented rather than a mature production layering stack.
 

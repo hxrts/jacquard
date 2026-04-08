@@ -113,7 +113,7 @@ impl MeshTopologyModel for StubTopologyModel {
 
 struct StubTransport {
     observations: Vec<TransportObservation>,
-    sent_frames:  Vec<Vec<u8>>,
+    sent_frames: Vec<Vec<u8>>,
 }
 
 impl MeshTransport for StubTransport {
@@ -162,31 +162,29 @@ impl RetentionStore for StubRetentionStore {
     }
 }
 
-struct StubMeshFamily {
-    topology:  StubTopologyModel,
+struct StubMeshEngine {
+    topology: StubTopologyModel,
     transport: StubTransport,
     retention: StubRetentionStore,
-    route:     Option<jacquard_traits::jacquard_core::MaterializedRoute>,
+    route: Option<jacquard_traits::jacquard_core::MaterializedRoute>,
 }
 
-impl RoutingEnginePlanner for StubMeshFamily {
+impl RoutingEnginePlanner for StubMeshEngine {
     fn engine_id(&self) -> RoutingEngineId {
         RoutingEngineId::Mesh
     }
 
     fn capabilities(&self) -> RoutingEngineCapabilities {
         RoutingEngineCapabilities {
-            engine:                  RoutingEngineId::Mesh,
-            max_protection:          RouteProtectionClass::LinkProtected,
-            max_connectivity:        RouteConnectivityProfile {
-                repair:    jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
+            engine: RoutingEngineId::Mesh,
+            max_protection: RouteProtectionClass::LinkProtected,
+            max_connectivity: RouteConnectivityProfile {
+                repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
                 partition:
                     jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
-            repair_support:
-                jacquard_traits::jacquard_core::RepairSupport::Supported,
-            hold_support:
-                jacquard_traits::jacquard_core::HoldSupport::Supported,
+            repair_support: jacquard_traits::jacquard_core::RepairSupport::Supported,
+            hold_support: jacquard_traits::jacquard_core::HoldSupport::Supported,
             decidable_admission:
                 jacquard_traits::jacquard_core::DecidableSupport::Supported,
             quantitative_bounds:
@@ -250,7 +248,7 @@ impl RoutingEnginePlanner for StubMeshFamily {
     }
 }
 
-impl RoutingEngine for StubMeshFamily {
+impl RoutingEngine for StubMeshEngine {
     fn materialize_route(
         &mut self,
         input: RouteMaterializationInput,
@@ -259,9 +257,9 @@ impl RoutingEngine for StubMeshFamily {
         self.route = Some(route.clone());
         Ok(RouteInstallation {
             materialization_proof: route.identity.materialization_proof,
-            last_lifecycle_event:  route.runtime.last_lifecycle_event,
-            health:                route.runtime.health,
-            progress:              route.runtime.progress,
+            last_lifecycle_event: route.runtime.last_lifecycle_event,
+            health: route.runtime.health,
+            progress: route.runtime.progress,
         })
     }
 
@@ -271,18 +269,18 @@ impl RoutingEngine for StubMeshFamily {
     ) -> Vec<RouteCommitment> {
         vec![RouteCommitment {
             commitment_id: RouteCommitmentId([4; 16]),
-            operation_id:  jacquard_traits::jacquard_core::RouteOperationId([5; 16]),
+            operation_id: jacquard_traits::jacquard_core::RouteOperationId([5; 16]),
             route_binding: RouteBinding::Bound(RouteId([6; 16])),
             owner_node_id: NodeId([1; 32]),
             deadline_tick: jacquard_traits::jacquard_core::Tick(4),
-            retry_policy:  jacquard_traits::jacquard_core::TimeoutPolicy {
-                attempt_count_max:           1,
-                initial_backoff_ms:          DurationMs(1),
+            retry_policy: jacquard_traits::jacquard_core::TimeoutPolicy {
+                attempt_count_max: 1,
+                initial_backoff_ms: DurationMs(1),
                 backoff_multiplier_permille: RatioPermille(1000),
-                backoff_ms_max:              DurationMs(1),
-                overall_timeout_ms:          DurationMs(1),
+                backoff_ms_max: DurationMs(1),
+                overall_timeout_ms: DurationMs(1),
             },
-            resolution:    RouteCommitmentResolution::Pending,
+            resolution: RouteCommitmentResolution::Pending,
         }]
     }
 
@@ -295,7 +293,7 @@ impl RoutingEngine for StubMeshFamily {
     {
         runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         Ok(RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Repaired,
+            event: RouteLifecycleEvent::Repaired,
             outcome: RouteMaintenanceOutcome::Repaired,
         })
     }
@@ -303,7 +301,7 @@ impl RoutingEngine for StubMeshFamily {
     fn teardown(&mut self, _route_id: &RouteId) {}
 }
 
-impl MeshRoutingEngine for StubMeshFamily {
+impl MeshRoutingEngine for StubMeshEngine {
     type Retention = StubRetentionStore;
     type TopologyModel = StubTopologyModel;
     type Transport = StubTransport;
@@ -331,9 +329,9 @@ impl MeshRoutingEngine for StubMeshFamily {
 
 fn sample_endpoint() -> LinkEndpoint {
     LinkEndpoint {
-        protocol:  TransportProtocol::BleGatt,
-        address:   jacquard_traits::jacquard_core::EndpointAddress::Ble {
-            device_id:  jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
+        protocol: TransportProtocol::BleGatt,
+        address: jacquard_traits::jacquard_core::EndpointAddress::Ble {
+            device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
             profile_id: jacquard_traits::jacquard_core::BleProfileId([2; 16]),
         },
         mtu_bytes: ByteCount(512),
@@ -385,7 +383,7 @@ fn sample_node(controller_seed: u8) -> Node {
 fn sample_link() -> Link {
     Link {
         endpoint: sample_endpoint(),
-        state:    LinkState {
+        state: LinkState {
             state: LinkRuntimeState::Active,
             median_rtt_ms: DurationMs(5),
             transfer_rate_bytes_per_sec: Belief::Absent,
@@ -414,8 +412,8 @@ fn sample_configuration() -> Configuration {
         links,
         environment: Environment {
             reachable_neighbor_count: 1,
-            churn_permille:           RatioPermille(0),
-            contention_permille:      RatioPermille(0),
+            churn_permille: RatioPermille(0),
+            contention_permille: RatioPermille(0),
         },
     }
 }
@@ -505,38 +503,32 @@ fn sample_materialized_route(
         input.clone(),
         RouteInstallation {
             materialization_proof: RouteMaterializationProof {
-                route_id:             input.admission.route_id,
-                topology_epoch:       RouteEpoch(1),
+                route_id: input.admission.route_id,
+                topology_epoch: RouteEpoch(1),
                 materialized_at_tick: jacquard_traits::jacquard_core::Tick(1),
-                publication_id:       PublicationId([9; 16]),
-                witness:              Fact {
-                    value:               input.admission.witness.clone(),
-                    basis:
-                        jacquard_traits::jacquard_core::FactBasis::Published,
+                publication_id: PublicationId([9; 16]),
+                witness: Fact {
+                    value: input.admission.witness.clone(),
+                    basis: jacquard_traits::jacquard_core::FactBasis::Published,
                     established_at_tick: jacquard_traits::jacquard_core::Tick(1),
                 },
             },
-            last_lifecycle_event:  RouteLifecycleEvent::Activated,
-            health:                RouteHealth {
+            last_lifecycle_event: RouteLifecycleEvent::Activated,
+            health: RouteHealth {
                 reachability_state:
                     jacquard_traits::jacquard_core::ReachabilityState::Reachable,
-                stability_score:           jacquard_traits::jacquard_core::HealthScore(
-                    1000,
-                ),
+                stability_score: jacquard_traits::jacquard_core::HealthScore(1000),
                 congestion_penalty_points:
                     jacquard_traits::jacquard_core::PenaltyPoints(0),
-                last_validated_at_tick:    jacquard_traits::jacquard_core::Tick(1),
+                last_validated_at_tick: jacquard_traits::jacquard_core::Tick(1),
             },
-            progress:
-                jacquard_traits::jacquard_core::RouteProgressContract {
-                    productive_step_count_max:
-                        jacquard_traits::jacquard_core::Limit::Bounded(1),
-                    total_step_count_max:
-                        jacquard_traits::jacquard_core::Limit::Bounded(1),
-                    last_progress_at_tick:     jacquard_traits::jacquard_core::Tick(1),
-                    state:
-                        jacquard_traits::jacquard_core::RouteProgressState::Satisfied,
-                },
+            progress: jacquard_traits::jacquard_core::RouteProgressContract {
+                productive_step_count_max:
+                    jacquard_traits::jacquard_core::Limit::Bounded(1),
+                total_step_count_max: jacquard_traits::jacquard_core::Limit::Bounded(1),
+                last_progress_at_tick: jacquard_traits::jacquard_core::Tick(1),
+                state: jacquard_traits::jacquard_core::RouteProgressState::Satisfied,
+            },
         },
     )
 }
@@ -558,7 +550,7 @@ fn mesh_transport_carries_frames_without_interpreting_them() {
     let endpoint = sample_endpoint();
     let mut transport = StubTransport {
         observations: Vec::new(),
-        sent_frames:  Vec::new(),
+        sent_frames: Vec::new(),
     };
 
     transport
@@ -607,42 +599,42 @@ fn mesh_transport_is_also_a_transport_effect_handler() {
 
 #[test]
 fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
-    let mut family = StubMeshFamily {
-        topology:  StubTopologyModel,
+    let mut engine = StubMeshEngine {
+        topology: StubTopologyModel,
         transport: StubTransport {
             observations: Vec::new(),
-            sent_frames:  Vec::new(),
+            sent_frames: Vec::new(),
         },
         retention: StubRetentionStore { payloads: BTreeMap::new() },
-        route:     None,
+        route: None,
     };
 
     assert_eq!(
-        family
+        engine
             .topology_model()
             .adjacent_links(&NodeId([1; 32]), &sample_configuration())
             .len(),
         1
     );
-    family
+    engine
         .transport_mut()
         .send_frame(MeshFrame {
             endpoint: &sample_endpoint(),
-            payload:  b"frame",
+            payload: b"frame",
         })
         .expect("send frame");
     assert_eq!(
-        family.transport().transport_id(),
+        engine.transport().transport_id(),
         TransportProtocol::BleGatt
     );
-    family
+    engine
         .retention_store_mut()
         .retain_payload(
             ContentId { digest: Blake3Digest([8; 32]) },
             b"payload".to_vec(),
         )
         .expect("store payload");
-    assert!(family
+    assert!(engine
         .retention_store()
         .contains_retained_payload(&ContentId { digest: Blake3Digest([8; 32]) })
         .expect("payload present"));

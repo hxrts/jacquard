@@ -38,7 +38,7 @@ Jacquard is intentionally not opinionated about engine-local scoring, committee 
 
 ### Lifecycle and Integration
 
-The system is committed to one explicit service lifecycle: observation to candidate to admission to router-owned canonical identity allocation to family realization to materialized route to maintenance, replacement, or teardown. Major transitions stay typed and explicit. Data-plane health stays observational until the control plane publishes a canonical change.
+The system is committed to one explicit service lifecycle: observation to candidate to admission to router-owned canonical identity allocation to engine realization to materialized route to maintenance, replacement, or teardown. Major transitions stay typed and explicit. Data-plane health stays observational until the control plane publishes a canonical change.
 
 It is equally committed to a composition boundary that stays narrow. The shared layer may expose substrate requirements, substrate leases, and layer parameters. It should not let one routing engine leak its internals into another, and it should not standardize one host policy for gradual migration.
 

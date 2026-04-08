@@ -1,6 +1,6 @@
 # Pipeline and World Observations
 
-This page introduces Jacquard's shared routing pipeline and then covers the first two stages in detail. The world schema and the observation layer that wraps it both live in `jacquard-core`. They are family-neutral surfaces that every routing engine consumes.
+This page introduces Jacquard's shared routing pipeline and then covers the first two stages in detail. The world schema and the observation layer that wraps it both live in `jacquard-core`. They are shared-layer surfaces that every routing engine consumes.
 
 ## Pipeline
 

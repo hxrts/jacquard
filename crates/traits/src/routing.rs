@@ -79,7 +79,7 @@ pub trait SubstratePlanner {
 }
 
 #[purity(effectful)]
-/// Optional effectful boundary for families that can acquire and manage
+/// Optional effectful boundary for routing engines that can acquire and manage
 /// substrate leases after planning has selected one.
 ///
 /// This is a forward-looking contract surface. It exists so host-owned
@@ -231,7 +231,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     ) -> Result<RoutingTickOutcome, RouteError> {
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,
-            change:         RoutingTickChange::NoChange,
+            change: RoutingTickChange::NoChange,
         })
     }
 
