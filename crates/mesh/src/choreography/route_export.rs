@@ -1,6 +1,6 @@
 //! Inline Telltale definition for route export exchange.
 //!
-//! Control flow intuition: the exporting node offers a route-shaped summary to
+//! Control flow: the exporting node offers a route-shaped summary to
 //! a neighbor, the neighbor either publishes or ignores it, and the generated
 //! branch structure becomes the only live sequencing path for that exchange.
 

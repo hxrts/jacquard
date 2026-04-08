@@ -1,6 +1,6 @@
 //! Inline Telltale definition for neighbor advertisement exchange.
 //!
-//! Control flow intuition: the local node advertises coarse neighbor-facing
+//! Control flow: the local node advertises coarse neighbor-facing
 //! capability state, the neighbor either sees or ignores it, and the observer
 //! receives that same visible outcome through the generated branch.
 

@@ -1,6 +1,6 @@
 //! Inline Telltale definition for semantic ownership handoff.
 //!
-//! Control flow intuition: the old owner offers transfer to the new owner, and
+//! Control flow: the old owner offers transfer to the new owner, and
 //! the new owner accepts or rejects. The generated session code owns that
 //! visible ownership branch structure.
 

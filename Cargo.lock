@@ -594,7 +594,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "jacquard-mock-client"
+name = "jacquard-reference-client"
 version = "0.1.0"
 dependencies = [
  "jacquard-core",

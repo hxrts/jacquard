@@ -1,6 +1,6 @@
 //! Inline Telltale definition for mesh route activation.
 //!
-//! Control flow intuition: the router asks the current owner to activate a
+//! Control flow: the router asks the current owner to activate a
 //! route, the owner prepares the next hop, and the destination either accepts
 //! or rejects. The generated session code owns that visible handshake shape;
 //! mesh runtime code only decides when to enter it.

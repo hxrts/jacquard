@@ -1,12 +1,20 @@
 # Router Control Plane
 
-`jacquard-router` owns the canonical control plane above the routing-engine boundary. Routing engines plan, admit, and maintain route-private runtime state. The router registers one or more engines, compares their typed evidence, and publishes the selected engine result as canonical route truth.
+`jacquard-router` is a generic middleware layer that owns the canonical control plane above the routing-engine boundary. The router registers one or more routing engines, orchestrates cross-engine candidate selection, and publishes the selected engine result as canonical route truth. Routing engines plan, admit, and maintain route-private runtime state without touching canonical route identity or publication.
 
 ## Ownership
 
 The router owns canonical route-handle issuance, canonical lease publication, canonical commitment publication, and router-owned tick cadence. The router also dispatches maintenance triggers to engines.
 
 Routing engines remain the owners of route-private runtime state and proof-bearing evidence. Profile implementations and test harnesses remain observational with respect to canonical route truth.
+
+## Cross-Engine Orchestration
+
+The router coordinates multiple registered routing engines without depending on their internals. Engines are registered once and queried during activation and maintenance. Each engine returns candidates, evidence, and proofs through shared trait boundaries.
+
+A policy engine computes the routing profile (protection class, connectivity posture, mode) from the current routing objective and local state. The router passes that profile to all registered engines. Engines return candidates ordered by cost and evidence. The router selects the best candidate, asks that engine to admit and materialize the route, and only then publishes canonical state.
+
+The router remains oblivious to engine-specific scoring, topology models, or repair strategies. Engines remain oblivious to lease ownership, commitment publication, or multi-engine selection logic.
 
 ## Activation Flow
 
@@ -47,6 +55,12 @@ typed engine evidence
 
 Mesh may still checkpoint route-private runtime payloads, but canonical route publication and canonical route-event emission now happen in the router.
 
+## Configuration and State Updates
+
+The router exposes `RoutingMiddleware` for hosts to update observable topology and policy inputs without triggering route activation or maintenance. Hosts replace topology when new observations arrive. Hosts replace policy inputs when local conditions (capacity, churn, health) change.
+
+The router also exposes a recovery interface for checkpoint replay. Hosts call `recover_checkpointed_routes` after restart to restore the previous canonical route table and active materialized state.
+
 ## Discovery Boundary
 
 Shared discovery and coarse capability selection stay on `ServiceDescriptor`. Mesh nodes advertise route-capable surfaces through shared service descriptors. The router and test harness consume those shared descriptors. Jacquard does not introduce one universal handshake object for `Discover`, `Activate`, `Repair`, or `Hold`.
@@ -55,13 +69,13 @@ If a future engine needs stronger bilateral terms, add service-specific negotiat
 
 ## Multi-Device Composition
 
-A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-mock-client` shows the minimum host/client wiring for a new device target. The end-to-end multi-device test exercises `mock-client`, `router`, `mesh`, and `mem-link-profile` across multiple runtimes.
+A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-reference-client` shows the minimum host/client wiring for a new device target. The end-to-end multi-device test exercises `reference-client`, `router`, `mesh`, and `mem-link-profile` across multiple runtimes.
 
 This harness proves crate-boundary composition. It does not replace the simulator. The simulator remains the scenario/replay layer above these shared boundaries.
 
 ## Minimal Host Wiring
 
-The reference example for a new deployment target is in `crates/mock-client/tests/multi_device_mesh.rs`.
+The reference example for a new deployment target is in `crates/reference-client/tests/multi_device_mesh.rs`.
 
 1. build a shared `Observation<Configuration>` with ordinary `ServiceDescriptor` values
 2. attach one `MeshTransport` implementation per device runtime

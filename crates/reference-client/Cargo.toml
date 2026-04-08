@@ -1,10 +1,10 @@
 [package]
-name = "jacquard-mock-client"
+name = "jacquard-reference-client"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Mock client-side Jacquard integration harness"
+description = "Reference in-memory Jacquard client composition"
 
 [lints]
 workspace = true

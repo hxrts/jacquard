@@ -1,6 +1,6 @@
 //! Inline Telltale definition for bounded suffix repair.
 //!
-//! Control flow intuition: the current owner proposes a repair through a
+//! Control flow: the current owner proposes a repair through a
 //! candidate relay, and the destination accepts or rejects the offered suffix.
 //! The generated session code owns that visible branch structure.
 

@@ -1,6 +1,6 @@
-//! Concrete mesh/router wiring for the mock-client crate.
+//! Concrete mesh/router wiring for the reference-client crate.
 //!
-//! Control flow intuition: the host/client assembles shared topology
+//! Control flow: the host/client assembles shared topology
 //! observations, attaches one in-memory transport to the shared carrier, builds
 //! a mesh engine behind the public traits, and hands that engine to the
 //! router. The client remains observational with respect to canonical route

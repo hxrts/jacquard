@@ -57,9 +57,11 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-traits`: compile-only surface checks, trait-object and generic-boundary tests.
 - `jacquard-mesh`: deterministic candidate production, admission/materialization, commitment tracking, forwarding, repair, topology-change, observation handling.
 - `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, fallback legality, anti-entropy, adaptive-profile derivation.
-- `jacquard-transport`: adapter conformance verifying the transport layer does not leak routing semantics.
+- `jacquard-mem-node-profile`: deterministic node-profile and node-state builders with no routing-engine knowledge.
+- `jacquard-mem-link-profile`: in-memory link-profile, carrier, retention, and runtime-effect adapters with no routing semantics.
+- `jacquard-reference-client`: host-side composition of router + mesh + in-memory profiles for end-to-end tests.
 - `jacquard-simulator`: scenario execution, replay, checkpoint/resume, regression scenarios across sparse, dense, partitioned, and adversarial settings.
 
 ## Telltale dependency
 
-Three Telltale crates are imported as local path dependencies (`../telltale/rust/{types,macros,runtime}`). The workspace `[workspace.dependencies]` table pins them; individual crates re-export via `{ workspace = true }`. The sibling telltale repo must be checked out at `../telltale`.
+Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, currently `11.3.0`). Individual crates import them via `{ workspace = true }`.

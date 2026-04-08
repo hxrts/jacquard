@@ -22,21 +22,25 @@ This page describes the crate layout, the boundary rules, and the implementation
 
 ## Dependency Graph
 
-The workspace today contains five crates: `jacquard-core`, `jacquard-traits`, `jacquard-macros`, `jacquard-mesh`, and `jacquard-xtask`. Three more are planned: `jacquard-router`, `jacquard-transport`, and `jacquard-simulator`.
+The workspace today contains nine crates: `jacquard-core`, `jacquard-traits`, `jacquard-macros`, `jacquard-mesh`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-reference-client`, and `jacquard-xtask`. `jacquard-simulator` remains a planned crate above the shared router and engine boundaries.
 
 ```
 jacquard-core
     ↑
 jacquard-traits
     ↑
-jacquard-mesh ──→ jacquard-router (future) ←── jacquard-transport (future)
-      │               │
-      └──────→ jacquard-simulator (future)
+jacquard-mem-node-profile
+      │
+jacquard-mem-link-profile
+      │
+jacquard-mesh ──→ jacquard-router ←── jacquard-reference-client
+      │               │                ↑
+      └──────→ jacquard-simulator      └── composes mem-* + router + mesh
 
 jacquard-xtask
 ```
 
-Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits`. The future router will depend on mesh only through the `RoutingEngine` trait, not through mesh internals. `jacquard-core` and `jacquard-traits` must remain runtime-free and must not depend on `telltale-runtime`.
+Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits` only when they need behavioral boundaries. `jacquard-router` depends on registered engines only through shared traits, not through mesh internals. `jacquard-mem-node-profile` depends only on `jacquard-core` plus serialization support. `jacquard-mem-link-profile` depends on `jacquard-core` and `jacquard-traits` because it implements shared transport, retention, and effect traits. `jacquard-core` and `jacquard-traits` remain runtime-free.
 
 ## Crate Layout
 
@@ -88,8 +92,10 @@ Each crate owns a narrow slice of runtime state.
 | `jacquard-core` | Shared vocabulary. No live state. |
 | `jacquard-traits` | Compile-time boundaries. No runtime state. |
 | `jacquard-mesh` | Mesh-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
-| `jacquard-router` (future) | Canonical route identity, materialization inputs, leases, handle issuance, top-level route-health publication. |
-| `jacquard-transport` (future) | Local transport observations and device-facing adapter state. |
+| `jacquard-router` | Canonical route identity, materialization inputs, leases, handle issuance, top-level route-health publication, and multi-engine orchestration state. |
+| `jacquard-mem-node-profile` | In-memory node capability and node-state modeling only. No routing semantics. |
+| `jacquard-mem-link-profile` | In-memory link capability, carrier, retention, and runtime-effect adapter state only. No canonical routing truth. |
+| `jacquard-reference-client` | Narrow host-side composition of profile implementations, router, and engine instances for tests and examples. Observational with respect to canonical route truth. |
 | `jacquard-simulator` (future) | Replay artifacts, scenario traces, post-run analysis. No canonical route truth during a live run. |
 
 A host-owned policy engine above the router may own cross-engine migration policy and substrate selection.

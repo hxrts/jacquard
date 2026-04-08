@@ -1,7 +1,7 @@
-//! Mock client wiring for Jacquard integration tests and examples.
+//! Reference client wiring for Jacquard integration tests and examples.
 //!
-//! Control flow intuition: a mock client owns only local host composition. It
-//! assembles shared topology observations, a router instance, and in-memory
+//! Control flow: a reference client owns only local host composition.
+//! It assembles shared topology observations, a router instance, and in-memory
 //! transport/runtime adapters, then submits typed router operations. It does
 //! not mint canonical route truth on its own.
 //!

@@ -1,6 +1,6 @@
 //! Inline Telltale definition and generated execution for forwarding hops.
 //!
-//! Control flow intuition: the current owner sends a forwarding request to the
+//! Control flow: the current owner sends a forwarding request to the
 //! next hop, the next hop decides accept/reject through the generated protocol
 //! branch, and the observer records the same visible outcome. The only
 //! handwritten logic here is host adaptation around the generated session code.

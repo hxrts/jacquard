@@ -1,6 +1,6 @@
 //! Telltale definition for deferred hold and replay.
 //!
-//! Control flow intuition: a partitioned owner stores a held payload with a
+//! Control flow: a partitioned owner stores a held payload with a
 //! holder, the holder announces storage to the observer, and the recipient
 //! either replays immediately or defers. Mesh keeps the owner-visible retained
 //! object accounting in ordinary route runtime state rather than sending a

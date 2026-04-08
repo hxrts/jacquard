@@ -9,7 +9,7 @@ use jacquard_core::{
     RoutingEvidenceClass, RoutingObjective, Tick,
 };
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
-use jacquard_mock_client::{
+use jacquard_reference_client::{
     build_mesh_client, build_mesh_client_with_profile, fixtures, MeshClient,
 };
 use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane};
