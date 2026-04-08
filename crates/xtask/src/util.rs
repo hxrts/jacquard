@@ -72,6 +72,19 @@ pub struct Violation {
 }
 
 impl Violation {
+    pub fn new(
+        file: impl Into<String>,
+        line: usize,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            file: file.into(),
+            line,
+            message: message.into(),
+            layer: None,
+        }
+    }
+
     pub fn with_layer(
         file: impl Into<String>,
         line: usize,
@@ -131,6 +144,32 @@ pub fn normalize_rel_path(root: &Path, path: &Path) -> String {
         .unwrap_or(path)
         .to_string_lossy()
         .replace('\\', "/")
+}
+
+pub fn collect_rust_files(root: &Path) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    let crates_dir = root.join("crates");
+    if !crates_dir.exists() {
+        return Ok(files);
+    }
+    for entry in walkdir::WalkDir::new(&crates_dir)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+    {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+            let rel = normalize_rel_path(root, path);
+            // Skip target/ build artifacts
+            if rel.contains("/target/") {
+                continue;
+            }
+            files.push(path.to_path_buf());
+        }
+    }
+    files.sort();
+    files.dedup();
+    Ok(files)
 }
 
 pub fn collect_markdown_files(root: &Path) -> Result<Vec<PathBuf>> {

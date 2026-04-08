@@ -23,9 +23,9 @@ pub const STYLE_GUIDE_EXCEPTIONS: &[(&str, &str)] = &[
 ];
 
 /// Ownership patterns that are "permitted by design" for documented reasons.
-/// Maps pattern name to documentation file/section.
+/// Maps pattern name to a brief justification.
 #[allow(dead_code)]
 pub const OWNERSHIP_PERMITS: &[(&str, &str)] = &[(
     "mem-link-profile-test-only",
-    "work/_impl.md#mem-link-profile-test-infrastructure",
+    "test infrastructure crate; mirrors reference-client",
 )];

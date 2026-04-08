@@ -69,6 +69,9 @@ pub trait ServiceWorldExtension: WorldExtensionDescriptor {
 #[purity(effectful)]
 /// Effectful runtime boundary for extensions that contribute observed transport
 /// activity through the shared transport-observation vocabulary.
+///
+/// Connectivity surface: emits `TransportObservation` values that describe
+/// raw link-level events, not typed routing semantics.
 pub trait TransportWorldExtension: WorldExtensionDescriptor {
     #[must_use = "unread poll_transport_observations result silently discards transport observations"]
     fn poll_transport_observations(

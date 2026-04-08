@@ -85,7 +85,8 @@ pub trait RouteEventLogEffects {
 /// Runtime frame send/poll boundary. This carries bytes and transport
 /// observations only.
 ///
-/// Effectful runtime boundary.
+/// Effectful runtime boundary — connectivity surface. Carries opaque bytes
+/// and transport observations, not typed semantic routing operations.
 pub trait TransportEffects {
     #[must_use = "unchecked send_transport result silently discards send failures"]
     fn send_transport(
