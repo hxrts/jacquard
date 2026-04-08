@@ -8,7 +8,8 @@ use jacquard_core::{
     MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass,
     ObjectiveVsDelivered, OperatingMode, PublicationId, ReachabilityState,
     RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost, RouteDegradation,
-    RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId, RouteInstallation, RouteLease, RouteLifecycleEvent, RouteMaterializationInput,
+    RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId, RouteInstallation,
+    RouteLease, RouteLifecycleEvent, RouteMaterializationInput,
     RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
     RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
     RouteRuntimeError, RouteServiceKind, RouteSummary, RouteWitness,
@@ -223,7 +224,9 @@ fn materialized_route_can_be_built_from_shared_lifecycle_types() {
 }
 
 #[test]
-#[should_panic(expected = "route installation proof stamp must match the canonical handle stamp")]
+#[should_panic(
+    expected = "route installation proof stamp must match the canonical handle stamp"
+)]
 fn materialized_route_rejects_mismatched_installation_proof_identity() {
     let (_, input, mut installation) = sample_route_parts();
     installation.materialization_proof.stamp.route_id = RouteId([6; 16]);

@@ -41,8 +41,12 @@ fn run_maintenance_trigger_test(
 ) {
     let mut engine = build_engine();
     let topology = sample_configuration();
-    let (identity, mut runtime) =
-        activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        FAR_NODE_ID,
+        lease(Tick(2), Tick(1000)),
+    );
     let result = engine
         .maintain_route(&identity, &mut runtime, trigger)
         .expect("maintenance succeeds");
@@ -56,8 +60,12 @@ fn run_maintenance_trigger_test(
 fn capacity_exceeded_requires_replacement_without_entering_partition_mode() {
     let mut engine = build_engine();
     let topology = sample_configuration();
-    let (identity, mut runtime) =
-        activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        FAR_NODE_ID,
+        lease(Tick(2), Tick(1000)),
+    );
 
     let result = engine
         .maintain_route(
@@ -85,8 +93,12 @@ fn capacity_exceeded_requires_replacement_without_entering_partition_mode() {
 fn policy_shift_rebases_runtime_to_the_next_owner_relative_hop() {
     let mut engine = build_engine();
     let topology = sample_configuration();
-    let (identity, mut runtime) =
-        activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        FAR_NODE_ID,
+        lease(Tick(2), Tick(1000)),
+    );
 
     let result = engine
         .maintain_route(
@@ -106,10 +118,7 @@ fn policy_shift_rebases_runtime_to_the_next_owner_relative_hop() {
     let active_route = engine
         .active_route(&identity.stamp.route_id)
         .expect("active route remains installed");
-    assert_eq!(
-        active_route.forwarding.current_owner_node_id,
-        PEER_NODE_ID
-    );
+    assert_eq!(active_route.forwarding.current_owner_node_id, PEER_NODE_ID);
     assert_eq!(active_route.forwarding.next_hop_index, 1);
 
     let error = engine
@@ -240,8 +249,12 @@ fn route_expired_returns_typed_lease_expired_failure() {
 fn maintenance_checkpoint_failure_leaves_runtime_and_active_route_unchanged() {
     let mut engine = build_engine();
     let topology = sample_configuration();
-    let (identity, mut runtime) =
-        activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        FAR_NODE_ID,
+        lease(Tick(2), Tick(1000)),
+    );
     let original_runtime = runtime.clone();
     let original_active_route = engine
         .active_route(&identity.stamp.route_id)
@@ -278,8 +291,12 @@ fn maintenance_checkpoint_failure_leaves_runtime_and_active_route_unchanged() {
 fn anti_entropy_required_is_a_progress_refresh_in_v1_mesh() {
     let mut engine = build_engine();
     let topology = sample_configuration();
-    let (identity, mut runtime) =
-        activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        FAR_NODE_ID,
+        lease(Tick(2), Tick(1000)),
+    );
 
     let before = runtime.progress.last_progress_at_tick;
     engine.effects.set_now(Tick(7));
@@ -299,8 +316,12 @@ fn anti_entropy_required_is_a_progress_refresh_in_v1_mesh() {
 fn policy_shift_flushes_retained_payloads_before_handoff() {
     let mut engine = build_engine();
     let topology = sample_configuration();
-    let (identity, mut runtime) =
-        activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        FAR_NODE_ID,
+        lease(Tick(2), Tick(1000)),
+    );
 
     engine
         .maintain_route(
@@ -342,8 +363,12 @@ fn policy_shift_flushes_retained_payloads_before_handoff() {
 fn link_degraded_consumes_one_repair_budget_step_in_v1_mesh() {
     let mut engine = build_engine();
     let topology = sample_configuration();
-    let (identity, mut runtime) =
-        activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        FAR_NODE_ID,
+        lease(Tick(2), Tick(1000)),
+    );
 
     let before = engine
         .active_route(&identity.stamp.route_id)
@@ -372,8 +397,12 @@ fn link_degraded_consumes_one_repair_budget_step_in_v1_mesh() {
 fn repair_budget_exhausts_and_escalates_to_replacement() {
     let mut engine = build_engine();
     let topology = sample_configuration();
-    let (identity, mut runtime) =
-        activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        FAR_NODE_ID,
+        lease(Tick(2), Tick(1000)),
+    );
 
     let initial_budget = engine
         .active_route(&identity.stamp.route_id)

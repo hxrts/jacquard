@@ -74,8 +74,7 @@ where
             )
         };
         vec![RouteCommitment {
-            commitment_id: self
-                .commitment_id_for_route(&route.identity.stamp.route_id),
+            commitment_id: self.commitment_id_for_route(&route.identity.stamp.route_id),
             // OperationId reuses RouteId bytes directly; the route id is
             // already a stable content address for this path, so no
             // separate derivation is needed.

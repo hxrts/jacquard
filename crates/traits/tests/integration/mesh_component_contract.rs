@@ -1,24 +1,24 @@
 use std::collections::BTreeMap;
 
+use jacquard_mem_link_profile::{InMemoryRetentionStore, InMemoryTransport};
 use jacquard_traits::{
     jacquard_core::{
         Belief, Blake3Digest, ByteCount, Configuration, ConnectivityPosture, ContentId,
         ControllerId, DurationMs, Environment, Fact, HoldItemCount,
         InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState, LinkState,
         MaintenanceWorkBudget, MaterializedRouteIdentity, Node, NodeId, NodeProfile,
-        NodeRelayBudget, NodeState, RatioPermille, RelayWorkBudget,
-        RouteAdmission, RouteAdmissionCheck, RouteBinding, RouteCommitment,
-        RouteCommitmentId, RouteCommitmentResolution, RouteCost, RouteEpoch,
-        RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
-        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
-        RouteMaterializationInput, RouteMaterializationProof, RouteProtectionClass,
-        RouteRuntimeState, RouteSummary, RouteWitness, RoutingEngineCapabilities,
-        RoutingEngineId, ServiceDescriptor, Tick, TransportProtocol,
+        NodeRelayBudget, NodeState, RatioPermille, RelayWorkBudget, RouteAdmission,
+        RouteAdmissionCheck, RouteBinding, RouteCommitment, RouteCommitmentId,
+        RouteCommitmentResolution, RouteCost, RouteEpoch, RouteHealth, RouteId,
+        RouteInstallation, RouteLifecycleEvent, RouteMaintenanceOutcome,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+        RouteMaterializationProof, RouteProtectionClass, RouteRuntimeState,
+        RouteSummary, RouteWitness, RoutingEngineCapabilities, RoutingEngineId,
+        ServiceDescriptor, Tick, TransportProtocol,
     },
     EffectHandler, MeshRoutingEngine, MeshTopologyModel, RetentionStore, RoutingEngine,
     RoutingEnginePlanner, TransportEffects,
 };
-use jacquard_mem_link_profile::{InMemoryRetentionStore, InMemoryTransport};
 
 use super::common;
 

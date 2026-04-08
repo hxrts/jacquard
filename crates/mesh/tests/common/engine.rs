@@ -187,7 +187,9 @@ pub fn tick_and_get_candidates(
     goal: &RoutingObjective,
     policy: &SelectedRoutingParameters,
 ) -> Vec<RouteCandidate> {
-    engine.engine_tick(&tick_context(topology)).expect("engine tick");
+    engine
+        .engine_tick(&tick_context(topology))
+        .expect("engine tick");
     engine.candidate_routes(goal, policy, topology)
 }
 

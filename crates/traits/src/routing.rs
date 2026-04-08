@@ -6,12 +6,12 @@ use jacquard_core::{
     MaterializedRouteIdentity, NodeId, Observation, RouteAdmission,
     RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteEpoch, RouteError,
     RouteHandle, RouteHealth, RouteId, RouteIdentityStamp, RouteInstallation,
-    RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
-    RouteRuntimeState, RouteSemanticHandoff, RouterMaintenanceOutcome,
-    RouterTickOutcome, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
-    RoutingPolicyInputs, RoutingTickContext, RoutingTickOutcome,
-    SelectedRoutingParameters, SubstrateCandidate, SubstrateLease, SubstrateRequirements,
+    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+    RouteMaterializationProof, RouteRuntimeState, RouteSemanticHandoff,
+    RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
+    RoutingEngineId, RoutingObjective, RoutingPolicyInputs, RoutingTickContext,
+    RoutingTickOutcome, SelectedRoutingParameters, SubstrateCandidate, SubstrateLease,
+    SubstrateRequirements,
 };
 use jacquard_macros::purity;
 
@@ -441,6 +441,7 @@ pub trait RoutingDataPlane {
     );
 }
 
+#[purity(pure)]
 /// A value that is scoped to a specific topology version.
 pub trait TopologyVersioned {
     fn topology_epoch(&self) -> RouteEpoch;

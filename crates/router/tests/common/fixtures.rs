@@ -5,14 +5,12 @@ use std::collections::BTreeMap;
 use jacquard_core::{
     ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, Environment,
     FactSourceClass, HealthScore, IdentityAssuranceClass, NodeId, Observation,
-    OriginAuthenticationClass, PriorityPoints, RatioPermille,
-    RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-    RouteServiceKind, RoutingEngineFallbackPolicy, RoutingEvidenceClass,
-    RoutingObjective, RoutingPolicyInputs, SelectedRoutingParameters, Tick,
+    OriginAuthenticationClass, PriorityPoints, RatioPermille, RouteProtectionClass,
+    RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
+    RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
+    RoutingPolicyInputs, SelectedRoutingParameters, Tick,
 };
-use jacquard_reference_client::fixtures::{
-    active_link, route_capable_node,
-};
+use jacquard_reference_client::fixtures::{active_link, route_capable_node};
 
 pub(crate) const LOCAL_NODE_ID: NodeId = NodeId([1; 32]);
 pub(crate) const PEER_NODE_ID: NodeId = NodeId([2; 32]);

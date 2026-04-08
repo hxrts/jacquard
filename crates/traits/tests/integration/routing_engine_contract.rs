@@ -356,9 +356,7 @@ impl SubstrateRuntime for StubSubstrateProvider {
     ) -> Result<SubstrateLease, jacquard_traits::jacquard_core::RouteError> {
         Ok(SubstrateLease {
             capabilities: candidate.capabilities,
-            handle: RouteHandle {
-                stamp: self.route.identity.stamp.clone(),
-            },
+            handle: RouteHandle { stamp: self.route.identity.stamp.clone() },
             lease: self.route.identity.lease.clone(),
         })
     }
@@ -449,9 +447,7 @@ fn sample_route(
         publication_id: PublicationId([7; 16]),
     };
     let input = RouteMaterializationInput {
-        handle: RouteHandle {
-            stamp: stamp.clone(),
-        },
+        handle: RouteHandle { stamp: stamp.clone() },
         admission: RouteAdmission {
             route_id: RouteId([3; 16]),
             backend_ref: BackendRouteRef {
@@ -546,9 +542,7 @@ fn sample_route(
 
 fn materialization_input(route: &MaterializedRoute) -> RouteMaterializationInput {
     RouteMaterializationInput {
-        handle: RouteHandle {
-            stamp: route.identity.stamp.clone(),
-        },
+        handle: RouteHandle { stamp: route.identity.stamp.clone() },
         admission: route.identity.admission.clone(),
         lease: route.identity.lease.clone(),
     }

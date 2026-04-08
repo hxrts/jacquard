@@ -25,13 +25,15 @@ pub trait WorldExtensionDescriptor {
 }
 
 #[purity(effectful)]
-/// Generic effectful boundary for extensions that contribute typed observations.
+/// Generic effectful boundary for extensions that contribute typed
+/// observations.
 ///
 /// The type parameter `O` is the observation value type (e.g. `Node`, `Link`,
 /// `ObservedValue`). Each of the five specific world-extension traits
 /// (`NodeWorldExtension`, `LinkWorldExtension`, etc.) blanket-implements this
-/// trait for their respective observation type, so any implementor of a specific
-/// trait automatically satisfies `WorldExtension<O>` for the matching `O`.
+/// trait for their respective observation type, so any implementor of a
+/// specific trait automatically satisfies `WorldExtension<O>` for the matching
+/// `O`.
 pub trait WorldExtension<O>: WorldExtensionDescriptor {
     must_use_evidence!("poll_observations", "observations";
         fn poll_observations(&mut self) -> Result<Vec<Observation<O>>, WorldError>;
@@ -86,7 +88,9 @@ pub trait EnvironmentWorldExtension: WorldExtensionDescriptor {
 }
 
 impl<T: EnvironmentWorldExtension> WorldExtension<Environment> for T {
-    fn poll_observations(&mut self) -> Result<Vec<Observation<Environment>>, WorldError> {
+    fn poll_observations(
+        &mut self,
+    ) -> Result<Vec<Observation<Environment>>, WorldError> {
         self.poll_environment_observations()
     }
 }

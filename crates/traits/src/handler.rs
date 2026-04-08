@@ -7,9 +7,7 @@
 
 use jacquard_macros::purity;
 
-use crate::Effect;
-
-use crate::sealed;
+use crate::{sealed, Effect};
 
 #[purity(effectful)]
 /// Marker trait for concrete implementations of one effect vocabulary.

@@ -18,3 +18,4 @@ serde = { workspace = true }
 [dev-dependencies]
 jacquard-mesh = { path = "../mesh" }
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
+jacquard-reference-client = { path = "../reference-client" }

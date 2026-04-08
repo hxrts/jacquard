@@ -3,11 +3,11 @@
 
 use jacquard_traits::{
     jacquard_core::{
-        Belief, ControllerId, DurationMs, Environment, Link,
-        LinkRuntimeState, LinkState, NodeId, NodeRelayBudget, Observation,
-        ObservedValue, RatioPermille, RepairCapacitySlots, RoutingEngineId,
-        ServiceDescriptor, ServiceScope, Tick, TimeWindow, TransportObservation,
-        TransportProtocol, WorldError, WorldObservation,
+        Belief, ControllerId, DurationMs, Environment, Link, LinkRuntimeState,
+        LinkState, NodeId, NodeRelayBudget, Observation, ObservedValue, RatioPermille,
+        RepairCapacitySlots, RoutingEngineId, ServiceDescriptor, ServiceScope, Tick,
+        TimeWindow, TransportObservation, TransportProtocol, WorldError,
+        WorldObservation,
     },
     LinkWorldExtension, NodeWorldExtension, WorldExtension, WorldExtensionDescriptor,
 };

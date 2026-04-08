@@ -613,6 +613,7 @@ dependencies = [
  "jacquard-core",
  "jacquard-mem-link-profile",
  "jacquard-mesh",
+ "jacquard-reference-client",
  "jacquard-traits",
  "serde",
 ]
@@ -624,6 +625,7 @@ dependencies = [
  "blake3",
  "jacquard-core",
  "jacquard-macros",
+ "jacquard-mem-link-profile",
  "trybuild",
 ]
 

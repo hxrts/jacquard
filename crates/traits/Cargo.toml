@@ -15,4 +15,5 @@ jacquard-macros = { path = "../macros" }
 blake3 = "1"
 
 [dev-dependencies]
+jacquard-mem-link-profile = { path = "../mem-link-profile" }
 trybuild = "1"
