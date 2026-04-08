@@ -1,7 +1,8 @@
 //! Validates service/engine boundary consistency.
 
-use anyhow::{bail, Result};
 use std::fs;
+
+use anyhow::{bail, Result};
 
 use crate::util::workspace_root;
 

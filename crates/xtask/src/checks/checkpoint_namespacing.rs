@@ -79,10 +79,8 @@ pub fn run() -> Result<()> {
         }
 
         for item in &source.file.items {
-            let mut visitor = CheckpointKeyVisitor {
-                crate_type,
-                violations: Vec::new(),
-            };
+            let mut visitor =
+                CheckpointKeyVisitor { crate_type, violations: Vec::new() };
 
             visitor.visit_item(item);
 

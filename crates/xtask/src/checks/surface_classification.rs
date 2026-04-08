@@ -15,6 +15,50 @@ fn is_transport_trait(name: &str) -> bool {
     name.contains("Transport") && !name.contains("TransportObservation")
 }
 
+fn extract_doc_text(attrs: &[syn::Attribute]) -> String {
+    attrs
+        .iter()
+        .filter_map(|attr| {
+            if let syn::Meta::NameValue(nv) = &attr.meta {
+                if nv.path.is_ident("doc") {
+                    if let syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(lit_str),
+                        ..
+                    }) = &nv.value
+                    {
+                        return Some(lit_str.value());
+                    }
+                }
+            }
+            None
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn check_trait(
+    trait_item: &syn::ItemTrait,
+    rel_path: &str,
+    violations: &mut Vec<Violation>,
+) {
+    let trait_name = trait_item.ident.to_string();
+    if !is_transport_trait(&trait_name) {
+        return;
+    }
+    let doc_text = extract_doc_text(&trait_item.attrs).to_lowercase();
+    if !doc_text.contains("connectivity surface")
+        && !doc_text.contains("service surface")
+    {
+        violations.push(Violation::new(
+            rel_path,
+            1,
+            format!(
+                "trait {trait_name} missing surface classification (\"connectivity surface\" or \"service surface\") in doc comment"
+            ),
+        ));
+    }
+}
+
 pub fn run() -> Result<()> {
     let parsed = parse_workspace_sources()?;
     let mut violations = Vec::new();
@@ -23,50 +67,9 @@ pub fn run() -> Result<()> {
         if !source.rel_path.starts_with("crates/traits/src/") {
             continue;
         }
-
         for item in &source.file.items {
             if let syn::Item::Trait(trait_item) = item {
-                let trait_name = trait_item.ident.to_string();
-
-                if !is_transport_trait(&trait_name) {
-                    continue;
-                }
-
-                // Get doc comments
-                let doc_text = trait_item
-                    .attrs
-                    .iter()
-                    .filter_map(|attr| {
-                        if let syn::Meta::NameValue(nv) = &attr.meta {
-                            if nv.path.is_ident("doc") {
-                                if let syn::Expr::Lit(syn::ExprLit {
-                                    lit: syn::Lit::Str(lit_str),
-                                    ..
-                                }) = &nv.value
-                                {
-                                    return Some(lit_str.value());
-                                }
-                            }
-                        }
-                        None
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                let lower_doc = doc_text.to_lowercase();
-
-                if !lower_doc.contains("connectivity surface")
-                    && !lower_doc.contains("service surface")
-                {
-                    violations.push(Violation::new(
-                        &source.rel_path,
-                        1,
-                        format!(
-                            "trait {} missing surface classification (\"connectivity surface\" or \"service surface\") in doc comment",
-                            trait_name
-                        ),
-                    ));
-                }
+                check_trait(trait_item, &source.rel_path, &mut violations);
             }
         }
     }

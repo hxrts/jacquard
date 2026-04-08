@@ -1,6 +1,7 @@
 //! Validates that mutations in critical paths follow fail-closed ordering.
 //!
-//! Fail-closed ordering: read/validate → early return on error → only then mutate.
+//! Fail-closed ordering: read/validate → early return on error → only then
+//! mutate.
 
 use anyhow::Result;
 
@@ -13,8 +14,9 @@ pub fn run() -> Result<()> {
     // 3. Find mutations (.insert, .remove, .push, assignments)
     // 4. Verify mutations come after all error returns
     //
-    // For now, return OK - the routing invariants check already validates fail-closed
-    // ordering in critical functions (lines 258-299 in routing_invariants.rs)
+    // For now, return OK - the routing invariants check already validates
+    // fail-closed ordering in critical functions (lines 258-299 in
+    // routing_invariants.rs)
 
     println!("fail-closed-ordering: checking fail-closed mutation ordering...");
     println!("fail-closed-ordering: note - detailed checks run in routing-invariants");

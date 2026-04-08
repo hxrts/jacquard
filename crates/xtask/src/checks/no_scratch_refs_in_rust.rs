@@ -5,8 +5,9 @@
 //! Exemption: this check itself and `docs_link_check` are allowed to mention
 //! the prefix because they are the enforcement mechanism.
 
-use anyhow::{bail, Context, Result};
 use std::fs;
+
+use anyhow::{bail, Context, Result};
 
 use crate::util::{collect_rust_files, normalize_rel_path, workspace_root, Violation};
 
@@ -28,8 +29,8 @@ pub fn run() -> Result<()> {
             continue;
         }
 
-        let contents = fs::read(&path)
-            .with_context(|| format!("reading {}", path.display()))?;
+        let contents =
+            fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
 
         for (line_idx, line) in contents.split(|b| *b == b'\n').enumerate() {
             if contains_subslice(line, FORBIDDEN_PREFIX) {
@@ -62,5 +63,7 @@ fn contains_subslice(haystack: &[u8], needle: &[u8]) -> bool {
     if needle.is_empty() || haystack.len() < needle.len() {
         return false;
     }
-    haystack.windows(needle.len()).any(|window| window == needle)
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
 }
