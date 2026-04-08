@@ -31,7 +31,7 @@ Run a single test: `cargo test -p <crate> <test_name>`
 
 `macros` owns syntax-local code generation and annotation-site validation. `lints/` owns nightly compiler-backed policy checks. `crates/xtask` owns the stable fast-path workspace checks used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
-Run individual policy checks with `cargo xtask check <crate-boundary|docs-link-check|docs-semantic-drift|no-usize-in-models|proc-macro-scope|routing-invariants|trait-purity>`.
+Run individual policy checks with `cargo xtask check <crate-boundary|docs-link-check|docs-semantic-drift|no-usize-in-models|ownership-invariants|proc-macro-scope|routing-invariants|trait-purity>`.
 
 For routing-invariant fixture validation, use:
 

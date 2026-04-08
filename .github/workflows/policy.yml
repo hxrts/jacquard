@@ -30,6 +30,8 @@ jobs:
         run: nix develop --command cargo xtask check trait-purity
       - name: Crate Boundary
         run: nix develop --command cargo xtask check crate-boundary
+      - name: Ownership Invariants
+        run: nix develop --command cargo xtask check ownership-invariants
       - name: No usize in Models
         run: nix develop --command cargo xtask check no-usize-in-models
       - name: Mesh Choreography

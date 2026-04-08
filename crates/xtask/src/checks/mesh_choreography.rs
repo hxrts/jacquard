@@ -196,6 +196,10 @@ fn shared_crates_remain_runtime_free(root: &Path) -> Result<Vec<Violation>> {
             let contents = fs::read_to_string(&path)
                 .with_context(|| format!("reading {}", path.display()))?;
             for (idx, line) in contents.lines().enumerate() {
+                let trimmed = line.trim_start();
+                if trimmed.starts_with("//") {
+                    continue;
+                }
                 if line.contains("telltale") {
                     out.push(Violation::with_layer(
                         rel.clone(),

@@ -152,6 +152,7 @@ ci-dry-run:
     add_step "Test Boundaries"    "cargo xtask check test-boundaries"
     add_step "Trait Purity"       "cargo xtask check trait-purity"
     add_step "Crate Boundary"     "cargo xtask check crate-boundary"
+    add_step "Ownership Invariants" "cargo xtask check ownership-invariants"
     add_step "No usize in Models" "cargo xtask check no-usize-in-models"
     add_step "Mesh Choreography"  "cargo xtask check mesh-choreography"
     add_step "Mesh Choreography Validate" "cargo xtask check mesh-choreography --validate"
@@ -203,6 +204,10 @@ docs-semantic-drift:
 # enforce unit-test / integration-test boundary rules
 test-boundaries:
     cargo xtask check test-boundaries
+
+# enforce crate-level ownership documentation requirements
+ownership-invariants:
+    cargo xtask check ownership-invariants
 
 # enforce routing correctness invariants
 routing-invariants:

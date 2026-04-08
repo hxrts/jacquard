@@ -6,6 +6,7 @@ pub mod docs_link_check;
 pub mod docs_semantic_drift;
 pub mod mesh_choreography;
 pub mod no_usize_in_models;
+pub mod ownership_invariants;
 pub mod pre_commit;
 pub mod proc_macro_scope;
 pub mod result_must_use;
@@ -26,6 +27,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "docs-semantic-drift" => docs_semantic_drift::run(),
         | "mesh-choreography" => mesh_choreography::run(rest),
         | "no-usize-in-models" => no_usize_in_models::run(),
+        | "ownership-invariants" => ownership_invariants::run(),
         | "proc-macro-scope" => proc_macro_scope::run(),
         | "result-must-use" => result_must_use::run(),
         | "routing-invariants" => routing_invariants::run(rest),
