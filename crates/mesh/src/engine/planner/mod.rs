@@ -17,9 +17,9 @@ mod publishing;
 mod scoring;
 
 use jacquard_core::{
-    SelectedRoutingParameters, AdmissionDecision, Configuration, Observation,
-    RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
-    RouteSelectionError, RoutingObjective,
+    AdmissionDecision, Configuration, Observation, RouteAdmission, RouteAdmissionCheck,
+    RouteCandidate, RouteError, RouteSelectionError, RoutingObjective,
+    SelectedRoutingParameters,
 };
 use jacquard_traits::{
     MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, RoutingEnginePlanner,
@@ -138,12 +138,12 @@ where
 mod tests {
     use jacquard_core::{
         AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength,
-        ConnectivityRegime, DestinationId, DiversityFloor, Estimate, FailureModelClass,
-        HoldFallbackPolicy, Limit, MessageFlowAssumptionClass, NodeDensityClass,
-        NodeId, RatioPermille, RouteAdmissionRejection, ConnectivityPosture,
-        RouteCost, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-        RouteServiceKind, RouteSummary, RoutingObjective, RuntimeEnvelopeClass, Tick,
-        TimeWindow,
+        ConnectivityPosture, ConnectivityRegime, DestinationId, DiversityFloor,
+        Estimate, FailureModelClass, HoldFallbackPolicy, Limit,
+        MessageFlowAssumptionClass, NodeDensityClass, NodeId, RatioPermille,
+        RouteAdmissionRejection, RouteCost, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, RouteServiceKind, RouteSummary, RoutingObjective,
+        RuntimeEnvelopeClass, Tick, TimeWindow,
     };
 
     use super::{admission::mesh_admission_check, *};
@@ -185,8 +185,7 @@ mod tests {
         SelectedRoutingParameters {
             selected_protection: RouteProtectionClass::LinkProtected,
             selected_connectivity: ConnectivityPosture { repair, partition },
-            deployment_profile:
-                jacquard_core::OperatingMode::FieldPartitionTolerant,
+            deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
             diversity_floor: DiversityFloor(1),
             routing_engine_fallback_policy:
                 jacquard_core::RoutingEngineFallbackPolicy::Allowed,

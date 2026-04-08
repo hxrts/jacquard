@@ -6,22 +6,22 @@ use std::{
 };
 
 use jacquard_core::{
-    SelectedRoutingParameters, Belief, BleDeviceId, BleProfileId, ByteCount,
-    ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
-    Configuration, ControllerId, DestinationId, DiscoveryScopeId, DiversityFloor,
+    Belief, BleDeviceId, BleProfileId, ByteCount, ClaimStrength, CommitteeId,
+    CommitteeMember, CommitteeRole, CommitteeSelection, Configuration,
+    ConnectivityPosture, ControllerId, DestinationId, DiscoveryScopeId, DiversityFloor,
     DurationMs, EndpointAddress, Environment, Estimate, FactBasis, FactSourceClass,
     HealthScore, HoldItemCount, IdentityAssuranceClass, InformationSetSummary,
     InformationSummaryEncoding, Link, LinkEndpoint, LinkRuntimeState, LinkState,
     MaintenanceWorkBudget, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
-    Observation, OriginAuthenticationClass, PriorityPoints, RatioPermille,
-    RelayWorkBudget, RepairCapacitySlots, ConnectivityPosture, RouteMaintenanceOutcome,
+    Observation, OriginAuthenticationClass, PriorityPoints, QuorumThreshold,
+    RatioPermille, RelayWorkBudget, RepairCapacitySlots, RouteMaintenanceOutcome,
     RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
     RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
-    RoutingPolicyInputs, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
-    TransportProtocol,
+    RoutingPolicyInputs, SelectedRoutingParameters, ServiceDescriptor, ServiceScope,
+    Tick, TimeWindow, TransportProtocol,
 };
 use jacquard_mem_link_profile::{
-    InMemoryTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
+    InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
 };
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
@@ -63,7 +63,7 @@ pub(crate) fn build_router_with_selector(
     let engine: CommitteeMeshEngine = MeshEngine::with_committee_selector(
         LOCAL_NODE_ID,
         DeterministicMeshTopologyModel::new(),
-        InMemoryTransport::new(TransportProtocol::BleGatt),
+        InMemoryTransport::new(),
         InMemoryRetentionStore::default(),
         InMemoryRuntimeEffects { now, ..Default::default() },
         Blake3Hashing,
@@ -106,7 +106,7 @@ pub(crate) fn build_router_with_runtime_pair(
     let engine: TestMeshEngine = MeshEngine::without_committee_selector(
         LOCAL_NODE_ID,
         DeterministicMeshTopologyModel::new(),
-        InMemoryTransport::new(TransportProtocol::BleGatt),
+        InMemoryTransport::new(),
         InMemoryRetentionStore::default(),
         engine_effects,
         Blake3Hashing,
@@ -666,7 +666,7 @@ fn node_state() -> NodeState {
 fn relay_budget() -> Belief<NodeRelayBudget> {
     Belief::Estimated(Estimate {
         value: NodeRelayBudget {
-            relay_work_budget: estimate(8),
+            relay_work_budget: estimate(RelayWorkBudget(8)),
             utilization_permille: RatioPermille(100),
             retention_horizon_ms: estimate(DurationMs(500)),
         },
@@ -715,7 +715,7 @@ impl CommitteeSelector for AdvisoryCommitteeSelector {
             evidence_basis: FactBasis::Observed,
             claim_strength: ClaimStrength::ConservativeUnderProfile,
             identity_assurance: IdentityAssuranceClass::ControllerBound,
-            quorum_threshold: 1,
+            quorum_threshold: QuorumThreshold(1),
             members: vec![CommitteeMember {
                 node_id: LOCAL_NODE_ID,
                 controller_id: ControllerId([1; 32]),

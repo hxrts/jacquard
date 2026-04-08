@@ -14,7 +14,7 @@ Use this crate to build node capability and node-state inputs without importing 
 
 ## `jacquard-mem-link-profile`
 
-Use this crate to model link capabilities or drive an in-memory carrier in tests. It provides `SimulatedLinkProfile` for `Link` construction, `SharedInMemoryNetwork` for multi-runtime in-memory delivery, `InMemoryMeshTransport` for the shared `MeshTransport` boundary, and `InMemoryRetentionStore` plus `InMemoryRuntimeEffects` for deterministic tests.
+Use this crate to model link capabilities or drive an in-memory carrier in tests. It provides `SimulatedLinkProfile` for `Link` construction, `SharedInMemoryNetwork` for multi-runtime in-memory delivery, `InMemoryTransport` for the shared `TransportEffects` boundary, and `InMemoryRetentionStore` plus `InMemoryRuntimeEffects` for deterministic tests.
 
 This crate remains routing-engine-neutral. It carries frames and emits observations without minting route truth or interpreting routing policy.
 

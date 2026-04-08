@@ -25,7 +25,7 @@ use jacquard_traits::{
         RouteMaintenanceOutcome, RouteMaintenanceTrigger, RoutePartitionClass,
         RouteRepairClass, RouteRuntimeError, Tick,
     },
-    MeshRoutingEngine, RoutingEngine,
+    RoutingEngine,
 };
 
 // CapacityExceeded is replacement pressure, not partition evidence. The

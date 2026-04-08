@@ -5,9 +5,9 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, ControllerId, HoldItemCount, MaintenanceWorkBudget,
-        OperatingMode, Environment, FactSourceClass, Link, LinkRuntimeState, LinkState,
-        Node, NodeId, NodeProfile, NodeState, Observation, OriginAuthenticationClass,
+        Configuration, ControllerId, Environment, FactSourceClass, HoldItemCount, Link,
+        LinkRuntimeState, LinkState, MaintenanceWorkBudget, Node, NodeId, NodeProfile,
+        NodeState, Observation, OperatingMode, OriginAuthenticationClass,
         RatioPermille, RelayWorkBudget, RouteEpoch, RouteEvent, RouteEventStamped,
         RoutingObjective, SimulationSeed, Tick,
     },

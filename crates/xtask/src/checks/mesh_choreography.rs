@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 
-use crate::util::{normalize_rel_path, workspace_root, Violation};
+use crate::util::{layer_for_rel_path, normalize_rel_path, workspace_root, Violation};
 
 pub fn run(args: &[String]) -> Result<()> {
     let validate = args.iter().any(|arg| arg == "--validate");
@@ -65,10 +65,11 @@ fn no_parallel_tell_tree(root: &Path) -> Result<Vec<Violation>> {
     let choreography_root = root.join("crates/mesh/src/choreography");
     for path in files_with_extension(&choreography_root, "tell")? {
         let rel = normalize_rel_path(root, &path);
-        out.push(Violation::new(
-            rel,
+        out.push(Violation::with_layer(
+            rel.clone(),
             1,
             "mesh choreography must use inline `tell!` modules; parallel `.tell` sources are forbidden",
+            layer_for_rel_path(&rel),
         ));
     }
     Ok(out)
@@ -90,10 +91,11 @@ fn required_inline_protocol_modules_exist(root: &Path) -> Result<Vec<Violation>>
     for expected_file in expected {
         let path = choreography_root.join(expected_file);
         if !path.exists() {
-            out.push(Violation::new(
+            out.push(Violation::with_layer(
                 normalize_rel_path(root, &path),
                 1,
                 "required inline mesh choreography module is missing",
+                crate::util::LayerTag::MeshRouter,
             ));
         }
     }
@@ -117,10 +119,11 @@ fn inline_protocol_modules_are_valid(root: &Path) -> Result<Vec<Violation>> {
         let contents = fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
         if !contents.contains("tell! {") {
-            out.push(Violation::new(
+            out.push(Violation::with_layer(
                 rel.clone(),
                 1,
                 "inline mesh choreography modules must declare a `tell!` protocol",
+                layer_for_rel_path(&rel),
             ));
         }
         for required in [
@@ -129,12 +132,13 @@ fn inline_protocol_modules_are_valid(root: &Path) -> Result<Vec<Violation>> {
             "pub(crate) const ROLE_NAMES",
         ] {
             if !contents.contains(required) {
-                out.push(Violation::new(
+                out.push(Violation::with_layer(
                     rel.clone(),
                     1,
                     format!(
                         "inline mesh choreography module must contain `{required}`"
                     ),
+                    layer_for_rel_path(&rel),
                 ));
             }
         }
@@ -143,10 +147,11 @@ fn inline_protocol_modules_are_valid(root: &Path) -> Result<Vec<Violation>> {
                 && contents.contains("pub(crate) fn retain")
                 && contents.contains("pub(crate) fn replay"));
         if !has_entrypoint {
-            out.push(Violation::new(
+            out.push(Violation::with_layer(
                 rel.clone(),
                 1,
                 "inline mesh choreography module must expose its public protocol entrypoint",
+                layer_for_rel_path(&rel),
             ));
         }
     }
@@ -170,7 +175,12 @@ fn forbidden_runtime_effect_calls(root: &Path) -> Result<Vec<Violation>> {
         for (idx, line) in contents.lines().enumerate() {
             for (pattern, message) in patterns {
                 if line.contains(pattern) {
-                    out.push(Violation::new(rel.clone(), idx + 1, message));
+                    out.push(Violation::with_layer(
+                        rel.clone(),
+                        idx + 1,
+                        message,
+                        layer_for_rel_path(&rel),
+                    ));
                 }
             }
         }
@@ -187,10 +197,11 @@ fn shared_crates_remain_runtime_free(root: &Path) -> Result<Vec<Violation>> {
                 .with_context(|| format!("reading {}", path.display()))?;
             for (idx, line) in contents.lines().enumerate() {
                 if line.contains("telltale") {
-                    out.push(Violation::new(
+                    out.push(Violation::with_layer(
                         rel.clone(),
                         idx + 1,
                         "shared crates must stay runtime-free and must not import telltale",
+                        layer_for_rel_path(&rel),
                     ));
                 }
             }
@@ -211,10 +222,11 @@ fn no_mesh_choreography_types_in_shared_crates(root: &Path) -> Result<Vec<Violat
                     || line.contains("MeshChoreo")
                     || line.contains("MeshProtocolRuntime")
                 {
-                    out.push(Violation::new(
+                    out.push(Violation::with_layer(
                         rel.clone(),
                         idx + 1,
                         "mesh-private choreography types must not leak into shared crates",
+                        layer_for_rel_path(&rel),
                     ));
                 }
             }
@@ -242,10 +254,11 @@ fn router_does_not_depend_on_mesh_private_choreography(
                 || line.contains("MeshProtocolRuntime")
                 || line.contains("MeshGuestRuntime")
             {
-                out.push(Violation::new(
+                out.push(Violation::with_layer(
                     rel.clone(),
                     idx + 1,
                     "router must not depend on mesh-private choreography internals",
+                    layer_for_rel_path(&rel),
                 ));
             }
         }

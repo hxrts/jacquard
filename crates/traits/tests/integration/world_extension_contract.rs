@@ -105,7 +105,7 @@ fn sample_node() -> Node {
                 value:               NodeRelayBudget {
                     relay_work_budget:    Belief::Estimated(
                         jacquard_traits::jacquard_core::Estimate {
-                            value:               8,
+                            value:               jacquard_traits::jacquard_core::RelayWorkBudget(8),
                             confidence_permille: RatioPermille(900),
                             updated_at_tick:     Tick(2),
                         },
@@ -278,7 +278,7 @@ fn world_extensions_publish_self_describing_observations() {
                 value: NodeRelayBudget {
                     relay_work_budget: Belief::Estimated(
                         jacquard_traits::jacquard_core::Estimate {
-                            value: 8,
+                            value: jacquard_traits::jacquard_core::RelayWorkBudget(8),
                             confidence_permille: RatioPermille(900),
                             updated_at_tick: Tick(2),
                         },

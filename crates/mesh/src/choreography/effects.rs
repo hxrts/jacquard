@@ -15,9 +15,7 @@
 use jacquard_core::{
     Blake3Digest, ContentId, LinkEndpoint, StorageError, Tick, TransportObservation,
 };
-use jacquard_traits::{
-    RetentionStore, StorageEffects, TimeEffects, TransportEffects,
-};
+use jacquard_traits::{RetentionStore, StorageEffects, TimeEffects, TransportEffects};
 
 use crate::choreography::artifacts::{MeshProtocolKind, MeshProtocolSessionKey};
 

@@ -1,7 +1,7 @@
 use jacquard_core::{
     Belief, ByteCount, DurationMs, Estimate, HoldItemCount, InformationSetSummary,
-    InformationSummaryEncoding, NodeRelayBudget, NodeState, RatioPermille, RelayWorkBudget,
-    Tick,
+    InformationSummaryEncoding, NodeRelayBudget, NodeState, RatioPermille,
+    RelayWorkBudget, Tick,
 };
 
 /// Mutable in-memory node-state simulator for tests.

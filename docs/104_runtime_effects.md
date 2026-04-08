@@ -47,7 +47,7 @@ pub trait RoutingRuntimeEffects:
 {}
 ```
 
-Each effect trait covers one concern. `TimeEffects` provides monotonic local time. `OrderEffects` provides deterministic ordering tokens. `StorageEffects` provides byte-level key-value persistence. `RouteEventLogEffects` provides replay-visible route event recording. `TransportEffects` provides frame send and transport observation polling.
+Each effect trait covers one concern. `TimeEffects` provides monotonic local time. `OrderEffects` provides deterministic ordering tokens. `StorageEffects` provides byte-level key-value persistence. `RouteEventLogEffects` provides replay-visible route event recording. `TransportEffects` provides endpoint-addressed payload send and transport observation polling. It is the only shared transport send/poll boundary; engines do not define separate transport effect traits in `jacquard-traits`.
 
 ## Why The Boundary Exists
 

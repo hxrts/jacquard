@@ -10,7 +10,7 @@ use std::{
 use anyhow::{bail, Context, Result};
 use regex::Regex;
 
-use crate::util::{normalize_rel_path, workspace_root, Violation};
+use crate::util::{layer_for_rel_path, normalize_rel_path, workspace_root, Violation};
 
 type RuleFn = fn(&Path) -> Result<Vec<Violation>>;
 
@@ -181,10 +181,11 @@ fn explicit_topology(root: &Path) -> Result<Vec<Violation>> {
                     idx += 1;
                 }
                 if !signature.contains("topology: &Observation<Configuration>") {
-                    out.push(Violation::new(
+                    out.push(Violation::with_layer(
                         &rel_path,
                         start_line,
                         format!("{fn_name} is missing explicit topology parameter"),
+                        layer_for_rel_path(&rel_path),
                     ));
                 }
                 continue;
@@ -206,10 +207,11 @@ fn world_error_purity(root: &Path) -> Result<Vec<Violation>> {
         .enumerate()
         .filter(|(_, line)| line.contains("RouteError"))
         .map(|(idx, _)| {
-            Violation::new(
+            Violation::with_layer(
                 rel.clone(),
                 idx + 1,
                 "world-extension boundary mentions RouteError instead of WorldError",
+                layer_for_rel_path(&rel),
             )
         })
         .collect())
@@ -217,7 +219,8 @@ fn world_error_purity(root: &Path) -> Result<Vec<Violation>> {
 
 fn shared_private_boundary(root: &Path) -> Result<Vec<Violation>> {
     let mut out = Vec::new();
-    let re = Regex::new(r"pub (struct|enum|type)\s+(Mesh|Onion|Field)[A-Z]\w*")?;
+    let schema_re = Regex::new(r"pub (struct|enum|type)\s+(Mesh|Onion|Field)[A-Z]\w*")?;
+    let effect_re = Regex::new(r"pub trait\s+(Mesh|Onion|Field)[A-Z]\w*Effects\b")?;
     let allowed_trait_boundary_types: [&str; 0] = [];
     for dir in ["crates/core/src", "crates/traits/src"] {
         for path in rust_files(root.join(dir))? {
@@ -228,15 +231,16 @@ fn shared_private_boundary(root: &Path) -> Result<Vec<Violation>> {
             let contents = fs::read_to_string(&path)
                 .with_context(|| format!("reading {}", path.display()))?;
             for (idx, line) in contents.lines().enumerate() {
-                if re.is_match(line)
+                if (schema_re.is_match(line) || effect_re.is_match(line))
                     && !allowed_trait_boundary_types
                         .iter()
                         .any(|name| line.contains(name))
                 {
-                    out.push(Violation::new(
+                    out.push(Violation::with_layer(
                         rel.clone(),
                         idx + 1,
                         "shared crate defines engine-specific runtime/schema vocabulary",
+                        layer_for_rel_path(&rel),
                     ));
                 }
             }
@@ -270,10 +274,11 @@ fn fail_closed_ordering(root: &Path) -> Result<Vec<Violation>> {
         ),
     ) {
         if insert_line < record_line {
-            out.push(Violation::new(
+            out.push(Violation::with_layer(
                 rel.clone(),
                 insert_line,
                 "active route table is mutated before RouteMaterialized is recorded",
+                layer_for_rel_path(&rel),
             ));
         }
     }
@@ -286,10 +291,11 @@ fn fail_closed_ordering(root: &Path) -> Result<Vec<Violation>> {
         ),
     ) {
         if apply_line < checkpoint_line {
-            out.push(Violation::new(
+            out.push(Violation::with_layer(
                 rel,
                 apply_line,
                 "maintenance trigger mutates runtime state before checkpoint persistence",
+                crate::util::LayerTag::MeshRouter,
             ));
         }
     }
@@ -330,10 +336,11 @@ fn checked_score_arithmetic(root: &Path) -> Result<Vec<Violation>> {
                 &["quiet_pressure"],
             )
             .unwrap_or(1);
-            out.push(Violation::new(
+            out.push(Violation::with_layer(
                 rel,
                 line,
                 "bounded routing score arithmetic uses plain + instead of saturating_add",
+                crate::util::LayerTag::MeshRouter,
             ));
         }
     }
@@ -451,7 +458,12 @@ fn grep_rule(
                 .with_context(|| format!("reading {}", path.display()))?;
             for (idx, line) in contents.lines().enumerate() {
                 if re.is_match(line) {
-                    out.push(Violation::new(rel.clone(), idx + 1, message));
+                    out.push(Violation::with_layer(
+                        rel.clone(),
+                        idx + 1,
+                        message,
+                        layer_for_rel_path(&rel),
+                    ));
                 }
             }
         }

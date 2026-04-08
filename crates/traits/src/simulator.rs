@@ -9,7 +9,7 @@
 //! - `RoutingReplayView` is a read-only artifact inspection surface.
 
 use jacquard_core::{
-    Configuration, OperatingMode, Observation, RouteEvent, RouteEventStamped,
+    Configuration, Observation, OperatingMode, RouteEvent, RouteEventStamped,
     RoutingObjective, SimulationSeed, Tick,
 };
 use jacquard_macros::purity;

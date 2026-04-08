@@ -16,13 +16,13 @@ pub struct InMemoryTransport {
 
 impl Default for InMemoryTransport {
     fn default() -> Self {
-        Self::new(TransportProtocol::BleGatt)
+        Self::new()
     }
 }
 
 impl InMemoryTransport {
     #[must_use]
-    pub fn new(_transport_protocol: TransportProtocol) -> Self {
+    pub fn new() -> Self {
         Self {
             local_node_id: None,
             ingress_tick: Tick(0),
@@ -34,17 +34,15 @@ impl InMemoryTransport {
 
     #[must_use]
     pub fn attached(
-        transport_protocol: TransportProtocol,
+        transport_protocol: &TransportProtocol,
         local_node_id: NodeId,
         endpoints: impl IntoIterator<Item = jacquard_core::LinkEndpoint>,
         network: SharedInMemoryNetwork,
     ) -> Self {
         let endpoints = endpoints.into_iter().collect::<Vec<_>>();
-        debug_assert!(
-            endpoints
-                .iter()
-                .all(|endpoint| endpoint.protocol == transport_protocol)
-        );
+        debug_assert!(endpoints
+            .iter()
+            .all(|endpoint| endpoint.protocol == *transport_protocol));
         for endpoint in &endpoints {
             network.attach_endpoint(local_node_id, endpoint.clone());
         }
@@ -70,8 +68,7 @@ impl TransportEffects for InMemoryTransport {
         endpoint: &jacquard_core::LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), TransportError> {
-        self.sent_frames
-            .push((endpoint.clone(), payload.to_vec()));
+        self.sent_frames.push((endpoint.clone(), payload.to_vec()));
         if let (Some(network), Some(local_node_id)) =
             (&self.network, self.local_node_id)
         {

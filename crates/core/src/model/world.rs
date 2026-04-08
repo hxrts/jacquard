@@ -72,8 +72,9 @@ pub struct LinkState {
 /// LinkProfile (static capabilities) is implemented by transport extensions
 /// and kept separate from this routing-world object. See
 /// [LinkProfile Extension Point](../../docs/107_link_profile_extension.md) for
-/// how to implement LinkProfile for new network types. `jacquard-mem-link-profile`
-/// is the canonical in-memory implementation used in tests.
+/// how to implement LinkProfile for new network types.
+/// `jacquard-mem-link-profile` is the canonical in-memory implementation used
+/// in tests.
 pub struct Link {
     pub endpoint: LinkEndpoint,
     pub state: LinkState,

@@ -1,6 +1,7 @@
 use jacquard_core::{
     ByteCount, ControllerId, EndpointAddress, LinkEndpoint, NodeId, RatioPermille,
-    RouteServiceKind, ServiceScope, Tick, TimeWindow, TransportProtocol,
+    RelayWorkBudget, RouteServiceKind, ServiceScope, Tick, TimeWindow,
+    TransportProtocol,
 };
 use jacquard_mem_node_profile::{
     NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor,
@@ -36,7 +37,7 @@ fn simulated_profile_builds_node_profile_and_services() {
         .build(node_id, controller_id);
 
     assert_eq!(profile.connection_count_max, 8);
-    assert_eq!(profile.relay_work_budget_max, 10);
+    assert_eq!(profile.relay_work_budget_max, RelayWorkBudget(10));
     assert_eq!(profile.hold_capacity_bytes_max, ByteCount(8192));
     assert_eq!(profile.services.len(), 1);
     assert_eq!(profile.services[0].provider_node_id, node_id);
@@ -74,7 +75,7 @@ fn node_state_snapshot_tracks_budget_and_capacity_changes() {
         | _ => panic!("expected relay work budget"),
     };
 
-    assert_eq!(relay_budget, 6);
+    assert_eq!(relay_budget, RelayWorkBudget(6));
     assert_eq!(available_connections, 2);
     assert_eq!(hold_bytes, ByteCount(1792));
 }

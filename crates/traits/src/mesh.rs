@@ -10,8 +10,8 @@
 //!   payloads, but it must not interpret higher-level routing semantics.
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, HealthScore, Link, LinkEndpoint,
-    Node, NodeId, RetentionError, Tick,
+    Blake3Digest, Configuration, ContentId, HealthScore, Link, LinkEndpoint, Node,
+    NodeId, RetentionError, Tick,
 };
 use jacquard_macros::purity;
 

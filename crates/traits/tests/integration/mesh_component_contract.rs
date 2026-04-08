@@ -1,22 +1,24 @@
 use std::collections::BTreeMap;
 
 use jacquard_traits::{
+    effect_handler,
     jacquard_core::{
-        Belief, Blake3Digest, ByteCount, Configuration, ContentId, ControllerId,
-        DurationMs, Environment, Fact, HoldItemCount, InformationSetSummary, Link,
-        LinkEndpoint, LinkRuntimeState, LinkState, MaintenanceWorkBudget,
-        MaterializedRouteIdentity, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
-        PublicationId, RatioPermille, RelayWorkBudget, RetentionError, RouteAdmission,
-        RouteAdmissionCheck, RouteBinding, RouteCommitment, RouteCommitmentId,
-        RouteCommitmentResolution, ConnectivityPosture, RouteCost, RouteEpoch, RouteHealth,
-        RouteId, RouteInstallation, RouteLifecycleEvent, RouteMaintenanceOutcome,
-        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-        RouteMaterializationProof, RouteProtectionClass, RouteRuntimeState, RouteSummary,
-        RouteWitness, RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor, Tick,
-        TransportError, TransportObservation, TransportProtocol,
+        Belief, Blake3Digest, ByteCount, Configuration, ConnectivityPosture, ContentId,
+        ControllerId, DurationMs, Environment, Fact, HoldItemCount,
+        InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState, LinkState,
+        MaintenanceWorkBudget, MaterializedRouteIdentity, Node, NodeId, NodeProfile,
+        NodeRelayBudget, NodeState, PublicationId, RatioPermille, RelayWorkBudget,
+        RetentionError, RouteAdmission, RouteAdmissionCheck, RouteBinding,
+        RouteCommitment, RouteCommitmentId, RouteCommitmentResolution, RouteCost,
+        RouteEpoch, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
+        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
+        RouteMaterializationInput, RouteMaterializationProof, RouteProtectionClass,
+        RouteRuntimeState, RouteSummary, RouteWitness, RoutingEngineCapabilities,
+        RoutingEngineId, ServiceDescriptor, Tick, TransportError, TransportObservation,
+        TransportProtocol,
     },
-    effect_handler, EffectHandler, MeshRoutingEngine, MeshTopologyModel, RetentionStore,
-    RoutingEngine, RoutingEnginePlanner, TransportEffects,
+    EffectHandler, MeshRoutingEngine, MeshTopologyModel, RetentionStore, RoutingEngine,
+    RoutingEnginePlanner, TransportEffects,
 };
 
 struct StubTopologyModel;
@@ -162,7 +164,6 @@ impl RetentionStore for StubRetentionStore {
 
 struct StubMeshEngine {
     topology: StubTopologyModel,
-    transport: StubTransport,
     retention: StubRetentionStore,
     route: Option<jacquard_traits::jacquard_core::MaterializedRoute>,
 }
@@ -589,10 +590,6 @@ fn transport_effects_handlers_do_not_require_mesh_specific_traits() {
 fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
     let mut engine = StubMeshEngine {
         topology: StubTopologyModel,
-        transport: StubTransport {
-            observations: Vec::new(),
-            sent_frames: Vec::new(),
-        },
         retention: StubRetentionStore { payloads: BTreeMap::new() },
         route: None,
     };
@@ -604,7 +601,6 @@ fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
             .len(),
         1
     );
-    engine
     engine
         .retention_store_mut()
         .retain_payload(

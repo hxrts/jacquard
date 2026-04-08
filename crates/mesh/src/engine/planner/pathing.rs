@@ -12,8 +12,8 @@ use std::{
 };
 
 use jacquard_core::{
-    Belief, Configuration, DestinationId, Estimate, NodeId, Observation,
-    ConnectivityPosture, RoutePartitionClass, RouteRepairClass, RouteServiceKind,
+    Belief, Configuration, ConnectivityPosture, DestinationId, Estimate, NodeId,
+    Observation, RoutePartitionClass, RouteRepairClass, RouteServiceKind,
     RoutingObjective, Tick, ROUTE_HOP_COUNT_MAX,
 };
 use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};

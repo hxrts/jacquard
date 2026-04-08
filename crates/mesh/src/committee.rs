@@ -12,16 +12,17 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bincode::Options;
 #[allow(unused_imports)]
-use jacquard_core::{
-    SelectedRoutingParameters, AdmissionAssumptions, ClaimStrength, CommitteeId,
-    CommitteeMember, CommitteeRole, CommitteeSelection, Configuration, ControllerId,
-    DiversityFloor, FactBasis, HealthScore, IdentityAssuranceClass, MaintenanceWorkBudget,
-    NodeDensityClass, NodeId, Observation, PenaltyPoints, ConnectivityPosture, QuorumThreshold,
-    RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass, RelayWorkBudget,
-    RoutingEngineId, RoutingObjective, ServiceScope, Tick, TimeWindow,
-};
-#[allow(unused_imports)]
 use jacquard_core::HoldItemCount;
+#[allow(unused_imports)]
+use jacquard_core::{
+    AdmissionAssumptions, ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole,
+    CommitteeSelection, Configuration, ConnectivityPosture, ControllerId,
+    DiversityFloor, FactBasis, HealthScore, IdentityAssuranceClass,
+    MaintenanceWorkBudget, NodeDensityClass, NodeId, Observation, PenaltyPoints,
+    QuorumThreshold, RelayWorkBudget, RouteEpoch, RouteError, RoutePartitionClass,
+    RouteRepairClass, RoutingEngineId, RoutingObjective, SelectedRoutingParameters,
+    ServiceScope, Tick, TimeWindow,
+};
 use jacquard_traits::{
     Blake3Hashing, CommitteeSelector, HashDigestBytes, Hashing,
     MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshTopologyModel,
@@ -612,16 +613,16 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        SelectedRoutingParameters, Belief, BleDeviceId, BleProfileId, ByteCount,
-        Configuration, ControllerId, OperatingMode, DestinationId, Environment,
-        Estimate, FactSourceClass, HoldFallbackPolicy, Limit, Link, LinkEndpoint,
+        Belief, BleDeviceId, BleProfileId, ByteCount, Configuration,
+        ConnectivityPosture, ControllerId, DestinationId, Environment, Estimate,
+        FactSourceClass, HoldFallbackPolicy, Limit, Link, LinkEndpoint,
         LinkRuntimeState, LinkState, Node, NodeProfile, NodeRelayBudget, NodeState,
-        Observation, OriginAuthenticationClass, PriorityPoints, RatioPermille,
-        ConnectivityPosture, RouteEpoch, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-        RouteServiceKind, RoutingEngineFallbackPolicy, RoutingEvidenceClass,
-        RoutingObjective, ServiceDescriptor, ServiceId, ServiceScope, Tick, TimeWindow,
-        TransportProtocol,
+        Observation, OperatingMode, OriginAuthenticationClass, PriorityPoints,
+        RatioPermille, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
+        RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
+        SelectedRoutingParameters, ServiceDescriptor, ServiceId, ServiceScope, Tick,
+        TimeWindow, TransportProtocol,
     };
 
     use super::*;

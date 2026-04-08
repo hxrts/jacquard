@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    SelectedRoutingParameters, Configuration, DiversityFloor, OperatingMode,
-    DestinationId, DurationMs, Environment, FactSourceClass, NodeId, Observation,
-    OriginAuthenticationClass, PriorityPoints, RatioPermille, ConnectivityPosture,
-    RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-    RouteReplacementPolicy, RouteServiceKind, RoutingEngineFallbackPolicy,
-    RoutingEvidenceClass, RoutingObjective, Tick,
+    Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs,
+    Environment, FactSourceClass, NodeId, Observation, OperatingMode,
+    OriginAuthenticationClass, PriorityPoints, RatioPermille, RoutePartitionClass,
+    RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
+    RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
+    SelectedRoutingParameters, Tick,
 };
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
 use jacquard_reference_client::{

@@ -1,7 +1,6 @@
 use jacquard_core::{
     Belief, CapacityHint, ControllerId, Estimate, LinkEndpoint, NodeId, RatioPermille,
-    RepairCapacitySlots, RouteServiceKind, ServiceDescriptor, ServiceScope, Tick,
-    TimeWindow,
+    RouteServiceKind, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
 };
 
 /// Builder for one shared service descriptor emitted by a simulated node.
@@ -77,9 +76,7 @@ impl SimulatedServiceDescriptor {
                 value: CapacityHint {
                     saturation_permille: self.saturation_permille,
                     repair_capacity_slots: Belief::Estimated(Estimate {
-                        value: jacquard_core::RepairCapacitySlots(
-                            self.repair_capacity,
-                        ),
+                        value: jacquard_core::RepairCapacitySlots(self.repair_capacity),
                         confidence_permille: RatioPermille(1000),
                         updated_at_tick: Tick(0),
                     }),

@@ -11,13 +11,13 @@
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
     jacquard_core::{
-        SelectedRoutingParameters, Configuration, DiversityFloor, OperatingMode,
-        DestinationId, DurationMs, HoldFallbackPolicy, Limit, MaterializedRouteIdentity,
-        NodeId, Observation, PriorityPoints, PublicationId, ConnectivityPosture,
-        RouteHandle, RouteLease, RouteMaterializationInput, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-        RouteRuntimeState, RouteServiceKind, RoutingEngineFallbackPolicy,
-        RoutingObjective, RoutingTickContext, Tick, TimeWindow,
+        Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs,
+        HoldFallbackPolicy, Limit, MaterializedRouteIdentity, NodeId, Observation,
+        OperatingMode, PriorityPoints, PublicationId, RouteHandle, RouteLease,
+        RouteMaterializationInput, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, RouteReplacementPolicy, RouteRuntimeState, RouteServiceKind,
+        RoutingEngineFallbackPolicy, RoutingObjective, RoutingTickContext,
+        SelectedRoutingParameters, Tick, TimeWindow,
     },
     Blake3Hashing, RoutingEngine, RoutingEnginePlanner,
 };

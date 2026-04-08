@@ -1,11 +1,15 @@
-//! Rejects `fn method(...) -> Result<T, E>` in trait definitions without `#[must_use]` in crates/traits/src.
-//! The style guide requires `#[must_use]` on all Result-returning methods to prevent
-//! silent drops of errors or important routing evidence.
+//! Rejects `fn method(...) -> Result<T, E>` in trait definitions without
+//! `#[must_use]` in crates/traits/src. The style guide requires `#[must_use]`
+//! on all Result-returning methods to prevent silent drops of errors or
+//! important routing evidence.
 
 use anyhow::Result;
 use syn::{visit::Visit, Item, ReturnType, Type};
 
-use crate::{sources::parse_workspace_sources, util::Violation};
+use crate::{
+    sources::parse_workspace_sources,
+    util::{layer_of, Violation},
+};
 
 struct ResultMethodVisitor {
     pub trait_name: String,
@@ -22,9 +26,10 @@ impl<'ast> Visit<'ast> for ResultMethodVisitor {
                 // Check if method returns Result
                 if is_result_return_type(&method.sig.output) {
                     // Check if it has #[must_use]
-                    let has_must_use = method.attrs.iter().any(|attr| {
-                        attr.path().is_ident("must_use")
-                    });
+                    let has_must_use = method
+                        .attrs
+                        .iter()
+                        .any(|attr| attr.path().is_ident("must_use"));
 
                     if !has_must_use {
                         let method_name = method.sig.ident.to_string();
@@ -40,19 +45,19 @@ impl<'ast> Visit<'ast> for ResultMethodVisitor {
 
 fn is_result_return_type(return_type: &ReturnType) -> bool {
     match return_type {
-        ReturnType::Default => false,
-        ReturnType::Type(_, ty) => is_result_type(ty),
+        | ReturnType::Default => false,
+        | ReturnType::Type(_, ty) => is_result_type(ty),
     }
 }
 
 fn is_result_type(ty: &Type) -> bool {
     match ty {
-        Type::Path(type_path) => {
-            type_path.path.segments.iter().any(|segment| {
-                segment.ident == "Result"
-            })
-        }
-        _ => false,
+        | Type::Path(type_path) => type_path
+            .path
+            .segments
+            .iter()
+            .any(|segment| segment.ident == "Result"),
+        | _ => false,
     }
 }
 
@@ -75,14 +80,15 @@ pub fn run() -> Result<()> {
                 visitor.visit_item_trait(trait_item);
 
                 for (line, method_name) in visitor.found_violations {
-                    violations.push(Violation {
-                        file: source.rel_path.clone(),
+                    violations.push(Violation::with_layer(
+                        source.rel_path.clone(),
                         line,
-                        message: format!(
+                        format!(
                             "trait {} method {} returns Result without #[must_use]",
                             visitor.trait_name, method_name
                         ),
-                    });
+                        layer_of("jacquard-traits"),
+                    ));
                 }
             }
         }

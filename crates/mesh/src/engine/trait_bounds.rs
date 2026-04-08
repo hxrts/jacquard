@@ -28,7 +28,10 @@ where
 {
 }
 
-pub(crate) trait TransportEffectsBounds: TransportEffects + Send + Sync + 'static {}
+pub(crate) trait TransportEffectsBounds:
+    TransportEffects + Send + Sync + 'static
+{
+}
 
 impl<T> TransportEffectsBounds for T where T: TransportEffects + Send + Sync + 'static {}
 

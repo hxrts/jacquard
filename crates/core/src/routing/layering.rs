@@ -4,7 +4,7 @@ use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ByteCount, DurationMs, IdentityAssuranceClass, Limit, ConnectivityPosture,
+    ByteCount, ConnectivityPosture, DurationMs, IdentityAssuranceClass, Limit,
     RouteHandle, RouteHealth, RouteLease, RouteProtectionClass, RoutingEngineId,
 };
 

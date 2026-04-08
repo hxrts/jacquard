@@ -11,14 +11,14 @@
 //! - no canonical route publication outside the router-owned path
 
 use jacquard_core::{
-    SelectedRoutingParameters, Configuration, DiversityFloor, OperatingMode, DurationMs,
-    HealthScore, IdentityAssuranceClass, LinkEndpoint, NodeId, Observation,
-    RatioPermille, ConnectivityPosture, RoutePartitionClass, RouteProtectionClass,
-    RouteRepairClass, RouteReplacementPolicy, RoutingEngineFallbackPolicy,
-    RoutingPolicyInputs, Tick,
+    Configuration, ConnectivityPosture, DiversityFloor, DurationMs, HealthScore,
+    IdentityAssuranceClass, LinkEndpoint, NodeId, Observation, OperatingMode,
+    RatioPermille, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+    RouteReplacementPolicy, RoutingEngineFallbackPolicy, RoutingPolicyInputs,
+    SelectedRoutingParameters, Tick,
 };
 use jacquard_mem_link_profile::{
-    InMemoryTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
+    InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
     SharedInMemoryNetwork,
 };
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
@@ -54,8 +54,9 @@ pub fn build_mesh_client_with_profile(
     profile: SelectedRoutingParameters,
 ) -> MeshClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
+    let transport_protocol = local_endpoint.protocol.clone();
     let mut transport = InMemoryTransport::attached(
-        local_endpoint.protocol.clone(),
+        &transport_protocol,
         local_node_id,
         [local_endpoint],
         network,

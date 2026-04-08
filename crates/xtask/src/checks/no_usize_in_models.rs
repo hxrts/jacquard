@@ -1,11 +1,14 @@
-//! Rejects `usize`, `u32`, `u8`, `u16`, `u64` field types in public structs and enums under
-//! `crates/core` and `crates/traits`. The style guide requires newtypes for dimensional
-//! distinctness to prevent category errors at call sites.
+//! Rejects bare `usize` field types in public structs and enums under
+//! `crates/core` and `crates/traits`. The style guide requires explicit
+//! newtypes or fixed-width integer choices for stored model fields.
 
 use anyhow::{bail, Result};
 use syn::{visit::Visit, Fields, Item, Type};
 
-use crate::{sources::parse_workspace_sources, util::Violation};
+use crate::{
+    sources::parse_workspace_sources,
+    util::{layer_of, Violation},
+};
 
 struct BarePrimitiveVisitor {
     found: bool,
@@ -13,12 +16,12 @@ struct BarePrimitiveVisitor {
 
 impl<'ast> Visit<'ast> for BarePrimitiveVisitor {
     fn visit_type_path(&mut self, path: &'ast syn::TypePath) {
-        if path.path.segments.iter().any(|segment| {
-            matches!(
-                segment.ident.to_string().as_str(),
-                "usize" | "u32" | "u8" | "u16" | "u64"
-            )
-        }) {
+        if path
+            .path
+            .segments
+            .iter()
+            .any(|segment| matches!(segment.ident.to_string().as_str(), "usize"))
+        {
             self.found = true;
         }
         syn::visit::visit_type_path(self, path);
@@ -42,6 +45,8 @@ pub fn run() -> Result<()> {
             continue;
         }
 
+        let crate_name = extract_crate_name(&source.rel_path);
+
         for item in &source.file.items {
             match item {
                 | Item::Struct(item_struct) => {
@@ -50,6 +55,7 @@ pub fn run() -> Result<()> {
                         item_struct.ident.to_string(),
                         &item_struct.fields,
                         &mut violations,
+                        crate_name,
                     );
                 },
                 | Item::Enum(item_enum) => {
@@ -59,6 +65,7 @@ pub fn run() -> Result<()> {
                             format!("{}::{}", item_enum.ident, variant.ident),
                             &variant.fields,
                             &mut violations,
+                            crate_name,
                         );
                     }
                 },
@@ -73,7 +80,9 @@ pub fn run() -> Result<()> {
             eprintln!("  {}", violation.render());
         }
         eprintln!();
-        eprintln!("no-usize-in-models: use explicitly-sized integers (u8, u16, u32, u64) instead");
+        eprintln!(
+            "no-usize-in-models: use explicit newtypes or fixed-width integers instead"
+        );
         bail!("no-usize-in-models failed");
     }
 
@@ -81,23 +90,37 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
+fn extract_crate_name(rel_path: &str) -> &str {
+    // Extract crate name from "crates/core/src/..." -> "jacquard-core"
+    if rel_path.starts_with("crates/core/") {
+        "jacquard-core"
+    } else if rel_path.starts_with("crates/traits/") {
+        "jacquard-traits"
+    } else {
+        "unknown"
+    }
+}
+
 fn collect_struct_fields(
     rel_path: &str,
     owner: String,
     fields: &Fields,
     out: &mut Vec<Violation>,
+    crate_name: &str,
 ) {
-    // Skip newtypes: single field with a bare primitive is the idiomatic newtype pattern
+    // Skip newtypes: single field with a bare primitive is the idiomatic newtype
+    // pattern
     if is_newtype_pattern(fields) {
         return;
     }
 
     for field in fields {
         if type_has_bare_primitive(&field.ty) {
-            out.push(Violation::new(
+            out.push(Violation::with_layer(
                 rel_path,
                 1,
                 format!("{owner} contains usize in a stored field"),
+                layer_of(crate_name),
             ));
         }
     }

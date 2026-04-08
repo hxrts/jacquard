@@ -27,10 +27,9 @@ mod types;
 use std::{cell::RefCell, collections::BTreeMap};
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, NodeId, Observation, ReceiptId,
-    RouteCommitmentId, ConnectivityPosture, RouteEpoch, RouteError, RouteId,
-    RoutePartitionClass, RouteRuntimeError, RouteSelectionError,
-    RoutingEngineCapabilities, RoutingEngineId,
+    Blake3Digest, Configuration, ConnectivityPosture, ContentId, NodeId, Observation,
+    ReceiptId, RouteCommitmentId, RouteEpoch, RouteError, RouteId, RoutePartitionClass,
+    RouteRuntimeError, RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId,
 };
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngine};
 pub(crate) use support::DOMAIN_TAG_COMMITTEE_ID;

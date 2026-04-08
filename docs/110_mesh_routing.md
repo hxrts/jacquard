@@ -84,7 +84,7 @@ Mesh protocols now live inline in the mesh crate as `tell!` definitions. That ke
 
 Mesh also keeps one mesh-owned choreography interpreter surface above the shared runtime traits. That interpreter maps protocol-local requests onto the existing Jacquard boundaries:
 
-- `MeshTransport` for endpoint-addressed frame sends and ingress observations
+- `TransportEffects` for endpoint-addressed payload sends and ingress observations
 - `RetentionStore` for deferred-delivery payload storage
 - `RouteEventLogEffects` for replay-visible route events
 - router-owned checkpoint orchestration for persisted mesh-private state
@@ -203,14 +203,9 @@ pub trait MeshTopologyModel {
 ```rust
 pub trait MeshRoutingEngine: RoutingEngine {
     type TopologyModel: MeshTopologyModel;
-    type Transport: MeshTransport;
     type Retention: RetentionStore;
 
     fn topology_model(&self) -> &Self::TopologyModel;
-
-    fn transport(&self) -> &Self::Transport;
-
-    fn transport_mut(&mut self) -> &mut Self::Transport;
 
     fn retention_store(&self) -> &Self::Retention;
 
@@ -218,27 +213,7 @@ pub trait MeshRoutingEngine: RoutingEngine {
 }
 ```
 
-`MeshRoutingEngine` binds one concrete topology model, one transport implementation, and one retention store to a mesh engine instance. This keeps mesh-specific internals swappable without exposing them as shared cross-engine assumptions, while still letting mesh route choice depend on mesh-owned peer and neighborhood estimates behind that boundary.
-
-### Transport
-
-```rust
-pub struct MeshFrame<'a> {
-    pub endpoint: &'a LinkEndpoint,
-    pub payload: &'a [u8],
-}
-
-pub trait MeshTransport {
-    #[must_use]
-    fn transport_id(&self) -> TransportProtocol;
-
-    fn send_frame(&mut self, frame: MeshFrame<'_>) -> Result<(), TransportError>;
-
-    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
-}
-```
-
-`MeshTransport` is the frame-carrier boundary for sending explicit endpoint-addressed mesh frames and reporting transport observations. Mesh routes forwarding through this frame-shaped trait directly. Any implementation that satisfies `MeshTransport` also satisfies `TransportEffects` from [Runtime Effects](104_runtime_effects.md) via blanket impl, so a mesh transport adapter can double as a host transport effect handler without collapsing the mesh-specific carrier boundary. New transport implementations such as BLE GATT, Wi-Fi LAN, or QUIC implement this trait and register with the mesh routing engine, with substantial platform logic moving into dedicated crates such as `jacquard-transport-ble`.
+`MeshRoutingEngine` binds one concrete topology model and one retention store to a mesh engine instance. Transport send/poll capability is no longer a mesh-specialized shared trait; mesh consumes the shared `TransportEffects` boundary directly and keeps any concrete transport adapter private to the engine instance or host composition layer.
 
 ### Retention
 

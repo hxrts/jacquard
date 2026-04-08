@@ -81,12 +81,12 @@ To implement LinkProfile for a new transport protocol:
 2. **Implement observation conversion** — your transport integration observes current link health (LinkState) and feeds it alongside your LinkProfile definition
 3. **Reference jacquard-mem-link-profile** — this in-tree crate shows the canonical pattern for in-memory LinkProfile implementation
 
-See [`crates/mem-link-profile`](../../crates/mem-link-profile) for a complete working example with:
+See [`crates/mem-link-profile/Cargo.toml`](../crates/mem-link-profile/Cargo.toml) for a complete working example with:
 
 - SimulatedLinkProfile builder for constructing profiles in tests
 - LinkEndpoint and LinkState modeling
 - SharedInMemoryNetwork for multi-runtime in-memory delivery
-- InMemoryMeshTransport and InMemoryRetentionStore for transport and retention simulation
+- InMemoryTransport and InMemoryRetentionStore for transport and retention simulation
 - InMemoryRuntimeEffects for deterministic effect handling
 
 ## Composition

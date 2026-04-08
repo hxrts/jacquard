@@ -7,8 +7,7 @@
 
 use jacquard_core::{
     Belief, ByteCount, ControllerId, DiscoveryScopeId, DurationMs, Estimate, Link,
-    Node, NodeId, RatioPermille, RepairCapacitySlots, RouteServiceKind, ServiceScope,
-    Tick, TimeWindow,
+    Node, NodeId, RatioPermille, RouteServiceKind, ServiceScope, Tick, TimeWindow,
 };
 use jacquard_mem_link_profile::{ble_endpoint, SimulatedLinkProfile};
 use jacquard_mem_node_profile::{

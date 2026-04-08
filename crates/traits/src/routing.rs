@@ -2,15 +2,15 @@
 //! control/data planes.
 
 use jacquard_core::{
-    SelectedRoutingParameters, CommitteeSelection, Configuration, LayerParameters,
-    MaterializedRoute, MaterializedRouteIdentity, NodeId, Observation, RouteAdmission,
+    CommitteeSelection, Configuration, LayerParameters, MaterializedRoute,
+    MaterializedRouteIdentity, NodeId, Observation, RouteAdmission,
     RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError, RouteHealth,
     RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
     RouteMaterializationInput, RouteRuntimeState, RouteSemanticHandoff,
     RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
     RoutingEngineId, RoutingObjective, RoutingPolicyInputs, RoutingTickChange,
-    RoutingTickContext, RoutingTickOutcome, SubstrateCandidate, SubstrateLease,
-    SubstrateRequirements,
+    RoutingTickContext, RoutingTickOutcome, SelectedRoutingParameters,
+    SubstrateCandidate, SubstrateLease, SubstrateRequirements,
 };
 use jacquard_macros::purity;
 

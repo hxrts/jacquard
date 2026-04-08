@@ -10,14 +10,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 #[allow(unused_imports)]
+use jacquard_core::HoldItemCount;
+#[allow(unused_imports)]
 use jacquard_core::{
     Belief, ByteCount, Configuration, Environment, HealthScore, Link, LinkEndpoint,
     LinkState, MaintenanceWorkBudget, Node, NodeId, NodeRelayBudget, RatioPermille,
     RelayWorkBudget, RouteServiceKind, RoutingEngineId, RoutingObjective,
     ServiceDescriptor, ServiceId, ServiceScope, Tick, TransportProtocol,
 };
-#[allow(unused_imports)]
-use jacquard_core::HoldItemCount;
 use jacquard_traits::{
     MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshTopologyModel,
 };

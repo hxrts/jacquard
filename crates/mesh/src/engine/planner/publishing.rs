@@ -8,9 +8,9 @@
 use std::cmp::Reverse;
 
 use jacquard_core::{
-    SelectedRoutingParameters, Belief, Configuration, Estimate, Observation,
-    RouteCandidate, ConnectivityPosture, RouteEstimate, RouteSummary,
-    RoutingObjective, TimeWindow,
+    Belief, Configuration, ConnectivityPosture, Estimate, Observation, RouteCandidate,
+    RouteEstimate, RouteSummary, RoutingObjective, SelectedRoutingParameters,
+    TimeWindow,
 };
 
 use super::{

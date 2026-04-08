@@ -7,8 +7,9 @@
 //! stays memoization-only rather than semantic.
 
 use jacquard_core::{
-    SelectedRoutingParameters, BackendRouteId, Configuration, NodeId, Observation,
-    RouteError, RouteSelectionError, RouteWitness, RoutingObjective, Tick, TimeWindow,
+    BackendRouteId, Configuration, NodeId, Observation, RouteError,
+    RouteSelectionError, RouteWitness, RoutingObjective, SelectedRoutingParameters,
+    Tick, TimeWindow,
 };
 use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 

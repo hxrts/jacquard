@@ -6,7 +6,6 @@
 //! suite does not maintain a second parallel harness.
 
 pub use jacquard_mem_link_profile::{
-    InMemoryTransport as TestTransport,
     InMemoryRetentionStore as TestRetentionStore,
-    InMemoryRuntimeEffects as TestRuntimeEffects,
+    InMemoryRuntimeEffects as TestRuntimeEffects, InMemoryTransport as TestTransport,
 };

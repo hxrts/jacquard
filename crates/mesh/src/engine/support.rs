@@ -392,14 +392,14 @@ pub(super) fn limit_u32(limit: Limit<u32>) -> u32 {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        SelectedRoutingParameters, AdmissionAssumptions, AdversaryRegime, Belief,
-        ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
+        AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength, CommitteeId,
+        CommitteeMember, CommitteeRole, CommitteeSelection, ConnectivityPosture,
         ConnectivityRegime, ContentId, ControllerId, DestinationId, Environment,
         Estimate, FailureModelClass, HoldFallbackPolicy, HostName, Limit, LinkEndpoint,
         MessageFlowAssumptionClass, NetworkHost, NodeDensityClass, RatioPermille,
-        ConnectivityPosture, RouteCost, RouteEpoch, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteServiceKind, RouteSummary,
-        RoutingObjective, RuntimeEnvelopeClass, Tick,
+        RouteCost, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, RouteServiceKind, RouteSummary, RoutingObjective,
+        RuntimeEnvelopeClass, SelectedRoutingParameters, Tick,
     };
 
     use super::*;
@@ -441,8 +441,7 @@ mod tests {
         SelectedRoutingParameters {
             selected_protection: RouteProtectionClass::LinkProtected,
             selected_connectivity: ConnectivityPosture { repair, partition },
-            deployment_profile:
-                jacquard_core::OperatingMode::FieldPartitionTolerant,
+            deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
             diversity_floor: DiversityFloor(1),
             routing_engine_fallback_policy:
                 jacquard_core::RoutingEngineFallbackPolicy::Allowed,

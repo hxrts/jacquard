@@ -4,9 +4,7 @@
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    ConnectivityPosture, RouteDegradation, RouteEpoch, RouteProtectionClass,
-};
+use crate::{ConnectivityPosture, RouteDegradation, RouteEpoch, RouteProtectionClass};
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
