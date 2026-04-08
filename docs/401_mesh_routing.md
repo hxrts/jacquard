@@ -28,6 +28,10 @@ The mesh engine implements the shared `RoutingEnginePlanner` contract, which pro
 
 This algorithm produces a stable candidate ordering across replays. In v1, the search metric is integer-only and combines hop count, delivery confidence, loss-derived congestion, symmetry, mesh-private peer and neighborhood estimates, protocol-repeat penalties, protocol-diversity bonuses, and a deferred-delivery bonus when the destination is honestly hold-capable. The shared `RouteCost` surface then reflects the chosen path's hop count, confidence, symmetry, congestion, protocol diversity, and deferred-delivery hold reservation without exposing the mesh-private estimate internals that shaped the search.
 
+Concretely, the direct per-link reliability inputs are: `delivery_confidence_permille`, `symmetry_permille`, and `loss_permille`. Mesh turns these into weighted edge penalties during path search. Higher delivery confidence and better symmetry reduce path cost; higher loss increases it. These signals are then combined with mesh-private peer and neighborhood bonuses and penalties rather than collapsed into one shared "reliability" field.
+
+`median_rtt_ms` is part of the shared link observation surface, but mesh does not currently use it in path scoring.
+
 Deferred-delivery classification is deliberately stricter than capability advertisement alone. A destination only qualifies for retention-biased routing when its `Hold` service advertisement is currently valid for mesh, the advertised capacity hint reports positive `hold_capacity_bytes`, and the node state separately reports positive `hold_capacity_available_bytes`. A stale advertisement, an empty capacity hint, or unknown live capacity is not enough.
 
 ### Admission Contract
@@ -111,6 +115,16 @@ Mesh decodes the admitted opaque backend ref during materialization instead of r
 ### Route Health
 
 Route health is derived from the active route's remaining suffix rather than from engine-global topology presence. Mesh validates the current owner-relative suffix against the latest observed topology and folds first-hop transport observations into that route-local view when available. It publishes `ReachabilityState::Unknown` when it lacks route-local validation data rather than pretending the route is generically reachable or unreachable.
+
+The runtime route-health calculation currently combines three signal groups:
+
+| Signal group | Inputs |
+| --- | --- |
+| First-hop transport summary | remote-link stability score; remote-link congestion penalty |
+| Remaining-suffix topology view | delivery confidence; symmetry; loss-derived congestion penalty |
+| Mesh control state | transport stability score; anti-entropy pressure |
+
+As in planning, `median_rtt_ms` is not currently part of the published route-health calculation.
 
 ### Lifecycle and Maintenance
 
