@@ -30,6 +30,7 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/traits/src/hashing.rs",
     "crates/traits/src/lib.rs",
     "crates/traits/src/routing.rs",
+    "crates/traits/src/sealed.rs",
     "crates/mesh/src/committee/mod.rs",
     "crates/mesh/src/committee/selection.rs",
     "crates/mesh/src/choreography/artifacts.rs",

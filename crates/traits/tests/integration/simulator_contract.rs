@@ -5,14 +5,16 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, ControllerId, Environment, FactSourceClass, HoldItemCount, Link,
+        Configuration, ControllerId, Environment, HoldItemCount, Link,
         LinkRuntimeState, LinkState, MaintenanceWorkBudget, Node, NodeId, NodeProfile,
-        NodeState, Observation, OperatingMode, OriginAuthenticationClass,
-        RatioPermille, RelayWorkBudget, RouteEpoch, RouteEvent, RouteEventStamped,
-        RoutingObjective, SimulationSeed, Tick,
+        NodeState, Observation, OperatingMode, RatioPermille, RelayWorkBudget,
+        RouteEpoch, RouteEvent, RouteEventStamped, RoutingObjective, SimulationSeed,
+        Tick,
     },
     RoutingEnvironmentModel, RoutingReplayView, RoutingScenario, RoutingSimulator,
 };
+
+use super::common;
 
 #[derive(Clone)]
 struct StubScenario {
@@ -61,14 +63,7 @@ impl RoutingEnvironmentModel for StubEnvironmentModel {
         at_tick: Tick,
     ) -> (Observation<Configuration>, Vec<Self::EnvironmentArtifact>) {
         (
-            Observation {
-                value: configuration.clone(),
-                source_class: FactSourceClass::Local,
-                evidence_class:
-                    jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
-                origin_authentication: OriginAuthenticationClass::Controlled,
-                observed_at_tick: at_tick,
-            },
+            common::local_observation(configuration.clone(), at_tick),
             vec![StubEnvironmentArtifact::AdvancedTo(at_tick)],
         )
     }
@@ -113,8 +108,8 @@ impl RoutingSimulator for StubSimulator {
                 emitted_at_tick: tick,
                 event: RouteEvent::RouteHealthObserved {
                     route_id: jacquard_traits::jacquard_core::RouteId([1; 16]),
-                    health: Observation {
-                        value: jacquard_traits::jacquard_core::RouteHealth {
+                    health: common::local_observation(
+                        jacquard_traits::jacquard_core::RouteHealth {
                             reachability_state:
                                 jacquard_traits::jacquard_core::ReachabilityState::Reachable,
                             stability_score: jacquard_traits::jacquard_core::HealthScore(1000),
@@ -122,12 +117,8 @@ impl RoutingSimulator for StubSimulator {
                                 jacquard_traits::jacquard_core::PenaltyPoints(0),
                             last_validated_at_tick: tick,
                         },
-                        source_class: FactSourceClass::Local,
-                        evidence_class:
-                            jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
-                        origin_authentication: OriginAuthenticationClass::Controlled,
-                        observed_at_tick: tick,
-                    },
+                        tick,
+                    ),
                 },
             })
             .collect();
@@ -251,7 +242,7 @@ fn sample_configuration() -> Configuration {
             },
             state: LinkState {
                 state: LinkRuntimeState::Active,
-                median_rtt_ms: jacquard_traits::jacquard_core::DurationMs(5),
+                median_rtt_ms: jacquard_traits::jacquard_core::Belief::Absent,
                 transfer_rate_bytes_per_sec:
                     jacquard_traits::jacquard_core::Belief::Absent,
                 stability_horizon_ms: jacquard_traits::jacquard_core::Belief::Absent,
@@ -280,14 +271,10 @@ fn sample_scenario() -> StubScenario {
         name: "smoke".to_owned(),
         seed: SimulationSeed(7),
         deployment_profile: OperatingMode::SparseLowPower,
-        initial_configuration: Observation {
-            value: sample_configuration(),
-            source_class: FactSourceClass::Local,
-            evidence_class:
-                jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
-            origin_authentication: OriginAuthenticationClass::Controlled,
-            observed_at_tick: Tick(1),
-        },
+        initial_configuration: common::local_observation(
+            sample_configuration(),
+            Tick(1),
+        ),
         objectives: Vec::new(),
     }
 }

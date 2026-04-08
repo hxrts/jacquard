@@ -6,30 +6,33 @@ use std::collections::BTreeMap;
 use jacquard_traits::{
     jacquard_core::{
         AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteRef,
-        Belief, ByteCount, ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole,
+        ByteCount, ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole,
         CommitteeSelection, Configuration, ConnectivityPosture, ConnectivityRegime,
         DiversityFloor, Environment, Estimate, Fact, FactBasis, FailureModelClass,
         IdentityAssuranceClass, LayerParameter, LayerParameters, Limit,
         MaterializedRoute, MaterializedRouteIdentity, MessageFlowAssumptionClass,
-        NodeDensityClass, Observation, OperatingMode, PublicationId, QuorumThreshold,
-        ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding,
-        RouteCandidate, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
-        RouteCost, RouteDegradation, RouteEpoch, RouteEstimate, RouteHandle,
-        RouteHealth, RouteId, RouteInstallation, RouteLease, RouteLifecycleEvent,
-        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
-        RouteMaterializationInput, RouteMaterializationProof, RoutePartitionClass,
-        RouteProgressContract, RouteProgressState, RouteProtectionClass,
-        RouteRepairClass, RouteReplacementPolicy, RouteRuntimeState, RouteServiceKind,
-        RouteSummary, RouteWitness, RoutingEngineCapabilities,
-        RoutingEngineFallbackPolicy, RoutingEngineId, RoutingEvidenceClass,
-        RoutingObjective, RoutingTickChange, RoutingTickContext, RuntimeEnvelopeClass,
-        SelectedRoutingParameters, SubstrateCandidate, SubstrateCapabilities,
-        SubstrateLease, SubstrateRequirements, Tick, TimeWindow, TransportProtocol,
+        NodeDensityClass, ObjectiveVsDelivered, Observation, OperatingMode,
+        PublicationId, QuorumThreshold, ReachabilityState, RouteAdmission,
+        RouteAdmissionCheck, RouteBinding, RouteCandidate, RouteCommitment,
+        RouteCommitmentId, RouteCommitmentResolution, RouteCost, RouteDegradation,
+        RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId,
+        RouteInstallation, RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+        RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
+        RouteProgressState, RouteProtectionClass, RouteRepairClass,
+        RouteReplacementPolicy, RouteRuntimeState, RouteServiceKind, RouteSummary,
+        RouteWitness, RoutingEngineCapabilities, RoutingEngineFallbackPolicy,
+        RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingTickChange,
+        RoutingTickContext, RuntimeEnvelopeClass, SelectedRoutingParameters,
+        SubstrateCandidate, SubstrateCapabilities, SubstrateLease,
+        SubstrateRequirements, Tick, TimeWindow, TransportProtocol,
     },
     CommitteeCoordinatedEngine, CommitteeSelector, LayeredRoutingEngine,
     LayeredRoutingEnginePlanner, LayeringPolicyEngine, RoutingEngine,
     RoutingEnginePlanner, SubstratePlanner, SubstrateRuntime,
 };
+
+use super::common;
 
 fn repairable_connected() -> ConnectivityPosture {
     ConnectivityPosture {
@@ -371,14 +374,10 @@ impl SubstrateRuntime for StubSubstrateProvider {
         _lease: &SubstrateLease,
     ) -> Result<Observation<RouteHealth>, jacquard_traits::jacquard_core::RouteError>
     {
-        Ok(Observation {
-            value: self.route.runtime.health.clone(),
-            source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-            evidence_class: RoutingEvidenceClass::DirectObservation,
-            origin_authentication:
-                jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-            observed_at_tick: Tick(1),
-        })
+        Ok(common::local_observation(
+            self.route.runtime.health.clone(),
+            Tick(1),
+        ))
     }
 }
 
@@ -477,21 +476,19 @@ fn sample_route(
                 protection: RouteProtectionClass::LinkProtected,
                 connectivity: repairable_connected(),
                 protocol_mix: vec![TransportProtocol::BleGatt],
-                hop_count_hint: Belief::Estimated(Estimate {
-                    value: 2,
-                    confidence_permille: jacquard_traits::jacquard_core::RatioPermille(
-                        1000,
-                    ),
-                    updated_at_tick: Tick(1),
-                }),
+                hop_count_hint: common::estimated(2, 1000, Tick(1)),
                 valid_for: TimeWindow::new(Tick(1), Tick(50))
                     .expect("valid route summary window"),
             },
             witness: RouteWitness {
-                objective_protection: RouteProtectionClass::LinkProtected,
-                delivered_protection: RouteProtectionClass::LinkProtected,
-                objective_connectivity: repairable_connected(),
-                delivered_connectivity: repairable_connected(),
+                protection: ObjectiveVsDelivered {
+                    objective: RouteProtectionClass::LinkProtected,
+                    delivered: RouteProtectionClass::LinkProtected,
+                },
+                connectivity: ObjectiveVsDelivered {
+                    objective: repairable_connected(),
+                    delivered: repairable_connected(),
+                },
                 admission_profile: sample_admission_assumptions(),
                 topology_epoch: RouteEpoch(1),
                 degradation: RouteDegradation::None,
@@ -512,10 +509,14 @@ fn sample_route(
             publication_id: PublicationId([7; 16]),
             witness: Fact {
                 value: RouteWitness {
-                    objective_protection: RouteProtectionClass::LinkProtected,
-                    delivered_protection: RouteProtectionClass::LinkProtected,
-                    objective_connectivity: repairable_connected(),
-                    delivered_connectivity: repairable_connected(),
+                    protection: ObjectiveVsDelivered {
+                        objective: RouteProtectionClass::LinkProtected,
+                        delivered: RouteProtectionClass::LinkProtected,
+                    },
+                    connectivity: ObjectiveVsDelivered {
+                        objective: repairable_connected(),
+                        delivered: repairable_connected(),
+                    },
                     admission_profile: sample_admission_assumptions(),
                     topology_epoch: RouteEpoch(1),
                     degradation: RouteDegradation::None,
@@ -650,14 +651,7 @@ fn routing_engine_supports_engine_wide_periodic_progress() {
     let route = sample_route(sample_objective(), sample_profile());
     let mut engine = StubEngine { route, selector: None };
 
-    let topology = Observation {
-        value: empty_configuration(),
-        source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
-        origin_authentication:
-            jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(1),
-    };
+    let topology = common::local_observation(empty_configuration(), Tick(1));
 
     let outcome = engine
         .engine_tick(&RoutingTickContext::new(topology))
@@ -673,14 +667,7 @@ fn committee_selector_trait_supports_shared_result_shape() {
         .select_committee(
             &sample_objective(),
             &sample_profile(),
-            &Observation {
-                value:                 empty_configuration(),
-                source_class:          jacquard_traits::jacquard_core::FactSourceClass::Local,
-                evidence_class:        RoutingEvidenceClass::DirectObservation,
-                origin_authentication:
-                    jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-                observed_at_tick:      Tick(1),
-            },
+            &common::local_observation(empty_configuration(), Tick(1)),
         )
         .expect("committee selection should succeed")
         .expect("committee should be present");
@@ -706,14 +693,7 @@ fn committee_coordinated_engine_exposes_optional_swappable_selector() {
         .select_committee(
             &sample_objective(),
             &sample_profile(),
-            &Observation {
-                value:                 empty_configuration(),
-                source_class:          jacquard_traits::jacquard_core::FactSourceClass::Local,
-                evidence_class:        RoutingEvidenceClass::DirectObservation,
-                origin_authentication:
-                    jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-                observed_at_tick:      Tick(1),
-            },
+            &common::local_observation(empty_configuration(), Tick(1)),
         )
         .expect("committee selection should succeed")
         .expect("committee should be present");
@@ -728,14 +708,7 @@ fn substrate_and_layering_traits_support_policy_driven_composition() {
     let objective = sample_objective();
     let profile = sample_profile();
     let route = sample_route(objective.clone(), profile.clone());
-    let topology = Observation {
-        value: empty_configuration(),
-        source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
-        origin_authentication:
-            jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(1),
-    };
+    let topology = common::local_observation(empty_configuration(), Tick(1));
 
     let mut provider = StubSubstrateProvider { route: route.clone() };
     let substrate_candidate = provider

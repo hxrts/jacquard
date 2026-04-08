@@ -10,6 +10,28 @@ use crate::{
     RoutingObjective, SelectedRoutingParameters, TimeWindow, TransportProtocol,
 };
 
+/// Generates a binary capability enum with `Unsupported` / `Supported`
+/// variants, full shared-model derives, and a `Default` impl that returns
+/// `Unsupported`.
+macro_rules! capability_enum {
+    ($name:ident) => {
+        #[public_model]
+        #[derive(
+            Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+        )]
+        pub enum $name {
+            Unsupported,
+            Supported,
+        }
+
+        impl Default for $name {
+            fn default() -> Self {
+                Self::Unsupported
+            }
+        }
+    };
+}
+
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoutingEngineCapabilities {
@@ -24,32 +46,9 @@ pub struct RoutingEngineCapabilities {
     pub route_shape_visibility: RouteShapeVisibility,
 }
 
-#[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
-pub enum RepairSupport {
-    Unsupported,
-    Supported,
-}
-
-#[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
-pub enum HoldSupport {
-    Unsupported,
-    Supported,
-}
-
-#[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
-pub enum DecidableSupport {
-    Unsupported,
-    Supported,
-}
+capability_enum!(RepairSupport);
+capability_enum!(HoldSupport);
+capability_enum!(DecidableSupport);
 
 #[public_model]
 #[derive(
@@ -243,14 +242,21 @@ pub struct RouteAdmission {
 }
 
 #[public_model]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Pairs an objective value with the actually-delivered value. Used in
+/// `RouteWitness` to make the objective-vs-delivered gap explicit.
+pub struct ObjectiveVsDelivered<T> {
+    pub objective: T,
+    pub delivered: T,
+}
+
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Proof-bearing explanation of what the admitted route actually delivers.
 /// If protection was reduced for connectivity, that fact is explicit here.
 pub struct RouteWitness {
-    pub objective_protection: RouteProtectionClass,
-    pub delivered_protection: RouteProtectionClass,
-    pub objective_connectivity: ConnectivityPosture,
-    pub delivered_connectivity: ConnectivityPosture,
+    pub protection: ObjectiveVsDelivered<RouteProtectionClass>,
+    pub connectivity: ObjectiveVsDelivered<ConnectivityPosture>,
     pub admission_profile: AdmissionAssumptions,
     pub topology_epoch: RouteEpoch,
     pub degradation: RouteDegradation,
@@ -286,4 +292,34 @@ pub enum DegradationReason {
 pub struct BackendRouteRef {
     pub engine: RoutingEngineId,
     pub backend_route_id: BackendRouteId,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Verify that capability_enum! emits the expected shape:
+    // both variants, Default == Unsupported, Clone, PartialEq, PartialOrd.
+    #[test]
+    #[allow(clippy::clone_on_copy)]
+    fn capability_enum_repair_support_shape() {
+        assert_eq!(RepairSupport::default(), RepairSupport::Unsupported);
+        assert_ne!(RepairSupport::Unsupported, RepairSupport::Supported);
+        assert!(RepairSupport::Unsupported < RepairSupport::Supported);
+        // Explicit `.clone()` on a Copy type verifies Clone is still derived
+        // by the `capability_enum!` macro expansion.
+        let _ = RepairSupport::Supported.clone();
+    }
+
+    #[test]
+    fn capability_enum_hold_support_shape() {
+        assert_eq!(HoldSupport::default(), HoldSupport::Unsupported);
+        assert!(HoldSupport::Unsupported < HoldSupport::Supported);
+    }
+
+    #[test]
+    fn capability_enum_decidable_support_shape() {
+        assert_eq!(DecidableSupport::default(), DecidableSupport::Unsupported);
+        assert!(DecidableSupport::Unsupported < DecidableSupport::Supported);
+    }
 }

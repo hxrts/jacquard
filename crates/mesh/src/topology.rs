@@ -44,6 +44,14 @@ pub trait MeshNeighborhoodEstimateAccess {
 /// advertise to be considered route-capable for this engine.
 pub(crate) const MESH_REQUIRED_SERVICE_COUNT: u32 = 3;
 
+/// Default service requirements used by route-capability scoring: Discover,
+/// Move, and Hold. Constructed as a literal bitset because
+/// `ServiceKindSet::insert` is not `const fn` — bits match
+/// `ServiceKindSet::bit` for each kind. (Discover=bit0, Move=bit2, Hold=bit4 →
+/// 0b10101 = 21)
+pub(crate) const DEFAULT_MESH_SERVICE_REQUIREMENTS: MeshServiceRequirements =
+    ServiceKindSet(0b0001_0101);
+
 /// Upper bound for HealthScore values produced by this crate.
 /// Matches the shared `RatioPermille` scale so scores compose cleanly
 /// with confidence and loss metrics elsewhere.
@@ -53,14 +61,36 @@ pub(crate) const HEALTH_SCORE_MAX: u32 = 1000;
 /// into the HealthScore range in `neighborhood_estimate`.
 pub(crate) const DENSITY_SCORE_SCALE: u32 = 100;
 
+/// Compact bitset of required `RouteServiceKind` values for mesh capability
+/// gating. Replaces five individual bool fields with a single `u8`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct MeshServiceRequirements {
-    pub discover: bool,
-    pub activate: bool,
-    pub move_: bool,
-    pub repair: bool,
-    pub hold: bool,
+pub(crate) struct ServiceKindSet(u8);
+
+impl ServiceKindSet {
+    fn bit(kind: RouteServiceKind) -> u8 {
+        match kind {
+            | RouteServiceKind::Discover => 1 << 0,
+            | RouteServiceKind::Activate => 1 << 1,
+            | RouteServiceKind::Move => 1 << 2,
+            | RouteServiceKind::Repair => 1 << 3,
+            | RouteServiceKind::Hold => 1 << 4,
+        }
+    }
+
+    pub(crate) fn insert(&mut self, kind: RouteServiceKind) {
+        self.0 |= Self::bit(kind);
+    }
+
+    pub(crate) fn contains(self, kind: RouteServiceKind) -> bool {
+        self.0 & Self::bit(kind) != 0
+    }
+
+    pub(crate) fn count(self) -> u32 {
+        self.0.count_ones()
+    }
 }
+
+pub(crate) type MeshServiceRequirements = ServiceKindSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshPeerEstimate {
@@ -316,14 +346,10 @@ pub(crate) fn service_requirements_for_objective(
     require_hold: bool,
 ) -> MeshServiceRequirements {
     let mut requirements = MeshServiceRequirements::default();
-    match objective.service_kind {
-        | RouteServiceKind::Discover => requirements.discover = true,
-        | RouteServiceKind::Activate => requirements.activate = true,
-        | RouteServiceKind::Move => requirements.move_ = true,
-        | RouteServiceKind::Repair => requirements.repair = true,
-        | RouteServiceKind::Hold => requirements.hold = true,
+    requirements.insert(objective.service_kind);
+    if require_hold {
+        requirements.insert(RouteServiceKind::Hold);
     }
-    requirements.hold |= require_hold;
     requirements
 }
 
@@ -401,12 +427,7 @@ pub(crate) fn service_surface_score(
         services,
         engine_id,
         current_tick,
-        MeshServiceRequirements {
-            discover: true,
-            move_: true,
-            hold: true,
-            ..MeshServiceRequirements::default()
-        },
+        DEFAULT_MESH_SERVICE_REQUIREMENTS,
     )
 }
 
@@ -424,11 +445,17 @@ pub(crate) fn service_surface_score_for_requirements(
         })
     };
 
-    u32::from(requirements.discover && has_kind(RouteServiceKind::Discover))
-        + u32::from(requirements.activate && has_kind(RouteServiceKind::Activate))
-        + u32::from(requirements.move_ && has_kind(RouteServiceKind::Move))
-        + u32::from(requirements.repair && has_kind(RouteServiceKind::Repair))
-        + u32::from(requirements.hold && has_kind(RouteServiceKind::Hold))
+    let matched = [
+        RouteServiceKind::Discover,
+        RouteServiceKind::Activate,
+        RouteServiceKind::Move,
+        RouteServiceKind::Repair,
+        RouteServiceKind::Hold,
+    ]
+    .iter()
+    .filter(|&&kind| requirements.contains(kind) && has_kind(kind))
+    .count();
+    u32::try_from(matched).unwrap_or(u32::MAX)
 }
 
 pub(crate) fn services_meet_requirements(
@@ -454,12 +481,7 @@ pub(crate) fn service_surface_health_score(
         services,
         engine_id,
         current_tick,
-        MeshServiceRequirements {
-            discover: true,
-            move_: true,
-            hold: true,
-            ..MeshServiceRequirements::default()
-        },
+        DEFAULT_MESH_SERVICE_REQUIREMENTS,
     )
 }
 
@@ -487,11 +509,7 @@ pub(crate) fn service_surface_health_score_for_requirements(
 }
 
 fn required_service_count(requirements: MeshServiceRequirements) -> u32 {
-    u32::from(requirements.discover)
-        + u32::from(requirements.activate)
-        + u32::from(requirements.move_)
-        + u32::from(requirements.repair)
-        + u32::from(requirements.hold)
+    requirements.count()
 }
 
 pub(crate) fn optional_health_score_value(score: Option<HealthScore>) -> u32 {
@@ -613,7 +631,7 @@ mod tests {
             profile: default_link_profile(),
             state: LinkState {
                 state: LinkRuntimeState::Active,
-                median_rtt_ms: jacquard_core::DurationMs(20),
+                median_rtt_ms: Belief::Absent,
                 transfer_rate_bytes_per_sec: Belief::Absent,
                 stability_horizon_ms: Belief::Absent,
                 loss_permille: RatioPermille(0),
@@ -790,7 +808,7 @@ mod tests {
                     profile: default_link_profile(),
                     state: LinkState {
                         state: LinkRuntimeState::Active,
-                        median_rtt_ms: jacquard_core::DurationMs(20),
+                        median_rtt_ms: Belief::Absent,
                         transfer_rate_bytes_per_sec: Belief::Absent,
                         stability_horizon_ms: Belief::Absent,
                         loss_permille: RatioPermille(0),
@@ -1000,7 +1018,7 @@ mod tests {
             profile: default_link_profile(),
             state: LinkState {
                 state: jacquard_core::LinkRuntimeState::Active,
-                median_rtt_ms: jacquard_core::DurationMs(40),
+                median_rtt_ms: Belief::Absent,
                 transfer_rate_bytes_per_sec: Belief::Absent,
                 stability_horizon_ms: Belief::Absent,
                 loss_permille: RatioPermille(0),
