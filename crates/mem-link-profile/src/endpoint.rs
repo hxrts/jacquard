@@ -1,55 +1,34 @@
-//! `SharedInMemoryNetwork`, the in-memory carrier fabric that multiple
-//! `InMemoryTransport` instances attach to. Owns endpoint-to-node ownership
-//! and per-node inbox queues so tests can compose several device runtimes
-//! without a real radio.
+//! Endpoint presets and constructors for in-memory link authoring.
 
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
+use jacquard_core::{
+    BleDeviceId, BleProfileId, ByteCount, EndpointAddress, LinkEndpoint,
+    TransportProtocol,
 };
 
-use jacquard_core::{LinkEndpoint, NodeId, Tick, TransportObservation};
+/// BLE GATT MTU in bytes.
+pub const BLE_MTU_BYTES: ByteCount = ByteCount(256);
 
-#[derive(Default)]
-struct SharedNetworkState {
-    endpoint_owners: BTreeMap<LinkEndpoint, NodeId>,
-    inboxes: BTreeMap<NodeId, Vec<TransportObservation>>,
+#[must_use]
+pub fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
+    LinkEndpoint {
+        protocol: TransportProtocol::BleGatt,
+        address: EndpointAddress::Ble {
+            device_id: BleDeviceId(vec![device_byte]),
+            profile_id: BleProfileId([device_byte; 16]),
+        },
+        mtu_bytes: BLE_MTU_BYTES,
+    }
 }
 
-/// Shared in-memory observation network used by frame-carrier tests.
-#[derive(Clone, Default)]
-pub struct SharedInMemoryNetwork {
-    inner: Arc<Mutex<SharedNetworkState>>,
-}
-
-impl SharedInMemoryNetwork {
-    pub fn attach_endpoint(&self, node_id: NodeId, endpoint: LinkEndpoint) {
-        let mut guard = self.inner.lock().expect("shared network lock");
-        guard.endpoint_owners.insert(endpoint, node_id);
-    }
-
-    pub(crate) fn deliver(
-        &self,
-        from_node_id: NodeId,
-        endpoint: LinkEndpoint,
-        payload: Vec<u8>,
-        observed_at_tick: Tick,
-    ) {
-        let mut guard = self.inner.lock().expect("shared network lock");
-        if let Some(remote_node_id) = guard.endpoint_owners.get(&endpoint).copied() {
-            guard.inboxes.entry(remote_node_id).or_default().push(
-                TransportObservation::PayloadReceived {
-                    from_node_id,
-                    endpoint,
-                    payload,
-                    observed_at_tick,
-                },
-            );
-        }
-    }
-
-    pub(crate) fn take_for(&self, node_id: NodeId) -> Vec<TransportObservation> {
-        let mut guard = self.inner.lock().expect("shared network lock");
-        guard.inboxes.remove(&node_id).unwrap_or_default()
+#[must_use]
+pub fn opaque_endpoint(
+    protocol: TransportProtocol,
+    bytes: Vec<u8>,
+    mtu: ByteCount,
+) -> LinkEndpoint {
+    LinkEndpoint {
+        protocol,
+        address: EndpointAddress::Opaque(bytes),
+        mtu_bytes: mtu,
     }
 }

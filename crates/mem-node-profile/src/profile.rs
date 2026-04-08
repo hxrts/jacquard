@@ -5,11 +5,11 @@
 
 use jacquard_core::{
     ByteCount, ControllerId, HoldItemCount, LinkEndpoint, MaintenanceWorkBudget, Node,
-    NodeId, NodeProfile, RelayWorkBudget, RouteServiceKind, RoutingEngineId,
-    ServiceScope, Tick, TimeWindow,
+    NodeBuilder, NodeId, NodeProfile, NodeProfileBuilder, RelayWorkBudget,
+    RoutingEngineId, ServiceScope, Tick, TimeWindow,
 };
 
-use crate::{services::SimulatedServiceDescriptor, state::NodeStateSnapshot};
+use crate::{service::SimulatedServiceDescriptor, state::NodeStateSnapshot};
 
 /// Default maximum hold capacity for a simulated node.
 pub const DEFAULT_HOLD_CAPACITY_BYTES: ByteCount = ByteCount(4096);
@@ -103,24 +103,28 @@ impl SimulatedNodeProfile {
 
     #[must_use]
     pub fn build(self, node_id: NodeId, controller_id: ControllerId) -> NodeProfile {
-        NodeProfile {
-            services: self
-                .services
-                .into_iter()
-                .map(|service| service.build(node_id, controller_id))
-                .collect(),
-            endpoints: self.endpoints,
-            connection_count_max: self.connection_count_max,
-            neighbor_state_count_max: self.neighbor_state_count_max,
-            simultaneous_transfer_count_max: self.simultaneous_transfer_count_max,
-            active_route_count_max: self.active_route_count_max,
-            relay_work_budget_max: RelayWorkBudget(self.relay_work_budget_max),
-            maintenance_work_budget_max: MaintenanceWorkBudget(
-                self.maintenance_work_budget_max,
-            ),
-            hold_item_count_max: HoldItemCount(self.hold_item_count_max),
-            hold_capacity_bytes_max: self.hold_capacity_bytes_max,
+        let mut builder = NodeProfileBuilder::new()
+            .with_connection_limits(
+                self.connection_count_max,
+                self.neighbor_state_count_max,
+                self.simultaneous_transfer_count_max,
+                self.active_route_count_max,
+            )
+            .with_work_budgets(
+                RelayWorkBudget(self.relay_work_budget_max),
+                MaintenanceWorkBudget(self.maintenance_work_budget_max),
+            )
+            .with_hold_limits(
+                HoldItemCount(self.hold_item_count_max),
+                self.hold_capacity_bytes_max,
+            );
+        for endpoint in self.endpoints {
+            builder = builder.with_endpoint(endpoint);
         }
+        for service in self.services {
+            builder = builder.with_service(service.build(node_id, controller_id));
+        }
+        builder.build()
     }
 
     #[must_use]
@@ -131,14 +135,15 @@ impl SimulatedNodeProfile {
         state: &NodeStateSnapshot,
     ) -> Node {
         let observed_at_tick = self.observed_at_tick;
-        Node {
+        NodeBuilder::new(
             controller_id,
-            profile: self.build(node_id, controller_id),
-            state: state
+            self.build(node_id, controller_id),
+            state
                 .clone()
                 .with_observed_at_tick(observed_at_tick)
                 .build(),
-        }
+        )
+        .build()
     }
 
     #[must_use]
@@ -155,36 +160,30 @@ impl SimulatedNodeProfile {
             .with_work_budgets(10, 10)
             .with_hold_limits(8, ByteCount(8192))
             .with_service(
-                SimulatedServiceDescriptor::advertised(
-                    RouteServiceKind::Discover,
+                SimulatedServiceDescriptor::discover_service(
                     endpoint.clone(),
                     scope.clone(),
                     valid_for,
                     observed_at_tick,
                 )
-                .with_capacity_profile(4, None)
                 .with_routing_engine(routing_engine),
             )
             .with_service(
-                SimulatedServiceDescriptor::advertised(
-                    RouteServiceKind::Move,
+                SimulatedServiceDescriptor::move_service(
                     endpoint.clone(),
                     scope.clone(),
                     valid_for,
                     observed_at_tick,
                 )
-                .with_capacity_profile(4, None)
                 .with_routing_engine(routing_engine),
             )
             .with_service(
-                SimulatedServiceDescriptor::advertised(
-                    RouteServiceKind::Hold,
+                SimulatedServiceDescriptor::hold_service(
                     endpoint,
                     scope,
                     valid_for,
                     observed_at_tick,
                 )
-                .with_capacity_profile(4, Some(ByteCount(4096)))
                 .with_routing_engine(routing_engine),
             )
             .with_observed_at_tick(observed_at_tick)

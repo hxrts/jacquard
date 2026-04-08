@@ -1,8 +1,15 @@
-//! `InMemoryRuntimeEffects`, a single in-memory blob that implements
-//! `TimeEffects`, `OrderEffects`, `StorageEffects`, and
-//! `RouteEventLogEffects` for deterministic tests. Carries a current
-//! `Tick`, a monotonic order counter, a byte-store, a route-event log,
-//! and explicit failure-injection flags for fail-closed sequencing tests.
+//! In-memory runtime-effect adapters for reference composition and tests.
+//!
+//! This module provides a deterministic implementation of the shared runtime
+//! effect traits used by router and mesh:
+//! - time
+//! - ordering
+//! - key-value storage
+//! - route-event logging
+//!
+//! It is intentionally reference-only and in-memory. It exists to support
+//! tests, examples, and the reference client, not to model a production host
+//! runtime.
 
 use std::collections::BTreeMap;
 

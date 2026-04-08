@@ -36,12 +36,14 @@
 
 pub use jacquard_macros::{bounded_value, id_type, must_use_handle, public_model};
 
+mod authoring;
 mod base;
 mod connectivity;
 mod content;
 mod model;
 mod routing;
 
+pub use authoring::*;
 pub use base::*;
 pub use connectivity::*;
 pub use content::*;
