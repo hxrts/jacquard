@@ -1,32 +1,32 @@
-//! Rejects `usize` field types in public structs and enums under
-//! `crates/core` and `crates/traits`. The style guide requires
-//! explicitly-sized integers in stored and protocol types.
+//! Rejects `usize`, `u32`, `u8`, `u16`, `u64` field types in public structs and enums under
+//! `crates/core` and `crates/traits`. The style guide requires newtypes for dimensional
+//! distinctness to prevent category errors at call sites.
 
 use anyhow::{bail, Result};
 use syn::{visit::Visit, Fields, Item, Type};
 
 use crate::{sources::parse_workspace_sources, util::Violation};
 
-struct UsizeVisitor {
+struct BarePrimitiveVisitor {
     found: bool,
 }
 
-impl<'ast> Visit<'ast> for UsizeVisitor {
+impl<'ast> Visit<'ast> for BarePrimitiveVisitor {
     fn visit_type_path(&mut self, path: &'ast syn::TypePath) {
-        if path
-            .path
-            .segments
-            .iter()
-            .any(|segment| segment.ident == "usize")
-        {
+        if path.path.segments.iter().any(|segment| {
+            matches!(
+                segment.ident.to_string().as_str(),
+                "usize" | "u32" | "u8" | "u16" | "u64"
+            )
+        }) {
             self.found = true;
         }
         syn::visit::visit_type_path(self, path);
     }
 }
 
-fn type_has_usize(ty: &Type) -> bool {
-    let mut visitor = UsizeVisitor { found: false };
+fn type_has_bare_primitive(ty: &Type) -> bool {
+    let mut visitor = BarePrimitiveVisitor { found: false };
     visitor.visit_type(ty);
     visitor.found
 }
@@ -88,7 +88,7 @@ fn collect_struct_fields(
     out: &mut Vec<Violation>,
 ) {
     for field in fields {
-        if type_has_usize(&field.ty) {
+        if type_has_bare_primitive(&field.ty) {
             out.push(Violation::new(
                 rel_path,
                 1,

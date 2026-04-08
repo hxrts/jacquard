@@ -8,6 +8,7 @@ pub mod mesh_choreography;
 pub mod no_usize_in_models;
 pub mod pre_commit;
 pub mod proc_macro_scope;
+pub mod result_must_use;
 pub mod routing_invariants;
 pub mod test_boundaries;
 pub mod trait_purity;
@@ -26,6 +27,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "mesh-choreography" => mesh_choreography::run(rest),
         | "no-usize-in-models" => no_usize_in_models::run(),
         | "proc-macro-scope" => proc_macro_scope::run(),
+        | "result-must-use" => result_must_use::run(),
         | "routing-invariants" => routing_invariants::run(rest),
         | "test-boundaries" => test_boundaries::run(),
         | "trait-purity" => trait_purity::run(),
