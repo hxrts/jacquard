@@ -10,7 +10,7 @@ use jacquard_core::{
 };
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
 use jacquard_reference_client::{
-    build_mesh_client, build_mesh_client_with_profile, fixtures, MeshClient,
+    build_mesh_client, build_mesh_client_with_profile, topology, MeshClient,
 };
 use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane};
 
@@ -136,16 +136,16 @@ fn sample_configuration() -> Observation<Configuration> {
         value: Configuration {
             epoch: jacquard_core::RouteEpoch(2),
             nodes: BTreeMap::from([
-                (NODE_A, fixtures::route_capable_node(1)),
-                (NODE_B, fixtures::route_capable_node(2)),
-                (NODE_C, fixtures::route_capable_node(3)),
-                (NODE_D, fixtures::route_capable_node(4)),
+                (NODE_A, topology::route_capable_node(1)),
+                (NODE_B, topology::route_capable_node(2)),
+                (NODE_C, topology::route_capable_node(3)),
+                (NODE_D, topology::route_capable_node(4)),
             ]),
             links: BTreeMap::from([
-                ((NODE_A, NODE_B), fixtures::active_link(2, 950)),
-                ((NODE_B, NODE_C), fixtures::active_link(3, 875)),
-                ((NODE_A, NODE_D), fixtures::active_link(4, 925)),
-                ((NODE_B, NODE_D), fixtures::active_link(4, 900)),
+                ((NODE_A, NODE_B), topology::active_link(2, 950)),
+                ((NODE_B, NODE_C), topology::active_link(3, 875)),
+                ((NODE_A, NODE_D), topology::active_link(4, 925)),
+                ((NODE_B, NODE_D), topology::active_link(4, 900)),
             ]),
             environment: Environment {
                 reachable_neighbor_count: 3,

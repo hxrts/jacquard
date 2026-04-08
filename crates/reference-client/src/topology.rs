@@ -1,9 +1,10 @@
-//! Shared in-memory topology fixtures built from the mem-* profile crates.
+//! Shared reference topology builders built from the mem-* profile crates.
 //!
-//! Control flow: tests use these helpers to assemble shared `Node`
-//! and `Link` objects from the isolated profile/state builders, then hand that
-//! world state to the router and mesh engine through the normal composition
-//! path.
+//! Control flow: callers use these helpers to assemble canonical in-memory
+//! `Node` and `Link` shapes from the isolated profile/state builders, then hand
+//! that world state to the router and mesh engine through the normal
+//! composition path. This module is reusable reference composition, not
+//! engine-private business logic.
 
 use jacquard_core::{
     Belief, ByteCount, ControllerId, DiscoveryScopeId, DurationMs, Estimate, Link,

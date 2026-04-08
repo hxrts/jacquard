@@ -4,6 +4,8 @@
 //! It assembles shared topology observations, a router instance, and in-memory
 //! transport/runtime adapters, then submits typed router operations. It does
 //! not mint canonical route truth on its own.
+//! Reusable reference topology builders live in `topology`, so other crates can
+//! compose the same in-memory node/link shapes without copying fixture logic.
 //!
 //! Ownership:
 //! - narrow local `ActorOwned` host loop for composition only
@@ -11,8 +13,8 @@
 
 #![forbid(unsafe_code)]
 
-pub mod fixtures;
 mod mesh;
+pub mod topology;
 
 use jacquard_core::{Configuration, Observation};
 pub use jacquard_mem_link_profile::{
