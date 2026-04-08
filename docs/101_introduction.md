@@ -1,8 +1,8 @@
 # Introduction
 
-Jacquard is a deterministic routing system for constrained and unstable networks. It provides a stable routing abstraction and one in-tree routing engine, `Mesh`. It is designed so a host can add an external routing engine through the same contract.
+Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and one in-tree routing engine, `Mesh`. It is designed so a host can add an external routing engine through the same contract.
 
-See [Core Types](102_core_types.md) for the model objects that carry the system. See [Time Model](103_time.md) for the deterministic time rules. See [Runtime Effects](104_runtime_effects.md) for the narrow runtime capability surface that hosts implement. See [Pipeline and World Observations](105_pipeline_observations.md) for the shared pipeline, the world schema, and the observation layer. See [Route Lifecycle](106_route_lifecycle.md) for how a route moves from objective through materialization, maintenance, and teardown. See [Crate Architecture](999_crate_architecture.md) for separation of concerns and implementation policies.
+See [Core Types](201_core_types.md) for the model objects that carry the system. See [Time Model](202_time.md) for the deterministic time rules. See [Runtime Effects](301_runtime_effects.md) for the narrow runtime capability surface that hosts implement. See [Pipeline and World Observations](203_pipeline_observations.md) for the shared pipeline, the world schema, and the observation layer. See [Route Lifecycle](204_route_lifecycle.md) for how a route moves from objective through materialization, maintenance, and teardown. See [Crate Architecture](999_crate_architecture.md) for separation of concerns and implementation policies.
 
 ## Scope
 

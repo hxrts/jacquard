@@ -8,13 +8,13 @@ Jacquard is extended at several layers. World extensions add observed objects to
 
 These layers stay separate on purpose. A team can extend the world without becoming a routing-engine author, add a routing engine without redefining the world schema, or add host policy without modifying a routing engine.
 
-This page covers the world layer. See [Routing Engines](108_routing_engines.md) for the engine and policy contracts, [Runtime Effects](104_runtime_effects.md) for the host capability surface, and [Mesh Routing](110_mesh_routing.md) for the in-tree mesh implementation and its swappable subcomponents.
+This page covers the world layer. See [Routing Engines](303_routing_engines.md) for the engine and policy contracts, [Runtime Effects](301_runtime_effects.md) for the host capability surface, and [Mesh Routing](401_mesh_routing.md) for the in-tree mesh implementation and its swappable subcomponents.
 
 ## World Extension Surface
 
 World extensions are the entry point for teams that know a specific radio stack, runtime environment, discovery surface, or device class. The key idea is simple. Jacquard has one shared world schema in `jacquard-core`. A world extension adds observations of that schema. It does not define a private alternative node or link type.
 
-The shared world schema is documented in [Pipeline and World Observations](105_pipeline_observations.md). An extension constructs `Node`, `Link`, `Environment`, and the related observation types defined there, and emits them through the trait surface defined below. The example in the next section shows how to wire a real device into that schema end to end.
+The shared world schema is documented in [Pipeline and World Observations](203_pipeline_observations.md). An extension constructs `Node`, `Link`, `Environment`, and the related observation types defined there, and emits them through the trait surface defined below. The example in the next section shows how to wire a real device into that schema end to end.
 
 ### Example: Adding A New Device
 

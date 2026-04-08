@@ -1,6 +1,6 @@
 # Routing Engines
 
-This page describes the trait surface for adding a routing algorithm to Jacquard. See [World Extensions](107_world_extensions.md) for the layering overview, [Runtime Effects](104_runtime_effects.md) for the host capability surface, and [Mesh Routing](110_mesh_routing.md) for the in-tree mesh implementation and its swappable subcomponents.
+This page describes the trait surface for adding a routing algorithm to Jacquard. See [World Extensions](302_world_extensions.md) for the layering overview, [Runtime Effects](301_runtime_effects.md) for the host capability surface, and [Mesh Routing](401_mesh_routing.md) for the in-tree mesh implementation and its swappable subcomponents.
 
 ## Routing Engine Contract
 

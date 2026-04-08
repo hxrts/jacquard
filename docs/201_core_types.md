@@ -45,13 +45,13 @@ This group of types shows two important boundaries. `NodeBinding` says who contr
 
 ## Time And Qualifiers
 
-`Tick`, `DurationMs`, `OrderStamp`, `RouteEpoch`, and `ByteCount` are the core scalar units. They keep local time, bounded duration, deterministic ordering, topology versioning, and byte quantities distinct at the type level. `TimeWindow` and `TimeoutPolicy` are the first compound objects built on those primitives. See [Time Model](103_time.md) for the full time-domain rules and the validated `TimeWindow::new` constructor.
+`Tick`, `DurationMs`, `OrderStamp`, `RouteEpoch`, and `ByteCount` are the core scalar units. They keep local time, bounded duration, deterministic ordering, topology versioning, and byte quantities distinct at the type level. `TimeWindow` and `TimeoutPolicy` are the first compound objects built on those primitives. See [Time Model](202_time.md) for the full time-domain rules and the validated `TimeWindow::new` constructor.
 
 `Belief<T>` and `Limit<T>` are the two main qualifier types. `Belief<T>` distinguishes `Absent` from `Estimated(Estimate<T>)`, so the model can say both whether an estimate exists and how strong it is. `Limit<T>` says whether a budget is bounded or explicitly unlimited.
 
 ## World Schema
 
-`Configuration` is the shared graph-shaped world object the router reasons about. It wires together `Node`, `Link`, and `Environment`. World extensions emit `Observation<ObservedValue>` items that contribute to that picture. See [Pipeline and World Observations](105_pipeline_observations.md) for the full schema and the observation surface.
+`Configuration` is the shared graph-shaped world object the router reasons about. It wires together `Node`, `Link`, and `Environment`. World extensions emit `Observation<ObservedValue>` items that contribute to that picture. See [Pipeline and World Observations](203_pipeline_observations.md) for the full schema and the observation surface.
 
 Mesh-specific peer or neighborhood heuristics do not live here. Novelty scoring, bridge detection, reach estimation, and similar derived mesh signals stay behind the mesh trait boundary as engine-owned estimate types. `core` carries the world facts those heuristics are computed from, not the heuristics themselves.
 
@@ -61,7 +61,7 @@ Mesh-specific peer or neighborhood heuristics do not live here. Novelty scoring,
 
 Live routes are split into router-owned `MaterializedRouteIdentity` and engine-mutable `RouteRuntimeState`, composed as `MaterializedRoute`. Canonical route state does not come directly from a transport callback or raw health observation. Activation enforces the structural invariants. The admission decision must be admissible, the realized protection must satisfy the objective protection floor, and lease validity must be checked explicitly before publication or maintenance continues.
 
-See [Route Lifecycle](106_route_lifecycle.md) for the full lifecycle flow from objective through teardown.
+See [Route Lifecycle](204_route_lifecycle.md) for the full lifecycle flow from objective through teardown.
 
 ## Coordination And Layering
 

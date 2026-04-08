@@ -38,7 +38,7 @@ graph LR
     config --> policy --> action
 ```
 
-The rest of this page covers `world` and `observation`. See [Route Lifecycle](106_route_lifecycle.md) for how `estimation`, `policy`, and `action` turn observations into realized routes.
+The rest of this page covers `world` and `observation`. See [Route Lifecycle](204_route_lifecycle.md) for how `estimation`, `policy`, and `action` turn observations into realized routes.
 
 ## World Schema
 
@@ -143,13 +143,13 @@ measurements.
 
 `transfer_rate_bytes_per_sec` answers whether a meaningful exchange fits inside the contact window. `stability_horizon_ms` answers how long the contact is likely to remain useful. `delivery_confidence_permille` and `symmetry_permille` answer whether the link supports exchange in the expected direction.
 
-A routing engine that wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics derives them above this shared boundary. Those estimates stay engine-owned rather than being promoted into the shared schema. See [Route Lifecycle](106_route_lifecycle.md) for how engines consume the shared link signals.
+A routing engine that wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics derives them above this shared boundary. Those estimates stay engine-owned rather than being promoted into the shared schema. See [Route Lifecycle](204_route_lifecycle.md) for how engines consume the shared link signals.
 
 `jacquard-mem-link-profile` is the in-tree reference implementation of this
 boundary for tests and examples. It shows how to model `LinkEndpoint`,
 `LinkProfile`, and `LinkState`, carry frames over a shared in-memory network,
 and supply deterministic retention and runtime effects without embedding
-routing semantics. See [World Extensions](107_world_extensions.md) for how to
+routing semantics. See [World Extensions](302_world_extensions.md) for how to
 extend Jacquard with new network types.
 
 ### Environment
@@ -189,7 +189,7 @@ The observation stage wraps each world object with provenance. `Observation<Node
 
 Jacquard uses an epistemic ladder so raw observation stays distinct from inferred belief and from established routing truth. `Observation<T>` is the base wrapper. `Estimate<T>` adds an explicit `confidence_permille`. `Fact<T>` marks values the control plane is willing to publish as routing truth.
 
-`Belief<T>` wraps an optional estimate with an explicit `Absent` variant. Code can then tell "no estimate yet" from "estimated with low confidence" without unwrapping defaults. See [Core Types](102_core_types.md) for the full type definitions.
+`Belief<T>` wraps an optional estimate with an explicit `Absent` variant. Code can then tell "no estimate yet" from "estimated with low confidence" without unwrapping defaults. See [Core Types](201_core_types.md) for the full type definitions.
 
 ### Provenance Qualifiers
 
@@ -209,4 +209,4 @@ Engine-specific peer or neighborhood heuristics live above this boundary. A mesh
 
 World extensions are the entry path for observed nodes, links, environments, services, and transport activity. An extension emits `Observation<ObservedValue>` values that wrap objects conforming to the shared schema rather than defining a private alternative.
 
-This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [World Extensions](107_world_extensions.md) for the trait surface and an end-to-end BLE relay example.
+This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [World Extensions](302_world_extensions.md) for the trait surface and an end-to-end BLE relay example.
