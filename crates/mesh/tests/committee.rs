@@ -328,11 +328,11 @@ fn committee_selector_some_is_carried_into_active_route() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("route admission");
-    let route_id = admission.route_id;
-    let input = materialization_input(admission, lease(Tick(2), Tick(12)));
+    let input = materialization_input(route_id, admission, lease(Tick(2), Tick(12)));
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("prime mesh topology");

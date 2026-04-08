@@ -8,7 +8,7 @@
 //! maintenance outcome.
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, LinkEndpoint, MaterializedRouteIdentity,
+    Blake3Digest, Configuration, ContentId, LinkEndpoint, PublishedRouteRecord,
     RouteError, RouteId, RouteLifecycleEvent, RouteMaintenanceFailure,
     RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
     RouteProgressState, RouteRuntimeError, RouteSemanticHandoff,
@@ -79,7 +79,7 @@ where
 
     fn handoff_result(
         &mut self,
-        identity: &MaterializedRouteIdentity,
+        identity: &PublishedRouteRecord,
         active_route: &mut ActiveMeshRoute,
         runtime: &mut jacquard_core::RouteRuntimeState,
         handoff_receipt_id: jacquard_core::ReceiptId,

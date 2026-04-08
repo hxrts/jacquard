@@ -33,7 +33,7 @@ dylint_linting::impl_late_lint! {
     /// store_bytes(&key, &value).storage_invalid()?;
     /// ```
     pub NAKED_MAP_ERR_ROUTE_ERROR,
-    Warn,
+    Deny,
     ".map_err(|_| RouteError::Runtime(...)) discards the original error; use a ResultExt method",
     NakedMapErrRouteError
 }

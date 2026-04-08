@@ -178,6 +178,7 @@ where
             .map(|(backend_route_id, candidate)| {
                 cache.insert(backend_route_id.clone(), candidate.clone());
                 RouteCandidate {
+                    route_id: candidate.route_id,
                     summary: candidate.summary,
                     estimate: candidate.estimate,
                     backend_ref: jacquard_core::BackendRouteRef {

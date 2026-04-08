@@ -59,7 +59,7 @@ Mesh-specific peer or neighborhood heuristics do not live here. Novelty scoring,
 
 `RouteHandle`, `RouteLease`, `RouteMaterializationInput`, `RouteInstallation`, `RouteMaterializationProof`, and `RouteCommitment` are the main runtime coordination objects in `core`. The router allocates canonical route identity through `RouteHandle`, `RouteLease`, and `RouteMaterializationInput`. The engine returns `RouteInstallation` and `RouteMaterializationProof` to describe what it realized under that identity.
 
-Live routes are split into router-owned `MaterializedRouteIdentity` and engine-mutable `RouteRuntimeState`, composed as `MaterializedRoute`. Canonical route state does not come directly from a transport callback or raw health observation. Activation enforces the structural invariants. The admission decision must be admissible, the realized protection must satisfy the objective protection floor, and lease validity must be checked explicitly before publication or maintenance continues.
+Live routes are split into router-owned `PublishedRouteRecord` and engine-mutable `RouteRuntimeState`, composed as `MaterializedRoute`. Canonical route state does not come directly from a transport callback or raw health observation. Activation enforces the structural invariants. The admission decision must be admissible, the realized protection must satisfy the objective protection floor, and lease validity must be checked explicitly before publication or maintenance continues.
 
 See [Route Lifecycle](204_route_lifecycle.md) for the full lifecycle flow from objective through teardown.
 

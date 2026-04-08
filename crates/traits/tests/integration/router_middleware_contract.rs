@@ -113,7 +113,7 @@ impl RoutingEngine for StubManagedEngine {
 
     fn maintain_route(
         &mut self,
-        _identity: &jacquard_traits::jacquard_core::MaterializedRouteIdentity,
+        _identity: &jacquard_traits::jacquard_core::PublishedRouteRecord,
         _runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {

@@ -54,13 +54,8 @@ pub fn build_mesh_client_with_profile(
     profile: SelectedRoutingParameters,
 ) -> MeshClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
-    let transport_protocol = local_endpoint.protocol.clone();
-    let mut transport = InMemoryTransport::attached(
-        &transport_protocol,
-        local_node_id,
-        [local_endpoint],
-        network,
-    );
+    let mut transport =
+        InMemoryTransport::attach(local_node_id, [local_endpoint], network);
     transport.set_ingress_tick(now);
 
     let engine = MeshEngine::without_committee_selector(

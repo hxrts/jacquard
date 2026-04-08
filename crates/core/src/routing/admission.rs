@@ -180,6 +180,10 @@ pub struct RouteSummary {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteCandidate {
+    /// Advisory identity derived deterministically from the backend token.
+    /// This is not yet canonical publication proof; the router promotes it
+    /// into a `RouteIdentityStamp` only after materialization succeeds.
+    pub route_id: RouteId,
     pub summary: RouteSummary,
     /// Candidate enumeration is observational/advisory. It must not be treated
     /// as proof-bearing admission evidence.
@@ -233,12 +237,10 @@ pub enum RouteAdmissionRejection {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Engine's decision record about an objective/candidate pair.
 ///
-/// `route_id` is the engine-computed content-addressed ID for this route,
-/// derived deterministically from the plan token. The router reads it here to
-/// populate the canonical `RouteIdentityStamp`; the stamp (not this field) is
-/// the authoritative identity source once a route is materialized.
+/// Admission carries proof-bearing decision artifacts only. Canonical route
+/// identity lives in `RouteIdentityStamp`, and the pre-publication advisory
+/// route ID lives on `RouteCandidate`.
 pub struct RouteAdmission {
-    pub route_id: RouteId,
     pub backend_ref: BackendRouteRef,
     pub objective: RoutingObjective,
     pub profile: SelectedRoutingParameters,

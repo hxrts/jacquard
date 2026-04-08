@@ -7,7 +7,7 @@
 //! reading mesh-private internals.
 
 use jacquard_core::{
-    MaterializedRoute, MaterializedRouteIdentity, RouteBinding, RouteCommitment,
+    MaterializedRoute, PublishedRouteRecord, RouteBinding, RouteCommitment,
     RouteCommitmentResolution, RouteError, RouteInvalidationReason,
     RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
     RouteMaintenanceResult, RouteOperationId, RouteProgressState, RoutingTickChange,
@@ -46,7 +46,7 @@ where
 {
     pub(super) fn expired_lease_result(
         &mut self,
-        _identity: &MaterializedRouteIdentity,
+        _identity: &PublishedRouteRecord,
         runtime: &mut jacquard_core::RouteRuntimeState,
     ) -> Result<RouteMaintenanceResult, RouteError> {
         let mut next_runtime = runtime.clone();

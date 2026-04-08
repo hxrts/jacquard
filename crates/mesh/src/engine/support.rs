@@ -29,7 +29,10 @@ pub(crate) trait StorageResultExt<T> {
 
 impl<T, E> StorageResultExt<T> for Result<T, E> {
     fn storage_invalid(self) -> Result<T, RouteError> {
-        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+        match self {
+            | Ok(value) => Ok(value),
+            | Err(_) => Err(RouteError::Runtime(RouteRuntimeError::Invalidated)),
+        }
     }
 }
 
@@ -41,7 +44,10 @@ pub(crate) trait MaintenanceResultExt<T> {
 
 impl<T, E> MaintenanceResultExt<T> for Result<T, E> {
     fn maintenance_failed(self) -> Result<T, RouteError> {
-        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+        match self {
+            | Ok(value) => Ok(value),
+            | Err(_) => Err(RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)),
+        }
     }
 }
 use serde::{Deserialize, Serialize};

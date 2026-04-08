@@ -212,6 +212,7 @@ fn metric_aware_search_prefers_higher_quality_equal_hop_path() {
         .into_iter()
         .next()
         .expect("candidate to destination five");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admit route");
@@ -222,7 +223,7 @@ fn metric_aware_search_prefers_higher_quality_equal_hop_path() {
             .expect("valid lease"),
     };
     let installation = engine
-        .materialize_route(materialization_input(admission, lease))
+        .materialize_route(materialization_input(route_id, admission, lease))
         .expect("materialize route");
 
     let route = engine

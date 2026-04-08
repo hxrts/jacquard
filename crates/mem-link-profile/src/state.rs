@@ -3,7 +3,7 @@
 //! `DEFAULT_STABILITY_HORIZON_MS`) used as seeds by tests and fixtures.
 
 use jacquard_core::{
-    Belief, DurationMs, Link, LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState,
+    DurationMs, Link, LinkBuilder, LinkEndpoint, LinkRuntimeState,
     PartitionRecoveryClass, RatioPermille, RepairCapability, Tick,
 };
 
@@ -76,6 +76,30 @@ impl SimulatedLinkProfile {
     }
 
     #[must_use]
+    pub fn with_latency_floor(mut self, latency_floor_ms: DurationMs) -> Self {
+        self.latency_floor_ms = latency_floor_ms;
+        self
+    }
+
+    #[must_use]
+    pub fn with_repair_capability(
+        mut self,
+        repair_capability: RepairCapability,
+    ) -> Self {
+        self.repair_capability = repair_capability;
+        self
+    }
+
+    #[must_use]
+    pub fn with_partition_recovery(
+        mut self,
+        partition_recovery: PartitionRecoveryClass,
+    ) -> Self {
+        self.partition_recovery = partition_recovery;
+        self
+    }
+
+    #[must_use]
     pub fn with_runtime_state(mut self, runtime_state: LinkRuntimeState) -> Self {
         self.runtime_state = runtime_state;
         self
@@ -134,44 +158,34 @@ impl SimulatedLinkProfile {
 
     #[must_use]
     pub fn build(self) -> Link {
-        Link {
-            endpoint: self.endpoint,
-            profile: LinkProfile {
-                latency_floor_ms: self.latency_floor_ms,
-                repair_capability: self.repair_capability,
-                partition_recovery: self.partition_recovery,
-            },
-            state: LinkState {
-                state: self.runtime_state,
-                median_rtt_ms: Belief::certain(
-                    self.median_rtt_ms,
-                    self.observed_at_tick,
-                ),
-                transfer_rate_bytes_per_sec: Belief::certain(
-                    self.transfer_rate_bytes_per_sec,
-                    self.observed_at_tick,
-                ),
-                stability_horizon_ms: Belief::certain(
-                    self.stability_horizon_ms,
-                    self.observed_at_tick,
-                ),
-                loss_permille: self.loss_permille,
-                delivery_confidence_permille: Belief::certain(
-                    self.delivery_confidence_permille,
-                    self.observed_at_tick,
-                ),
-                symmetry_permille: Belief::certain(
-                    self.symmetry_permille,
-                    self.observed_at_tick,
-                ),
-            },
-        }
+        LinkBuilder::new(self.endpoint)
+            .with_profile(
+                self.latency_floor_ms,
+                self.repair_capability,
+                self.partition_recovery,
+            )
+            .with_runtime_state(self.runtime_state)
+            .with_runtime_observation(
+                self.median_rtt_ms,
+                self.transfer_rate_bytes_per_sec,
+                self.stability_horizon_ms,
+                self.observed_at_tick,
+            )
+            .with_quality(
+                self.loss_permille,
+                self.delivery_confidence_permille,
+                self.symmetry_permille,
+                self.observed_at_tick,
+            )
+            .build()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use jacquard_core::{ByteCount, EndpointAddress, Estimate, TransportProtocol};
+    use jacquard_core::{
+        Belief, ByteCount, EndpointAddress, Estimate, TransportProtocol,
+    };
 
     use super::*;
 

@@ -10,9 +10,9 @@ use jacquard_traits::{
         CommitteeSelection, Configuration, ConnectivityPosture, ConnectivityRegime,
         DiversityFloor, Environment, Estimate, Fact, FactBasis, FailureModelClass,
         IdentityAssuranceClass, LayerParameter, LayerParameters, Limit,
-        MaterializedRoute, MaterializedRouteIdentity, MessageFlowAssumptionClass,
-        NodeDensityClass, ObjectiveVsDelivered, Observation, OperatingMode,
-        PublicationId, QuorumThreshold, ReachabilityState, RouteAdmission,
+        MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass,
+        ObjectiveVsDelivered, Observation, OperatingMode, PublicationId,
+        PublishedRouteRecord, QuorumThreshold, ReachabilityState, RouteAdmission,
         RouteAdmissionCheck, RouteBinding, RouteCandidate, RouteCommitment,
         RouteCommitmentId, RouteCommitmentResolution, RouteCost, RouteDegradation,
         RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId,
@@ -137,6 +137,7 @@ impl RoutingEnginePlanner for StubEngine {
         _topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
         vec![RouteCandidate {
+            route_id: self.route.identity.stamp.route_id,
             summary: self.route.identity.admission.summary.clone(),
             estimate: Estimate {
                 value: RouteEstimate {
@@ -232,7 +233,7 @@ impl RoutingEngine for StubEngine {
 
     fn maintain_route(
         &mut self,
-        _identity: &MaterializedRouteIdentity,
+        _identity: &PublishedRouteRecord,
         runtime: &mut RouteRuntimeState,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError>
@@ -265,6 +266,7 @@ impl LayeredRoutingEnginePlanner for StubEngine {
         _parameters: &LayerParameters,
     ) -> Vec<RouteCandidate> {
         vec![RouteCandidate {
+            route_id: self.route.identity.stamp.route_id,
             summary: self.route.identity.admission.summary.clone(),
             estimate: Estimate {
                 value: RouteEstimate {
@@ -449,7 +451,6 @@ fn sample_route(
     let input = RouteMaterializationInput {
         handle: RouteHandle { stamp: stamp.clone() },
         admission: RouteAdmission {
-            route_id: RouteId([3; 16]),
             backend_ref: BackendRouteRef {
                 engine: stub_engine_id(),
                 backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![

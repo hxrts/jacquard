@@ -21,7 +21,7 @@
 //!
 //! Core owns the shared result and evidence shapes that cross engine
 //! boundaries, including [`RouteCandidate`], [`RouteAdmission`],
-//! [`RouteMaterializationProof`], and [`MaterializedRouteIdentity`]. Engines
+//! [`RouteMaterializationProof`], and [`PublishedRouteRecord`]. Engines
 //! and routers exchange these values, but the behavioral contracts for using
 //! them live in `jacquard-traits`.
 //!
@@ -36,12 +36,14 @@
 
 pub use jacquard_macros::{bounded_value, id_type, must_use_handle, public_model};
 
+mod authoring;
 mod base;
 mod connectivity;
 mod content;
 mod model;
 mod routing;
 
+pub use authoring::*;
 pub use base::*;
 pub use connectivity::*;
 pub use content::*;

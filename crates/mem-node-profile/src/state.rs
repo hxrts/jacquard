@@ -4,8 +4,8 @@
 //! `NodeState` snapshot.
 
 use jacquard_core::{
-    Belief, ByteCount, DurationMs, HoldItemCount, InformationSetSummary,
-    NodeRelayBudget, NodeState, RatioPermille, RelayWorkBudget, Tick,
+    ByteCount, DurationMs, HoldItemCount, NodeState, NodeStateBuilder, RatioPermille,
+    RelayWorkBudget, Tick,
 };
 
 /// Mutable in-memory node-state simulator for tests.
@@ -108,34 +108,28 @@ impl NodeStateSnapshot {
 
     #[must_use]
     pub fn build(&self) -> NodeState {
-        NodeState {
-            relay_budget: Belief::certain(
-                NodeRelayBudget::observed(
-                    RelayWorkBudget(self.relay_work_budget),
-                    self.relay_utilization_permille,
-                    self.retention_horizon_ms,
-                    self.observed_at_tick,
-                ),
+        NodeStateBuilder::new()
+            .with_relay_budget(
+                RelayWorkBudget(self.relay_work_budget),
+                self.relay_utilization_permille,
+                self.retention_horizon_ms,
                 self.observed_at_tick,
-            ),
-            available_connection_count: Belief::certain(
+            )
+            .with_available_connections(
                 self.available_connection_count,
                 self.observed_at_tick,
-            ),
-            hold_capacity_available_bytes: Belief::certain(
+            )
+            .with_hold_capacity(
                 self.hold_capacity_available_bytes,
                 self.observed_at_tick,
-            ),
-            information_summary: Belief::certain(
-                InformationSetSummary::bloom_filter(
-                    HoldItemCount(self.information_item_count),
-                    self.information_byte_count,
-                    self.information_false_positive_permille,
-                    self.observed_at_tick,
-                ),
+            )
+            .with_information_summary(
+                HoldItemCount(self.information_item_count),
+                self.information_byte_count,
+                self.information_false_positive_permille,
                 self.observed_at_tick,
-            ),
-        }
+            )
+            .build()
     }
 
     #[must_use]

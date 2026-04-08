@@ -4,9 +4,9 @@
 //! to a `(NodeId, ControllerId)` pair on build.
 
 use jacquard_core::{
-    Belief, ByteCount, CapacityHint, ControllerId, LinkEndpoint, NodeId, RatioPermille,
+    ByteCount, CapacityHint, ControllerId, LinkEndpoint, NodeId, RatioPermille,
     RepairCapacitySlots, RouteServiceKind, RoutingEngineId, ServiceDescriptor,
-    ServiceScope, Tick, TimeWindow,
+    ServiceDescriptorBuilder, ServiceScope, Tick, TimeWindow,
 };
 
 /// Builder for one shared service descriptor emitted by a simulated node.
@@ -103,22 +103,75 @@ impl SimulatedServiceDescriptor {
     }
 
     #[must_use]
+    pub fn discover_service(
+        endpoint: LinkEndpoint,
+        scope: ServiceScope,
+        valid_for: TimeWindow,
+        observed_at_tick: Tick,
+    ) -> Self {
+        Self::advertised(
+            RouteServiceKind::Discover,
+            endpoint,
+            scope,
+            valid_for,
+            observed_at_tick,
+        )
+        .with_capacity_profile(4, None)
+    }
+
+    #[must_use]
+    pub fn move_service(
+        endpoint: LinkEndpoint,
+        scope: ServiceScope,
+        valid_for: TimeWindow,
+        observed_at_tick: Tick,
+    ) -> Self {
+        Self::advertised(
+            RouteServiceKind::Move,
+            endpoint,
+            scope,
+            valid_for,
+            observed_at_tick,
+        )
+        .with_capacity_profile(4, None)
+    }
+
+    #[must_use]
+    pub fn hold_service(
+        endpoint: LinkEndpoint,
+        scope: ServiceScope,
+        valid_for: TimeWindow,
+        observed_at_tick: Tick,
+    ) -> Self {
+        Self::advertised(
+            RouteServiceKind::Hold,
+            endpoint,
+            scope,
+            valid_for,
+            observed_at_tick,
+        )
+        .with_capacity_profile(4, Some(ByteCount(4096)))
+    }
+
+    #[must_use]
     pub fn build(
         self,
         node_id: NodeId,
         controller_id: ControllerId,
     ) -> ServiceDescriptor {
         let capacity_hint = self.capacity_hint();
-        ServiceDescriptor {
-            provider_node_id: node_id,
-            controller_id,
-            service_kind: self.service_kind,
-            endpoints: self.endpoints,
-            routing_engines: self.routing_engines,
-            scope: self.scope,
-            valid_for: self.valid_for,
-            capacity: Belief::certain(capacity_hint, self.observed_at_tick),
+        let mut builder =
+            ServiceDescriptorBuilder::new(node_id, controller_id, self.service_kind)
+                .with_scope(self.scope)
+                .with_valid_for(self.valid_for)
+                .with_capacity(capacity_hint, self.observed_at_tick);
+        for endpoint in self.endpoints {
+            builder = builder.with_endpoint(endpoint);
         }
+        for routing_engine in self.routing_engines {
+            builder = builder.with_routing_engine(&routing_engine);
+        }
+        builder.build()
     }
 }
 

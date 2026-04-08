@@ -32,10 +32,11 @@ fn materialize_route_succeeds_after_engine_tick_clears_candidate_cache() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
-    let input = materialization_input(admission, lease(Tick(2), Tick(20)));
+    let input = materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
 
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
@@ -61,10 +62,11 @@ fn materialize_route_succeeds_after_candidate_cache_rebuild() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&destination_three, &policy, candidate, &topology)
         .expect("admission");
-    let input = materialization_input(admission, lease(Tick(2), Tick(20)));
+    let input = materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
 
     let _rebuilt_cache = engine.candidate_routes(&destination_four, &policy, &topology);
     engine
@@ -88,10 +90,12 @@ fn materialize_route_fails_closed_for_mismatched_backend_plan_token() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
-    let mut input = materialization_input(admission, lease(Tick(2), Tick(20)));
+    let mut input =
+        materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
 
     let mismatched_candidate = engine
         .candidate_routes(&alternate_goal, &policy, &topology)
@@ -124,11 +128,12 @@ fn materialize_route_fails_closed_for_corrupted_backend_plan_token() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let mut admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
     admission.backend_ref.backend_route_id.0 = vec![0xff, 0x00, 0xaa];
-    let input = materialization_input(admission, lease(Tick(2), Tick(20)));
+    let input = materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
 
     let error = engine
         .materialize_route(input)
@@ -154,10 +159,11 @@ fn materialize_route_does_not_depend_on_router_event_logging() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
-    let input = materialization_input(admission, lease(Tick(2), Tick(20)));
+    let input = materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
 
     engine.effects.set_fail_record_route_event(true);
     let installation = engine
@@ -205,10 +211,12 @@ fn materialize_route_fails_closed_for_mismatched_handle_epoch() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
-    let mut input = materialization_input(admission, lease(Tick(2), Tick(20)));
+    let mut input =
+        materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
     input.handle.stamp.topology_epoch = RouteEpoch(99);
 
     let error = engine
@@ -235,10 +243,11 @@ fn materialize_route_fails_closed_when_latest_topology_epoch_has_advanced() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
-    let input = materialization_input(admission, lease(Tick(2), Tick(20)));
+    let input = materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
 
     let mut advanced_topology = topology.clone();
     advanced_topology.value.epoch = RouteEpoch(3);
@@ -270,10 +279,11 @@ fn materialize_route_fails_closed_when_plan_token_has_expired() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
-    let input = materialization_input(admission, lease(Tick(20), Tick(30)));
+    let input = materialization_input(route_id, admission, lease(Tick(20), Tick(30)));
     engine.effects.set_now(Tick(20));
 
     let error = engine
