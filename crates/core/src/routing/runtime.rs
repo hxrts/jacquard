@@ -5,9 +5,9 @@ use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AdmissionDecision, ByteCount, Configuration, Fact, HealthScore, Limit, NodeId,
-    Observation, OrderStamp, PenaltyPoints, PriorityPoints, PublicationId, ReceiptId,
-    RouteAdmission, RouteCommitmentId, RouteEpoch, RouteId, RouteRuntimeError,
+    AdmissionDecision, ByteCount, Configuration, Fact, HealthScore, HoldItemCount, Limit,
+    NodeId, Observation, OrderStamp, PenaltyPoints, PriorityPoints, PublicationId,
+    ReceiptId, RouteAdmission, RouteCommitmentId, RouteEpoch, RouteId, RouteRuntimeError,
     RouteWitness, Tick, TimeWindow, TimeoutPolicy,
 };
 
@@ -468,7 +468,7 @@ pub enum RouteMaintenanceOutcome {
     HandedOff(RouteSemanticHandoff),
     HoldFallback {
         trigger: RouteMaintenanceTrigger,
-        retained_object_count: u32,
+        retained_object_count: HoldItemCount,
     },
     Failed(RouteMaintenanceFailure),
 }

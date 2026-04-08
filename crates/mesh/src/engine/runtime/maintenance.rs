@@ -69,10 +69,10 @@ where
             event: RouteLifecycleEvent::EnteredPartitionMode,
             outcome: RouteMaintenanceOutcome::HoldFallback {
                 trigger,
-                retained_object_count: u32::try_from(
-                    active_route.anti_entropy.retained_objects.len(),
-                )
-                .unwrap_or(u32::MAX),
+                retained_object_count: jacquard_core::HoldItemCount(
+                    u32::try_from(active_route.anti_entropy.retained_objects.len())
+                        .unwrap_or(u32::MAX),
+                ),
             },
         }
     }

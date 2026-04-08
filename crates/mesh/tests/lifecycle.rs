@@ -64,7 +64,7 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         hold_fallback.outcome,
         RouteMaintenanceOutcome::HoldFallback {
             trigger: RouteMaintenanceTrigger::PartitionDetected,
-            retained_object_count: 0,
+            retained_object_count: jacquard_traits::jacquard_core::HoldItemCount(0),
         }
     );
     engine
