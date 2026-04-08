@@ -45,7 +45,7 @@ struct TraitMethodMustUse;
 
 impl<'tcx> LateLintPass<'tcx> for TraitMethodMustUse {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
-        let ItemKind::Trait(_, _, _, _, items) = item.kind else {
+        let ItemKind::Trait(_, _, _, _, _, _, items) = item.kind else {
             return;
         };
 
@@ -57,9 +57,8 @@ impl<'tcx> LateLintPass<'tcx> for TraitMethodMustUse {
             return;
         }
 
-        for trait_item_ref in items {
-            let trait_item: &TraitItem<'tcx> =
-                cx.tcx.hir().trait_item(trait_item_ref.id);
+        for trait_item_id in items {
+            let trait_item: &TraitItem<'tcx> = cx.tcx.hir_trait_item(*trait_item_id);
 
             let TraitItemKind::Fn(sig, _) = &trait_item.kind else {
                 continue;
@@ -76,7 +75,7 @@ impl<'tcx> LateLintPass<'tcx> for TraitMethodMustUse {
             }
 
             // Check for #[must_use] or #[must_use = "..."].
-            if has_must_use_attr(&trait_item.attrs) {
+            if has_must_use_attr(cx.tcx.hir_attrs(trait_item.hir_id())) {
                 continue;
             }
 
@@ -127,6 +126,6 @@ fn is_result_unit_return(output: FnRetTy<'_>) -> bool {
     matches!(ok_ty.kind, TyKind::Tup(tys) if tys.is_empty())
 }
 
-fn has_must_use_attr(attrs: &[rustc_ast::ast::Attribute]) -> bool {
-    attrs.iter().any(|attr| attr.has_name(sym::must_use))
+fn has_must_use_attr(attrs: &[rustc_hir::Attribute]) -> bool {
+    attrs.iter().any(|attr| attr.name() == Some(sym::must_use))
 }
