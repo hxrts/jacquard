@@ -7,27 +7,17 @@
 
 use std::collections::BTreeMap;
 
+use jacquard_mem_link_profile::ble_endpoint;
 use jacquard_mesh::MESH_ENGINE_ID;
 use jacquard_traits::jacquard_core::{
-    Belief, BleDeviceId, BleProfileId, ByteCount, Configuration, ControllerId,
-    DiscoveryScopeId, DurationMs, EndpointAddress, Environment, Estimate,
-    FactSourceClass, InformationSetSummary, InformationSummaryEncoding, Link,
-    LinkEndpoint, LinkRuntimeState, LinkState, Node, NodeId, NodeProfile,
-    NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass, RatioPermille,
-    RouteEpoch, RouteServiceKind, RoutingEvidenceClass, ServiceDescriptor,
-    ServiceScope, Tick, TimeWindow, TransportProtocol,
+    Belief, ByteCount, Configuration, ControllerId, DiscoveryScopeId, DurationMs,
+    Environment, Estimate, FactSourceClass, HoldItemCount, InformationSetSummary,
+    InformationSummaryEncoding, Link, LinkRuntimeState, LinkState,
+    MaintenanceWorkBudget, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
+    Observation, OriginAuthenticationClass, RatioPermille, RelayWorkBudget,
+    RepairCapacitySlots, RouteEpoch, RouteServiceKind, RoutingEvidenceClass,
+    ServiceDescriptor, ServiceScope, Tick, TimeWindow,
 };
-
-pub fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
-    LinkEndpoint {
-        protocol:  TransportProtocol::BleGatt,
-        address:   EndpointAddress::Ble {
-            device_id:  BleDeviceId(vec![device_byte]),
-            profile_id: BleProfileId([device_byte; 16]),
-        },
-        mtu_bytes: ByteCount(256),
-    }
-}
 
 pub fn route_capable_services(
     node_id: NodeId,
@@ -45,21 +35,21 @@ pub fn route_capable_services(
             scope: ServiceScope::Discovery(DiscoveryScopeId([7; 16])),
             valid_for,
             capacity: Belief::Estimated(Estimate {
-                value:               jacquard_traits::jacquard_core::CapacityHint {
+                value: jacquard_traits::jacquard_core::CapacityHint {
                     saturation_permille: RatioPermille(100),
-                    repair_capacity:     Belief::Estimated(Estimate {
-                        value:               4,
+                    repair_capacity_slots: Belief::Estimated(Estimate {
+                        value: RepairCapacitySlots(4),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(1),
+                        updated_at_tick: Tick(1),
                     }),
                     hold_capacity_bytes: Belief::Estimated(Estimate {
-                        value:               ByteCount(4096),
+                        value: ByteCount(4096),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(1),
+                        updated_at_tick: Tick(1),
                     }),
                 },
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
         })
         .collect()
@@ -78,60 +68,60 @@ pub fn node(node_byte: u8) -> Node {
             neighbor_state_count_max: 8,
             simultaneous_transfer_count_max: 4,
             active_route_count_max: 4,
-            relay_work_budget_max: 10,
-            maintenance_work_budget_max: 10,
-            hold_item_count_max: 8,
+            relay_work_budget_max: RelayWorkBudget(10),
+            maintenance_work_budget_max: MaintenanceWorkBudget(10),
+            hold_item_count_max: HoldItemCount(8),
             hold_capacity_bytes_max: ByteCount(8192),
         },
         state: NodeState {
-            relay_budget:                  Belief::Estimated(Estimate {
-                value:               NodeRelayBudget {
-                    relay_work_budget:    Belief::Estimated(Estimate {
-                        value:               8,
+            relay_budget: Belief::Estimated(Estimate {
+                value: NodeRelayBudget {
+                    relay_work_budget: Belief::Estimated(Estimate {
+                        value: RelayWorkBudget(8),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(1),
+                        updated_at_tick: Tick(1),
                     }),
                     utilization_permille: RatioPermille(100),
                     retention_horizon_ms: Belief::Estimated(Estimate {
-                        value:               DurationMs(500),
+                        value: DurationMs(500),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(1),
+                        updated_at_tick: Tick(1),
                     }),
                 },
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
-            available_connection_count:    Belief::Estimated(Estimate {
-                value:               4,
+            available_connection_count: Belief::Estimated(Estimate {
+                value: 4,
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
             hold_capacity_available_bytes: Belief::Estimated(Estimate {
-                value:               ByteCount(4096),
+                value: ByteCount(4096),
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
-            information_summary:           Belief::Estimated(Estimate {
-                value:               InformationSetSummary {
-                    summary_encoding:        InformationSummaryEncoding::BloomFilter,
-                    item_count:              Belief::Estimated(Estimate {
-                        value:               4,
+            information_summary: Belief::Estimated(Estimate {
+                value: InformationSetSummary {
+                    summary_encoding: InformationSummaryEncoding::BloomFilter,
+                    item_count: Belief::Estimated(Estimate {
+                        value: HoldItemCount(4),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(1),
+                        updated_at_tick: Tick(1),
                     }),
-                    byte_count:              Belief::Estimated(Estimate {
-                        value:               ByteCount(2048),
+                    byte_count: Belief::Estimated(Estimate {
+                        value: ByteCount(2048),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(1),
+                        updated_at_tick: Tick(1),
                     }),
                     false_positive_permille: Belief::Estimated(Estimate {
-                        value:               RatioPermille(10),
+                        value: RatioPermille(10),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(1),
+                        updated_at_tick: Tick(1),
                     }),
                 },
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
         },
     }
@@ -140,29 +130,38 @@ pub fn node(node_byte: u8) -> Node {
 pub fn link(device_byte: u8, confidence: u16) -> Link {
     Link {
         endpoint: ble_endpoint(device_byte),
-        state:    LinkState {
+        profile: jacquard_core::LinkProfile {
+            latency_floor_ms: DurationMs(8),
+            repair_capability: jacquard_core::RepairCapability::TransportRetransmit,
+            partition_recovery: jacquard_core::PartitionRecoveryClass::LocalReconnect,
+        },
+        state: LinkState {
             state: LinkRuntimeState::Active,
-            median_rtt_ms: DurationMs(40),
-            transfer_rate_bytes_per_sec: Belief::Estimated(Estimate {
-                value:               2048,
+            median_rtt_ms: Belief::Estimated(Estimate {
+                value: DurationMs(40),
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
+            }),
+            transfer_rate_bytes_per_sec: Belief::Estimated(Estimate {
+                value: 2048,
+                confidence_permille: RatioPermille(1000),
+                updated_at_tick: Tick(1),
             }),
             stability_horizon_ms: Belief::Estimated(Estimate {
-                value:               DurationMs(500),
+                value: DurationMs(500),
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
             loss_permille: RatioPermille(50),
             delivery_confidence_permille: Belief::Estimated(Estimate {
-                value:               RatioPermille(confidence),
+                value: RatioPermille(confidence),
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
             symmetry_permille: Belief::Estimated(Estimate {
-                value:               RatioPermille(900),
+                value: RatioPermille(900),
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
         },
     }
@@ -175,28 +174,28 @@ pub fn sample_configuration() -> Observation<Configuration> {
     let node_four_id = NodeId([4; 32]);
 
     Observation {
-        value:                 Configuration {
-            epoch:       RouteEpoch(2),
-            nodes:       BTreeMap::from([
+        value: Configuration {
+            epoch: RouteEpoch(2),
+            nodes: BTreeMap::from([
                 (local_node_id, node(1)),
                 (node_two_id, node(2)),
                 (node_three_id, node(3)),
                 (node_four_id, node(4)),
             ]),
-            links:       BTreeMap::from([
+            links: BTreeMap::from([
                 ((local_node_id, node_two_id), link(2, 950)),
                 ((node_two_id, node_three_id), link(3, 875)),
                 ((local_node_id, node_four_id), link(4, 925)),
             ]),
             environment: Environment {
                 reachable_neighbor_count: 3,
-                churn_permille:           RatioPermille(150),
-                contention_permille:      RatioPermille(120),
+                churn_permille: RatioPermille(150),
+                contention_permille: RatioPermille(120),
             },
         },
-        source_class:          FactSourceClass::Local,
-        evidence_class:        RoutingEvidenceClass::DirectObservation,
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick:      Tick(2),
+        observed_at_tick: Tick(2),
     }
 }

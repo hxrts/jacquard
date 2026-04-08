@@ -27,57 +27,61 @@ mod types;
 use std::{cell::RefCell, collections::BTreeMap};
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, NodeId, Observation, ReceiptId,
-    RouteCommitmentId, RouteConnectivityProfile, RouteEpoch, RouteError, RouteEvent,
-    RouteId, RoutePartitionClass, RouteRuntimeError, RouteSelectionError,
-    RoutingEngineCapabilities, RoutingEngineId,
+    Blake3Digest, Configuration, ConnectivityPosture, ContentId, NodeId, Observation,
+    ReceiptId, RouteCommitmentId, RouteEpoch, RouteError, RouteId, RoutePartitionClass,
+    RouteRuntimeError, RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId,
 };
-use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing};
-pub(crate) use support::DOMAIN_TAG_COMMITTEE_ID;
+use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngine};
+pub(crate) use support::{
+    current_segment, digest_prefix, MaintenanceResultExt, StorageResultExt,
+    DOMAIN_TAG_COMMITTEE_ID,
+};
 use trait_bounds::{
     MeshEffectsBounds, MeshHasherBounds, MeshRetentionBounds, MeshSelectorBounds,
-    MeshTopologyBounds, MeshTransportBounds,
+    MeshTopologyBounds, TransportEffectsBounds,
 };
 use types::{ActiveMeshRoute, CachedCandidate};
 pub use types::{
-    MeshCommitteeStatus, MeshControlState, MeshForwardingState, MeshHandoffState,
-    MeshObservedRemoteLink, MeshPath, MeshRepairState, MeshRouteAntiEntropyState,
-    MeshRouteClass, MeshRouteSegment, MeshTransportFreshness,
-    MeshTransportObservationSummary,
+    MeshActiveRouteView, MeshControlState, MeshForwardingCursor,
+    MeshObservedRemoteLink, MeshRouteClass, MeshRouteRetentionView,
+    MeshTransportFreshness, MeshTransportObservationSummary,
+};
+pub(crate) use types::{
+    MeshForwardingState, MeshHandoffState, MeshPath, MeshRepairState,
+    MeshRouteAntiEntropyState, MeshRouteSegment,
 };
 
 use crate::{
     choreography::{MeshGuestRuntime, MeshProtocolRuntimeAdapter},
     committee::NoCommitteeSelector,
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess,
 };
 
 // Public Engine Identity And Capability Surface
 
-pub const MESH_ENGINE_ID: RoutingEngineId = RoutingEngineId::Mesh;
+pub const MESH_ENGINE_ID: RoutingEngineId =
+    RoutingEngineId::from_contract_bytes(*b"jacquard.mesh.v1");
 
 /// Maximum number of concurrently active materialized routes this engine
 /// will hold. New materializations past this point fail with
 /// `RoutePolicyError::BudgetExceeded`.
-pub const MESH_ACTIVE_ROUTE_COUNT_MAX: usize = 64;
+pub(crate) const MESH_ACTIVE_ROUTE_COUNT_MAX: usize = 64;
 
 /// Maximum number of candidate entries the planner emits per tick.
 /// Sorting and truncation happen after BFS so the cap is deterministic.
-pub const MESH_CANDIDATE_COUNT_MAX: usize = 32;
+pub(crate) const MESH_CANDIDATE_COUNT_MAX: usize = 32;
 
 /// Maximum number of retained payload objects tracked per active route.
-pub const MESH_RETAINED_PER_ROUTE_COUNT_MAX: usize = 32;
+pub(crate) const MESH_RETAINED_PER_ROUTE_COUNT_MAX: usize = 32;
 
 /// Validity window applied to newly derived mesh candidates, in ticks.
-pub const MESH_CANDIDATE_VALIDITY_TICKS: u64 = 12;
+pub(crate) const MESH_CANDIDATE_VALIDITY_TICKS: u64 = 12;
 
 /// Per-hop byte cost used in `RouteCost` derivation.
-pub const MESH_PER_HOP_BYTE_COST: u64 = 1024;
+pub(crate) const MESH_PER_HOP_BYTE_COST: u64 = 1024;
 
 /// Hold capacity reserved for deferred-delivery routes, in bytes.
-pub const MESH_HOLD_RESERVED_BYTES: u64 = 1024;
-
-/// Maximum canonical byte length for a v1 mesh backend plan token.
-pub const MESH_BACKEND_ROUTE_ID_BYTES_MAX: usize = 2048;
+pub(crate) const MESH_HOLD_RESERVED_BYTES: u64 = 1024;
 
 // Route-commitment retry budget. Mesh uses a short, fixed policy because
 // commitments represent already-admitted routes; exceeding the budget is
@@ -93,19 +97,19 @@ const MESH_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 // repair, hold, and decidable-admission support. This is the static
 // capability envelope the router sees during engine registration.
 pub const MESH_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilities {
-    engine:                  RoutingEngineId::Mesh,
-    max_protection:          jacquard_core::RouteProtectionClass::LinkProtected,
-    max_connectivity:        RouteConnectivityProfile {
-        repair:    jacquard_core::RouteRepairClass::Repairable,
+    engine: MESH_ENGINE_ID,
+    max_protection: jacquard_core::RouteProtectionClass::LinkProtected,
+    max_connectivity: ConnectivityPosture {
+        repair: jacquard_core::RouteRepairClass::Repairable,
         partition: RoutePartitionClass::PartitionTolerant,
     },
-    repair_support:          jacquard_core::RepairSupport::Supported,
-    hold_support:            jacquard_core::HoldSupport::Supported,
-    decidable_admission:     jacquard_core::DecidableSupport::Supported,
+    repair_support: jacquard_core::RepairSupport::Supported,
+    hold_support: jacquard_core::HoldSupport::Supported,
+    decidable_admission: jacquard_core::DecidableSupport::Supported,
     quantitative_bounds:
         jacquard_core::QuantitativeBoundSupport::ProductiveAndSchedulerLifted,
     reconfiguration_support: jacquard_core::ReconfigurationSupport::LinkAndDelegate,
-    route_shape_visibility:  jacquard_core::RouteShapeVisibility::Explicit,
+    route_shape_visibility: jacquard_core::RouteShapeVisibility::Explicit,
 };
 
 // `candidate_cache` memoizes planning work so `check_candidate` and
@@ -137,6 +141,38 @@ pub struct MeshEngine<
     last_checkpointed_topology_epoch: Option<RouteEpoch>,
     candidate_cache: RefCell<BTreeMap<jacquard_core::BackendRouteId, CachedCandidate>>,
     active_routes: BTreeMap<RouteId, ActiveMeshRoute>,
+}
+
+impl<Topology, Transport, Retention, Effects, Hasher, Selector> RouterManagedEngine
+    for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+where
+    Topology: MeshTopologyBounds,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
+    Transport: TransportEffectsBounds,
+    Retention: MeshRetentionBounds,
+    Effects: MeshEffectsBounds,
+    Hasher: MeshHasherBounds,
+    Selector: MeshSelectorBounds,
+{
+    fn local_node_id_for_router(&self) -> NodeId {
+        self.local_node_id()
+    }
+
+    fn forward_payload_for_router(
+        &mut self,
+        route_id: &RouteId,
+        payload: &[u8],
+    ) -> Result<(), RouteError> {
+        self.forward_payload(route_id, payload)
+    }
+
+    fn restore_route_runtime_for_router(
+        &mut self,
+        route_id: &RouteId,
+    ) -> Result<bool, RouteError> {
+        Ok(self.restore_checkpointed_route(route_id)?.is_some())
+    }
 }
 
 // Engine Construction
@@ -209,22 +245,15 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     }
 
     #[must_use]
-    pub fn runtime_effects(&self) -> &Effects {
-        &self.effects
-    }
-
-    pub fn runtime_effects_mut(&mut self) -> &mut Effects {
-        &mut self.effects
-    }
-
-    #[must_use]
     pub fn latest_topology(&self) -> Option<&Observation<Configuration>> {
         self.latest_topology.as_ref()
     }
 
     #[must_use]
-    pub fn active_route(&self, route_id: &RouteId) -> Option<&ActiveMeshRoute> {
-        self.active_routes.get(route_id)
+    pub fn active_route(&self, route_id: &RouteId) -> Option<MeshActiveRouteView> {
+        self.active_routes
+            .get(route_id)
+            .map(types::MeshActiveRouteView::from)
     }
 
     #[must_use]
@@ -249,11 +278,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         Effects: MeshEffectsBounds,
     {
         let key = support::topology_epoch_storage_key(&self.local_node_id);
-        let Some(bytes) = self
-            .effects
-            .load_bytes(&key)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?
-        else {
+        let Some(bytes) = self.effects.load_bytes(&key).storage_invalid()? else {
             return Ok(None);
         };
         // Epoch is stored as raw LE bytes (not bincode) for cheap comparison.
@@ -266,7 +291,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         Ok(Some(RouteEpoch(u64::from_le_bytes(epoch_bytes))))
     }
 
-    pub fn restore_checkpointed_route(
+    pub(crate) fn restore_checkpointed_route(
         &mut self,
         route_id: &RouteId,
     ) -> Result<Option<ActiveMeshRoute>, RouteError>
@@ -274,11 +299,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         Effects: MeshEffectsBounds,
     {
         let key = support::route_storage_key(&self.local_node_id, route_id);
-        let Some(bytes) = self
-            .effects
-            .load_bytes(&key)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?
-        else {
+        let Some(bytes) = self.effects.load_bytes(&key).storage_invalid()? else {
             return Ok(None);
         };
         let active_route = support::decode_checkpoint_bytes(&bytes)
@@ -291,7 +312,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
 {
@@ -302,22 +323,22 @@ where
         MeshGuestRuntime::new(MeshProtocolRuntimeAdapter {
             transport: &mut self.transport,
             retention: &mut self.retention,
-            effects:   &mut self.effects,
+            effects: &mut self.effects,
         })
     }
 }
 
-// Transport-Facing Helpers
+// Transport-Capability Helpers
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
 {
-    pub fn forward_payload(
+    pub(crate) fn forward_payload(
         &mut self,
         route_id: &RouteId,
         payload: &[u8],
@@ -335,17 +356,13 @@ where
         if active_route.forwarding.current_owner_node_id != self.local_node_id {
             return Err(RouteRuntimeError::StaleOwner.into());
         }
-        let partition_mode = active_route.anti_entropy.partition_mode;
-        let next_segment = active_route
-            .path
-            .segments
-            .get(usize::from(active_route.forwarding.next_hop_index))
+        let partition_mode = active_route.is_in_partition_mode();
+        let next_segment = current_segment(active_route)
             .cloned()
             .ok_or(RouteRuntimeError::Invalidated)?;
         if partition_mode {
-            self.retain_for_route(route_id, payload).map_err(|_| {
-                RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)
-            })?;
+            self.retain_for_route(route_id, payload)
+                .maintenance_failed()?;
             return Ok(());
         }
 
@@ -372,12 +389,12 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
 {
-    pub fn retain_for_route(
+    pub(crate) fn retain_for_route(
         &mut self,
         route_id: &RouteId,
         payload: &[u8],
@@ -399,22 +416,6 @@ where
             active_route.anti_entropy.retained_objects.insert(object_id);
         }
         Ok(object_id)
-    }
-
-    pub fn recover_retained_payload(
-        &mut self,
-        route_id: &RouteId,
-        object_id: &ContentId<Blake3Digest>,
-    ) -> Result<Option<Vec<u8>>, jacquard_core::RetentionError> {
-        let payload = self
-            .choreography_runtime()
-            .recover_held_payload(route_id, object_id)?;
-        if payload.is_some() {
-            if let Some(active_route) = self.active_routes.get_mut(route_id) {
-                active_route.anti_entropy.retained_objects.remove(object_id);
-            }
-        }
-        Ok(payload)
     }
 }
 
@@ -440,27 +441,21 @@ where
         let digest = self
             .hashing
             .hash_tagged(support::DOMAIN_TAG_ROUTE_ID, &route_key_bytes);
-        let mut route_id = [0_u8; 16];
-        route_id.copy_from_slice(&digest.as_bytes()[..16]);
-        Ok(RouteId(route_id))
+        Ok(RouteId(support::digest_prefix::<16>(digest.as_bytes())))
     }
 
     fn commitment_id_for_route(&self, route_id: &RouteId) -> RouteCommitmentId {
         let digest = self
             .hashing
             .hash_tagged(support::DOMAIN_TAG_COMMITMENT, &route_id.0);
-        let mut commitment_id = [0_u8; 16];
-        commitment_id.copy_from_slice(&digest.as_bytes()[..16]);
-        RouteCommitmentId(commitment_id)
+        RouteCommitmentId(support::digest_prefix::<16>(digest.as_bytes()))
     }
 
     fn receipt_id_for_route(&self, route_id: &RouteId) -> ReceiptId {
         let digest = self
             .hashing
             .hash_tagged(support::DOMAIN_TAG_HANDOFF_RECEIPT, &route_id.0);
-        let mut receipt_id = [0_u8; 16];
-        receipt_id.copy_from_slice(&digest.as_bytes()[..16]);
-        ReceiptId(receipt_id)
+        ReceiptId(support::digest_prefix::<16>(digest.as_bytes()))
     }
 
     fn retention_object_id(
@@ -487,7 +482,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
 {
@@ -500,19 +495,20 @@ where
             &active_route.path.route_id,
         );
         let value = support::checkpoint_bytes(active_route);
-        self.effects
-            .store_bytes(&key, &value)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+        self.effects.store_bytes(&key, &value).storage_invalid()
+    }
+
+    /// Store a checkpoint for `active_route`, intentionally discarding any
+    /// storage error. Use only in rollback paths where the route is going
+    /// away regardless and storage hygiene is best-effort.
+    pub(super) fn checkpoint_best_effort(&mut self, active_route: &ActiveMeshRoute) {
+        let _ = self.store_checkpoint(active_route);
     }
 
     fn remove_checkpoint(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
         self.effects
             .remove_bytes(&support::route_storage_key(&self.local_node_id, route_id))
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
-    }
-
-    fn record_event(&mut self, event: RouteEvent) -> Result<(), RouteError> {
-        self.choreography_runtime().record_route_event(event)
+            .storage_invalid()
     }
 
     // Handoff target is the next owner in the owner-relative path view.

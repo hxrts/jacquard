@@ -15,7 +15,7 @@ test:
 
 # run clippy lints
 lint:
-    cargo clippy --workspace -- -D warnings
+    cargo clippy --workspace --all-targets -- -D warnings
 
 # format code (uses nightly rustfmt for unstable rustfmt.toml options)
 fmt:
@@ -143,26 +143,37 @@ ci-dry-run:
         fi
     }
 
-    add_step "Preflight"           "./scripts/preflight.sh"
-    add_step "Format Check"       "nix develop ./nix/nightly --command cargo-fmt-nightly --all -- --check"
-    add_step "Clippy"             "cargo clippy --workspace -- -D warnings"
-    add_step "Tests"              "cargo test --workspace"
-    add_step "Docs Link Check"    "cargo xtask check docs-link-check"
-    add_step "Proc Macro Scope"   "cargo xtask check proc-macro-scope"
-    add_step "Test Boundaries"    "cargo xtask check test-boundaries"
-    add_step "Trait Purity"       "cargo xtask check trait-purity"
-    add_step "Crate Boundary"     "cargo xtask check crate-boundary"
-    add_step "No usize in Models" "cargo xtask check no-usize-in-models"
-    add_step "Mesh Choreography"  "cargo xtask check mesh-choreography"
+    add_step "Preflight"                  "./scripts/preflight.sh"
+    add_step "Format Check"               "nix develop ./nix/nightly --command cargo-fmt-nightly --all -- --check"
+    add_step "Clippy"                     "cargo clippy --workspace --all-targets -- -D warnings"
+    add_step "Tests"                      "cargo test --workspace"
+    add_step "Docs Link Check"            "cargo xtask check docs-link-check"
+    add_step "Proc Macro Scope"           "cargo xtask check proc-macro-scope"
+    add_step "Test Boundaries"            "cargo xtask check test-boundaries"
+    add_step "Trait Purity"               "cargo xtask check trait-purity"
+    add_step "Crate Boundary"             "cargo xtask check crate-boundary"
+    add_step "Ownership Invariants"       "cargo xtask check ownership-invariants"
+    add_step "No usize in Models"         "cargo xtask check no-usize-in-models"
+    add_step "Result Must Use"            "cargo xtask check result-must-use"
+    add_step "Proof Bearing Actions"      "cargo xtask check proof-bearing-actions"
+    add_step "Surface Classification"     "cargo xtask check surface-classification"
+    add_step "Checkpoint Namespacing"     "cargo xtask check checkpoint-namespacing"
+    add_step "Engine Service Boundary"    "cargo xtask check engine-service-boundary"
+    add_step "Invariant Specs"            "cargo xtask check invariant-specs"
+    add_step "Fail-Closed Ordering"       "cargo xtask check fail-closed-ordering"
+    add_step "No Scratch Refs in Rust"    "cargo xtask check no-scratch-refs-in-rust"
+    add_step "Mesh Choreography"          "cargo xtask check mesh-choreography"
     add_step "Mesh Choreography Validate" "cargo xtask check mesh-choreography --validate"
-    add_step "Routing Invariants" "cargo xtask check routing-invariants"
+    add_step "Routing Invariants"         "cargo xtask check routing-invariants"
     add_step "Routing Invariants Validate" "cargo xtask check routing-invariants --validate"
-    add_step "Install cargo-dylint" "nix develop ./nix/nightly --command install-dylint"
-    add_step "Dylint Trait Purity" "nix develop ./nix/nightly --command cargo dylint --path lints/trait_purity --all -- --all-targets"
-    add_step "Dylint Model Policy" "nix develop ./nix/nightly --command cargo dylint --path lints/model_policy --all -- --all-targets"
-    add_step "Dylint Routing Invariants" "nix develop ./nix/nightly --command cargo dylint --path lints/routing_invariants --all -- --all-targets"
-    add_step "Docs Semantic Drift" "cargo xtask check docs-semantic-drift"
-    add_step "Docs Build"         "just book"
+    add_step "Install cargo-dylint"       "nix develop ./nix/nightly --command install-dylint"
+    add_step "Dylint Trait Purity"        "nix develop ./nix/nightly --command cargo dylint --path lints/trait_purity --all -- --all-targets"
+    add_step "Dylint Model Policy"        "nix develop ./nix/nightly --command cargo dylint --path lints/model_policy --all -- --all-targets"
+    add_step "Dylint Routing Invariants"  "nix develop ./nix/nightly --command cargo dylint --path lints/routing_invariants --all -- --all-targets"
+    add_step "Dylint Trait Must Use"      "nix develop ./nix/nightly --command cargo dylint --path lints/trait_must_use --all -- --all-targets"
+    add_step "Dylint Naked Map Err"       "nix develop ./nix/nightly --command cargo dylint --path lints/naked_map_err --all -- --all-targets"
+    add_step "Docs Semantic Drift"        "cargo xtask check docs-semantic-drift"
+    add_step "Docs Build"                 "just book"
 
     total=${#STEPS[@]}
     echo "CI Dry Run"
@@ -203,6 +214,10 @@ docs-semantic-drift:
 # enforce unit-test / integration-test boundary rules
 test-boundaries:
     cargo xtask check test-boundaries
+
+# enforce crate-level ownership documentation requirements
+ownership-invariants:
+    cargo xtask check ownership-invariants
 
 # enforce routing correctness invariants
 routing-invariants:

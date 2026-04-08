@@ -1,6 +1,6 @@
 # Runtime Effects
 
-This page describes the narrow runtime capability surface that Jacquard exposes to pure routing logic. See [World Extensions](107_world_extensions.md) for the layering overview, [Routing Engines](108_routing_engines.md) for the engine and policy contracts, and [Mesh Routing](109_mesh_routing.md) for the in-tree mesh implementation and its operational subcomponents.
+This page describes the narrow runtime capability surface that Jacquard exposes to pure routing logic. See [World Extensions](302_world_extensions.md) for the layering overview, [Routing Engines](303_routing_engines.md) for the engine and policy contracts, and [Mesh Routing](401_mesh_routing.md) for the in-tree mesh implementation and its operational subcomponents.
 
 ## Effect Surface
 
@@ -47,7 +47,7 @@ pub trait RoutingRuntimeEffects:
 {}
 ```
 
-Each effect trait covers one concern. `TimeEffects` provides monotonic local time. `OrderEffects` provides deterministic ordering tokens. `StorageEffects` provides byte-level key-value persistence. `RouteEventLogEffects` provides replay-visible route event recording. `TransportEffects` provides frame send and transport observation polling.
+Each effect trait covers one concern. `TimeEffects` provides monotonic local time. `OrderEffects` provides deterministic ordering tokens. `StorageEffects` provides byte-level key-value persistence. `RouteEventLogEffects` provides replay-visible route event recording. `TransportEffects` provides endpoint-addressed payload send and transport observation polling. It is the only shared transport send/poll boundary; engines do not define separate transport effect traits in `jacquard-traits`.
 
 ## Why The Boundary Exists
 
@@ -57,6 +57,18 @@ This is what keeps Jacquard testable end-to-end without forking the routing mode
 
 First-party mesh adds one private layer above these shared traits: Telltale-generated choreography effect interfaces used only inside `jacquard-mesh`. Those generated interfaces are not promoted into `jacquard-traits`. Instead, mesh interprets its private protocol requests onto the stable shared effect traits through a concrete host/runtime adapter.
 
+The new Phase 3 crates keep that split intact:
+
+- `jacquard-router` consumes shared effect traits to mint publication ids, build leases, and drive router-owned cadence
+- `jacquard-router` also wraps those traits in one router-local sequencing adapter so checkpoint writes, route-event logging, and canonical publication stay in one fail-closed order
+- `jacquard-mem-link-profile` implements the shared effect traits and in-memory carrier traits for tests and examples only
+- `jacquard-reference-client` composes routers, engines, and profile implementations, but remains observational with respect to canonical route truth
+
+In other words, Jacquard now has both sides of the runtime-adapter story:
+
+- a native router-side adapter that interprets the shared effect traits as canonical publication sequencing
+- a test-side in-memory adapter that implements those same shared traits for end-to-end composition and failure injection
+
 ## Determinism Contract
 
 Each effect trait carries rules that runtimes must honor for routing logic to remain deterministic. `TimeEffects::now_tick` must be monotonic non-decreasing within a runtime instance, since replay and expiry checks depend on that ordering. The clock may pause or skip ahead under simulator control but must never move backward. `OrderEffects::next_order_stamp` must be strictly increasing and never repeat within a runtime instance, because stamps participate in canonical ordering and a duplicate would corrupt deterministic tie-breaking.
@@ -64,6 +76,8 @@ Each effect trait carries rules that runtimes must honor for routing logic to re
 `StorageEffects` reads must reflect prior writes from the same runtime within the same logical session. Writes are not assumed to be visible to other runtimes or processes. `RouteEventLogEffects::record_route_event` is append-only and must commit before the control plane reports the next lifecycle transition as durable, so replay can reconstruct the same routing state. A runtime that persists state across restarts must also persist enough order-stamp state to keep stamps unique after recovery.
 
 `TransportEffects::send_transport` delivers a frame on a best-effort basis, and `TransportEffects::poll_transport` returns transport observations as they arrive. Neither method may invent or mutate canonical route truth. Transport may report links, timing, and frame events, and the control plane decides whether any of that changes a materialized route.
+
+This rule applies directly to the in-memory multi-device harness too. The shared in-memory transport may deliver `PayloadReceived` observations between attached endpoints, but it still does not choose routes, repair canonical state, or mint route handles. The router remains the semantic owner of canonical route truth even in tests.
 
 ## Aggregate And Constituent Bounds
 

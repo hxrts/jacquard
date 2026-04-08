@@ -1,9 +1,9 @@
 //! Mesh-owned choreography effect bridge.
 //!
 //! Control flow: choreography-facing runtime code talks only to this narrow
-//! effect surface. The bridge stamps route events, stores protocol checkpoints,
-//! polls ingress, and forwards retention operations onto the existing shared
-//! mesh transport, retention, and runtime-effect traits.
+//! effect surface. The bridge stores protocol checkpoints, polls ingress, and
+//! forwards retention operations onto the shared transport, retention, and
+//! runtime-effect traits.
 //!
 //! The boundary rule is that these mesh-private choreography effects are
 //! not the shared Jacquard effect contract. Generated or protocol-local
@@ -13,47 +13,66 @@
 //! cross-engine traits.
 
 use jacquard_core::{
-    Blake3Digest, ContentId, LinkEndpoint, OrderStamp, RouteEvent, RouteEventStamped,
-    StorageError, Tick, TransportObservation,
+    Blake3Digest, ContentId, LinkEndpoint, RouteError, RouteRuntimeError, StorageError,
+    Tick, TransportObservation,
 };
-use jacquard_traits::{
-    MeshFrame, MeshTransport, OrderEffects, RetentionStore, RouteEventLogEffects,
-    StorageEffects, TimeEffects,
-};
+use jacquard_traits::{RetentionStore, StorageEffects, TimeEffects, TransportEffects};
+
+/// Extension trait for converting choreography protocol errors into
+/// `RouteError::Runtime(MaintenanceFailed)`.
+pub(crate) trait ChoreographyResultExt<T> {
+    fn choreography_failed(self) -> Result<T, RouteError>;
+}
+
+impl<T, E> ChoreographyResultExt<T> for Result<T, E> {
+    fn choreography_failed(self) -> Result<T, RouteError> {
+        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    }
+}
+
+/// Extension trait for converting encoding/storage errors into
+/// `RouteError::Runtime(Invalidated)`.
+pub(crate) trait InvalidatedResultExt<T> {
+    fn invalidated(self) -> Result<T, RouteError>;
+}
+
+impl<T, E> InvalidatedResultExt<T> for Result<T, E> {
+    fn invalidated(self) -> Result<T, RouteError> {
+        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+    }
+}
 
 use crate::choreography::artifacts::{MeshProtocolKind, MeshProtocolSessionKey};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshChoreoFrame {
     pub(crate) endpoint: LinkEndpoint,
-    pub(crate) payload:  Vec<u8>,
+    pub(crate) payload: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshHeldPayload {
     pub(crate) object_id: ContentId<Blake3Digest>,
-    pub(crate) payload:   Vec<u8>,
+    pub(crate) payload: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshCheckpointEnvelope {
-    pub(crate) key:   Vec<u8>,
+    pub(crate) key: Vec<u8>,
     pub(crate) bytes: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshProtocolObservation {
-    pub(crate) protocol:      MeshProtocolKind,
+    pub(crate) protocol: MeshProtocolKind,
     pub(crate) protocol_name: String,
-    pub(crate) role_names:    Vec<String>,
-    pub(crate) session:       MeshProtocolSessionKey,
-    pub(crate) detail:        &'static str,
+    pub(crate) role_names: Vec<String>,
+    pub(crate) session: MeshProtocolSessionKey,
+    pub(crate) detail: &'static str,
 }
 
 pub(crate) trait MeshProtocolRuntime {
     fn now_tick(&self) -> Tick;
-
-    fn next_order_stamp(&mut self) -> OrderStamp;
 
     fn send_mesh_frame(
         &mut self,
@@ -79,11 +98,6 @@ pub(crate) trait MeshProtocolRuntime {
         object_id: &ContentId<Blake3Digest>,
     ) -> Result<Option<Vec<u8>>, jacquard_core::RetentionError>;
 
-    fn record_protocol_event(
-        &mut self,
-        event: RouteEventStamped,
-    ) -> Result<(), jacquard_core::RouteEventLogError>;
-
     fn load_protocol_checkpoint(
         &self,
         key: &[u8],
@@ -97,19 +111,6 @@ pub(crate) trait MeshProtocolRuntime {
     fn remove_protocol_checkpoint(&mut self, key: &[u8]) -> Result<(), StorageError>;
 
     fn emit_protocol_observation(&mut self, observation: MeshProtocolObservation);
-
-    fn record_route_event(
-        &mut self,
-        event: RouteEvent,
-    ) -> Result<(), jacquard_core::RouteEventLogError> {
-        let order_stamp = self.next_order_stamp();
-        let emitted_at_tick = self.now_tick();
-        self.record_protocol_event(RouteEventStamped {
-            order_stamp,
-            emitted_at_tick,
-            event,
-        })
-    }
 }
 
 // This adapter is the only place where mesh-private choreography requests are
@@ -121,37 +122,31 @@ pub(crate) trait MeshProtocolRuntime {
 pub(crate) struct MeshProtocolRuntimeAdapter<'a, T, R, E> {
     pub(crate) transport: &'a mut T,
     pub(crate) retention: &'a mut R,
-    pub(crate) effects:   &'a mut E,
+    pub(crate) effects: &'a mut E,
 }
 
 impl<T, R, E> MeshProtocolRuntime for MeshProtocolRuntimeAdapter<'_, T, R, E>
 where
-    T: MeshTransport,
+    T: TransportEffects,
     R: RetentionStore,
-    E: RouteEventLogEffects + StorageEffects + TimeEffects + OrderEffects,
+    E: StorageEffects + TimeEffects,
 {
     fn now_tick(&self) -> Tick {
         self.effects.now_tick()
-    }
-
-    fn next_order_stamp(&mut self) -> OrderStamp {
-        self.effects.next_order_stamp()
     }
 
     fn send_mesh_frame(
         &mut self,
         frame: &MeshChoreoFrame,
     ) -> Result<(), jacquard_core::TransportError> {
-        self.transport.send_frame(MeshFrame {
-            endpoint: &frame.endpoint,
-            payload:  &frame.payload,
-        })
+        self.transport
+            .send_transport(&frame.endpoint, &frame.payload)
     }
 
     fn poll_mesh_ingress(
         &mut self,
     ) -> Result<Vec<TransportObservation>, jacquard_core::TransportError> {
-        self.transport.poll_observations()
+        self.transport.poll_transport()
     }
 
     fn store_held_payload(
@@ -182,13 +177,6 @@ where
         self.retention.take_retained_payload(object_id)
     }
 
-    fn record_protocol_event(
-        &mut self,
-        event: RouteEventStamped,
-    ) -> Result<(), jacquard_core::RouteEventLogError> {
-        self.effects.record_route_event(event)
-    }
-
     fn load_protocol_checkpoint(
         &self,
         key: &[u8],
@@ -216,11 +204,12 @@ mod tests {
 
     use jacquard_core::{
         Blake3Digest, BleDeviceId, BleProfileId, ByteCount, ContentId, EndpointAddress,
-        LinkEndpoint, NodeId, OrderStamp, RouteCommitmentId, RouteCommitmentResolution,
-        RouteEvent, RouteEventStamped, RouteId, StorageError, Tick,
-        TransportObservation, TransportProtocol,
+        LinkEndpoint, NodeId, StorageError, Tick, TransportObservation,
+        TransportProtocol,
     };
-    use jacquard_traits::{effect_handler, OrderEffects, StorageEffects, TimeEffects};
+    use jacquard_traits::{
+        effect_handler, StorageEffects, TimeEffects, TransportEffects,
+    };
 
     use super::{
         MeshCheckpointEnvelope, MeshChoreoFrame, MeshHeldPayload,
@@ -230,25 +219,23 @@ mod tests {
 
     #[derive(Default)]
     struct FakeTransport {
-        sent:         Vec<(TransportProtocol, Vec<u8>)>,
+        sent: Vec<(TransportProtocol, Vec<u8>)>,
         observations: Vec<TransportObservation>,
     }
 
-    impl jacquard_traits::MeshTransport for FakeTransport {
-        fn transport_id(&self) -> TransportProtocol {
-            TransportProtocol::BleGatt
-        }
-
-        fn send_frame(
+    #[effect_handler]
+    impl TransportEffects for FakeTransport {
+        fn send_transport(
             &mut self,
-            frame: jacquard_traits::MeshFrame<'_>,
+            endpoint: &LinkEndpoint,
+            payload: &[u8],
         ) -> Result<(), jacquard_core::TransportError> {
             self.sent
-                .push((frame.endpoint.protocol.clone(), frame.payload.to_vec()));
+                .push((endpoint.protocol.clone(), payload.to_vec()));
             Ok(())
         }
 
-        fn poll_observations(
+        fn poll_transport(
             &mut self,
         ) -> Result<Vec<TransportObservation>, jacquard_core::TransportError> {
             Ok(self.observations.clone())
@@ -260,6 +247,7 @@ mod tests {
         payloads: BTreeMap<Vec<u8>, Vec<u8>>,
     }
 
+    #[effect_handler]
     impl jacquard_traits::RetentionStore for FakeRetention {
         fn retain_payload(
             &mut self,
@@ -287,23 +275,13 @@ mod tests {
 
     #[derive(Default)]
     struct FakeEffects {
-        events:     Vec<RouteEventStamped>,
-        payloads:   BTreeMap<Vec<u8>, Vec<u8>>,
-        next_order: u64,
+        payloads: BTreeMap<Vec<u8>, Vec<u8>>,
     }
 
     #[effect_handler]
     impl TimeEffects for FakeEffects {
         fn now_tick(&self) -> Tick {
             Tick(1)
-        }
-    }
-
-    #[effect_handler]
-    impl OrderEffects for FakeEffects {
-        fn next_order_stamp(&mut self) -> OrderStamp {
-            self.next_order += 1;
-            OrderStamp(self.next_order)
         }
     }
 
@@ -328,24 +306,13 @@ mod tests {
         }
     }
 
-    #[effect_handler]
-    impl jacquard_traits::RouteEventLogEffects for FakeEffects {
-        fn record_route_event(
-            &mut self,
-            event: RouteEventStamped,
-        ) -> Result<(), jacquard_core::RouteEventLogError> {
-            self.events.push(event);
-            Ok(())
-        }
-    }
-
     // long-block-exception: comprehensive adapter contract verification
     #[test]
     fn fake_mesh_choreo_adapter_maps_runtime_actions() {
         let endpoint = LinkEndpoint {
-            protocol:  TransportProtocol::BleGatt,
-            address:   EndpointAddress::Ble {
-                device_id:  BleDeviceId(vec![1]),
+            protocol: TransportProtocol::BleGatt,
+            address: EndpointAddress::Ble {
+                device_id: BleDeviceId(vec![1]),
                 profile_id: BleProfileId([1; 16]),
             },
             mtu_bytes: ByteCount(128),
@@ -354,9 +321,9 @@ mod tests {
         transport
             .observations
             .push(TransportObservation::PayloadReceived {
-                from_node_id:     NodeId([9; 32]),
-                endpoint:         endpoint.clone(),
-                payload:          b"observed".to_vec(),
+                from_node_id: NodeId([9; 32]),
+                endpoint: endpoint.clone(),
+                payload: b"observed".to_vec(),
                 observed_at_tick: Tick(1),
             });
         let mut retention = FakeRetention::default();
@@ -364,12 +331,12 @@ mod tests {
         let mut adapter = MeshProtocolRuntimeAdapter {
             transport: &mut transport,
             retention: &mut retention,
-            effects:   &mut effects,
+            effects: &mut effects,
         };
 
         let frame = MeshChoreoFrame {
             endpoint: endpoint.clone(),
-            payload:  b"frame".to_vec(),
+            payload: b"frame".to_vec(),
         };
         adapter.send_mesh_frame(&frame).expect("send mesh frame");
         let observations = adapter.poll_mesh_ingress().expect("poll ingress");
@@ -386,17 +353,8 @@ mod tests {
             .take_held_payload(&object_id)
             .expect("take held payload");
 
-        let event = RouteEvent::RouteCommitmentUpdated {
-            route_id:      RouteId([3; 16]),
-            commitment_id: RouteCommitmentId([4; 16]),
-            resolution:    RouteCommitmentResolution::Pending,
-        };
-        adapter
-            .record_route_event(event.clone())
-            .expect("record route event");
-
         let checkpoint = MeshCheckpointEnvelope {
-            key:   b"mesh/choreo/activation".to_vec(),
+            key: b"mesh/choreo/activation".to_vec(),
             bytes: b"checkpoint".to_vec(),
         };
         adapter
@@ -410,18 +368,16 @@ mod tests {
             .expect("remove checkpoint");
 
         adapter.emit_protocol_observation(MeshProtocolObservation {
-            protocol:      MeshProtocolKind::Activation,
+            protocol: MeshProtocolKind::Activation,
             protocol_name: "ActivationHandshake".into(),
-            role_names:    vec!["CurrentOwner".into(), "Destination".into()],
-            session:       MeshProtocolSessionKey("activation#1".into()),
-            detail:        "accepted",
+            role_names: vec!["CurrentOwner".into(), "Destination".into()],
+            session: MeshProtocolSessionKey("activation#1".into()),
+            detail: "accepted",
         });
 
         assert_eq!(adapter.transport.sent.len(), 1);
         assert_eq!(observations.len(), 1);
         assert!(loaded.is_some());
-        assert_eq!(adapter.effects.events.len(), 1);
-        assert_eq!(adapter.effects.events[0].event, event);
         assert!(recovered.is_none());
         assert!(adapter.retention.payloads.is_empty());
         assert!(!adapter.effects.payloads.contains_key(&checkpoint.key));

@@ -1,18 +1,21 @@
 //! Inline Telltale definition for neighbor advertisement exchange.
 //!
-//! Control flow intuition: the local node advertises coarse neighbor-facing
+//! Control flow: the local node advertises coarse neighbor-facing
 //! capability state, the neighbor either sees or ignores it, and the observer
 //! receives that same visible outcome through the generated branch.
 
 use std::{error::Error, marker, result};
 
-use jacquard_core::{RouteEpoch, RouteError, RouteRuntimeError};
+use jacquard_core::{RouteEpoch, RouteError};
 use telltale::{
     futures::{executor, try_join},
     tell, try_session,
 };
 
-use super::runtime::{MeshGuestRuntime, MeshNeighborAdvertisementSnapshot};
+use super::{
+    effects::ChoreographyResultExt,
+    runtime::{MeshGuestRuntime, MeshNeighborAdvertisementSnapshot},
+};
 
 pub(crate) const SOURCE_PATH: &str =
     "crates/mesh/src/choreography/neighbor_advertisement.rs";
@@ -66,7 +69,7 @@ pub(crate) fn execute<E>(
         )
     })
     .map(|(_, _, detail)| detail)
-    .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    .choreography_failed()
 }
 
 async fn local_node_role(

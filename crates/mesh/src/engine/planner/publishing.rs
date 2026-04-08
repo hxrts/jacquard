@@ -8,9 +8,9 @@
 use std::cmp::Reverse;
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, Belief, Configuration, Estimate, Observation,
-    RouteCandidate, RouteConnectivityProfile, RouteEstimate, RouteSummary,
-    RoutingObjective, TimeWindow,
+    Belief, Configuration, ConnectivityPosture, Estimate, Observation, RouteCandidate,
+    RouteEstimate, RouteSummary, RoutingObjective, SelectedRoutingParameters,
+    TimeWindow,
 };
 
 use super::{
@@ -22,7 +22,8 @@ use super::{
 };
 use crate::{
     engine::{CachedCandidate, MeshSelectorBounds, MESH_CANDIDATE_COUNT_MAX},
-    MeshRouteClass, MeshRouteSegment, MESH_ENGINE_ID,
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshRouteClass,
+    MeshRouteSegment, MESH_ENGINE_ID,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -31,7 +32,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     pub(super) fn build_candidate_summary(
         &self,
         topology: &Observation<Configuration>,
-        connectivity: RouteConnectivityProfile,
+        connectivity: ConnectivityPosture,
         segments: &[MeshRouteSegment],
         valid_for: TimeWindow,
     ) -> RouteSummary {
@@ -41,10 +42,10 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
             connectivity,
             protocol_mix: unique_protocol_mix(segments),
             hop_count_hint: Belief::Estimated(Estimate {
-                value:               u8::try_from(segments.len())
+                value: u8::try_from(segments.len())
                     .expect("segment count is bounded by ROUTE_HOP_COUNT_MAX"),
                 confidence_permille: jacquard_core::RatioPermille(1000),
-                updated_at_tick:     topology.observed_at_tick,
+                updated_at_tick: topology.observed_at_tick,
             }),
             valid_for,
         }
@@ -53,24 +54,21 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     pub(super) fn build_candidate_estimate(
         &self,
         topology: &Observation<Configuration>,
-        connectivity: RouteConnectivityProfile,
+        connectivity: ConnectivityPosture,
         route_class: &MeshRouteClass,
         segments: &[MeshRouteSegment],
     ) -> Estimate<RouteEstimate> {
         let configuration = &topology.value;
         Estimate {
-            value:               RouteEstimate {
+            value: RouteEstimate {
                 estimated_protection:
                     jacquard_core::RouteProtectionClass::LinkProtected,
                 estimated_connectivity: connectivity,
-                topology_epoch:         configuration.epoch,
-                degradation:            degradation_for_candidate(
-                    configuration,
-                    route_class,
-                ),
+                topology_epoch: configuration.epoch,
+                degradation: degradation_for_candidate(configuration, route_class),
             },
             confidence_permille: confidence_for_segments(segments, configuration),
-            updated_at_tick:     topology.observed_at_tick,
+            updated_at_tick: topology.observed_at_tick,
         }
     }
 }
@@ -83,7 +81,7 @@ where
     pub(super) fn maybe_select_committee(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Result<Option<jacquard_core::CommitteeSelection>, jacquard_core::RouteError>
     {
@@ -95,15 +93,15 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: super::super::MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
     Hasher: super::MeshHasherBounds,
     Selector: MeshSelectorBounds,
 {
     pub(super) fn collect_candidates(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Vec<(jacquard_core::BackendRouteId, CachedCandidate)> {
         let configuration = &topology.value;
@@ -180,8 +178,8 @@ where
             .map(|(backend_route_id, candidate)| {
                 cache.insert(backend_route_id.clone(), candidate.clone());
                 RouteCandidate {
-                    summary:     candidate.summary,
-                    estimate:    candidate.estimate,
+                    summary: candidate.summary,
+                    estimate: candidate.estimate,
                     backend_ref: jacquard_core::BackendRouteRef {
                         engine: MESH_ENGINE_ID,
                         backend_route_id,

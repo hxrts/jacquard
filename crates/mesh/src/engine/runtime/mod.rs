@@ -16,30 +16,33 @@ mod tick;
 
 use jacquard_core::{
     Configuration, MaterializedRoute, MaterializedRouteIdentity, Observation,
-    RouteCommitment, RouteError, RouteEvent, RouteId, RouteInstallation,
-    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-    RouteSelectionError, RoutingTickContext, RoutingTickOutcome,
+    RouteCommitment, RouteError, RouteId, RouteInstallation, RouteMaintenanceResult,
+    RouteMaintenanceTrigger, RouteMaterializationInput, RouteSelectionError,
+    RoutingTickContext, RoutingTickOutcome,
 };
-use jacquard_traits::{CommitteeCoordinatedEngine, MeshRoutingEngine, RoutingEngine};
+use jacquard_traits::{CommitteeCoordinatedEngine, RoutingEngine};
 
 use super::{
     MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
-    MeshTransportBounds,
+    TransportEffectsBounds,
+};
+use crate::{
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshRoutingEngine,
 };
 
 struct MaintenanceContext<'a> {
-    identity:           &'a MaterializedRouteIdentity,
-    now:                jacquard_core::Tick,
+    identity: &'a MaterializedRouteIdentity,
+    now: jacquard_core::Tick,
     handoff_receipt_id: jacquard_core::ReceiptId,
-    latest_topology:    Option<&'a Observation<Configuration>>,
+    latest_topology: Observation<Configuration>,
 }
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: super::MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
+    Transport: TransportEffectsBounds,
     Retention: super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -88,9 +91,9 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: super::MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
+    Transport: TransportEffectsBounds,
     Retention: super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -103,15 +106,24 @@ where
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
         let now = self.effects.now_tick();
-        let handoff_receipt_id = self.receipt_id_for_route(&identity.handle.route_id);
-        let latest_topology = self.latest_topology.clone();
+        let handoff_receipt_id = self.receipt_id_for_route(&identity.stamp.route_id);
         if !identity.lease.is_valid_at(now) {
             return self.expired_lease_result(identity, runtime);
         }
+        // Maintenance requires an observed topology. Without one the route
+        // cannot be re-evaluated, so the only safe result is replacement.
+        let Some(latest_topology) = self.latest_topology.clone() else {
+            return Ok(jacquard_core::RouteMaintenanceResult {
+                event: jacquard_core::RouteLifecycleEvent::Replaced,
+                outcome: jacquard_core::RouteMaintenanceOutcome::ReplacementRequired {
+                    trigger,
+                },
+            });
+        };
 
         let original_active_route = self
             .active_routes
-            .get(&identity.handle.route_id)
+            .get(&identity.stamp.route_id)
             .cloned()
             .ok_or(RouteSelectionError::NoCandidate)?;
         let mut next_active_route = original_active_route.clone();
@@ -124,21 +136,14 @@ where
                 identity,
                 now,
                 handoff_receipt_id,
-                latest_topology: latest_topology.as_ref(),
+                latest_topology,
             },
         )?;
 
         next_runtime.health = self.current_route_health(Some(&next_active_route), now);
         self.store_checkpoint(&next_active_route)?;
-        if let Err(error) = self.record_event(RouteEvent::RouteMaintenanceCompleted {
-            route_id: identity.handle.route_id,
-            result:   result.clone(),
-        }) {
-            let _ = self.store_checkpoint(&original_active_route);
-            return Err(error);
-        }
         self.active_routes
-            .insert(identity.handle.route_id, next_active_route);
+            .insert(identity.stamp.route_id, next_active_route);
         *runtime = next_runtime;
         Ok(result)
     }
@@ -148,9 +153,9 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector> MeshRoutingEngin
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: super::MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
+    Transport: TransportEffectsBounds,
     Retention: super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -158,26 +163,13 @@ where
 {
     type Retention = Retention;
     type TopologyModel = Topology;
-    type Transport = Transport;
 
     fn topology_model(&self) -> &Self::TopologyModel {
         &self.topology_model
     }
 
-    fn transport(&self) -> &Self::Transport {
-        &self.transport
-    }
-
-    fn transport_mut(&mut self) -> &mut Self::Transport {
-        &mut self.transport
-    }
-
     fn retention_store(&self) -> &Self::Retention {
         &self.retention
-    }
-
-    fn retention_store_mut(&mut self) -> &mut Self::Retention {
-        &mut self.retention
     }
 }
 

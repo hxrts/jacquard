@@ -140,7 +140,7 @@ fn materialize_route_fails_closed_for_corrupted_backend_plan_token() {
 }
 
 #[test]
-fn materialize_route_rolls_back_when_event_logging_fails() {
+fn materialize_route_does_not_depend_on_router_event_logging() {
     let mut engine = build_engine_at_tick(Tick(2));
     let topology = sample_configuration();
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
@@ -159,35 +159,35 @@ fn materialize_route_rolls_back_when_event_logging_fails() {
         .expect("admission");
     let input = materialization_input(admission, lease(Tick(2), Tick(20)));
 
-    engine.runtime_effects_mut().fail_record_route_event = true;
-    let error = engine
+    engine.effects.set_fail_record_route_event(true);
+    let installation = engine
         .materialize_route(input.clone())
-        .expect_err("event log failure must fail closed");
+        .expect("engine materialization stays independent of router event logging");
 
-    assert!(matches!(
-        error,
-        RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)
-    ));
-    assert_eq!(engine.active_route_count(), 0);
-    assert!(engine.runtime_effects().events.is_empty());
-    let remaining_keys = engine
-        .runtime_effects()
-        .storage
-        .keys()
-        .map(|key| String::from_utf8_lossy(key).into_owned())
-        .collect::<Vec<_>>();
+    assert_eq!(engine.active_route_count(), 1);
+    assert!(engine.effects.events().is_empty());
     assert_eq!(
-        remaining_keys,
-        vec![
-            format!(
-                "mesh/{}/topology-epoch",
-                "\u{1}".repeat(32)
-            ),
-            "mesh/protocol/forwarding/tick-epoch-2".to_string(),
-            "mesh/protocol/neighbor-advertisement/tick-epoch-2".to_string(),
-        ],
-        "materialization rollback should leave only the persistent tick-scoped and topology checkpoints"
+        installation.materialization_proof.stamp.route_id,
+        input.handle.stamp.route_id,
     );
+    let remaining_keys = engine
+        .effects
+        .storage_keys()
+        .into_iter()
+        .map(|key| String::from_utf8_lossy(&key).into_owned())
+        .collect::<Vec<_>>();
+    assert!(remaining_keys
+        .iter()
+        .any(|key| key == &format!("mesh/{}/topology-epoch", "\u{1}".repeat(32))));
+    assert!(remaining_keys
+        .iter()
+        .any(|key| key.starts_with(&format!("mesh/{}/route/", "\u{1}".repeat(32)))));
+    assert!(remaining_keys
+        .iter()
+        .any(|key| key == "mesh/protocol/forwarding/tick-epoch-2"));
+    assert!(remaining_keys
+        .iter()
+        .any(|key| key == "mesh/protocol/neighbor-advertisement/tick-epoch-2"));
 }
 
 #[test]
@@ -209,7 +209,7 @@ fn materialize_route_fails_closed_for_mismatched_handle_epoch() {
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
     let mut input = materialization_input(admission, lease(Tick(2), Tick(20)));
-    input.handle.topology_epoch = RouteEpoch(99);
+    input.handle.stamp.topology_epoch = RouteEpoch(99);
 
     let error = engine
         .materialize_route(input)
@@ -274,7 +274,7 @@ fn materialize_route_fails_closed_when_plan_token_has_expired() {
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
     let input = materialization_input(admission, lease(Tick(20), Tick(30)));
-    engine.runtime_effects_mut().now = Tick(20);
+    engine.effects.set_now(Tick(20));
 
     let error = engine
         .materialize_route(input)

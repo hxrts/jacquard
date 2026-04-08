@@ -1,0 +1,20 @@
+[package]
+name = "jacquard-reference-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Reference in-memory Jacquard client composition"
+
+[lints]
+workspace = true
+
+[dependencies]
+jacquard-core = { path = "../core" }
+jacquard-mem-link-profile = { path = "../mem-link-profile" }
+jacquard-mem-node-profile = { path = "../mem-node-profile" }
+jacquard-mesh = { path = "../mesh" }
+jacquard-router = { path = "../router" }
+jacquard-traits = { path = "../traits" }
+
+[dev-dependencies]

@@ -266,7 +266,7 @@ fn check_snippet(
 
 fn looks_like_path(snippet: &str) -> bool {
     matches!(snippet, "CLAUDE.md" | "Cargo.toml" | "justfile")
-        || ["docs/", "crates/", "scripts/", "lints/", "nix/", ".github/", "work/"]
+        || ["docs/", "crates/", "scripts/", "lints/", "nix/", ".github/"]
             .iter()
             .any(|prefix| snippet.starts_with(prefix))
 }

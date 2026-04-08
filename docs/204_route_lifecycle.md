@@ -1,6 +1,6 @@
 # Route Lifecycle
 
-This page describes how a route moves from a routing objective through candidate production, admission, materialization, active forwarding, maintenance, and teardown. See [Pipeline and World Observations](105_pipeline_observations.md) for the world and observation stages that feed into the lifecycle, and [Routing Engines](108_routing_engines.md) for the trait surface engines implement to participate in it.
+This page describes how a route moves from a routing objective through candidate production, admission, materialization, active forwarding, maintenance, and teardown. See [Pipeline and World Observations](203_pipeline_observations.md) for the world and observation stages that feed into the lifecycle, and [Routing Engines](303_routing_engines.md) for the trait surface engines implement to participate in it.
 
 ## Lifecycle Overview
 
@@ -49,7 +49,7 @@ Two implementation rules keep the planning surface honest. First, any planning o
 
 Cache misses must still lead to the same planning or admission result for the same topology. Admitted routes must carry enough opaque engine-private plan state forward that materialization can proceed without a planner-cache lookup. Materialization must fail closed when required observed topology is missing. Successful lifecycle transitions must remain replay-visible before public or durable state is committed, so engines should stage the next runtime state off to the side until checkpointing and route-event logging succeed.
 
-`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, retaining bounded observational summaries, or updating coordination posture before any specific route is active. In richer engines that can include maintaining bounded repair pressure, anti-entropy pressure, or transport-derived health posture. See [Routing Engines](108_routing_engines.md) for the full trait signatures.
+`engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, retaining bounded observational summaries, or updating coordination posture before any specific route is active. In richer engines that can include maintaining bounded repair pressure, anti-entropy pressure, or transport-derived health posture. See [Routing Engines](303_routing_engines.md) for the full trait signatures.
 
 First-party mesh now routes protocol-side runtime work through a private choreography guest runtime before it touches transport, retention, route-event logging, or protocol checkpoint storage. That keeps the public lifecycle contract unchanged while making forwarding, repair, handoff, hold/replay, and tick-ingress sequencing explicit and replay-friendly inside the owning engine crate.
 

@@ -17,7 +17,7 @@ use jacquard_traits::{
         NodeId, ReachabilityState, RouteMaintenanceFailure, RouteMaintenanceOutcome,
         RouteMaintenanceTrigger, Tick,
     },
-    MeshRoutingEngine, RetentionStore, RoutingEngine,
+    RouterManagedEngine, RoutingEngine,
 };
 
 // One materialized route should support payload forwarding, retention
@@ -37,26 +37,12 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         NodeId([3; 32]),
         lease(Tick(2), Tick(10)),
     );
-    let route_id = identity.handle.route_id;
+    let route_id = identity.stamp.route_id;
 
     engine
-        .forward_payload(&route_id, b"mesh-payload")
+        .forward_payload_for_router(&route_id, b"mesh-payload")
         .expect("forwarding");
-    assert_eq!(engine.transport().sent_frames.len(), 1);
-
-    let retained = engine
-        .retain_for_route(&route_id, b"partition-buffer")
-        .expect("retain payload");
-    assert!(engine
-        .retention_store()
-        .contains_retained_payload(&retained)
-        .expect("retention lookup"));
-    assert_eq!(
-        engine
-            .recover_retained_payload(&route_id, &retained)
-            .expect("recover payload"),
-        Some(b"partition-buffer".to_vec())
-    );
+    assert_eq!(engine.transport.sent_frames().len(), 1);
 
     let repaired = engine
         .maintain_route(
@@ -77,15 +63,15 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
     assert_eq!(
         hold_fallback.outcome,
         RouteMaintenanceOutcome::HoldFallback {
-            trigger:               RouteMaintenanceTrigger::PartitionDetected,
-            retained_object_count: 0,
+            trigger: RouteMaintenanceTrigger::PartitionDetected,
+            retained_object_count: jacquard_traits::jacquard_core::HoldItemCount(0),
         }
     );
     engine
-        .forward_payload(&route_id, b"held-during-partition")
+        .forward_payload_for_router(&route_id, b"held-during-partition")
         .expect("partitioned forwarding retains payload");
     assert_eq!(
-        engine.transport().sent_frames.len(),
+        engine.transport.sent_frames().len(),
         1,
         "partitioned forwarding should buffer rather than send immediately"
     );
@@ -93,11 +79,11 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         engine
             .active_route(&route_id)
             .expect("active route present")
-            .anti_entropy
-            .retained_objects
-            .len(),
+            .retention
+            .retained_object_count,
         1
     );
+    assert_eq!(engine.retention.payload_count(), 1);
 
     let recovered = engine
         .maintain_route(
@@ -112,18 +98,21 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         jacquard_traits::jacquard_core::RouteLifecycleEvent::RecoveredFromPartition
     );
     assert!(engine
-        .transport()
-        .sent_frames
+        .transport
+        .sent_frames()
         .iter()
         .any(|(_endpoint, payload)| payload == b"held-during-partition"));
-    assert!(engine
-        .active_route(&route_id)
-        .expect("active route present")
-        .anti_entropy
-        .retained_objects
-        .is_empty());
+    assert!(
+        engine
+            .active_route(&route_id)
+            .expect("active route present")
+            .retention
+            .retained_object_count
+            == 0
+    );
+    assert_eq!(engine.retention.payload_count(), 0);
 
-    engine.runtime_effects_mut().now = Tick(12);
+    engine.effects.set_now(Tick(12));
     let expired = engine
         .maintain_route(
             &identity,
@@ -135,7 +124,10 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         expired.outcome,
         RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LeaseExpired)
     );
-    assert_eq!(engine.runtime_effects().events.len(), 5);
+    assert!(
+        engine.effects.events().is_empty(),
+        "canonical lifecycle events are now router-owned rather than engine-owned"
+    );
     assert!(matches!(
         runtime.health.reachability_state,
         ReachabilityState::Reachable

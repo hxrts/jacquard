@@ -23,15 +23,78 @@ pub enum Belief<T> {
     Estimated(Estimate<T>),
 }
 
+impl<T> Belief<T> {
+    #[must_use]
+    pub fn estimated(
+        value: T,
+        confidence_permille: RatioPermille,
+        updated_at_tick: Tick,
+    ) -> Self {
+        Self::Estimated(Estimate::new(value, confidence_permille, updated_at_tick))
+    }
+
+    #[must_use]
+    pub fn certain(value: T, updated_at_tick: Tick) -> Self {
+        Self::Estimated(Estimate::certain(value, updated_at_tick))
+    }
+}
+
+impl<T: Clone> Belief<T> {
+    /// Returns `None` for `Absent`, `Some(est.value.clone())` for `Estimated`.
+    pub fn value(&self) -> Option<T> {
+        match self {
+            | Belief::Absent => None,
+            | Belief::Estimated(est) => Some(est.value.clone()),
+        }
+    }
+
+    /// Returns `None` for `Absent`, `Some(est.confidence_permille)` for
+    /// `Estimated`.
+    pub fn confidence(&self) -> Option<RatioPermille> {
+        match self {
+            | Belief::Absent => None,
+            | Belief::Estimated(est) => Some(est.confidence_permille),
+        }
+    }
+
+    /// Returns `default` for `Absent`, `est.value.clone()` for `Estimated`.
+    pub fn value_or(&self, default: T) -> T {
+        match self {
+            | Belief::Absent => default,
+            | Belief::Estimated(est) => est.value.clone(),
+        }
+    }
+}
+
 #[public_model]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
 /// Belief update derived from one or more observations.
 pub struct Estimate<T> {
-    pub value:               T,
+    pub value: T,
     pub confidence_permille: RatioPermille,
-    pub updated_at_tick:     Tick,
+    pub updated_at_tick: Tick,
+}
+
+impl<T> Estimate<T> {
+    #[must_use]
+    pub fn new(
+        value: T,
+        confidence_permille: RatioPermille,
+        updated_at_tick: Tick,
+    ) -> Self {
+        Self {
+            value,
+            confidence_permille,
+            updated_at_tick,
+        }
+    }
+
+    #[must_use]
+    pub fn certain(value: T, updated_at_tick: Tick) -> Self {
+        Self::new(value, RatioPermille(1000), updated_at_tick)
+    }
 }
 
 #[public_model]
@@ -79,11 +142,11 @@ pub enum IdentityAssuranceClass {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Raw local observation or received report with provenance attached.
 pub struct Observation<T> {
-    pub value:                 T,
-    pub source_class:          FactSourceClass,
-    pub evidence_class:        RoutingEvidenceClass,
+    pub value: T,
+    pub source_class: FactSourceClass,
+    pub evidence_class: RoutingEvidenceClass,
     pub origin_authentication: OriginAuthenticationClass,
-    pub observed_at_tick:      Tick,
+    pub observed_at_tick: Tick,
 }
 
 #[public_model]
@@ -103,7 +166,7 @@ pub enum FactBasis {
 /// Definitive routing truth established from observations, estimates, or
 /// publication.
 pub struct Fact<T> {
-    pub value:               T,
-    pub basis:               FactBasis,
+    pub value: T,
+    pub basis: FactBasis,
     pub established_at_tick: Tick,
 }

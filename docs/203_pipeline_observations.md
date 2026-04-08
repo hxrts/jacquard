@@ -1,12 +1,12 @@
 # Pipeline and World Observations
 
-This page introduces Jacquard's shared routing pipeline and then covers the first two stages in detail. The world schema and the observation layer that wraps it both live in `jacquard-core`. They are family-neutral surfaces that every routing engine consumes.
+This page introduces Jacquard's shared routing pipeline and then covers the first two stages in detail. The world schema and the observation layer that wraps it both live in `jacquard-core`. They are shared-layer surfaces that every routing engine consumes.
 
 ## Pipeline
 
 Jacquard's shared model is organized as a five-stage pipeline. `world` defines the abstract objects the router reasons about. `observation` wraps those objects with explicit provenance. `estimation` derives routing-relevant beliefs from the observation stream.
 
-`policy` turns beliefs into the currently selected routing action. `action` records that selection as an `AdaptiveRoutingProfile`. The stages stay distinct even when one runtime computes several of them in a single component.
+`policy` turns beliefs into the currently selected routing action. `action` records that selection as the currently selected routing parameters (`SelectedRoutingParameters`). The stages stay distinct even when one runtime computes several of them in a single component.
 
 ```mermaid
 graph LR
@@ -38,7 +38,7 @@ graph LR
     config --> policy --> action
 ```
 
-The rest of this page covers `world` and `observation`. See [Route Lifecycle](106_route_lifecycle.md) for how `estimation`, `policy`, and `action` turn observations into realized routes.
+The rest of this page covers `world` and `observation`. See [Route Lifecycle](204_route_lifecycle.md) for how `estimation`, `policy`, and `action` turn observations into realized routes.
 
 ## World Schema
 
@@ -91,13 +91,18 @@ pub struct InformationSetSummary {
 
 `NodeProfile` exposes device and policy constraints in a form the router can use without learning hardware details. `NodeState` says how much connection headroom, forwarding capacity, and retention space remain now. A node with spare capacity but a short `retention_horizon_ms` is a weak retention target because routing decisions depend on future forwarding value rather than current free space alone.
 
+`jacquard-mem-node-profile` is the in-tree reference implementation of this boundary for tests and examples. It demonstrates how to model `NodeProfile`, evolve `NodeState`, and assemble a `Node` without importing router or mesh internals.
+
 ### Link
 
-A connection is a `Link` with a stable `LinkEndpoint` and a changing `LinkState`.
+A connection is a `Link` with three distinct concerns: stable endpoint
+identity, stable routing-relevant capability, and changing runtime
+observation.
 
 ```rust
 pub struct Link {
     pub endpoint: LinkEndpoint,
+    pub profile: LinkProfile,
     pub state: LinkState,
 }
 
@@ -105,6 +110,12 @@ pub struct LinkEndpoint {
     pub protocol: TransportProtocol,
     pub address: EndpointAddress,
     pub mtu_bytes: ByteCount,
+}
+
+pub struct LinkProfile {
+    pub latency_floor_ms: DurationMs,
+    pub repair_capability: RepairCapability,
+    pub partition_recovery: PartitionRecoveryClass,
 }
 
 pub struct LinkState {
@@ -118,9 +129,28 @@ pub struct LinkState {
 }
 ```
 
+`LinkEndpoint` answers where and how the carrier is addressed. `LinkProfile`
+answers what the carrier can stably do. `LinkState` answers what the carrier is
+currently doing. Keeping those three scopes separate gives links the same
+static/observed split that nodes already have with `NodeProfile` and
+`NodeState`.
+
+`latency_floor_ms` is a stable capability signal that remains useful even when
+the currently observed `median_rtt_ms` moves around. `repair_capability` and
+`partition_recovery` are typed capability classes, not fluctuating observations,
+because retransmit/recovery semantics are transport facts rather than live
+measurements.
+
 `transfer_rate_bytes_per_sec` answers whether a meaningful exchange fits inside the contact window. `stability_horizon_ms` answers how long the contact is likely to remain useful. `delivery_confidence_permille` and `symmetry_permille` answer whether the link supports exchange in the expected direction.
 
-A routing engine that wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics derives them above this shared boundary. Those estimates stay engine-owned rather than being promoted into the shared schema. See [Route Lifecycle](106_route_lifecycle.md) for how engines consume the shared link signals.
+A routing engine that wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics derives them above this shared boundary. Those estimates stay engine-owned rather than being promoted into the shared schema. See [Route Lifecycle](204_route_lifecycle.md) for how engines consume the shared link signals.
+
+`jacquard-mem-link-profile` is the in-tree reference implementation of this
+boundary for tests and examples. It shows how to model `LinkEndpoint`,
+`LinkProfile`, and `LinkState`, carry frames over a shared in-memory network,
+and supply deterministic retention and runtime effects without embedding
+routing semantics. See [World Extensions](302_world_extensions.md) for how to
+extend Jacquard with new network types.
 
 ### Environment
 
@@ -159,7 +189,7 @@ The observation stage wraps each world object with provenance. `Observation<Node
 
 Jacquard uses an epistemic ladder so raw observation stays distinct from inferred belief and from established routing truth. `Observation<T>` is the base wrapper. `Estimate<T>` adds an explicit `confidence_permille`. `Fact<T>` marks values the control plane is willing to publish as routing truth.
 
-`Belief<T>` wraps an optional estimate with an explicit `Absent` variant. Code can then tell "no estimate yet" from "estimated with low confidence" without unwrapping defaults. See [Core Types](102_core_types.md) for the full type definitions.
+`Belief<T>` wraps an optional estimate with an explicit `Absent` variant. Code can then tell "no estimate yet" from "estimated with low confidence" without unwrapping defaults. See [Core Types](201_core_types.md) for the full type definitions.
 
 ### Provenance Qualifiers
 
@@ -179,4 +209,4 @@ Engine-specific peer or neighborhood heuristics live above this boundary. A mesh
 
 World extensions are the entry path for observed nodes, links, environments, services, and transport activity. An extension emits `Observation<ObservedValue>` values that wrap objects conforming to the shared schema rather than defining a private alternative.
 
-This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [World Extensions](107_world_extensions.md) for the trait surface and an end-to-end BLE relay example.
+This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [World Extensions](302_world_extensions.md) for the trait surface and an end-to-end BLE relay example.

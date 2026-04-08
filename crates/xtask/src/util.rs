@@ -11,11 +11,64 @@ use std::{
 use anyhow::{bail, Context, Result};
 use cargo_metadata::{Metadata, MetadataCommand};
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LayerTag {
+    Core       = 1,
+    Traits     = 2,
+    MeshRouter = 3,
+    MockInfra  = 4,
+    Tests      = 5,
+}
+
+impl LayerTag {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            | Self::Core => "L1",
+            | Self::Traits => "L2",
+            | Self::MeshRouter => "L3",
+            | Self::MockInfra => "L4",
+            | Self::Tests => "L5",
+        }
+    }
+}
+
+pub fn layer_of(crate_name: &str) -> LayerTag {
+    match crate_name {
+        | "jacquard-core" => LayerTag::Core,
+        | "jacquard-traits" => LayerTag::Traits,
+        | "jacquard-mesh" | "jacquard-router" => LayerTag::MeshRouter,
+        | "jacquard-mem-link-profile" | "jacquard-reference-client" => {
+            LayerTag::MockInfra
+        },
+        | _ => LayerTag::Tests,
+    }
+}
+
+pub fn layer_for_rel_path(rel_path: &str) -> LayerTag {
+    if rel_path.starts_with("crates/core/") {
+        LayerTag::Core
+    } else if rel_path.starts_with("crates/traits/") {
+        LayerTag::Traits
+    } else if rel_path.starts_with("crates/mesh/")
+        || rel_path.starts_with("crates/router/")
+    {
+        LayerTag::MeshRouter
+    } else if rel_path.starts_with("crates/mem-link-profile/")
+        || rel_path.starts_with("crates/reference-client/")
+        || rel_path.starts_with("crates/mem-node-profile/")
+    {
+        LayerTag::MockInfra
+    } else {
+        LayerTag::Tests
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Violation {
-    pub file:    String,
-    pub line:    usize,
+    pub file: String,
+    pub line: usize,
     pub message: String,
+    pub layer: Option<LayerTag>,
 }
 
 impl Violation {
@@ -28,11 +81,36 @@ impl Violation {
             file: file.into(),
             line,
             message: message.into(),
+            layer: None,
+        }
+    }
+
+    pub fn with_layer(
+        file: impl Into<String>,
+        line: usize,
+        message: impl Into<String>,
+        layer: LayerTag,
+    ) -> Self {
+        Self {
+            file: file.into(),
+            line,
+            message: message.into(),
+            layer: Some(layer),
         }
     }
 
     pub fn render(&self) -> String {
-        format!("{}:{}: {}", self.file, self.line, self.message)
+        if let Some(layer) = self.layer {
+            format!(
+                "[{}] {}:{}: {}",
+                layer.as_str(),
+                self.file,
+                self.line,
+                self.message
+            )
+        } else {
+            format!("{}:{}: {}", self.file, self.line, self.message)
+        }
     }
 }
 
@@ -66,6 +144,32 @@ pub fn normalize_rel_path(root: &Path, path: &Path) -> String {
         .unwrap_or(path)
         .to_string_lossy()
         .replace('\\', "/")
+}
+
+pub fn collect_rust_files(root: &Path) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    let crates_dir = root.join("crates");
+    if !crates_dir.exists() {
+        return Ok(files);
+    }
+    for entry in walkdir::WalkDir::new(&crates_dir)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+    {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+            let rel = normalize_rel_path(root, path);
+            // Skip target/ build artifacts
+            if rel.contains("/target/") {
+                continue;
+            }
+            files.push(path.to_path_buf());
+        }
+    }
+    files.sort();
+    files.dedup();
+    Ok(files)
 }
 
 pub fn collect_markdown_files(root: &Path) -> Result<Vec<PathBuf>> {

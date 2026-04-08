@@ -1,12 +1,12 @@
 //! Inline Telltale definition for bounded suffix repair.
 //!
-//! Control flow intuition: the current owner proposes a repair through a
+//! Control flow: the current owner proposes a repair through a
 //! candidate relay, and the destination accepts or rejects the offered suffix.
 //! The generated session code owns that visible branch structure.
 
 use std::{error::Error, marker, result};
 
-use jacquard_core::{RouteError, RouteId, RouteRuntimeError};
+use jacquard_core::{RouteError, RouteId};
 use telltale::{
     futures::{executor, try_join},
     tell, try_session,
@@ -44,7 +44,10 @@ use BoundedSuffixRepair::sessions::{
     RepairRejected, RepairRequest, Roles,
 };
 
-use super::{effects::MeshProtocolRuntime, runtime::MeshGuestRuntime};
+use super::{
+    effects::{ChoreographyResultExt, MeshProtocolRuntime},
+    runtime::MeshGuestRuntime,
+};
 
 pub(crate) fn execute<E>(
     _runtime: &mut MeshGuestRuntime<E>,
@@ -65,7 +68,7 @@ where
         )
     })
     .map(|_| ())
-    .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    .choreography_failed()
 }
 
 async fn current_owner_role(
@@ -85,19 +88,13 @@ async fn candidate_relay_role(role: &mut CandidateRelay) -> ProtocolResult<()> {
         let s = s.send(RepairOffer { route_id: route_id.clone() }).await?;
         match s.branch().await? {
             | CandidateRelayChoice1::RepairAccepted(
-                RepairAccepted { route_id },
+                RepairAccepted { route_id: _ },
                 end,
-            ) => {
-                let _ = route_id;
-                Ok(((), end))
-            },
+            ) => Ok(((), end)),
             | CandidateRelayChoice1::RepairRejected(
-                RepairRejected { route_id },
+                RepairRejected { route_id: _ },
                 end,
-            ) => {
-                let _ = route_id;
-                Ok(((), end))
-            },
+            ) => Ok(((), end)),
         }
     })
     .await

@@ -30,7 +30,9 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/traits/src/hashing.rs",
     "crates/traits/src/lib.rs",
     "crates/traits/src/routing.rs",
-    "crates/mesh/src/committee.rs",
+    "crates/traits/src/sealed.rs",
+    "crates/mesh/src/committee/mod.rs",
+    "crates/mesh/src/committee/selection.rs",
     "crates/mesh/src/choreography/artifacts.rs",
     "crates/mesh/src/choreography/mod.rs",
     "crates/mesh/src/engine/mod.rs",
@@ -50,6 +52,22 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/mesh/src/engine/types.rs",
     "crates/mesh/src/lib.rs",
     "crates/mesh/src/topology.rs",
+    "crates/mem-link-profile/src/endpoint.rs",
+    "crates/mem-link-profile/src/frame_carrier.rs",
+    "crates/mem-link-profile/src/lib.rs",
+    "crates/mem-link-profile/src/link_state.rs",
+    "crates/mem-link-profile/src/protocol.rs",
+    "crates/mem-link-profile/src/retention.rs",
+    "crates/mem-node-profile/src/lib.rs",
+    "crates/mem-node-profile/src/profile.rs",
+    "crates/mem-node-profile/src/services.rs",
+    "crates/mem-node-profile/src/state.rs",
+    "crates/reference-client/src/lib.rs",
+    "crates/reference-client/src/mesh.rs",
+    "crates/reference-client/src/topology.rs",
+    "crates/router/src/lib.rs",
+    "crates/router/src/middleware.rs",
+    "crates/router/src/runtime.rs",
 ];
 
 const MARKERS: &[&str] = &[
@@ -60,6 +78,7 @@ const MARKERS: &[&str] = &[
     "#[must_use_handle",
     "#[public_model",
     "#[purity",
+    "#[jacquard_traits::purity",
     "tell! {",
 ];
 

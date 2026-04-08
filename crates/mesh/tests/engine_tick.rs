@@ -26,10 +26,11 @@ use jacquard_traits::{
         RoutingTickChange, RoutingTickContext, Tick, TransportObservation,
         TransportProtocol,
     },
-    MeshRoutingEngine, RoutingEngine, RoutingEnginePlanner,
+    RoutingEngine, RoutingEnginePlanner,
 };
 
-fn connected_only_policy() -> jacquard_traits::jacquard_core::AdaptiveRoutingProfile {
+fn connected_only_policy() -> jacquard_traits::jacquard_core::SelectedRoutingParameters
+{
     profile_with_connectivity(
         RouteRepairClass::BestEffort,
         RoutePartitionClass::ConnectedOnly,
@@ -43,42 +44,47 @@ fn direct_goal() -> jacquard_traits::jacquard_core::RoutingObjective {
 fn low_quality_link_observation() -> TransportObservation {
     TransportObservation::LinkObserved {
         remote_node_id: NodeId([4; 32]),
-        observation:    Observation {
-            value:                 Link {
+        observation: Observation {
+            value: Link {
                 endpoint: LinkEndpoint {
-                    protocol:  TransportProtocol::BleGatt,
-                    address:   EndpointAddress::Ble {
-                        device_id:  jacquard_traits::jacquard_core::BleDeviceId(vec![
-                            4,
-                        ]),
+                    protocol: TransportProtocol::BleGatt,
+                    address: EndpointAddress::Ble {
+                        device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![4]),
                         profile_id: jacquard_traits::jacquard_core::BleProfileId(
                             [4; 16],
                         ),
                     },
                     mtu_bytes: jacquard_traits::jacquard_core::ByteCount(256),
                 },
-                state:    LinkState {
+                profile: jacquard_traits::jacquard_core::LinkProfile {
+                    latency_floor_ms: DurationMs(8),
+                    repair_capability:
+                        jacquard_traits::jacquard_core::RepairCapability::TransportRetransmit,
+                    partition_recovery:
+                        jacquard_traits::jacquard_core::PartitionRecoveryClass::LocalReconnect,
+                },
+                state: LinkState {
                     state: LinkRuntimeState::Active,
-                    median_rtt_ms: DurationMs(40),
+                    median_rtt_ms: Belief::Absent,
                     transfer_rate_bytes_per_sec: Belief::Absent,
                     stability_horizon_ms: Belief::Absent,
                     loss_permille: RatioPermille(400),
                     delivery_confidence_permille: Belief::Estimated(Estimate {
-                        value:               RatioPermille(600),
+                        value: RatioPermille(600),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(2),
+                        updated_at_tick: Tick(2),
                     }),
                     symmetry_permille: Belief::Estimated(Estimate {
-                        value:               RatioPermille(900),
+                        value: RatioPermille(900),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(2),
+                        updated_at_tick: Tick(2),
                     }),
                 },
             },
-            source_class:          FactSourceClass::Local,
-            evidence_class:        RoutingEvidenceClass::DirectObservation,
+            source_class: FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::DirectObservation,
             origin_authentication: OriginAuthenticationClass::Controlled,
-            observed_at_tick:      Tick(2),
+            observed_at_tick: Tick(2),
         },
     }
 }
@@ -123,9 +129,8 @@ fn engine_tick_transport_observations_change_health_inputs() {
 
     let mut observed_engine = build_engine();
     observed_engine
-        .transport_mut()
-        .observations
-        .push(low_quality_link_observation());
+        .transport
+        .push_observation(low_quality_link_observation());
     let (_, observed_runtime) = activate_route_with_profile(
         &mut observed_engine,
         &topology,
@@ -158,13 +163,11 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
     let mut left = build_engine();
     let mut right = build_engine();
 
-    left.transport_mut()
-        .observations
-        .push(low_quality_link_observation());
+    left.transport
+        .push_observation(low_quality_link_observation());
     right
-        .transport_mut()
-        .observations
-        .push(low_quality_link_observation());
+        .transport
+        .push_observation(low_quality_link_observation());
 
     let left_outcome = left
         .engine_tick(&RoutingTickContext::new(topology.clone()))
@@ -189,18 +192,18 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
     assert_eq!(
         left_summary,
         MeshTransportObservationSummary {
-            last_observed_at_tick:     Some(Tick(2)),
-            payload_event_count:       0,
-            observed_link_count:       1,
-            reachable_remote_count:    1,
-            freshness:                 MeshTransportFreshness::Fresh,
-            stability_score:           HealthScore(750),
+            last_observed_at_tick: Some(Tick(2)),
+            payload_event_count: 0,
+            observed_link_count: 1,
+            reachable_remote_count: 1,
+            freshness: MeshTransportFreshness::Fresh,
+            stability_score: HealthScore(750),
             congestion_penalty_points: PenaltyPoints(4),
-            remote_links:              BTreeMap::from([(
+            remote_links: BTreeMap::from([(
                 NodeId([4; 32]),
                 jacquard_mesh::MeshObservedRemoteLink {
-                    last_observed_at_tick:     Tick(2),
-                    stability_score:           HealthScore(750),
+                    last_observed_at_tick: Tick(2),
+                    stability_score: HealthScore(750),
                     congestion_penalty_points: PenaltyPoints(4),
                 },
             )]),
@@ -214,9 +217,8 @@ fn quiet_tick_preserves_still_fresh_transport_summary() {
     let topology = sample_configuration();
     let mut engine = build_engine();
     engine
-        .transport_mut()
-        .observations
-        .push(low_quality_link_observation());
+        .transport
+        .push_observation(low_quality_link_observation());
 
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
@@ -248,9 +250,8 @@ fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
     let topology = sample_configuration();
     let mut engine = build_engine();
     engine
-        .transport_mut()
-        .observations
-        .push(low_quality_link_observation());
+        .transport
+        .push_observation(low_quality_link_observation());
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("observed tick");
@@ -277,10 +278,7 @@ fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
     {
         observation.observed_at_tick = Tick(6);
     }
-    engine
-        .transport_mut()
-        .observations
-        .push(refreshed_observation);
+    engine.transport.push_observation(refreshed_observation);
     engine
         .engine_tick(&RoutingTickContext::new(refreshed_topology.clone()))
         .expect("refresh tick");
@@ -307,10 +305,8 @@ fn repeated_ticks_on_the_same_epoch_do_not_rewrite_epoch_checkpoint() {
         .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("first tick");
     let stored_after_first_tick = engine
-        .runtime_effects()
-        .storage
-        .get(&topology_epoch_key)
-        .cloned()
+        .effects
+        .storage_value(&topology_epoch_key)
         .expect("topology epoch checkpoint");
 
     let mut same_epoch_topology = topology.clone();
@@ -320,8 +316,8 @@ fn repeated_ticks_on_the_same_epoch_do_not_rewrite_epoch_checkpoint() {
         .expect("second same-epoch tick");
 
     assert_eq!(
-        engine.runtime_effects().storage.get(&topology_epoch_key),
-        Some(&stored_after_first_tick),
+        engine.effects.storage_value(&topology_epoch_key),
+        Some(stored_after_first_tick),
         "same-epoch ticks should preserve the topology epoch checkpoint bytes",
     );
 }
@@ -405,9 +401,11 @@ fn high_transport_pressure_changes_repair_posture() {
         lease(Tick(2), Tick(20)),
     );
     pressured_engine
-        .transport_mut()
-        .observations
-        .extend([low_quality_link_observation(), low_quality_link_observation()]);
+        .transport
+        .push_observation(low_quality_link_observation());
+    pressured_engine
+        .transport
+        .push_observation(low_quality_link_observation());
 
     calm_engine
         .maintain_route(
@@ -467,9 +465,11 @@ fn anti_entropy_required_consumes_bounded_control_pressure() {
         lease(Tick(2), Tick(20)),
     );
     engine
-        .transport_mut()
-        .observations
-        .extend([low_quality_link_observation(), low_quality_link_observation()]);
+        .transport
+        .push_observation(low_quality_link_observation());
+    engine
+        .transport
+        .push_observation(low_quality_link_observation());
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("refresh tick");

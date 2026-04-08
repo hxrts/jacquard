@@ -7,10 +7,10 @@
 //! stays memoization-only rather than semantic.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, BackendRouteId, Configuration, NodeId, Observation,
-    RouteError, RouteSelectionError, RouteWitness, RoutingObjective, Tick, TimeWindow,
+    BackendRouteId, Configuration, NodeId, ObjectiveVsDelivered, Observation,
+    RouteError, RouteSelectionError, RouteWitness, RoutingObjective,
+    SelectedRoutingParameters, Tick, TimeWindow,
 };
-use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 
 use super::{
     super::support::{
@@ -24,7 +24,7 @@ use super::{
 use crate::{
     committee::mesh_admission_assumptions,
     engine::{CachedCandidate, MESH_CANDIDATE_VALIDITY_TICKS},
-    MeshRouteSegment,
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshRouteSegment,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -39,7 +39,7 @@ where
     pub(super) fn candidate_for_path(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
         node_path: &[NodeId],
         destination_node: &jacquard_core::Node,
@@ -61,7 +61,7 @@ where
     fn plan_token_for_path(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
         node_path: &[NodeId],
         destination_node: &jacquard_core::Node,
@@ -90,7 +90,7 @@ where
             destination: objective.destination.clone(),
             segments: segments.clone(),
             valid_for,
-            route_class: route_class.clone(),
+            route_class,
             committee_status,
         };
         Some((plan, segments))
@@ -100,7 +100,7 @@ where
     fn cached_candidate_from_plan(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
         node_path: &[NodeId],
         plan: &MeshPlanToken,
@@ -148,13 +148,17 @@ where
             &plan.committee_status,
         );
         let witness = RouteWitness {
-            objective_protection:   objective.target_protection,
-            delivered_protection:   summary.protection,
-            objective_connectivity: objective.target_connectivity,
-            delivered_connectivity: summary.connectivity,
-            admission_profile:      admission_assumptions,
-            topology_epoch:         topology.value.epoch,
-            degradation:            estimate.value.degradation,
+            protection: ObjectiveVsDelivered {
+                objective: objective.target_protection,
+                delivered: summary.protection,
+            },
+            connectivity: ObjectiveVsDelivered {
+                objective: objective.target_connectivity,
+                delivered: summary.connectivity,
+            },
+            admission_profile: admission_assumptions,
+            topology_epoch: topology.value.epoch,
+            degradation: estimate.value.degradation,
         };
         let path_bytes = encode_path_bytes(node_path, segments);
         let ordering_key =
@@ -173,7 +177,7 @@ where
     pub(in crate::engine) fn derive_candidate_from_backend_ref(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
         backend_route_id: &BackendRouteId,
     ) -> Result<CachedCandidate, RouteError> {

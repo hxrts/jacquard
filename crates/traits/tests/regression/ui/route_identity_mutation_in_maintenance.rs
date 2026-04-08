@@ -1,8 +1,8 @@
 use jacquard_traits::{
     jacquard_core::{
-        AdaptiveRoutingProfile, Configuration, MaterializedRoute, MaterializedRouteIdentity,
+        SelectedRoutingParameters, Configuration, MaterializedRoute, MaterializedRouteIdentity,
         Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCommitment,
-        RouteError, RouteHandle, RouteId, RouteInstallation, RouteMaintenanceResult,
+        RouteError, RouteId, RouteInstallation, RouteMaintenanceResult,
         RouteMaintenanceTrigger, RouteMaterializationInput, RouteRuntimeState,
         RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
     },
@@ -23,7 +23,7 @@ impl RoutingEnginePlanner for BadEngine {
     fn candidate_routes(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
         todo!()
@@ -32,7 +32,7 @@ impl RoutingEnginePlanner for BadEngine {
     fn check_candidate(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _candidate: &RouteCandidate,
         _topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
@@ -42,7 +42,7 @@ impl RoutingEnginePlanner for BadEngine {
     fn admit_route(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _candidate: RouteCandidate,
         _topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError> {
@@ -68,11 +68,11 @@ impl RoutingEngine for BadEngine {
         _runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
-        identity.handle = RouteHandle {
+        identity.stamp = jacquard_traits::jacquard_core::RouteIdentityStamp {
             route_id: RouteId([0; 16]),
-            topology_epoch: identity.handle.topology_epoch,
-            materialized_at_tick: identity.handle.materialized_at_tick,
-            publication_id: identity.handle.publication_id,
+            topology_epoch: identity.stamp.topology_epoch,
+            materialized_at_tick: identity.stamp.materialized_at_tick,
+            publication_id: identity.stamp.publication_id,
         };
         todo!()
     }

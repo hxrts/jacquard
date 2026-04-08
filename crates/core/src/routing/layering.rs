@@ -4,7 +4,7 @@ use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ByteCount, DurationMs, IdentityAssuranceClass, Limit, RouteConnectivityProfile,
+    ByteCount, ConnectivityPosture, DurationMs, IdentityAssuranceClass, Limit,
     RouteHandle, RouteHealth, RouteLease, RouteProtectionClass, RoutingEngineId,
 };
 
@@ -13,10 +13,10 @@ use crate::{
 /// Carrier requirements expressed by one routing engine or host-level policy
 /// engine.
 pub struct SubstrateRequirements {
-    pub min_protection:           RouteProtectionClass,
-    pub min_connectivity:         RouteConnectivityProfile,
-    pub latency_budget_ms:        Limit<DurationMs>,
-    pub mtu_floor_bytes:          ByteCount,
+    pub min_protection: RouteProtectionClass,
+    pub min_connectivity: ConnectivityPosture,
+    pub latency_budget_ms: Limit<DurationMs>,
+    pub mtu_floor_bytes: ByteCount,
     pub identity_assurance_floor: IdentityAssuranceClass,
 }
 
@@ -24,17 +24,17 @@ pub struct SubstrateRequirements {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// What one routing engine can provide when used as a lower-layer carrier.
 pub struct SubstrateCapabilities {
-    pub engine:       RoutingEngineId,
-    pub protection:   RouteProtectionClass,
-    pub connectivity: RouteConnectivityProfile,
-    pub mtu_bytes:    ByteCount,
+    pub engine: RoutingEngineId,
+    pub protection: RouteProtectionClass,
+    pub connectivity: ConnectivityPosture,
+    pub mtu_bytes: ByteCount,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Advisory substrate candidate surfaced to a layering orchestrator.
 pub struct SubstrateCandidate {
-    pub capabilities:    SubstrateCapabilities,
+    pub capabilities: SubstrateCapabilities,
     pub expected_health: Option<RouteHealth>,
 }
 
@@ -45,8 +45,8 @@ pub struct SubstrateCandidate {
 #[must_use_handle]
 pub struct SubstrateLease {
     pub capabilities: SubstrateCapabilities,
-    pub handle:       RouteHandle,
-    pub lease:        RouteLease,
+    pub handle: RouteHandle,
+    pub lease: RouteLease,
 }
 
 #[public_model]

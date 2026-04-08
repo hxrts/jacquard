@@ -7,16 +7,15 @@
 
 use jacquard_macros::purity;
 
-use crate::Effect;
-
-mod sealed {
-    pub trait Sealed {}
-
-    impl<T> Sealed for T where T: ?Sized + Send + Sync + 'static {}
-}
+use crate::{sealed, Effect};
 
 #[purity(effectful)]
 /// Marker trait for concrete implementations of one effect vocabulary.
+///
+/// The `Sealed` super-trait is intentionally `pub(crate)` — external crates
+/// implement `EffectHandler` only through the `#[effect_handler]` proc
+/// macro, which attaches the required `HandlerDefinition` bound.
+#[allow(private_bounds)]
 pub trait EffectHandler<E>: sealed::Sealed + Send + Sync + 'static
 where
     E: ?Sized + Effect,

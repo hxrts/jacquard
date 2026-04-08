@@ -1,0 +1,23 @@
+# Dylint lint library — requires nightly (just nightly-shell) and cargo-dylint (install-dylint).
+# Run: cargo dylint --path lints/naked_map_err --all -- --all-targets
+
+[package]
+name = "jacquard-naked-map-err"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Dylint check: .map_err(|_| RouteError::Runtime(...)) with discarded error must use ResultExt methods"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+dylint_linting = { git = "https://github.com/trailofbits/dylint.git", rev = "4bd91ce7729b74c7ee5664bbb588f7baf30b4a09", package = "dylint_linting" }
+
+[features]
+rlib = ["dylint_linting/constituent"]
+
+[package.metadata.rust-analyzer]
+rustc_private = true
+
+[workspace]

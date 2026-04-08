@@ -54,6 +54,18 @@ impl Hashing for Blake3Hashing {
     }
 }
 
+/// Shared helper to construct a ContentId from bytes and a hasher.
+///
+/// This eliminates duplication between ContentAddressable::content_id and
+/// TemplateAddressable::template_id.
+fn make_content_id<D, H>(bytes: &[u8], hasher: &H) -> ContentId<D>
+where
+    D: Clone + Eq,
+    H: Hashing<Digest = D>,
+{
+    ContentId { digest: hasher.hash_bytes(bytes) }
+}
+
 #[purity(pure)]
 /// Derive a content id from deterministic canonical serialization.
 ///
@@ -61,15 +73,16 @@ impl Hashing for Blake3Hashing {
 pub trait ContentAddressable {
     type Digest: Clone + Eq;
 
-    fn canonical_bytes(&self) -> Result<Vec<u8>, ContentEncodingError>;
+    must_use_evidence!("canonical bytes", "encoding errors";
+        fn canonical_bytes(&self) -> Result<Vec<u8>, ContentEncodingError>;
+    );
 
     #[must_use = "dropping a computed content id usually means the artifact identity was not checked or recorded"]
     fn content_id<H: Hashing<Digest = Self::Digest>>(
         &self,
         hasher: &H,
     ) -> Result<ContentId<Self::Digest>, ContentEncodingError> {
-        let canonical = self.canonical_bytes()?;
-        Ok(ContentId { digest: hasher.hash_bytes(&canonical) })
+        Ok(make_content_id(&self.canonical_bytes()?, hasher))
     }
 }
 
@@ -81,15 +94,16 @@ pub trait ContentAddressable {
 pub trait TemplateAddressable {
     type Digest: Clone + Eq;
 
-    fn template_bytes(&self) -> Result<Vec<u8>, ContentEncodingError>;
+    must_use_evidence!("template bytes", "encoding errors";
+        fn template_bytes(&self) -> Result<Vec<u8>, ContentEncodingError>;
+    );
 
     #[must_use = "dropping a computed template id usually means the template identity was not checked or recorded"]
     fn template_id<H: Hashing<Digest = Self::Digest>>(
         &self,
         hasher: &H,
     ) -> Result<ContentId<Self::Digest>, ContentEncodingError> {
-        let canonical = self.template_bytes()?;
-        Ok(ContentId { digest: hasher.hash_bytes(&canonical) })
+        Ok(make_content_id(&self.template_bytes()?, hasher))
     }
 }
 

@@ -1,5 +1,5 @@
-//! Validates markdown links. Rejects broken docs targets, links into
-//! the `work/` scratch directory, and absolute filesystem paths.
+//! Validates markdown links. Rejects broken docs targets, links into the
+//! private scratch directory, and absolute filesystem paths.
 
 use std::path::{Path, PathBuf};
 
@@ -8,23 +8,27 @@ use pulldown_cmark::{Event, Options, Parser, Tag};
 
 use crate::util::{collect_markdown_files, normalize_rel_path, workspace_root};
 
+/// Prefix of the private scratch directory that should not be linked from
+/// any committed markdown file.
+const SCRATCH_DIR_PREFIX: &str = "work/";
+
 pub fn run() -> Result<()> {
     let root = workspace_root()?;
     let docs_root = root.join("docs");
     let report = scan_links(&root, &docs_root)?;
 
     report_missing_links(report.checked, &report.missing)?;
-    report_work_links(&report.work_links)?;
+    report_scratch_links(&report.scratch_links)?;
     report_absolute_links(&report.abs_links)?;
     Ok(())
 }
 
 #[derive(Default)]
 struct LinkScanReport {
-    checked:    usize,
-    missing:    Vec<String>,
-    work_links: Vec<String>,
-    abs_links:  Vec<String>,
+    checked: usize,
+    missing: Vec<String>,
+    scratch_links: Vec<String>,
+    abs_links: Vec<String>,
 }
 
 fn scan_links(root: &Path, docs_root: &Path) -> Result<LinkScanReport> {
@@ -76,8 +80,8 @@ fn record_link_policy_violations(
     target: &str,
     report: &mut LinkScanReport,
 ) {
-    if target.contains("work/") {
-        report.work_links.push(format!("{rel_file} -> {target}"));
+    if target.contains(SCRATCH_DIR_PREFIX) {
+        report.scratch_links.push(format!("{rel_file} -> {target}"));
     }
 
     if rel_file.starts_with("docs/")
@@ -140,16 +144,19 @@ fn report_missing_links(checked: usize, missing: &[String]) -> Result<()> {
     Ok(())
 }
 
-fn report_work_links(work_links: &[String]) -> Result<()> {
-    if !work_links.is_empty() {
-        for link in work_links {
-            eprintln!("link to work/ found: {link}");
+fn report_scratch_links(scratch_links: &[String]) -> Result<()> {
+    if !scratch_links.is_empty() {
+        for link in scratch_links {
+            eprintln!("link to private scratch directory: {link}");
         }
         eprintln!();
-        eprintln!("found {} link(s) to work/ directory", work_links.len());
+        eprintln!(
+            "found {} link(s) to private scratch directory",
+            scratch_links.len()
+        );
         bail!("docs-link-check failed");
     }
-    println!("no links to work/ directory found");
+    println!("no links to private scratch directory found");
     Ok(())
 }
 

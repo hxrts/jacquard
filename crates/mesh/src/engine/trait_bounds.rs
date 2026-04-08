@@ -2,18 +2,22 @@
 //!
 //! Each alias groups the set of traits that one `MeshEngine` generic
 //! parameter must satisfy. Using the aliases keeps `impl` headers
-//! readable without changing the public trait surface in
-//! `jacquard-traits`. Every alias has a blanket impl, so referring to
-//! an alias is identical to inlining its full trait list.
+//! readable without changing the public engine-neutral trait surface in
+//! `jacquard-traits` or the mesh-owned extension seams in this crate.
+//! Every alias has a blanket impl, so referring to an alias is
+//! identical to inlining its full trait list.
 
 use jacquard_core::Configuration;
 use jacquard_traits::{
-    CommitteeSelector, HashDigestBytes, Hashing, MeshNeighborhoodEstimateAccess,
-    MeshPeerEstimateAccess, MeshTransport, OrderEffects, RetentionStore,
-    RouteEventLogEffects, StorageEffects, TimeEffects,
+    CommitteeSelector, HashDigestBytes, Hashing, OrderEffects, RetentionStore,
+    RouteEventLogEffects, StorageEffects, TimeEffects, TransportEffects,
 };
 
-pub(crate) trait MeshTopologyBounds: jacquard_traits::MeshTopologyModel
+use crate::{
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshTopologyModel,
+};
+
+pub(crate) trait MeshTopologyBounds: MeshTopologyModel
 where
     Self::PeerEstimate: MeshPeerEstimateAccess,
     Self::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
@@ -22,18 +26,18 @@ where
 
 impl<T> MeshTopologyBounds for T
 where
-    T: jacquard_traits::MeshTopologyModel,
+    T: MeshTopologyModel,
     T::PeerEstimate: MeshPeerEstimateAccess,
     T::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
 {
 }
 
-pub(crate) trait MeshTransportBounds:
-    MeshTransport + Send + Sync + 'static
+pub(crate) trait TransportEffectsBounds:
+    TransportEffects + Send + Sync + 'static
 {
 }
 
-impl<T> MeshTransportBounds for T where T: MeshTransport + Send + Sync + 'static {}
+impl<T> TransportEffectsBounds for T where T: TransportEffects + Send + Sync + 'static {}
 
 pub(crate) trait MeshRetentionBounds: RetentionStore {}
 

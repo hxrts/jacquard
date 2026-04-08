@@ -1,12 +1,12 @@
 //! Inline Telltale definition for semantic ownership handoff.
 //!
-//! Control flow intuition: the old owner offers transfer to the new owner, and
+//! Control flow: the old owner offers transfer to the new owner, and
 //! the new owner accepts or rejects. The generated session code owns that
 //! visible ownership branch structure.
 
 use std::{error::Error, marker, result};
 
-use jacquard_core::{RouteError, RouteId, RouteRuntimeError};
+use jacquard_core::{RouteError, RouteId};
 use telltale::{
     futures::{executor, try_join},
     tell, try_session,
@@ -41,7 +41,10 @@ use SemanticHandoff::sessions::{
     Transfer, TransferAccepted, TransferRejected,
 };
 
-use super::{effects::MeshProtocolRuntime, runtime::MeshGuestRuntime};
+use super::{
+    effects::{ChoreographyResultExt, MeshProtocolRuntime},
+    runtime::MeshGuestRuntime,
+};
 
 pub(crate) fn execute<E>(
     _runtime: &mut MeshGuestRuntime<E>,
@@ -60,7 +63,7 @@ where
         )
     })
     .map(|_| ())
-    .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    .choreography_failed()
 }
 
 async fn old_owner_role(role: &mut OldOwner, route_id: String) -> ProtocolResult<()> {

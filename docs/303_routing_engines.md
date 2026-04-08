@@ -1,6 +1,6 @@
 # Routing Engines
 
-This page describes the trait surface for adding a routing algorithm to Jacquard. See [World Extensions](107_world_extensions.md) for the layering overview, [Runtime Effects](104_runtime_effects.md) for the host capability surface, and [Mesh Routing](109_mesh_routing.md) for the in-tree mesh implementation and its swappable subcomponents.
+This page describes the trait surface for adding a routing algorithm to Jacquard. See [World Extensions](302_world_extensions.md) for the layering overview, [Runtime Effects](301_runtime_effects.md) for the host capability surface, and [Mesh Routing](401_mesh_routing.md) for the in-tree mesh implementation and its swappable subcomponents.
 
 ## Routing Engine Contract
 
@@ -18,14 +18,14 @@ pub trait RoutingEnginePlanner {
     fn candidate_routes(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate>;
 
     fn check_candidate(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         candidate: &RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError>;
@@ -33,7 +33,7 @@ pub trait RoutingEnginePlanner {
     fn admit_route(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         candidate: RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError>;
@@ -78,7 +78,7 @@ That activation step also enforces the shared control-plane invariants. The admi
 
 An engine may still use a richer internal runtime model behind that hook. First-party mesh, for example, now drives protocol-side ingress and bounded control-state refresh through a private choreography guest runtime while keeping the shared `engine_tick` signature unchanged.
 
-That private choreography runtime does not replace the shared Jacquard effect traits. Generated Telltale effect interfaces remain engine-private implementation details, and the mesh interpreter adapts them onto the stable `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and other shared trait surfaces exposed by `jacquard-traits`.
+That private choreography runtime does not replace the shared Jacquard effect traits. Generated Telltale effect interfaces remain engine-private implementation details, and the mesh interpreter adapts them onto the stable `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, `TransportEffects`, and other shared trait surfaces exposed by `jacquard-traits`.
 
 ## Contract Rules
 
@@ -97,7 +97,7 @@ pub trait PolicyEngine {
         &self,
         objective: &RoutingObjective,
         inputs: &RoutingPolicyInputs,
-    ) -> AdaptiveRoutingProfile;
+    ) -> SelectedRoutingParameters;
 }
 
 pub trait CommitteeSelector {
@@ -106,7 +106,7 @@ pub trait CommitteeSelector {
     fn select_committee(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Self::TopologyView>,
     ) -> Result<Option<CommitteeSelection>, RouteError>;
 }
@@ -145,7 +145,7 @@ pub trait LayeredRoutingEnginePlanner {
     fn candidate_routes_on_substrate(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         substrate: &SubstrateLease,
         parameters: &LayerParameters,
     ) -> Vec<RouteCandidate>;
@@ -153,7 +153,7 @@ pub trait LayeredRoutingEnginePlanner {
     fn admit_route_on_substrate(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         substrate: &SubstrateLease,
         parameters: &LayerParameters,
         candidate: RouteCandidate,

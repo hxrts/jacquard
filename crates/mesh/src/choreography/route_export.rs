@@ -1,18 +1,21 @@
 //! Inline Telltale definition for route export exchange.
 //!
-//! Control flow intuition: the exporting node offers a route-shaped summary to
+//! Control flow: the exporting node offers a route-shaped summary to
 //! a neighbor, the neighbor either publishes or ignores it, and the generated
 //! branch structure becomes the only live sequencing path for that exchange.
 
 use std::{error::Error, marker, result};
 
-use jacquard_core::{RouteError, RouteId, RouteRuntimeError};
+use jacquard_core::{RouteError, RouteId};
 use telltale::{
     futures::{executor, try_join},
     tell, try_session,
 };
 
-use super::runtime::{MeshGuestRuntime, MeshRouteExportSnapshot};
+use super::{
+    effects::ChoreographyResultExt,
+    runtime::{MeshGuestRuntime, MeshRouteExportSnapshot},
+};
 
 pub(crate) const SOURCE_PATH: &str = "crates/mesh/src/choreography/route_export.rs";
 pub(crate) const PROTOCOL_NAME: &str = "RouteExportExchange";
@@ -68,7 +71,7 @@ pub(crate) fn execute<E>(
         )
     })
     .map(|(_, _, detail)| detail)
-    .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    .choreography_failed()
 }
 
 async fn exporter_role(

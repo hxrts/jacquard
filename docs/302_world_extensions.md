@@ -8,24 +8,47 @@ Jacquard is extended at several layers. World extensions add observed objects to
 
 These layers stay separate on purpose. A team can extend the world without becoming a routing-engine author, add a routing engine without redefining the world schema, or add host policy without modifying a routing engine.
 
-This page covers the world layer. See [Routing Engines](108_routing_engines.md) for the engine and policy contracts, [Runtime Effects](104_runtime_effects.md) for the host capability surface, and [Mesh Routing](109_mesh_routing.md) for the in-tree mesh implementation and its swappable subcomponents.
+This page covers the world layer. See [Routing Engines](303_routing_engines.md) for the engine and policy contracts, [Runtime Effects](301_runtime_effects.md) for the host capability surface, and [Mesh Routing](401_mesh_routing.md) for the in-tree mesh implementation and its swappable subcomponents.
 
 ## World Extension Surface
 
 World extensions are the entry point for teams that know a specific radio stack, runtime environment, discovery surface, or device class. The key idea is simple. Jacquard has one shared world schema in `jacquard-core`. A world extension adds observations of that schema. It does not define a private alternative node or link type.
 
-The shared world schema is documented in [Pipeline and World Observations](105_pipeline_observations.md). An extension constructs `Node`, `Link`, `Environment`, and the related observation types defined there, and emits them through the trait surface defined below. The example in the next section shows how to wire a real device into that schema end-to-end.
+The shared world schema is documented in [Pipeline and World Observations](203_pipeline_observations.md). An extension constructs `Node`, `Link`, `Environment`, and the related observation types defined there, and emits them through the trait surface defined below. The example in the next section shows how to wire a real device into that schema end to end.
 
 ### Example: Adding A New Device
 
-In practice, adding support for a new device means translating that device's capabilities into a concrete `NodeProfile`, pairing it with the current observed `NodeState`, and returning the result as a `NodeObservation`. In this example, the device is a BLE relay with one BLE endpoint, four concurrent connections, limited transfer concurrency, and a moderate local retention budget.
+In practice, adding support for a new device means translating that device's
+stable capabilities into `NodeProfile` and `LinkProfile`, pairing them with the
+current observed `NodeState` and `LinkState`, and returning the resulting
+shared objects as observations. In this example, the device is a BLE relay with
+one BLE endpoint, four concurrent connections, limited transfer concurrency,
+and a moderate local retention budget.
+
+BLE appears explicitly in this example because Jacquard's shared world schema
+still models a small amount of transport vocabulary directly. That is an
+intentional current design choice for shared `LinkEndpoint` and
+`ServiceDescriptor` facts, not a claim that every future transport must get a
+bespoke first-class variant.
+
+The in-tree reference crates for this split are `jacquard-mem-node-profile` and
+`jacquard-mem-link-profile`. They keep profile modeling separate from
+routing-engine composition. `jacquard-reference-client` then composes those
+profile implementations with a router and one engine for end-to-end tests.
 
 ```rust
-// Link objects describe the device's carrier endpoint and current observed link health.
+// Link objects separate endpoint identity, stable link capability, and current
+// observed link health.
 let ble_relay_endpoint = LinkEndpoint {
     protocol: TransportProtocol::BleGatt,
     address: EndpointAddress::Opaque(vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
     mtu_bytes: ByteCount(185),
+};
+
+let ble_relay_link_profile = LinkProfile {
+    latency_floor_ms: DurationMs(8),
+    repair_capability: RepairCapability::TransportRetransmit,
+    partition_recovery: PartitionRecoveryClass::LocalReconnect,
 };
 
 let ble_relay_link_state = LinkState {
@@ -56,10 +79,11 @@ let ble_relay_link_state = LinkState {
 
 let ble_relay_link = Link {
     endpoint: ble_relay_endpoint.clone(),
+    profile: ble_relay_link_profile,
     state: ble_relay_link_state,
 };
 
-// Node objects describe the device's stable capabilities and current observed node state.
+// Node objects use the same stable/live split.
 let ble_relay_profile = NodeProfile {
     services: vec![
         /* Discover / Move / Hold descriptors for this node */
@@ -128,6 +152,37 @@ impl LinkWorldExtension for BleRelayExtension {
 
 In a real routing participant, that `services` list would normally advertise `Discover`, `Move`, and `Hold` for the engine contracts the node can join. The example keeps those descriptors abbreviated so the focus stays on mapping the device into the shared world schema.
 
+### Profile Is The Common Extension Term
+
+Jacquard uses the word "profile" consistently for stable, routing-relevant
+capability and the word "state" for live observation:
+
+- `NodeProfile` / `NodeState`
+- `LinkProfile` / `LinkState`
+
+This symmetry is intentional. It gives third-party implementers one mental
+model for new devices and new networks:
+
+- profile answers what the thing can do
+- state answers what the thing is doing now
+
+`LinkEndpoint` remains separate from both because endpoint identity is neither a
+capability class nor a live observation.
+
+### Node And Link Extension Symmetry
+
+Node extensions and link extensions follow the same ownership split:
+
+- construct a stable profile object from device or transport facts
+- construct a live state object from current observation
+- emit the combined shared world object through the relevant world-extension
+  trait
+
+For nodes, stable facts include service surface, relay budget maxima, and hold
+capacity limits. For links, stable facts include latency floor, retransmit
+semantics, and partition-recovery class. Live node and link state continues to
+carry current availability and quality only.
+
 ### World Extension Trait Options
 
 These are the main world-extension entry points. Most contributors implement only the ones that match the kinds of objects they observe.
@@ -164,7 +219,11 @@ pub trait TransportWorldExtension: WorldExtensionDescriptor {
 }
 ```
 
-A team that adds a new device will often implement `NodeWorldExtension`, `LinkWorldExtension`, or both. The other facets are available when an extension also emits environment, service, or transport observations. These boundaries use `WorldError` rather than `RouteError` because a world extension contributes world input. It does not own routing semantics.
+A team that adds a new device will often implement `NodeWorldExtension`,
+`LinkWorldExtension`, or both. The other facets are available when an extension
+also emits environment, service, or transport observations. These boundaries
+use `WorldError` rather than `RouteError` because a world extension contributes
+world input. It does not own routing semantics.
 
 ### Umbrella World Extension
 

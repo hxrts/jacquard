@@ -13,37 +13,38 @@ use jacquard_core::{
     Configuration, HealthScore, Observation, PenaltyPoints, ReachabilityState,
     RouteHealth, TransportObservation,
 };
-use jacquard_traits::MeshNeighborhoodEstimateAccess;
 
 use super::{
     super::{
-        ActiveMeshRoute, MeshControlState, MeshObservedRemoteLink,
-        MeshTransportFreshness, MeshTransportObservationSummary,
+        current_segment, support::belief_to_health_score, ActiveMeshRoute,
+        MeshControlState, MeshObservedRemoteLink, MeshTransportFreshness,
+        MeshTransportObservationSummary,
     },
     MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
-    MeshTransportBounds,
+    TransportEffectsBounds,
 };
+use crate::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 
 struct TransportObservationAccumulator {
-    last_observed_at_tick:  Option<jacquard_core::Tick>,
-    payload_event_count:    u16,
-    observed_link_count:    u16,
+    last_observed_at_tick: Option<jacquard_core::Tick>,
+    payload_event_count: u16,
+    observed_link_count: u16,
     reachable_remote_nodes: BTreeSet<jacquard_core::NodeId>,
-    stability_sum:          u32,
-    loss_sum:               u32,
-    remote_links:           BTreeMap<jacquard_core::NodeId, MeshObservedRemoteLink>,
+    stability_sum: u32,
+    loss_sum: u32,
+    remote_links: BTreeMap<jacquard_core::NodeId, MeshObservedRemoteLink>,
 }
 
 impl TransportObservationAccumulator {
     fn new() -> Self {
         Self {
-            last_observed_at_tick:  None,
-            payload_event_count:    0,
-            observed_link_count:    0,
+            last_observed_at_tick: None,
+            payload_event_count: 0,
+            observed_link_count: 0,
             reachable_remote_nodes: BTreeSet::new(),
-            stability_sum:          0,
-            loss_sum:               0,
-            remote_links:           BTreeMap::new(),
+            stability_sum: 0,
+            loss_sum: 0,
+            remote_links: BTreeMap::new(),
         }
     }
 
@@ -104,18 +105,11 @@ impl TransportObservationAccumulator {
     fn observed_link_stability_score(
         observation: &Observation<jacquard_core::Link>,
     ) -> HealthScore {
-        let delivery = match &observation.value.state.delivery_confidence_permille {
-            | jacquard_core::Belief::Absent => 0,
-            | jacquard_core::Belief::Estimated(estimate) => {
-                u32::from(estimate.value.get())
-            },
-        };
-        let symmetry = match &observation.value.state.symmetry_permille {
-            | jacquard_core::Belief::Absent => 0,
-            | jacquard_core::Belief::Estimated(estimate) => {
-                u32::from(estimate.value.get())
-            },
-        };
+        let delivery = belief_to_health_score(
+            &observation.value.state.delivery_confidence_permille,
+        );
+        let symmetry =
+            belief_to_health_score(&observation.value.state.symmetry_permille);
         HealthScore((delivery.saturating_add(symmetry)) / 2)
     }
 
@@ -155,9 +149,9 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: super::super::MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
+    Transport: TransportEffectsBounds,
     Retention: super::super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -231,8 +225,7 @@ where
         remote_links
             .into_iter()
             .map(|(node_id, mut remote)| {
-                remote.stability_score =
-                    HealthScore(remote.stability_score.0.saturating_sub(decay));
+                remote.stability_score = remote.stability_score - HealthScore(decay);
                 (node_id, remote)
             })
             .collect()
@@ -267,11 +260,11 @@ where
             .min(1000);
 
         MeshControlState {
-            last_updated_at_tick:      topology.observed_at_tick,
+            last_updated_at_tick: topology.observed_at_tick,
             transport_stability_score: HealthScore(transport_stability.min(1000)),
-            repair_pressure_score:     HealthScore(repair_pressure),
-            anti_entropy:              super::super::types::MeshAntiEntropyState {
-                pressure_score:         HealthScore(anti_entropy_pressure),
+            repair_pressure_score: HealthScore(repair_pressure),
+            anti_entropy: super::super::types::MeshAntiEntropyState {
+                pressure_score: HealthScore(anti_entropy_pressure),
                 last_refreshed_at_tick: previous
                     .and_then(|state| state.anti_entropy.last_refreshed_at_tick),
             },
@@ -365,10 +358,10 @@ where
         }
 
         let mut health = RouteHealth {
-            reachability_state:        ReachabilityState::Reachable,
-            stability_score:           HealthScore(1000),
+            reachability_state: ReachabilityState::Reachable,
+            stability_score: HealthScore(1000),
             congestion_penalty_points: PenaltyPoints(0),
-            last_validated_at_tick:    topology.observed_at_tick,
+            last_validated_at_tick: topology.observed_at_tick,
         };
         Self::apply_first_hop_transport_summary(
             &mut health,
@@ -382,19 +375,19 @@ where
 
     fn unknown_route_health(now: jacquard_core::Tick) -> RouteHealth {
         RouteHealth {
-            reachability_state:        ReachabilityState::Unknown,
-            stability_score:           HealthScore(0),
+            reachability_state: ReachabilityState::Unknown,
+            stability_score: HealthScore(0),
             congestion_penalty_points: PenaltyPoints(0),
-            last_validated_at_tick:    now,
+            last_validated_at_tick: now,
         }
     }
 
     fn terminal_route_health(validated_at_tick: jacquard_core::Tick) -> RouteHealth {
         RouteHealth {
-            reachability_state:        ReachabilityState::Reachable,
-            stability_score:           HealthScore(1000),
+            reachability_state: ReachabilityState::Reachable,
+            stability_score: HealthScore(1000),
             congestion_penalty_points: PenaltyPoints(0),
-            last_validated_at_tick:    validated_at_tick,
+            last_validated_at_tick: validated_at_tick,
         }
     }
 
@@ -403,11 +396,7 @@ where
         active_route: &ActiveMeshRoute,
         summary: Option<&MeshTransportObservationSummary>,
     ) {
-        let Some(next_segment) = active_route
-            .path
-            .segments
-            .get(usize::from(active_route.forwarding.next_hop_index))
-        else {
+        let Some(next_segment) = current_segment(active_route) else {
             return;
         };
         let Some(summary) = summary else {
@@ -416,14 +405,10 @@ where
         let Some(remote) = summary.remote_links.get(&next_segment.node_id) else {
             return;
         };
-        health.stability_score =
-            HealthScore(health.stability_score.0.min(remote.stability_score.0));
-        health.congestion_penalty_points = PenaltyPoints(
-            health
-                .congestion_penalty_points
-                .0
-                .max(remote.congestion_penalty_points.0),
-        );
+        health.stability_score = health.stability_score.min(remote.stability_score);
+        health.congestion_penalty_points = health
+            .congestion_penalty_points
+            .max(remote.congestion_penalty_points);
         health.last_validated_at_tick = health
             .last_validated_at_tick
             .max(remote.last_observed_at_tick);
@@ -452,33 +437,13 @@ where
     }
 
     fn apply_link_health(health: &mut RouteHealth, link: &jacquard_core::Link) {
-        let delivery = match &link.state.delivery_confidence_permille {
-            | jacquard_core::Belief::Absent => None,
-            | jacquard_core::Belief::Estimated(estimate) => {
-                Some(u32::from(estimate.value.get()))
-            },
-        };
-        let symmetry = match &link.state.symmetry_permille {
-            | jacquard_core::Belief::Absent => None,
-            | jacquard_core::Belief::Estimated(estimate) => {
-                Some(u32::from(estimate.value.get()))
-            },
-        };
-        let link_stability = match (delivery, symmetry) {
-            | (Some(delivery), Some(symmetry)) => Some((delivery + symmetry) / 2),
-            | (Some(delivery), None) => Some(delivery),
-            | (None, Some(symmetry)) => Some(symmetry),
-            | (None, None) => None,
-        };
-        if let Some(link_stability) = link_stability {
-            health.stability_score =
-                HealthScore(health.stability_score.0.min(link_stability));
-        }
-        health.congestion_penalty_points = PenaltyPoints(
-            health
-                .congestion_penalty_points
-                .0
-                .max(u32::from(link.state.loss_permille.get()) / 100),
+        let delivery = belief_to_health_score(&link.state.delivery_confidence_permille);
+        let symmetry = belief_to_health_score(&link.state.symmetry_permille);
+        let link_stability = (delivery.saturating_add(symmetry)) / 2;
+        health.stability_score =
+            HealthScore(health.stability_score.0.min(link_stability));
+        health.congestion_penalty_points = health.congestion_penalty_points.max(
+            PenaltyPoints(u32::from(link.state.loss_permille.get()) / 100),
         );
     }
 

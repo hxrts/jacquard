@@ -5,7 +5,7 @@ use std::{fs, path::PathBuf};
 use anyhow::{Context, Result};
 use regex::Regex;
 
-use crate::util::{normalize_rel_path, workspace_root, Violation};
+use crate::util::{layer_for_rel_path, normalize_rel_path, workspace_root, Violation};
 
 pub fn run() -> Result<()> {
     let root = workspace_root()?;
@@ -28,10 +28,11 @@ pub fn run() -> Result<()> {
         }
 
         if standalone_tests.is_match(&rel) {
-            violations.push(Violation::new(
+            violations.push(Violation::with_layer(
                 rel.clone(),
                 1,
                 "standalone unit-test source files under src/ are forbidden; colocate unit tests in the owning file",
+                layer_for_rel_path(&rel),
             ));
         }
 
@@ -39,10 +40,11 @@ pub fn run() -> Result<()> {
             .with_context(|| format!("reading {}", path.display()))?;
         for (idx, line) in contents.lines().enumerate() {
             if import_from_tests.is_match(line) {
-                violations.push(Violation::new(
+                violations.push(Violation::with_layer(
                     rel.clone(),
                     idx + 1,
                     "source-tree unit tests must not import helpers out of tests/",
+                    layer_for_rel_path(&rel),
                 ));
             }
         }

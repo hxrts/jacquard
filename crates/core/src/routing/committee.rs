@@ -1,12 +1,15 @@
 //! Committee-selection results shared across routing engines.
 
-use jacquard_macros::public_model;
+use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     ClaimStrength, CommitteeId, ControllerId, FactBasis, IdentityAssuranceClass,
     NodeId, RouteEpoch, Tick, TimeWindow,
 };
+
+#[id_type]
+pub struct QuorumThreshold(pub u8);
 
 #[public_model]
 #[derive(
@@ -27,9 +30,9 @@ pub enum CommitteeRole {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// One selected committee member plus its declared role.
 pub struct CommitteeMember {
-    pub node_id:       NodeId,
+    pub node_id: NodeId,
     pub controller_id: ControllerId,
-    pub role:          CommitteeRole,
+    pub role: CommitteeRole,
 }
 
 #[public_model]
@@ -40,15 +43,15 @@ pub struct CommitteeMember {
 /// the resulting membership, lease, and evidentiary posture to the rest of the
 /// control plane.
 pub struct CommitteeSelection {
-    pub committee_id:       CommitteeId,
-    pub topology_epoch:     RouteEpoch,
-    pub selected_at_tick:   Tick,
-    pub valid_for:          TimeWindow,
-    pub evidence_basis:     FactBasis,
-    pub claim_strength:     ClaimStrength,
+    pub committee_id: CommitteeId,
+    pub topology_epoch: RouteEpoch,
+    pub selected_at_tick: Tick,
+    pub valid_for: TimeWindow,
+    pub evidence_basis: FactBasis,
+    pub claim_strength: ClaimStrength,
     pub identity_assurance: IdentityAssuranceClass,
-    pub quorum_threshold:   u8,
+    pub quorum_threshold: QuorumThreshold,
     /// Bounded by
     /// [`PROVIDER_CANDIDATE_COUNT_MAX`](crate::PROVIDER_CANDIDATE_COUNT_MAX).
-    pub members:            Vec<CommitteeMember>,
+    pub members: Vec<CommitteeMember>,
 }

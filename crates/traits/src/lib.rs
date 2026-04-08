@@ -1,15 +1,58 @@
-//! Trait definitions for the abstract routing contract and the mesh routing
-//! engine.
+//! Trait definitions for the abstract routing contract and engine-facing
+//! middleware surfaces.
+//!
+//! `jacquard-traits` defines what components are allowed to do across crate
+//! boundaries. It remains runtime-free and names only shared behavioral
+//! contracts.
+//!
+//! ## Runtime-Free Boundary
+//!
+//! `jacquard-core` and `jacquard-traits` remain runtime-free. They define
+//! shared data and behavior contracts, but they must not depend on concrete
+//! engine runtimes or telltale runtime internals.
+//!
+//! ## Effect Capabilities
+//!
+//! Shared effect traits such as [`TransportEffects`], [`StorageEffects`],
+//! [`TimeEffects`], and [`RouteEventLogEffects`] live here. These are neutral
+//! host/runtime capabilities, not engine-specific adapter traits.
+//!
+//! ## Engine And Router Contracts
+//!
+//! Shared behavioral boundaries such as [`RoutingEngine`],
+//! [`RouterManagedEngine`], [`RoutingMiddleware`], and [`RouterEngineRegistry`]
+//! live here. Engines implement these contracts; routers orchestrate across
+//! them without depending on engine-private runtime details. Mesh-specific
+//! read-only extension traits live in `jacquard-mesh`, not here.
+//!
+//! ## Ownership
+//!
+//! Router-facing contracts in this crate preserve the ownership split:
+//! `jacquard-router` owns canonical route truth, while engines plan, admit,
+//! materialize, and maintain route-private runtime state behind shared
+//! boundaries. Observational crates may supply world facts and effect handlers,
+//! but they must not publish canonical route truth.
 
 #![forbid(unsafe_code)]
+
+/// Expands to `#[must_use = "unread {name} result silently discards
+/// {description}"]` applied to the following item.
+/// Use on trait methods that return meaningful values whose results must not be
+/// silently dropped.
+macro_rules! must_use_evidence {
+    ($name:literal, $desc:literal; $($item:tt)+) => {
+        #[must_use = concat!("unread ", $name, " result silently discards ", $desc)]
+        $($item)+
+    };
+}
 
 extern crate self as jacquard_traits;
 
 mod effects;
 mod handler;
 mod hashing;
-mod mesh;
 mod routing;
+mod sealed;
 mod simulator;
 mod world;
 
@@ -21,7 +64,6 @@ pub use jacquard_macros::{
     bounded_value, effect_handler, effect_trait, id_type, must_use_handle,
     public_model, purity,
 };
-pub use mesh::*;
 pub use routing::*;
 pub use simulator::*;
 pub use world::*;

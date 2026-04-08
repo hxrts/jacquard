@@ -5,7 +5,7 @@ use std::net::IpAddr;
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
-use crate::RouteEpoch;
+use crate::{content::Blake3Digest, RouteEpoch};
 
 // NodeId identifies a running Jacquard participant instance.
 // ControllerId identifies the cryptographic actor behind one or more nodes.
@@ -58,15 +58,24 @@ pub enum NetworkHost {
 }
 
 #[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-/// Identifies a routing-engine contract. Mesh is first-party; External covers
-/// third-party engines.
-pub enum RoutingEngineId {
-    Mesh,
-    External {
-        name:        String,
-        contract_id: RoutingEngineContractId,
-    },
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+/// Neutral identifier for a routing-engine contract.
+pub struct RoutingEngineId {
+    pub contract_id: RoutingEngineContractId,
+}
+
+impl RoutingEngineId {
+    #[must_use]
+    pub const fn new(contract_id: RoutingEngineContractId) -> Self {
+        Self { contract_id }
+    }
+
+    #[must_use]
+    pub const fn from_contract_bytes(contract_id: [u8; 16]) -> Self {
+        Self::new(RoutingEngineContractId(contract_id))
+    }
 }
 
 #[public_model]
@@ -82,18 +91,49 @@ pub enum DestinationId {
 /// Attestable link between a node instance and its controlling authority.
 /// One controller may bind multiple nodes.
 pub struct NodeBinding {
-    pub node_id:       NodeId,
+    pub node_id: NodeId,
     pub controller_id: ControllerId,
     pub binding_epoch: RouteEpoch,
-    pub proof:         NodeBindingProof,
+    pub proof: NodeBindingProof,
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeBindingProof {
-    Signature {
-        key_id:          KeyId,
-        signature_bytes: Vec<u8>,
-    },
+    Signature { key_id: KeyId, signature_bytes: Vec<u8> },
     Opaque(Vec<u8>),
+}
+
+// Conversions from Blake3Digest to 16-byte routing identity newtypes.
+// Each impl takes the first 16 bytes of the 32-byte digest.
+impl From<&Blake3Digest> for RouteId {
+    fn from(digest: &Blake3Digest) -> Self {
+        let mut id = [0u8; 16];
+        id.copy_from_slice(&digest.0[..16]);
+        RouteId(id)
+    }
+}
+
+impl From<&Blake3Digest> for RouteCommitmentId {
+    fn from(digest: &Blake3Digest) -> Self {
+        let mut id = [0u8; 16];
+        id.copy_from_slice(&digest.0[..16]);
+        RouteCommitmentId(id)
+    }
+}
+
+impl From<&Blake3Digest> for ReceiptId {
+    fn from(digest: &Blake3Digest) -> Self {
+        let mut id = [0u8; 16];
+        id.copy_from_slice(&digest.0[..16]);
+        ReceiptId(id)
+    }
+}
+
+impl From<&Blake3Digest> for CommitteeId {
+    fn from(digest: &Blake3Digest) -> Self {
+        let mut id = [0u8; 16];
+        id.copy_from_slice(&digest.0[..16]);
+        CommitteeId(id)
+    }
 }

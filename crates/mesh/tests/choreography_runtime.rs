@@ -12,11 +12,11 @@ use common::{
 };
 use jacquard_traits::{
     jacquard_core::{NodeId, RouteMaintenanceTrigger, Tick},
-    RoutingEngine,
+    RouterManagedEngine, RoutingEngine,
 };
 
 fn has_protocol_checkpoint(engine: &common::engine::TestEngine, prefix: &str) -> bool {
-    engine.runtime_effects().storage.keys().any(|key| {
+    engine.effects.storage_keys().iter().any(|key| {
         std::str::from_utf8(key).is_ok_and(|value| value.starts_with(prefix))
     })
 }
@@ -81,7 +81,7 @@ fn forwarding_and_partition_hold_use_protocol_runtime_paths() {
     );
 
     engine
-        .forward_payload(&identity.handle.route_id, b"frame")
+        .forward_payload_for_router(&identity.stamp.route_id, b"frame")
         .expect("forward payload");
     engine
         .maintain_route(
@@ -91,7 +91,7 @@ fn forwarding_and_partition_hold_use_protocol_runtime_paths() {
         )
         .expect("enter partition mode");
     engine
-        .forward_payload(&identity.handle.route_id, b"held")
+        .forward_payload_for_router(&identity.stamp.route_id, b"held")
         .expect("retain payload while partitioned");
 
     assert!(has_protocol_checkpoint(
@@ -156,7 +156,7 @@ fn teardown_clears_route_scoped_protocol_checkpoints_but_keeps_tick_state() {
         lease(Tick(2), Tick(20)),
     );
 
-    engine.teardown(&identity.handle.route_id);
+    engine.teardown(&identity.stamp.route_id);
 
     assert!(!has_protocol_checkpoint(
         &engine,

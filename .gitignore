@@ -2,6 +2,7 @@
 target/
 result
 artifacts/
+lints/**/Cargo.lock
 
 # nix
 .direnv/
@@ -24,3 +25,6 @@ theme/
 # specs
 work/
 .tmp/
+
+# claude code
+.claude/

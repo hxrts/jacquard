@@ -7,14 +7,14 @@
 //! expose.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision, Limit,
-    RouteAdmissionCheck, RouteAdmissionRejection, RouteCost, RoutePartitionClass,
-    RouteRepairClass, RouteSummary, RoutingObjective,
+    AdmissionAssumptions, AdmissionDecision, Limit, RouteAdmissionCheck,
+    RouteAdmissionRejection, RouteCost, RoutePartitionClass, RouteRepairClass,
+    RouteSummary, RoutingObjective, SelectedRoutingParameters,
 };
 
 pub(super) fn mesh_admission_check(
     objective: &RoutingObjective,
-    profile: &AdaptiveRoutingProfile,
+    profile: &SelectedRoutingParameters,
     summary: &RouteSummary,
     route_cost: &RouteCost,
     assumptions: &AdmissionAssumptions,

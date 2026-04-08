@@ -1,6 +1,6 @@
 //! Telltale definition for deferred hold and replay.
 //!
-//! Control flow intuition: a partitioned owner stores a held payload with a
+//! Control flow: a partitioned owner stores a held payload with a
 //! holder, the holder announces storage to the observer, and the recipient
 //! either replays immediately or defers. Mesh keeps the owner-visible retained
 //! object accounting in ordinary route runtime state rather than sending a
@@ -8,7 +8,7 @@
 
 use std::{cell::RefCell, error::Error, marker, rc::Rc, result};
 
-use jacquard_core::{ContentId, LinkEndpoint, RouteError, RouteId, RouteRuntimeError};
+use jacquard_core::{ContentId, LinkEndpoint, RouteError, RouteId};
 use serde_json::json;
 use telltale::{
     futures::{executor, try_join},
@@ -95,17 +95,18 @@ use HoldReplayExchange::{
 use super::{
     artifacts::{protocol_spec, MeshProtocolKind},
     effects::{
-        MeshChoreoFrame, MeshHeldPayload, MeshProtocolObservation, MeshProtocolRuntime,
+        ChoreographyResultExt, MeshChoreoFrame, MeshHeldPayload,
+        MeshProtocolObservation, MeshProtocolRuntime,
     },
     runtime::{route_session, MeshGuestRuntime},
 };
 
 struct SharedRuntime<'a, E> {
-    effects:   &'a mut E,
-    route_id:  RouteId,
+    effects: &'a mut E,
+    route_id: RouteId,
     object_id: ContentId<jacquard_core::Blake3Digest>,
-    payload:   Vec<u8>,
-    endpoint:  Option<LinkEndpoint>,
+    payload: Vec<u8>,
+    endpoint: Option<LinkEndpoint>,
 }
 
 #[derive(Clone, Copy)]
@@ -138,7 +139,7 @@ where
             .store_held_payload(&MeshHeldPayload { object_id, payload })
             .map_err(|_| effects::MeshProtocolError::Unavailable)?;
         Ok(effects::HoldReceipt {
-            route_id:  input.route_id,
+            route_id: input.route_id,
             stored_by: effects::Role::new("Holder"),
         })
     }
@@ -165,7 +166,7 @@ where
                 .map_err(|_| effects::MeshProtocolError::Unavailable)?;
         }
         Ok(effects::HoldReceipt {
-            route_id:  input.route_id,
+            route_id: input.route_id,
             stored_by: effects::Role::new("Holder"),
         })
     }
@@ -272,7 +273,7 @@ where
         )
     })
     .map(|_| ())
-    .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    .choreography_failed()
 }
 
 async fn owner_role(
@@ -299,9 +300,13 @@ where
     try_session(role, |s: HolderSession<'_, _>| async {
         let (StoreHeldPayload { route_id, payload_digest }, s) = s.receive().await?;
         let held_payload = effects::HeldPayload {
-            route_id:       route_id.clone(),
+            route_id: route_id.clone(),
             payload_digest: payload_digest.clone(),
         };
+        // Intentionally ignored: store_held_payload is a best-effort side effect.
+        // The session type enforces protocol continuation regardless; if retention
+        // fails here the payload will not be replayed but the hold exchange still
+        // completes correctly.
         let _ = effects::MeshRuntime::store_held_payload(host, held_payload.clone());
         let s = s.send(Stored { route_id: route_id.clone() }).await?;
         let s = s
@@ -313,10 +318,13 @@ where
         match s.branch().await? {
             | HolderChoice1::Replayed(Replayed, s) => {
                 let (ReplayAccepted { route_id }, s) = s.receive().await?;
+                // Intentionally ignored: replay_held_payload is best-effort. The
+                // session already advanced to the Replayed branch;
+                // retention cleanup is advisory.
                 let _ = effects::MeshRuntime::replay_held_payload(
                     host,
                     effects::HeldPayload {
-                        route_id:       route_id.clone(),
+                        route_id: route_id.clone(),
                         payload_digest: String::new(),
                     },
                 );

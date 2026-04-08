@@ -7,10 +7,9 @@
 //! checkpointed and inserted into the live route table.
 
 use jacquard_core::{
-    Configuration, Fact, FactBasis, Observation, RouteError, RouteEvent,
-    RouteInstallation, RouteLifecycleEvent, RouteMaterializationInput,
-    RouteMaterializationProof, RouteProgressContract, RouteProgressState,
-    RouteRuntimeError,
+    Configuration, Fact, FactBasis, Observation, RouteError, RouteInstallation,
+    RouteLifecycleEvent, RouteMaterializationInput, RouteMaterializationProof,
+    RouteProgressContract, RouteProgressState, RouteRuntimeError,
 };
 
 use super::{
@@ -19,19 +18,21 @@ use super::{
             decode_backend_token, deterministic_order_key, encode_path_bytes,
             limit_u32, node_path_from_plan_token,
         },
-        ActiveMeshRoute, MeshCommitteeStatus, MESH_ACTIVE_ROUTE_COUNT_MAX,
+        types::MeshCommitteeStatus,
+        ActiveMeshRoute, MESH_ACTIVE_ROUTE_COUNT_MAX,
     },
     MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
-    MeshTransportBounds,
+    TransportEffectsBounds,
 };
+use crate::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: super::super::MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
+    Transport: TransportEffectsBounds,
     Retention: super::super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -43,13 +44,15 @@ where
         now: jacquard_core::Tick,
     ) -> RouteMaterializationProof {
         RouteMaterializationProof {
-            route_id:             input.handle.route_id,
-            topology_epoch:       input.handle.topology_epoch,
-            materialized_at_tick: now,
-            publication_id:       input.handle.publication_id,
-            witness:              Fact {
-                value:               input.admission.witness.clone(),
-                basis:               FactBasis::Admitted,
+            stamp: jacquard_core::RouteIdentityStamp {
+                route_id: *input.handle.route_id(),
+                topology_epoch: input.handle.topology_epoch(),
+                materialized_at_tick: now,
+                publication_id: *input.handle.publication_id(),
+            },
+            witness: Fact {
+                value: input.admission.witness.clone(),
+                basis: FactBasis::Admitted,
                 established_at_tick: now,
             },
         }
@@ -63,19 +66,16 @@ where
     ) -> RouteInstallation {
         RouteInstallation {
             materialization_proof: proof,
-            last_lifecycle_event:  RouteLifecycleEvent::Activated,
-            health:                self.current_route_health(None, now),
-            progress:              RouteProgressContract {
+            last_lifecycle_event: RouteLifecycleEvent::Activated,
+            health: self.current_route_health(None, now),
+            progress: RouteProgressContract {
                 productive_step_count_max: input
                     .admission
                     .admission_check
                     .productive_step_bound,
-                total_step_count_max:      input
-                    .admission
-                    .admission_check
-                    .total_step_bound,
-                last_progress_at_tick:     now,
-                state:                     RouteProgressState::Satisfied,
+                total_step_count_max: input.admission.admission_check.total_step_bound,
+                last_progress_at_tick: now,
+                state: RouteProgressState::Satisfied,
             },
         }
     }
@@ -96,12 +96,12 @@ where
             ordering_key,
             forwarding: super::super::MeshForwardingState {
                 current_owner_node_id: input.lease.owner_node_id,
-                next_hop_index:        0,
-                in_flight_frames:      0,
-                last_ack_at_tick:      None,
+                next_hop_index: 0,
+                in_flight_frames: 0,
+                last_ack_at_tick: None,
             },
             repair: super::super::MeshRepairState {
-                steps_remaining:       limit_u32(
+                steps_remaining: limit_u32(
                     input.admission.admission_check.productive_step_bound,
                 ),
                 last_repaired_at_tick: None,
@@ -136,9 +136,11 @@ where
 
         let derived_route_id =
             self.route_id_for_backend(&input.admission.backend_ref.backend_route_id)?;
-        if derived_route_id != input.admission.route_id
-            || derived_route_id != input.handle.route_id
-        {
+        // Validate the plan token is consistent with what was admitted. The
+        // canonical route_id lives in the handle stamp (router-assigned); the
+        // engine-computed derived_route_id is compared only against the
+        // admission's route_id, not the handle's stamp.
+        if derived_route_id != input.admission.route_id {
             return Err(RouteRuntimeError::Invalidated.into());
         }
 
@@ -146,13 +148,16 @@ where
         let path_bytes = encode_path_bytes(&node_path, &plan.segments);
         let ordering_key =
             deterministic_order_key(derived_route_id, &self.hashing, &path_bytes);
+        // Use the router-assigned canonical route_id for the path record.
+        // The canonical identity lives in the handle stamp; derived_route_id
+        // is the engine-internal content-addressed plan identifier.
         let path = super::super::MeshPath {
-            route_id:    derived_route_id,
-            epoch:       plan.epoch,
-            source:      plan.source,
+            route_id: *input.handle.route_id(),
+            epoch: plan.epoch,
+            source: plan.source,
             destination: plan.destination,
-            segments:    plan.segments,
-            valid_for:   plan.valid_for,
+            segments: plan.segments,
+            valid_for: plan.valid_for,
             route_class: plan.route_class,
         };
         let committee = match plan.committee_status {
@@ -176,7 +181,7 @@ where
     ) -> Result<(), RouteError> {
         let plan = decode_backend_token(&input.admission.backend_ref.backend_route_id)
             .ok_or(RouteRuntimeError::Invalidated)?;
-        let claimed_epoch = input.handle.topology_epoch;
+        let claimed_epoch = input.handle.topology_epoch();
         if plan.epoch != claimed_epoch
             || input.admission.witness.topology_epoch != claimed_epoch
             || topology.value.epoch != claimed_epoch
@@ -209,7 +214,7 @@ where
         &mut self,
         input: &RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError> {
-        let route_id = input.handle.route_id;
+        let route_id = *input.handle.route_id();
         // Replacements re-use an existing route slot so the budget cap is
         // skipped — an already-active route does not consume an extra slot
         // when re-materialized.
@@ -237,24 +242,13 @@ where
             health: self.current_route_health(Some(&active_route), now),
             ..installation
         };
-        let route_event =
-            RouteEvent::RouteMaterialized { handle: input.handle.clone(), proof };
         self.store_checkpoint(&active_route)?;
         if let Err(error) = self
             .choreography_runtime()
-            .activation_handshake(&route_id, input.handle.topology_epoch)
+            .activation_handshake(&route_id, input.handle.topology_epoch())
         {
             if let Some(previous_active_route) = previous_active_route.as_ref() {
-                let _ = self.store_checkpoint(previous_active_route);
-            } else {
-                let _ = self.remove_checkpoint(&route_id);
-            }
-            return Err(error);
-        }
-        if let Err(error) = self.record_event(route_event) {
-            let _ = self.choreography_runtime().clear_route_protocols(&route_id);
-            if let Some(previous_active_route) = previous_active_route.as_ref() {
-                let _ = self.store_checkpoint(previous_active_route);
+                self.checkpoint_best_effort(previous_active_route);
             } else {
                 let _ = self.remove_checkpoint(&route_id);
             }

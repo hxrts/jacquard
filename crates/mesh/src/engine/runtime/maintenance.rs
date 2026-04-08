@@ -8,28 +8,29 @@
 //! maintenance outcome.
 
 use jacquard_core::{
-    Configuration, MaterializedRouteIdentity, RouteError, RouteLifecycleEvent,
-    RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteProgressState, RouteRuntimeError,
-    RouteSemanticHandoff,
+    Blake3Digest, Configuration, ContentId, LinkEndpoint, MaterializedRouteIdentity,
+    RouteError, RouteId, RouteLifecycleEvent, RouteMaintenanceFailure,
+    RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
+    RouteProgressState, RouteRuntimeError, RouteSemanticHandoff,
 };
 
 use super::{
     super::{
-        support::{route_cost_for_segments, shortest_paths},
-        ActiveMeshRoute,
+        support::{current_segment, route_cost_for_segments, shortest_paths},
+        ActiveMeshRoute, MaintenanceResultExt,
     },
     MaintenanceContext, MeshEffectsBounds, MeshEngine, MeshHasherBounds,
-    MeshSelectorBounds, MeshTransportBounds,
+    MeshSelectorBounds, TransportEffectsBounds,
 };
+use crate::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: super::super::MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
+    Transport: TransportEffectsBounds,
     Retention: super::super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -50,7 +51,7 @@ where
         runtime.progress.last_progress_at_tick = now;
         self.choreography_runtime().repair_exchange(route_id)?;
         Ok(RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Repaired,
+            event: RouteLifecycleEvent::Repaired,
             outcome: RouteMaintenanceOutcome::Repaired,
         })
     }
@@ -65,13 +66,13 @@ where
         runtime.last_lifecycle_event = RouteLifecycleEvent::EnteredPartitionMode;
         runtime.progress.state = RouteProgressState::Blocked;
         RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::EnteredPartitionMode,
+            event: RouteLifecycleEvent::EnteredPartitionMode,
             outcome: RouteMaintenanceOutcome::HoldFallback {
                 trigger,
-                retained_object_count: u32::try_from(
-                    active_route.anti_entropy.retained_objects.len(),
-                )
-                .unwrap_or(u32::MAX),
+                retained_object_count: jacquard_core::HoldItemCount(
+                    u32::try_from(active_route.anti_entropy.retained_objects.len())
+                        .unwrap_or(u32::MAX),
+                ),
             },
         }
     }
@@ -87,11 +88,11 @@ where
             return Err(RouteRuntimeError::Invalidated.into());
         };
         let handoff = RouteSemanticHandoff {
-            route_id:      identity.handle.route_id,
-            from_node_id:  active_route.forwarding.current_owner_node_id,
-            to_node_id:    next_owner,
+            route_id: identity.stamp.route_id,
+            from_node_id: active_route.forwarding.current_owner_node_id,
+            to_node_id: next_owner,
             handoff_epoch: active_route.current_epoch,
-            receipt_id:    handoff_receipt_id,
+            receipt_id: handoff_receipt_id,
         };
         active_route.forwarding.current_owner_node_id = next_owner;
         active_route.forwarding.next_hop_index =
@@ -102,9 +103,9 @@ where
         active_route.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         runtime.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         self.choreography_runtime()
-            .handoff_exchange(&identity.handle.route_id)?;
+            .handoff_exchange(&identity.stamp.route_id)?;
         Ok(RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::HandedOff,
+            event: RouteLifecycleEvent::HandedOff,
             outcome: RouteMaintenanceOutcome::HandedOff(handoff),
         })
     }
@@ -113,7 +114,7 @@ where
         trigger: RouteMaintenanceTrigger,
     ) -> RouteMaintenanceResult {
         RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Replaced,
+            event: RouteLifecycleEvent::Replaced,
             outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
         }
     }
@@ -126,7 +127,7 @@ where
         runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
         runtime.progress.state = RouteProgressState::Failed;
         RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Expired,
+            event: RouteLifecycleEvent::Expired,
             outcome: RouteMaintenanceOutcome::Failed(
                 RouteMaintenanceFailure::LeaseExpired,
             ),
@@ -140,7 +141,7 @@ where
     ) -> RouteMaintenanceResult {
         runtime.progress.last_progress_at_tick = now;
         RouteMaintenanceResult {
-            event:   active_route.last_lifecycle_event,
+            event: active_route.last_lifecycle_event,
             outcome: RouteMaintenanceOutcome::Continued,
         }
     }
@@ -208,62 +209,101 @@ where
         &mut self,
         active_route: &mut ActiveMeshRoute,
     ) -> Result<(), RouteError> {
-        let Some(next_segment) = active_route
-            .path
-            .segments
-            .get(usize::from(active_route.forwarding.next_hop_index))
-            .cloned()
-        else {
+        let Some(next_endpoint) = self.next_replay_endpoint(active_route) else {
             return Ok(());
         };
 
+        for object_id in self.retained_object_ids(active_route) {
+            self.flush_retained_object(active_route, object_id, next_endpoint.clone())?;
+        }
+
+        Ok(())
+    }
+
+    fn next_replay_endpoint(
+        &self,
+        active_route: &ActiveMeshRoute,
+    ) -> Option<LinkEndpoint> {
+        current_segment(active_route).map(|segment| segment.endpoint.clone())
+    }
+
+    fn retained_object_ids(
+        &self,
+        active_route: &ActiveMeshRoute,
+    ) -> Vec<ContentId<Blake3Digest>> {
         // Snapshot before iterating because successful sends remove entries
         // from `retained_objects` as the loop progresses.
-        let retained_object_ids = active_route
+        active_route
             .anti_entropy
             .retained_objects
             .iter()
             .cloned()
-            .collect::<Vec<_>>();
+            .collect()
+    }
 
-        for object_id in retained_object_ids {
-            let Some(payload) = self
-                .choreography_runtime()
-                .recover_held_payload(&active_route.path.route_id, &object_id)
-                .map_err(|_| {
-                    RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)
-                })?
-            else {
-                active_route
-                    .anti_entropy
-                    .retained_objects
-                    .remove(&object_id);
-                continue;
-            };
-
-            if let Err(error) = self.choreography_runtime().replay_to_next_hop(
-                &active_route.path.route_id,
-                object_id,
-                next_segment.endpoint.clone(),
-                payload.clone(),
-            ) {
-                let _ = self.choreography_runtime().retain_for_replay(
-                    &active_route.path.route_id,
-                    object_id,
-                    &payload,
-                );
-                return Err(error);
-            }
-
+    fn flush_retained_object(
+        &mut self,
+        active_route: &mut ActiveMeshRoute,
+        object_id: ContentId<Blake3Digest>,
+        next_endpoint: LinkEndpoint,
+    ) -> Result<(), RouteError> {
+        let Some(payload) =
+            self.recover_retained_payload_for_flush(active_route, object_id)?
+        else {
             active_route
                 .anti_entropy
                 .retained_objects
                 .remove(&object_id);
-            active_route.forwarding.in_flight_frames =
-                active_route.forwarding.in_flight_frames.saturating_add(1);
-            active_route.forwarding.last_ack_at_tick = Some(self.effects.now_tick());
-        }
+            return Ok(());
+        };
 
+        self.replay_retained_payload(
+            &active_route.path.route_id,
+            object_id,
+            next_endpoint,
+            &payload,
+        )?;
+        active_route
+            .anti_entropy
+            .retained_objects
+            .remove(&object_id);
+        active_route.forwarding.in_flight_frames =
+            active_route.forwarding.in_flight_frames.saturating_add(1);
+        active_route.forwarding.last_ack_at_tick = Some(self.effects.now_tick());
+        Ok(())
+    }
+
+    fn recover_retained_payload_for_flush(
+        &mut self,
+        active_route: &ActiveMeshRoute,
+        object_id: ContentId<Blake3Digest>,
+    ) -> Result<Option<Vec<u8>>, RouteError> {
+        self.choreography_runtime()
+            .recover_held_payload(&active_route.path.route_id, &object_id)
+            .maintenance_failed()
+    }
+
+    fn replay_retained_payload(
+        &mut self,
+        route_id: &RouteId,
+        object_id: ContentId<Blake3Digest>,
+        next_endpoint: LinkEndpoint,
+        payload: &[u8],
+    ) -> Result<(), RouteError> {
+        if let Err(error) = self.choreography_runtime().replay_to_next_hop(
+            route_id,
+            object_id,
+            next_endpoint,
+            payload.to_vec(),
+        ) {
+            // Best-effort re-retain: the replay send failed; try to keep the
+            // payload for the next flush. The primary RouteError is
+            // returned below regardless.
+            let _ = self
+                .choreography_runtime()
+                .retain_for_replay(route_id, object_id, payload);
+            return Err(error);
+        }
         Ok(())
     }
 
@@ -273,7 +313,7 @@ where
         runtime: &mut jacquard_core::RouteRuntimeState,
         now: jacquard_core::Tick,
     ) -> Result<Option<RouteMaintenanceResult>, RouteError> {
-        if !active_route.anti_entropy.partition_mode {
+        if !active_route.is_in_partition_mode() {
             return Ok(None);
         }
 
@@ -285,7 +325,7 @@ where
         runtime.progress.last_progress_at_tick = now;
         runtime.progress.state = RouteProgressState::Satisfied;
         Ok(Some(RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::RecoveredFromPartition,
+            event: RouteLifecycleEvent::RecoveredFromPartition,
             outcome: RouteMaintenanceOutcome::Continued,
         }))
     }
@@ -351,16 +391,14 @@ where
         if !self.repair_allowed(active_route) {
             return Ok(Self::replacement_required(trigger));
         }
-        let Some(topology) = context.latest_topology else {
-            return Ok(Self::replacement_required(trigger));
-        };
-        let repaired = self.repair_remaining_suffix(active_route, &topology.value);
+        let repaired =
+            self.repair_remaining_suffix(active_route, &context.latest_topology.value);
         if !repaired {
             return Ok(Self::replacement_required(trigger));
         }
-        active_route.current_epoch = topology.value.epoch;
+        active_route.current_epoch = context.latest_topology.value.epoch;
         let result = self.apply_repair(
-            &context.identity.handle.route_id,
+            &context.identity.stamp.route_id,
             active_route,
             runtime,
             context.now,

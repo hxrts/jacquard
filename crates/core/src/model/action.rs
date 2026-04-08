@@ -1,20 +1,23 @@
 //! Policy outputs and selected routing actions.
 
-use jacquard_macros::public_model;
+use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
-use crate::{RouteConnectivityProfile, RouteProtectionClass};
+use crate::{ConnectivityPosture, RouteProtectionClass};
+
+#[id_type]
+pub struct DiversityFloor(pub u8);
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Output of the local policy engine. Runtime-local, never shared.
-pub struct AdaptiveRoutingProfile {
-    pub selected_protection:            RouteProtectionClass,
-    pub selected_connectivity:          RouteConnectivityProfile,
-    pub deployment_profile:             DeploymentProfile,
-    pub diversity_floor:                u8,
+pub struct SelectedRoutingParameters {
+    pub selected_protection: RouteProtectionClass,
+    pub selected_connectivity: ConnectivityPosture,
+    pub deployment_profile: OperatingMode,
+    pub diversity_floor: DiversityFloor,
     pub routing_engine_fallback_policy: RoutingEngineFallbackPolicy,
-    pub route_replacement_policy:       RouteReplacementPolicy,
+    pub route_replacement_policy: RouteReplacementPolicy,
 }
 
 #[public_model]
@@ -40,15 +43,15 @@ pub enum RouteReplacementPolicy {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Host-defined name for an extensible deployment profile.
-pub struct DeploymentProfileName(pub String);
+pub struct OperatingModeName(pub String);
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Selected deployment posture for the current routing action.
-pub enum DeploymentProfile {
+pub enum OperatingMode {
     SparseLowPower,
     DenseInteractive,
     FieldPartitionTolerant,
     RelayAdversarial,
-    Custom { name: DeploymentProfileName },
+    Custom { name: OperatingModeName },
 }

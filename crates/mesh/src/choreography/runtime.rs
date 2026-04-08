@@ -10,7 +10,7 @@
 use bincode::Options;
 use jacquard_core::{
     Blake3Digest, ContentId, HealthScore, LinkEndpoint, NodeId, RouteEpoch, RouteError,
-    RouteEvent, RouteId, RouteRuntimeError, Tick, TransportObservation,
+    RouteId, RouteRuntimeError, Tick, TransportObservation,
 };
 use serde::{Deserialize, Serialize};
 
@@ -25,26 +25,26 @@ use super::{
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct MeshProtocolCheckpoint {
-    protocol:        MeshProtocolKind,
-    protocol_name:   String,
-    role_names:      Vec<String>,
-    source_path:     String,
-    session:         MeshProtocolSessionKey,
-    detail:          String,
+    protocol: MeshProtocolKind,
+    protocol_name: String,
+    role_names: Vec<String>,
+    source_path: String,
+    session: MeshProtocolSessionKey,
+    detail: String,
     last_updated_at: Tick,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshRouteExportSnapshot {
-    pub(crate) route_class:    String,
-    pub(crate) hop_count:      u32,
+    pub(crate) route_class: String,
+    pub(crate) hop_count: u32,
     pub(crate) partition_mode: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshNeighborAdvertisementSnapshot {
-    pub(crate) local_node_id:           NodeId,
-    pub(crate) service_count:           u32,
+    pub(crate) local_node_id: NodeId,
+    pub(crate) service_count: u32,
     pub(crate) adjacent_neighbor_count: u32,
 }
 
@@ -59,7 +59,7 @@ type RuntimeSpecResolver =
     fn(MeshProtocolKind) -> Result<&'static MeshProtocolSpec, String>;
 
 pub(crate) struct MeshGuestRuntime<E> {
-    effects:      E,
+    effects: E,
     resolve_spec: RuntimeSpecResolver,
 }
 
@@ -157,15 +157,6 @@ where
                 .map_err(storage_failure)?;
         }
         Ok(())
-    }
-
-    pub(crate) fn record_route_event(
-        &mut self,
-        event: RouteEvent,
-    ) -> Result<(), RouteError> {
-        self.effects
-            .record_route_event(event)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
     }
 
     pub(crate) fn forwarding_hop(
@@ -353,12 +344,12 @@ where
         detail: Option<&'static str>,
     ) -> Result<(), RouteError> {
         let checkpoint = MeshProtocolCheckpoint {
-            protocol:        spec.kind,
-            protocol_name:   spec.protocol_name.clone(),
-            role_names:      spec.role_names.clone(),
-            source_path:     spec.source_path.to_owned(),
-            session:         session.clone(),
-            detail:          detail.unwrap_or("entered").to_owned(),
+            protocol: spec.kind,
+            protocol_name: spec.protocol_name.clone(),
+            role_names: spec.role_names.clone(),
+            source_path: spec.source_path.to_owned(),
+            session: session.clone(),
+            detail: detail.unwrap_or("entered").to_owned(),
             last_updated_at: self.effects.now_tick(),
         };
         let key = protocol_checkpoint_key(spec.kind, &session);
@@ -459,10 +450,10 @@ mod tests {
 
     use bincode::Options;
     use jacquard_core::{
-        Blake3Digest, ContentId, OrderStamp, RouteEpoch, RouteError, RouteId,
-        RouteRuntimeError, StorageError, Tick, TransportObservation,
+        Blake3Digest, ContentId, RouteEpoch, RouteError, RouteId, RouteRuntimeError,
+        StorageError, Tick, TransportObservation,
     };
-    use jacquard_traits::{effect_handler, OrderEffects, StorageEffects, TimeEffects};
+    use jacquard_traits::{effect_handler, StorageEffects, TimeEffects};
 
     use super::{
         protocol_checkpoint_key, route_session, tick_session, MeshGuestRuntime,
@@ -477,24 +468,15 @@ mod tests {
 
     #[derive(Default)]
     struct FakeEffects {
-        checkpoints:  BTreeMap<Vec<u8>, Vec<u8>>,
+        checkpoints: BTreeMap<Vec<u8>, Vec<u8>>,
         observations: Vec<MeshProtocolObservation>,
-        ingress:      Vec<TransportObservation>,
-        next_order:   u64,
+        ingress: Vec<TransportObservation>,
     }
 
     #[effect_handler]
     impl TimeEffects for FakeEffects {
         fn now_tick(&self) -> Tick {
             Tick(4)
-        }
-    }
-
-    #[effect_handler]
-    impl OrderEffects for FakeEffects {
-        fn next_order_stamp(&mut self) -> OrderStamp {
-            self.next_order += 1;
-            OrderStamp(self.next_order)
         }
     }
 
@@ -521,11 +503,6 @@ mod tests {
     impl MeshProtocolRuntime for FakeEffects {
         fn now_tick(&self) -> Tick {
             Tick(4)
-        }
-
-        fn next_order_stamp(&mut self) -> OrderStamp {
-            self.next_order += 1;
-            OrderStamp(self.next_order)
         }
 
         fn send_mesh_frame(
@@ -560,13 +537,6 @@ mod tests {
             _object_id: &ContentId<Blake3Digest>,
         ) -> Result<Option<Vec<u8>>, jacquard_core::RetentionError> {
             Ok(None)
-        }
-
-        fn record_protocol_event(
-            &mut self,
-            _event: jacquard_core::RouteEventStamped,
-        ) -> Result<(), jacquard_core::RouteEventLogError> {
-            Ok(())
         }
 
         fn load_protocol_checkpoint(

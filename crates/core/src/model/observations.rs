@@ -1,13 +1,22 @@
 //! Observation-layer support types, shared observed payloads, and observation
 //! aliases over world objects.
 
-use jacquard_macros::public_model;
+use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     Belief, ByteCount, Configuration, DurationMs, Environment, Link, Node,
-    RatioPermille, ServiceDescriptor, TransportObservation,
+    RatioPermille, ServiceDescriptor, Tick, TransportObservation,
 };
+
+#[id_type]
+pub struct RelayWorkBudget(pub u32);
+
+#[id_type]
+pub struct MaintenanceWorkBudget(pub u32);
+
+#[id_type]
+pub struct HoldItemCount(pub u32);
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -23,19 +32,58 @@ pub enum InformationSummaryEncoding {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Summary of the retained information set observed at one node.
 pub struct InformationSetSummary {
-    pub summary_encoding:        InformationSummaryEncoding,
-    pub item_count:              Belief<u32>,
-    pub byte_count:              Belief<ByteCount>,
+    pub summary_encoding: InformationSummaryEncoding,
+    pub item_count: Belief<HoldItemCount>,
+    pub byte_count: Belief<ByteCount>,
     pub false_positive_permille: Belief<RatioPermille>,
+}
+
+impl InformationSetSummary {
+    #[must_use]
+    pub fn bloom_filter(
+        item_count: HoldItemCount,
+        byte_count: ByteCount,
+        false_positive_permille: RatioPermille,
+        updated_at_tick: Tick,
+    ) -> Self {
+        Self {
+            summary_encoding: InformationSummaryEncoding::BloomFilter,
+            item_count: Belief::certain(item_count, updated_at_tick),
+            byte_count: Belief::certain(byte_count, updated_at_tick),
+            false_positive_permille: Belief::certain(
+                false_positive_permille,
+                updated_at_tick,
+            ),
+        }
+    }
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Local forwarding and retention budget currently observed for one node.
 pub struct NodeRelayBudget {
-    pub relay_work_budget:    Belief<u32>,
+    pub relay_work_budget: Belief<RelayWorkBudget>,
     pub utilization_permille: RatioPermille,
     pub retention_horizon_ms: Belief<DurationMs>,
+}
+
+impl NodeRelayBudget {
+    #[must_use]
+    pub fn observed(
+        relay_work_budget: RelayWorkBudget,
+        utilization_permille: RatioPermille,
+        retention_horizon_ms: DurationMs,
+        updated_at_tick: Tick,
+    ) -> Self {
+        Self {
+            relay_work_budget: Belief::certain(relay_work_budget, updated_at_tick),
+            utilization_permille,
+            retention_horizon_ms: Belief::certain(
+                retention_horizon_ms,
+                updated_at_tick,
+            ),
+        }
+    }
 }
 
 /// Observation wrapper for one instantiated node.

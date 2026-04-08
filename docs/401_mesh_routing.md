@@ -12,7 +12,7 @@ The static `MESH_CAPABILITIES` envelope is exercised by contract tests. The in-t
 
 ## Deterministic Topology Model
 
-`DeterministicMeshTopologyModel` is the mesh-owned read-only query surface. It queries shared `Configuration` objects and then derives four mesh-private estimate types: `MeshPeerEstimate`, `MeshNeighborhoodEstimate`, `MeshMediumState`, and `MeshNodeIntrinsicState`. These estimates are encapsulated in `jacquard-mesh` so engine-specific scoring doesn't leak into the shared cross-engine schema.
+`DeterministicMeshTopologyModel` is the mesh-owned read-only query surface. It queries shared `Configuration` objects and then derives mesh-private estimate types such as `MeshPeerEstimate` and `MeshNeighborhoodEstimate`. Those estimates stay encapsulated in `jacquard-mesh` so engine-specific scoring does not leak into the shared cross-engine schema.
 
 Peer and neighborhood estimates expose optional score components, so unknown and zero remain distinct without turning those mesh-private components into shared observed facts. The components are clamped to the crate's `HealthScore` range so composition stays bounded. Where service validity matters, the topology model receives `observed_at_tick` explicitly rather than reinterpreting `RouteEpoch` as time. Mesh uses these estimates directly in candidate ordering and committee selection, so swapping the topology model changes mesh-private route preference and coordination behavior without changing the shared world schema.
 
@@ -27,6 +27,10 @@ The mesh engine implements the shared `RoutingEnginePlanner` contract, which pro
 5. sort candidates by path metric, mesh-private topology-model preference, and deterministic route key
 
 This algorithm produces a stable candidate ordering across replays. In v1, the search metric is integer-only and combines hop count, delivery confidence, loss-derived congestion, symmetry, mesh-private peer and neighborhood estimates, protocol-repeat penalties, protocol-diversity bonuses, and a deferred-delivery bonus when the destination is honestly hold-capable. The shared `RouteCost` surface then reflects the chosen path's hop count, confidence, symmetry, congestion, protocol diversity, and deferred-delivery hold reservation without exposing the mesh-private estimate internals that shaped the search.
+
+Concretely, the direct per-link reliability inputs are: `delivery_confidence_permille`, `symmetry_permille`, and `loss_permille`. Mesh turns these into weighted edge penalties during path search. Higher delivery confidence and better symmetry reduce path cost; higher loss increases it. These signals are then combined with mesh-private peer and neighborhood bonuses and penalties rather than collapsed into one shared "reliability" field.
+
+`median_rtt_ms` is part of the shared link observation surface, but mesh does not currently use it in path scoring.
 
 Deferred-delivery classification is deliberately stricter than capability advertisement alone. A destination only qualifies for retention-biased routing when its `Hold` service advertisement is currently valid for mesh, the advertised capacity hint reports positive `hold_capacity_bytes`, and the node state separately reports positive `hold_capacity_available_bytes`. A stale advertisement, an empty capacity hint, or unknown live capacity is not enough.
 
@@ -61,7 +65,7 @@ Discovery enters mesh through the shared world picture: nodes, links, environmen
 
 ## Internal Choreography Surface
 
-Mesh now carries a private Telltale choreography layer inside `jacquard-mesh`. This does not change the shared Jacquard routing contract. Router-facing planning, admission, materialization, maintenance, and tick flow still use the shared `RoutingEngine` and `MeshRoutingEngine` traits.
+Mesh now carries a private Telltale choreography layer inside `jacquard-mesh`. This does not change the shared Jacquard routing contract. Router-facing planning, admission, materialization, maintenance, and tick flow still use the shared `RoutingEngine` trait plus the mesh-owned `MeshRoutingEngine` extension seam.
 
 The internal split is:
 
@@ -84,7 +88,7 @@ Mesh protocols now live inline in the mesh crate as `tell!` definitions. That ke
 
 Mesh also keeps one mesh-owned choreography interpreter surface above the shared runtime traits. That interpreter maps protocol-local requests onto the existing Jacquard boundaries:
 
-- `MeshTransport` for endpoint-addressed frame sends and ingress observations
+- `TransportEffects` for endpoint-addressed payload sends and ingress observations
 - `RetentionStore` for deferred-delivery payload storage
 - `RouteEventLogEffects` for replay-visible route events
 - router-owned checkpoint orchestration for persisted mesh-private state
@@ -111,6 +115,16 @@ Mesh decodes the admitted opaque backend ref during materialization instead of r
 ### Route Health
 
 Route health is derived from the active route's remaining suffix rather than from engine-global topology presence. Mesh validates the current owner-relative suffix against the latest observed topology and folds first-hop transport observations into that route-local view when available. It publishes `ReachabilityState::Unknown` when it lacks route-local validation data rather than pretending the route is generically reachable or unreachable.
+
+The runtime route-health calculation currently combines three signal groups:
+
+| Signal group | Inputs |
+| --- | --- |
+| First-hop transport summary | remote-link stability score; remote-link congestion penalty |
+| Remaining-suffix topology view | delivery confidence; symmetry; loss-derived congestion penalty |
+| Mesh control state | transport stability score; anti-entropy pressure |
+
+As in planning, `median_rtt_ms` is not currently part of the published route-health calculation.
 
 ### Lifecycle and Maintenance
 
@@ -148,7 +162,7 @@ The choreography layer adds a second scoped recovery surface: protocol checkpoin
 
 ## Swappable Trait Surface
 
-The mesh engine exposes its internal seams as four traits in `jacquard-traits`. Substituting any of them replaces one mesh subcomponent without forking the engine. For host runtime effects beyond these mesh-specific seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
+The mesh engine exposes its narrow read-only mesh seams as two traits in `jacquard-mesh`: `MeshTopologyModel` and `MeshRoutingEngine`. Substituting either one replaces a mesh subcomponent without forking the engine, but the coupling is now honestly mesh-specific instead of leaking into `jacquard-traits`. `RetentionStore` remains a shared runtime boundary on the neutral effect surface. For host runtime effects beyond these seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
 
 ### Topology Model
 
@@ -203,44 +217,17 @@ pub trait MeshTopologyModel {
 ```rust
 pub trait MeshRoutingEngine: RoutingEngine {
     type TopologyModel: MeshTopologyModel;
-    type Transport: MeshTransport;
     type Retention: RetentionStore;
 
     fn topology_model(&self) -> &Self::TopologyModel;
 
-    fn transport(&self) -> &Self::Transport;
-
-    fn transport_mut(&mut self) -> &mut Self::Transport;
-
     fn retention_store(&self) -> &Self::Retention;
-
-    fn retention_store_mut(&mut self) -> &mut Self::Retention;
 }
 ```
 
-`MeshRoutingEngine` binds one concrete topology model, one transport implementation, and one retention store to a mesh engine instance. This keeps mesh-specific internals swappable without exposing them as shared cross-engine assumptions, while still letting mesh route choice depend on mesh-owned peer and neighborhood estimates behind that boundary.
+`MeshRoutingEngine` binds one concrete topology model and one retention store to a mesh engine instance. It stays narrow on purpose: hosts can inspect the read-only mesh subcomponents without gaining a mutation hook into mesh-private runtime state. Transport send/poll capability is no longer a mesh-specialized shared trait; mesh consumes the shared `TransportEffects` boundary directly and keeps any concrete transport adapter private to the engine instance or host composition layer.
 
-### Transport
-
-```rust
-pub struct MeshFrame<'a> {
-    pub endpoint: &'a LinkEndpoint,
-    pub payload: &'a [u8],
-}
-
-pub trait MeshTransport {
-    #[must_use]
-    fn transport_id(&self) -> TransportProtocol;
-
-    fn send_frame(&mut self, frame: MeshFrame<'_>) -> Result<(), TransportError>;
-
-    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
-}
-```
-
-`MeshTransport` is the frame-carrier boundary for sending explicit endpoint-addressed mesh frames and reporting transport observations. Mesh routes forwarding through this frame-shaped trait directly. Any implementation that satisfies `MeshTransport` also satisfies `TransportEffects` from [Runtime Effects](104_runtime_effects.md) via blanket impl, so a mesh transport adapter can double as a host transport effect handler without collapsing the mesh-specific carrier boundary. New transport implementations such as BLE GATT, Wi-Fi LAN, or QUIC implement this trait and register with the mesh routing engine, with substantial platform logic moving into dedicated crates such as `jacquard-transport-ble`.
-
-### Retention
+### Shared Retention Boundary
 
 ```rust
 pub trait RetentionStore {
@@ -262,4 +249,4 @@ pub trait RetentionStore {
 }
 ```
 
-`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. It stays intentionally narrow so platform-specific persistence can substitute without forcing the rest of the mesh engine to know about it.
+`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. It stays intentionally narrow so platform-specific persistence can substitute without forcing the rest of the mesh engine to know about it, but it is no longer treated as a mesh-specific trait surface.

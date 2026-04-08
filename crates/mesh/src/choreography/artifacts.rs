@@ -1,6 +1,6 @@
 //! Mesh choreography metadata catalog.
 //!
-//! Control flow intuition: runtime code refers to protocols by
+//! Control flow: runtime code refers to protocols by
 //! `MeshProtocolKind` and resolves small stable metadata from this module. The
 //! actual protocol bodies live inline in sibling modules via `tell!`; this
 //! catalog only keeps the names and role lists that checkpoints and
@@ -48,10 +48,10 @@ pub(crate) struct MeshProtocolSessionKey(pub(crate) String);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshProtocolSpec {
-    pub(crate) kind:          MeshProtocolKind,
-    pub(crate) source_path:   &'static str,
+    pub(crate) kind: MeshProtocolKind,
+    pub(crate) source_path: &'static str,
     pub(crate) protocol_name: String,
-    pub(crate) role_names:    Vec<String>,
+    pub(crate) role_names: Vec<String>,
 }
 
 pub(crate) fn protocol_spec(

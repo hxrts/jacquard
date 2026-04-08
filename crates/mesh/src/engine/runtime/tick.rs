@@ -8,32 +8,37 @@
 
 use jacquard_core::{
     MaterializedRoute, MaterializedRouteIdentity, RouteBinding, RouteCommitment,
-    RouteCommitmentResolution, RouteError, RouteEvent, RouteInvalidationReason,
+    RouteCommitmentResolution, RouteError, RouteInvalidationReason,
     RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
-    RouteMaintenanceResult, RouteOperationId, RouteProgressState, RouteRuntimeError,
-    RoutingTickChange, RoutingTickContext, RoutingTickOutcome, TimeoutPolicy,
+    RouteMaintenanceResult, RouteOperationId, RouteProgressState, RoutingTickChange,
+    RoutingTickContext, RoutingTickOutcome, TimeoutPolicy,
 };
 
 use super::{
     super::{
         support::topology_epoch_storage_key, ActiveMeshRoute, MeshRouteClass,
-        MESH_COMMITMENT_ATTEMPT_COUNT_MAX, MESH_COMMITMENT_BACKOFF_MS_MAX,
-        MESH_COMMITMENT_INITIAL_BACKOFF_MS, MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
+        StorageResultExt, MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
+        MESH_COMMITMENT_BACKOFF_MS_MAX, MESH_COMMITMENT_INITIAL_BACKOFF_MS,
+        MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
     },
     MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
-    MeshTransportBounds,
+    TransportEffectsBounds,
 };
-use crate::choreography::{
-    MeshAntiEntropySnapshot, MeshNeighborAdvertisementSnapshot, MeshRouteExportSnapshot,
+use crate::{
+    choreography::{
+        MeshAntiEntropySnapshot, MeshNeighborAdvertisementSnapshot,
+        MeshRouteExportSnapshot,
+    },
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: super::super::MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
+    Transport: TransportEffectsBounds,
     Retention: super::super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -41,22 +46,18 @@ where
 {
     pub(super) fn expired_lease_result(
         &mut self,
-        identity: &MaterializedRouteIdentity,
+        _identity: &MaterializedRouteIdentity,
         runtime: &mut jacquard_core::RouteRuntimeState,
     ) -> Result<RouteMaintenanceResult, RouteError> {
         let mut next_runtime = runtime.clone();
         next_runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
         next_runtime.progress.state = RouteProgressState::Failed;
         let result = RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Expired,
+            event: RouteLifecycleEvent::Expired,
             outcome: RouteMaintenanceOutcome::Failed(
                 RouteMaintenanceFailure::LeaseExpired,
             ),
         };
-        self.record_event(RouteEvent::RouteMaintenanceCompleted {
-            route_id: identity.handle.route_id,
-            result:   result.clone(),
-        })?;
         *runtime = next_runtime;
         Ok(result)
     }
@@ -73,25 +74,24 @@ where
             )
         };
         vec![RouteCommitment {
-            commitment_id: self
-                .commitment_id_for_route(&route.identity.handle.route_id),
+            commitment_id: self.commitment_id_for_route(&route.identity.stamp.route_id),
             // OperationId reuses RouteId bytes directly; the route id is
             // already a stable content address for this path, so no
             // separate derivation is needed.
-            operation_id: RouteOperationId(route.identity.handle.route_id.0),
-            route_binding: RouteBinding::Bound(route.identity.handle.route_id),
+            operation_id: RouteOperationId(route.identity.stamp.route_id.0),
+            route_binding: RouteBinding::Bound(route.identity.stamp.route_id),
             owner_node_id: route.identity.lease.owner_node_id,
             deadline_tick: route.identity.lease.valid_for.end_tick(),
             retry_policy: TimeoutPolicy {
-                attempt_count_max:           MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
-                initial_backoff_ms:          jacquard_core::DurationMs(
+                attempt_count_max: MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
+                initial_backoff_ms: jacquard_core::DurationMs(
                     MESH_COMMITMENT_INITIAL_BACKOFF_MS,
                 ),
                 backoff_multiplier_permille: jacquard_core::RatioPermille(1000),
-                backoff_ms_max:              jacquard_core::DurationMs(
+                backoff_ms_max: jacquard_core::DurationMs(
                     MESH_COMMITMENT_BACKOFF_MS_MAX,
                 ),
-                overall_timeout_ms:          jacquard_core::DurationMs(
+                overall_timeout_ms: jacquard_core::DurationMs(
                     MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
                 ),
             },
@@ -118,7 +118,7 @@ where
             let epoch_key = topology_epoch_storage_key(&self.local_node_id);
             self.effects
                 .store_bytes(&epoch_key, &epoch_bytes)
-                .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+                .storage_invalid()?;
             self.last_checkpointed_topology_epoch = Some(topology.value.epoch);
         }
         let observations = self
@@ -217,16 +217,16 @@ where
         active_route: &ActiveMeshRoute,
     ) -> MeshRouteExportSnapshot {
         MeshRouteExportSnapshot {
-            route_class:    match active_route.path.route_class {
+            route_class: match active_route.path.route_class {
                 | MeshRouteClass::Direct => "direct",
                 | MeshRouteClass::MultiHop => "multi-hop",
                 | MeshRouteClass::Gateway => "gateway",
                 | MeshRouteClass::DeferredDelivery => "deferred-delivery",
             }
             .to_owned(),
-            hop_count:      u32::try_from(active_route.path.segments.len())
+            hop_count: u32::try_from(active_route.path.segments.len())
                 .unwrap_or(u32::MAX),
-            partition_mode: active_route.anti_entropy.partition_mode,
+            partition_mode: active_route.is_in_partition_mode(),
         }
     }
 
@@ -243,7 +243,7 @@ where
         let retained_count =
             u32::try_from(active_route.anti_entropy.retained_objects.len())
                 .unwrap_or(u32::MAX);
-        if !active_route.anti_entropy.partition_mode
+        if !active_route.is_in_partition_mode()
             && retained_count == 0
             && pressure_score.0 == 0
         {
@@ -252,7 +252,7 @@ where
         Some(MeshAntiEntropySnapshot {
             retained_count,
             pressure_score,
-            partition_mode: active_route.anti_entropy.partition_mode,
+            partition_mode: active_route.is_in_partition_mode(),
         })
     }
 }

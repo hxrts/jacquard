@@ -563,15 +563,59 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-mem-link-profile"
+version = "0.1.0"
+dependencies = [
+ "jacquard-core",
+ "jacquard-traits",
+ "serde",
+]
+
+[[package]]
+name = "jacquard-mem-node-profile"
+version = "0.1.0"
+dependencies = [
+ "jacquard-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "jacquard-mesh"
 version = "0.1.0"
 dependencies = [
  "bincode",
  "jacquard-core",
+ "jacquard-mem-link-profile",
  "jacquard-traits",
  "serde",
  "serde_json",
  "telltale",
+]
+
+[[package]]
+name = "jacquard-reference-client"
+version = "0.1.0"
+dependencies = [
+ "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
+ "jacquard-mesh",
+ "jacquard-router",
+ "jacquard-traits",
+]
+
+[[package]]
+name = "jacquard-router"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-mesh",
+ "jacquard-reference-client",
+ "jacquard-traits",
+ "serde",
 ]
 
 [[package]]
@@ -581,6 +625,7 @@ dependencies = [
  "blake3",
  "jacquard-core",
  "jacquard-macros",
+ "jacquard-mem-link-profile",
  "trybuild",
 ]
 
