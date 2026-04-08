@@ -8,9 +8,9 @@ use jacquard_core::{
     RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
     RouteMaterializationInput, RouteRuntimeState, RouteSemanticHandoff,
     RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
-    RoutingEngineId, RoutingObjective, RoutingPolicyInputs, RoutingTickChange,
-    RoutingTickContext, RoutingTickOutcome, SelectedRoutingParameters,
-    SubstrateCandidate, SubstrateLease, SubstrateRequirements,
+    RoutingEngineId, RoutingObjective, RoutingPolicyInputs, RoutingTickContext,
+    RoutingTickOutcome, SelectedRoutingParameters, SubstrateCandidate, SubstrateLease,
+    SubstrateRequirements,
 };
 use jacquard_macros::purity;
 
@@ -223,6 +223,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
     /// Every unresolved or recently resolved engine-side obligation must be
     /// expressible as an explicit route commitment.
+    #[must_use = "unread route commitments silently discard commitment state"]
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
     /// Optional engine-wide periodic progress hook.
@@ -240,10 +241,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
         &mut self,
         tick: &RoutingTickContext,
     ) -> Result<RoutingTickOutcome, RouteError> {
-        Ok(RoutingTickOutcome {
-            topology_epoch: tick.topology.value.epoch,
-            change: RoutingTickChange::NoChange,
-        })
+        Ok(RoutingTickOutcome::no_change_for(tick))
     }
 
     /// Maintenance receives immutable router-owned route identity plus mutable
