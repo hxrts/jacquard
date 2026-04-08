@@ -10,6 +10,7 @@ description = "Reference in-memory Jacquard client composition"
 workspace = true
 
 [dependencies]
+jacquard-batman = { path = "../batman" }
 jacquard-core = { path = "../core" }
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
 jacquard-mem-node-profile = { path = "../mem-node-profile" }

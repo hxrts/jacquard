@@ -1,0 +1,19 @@
+[package]
+name = "jacquard-batman"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Proactive BATMAN-style next-hop routing engine for Jacquard"
+
+[lints]
+workspace = true
+
+[dependencies]
+jacquard-core = { path = "../core" }
+jacquard-traits = { path = "../traits" }
+
+[dev-dependencies]
+jacquard-mem-link-profile = { path = "../mem-link-profile" }
+jacquard-mem-node-profile = { path = "../mem-node-profile" }
+jacquard-router = { path = "../router" }

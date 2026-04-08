@@ -27,9 +27,8 @@ use jacquard_core::{
     RouteSelectionError, RouteSemanticHandoff, RouterCanonicalMutation,
     RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
     RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingPolicyInputs,
-    RoutingTickChange, RoutingTickContext, RoutingTickHint,
-    SelectedRoutingParameters, Tick, TimeWindow,
-    TransportProtocol,
+    RoutingTickChange, RoutingTickContext, RoutingTickHint, SelectedRoutingParameters,
+    Tick, TimeWindow, TransportProtocol,
 };
 use jacquard_traits::{
     OrderEffects, PolicyEngine, RouteEventLogEffects, Router, RouterEngineRegistry,

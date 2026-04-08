@@ -31,7 +31,10 @@ fn router_activates_route_from_aggregate_path_proactive_engine() {
     )
     .expect("aggregate-path activation");
 
-    assert_eq!(route.identity.admission.summary.engine, aggregate_engine_id());
+    assert_eq!(
+        route.identity.admission.summary.engine,
+        aggregate_engine_id()
+    );
     assert_eq!(
         router
             .registered_engine_capabilities(&aggregate_engine_id())
@@ -55,7 +58,10 @@ fn router_activates_route_from_next_hop_only_proactive_engine() {
     )
     .expect("next-hop-only activation");
 
-    assert_eq!(route.identity.admission.summary.engine, next_hop_engine_id());
+    assert_eq!(
+        route.identity.admission.summary.engine,
+        next_hop_engine_id()
+    );
     assert_eq!(
         router
             .registered_engine_capabilities(&next_hop_engine_id())
@@ -76,7 +82,10 @@ fn router_tolerates_engine_private_periodic_work_before_activation() {
     let outcome = router.anti_entropy_tick().expect("proactive engine tick");
 
     assert_eq!(outcome.topology_epoch, jacquard_core::RouteEpoch(2));
-    assert_eq!(outcome.engine_change, RoutingTickChange::PrivateStateUpdated);
+    assert_eq!(
+        outcome.engine_change,
+        RoutingTickChange::PrivateStateUpdated
+    );
     assert_eq!(outcome.engine_tick_hint, RoutingTickHint::Immediate);
 
     let route = Router::activate_route(

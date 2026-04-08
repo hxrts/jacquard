@@ -9,15 +9,14 @@ use jacquard_traits::{
         BackendRouteRef, Belief, ByteCount, Configuration, ConnectivityPosture,
         ConnectivityRegime, DestinationId, Estimate, FailureModelClass,
         MessageFlowAssumptionClass, NodeDensityClass, NodeId, ObjectiveVsDelivered,
-        Observation, RouteAdmission,
-        RouteAdmissionCheck, RouteCandidate, RouteCost, RouteDegradation,
-        RouteEpoch, RouteEstimate, RouteMaintenanceOutcome, RouteMaintenanceResult,
-        RouteMaintenanceTrigger, RoutePartitionClass, RouteProtectionClass,
-        RouteRepairClass, RouteRuntimeState, RouteShapeVisibility, RouteSummary,
-        RouteWitness, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
-        RoutingTickChange, RoutingTickContext, RoutingTickHint,
-        RoutingTickOutcome, RuntimeEnvelopeClass, SelectedRoutingParameters,
-        Tick, TimeWindow, TransportProtocol,
+        Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost,
+        RouteDegradation, RouteEpoch, RouteEstimate, RouteMaintenanceOutcome,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteRuntimeState,
+        RouteShapeVisibility, RouteSummary, RouteWitness, RoutingEngineCapabilities,
+        RoutingEngineId, RoutingObjective, RoutingTickChange, RoutingTickContext,
+        RoutingTickHint, RoutingTickOutcome, RuntimeEnvelopeClass,
+        SelectedRoutingParameters, Tick, TimeWindow, TransportProtocol,
     },
     RoutingEngine, RoutingEnginePlanner,
 };
@@ -179,7 +178,10 @@ impl RoutingEngine for ProactiveContractEngine {
     fn materialize_route(
         &mut self,
         _input: jacquard_traits::jacquard_core::RouteMaterializationInput,
-    ) -> Result<jacquard_traits::jacquard_core::RouteInstallation, jacquard_traits::jacquard_core::RouteError> {
+    ) -> Result<
+        jacquard_traits::jacquard_core::RouteInstallation,
+        jacquard_traits::jacquard_core::RouteError,
+    > {
         unreachable!("this contract test only exercises planning and tick shape")
     }
 
@@ -225,7 +227,8 @@ impl RoutingEngine for ProactiveContractEngine {
         _identity: &jacquard_traits::jacquard_core::PublishedRouteRecord,
         _runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
-    ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError> {
+    ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError>
+    {
         Ok(RouteMaintenanceResult {
             event: jacquard_traits::jacquard_core::RouteLifecycleEvent::Activated,
             outcome: RouteMaintenanceOutcome::Continued,
@@ -265,20 +268,26 @@ fn proactive_candidates_can_be_served_without_explicit_path_visibility() {
         .expect("populate proactive table");
     let candidates = engine.candidate_routes(&objective, &profile, &topology);
 
-    assert_eq!(engine.capabilities().route_shape_visibility, RouteShapeVisibility::NextHopOnly);
+    assert_eq!(
+        engine.capabilities().route_shape_visibility,
+        RouteShapeVisibility::NextHopOnly
+    );
     assert_eq!(candidates.len(), 1);
-    assert_eq!(candidates[0].summary.hop_count_hint, Belief::certain(2, Tick(1)));
+    assert_eq!(
+        candidates[0].summary.hop_count_hint,
+        Belief::certain(2, Tick(1))
+    );
 }
 
 mod common {
     use std::collections::BTreeMap;
 
     use jacquard_traits::jacquard_core::{
-        Configuration, ConnectivityPosture, ControllerId, Environment, Link, LinkEndpoint,
-        LinkProfile, LinkRuntimeState, LinkState, Node, NodeProfile, NodeState,
-        Observation, OriginAuthenticationClass, RatioPermille, RepairCapability,
-        RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-        RouteServiceKind, RoutingEvidenceClass, RoutingObjective,
+        Configuration, ConnectivityPosture, ControllerId, Environment, Link,
+        LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState, Node, NodeProfile,
+        NodeState, Observation, OriginAuthenticationClass, RatioPermille,
+        RepairCapability, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, RouteServiceKind, RoutingEvidenceClass, RoutingObjective,
         SelectedRoutingParameters, Tick, TransportProtocol,
     };
 
@@ -318,8 +327,11 @@ mod common {
                 repair: RouteRepairClass::Repairable,
                 partition: RoutePartitionClass::ConnectedOnly,
             },
-            hold_fallback_policy: jacquard_traits::jacquard_core::HoldFallbackPolicy::Forbidden,
-            latency_budget_ms: jacquard_traits::jacquard_core::Limit::Bounded(jacquard_traits::jacquard_core::DurationMs(100)),
+            hold_fallback_policy:
+                jacquard_traits::jacquard_core::HoldFallbackPolicy::Forbidden,
+            latency_budget_ms: jacquard_traits::jacquard_core::Limit::Bounded(
+                jacquard_traits::jacquard_core::DurationMs(100),
+            ),
             protection_priority: jacquard_traits::jacquard_core::PriorityPoints(10),
             connectivity_priority: jacquard_traits::jacquard_core::PriorityPoints(10),
         }
@@ -332,7 +344,8 @@ mod common {
                 repair: RouteRepairClass::Repairable,
                 partition: RoutePartitionClass::ConnectedOnly,
             },
-            deployment_profile: jacquard_traits::jacquard_core::OperatingMode::SparseLowPower,
+            deployment_profile:
+                jacquard_traits::jacquard_core::OperatingMode::SparseLowPower,
             diversity_floor: jacquard_traits::jacquard_core::DiversityFloor(1),
             routing_engine_fallback_policy:
                 jacquard_traits::jacquard_core::RoutingEngineFallbackPolicy::Allowed,
@@ -352,22 +365,29 @@ mod common {
                 services: Vec::new(),
                 endpoints: vec![LinkEndpoint {
                     protocol: TransportProtocol::BleGatt,
-                    address: jacquard_traits::jacquard_core::EndpointAddress::Opaque(vec![byte]),
+                    address: jacquard_traits::jacquard_core::EndpointAddress::Opaque(
+                        vec![byte],
+                    ),
                     mtu_bytes: jacquard_traits::jacquard_core::ByteCount(64),
                 }],
                 connection_count_max: 4,
                 neighbor_state_count_max: 4,
                 simultaneous_transfer_count_max: 1,
                 active_route_count_max: 4,
-                relay_work_budget_max: jacquard_traits::jacquard_core::RelayWorkBudget(1),
-                maintenance_work_budget_max: jacquard_traits::jacquard_core::MaintenanceWorkBudget(1),
+                relay_work_budget_max: jacquard_traits::jacquard_core::RelayWorkBudget(
+                    1,
+                ),
+                maintenance_work_budget_max:
+                    jacquard_traits::jacquard_core::MaintenanceWorkBudget(1),
                 hold_item_count_max: jacquard_traits::jacquard_core::HoldItemCount(0),
                 hold_capacity_bytes_max: jacquard_traits::jacquard_core::ByteCount(0),
             },
             state: NodeState {
                 relay_budget: jacquard_traits::jacquard_core::Belief::Absent,
-                available_connection_count: jacquard_traits::jacquard_core::Belief::Absent,
-                hold_capacity_available_bytes: jacquard_traits::jacquard_core::Belief::Absent,
+                available_connection_count:
+                    jacquard_traits::jacquard_core::Belief::Absent,
+                hold_capacity_available_bytes:
+                    jacquard_traits::jacquard_core::Belief::Absent,
                 information_summary: jacquard_traits::jacquard_core::Belief::Absent,
             },
         }

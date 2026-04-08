@@ -335,8 +335,12 @@ mod tests {
 
     #[test]
     fn route_shape_visibility_orders_by_specificity() {
-        assert!(RouteShapeVisibility::ExplicitPath < RouteShapeVisibility::AggregatePath);
-        assert!(RouteShapeVisibility::AggregatePath < RouteShapeVisibility::NextHopOnly);
+        assert!(
+            RouteShapeVisibility::ExplicitPath < RouteShapeVisibility::AggregatePath
+        );
+        assert!(
+            RouteShapeVisibility::AggregatePath < RouteShapeVisibility::NextHopOnly
+        );
         assert!(RouteShapeVisibility::NextHopOnly < RouteShapeVisibility::Opaque);
     }
 
@@ -345,8 +349,8 @@ mod tests {
         let encoded = serde_json::to_string(&RouteShapeVisibility::NextHopOnly)
             .expect("serialize next-hop visibility");
         assert_eq!(encoded, "\"NextHopOnly\"");
-        let decoded: RouteShapeVisibility = serde_json::from_str(&encoded)
-            .expect("deserialize next-hop visibility");
+        let decoded: RouteShapeVisibility =
+            serde_json::from_str(&encoded).expect("deserialize next-hop visibility");
         assert_eq!(decoded, RouteShapeVisibility::NextHopOnly);
     }
 }

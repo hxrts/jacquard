@@ -77,7 +77,7 @@ This harness proves crate-boundary composition. It does not replace the simulato
 
 ## Minimal Host Wiring
 
-The reference example for a new deployment target is in `crates/reference-client/tests/multi_device_mesh.rs`.
+The reference example for a new deployment target is in `crates/reference-client/tests/e2e_multi_layer_routing.rs`.
 
 1. build a shared `Observation<Configuration>` with ordinary `ServiceDescriptor` values
 2. attach one shared `TransportEffects` implementation per device runtime

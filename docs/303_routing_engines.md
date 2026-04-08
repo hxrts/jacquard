@@ -1,6 +1,6 @@
 # Routing Engines
 
-This page describes the trait surface for adding a routing algorithm to Jacquard. See [World Extensions](302_world_extensions.md) for the layering overview, [Runtime Effects](301_runtime_effects.md) for the host capability surface, and [Mesh Routing](401_mesh_routing.md) for the in-tree mesh implementation and its swappable subcomponents.
+This page describes the trait surface for adding a routing algorithm to Jacquard. See [World Extensions](302_world_extensions.md) for the layering overview, [Runtime Effects](301_runtime_effects.md) for the host capability surface, [Mesh Routing](401_mesh_routing.md) for the in-tree mesh implementation and its swappable subcomponents, and [BATMAN Routing](402_batman_routing.md) for the in-tree proactive next-hop engine.
 
 ## Routing Engine Contract
 
@@ -101,6 +101,24 @@ Jacquard does not require every routing engine to expose a full hop-by-hop path.
 This matters for proactive engines. Mesh remains `ExplicitPath`, a Babel-like
 engine would typically be `AggregatePath`, and a BATMAN-like engine would
 honestly report `NextHopOnly`.
+
+## In-Tree BATMAN Engine
+
+`jacquard-batman` is the in-tree proactive next-hop reference engine.
+
+- It owns private originator observations, neighbor ranking, and best-next-hop
+  tables.
+- It reports `RouteShapeVisibility::NextHopOnly`.
+- It uses `engine_tick` for proactive maintenance and returns
+  `RoutingTickHint` so the router can observe scheduling pressure without
+  surrendering cadence ownership.
+- It materializes routes under router-owned canonical identity exactly like any
+  other engine.
+
+The BATMAN engine assumes only an OGM-equivalent observation baseline for link
+quality. Richer shared link observations such as delivery confidence,
+symmetry, throughput, and stability horizon are optional refinements, not
+required inputs.
 
 ## Policy And Coordination
 

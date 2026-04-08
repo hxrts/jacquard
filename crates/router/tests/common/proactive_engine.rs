@@ -12,11 +12,11 @@ use std::collections::BTreeMap;
 
 use jacquard_core::{
     AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId,
-    BackendRouteRef, Belief, ByteCount, Configuration, ConnectivityPosture,
-    ConnectivityRegime, ClaimStrength, DegradationReason, Estimate, Fact, FactBasis,
-    FailureModelClass, HealthScore, Limit, LinkRuntimeState, MessageFlowAssumptionClass,
-    NodeDensityClass, NodeId, ObjectiveVsDelivered, Observation, RatioPermille,
-    ReachabilityState, RouteAdmission, RouteAdmissionCheck,
+    BackendRouteRef, Belief, ByteCount, ClaimStrength, Configuration,
+    ConnectivityPosture, ConnectivityRegime, DegradationReason, Estimate, Fact,
+    FactBasis, FailureModelClass, HealthScore, Limit, LinkRuntimeState,
+    MessageFlowAssumptionClass, NodeDensityClass, NodeId, ObjectiveVsDelivered,
+    Observation, RatioPermille, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
     RouteAdmissionRejection, RouteCandidate, RouteCost, RouteDegradation, RouteEpoch,
     RouteEstimate, RouteHealth, RouteInstallation, RouteLifecycleEvent,
     RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
@@ -107,8 +107,9 @@ impl ProactiveTableTestEngine {
         topology: &Observation<Configuration>,
         now: Tick,
     ) -> Option<ProactiveTableEntry> {
-        let direct = self.link_score(topology, self.local_node_id, destination).map(
-            |(score, protocol, degradation)| ProactiveTableEntry {
+        let direct = self
+            .link_score(topology, self.local_node_id, destination)
+            .map(|(score, protocol, degradation)| ProactiveTableEntry {
                 destination,
                 next_hop: destination,
                 tq: score,
@@ -117,8 +118,7 @@ impl ProactiveTableTestEngine {
                 updated_at_tick: now,
                 degradation,
                 protocol,
-            },
-        );
+            });
 
         let via_neighbor = topology
             .value
@@ -145,7 +145,11 @@ impl ProactiveTableTestEngine {
             .max_by_key(|entry| (entry.tq, std::cmp::Reverse(entry.next_hop)));
 
         direct.into_iter().chain(via_neighbor).max_by_key(|entry| {
-            (entry.tq, std::cmp::Reverse(entry.hop_count), std::cmp::Reverse(entry.next_hop))
+            (
+                entry.tq,
+                std::cmp::Reverse(entry.hop_count),
+                std::cmp::Reverse(entry.next_hop),
+            )
         })
     }
 
@@ -162,10 +166,12 @@ impl ProactiveTableTestEngine {
         ) {
             return None;
         }
-        let delivery = ratio_belief_or_default(&link.state.delivery_confidence_permille, 850);
+        let delivery =
+            ratio_belief_or_default(&link.state.delivery_confidence_permille, 850);
         let symmetry = ratio_belief_or_default(&link.state.symmetry_permille, 850);
         let loss = u32::from(link.state.loss_permille.0);
-        let weighted = (u32::from(delivery.0) * 5 + u32::from(symmetry.0) * 3
+        let weighted = (u32::from(delivery.0) * 5
+            + u32::from(symmetry.0) * 3
             + (1000_u32.saturating_sub(loss)) * 2)
             / 10;
         let score = RatioPermille(u16::try_from(weighted).expect("permille score"));
@@ -207,10 +213,8 @@ impl ProactiveTableTestEngine {
             ),
             backend_ref: BackendRouteRef {
                 engine: self.engine_id.clone(),
-                backend_route_id: self.backend_route_id_for(
-                    entry.destination,
-                    entry.next_hop,
-                ),
+                backend_route_id: self
+                    .backend_route_id_for(entry.destination, entry.next_hop),
             },
         }
     }
@@ -277,8 +281,10 @@ impl ProactiveTableTestEngine {
         objective: &RoutingObjective,
     ) -> Option<&ProactiveTableEntry> {
         match objective.destination {
-            jacquard_core::DestinationId::Node(destination) => self.table.get(&destination),
-            _ => None,
+            | jacquard_core::DestinationId::Node(destination) => {
+                self.table.get(&destination)
+            },
+            | _ => None,
         }
     }
 }
@@ -301,8 +307,7 @@ impl jacquard_traits::RoutingEnginePlanner for ProactiveTableTestEngine {
             decidable_admission: jacquard_core::DecidableSupport::Supported,
             quantitative_bounds:
                 jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
-            reconfiguration_support:
-                jacquard_core::ReconfigurationSupport::ReplaceOnly,
+            reconfiguration_support: jacquard_core::ReconfigurationSupport::ReplaceOnly,
             route_shape_visibility: self.visibility,
         }
     }
@@ -329,7 +334,7 @@ impl jacquard_traits::RoutingEnginePlanner for ProactiveTableTestEngine {
             .entry_for_objective(objective)
             .ok_or(RouteSelectionError::NoCandidate)?;
         let expected = self.candidate_for(objective, entry);
-        if &expected.backend_ref != &candidate.backend_ref {
+        if expected.backend_ref != candidate.backend_ref {
             return Ok(RouteAdmissionCheck {
                 decision: AdmissionDecision::Rejected(
                     RouteAdmissionRejection::BackendUnavailable,
@@ -350,7 +355,9 @@ impl jacquard_traits::RoutingEnginePlanner for ProactiveTableTestEngine {
                 },
             });
         }
-        Ok(self.admission_for(objective, profile, expected).admission_check)
+        Ok(self
+            .admission_for(objective, profile, expected)
+            .admission_check)
     }
 
     fn admit_route(
@@ -380,8 +387,8 @@ impl jacquard_traits::RoutingEngine for ProactiveTableTestEngine {
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, jacquard_core::RouteError> {
         let destination = match input.admission.objective.destination {
-            jacquard_core::DestinationId::Node(destination) => destination,
-            _ => return Err(RouteSelectionError::NoCandidate.into()),
+            | jacquard_core::DestinationId::Node(destination) => destination,
+            | _ => return Err(RouteSelectionError::NoCandidate.into()),
         };
         let entry = self
             .table
@@ -451,8 +458,8 @@ impl jacquard_traits::RoutingEngine for ProactiveTableTestEngine {
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, jacquard_core::RouteError> {
         let destination = match identity.admission.objective.destination {
-            jacquard_core::DestinationId::Node(destination) => destination,
-            _ => {
+            | jacquard_core::DestinationId::Node(destination) => destination,
+            | _ => {
                 return Ok(RouteMaintenanceResult {
                     event: RouteLifecycleEvent::Expired,
                     outcome: RouteMaintenanceOutcome::Failed(
@@ -524,8 +531,8 @@ fn ratio_belief_or_default(
     default: u16,
 ) -> RatioPermille {
     match value {
-        Belief::Estimated(estimate) => estimate.value,
-        Belief::Absent => RatioPermille(default),
+        | Belief::Estimated(estimate) => estimate.value,
+        | Belief::Absent => RatioPermille(default),
     }
 }
 
@@ -539,8 +546,8 @@ fn max_degradation(
     right: RouteDegradation,
 ) -> RouteDegradation {
     match (left, right) {
-        (RouteDegradation::Degraded(reason), _)
+        | (RouteDegradation::Degraded(reason), _)
         | (_, RouteDegradation::Degraded(reason)) => RouteDegradation::Degraded(reason),
-        (RouteDegradation::None, RouteDegradation::None) => RouteDegradation::None,
+        | (RouteDegradation::None, RouteDegradation::None) => RouteDegradation::None,
     }
 }

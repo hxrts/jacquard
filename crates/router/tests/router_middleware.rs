@@ -52,6 +52,9 @@ fn anti_entropy_tick_reports_shared_router_outcome() {
         outcome.engine_change,
         RoutingTickChange::PrivateStateUpdated
     );
-    assert_eq!(outcome.engine_tick_hint, RoutingTickHint::WithinTicks(Tick(1)));
+    assert_eq!(
+        outcome.engine_tick_hint,
+        RoutingTickHint::WithinTicks(Tick(1))
+    );
     assert_eq!(outcome.canonical_mutation, RouterCanonicalMutation::None);
 }

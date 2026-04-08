@@ -146,7 +146,10 @@ fn anti_entropy_tick_drives_mesh_cooperative_choreographies_through_router_caden
         outcome.engine_change,
         jacquard_core::RoutingTickChange::PrivateStateUpdated,
     );
-    assert_eq!(outcome.engine_tick_hint, RoutingTickHint::WithinTicks(Tick(1)));
+    assert_eq!(
+        outcome.engine_tick_hint,
+        RoutingTickHint::WithinTicks(Tick(1))
+    );
     assert!(router
         .active_route(&route.identity.stamp.route_id)
         .is_some());
