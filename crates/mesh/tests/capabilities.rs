@@ -153,7 +153,7 @@ fn advertised_explicit_route_shape_is_visible_in_active_route_state() {
 
     assert_eq!(
         MESH_CAPABILITIES.route_shape_visibility,
-        RouteShapeVisibility::Explicit
+        RouteShapeVisibility::ExplicitPath
     );
     assert!(active_route.segment_count > 0);
 }

@@ -75,7 +75,9 @@ pub enum ReconfigurationSupport {
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
 pub enum RouteShapeVisibility {
-    Explicit,
+    ExplicitPath,
+    AggregatePath,
+    NextHopOnly,
     Opaque,
 }
 
@@ -329,5 +331,26 @@ mod tests {
     fn capability_enum_decidable_support_shape() {
         assert_eq!(DecidableSupport::default(), DecidableSupport::Unsupported);
         assert!(DecidableSupport::Unsupported < DecidableSupport::Supported);
+    }
+
+    #[test]
+    fn route_shape_visibility_orders_by_specificity() {
+        assert!(
+            RouteShapeVisibility::ExplicitPath < RouteShapeVisibility::AggregatePath
+        );
+        assert!(
+            RouteShapeVisibility::AggregatePath < RouteShapeVisibility::NextHopOnly
+        );
+        assert!(RouteShapeVisibility::NextHopOnly < RouteShapeVisibility::Opaque);
+    }
+
+    #[test]
+    fn route_shape_visibility_serializes_new_variants() {
+        let encoded = serde_json::to_string(&RouteShapeVisibility::NextHopOnly)
+            .expect("serialize next-hop visibility");
+        assert_eq!(encoded, "\"NextHopOnly\"");
+        let decoded: RouteShapeVisibility =
+            serde_json::from_str(&encoded).expect("deserialize next-hop visibility");
+        assert_eq!(decoded, RouteShapeVisibility::NextHopOnly);
     }
 }

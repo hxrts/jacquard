@@ -1,0 +1,236 @@
+use std::collections::BTreeMap;
+
+use jacquard_batman::{BatmanEngine, BATMAN_ENGINE_ID};
+use jacquard_core::{
+    Configuration, ConnectivityPosture, DestinationId, DurationMs, Environment,
+    HealthScore, IdentityAssuranceClass, Observation, RatioPermille,
+    RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+    RouteReplacementPolicy, RoutingEngineFallbackPolicy, RoutingPolicyInputs,
+    RoutingTickChange, SelectedRoutingParameters, Tick,
+};
+use jacquard_mem_link_profile::{
+    InMemoryRuntimeEffects, InMemoryTransport, ReferenceLink, SharedInMemoryNetwork,
+};
+use jacquard_mem_node_profile::ReferenceNode;
+use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
+use jacquard_traits::{
+    Router, RoutingControlPlane, RoutingDataPlane, TransportEffects,
+};
+
+fn node(byte: u8) -> jacquard_core::NodeId {
+    jacquard_core::NodeId([byte; 32])
+}
+
+fn sample_topology() -> Observation<Configuration> {
+    Observation {
+        value: Configuration {
+            epoch: jacquard_core::RouteEpoch(2),
+            nodes: BTreeMap::from([
+                (
+                    node(1),
+                    ReferenceNode::ble_route_capable(1, &BATMAN_ENGINE_ID, Tick(1))
+                        .build(),
+                ),
+                (
+                    node(2),
+                    ReferenceNode::ble_route_capable(2, &BATMAN_ENGINE_ID, Tick(1))
+                        .build(),
+                ),
+                (
+                    node(3),
+                    ReferenceNode::ble_route_capable(3, &BATMAN_ENGINE_ID, Tick(1))
+                        .build(),
+                ),
+                (
+                    node(4),
+                    ReferenceNode::ble_route_capable(4, &BATMAN_ENGINE_ID, Tick(1))
+                        .build(),
+                ),
+            ]),
+            links: BTreeMap::from([
+                (
+                    (node(1), node(2)),
+                    ReferenceLink::ble_active(2, Tick(1)).build(),
+                ),
+                (
+                    (node(2), node(4)),
+                    ReferenceLink::ble_active(4, Tick(1)).build(),
+                ),
+                (
+                    (node(1), node(3)),
+                    ReferenceLink::ble_lossy(3, RatioPermille(650), Tick(1)).build(),
+                ),
+                (
+                    (node(3), node(4)),
+                    ReferenceLink::ble_lossy(4, RatioPermille(600), Tick(1)).build(),
+                ),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 2,
+                churn_permille: RatioPermille(50),
+                contention_permille: RatioPermille(25),
+            },
+        },
+        source_class: jacquard_core::FactSourceClass::Local,
+        evidence_class: jacquard_core::RoutingEvidenceClass::DirectObservation,
+        origin_authentication: jacquard_core::OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(1),
+    }
+}
+
+fn sample_policy_inputs(topology: &Observation<Configuration>) -> RoutingPolicyInputs {
+    RoutingPolicyInputs {
+        local_node: Observation {
+            value: topology.value.nodes[&node(1)].clone(),
+            source_class: topology.source_class,
+            evidence_class: topology.evidence_class,
+            origin_authentication: topology.origin_authentication,
+            observed_at_tick: topology.observed_at_tick,
+        },
+        local_environment: Observation {
+            value: topology.value.environment.clone(),
+            source_class: topology.source_class,
+            evidence_class: topology.evidence_class,
+            origin_authentication: topology.origin_authentication,
+            observed_at_tick: topology.observed_at_tick,
+        },
+        routing_engine_count: 1,
+        median_rtt_ms: DurationMs(40),
+        loss_permille: RatioPermille(50),
+        partition_risk_permille: RatioPermille(100),
+        adversary_pressure_permille: RatioPermille(0),
+        identity_assurance: IdentityAssuranceClass::ControllerBound,
+        direct_reachability_score: HealthScore(900),
+    }
+}
+
+fn sample_profile() -> SelectedRoutingParameters {
+    SelectedRoutingParameters {
+        selected_protection: RouteProtectionClass::LinkProtected,
+        selected_connectivity: ConnectivityPosture {
+            repair: RouteRepairClass::Repairable,
+            partition: RoutePartitionClass::ConnectedOnly,
+        },
+        deployment_profile: jacquard_core::OperatingMode::SparseLowPower,
+        diversity_floor: jacquard_core::DiversityFloor(1),
+        routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
+        route_replacement_policy: RouteReplacementPolicy::Allowed,
+    }
+}
+
+fn sample_objective() -> jacquard_core::RoutingObjective {
+    jacquard_core::RoutingObjective {
+        destination: DestinationId::Node(node(4)),
+        service_kind: jacquard_core::RouteServiceKind::Move,
+        target_protection: RouteProtectionClass::LinkProtected,
+        protection_floor: RouteProtectionClass::LinkProtected,
+        target_connectivity: ConnectivityPosture {
+            repair: RouteRepairClass::Repairable,
+            partition: RoutePartitionClass::ConnectedOnly,
+        },
+        hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Forbidden,
+        latency_budget_ms: jacquard_core::Limit::Bounded(DurationMs(100)),
+        protection_priority: jacquard_core::PriorityPoints(10),
+        connectivity_priority: jacquard_core::PriorityPoints(10),
+    }
+}
+
+#[test]
+fn batman_router_activates_next_hop_only_routes() {
+    let topology = sample_topology();
+    let network = SharedInMemoryNetwork::default();
+    let mut local_transport = InMemoryTransport::attach(
+        node(1),
+        topology.value.nodes[&node(1)].profile.endpoints.clone(),
+        network,
+    );
+    local_transport.set_ingress_tick(Tick(1));
+    let engine = BatmanEngine::new(
+        node(1),
+        local_transport,
+        InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+    );
+    let mut router = MultiEngineRouter::new(
+        node(1),
+        FixedPolicyEngine::new(sample_profile()),
+        InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+        topology.clone(),
+        sample_policy_inputs(&topology),
+    );
+    router
+        .register_engine(Box::new(engine))
+        .expect("register BATMAN engine");
+
+    let route = Router::activate_route(&mut router, sample_objective())
+        .expect("activate route");
+
+    assert_eq!(route.identity.admission.summary.engine, BATMAN_ENGINE_ID);
+    assert_eq!(
+        router
+            .registered_engine_capabilities(&BATMAN_ENGINE_ID)
+            .expect("registered BATMAN capabilities")
+            .route_shape_visibility,
+        jacquard_core::RouteShapeVisibility::NextHopOnly
+    );
+}
+
+#[test]
+fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
+    let topology = sample_topology();
+    let network = SharedInMemoryNetwork::default();
+    let mut local_transport = InMemoryTransport::attach(
+        node(1),
+        topology.value.nodes[&node(1)].profile.endpoints.clone(),
+        network.clone(),
+    );
+    local_transport.set_ingress_tick(Tick(1));
+    let mut next_hop_transport = InMemoryTransport::attach(
+        node(2),
+        topology.value.nodes[&node(2)].profile.endpoints.clone(),
+        network,
+    );
+    next_hop_transport.set_ingress_tick(Tick(1));
+
+    let engine = BatmanEngine::new(
+        node(1),
+        local_transport,
+        InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+    );
+    let mut router = MultiEngineRouter::new(
+        node(1),
+        FixedPolicyEngine::new(sample_profile()),
+        InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+        topology.clone(),
+        sample_policy_inputs(&topology),
+    );
+    router
+        .register_engine(Box::new(engine))
+        .expect("register BATMAN engine");
+
+    let tick = router
+        .anti_entropy_tick()
+        .expect("pre-activation proactive tick");
+    assert_eq!(tick.engine_change, RoutingTickChange::PrivateStateUpdated);
+
+    let route = Router::activate_route(&mut router, sample_objective())
+        .expect("activate route");
+    router
+        .forward_payload(route.identity.route_id(), b"batman-payload")
+        .expect("forward payload");
+
+    let observations = next_hop_transport
+        .poll_transport()
+        .expect("poll next-hop transport");
+    assert_eq!(observations.len(), 1);
+    match &observations[0] {
+        | jacquard_core::TransportObservation::PayloadReceived {
+            from_node_id,
+            payload,
+            ..
+        } => {
+            assert_eq!(from_node_id, &node(1));
+            assert_eq!(payload, b"batman-payload");
+        },
+        | other => panic!("unexpected observation: {other:?}"),
+    }
+}

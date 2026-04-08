@@ -109,7 +109,7 @@ pub const MESH_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabiliti
     quantitative_bounds:
         jacquard_core::QuantitativeBoundSupport::ProductiveAndSchedulerLifted,
     reconfiguration_support: jacquard_core::ReconfigurationSupport::LinkAndDelegate,
-    route_shape_visibility: jacquard_core::RouteShapeVisibility::Explicit,
+    route_shape_visibility: jacquard_core::RouteShapeVisibility::ExplicitPath,
 };
 
 // `candidate_cache` memoizes planning work so `check_candidate` and

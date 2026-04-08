@@ -52,7 +52,7 @@ impl RoutingEnginePlanner for StubManagedEngine {
             reconfiguration_support:
                 jacquard_traits::jacquard_core::ReconfigurationSupport::ReplaceOnly,
             route_shape_visibility:
-                jacquard_traits::jacquard_core::RouteShapeVisibility::Opaque,
+                jacquard_traits::jacquard_core::RouteShapeVisibility::NextHopOnly,
         }
     }
 
@@ -108,6 +108,7 @@ impl RoutingEngine for StubManagedEngine {
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,
             change: jacquard_traits::jacquard_core::RoutingTickChange::NoChange,
+            next_tick_hint: jacquard_traits::jacquard_core::RoutingTickHint::HostDefault,
         })
     }
 

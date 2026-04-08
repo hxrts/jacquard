@@ -16,7 +16,9 @@ use jacquard_core::{
     TimeWindow,
 };
 
-use crate::{ble_endpoint, NodeStateSnapshot, SimulatedNodeProfile};
+use crate::{
+    ble_endpoint, NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor,
+};
 
 /// Preset-first wrapper around `SimulatedNodeProfile` plus `NodeStateSnapshot`.
 #[derive(Clone, Debug)]
@@ -29,9 +31,9 @@ pub struct ReferenceNode {
 
 impl ReferenceNode {
     #[must_use]
-    pub fn ble_route_capable(
+    pub fn ble_route_capable_for_engines(
         node_byte: u8,
-        routing_engine: &RoutingEngineId,
+        routing_engines: &[RoutingEngineId],
         observed_at_tick: Tick,
     ) -> Self {
         let node_id = NodeId([node_byte; 32]);
@@ -42,15 +44,58 @@ impl ReferenceNode {
             Tick(observed_at_tick.0.saturating_add(19)),
         )
         .expect("reference node uses a valid service window");
-        let profile = SimulatedNodeProfile::route_capable(
-            endpoint,
-            routing_engine,
-            ServiceScope::Discovery(DiscoveryScopeId([7; 16])),
-            valid_for,
-            observed_at_tick,
-        );
+        let scope = ServiceScope::Discovery(DiscoveryScopeId([7; 16]));
+        let mut profile = SimulatedNodeProfile::new()
+            .with_endpoint(endpoint.clone())
+            .with_connection_limits(8, 8, 4, 4)
+            .with_work_budgets(10, 10)
+            .with_hold_limits(8, jacquard_core::ByteCount(8192))
+            .with_observed_at_tick(observed_at_tick);
+        for routing_engine in routing_engines {
+            profile = profile
+                .with_service(
+                    SimulatedServiceDescriptor::discover_service(
+                        endpoint.clone(),
+                        scope.clone(),
+                        valid_for,
+                        observed_at_tick,
+                    )
+                    .with_routing_engine(routing_engine),
+                )
+                .with_service(
+                    SimulatedServiceDescriptor::move_service(
+                        endpoint.clone(),
+                        scope.clone(),
+                        valid_for,
+                        observed_at_tick,
+                    )
+                    .with_routing_engine(routing_engine),
+                )
+                .with_service(
+                    SimulatedServiceDescriptor::hold_service(
+                        endpoint.clone(),
+                        scope.clone(),
+                        valid_for,
+                        observed_at_tick,
+                    )
+                    .with_routing_engine(routing_engine),
+                );
+        }
         let state = NodeStateSnapshot::route_capable(observed_at_tick);
         Self { node_id, controller_id, profile, state }
+    }
+
+    #[must_use]
+    pub fn ble_route_capable(
+        node_byte: u8,
+        routing_engine: &RoutingEngineId,
+        observed_at_tick: Tick,
+    ) -> Self {
+        Self::ble_route_capable_for_engines(
+            node_byte,
+            std::slice::from_ref(routing_engine),
+            observed_at_tick,
+        )
     }
 
     #[must_use]
@@ -107,5 +152,17 @@ mod tests {
         assert_eq!(node.controller_id, ControllerId([3; 32]));
         assert_eq!(node.profile.endpoints.len(), 1);
         assert_eq!(node.profile.services.len(), 3);
+    }
+
+    #[test]
+    fn route_capable_for_multiple_engines_emits_service_triples_per_engine() {
+        let engines = [
+            RoutingEngineId::from_contract_bytes(*b"reference-mem-01"),
+            RoutingEngineId::from_contract_bytes(*b"reference-mem-02"),
+        ];
+        let node =
+            ReferenceNode::ble_route_capable_for_engines(3, &engines, Tick(1)).build();
+
+        assert_eq!(node.profile.services.len(), 6);
     }
 }

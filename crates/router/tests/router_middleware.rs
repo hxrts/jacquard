@@ -1,7 +1,9 @@
 mod common;
 
 use common::{build_router, objective, sample_configuration, FAR_NODE_ID};
-use jacquard_core::{DestinationId, RouterCanonicalMutation, RoutingTickChange, Tick};
+use jacquard_core::{
+    DestinationId, RouterCanonicalMutation, RoutingTickChange, RoutingTickHint, Tick,
+};
 use jacquard_traits::{Router, RoutingControlPlane};
 
 #[test]
@@ -49,6 +51,10 @@ fn anti_entropy_tick_reports_shared_router_outcome() {
     assert_eq!(
         outcome.engine_change,
         RoutingTickChange::PrivateStateUpdated
+    );
+    assert_eq!(
+        outcome.engine_tick_hint,
+        RoutingTickHint::WithinTicks(Tick(1))
     );
     assert_eq!(outcome.canonical_mutation, RouterCanonicalMutation::None);
 }

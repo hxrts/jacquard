@@ -39,7 +39,7 @@ graph LR
   Router -- registers --> Mesh
 ```
 
-The reference end-to-end example is [`multi_device_mesh.rs`](../crates/reference-client/tests/multi_device_mesh.rs). It shows how to add a new client runtime to the same in-memory network without bypassing the router-owned canonical path.
+The reference end-to-end example is [`e2e_multi_layer_routing.rs`](../crates/reference-client/tests/e2e_multi_layer_routing.rs). It shows how to add a new client runtime to the same in-memory network without bypassing the router-owned canonical path.
 
 ## Extension Guidance
 
