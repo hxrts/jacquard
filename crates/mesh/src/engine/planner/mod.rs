@@ -17,8 +17,8 @@ mod publishing;
 mod scoring;
 
 use jacquard_core::{
-    SelectedRoutingParameters, AdmissionDecision, Configuration, DiversityFloor,
-    Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
+    SelectedRoutingParameters, AdmissionDecision, Configuration, Observation,
+    RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
     RouteSelectionError, RoutingObjective,
 };
 use jacquard_traits::{
@@ -138,7 +138,7 @@ where
 mod tests {
     use jacquard_core::{
         AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength,
-        ConnectivityRegime, DestinationId, Estimate, FailureModelClass,
+        ConnectivityRegime, DestinationId, DiversityFloor, Estimate, FailureModelClass,
         HoldFallbackPolicy, Limit, MessageFlowAssumptionClass, NodeDensityClass,
         NodeId, RatioPermille, RouteAdmissionRejection, ConnectivityPosture,
         RouteCost, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,

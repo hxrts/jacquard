@@ -59,10 +59,13 @@ pub trait OrderEffects {
 ///
 /// Effectful runtime boundary.
 pub trait StorageEffects {
+    #[must_use = "unread load_bytes result silently discards storage errors"]
     fn load_bytes(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
 
+    #[must_use = "unchecked store_bytes result silently discards write failures"]
     fn store_bytes(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError>;
 
+    #[must_use = "unchecked remove_bytes result silently discards deletion failures"]
     fn remove_bytes(&mut self, key: &[u8]) -> Result<(), StorageError>;
 }
 
@@ -71,6 +74,7 @@ pub trait StorageEffects {
 ///
 /// Effectful runtime boundary.
 pub trait RouteEventLogEffects {
+    #[must_use = "unhandled record_route_event result silently loses a route audit event"]
     fn record_route_event(
         &mut self,
         event: RouteEventStamped,
@@ -83,12 +87,14 @@ pub trait RouteEventLogEffects {
 ///
 /// Effectful runtime boundary.
 pub trait TransportEffects {
+    #[must_use = "unchecked send_transport result silently discards send failures"]
     fn send_transport(
         &mut self,
         endpoint: &jacquard_core::LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), TransportError>;
 
+    #[must_use = "unread poll_transport result silently discards received observations"]
     fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
 }
 

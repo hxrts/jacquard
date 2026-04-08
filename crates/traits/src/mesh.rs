@@ -100,17 +100,20 @@ pub trait MeshNeighborhoodEstimateAccess {
 ///
 /// Effectful runtime boundary.
 pub trait RetentionStore {
+    #[must_use = "unchecked retain_payload result silently discards retention failures"]
     fn retain_payload(
         &mut self,
         object_id: ContentId<Blake3Digest>,
         payload: Vec<u8>,
     ) -> Result<(), RetentionError>;
 
+    #[must_use = "unread take_retained_payload result silently discards the held payload"]
     fn take_retained_payload(
         &mut self,
         object_id: &ContentId<Blake3Digest>,
     ) -> Result<Option<Vec<u8>>, RetentionError>;
 
+    #[must_use = "unread contains_retained_payload result silently discards storage errors"]
     fn contains_retained_payload(
         &self,
         object_id: &ContentId<Blake3Digest>,

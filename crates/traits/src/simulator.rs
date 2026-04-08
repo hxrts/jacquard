@@ -10,7 +10,7 @@
 
 use jacquard_core::{
     Configuration, OperatingMode, Observation, RouteEvent, RouteEventStamped,
-    RoutingObjective, Tick,
+    RoutingObjective, SimulationSeed, Tick,
 };
 use jacquard_macros::purity;
 
@@ -21,7 +21,7 @@ use jacquard_macros::purity;
 pub trait RoutingScenario {
     fn name(&self) -> &str;
 
-    fn seed(&self) -> u64;
+    fn seed(&self) -> SimulationSeed;
 
     fn deployment_profile(&self) -> &OperatingMode;
 
@@ -55,12 +55,14 @@ pub trait RoutingSimulator {
     type SimulationStats;
     type Error;
 
+    #[must_use = "unused scenario result silently discards replay artifacts and simulation stats"]
     fn run_scenario(
         &mut self,
         scenario: &Self::Scenario,
         environment: &Self::EnvironmentModel,
     ) -> Result<(Self::ReplayArtifact, Self::SimulationStats), Self::Error>;
 
+    #[must_use = "unused replay result silently discards replay artifacts and simulation stats"]
     fn resume_replay(
         &mut self,
         replay: &Self::ReplayArtifact,

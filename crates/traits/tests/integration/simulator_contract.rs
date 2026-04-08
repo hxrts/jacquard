@@ -9,7 +9,7 @@ use jacquard_traits::{
         OperatingMode, Environment, FactSourceClass, Link, LinkRuntimeState, LinkState,
         Node, NodeId, NodeProfile, NodeState, Observation, OriginAuthenticationClass,
         RatioPermille, RelayWorkBudget, RouteEpoch, RouteEvent, RouteEventStamped,
-        RoutingObjective, Tick,
+        RoutingObjective, SimulationSeed, Tick,
     },
     RoutingEnvironmentModel, RoutingReplayView, RoutingScenario, RoutingSimulator,
 };
@@ -17,7 +17,7 @@ use jacquard_traits::{
 #[derive(Clone)]
 struct StubScenario {
     name: String,
-    seed: u64,
+    seed: SimulationSeed,
     deployment_profile: OperatingMode,
     initial_configuration: Observation<Configuration>,
     objectives: Vec<RoutingObjective>,
@@ -28,7 +28,7 @@ impl RoutingScenario for StubScenario {
         &self.name
     }
 
-    fn seed(&self) -> u64 {
+    fn seed(&self) -> SimulationSeed {
         self.seed
     }
 
@@ -271,7 +271,7 @@ fn sample_configuration() -> Configuration {
 fn sample_scenario() -> StubScenario {
     StubScenario {
         name: "smoke".to_owned(),
-        seed: 7,
+        seed: SimulationSeed(7),
         deployment_profile: OperatingMode::SparseLowPower,
         initial_configuration: Observation {
             value: sample_configuration(),
@@ -290,7 +290,7 @@ fn routing_scenario_is_a_pure_description_surface() {
     let scenario = sample_scenario();
 
     assert_eq!(scenario.name(), "smoke");
-    assert_eq!(scenario.seed(), 7);
+    assert_eq!(scenario.seed(), SimulationSeed(7));
     assert_eq!(
         scenario.deployment_profile(),
         &OperatingMode::SparseLowPower

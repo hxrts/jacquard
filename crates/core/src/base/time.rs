@@ -20,6 +20,10 @@ pub struct OrderStamp(pub u64);
 #[id_type]
 pub struct RouteEpoch(pub u64);
 
+/// Deterministic seed for routing scenario simulation.
+#[id_type]
+pub struct SimulationSeed(pub u64);
+
 /// Deterministic quantity of bytes for budgets, capacities, and size limits.
 #[id_type]
 pub struct ByteCount(pub u64);

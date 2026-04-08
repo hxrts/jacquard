@@ -39,6 +39,7 @@ pub trait PolicyEngine {
 pub trait CommitteeSelector {
     type TopologyView;
 
+    #[must_use = "unread committee selection result silently discards routing evidence"]
     fn select_committee(
         &self,
         objective: &RoutingObjective,
@@ -86,15 +87,18 @@ pub trait SubstratePlanner {
 /// This is a forward-looking contract surface. It exists so host-owned
 /// composition can stabilize before every in-tree engine uses it in production.
 pub trait SubstrateRuntime {
+    #[must_use = "unused substrate lease silently discards an acquired resource"]
     fn acquire_substrate(
         &mut self,
         candidate: SubstrateCandidate,
     ) -> Result<SubstrateLease, RouteError>;
 
+    #[must_use = "unchecked release_substrate result silently discards release failures"]
     fn release_substrate(&mut self, lease: &SubstrateLease) -> Result<(), RouteError>;
 
     /// Runtime observation over an acquired substrate lease. This is read-only
     /// with respect to canonical route truth.
+    #[must_use = "unread substrate health observation silently discards health data"]
     fn observe_substrate_health(
         &self,
         lease: &SubstrateLease,
@@ -117,6 +121,7 @@ pub trait LayeredRoutingEnginePlanner {
         parameters: &LayerParameters,
     ) -> Vec<RouteCandidate>;
 
+    #[must_use = "unused route admission silently discards admission evidence"]
     fn admit_route_on_substrate(
         &self,
         objective: &RoutingObjective,
@@ -134,6 +139,7 @@ pub trait LayeredRoutingEnginePlanner {
 /// This is a forward-looking contract surface. Contract tests cover the shape,
 /// not a mature in-tree layering implementation.
 pub trait LayeredRoutingEngine: RoutingEngine + LayeredRoutingEnginePlanner {
+    #[must_use = "unused route installation silently discards a materialized route"]
     fn materialize_route_on_substrate(
         &mut self,
         input: RouteMaterializationInput,
@@ -172,6 +178,7 @@ pub trait RoutingEnginePlanner {
     ///   context must be explicit in the method inputs
     /// - backend refs may be opaque engine-private plan tokens, but engines
     ///   must not depend semantically on hidden mutable planner caches
+    #[must_use = "unread admission check result silently discards candidate evidence"]
     fn check_candidate(
         &self,
         objective: &RoutingObjective,
@@ -186,6 +193,7 @@ pub trait RoutingEnginePlanner {
     /// argument remains authoritative. Engines must be able to re-derive the
     /// admission result from the candidate plus explicit observation context
     /// rather than depending on ambient planner state.
+    #[must_use = "unused route admission silently discards admission evidence"]
     fn admit_route(
         &self,
         objective: &RoutingObjective,
@@ -207,6 +215,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     /// The router allocates the canonical handle and lease first, then the
     /// routing engine installs the admitted route under that identity and
     /// returns the engine-owned installation artifacts.
+    #[must_use = "unused route installation silently discards a materialized route"]
     fn materialize_route(
         &mut self,
         input: RouteMaterializationInput,
@@ -226,6 +235,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     /// This hook must not publish canonical route truth directly. Any
     /// resulting activation, replacement, or maintenance decisions still flow
     /// through the router/control-plane path.
+    #[must_use = "unread engine tick outcome silently discards routing progress signals"]
     fn engine_tick(
         &mut self,
         tick: &RoutingTickContext,
@@ -242,6 +252,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     ///
     /// Maintenance returns a typed semantic result so replacement, handoff,
     /// and failure paths keep their payload rather than collapsing to a flag.
+    #[must_use = "unread maintenance result silently discards repair or replacement decisions"]
     fn maintain_route(
         &mut self,
         identity: &MaterializedRouteIdentity,
@@ -269,12 +280,14 @@ pub trait RouterManagedEngine: RoutingEngine {
     #[must_use]
     fn local_node_id_for_router(&self) -> NodeId;
 
+    #[must_use = "unchecked forward_payload_for_router result silently discards forwarding failures"]
     fn forward_payload_for_router(
         &mut self,
         route_id: &RouteId,
         payload: &[u8],
     ) -> Result<(), RouteError>;
 
+    #[must_use = "unread restore_route_runtime_for_router result silently discards restoration status"]
     fn restore_route_runtime_for_router(
         &mut self,
         route_id: &RouteId,
@@ -289,6 +302,7 @@ pub trait RouterManagedEngine: RoutingEngine {
 /// orchestration layer enumerates candidates, chooses one engine's evidence,
 /// and publishes canonical route truth above that boundary.
 pub trait RouterEngineRegistry {
+    #[must_use = "unchecked register_engine result silently discards registration failures"]
     fn register_engine(
         &mut self,
         extension: Box<dyn RouterManagedEngine>,
@@ -314,6 +328,7 @@ pub trait RoutingMiddleware: RouterEngineRegistry {
 
     fn replace_policy_inputs(&mut self, inputs: RoutingPolicyInputs);
 
+    #[must_use = "unread recovered route count silently discards recovery status"]
     fn recover_checkpointed_routes(&mut self) -> Result<usize, RouteError>;
 }
 
@@ -322,22 +337,26 @@ pub trait RoutingMiddleware: RouterEngineRegistry {
 ///
 /// Effectful runtime boundary.
 pub trait Router {
+    #[must_use = "unused activated route silently discards a canonical handle"]
     fn activate_route(
         &mut self,
         objective: RoutingObjective,
     ) -> Result<MaterializedRoute, RouteError>;
 
+    #[must_use = "unread route commitments silently discard commitment state"]
     fn route_commitments(
         &self,
         route_id: &RouteId,
     ) -> Result<Vec<RouteCommitment>, RouteError>;
 
+    #[must_use = "unused reselected route silently discards a canonical handle"]
     fn reselect_route(
         &mut self,
         route_id: &RouteId,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<MaterializedRoute, RouteError>;
 
+    #[must_use = "unused transferred route silently discards a canonical handle"]
     fn transfer_route_lease(
         &mut self,
         route_id: &RouteId,
@@ -353,6 +372,7 @@ pub trait Router {
 /// build gradual migration and limited layering without engine cross-awareness,
 /// but current in-tree coverage is still contract-oriented.
 pub trait LayeringPolicyEngine {
+    #[must_use = "unused layered route silently discards a canonical handle"]
     fn activate_layered_route(
         &mut self,
         objective: RoutingObjective,
@@ -368,11 +388,13 @@ pub trait LayeringPolicyEngine {
 ///
 /// Effectful runtime boundary.
 pub trait RoutingControlPlane {
+    #[must_use = "unused activated route silently discards a canonical handle"]
     fn activate_route(
         &mut self,
         objective: RoutingObjective,
     ) -> Result<MaterializedRoute, RouteError>;
 
+    #[must_use = "unread maintenance outcome silently discards repair or replacement decisions"]
     fn maintain_route(
         &mut self,
         route_id: &RouteId,
@@ -381,6 +403,7 @@ pub trait RoutingControlPlane {
 
     /// Periodic consistency sweep: refresh engine-wide adaptive state, expire
     /// leases, and detect stale routes.
+    #[must_use = "unread anti-entropy tick outcome silently discards routing progress signals"]
     fn anti_entropy_tick(&mut self) -> Result<RouterTickOutcome, RouteError>;
 }
 
@@ -393,6 +416,7 @@ pub trait RoutingControlPlane {
 ///
 /// Effectful runtime boundary with read-only observation methods.
 pub trait RoutingDataPlane {
+    #[must_use = "unchecked forward_payload result silently discards forwarding failures"]
     fn forward_payload(
         &mut self,
         route_id: &RouteId,
@@ -401,6 +425,7 @@ pub trait RoutingDataPlane {
 
     /// Health reads are observational. They must not silently become canonical
     /// route truth without an explicit control-plane publication step.
+    #[must_use = "unread route health observation silently discards health data"]
     fn observe_route_health(
         &self,
         route_id: &RouteId,
