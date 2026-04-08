@@ -28,7 +28,7 @@ impl WorldExtensionDescriptor for StubWorldExtension {
     }
 }
 
-impl WorldExtension for StubWorldExtension {
+impl WorldExtension<ObservedValue> for StubWorldExtension {
     fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, WorldError> {
         Ok(self.observations.clone())
     }
