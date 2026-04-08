@@ -1,19 +1,19 @@
-//! Generic router middleware and control/data plane surfaces for Jacquard.
+//! Generic router middleware for Jacquard.
 //!
-//! Control flow intuition: the router owns canonical route identity, lease
-//! issuance, and active-route publication. It asks one concrete routing engine
-//! for candidates and proofs, then commits the resulting canonical route state
-//! on the router side. The router itself remains engine-family-agnostic and
-//! depends only on shared trait boundaries.
+//! Control flow intuition: a host registers one or more routing engines with
+//! the router, then the router owns the canonical activation and maintenance
+//! flow. It collects candidates across engines, selects one admissible route,
+//! asks the chosen engine to materialize its private runtime state, and only
+//! then publishes the canonical route snapshot and commitments.
 //!
 //! Ownership:
-//! - `ActorOwned`: canonical route table, lease transfer, and commitment view
-//! - never an engine-private runtime owner
+//! - `ActorOwned`: canonical route table, lease transfer, commitment view
+//! - engine-private runtime state stays below the shared engine boundary
 //! - success-bearing mutations are proof-gated by typed engine evidence
 
 #![forbid(unsafe_code)]
 
+mod middleware;
 mod runtime;
-mod single_engine;
 
-pub use single_engine::{FixedPolicyEngine, SingleEngineRouter};
+pub use middleware::{FixedPolicyEngine, MultiEngineRouter};

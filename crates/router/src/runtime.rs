@@ -1,10 +1,11 @@
-//! Router-owned runtime sequencing and checkpoint helpers.
+//! Router-owned persistence and publication sequencing helpers.
 //!
-//! Control flow: the router first asks an engine for typed evidence, then
-//! persists the next canonical snapshot under a router-scoped namespace, then
-//! records the replay-visible route event, and only then mutates the live
-//! router tables. Recovery walks that same router-owned registry and asks the
-//! engine to restore only its opaque private runtime payloads.
+//! Control flow intuition: middleware hands this module a fully formed
+//! canonical route snapshot plus its commitments. The adapter persists that
+//! snapshot under a router-scoped namespace, records the replay-visible route
+//! event, and only then lets middleware expose the route through the live
+//! canonical tables. Recovery walks the same router-owned registry and asks the
+//! selected engine to restore only its opaque private runtime payloads.
 
 use std::collections::BTreeSet;
 

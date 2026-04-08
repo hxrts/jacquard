@@ -1,6 +1,6 @@
 # Router Control Plane
 
-`jacquard-router` is the canonical control-plane owner above the routing-engine boundary. Engines plan, admit, and maintain route-private runtime state. The router turns that typed engine evidence into canonical route truth.
+`jacquard-router` is the canonical control-plane owner above the routing-engine boundary. Engines plan, admit, and maintain route-private runtime state. The router registers one or more engines, compares their typed evidence, and turns the selected engine result into canonical route truth.
 
 ## Ownership
 
@@ -21,8 +21,8 @@ The control-plane path is:
 objective
   -> policy profile
   -> authoritative topology tick
-  -> candidate ordering
-  -> engine admission
+  -> cross-engine candidate ordering
+  -> selected-engine admission
   -> router-owned handle + lease
   -> engine materialization proof
   -> canonical publication
@@ -38,7 +38,7 @@ This split is deliberate:
 
 ## Maintenance And Tick
 
-The router drives `RoutingTickContext` into the engine and consumes `RoutingTickOutcome`. The engine may refresh private control state, summarize ingress, and run mesh-private choreographies, but it does not publish canonical truth directly during `engine_tick`.
+The router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. An engine may refresh private control state, summarize ingress, and run family-private choreographies, but it does not publish canonical truth directly during `engine_tick`.
 
 When maintenance returns a typed engine result, the router decides whether that implies canonical mutation:
 
@@ -82,7 +82,7 @@ This harness exists to prove crate-boundary composition, not to replace the simu
 
 ## Minimal Host Wiring
 
-The Phase 3 harness in [`crates/mock-device/tests/multi_device_mesh.rs`](../crates/mock-device/tests/multi_device_mesh.rs) is the reference example for a new deployment target:
+The harness in `crates/mock-device/tests/multi_device_mesh.rs` is the reference example for a new deployment target:
 
 1. build a shared `Observation<Configuration>` with ordinary `ServiceDescriptor` values
 2. attach one `MeshTransport` implementation per device runtime

@@ -50,7 +50,6 @@ fn multi_device_mesh_routing_uses_shared_router_transport_and_device_boundaries(
         topology.value.epoch,
         "device A forwards toward B",
         "device B ingress tick",
-        "device B transport summary",
     );
     forward_and_assert_ingress(
         &mut device_b,
@@ -60,7 +59,6 @@ fn multi_device_mesh_routing_uses_shared_router_transport_and_device_boundaries(
         topology.value.epoch,
         "device B forwards toward C",
         "device C ingress tick",
-        "device C transport summary",
     );
 }
 
@@ -93,7 +91,6 @@ fn forward_and_assert_ingress(
     expected_epoch: jacquard_core::RouteEpoch,
     forward_context: &str,
     tick_context: &str,
-    summary_context: &str,
 ) {
     sender
         .router_mut()
@@ -105,14 +102,9 @@ fn forward_and_assert_ingress(
         .expect(tick_context);
 
     assert_eq!(outcome.topology_epoch, expected_epoch);
-    assert!(
-        receiver
-            .router()
-            .engine()
-            .transport_observation_summary()
-            .expect(summary_context)
-            .payload_event_count
-            > 0
+    assert_eq!(
+        outcome.engine_change,
+        jacquard_core::RoutingTickChange::PrivateStateUpdated,
     );
 }
 

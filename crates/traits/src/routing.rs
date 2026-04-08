@@ -282,15 +282,46 @@ pub trait RouterManagedEngine: RoutingEngine {
 }
 
 #[purity(effectful)]
-/// Cross-engine orchestration entry point.
+/// Registry boundary for router-managed engines.
+///
+/// This is the composable middleware seam between the generic router and
+/// concrete routing engines. Hosts register engines here, then the router's
+/// orchestration layer enumerates candidates, chooses one engine's evidence,
+/// and publishes canonical route truth above that boundary.
+pub trait RouterEngineRegistry {
+    fn register_engine(
+        &mut self,
+        extension: Box<dyn RouterManagedEngine>,
+    ) -> Result<(), RouteError>;
+
+    #[must_use]
+    fn registered_engine_ids(&self) -> Vec<RoutingEngineId>;
+
+    fn registered_engine_capabilities(
+        &self,
+        engine_id: &RoutingEngineId,
+    ) -> Option<RoutingEngineCapabilities>;
+}
+
+#[purity(effectful)]
+/// Router-owned middleware runtime for composable engines.
+///
+/// This is the engine-agnostic orchestration layer: it owns authoritative
+/// topology input, engine recovery, and policy input refresh while delegating
+/// route-private planning/runtime work to registered engines.
+pub trait RoutingMiddleware: RouterEngineRegistry {
+    fn replace_topology(&mut self, topology: Observation<Configuration>);
+
+    fn replace_policy_inputs(&mut self, inputs: RoutingPolicyInputs);
+
+    fn recover_checkpointed_routes(&mut self) -> Result<usize, RouteError>;
+}
+
+#[purity(effectful)]
+/// Cross-engine canonical control-plane entry point.
 ///
 /// Effectful runtime boundary.
 pub trait Router {
-    fn register_engine(
-        &mut self,
-        extension: Box<dyn RoutingEngine>,
-    ) -> Result<(), RouteError>;
-
     fn activate_route(
         &mut self,
         objective: RoutingObjective,

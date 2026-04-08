@@ -22,22 +22,12 @@ use jacquard_mock_transport::{
     InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
     SharedInMemoryMeshNetwork,
 };
-use jacquard_router::{FixedPolicyEngine, SingleEngineRouter};
+use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::Blake3Hashing;
 
 use crate::MockDevice;
 
-pub type MockMeshRouter = SingleEngineRouter<
-    MeshEngine<
-        DeterministicMeshTopologyModel,
-        InMemoryMeshTransport,
-        InMemoryRetentionStore,
-        InMemoryRuntimeEffects,
-        Blake3Hashing,
-    >,
-    FixedPolicyEngine,
-    InMemoryRuntimeEffects,
->;
+pub type MockMeshRouter = MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>;
 
 pub type MockMeshDevice = MockDevice<MockMeshRouter>;
 
@@ -80,13 +70,16 @@ pub fn build_mock_mesh_device_with_profile(
         InMemoryRuntimeEffects { now, ..Default::default() },
         Blake3Hashing,
     );
-    let router = SingleEngineRouter::new(
-        engine,
+    let mut router = MultiEngineRouter::new(
+        local_node_id,
         FixedPolicyEngine::new(profile),
         InMemoryRuntimeEffects { now, ..Default::default() },
         topology.clone(),
         policy_inputs_for(&topology, local_node_id),
     );
+    router
+        .register_engine(Box::new(engine))
+        .expect("register mesh engine");
     MockDevice::new(topology, router)
 }
 
