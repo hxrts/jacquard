@@ -19,7 +19,7 @@ use jacquard_traits::{
 };
 
 fn materialized_route_for(
-    identity: jacquard_traits::jacquard_core::MaterializedRouteIdentity,
+    identity: jacquard_traits::jacquard_core::PublishedRouteRecord,
     runtime: jacquard_traits::jacquard_core::RouteRuntimeState,
 ) -> MaterializedRoute {
     MaterializedRoute { identity, runtime }

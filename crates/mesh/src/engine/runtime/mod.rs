@@ -15,7 +15,7 @@ mod materialization;
 mod tick;
 
 use jacquard_core::{
-    Configuration, MaterializedRoute, MaterializedRouteIdentity, Observation,
+    Configuration, MaterializedRoute, Observation, PublishedRouteRecord,
     RouteCommitment, RouteError, RouteId, RouteInstallation, RouteMaintenanceResult,
     RouteMaintenanceTrigger, RouteMaterializationInput, RouteSelectionError,
     RoutingTickContext, RoutingTickOutcome,
@@ -31,7 +31,7 @@ use crate::{
 };
 
 struct MaintenanceContext<'a> {
-    identity: &'a MaterializedRouteIdentity,
+    identity: &'a PublishedRouteRecord,
     now: jacquard_core::Tick,
     handoff_receipt_id: jacquard_core::ReceiptId,
     latest_topology: Observation<Configuration>,
@@ -68,7 +68,7 @@ where
 
     fn maintain_route(
         &mut self,
-        identity: &MaterializedRouteIdentity,
+        identity: &PublishedRouteRecord,
         runtime: &mut jacquard_core::RouteRuntimeState,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
@@ -101,7 +101,7 @@ where
 {
     fn maintain_route_inner(
         &mut self,
-        identity: &MaterializedRouteIdentity,
+        identity: &PublishedRouteRecord,
         runtime: &mut jacquard_core::RouteRuntimeState,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {

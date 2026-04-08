@@ -59,7 +59,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
     fn maintain_route(
         &mut self,
-        identity: &MaterializedRouteIdentity,
+        identity: &PublishedRouteRecord,
         runtime: &mut RouteRuntimeState,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError>;

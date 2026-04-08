@@ -14,8 +14,8 @@ use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
     jacquard_core::{
         Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs,
-        HoldFallbackPolicy, Limit, MaterializedRouteIdentity, NodeId, Observation,
-        OperatingMode, PriorityPoints, PublicationId, RouteAdmission, RouteCandidate,
+        HoldFallbackPolicy, Limit, NodeId, Observation, OperatingMode, PriorityPoints,
+        PublicationId, PublishedRouteRecord, RouteAdmission, RouteCandidate,
         RouteHandle, RouteIdentityStamp, RouteLease, RouteMaterializationInput,
         RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
         RouteReplacementPolicy, RouteRuntimeState, RouteServiceKind,
@@ -215,14 +215,14 @@ pub fn admit_first_candidate(
 }
 
 /// Step 3 of the activate pipeline: materialize an admitted route and
-/// assemble the canonical `(MaterializedRouteIdentity, RouteRuntimeState)`
+/// assemble the canonical `(PublishedRouteRecord, RouteRuntimeState)`
 /// pair that the engine expects on `maintain_route` calls.
 pub fn materialize_admitted(
     engine: &mut TestEngine,
     route_id: jacquard_traits::jacquard_core::RouteId,
     admission: RouteAdmission,
     lease_value: RouteLease,
-) -> (MaterializedRouteIdentity, RouteRuntimeState) {
+) -> (PublishedRouteRecord, RouteRuntimeState) {
     let materialization_tick = lease_value.valid_for.start_tick();
     let input = materialization_input(route_id, admission, lease_value);
     let installation = engine
@@ -234,7 +234,7 @@ pub fn materialize_admitted(
         health: installation.health,
         progress: installation.progress,
     };
-    let identity = MaterializedRouteIdentity {
+    let identity = PublishedRouteRecord {
         stamp: input.handle.stamp.clone(),
         proof: installation.materialization_proof,
         admission: input.admission,
@@ -260,7 +260,7 @@ pub fn activate_route(
     topology: &Observation<Configuration>,
     destination: NodeId,
     lease_value: RouteLease,
-) -> (MaterializedRouteIdentity, RouteRuntimeState) {
+) -> (PublishedRouteRecord, RouteRuntimeState) {
     let goal = objective(DestinationId::Node(destination));
     let policy = profile();
     activate_route_with_profile(engine, topology, &goal, &policy, lease_value)
@@ -272,7 +272,7 @@ pub fn activate_route_with_profile(
     goal: &RoutingObjective,
     policy: &SelectedRoutingParameters,
     lease_value: RouteLease,
-) -> (MaterializedRouteIdentity, RouteRuntimeState) {
+) -> (PublishedRouteRecord, RouteRuntimeState) {
     let candidates = tick_and_get_candidates(engine, topology, goal, policy);
     let (route_id, admission) =
         admit_first_candidate(engine, topology, goal, policy, candidates);

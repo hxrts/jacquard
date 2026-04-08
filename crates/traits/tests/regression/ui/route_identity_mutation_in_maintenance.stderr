@@ -1,7 +1,7 @@
 error[E0594]: cannot assign to `identity.stamp`, which is behind a `&` reference
   --> tests/regression/ui/route_identity_mutation_in_maintenance.rs:71:9
    |
-67 |           identity: &MaterializedRouteIdentity,
+67 |           identity: &PublishedRouteRecord,
    |           -------- this is an immutable reference
 ...
 71 | /         identity.stamp = jacquard_traits::jacquard_core::RouteIdentityStamp {

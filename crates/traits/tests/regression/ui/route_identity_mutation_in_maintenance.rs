@@ -1,6 +1,6 @@
 use jacquard_traits::{
     jacquard_core::{
-        SelectedRoutingParameters, Configuration, MaterializedRoute, MaterializedRouteIdentity,
+        SelectedRoutingParameters, Configuration, MaterializedRoute, PublishedRouteRecord,
         Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCommitment,
         RouteError, RouteId, RouteInstallation, RouteMaintenanceResult,
         RouteMaintenanceTrigger, RouteMaterializationInput, RouteRuntimeState,
@@ -64,7 +64,7 @@ impl RoutingEngine for BadEngine {
 
     fn maintain_route(
         &mut self,
-        identity: &MaterializedRouteIdentity,
+        identity: &PublishedRouteRecord,
         _runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {

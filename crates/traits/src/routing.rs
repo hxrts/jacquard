@@ -2,15 +2,15 @@
 //! control/data planes.
 
 use jacquard_core::{
-    CommitteeSelection, Configuration, LayerParameters, MaterializedRoute,
-    MaterializedRouteIdentity, NodeId, Observation, RouteAdmission,
-    RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteEpoch, RouteError,
-    RouteHandle, RouteHealth, RouteId, RouteIdentityStamp, RouteInstallation,
-    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-    RouteMaterializationProof, RouteRuntimeState, RouteSemanticHandoff,
-    RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
-    RoutingEngineId, RoutingObjective, RoutingPolicyInputs, RoutingTickContext,
-    RoutingTickOutcome, SelectedRoutingParameters, SubstrateCandidate, SubstrateLease,
+    CommitteeSelection, Configuration, LayerParameters, MaterializedRoute, NodeId,
+    Observation, PublishedRouteRecord, RouteAdmission, RouteAdmissionCheck,
+    RouteCandidate, RouteCommitment, RouteEpoch, RouteError, RouteHandle, RouteHealth,
+    RouteId, RouteIdentityStamp, RouteInstallation, RouteMaintenanceResult,
+    RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
+    RouteRuntimeState, RouteSemanticHandoff, RouterMaintenanceOutcome,
+    RouterTickOutcome, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
+    RoutingPolicyInputs, RoutingTickContext, RoutingTickOutcome,
+    SelectedRoutingParameters, SubstrateCandidate, SubstrateLease,
     SubstrateRequirements,
 };
 use jacquard_macros::purity;
@@ -258,7 +258,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
         /// and failure paths keep their payload rather than collapsing to a flag.
         fn maintain_route(
             &mut self,
-            identity: &MaterializedRouteIdentity,
+            identity: &PublishedRouteRecord,
             runtime: &mut RouteRuntimeState,
             trigger: RouteMaintenanceTrigger,
         ) -> Result<RouteMaintenanceResult, RouteError>;
@@ -477,7 +477,7 @@ impl TopologyVersioned for RouterTickOutcome {
     }
 }
 
-impl TopologyVersioned for MaterializedRouteIdentity {
+impl TopologyVersioned for PublishedRouteRecord {
     fn topology_epoch(&self) -> RouteEpoch {
         self.stamp.topology_epoch
     }

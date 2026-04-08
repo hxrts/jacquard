@@ -39,7 +39,7 @@ The lower engine exposes carrier capabilities and leases. The upper engine consu
 
 The routing decision path starts from a `RoutingObjective` and a current `Observation<Configuration>`. A routing-engine planner turns those into `RouteCandidate` values. Each candidate carries an `Estimate<RouteEstimate>` rather than a fact or published witness.
 
-The planner checks a candidate and admits it under a stated profile. The router then allocates canonical route identity. The routing engine realizes that admitted route under `RouteMaterializationInput`. The control plane assembles the final `MaterializedRoute` from router-owned `MaterializedRouteIdentity` plus engine-owned `RouteRuntimeState`.
+The planner checks a candidate and admits it under a stated profile. The router then allocates canonical route identity. The routing engine realizes that admitted route under `RouteMaterializationInput`. The control plane assembles the final `MaterializedRoute` from router-owned `PublishedRouteRecord` plus engine-owned `RouteRuntimeState`.
 
 `RoutingEnginePlanner` is the pure planning surface. Runtime mutation is confined to `RoutingEngine::materialize_route`, `maintain_route`, and `teardown`. The control plane enforces the objective protection floor at materialization. Expired leases surface as a typed failure rather than silently continuing.
 
@@ -55,7 +55,7 @@ First-party mesh now routes protocol-side runtime work through a private choreog
 
 ## Active Route
 
-A `MaterializedRoute` is split into router-owned `MaterializedRouteIdentity` and engine-owned `RouteRuntimeState`. The data plane forwards payloads through `RoutingDataPlane::forward_payload` against the materialized route. The control plane consumes data-plane health signals as observational input but does not promote them into canonical state without an explicit lifecycle event.
+A `MaterializedRoute` is split into router-owned `PublishedRouteRecord` and engine-owned `RouteRuntimeState`. The data plane forwards payloads through `RoutingDataPlane::forward_payload` against the materialized route. The control plane consumes data-plane health signals as observational input but does not promote them into canonical state without an explicit lifecycle event.
 
 Route health stays route-scoped rather than engine-global. When an engine can validate the active route's remaining suffix against current observations, it should publish route-local reachability and stability. When it cannot, it should use an explicit unknown reachability state rather than silently treating the route as healthy or dead from unrelated engine-level signals.
 

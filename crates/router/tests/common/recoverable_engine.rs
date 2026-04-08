@@ -182,7 +182,7 @@ impl jacquard_traits::RoutingEngine for RecoverableTestEngine {
 
     fn maintain_route(
         &mut self,
-        _identity: &jacquard_core::MaterializedRouteIdentity,
+        _identity: &jacquard_core::PublishedRouteRecord,
         _runtime: &mut jacquard_core::RouteRuntimeState,
         _trigger: jacquard_core::RouteMaintenanceTrigger,
     ) -> Result<jacquard_core::RouteMaintenanceResult, jacquard_core::RouteError> {

@@ -381,14 +381,14 @@ pub enum RouteProgressState {
 /// its own stamp copy (which must equal `stamp`) plus the admission witness.
 /// `admission` holds the engine's decision artifacts without restating identity
 /// fields that belong to `stamp`.
-pub struct MaterializedRouteIdentity {
+pub struct PublishedRouteRecord {
     pub stamp: RouteIdentityStamp,
     pub proof: RouteMaterializationProof,
     pub admission: RouteAdmission,
     pub lease: RouteLease,
 }
 
-impl MaterializedRouteIdentity {
+impl PublishedRouteRecord {
     pub fn ensure_lease_valid_at(&self, tick: Tick) -> Result<(), RouteRuntimeError> {
         self.lease.ensure_valid_at(tick)
     }
@@ -422,7 +422,9 @@ pub struct RouteRuntimeState {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MaterializedRoute {
-    pub identity: MaterializedRouteIdentity,
+    /// Router-owned canonical published record for this live route.
+    pub identity: PublishedRouteRecord,
+    /// Engine-observed mutable runtime state for the same published route.
     pub runtime: RouteRuntimeState,
 }
 
@@ -451,7 +453,7 @@ impl MaterializedRoute {
             "route installation proof stamp must match the canonical handle stamp"
         );
         Self {
-            identity: MaterializedRouteIdentity {
+            identity: PublishedRouteRecord {
                 stamp: input.handle.stamp,
                 proof: installation.materialization_proof,
                 admission: input.admission,
