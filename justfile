@@ -170,6 +170,8 @@ ci-dry-run:
     add_step "Dylint Trait Purity"        "nix develop ./nix/nightly --command cargo dylint --path lints/trait_purity --all -- --all-targets"
     add_step "Dylint Model Policy"        "nix develop ./nix/nightly --command cargo dylint --path lints/model_policy --all -- --all-targets"
     add_step "Dylint Routing Invariants"  "nix develop ./nix/nightly --command cargo dylint --path lints/routing_invariants --all -- --all-targets"
+    add_step "Dylint Trait Must Use"      "nix develop ./nix/nightly --command cargo dylint --path lints/trait_must_use --all -- --all-targets"
+    add_step "Dylint Naked Map Err"       "nix develop ./nix/nightly --command cargo dylint --path lints/naked_map_err --all -- --all-targets"
     add_step "Docs Semantic Drift"        "cargo xtask check docs-semantic-drift"
     add_step "Docs Build"                 "just book"
 

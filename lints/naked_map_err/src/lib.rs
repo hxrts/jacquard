@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 
 extern crate rustc_ast;
+extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_lint;
 extern crate rustc_middle;

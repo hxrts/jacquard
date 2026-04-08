@@ -1,7 +1,8 @@
 //! Lint pass: `.map_err(|_| RouteError::Runtime(...))` with a discarded
 //! error must use a `ResultExt` extension method instead.
 
-use rustc_hir::{Expr, ExprKind, Pat, PatKind, QPath};
+use rustc_errors::DiagDecorator;
+use rustc_hir::{Expr, ExprKind, PatKind, QPath};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 
 dylint_linting::impl_late_lint! {
@@ -60,7 +61,7 @@ impl<'tcx> LateLintPass<'tcx> for NakedMapErrRouteError {
         };
 
         // The closure must have exactly one parameter.
-        let closure_body = cx.tcx.hir().body(closure.body);
+        let closure_body = cx.tcx.hir_body(closure.body);
         let [param] = closure_body.params else {
             return;
         };
@@ -76,15 +77,15 @@ impl<'tcx> LateLintPass<'tcx> for NakedMapErrRouteError {
             return;
         }
 
-        cx.lint(
+        cx.emit_span_lint(
             NAKED_MAP_ERR_ROUTE_ERROR,
-            |diag| {
+            closure_arg.span,
+            DiagDecorator(|diag| {
                 diag.primary_message(
                     ".map_err(|_| RouteError::Runtime(...)) discards the original error; \
                      use .storage_invalid(), .choreography_failed(), or .maintenance_failed() instead",
                 );
-            },
-            |_| closure_arg.span,
+            }),
         );
     }
 }
@@ -103,7 +104,6 @@ fn is_route_error_runtime_call(expr: &Expr<'_>) -> bool {
         QPath::TypeRelative(_, segment) => {
             return segment.ident.name.as_str() == "Runtime";
         }
-        _ => return false,
     };
     let segments = path.segments;
     // Accept `RouteError::Runtime` (2 segments) or just `Runtime` (1 segment
