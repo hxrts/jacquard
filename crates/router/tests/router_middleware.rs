@@ -21,7 +21,7 @@ fn middleware_replaces_topology_and_policy_inputs() {
     )
     .expect("activation after middleware updates");
 
-    assert_eq!(route.identity.handle.topology_epoch, topology.value.epoch);
+    assert_eq!(route.identity.stamp.topology_epoch, topology.value.epoch);
 }
 
 #[test]

@@ -5,7 +5,8 @@ use jacquard_core::{
     CommitteeSelection, Configuration, LayerParameters, MaterializedRoute,
     MaterializedRouteIdentity, NodeId, Observation, RouteAdmission,
     RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteEpoch, RouteError,
-    RouteHandle, RouteHealth, RouteId, RouteInstallation, RouteMaintenanceResult,
+    RouteHandle, RouteHealth, RouteId, RouteIdentityStamp, RouteInstallation,
+    RouteMaintenanceResult,
     RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
     RouteRuntimeState, RouteSemanticHandoff, RouterMaintenanceOutcome,
     RouterTickOutcome, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
@@ -445,15 +446,21 @@ pub trait TopologyVersioned {
     fn topology_epoch(&self) -> RouteEpoch;
 }
 
-impl TopologyVersioned for RouteHandle {
+impl TopologyVersioned for RouteIdentityStamp {
     fn topology_epoch(&self) -> RouteEpoch {
         self.topology_epoch
     }
 }
 
+impl TopologyVersioned for RouteHandle {
+    fn topology_epoch(&self) -> RouteEpoch {
+        self.stamp.topology_epoch
+    }
+}
+
 impl TopologyVersioned for RouteMaterializationProof {
     fn topology_epoch(&self) -> RouteEpoch {
-        self.topology_epoch
+        self.stamp.topology_epoch
     }
 }
 
@@ -471,6 +478,6 @@ impl TopologyVersioned for RouterTickOutcome {
 
 impl TopologyVersioned for MaterializedRouteIdentity {
     fn topology_epoch(&self) -> RouteEpoch {
-        self.handle.topology_epoch
+        self.stamp.topology_epoch
     }
 }

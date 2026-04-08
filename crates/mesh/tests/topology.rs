@@ -226,7 +226,7 @@ fn metric_aware_search_prefers_higher_quality_equal_hop_path() {
         .expect("materialize route");
 
     let route = engine
-        .active_route(&installation.materialization_proof.route_id)
+        .active_route(&installation.materialization_proof.stamp.route_id)
         .expect("active route");
     assert_eq!(route.first_hop_node_id, Some(NodeId([2; 32])));
 }

@@ -73,13 +73,13 @@ fn advertised_hold_support_is_exercised_by_partition_buffering() {
         )
         .expect("partition maintenance");
     engine
-        .forward_payload_for_router(&identity.handle.route_id, b"buffer-me")
+        .forward_payload_for_router(&identity.stamp.route_id, b"buffer-me")
         .expect("partitioned forwarding retains payload");
 
     assert_eq!(MESH_CAPABILITIES.hold_support, HoldSupport::Supported);
     assert_eq!(
         engine
-            .active_route(&identity.handle.route_id)
+            .active_route(&identity.stamp.route_id)
             .expect("active route")
             .retention
             .retained_object_count,
@@ -148,7 +148,7 @@ fn advertised_explicit_route_shape_is_visible_in_active_route_state() {
         lease(Tick(2), Tick(1000)),
     );
     let active_route = engine
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .expect("active route");
 
     assert_eq!(

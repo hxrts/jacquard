@@ -18,13 +18,14 @@ use jacquard_core::{
     AdmissionDecision, Belief, CapabilityError, Configuration, FactSourceClass,
     MaterializedRoute, Observation, OrderStamp, OriginAuthenticationClass,
     PublicationId, RouteCandidate, RouteCommitment, RouteDegradation, RouteError,
-    RouteHandle, RouteHealth, RouteId, RouteLease, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RoutePartitionClass,
-    RouteProtectionClass, RouteRepairClass, RouteRuntimeError, RouteSelectionError,
-    RouteSemanticHandoff, RouterCanonicalMutation, RouterMaintenanceOutcome,
-    RouterTickOutcome, RoutingEngineCapabilities, RoutingEngineId,
-    RoutingEvidenceClass, RoutingObjective, RoutingPolicyInputs, RoutingTickChange,
-    RoutingTickContext, SelectedRoutingParameters, Tick, TimeWindow, TransportProtocol,
+    RouteHandle, RouteHealth, RouteId, RouteIdentityStamp, RouteLease,
+    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteRuntimeError,
+    RouteSelectionError, RouteSemanticHandoff, RouterCanonicalMutation,
+    RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
+    RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingPolicyInputs,
+    RoutingTickChange, RoutingTickContext, SelectedRoutingParameters, Tick,
+    TimeWindow, TransportProtocol,
 };
 use jacquard_traits::{
     OrderEffects, PolicyEngine, RouteEventLogEffects, Router, RouterEngineRegistry,
@@ -267,7 +268,7 @@ where
         route: MaterializedRoute,
         commitments: Vec<RouteCommitment>,
     ) -> Result<(), RouteError> {
-        let route_id = route.identity.handle.route_id;
+        let route_id = route.identity.stamp.route_id;
         self.runtime_adapter()
             .persist_route(&RouterCheckpointRecord {
                 route: route.clone(),
@@ -307,7 +308,7 @@ where
         }
 
         let input = self.materialization_input(&admission)?;
-        let route_id = input.handle.route_id;
+        let route_id = *input.handle.route_id();
         let installation = self
             .engine_for_id_mut(&engine_id)?
             .materialize_route(input.clone())?;
@@ -323,8 +324,10 @@ where
                 .and_then(|()| {
                     self.runtime_adapter().record_route_event(
                         jacquard_core::RouteEvent::RouteMaterialized {
-                            handle: route.identity.handle.clone(),
-                            proof: route.identity.materialization_proof.clone(),
+                            handle: jacquard_core::RouteHandle {
+                                stamp: route.identity.stamp.clone(),
+                            },
+                            proof: route.identity.proof.clone(),
                         },
                     )
                 })
@@ -354,10 +357,12 @@ where
         };
         Ok(RouteMaterializationInput {
             handle: RouteHandle {
-                route_id: admission.route_id,
-                topology_epoch: self.topology.value.epoch,
-                materialized_at_tick: now,
-                publication_id,
+                stamp: RouteIdentityStamp {
+                    route_id: admission.route_id,
+                    topology_epoch: self.topology.value.epoch,
+                    materialized_at_tick: now,
+                    publication_id,
+                },
             },
             admission: admission.clone(),
             lease,
@@ -410,7 +415,7 @@ where
             .get(route_id)
             .cloned()
             .ok_or(RouteSelectionError::NoCandidate)?;
-        if handoff.route_id != route.identity.handle.route_id {
+        if handoff.route_id != route.identity.stamp.route_id {
             return Err(RouteRuntimeError::Invalidated.into());
         }
         route.identity.lease.owner_node_id = handoff.to_node_id;

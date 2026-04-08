@@ -75,12 +75,12 @@ where
         };
         vec![RouteCommitment {
             commitment_id: self
-                .commitment_id_for_route(&route.identity.handle.route_id),
+                .commitment_id_for_route(&route.identity.stamp.route_id),
             // OperationId reuses RouteId bytes directly; the route id is
             // already a stable content address for this path, so no
             // separate derivation is needed.
-            operation_id: RouteOperationId(route.identity.handle.route_id.0),
-            route_binding: RouteBinding::Bound(route.identity.handle.route_id),
+            operation_id: RouteOperationId(route.identity.stamp.route_id.0),
+            route_binding: RouteBinding::Bound(route.identity.stamp.route_id),
             owner_node_id: route.identity.lease.owner_node_id,
             deadline_tick: route.identity.lease.valid_for.end_tick(),
             retry_policy: TimeoutPolicy {

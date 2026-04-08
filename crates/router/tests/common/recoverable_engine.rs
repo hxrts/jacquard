@@ -147,13 +147,10 @@ impl jacquard_traits::RoutingEngine for RecoverableTestEngine {
         self.shared_routes
             .lock()
             .expect("recoverable engine state")
-            .insert(input.handle.route_id);
+            .insert(*input.handle.route_id());
         Ok(jacquard_core::RouteInstallation {
             materialization_proof: jacquard_core::RouteMaterializationProof {
-                route_id: input.handle.route_id,
-                topology_epoch: input.handle.topology_epoch,
-                materialized_at_tick: input.handle.materialized_at_tick,
-                publication_id: input.handle.publication_id,
+                stamp: input.handle.stamp.clone(),
                 witness: jacquard_core::Fact {
                     basis: FactBasis::Admitted,
                     value: input.admission.witness.clone(),

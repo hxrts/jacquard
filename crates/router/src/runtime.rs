@@ -65,7 +65,7 @@ where
     ) -> Result<(), RouteError> {
         let route_key = route_storage_key(
             &self.local_node_id,
-            &record.route.identity.handle.route_id,
+            &record.route.identity.stamp.route_id,
         );
         let route_bytes = bincode::serialize(record).storage_invalid()?;
         self.effects
@@ -73,7 +73,7 @@ where
             .storage_invalid()?;
 
         let mut registry = self.load_route_registry()?;
-        registry.insert(record.route.identity.handle.route_id);
+        registry.insert(record.route.identity.stamp.route_id);
         if let Err(error) = self.store_route_registry(&registry) {
             let _ = self.effects.remove_bytes(&route_key);
             return Err(error);

@@ -167,8 +167,8 @@ fn materialize_route_does_not_depend_on_router_event_logging() {
     assert_eq!(engine.active_route_count(), 1);
     assert!(engine.effects.events().is_empty());
     assert_eq!(
-        installation.materialization_proof.route_id,
-        input.handle.route_id,
+        installation.materialization_proof.stamp.route_id,
+        input.handle.stamp.route_id,
     );
     let remaining_keys = engine
         .effects
@@ -209,7 +209,7 @@ fn materialize_route_fails_closed_for_mismatched_handle_epoch() {
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
     let mut input = materialization_input(admission, lease(Tick(2), Tick(20)));
-    input.handle.topology_epoch = RouteEpoch(99);
+    input.handle.stamp.topology_epoch = RouteEpoch(99);
 
     let error = engine
         .materialize_route(input)

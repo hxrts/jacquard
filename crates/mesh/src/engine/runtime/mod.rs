@@ -104,7 +104,7 @@ where
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
         let now = self.effects.now_tick();
-        let handoff_receipt_id = self.receipt_id_for_route(&identity.handle.route_id);
+        let handoff_receipt_id = self.receipt_id_for_route(&identity.stamp.route_id);
         if !identity.lease.is_valid_at(now) {
             return self.expired_lease_result(identity, runtime);
         }
@@ -121,7 +121,7 @@ where
 
         let original_active_route = self
             .active_routes
-            .get(&identity.handle.route_id)
+            .get(&identity.stamp.route_id)
             .cloned()
             .ok_or(RouteSelectionError::NoCandidate)?;
         let mut next_active_route = original_active_route.clone();
@@ -141,7 +141,7 @@ where
         next_runtime.health = self.current_route_health(Some(&next_active_route), now);
         self.store_checkpoint(&next_active_route)?;
         self.active_routes
-            .insert(identity.handle.route_id, next_active_route);
+            .insert(identity.stamp.route_id, next_active_route);
         *runtime = next_runtime;
         Ok(result)
     }

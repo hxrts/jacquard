@@ -88,7 +88,7 @@ where
             return Err(RouteRuntimeError::Invalidated.into());
         };
         let handoff = RouteSemanticHandoff {
-            route_id: identity.handle.route_id,
+            route_id: identity.stamp.route_id,
             from_node_id: active_route.forwarding.current_owner_node_id,
             to_node_id: next_owner,
             handoff_epoch: active_route.current_epoch,
@@ -103,7 +103,7 @@ where
         active_route.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         runtime.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         self.choreography_runtime()
-            .handoff_exchange(&identity.handle.route_id)?;
+            .handoff_exchange(&identity.stamp.route_id)?;
         Ok(RouteMaintenanceResult {
             event: RouteLifecycleEvent::HandedOff,
             outcome: RouteMaintenanceOutcome::HandedOff(handoff),
@@ -398,7 +398,7 @@ where
         }
         active_route.current_epoch = context.latest_topology.value.epoch;
         let result = self.apply_repair(
-            &context.identity.handle.route_id,
+            &context.identity.stamp.route_id,
             active_route,
             runtime,
             context.now,

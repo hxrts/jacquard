@@ -73,7 +73,7 @@ fn capacity_exceeded_requires_replacement_without_entering_partition_mode() {
         }
     );
     let active_route = engine
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .expect("active route remains installed");
     assert!(!active_route.retention.partition_mode);
 }
@@ -101,10 +101,10 @@ fn policy_shift_rebases_runtime_to_the_next_owner_relative_hop() {
     };
     assert_eq!(handoff.from_node_id, LOCAL_NODE_ID);
     assert_eq!(handoff.to_node_id, PEER_NODE_ID);
-    assert_eq!(handoff.route_id, identity.handle.route_id);
+    assert_eq!(handoff.route_id, identity.stamp.route_id);
 
     let active_route = engine
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .expect("active route remains installed");
     assert_eq!(
         active_route.forwarding.current_owner_node_id,
@@ -113,7 +113,7 @@ fn policy_shift_rebases_runtime_to_the_next_owner_relative_hop() {
     assert_eq!(active_route.forwarding.next_hop_index, 1);
 
     let error = engine
-        .forward_payload_for_router(&identity.handle.route_id, b"payload")
+        .forward_payload_for_router(&identity.stamp.route_id, b"payload")
         .expect_err("old owner must fail closed after handoff");
     assert!(matches!(
         error,
@@ -152,7 +152,7 @@ fn single_hop_policy_shift_advances_cursor_to_path_end() {
     };
     assert_eq!(handoff.to_node_id, BRIDGE_NODE_ID);
     let active_route = engine
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .expect("active route remains installed");
     assert_eq!(
         active_route.forwarding.current_owner_node_id,
@@ -244,7 +244,7 @@ fn maintenance_checkpoint_failure_leaves_runtime_and_active_route_unchanged() {
         activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
     let original_runtime = runtime.clone();
     let original_active_route = engine
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .expect("active route present");
     let original_event_count = engine.effects.events().len();
 
@@ -264,7 +264,7 @@ fn maintenance_checkpoint_failure_leaves_runtime_and_active_route_unchanged() {
     assert_eq!(runtime, original_runtime);
     assert_eq!(
         engine
-            .active_route(&identity.handle.route_id)
+            .active_route(&identity.stamp.route_id)
             .expect("active route remains installed"),
         original_active_route
     );
@@ -310,7 +310,7 @@ fn policy_shift_flushes_retained_payloads_before_handoff() {
         )
         .expect("partition maintenance");
     engine
-        .forward_payload_for_router(&identity.handle.route_id, b"held-before-handoff")
+        .forward_payload_for_router(&identity.stamp.route_id, b"held-before-handoff")
         .expect("partitioned forwarding retains payload");
 
     let result = engine
@@ -325,7 +325,7 @@ fn policy_shift_flushes_retained_payloads_before_handoff() {
         RouteMaintenanceOutcome::HandedOff(_)
     ));
     let active_route = engine
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .expect("active route remains installed");
     assert_eq!(active_route.retention.retained_object_count, 0);
     assert!(engine
@@ -346,7 +346,7 @@ fn link_degraded_consumes_one_repair_budget_step_in_v1_mesh() {
         activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
 
     let before = engine
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .map(|route| route.repair_steps_remaining)
         .expect("active route exists");
     let result = engine
@@ -357,7 +357,7 @@ fn link_degraded_consumes_one_repair_budget_step_in_v1_mesh() {
         )
         .expect("maintenance succeeds");
     let after = engine
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .map(|route| route.repair_steps_remaining)
         .expect("active route exists after repair");
 
@@ -376,7 +376,7 @@ fn repair_budget_exhausts_and_escalates_to_replacement() {
         activate_route(&mut engine, &topology, FAR_NODE_ID, lease(Tick(2), Tick(1000)));
 
     let initial_budget = engine
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .map(|route| route.repair_steps_remaining)
         .expect("active route exists");
     assert!(initial_budget > 0, "repair budget should be positive");

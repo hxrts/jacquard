@@ -8,8 +8,7 @@ use jacquard_core::{
     MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass,
     ObjectiveVsDelivered, OperatingMode, PublicationId, ReachabilityState,
     RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost, RouteDegradation,
-    RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId, RouteInstallation,
-    RouteLease, RouteLifecycleEvent, RouteMaterializationInput,
+    RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId, RouteInstallation, RouteLease, RouteLifecycleEvent, RouteMaterializationInput,
     RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
     RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
     RouteRuntimeError, RouteServiceKind, RouteSummary, RouteWitness,
@@ -124,10 +123,12 @@ fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInst
     };
     let input = RouteMaterializationInput {
         handle: RouteHandle {
-            route_id: RouteId([5; 16]),
-            topology_epoch: RouteEpoch(4),
-            materialized_at_tick: Tick(101),
-            publication_id: PublicationId([4; 16]),
+            stamp: jacquard_core::RouteIdentityStamp {
+                route_id: RouteId([5; 16]),
+                topology_epoch: RouteEpoch(4),
+                materialized_at_tick: Tick(101),
+                publication_id: PublicationId([4; 16]),
+            },
         },
         admission: RouteAdmission {
             route_id: RouteId([5; 16]),
@@ -160,10 +161,12 @@ fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInst
     };
     let installation = RouteInstallation {
         materialization_proof: RouteMaterializationProof {
-            route_id: RouteId([5; 16]),
-            topology_epoch: RouteEpoch(4),
-            materialized_at_tick: Tick(101),
-            publication_id: PublicationId([4; 16]),
+            stamp: jacquard_core::RouteIdentityStamp {
+                route_id: RouteId([5; 16]),
+                topology_epoch: RouteEpoch(4),
+                materialized_at_tick: Tick(101),
+                publication_id: PublicationId([4; 16]),
+            },
             witness: Fact {
                 value: witness,
                 basis: FactBasis::Published,
@@ -204,14 +207,9 @@ fn materialized_route_can_be_built_from_shared_lifecycle_types() {
         repairable_connected(),
     );
     assert_eq!(route.identity.admission.summary.protocol_mix.len(), 2);
-    assert_eq!(route.identity.handle.route_id, RouteId([5; 16]));
+    assert_eq!(route.identity.stamp.route_id, RouteId([5; 16]));
     assert_eq!(
-        route
-            .identity
-            .materialization_proof
-            .witness
-            .value
-            .topology_epoch,
+        route.identity.proof.witness.value.topology_epoch,
         RouteEpoch(4),
     );
     assert_eq!(
@@ -225,10 +223,10 @@ fn materialized_route_can_be_built_from_shared_lifecycle_types() {
 }
 
 #[test]
-#[should_panic(expected = "route installation proof must match the canonical route id")]
+#[should_panic(expected = "route installation proof stamp must match the canonical handle stamp")]
 fn materialized_route_rejects_mismatched_installation_proof_identity() {
     let (_, input, mut installation) = sample_route_parts();
-    installation.materialization_proof.route_id = RouteId([6; 16]);
+    installation.materialization_proof.stamp.route_id = RouteId([6; 16]);
 
     let _ = MaterializedRoute::from_installation(input, installation);
 }

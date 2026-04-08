@@ -67,7 +67,7 @@ fn transfer_route_lease_updates_router_owned_lease() {
     .expect("activation");
 
     let handoff = RouteSemanticHandoff {
-        route_id: route.identity.handle.route_id,
+        route_id: route.identity.stamp.route_id,
         from_node_id: LOCAL_NODE_ID,
         to_node_id: PEER_NODE_ID,
         handoff_epoch: jacquard_core::RouteEpoch(3),
@@ -75,7 +75,7 @@ fn transfer_route_lease_updates_router_owned_lease() {
     };
 
     let transferred = router
-        .transfer_route_lease(&route.identity.handle.route_id, handoff.clone())
+        .transfer_route_lease(&route.identity.stamp.route_id, handoff.clone())
         .expect("lease transfer");
 
     assert_eq!(transferred.identity.lease.owner_node_id, PEER_NODE_ID);

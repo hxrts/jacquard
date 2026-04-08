@@ -40,7 +40,7 @@ fn multi_device_mesh_routing_uses_shared_router_transport_and_device_boundaries(
     let payload = b"mesh-e2e";
     forward_and_assert_ingress(
         &mut client_a,
-        &route_a_to_c.identity.handle.route_id,
+        &route_a_to_c.identity.stamp.route_id,
         &mut client_b,
         payload,
         topology.value.epoch,
@@ -49,7 +49,7 @@ fn multi_device_mesh_routing_uses_shared_router_transport_and_device_boundaries(
     );
     forward_and_assert_ingress(
         &mut client_b,
-        &route_b_to_c.identity.handle.route_id,
+        &route_b_to_c.identity.stamp.route_id,
         &mut client_c,
         payload,
         topology.value.epoch,

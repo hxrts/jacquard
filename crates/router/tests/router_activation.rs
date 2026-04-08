@@ -18,12 +18,12 @@ fn activate_route_publishes_router_owned_materialized_route() {
     .expect("router activation");
 
     let stored = router
-        .active_route(&route.identity.handle.route_id)
+        .active_route(&route.identity.stamp.route_id)
         .expect("router stores active route");
-    assert_eq!(stored.identity.handle, route.identity.handle);
+    assert_eq!(stored.identity.stamp, route.identity.stamp);
     assert_eq!(
-        stored.identity.materialization_proof.publication_id,
-        route.identity.handle.publication_id,
+        stored.identity.proof.stamp.publication_id,
+        route.identity.stamp.publication_id,
     );
 }
 
@@ -37,12 +37,12 @@ fn route_commitments_use_router_published_route_identity() {
     .expect("router activation");
 
     let commitments = router
-        .route_commitments(&route.identity.handle.route_id)
+        .route_commitments(&route.identity.stamp.route_id)
         .expect("route commitments");
 
     assert!(!commitments.is_empty());
     assert!(commitments.iter().all(|commitment| commitment.route_binding
-        == jacquard_core::RouteBinding::Bound(route.identity.handle.route_id)));
+        == jacquard_core::RouteBinding::Bound(route.identity.stamp.route_id)));
 }
 
 #[test]
@@ -56,17 +56,17 @@ fn reselect_route_replaces_router_published_route() {
 
     let replacement = router
         .reselect_route(
-            &first.identity.handle.route_id,
+            &first.identity.stamp.route_id,
             RouteMaintenanceTrigger::LeaseExpiring,
         )
         .expect("reselection");
 
     assert_ne!(
-        first.identity.handle.publication_id,
-        replacement.identity.handle.publication_id,
+        first.identity.stamp.publication_id,
+        replacement.identity.stamp.publication_id,
     );
     assert!(router
-        .active_route(&replacement.identity.handle.route_id)
+        .active_route(&replacement.identity.stamp.route_id)
         .is_some());
 }
 
@@ -81,7 +81,7 @@ fn maintain_route_dispatches_to_engine_via_control_plane() {
 
     let result = router
         .maintain_route(
-            &route.identity.handle.route_id,
+            &route.identity.stamp.route_id,
             RouteMaintenanceTrigger::AntiEntropyRequired,
         )
         .expect("maintenance result");
@@ -131,7 +131,7 @@ fn anti_entropy_tick_drives_mesh_cooperative_choreographies_through_router_caden
     .expect("activation");
     let _ = router
         .maintain_route(
-            &route.identity.handle.route_id,
+            &route.identity.stamp.route_id,
             RouteMaintenanceTrigger::PartitionDetected,
         )
         .expect("enter partition mode");
@@ -147,7 +147,7 @@ fn anti_entropy_tick_drives_mesh_cooperative_choreographies_through_router_caden
         jacquard_core::RoutingTickChange::PrivateStateUpdated,
     );
     assert!(router
-        .active_route(&route.identity.handle.route_id)
+        .active_route(&route.identity.stamp.route_id)
         .is_some());
 }
 
@@ -161,7 +161,7 @@ fn observe_route_health_reports_router_owned_observation() {
     .expect("activation");
 
     let observed = router
-        .observe_route_health(&route.identity.handle.route_id)
+        .observe_route_health(&route.identity.stamp.route_id)
         .expect("health observation");
 
     assert_eq!(observed.value, route.runtime.health);

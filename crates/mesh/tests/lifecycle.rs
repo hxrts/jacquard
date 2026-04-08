@@ -37,7 +37,7 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         NodeId([3; 32]),
         lease(Tick(2), Tick(10)),
     );
-    let route_id = identity.handle.route_id;
+    let route_id = identity.stamp.route_id;
 
     engine
         .forward_payload_for_router(&route_id, b"mesh-payload")

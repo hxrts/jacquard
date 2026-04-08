@@ -200,11 +200,11 @@ impl RoutingEngine for StubEngine {
         &mut self,
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, jacquard_traits::jacquard_core::RouteError> {
-        assert_eq!(input.handle, self.route.identity.handle);
+        assert_eq!(input.handle.stamp, self.route.identity.stamp);
         assert_eq!(input.lease, self.route.identity.lease);
         assert_eq!(input.admission, self.route.identity.admission);
         Ok(RouteInstallation {
-            materialization_proof: self.route.identity.materialization_proof.clone(),
+            materialization_proof: self.route.identity.proof.clone(),
             last_lifecycle_event: self.route.runtime.last_lifecycle_event,
             health: self.route.runtime.health.clone(),
             progress: self.route.runtime.progress.clone(),
@@ -215,7 +215,7 @@ impl RoutingEngine for StubEngine {
         vec![RouteCommitment {
             commitment_id: RouteCommitmentId([8; 16]),
             operation_id: jacquard_traits::jacquard_core::RouteOperationId([6; 16]),
-            route_binding: RouteBinding::Bound(route.identity.admission.route_id),
+            route_binding: RouteBinding::Bound(route.identity.stamp.route_id),
             owner_node_id: route.identity.lease.owner_node_id,
             deadline_tick: Tick(10),
             retry_policy: jacquard_traits::jacquard_core::TimeoutPolicy {
@@ -252,7 +252,7 @@ impl RoutingEngine for StubEngine {
     }
 
     fn teardown(&mut self, route_id: &RouteId) {
-        assert_eq!(*route_id, self.route.identity.admission.route_id);
+        assert_eq!(*route_id, self.route.identity.stamp.route_id);
     }
 }
 
@@ -321,9 +321,9 @@ impl LayeredRoutingEngine for StubEngine {
         _substrate: SubstrateLease,
         _parameters: LayerParameters,
     ) -> Result<RouteInstallation, jacquard_traits::jacquard_core::RouteError> {
-        assert_eq!(input.handle, self.route.identity.handle);
+        assert_eq!(input.handle.stamp, self.route.identity.stamp);
         Ok(RouteInstallation {
-            materialization_proof: self.route.identity.materialization_proof.clone(),
+            materialization_proof: self.route.identity.proof.clone(),
             last_lifecycle_event: self.route.runtime.last_lifecycle_event,
             health: self.route.runtime.health.clone(),
             progress: self.route.runtime.progress.clone(),
@@ -356,7 +356,9 @@ impl SubstrateRuntime for StubSubstrateProvider {
     ) -> Result<SubstrateLease, jacquard_traits::jacquard_core::RouteError> {
         Ok(SubstrateLease {
             capabilities: candidate.capabilities,
-            handle: self.route.identity.handle.clone(),
+            handle: RouteHandle {
+                stamp: self.route.identity.stamp.clone(),
+            },
             lease: self.route.identity.lease.clone(),
         })
     }
@@ -365,7 +367,7 @@ impl SubstrateRuntime for StubSubstrateProvider {
         &mut self,
         lease: &SubstrateLease,
     ) -> Result<(), jacquard_traits::jacquard_core::RouteError> {
-        assert_eq!(lease.handle.route_id, self.route.identity.handle.route_id);
+        assert_eq!(lease.handle.route_id(), self.route.identity.route_id());
         Ok(())
     }
 
@@ -440,12 +442,15 @@ fn sample_route(
     objective: RoutingObjective,
     profile: SelectedRoutingParameters,
 ) -> MaterializedRoute {
+    let stamp = jacquard_traits::jacquard_core::RouteIdentityStamp {
+        route_id: RouteId([3; 16]),
+        topology_epoch: RouteEpoch(1),
+        materialized_at_tick: Tick(1),
+        publication_id: PublicationId([7; 16]),
+    };
     let input = RouteMaterializationInput {
         handle: RouteHandle {
-            route_id: RouteId([3; 16]),
-            topology_epoch: RouteEpoch(1),
-            materialized_at_tick: Tick(1),
-            publication_id: PublicationId([7; 16]),
+            stamp: stamp.clone(),
         },
         admission: RouteAdmission {
             route_id: RouteId([3; 16]),
@@ -503,10 +508,7 @@ fn sample_route(
     };
     let installation = RouteInstallation {
         materialization_proof: RouteMaterializationProof {
-            route_id: RouteId([3; 16]),
-            topology_epoch: RouteEpoch(1),
-            materialized_at_tick: Tick(1),
-            publication_id: PublicationId([7; 16]),
+            stamp,
             witness: Fact {
                 value: RouteWitness {
                     protection: ObjectiveVsDelivered {
@@ -544,7 +546,9 @@ fn sample_route(
 
 fn materialization_input(route: &MaterializedRoute) -> RouteMaterializationInput {
     RouteMaterializationInput {
-        handle: route.identity.handle.clone(),
+        handle: RouteHandle {
+            stamp: route.identity.stamp.clone(),
+        },
         admission: route.identity.admission.clone(),
         lease: route.identity.lease.clone(),
     }
@@ -614,7 +618,7 @@ fn routing_engine_contract_can_drive_candidate_to_materialized_route() {
             RouteMaintenanceTrigger::LinkDegraded,
         )
         .expect("maintenance");
-    engine.teardown(&installed.identity.admission.route_id);
+    engine.teardown(&installed.identity.stamp.route_id);
 
     assert_eq!(check.decision, AdmissionDecision::Admissible);
     assert_eq!(
@@ -628,16 +632,11 @@ fn routing_engine_contract_can_drive_candidate_to_materialized_route() {
     assert_eq!(commitments[0].commitment_id, RouteCommitmentId([8; 16]));
     assert_eq!(
         commitments[0].route_binding,
-        RouteBinding::Bound(installed.identity.admission.route_id),
+        RouteBinding::Bound(installed.identity.stamp.route_id),
     );
-    assert_eq!(installed.identity.handle.route_id, RouteId([3; 16]));
+    assert_eq!(installed.identity.stamp.route_id, RouteId([3; 16]));
     assert_eq!(
-        installed
-            .identity
-            .materialization_proof
-            .witness
-            .value
-            .topology_epoch,
+        installed.identity.proof.witness.value.topology_epoch,
         RouteEpoch(1),
     );
     assert_eq!(
@@ -772,6 +771,6 @@ fn substrate_and_layering_traits_support_policy_driven_composition() {
         substrate_health.value.reachability_state,
         ReachabilityState::Reachable
     );
-    assert_eq!(layered_route.identity.handle.route_id, RouteId([3; 16]));
-    assert_eq!(coordinated.identity.handle.route_id, RouteId([3; 16]));
+    assert_eq!(layered_route.identity.stamp.route_id, RouteId([3; 16]));
+    assert_eq!(coordinated.identity.stamp.route_id, RouteId([3; 16]));
 }

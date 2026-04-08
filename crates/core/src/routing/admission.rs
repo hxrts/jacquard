@@ -231,6 +231,12 @@ pub enum RouteAdmissionRejection {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Engine's decision record about an objective/candidate pair.
+///
+/// `route_id` is the engine-computed content-addressed ID for this route,
+/// derived deterministically from the plan token. The router reads it here to
+/// populate the canonical `RouteIdentityStamp`; the stamp (not this field) is
+/// the authoritative identity source once a route is materialized.
 pub struct RouteAdmission {
     pub route_id: RouteId,
     pub backend_ref: BackendRouteRef,

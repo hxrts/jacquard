@@ -66,7 +66,7 @@ fn v1_mesh_exposes_one_commitment_per_route_across_runtime_postures() {
         .expect("partition maintenance");
     runtime.last_lifecycle_event = partition_result.event;
     engine
-        .forward_payload_for_router(&identity.handle.route_id, b"retained")
+        .forward_payload_for_router(&identity.stamp.route_id, b"retained")
         .expect("retention forwarding");
     let retained = materialized_route_for(identity.clone(), runtime.clone());
     let retained_commitments = engine.route_commitments(&retained);

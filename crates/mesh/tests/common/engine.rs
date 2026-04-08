@@ -16,11 +16,11 @@ use jacquard_traits::{
         Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs,
         HoldFallbackPolicy, Limit, MaterializedRouteIdentity, NodeId, Observation,
         OperatingMode, PriorityPoints, PublicationId, RouteAdmission, RouteCandidate,
-        RouteHandle, RouteLease, RouteMaterializationInput, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-        RouteRuntimeState, RouteServiceKind, RoutingEngineFallbackPolicy,
-        RoutingObjective, RoutingTickContext, SelectedRoutingParameters, Tick,
-        TimeWindow,
+        RouteHandle, RouteIdentityStamp, RouteLease, RouteMaterializationInput,
+        RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+        RouteReplacementPolicy, RouteRuntimeState, RouteServiceKind,
+        RoutingEngineFallbackPolicy, RoutingObjective, RoutingTickContext,
+        SelectedRoutingParameters, Tick, TimeWindow,
     },
     Blake3Hashing, RoutingEngine, RoutingEnginePlanner,
 };
@@ -167,10 +167,12 @@ pub fn materialization_input(
     let materialized_at_tick = lease_value.valid_for.start_tick();
     RouteMaterializationInput {
         handle: RouteHandle {
-            route_id: admission.route_id,
-            topology_epoch: lease_value.lease_epoch,
-            materialized_at_tick,
-            publication_id: PublicationId([7; 16]),
+            stamp: RouteIdentityStamp {
+                route_id: admission.route_id,
+                topology_epoch: lease_value.lease_epoch,
+                materialized_at_tick,
+                publication_id: PublicationId([7; 16]),
+            },
         },
         admission,
         lease: lease_value,
@@ -227,13 +229,13 @@ pub fn materialize_admitted(
         progress: installation.progress,
     };
     let identity = MaterializedRouteIdentity {
-        handle: input.handle,
-        materialization_proof: installation.materialization_proof,
+        stamp: input.handle.stamp.clone(),
+        proof: installation.materialization_proof,
         admission: input.admission,
         lease: input.lease,
     };
     debug_assert_eq!(
-        materialization_tick, identity.handle.materialized_at_tick,
+        materialization_tick, identity.stamp.materialized_at_tick,
         "materialization_input should use the lease start tick",
     );
     (identity, runtime)

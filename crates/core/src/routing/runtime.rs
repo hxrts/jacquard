@@ -159,25 +159,61 @@ impl RouteLease {
     }
 }
 
-#[must_use_handle]
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Canonical handle issued only after route installation has materially
-/// succeeded.
-pub struct RouteHandle {
+/// The four fields that canonically identify one materialized route.
+///
+/// Shared by `RouteHandle` (the capability token) and
+/// `RouteMaterializationProof` (the engine echo-back). Having a single named
+/// type lets `from_installation` compare the two with one assertion instead of
+/// three and makes "this belongs to the same route" explicit at the type level.
+pub struct RouteIdentityStamp {
     pub route_id: RouteId,
     pub topology_epoch: RouteEpoch,
     pub materialized_at_tick: Tick,
     pub publication_id: PublicationId,
 }
 
+#[must_use_handle]
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Canonical handle issued only after route installation has materially
+/// succeeded. Wraps a `RouteIdentityStamp` to add the must-use-handle
+/// capability semantics without duplicating the identity fields.
+pub struct RouteHandle {
+    pub stamp: RouteIdentityStamp,
+}
+
+impl RouteHandle {
+    #[must_use]
+    pub fn route_id(&self) -> &RouteId {
+        &self.stamp.route_id
+    }
+
+    #[must_use]
+    pub fn topology_epoch(&self) -> RouteEpoch {
+        self.stamp.topology_epoch
+    }
+
+    #[must_use]
+    pub fn materialized_at_tick(&self) -> Tick {
+        self.stamp.materialized_at_tick
+    }
+
+    #[must_use]
+    pub fn publication_id(&self) -> &PublicationId {
+        &self.stamp.publication_id
+    }
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Engine echo-back of the canonical identity stamp plus a witness.
+/// The stamp must equal the `RouteHandle` stamp that was passed to the engine
+/// during `materialize_route`; `from_installation` asserts this in one
+/// comparison.
 pub struct RouteMaterializationProof {
-    pub route_id: RouteId,
-    pub topology_epoch: RouteEpoch,
-    pub materialized_at_tick: Tick,
-    pub publication_id: PublicationId,
+    pub stamp: RouteIdentityStamp,
     pub witness: Fact<RouteWitness>,
 }
 
@@ -340,9 +376,14 @@ pub enum RouteProgressState {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Router-owned canonical identity and admission record for one live route.
+///
+/// `stamp` is the single canonical source of route identity. `proof` carries
+/// its own stamp copy (which must equal `stamp`) plus the admission witness.
+/// `admission` holds the engine's decision artifacts without restating identity
+/// fields that belong to `stamp`.
 pub struct MaterializedRouteIdentity {
-    pub handle: RouteHandle,
-    pub materialization_proof: RouteMaterializationProof,
+    pub stamp: RouteIdentityStamp,
+    pub proof: RouteMaterializationProof,
     pub admission: RouteAdmission,
     pub lease: RouteLease,
 }
@@ -353,15 +394,19 @@ impl MaterializedRouteIdentity {
     }
 
     pub fn route_id(&self) -> &RouteId {
-        &self.handle.route_id
+        &self.stamp.route_id
     }
 
     pub fn topology_epoch(&self) -> RouteEpoch {
-        self.handle.topology_epoch
+        self.stamp.topology_epoch
     }
 
     pub fn materialized_at_tick(&self) -> Tick {
-        self.handle.materialized_at_tick
+        self.stamp.materialized_at_tick
+    }
+
+    pub fn publication_id(&self) -> &PublicationId {
+        &self.stamp.publication_id
     }
 }
 
@@ -402,27 +447,13 @@ impl MaterializedRoute {
             "route installation must satisfy the objective protection floor"
         );
         assert_eq!(
-            input.handle.route_id, input.admission.route_id,
-            "route materialization input must use one canonical route id"
-        );
-        assert_eq!(
-            input.handle.route_id, installation.materialization_proof.route_id,
-            "route installation proof must match the canonical route id"
-        );
-        assert_eq!(
-            input.handle.topology_epoch,
-            installation.materialization_proof.topology_epoch,
-            "route installation proof must match the canonical topology epoch"
-        );
-        assert_eq!(
-            input.handle.publication_id,
-            installation.materialization_proof.publication_id,
-            "route installation proof must match the canonical publication id"
+            input.handle.stamp, installation.materialization_proof.stamp,
+            "route installation proof stamp must match the canonical handle stamp"
         );
         Self {
             identity: MaterializedRouteIdentity {
-                handle: input.handle,
-                materialization_proof: installation.materialization_proof,
+                stamp: input.handle.stamp,
+                proof: installation.materialization_proof,
                 admission: input.admission,
                 lease: input.lease,
             },

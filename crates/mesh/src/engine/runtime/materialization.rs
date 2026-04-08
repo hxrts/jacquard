@@ -44,10 +44,12 @@ where
         now: jacquard_core::Tick,
     ) -> RouteMaterializationProof {
         RouteMaterializationProof {
-            route_id: input.handle.route_id,
-            topology_epoch: input.handle.topology_epoch,
-            materialized_at_tick: now,
-            publication_id: input.handle.publication_id,
+            stamp: jacquard_core::RouteIdentityStamp {
+                route_id: *input.handle.route_id(),
+                topology_epoch: input.handle.topology_epoch(),
+                materialized_at_tick: now,
+                publication_id: *input.handle.publication_id(),
+            },
             witness: Fact {
                 value: input.admission.witness.clone(),
                 basis: FactBasis::Admitted,
@@ -134,9 +136,11 @@ where
 
         let derived_route_id =
             self.route_id_for_backend(&input.admission.backend_ref.backend_route_id)?;
-        if derived_route_id != input.admission.route_id
-            || derived_route_id != input.handle.route_id
-        {
+        // Validate the plan token is consistent with what was admitted. The
+        // canonical route_id lives in the handle stamp (router-assigned); the
+        // engine-computed derived_route_id is compared only against the
+        // admission's route_id, not the handle's stamp.
+        if derived_route_id != input.admission.route_id {
             return Err(RouteRuntimeError::Invalidated.into());
         }
 
@@ -144,8 +148,11 @@ where
         let path_bytes = encode_path_bytes(&node_path, &plan.segments);
         let ordering_key =
             deterministic_order_key(derived_route_id, &self.hashing, &path_bytes);
+        // Use the router-assigned canonical route_id for the path record.
+        // The canonical identity lives in the handle stamp; derived_route_id
+        // is the engine-internal content-addressed plan identifier.
         let path = super::super::MeshPath {
-            route_id: derived_route_id,
+            route_id: *input.handle.route_id(),
             epoch: plan.epoch,
             source: plan.source,
             destination: plan.destination,
@@ -174,7 +181,7 @@ where
     ) -> Result<(), RouteError> {
         let plan = decode_backend_token(&input.admission.backend_ref.backend_route_id)
             .ok_or(RouteRuntimeError::Invalidated)?;
-        let claimed_epoch = input.handle.topology_epoch;
+        let claimed_epoch = input.handle.topology_epoch();
         if plan.epoch != claimed_epoch
             || input.admission.witness.topology_epoch != claimed_epoch
             || topology.value.epoch != claimed_epoch
@@ -207,7 +214,7 @@ where
         &mut self,
         input: &RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError> {
-        let route_id = input.handle.route_id;
+        let route_id = *input.handle.route_id();
         // Replacements re-use an existing route slot so the budget cap is
         // skipped — an already-active route does not consume an extra slot
         // when re-materialized.
@@ -238,7 +245,7 @@ where
         self.store_checkpoint(&active_route)?;
         if let Err(error) = self
             .choreography_runtime()
-            .activation_handshake(&route_id, input.handle.topology_epoch)
+            .activation_handshake(&route_id, input.handle.topology_epoch())
         {
             if let Some(previous_active_route) = previous_active_route.as_ref() {
                 self.checkpoint_best_effort(previous_active_route);

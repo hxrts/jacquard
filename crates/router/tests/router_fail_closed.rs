@@ -75,13 +75,13 @@ fn activation_reselection_and_maintenance_are_deterministic_for_equal_inputs() {
 
     let left_maintenance = left
         .maintain_route(
-            &left_route.identity.handle.route_id,
+            &left_route.identity.stamp.route_id,
             RouteMaintenanceTrigger::AntiEntropyRequired,
         )
         .expect("left maintenance");
     let right_maintenance = right
         .maintain_route(
-            &right_route.identity.handle.route_id,
+            &right_route.identity.stamp.route_id,
             RouteMaintenanceTrigger::AntiEntropyRequired,
         )
         .expect("right maintenance");
@@ -89,13 +89,13 @@ fn activation_reselection_and_maintenance_are_deterministic_for_equal_inputs() {
 
     let left_reselected = left
         .reselect_route(
-            &left_route.identity.handle.route_id,
+            &left_route.identity.stamp.route_id,
             RouteMaintenanceTrigger::LeaseExpiring,
         )
         .expect("left reselection");
     let right_reselected = right
         .reselect_route(
-            &right_route.identity.handle.route_id,
+            &right_route.identity.stamp.route_id,
             RouteMaintenanceTrigger::LeaseExpiring,
         )
         .expect("right reselection");
@@ -127,9 +127,9 @@ fn recovery_restores_router_and_mesh_state_from_router_owned_registry() {
 
     assert_eq!(restored_count, 1);
     assert!(recovered
-        .active_route(&route.identity.handle.route_id)
+        .active_route(&route.identity.stamp.route_id)
         .is_some());
     recovered
-        .forward_payload(&route.identity.handle.route_id, b"recovered")
+        .forward_payload(&route.identity.stamp.route_id, b"recovered")
         .expect("recovered router forwards using restored engine-private state");
 }

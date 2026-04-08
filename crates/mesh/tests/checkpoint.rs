@@ -28,7 +28,7 @@ fn checkpointed_active_route_round_trips_across_engine_restart() {
         lease(Tick(2), Tick(1000)),
     );
     let original_active_route = original
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .expect("active route present");
     let stored_bytes = original.effects.storage_clone();
 
@@ -43,11 +43,11 @@ fn checkpointed_active_route_round_trips_across_engine_restart() {
     );
 
     assert!(recovered
-        .restore_route_runtime_for_router(&identity.handle.route_id)
+        .restore_route_runtime_for_router(&identity.stamp.route_id)
         .expect("restore checkpointed route"));
     assert_eq!(
         recovered
-            .active_route(&identity.handle.route_id)
+            .active_route(&identity.stamp.route_id)
             .expect("restored route present"),
         original_active_route
     );
@@ -79,7 +79,7 @@ fn checkpoint_round_trip_preserves_richer_runtime_substates() {
         )
         .expect("enter partition mode");
     original
-        .forward_payload_for_router(&identity.handle.route_id, b"checkpointed payload")
+        .forward_payload_for_router(&identity.stamp.route_id, b"checkpointed payload")
         .expect("buffer retained payload");
     original
         .maintain_route(
@@ -90,7 +90,7 @@ fn checkpoint_round_trip_preserves_richer_runtime_substates() {
         .expect("record handoff state");
 
     let original_active_route = original
-        .active_route(&identity.handle.route_id)
+        .active_route(&identity.stamp.route_id)
         .expect("active route present");
     let stored_bytes = original.effects.storage_clone();
 
@@ -98,11 +98,11 @@ fn checkpoint_round_trip_preserves_richer_runtime_substates() {
     recovered.effects.replace_storage(stored_bytes);
 
     assert!(recovered
-        .restore_route_runtime_for_router(&identity.handle.route_id)
+        .restore_route_runtime_for_router(&identity.stamp.route_id)
         .expect("restore checkpointed route"));
     assert_eq!(
         recovered
-            .active_route(&identity.handle.route_id)
+            .active_route(&identity.stamp.route_id)
             .expect("checkpointed route present"),
         original_active_route
     );
@@ -145,7 +145,7 @@ fn protocol_checkpoints_round_trip_without_hidden_runtime_state() {
     recovered.effects.replace_storage(stored_bytes);
 
     assert!(recovered
-        .restore_route_runtime_for_router(&identity.handle.route_id)
+        .restore_route_runtime_for_router(&identity.stamp.route_id)
         .expect("restore checkpointed route"));
     assert!(has_protocol_checkpoint(
         &recovered,

@@ -1,13 +1,13 @@
-error[E0594]: cannot assign to `identity.handle`, which is behind a `&` reference
+error[E0594]: cannot assign to `identity.stamp`, which is behind a `&` reference
   --> tests/regression/ui/route_identity_mutation_in_maintenance.rs:71:9
    |
 67 |           identity: &MaterializedRouteIdentity,
    |           -------- this is an immutable reference
 ...
-71 | /         identity.handle = RouteHandle {
+71 | /         identity.stamp = jacquard_traits::jacquard_core::RouteIdentityStamp {
 72 | |             route_id: RouteId([0; 16]),
-73 | |             topology_epoch: identity.handle.topology_epoch,
-74 | |             materialized_at_tick: identity.handle.materialized_at_tick,
-75 | |             publication_id: identity.handle.publication_id,
+73 | |             topology_epoch: identity.stamp.topology_epoch,
+74 | |             materialized_at_tick: identity.stamp.materialized_at_tick,
+75 | |             publication_id: identity.stamp.publication_id,
 76 | |         };
    | |_________^ `identity` is a `&` reference, so it cannot be written to

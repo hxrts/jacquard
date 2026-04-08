@@ -1,25 +1,24 @@
 use std::collections::BTreeMap;
 
 use jacquard_traits::{
-    effect_handler,
     jacquard_core::{
         Belief, Blake3Digest, ByteCount, Configuration, ConnectivityPosture, ContentId,
         ControllerId, DurationMs, Environment, Fact, HoldItemCount,
         InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState, LinkState,
         MaintenanceWorkBudget, MaterializedRouteIdentity, Node, NodeId, NodeProfile,
-        NodeRelayBudget, NodeState, PublicationId, RatioPermille, RelayWorkBudget,
-        RetentionError, RouteAdmission, RouteAdmissionCheck, RouteBinding,
-        RouteCommitment, RouteCommitmentId, RouteCommitmentResolution, RouteCost,
-        RouteEpoch, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
+        NodeRelayBudget, NodeState, RatioPermille, RelayWorkBudget,
+        RouteAdmission, RouteAdmissionCheck, RouteBinding, RouteCommitment,
+        RouteCommitmentId, RouteCommitmentResolution, RouteCost, RouteEpoch,
+        RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
         RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
         RouteMaterializationInput, RouteMaterializationProof, RouteProtectionClass,
         RouteRuntimeState, RouteSummary, RouteWitness, RoutingEngineCapabilities,
-        RoutingEngineId, ServiceDescriptor, Tick, TransportError, TransportObservation,
-        TransportProtocol,
+        RoutingEngineId, ServiceDescriptor, Tick, TransportProtocol,
     },
     EffectHandler, MeshRoutingEngine, MeshTopologyModel, RetentionStore, RoutingEngine,
     RoutingEnginePlanner, TransportEffects,
 };
+use jacquard_mem_link_profile::{InMemoryRetentionStore, InMemoryTransport};
 
 use super::common;
 
@@ -118,60 +117,9 @@ impl MeshTopologyModel for StubTopologyModel {
     }
 }
 
-struct StubTransport {
-    observations: Vec<TransportObservation>,
-    sent_frames: Vec<(LinkEndpoint, Vec<u8>)>,
-}
-
-#[effect_handler]
-impl TransportEffects for StubTransport {
-    fn send_transport(
-        &mut self,
-        endpoint: &LinkEndpoint,
-        payload: &[u8],
-    ) -> Result<(), TransportError> {
-        self.sent_frames.push((endpoint.clone(), payload.to_vec()));
-        Ok(())
-    }
-
-    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
-        Ok(std::mem::take(&mut self.observations))
-    }
-}
-
-struct StubRetentionStore {
-    payloads: BTreeMap<ContentId<Blake3Digest>, Vec<u8>>,
-}
-
-#[effect_handler]
-impl RetentionStore for StubRetentionStore {
-    fn retain_payload(
-        &mut self,
-        object_id: ContentId<Blake3Digest>,
-        payload: Vec<u8>,
-    ) -> Result<(), RetentionError> {
-        self.payloads.insert(object_id, payload);
-        Ok(())
-    }
-
-    fn take_retained_payload(
-        &mut self,
-        object_id: &ContentId<Blake3Digest>,
-    ) -> Result<Option<Vec<u8>>, RetentionError> {
-        Ok(self.payloads.remove(object_id))
-    }
-
-    fn contains_retained_payload(
-        &self,
-        object_id: &ContentId<Blake3Digest>,
-    ) -> Result<bool, RetentionError> {
-        Ok(self.payloads.contains_key(object_id))
-    }
-}
-
 struct StubMeshEngine {
     topology: StubTopologyModel,
-    retention: StubRetentionStore,
+    retention: InMemoryRetentionStore,
     route: Option<jacquard_traits::jacquard_core::MaterializedRoute>,
 }
 
@@ -262,7 +210,7 @@ impl RoutingEngine for StubMeshEngine {
         let route = sample_materialized_route(&input);
         self.route = Some(route.clone());
         Ok(RouteInstallation {
-            materialization_proof: route.identity.materialization_proof,
+            materialization_proof: route.identity.proof,
             last_lifecycle_event: route.runtime.last_lifecycle_event,
             health: route.runtime.health,
             progress: route.runtime.progress,
@@ -308,7 +256,7 @@ impl RoutingEngine for StubMeshEngine {
 }
 
 impl MeshRoutingEngine for StubMeshEngine {
-    type Retention = StubRetentionStore;
+    type Retention = InMemoryRetentionStore;
     type TopologyModel = StubTopologyModel;
 
     fn topology_model(&self) -> &Self::TopologyModel {
@@ -507,10 +455,7 @@ fn sample_materialized_route(
         input.clone(),
         RouteInstallation {
             materialization_proof: RouteMaterializationProof {
-                route_id: input.admission.route_id,
-                topology_epoch: RouteEpoch(1),
-                materialized_at_tick: jacquard_traits::jacquard_core::Tick(1),
-                publication_id: PublicationId([9; 16]),
+                stamp: input.handle.stamp.clone(),
                 witness: Fact {
                     value: input.admission.witness.clone(),
                     basis: jacquard_traits::jacquard_core::FactBasis::Published,
@@ -552,10 +497,7 @@ fn mesh_topology_model_is_read_only_over_configuration_inputs() {
 #[test]
 fn transport_effects_send_and_poll_without_mesh_specific_traits() {
     let endpoint = sample_endpoint();
-    let mut transport = StubTransport {
-        observations: Vec::new(),
-        sent_frames: Vec::new(),
-    };
+    let mut transport = InMemoryTransport::default();
 
     transport
         .send_transport(&endpoint, b"frame")
@@ -571,7 +513,7 @@ fn transport_effects_send_and_poll_without_mesh_specific_traits() {
 #[test]
 fn retention_store_retains_and_releases_opaque_payloads() {
     let object_id = ContentId { digest: Blake3Digest([7; 32]) };
-    let mut retention = StubRetentionStore { payloads: BTreeMap::new() };
+    let mut retention = InMemoryRetentionStore::default();
 
     retention
         .retain_payload(object_id, b"payload".to_vec())
@@ -597,15 +539,15 @@ fn transport_effects_handlers_do_not_require_mesh_specific_traits() {
     {
     }
 
-    assert_transport_handler::<StubTransport>();
+    assert_transport_handler::<InMemoryTransport>();
 }
 
 #[test]
 fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
     let engine = StubMeshEngine {
         topology: StubTopologyModel,
-        retention: StubRetentionStore {
-            payloads: BTreeMap::from([(
+        retention: InMemoryRetentionStore {
+            payloads: std::collections::BTreeMap::from([(
                 ContentId { digest: Blake3Digest([8; 32]) },
                 b"payload".to_vec(),
             )]),
