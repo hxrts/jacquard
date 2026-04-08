@@ -80,6 +80,19 @@ where
         score
     }
 
+    /// Returns true if `(score, path)` is dominated by `(best_score, best_path)`,
+    /// meaning the candidate should not replace the current best entry. Equal
+    /// scores tie-break lexicographically on path so equal-cost routes collapse
+    /// deterministically regardless of frontier visit order.
+    fn is_dominated(
+        score: u32,
+        path: &[NodeId],
+        best_score: u32,
+        best_path: &[NodeId],
+    ) -> bool {
+        score > best_score || (score == best_score && path > best_path)
+    }
+
     pub(super) fn weighted_paths(
         &self,
         objective: &RoutingObjective,
@@ -92,11 +105,8 @@ where
 
         while let Some(Reverse((score, path))) = frontier.pop() {
             let current = *path.last().expect("weighted path frontier is never empty");
-            // Tie-break on path lexicographically so equal-cost routes
-            // collapse to a single deterministic winner regardless of
-            // BFS visit order.
             if let Some((best_score, best_path)) = best_paths.get(&current) {
-                if score > *best_score || (score == *best_score && path > *best_path) {
+                if Self::is_dominated(score, &path, *best_score, best_path) {
                     continue;
                 }
             }
@@ -120,9 +130,7 @@ where
                 next_path.push(neighbor);
                 let next_score = score.saturating_add(edge_score);
                 if let Some((best_score, best_path)) = best_paths.get(&neighbor) {
-                    if next_score > *best_score
-                        || (next_score == *best_score && next_path >= *best_path)
-                    {
+                    if Self::is_dominated(next_score, &next_path, *best_score, best_path) {
                         continue;
                     }
                 }

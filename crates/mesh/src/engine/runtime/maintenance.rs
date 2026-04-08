@@ -50,7 +50,7 @@ where
         runtime.progress.last_progress_at_tick = now;
         self.choreography_runtime().repair_exchange(route_id)?;
         Ok(RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Repaired,
+            event: RouteLifecycleEvent::Repaired,
             outcome: RouteMaintenanceOutcome::Repaired,
         })
     }
@@ -65,7 +65,7 @@ where
         runtime.last_lifecycle_event = RouteLifecycleEvent::EnteredPartitionMode;
         runtime.progress.state = RouteProgressState::Blocked;
         RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::EnteredPartitionMode,
+            event: RouteLifecycleEvent::EnteredPartitionMode,
             outcome: RouteMaintenanceOutcome::HoldFallback {
                 trigger,
                 retained_object_count: u32::try_from(
@@ -87,11 +87,11 @@ where
             return Err(RouteRuntimeError::Invalidated.into());
         };
         let handoff = RouteSemanticHandoff {
-            route_id:      identity.handle.route_id,
-            from_node_id:  active_route.forwarding.current_owner_node_id,
-            to_node_id:    next_owner,
+            route_id: identity.handle.route_id,
+            from_node_id: active_route.forwarding.current_owner_node_id,
+            to_node_id: next_owner,
             handoff_epoch: active_route.current_epoch,
-            receipt_id:    handoff_receipt_id,
+            receipt_id: handoff_receipt_id,
         };
         active_route.forwarding.current_owner_node_id = next_owner;
         active_route.forwarding.next_hop_index =
@@ -104,7 +104,7 @@ where
         self.choreography_runtime()
             .handoff_exchange(&identity.handle.route_id)?;
         Ok(RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::HandedOff,
+            event: RouteLifecycleEvent::HandedOff,
             outcome: RouteMaintenanceOutcome::HandedOff(handoff),
         })
     }
@@ -113,7 +113,7 @@ where
         trigger: RouteMaintenanceTrigger,
     ) -> RouteMaintenanceResult {
         RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Replaced,
+            event: RouteLifecycleEvent::Replaced,
             outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
         }
     }
@@ -126,7 +126,7 @@ where
         runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
         runtime.progress.state = RouteProgressState::Failed;
         RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Expired,
+            event: RouteLifecycleEvent::Expired,
             outcome: RouteMaintenanceOutcome::Failed(
                 RouteMaintenanceFailure::LeaseExpired,
             ),
@@ -140,7 +140,7 @@ where
     ) -> RouteMaintenanceResult {
         runtime.progress.last_progress_at_tick = now;
         RouteMaintenanceResult {
-            event:   active_route.last_lifecycle_event,
+            event: active_route.last_lifecycle_event,
             outcome: RouteMaintenanceOutcome::Continued,
         }
     }
@@ -247,6 +247,8 @@ where
                 next_segment.endpoint.clone(),
                 payload.clone(),
             ) {
+                // Best-effort re-retain: the replay send failed; try to keep the payload
+                // for the next flush. The primary RouteError is returned below regardless.
                 let _ = self.choreography_runtime().retain_for_replay(
                     &active_route.path.route_id,
                     object_id,
@@ -285,7 +287,7 @@ where
         runtime.progress.last_progress_at_tick = now;
         runtime.progress.state = RouteProgressState::Satisfied;
         Ok(Some(RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::RecoveredFromPartition,
+            event: RouteLifecycleEvent::RecoveredFromPartition,
             outcome: RouteMaintenanceOutcome::Continued,
         }))
     }

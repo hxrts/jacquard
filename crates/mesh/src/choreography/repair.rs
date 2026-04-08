@@ -85,17 +85,15 @@ async fn candidate_relay_role(role: &mut CandidateRelay) -> ProtocolResult<()> {
         let s = s.send(RepairOffer { route_id: route_id.clone() }).await?;
         match s.branch().await? {
             | CandidateRelayChoice1::RepairAccepted(
-                RepairAccepted { route_id },
+                RepairAccepted { route_id: _ },
                 end,
             ) => {
-                let _ = route_id;
                 Ok(((), end))
             },
             | CandidateRelayChoice1::RepairRejected(
-                RepairRejected { route_id },
+                RepairRejected { route_id: _ },
                 end,
             ) => {
-                let _ = route_id;
                 Ok(((), end))
             },
         }

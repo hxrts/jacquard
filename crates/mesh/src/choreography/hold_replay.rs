@@ -101,11 +101,11 @@ use super::{
 };
 
 struct SharedRuntime<'a, E> {
-    effects:   &'a mut E,
-    route_id:  RouteId,
+    effects: &'a mut E,
+    route_id: RouteId,
     object_id: ContentId<jacquard_core::Blake3Digest>,
-    payload:   Vec<u8>,
-    endpoint:  Option<LinkEndpoint>,
+    payload: Vec<u8>,
+    endpoint: Option<LinkEndpoint>,
 }
 
 #[derive(Clone, Copy)]
@@ -138,7 +138,7 @@ where
             .store_held_payload(&MeshHeldPayload { object_id, payload })
             .map_err(|_| effects::MeshProtocolError::Unavailable)?;
         Ok(effects::HoldReceipt {
-            route_id:  input.route_id,
+            route_id: input.route_id,
             stored_by: effects::Role::new("Holder"),
         })
     }
@@ -165,7 +165,7 @@ where
                 .map_err(|_| effects::MeshProtocolError::Unavailable)?;
         }
         Ok(effects::HoldReceipt {
-            route_id:  input.route_id,
+            route_id: input.route_id,
             stored_by: effects::Role::new("Holder"),
         })
     }
@@ -299,9 +299,13 @@ where
     try_session(role, |s: HolderSession<'_, _>| async {
         let (StoreHeldPayload { route_id, payload_digest }, s) = s.receive().await?;
         let held_payload = effects::HeldPayload {
-            route_id:       route_id.clone(),
+            route_id: route_id.clone(),
             payload_digest: payload_digest.clone(),
         };
+        // Intentionally ignored: store_held_payload is a best-effort side effect.
+        // The session type enforces protocol continuation regardless; if retention
+        // fails here the payload will not be replayed but the hold exchange still
+        // completes correctly.
         let _ = effects::MeshRuntime::store_held_payload(host, held_payload.clone());
         let s = s.send(Stored { route_id: route_id.clone() }).await?;
         let s = s
@@ -313,10 +317,12 @@ where
         match s.branch().await? {
             | HolderChoice1::Replayed(Replayed, s) => {
                 let (ReplayAccepted { route_id }, s) = s.receive().await?;
+                // Intentionally ignored: replay_held_payload is best-effort. The session
+                // already advanced to the Replayed branch; retention cleanup is advisory.
                 let _ = effects::MeshRuntime::replay_held_payload(
                     host,
                     effects::HeldPayload {
-                        route_id:       route_id.clone(),
+                        route_id: route_id.clone(),
                         payload_digest: String::new(),
                     },
                 );
