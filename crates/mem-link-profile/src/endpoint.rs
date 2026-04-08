@@ -1,3 +1,8 @@
+//! `SharedInMemoryNetwork`, the in-memory carrier fabric that multiple
+//! `InMemoryTransport` instances attach to. Owns endpoint-to-node ownership
+//! and per-node inbox queues so tests can compose several device runtimes
+//! without a real radio.
+
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},

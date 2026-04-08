@@ -1,3 +1,7 @@
+//! `InMemoryRetentionStore`, the shared `RetentionStore` adapter used by
+//! tests. Buffers opaque deferred-delivery payloads in a `BTreeMap` keyed
+//! by content id so partition-mode flush paths stay deterministic.
+
 use std::collections::BTreeMap;
 
 use jacquard_core::{Blake3Digest, ContentId, RetentionError};

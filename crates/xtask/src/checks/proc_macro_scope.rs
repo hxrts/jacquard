@@ -78,6 +78,7 @@ const MARKERS: &[&str] = &[
     "#[must_use_handle",
     "#[public_model",
     "#[purity",
+    "#[jacquard_traits::purity",
     "tell! {",
 ];
 

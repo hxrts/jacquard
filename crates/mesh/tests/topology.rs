@@ -13,14 +13,14 @@ use common::{
     engine::{materialization_input, objective, profile, LOCAL_NODE_ID},
     fixtures::{link, node, sample_configuration},
 };
-use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
+use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MeshTopologyModel};
 use jacquard_traits::{
     jacquard_core::{
         Configuration, DestinationId, Environment, Node, NodeId, Observation,
         RatioPermille, RouteEpoch, RoutingObjective, RoutingTickContext, ServiceId,
         Tick,
     },
-    Blake3Hashing, MeshTopologyModel, RoutingEngine, RoutingEnginePlanner,
+    Blake3Hashing, RoutingEngine, RoutingEnginePlanner,
 };
 
 #[derive(Clone)]

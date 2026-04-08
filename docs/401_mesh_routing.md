@@ -65,7 +65,7 @@ Discovery enters mesh through the shared world picture: nodes, links, environmen
 
 ## Internal Choreography Surface
 
-Mesh now carries a private Telltale choreography layer inside `jacquard-mesh`. This does not change the shared Jacquard routing contract. Router-facing planning, admission, materialization, maintenance, and tick flow still use the shared `RoutingEngine` and `MeshRoutingEngine` traits.
+Mesh now carries a private Telltale choreography layer inside `jacquard-mesh`. This does not change the shared Jacquard routing contract. Router-facing planning, admission, materialization, maintenance, and tick flow still use the shared `RoutingEngine` trait plus the mesh-owned `MeshRoutingEngine` extension seam.
 
 The internal split is:
 
@@ -162,7 +162,7 @@ The choreography layer adds a second scoped recovery surface: protocol checkpoin
 
 ## Swappable Trait Surface
 
-The mesh engine exposes its narrow read-only mesh seams as two traits in `jacquard-traits`: `MeshTopologyModel` and `MeshRoutingEngine`. Substituting either one replaces a mesh subcomponent without forking the engine. `RetentionStore` remains a shared runtime boundary too, but it now lives on the neutral shared effect surface rather than in the mesh-named trait module. For host runtime effects beyond these seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
+The mesh engine exposes its narrow read-only mesh seams as two traits in `jacquard-mesh`: `MeshTopologyModel` and `MeshRoutingEngine`. Substituting either one replaces a mesh subcomponent without forking the engine, but the coupling is now honestly mesh-specific instead of leaking into `jacquard-traits`. `RetentionStore` remains a shared runtime boundary on the neutral effect surface. For host runtime effects beyond these seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
 
 ### Topology Model
 

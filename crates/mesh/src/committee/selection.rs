@@ -18,9 +18,7 @@ use jacquard_core::{
     RoutingEngineId, RoutingObjective, SelectedRoutingParameters, ServiceScope, Tick,
     TimeWindow,
 };
-use jacquard_traits::{
-    Blake3Hashing, CommitteeSelector, HashDigestBytes, Hashing, MeshTopologyModel,
-};
+use jacquard_traits::{Blake3Hashing, CommitteeSelector, HashDigestBytes, Hashing};
 
 use crate::{
     committee::{
@@ -33,7 +31,7 @@ use crate::{
         adjacent_node_ids, optional_health_score_value, route_capable_for_engine,
         DeterministicMeshTopologyModel,
     },
-    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess,
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshTopologyModel,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

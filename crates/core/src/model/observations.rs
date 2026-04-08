@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Belief, ByteCount, Configuration, DurationMs, Environment, Link, Node,
-    RatioPermille, ServiceDescriptor, TransportObservation,
+    RatioPermille, ServiceDescriptor, Tick, TransportObservation,
 };
 
 #[id_type]
@@ -38,6 +38,26 @@ pub struct InformationSetSummary {
     pub false_positive_permille: Belief<RatioPermille>,
 }
 
+impl InformationSetSummary {
+    #[must_use]
+    pub fn bloom_filter(
+        item_count: HoldItemCount,
+        byte_count: ByteCount,
+        false_positive_permille: RatioPermille,
+        updated_at_tick: Tick,
+    ) -> Self {
+        Self {
+            summary_encoding: InformationSummaryEncoding::BloomFilter,
+            item_count: Belief::certain(item_count, updated_at_tick),
+            byte_count: Belief::certain(byte_count, updated_at_tick),
+            false_positive_permille: Belief::certain(
+                false_positive_permille,
+                updated_at_tick,
+            ),
+        }
+    }
+}
+
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Local forwarding and retention budget currently observed for one node.
@@ -45,6 +65,25 @@ pub struct NodeRelayBudget {
     pub relay_work_budget: Belief<RelayWorkBudget>,
     pub utilization_permille: RatioPermille,
     pub retention_horizon_ms: Belief<DurationMs>,
+}
+
+impl NodeRelayBudget {
+    #[must_use]
+    pub fn observed(
+        relay_work_budget: RelayWorkBudget,
+        utilization_permille: RatioPermille,
+        retention_horizon_ms: DurationMs,
+        updated_at_tick: Tick,
+    ) -> Self {
+        Self {
+            relay_work_budget: Belief::certain(relay_work_budget, updated_at_tick),
+            utilization_permille,
+            retention_horizon_ms: Belief::certain(
+                retention_horizon_ms,
+                updated_at_tick,
+            ),
+        }
+    }
 }
 
 /// Observation wrapper for one instantiated node.

@@ -1,7 +1,11 @@
+//! `NodeStateSnapshot`, a mutable in-memory node-state simulator for tests.
+//! Lets callers vary relay budget, available connections, hold-capacity
+//! headroom, and information-set summary independently, then build a shared
+//! `NodeState` snapshot.
+
 use jacquard_core::{
-    Belief, ByteCount, DurationMs, Estimate, HoldItemCount, InformationSetSummary,
-    InformationSummaryEncoding, NodeRelayBudget, NodeState, RatioPermille,
-    RelayWorkBudget, Tick,
+    Belief, ByteCount, DurationMs, HoldItemCount, InformationSetSummary,
+    NodeRelayBudget, NodeState, RatioPermille, RelayWorkBudget, Tick,
 };
 
 /// Mutable in-memory node-state simulator for tests.
@@ -41,12 +45,6 @@ impl NodeStateSnapshot {
     }
 
     #[must_use]
-    pub fn with_relay_budget(mut self, budget: u32) -> Self {
-        self.relay_work_budget = budget;
-        self
-    }
-
-    #[must_use]
     pub fn with_available_connections(mut self, count: u32) -> Self {
         self.available_connection_count = count;
         self
@@ -59,7 +57,20 @@ impl NodeStateSnapshot {
     }
 
     #[must_use]
-    pub fn with_information_summary(
+    pub fn with_relay_state(
+        mut self,
+        relay_work_budget: u32,
+        relay_utilization_permille: RatioPermille,
+        retention_horizon_ms: DurationMs,
+    ) -> Self {
+        self.relay_work_budget = relay_work_budget;
+        self.relay_utilization_permille = relay_utilization_permille;
+        self.retention_horizon_ms = retention_horizon_ms;
+        self
+    }
+
+    #[must_use]
+    pub fn with_information_set(
         mut self,
         item_count: u32,
         byte_count: ByteCount,
@@ -98,55 +109,42 @@ impl NodeStateSnapshot {
     #[must_use]
     pub fn build(&self) -> NodeState {
         NodeState {
-            relay_budget: Belief::Estimated(Estimate {
-                value: NodeRelayBudget {
-                    relay_work_budget: Belief::Estimated(Estimate {
-                        value: RelayWorkBudget(self.relay_work_budget),
-                        confidence_permille: RatioPermille(1000),
-                        updated_at_tick: self.observed_at_tick,
-                    }),
-                    utilization_permille: self.relay_utilization_permille,
-                    retention_horizon_ms: Belief::Estimated(Estimate {
-                        value: self.retention_horizon_ms,
-                        confidence_permille: RatioPermille(1000),
-                        updated_at_tick: self.observed_at_tick,
-                    }),
-                },
-                confidence_permille: RatioPermille(1000),
-                updated_at_tick: self.observed_at_tick,
-            }),
-            available_connection_count: Belief::Estimated(Estimate {
-                value: self.available_connection_count,
-                confidence_permille: RatioPermille(1000),
-                updated_at_tick: self.observed_at_tick,
-            }),
-            hold_capacity_available_bytes: Belief::Estimated(Estimate {
-                value: self.hold_capacity_available_bytes,
-                confidence_permille: RatioPermille(1000),
-                updated_at_tick: self.observed_at_tick,
-            }),
-            information_summary: Belief::Estimated(Estimate {
-                value: InformationSetSummary {
-                    summary_encoding: InformationSummaryEncoding::BloomFilter,
-                    item_count: Belief::Estimated(Estimate {
-                        value: HoldItemCount(self.information_item_count),
-                        confidence_permille: RatioPermille(1000),
-                        updated_at_tick: self.observed_at_tick,
-                    }),
-                    byte_count: Belief::Estimated(Estimate {
-                        value: self.information_byte_count,
-                        confidence_permille: RatioPermille(1000),
-                        updated_at_tick: self.observed_at_tick,
-                    }),
-                    false_positive_permille: Belief::Estimated(Estimate {
-                        value: self.information_false_positive_permille,
-                        confidence_permille: RatioPermille(1000),
-                        updated_at_tick: self.observed_at_tick,
-                    }),
-                },
-                confidence_permille: RatioPermille(1000),
-                updated_at_tick: self.observed_at_tick,
-            }),
+            relay_budget: Belief::certain(
+                NodeRelayBudget::observed(
+                    RelayWorkBudget(self.relay_work_budget),
+                    self.relay_utilization_permille,
+                    self.retention_horizon_ms,
+                    self.observed_at_tick,
+                ),
+                self.observed_at_tick,
+            ),
+            available_connection_count: Belief::certain(
+                self.available_connection_count,
+                self.observed_at_tick,
+            ),
+            hold_capacity_available_bytes: Belief::certain(
+                self.hold_capacity_available_bytes,
+                self.observed_at_tick,
+            ),
+            information_summary: Belief::certain(
+                InformationSetSummary::bloom_filter(
+                    HoldItemCount(self.information_item_count),
+                    self.information_byte_count,
+                    self.information_false_positive_permille,
+                    self.observed_at_tick,
+                ),
+                self.observed_at_tick,
+            ),
         }
+    }
+
+    #[must_use]
+    pub fn route_capable(observed_at_tick: Tick) -> Self {
+        Self::new()
+            .with_relay_state(8, RatioPermille(0), DurationMs(500))
+            .with_available_connections(4)
+            .with_hold_capacity(ByteCount(4096))
+            .with_information_set(4, ByteCount(2048), RatioPermille(10))
+            .with_observed_at_tick(observed_at_tick)
     }
 }

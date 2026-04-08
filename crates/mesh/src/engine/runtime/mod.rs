@@ -20,13 +20,15 @@ use jacquard_core::{
     RouteMaintenanceTrigger, RouteMaterializationInput, RouteSelectionError,
     RoutingTickContext, RoutingTickOutcome,
 };
-use jacquard_traits::{CommitteeCoordinatedEngine, MeshRoutingEngine, RoutingEngine};
+use jacquard_traits::{CommitteeCoordinatedEngine, RoutingEngine};
 
 use super::{
     MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
     TransportEffectsBounds,
 };
-use crate::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
+use crate::{
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshRoutingEngine,
+};
 
 struct MaintenanceContext<'a> {
     identity: &'a MaterializedRouteIdentity,

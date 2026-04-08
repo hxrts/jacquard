@@ -2,9 +2,10 @@
 //!
 //! Each alias groups the set of traits that one `MeshEngine` generic
 //! parameter must satisfy. Using the aliases keeps `impl` headers
-//! readable without changing the public trait surface in
-//! `jacquard-traits`. Every alias has a blanket impl, so referring to
-//! an alias is identical to inlining its full trait list.
+//! readable without changing the public engine-neutral trait surface in
+//! `jacquard-traits` or the mesh-owned extension seams in this crate.
+//! Every alias has a blanket impl, so referring to an alias is
+//! identical to inlining its full trait list.
 
 use jacquard_core::Configuration;
 use jacquard_traits::{
@@ -12,9 +13,11 @@ use jacquard_traits::{
     RouteEventLogEffects, StorageEffects, TimeEffects, TransportEffects,
 };
 
-use crate::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
+use crate::{
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshTopologyModel,
+};
 
-pub(crate) trait MeshTopologyBounds: jacquard_traits::MeshTopologyModel
+pub(crate) trait MeshTopologyBounds: MeshTopologyModel
 where
     Self::PeerEstimate: MeshPeerEstimateAccess,
     Self::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
@@ -23,7 +26,7 @@ where
 
 impl<T> MeshTopologyBounds for T
 where
-    T: jacquard_traits::MeshTopologyModel,
+    T: MeshTopologyModel,
     T::PeerEstimate: MeshPeerEstimateAccess,
     T::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
 {

@@ -1,3 +1,7 @@
+//! `InMemoryTransport`, the `TransportEffects` adapter used by tests.
+//! Attaches to a `SharedInMemoryNetwork`, records sent frames, and replays
+//! ingress observations through `poll_transport` at a configurable tick.
+
 use jacquard_core::{
     NodeId, Tick, TransportError, TransportObservation, TransportProtocol,
 };

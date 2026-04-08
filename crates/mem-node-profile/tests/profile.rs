@@ -20,9 +20,9 @@ fn simulated_profile_builds_node_profile_and_services() {
     let node_id = NodeId([7; 32]);
     let controller_id = ControllerId([8; 32]);
     let profile = SimulatedNodeProfile::new()
-        .with_connection_count_max(8)
-        .with_relay_work_budget_max(10)
-        .with_hold_capacity(ByteCount(8192))
+        .with_connection_limits(8, 4, 2, 2)
+        .with_work_budgets(10, 4)
+        .with_hold_limits(4, ByteCount(8192))
         .with_endpoint(endpoint(1))
         .with_service(
             SimulatedServiceDescriptor::new(RouteServiceKind::Move)
@@ -46,10 +46,10 @@ fn simulated_profile_builds_node_profile_and_services() {
 #[test]
 fn node_state_snapshot_tracks_budget_and_capacity_changes() {
     let mut state = NodeStateSnapshot::new()
-        .with_relay_budget(10)
+        .with_relay_state(10, RatioPermille(0), jacquard_core::DurationMs(500))
         .with_available_connections(3)
         .with_hold_capacity(ByteCount(2048))
-        .with_information_summary(4, ByteCount(1024), RatioPermille(20))
+        .with_information_set(4, ByteCount(1024), RatioPermille(20))
         .with_observed_at_tick(Tick(5));
 
     state.consume_relay_budget(4);

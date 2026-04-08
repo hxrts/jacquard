@@ -20,6 +20,7 @@ use common::{
 };
 use jacquard_mesh::{
     DeterministicCommitteeSelector, DeterministicMeshTopologyModel, MeshEngine,
+    MeshTopologyModel,
 };
 use jacquard_traits::{
     jacquard_core::{
@@ -29,8 +30,7 @@ use jacquard_traits::{
         RouteRepairClass, RouteRuntimeError, RoutingTickContext, ServiceId,
         ServiceScope, Tick,
     },
-    Blake3Hashing, CommitteeSelector, MeshTopologyModel, RoutingEngine,
-    RoutingEnginePlanner,
+    Blake3Hashing, CommitteeSelector, RoutingEngine, RoutingEnginePlanner,
 };
 
 #[derive(Clone)]

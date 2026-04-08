@@ -18,7 +18,6 @@ const FORBIDDEN_PUBLIC_TYPES: &[&str] = &[
 #[allow(dead_code)]
 const ALLOWED_PUBLIC_TYPES: &[&str] = &[
     "RoutingEngine",
-    "MeshTransport",
     "Configuration",
     "MeshTopologyModel",
     "RetentionStore",

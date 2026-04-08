@@ -1,6 +1,12 @@
+//! `SimulatedNodeProfile`, a builder for the stable capability half of a
+//! node. Attaches endpoints and services, sets connection and transfer
+//! budgets and hold capacity, and emits a shared `NodeProfile` or a full
+//! `Node` bound to a `(NodeId, ControllerId)` pair.
+
 use jacquard_core::{
     ByteCount, ControllerId, HoldItemCount, LinkEndpoint, MaintenanceWorkBudget, Node,
-    NodeId, NodeProfile, RelayWorkBudget, Tick,
+    NodeId, NodeProfile, RelayWorkBudget, RouteServiceKind, RoutingEngineId,
+    ServiceScope, Tick, TimeWindow,
 };
 
 use crate::{services::SimulatedServiceDescriptor, state::NodeStateSnapshot};
@@ -53,38 +59,28 @@ impl SimulatedNodeProfile {
     }
 
     #[must_use]
-    pub fn with_connection_count_max(mut self, count: u32) -> Self {
-        self.connection_count_max = count;
+    pub fn with_connection_limits(
+        mut self,
+        connection_count_max: u32,
+        neighbor_state_count_max: u32,
+        simultaneous_transfer_count_max: u32,
+        active_route_count_max: u32,
+    ) -> Self {
+        self.connection_count_max = connection_count_max;
+        self.neighbor_state_count_max = neighbor_state_count_max;
+        self.simultaneous_transfer_count_max = simultaneous_transfer_count_max;
+        self.active_route_count_max = active_route_count_max;
         self
     }
 
     #[must_use]
-    pub fn with_neighbor_state_count_max(mut self, count: u32) -> Self {
-        self.neighbor_state_count_max = count;
-        self
-    }
-
-    #[must_use]
-    pub fn with_simultaneous_transfer_count_max(mut self, count: u32) -> Self {
-        self.simultaneous_transfer_count_max = count;
-        self
-    }
-
-    #[must_use]
-    pub fn with_active_route_count_max(mut self, count: u32) -> Self {
-        self.active_route_count_max = count;
-        self
-    }
-
-    #[must_use]
-    pub fn with_relay_work_budget_max(mut self, budget: u32) -> Self {
-        self.relay_work_budget_max = budget;
-        self
-    }
-
-    #[must_use]
-    pub fn with_maintenance_budget(mut self, budget: u32) -> Self {
-        self.maintenance_work_budget_max = budget;
+    pub fn with_work_budgets(
+        mut self,
+        relay_work_budget_max: u32,
+        maintenance_work_budget_max: u32,
+    ) -> Self {
+        self.relay_work_budget_max = relay_work_budget_max;
+        self.maintenance_work_budget_max = maintenance_work_budget_max;
         self
     }
 
@@ -95,14 +91,13 @@ impl SimulatedNodeProfile {
     }
 
     #[must_use]
-    pub fn with_hold_item_count(mut self, count: u32) -> Self {
-        self.hold_item_count_max = count;
-        self
-    }
-
-    #[must_use]
-    pub fn with_hold_capacity(mut self, bytes: ByteCount) -> Self {
-        self.hold_capacity_bytes_max = bytes;
+    pub fn with_hold_limits(
+        mut self,
+        hold_item_count_max: u32,
+        hold_capacity_bytes_max: ByteCount,
+    ) -> Self {
+        self.hold_item_count_max = hold_item_count_max;
+        self.hold_capacity_bytes_max = hold_capacity_bytes_max;
         self
     }
 
@@ -144,5 +139,54 @@ impl SimulatedNodeProfile {
                 .with_observed_at_tick(observed_at_tick)
                 .build(),
         }
+    }
+
+    #[must_use]
+    pub fn route_capable(
+        endpoint: LinkEndpoint,
+        routing_engine: &RoutingEngineId,
+        scope: ServiceScope,
+        valid_for: TimeWindow,
+        observed_at_tick: Tick,
+    ) -> Self {
+        Self::new()
+            .with_endpoint(endpoint.clone())
+            .with_connection_limits(8, 8, 4, 4)
+            .with_work_budgets(10, 10)
+            .with_hold_limits(8, ByteCount(8192))
+            .with_service(
+                SimulatedServiceDescriptor::advertised(
+                    RouteServiceKind::Discover,
+                    endpoint.clone(),
+                    scope.clone(),
+                    valid_for,
+                    observed_at_tick,
+                )
+                .with_capacity_profile(4, None)
+                .with_routing_engine(routing_engine),
+            )
+            .with_service(
+                SimulatedServiceDescriptor::advertised(
+                    RouteServiceKind::Move,
+                    endpoint.clone(),
+                    scope.clone(),
+                    valid_for,
+                    observed_at_tick,
+                )
+                .with_capacity_profile(4, None)
+                .with_routing_engine(routing_engine),
+            )
+            .with_service(
+                SimulatedServiceDescriptor::advertised(
+                    RouteServiceKind::Hold,
+                    endpoint,
+                    scope,
+                    valid_for,
+                    observed_at_tick,
+                )
+                .with_capacity_profile(4, Some(ByteCount(4096)))
+                .with_routing_engine(routing_engine),
+            )
+            .with_observed_at_tick(observed_at_tick)
     }
 }

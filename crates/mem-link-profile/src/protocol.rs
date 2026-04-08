@@ -1,3 +1,7 @@
+//! Transport-protocol constants and `LinkEndpoint` constructors: the BLE
+//! GATT MTU, the `ble_endpoint(device_byte)` helper, and the `opaque_endpoint`
+//! escape hatch for tests that need a non-BLE protocol tag.
+
 use jacquard_core::{
     BleDeviceId, BleProfileId, ByteCount, EndpointAddress, LinkEndpoint,
     TransportProtocol,

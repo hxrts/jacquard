@@ -4,7 +4,7 @@
 //! observations, attaches one in-memory transport to the shared carrier, builds
 //! a mesh engine behind the public traits, and hands that engine to the
 //! router. The client remains observational with respect to canonical route
-//! truth; only the router publishes the canonical route table.
+//! truth. Only the router publishes the canonical route table.
 //!
 //! Ownership:
 //! - local composition only

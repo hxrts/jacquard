@@ -3,7 +3,7 @@
 //! Control flow: this crate models endpoints, stable link profile, and live
 //! link state, carries frames over an in-memory network, and exposes
 //! deterministic retention and runtime-effect adapters for tests. It does not
-//! plan routes or interpret mesh policy; it only provides reusable in-memory
+//! plan routes or interpret mesh policy. It only provides reusable in-memory
 //! infrastructure.
 //!
 //! Ownership:

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Belief, BleDeviceId, BleProfileId, ByteCount, ClusterId, ControllerId,
     DiscoveryScopeId, GatewayId, HomeId, NetworkHost, NodeId, RatioPermille,
-    RoutingEngineId, TimeWindow,
+    RoutingEngineId, Tick, TimeWindow,
 };
 
 #[public_model]
@@ -137,6 +137,39 @@ pub struct CapacityHint {
     pub saturation_permille: RatioPermille,
     pub repair_capacity_slots: Belief<RepairCapacitySlots>,
     pub hold_capacity_bytes: Belief<ByteCount>,
+}
+
+impl CapacityHint {
+    #[must_use]
+    pub fn new(saturation_permille: RatioPermille) -> Self {
+        Self {
+            saturation_permille,
+            repair_capacity_slots: Belief::Absent,
+            hold_capacity_bytes: Belief::Absent,
+        }
+    }
+
+    #[must_use]
+    pub fn with_repair_capacity_slots(
+        mut self,
+        repair_capacity_slots: RepairCapacitySlots,
+        updated_at_tick: Tick,
+    ) -> Self {
+        self.repair_capacity_slots =
+            Belief::certain(repair_capacity_slots, updated_at_tick);
+        self
+    }
+
+    #[must_use]
+    pub fn with_hold_capacity_bytes(
+        mut self,
+        hold_capacity_bytes: ByteCount,
+        updated_at_tick: Tick,
+    ) -> Self {
+        self.hold_capacity_bytes =
+            Belief::certain(hold_capacity_bytes, updated_at_tick);
+        self
+    }
 }
 
 #[public_model]

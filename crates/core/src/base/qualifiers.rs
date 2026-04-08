@@ -23,6 +23,22 @@ pub enum Belief<T> {
     Estimated(Estimate<T>),
 }
 
+impl<T> Belief<T> {
+    #[must_use]
+    pub fn estimated(
+        value: T,
+        confidence_permille: RatioPermille,
+        updated_at_tick: Tick,
+    ) -> Self {
+        Self::Estimated(Estimate::new(value, confidence_permille, updated_at_tick))
+    }
+
+    #[must_use]
+    pub fn certain(value: T, updated_at_tick: Tick) -> Self {
+        Self::Estimated(Estimate::certain(value, updated_at_tick))
+    }
+}
+
 impl<T: Clone> Belief<T> {
     /// Returns `None` for `Absent`, `Some(est.value.clone())` for `Estimated`.
     pub fn value(&self) -> Option<T> {
@@ -59,6 +75,26 @@ pub struct Estimate<T> {
     pub value: T,
     pub confidence_permille: RatioPermille,
     pub updated_at_tick: Tick,
+}
+
+impl<T> Estimate<T> {
+    #[must_use]
+    pub fn new(
+        value: T,
+        confidence_permille: RatioPermille,
+        updated_at_tick: Tick,
+    ) -> Self {
+        Self {
+            value,
+            confidence_permille,
+            updated_at_tick,
+        }
+    }
+
+    #[must_use]
+    pub fn certain(value: T, updated_at_tick: Tick) -> Self {
+        Self::new(value, RatioPermille(1000), updated_at_tick)
+    }
 }
 
 #[public_model]

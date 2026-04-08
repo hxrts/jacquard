@@ -1,3 +1,9 @@
+//! `InMemoryRuntimeEffects`, a single in-memory blob that implements
+//! `TimeEffects`, `OrderEffects`, `StorageEffects`, and
+//! `RouteEventLogEffects` for deterministic tests. Carries a current
+//! `Tick`, a monotonic order counter, a byte-store, a route-event log,
+//! and explicit failure-injection flags for fail-closed sequencing tests.
+
 use std::collections::BTreeMap;
 
 use jacquard_core::{

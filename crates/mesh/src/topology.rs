@@ -20,7 +20,8 @@ use jacquard_core::{
     RelayWorkBudget, RouteServiceKind, RoutingEngineId, RoutingObjective,
     ServiceDescriptor, ServiceId, ServiceScope, Tick, TransportProtocol,
 };
-use jacquard_traits::MeshTopologyModel;
+
+use crate::MeshTopologyModel;
 
 #[jacquard_traits::purity(read_only)]
 /// Score components mesh consumes from a peer-local estimate.

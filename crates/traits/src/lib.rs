@@ -22,7 +22,8 @@
 //! Shared behavioral boundaries such as [`RoutingEngine`],
 //! [`RouterManagedEngine`], [`RoutingMiddleware`], and [`RouterEngineRegistry`]
 //! live here. Engines implement these contracts; routers orchestrate across
-//! them without depending on mesh-private runtime details.
+//! them without depending on engine-private runtime details. Mesh-specific
+//! read-only extension traits live in `jacquard-mesh`, not here.
 //!
 //! ## Ownership
 //!
@@ -50,7 +51,6 @@ extern crate self as jacquard_traits;
 mod effects;
 mod handler;
 mod hashing;
-mod mesh;
 mod routing;
 mod sealed;
 mod simulator;
@@ -64,7 +64,6 @@ pub use jacquard_macros::{
     bounded_value, effect_handler, effect_trait, id_type, must_use_handle,
     public_model, purity,
 };
-pub use mesh::*;
 pub use routing::*;
 pub use simulator::*;
 pub use world::*;
