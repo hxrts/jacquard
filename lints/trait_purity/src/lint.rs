@@ -1,7 +1,8 @@
 //! Lint pass for explicit purity/effect annotations on public traits.
 
 use rustc_hir::{Item, ItemKind};
-use rustc_lint::{LateContext, LateLintPass};
+use rustc_errors::DiagDecorator;
+use rustc_lint::{LateContext, LateLintPass, LintContext};
 
 use crate::source_scan::source_has_trait_purity_marker;
 
@@ -33,7 +34,7 @@ dylint_linting::impl_late_lint! {
     ///     fn plan(&self);
     /// }
     /// ```
-    pub JACQUARD_TRAIT_PURITY,
+    pub TRAIT_PURITY,
     Warn,
     "public traits should declare #[purity(...)] or #[effect_trait]",
     TraitPurity
@@ -55,7 +56,7 @@ impl<'tcx> LateLintPass<'tcx> for TraitPurity {
             return;
         }
 
-        if is_internal_support_trait(item) {
+        if is_internal_support_trait(cx, item) {
             return;
         }
 
@@ -63,16 +64,19 @@ impl<'tcx> LateLintPass<'tcx> for TraitPurity {
             return;
         }
 
-        cx.struct_span_lint(JACQUARD_TRAIT_PURITY, item.span, |diag| {
-            diag.build("public trait is missing #[purity(...)] or #[effect_trait]")
-                .emit();
-        });
+        cx.emit_span_lint(
+            TRAIT_PURITY,
+            item.span,
+            DiagDecorator(|diag| {
+                diag.primary_message("public trait is missing #[purity(...)] or #[effect_trait]");
+            }),
+        );
     }
 }
 
-fn is_internal_support_trait(item: &Item<'_>) -> bool {
+fn is_internal_support_trait(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
     matches!(
-        item.ident.name.as_str(),
+        cx.tcx.item_name(item.owner_id.def_id).as_str(),
         "Sealed" | "EffectDefinition" | "HandlerDefinition"
     )
 }

@@ -14,8 +14,8 @@ pub(crate) fn parse_single_field_tuple_struct(
 
 pub(crate) fn tuple_struct_field_type(item_struct: &ItemStruct) -> Type {
     match &item_struct.fields {
-        Fields::Unnamed(fields) => fields.unnamed[0].ty.clone(),
-        _ => unreachable!("validated before extracting tuple struct field type"),
+        | Fields::Unnamed(fields) => fields.unnamed[0].ty.clone(),
+        | _ => unreachable!("validated before extracting tuple struct field type"),
     }
 }
 
@@ -31,7 +31,9 @@ pub(crate) fn parse_max_expr(attr: TokenStream) -> syn::Result<Expr> {
     });
 
     parser.parse2(attr)?;
-    max_expr.ok_or_else(|| Error::new(proc_macro2::Span::call_site(), "expected `max = ...`"))
+    max_expr.ok_or_else(|| {
+        Error::new(proc_macro2::Span::call_site(), "expected `max = ...`")
+    })
 }
 
 fn validate_single_field_tuple_struct(
@@ -46,8 +48,8 @@ fn validate_single_field_tuple_struct(
     }
 
     match &item_struct.fields {
-        Fields::Unnamed(fields) if fields.unnamed.len() == 1 => Ok(()),
-        _ => Err(Error::new_spanned(
+        | Fields::Unnamed(fields) if fields.unnamed.len() == 1 => Ok(()),
+        | _ => Err(Error::new_spanned(
             &item_struct.fields,
             format!("{macro_name} requires a tuple struct with exactly one field"),
         )),

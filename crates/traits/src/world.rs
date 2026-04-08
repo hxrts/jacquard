@@ -5,8 +5,9 @@
 //! ownership of canonical route state or forking the shared world schema.
 
 use jacquard_core::{
-    EnvironmentObservation, LinkObservation, NodeObservation, Observation, ServiceObservation,
-    TransportObservation, TransportProtocol, WorldError, WorldObservation,
+    EnvironmentObservation, LinkObservation, NodeObservation, Observation,
+    ServiceObservation, TransportObservation, TransportProtocol, WorldError,
+    WorldObservation,
 };
 use jacquard_macros::purity;
 
@@ -47,14 +48,18 @@ pub trait LinkWorldExtension: WorldExtensionDescriptor {
 /// Effectful runtime boundary for extensions that contribute observed local or
 /// neighborhood environment state.
 pub trait EnvironmentWorldExtension: WorldExtensionDescriptor {
-    fn poll_environment_observations(&mut self) -> Result<Vec<EnvironmentObservation>, WorldError>;
+    fn poll_environment_observations(
+        &mut self,
+    ) -> Result<Vec<EnvironmentObservation>, WorldError>;
 }
 
 #[purity(effectful)]
 /// Effectful runtime boundary for extensions that contribute observed shared
 /// service descriptors.
 pub trait ServiceWorldExtension: WorldExtensionDescriptor {
-    fn poll_service_observations(&mut self) -> Result<Vec<ServiceObservation>, WorldError>;
+    fn poll_service_observations(
+        &mut self,
+    ) -> Result<Vec<ServiceObservation>, WorldError>;
 }
 
 #[purity(effectful)]

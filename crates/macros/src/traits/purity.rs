@@ -28,9 +28,9 @@ enum PurityClass {
 impl PurityClass {
     fn macro_form(self) -> &'static str {
         match self {
-            Self::Pure => "#[purity(pure)]",
-            Self::ReadOnly => "#[purity(read_only)]",
-            Self::Effectful => "#[purity(effectful)]",
+            | Self::Pure => "#[purity(pure)]",
+            | Self::ReadOnly => "#[purity(read_only)]",
+            | Self::Effectful => "#[purity(effectful)]",
         }
     }
 }
@@ -39,10 +39,10 @@ impl Parse for PurityClass {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let ident = input.parse::<syn::Ident>()?;
         match ident.to_string().as_str() {
-            "pure" => Ok(Self::Pure),
-            "read_only" => Ok(Self::ReadOnly),
-            "effectful" => Ok(Self::Effectful),
-            _ => Err(Error::new_spanned(
+            | "pure" => Ok(Self::Pure),
+            | "read_only" => Ok(Self::ReadOnly),
+            | "effectful" => Ok(Self::Effectful),
+            | _ => Err(Error::new_spanned(
                 ident,
                 "expected one of: `pure`, `read_only`, `effectful`",
             )),
@@ -55,34 +55,33 @@ fn validate_trait(item_trait: &ItemTrait, purity: PurityClass) -> syn::Result<()
         .items
         .iter()
         .filter_map(|item| match item {
-            TraitItem::Fn(method) => Some(method),
-            _ => None,
+            | TraitItem::Fn(method) => Some(method),
+            | _ => None,
         })
         .collect();
 
     match purity {
-        PurityClass::Pure => {
+        | PurityClass::Pure => {
             for method in methods {
                 reject_disallowed_receiver(method.sig.receiver(), purity)?;
             }
-        }
-        PurityClass::ReadOnly => {
+        },
+        | PurityClass::ReadOnly => {
             for method in methods {
                 reject_disallowed_receiver(method.sig.receiver(), purity)?;
             }
-        }
-        PurityClass::Effectful => {
+        },
+        | PurityClass::Effectful => {
             if methods.is_empty() {
                 return Ok(());
             }
 
+            // effectful requires at least one &mut self method. A trait
+            // with only &self methods belongs in read_only or pure.
             if !methods.iter().any(|method| {
                 matches!(
                     method.sig.receiver(),
-                    Some(Receiver {
-                        mutability: Some(_),
-                        ..
-                    })
+                    Some(Receiver { mutability: Some(_), .. })
                 )
             }) {
                 return Err(Error::new_spanned(
@@ -93,13 +92,16 @@ fn validate_trait(item_trait: &ItemTrait, purity: PurityClass) -> syn::Result<()
                     ),
                 ));
             }
-        }
+        },
     }
 
     Ok(())
 }
 
-fn reject_disallowed_receiver(receiver: Option<&Receiver>, purity: PurityClass) -> syn::Result<()> {
+fn reject_disallowed_receiver(
+    receiver: Option<&Receiver>,
+    purity: PurityClass,
+) -> syn::Result<()> {
     if let Some(receiver) = receiver {
         if receiver.mutability.is_some() {
             return Err(Error::new_spanned(

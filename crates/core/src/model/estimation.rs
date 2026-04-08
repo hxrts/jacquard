@@ -4,14 +4,16 @@
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
-use crate::{RouteConnectivityProfile, RouteDegradation, RouteEpoch, RouteProtectionClass};
+use crate::{
+    RouteConnectivityProfile, RouteDegradation, RouteEpoch, RouteProtectionClass,
+};
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Family-agnostic estimate of what one route candidate is likely to provide.
 pub struct RouteEstimate {
-    pub estimated_protection: RouteProtectionClass,
+    pub estimated_protection:   RouteProtectionClass,
     pub estimated_connectivity: RouteConnectivityProfile,
-    pub topology_epoch: RouteEpoch,
-    pub degradation: RouteDegradation,
+    pub topology_epoch:         RouteEpoch,
+    pub degradation:            RouteDegradation,
 }

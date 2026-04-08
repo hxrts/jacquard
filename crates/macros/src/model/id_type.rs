@@ -4,8 +4,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 
 use crate::support::{
-    ensure_derive, ensure_repr_transparent, id_type_derives, parse_single_field_tuple_struct,
-    tuple_struct_field_type,
+    ensure_derive, ensure_repr_transparent, id_type_derives,
+    parse_single_field_tuple_struct, tuple_struct_field_type,
 };
 
 pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -18,9 +18,10 @@ pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
         .into();
     }
 
-    let mut item_struct = match parse_single_field_tuple_struct(item.into(), "id_type") {
-        Ok(item_struct) => item_struct,
-        Err(error) => return error.to_compile_error().into(),
+    let mut item_struct = match parse_single_field_tuple_struct(item.into(), "id_type")
+    {
+        | Ok(item_struct) => item_struct,
+        | Err(error) => return error.to_compile_error().into(),
     };
     let ident = item_struct.ident.clone();
     let field_ty = tuple_struct_field_type(&item_struct);

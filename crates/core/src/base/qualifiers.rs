@@ -6,37 +6,47 @@ use serde::{Deserialize, Serialize};
 use crate::{RatioPermille, Tick};
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub enum Limit<T> {
     Unbounded,
     Bounded(T),
 }
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub enum Belief<T> {
     Absent,
     Estimated(Estimate<T>),
 }
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 /// Belief update derived from one or more observations.
 pub struct Estimate<T> {
-    pub value: T,
+    pub value:               T,
     pub confidence_permille: RatioPermille,
-    pub updated_at_tick: Tick,
+    pub updated_at_tick:     Tick,
 }
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub enum FactSourceClass {
     Local,
     Remote,
 }
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub enum RoutingEvidenceClass {
     DirectObservation,
     PeerClaim,
@@ -44,7 +54,9 @@ pub enum RoutingEvidenceClass {
 }
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub enum OriginAuthenticationClass {
     Controlled,
     Authenticated,
@@ -52,7 +64,9 @@ pub enum OriginAuthenticationClass {
 }
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 /// How strongly a node identity is grounded for routing-control decisions.
 pub enum IdentityAssuranceClass {
     WeakObserved,
@@ -65,15 +79,17 @@ pub enum IdentityAssuranceClass {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Raw local observation or received report with provenance attached.
 pub struct Observation<T> {
-    pub value: T,
-    pub source_class: FactSourceClass,
-    pub evidence_class: RoutingEvidenceClass,
+    pub value:                 T,
+    pub source_class:          FactSourceClass,
+    pub evidence_class:        RoutingEvidenceClass,
     pub origin_authentication: OriginAuthenticationClass,
-    pub observed_at_tick: Tick,
+    pub observed_at_tick:      Tick,
 }
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 /// Stronger basis for a routing fact the system treats as established.
 pub enum FactBasis {
     Observed,
@@ -84,9 +100,10 @@ pub enum FactBasis {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Definitive routing truth established from observations, estimates, or publication.
+/// Definitive routing truth established from observations, estimates, or
+/// publication.
 pub struct Fact<T> {
-    pub value: T,
-    pub basis: FactBasis,
+    pub value:               T,
+    pub basis:               FactBasis,
     pub established_at_tick: Tick,
 }

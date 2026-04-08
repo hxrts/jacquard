@@ -4,11 +4,23 @@ use jacquard_core::{Blake3Digest, ContentEncodingError, ContentId};
 use jacquard_macros::purity;
 
 #[purity(pure)]
+/// View a digest as canonical bytes without committing to one hash algorithm.
+pub trait HashDigestBytes {
+    fn as_bytes(&self) -> &[u8];
+}
+
+impl HashDigestBytes for Blake3Digest {
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[purity(pure)]
 /// Pure deterministic hashing interface over one digest type.
 ///
 /// Pure deterministic boundary.
 pub trait Hashing {
-    type Digest: Clone + Eq;
+    type Digest: Clone + Eq + HashDigestBytes;
 
     #[must_use]
     fn hash_bytes(&self, input: &[u8]) -> Self::Digest;
@@ -30,8 +42,11 @@ impl Hashing for Blake3Hashing {
 
     fn hash_tagged(&self, domain: &[u8], input: &[u8]) -> Self::Digest {
         let mut hasher = blake3::Hasher::new();
-        // Length prefix separates "ab"+"c" from "a"+"bc".
-        let domain_len = u32::try_from(domain.len()).expect("domain tag length exceeds u32");
+        // Only the domain is length-prefixed: input is the final field so its
+        // length is implicit from the stream end. Domain tags over u32 are
+        // programming errors, not recoverable runtime failures.
+        let domain_len =
+            u32::try_from(domain.len()).expect("domain tag length exceeds u32");
         hasher.update(&domain_len.to_le_bytes());
         hasher.update(domain);
         hasher.update(input);
@@ -54,14 +69,13 @@ pub trait ContentAddressable {
         hasher: &H,
     ) -> Result<ContentId<Self::Digest>, ContentEncodingError> {
         let canonical = self.canonical_bytes()?;
-        Ok(ContentId {
-            digest: hasher.hash_bytes(&canonical),
-        })
+        Ok(ContentId { digest: hasher.hash_bytes(&canonical) })
     }
 }
 
 #[purity(pure)]
-/// Like ContentAddressable but for template/schema identity rather than instance identity.
+/// Like ContentAddressable but for template/schema identity rather than
+/// instance identity.
 ///
 /// Pure deterministic boundary.
 pub trait TemplateAddressable {
@@ -75,9 +89,7 @@ pub trait TemplateAddressable {
         hasher: &H,
     ) -> Result<ContentId<Self::Digest>, ContentEncodingError> {
         let canonical = self.template_bytes()?;
-        Ok(ContentId {
-            digest: hasher.hash_bytes(&canonical),
-        })
+        Ok(ContentId { digest: hasher.hash_bytes(&canonical) })
     }
 }
 
@@ -85,7 +97,7 @@ pub trait TemplateAddressable {
 mod tests {
     use jacquard_core::{Blake3Digest, ContentEncodingError};
 
-    use super::{Blake3Hashing, ContentAddressable, Hashing};
+    use super::{Blake3Hashing, ContentAddressable, HashDigestBytes, Hashing};
 
     struct StaticContent(&'static [u8]);
 
@@ -115,5 +127,11 @@ mod tests {
         let content_id = item.content_id(&hashing).expect("content id");
 
         assert_eq!(content_id.digest, hashing.hash_bytes(b"jacquard"));
+    }
+
+    #[test]
+    fn blake3_digest_exposes_bytes() {
+        let digest = Blake3Hashing.hash_bytes(b"jacquard");
+        assert_eq!(digest.as_bytes().len(), 32);
     }
 }

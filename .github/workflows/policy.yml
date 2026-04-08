@@ -23,10 +23,28 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - name: Proc Macro Scope
-        run: nix develop --command ./scripts/check/proc-macro-scope.sh
+        run: nix develop --command cargo xtask check proc-macro-scope
+      - name: Test Boundaries
+        run: nix develop --command cargo xtask check test-boundaries
       - name: Trait Purity
-        run: nix develop --command ./scripts/check/trait-purity.sh
+        run: nix develop --command cargo xtask check trait-purity
       - name: Crate Boundary
-        run: nix develop --command ./scripts/check/crate-boundary.sh
+        run: nix develop --command cargo xtask check crate-boundary
       - name: No usize in Models
-        run: nix develop --command ./scripts/check/no-usize-in-models.sh
+        run: nix develop --command cargo xtask check no-usize-in-models
+      - name: Mesh Choreography
+        run: nix develop --command cargo xtask check mesh-choreography
+      - name: Mesh Choreography Validate
+        run: nix develop --command cargo xtask check mesh-choreography --validate
+      - name: Routing Invariants
+        run: nix develop --command cargo xtask check routing-invariants
+      - name: Routing Invariants Validate
+        run: nix develop --command cargo xtask check routing-invariants --validate
+      - name: Install cargo-dylint
+        run: nix develop ./nix/nightly --command install-dylint
+      - name: Dylint Trait Purity
+        run: nix develop ./nix/nightly --command cargo dylint --path lints/trait_purity --all -- --all-targets
+      - name: Dylint Model Policy
+        run: nix develop ./nix/nightly --command cargo dylint --path lints/model_policy --all -- --all-targets
+      - name: Dylint Routing Invariants
+        run: nix develop ./nix/nightly --command cargo dylint --path lints/routing_invariants --all -- --all-targets

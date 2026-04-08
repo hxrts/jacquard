@@ -34,6 +34,7 @@ impl RoutingEnginePlanner for BadEngine {
         _objective: &RoutingObjective,
         _profile: &AdaptiveRoutingProfile,
         _candidate: &RouteCandidate,
+        _topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
         todo!()
     }
@@ -43,6 +44,7 @@ impl RoutingEnginePlanner for BadEngine {
         _objective: &RoutingObjective,
         _profile: &AdaptiveRoutingProfile,
         _candidate: RouteCandidate,
+        _topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError> {
         todo!()
     }

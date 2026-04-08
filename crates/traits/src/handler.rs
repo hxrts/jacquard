@@ -5,8 +5,9 @@
 //! narrow and infrastructure-oriented. They should not become owners of
 //! canonical routing truth or long-lived orchestration state.
 
-use crate::Effect;
 use jacquard_macros::purity;
+
+use crate::Effect;
 
 mod sealed {
     pub trait Sealed {}

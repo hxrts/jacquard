@@ -18,7 +18,8 @@ pub use handler::*;
 pub use hashing::*;
 pub use jacquard_core;
 pub use jacquard_macros::{
-    bounded_value, effect_handler, effect_trait, id_type, must_use_handle, public_model, purity,
+    bounded_value, effect_handler, effect_trait, id_type, must_use_handle,
+    public_model, purity,
 };
 pub use mesh::*;
 pub use routing::*;
@@ -37,5 +38,9 @@ pub mod __private {
 
     pub trait HandlerDefinition<E: ?Sized> {}
 
-    pub struct HandlerToken<T: ?Sized, E: ?Sized>(pub PhantomData<fn() -> (*const T, *const E)>);
+    // fn() -> (*const T, *const E) makes both T and E invariant without
+    // adding Send/Sync bounds that bare *const pointers would impose.
+    pub struct HandlerToken<T: ?Sized, E: ?Sized>(
+        pub PhantomData<fn() -> (*const T, *const E)>,
+    );
 }

@@ -17,13 +17,13 @@ test:
 lint:
     cargo clippy --workspace -- -D warnings
 
-# format code
+# format code (uses nightly rustfmt for unstable rustfmt.toml options)
 fmt:
-    cargo fmt --all
+    nix develop ./nix/nightly --command cargo-fmt-nightly --all
 
-# check formatting
+# check formatting (uses nightly rustfmt for unstable rustfmt.toml options)
 fmt-check:
-    cargo fmt --all -- --check
+    nix develop ./nix/nightly --command cargo-fmt-nightly --all -- --check
 
 # Generate docs/SUMMARY.md from Markdown files in docs/ and subfolders
 summary:
@@ -73,10 +73,13 @@ _gen-assets:
     # Patch mermaid-init.js with null guards for mdbook 0.5.x theme buttons
     sed -i.bak 's/document\.getElementById(\(.*\))\.addEventListener/const el = document.getElementById(\1); if (el) el.addEventListener/' mermaid-init.js && rm -f mermaid-init.js.bak
     # Generate theme/index.hbs with MathJax v2 inline $ config injected before MathJax loads
+    tmp_theme_dir="/tmp/mdbook-theme-gen"
     mkdir -p theme
-    mdbook init --theme /tmp/mdbook-theme-gen <<< $'n\n' > /dev/null 2>&1
-    sed 's|<script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>|<script>window.MathJax = { tex2jax: { inlineMath: [["$","$"],["\\\\(","\\\\)"]], displayMath: [["$$","$$"],["\\\\[","\\\\]"]], processEscapes: true } };</script>\n        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>|' /tmp/mdbook-theme-gen/theme/index.hbs > theme/index.hbs
-    rm -rf /tmp/mdbook-theme-gen
+    rm -rf "$tmp_theme_dir"
+    mdbook init "$tmp_theme_dir" --theme <<< $'n\n' > /dev/null 2>&1
+    test -f "$tmp_theme_dir/theme/index.hbs"
+    sed 's|<script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>|<script>window.MathJax = { tex2jax: { inlineMath: [["$","$"],["\\\\(","\\\\)"]], displayMath: [["$$","$$"],["\\\\[","\\\\]"]], processEscapes: true } };</script>\n        <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>|' "$tmp_theme_dir/theme/index.hbs" > theme/index.hbs
+    rm -rf "$tmp_theme_dir"
 
 # Clean transient build assets
 _clean-assets:
@@ -140,16 +143,25 @@ ci-dry-run:
         fi
     }
 
-    add_step "Preflight"           "./scripts/ci/preflight.sh"
-    add_step "Format Check"       "cargo fmt --all -- --check"
+    add_step "Preflight"           "./scripts/preflight.sh"
+    add_step "Format Check"       "nix develop ./nix/nightly --command cargo-fmt-nightly --all -- --check"
     add_step "Clippy"             "cargo clippy --workspace -- -D warnings"
     add_step "Tests"              "cargo test --workspace"
-    add_step "Docs Link Check"    "./scripts/check/docs-link-check.sh"
-    add_step "Proc Macro Scope"   "./scripts/check/proc-macro-scope.sh"
-    add_step "Trait Purity"       "./scripts/check/trait-purity.sh"
-    add_step "Crate Boundary"     "./scripts/check/crate-boundary.sh"
-    add_step "No usize in Models" "./scripts/check/no-usize-in-models.sh"
-    add_step "Docs Semantic Drift" "./scripts/check/docs-semantic-drift.sh"
+    add_step "Docs Link Check"    "cargo xtask check docs-link-check"
+    add_step "Proc Macro Scope"   "cargo xtask check proc-macro-scope"
+    add_step "Test Boundaries"    "cargo xtask check test-boundaries"
+    add_step "Trait Purity"       "cargo xtask check trait-purity"
+    add_step "Crate Boundary"     "cargo xtask check crate-boundary"
+    add_step "No usize in Models" "cargo xtask check no-usize-in-models"
+    add_step "Mesh Choreography"  "cargo xtask check mesh-choreography"
+    add_step "Mesh Choreography Validate" "cargo xtask check mesh-choreography --validate"
+    add_step "Routing Invariants" "cargo xtask check routing-invariants"
+    add_step "Routing Invariants Validate" "cargo xtask check routing-invariants --validate"
+    add_step "Install cargo-dylint" "nix develop ./nix/nightly --command install-dylint"
+    add_step "Dylint Trait Purity" "nix develop ./nix/nightly --command cargo dylint --path lints/trait_purity --all -- --all-targets"
+    add_step "Dylint Model Policy" "nix develop ./nix/nightly --command cargo dylint --path lints/model_policy --all -- --all-targets"
+    add_step "Dylint Routing Invariants" "nix develop ./nix/nightly --command cargo dylint --path lints/routing_invariants --all -- --all-targets"
+    add_step "Docs Semantic Drift" "cargo xtask check docs-semantic-drift"
     add_step "Docs Build"         "just book"
 
     total=${#STEPS[@]}
@@ -178,15 +190,27 @@ ci-dry-run:
 
 # fast environment sanity checks
 ci-preflight:
-    ./scripts/ci/preflight.sh
+    ./scripts/preflight.sh
 
 # validate docs link integrity
 docs-link-check:
-    ./scripts/check/docs-link-check.sh
+    cargo xtask check docs-link-check
 
 # detect stale backtick references in docs
 docs-semantic-drift:
-    ./scripts/check/docs-semantic-drift.sh
+    cargo xtask check docs-semantic-drift
+
+# enforce unit-test / integration-test boundary rules
+test-boundaries:
+    cargo xtask check test-boundaries
+
+# enforce routing correctness invariants
+routing-invariants:
+    cargo xtask check routing-invariants
+
+# validate routing-invariant checks against seeded fixtures
+routing-invariants-validate:
+    cargo xtask check routing-invariants --validate
 
 # enter nightly shell for dylint and rustc_private lints (run install-dylint once inside)
 nightly-shell:

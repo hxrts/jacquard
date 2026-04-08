@@ -2,29 +2,35 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        Belief, Blake3Digest, ByteCount, Configuration, ContentId, ControllerId, DurationMs,
-        Environment, Fact, InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState, LinkState,
-        MaterializedRouteIdentity, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
-        PublicationId, RatioPermille, RetentionError, RouteAdmission, RouteAdmissionCheck,
-        RouteBinding, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
-        RouteConnectivityProfile, RouteCost, RouteEpoch, RouteHealth, RouteId, RouteInstallation,
-        RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
-        RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
-        RouteProtectionClass, RouteRuntimeState, RouteSummary, RouteWitness,
-        RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor, TransportError,
-        TransportObservation, TransportProtocol,
+        Belief, Blake3Digest, ByteCount, Configuration, ContentId, ControllerId,
+        DurationMs, Environment, Fact, InformationSetSummary, Link, LinkEndpoint,
+        LinkRuntimeState, LinkState, MaterializedRouteIdentity, Node, NodeId,
+        NodeProfile, NodeRelayBudget, NodeState, PublicationId, RatioPermille,
+        RetentionError, RouteAdmission, RouteAdmissionCheck, RouteBinding,
+        RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
+        RouteConnectivityProfile, RouteCost, RouteEpoch, RouteHealth, RouteId,
+        RouteInstallation, RouteLifecycleEvent, RouteMaintenanceOutcome,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+        RouteMaterializationProof, RouteProtectionClass, RouteRuntimeState,
+        RouteSummary, RouteWitness, RoutingEngineCapabilities, RoutingEngineId,
+        ServiceDescriptor, Tick, TransportError, TransportObservation,
+        TransportProtocol,
     },
-    EffectHandler, MeshRoutingEngine, MeshTopologyModel, MeshTransport, RetentionStore,
-    RoutingEngine, RoutingEnginePlanner, TransportEffects,
+    EffectHandler, MeshFrame, MeshRoutingEngine, MeshTopologyModel, MeshTransport,
+    RetentionStore, RoutingEngine, RoutingEnginePlanner, TransportEffects,
 };
 
 struct StubTopologyModel;
 
 impl MeshTopologyModel for StubTopologyModel {
-    type PeerEstimate = ();
     type NeighborhoodEstimate = ();
+    type PeerEstimate = ();
 
-    fn local_node(&self, local_node_id: &NodeId, configuration: &Configuration) -> Option<Node> {
+    fn local_node(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Option<Node> {
         configuration.nodes.get(local_node_id).cloned()
     }
 
@@ -67,7 +73,11 @@ impl MeshTopologyModel for StubTopologyModel {
             .collect()
     }
 
-    fn adjacent_links(&self, local_node_id: &NodeId, configuration: &Configuration) -> Vec<Link> {
+    fn adjacent_links(
+        &self,
+        local_node_id: &NodeId,
+        configuration: &Configuration,
+    ) -> Vec<Link> {
         configuration
             .links
             .iter()
@@ -85,6 +95,7 @@ impl MeshTopologyModel for StubTopologyModel {
         &self,
         _local_node_id: &NodeId,
         _peer_node_id: &NodeId,
+        _observed_at_tick: Tick,
         _configuration: &Configuration,
     ) -> Option<Self::PeerEstimate> {
         Some(())
@@ -93,6 +104,7 @@ impl MeshTopologyModel for StubTopologyModel {
     fn neighborhood_estimate(
         &self,
         _local_node_id: &NodeId,
+        _observed_at_tick: Tick,
         _configuration: &Configuration,
     ) -> Option<Self::NeighborhoodEstimate> {
         Some(())
@@ -101,7 +113,7 @@ impl MeshTopologyModel for StubTopologyModel {
 
 struct StubTransport {
     observations: Vec<TransportObservation>,
-    sent_frames: Vec<Vec<u8>>,
+    sent_frames:  Vec<Vec<u8>>,
 }
 
 impl MeshTransport for StubTransport {
@@ -109,16 +121,14 @@ impl MeshTransport for StubTransport {
         TransportProtocol::BleGatt
     }
 
-    fn send_frame(
-        &mut self,
-        _endpoint: &LinkEndpoint,
-        payload: &[u8],
-    ) -> Result<(), TransportError> {
-        self.sent_frames.push(payload.to_vec());
+    fn send_frame(&mut self, frame: MeshFrame<'_>) -> Result<(), TransportError> {
+        self.sent_frames.push(frame.payload.to_vec());
         Ok(())
     }
 
-    fn poll_observations(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
+    fn poll_observations(
+        &mut self,
+    ) -> Result<Vec<TransportObservation>, TransportError> {
         Ok(std::mem::take(&mut self.observations))
     }
 }
@@ -153,10 +163,10 @@ impl RetentionStore for StubRetentionStore {
 }
 
 struct StubMeshFamily {
-    topology: StubTopologyModel,
+    topology:  StubTopologyModel,
     transport: StubTransport,
     retention: StubRetentionStore,
-    route: Option<jacquard_traits::jacquard_core::MaterializedRoute>,
+    route:     Option<jacquard_traits::jacquard_core::MaterializedRoute>,
 }
 
 impl RoutingEnginePlanner for StubMeshFamily {
@@ -166,20 +176,25 @@ impl RoutingEnginePlanner for StubMeshFamily {
 
     fn capabilities(&self) -> RoutingEngineCapabilities {
         RoutingEngineCapabilities {
-            engine: RoutingEngineId::Mesh,
-            max_protection: RouteProtectionClass::LinkProtected,
-            max_connectivity: RouteConnectivityProfile {
-                repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
-                partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
+            engine:                  RoutingEngineId::Mesh,
+            max_protection:          RouteProtectionClass::LinkProtected,
+            max_connectivity:        RouteConnectivityProfile {
+                repair:    jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
+                partition:
+                    jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
-            repair_support: jacquard_traits::jacquard_core::RepairSupport::Supported,
-            hold_support: jacquard_traits::jacquard_core::HoldSupport::Supported,
-            decidable_admission: jacquard_traits::jacquard_core::DecidableSupport::Supported,
+            repair_support:
+                jacquard_traits::jacquard_core::RepairSupport::Supported,
+            hold_support:
+                jacquard_traits::jacquard_core::HoldSupport::Supported,
+            decidable_admission:
+                jacquard_traits::jacquard_core::DecidableSupport::Supported,
             quantitative_bounds:
                 jacquard_traits::jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support:
                 jacquard_traits::jacquard_core::ReconfigurationSupport::ReplaceOnly,
-            route_shape_visibility: jacquard_traits::jacquard_core::RouteShapeVisibility::Explicit,
+            route_shape_visibility:
+                jacquard_traits::jacquard_core::RouteShapeVisibility::Explicit,
         }
     }
 
@@ -197,6 +212,7 @@ impl RoutingEnginePlanner for StubMeshFamily {
         _objective: &jacquard_traits::jacquard_core::RoutingObjective,
         _profile: &jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
         _candidate: &jacquard_traits::jacquard_core::RouteCandidate,
+        _topology: &jacquard_traits::jacquard_core::Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, jacquard_traits::jacquard_core::RouteError> {
         Ok(RouteAdmissionCheck {
             decision: jacquard_traits::jacquard_core::AdmissionDecision::Admissible,
@@ -228,6 +244,7 @@ impl RoutingEnginePlanner for StubMeshFamily {
         objective: &jacquard_traits::jacquard_core::RoutingObjective,
         profile: &jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
         _candidate: jacquard_traits::jacquard_core::RouteCandidate,
+        _topology: &jacquard_traits::jacquard_core::Observation<Configuration>,
     ) -> Result<RouteAdmission, jacquard_traits::jacquard_core::RouteError> {
         Ok(sample_route_admission(objective.clone(), profile.clone()))
     }
@@ -238,13 +255,13 @@ impl RoutingEngine for StubMeshFamily {
         &mut self,
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, jacquard_traits::jacquard_core::RouteError> {
-        let route = sample_materialized_route(input);
+        let route = sample_materialized_route(&input);
         self.route = Some(route.clone());
         Ok(RouteInstallation {
             materialization_proof: route.identity.materialization_proof,
-            last_lifecycle_event: route.runtime.last_lifecycle_event,
-            health: route.runtime.health,
-            progress: route.runtime.progress,
+            last_lifecycle_event:  route.runtime.last_lifecycle_event,
+            health:                route.runtime.health,
+            progress:              route.runtime.progress,
         })
     }
 
@@ -254,18 +271,18 @@ impl RoutingEngine for StubMeshFamily {
     ) -> Vec<RouteCommitment> {
         vec![RouteCommitment {
             commitment_id: RouteCommitmentId([4; 16]),
-            operation_id: jacquard_traits::jacquard_core::RouteOperationId([5; 16]),
+            operation_id:  jacquard_traits::jacquard_core::RouteOperationId([5; 16]),
             route_binding: RouteBinding::Bound(RouteId([6; 16])),
             owner_node_id: NodeId([1; 32]),
             deadline_tick: jacquard_traits::jacquard_core::Tick(4),
-            retry_policy: jacquard_traits::jacquard_core::TimeoutPolicy {
-                attempt_count_max: 1,
-                initial_backoff_ms: DurationMs(1),
+            retry_policy:  jacquard_traits::jacquard_core::TimeoutPolicy {
+                attempt_count_max:           1,
+                initial_backoff_ms:          DurationMs(1),
                 backoff_multiplier_permille: RatioPermille(1000),
-                backoff_ms_max: DurationMs(1),
-                overall_timeout_ms: DurationMs(1),
+                backoff_ms_max:              DurationMs(1),
+                overall_timeout_ms:          DurationMs(1),
             },
-            resolution: RouteCommitmentResolution::Pending,
+            resolution:    RouteCommitmentResolution::Pending,
         }]
     }
 
@@ -274,10 +291,11 @@ impl RoutingEngine for StubMeshFamily {
         _identity: &MaterializedRouteIdentity,
         runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
-    ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError> {
+    ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError>
+    {
         runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         Ok(RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Repaired,
+            event:   RouteLifecycleEvent::Repaired,
             outcome: RouteMaintenanceOutcome::Repaired,
         })
     }
@@ -286,9 +304,9 @@ impl RoutingEngine for StubMeshFamily {
 }
 
 impl MeshRoutingEngine for StubMeshFamily {
+    type Retention = StubRetentionStore;
     type TopologyModel = StubTopologyModel;
     type Transport = StubTransport;
-    type Retention = StubRetentionStore;
 
     fn topology_model(&self) -> &Self::TopologyModel {
         &self.topology
@@ -313,9 +331,9 @@ impl MeshRoutingEngine for StubMeshFamily {
 
 fn sample_endpoint() -> LinkEndpoint {
     LinkEndpoint {
-        protocol: TransportProtocol::BleGatt,
-        address: jacquard_traits::jacquard_core::EndpointAddress::Ble {
-            device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
+        protocol:  TransportProtocol::BleGatt,
+        address:   jacquard_traits::jacquard_core::EndpointAddress::Ble {
+            device_id:  jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
             profile_id: jacquard_traits::jacquard_core::BleProfileId([2; 16]),
         },
         mtu_bytes: ByteCount(512),
@@ -367,7 +385,7 @@ fn sample_node(controller_seed: u8) -> Node {
 fn sample_link() -> Link {
     Link {
         endpoint: sample_endpoint(),
-        state: LinkState {
+        state:    LinkState {
             state: LinkRuntimeState::Active,
             median_rtt_ms: DurationMs(5),
             transfer_rate_bytes_per_sec: Belief::Absent,
@@ -396,18 +414,23 @@ fn sample_configuration() -> Configuration {
         links,
         environment: Environment {
             reachable_neighbor_count: 1,
-            churn_permille: RatioPermille(0),
-            contention_permille: RatioPermille(0),
+            churn_permille:           RatioPermille(0),
+            contention_permille:      RatioPermille(0),
         },
     }
 }
 
+// long-block-exception: fully populated shared admission fixture.
 fn sample_route_admission(
     objective: jacquard_traits::jacquard_core::RoutingObjective,
     profile: jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
 ) -> RouteAdmission {
     RouteAdmission {
         route_id: RouteId([3; 16]),
+        backend_ref: jacquard_traits::jacquard_core::BackendRouteRef {
+            engine: jacquard_traits::jacquard_core::RoutingEngineId::Mesh,
+            backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![1, 2, 3]),
+        },
         objective,
         profile,
         admission_check: RouteAdmissionCheck {
@@ -476,35 +499,44 @@ fn sample_route_admission(
 }
 
 fn sample_materialized_route(
-    input: RouteMaterializationInput,
+    input: &RouteMaterializationInput,
 ) -> jacquard_traits::jacquard_core::MaterializedRoute {
     jacquard_traits::jacquard_core::MaterializedRoute::from_installation(
         input.clone(),
         RouteInstallation {
             materialization_proof: RouteMaterializationProof {
-                route_id: input.admission.route_id,
-                topology_epoch: RouteEpoch(1),
+                route_id:             input.admission.route_id,
+                topology_epoch:       RouteEpoch(1),
                 materialized_at_tick: jacquard_traits::jacquard_core::Tick(1),
-                publication_id: PublicationId([9; 16]),
-                witness: Fact {
-                    value: input.admission.witness.clone(),
-                    basis: jacquard_traits::jacquard_core::FactBasis::Published,
+                publication_id:       PublicationId([9; 16]),
+                witness:              Fact {
+                    value:               input.admission.witness.clone(),
+                    basis:
+                        jacquard_traits::jacquard_core::FactBasis::Published,
                     established_at_tick: jacquard_traits::jacquard_core::Tick(1),
                 },
             },
-            last_lifecycle_event: RouteLifecycleEvent::Activated,
-            health: RouteHealth {
-                reachability_state: jacquard_traits::jacquard_core::ReachabilityState::Reachable,
-                stability_score: jacquard_traits::jacquard_core::HealthScore(1000),
-                congestion_penalty_points: jacquard_traits::jacquard_core::PenaltyPoints(0),
-                last_validated_at_tick: jacquard_traits::jacquard_core::Tick(1),
+            last_lifecycle_event:  RouteLifecycleEvent::Activated,
+            health:                RouteHealth {
+                reachability_state:
+                    jacquard_traits::jacquard_core::ReachabilityState::Reachable,
+                stability_score:           jacquard_traits::jacquard_core::HealthScore(
+                    1000,
+                ),
+                congestion_penalty_points:
+                    jacquard_traits::jacquard_core::PenaltyPoints(0),
+                last_validated_at_tick:    jacquard_traits::jacquard_core::Tick(1),
             },
-            progress: jacquard_traits::jacquard_core::RouteProgressContract {
-                productive_step_count_max: jacquard_traits::jacquard_core::Limit::Bounded(1),
-                total_step_count_max: jacquard_traits::jacquard_core::Limit::Bounded(1),
-                last_progress_at_tick: jacquard_traits::jacquard_core::Tick(1),
-                state: jacquard_traits::jacquard_core::RouteProgressState::Satisfied,
-            },
+            progress:
+                jacquard_traits::jacquard_core::RouteProgressContract {
+                    productive_step_count_max:
+                        jacquard_traits::jacquard_core::Limit::Bounded(1),
+                    total_step_count_max:
+                        jacquard_traits::jacquard_core::Limit::Bounded(1),
+                    last_progress_at_tick:     jacquard_traits::jacquard_core::Tick(1),
+                    state:
+                        jacquard_traits::jacquard_core::RouteProgressState::Satisfied,
+                },
         },
     )
 }
@@ -526,11 +558,11 @@ fn mesh_transport_carries_frames_without_interpreting_them() {
     let endpoint = sample_endpoint();
     let mut transport = StubTransport {
         observations: Vec::new(),
-        sent_frames: Vec::new(),
+        sent_frames:  Vec::new(),
     };
 
     transport
-        .send_frame(&endpoint, b"frame")
+        .send_frame(MeshFrame { endpoint: &endpoint, payload: b"frame" })
         .expect("send frame");
     let observations = transport
         .poll_observations()
@@ -543,12 +575,8 @@ fn mesh_transport_carries_frames_without_interpreting_them() {
 
 #[test]
 fn retention_store_retains_and_releases_opaque_payloads() {
-    let object_id = ContentId {
-        digest: Blake3Digest([7; 32]),
-    };
-    let mut retention = StubRetentionStore {
-        payloads: BTreeMap::new(),
-    };
+    let object_id = ContentId { digest: Blake3Digest([7; 32]) };
+    let mut retention = StubRetentionStore { payloads: BTreeMap::new() };
 
     retention
         .retain_payload(object_id, b"payload".to_vec())
@@ -580,15 +608,13 @@ fn mesh_transport_is_also_a_transport_effect_handler() {
 #[test]
 fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
     let mut family = StubMeshFamily {
-        topology: StubTopologyModel,
+        topology:  StubTopologyModel,
         transport: StubTransport {
             observations: Vec::new(),
-            sent_frames: Vec::new(),
+            sent_frames:  Vec::new(),
         },
-        retention: StubRetentionStore {
-            payloads: BTreeMap::new(),
-        },
-        route: None,
+        retention: StubRetentionStore { payloads: BTreeMap::new() },
+        route:     None,
     };
 
     assert_eq!(
@@ -600,7 +626,10 @@ fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
     );
     family
         .transport_mut()
-        .send_frame(&sample_endpoint(), b"frame")
+        .send_frame(MeshFrame {
+            endpoint: &sample_endpoint(),
+            payload:  b"frame",
+        })
         .expect("send frame");
     assert_eq!(
         family.transport().transport_id(),
@@ -609,16 +638,12 @@ fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
     family
         .retention_store_mut()
         .retain_payload(
-            ContentId {
-                digest: Blake3Digest([8; 32]),
-            },
+            ContentId { digest: Blake3Digest([8; 32]) },
             b"payload".to_vec(),
         )
         .expect("store payload");
     assert!(family
         .retention_store()
-        .contains_retained_payload(&ContentId {
-            digest: Blake3Digest([8; 32]),
-        })
+        .contains_retained_payload(&ContentId { digest: Blake3Digest([8; 32]) })
         .expect("payload present"));
 }

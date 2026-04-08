@@ -5,7 +5,10 @@ use std::collections::BTreeSet;
 use quote::ToTokens;
 use syn::{parse_quote, punctuated::Punctuated, Attribute, Path, Token};
 
-pub(crate) fn ensure_derive(attrs: &mut Vec<Attribute>, required: &[Path]) -> syn::Result<()> {
+pub(crate) fn ensure_derive(
+    attrs: &mut Vec<Attribute>,
+    required: &[Path],
+) -> syn::Result<()> {
     let mut existing = BTreeSet::new();
 
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("derive")) {
@@ -37,6 +40,9 @@ pub(crate) fn ensure_must_use(attrs: &mut Vec<Attribute>, message: &str) {
 }
 
 pub(crate) fn ensure_repr_transparent(attrs: &mut Vec<Attribute>) -> syn::Result<()> {
+    // try_fold instead of any() propagates parse errors from each
+    // #[repr] attribute. The early-return short-circuits once
+    // transparent is found.
     let has_transparent = attrs
         .iter()
         .filter(|attr| attr.path().is_ident("repr"))
@@ -57,6 +63,8 @@ pub(crate) fn ensure_repr_transparent(attrs: &mut Vec<Attribute>) -> syn::Result
     Ok(())
 }
 
+// to_token_stream() emits spaces around `::` segments; strip them so
+// path strings compare equal regardless of whitespace.
 fn normalize_path(path: &Path) -> String {
     path.to_token_stream().to_string().replace(' ', "")
 }

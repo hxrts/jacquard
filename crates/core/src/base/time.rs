@@ -41,7 +41,7 @@ pub struct PenaltyPoints(pub u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TimeWindow {
     start_tick: Tick,
-    end_tick: Tick,
+    end_tick:   Tick,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
@@ -56,10 +56,7 @@ impl TimeWindow {
             return Err(TimeWindowError::EndNotAfterStart);
         }
 
-        Ok(Self {
-            start_tick,
-            end_tick,
-        })
+        Ok(Self { start_tick, end_tick })
     }
 
     #[must_use]
@@ -72,6 +69,8 @@ impl TimeWindow {
         self.end_tick
     }
 
+    // Half-open interval [start_tick, end_tick): start is included, end is
+    // excluded. Matches standard lease-boundary semantics.
     #[must_use]
     pub fn contains(&self, tick: Tick) -> bool {
         self.start_tick <= tick && tick < self.end_tick
@@ -81,11 +80,11 @@ impl TimeWindow {
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TimeoutPolicy {
-    pub attempt_count_max: u32,
-    pub initial_backoff_ms: DurationMs,
+    pub attempt_count_max:           u32,
+    pub initial_backoff_ms:          DurationMs,
     pub backoff_multiplier_permille: RatioPermille,
-    pub backoff_ms_max: DurationMs,
-    pub overall_timeout_ms: DurationMs,
+    pub backoff_ms_max:              DurationMs,
+    pub overall_timeout_ms:          DurationMs,
 }
 
 #[cfg(test)]
