@@ -6,9 +6,9 @@ use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Belief, ByteCount, ControllerId, DurationMs, InformationSetSummary, LinkEndpoint,
-    LinkRuntimeState, NodeId, NodeRelayBudget, RatioPermille, RouteEpoch,
-    ServiceDescriptor,
+    Belief, ByteCount, ControllerId, DurationMs, HoldItemCount, InformationSetSummary,
+    LinkEndpoint, LinkRuntimeState, MaintenanceWorkBudget, NodeId, NodeRelayBudget,
+    RatioPermille, RelayWorkBudget, RouteEpoch, ServiceDescriptor,
 };
 
 #[public_model]
@@ -23,9 +23,9 @@ pub struct NodeProfile {
     pub neighbor_state_count_max: u32,
     pub simultaneous_transfer_count_max: u32,
     pub active_route_count_max: u32,
-    pub relay_work_budget_max: u32,
-    pub maintenance_work_budget_max: u32,
-    pub hold_item_count_max: u32,
+    pub relay_work_budget_max: RelayWorkBudget,
+    pub maintenance_work_budget_max: MaintenanceWorkBudget,
+    pub hold_item_count_max: HoldItemCount,
     pub hold_capacity_bytes_max: ByteCount,
 }
 
@@ -116,9 +116,9 @@ mod tests {
                 neighbor_state_count_max: 0,
                 simultaneous_transfer_count_max: 0,
                 active_route_count_max: 0,
-                relay_work_budget_max: 0,
-                maintenance_work_budget_max: 0,
-                hold_item_count_max: 0,
+                relay_work_budget_max: RelayWorkBudget(0),
+                maintenance_work_budget_max: MaintenanceWorkBudget(0),
+                hold_item_count_max: HoldItemCount(0),
                 hold_capacity_bytes_max: ByteCount(0),
             },
             state: NodeState {

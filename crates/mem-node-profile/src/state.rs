@@ -1,6 +1,7 @@
 use jacquard_core::{
-    Belief, ByteCount, DurationMs, Estimate, InformationSetSummary,
-    InformationSummaryEncoding, NodeRelayBudget, NodeState, RatioPermille, Tick,
+    Belief, ByteCount, DurationMs, Estimate, HoldItemCount, InformationSetSummary,
+    InformationSummaryEncoding, NodeRelayBudget, NodeState, RatioPermille, RelayWorkBudget,
+    Tick,
 };
 
 /// Mutable in-memory node-state simulator for tests.
@@ -101,7 +102,7 @@ impl NodeStateSnapshot {
             relay_budget: Belief::Estimated(Estimate {
                 value: NodeRelayBudget {
                     relay_work_budget: Belief::Estimated(Estimate {
-                        value: self.relay_work_budget,
+                        value: RelayWorkBudget(self.relay_work_budget),
                         confidence_permille: RatioPermille(1000),
                         updated_at_tick: self.observed_at_tick,
                     }),
@@ -129,7 +130,7 @@ impl NodeStateSnapshot {
                 value: InformationSetSummary {
                     summary_encoding: InformationSummaryEncoding::BloomFilter,
                     item_count: Belief::Estimated(Estimate {
-                        value: self.information_item_count,
+                        value: HoldItemCount(self.information_item_count),
                         confidence_permille: RatioPermille(1000),
                         updated_at_tick: self.observed_at_tick,
                     }),

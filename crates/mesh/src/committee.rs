@@ -11,14 +11,17 @@ use core::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
 use bincode::Options;
+#[allow(unused_imports)]
 use jacquard_core::{
     SelectedRoutingParameters, AdmissionAssumptions, ClaimStrength, CommitteeId,
     CommitteeMember, CommitteeRole, CommitteeSelection, Configuration, ControllerId,
-    FactBasis, HealthScore, IdentityAssuranceClass, NodeDensityClass, NodeId,
-    Observation, PenaltyPoints, ConnectivityPosture, RouteEpoch, RouteError,
-    RoutePartitionClass, RouteRepairClass, RoutingEngineId, RoutingObjective,
-    ServiceScope, Tick, TimeWindow,
+    FactBasis, HealthScore, IdentityAssuranceClass, MaintenanceWorkBudget,
+    NodeDensityClass, NodeId, Observation, PenaltyPoints, ConnectivityPosture, RouteEpoch,
+    RouteError, RoutePartitionClass, RouteRepairClass, RelayWorkBudget, RoutingEngineId,
+    RoutingObjective, ServiceScope, Tick, TimeWindow,
 };
+#[allow(unused_imports)]
+use jacquard_core::HoldItemCount;
 use jacquard_traits::{
     Blake3Hashing, CommitteeSelector, HashDigestBytes, Hashing,
     MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshTopologyModel,
@@ -671,16 +674,16 @@ mod tests {
                 neighbor_state_count_max: 4,
                 simultaneous_transfer_count_max: 2,
                 active_route_count_max: 2,
-                relay_work_budget_max: 8,
-                maintenance_work_budget_max: 8,
-                hold_item_count_max: 4,
+                relay_work_budget_max: RelayWorkBudget(8),
+                maintenance_work_budget_max: MaintenanceWorkBudget(8),
+                hold_item_count_max: HoldItemCount(4),
                 hold_capacity_bytes_max: ByteCount(2048),
             },
             state: NodeState {
                 relay_budget: Belief::Estimated(Estimate {
                     value: NodeRelayBudget {
                         relay_work_budget: Belief::Estimated(Estimate {
-                            value: 4,
+                            value: RelayWorkBudget(4),
                             confidence_permille: RatioPermille(1000),
                             updated_at_tick: Tick(0),
                         }),

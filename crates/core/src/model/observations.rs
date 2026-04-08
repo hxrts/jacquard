@@ -1,13 +1,22 @@
 //! Observation-layer support types, shared observed payloads, and observation
 //! aliases over world objects.
 
-use jacquard_macros::public_model;
+use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     Belief, ByteCount, Configuration, DurationMs, Environment, Link, Node,
     RatioPermille, ServiceDescriptor, TransportObservation,
 };
+
+#[id_type]
+pub struct RelayWorkBudget(pub u32);
+
+#[id_type]
+pub struct MaintenanceWorkBudget(pub u32);
+
+#[id_type]
+pub struct HoldItemCount(pub u32);
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -24,7 +33,7 @@ pub enum InformationSummaryEncoding {
 /// Summary of the retained information set observed at one node.
 pub struct InformationSetSummary {
     pub summary_encoding: InformationSummaryEncoding,
-    pub item_count: Belief<u32>,
+    pub item_count: Belief<HoldItemCount>,
     pub byte_count: Belief<ByteCount>,
     pub false_positive_permille: Belief<RatioPermille>,
 }
@@ -33,7 +42,7 @@ pub struct InformationSetSummary {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Local forwarding and retention budget currently observed for one node.
 pub struct NodeRelayBudget {
-    pub relay_work_budget: Belief<u32>,
+    pub relay_work_budget: Belief<RelayWorkBudget>,
     pub utilization_permille: RatioPermille,
     pub retention_horizon_ms: Belief<DurationMs>,
 }

@@ -4,9 +4,10 @@
 use jacquard_traits::{
     jacquard_core::{
         Belief, ByteCount, ControllerId, DurationMs, EndpointAddress, Environment,
-        FactSourceClass, InformationSetSummary, Link, LinkEndpoint, LinkRuntimeState,
-        LinkState, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState, Observation,
-        ObservedValue, OriginAuthenticationClass, RatioPermille, RoutingEngineId,
+        FactSourceClass, HoldItemCount, InformationSetSummary, Link, LinkEndpoint,
+        LinkRuntimeState, LinkState, MaintenanceWorkBudget, Node, NodeId, NodeProfile,
+        NodeRelayBudget, NodeState, Observation, ObservedValue,
+        OriginAuthenticationClass, RatioPermille, RelayWorkBudget, RoutingEngineId,
         RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
         TransportObservation, TransportProtocol, WorldError, WorldObservation,
     },
@@ -93,9 +94,9 @@ fn sample_node() -> Node {
             neighbor_state_count_max: 8,
             simultaneous_transfer_count_max: 2,
             active_route_count_max: 4,
-            relay_work_budget_max: 16,
-            maintenance_work_budget_max: 8,
-            hold_item_count_max: 8,
+            relay_work_budget_max: RelayWorkBudget(16),
+            maintenance_work_budget_max: MaintenanceWorkBudget(8),
+            hold_item_count_max: HoldItemCount(8),
             hold_capacity_bytes_max: ByteCount(1024),
         },
         state: NodeState {

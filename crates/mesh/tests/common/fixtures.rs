@@ -11,11 +11,12 @@ use jacquard_mesh::MESH_ENGINE_ID;
 use jacquard_traits::jacquard_core::{
     Belief, BleDeviceId, BleProfileId, ByteCount, Configuration, ControllerId,
     DiscoveryScopeId, DurationMs, EndpointAddress, Environment, Estimate,
-    FactSourceClass, InformationSetSummary, InformationSummaryEncoding, Link,
-    LinkEndpoint, LinkRuntimeState, LinkState, Node, NodeId, NodeProfile,
-    NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass, RatioPermille,
-    RouteEpoch, RouteServiceKind, RoutingEvidenceClass, ServiceDescriptor,
-    ServiceScope, Tick, TimeWindow, TransportProtocol,
+    FactSourceClass, HoldItemCount, InformationSetSummary, InformationSummaryEncoding,
+    Link, LinkEndpoint, LinkRuntimeState, LinkState, MaintenanceWorkBudget, Node,
+    NodeId, NodeProfile, NodeRelayBudget, NodeState, Observation,
+    OriginAuthenticationClass, RatioPermille, RelayWorkBudget, RouteEpoch,
+    RouteServiceKind, RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick,
+    TimeWindow, TransportProtocol,
 };
 
 pub fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
@@ -78,16 +79,16 @@ pub fn node(node_byte: u8) -> Node {
             neighbor_state_count_max: 8,
             simultaneous_transfer_count_max: 4,
             active_route_count_max: 4,
-            relay_work_budget_max: 10,
-            maintenance_work_budget_max: 10,
-            hold_item_count_max: 8,
+            relay_work_budget_max: RelayWorkBudget(10),
+            maintenance_work_budget_max: MaintenanceWorkBudget(10),
+            hold_item_count_max: HoldItemCount(8),
             hold_capacity_bytes_max: ByteCount(8192),
         },
         state: NodeState {
             relay_budget: Belief::Estimated(Estimate {
                 value: NodeRelayBudget {
                     relay_work_budget: Belief::Estimated(Estimate {
-                        value: 8,
+                        value: RelayWorkBudget(8),
                         confidence_permille: RatioPermille(1000),
                         updated_at_tick: Tick(1),
                     }),
@@ -115,7 +116,7 @@ pub fn node(node_byte: u8) -> Node {
                 value: InformationSetSummary {
                     summary_encoding: InformationSummaryEncoding::BloomFilter,
                     item_count: Belief::Estimated(Estimate {
-                        value: 4,
+                        value: HoldItemCount(4),
                         confidence_permille: RatioPermille(1000),
                         updated_at_tick: Tick(1),
                     }),

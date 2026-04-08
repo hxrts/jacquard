@@ -9,12 +9,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+#[allow(unused_imports)]
 use jacquard_core::{
     Belief, ByteCount, Configuration, Environment, HealthScore, Link, LinkEndpoint,
-    LinkState, Node, NodeId, NodeRelayBudget, RatioPermille, RouteServiceKind,
-    RoutingEngineId, RoutingObjective, ServiceDescriptor, ServiceId, ServiceScope,
-    Tick, TransportProtocol,
+    LinkState, MaintenanceWorkBudget, Node, NodeId, NodeRelayBudget, RatioPermille,
+    RelayWorkBudget, RouteServiceKind, RoutingEngineId, RoutingObjective,
+    ServiceDescriptor, ServiceId, ServiceScope, Tick, TransportProtocol,
 };
+#[allow(unused_imports)]
+use jacquard_core::HoldItemCount;
 use jacquard_traits::{
     MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshTopologyModel,
 };
@@ -621,9 +624,9 @@ mod tests {
             neighbor_state_count_max: 0,
             simultaneous_transfer_count_max: 0,
             active_route_count_max: 0,
-            relay_work_budget_max: 0,
-            maintenance_work_budget_max: 0,
-            hold_item_count_max: 0,
+            relay_work_budget_max: RelayWorkBudget(0),
+            maintenance_work_budget_max: MaintenanceWorkBudget(0),
+            hold_item_count_max: HoldItemCount(0),
             hold_capacity_bytes_max: ByteCount(0),
         }
     }

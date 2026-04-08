@@ -87,6 +87,11 @@ fn collect_struct_fields(
     fields: &Fields,
     out: &mut Vec<Violation>,
 ) {
+    // Skip newtypes: single field with a bare primitive is the idiomatic newtype pattern
+    if is_newtype_pattern(fields) {
+        return;
+    }
+
     for field in fields {
         if type_has_bare_primitive(&field.ty) {
             out.push(Violation::new(
@@ -96,4 +101,8 @@ fn collect_struct_fields(
             ));
         }
     }
+}
+
+fn is_newtype_pattern(fields: &Fields) -> bool {
+    matches!(fields, Fields::Unnamed(f) if f.unnamed.len() == 1)
 }

@@ -5,10 +5,11 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, ControllerId, OperatingMode, Environment, FactSourceClass,
-        Link, LinkRuntimeState, LinkState, Node, NodeId, NodeProfile, NodeState,
-        Observation, OriginAuthenticationClass, RatioPermille, RouteEpoch, RouteEvent,
-        RouteEventStamped, RoutingObjective, Tick,
+        Configuration, ControllerId, HoldItemCount, MaintenanceWorkBudget,
+        OperatingMode, Environment, FactSourceClass, Link, LinkRuntimeState, LinkState,
+        Node, NodeId, NodeProfile, NodeState, Observation, OriginAuthenticationClass,
+        RatioPermille, RelayWorkBudget, RouteEpoch, RouteEvent, RouteEventStamped,
+        RoutingObjective, Tick,
     },
     RoutingEnvironmentModel, RoutingReplayView, RoutingScenario, RoutingSimulator,
 };
@@ -183,9 +184,9 @@ fn sample_configuration() -> Configuration {
                 neighbor_state_count_max: 8,
                 simultaneous_transfer_count_max: 2,
                 active_route_count_max: 4,
-                relay_work_budget_max: 16,
-                maintenance_work_budget_max: 8,
-                hold_item_count_max: 8,
+                relay_work_budget_max: RelayWorkBudget(16),
+                maintenance_work_budget_max: MaintenanceWorkBudget(8),
+                hold_item_count_max: HoldItemCount(8),
                 hold_capacity_bytes_max: jacquard_traits::jacquard_core::ByteCount(
                     1024,
                 ),
@@ -211,9 +212,9 @@ fn sample_configuration() -> Configuration {
                 neighbor_state_count_max: 8,
                 simultaneous_transfer_count_max: 2,
                 active_route_count_max: 4,
-                relay_work_budget_max: 16,
-                maintenance_work_budget_max: 8,
-                hold_item_count_max: 8,
+                relay_work_budget_max: RelayWorkBudget(16),
+                maintenance_work_budget_max: MaintenanceWorkBudget(8),
+                hold_item_count_max: HoldItemCount(8),
                 hold_capacity_bytes_max: jacquard_traits::jacquard_core::ByteCount(
                     1024,
                 ),

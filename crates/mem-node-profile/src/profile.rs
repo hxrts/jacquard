@@ -1,4 +1,7 @@
-use jacquard_core::{ByteCount, ControllerId, LinkEndpoint, Node, NodeId, NodeProfile};
+use jacquard_core::{
+    ByteCount, ControllerId, HoldItemCount, LinkEndpoint, MaintenanceWorkBudget, Node,
+    NodeId, NodeProfile, RelayWorkBudget,
+};
 
 use crate::{services::SimulatedServiceDescriptor, state::NodeStateSnapshot};
 
@@ -106,9 +109,11 @@ impl SimulatedNodeProfile {
             neighbor_state_count_max: self.neighbor_state_count_max,
             simultaneous_transfer_count_max: self.simultaneous_transfer_count_max,
             active_route_count_max: self.active_route_count_max,
-            relay_work_budget_max: self.relay_work_budget_max,
-            maintenance_work_budget_max: self.maintenance_work_budget_max,
-            hold_item_count_max: self.hold_item_count_max,
+            relay_work_budget_max: RelayWorkBudget(self.relay_work_budget_max),
+            maintenance_work_budget_max: MaintenanceWorkBudget(
+                self.maintenance_work_budget_max,
+            ),
+            hold_item_count_max: HoldItemCount(self.hold_item_count_max),
             hold_capacity_bytes_max: self.hold_capacity_bytes_max,
         }
     }
