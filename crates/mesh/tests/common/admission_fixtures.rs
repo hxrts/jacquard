@@ -3,11 +3,11 @@
 
 use jacquard_core::{
     SelectedRoutingParameters, AdmissionAssumptions, AdversaryRegime, Belief,
-    ClaimStrength, ConnectivityRegime, DestinationId, Estimate, FailureModelClass,
-    HoldFallbackPolicy, Limit, MessageFlowAssumptionClass, NodeDensityClass, NodeId,
-    RatioPermille, ConnectivityPosture, RouteCost, RoutePartitionClass,
-    RouteProtectionClass, RouteRepairClass, RouteServiceKind, RouteSummary,
-    RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
+    ClaimStrength, ConnectivityRegime, DestinationId, DiversityFloor, Estimate,
+    FailureModelClass, HoldFallbackPolicy, Limit, MessageFlowAssumptionClass,
+    NodeDensityClass, NodeId, RatioPermille, ConnectivityPosture, RouteCost,
+    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
+    RouteSummary, RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
 };
 use jacquard_mesh::MESH_ENGINE_ID;
 
@@ -48,7 +48,7 @@ pub fn profile_with(
         selected_protection: RouteProtectionClass::LinkProtected,
         selected_connectivity: ConnectivityPosture { repair, partition },
         deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
-        diversity_floor: 1,
+        diversity_floor: DiversityFloor(1),
         routing_engine_fallback_policy:
             jacquard_core::RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,

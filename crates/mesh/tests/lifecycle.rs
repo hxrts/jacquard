@@ -42,7 +42,7 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
     engine
         .forward_payload(&route_id, b"mesh-payload")
         .expect("forwarding");
-    assert_eq!(engine.transport().sent_frames.len(), 1);
+    assert_eq!(engine.transport_adapter().sent_frames.len(), 1);
 
     let retained = engine
         .retain_for_route(&route_id, b"partition-buffer")
@@ -85,7 +85,7 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         .forward_payload(&route_id, b"held-during-partition")
         .expect("partitioned forwarding retains payload");
     assert_eq!(
-        engine.transport().sent_frames.len(),
+        engine.transport_adapter().sent_frames.len(),
         1,
         "partitioned forwarding should buffer rather than send immediately"
     );
@@ -112,7 +112,7 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         jacquard_traits::jacquard_core::RouteLifecycleEvent::RecoveredFromPartition
     );
     assert!(engine
-        .transport()
+        .transport_adapter()
         .sent_frames
         .iter()
         .any(|(_endpoint, payload)| payload == b"held-during-partition"));

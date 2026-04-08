@@ -6,20 +6,16 @@
 //! Effect boundary:
 //! - `MeshTopologyModel` is read-only. It should be deterministic with respect
 //!   to its inputs and must not mutate canonical route state.
-//! - `MeshTransport` is effectful. It carries frames and reports transport
-//!   observations, but it must not impose sequencing, traffic control, or
-//!   routing truth.
 //! - `RetentionStore` is effectful. It stores opaque deferred-delivery
 //!   payloads, but it must not interpret higher-level routing semantics.
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, HealthScore, Link, LinkEndpoint, Node,
-    NodeId, RetentionError, Tick, TransportError, TransportObservation,
-    TransportProtocol,
+    Blake3Digest, Configuration, ContentId, HealthScore, Link, LinkEndpoint,
+    Node, NodeId, RetentionError, Tick,
 };
 use jacquard_macros::purity;
 
-use crate::{effect_handler, RoutingEngine, TransportEffects};
+use crate::RoutingEngine;
 
 #[purity(read_only)]
 /// Deterministic, read-only topology queries used by the mesh planner/runtime.
@@ -99,52 +95,6 @@ pub trait MeshNeighborhoodEstimateAccess {
     fn service_stability_score(&self) -> Option<HealthScore>;
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// Frame-shaped send envelope used by `MeshTransport`.
-///
-/// Mesh keeps a transport-specialized carrier boundary because routing and
-/// replay care about explicit endpoint/frame sends rather than only about a
-/// generic byte stream effect.
-pub struct MeshFrame<'a> {
-    pub endpoint: &'a LinkEndpoint,
-    pub payload: &'a [u8],
-}
-
-#[purity(effectful)]
-/// Effectful frame-carrier boundary for one mesh transport implementation.
-///
-/// Effectful runtime boundary.
-pub trait MeshTransport {
-    #[must_use]
-    fn transport_id(&self) -> TransportProtocol;
-
-    fn send_frame(&mut self, frame: MeshFrame<'_>) -> Result<(), TransportError>;
-
-    fn poll_observations(
-        &mut self,
-    ) -> Result<Vec<TransportObservation>, TransportError>;
-}
-
-// Blanket impl: any MeshTransport automatically satisfies TransportEffects
-// so implementors only need one specialized trait, not two.
-#[effect_handler]
-impl<T> TransportEffects for T
-where
-    T: MeshTransport + Send + Sync + 'static,
-{
-    fn send_transport(
-        &mut self,
-        endpoint: &LinkEndpoint,
-        payload: &[u8],
-    ) -> Result<(), TransportError> {
-        self.send_frame(MeshFrame { endpoint, payload })
-    }
-
-    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
-        self.poll_observations()
-    }
-}
-
 #[purity(effectful)]
 /// Effectful deferred-delivery retention boundary.
 ///
@@ -168,24 +118,20 @@ pub trait RetentionStore {
 }
 
 #[purity(effectful)]
-/// Mesh-specialized routing-engine boundary with explicit subcomponent
-/// ownership.
+/// Mesh-specialized routing-engine boundary for mesh-private deterministic
+/// semantics.
 ///
 /// Planning purity stays in `RoutingEnginePlanner` plus `MeshTopologyModel`.
-/// This trait only binds the effectful routing-engine runtime to its swappable
-/// subcomponents.
+/// This trait binds the effectful routing-engine runtime only to the mesh
+/// subcomponents that remain mesh-specific after transport is moved onto the
+/// shared `TransportEffects` boundary.
 ///
 /// Effectful runtime boundary with read-only subcomponent accessors.
 pub trait MeshRoutingEngine: RoutingEngine {
     type TopologyModel: MeshTopologyModel;
-    type Transport: MeshTransport;
     type Retention: RetentionStore;
 
     fn topology_model(&self) -> &Self::TopologyModel;
-
-    fn transport(&self) -> &Self::Transport;
-
-    fn transport_mut(&mut self) -> &mut Self::Transport;
 
     fn retention_store(&self) -> &Self::Retention;
 

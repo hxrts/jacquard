@@ -8,14 +8,14 @@ use jacquard_traits::{
         SelectedRoutingParameters, AdmissionAssumptions, AdmissionDecision,
         AdversaryRegime, BackendRouteRef, Belief, ByteCount, ClaimStrength,
         CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection, Configuration,
-        ConnectivityRegime, OperatingMode, Environment, Estimate, Fact, FactBasis,
-        FailureModelClass, IdentityAssuranceClass, LayerParameter, LayerParameters,
-        Limit, MaterializedRoute, MaterializedRouteIdentity,
+        ConnectivityRegime, DiversityFloor, OperatingMode, Environment, Estimate, Fact,
+        FactBasis, FailureModelClass, IdentityAssuranceClass, LayerParameter,
+        LayerParameters, Limit, MaterializedRoute, MaterializedRouteIdentity,
         MessageFlowAssumptionClass, NodeDensityClass, Observation, PublicationId,
-        ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding,
-        RouteCandidate, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
-        ConnectivityPosture, RouteCost, RouteDegradation, RouteEpoch,
-        RouteEstimate, RouteHandle, RouteHealth, RouteId, RouteInstallation,
+        QuorumThreshold, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
+        RouteBinding, RouteCandidate, RouteCommitment, RouteCommitmentId,
+        RouteCommitmentResolution, ConnectivityPosture, RouteCost, RouteDegradation,
+        RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId, RouteInstallation,
         RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome,
         RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
         RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
@@ -72,7 +72,7 @@ impl CommitteeSelector for StubCommitteeSelector {
             evidence_basis: FactBasis::Observed,
             claim_strength: ClaimStrength::ConservativeUnderProfile,
             identity_assurance: IdentityAssuranceClass::ControllerBound,
-            quorum_threshold: 2,
+            quorum_threshold: QuorumThreshold(2),
             members: vec![
                 CommitteeMember {
                     node_id: jacquard_traits::jacquard_core::NodeId([1; 32]),
@@ -415,7 +415,7 @@ fn sample_profile() -> SelectedRoutingParameters {
         selected_protection: RouteProtectionClass::LinkProtected,
         selected_connectivity: repairable_connected(),
         deployment_profile: OperatingMode::SparseLowPower,
-        diversity_floor: 1,
+        diversity_floor: DiversityFloor(1),
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
     }
@@ -682,7 +682,7 @@ fn committee_selector_trait_supports_shared_result_shape() {
         .expect("committee selection should succeed")
         .expect("committee should be present");
 
-    assert_eq!(committee.quorum_threshold, 2);
+    assert_eq!(committee.quorum_threshold, QuorumThreshold(2));
     assert_eq!(committee.members.len(), 2);
     assert_eq!(committee.members[0].role, CommitteeRole::Participant);
 }

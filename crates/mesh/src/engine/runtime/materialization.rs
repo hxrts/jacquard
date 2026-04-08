@@ -21,7 +21,7 @@ use super::{
         ActiveMeshRoute, MeshCommitteeStatus, MESH_ACTIVE_ROUTE_COUNT_MAX,
     },
     MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
-    MeshTransportBounds,
+    TransportEffectsBounds,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -30,7 +30,7 @@ where
     Topology: super::super::MeshTopologyBounds,
     Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
     Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: super::super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,

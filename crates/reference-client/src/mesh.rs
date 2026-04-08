@@ -11,14 +11,14 @@
 //! - no canonical route publication outside the router-owned path
 
 use jacquard_core::{
-    SelectedRoutingParameters, Configuration, OperatingMode, DurationMs, HealthScore,
-    IdentityAssuranceClass, LinkEndpoint, NodeId, Observation, RatioPermille,
-    ConnectivityPosture, RoutePartitionClass, RouteProtectionClass,
+    SelectedRoutingParameters, Configuration, DiversityFloor, OperatingMode, DurationMs,
+    HealthScore, IdentityAssuranceClass, LinkEndpoint, NodeId, Observation,
+    RatioPermille, ConnectivityPosture, RoutePartitionClass, RouteProtectionClass,
     RouteRepairClass, RouteReplacementPolicy, RoutingEngineFallbackPolicy,
     RoutingPolicyInputs, Tick,
 };
 use jacquard_mem_link_profile::{
-    InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
+    InMemoryTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
     SharedInMemoryNetwork,
 };
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
@@ -54,7 +54,7 @@ pub fn build_mesh_client_with_profile(
     profile: SelectedRoutingParameters,
 ) -> MeshClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
-    let mut transport = InMemoryMeshTransport::attached(
+    let mut transport = InMemoryTransport::attached(
         local_endpoint.protocol.clone(),
         local_node_id,
         [local_endpoint],
@@ -139,7 +139,7 @@ fn default_profile() -> SelectedRoutingParameters {
             partition: RoutePartitionClass::PartitionTolerant,
         },
         deployment_profile: OperatingMode::FieldPartitionTolerant,
-        diversity_floor: 1,
+        diversity_floor: DiversityFloor(1),
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
     }

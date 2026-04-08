@@ -11,9 +11,9 @@
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
     jacquard_core::{
-        SelectedRoutingParameters, Configuration, OperatingMode, DestinationId,
-        DurationMs, HoldFallbackPolicy, Limit, MaterializedRouteIdentity, NodeId,
-        Observation, PriorityPoints, PublicationId, ConnectivityPosture,
+        SelectedRoutingParameters, Configuration, DiversityFloor, OperatingMode,
+        DestinationId, DurationMs, HoldFallbackPolicy, Limit, MaterializedRouteIdentity,
+        NodeId, Observation, PriorityPoints, PublicationId, ConnectivityPosture,
         RouteHandle, RouteLease, RouteMaterializationInput, RoutePartitionClass,
         RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
         RouteRuntimeState, RouteServiceKind, RoutingEngineFallbackPolicy,
@@ -107,7 +107,7 @@ pub fn profile_with_connectivity(
         selected_protection: RouteProtectionClass::LinkProtected,
         selected_connectivity: ConnectivityPosture { repair, partition },
         deployment_profile: OperatingMode::FieldPartitionTolerant,
-        diversity_floor: 1,
+        diversity_floor: DiversityFloor(1),
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
     }

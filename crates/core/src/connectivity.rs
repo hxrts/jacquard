@@ -1,7 +1,7 @@
 //! Transport protocols, link endpoints, service descriptors, and connectivity
 //! surfaces.
 
-use jacquard_macros::public_model;
+use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -96,11 +96,14 @@ pub enum ServiceScope {
     Introduction { scope_token: Vec<u8> },
 }
 
+#[id_type]
+pub struct RepairCapacitySlots(pub u32);
+
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapacityHint {
     pub saturation_permille: RatioPermille,
-    pub repair_capacity: Belief<u32>,
+    pub repair_capacity_slots: Belief<RepairCapacitySlots>,
     pub hold_capacity_bytes: Belief<ByteCount>,
 }
 

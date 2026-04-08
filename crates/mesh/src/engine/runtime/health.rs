@@ -21,7 +21,7 @@ use super::{
         MeshTransportFreshness, MeshTransportObservationSummary,
     },
     MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
-    MeshTransportBounds,
+    TransportEffectsBounds,
 };
 
 struct TransportObservationAccumulator {
@@ -157,7 +157,7 @@ where
     Topology: super::super::MeshTopologyBounds,
     Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
     Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: super::super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,

@@ -155,8 +155,8 @@ fn inline_protocol_modules_are_valid(root: &Path) -> Result<Vec<Violation>> {
 
 fn forbidden_runtime_effect_calls(root: &Path) -> Result<Vec<Violation>> {
     let patterns = [
-        ("self.transport.send_frame(", "mesh runtime must send frames through choreography guest runtime"),
-        ("self.transport.poll_observations(", "mesh runtime must poll ingress through choreography guest runtime"),
+        ("self.transport.send_transport(", "mesh runtime must send transport payloads through choreography guest runtime"),
+        ("self.transport.poll_transport(", "mesh runtime must poll ingress through choreography guest runtime"),
         ("self.retention.retain_payload(", "mesh runtime must retain payloads through choreography guest runtime"),
         ("self.retention.take_retained_payload(", "mesh runtime must recover retained payloads through choreography guest runtime"),
         ("self.effects.record_route_event(", "mesh runtime must record route events through choreography guest runtime"),

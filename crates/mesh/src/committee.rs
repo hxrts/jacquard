@@ -15,10 +15,10 @@ use bincode::Options;
 use jacquard_core::{
     SelectedRoutingParameters, AdmissionAssumptions, ClaimStrength, CommitteeId,
     CommitteeMember, CommitteeRole, CommitteeSelection, Configuration, ControllerId,
-    FactBasis, HealthScore, IdentityAssuranceClass, MaintenanceWorkBudget,
-    NodeDensityClass, NodeId, Observation, PenaltyPoints, ConnectivityPosture, RouteEpoch,
-    RouteError, RoutePartitionClass, RouteRepairClass, RelayWorkBudget, RoutingEngineId,
-    RoutingObjective, ServiceScope, Tick, TimeWindow,
+    DiversityFloor, FactBasis, HealthScore, IdentityAssuranceClass, MaintenanceWorkBudget,
+    NodeDensityClass, NodeId, Observation, PenaltyPoints, ConnectivityPosture, QuorumThreshold,
+    RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass, RelayWorkBudget,
+    RoutingEngineId, RoutingObjective, ServiceScope, Tick, TimeWindow,
 };
 #[allow(unused_imports)]
 use jacquard_core::HoldItemCount;
@@ -464,8 +464,10 @@ where
     ) -> CommitteeSelection {
         // Simple majority quorum: floor(n/2) + 1. The u8 cast is safe
         // because MESH_COMMITTEE_MEMBERSHIP_CAP (3) keeps the max at 2.
-        let quorum_threshold = u8::try_from((members.len() / 2) + 1)
-            .expect("committee size is bounded by MESH_COMMITTEE_MEMBERSHIP_CAP");
+        let quorum_threshold = QuorumThreshold(
+            u8::try_from((members.len() / 2) + 1)
+                .expect("committee size is bounded by MESH_COMMITTEE_MEMBERSHIP_CAP"),
+        );
         let validity_end =
             Tick(current_tick.0.saturating_add(MESH_COMMITTEE_VALIDITY_TICKS));
         CommitteeSelection {
@@ -786,7 +788,7 @@ mod tests {
             selected_protection: RouteProtectionClass::LinkProtected,
             selected_connectivity: ConnectivityPosture { repair, partition },
             deployment_profile: OperatingMode::FieldPartitionTolerant,
-            diversity_floor: 1,
+            diversity_floor: DiversityFloor(1),
             routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
             route_replacement_policy: RouteReplacementPolicy::Allowed,
         }
@@ -865,7 +867,7 @@ mod tests {
             .unwrap();
         let committee = result.expect("committee should be selected");
         assert!(!committee.members.is_empty());
-        assert!(committee.quorum_threshold >= 1);
+        assert!(committee.quorum_threshold >= QuorumThreshold(1));
     }
 
     #[test]

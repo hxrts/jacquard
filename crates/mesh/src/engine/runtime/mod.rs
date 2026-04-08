@@ -24,7 +24,7 @@ use jacquard_traits::{CommitteeCoordinatedEngine, MeshRoutingEngine, RoutingEngi
 
 use super::{
     MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
-    MeshTransportBounds,
+    TransportEffectsBounds,
 };
 
 struct MaintenanceContext<'a> {
@@ -39,7 +39,7 @@ where
     Topology: super::MeshTopologyBounds,
     Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
     Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -90,7 +90,7 @@ where
     Topology: super::MeshTopologyBounds,
     Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
     Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -143,7 +143,7 @@ where
     Topology: super::MeshTopologyBounds,
     Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
     Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -151,18 +151,9 @@ where
 {
     type Retention = Retention;
     type TopologyModel = Topology;
-    type Transport = Transport;
 
     fn topology_model(&self) -> &Self::TopologyModel {
         &self.topology_model
-    }
-
-    fn transport(&self) -> &Self::Transport {
-        &self.transport
-    }
-
-    fn transport_mut(&mut self) -> &mut Self::Transport {
-        &mut self.transport
     }
 
     fn retention_store(&self) -> &Self::Retention {

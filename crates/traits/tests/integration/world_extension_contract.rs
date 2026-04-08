@@ -7,9 +7,10 @@ use jacquard_traits::{
         FactSourceClass, HoldItemCount, InformationSetSummary, Link, LinkEndpoint,
         LinkRuntimeState, LinkState, MaintenanceWorkBudget, Node, NodeId, NodeProfile,
         NodeRelayBudget, NodeState, Observation, ObservedValue,
-        OriginAuthenticationClass, RatioPermille, RelayWorkBudget, RoutingEngineId,
-        RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
-        TransportObservation, TransportProtocol, WorldError, WorldObservation,
+        OriginAuthenticationClass, RatioPermille, RelayWorkBudget, RepairCapacitySlots,
+        RoutingEngineId, RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick,
+        TimeWindow, TransportObservation, TransportProtocol, WorldError,
+        WorldObservation,
     },
     LinkWorldExtension, NodeWorldExtension, WorldExtension, WorldExtensionDescriptor,
 };
@@ -195,9 +196,9 @@ fn sample_service_observation() -> WorldObservation {
             capacity: Belief::Estimated(jacquard_traits::jacquard_core::Estimate {
                 value: jacquard_traits::jacquard_core::CapacityHint {
                     saturation_permille: RatioPermille(100),
-                    repair_capacity: Belief::Estimated(
+                    repair_capacity_slots: Belief::Estimated(
                         jacquard_traits::jacquard_core::Estimate {
-                            value: 2,
+                            value: RepairCapacitySlots(2),
                             confidence_permille: RatioPermille(900),
                             updated_at_tick: Tick(2),
                         },

@@ -20,7 +20,7 @@ mod retention;
 
 pub use effects::InMemoryRuntimeEffects;
 pub use endpoint::SharedInMemoryNetwork;
-pub use frame_carrier::InMemoryMeshTransport;
+pub use frame_carrier::InMemoryTransport;
 pub use link_state::SimulatedLinkProfile;
 pub use protocol::{ble_endpoint, opaque_endpoint};
 pub use retention::InMemoryRetentionStore;

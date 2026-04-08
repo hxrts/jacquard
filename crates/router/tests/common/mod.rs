@@ -8,20 +8,20 @@ use std::{
 use jacquard_core::{
     SelectedRoutingParameters, Belief, BleDeviceId, BleProfileId, ByteCount,
     ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
-    Configuration, ControllerId, DestinationId, DiscoveryScopeId, DurationMs,
-    EndpointAddress, Environment, Estimate, FactBasis, FactSourceClass, HealthScore,
-    HoldItemCount, IdentityAssuranceClass, InformationSetSummary,
+    Configuration, ControllerId, DestinationId, DiscoveryScopeId, DiversityFloor,
+    DurationMs, EndpointAddress, Environment, Estimate, FactBasis, FactSourceClass,
+    HealthScore, HoldItemCount, IdentityAssuranceClass, InformationSetSummary,
     InformationSummaryEncoding, Link, LinkEndpoint, LinkRuntimeState, LinkState,
     MaintenanceWorkBudget, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
     Observation, OriginAuthenticationClass, PriorityPoints, RatioPermille,
-    RelayWorkBudget, ConnectivityPosture, RouteMaintenanceOutcome,
+    RelayWorkBudget, RepairCapacitySlots, ConnectivityPosture, RouteMaintenanceOutcome,
     RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
     RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
     RoutingPolicyInputs, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
     TransportProtocol,
 };
 use jacquard_mem_link_profile::{
-    InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
+    InMemoryTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
 };
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
@@ -29,14 +29,14 @@ use jacquard_traits::{Blake3Hashing, CommitteeSelector};
 
 pub(crate) type TestMeshEngine = MeshEngine<
     DeterministicMeshTopologyModel,
-    InMemoryMeshTransport,
+    InMemoryTransport,
     InMemoryRetentionStore,
     InMemoryRuntimeEffects,
     Blake3Hashing,
 >;
 pub(crate) type CommitteeMeshEngine = MeshEngine<
     DeterministicMeshTopologyModel,
-    InMemoryMeshTransport,
+    InMemoryTransport,
     InMemoryRetentionStore,
     InMemoryRuntimeEffects,
     Blake3Hashing,
@@ -63,7 +63,7 @@ pub(crate) fn build_router_with_selector(
     let engine: CommitteeMeshEngine = MeshEngine::with_committee_selector(
         LOCAL_NODE_ID,
         DeterministicMeshTopologyModel::new(),
-        InMemoryMeshTransport::new(TransportProtocol::BleGatt),
+        InMemoryTransport::new(TransportProtocol::BleGatt),
         InMemoryRetentionStore::default(),
         InMemoryRuntimeEffects { now, ..Default::default() },
         Blake3Hashing,
@@ -106,7 +106,7 @@ pub(crate) fn build_router_with_runtime_pair(
     let engine: TestMeshEngine = MeshEngine::without_committee_selector(
         LOCAL_NODE_ID,
         DeterministicMeshTopologyModel::new(),
-        InMemoryMeshTransport::new(TransportProtocol::BleGatt),
+        InMemoryTransport::new(TransportProtocol::BleGatt),
         InMemoryRetentionStore::default(),
         engine_effects,
         Blake3Hashing,
@@ -187,7 +187,7 @@ pub(crate) fn profile() -> SelectedRoutingParameters {
             partition: jacquard_core::RoutePartitionClass::PartitionTolerant,
         },
         deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
-        diversity_floor: 1,
+        diversity_floor: DiversityFloor(1),
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
     }
@@ -743,8 +743,8 @@ fn route_capable_services(
             capacity: Belief::Estimated(Estimate {
                 value: jacquard_core::CapacityHint {
                     saturation_permille: RatioPermille(100),
-                    repair_capacity: Belief::Estimated(Estimate {
-                        value: 4,
+                    repair_capacity_slots: Belief::Estimated(Estimate {
+                        value: RepairCapacitySlots(4),
                         confidence_permille: RatioPermille(1000),
                         updated_at_tick: Tick(1),
                     }),

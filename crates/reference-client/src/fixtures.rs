@@ -7,7 +7,8 @@
 
 use jacquard_core::{
     Belief, ByteCount, ControllerId, DiscoveryScopeId, DurationMs, Estimate, Link,
-    Node, NodeId, RatioPermille, RouteServiceKind, ServiceScope, Tick, TimeWindow,
+    Node, NodeId, RatioPermille, RepairCapacitySlots, RouteServiceKind, ServiceScope,
+    Tick, TimeWindow,
 };
 use jacquard_mem_link_profile::{ble_endpoint, SimulatedLinkProfile};
 use jacquard_mem_node_profile::{
@@ -76,8 +77,8 @@ fn hold_service_capacity() -> Belief<jacquard_core::CapacityHint> {
     Belief::Estimated(Estimate {
         value: jacquard_core::CapacityHint {
             saturation_permille: RatioPermille(100),
-            repair_capacity: Belief::Estimated(Estimate {
-                value: 4,
+            repair_capacity_slots: Belief::Estimated(Estimate {
+                value: jacquard_core::RepairCapacitySlots(4),
                 confidence_permille: RatioPermille(1000),
                 updated_at_tick: Tick(1),
             }),

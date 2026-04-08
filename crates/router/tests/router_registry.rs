@@ -8,7 +8,7 @@ use jacquard_core::{
     CapabilityError, DestinationId, ReceiptId, RouteSemanticHandoff, Tick,
 };
 use jacquard_mem_link_profile::{
-    InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
+    InMemoryTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
 };
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID};
 use jacquard_traits::{Blake3Hashing, Router};
@@ -19,7 +19,7 @@ fn multi_engine_router_rejects_duplicate_mesh_registration() {
     let duplicate_engine = MeshEngine::without_committee_selector(
         LOCAL_NODE_ID,
         DeterministicMeshTopologyModel::new(),
-        InMemoryMeshTransport::new(jacquard_core::TransportProtocol::BleGatt),
+        InMemoryTransport::new(jacquard_core::TransportProtocol::BleGatt),
         InMemoryRetentionStore::default(),
         InMemoryRuntimeEffects { now: Tick(2), ..Default::default() },
         Blake3Hashing,

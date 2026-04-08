@@ -14,9 +14,9 @@ use jacquard_traits::jacquard_core::{
     FactSourceClass, HoldItemCount, InformationSetSummary, InformationSummaryEncoding,
     Link, LinkEndpoint, LinkRuntimeState, LinkState, MaintenanceWorkBudget, Node,
     NodeId, NodeProfile, NodeRelayBudget, NodeState, Observation,
-    OriginAuthenticationClass, RatioPermille, RelayWorkBudget, RouteEpoch,
-    RouteServiceKind, RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick,
-    TimeWindow, TransportProtocol,
+    OriginAuthenticationClass, RatioPermille, RelayWorkBudget, RepairCapacitySlots,
+    RouteEpoch, RouteServiceKind, RoutingEvidenceClass, ServiceDescriptor,
+    ServiceScope, Tick, TimeWindow, TransportProtocol,
 };
 
 pub fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
@@ -48,8 +48,8 @@ pub fn route_capable_services(
             capacity: Belief::Estimated(Estimate {
                 value: jacquard_traits::jacquard_core::CapacityHint {
                     saturation_permille: RatioPermille(100),
-                    repair_capacity: Belief::Estimated(Estimate {
-                        value: 4,
+                    repair_capacity_slots: Belief::Estimated(Estimate {
+                        value: RepairCapacitySlots(4),
                         confidence_permille: RatioPermille(1000),
                         updated_at_tick: Tick(1),
                     }),

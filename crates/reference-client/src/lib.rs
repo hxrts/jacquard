@@ -16,7 +16,7 @@ mod mesh;
 
 use jacquard_core::{Configuration, Observation};
 pub use jacquard_mem_link_profile::{
-    InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
+    InMemoryTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
     SharedInMemoryNetwork, SimulatedLinkProfile,
 };
 pub use jacquard_mem_node_profile::{

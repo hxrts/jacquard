@@ -21,7 +21,7 @@ use super::{
         MESH_COMMITMENT_INITIAL_BACKOFF_MS, MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
     },
     MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
-    MeshTransportBounds,
+    TransportEffectsBounds,
 };
 use crate::choreography::{
     MeshAntiEntropySnapshot, MeshNeighborAdvertisementSnapshot, MeshRouteExportSnapshot,
@@ -33,7 +33,7 @@ where
     Topology: super::super::MeshTopologyBounds,
     Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
     Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: super::super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,

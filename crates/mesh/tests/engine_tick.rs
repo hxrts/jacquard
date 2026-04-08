@@ -121,7 +121,7 @@ fn engine_tick_transport_observations_change_health_inputs() {
 
     let mut observed_engine = build_engine();
     observed_engine
-        .transport_mut()
+        .transport_adapter_mut()
         .observations
         .push(low_quality_link_observation());
     let (_, observed_runtime) = activate_route_with_profile(
@@ -156,11 +156,11 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
     let mut left = build_engine();
     let mut right = build_engine();
 
-    left.transport_mut()
+    left.transport_adapter_mut()
         .observations
         .push(low_quality_link_observation());
     right
-        .transport_mut()
+        .transport_adapter_mut()
         .observations
         .push(low_quality_link_observation());
 
@@ -212,7 +212,7 @@ fn quiet_tick_preserves_still_fresh_transport_summary() {
     let topology = sample_configuration();
     let mut engine = build_engine();
     engine
-        .transport_mut()
+        .transport_adapter_mut()
         .observations
         .push(low_quality_link_observation());
 
@@ -246,7 +246,7 @@ fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
     let topology = sample_configuration();
     let mut engine = build_engine();
     engine
-        .transport_mut()
+        .transport_adapter_mut()
         .observations
         .push(low_quality_link_observation());
     engine
@@ -276,7 +276,7 @@ fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
         observation.observed_at_tick = Tick(6);
     }
     engine
-        .transport_mut()
+        .transport_adapter_mut()
         .observations
         .push(refreshed_observation);
     engine
@@ -403,7 +403,7 @@ fn high_transport_pressure_changes_repair_posture() {
         lease(Tick(2), Tick(20)),
     );
     pressured_engine
-        .transport_mut()
+        .transport_adapter_mut()
         .observations
         .extend([low_quality_link_observation(), low_quality_link_observation()]);
 
@@ -465,7 +465,7 @@ fn anti_entropy_required_consumes_bounded_control_pressure() {
         lease(Tick(2), Tick(20)),
     );
     engine
-        .transport_mut()
+        .transport_adapter_mut()
         .observations
         .extend([low_quality_link_observation(), low_quality_link_observation()]);
     engine

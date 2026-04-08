@@ -17,8 +17,8 @@ mod publishing;
 mod scoring;
 
 use jacquard_core::{
-    SelectedRoutingParameters, AdmissionDecision, Configuration, Observation,
-    RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
+    SelectedRoutingParameters, AdmissionDecision, Configuration, DiversityFloor,
+    Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
     RouteSelectionError, RoutingObjective,
 };
 use jacquard_traits::{
@@ -187,7 +187,7 @@ mod tests {
             selected_connectivity: ConnectivityPosture { repair, partition },
             deployment_profile:
                 jacquard_core::OperatingMode::FieldPartitionTolerant,
-            diversity_floor: 1,
+            diversity_floor: DiversityFloor(1),
             routing_engine_fallback_policy:
                 jacquard_core::RoutingEngineFallbackPolicy::Allowed,
             route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,

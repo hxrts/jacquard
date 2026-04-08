@@ -5,19 +5,18 @@ use jacquard_traits::{
         Belief, Blake3Digest, ByteCount, Configuration, ContentId, ControllerId,
         DurationMs, Environment, Fact, HoldItemCount, InformationSetSummary, Link,
         LinkEndpoint, LinkRuntimeState, LinkState, MaintenanceWorkBudget,
-        MaterializedRouteIdentity, Node, NodeId, NodeProfile, NodeRelayBudget,
-        NodeState, PublicationId, RatioPermille, RelayWorkBudget, RetentionError,
-        RouteAdmission, RouteAdmissionCheck, RouteBinding, RouteCommitment,
-        RouteCommitmentId, RouteCommitmentResolution, ConnectivityPosture, RouteCost,
-        RouteEpoch, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
-        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
-        RouteMaterializationInput, RouteMaterializationProof, RouteProtectionClass,
-        RouteRuntimeState, RouteSummary, RouteWitness, RoutingEngineCapabilities,
-        RoutingEngineId, ServiceDescriptor, Tick, TransportError,
-        TransportObservation, TransportProtocol,
+        MaterializedRouteIdentity, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
+        PublicationId, RatioPermille, RelayWorkBudget, RetentionError, RouteAdmission,
+        RouteAdmissionCheck, RouteBinding, RouteCommitment, RouteCommitmentId,
+        RouteCommitmentResolution, ConnectivityPosture, RouteCost, RouteEpoch, RouteHealth,
+        RouteId, RouteInstallation, RouteLifecycleEvent, RouteMaintenanceOutcome,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+        RouteMaterializationProof, RouteProtectionClass, RouteRuntimeState, RouteSummary,
+        RouteWitness, RoutingEngineCapabilities, RoutingEngineId, ServiceDescriptor, Tick,
+        TransportError, TransportObservation, TransportProtocol,
     },
-    EffectHandler, MeshFrame, MeshRoutingEngine, MeshTopologyModel, MeshTransport,
-    RetentionStore, RoutingEngine, RoutingEnginePlanner, TransportEffects,
+    effect_handler, EffectHandler, MeshRoutingEngine, MeshTopologyModel, RetentionStore,
+    RoutingEngine, RoutingEnginePlanner, TransportEffects,
 };
 
 struct StubTopologyModel;
@@ -113,22 +112,21 @@ impl MeshTopologyModel for StubTopologyModel {
 
 struct StubTransport {
     observations: Vec<TransportObservation>,
-    sent_frames: Vec<Vec<u8>>,
+    sent_frames: Vec<(LinkEndpoint, Vec<u8>)>,
 }
 
-impl MeshTransport for StubTransport {
-    fn transport_id(&self) -> TransportProtocol {
-        TransportProtocol::BleGatt
-    }
-
-    fn send_frame(&mut self, frame: MeshFrame<'_>) -> Result<(), TransportError> {
-        self.sent_frames.push(frame.payload.to_vec());
+#[effect_handler]
+impl TransportEffects for StubTransport {
+    fn send_transport(
+        &mut self,
+        endpoint: &LinkEndpoint,
+        payload: &[u8],
+    ) -> Result<(), TransportError> {
+        self.sent_frames.push((endpoint.clone(), payload.to_vec()));
         Ok(())
     }
 
-    fn poll_observations(
-        &mut self,
-    ) -> Result<Vec<TransportObservation>, TransportError> {
+    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
         Ok(std::mem::take(&mut self.observations))
     }
 }
@@ -304,18 +302,9 @@ impl RoutingEngine for StubMeshEngine {
 impl MeshRoutingEngine for StubMeshEngine {
     type Retention = StubRetentionStore;
     type TopologyModel = StubTopologyModel;
-    type Transport = StubTransport;
 
     fn topology_model(&self) -> &Self::TopologyModel {
         &self.topology
-    }
-
-    fn transport(&self) -> &Self::Transport {
-        &self.transport
-    }
-
-    fn transport_mut(&mut self) -> &mut Self::Transport {
-        &mut self.transport
     }
 
     fn retention_store(&self) -> &Self::Retention {
@@ -546,7 +535,7 @@ fn mesh_topology_model_is_read_only_over_configuration_inputs() {
 }
 
 #[test]
-fn mesh_transport_carries_frames_without_interpreting_them() {
+fn transport_effects_send_and_poll_without_mesh_specific_traits() {
     let endpoint = sample_endpoint();
     let mut transport = StubTransport {
         observations: Vec::new(),
@@ -554,15 +543,14 @@ fn mesh_transport_carries_frames_without_interpreting_them() {
     };
 
     transport
-        .send_frame(MeshFrame { endpoint: &endpoint, payload: b"frame" })
-        .expect("send frame");
+        .send_transport(&endpoint, b"frame")
+        .expect("send transport payload");
     let observations = transport
-        .poll_observations()
+        .poll_transport()
         .expect("poll transport observations");
 
-    assert_eq!(transport.transport_id(), TransportProtocol::BleGatt);
     assert!(observations.is_empty());
-    assert_eq!(transport.sent_frames, vec![b"frame".to_vec()]);
+    assert_eq!(transport.sent_frames, vec![(endpoint, b"frame".to_vec())]);
 }
 
 #[test]
@@ -587,10 +575,10 @@ fn retention_store_retains_and_releases_opaque_payloads() {
 }
 
 #[test]
-fn mesh_transport_is_also_a_transport_effect_handler() {
+fn transport_effects_handlers_do_not_require_mesh_specific_traits() {
     fn assert_transport_handler<T>()
     where
-        T: MeshTransport + TransportEffects + EffectHandler<dyn TransportEffects>,
+        T: TransportEffects + EffectHandler<dyn TransportEffects>,
     {
     }
 
@@ -617,16 +605,6 @@ fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
         1
     );
     engine
-        .transport_mut()
-        .send_frame(MeshFrame {
-            endpoint: &sample_endpoint(),
-            payload: b"frame",
-        })
-        .expect("send frame");
-    assert_eq!(
-        engine.transport().transport_id(),
-        TransportProtocol::BleGatt
-    );
     engine
         .retention_store_mut()
         .retain_payload(

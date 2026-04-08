@@ -371,7 +371,7 @@ fn policy_shift_flushes_retained_payloads_before_handoff() {
         .expect("active route remains installed");
     assert!(active_route.anti_entropy.retained_objects.is_empty());
     assert!(engine
-        .transport()
+        .transport_adapter()
         .sent_frames
         .iter()
         .any(|(_endpoint, payload)| payload == b"held-before-handoff"));

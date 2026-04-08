@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    SelectedRoutingParameters, Configuration, OperatingMode, DestinationId,
-    DurationMs, Environment, FactSourceClass, NodeId, Observation,
+    SelectedRoutingParameters, Configuration, DiversityFloor, OperatingMode,
+    DestinationId, DurationMs, Environment, FactSourceClass, NodeId, Observation,
     OriginAuthenticationClass, PriorityPoints, RatioPermille, ConnectivityPosture,
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
     RouteReplacementPolicy, RouteServiceKind, RoutingEngineFallbackPolicy,
@@ -108,7 +108,7 @@ fn relay_profile() -> SelectedRoutingParameters {
             partition: RoutePartitionClass::ConnectedOnly,
         },
         deployment_profile: OperatingMode::DenseInteractive,
-        diversity_floor: 1,
+        diversity_floor: DiversityFloor(1),
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
     }

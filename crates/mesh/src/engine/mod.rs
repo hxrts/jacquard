@@ -36,7 +36,7 @@ use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngi
 pub(crate) use support::DOMAIN_TAG_COMMITTEE_ID;
 use trait_bounds::{
     MeshEffectsBounds, MeshHasherBounds, MeshRetentionBounds, MeshSelectorBounds,
-    MeshTopologyBounds, MeshTransportBounds,
+    MeshTopologyBounds, TransportEffectsBounds,
 };
 use types::{ActiveMeshRoute, CachedCandidate};
 pub use types::{
@@ -145,7 +145,7 @@ where
     Topology: MeshTopologyBounds,
     Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
     Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -250,6 +250,15 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     }
 
     #[must_use]
+    pub fn transport_adapter(&self) -> &Transport {
+        &self.transport
+    }
+
+    pub fn transport_adapter_mut(&mut self) -> &mut Transport {
+        &mut self.transport
+    }
+
+    #[must_use]
     pub fn latest_topology(&self) -> Option<&Observation<Configuration>> {
         self.latest_topology.as_ref()
     }
@@ -323,7 +332,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
 {
@@ -339,12 +348,12 @@ where
     }
 }
 
-// Transport-Facing Helpers
+// Transport-Capability Helpers
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -404,7 +413,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
@@ -519,7 +528,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: MeshTransportBounds,
+    Transport: TransportEffectsBounds,
     Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
 {

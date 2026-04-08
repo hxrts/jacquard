@@ -9,8 +9,8 @@
 use jacquard_core::Configuration;
 use jacquard_traits::{
     CommitteeSelector, HashDigestBytes, Hashing, MeshNeighborhoodEstimateAccess,
-    MeshPeerEstimateAccess, MeshTransport, OrderEffects, RetentionStore,
-    RouteEventLogEffects, StorageEffects, TimeEffects,
+    MeshPeerEstimateAccess, OrderEffects, RetentionStore, RouteEventLogEffects,
+    StorageEffects, TimeEffects, TransportEffects,
 };
 
 pub(crate) trait MeshTopologyBounds: jacquard_traits::MeshTopologyModel
@@ -28,12 +28,9 @@ where
 {
 }
 
-pub(crate) trait MeshTransportBounds:
-    MeshTransport + Send + Sync + 'static
-{
-}
+pub(crate) trait TransportEffectsBounds: TransportEffects + Send + Sync + 'static {}
 
-impl<T> MeshTransportBounds for T where T: MeshTransport + Send + Sync + 'static {}
+impl<T> TransportEffectsBounds for T where T: TransportEffects + Send + Sync + 'static {}
 
 pub(crate) trait MeshRetentionBounds: RetentionStore {}
 

@@ -1,12 +1,15 @@
 //! Committee-selection results shared across routing engines.
 
-use jacquard_macros::public_model;
+use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     ClaimStrength, CommitteeId, ControllerId, FactBasis, IdentityAssuranceClass,
     NodeId, RouteEpoch, Tick, TimeWindow,
 };
+
+#[id_type]
+pub struct QuorumThreshold(pub u8);
 
 #[public_model]
 #[derive(
@@ -47,7 +50,7 @@ pub struct CommitteeSelection {
     pub evidence_basis: FactBasis,
     pub claim_strength: ClaimStrength,
     pub identity_assurance: IdentityAssuranceClass,
-    pub quorum_threshold: u8,
+    pub quorum_threshold: QuorumThreshold,
     /// Bounded by
     /// [`PROVIDER_CANDIDATE_COUNT_MAX`](crate::PROVIDER_CANDIDATE_COUNT_MAX).
     pub members: Vec<CommitteeMember>,

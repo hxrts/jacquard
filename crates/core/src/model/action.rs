@@ -1,9 +1,12 @@
 //! Policy outputs and selected routing actions.
 
-use jacquard_macros::public_model;
+use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{ConnectivityPosture, RouteProtectionClass};
+
+#[id_type]
+pub struct DiversityFloor(pub u8);
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -12,7 +15,7 @@ pub struct SelectedRoutingParameters {
     pub selected_protection: RouteProtectionClass,
     pub selected_connectivity: ConnectivityPosture,
     pub deployment_profile: OperatingMode,
-    pub diversity_floor: u8,
+    pub diversity_floor: DiversityFloor,
     pub routing_engine_fallback_policy: RoutingEngineFallbackPolicy,
     pub route_replacement_policy: RouteReplacementPolicy,
 }

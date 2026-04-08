@@ -218,7 +218,7 @@ fn world_error_purity(root: &Path) -> Result<Vec<Violation>> {
 fn shared_private_boundary(root: &Path) -> Result<Vec<Violation>> {
     let mut out = Vec::new();
     let re = Regex::new(r"pub (struct|enum|type)\s+(Mesh|Onion|Field)[A-Z]\w*")?;
-    let allowed_trait_boundary_types = ["MeshFrame"];
+    let allowed_trait_boundary_types: [&str; 0] = [];
     for dir in ["crates/core/src", "crates/traits/src"] {
         for path in rust_files(root.join(dir))? {
             let rel = normalize_rel_path(root, &path);

@@ -12,10 +12,11 @@ use std::{
 };
 
 use bincode::Options;
+#[allow(unused_imports)]
 use jacquard_core::{
     BackendRouteId, ByteCount, CommitteeSelection, Configuration, DegradationReason,
-    DestinationId, DeterministicOrderKey, Limit, NodeId, OrderStamp, RouteCost,
-    RouteDegradation, RouteEpoch, RouteId, TimeWindow,
+    DestinationId, DeterministicOrderKey, DiversityFloor, Limit, NodeId, OrderStamp,
+    QuorumThreshold, RouteCost, RouteDegradation, RouteEpoch, RouteId, TimeWindow,
 };
 use jacquard_traits::{HashDigestBytes, Hashing};
 use serde::{Deserialize, Serialize};
@@ -442,7 +443,7 @@ mod tests {
             selected_connectivity: ConnectivityPosture { repair, partition },
             deployment_profile:
                 jacquard_core::OperatingMode::FieldPartitionTolerant,
-            diversity_floor: 1,
+            diversity_floor: DiversityFloor(1),
             routing_engine_fallback_policy:
                 jacquard_core::RoutingEngineFallbackPolicy::Allowed,
             route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
@@ -632,7 +633,7 @@ mod tests {
                 claim_strength: jacquard_core::ClaimStrength::ConservativeUnderProfile,
                 identity_assurance:
                     jacquard_core::IdentityAssuranceClass::ControllerBound,
-                quorum_threshold: 1,
+                quorum_threshold: QuorumThreshold(1),
                 members: vec![CommitteeMember {
                     node_id: NodeId([2; 32]),
                     controller_id: ControllerId([2; 32]),

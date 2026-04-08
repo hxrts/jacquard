@@ -2,8 +2,8 @@
 //!
 //! Control flow: choreography-facing runtime code talks only to this narrow
 //! effect surface. The bridge stores protocol checkpoints, polls ingress, and
-//! forwards retention operations onto the existing shared mesh transport,
-//! retention, and runtime-effect traits.
+//! forwards retention operations onto the shared transport, retention, and
+//! runtime-effect traits.
 //!
 //! The boundary rule is that these mesh-private choreography effects are
 //! not the shared Jacquard effect contract. Generated or protocol-local
@@ -16,7 +16,7 @@ use jacquard_core::{
     Blake3Digest, ContentId, LinkEndpoint, StorageError, Tick, TransportObservation,
 };
 use jacquard_traits::{
-    MeshFrame, MeshTransport, RetentionStore, StorageEffects, TimeEffects,
+    RetentionStore, StorageEffects, TimeEffects, TransportEffects,
 };
 
 use crate::choreography::artifacts::{MeshProtocolKind, MeshProtocolSessionKey};
@@ -104,7 +104,7 @@ pub(crate) struct MeshProtocolRuntimeAdapter<'a, T, R, E> {
 
 impl<T, R, E> MeshProtocolRuntime for MeshProtocolRuntimeAdapter<'_, T, R, E>
 where
-    T: MeshTransport,
+    T: TransportEffects,
     R: RetentionStore,
     E: StorageEffects + TimeEffects,
 {
@@ -116,16 +116,14 @@ where
         &mut self,
         frame: &MeshChoreoFrame,
     ) -> Result<(), jacquard_core::TransportError> {
-        self.transport.send_frame(MeshFrame {
-            endpoint: &frame.endpoint,
-            payload: &frame.payload,
-        })
+        self.transport
+            .send_transport(&frame.endpoint, &frame.payload)
     }
 
     fn poll_mesh_ingress(
         &mut self,
     ) -> Result<Vec<TransportObservation>, jacquard_core::TransportError> {
-        self.transport.poll_observations()
+        self.transport.poll_transport()
     }
 
     fn store_held_payload(
@@ -186,7 +184,9 @@ mod tests {
         LinkEndpoint, NodeId, StorageError, Tick, TransportObservation,
         TransportProtocol,
     };
-    use jacquard_traits::{effect_handler, StorageEffects, TimeEffects};
+    use jacquard_traits::{
+        effect_handler, StorageEffects, TimeEffects, TransportEffects,
+    };
 
     use super::{
         MeshCheckpointEnvelope, MeshChoreoFrame, MeshHeldPayload,
@@ -200,21 +200,19 @@ mod tests {
         observations: Vec<TransportObservation>,
     }
 
-    impl jacquard_traits::MeshTransport for FakeTransport {
-        fn transport_id(&self) -> TransportProtocol {
-            TransportProtocol::BleGatt
-        }
-
-        fn send_frame(
+    #[effect_handler]
+    impl TransportEffects for FakeTransport {
+        fn send_transport(
             &mut self,
-            frame: jacquard_traits::MeshFrame<'_>,
+            endpoint: &LinkEndpoint,
+            payload: &[u8],
         ) -> Result<(), jacquard_core::TransportError> {
             self.sent
-                .push((frame.endpoint.protocol.clone(), frame.payload.to_vec()));
+                .push((endpoint.protocol.clone(), payload.to_vec()));
             Ok(())
         }
 
-        fn poll_observations(
+        fn poll_transport(
             &mut self,
         ) -> Result<Vec<TransportObservation>, jacquard_core::TransportError> {
             Ok(self.observations.clone())

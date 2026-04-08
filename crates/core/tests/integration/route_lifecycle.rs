@@ -4,7 +4,7 @@
 use jacquard_core::{
     SelectedRoutingParameters, AdmissionAssumptions, AdmissionDecision, AdversaryRegime,
     BackendRouteRef, Belief, ByteCount, ClaimStrength, ConnectivityRegime,
-    OperatingMode, Estimate, Fact, FactBasis, FailureModelClass,
+    DiversityFloor, OperatingMode, Estimate, Fact, FactBasis, FailureModelClass,
     HoldFallbackPolicy, Limit, MaterializedRoute, MessageFlowAssumptionClass,
     NodeDensityClass, PublicationId, ReachabilityState, RouteAdmission,
     RouteAdmissionCheck, RouteCandidate, ConnectivityPosture, RouteCost,
@@ -128,7 +128,7 @@ fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInst
                 selected_protection: RouteProtectionClass::LinkProtected,
                 selected_connectivity: repairable_connected(),
                 deployment_profile: OperatingMode::DenseInteractive,
-                diversity_floor: 1,
+                diversity_floor: DiversityFloor(1),
                 routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
                 route_replacement_policy: RouteReplacementPolicy::Allowed,
             },
