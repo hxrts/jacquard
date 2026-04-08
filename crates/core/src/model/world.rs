@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Belief, ByteCount, ControllerId, DurationMs, HoldItemCount, InformationSetSummary,
     LinkEndpoint, LinkRuntimeState, MaintenanceWorkBudget, NodeId, NodeRelayBudget,
-    RatioPermille, RelayWorkBudget, RouteEpoch, ServiceDescriptor,
+    PartitionRecoveryClass, RatioPermille, RelayWorkBudget, RepairCapability,
+    RouteEpoch, ServiceDescriptor,
 };
 
 #[public_model]
@@ -50,6 +51,15 @@ pub struct Node {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Stable link capability surface in the routing world model.
+pub struct LinkProfile {
+    pub latency_floor_ms: DurationMs,
+    pub repair_capability: RepairCapability,
+    pub partition_recovery: PartitionRecoveryClass,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Current link state in the routing world model.
 pub struct LinkState {
     pub state: LinkRuntimeState,
@@ -66,17 +76,13 @@ pub struct LinkState {
 /// Instantiated link object in the routing world model.
 ///
 /// A link represents a directed connection from one node to another. The
-/// link's `endpoint` identifies the remote address and protocol. The `state`
-/// captures current runtime observations (latency, loss, delivery confidence).
-///
-/// LinkProfile (static capabilities) is implemented by transport extensions
-/// and kept separate from this routing-world object. See
-/// [LinkProfile Extension Point](../../docs/107_link_profile_extension.md) for
-/// how to implement LinkProfile for new network types.
-/// `jacquard-mem-link-profile` is the canonical in-memory implementation used
-/// in tests.
+/// link's `endpoint` identifies the remote address and protocol. The
+/// `profile` captures stable routing-relevant capability such as latency floor
+/// and repair class. The `state` captures current runtime observations such as
+/// latency, loss, and delivery confidence.
 pub struct Link {
     pub endpoint: LinkEndpoint,
+    pub profile: LinkProfile,
     pub state: LinkState,
 }
 
@@ -150,5 +156,33 @@ mod tests {
 
         let keys: Vec<_> = configuration.nodes.keys().copied().collect();
         assert_eq!(keys, vec![NodeId([1; 32]), NodeId([2; 32])]);
+    }
+
+    #[test]
+    fn link_preserves_profile_and_state_split() {
+        let link = Link {
+            endpoint: LinkEndpoint {
+                protocol: crate::TransportProtocol::BleGatt,
+                address: crate::EndpointAddress::Opaque(vec![1, 2, 3]),
+                mtu_bytes: ByteCount(128),
+            },
+            profile: LinkProfile {
+                latency_floor_ms: DurationMs(8),
+                repair_capability: RepairCapability::TransportRetransmit,
+                partition_recovery: PartitionRecoveryClass::LocalReconnect,
+            },
+            state: LinkState {
+                state: LinkRuntimeState::Active,
+                median_rtt_ms: DurationMs(20),
+                transfer_rate_bytes_per_sec: Belief::Absent,
+                stability_horizon_ms: Belief::Absent,
+                loss_permille: RatioPermille(10),
+                delivery_confidence_permille: Belief::Absent,
+                symmetry_permille: Belief::Absent,
+            },
+        };
+
+        assert_eq!(link.profile.latency_floor_ms, DurationMs(8));
+        assert_eq!(link.state.median_rtt_ms, DurationMs(20));
     }
 }

@@ -75,6 +75,24 @@ pub enum LinkRuntimeState {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// Stable retransmit or retry semantics for a link.
+pub enum RepairCapability {
+    None,
+    TransportRetransmit,
+    ApplicationRetransmit,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// Stable class of delivery recovery a link can support after disruption.
+pub enum PartitionRecoveryClass {
+    None,
+    LocalReconnect,
+    EndToEndRecoverable,
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LinkEndpoint {
     pub protocol: TransportProtocol,
     pub address: EndpointAddress,

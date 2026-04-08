@@ -374,6 +374,13 @@ fn sample_node(controller_seed: u8) -> Node {
 fn sample_link() -> Link {
     Link {
         endpoint: sample_endpoint(),
+        profile: jacquard_traits::jacquard_core::LinkProfile {
+            latency_floor_ms: DurationMs(2),
+            repair_capability:
+                jacquard_traits::jacquard_core::RepairCapability::TransportRetransmit,
+            partition_recovery:
+                jacquard_traits::jacquard_core::PartitionRecoveryClass::LocalReconnect,
+        },
         state: LinkState {
             state: LinkRuntimeState::Active,
             median_rtt_ms: DurationMs(5),

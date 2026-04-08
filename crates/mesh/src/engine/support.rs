@@ -525,6 +525,12 @@ mod tests {
                 },
                 mtu_bytes: ByteCount(256),
             },
+            profile: jacquard_core::LinkProfile {
+                latency_floor_ms: jacquard_core::DurationMs(8),
+                repair_capability: jacquard_core::RepairCapability::TransportRetransmit,
+                partition_recovery:
+                    jacquard_core::PartitionRecoveryClass::LocalReconnect,
+            },
             state: jacquard_core::LinkState {
                 state: jacquard_core::LinkRuntimeState::Active,
                 median_rtt_ms: jacquard_core::DurationMs(40),

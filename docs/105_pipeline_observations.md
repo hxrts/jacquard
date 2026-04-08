@@ -95,7 +95,9 @@ pub struct InformationSetSummary {
 
 ### Link
 
-A connection is a `Link` with a stable `LinkEndpoint`, a stable `LinkProfile`, and a changing `LinkState`.
+A connection is a `Link` with three distinct concerns: stable endpoint
+identity, stable routing-relevant capability, and changing runtime
+observation.
 
 ```rust
 pub struct Link {
@@ -111,12 +113,9 @@ pub struct LinkEndpoint {
 }
 
 pub struct LinkProfile {
-    pub protocol: TransportProtocol,
-    pub codec_stack: Vec<CodecId>,
-    pub mtu_floor_bytes: ByteCount,
     pub latency_floor_ms: DurationMs,
     pub repair_capability: RepairCapability,
-    pub partition_recovery_supported: bool,
+    pub partition_recovery: PartitionRecoveryClass,
 }
 
 pub struct LinkState {
@@ -130,13 +129,28 @@ pub struct LinkState {
 }
 ```
 
-LinkProfile captures the static capabilities of a directed link (what the link *can* do). LinkState captures runtime observations (what the link is currently *doing*). LinkEndpoint identifies the remote address and transport protocol.
+`LinkEndpoint` answers where and how the carrier is addressed. `LinkProfile`
+answers what the carrier can stably do. `LinkState` answers what the carrier is
+currently doing. Keeping those three scopes separate gives links the same
+static/observed split that nodes already have with `NodeProfile` and
+`NodeState`.
+
+`latency_floor_ms` is a stable capability signal that remains useful even when
+the currently observed `median_rtt_ms` moves around. `repair_capability` and
+`partition_recovery` are typed capability classes, not fluctuating observations,
+because retransmit/recovery semantics are transport facts rather than live
+measurements.
 
 `transfer_rate_bytes_per_sec` answers whether a meaningful exchange fits inside the contact window. `stability_horizon_ms` answers how long the contact is likely to remain useful. `delivery_confidence_permille` and `symmetry_permille` answer whether the link supports exchange in the expected direction.
 
 A routing engine that wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics derives them above this shared boundary. Those estimates stay engine-owned rather than being promoted into the shared schema. See [Route Lifecycle](106_route_lifecycle.md) for how engines consume the shared link signals.
 
-`jacquard-mem-link-profile` is the in-tree reference implementation of this boundary for tests and examples. It shows how to model `LinkEndpoint`, `LinkProfile`, `LinkState`, and a deterministic in-memory carrier without embedding routing semantics. See [LinkProfile Extension Point](107_link_profile_extension.md) for how to extend Jacquard with new network types that provide their own LinkProfile implementations.
+`jacquard-mem-link-profile` is the in-tree reference implementation of this
+boundary for tests and examples. It shows how to model `LinkEndpoint`,
+`LinkProfile`, and `LinkState`, carry frames over a shared in-memory network,
+and supply deterministic retention and runtime effects without embedding
+routing semantics. See [World Extensions](107_world_extensions.md) for how to
+extend Jacquard with new network types.
 
 ### Environment
 

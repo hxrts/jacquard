@@ -7,7 +7,8 @@
 
 use jacquard_core::{
     Belief, ByteCount, ControllerId, DiscoveryScopeId, DurationMs, Estimate, Link,
-    Node, NodeId, RatioPermille, RouteServiceKind, ServiceScope, Tick, TimeWindow,
+    Node, NodeId, PartitionRecoveryClass, RatioPermille, RepairCapability,
+    RouteServiceKind, ServiceScope, Tick, TimeWindow,
 };
 use jacquard_mem_link_profile::{ble_endpoint, SimulatedLinkProfile};
 use jacquard_mem_node_profile::{
@@ -95,6 +96,9 @@ fn hold_service_capacity() -> Belief<jacquard_core::CapacityHint> {
 #[must_use]
 pub fn active_link(device_byte: u8, confidence: u16) -> Link {
     SimulatedLinkProfile::new(ble_endpoint(device_byte))
+        .with_latency_floor(DurationMs(8))
+        .with_repair_capability(RepairCapability::TransportRetransmit)
+        .with_partition_recovery(PartitionRecoveryClass::LocalReconnect)
         .with_median_rtt(DurationMs(40))
         .with_transfer_rate(2048)
         .with_stability_horizon(DurationMs(500))

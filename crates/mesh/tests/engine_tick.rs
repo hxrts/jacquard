@@ -56,6 +56,13 @@ fn low_quality_link_observation() -> TransportObservation {
                     },
                     mtu_bytes: jacquard_traits::jacquard_core::ByteCount(256),
                 },
+                profile: jacquard_traits::jacquard_core::LinkProfile {
+                    latency_floor_ms: DurationMs(8),
+                    repair_capability:
+                        jacquard_traits::jacquard_core::RepairCapability::TransportRetransmit,
+                    partition_recovery:
+                        jacquard_traits::jacquard_core::PartitionRecoveryClass::LocalReconnect,
+                },
                 state: LinkState {
                     state: LinkRuntimeState::Active,
                     median_rtt_ms: DurationMs(40),

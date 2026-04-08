@@ -141,6 +141,11 @@ pub fn node(node_byte: u8) -> Node {
 pub fn link(device_byte: u8, confidence: u16) -> Link {
     Link {
         endpoint: ble_endpoint(device_byte),
+        profile: jacquard_core::LinkProfile {
+            latency_floor_ms: DurationMs(8),
+            repair_capability: jacquard_core::RepairCapability::TransportRetransmit,
+            partition_recovery: jacquard_core::PartitionRecoveryClass::LocalReconnect,
+        },
         state: LinkState {
             state: LinkRuntimeState::Active,
             median_rtt_ms: DurationMs(40),

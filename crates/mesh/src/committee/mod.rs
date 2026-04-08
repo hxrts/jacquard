@@ -260,6 +260,12 @@ mod tests {
     fn link(byte: u8) -> Link {
         Link {
             endpoint: ble_endpoint(byte),
+            profile: jacquard_core::LinkProfile {
+                latency_floor_ms: jacquard_core::DurationMs(8),
+                repair_capability: jacquard_core::RepairCapability::TransportRetransmit,
+                partition_recovery:
+                    jacquard_core::PartitionRecoveryClass::LocalReconnect,
+            },
             state: LinkState {
                 state: LinkRuntimeState::Active,
                 median_rtt_ms: jacquard_core::DurationMs(40),

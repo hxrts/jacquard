@@ -242,6 +242,13 @@ fn sample_configuration() -> Configuration {
                 },
                 mtu_bytes: jacquard_traits::jacquard_core::ByteCount(512),
             },
+            profile: jacquard_traits::jacquard_core::LinkProfile {
+                latency_floor_ms: jacquard_traits::jacquard_core::DurationMs(2),
+                repair_capability:
+                    jacquard_traits::jacquard_core::RepairCapability::TransportRetransmit,
+                partition_recovery:
+                    jacquard_traits::jacquard_core::PartitionRecoveryClass::LocalReconnect,
+            },
             state: LinkState {
                 state: LinkRuntimeState::Active,
                 median_rtt_ms: jacquard_traits::jacquard_core::DurationMs(5),

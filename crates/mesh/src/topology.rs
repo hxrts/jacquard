@@ -592,6 +592,14 @@ mod tests {
         }
     }
 
+    fn default_link_profile() -> jacquard_core::LinkProfile {
+        jacquard_core::LinkProfile {
+            latency_floor_ms: jacquard_core::DurationMs(8),
+            repair_capability: jacquard_core::RepairCapability::TransportRetransmit,
+            partition_recovery: jacquard_core::PartitionRecoveryClass::LocalReconnect,
+        }
+    }
+
     fn active_link(byte: u8, confidence: u16) -> Link {
         Link {
             endpoint: LinkEndpoint {
@@ -602,6 +610,7 @@ mod tests {
                 },
                 mtu_bytes: ByteCount(256),
             },
+            profile: default_link_profile(),
             state: LinkState {
                 state: LinkRuntimeState::Active,
                 median_rtt_ms: jacquard_core::DurationMs(20),
@@ -778,6 +787,7 @@ mod tests {
                         },
                         mtu_bytes: ByteCount(256),
                     },
+                    profile: default_link_profile(),
                     state: LinkState {
                         state: LinkRuntimeState::Active,
                         median_rtt_ms: jacquard_core::DurationMs(20),
@@ -987,6 +997,7 @@ mod tests {
         };
         let link = Link {
             endpoint,
+            profile: default_link_profile(),
             state: LinkState {
                 state: jacquard_core::LinkRuntimeState::Active,
                 median_rtt_ms: jacquard_core::DurationMs(40),

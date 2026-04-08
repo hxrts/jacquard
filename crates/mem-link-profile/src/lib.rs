@@ -1,9 +1,10 @@
 //! In-memory link-profile, carrier, retention, and runtime-effect builders.
 //!
-//! Control flow: this crate models endpoints and link state, carries
-//! frames over an in-memory network, and exposes deterministic retention and
-//! runtime-effect adapters for tests. It does not plan routes or interpret mesh
-//! policy; it only provides reusable in-memory infrastructure.
+//! Control flow: this crate models endpoints, stable link profile, and live
+//! link state, carries frames over an in-memory network, and exposes
+//! deterministic retention and runtime-effect adapters for tests. It does not
+//! plan routes or interpret mesh policy; it only provides reusable in-memory
+//! infrastructure.
 //!
 //! Ownership:
 //! - `Observed`: link capability and transport observation surface only
