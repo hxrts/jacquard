@@ -24,28 +24,28 @@ use crate::choreography::artifacts::{MeshProtocolKind, MeshProtocolSessionKey};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshChoreoFrame {
     pub(crate) endpoint: LinkEndpoint,
-    pub(crate) payload:  Vec<u8>,
+    pub(crate) payload: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshHeldPayload {
     pub(crate) object_id: ContentId<Blake3Digest>,
-    pub(crate) payload:   Vec<u8>,
+    pub(crate) payload: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshCheckpointEnvelope {
-    pub(crate) key:   Vec<u8>,
+    pub(crate) key: Vec<u8>,
     pub(crate) bytes: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshProtocolObservation {
-    pub(crate) protocol:      MeshProtocolKind,
+    pub(crate) protocol: MeshProtocolKind,
     pub(crate) protocol_name: String,
-    pub(crate) role_names:    Vec<String>,
-    pub(crate) session:       MeshProtocolSessionKey,
-    pub(crate) detail:        &'static str,
+    pub(crate) role_names: Vec<String>,
+    pub(crate) session: MeshProtocolSessionKey,
+    pub(crate) detail: &'static str,
 }
 
 pub(crate) trait MeshProtocolRuntime {
@@ -99,7 +99,7 @@ pub(crate) trait MeshProtocolRuntime {
 pub(crate) struct MeshProtocolRuntimeAdapter<'a, T, R, E> {
     pub(crate) transport: &'a mut T,
     pub(crate) retention: &'a mut R,
-    pub(crate) effects:   &'a mut E,
+    pub(crate) effects: &'a mut E,
 }
 
 impl<T, R, E> MeshProtocolRuntime for MeshProtocolRuntimeAdapter<'_, T, R, E>
@@ -118,7 +118,7 @@ where
     ) -> Result<(), jacquard_core::TransportError> {
         self.transport.send_frame(MeshFrame {
             endpoint: &frame.endpoint,
-            payload:  &frame.payload,
+            payload: &frame.payload,
         })
     }
 
@@ -196,7 +196,7 @@ mod tests {
 
     #[derive(Default)]
     struct FakeTransport {
-        sent:         Vec<(TransportProtocol, Vec<u8>)>,
+        sent: Vec<(TransportProtocol, Vec<u8>)>,
         observations: Vec<TransportObservation>,
     }
 
@@ -288,9 +288,9 @@ mod tests {
     #[test]
     fn fake_mesh_choreo_adapter_maps_runtime_actions() {
         let endpoint = LinkEndpoint {
-            protocol:  TransportProtocol::BleGatt,
-            address:   EndpointAddress::Ble {
-                device_id:  BleDeviceId(vec![1]),
+            protocol: TransportProtocol::BleGatt,
+            address: EndpointAddress::Ble {
+                device_id: BleDeviceId(vec![1]),
                 profile_id: BleProfileId([1; 16]),
             },
             mtu_bytes: ByteCount(128),
@@ -299,9 +299,9 @@ mod tests {
         transport
             .observations
             .push(TransportObservation::PayloadReceived {
-                from_node_id:     NodeId([9; 32]),
-                endpoint:         endpoint.clone(),
-                payload:          b"observed".to_vec(),
+                from_node_id: NodeId([9; 32]),
+                endpoint: endpoint.clone(),
+                payload: b"observed".to_vec(),
                 observed_at_tick: Tick(1),
             });
         let mut retention = FakeRetention::default();
@@ -309,12 +309,12 @@ mod tests {
         let mut adapter = MeshProtocolRuntimeAdapter {
             transport: &mut transport,
             retention: &mut retention,
-            effects:   &mut effects,
+            effects: &mut effects,
         };
 
         let frame = MeshChoreoFrame {
             endpoint: endpoint.clone(),
-            payload:  b"frame".to_vec(),
+            payload: b"frame".to_vec(),
         };
         adapter.send_mesh_frame(&frame).expect("send mesh frame");
         let observations = adapter.poll_mesh_ingress().expect("poll ingress");
@@ -332,7 +332,7 @@ mod tests {
             .expect("take held payload");
 
         let checkpoint = MeshCheckpointEnvelope {
-            key:   b"mesh/choreo/activation".to_vec(),
+            key: b"mesh/choreo/activation".to_vec(),
             bytes: b"checkpoint".to_vec(),
         };
         adapter
@@ -346,11 +346,11 @@ mod tests {
             .expect("remove checkpoint");
 
         adapter.emit_protocol_observation(MeshProtocolObservation {
-            protocol:      MeshProtocolKind::Activation,
+            protocol: MeshProtocolKind::Activation,
             protocol_name: "ActivationHandshake".into(),
-            role_names:    vec!["CurrentOwner".into(), "Destination".into()],
-            session:       MeshProtocolSessionKey("activation#1".into()),
-            detail:        "accepted",
+            role_names: vec!["CurrentOwner".into(), "Destination".into()],
+            session: MeshProtocolSessionKey("activation#1".into()),
+            detail: "accepted",
         });
 
         assert_eq!(adapter.transport.sent.len(), 1);

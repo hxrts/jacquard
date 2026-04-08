@@ -61,8 +61,8 @@ The new Phase 3 crates keep that split intact:
 
 - `jacquard-router` consumes shared effect traits to mint publication ids, build leases, and drive router-owned cadence
 - `jacquard-router` also wraps those traits in one router-local sequencing adapter so checkpoint writes, route-event logging, and canonical publication stay in one fail-closed order
-- `jacquard-mock-transport` implements the shared effect traits and mesh carrier traits for tests and examples only
-- `jacquard-mock-device` composes routers, engines, and transports, but remains observational with respect to canonical route truth
+- `jacquard-mem-link-profile` implements the shared effect traits and in-memory carrier traits for tests and examples only
+- `jacquard-mock-client` composes routers, engines, and profile implementations, but remains observational with respect to canonical route truth
 
 In other words, Jacquard now has both sides of the runtime-adapter story:
 

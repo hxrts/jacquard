@@ -13,8 +13,8 @@ use cargo_metadata::{Metadata, MetadataCommand};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Violation {
-    pub file:    String,
-    pub line:    usize,
+    pub file: String,
+    pub line: usize,
     pub message: String,
 }
 

@@ -1,0 +1,96 @@
+use jacquard_core::{
+    ByteCount, ControllerId, EndpointAddress, LinkEndpoint, NodeId, RatioPermille,
+    RouteServiceKind, ServiceScope, Tick, TimeWindow, TransportProtocol,
+};
+use jacquard_mem_node_profile::{
+    NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor,
+};
+
+fn endpoint(byte: u8) -> LinkEndpoint {
+    LinkEndpoint {
+        protocol: TransportProtocol::BleGatt,
+        address: EndpointAddress::Opaque(vec![byte]),
+        mtu_bytes: ByteCount(256),
+    }
+}
+
+#[test]
+fn simulated_profile_builds_node_profile_and_services() {
+    let node_id = NodeId([7; 32]);
+    let controller_id = ControllerId([8; 32]);
+    let profile = SimulatedNodeProfile::new()
+        .with_connection_count_max(8)
+        .with_relay_budget(10)
+        .with_hold_capacity(ByteCount(8192))
+        .with_endpoint(endpoint(1))
+        .with_service(
+            SimulatedServiceDescriptor::new(RouteServiceKind::Move)
+                .with_endpoint(endpoint(1))
+                .with_scope(ServiceScope::Discovery(jacquard_core::DiscoveryScopeId(
+                    [1; 16],
+                )))
+                .with_valid_for(
+                    TimeWindow::new(Tick(1), Tick(10)).expect("valid service window"),
+                ),
+        )
+        .build(node_id, controller_id);
+
+    assert_eq!(profile.connection_count_max, 8);
+    assert_eq!(profile.relay_work_budget_max, 10);
+    assert_eq!(profile.hold_capacity_bytes_max, ByteCount(8192));
+    assert_eq!(profile.services.len(), 1);
+    assert_eq!(profile.services[0].provider_node_id, node_id);
+}
+
+#[test]
+fn node_state_snapshot_tracks_budget_and_capacity_changes() {
+    let mut state = NodeStateSnapshot::new()
+        .with_relay_budget(10)
+        .with_available_connections(3)
+        .with_hold_capacity(ByteCount(2048))
+        .with_information_summary(4, ByteCount(1024), RatioPermille(20))
+        .with_observed_at_tick(Tick(5));
+
+    state.consume_relay_budget(4);
+    state.reserve_hold_capacity(ByteCount(256));
+    state.open_connection();
+
+    let built = state.build();
+    let relay = match built.relay_budget {
+        | jacquard_core::Belief::Estimated(estimate) => estimate,
+        | _ => panic!("expected estimated relay budget"),
+    };
+    let available_connections = match built.available_connection_count {
+        | jacquard_core::Belief::Estimated(estimate) => estimate.value,
+        | _ => panic!("expected estimated connection count"),
+    };
+    let hold_bytes = match built.hold_capacity_available_bytes {
+        | jacquard_core::Belief::Estimated(estimate) => estimate.value,
+        | _ => panic!("expected estimated hold capacity"),
+    };
+
+    let relay_budget = match relay.value.relay_work_budget {
+        | jacquard_core::Belief::Estimated(estimate) => estimate.value,
+        | _ => panic!("expected relay work budget"),
+    };
+
+    assert_eq!(relay_budget, 6);
+    assert_eq!(available_connections, 2);
+    assert_eq!(hold_bytes, ByteCount(1792));
+}
+
+#[test]
+fn simulated_node_profile_serializes_through_core_models() {
+    let node = SimulatedNodeProfile::new()
+        .with_endpoint(endpoint(1))
+        .build_node(
+            NodeId([1; 32]),
+            ControllerId([2; 32]),
+            &NodeStateSnapshot::new(),
+        );
+
+    let json = serde_json::to_string(&node).expect("serialize node");
+    let restored: jacquard_core::Node =
+        serde_json::from_str(&json).expect("deserialize node");
+    assert_eq!(restored.profile.endpoints.len(), 1);
+}

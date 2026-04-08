@@ -1,6 +1,6 @@
 //! Generic multi-engine router middleware over the shared routing traits.
 //!
-//! Control flow intuition: this module owns the cross-engine orchestration
+//! Control flow: this module owns the cross-engine orchestration
 //! loop. Activation goes `objective -> policy profile -> tick registered
 //! engines -> gather candidates across engines -> select one ordered candidate
 //! -> admit/materialize through the owning engine -> publish router-owned
@@ -60,17 +60,17 @@ impl PolicyEngine for FixedPolicyEngine {
 
 struct RegisteredEngine {
     capabilities: RoutingEngineCapabilities,
-    engine:       Box<dyn RouterManagedEngine>,
+    engine: Box<dyn RouterManagedEngine>,
 }
 
 pub struct MultiEngineRouter<Policy, Effects> {
-    local_node_id:         jacquard_core::NodeId,
-    registered_engines:    BTreeMap<RoutingEngineId, RegisteredEngine>,
-    policy_engine:         Policy,
-    effects:               Effects,
-    topology:              Observation<Configuration>,
-    policy_inputs:         RoutingPolicyInputs,
-    active_routes:         BTreeMap<RouteId, MaterializedRoute>,
+    local_node_id: jacquard_core::NodeId,
+    registered_engines: BTreeMap<RoutingEngineId, RegisteredEngine>,
+    policy_engine: Policy,
+    effects: Effects,
+    topology: Observation<Configuration>,
+    policy_inputs: RoutingPolicyInputs,
+    active_routes: BTreeMap<RouteId, MaterializedRoute>,
     published_commitments: BTreeMap<RouteId, Vec<RouteCommitment>>,
 }
 
@@ -268,7 +268,7 @@ where
         let route_id = route.identity.handle.route_id;
         self.runtime_adapter()
             .persist_route(&RouterCheckpointRecord {
-                route:       route.clone(),
+                route: route.clone(),
                 commitments: commitments.clone(),
             })?;
         self.active_routes.insert(route_id, route);
@@ -312,7 +312,7 @@ where
         let route = MaterializedRoute::from_installation(input, installation);
         let commitments = self.route_commitments_for(&route)?;
         let record = RouterCheckpointRecord {
-            route:       route.clone(),
+            route: route.clone(),
             commitments: commitments.clone(),
         };
         if let Err(error) =
@@ -322,7 +322,7 @@ where
                     self.runtime_adapter().record_route_event(
                         jacquard_core::RouteEvent::RouteMaterialized {
                             handle: route.identity.handle.clone(),
-                            proof:  route.identity.materialization_proof.clone(),
+                            proof: route.identity.materialization_proof.clone(),
                         },
                     )
                 })
@@ -343,8 +343,8 @@ where
         let now = self.effects.now_tick();
         let lease = RouteLease {
             owner_node_id: self.local_node_id,
-            lease_epoch:   self.topology.value.epoch,
-            valid_for:     TimeWindow::new(
+            lease_epoch: self.topology.value.epoch,
+            valid_for: TimeWindow::new(
                 now,
                 Tick(now.0.saturating_add(DEFAULT_ROUTE_LEASE_TICKS)),
             )
@@ -453,7 +453,7 @@ where
         let route = <Self as Router>::reselect_route(self, route_id, trigger)?;
         Ok(RouterCanonicalMutation::RouteReplaced {
             previous_route_id: *route_id,
-            route:             Box::new(route),
+            route: Box::new(route),
         })
     }
 
@@ -476,8 +476,8 @@ where
         self.persist_route_with_event(route_id, route.clone(), commitments, result)?;
         Ok(RouterCanonicalMutation::LeaseTransferred {
             route_id: *route_id,
-            handoff:  handoff.clone(),
-            lease:    route.identity.lease,
+            handoff: handoff.clone(),
+            lease: route.identity.lease,
         })
     }
 
@@ -492,7 +492,7 @@ where
         self.runtime_adapter().record_route_event(
             jacquard_core::RouteEvent::RouteMaintenanceCompleted {
                 route_id: *route_id,
-                result:   result.clone(),
+                result: result.clone(),
             },
         )?;
         self.active_routes.remove(route_id);
@@ -526,13 +526,13 @@ where
     ) -> Result<(), RouteError> {
         self.runtime_adapter()
             .persist_route(&RouterCheckpointRecord {
-                route:       route.clone(),
+                route: route.clone(),
                 commitments: commitments.clone(),
             })?;
         self.runtime_adapter().record_route_event(
             jacquard_core::RouteEvent::RouteMaintenanceCompleted {
                 route_id: *route_id,
-                result:   result.clone(),
+                result: result.clone(),
             },
         )?;
         self.active_routes.insert(*route_id, route);
@@ -718,11 +718,11 @@ where
             .get(route_id)
             .ok_or(RouteSelectionError::NoCandidate)?;
         Ok(Observation {
-            value:                 route.runtime.health.clone(),
-            source_class:          FactSourceClass::Local,
-            evidence_class:        RoutingEvidenceClass::AdmissionWitnessed,
+            value: route.runtime.health.clone(),
+            source_class: FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::AdmissionWitnessed,
             origin_authentication: OriginAuthenticationClass::Controlled,
-            observed_at_tick:      self.effects.now_tick(),
+            observed_at_tick: self.effects.now_tick(),
         })
     }
 }

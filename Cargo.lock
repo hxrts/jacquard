@@ -563,12 +563,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-mem-link-profile"
+version = "0.1.0"
+dependencies = [
+ "jacquard-core",
+ "jacquard-traits",
+ "serde",
+]
+
+[[package]]
+name = "jacquard-mem-node-profile"
+version = "0.1.0"
+dependencies = [
+ "jacquard-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "jacquard-mesh"
 version = "0.1.0"
 dependencies = [
  "bincode",
  "jacquard-core",
- "jacquard-mock-transport",
+ "jacquard-mem-link-profile",
  "jacquard-traits",
  "serde",
  "serde_json",
@@ -576,21 +594,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "jacquard-mock-device"
+name = "jacquard-mock-client"
 version = "0.1.0"
 dependencies = [
  "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
  "jacquard-mesh",
- "jacquard-mock-transport",
  "jacquard-router",
- "jacquard-traits",
-]
-
-[[package]]
-name = "jacquard-mock-transport"
-version = "0.1.0"
-dependencies = [
- "jacquard-core",
  "jacquard-traits",
 ]
 
@@ -600,8 +611,8 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "jacquard-core",
+ "jacquard-mem-link-profile",
  "jacquard-mesh",
- "jacquard-mock-transport",
  "jacquard-traits",
  "serde",
 ]

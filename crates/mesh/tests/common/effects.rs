@@ -5,7 +5,7 @@
 //! This module keeps the old local names only as thin aliases so the test
 //! suite does not maintain a second parallel harness.
 
-pub use jacquard_mock_transport::{
+pub use jacquard_mem_link_profile::{
     InMemoryMeshTransport as TestTransport,
     InMemoryRetentionStore as TestRetentionStore,
     InMemoryRuntimeEffects as TestRuntimeEffects,

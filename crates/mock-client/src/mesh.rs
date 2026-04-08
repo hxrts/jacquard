@@ -1,9 +1,9 @@
-//! Concrete mesh/router wiring for the mock-device crate.
+//! Concrete mesh/router wiring for the mock-client crate.
 //!
-//! Control flow intuition: the host/device assembles shared topology
+//! Control flow intuition: the host/client assembles shared topology
 //! observations, attaches one in-memory transport to the shared carrier, builds
 //! a mesh engine behind the public traits, and hands that engine to the
-//! router. The device remains observational with respect to canonical route
+//! router. The client remains observational with respect to canonical route
 //! truth; only the router publishes the canonical route table.
 //!
 //! Ownership:
@@ -17,27 +17,27 @@ use jacquard_core::{
     RouteRepairClass, RouteReplacementPolicy, RoutingEngineFallbackPolicy,
     RoutingPolicyInputs, Tick,
 };
-use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
-use jacquard_mock_transport::{
+use jacquard_mem_link_profile::{
     InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
-    SharedInMemoryMeshNetwork,
+    SharedInMemoryNetwork,
 };
+use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::Blake3Hashing;
 
-use crate::MockDevice;
+use crate::Client;
 
-pub type MockMeshRouter = MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>;
+pub type MeshRouter = MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>;
 
-pub type MockMeshDevice = MockDevice<MockMeshRouter>;
+pub type MeshClient = Client<MeshRouter>;
 
-pub fn build_mock_mesh_device(
+pub fn build_mesh_client(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
-    network: SharedInMemoryMeshNetwork,
+    network: SharedInMemoryNetwork,
     now: Tick,
-) -> MockMeshDevice {
-    build_mock_mesh_device_with_profile(
+) -> MeshClient {
+    build_mesh_client_with_profile(
         local_node_id,
         topology,
         network,
@@ -46,13 +46,13 @@ pub fn build_mock_mesh_device(
     )
 }
 
-pub fn build_mock_mesh_device_with_profile(
+pub fn build_mesh_client_with_profile(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
-    network: SharedInMemoryMeshNetwork,
+    network: SharedInMemoryNetwork,
     now: Tick,
     profile: AdaptiveRoutingProfile,
-) -> MockMeshDevice {
+) -> MeshClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
     let mut transport = InMemoryMeshTransport::attached(
         local_endpoint.protocol.clone(),
@@ -80,10 +80,10 @@ pub fn build_mock_mesh_device_with_profile(
     router
         .register_engine(Box::new(engine))
         .expect("register mesh engine");
-    MockDevice::new(topology, router)
+    Client::new(topology, router)
 }
 
-impl MockDevice<MockMeshRouter> {
+impl Client<MeshRouter> {
     pub fn replace_shared_topology(&mut self, topology: Observation<Configuration>) {
         self.router.replace_topology(topology.clone());
         self.topology = topology;
@@ -99,7 +99,7 @@ fn local_endpoint(
         .endpoints
         .first()
         .cloned()
-        .expect("mock mesh device requires at least one endpoint")
+        .unwrap_or_else(|| jacquard_mem_link_profile::ble_endpoint(local_node_id.0[0]))
 }
 
 fn policy_inputs_for(
@@ -107,40 +107,40 @@ fn policy_inputs_for(
     local_node_id: NodeId,
 ) -> RoutingPolicyInputs {
     RoutingPolicyInputs {
-        local_node:                  Observation {
-            value:                 topology.value.nodes[&local_node_id].clone(),
-            source_class:          topology.source_class,
-            evidence_class:        topology.evidence_class,
+        local_node: Observation {
+            value: topology.value.nodes[&local_node_id].clone(),
+            source_class: topology.source_class,
+            evidence_class: topology.evidence_class,
             origin_authentication: topology.origin_authentication,
-            observed_at_tick:      topology.observed_at_tick,
+            observed_at_tick: topology.observed_at_tick,
         },
-        local_environment:           Observation {
-            value:                 topology.value.environment.clone(),
-            source_class:          topology.source_class,
-            evidence_class:        topology.evidence_class,
+        local_environment: Observation {
+            value: topology.value.environment.clone(),
+            source_class: topology.source_class,
+            evidence_class: topology.evidence_class,
             origin_authentication: topology.origin_authentication,
-            observed_at_tick:      topology.observed_at_tick,
+            observed_at_tick: topology.observed_at_tick,
         },
-        routing_engine_count:        1,
-        median_rtt_ms:               DurationMs(40),
-        loss_permille:               RatioPermille(50),
-        partition_risk_permille:     RatioPermille(150),
+        routing_engine_count: 1,
+        median_rtt_ms: DurationMs(40),
+        loss_permille: RatioPermille(50),
+        partition_risk_permille: RatioPermille(150),
         adversary_pressure_permille: RatioPermille(25),
-        identity_assurance:          IdentityAssuranceClass::ControllerBound,
-        direct_reachability_score:   HealthScore(900),
+        identity_assurance: IdentityAssuranceClass::ControllerBound,
+        direct_reachability_score: HealthScore(900),
     }
 }
 
 fn default_profile() -> AdaptiveRoutingProfile {
     AdaptiveRoutingProfile {
-        selected_protection:            RouteProtectionClass::LinkProtected,
-        selected_connectivity:          RouteConnectivityProfile {
-            repair:    RouteRepairClass::Repairable,
+        selected_protection: RouteProtectionClass::LinkProtected,
+        selected_connectivity: RouteConnectivityProfile {
+            repair: RouteRepairClass::Repairable,
             partition: RoutePartitionClass::PartitionTolerant,
         },
-        deployment_profile:             DeploymentProfile::FieldPartitionTolerant,
-        diversity_floor:                1,
+        deployment_profile: DeploymentProfile::FieldPartitionTolerant,
+        diversity_floor: 1,
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
-        route_replacement_policy:       RouteReplacementPolicy::Allowed,
+        route_replacement_policy: RouteReplacementPolicy::Allowed,
     }
 }

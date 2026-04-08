@@ -3,9 +3,10 @@ resolver = "2"
 members = [
   "crates/core",
   "crates/macros",
+  "crates/mem-link-profile",
+  "crates/mem-node-profile",
   "crates/mesh",
-  "crates/mock-device",
-  "crates/mock-transport",
+  "crates/mock-client",
   "crates/router",
   "crates/traits",
   "crates/xtask",

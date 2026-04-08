@@ -97,7 +97,7 @@ use ForwardingHop::{
 };
 
 struct SharedRuntime<'a, E> {
-    effects:  &'a mut E,
+    effects: &'a mut E,
     route_id: RouteId,
     endpoint: LinkEndpoint,
 }
@@ -128,7 +128,7 @@ where
             })
             .map_err(|_| effects::MeshProtocolError::Unavailable)?;
         Ok(effects::ForwardReceipt {
-            route_id:    input.route_id,
+            route_id: input.route_id,
             accepted_by: effects::Role::new("NextHop"),
         })
     }
@@ -288,7 +288,7 @@ mod tests {
 
     #[derive(Default)]
     struct FakeEffects {
-        sent_frames:  Vec<Vec<u8>>,
+        sent_frames: Vec<Vec<u8>>,
         observations: Vec<MeshProtocolObservation>,
     }
 
@@ -365,8 +365,8 @@ mod tests {
             &mut runtime,
             &RouteId([7; 16]),
             LinkEndpoint {
-                protocol:  TransportProtocol::BleGatt,
-                address:   jacquard_core::EndpointAddress::Opaque(vec![1]),
+                protocol: TransportProtocol::BleGatt,
+                address: jacquard_core::EndpointAddress::Opaque(vec![1]),
                 mtu_bytes: jacquard_core::ByteCount(256),
             },
             b"frame",

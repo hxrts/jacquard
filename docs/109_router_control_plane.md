@@ -1,17 +1,12 @@
 # Router Control Plane
 
-`jacquard-router` is the canonical control-plane owner above the routing-engine boundary. Engines plan, admit, and maintain route-private runtime state. The router registers one or more engines, compares their typed evidence, and turns the selected engine result into canonical route truth.
+`jacquard-router` owns the canonical control plane above the routing-engine boundary. Routing engines plan, admit, and maintain route-private runtime state. The router registers one or more engines, compares their typed evidence, and publishes the selected engine result as canonical route truth.
 
 ## Ownership
 
-The router is `ActorOwned` for:
+The router owns canonical route-handle issuance, canonical lease publication, canonical commitment publication, and router-owned tick cadence. The router also dispatches maintenance triggers to engines.
 
-- canonical route-handle issuance
-- canonical lease publication and lease transfer
-- canonical commitment publication
-- router-owned tick cadence and maintenance dispatch
-
-Mesh remains the owner of route-private runtime state and proof-bearing engine evidence. Mock transports and mock devices remain observational with respect to canonical route truth.
+Routing engines remain the owners of route-private runtime state and proof-bearing evidence. Profile implementations and test harnesses remain observational with respect to canonical route truth.
 
 ## Activation Flow
 
@@ -29,25 +24,17 @@ objective
   -> router-published commitments
 ```
 
-This split is deliberate:
+The engine does not mint the canonical handle, publish the canonical lease, or surface commitments as canonical truth. The router consumes `RouteMaterializationProof`, `RouteWitness`, `RouteMaintenanceResult`, and `RouteSemanticHandoff` to publish canonical state.
 
-- the engine does not mint the canonical handle
-- the engine does not publish the canonical lease
-- the engine does not surface commitments directly as canonical truth
-- the router consumes `RouteMaterializationProof`, `RouteWitness`, `RouteMaintenanceResult`, and `RouteSemanticHandoff` to publish canonical state
+## Tick and Maintenance
 
-## Maintenance And Tick
+The router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize ingress. They may run family-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
 
-The router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. An engine may refresh private control state, summarize ingress, and run family-private choreographies, but it does not publish canonical truth directly during `engine_tick`.
+When maintenance returns a typed engine result, the router decides whether that implies canonical mutation. `ReplacementRequired` triggers router-owned reselection and replacement. `HandedOff` triggers router-owned lease transfer. `LeaseExpired` or `Expired` removes the canonical route.
 
-When maintenance returns a typed engine result, the router decides whether that implies canonical mutation:
+Continued or repaired states update the router-published commitment view without changing canonical identity.
 
-- `ReplacementRequired` triggers router-owned reselection and replacement
-- `HandedOff` triggers router-owned lease transfer
-- `LeaseExpired` or `Expired` removes the canonical route
-- continued or repaired states update the router-published commitment view without changing canonical identity
-
-That is why `RoutingControlPlane` now returns typed router outcomes instead of collapsing everything to `Result<(), E>`.
+`RoutingControlPlane` returns typed router outcomes instead of collapsing everything to `Result<(), E>`.
 
 The router also owns the durable publication sequence for canonical state:
 
@@ -62,32 +49,24 @@ Mesh may still checkpoint route-private runtime payloads, but canonical route pu
 
 ## Discovery Boundary
 
-Shared discovery and coarse capability selection stay on `ServiceDescriptor`.
+Shared discovery and coarse capability selection stay on `ServiceDescriptor`. Mesh nodes advertise route-capable surfaces through shared service descriptors. The router and test harness consume those shared descriptors. Jacquard does not introduce one universal handshake object for `Discover`, `Activate`, `Repair`, or `Hold`.
 
-- mesh nodes advertise route-capable surfaces through shared service descriptors
-- the router and mock-device harness consume those shared descriptors
-- Jacquard does not introduce one universal handshake object for `Discover`, `Activate`, `Repair`, or `Hold`
-
-If a future engine needs stronger bilateral terms, those should be added as service-specific negotiation objects on that concrete path only.
+If a future engine needs stronger bilateral terms, add service-specific negotiation objects on that concrete path only.
 
 ## Multi-Device Composition
 
-Phase 3 keeps one direct host/runtime composition harness outside the simulator:
+A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-mock-client` shows the minimum host/client wiring for a new device target. The end-to-end multi-device test exercises `mock-client`, `router`, `mesh`, and `mem-link-profile` across multiple runtimes.
 
-- `jacquard-mock-transport` provides the shared in-memory carrier and effect adapters
-- `jacquard-mock-device` shows the minimum host/device wiring for a new device target
-- the end-to-end multi-device test exercises `mock-device -> router -> mesh -> mock-transport` across multiple runtimes
-
-This harness exists to prove crate-boundary composition, not to replace the simulator. The simulator remains the scenario/replay layer above these shared boundaries.
+This harness proves crate-boundary composition. It does not replace the simulator. The simulator remains the scenario/replay layer above these shared boundaries.
 
 ## Minimal Host Wiring
 
-The harness in `crates/mock-device/tests/multi_device_mesh.rs` is the reference example for a new deployment target:
+The reference example for a new deployment target is in `crates/mock-client/tests/multi_device_mesh.rs`.
 
 1. build a shared `Observation<Configuration>` with ordinary `ServiceDescriptor` values
 2. attach one `MeshTransport` implementation per device runtime
 3. construct one mesh engine per device
 4. wrap each engine in one router that owns canonical publication
-5. let the device wrapper submit typed router commands instead of minting route truth directly
+5. submit typed router commands instead of minting route truth directly
 
-That is the intended minimum composition surface for a new device: world input, transport registration, router activation, and data-plane forwarding over admitted routes.
+The minimum composition surface for a new device includes world input, transport registration, router activation, and data-plane forwarding over admitted routes.

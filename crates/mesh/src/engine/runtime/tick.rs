@@ -48,7 +48,7 @@ where
         next_runtime.last_lifecycle_event = RouteLifecycleEvent::Expired;
         next_runtime.progress.state = RouteProgressState::Failed;
         let result = RouteMaintenanceResult {
-            event:   RouteLifecycleEvent::Expired,
+            event: RouteLifecycleEvent::Expired,
             outcome: RouteMaintenanceOutcome::Failed(
                 RouteMaintenanceFailure::LeaseExpired,
             ),
@@ -79,15 +79,15 @@ where
             owner_node_id: route.identity.lease.owner_node_id,
             deadline_tick: route.identity.lease.valid_for.end_tick(),
             retry_policy: TimeoutPolicy {
-                attempt_count_max:           MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
-                initial_backoff_ms:          jacquard_core::DurationMs(
+                attempt_count_max: MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
+                initial_backoff_ms: jacquard_core::DurationMs(
                     MESH_COMMITMENT_INITIAL_BACKOFF_MS,
                 ),
                 backoff_multiplier_permille: jacquard_core::RatioPermille(1000),
-                backoff_ms_max:              jacquard_core::DurationMs(
+                backoff_ms_max: jacquard_core::DurationMs(
                     MESH_COMMITMENT_BACKOFF_MS_MAX,
                 ),
-                overall_timeout_ms:          jacquard_core::DurationMs(
+                overall_timeout_ms: jacquard_core::DurationMs(
                     MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
                 ),
             },
@@ -213,14 +213,14 @@ where
         active_route: &ActiveMeshRoute,
     ) -> MeshRouteExportSnapshot {
         MeshRouteExportSnapshot {
-            route_class:    match active_route.path.route_class {
+            route_class: match active_route.path.route_class {
                 | MeshRouteClass::Direct => "direct",
                 | MeshRouteClass::MultiHop => "multi-hop",
                 | MeshRouteClass::Gateway => "gateway",
                 | MeshRouteClass::DeferredDelivery => "deferred-delivery",
             }
             .to_owned(),
-            hop_count:      u32::try_from(active_route.path.segments.len())
+            hop_count: u32::try_from(active_route.path.segments.len())
                 .unwrap_or(u32::MAX),
             partition_mode: active_route.anti_entropy.partition_mode,
         }

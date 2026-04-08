@@ -21,10 +21,10 @@ pub fn run() -> Result<()> {
 
 #[derive(Default)]
 struct LinkScanReport {
-    checked:    usize,
-    missing:    Vec<String>,
+    checked: usize,
+    missing: Vec<String>,
     work_links: Vec<String>,
-    abs_links:  Vec<String>,
+    abs_links: Vec<String>,
 }
 
 fn scan_links(root: &Path, docs_root: &Path) -> Result<LinkScanReport> {

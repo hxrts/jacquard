@@ -7,10 +7,10 @@ use common::{
 use jacquard_core::{
     CapabilityError, DestinationId, ReceiptId, RouteSemanticHandoff, Tick,
 };
-use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID};
-use jacquard_mock_transport::{
+use jacquard_mem_link_profile::{
     InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
 };
+use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID};
 use jacquard_traits::{Blake3Hashing, Router};
 
 #[test]
@@ -38,7 +38,7 @@ fn multi_engine_router_registers_multiple_engines_and_selects_mesh_candidate() {
     let auxiliary = NullCandidateEngine::new(
         LOCAL_NODE_ID,
         jacquard_core::RoutingEngineId::External {
-            name:        "aux".to_string(),
+            name: "aux".to_string(),
             contract_id: jacquard_core::RoutingEngineContractId([6; 16]),
         },
     );
@@ -58,7 +58,7 @@ fn multi_engine_router_registers_multiple_engines_and_selects_mesh_candidate() {
         vec![
             MESH_ENGINE_ID,
             jacquard_core::RoutingEngineId::External {
-                name:        "aux".to_string(),
+                name: "aux".to_string(),
                 contract_id: jacquard_core::RoutingEngineContractId([6; 16]),
             },
         ],
@@ -76,11 +76,11 @@ fn transfer_route_lease_updates_router_owned_lease() {
     .expect("activation");
 
     let handoff = RouteSemanticHandoff {
-        route_id:      route.identity.handle.route_id,
-        from_node_id:  LOCAL_NODE_ID,
-        to_node_id:    PEER_NODE_ID,
+        route_id: route.identity.handle.route_id,
+        from_node_id: LOCAL_NODE_ID,
+        to_node_id: PEER_NODE_ID,
         handoff_epoch: jacquard_core::RouteEpoch(3),
-        receipt_id:    ReceiptId([9; 16]),
+        receipt_id: ReceiptId([9; 16]),
     };
 
     let transferred = router

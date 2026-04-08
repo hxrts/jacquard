@@ -25,26 +25,26 @@ use super::{
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct MeshProtocolCheckpoint {
-    protocol:        MeshProtocolKind,
-    protocol_name:   String,
-    role_names:      Vec<String>,
-    source_path:     String,
-    session:         MeshProtocolSessionKey,
-    detail:          String,
+    protocol: MeshProtocolKind,
+    protocol_name: String,
+    role_names: Vec<String>,
+    source_path: String,
+    session: MeshProtocolSessionKey,
+    detail: String,
     last_updated_at: Tick,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshRouteExportSnapshot {
-    pub(crate) route_class:    String,
-    pub(crate) hop_count:      u32,
+    pub(crate) route_class: String,
+    pub(crate) hop_count: u32,
     pub(crate) partition_mode: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshNeighborAdvertisementSnapshot {
-    pub(crate) local_node_id:           NodeId,
-    pub(crate) service_count:           u32,
+    pub(crate) local_node_id: NodeId,
+    pub(crate) service_count: u32,
     pub(crate) adjacent_neighbor_count: u32,
 }
 
@@ -59,7 +59,7 @@ type RuntimeSpecResolver =
     fn(MeshProtocolKind) -> Result<&'static MeshProtocolSpec, String>;
 
 pub(crate) struct MeshGuestRuntime<E> {
-    effects:      E,
+    effects: E,
     resolve_spec: RuntimeSpecResolver,
 }
 
@@ -344,12 +344,12 @@ where
         detail: Option<&'static str>,
     ) -> Result<(), RouteError> {
         let checkpoint = MeshProtocolCheckpoint {
-            protocol:        spec.kind,
-            protocol_name:   spec.protocol_name.clone(),
-            role_names:      spec.role_names.clone(),
-            source_path:     spec.source_path.to_owned(),
-            session:         session.clone(),
-            detail:          detail.unwrap_or("entered").to_owned(),
+            protocol: spec.kind,
+            protocol_name: spec.protocol_name.clone(),
+            role_names: spec.role_names.clone(),
+            source_path: spec.source_path.to_owned(),
+            session: session.clone(),
+            detail: detail.unwrap_or("entered").to_owned(),
             last_updated_at: self.effects.now_tick(),
         };
         let key = protocol_checkpoint_key(spec.kind, &session);
@@ -468,9 +468,9 @@ mod tests {
 
     #[derive(Default)]
     struct FakeEffects {
-        checkpoints:  BTreeMap<Vec<u8>, Vec<u8>>,
+        checkpoints: BTreeMap<Vec<u8>, Vec<u8>>,
         observations: Vec<MeshProtocolObservation>,
-        ingress:      Vec<TransportObservation>,
+        ingress: Vec<TransportObservation>,
     }
 
     #[effect_handler]

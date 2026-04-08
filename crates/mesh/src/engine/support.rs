@@ -28,12 +28,12 @@ use crate::topology::{adjacent_link_between, adjacent_node_ids, belief_into_esti
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct MeshPlanToken {
-    pub(super) epoch:            RouteEpoch,
-    pub(super) source:           NodeId,
-    pub(super) destination:      DestinationId,
-    pub(super) segments:         Vec<MeshRouteSegment>,
-    pub(super) valid_for:        TimeWindow,
-    pub(super) route_class:      MeshRouteClass,
+    pub(super) epoch: RouteEpoch,
+    pub(super) source: NodeId,
+    pub(super) destination: DestinationId,
+    pub(super) segments: Vec<MeshRouteSegment>,
+    pub(super) valid_for: TimeWindow,
+    pub(super) route_class: MeshRouteClass,
     // Keep committee status self-contained inside the token so cache misses,
     // engine restarts, and materialization re-derivation preserve the exact
     // admission semantics without reintroducing planner cache dependence.
@@ -146,7 +146,7 @@ pub(super) fn encode_path_bytes(
 ) -> Vec<u8> {
     #[derive(Serialize)]
     struct PathEncoding<'a> {
-        path:     &'a [NodeId],
+        path: &'a [NodeId],
         segments: &'a [MeshRouteSegment],
     }
 
@@ -163,9 +163,9 @@ pub(super) fn node_path_from_plan_token(plan: &MeshPlanToken) -> Vec<NodeId> {
 pub(super) fn encode_route_identity_bytes(plan: &MeshPlanToken) -> Vec<u8> {
     #[derive(Serialize)]
     struct MeshRouteIdentity<'a> {
-        source:      &'a NodeId,
+        source: &'a NodeId,
         destination: &'a DestinationId,
-        segments:    &'a [MeshRouteSegment],
+        segments: &'a [MeshRouteSegment],
         route_class: &'a MeshRouteClass,
     }
 
@@ -176,9 +176,9 @@ pub(super) fn encode_route_identity_bytes(plan: &MeshPlanToken) -> Vec<u8> {
     encode_versioned(
         ROUTE_IDENTITY_ENCODING_VERSION,
         &MeshRouteIdentity {
-            source:      &plan.source,
+            source: &plan.source,
             destination: &plan.destination,
-            segments:    &plan.segments,
+            segments: &plan.segments,
             route_class: &plan.route_class,
         },
     )
@@ -211,7 +211,7 @@ pub(super) fn deterministic_order_key<H: Hashing>(
     tie_break_bytes.copy_from_slice(&digest.as_bytes()[..8]);
     DeterministicOrderKey {
         stable_key: route_id,
-        tie_break:  OrderStamp(u64::from_le_bytes(tie_break_bytes)),
+        tie_break: OrderStamp(u64::from_le_bytes(tie_break_bytes)),
     }
 }
 
@@ -407,28 +407,28 @@ mod tests {
     fn neutral_assumptions() -> AdmissionAssumptions {
         AdmissionAssumptions {
             message_flow_assumption: MessageFlowAssumptionClass::PerRouteSequenced,
-            failure_model:           FailureModelClass::Benign,
-            runtime_envelope:        RuntimeEnvelopeClass::Canonical,
-            node_density_class:      NodeDensityClass::Sparse,
-            connectivity_regime:     ConnectivityRegime::Stable,
-            adversary_regime:        AdversaryRegime::BenignUntrusted,
-            claim_strength:          ClaimStrength::ConservativeUnderProfile,
+            failure_model: FailureModelClass::Benign,
+            runtime_envelope: RuntimeEnvelopeClass::Canonical,
+            node_density_class: NodeDensityClass::Sparse,
+            connectivity_regime: ConnectivityRegime::Stable,
+            adversary_regime: AdversaryRegime::BenignUntrusted,
+            claim_strength: ClaimStrength::ConservativeUnderProfile,
         }
     }
 
     fn objective_with_floor(floor: RouteProtectionClass) -> RoutingObjective {
         RoutingObjective {
-            destination:           DestinationId::Node(NodeId([3; 32])),
-            service_kind:          RouteServiceKind::Move,
-            target_protection:     floor,
-            protection_floor:      floor,
-            target_connectivity:   RouteConnectivityProfile {
-                repair:    RouteRepairClass::Repairable,
+            destination: DestinationId::Node(NodeId([3; 32])),
+            service_kind: RouteServiceKind::Move,
+            target_protection: floor,
+            protection_floor: floor,
+            target_connectivity: RouteConnectivityProfile {
+                repair: RouteRepairClass::Repairable,
                 partition: RoutePartitionClass::ConnectedOnly,
             },
-            hold_fallback_policy:  HoldFallbackPolicy::Allowed,
-            latency_budget_ms:     Limit::Unbounded,
-            protection_priority:   jacquard_core::PriorityPoints(0),
+            hold_fallback_policy: HoldFallbackPolicy::Allowed,
+            latency_budget_ms: Limit::Unbounded,
+            protection_priority: jacquard_core::PriorityPoints(0),
             connectivity_priority: jacquard_core::PriorityPoints(0),
         }
     }
@@ -438,18 +438,14 @@ mod tests {
         partition: RoutePartitionClass,
     ) -> AdaptiveRoutingProfile {
         AdaptiveRoutingProfile {
-            selected_protection:            RouteProtectionClass::LinkProtected,
-            selected_connectivity:          RouteConnectivityProfile {
-                repair,
-                partition,
-            },
+            selected_protection: RouteProtectionClass::LinkProtected,
+            selected_connectivity: RouteConnectivityProfile { repair, partition },
             deployment_profile:
                 jacquard_core::DeploymentProfile::FieldPartitionTolerant,
-            diversity_floor:                1,
+            diversity_floor: 1,
             routing_engine_fallback_policy:
                 jacquard_core::RoutingEngineFallbackPolicy::Allowed,
-            route_replacement_policy:
-                jacquard_core::RouteReplacementPolicy::Allowed,
+            route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
         }
     }
 
@@ -464,9 +460,9 @@ mod tests {
             connectivity: RouteConnectivityProfile { repair, partition },
             protocol_mix: Vec::new(),
             hop_count_hint: Belief::Estimated(Estimate {
-                value:               1_u8,
+                value: 1_u8,
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(0),
+                updated_at_tick: Tick(0),
             }),
             valid_for: TimeWindow::new(Tick(0), Tick(100)).unwrap(),
         }
@@ -474,12 +470,12 @@ mod tests {
 
     fn unit_route_cost() -> RouteCost {
         RouteCost {
-            message_count_max:        Limit::Bounded(1),
-            byte_count_max:           Limit::Bounded(jacquard_core::ByteCount(1024)),
-            hop_count:                1,
+            message_count_max: Limit::Bounded(1),
+            byte_count_max: Limit::Bounded(jacquard_core::ByteCount(1024)),
+            hop_count: 1,
             repair_attempt_count_max: Limit::Bounded(1),
-            hold_bytes_reserved:      Limit::Bounded(jacquard_core::ByteCount(0)),
-            work_step_count_max:      Limit::Bounded(2),
+            hold_bytes_reserved: Limit::Bounded(jacquard_core::ByteCount(0)),
+            work_step_count_max: Limit::Bounded(2),
         }
     }
 
@@ -503,13 +499,13 @@ mod tests {
     fn shortest_paths_returns_only_local_node_for_singleton_graph() {
         let local = NodeId([1; 32]);
         let configuration = Configuration {
-            epoch:       RouteEpoch(0),
-            nodes:       BTreeMap::new(),
-            links:       BTreeMap::new(),
+            epoch: RouteEpoch(0),
+            nodes: BTreeMap::new(),
+            links: BTreeMap::new(),
             environment: Environment {
                 reachable_neighbor_count: 0,
-                churn_permille:           RatioPermille(0),
-                contention_permille:      RatioPermille(0),
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
             },
         };
         let paths = shortest_paths(&local, &configuration);
@@ -524,12 +520,12 @@ mod tests {
             endpoint: LinkEndpoint {
                 protocol,
                 address: jacquard_core::EndpointAddress::Ble {
-                    device_id:  jacquard_core::BleDeviceId(vec![0]),
+                    device_id: jacquard_core::BleDeviceId(vec![0]),
                     profile_id: jacquard_core::BleProfileId([0; 16]),
                 },
                 mtu_bytes: ByteCount(256),
             },
-            state:    jacquard_core::LinkState {
+            state: jacquard_core::LinkState {
                 state: jacquard_core::LinkRuntimeState::Active,
                 median_rtt_ms: jacquard_core::DurationMs(40),
                 transfer_rate_bytes_per_sec: Belief::Absent,
@@ -547,16 +543,16 @@ mod tests {
         let connected = NodeId([2; 32]);
         let isolated = NodeId([3; 32]);
         let configuration = Configuration {
-            epoch:       RouteEpoch(0),
-            nodes:       BTreeMap::new(),
-            links:       BTreeMap::from([(
+            epoch: RouteEpoch(0),
+            nodes: BTreeMap::new(),
+            links: BTreeMap::from([(
                 (local, connected),
                 link_with_protocol(jacquard_core::TransportProtocol::BleGatt),
             )]),
             environment: Environment {
                 reachable_neighbor_count: 1,
-                churn_permille:           RatioPermille(0),
-                contention_permille:      RatioPermille(0),
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
             },
         };
         let paths = shortest_paths(&local, &configuration);
@@ -598,26 +594,26 @@ mod tests {
 
     fn sample_plan_token() -> MeshPlanToken {
         MeshPlanToken {
-            epoch:            RouteEpoch(2),
-            source:           NodeId([1; 32]),
-            destination:      jacquard_core::DestinationId::Node(NodeId([3; 32])),
-            segments:         vec![
+            epoch: RouteEpoch(2),
+            source: NodeId([1; 32]),
+            destination: jacquard_core::DestinationId::Node(NodeId([3; 32])),
+            segments: vec![
                 MeshRouteSegment {
-                    node_id:  NodeId([2; 32]),
+                    node_id: NodeId([2; 32]),
                     endpoint: LinkEndpoint {
-                        protocol:  jacquard_core::TransportProtocol::BleGatt,
-                        address:   jacquard_core::EndpointAddress::Ble {
-                            device_id:  jacquard_core::BleDeviceId(vec![2]),
+                        protocol: jacquard_core::TransportProtocol::BleGatt,
+                        address: jacquard_core::EndpointAddress::Ble {
+                            device_id: jacquard_core::BleDeviceId(vec![2]),
                             profile_id: jacquard_core::BleProfileId([2; 16]),
                         },
                         mtu_bytes: ByteCount(256),
                     },
                 },
                 MeshRouteSegment {
-                    node_id:  NodeId([3; 32]),
+                    node_id: NodeId([3; 32]),
                     endpoint: LinkEndpoint {
-                        protocol:  jacquard_core::TransportProtocol::WifiLan,
-                        address:   jacquard_core::EndpointAddress::Ip {
+                        protocol: jacquard_core::TransportProtocol::WifiLan,
+                        address: jacquard_core::EndpointAddress::Ip {
                             host: NetworkHost::Name(HostName("relay-3".into())),
                             port: 4040,
                         },
@@ -625,23 +621,22 @@ mod tests {
                     },
                 },
             ],
-            valid_for:        TimeWindow::new(Tick(2), Tick(14)).unwrap(),
-            route_class:      MeshRouteClass::DeferredDelivery,
+            valid_for: TimeWindow::new(Tick(2), Tick(14)).unwrap(),
+            route_class: MeshRouteClass::DeferredDelivery,
             committee_status: CommitteeStatus::Selected(CommitteeSelection {
-                committee_id:       CommitteeId([9; 16]),
-                topology_epoch:     RouteEpoch(2),
-                selected_at_tick:   Tick(2),
-                valid_for:          TimeWindow::new(Tick(2), Tick(10)).unwrap(),
-                evidence_basis:     jacquard_core::FactBasis::Estimated,
-                claim_strength:
-                    jacquard_core::ClaimStrength::ConservativeUnderProfile,
+                committee_id: CommitteeId([9; 16]),
+                topology_epoch: RouteEpoch(2),
+                selected_at_tick: Tick(2),
+                valid_for: TimeWindow::new(Tick(2), Tick(10)).unwrap(),
+                evidence_basis: jacquard_core::FactBasis::Estimated,
+                claim_strength: jacquard_core::ClaimStrength::ConservativeUnderProfile,
                 identity_assurance:
                     jacquard_core::IdentityAssuranceClass::ControllerBound,
-                quorum_threshold:   1,
-                members:            vec![CommitteeMember {
-                    node_id:       NodeId([2; 32]),
+                quorum_threshold: 1,
+                members: vec![CommitteeMember {
+                    node_id: NodeId([2; 32]),
                     controller_id: ControllerId([2; 32]),
-                    role:          CommitteeRole::Participant,
+                    role: CommitteeRole::Participant,
                 }],
             }),
         }
@@ -650,43 +645,43 @@ mod tests {
     fn sample_active_route() -> ActiveMeshRoute {
         let plan = sample_plan_token();
         ActiveMeshRoute {
-            path:                 MeshPath {
-                route_id:    RouteId([7; 16]),
-                epoch:       plan.epoch,
-                source:      plan.source,
+            path: MeshPath {
+                route_id: RouteId([7; 16]),
+                epoch: plan.epoch,
+                source: plan.source,
                 destination: plan.destination,
-                segments:    plan.segments,
-                valid_for:   plan.valid_for,
+                segments: plan.segments,
+                valid_for: plan.valid_for,
                 route_class: plan.route_class,
             },
-            committee:            match plan.committee_status {
+            committee: match plan.committee_status {
                 | CommitteeStatus::Selected(selection) => Some(selection),
                 | _ => None,
             },
-            current_epoch:        RouteEpoch(2),
+            current_epoch: RouteEpoch(2),
             last_lifecycle_event: jacquard_core::RouteLifecycleEvent::Activated,
-            route_cost:           unit_route_cost(),
-            ordering_key:         DeterministicOrderKey {
+            route_cost: unit_route_cost(),
+            ordering_key: DeterministicOrderKey {
                 stable_key: RouteId([7; 16]),
-                tie_break:  OrderStamp(17),
+                tie_break: OrderStamp(17),
             },
-            forwarding:           super::super::MeshForwardingState {
+            forwarding: super::super::MeshForwardingState {
                 current_owner_node_id: NodeId([1; 32]),
-                next_hop_index:        1,
-                in_flight_frames:      2,
-                last_ack_at_tick:      Some(Tick(3)),
+                next_hop_index: 1,
+                in_flight_frames: 2,
+                last_ack_at_tick: Some(Tick(3)),
             },
-            repair:               super::super::MeshRepairState {
-                steps_remaining:       3,
+            repair: super::super::MeshRepairState {
+                steps_remaining: 3,
                 last_repaired_at_tick: Some(Tick(4)),
             },
-            handoff:              super::super::MeshHandoffState {
-                last_receipt_id:      Some(jacquard_core::ReceiptId([5; 16])),
+            handoff: super::super::MeshHandoffState {
+                last_receipt_id: Some(jacquard_core::ReceiptId([5; 16])),
                 last_handoff_at_tick: Some(Tick(5)),
             },
-            anti_entropy:         super::super::MeshRouteAntiEntropyState {
-                partition_mode:       true,
-                retained_objects:     std::iter::once(ContentId {
+            anti_entropy: super::super::MeshRouteAntiEntropyState {
+                partition_mode: true,
+                retained_objects: std::iter::once(ContentId {
                     digest: jacquard_core::Blake3Digest([6; 32]),
                 })
                 .collect(),
@@ -756,15 +751,12 @@ mod tests {
             .map(|index| {
                 let byte = u8::try_from(index + 1).unwrap_or(u8::MAX);
                 MeshRouteSegment {
-                    node_id:  NodeId([byte; 32]),
+                    node_id: NodeId([byte; 32]),
                     endpoint: LinkEndpoint {
-                        protocol:  jacquard_core::TransportProtocol::Custom(format!(
+                        protocol: jacquard_core::TransportProtocol::Custom(format!(
                             "mesh-{byte}"
                         )),
-                        address:   jacquard_core::EndpointAddress::Opaque(vec![
-                            byte;
-                            32
-                        ]),
+                        address: jacquard_core::EndpointAddress::Opaque(vec![byte; 32]),
                         mtu_bytes: ByteCount(1400),
                     },
                 }
@@ -791,21 +783,21 @@ mod tests {
     fn path_bytes_distinguish_transport_and_endpoint_variants() {
         let path = vec![NodeId([1; 32]), NodeId([2; 32])];
         let ble_segments = vec![MeshRouteSegment {
-            node_id:  NodeId([2; 32]),
+            node_id: NodeId([2; 32]),
             endpoint: LinkEndpoint {
-                protocol:  jacquard_core::TransportProtocol::BleGatt,
-                address:   jacquard_core::EndpointAddress::Ble {
-                    device_id:  jacquard_core::BleDeviceId(vec![2]),
+                protocol: jacquard_core::TransportProtocol::BleGatt,
+                address: jacquard_core::EndpointAddress::Ble {
+                    device_id: jacquard_core::BleDeviceId(vec![2]),
                     profile_id: jacquard_core::BleProfileId([2; 16]),
                 },
                 mtu_bytes: ByteCount(256),
             },
         }];
         let wifi_segments = vec![MeshRouteSegment {
-            node_id:  NodeId([2; 32]),
+            node_id: NodeId([2; 32]),
             endpoint: LinkEndpoint {
-                protocol:  jacquard_core::TransportProtocol::WifiLan,
-                address:   jacquard_core::EndpointAddress::Ip {
+                protocol: jacquard_core::TransportProtocol::WifiLan,
+                address: jacquard_core::EndpointAddress::Ip {
                     host: NetworkHost::Name(HostName("relay-2".into())),
                     port: 4040,
                 },

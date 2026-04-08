@@ -55,7 +55,7 @@ fn topology_model_exposes_medium_and_node_intrinsic_support() {
 
 #[derive(Clone)]
 struct PreferredPeerTopologyModel {
-    base:           DeterministicMeshTopologyModel,
+    base: DeterministicMeshTopologyModel,
     preferred_peer: NodeId,
 }
 
@@ -177,15 +177,15 @@ fn equal_hop_quality_configuration() -> Observation<Configuration> {
     let destination = NodeId([5; 32]);
 
     Observation {
-        value:                 Configuration {
-            epoch:       RouteEpoch(9),
-            nodes:       BTreeMap::from([
+        value: Configuration {
+            epoch: RouteEpoch(9),
+            nodes: BTreeMap::from([
                 (LOCAL_NODE_ID, node(1)),
                 (node_two, node(2)),
                 (node_three, node(3)),
                 (destination, node(5)),
             ]),
-            links:       BTreeMap::from([
+            links: BTreeMap::from([
                 ((LOCAL_NODE_ID, node_two), link(2, 950)),
                 ((node_two, destination), link(5, 950)),
                 ((LOCAL_NODE_ID, node_three), link(3, 650)),
@@ -193,16 +193,16 @@ fn equal_hop_quality_configuration() -> Observation<Configuration> {
             ]),
             environment: Environment {
                 reachable_neighbor_count: 3,
-                churn_permille:           RatioPermille(100),
-                contention_permille:      RatioPermille(100),
+                churn_permille: RatioPermille(100),
+                contention_permille: RatioPermille(100),
             },
         },
-        source_class:          jacquard_traits::jacquard_core::FactSourceClass::Local,
+        source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
         evidence_class:
             jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
         origin_authentication:
             jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
-        observed_at_tick:      Tick(9),
+        observed_at_tick: Tick(9),
     }
 }
 
@@ -250,12 +250,9 @@ fn metric_aware_search_prefers_higher_quality_equal_hop_path() {
         .expect("admit route");
     let lease = jacquard_traits::jacquard_core::RouteLease {
         owner_node_id: LOCAL_NODE_ID,
-        lease_epoch:   RouteEpoch(9),
-        valid_for:     jacquard_traits::jacquard_core::TimeWindow::new(
-            Tick(9),
-            Tick(20),
-        )
-        .expect("valid lease"),
+        lease_epoch: RouteEpoch(9),
+        valid_for: jacquard_traits::jacquard_core::TimeWindow::new(Tick(9), Tick(20))
+            .expect("valid lease"),
     };
     let installation = engine
         .materialize_route(materialization_input(admission, lease))

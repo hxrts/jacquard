@@ -16,69 +16,69 @@ type RuleFn = fn(&Path) -> Result<Vec<Violation>>;
 
 struct Rule {
     description: &'static str,
-    collect:     RuleFn,
+    collect: RuleFn,
 }
 
 const RULES: &[Rule] = &[
     Rule {
         description: "explicit-topology planner signatures",
-        collect:     explicit_topology,
+        collect: explicit_topology,
     },
     Rule {
         description: "world-extension error purity",
-        collect:     world_error_purity,
+        collect: world_error_purity,
     },
     Rule {
         description: "shared/private boundary",
-        collect:     shared_private_boundary,
+        collect: shared_private_boundary,
     },
     Rule {
         description: "planner cache is optimization only",
-        collect:     planner_cache_dependence,
+        collect: planner_cache_dependence,
     },
     Rule {
         description: "fail-closed mutation ordering",
-        collect:     fail_closed_ordering,
+        collect: fail_closed_ordering,
     },
     Rule {
         description: "router canonical publication avoids in-place mutation",
-        collect:     router_snapshot_publication,
+        collect: router_snapshot_publication,
     },
     Rule {
         description: "Tick/RouteEpoch separation",
-        collect:     tick_epoch_conflation,
+        collect: tick_epoch_conflation,
     },
     Rule {
         description: "checked routing score arithmetic",
-        collect:     checked_score_arithmetic,
+        collect: checked_score_arithmetic,
     },
     Rule {
         description: "typed wrapper arithmetic uses checked reconstruction",
-        collect:     typed_wrapper_arithmetic,
+        collect: typed_wrapper_arithmetic,
     },
     Rule {
         description: "committee failure is not silently erased",
-        collect:     committee_swallow,
+        collect: committee_swallow,
     },
     Rule {
         description: "null-object selectors are not wrapped in dead Option state",
-        collect:     selector_null_object,
+        collect: selector_null_object,
     },
     Rule {
         description: "namespaced storage keys",
-        collect:     storage_key_scope,
+        collect: storage_key_scope,
     },
     Rule {
         description: "no synthetic authoritative-state fallback",
-        collect:     synthetic_fallback,
+        collect: synthetic_fallback,
     },
     Rule {
         description: "routing thresholds use named constants",
-        collect:     named_thresholds,
+        collect: named_thresholds,
     },
     Rule {
         description: "mock transport remains observational",
-        collect:     mock_transport_boundary,
+        collect: mock_transport_boundary,
     },
 ];
 
@@ -397,7 +397,7 @@ fn named_thresholds(root: &Path) -> Result<Vec<Violation>> {
 fn mock_transport_boundary(root: &Path) -> Result<Vec<Violation>> {
     grep_rule(
         root,
-        &["crates/mock-transport/src"],
+        &["crates/mem-link-profile/src"],
         r"\b(MaterializedRoute|RouteHandle|RouteCommitment|RouteLease)\b",
         "mock transport crosses into canonical route-truth vocabulary",
     )

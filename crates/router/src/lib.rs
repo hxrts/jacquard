@@ -1,6 +1,6 @@
 //! Generic router middleware for Jacquard.
 //!
-//! Control flow intuition: a host registers one or more routing engines with
+//! Control flow: a host registers one or more routing engines with
 //! the router, then the router owns the canonical activation and maintenance
 //! flow. It collects candidates across engines, selects one admissible route,
 //! asks the chosen engine to materialize its private runtime state, and only

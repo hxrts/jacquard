@@ -10,7 +10,7 @@ use common::{
     build_router_with_selector, objective, AdvisoryCommitteeSelector, FAR_NODE_ID,
 };
 use jacquard_core::{DestinationId, RouteMaintenanceTrigger, Tick};
-use jacquard_mock_transport::InMemoryRuntimeEffects;
+use jacquard_mem_link_profile::InMemoryRuntimeEffects;
 use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane};
 
 #[test]

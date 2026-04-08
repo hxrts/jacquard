@@ -19,23 +19,21 @@ use jacquard_core::{
 
 fn repairable_connected() -> RouteConnectivityProfile {
     RouteConnectivityProfile {
-        repair:    RouteRepairClass::Repairable,
+        repair: RouteRepairClass::Repairable,
         partition: RoutePartitionClass::ConnectedOnly,
     }
 }
 
 fn sample_objective() -> RoutingObjective {
     RoutingObjective {
-        destination:           jacquard_core::DestinationId::Node(
-            jacquard_core::NodeId([7; 32]),
-        ),
-        service_kind:          RouteServiceKind::Move,
-        target_protection:     RouteProtectionClass::LinkProtected,
-        protection_floor:      RouteProtectionClass::None,
-        target_connectivity:   repairable_connected(),
-        hold_fallback_policy:  HoldFallbackPolicy::Allowed,
-        latency_budget_ms:     Limit::Bounded(jacquard_core::DurationMs(250)),
-        protection_priority:   jacquard_core::PriorityPoints(10),
+        destination: jacquard_core::DestinationId::Node(jacquard_core::NodeId([7; 32])),
+        service_kind: RouteServiceKind::Move,
+        target_protection: RouteProtectionClass::LinkProtected,
+        protection_floor: RouteProtectionClass::None,
+        target_connectivity: repairable_connected(),
+        hold_fallback_policy: HoldFallbackPolicy::Allowed,
+        latency_budget_ms: Limit::Bounded(jacquard_core::DurationMs(250)),
+        protection_priority: jacquard_core::PriorityPoints(10),
         connectivity_priority: jacquard_core::PriorityPoints(20),
     }
 }
@@ -43,27 +41,27 @@ fn sample_objective() -> RoutingObjective {
 fn sample_admission_assumptions() -> AdmissionAssumptions {
     AdmissionAssumptions {
         message_flow_assumption: MessageFlowAssumptionClass::PerRouteSequenced,
-        failure_model:           FailureModelClass::CrashStop,
-        runtime_envelope:        RuntimeEnvelopeClass::Canonical,
-        node_density_class:      NodeDensityClass::Moderate,
-        connectivity_regime:     ConnectivityRegime::Stable,
-        adversary_regime:        AdversaryRegime::Cooperative,
-        claim_strength:          ClaimStrength::ExactUnderAssumptions,
+        failure_model: FailureModelClass::CrashStop,
+        runtime_envelope: RuntimeEnvelopeClass::Canonical,
+        node_density_class: NodeDensityClass::Moderate,
+        connectivity_regime: ConnectivityRegime::Stable,
+        adversary_regime: AdversaryRegime::Cooperative,
+        claim_strength: ClaimStrength::ExactUnderAssumptions,
     }
 }
 
 fn sample_summary() -> RouteSummary {
     RouteSummary {
-        engine:         RoutingEngineId::Mesh,
-        protection:     RouteProtectionClass::LinkProtected,
-        connectivity:   repairable_connected(),
-        protocol_mix:   vec![TransportProtocol::BleGatt, TransportProtocol::WifiLan],
+        engine: RoutingEngineId::Mesh,
+        protection: RouteProtectionClass::LinkProtected,
+        connectivity: repairable_connected(),
+        protocol_mix: vec![TransportProtocol::BleGatt, TransportProtocol::WifiLan],
         hop_count_hint: Belief::Estimated(Estimate {
-            value:               3,
+            value: 3,
             confidence_permille: jacquard_core::RatioPermille(1000),
-            updated_at_tick:     Tick(100),
+            updated_at_tick: Tick(100),
         }),
-        valid_for:      TimeWindow::new(Tick(100), Tick(500))
+        valid_for: TimeWindow::new(Tick(100), Tick(500))
             .expect("valid route summary window"),
     }
 }
@@ -82,12 +80,12 @@ fn sample_witness(admission_profile: AdmissionAssumptions) -> RouteWitness {
 
 fn sample_route_cost() -> RouteCost {
     RouteCost {
-        message_count_max:        Limit::Bounded(12),
-        byte_count_max:           Limit::Bounded(ByteCount(2048)),
-        hop_count:                3,
+        message_count_max: Limit::Bounded(12),
+        byte_count_max: Limit::Bounded(ByteCount(2048)),
+        hop_count: 3,
         repair_attempt_count_max: Limit::Bounded(2),
-        hold_bytes_reserved:      Limit::Bounded(ByteCount(512)),
-        work_step_count_max:      Limit::Bounded(40),
+        hold_bytes_reserved: Limit::Bounded(ByteCount(512)),
+        work_step_count_max: Limit::Bounded(40),
     }
 }
 
@@ -99,82 +97,82 @@ fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInst
     let summary = sample_summary();
     let witness = sample_witness(admission_profile.clone());
     let candidate = RouteCandidate {
-        summary:     summary.clone(),
-        estimate:    Estimate {
-            value:               RouteEstimate {
-                estimated_protection:   summary.protection,
+        summary: summary.clone(),
+        estimate: Estimate {
+            value: RouteEstimate {
+                estimated_protection: summary.protection,
                 estimated_connectivity: summary.connectivity,
-                topology_epoch:         RouteEpoch(4),
-                degradation:            RouteDegradation::None,
+                topology_epoch: RouteEpoch(4),
+                degradation: RouteDegradation::None,
             },
             confidence_permille: jacquard_core::RatioPermille(1000),
-            updated_at_tick:     Tick(100),
+            updated_at_tick: Tick(100),
         },
         backend_ref: BackendRouteRef {
-            engine:           RoutingEngineId::Mesh,
+            engine: RoutingEngineId::Mesh,
             backend_route_id: jacquard_core::BackendRouteId(vec![1, 2, 3]),
         },
     };
     let input = RouteMaterializationInput {
-        handle:    RouteHandle {
-            route_id:             RouteId([5; 16]),
-            topology_epoch:       RouteEpoch(4),
+        handle: RouteHandle {
+            route_id: RouteId([5; 16]),
+            topology_epoch: RouteEpoch(4),
             materialized_at_tick: Tick(101),
-            publication_id:       PublicationId([4; 16]),
+            publication_id: PublicationId([4; 16]),
         },
         admission: RouteAdmission {
             route_id: RouteId([5; 16]),
             backend_ref: candidate.backend_ref.clone(),
             objective,
             profile: AdaptiveRoutingProfile {
-                selected_protection:            RouteProtectionClass::LinkProtected,
-                selected_connectivity:          repairable_connected(),
-                deployment_profile:             DeploymentProfile::DenseInteractive,
-                diversity_floor:                1,
+                selected_protection: RouteProtectionClass::LinkProtected,
+                selected_connectivity: repairable_connected(),
+                deployment_profile: DeploymentProfile::DenseInteractive,
+                diversity_floor: 1,
                 routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
-                route_replacement_policy:       RouteReplacementPolicy::Allowed,
+                route_replacement_policy: RouteReplacementPolicy::Allowed,
             },
             admission_check: RouteAdmissionCheck {
-                decision:              AdmissionDecision::Admissible,
-                profile:               admission_profile,
+                decision: AdmissionDecision::Admissible,
+                profile: admission_profile,
                 productive_step_bound: Limit::Bounded(4),
-                total_step_bound:      Limit::Bounded(8),
-                route_cost:            sample_route_cost(),
+                total_step_bound: Limit::Bounded(8),
+                route_cost: sample_route_cost(),
             },
             summary,
             witness: witness.clone(),
         },
-        lease:     RouteLease {
+        lease: RouteLease {
             owner_node_id: jacquard_core::NodeId([9; 32]),
-            lease_epoch:   RouteEpoch(4),
-            valid_for:     TimeWindow::new(Tick(100), Tick(500))
+            lease_epoch: RouteEpoch(4),
+            valid_for: TimeWindow::new(Tick(100), Tick(500))
                 .expect("valid route lease window"),
         },
     };
     let installation = RouteInstallation {
         materialization_proof: RouteMaterializationProof {
-            route_id:             RouteId([5; 16]),
-            topology_epoch:       RouteEpoch(4),
+            route_id: RouteId([5; 16]),
+            topology_epoch: RouteEpoch(4),
             materialized_at_tick: Tick(101),
-            publication_id:       PublicationId([4; 16]),
-            witness:              Fact {
-                value:               witness,
-                basis:               FactBasis::Published,
+            publication_id: PublicationId([4; 16]),
+            witness: Fact {
+                value: witness,
+                basis: FactBasis::Published,
                 established_at_tick: Tick(101),
             },
         },
-        last_lifecycle_event:  RouteLifecycleEvent::Activated,
-        health:                RouteHealth {
-            reachability_state:        ReachabilityState::Reachable,
-            stability_score:           jacquard_core::HealthScore(900),
+        last_lifecycle_event: RouteLifecycleEvent::Activated,
+        health: RouteHealth {
+            reachability_state: ReachabilityState::Reachable,
+            stability_score: jacquard_core::HealthScore(900),
             congestion_penalty_points: jacquard_core::PenaltyPoints(12),
-            last_validated_at_tick:    Tick(110),
+            last_validated_at_tick: Tick(110),
         },
-        progress:              RouteProgressContract {
+        progress: RouteProgressContract {
             productive_step_count_max: Limit::Bounded(6),
-            total_step_count_max:      Limit::Bounded(12),
-            last_progress_at_tick:     Tick(110),
-            state:                     RouteProgressState::Satisfied,
+            total_step_count_max: Limit::Bounded(12),
+            last_progress_at_tick: Tick(110),
+            state: RouteProgressState::Satisfied,
         },
     };
     (candidate, input, installation)

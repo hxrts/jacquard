@@ -19,10 +19,10 @@ use jacquard_core::{
     RoutingPolicyInputs, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
     TransportProtocol,
 };
-use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID};
-use jacquard_mock_transport::{
+use jacquard_mem_link_profile::{
     InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
 };
+use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::{Blake3Hashing, CommitteeSelector};
 
@@ -154,42 +154,41 @@ pub(crate) fn sample_policy_inputs(
     topology: &Observation<Configuration>,
 ) -> RoutingPolicyInputs {
     RoutingPolicyInputs {
-        local_node:                  Observation {
-            value:                 topology.value.nodes[&LOCAL_NODE_ID].clone(),
-            source_class:          topology.source_class,
-            evidence_class:        topology.evidence_class,
+        local_node: Observation {
+            value: topology.value.nodes[&LOCAL_NODE_ID].clone(),
+            source_class: topology.source_class,
+            evidence_class: topology.evidence_class,
             origin_authentication: topology.origin_authentication,
-            observed_at_tick:      topology.observed_at_tick,
+            observed_at_tick: topology.observed_at_tick,
         },
-        local_environment:           Observation {
-            value:                 topology.value.environment.clone(),
-            source_class:          topology.source_class,
-            evidence_class:        topology.evidence_class,
+        local_environment: Observation {
+            value: topology.value.environment.clone(),
+            source_class: topology.source_class,
+            evidence_class: topology.evidence_class,
             origin_authentication: topology.origin_authentication,
-            observed_at_tick:      topology.observed_at_tick,
+            observed_at_tick: topology.observed_at_tick,
         },
-        routing_engine_count:        1,
-        median_rtt_ms:               DurationMs(40),
-        loss_permille:               RatioPermille(50),
-        partition_risk_permille:     RatioPermille(150),
+        routing_engine_count: 1,
+        median_rtt_ms: DurationMs(40),
+        loss_permille: RatioPermille(50),
+        partition_risk_permille: RatioPermille(150),
         adversary_pressure_permille: RatioPermille(25),
-        identity_assurance:          IdentityAssuranceClass::ControllerBound,
-        direct_reachability_score:   HealthScore(900),
+        identity_assurance: IdentityAssuranceClass::ControllerBound,
+        direct_reachability_score: HealthScore(900),
     }
 }
 
 pub(crate) fn profile() -> AdaptiveRoutingProfile {
     AdaptiveRoutingProfile {
-        selected_protection:            RouteProtectionClass::LinkProtected,
-        selected_connectivity:          RouteConnectivityProfile {
-            repair:    RouteRepairClass::Repairable,
+        selected_protection: RouteProtectionClass::LinkProtected,
+        selected_connectivity: RouteConnectivityProfile {
+            repair: RouteRepairClass::Repairable,
             partition: jacquard_core::RoutePartitionClass::PartitionTolerant,
         },
-        deployment_profile:
-            jacquard_core::DeploymentProfile::FieldPartitionTolerant,
-        diversity_floor:                1,
+        deployment_profile: jacquard_core::DeploymentProfile::FieldPartitionTolerant,
+        diversity_floor: 1,
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
-        route_replacement_policy:       RouteReplacementPolicy::Allowed,
+        route_replacement_policy: RouteReplacementPolicy::Allowed,
     }
 }
 
@@ -200,7 +199,7 @@ pub(crate) fn objective(destination: DestinationId) -> RoutingObjective {
         target_protection: RouteProtectionClass::LinkProtected,
         protection_floor: RouteProtectionClass::LinkProtected,
         target_connectivity: RouteConnectivityProfile {
-            repair:    RouteRepairClass::Repairable,
+            repair: RouteRepairClass::Repairable,
             partition: jacquard_core::RoutePartitionClass::PartitionTolerant,
         },
         hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
@@ -212,29 +211,29 @@ pub(crate) fn objective(destination: DestinationId) -> RoutingObjective {
 
 pub(crate) fn sample_configuration() -> Observation<Configuration> {
     Observation {
-        value:                 Configuration {
-            epoch:       jacquard_core::RouteEpoch(2),
-            nodes:       BTreeMap::from([
+        value: Configuration {
+            epoch: jacquard_core::RouteEpoch(2),
+            nodes: BTreeMap::from([
                 (LOCAL_NODE_ID, route_capable_node(1)),
                 (PEER_NODE_ID, route_capable_node(2)),
                 (FAR_NODE_ID, route_capable_node(3)),
                 (BRIDGE_NODE_ID, route_capable_node(4)),
             ]),
-            links:       BTreeMap::from([
+            links: BTreeMap::from([
                 ((LOCAL_NODE_ID, PEER_NODE_ID), link(2, 950)),
                 ((PEER_NODE_ID, FAR_NODE_ID), link(3, 875)),
                 ((LOCAL_NODE_ID, BRIDGE_NODE_ID), link(4, 925)),
             ]),
             environment: Environment {
                 reachable_neighbor_count: 3,
-                churn_permille:           RatioPermille(150),
-                contention_permille:      RatioPermille(120),
+                churn_permille: RatioPermille(150),
+                contention_permille: RatioPermille(120),
             },
         },
-        source_class:          FactSourceClass::Local,
-        evidence_class:        RoutingEvidenceClass::DirectObservation,
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick:      Tick(2),
+        observed_at_tick: Tick(2),
     }
 }
 
@@ -251,7 +250,7 @@ fn route_capable_node(node_byte: u8) -> Node {
 
 pub(crate) struct NullCandidateEngine {
     local_node_id: jacquard_core::NodeId,
-    engine_id:     jacquard_core::RoutingEngineId,
+    engine_id: jacquard_core::RoutingEngineId,
 }
 
 impl NullCandidateEngine {
@@ -270,19 +269,19 @@ impl jacquard_traits::RoutingEnginePlanner for NullCandidateEngine {
 
     fn capabilities(&self) -> jacquard_core::RoutingEngineCapabilities {
         jacquard_core::RoutingEngineCapabilities {
-            engine:                  self.engine_id.clone(),
-            max_protection:          RouteProtectionClass::LinkProtected,
-            max_connectivity:        RouteConnectivityProfile {
-                repair:    RouteRepairClass::BestEffort,
+            engine: self.engine_id.clone(),
+            max_protection: RouteProtectionClass::LinkProtected,
+            max_connectivity: RouteConnectivityProfile {
+                repair: RouteRepairClass::BestEffort,
                 partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
-            repair_support:          jacquard_core::RepairSupport::Unsupported,
-            hold_support:            jacquard_core::HoldSupport::Unsupported,
-            decidable_admission:     jacquard_core::DecidableSupport::Supported,
+            repair_support: jacquard_core::RepairSupport::Unsupported,
+            hold_support: jacquard_core::HoldSupport::Unsupported,
+            decidable_admission: jacquard_core::DecidableSupport::Supported,
             quantitative_bounds:
                 jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support: jacquard_core::ReconfigurationSupport::ReplaceOnly,
-            route_shape_visibility:  jacquard_core::RouteShapeVisibility::Opaque,
+            route_shape_visibility: jacquard_core::RouteShapeVisibility::Opaque,
         }
     }
 
@@ -367,7 +366,7 @@ impl jacquard_traits::RouterManagedEngine for NullCandidateEngine {
 pub(crate) struct RecoverableTestEngine {
     local_node_id: jacquard_core::NodeId,
     shared_routes: Arc<Mutex<std::collections::BTreeSet<jacquard_core::RouteId>>>,
-    now:           Tick,
+    now: Tick,
 }
 
 impl RecoverableTestEngine {
@@ -381,7 +380,7 @@ impl RecoverableTestEngine {
 
     fn engine_id_value() -> jacquard_core::RoutingEngineId {
         jacquard_core::RoutingEngineId::External {
-            name:        "recoverable-test".to_string(),
+            name: "recoverable-test".to_string(),
             contract_id: jacquard_core::RoutingEngineContractId([8; 16]),
         }
     }
@@ -391,20 +390,17 @@ impl RecoverableTestEngine {
         objective: &RoutingObjective,
     ) -> jacquard_core::RouteSummary {
         jacquard_core::RouteSummary {
-            engine:         Self::engine_id_value(),
-            protection:     objective.target_protection,
-            connectivity:   objective.target_connectivity,
-            protocol_mix:   vec![TransportProtocol::BleGatt],
+            engine: Self::engine_id_value(),
+            protection: objective.target_protection,
+            connectivity: objective.target_connectivity,
+            protocol_mix: vec![TransportProtocol::BleGatt],
             hop_count_hint: Belief::Estimated(jacquard_core::Estimate {
-                value:               1,
+                value: 1,
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     self.now,
+                updated_at_tick: self.now,
             }),
-            valid_for:      TimeWindow::new(
-                self.now,
-                Tick(self.now.0.saturating_add(8)),
-            )
-            .expect("valid candidate window"),
+            valid_for: TimeWindow::new(self.now, Tick(self.now.0.saturating_add(8)))
+                .expect("valid candidate window"),
         }
     }
 
@@ -420,19 +416,19 @@ impl jacquard_traits::RoutingEnginePlanner for RecoverableTestEngine {
 
     fn capabilities(&self) -> jacquard_core::RoutingEngineCapabilities {
         jacquard_core::RoutingEngineCapabilities {
-            engine:                  Self::engine_id_value(),
-            max_protection:          RouteProtectionClass::LinkProtected,
-            max_connectivity:        RouteConnectivityProfile {
-                repair:    RouteRepairClass::BestEffort,
+            engine: Self::engine_id_value(),
+            max_protection: RouteProtectionClass::LinkProtected,
+            max_connectivity: RouteConnectivityProfile {
+                repair: RouteRepairClass::BestEffort,
                 partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
-            repair_support:          jacquard_core::RepairSupport::Unsupported,
-            hold_support:            jacquard_core::HoldSupport::Unsupported,
-            decidable_admission:     jacquard_core::DecidableSupport::Supported,
+            repair_support: jacquard_core::RepairSupport::Unsupported,
+            hold_support: jacquard_core::HoldSupport::Unsupported,
+            decidable_admission: jacquard_core::DecidableSupport::Supported,
             quantitative_bounds:
                 jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support: jacquard_core::ReconfigurationSupport::ReplaceOnly,
-            route_shape_visibility:  jacquard_core::RouteShapeVisibility::Opaque,
+            route_shape_visibility: jacquard_core::RouteShapeVisibility::Opaque,
         }
     }
 
@@ -443,19 +439,19 @@ impl jacquard_traits::RoutingEnginePlanner for RecoverableTestEngine {
         topology: &Observation<Configuration>,
     ) -> Vec<jacquard_core::RouteCandidate> {
         vec![jacquard_core::RouteCandidate {
-            summary:     self.route_summary(objective),
-            estimate:    jacquard_core::Estimate {
-                value:               jacquard_core::RouteEstimate {
-                    estimated_protection:   objective.target_protection,
+            summary: self.route_summary(objective),
+            estimate: jacquard_core::Estimate {
+                value: jacquard_core::RouteEstimate {
+                    estimated_protection: objective.target_protection,
                     estimated_connectivity: objective.target_connectivity,
-                    topology_epoch:         topology.value.epoch,
-                    degradation:            jacquard_core::RouteDegradation::None,
+                    topology_epoch: topology.value.epoch,
+                    degradation: jacquard_core::RouteDegradation::None,
                 },
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     self.now,
+                updated_at_tick: self.now,
             },
             backend_ref: jacquard_core::BackendRouteRef {
-                engine:           Self::engine_id_value(),
+                engine: Self::engine_id_value(),
                 backend_route_id: jacquard_core::BackendRouteId(vec![7]),
             },
         }]
@@ -485,61 +481,51 @@ impl jacquard_traits::RoutingEnginePlanner for RecoverableTestEngine {
         topology: &Observation<Configuration>,
     ) -> Result<jacquard_core::RouteAdmission, jacquard_core::RouteError> {
         Ok(jacquard_core::RouteAdmission {
-            route_id:        Self::route_id(),
-            backend_ref:     candidate.backend_ref,
-            objective:       objective.clone(),
-            profile:         profile.clone(),
+            route_id: Self::route_id(),
+            backend_ref: candidate.backend_ref,
+            objective: objective.clone(),
+            profile: profile.clone(),
             admission_check: jacquard_core::RouteAdmissionCheck {
-                decision:              jacquard_core::AdmissionDecision::Admissible,
-                profile:               jacquard_core::AdmissionAssumptions {
+                decision: jacquard_core::AdmissionDecision::Admissible,
+                profile: jacquard_core::AdmissionAssumptions {
                     message_flow_assumption:
                         jacquard_core::MessageFlowAssumptionClass::BestEffort,
-                    failure_model:           jacquard_core::FailureModelClass::Benign,
-                    runtime_envelope:
-                        jacquard_core::RuntimeEnvelopeClass::Canonical,
-                    node_density_class:      jacquard_core::NodeDensityClass::Sparse,
-                    connectivity_regime:     jacquard_core::ConnectivityRegime::Stable,
-                    adversary_regime:
-                        jacquard_core::AdversaryRegime::Cooperative,
-                    claim_strength:
-                        jacquard_core::ClaimStrength::ExactUnderAssumptions,
+                    failure_model: jacquard_core::FailureModelClass::Benign,
+                    runtime_envelope: jacquard_core::RuntimeEnvelopeClass::Canonical,
+                    node_density_class: jacquard_core::NodeDensityClass::Sparse,
+                    connectivity_regime: jacquard_core::ConnectivityRegime::Stable,
+                    adversary_regime: jacquard_core::AdversaryRegime::Cooperative,
+                    claim_strength: jacquard_core::ClaimStrength::ExactUnderAssumptions,
                 },
                 productive_step_bound: jacquard_core::Limit::Bounded(1),
-                total_step_bound:      jacquard_core::Limit::Bounded(1),
-                route_cost:            jacquard_core::RouteCost {
-                    message_count_max:        jacquard_core::Limit::Bounded(1),
-                    byte_count_max:           jacquard_core::Limit::Bounded(ByteCount(
-                        256,
-                    )),
-                    hop_count:                1,
+                total_step_bound: jacquard_core::Limit::Bounded(1),
+                route_cost: jacquard_core::RouteCost {
+                    message_count_max: jacquard_core::Limit::Bounded(1),
+                    byte_count_max: jacquard_core::Limit::Bounded(ByteCount(256)),
+                    hop_count: 1,
                     repair_attempt_count_max: jacquard_core::Limit::Bounded(0),
-                    hold_bytes_reserved:      jacquard_core::Limit::Bounded(ByteCount(
-                        0,
-                    )),
-                    work_step_count_max:      jacquard_core::Limit::Bounded(1),
+                    hold_bytes_reserved: jacquard_core::Limit::Bounded(ByteCount(0)),
+                    work_step_count_max: jacquard_core::Limit::Bounded(1),
                 },
             },
-            summary:         self.route_summary(objective),
-            witness:         jacquard_core::RouteWitness {
-                objective_protection:   objective.target_protection,
-                delivered_protection:   objective.target_protection,
+            summary: self.route_summary(objective),
+            witness: jacquard_core::RouteWitness {
+                objective_protection: objective.target_protection,
+                delivered_protection: objective.target_protection,
                 objective_connectivity: objective.target_connectivity,
                 delivered_connectivity: objective.target_connectivity,
-                admission_profile:      jacquard_core::AdmissionAssumptions {
+                admission_profile: jacquard_core::AdmissionAssumptions {
                     message_flow_assumption:
                         jacquard_core::MessageFlowAssumptionClass::BestEffort,
-                    failure_model:           jacquard_core::FailureModelClass::Benign,
-                    runtime_envelope:
-                        jacquard_core::RuntimeEnvelopeClass::Canonical,
-                    node_density_class:      jacquard_core::NodeDensityClass::Sparse,
-                    connectivity_regime:     jacquard_core::ConnectivityRegime::Stable,
-                    adversary_regime:
-                        jacquard_core::AdversaryRegime::Cooperative,
-                    claim_strength:
-                        jacquard_core::ClaimStrength::ExactUnderAssumptions,
+                    failure_model: jacquard_core::FailureModelClass::Benign,
+                    runtime_envelope: jacquard_core::RuntimeEnvelopeClass::Canonical,
+                    node_density_class: jacquard_core::NodeDensityClass::Sparse,
+                    connectivity_regime: jacquard_core::ConnectivityRegime::Stable,
+                    adversary_regime: jacquard_core::AdversaryRegime::Cooperative,
+                    claim_strength: jacquard_core::ClaimStrength::ExactUnderAssumptions,
                 },
-                topology_epoch:         topology.value.epoch,
-                degradation:            jacquard_core::RouteDegradation::None,
+                topology_epoch: topology.value.epoch,
+                degradation: jacquard_core::RouteDegradation::None,
             },
         })
     }
@@ -556,28 +542,28 @@ impl jacquard_traits::RoutingEngine for RecoverableTestEngine {
             .insert(input.handle.route_id);
         Ok(jacquard_core::RouteInstallation {
             materialization_proof: jacquard_core::RouteMaterializationProof {
-                route_id:             input.handle.route_id,
-                topology_epoch:       input.handle.topology_epoch,
+                route_id: input.handle.route_id,
+                topology_epoch: input.handle.topology_epoch,
                 materialized_at_tick: input.handle.materialized_at_tick,
-                publication_id:       input.handle.publication_id,
-                witness:              jacquard_core::Fact {
-                    basis:               FactBasis::Admitted,
-                    value:               input.admission.witness.clone(),
+                publication_id: input.handle.publication_id,
+                witness: jacquard_core::Fact {
+                    basis: FactBasis::Admitted,
+                    value: input.admission.witness.clone(),
                     established_at_tick: self.now,
                 },
             },
-            last_lifecycle_event:  jacquard_core::RouteLifecycleEvent::Activated,
-            health:                jacquard_core::RouteHealth {
-                reachability_state:        jacquard_core::ReachabilityState::Reachable,
-                stability_score:           HealthScore(1000),
+            last_lifecycle_event: jacquard_core::RouteLifecycleEvent::Activated,
+            health: jacquard_core::RouteHealth {
+                reachability_state: jacquard_core::ReachabilityState::Reachable,
+                stability_score: HealthScore(1000),
                 congestion_penalty_points: jacquard_core::PenaltyPoints(0),
-                last_validated_at_tick:    self.now,
+                last_validated_at_tick: self.now,
             },
-            progress:              jacquard_core::RouteProgressContract {
+            progress: jacquard_core::RouteProgressContract {
                 productive_step_count_max: jacquard_core::Limit::Bounded(1),
-                total_step_count_max:      jacquard_core::Limit::Bounded(1),
-                last_progress_at_tick:     self.now,
-                state:                     jacquard_core::RouteProgressState::Pending,
+                total_step_count_max: jacquard_core::Limit::Bounded(1),
+                last_progress_at_tick: self.now,
+                state: jacquard_core::RouteProgressState::Pending,
             },
         })
     }
@@ -596,7 +582,7 @@ impl jacquard_traits::RoutingEngine for RecoverableTestEngine {
         _trigger: jacquard_core::RouteMaintenanceTrigger,
     ) -> Result<jacquard_core::RouteMaintenanceResult, jacquard_core::RouteError> {
         Ok(jacquard_core::RouteMaintenanceResult {
-            event:   jacquard_core::RouteLifecycleEvent::Activated,
+            event: jacquard_core::RouteLifecycleEvent::Activated,
             outcome: RouteMaintenanceOutcome::Continued,
         })
     }
@@ -664,13 +650,13 @@ fn route_capable_profile(
 
 fn node_state() -> NodeState {
     NodeState {
-        relay_budget:                  relay_budget(),
-        available_connection_count:    estimate(4),
+        relay_budget: relay_budget(),
+        available_connection_count: estimate(4),
         hold_capacity_available_bytes: estimate(ByteCount(4096)),
-        information_summary:           estimate(InformationSetSummary {
-            summary_encoding:        InformationSummaryEncoding::BloomFilter,
-            item_count:              estimate(4),
-            byte_count:              estimate(ByteCount(2048)),
+        information_summary: estimate(InformationSetSummary {
+            summary_encoding: InformationSummaryEncoding::BloomFilter,
+            item_count: estimate(4),
+            byte_count: estimate(ByteCount(2048)),
             false_positive_permille: estimate(RatioPermille(10)),
         }),
     }
@@ -678,13 +664,13 @@ fn node_state() -> NodeState {
 
 fn relay_budget() -> Belief<NodeRelayBudget> {
     Belief::Estimated(Estimate {
-        value:               NodeRelayBudget {
-            relay_work_budget:    estimate(8),
+        value: NodeRelayBudget {
+            relay_work_budget: estimate(8),
             utilization_permille: RatioPermille(100),
             retention_horizon_ms: estimate(DurationMs(500)),
         },
         confidence_permille: RatioPermille(1000),
-        updated_at_tick:     Tick(1),
+        updated_at_tick: Tick(1),
     })
 }
 
@@ -717,22 +703,22 @@ impl CommitteeSelector for AdvisoryCommitteeSelector {
             .into());
         }
         Ok(Some(CommitteeSelection {
-            committee_id:       CommitteeId([4; 16]),
-            topology_epoch:     topology.value.epoch,
-            selected_at_tick:   topology.observed_at_tick,
-            valid_for:          TimeWindow::new(
+            committee_id: CommitteeId([4; 16]),
+            topology_epoch: topology.value.epoch,
+            selected_at_tick: topology.observed_at_tick,
+            valid_for: TimeWindow::new(
                 topology.observed_at_tick,
                 Tick(topology.observed_at_tick.0.saturating_add(8)),
             )
             .expect("committee window"),
-            evidence_basis:     FactBasis::Observed,
-            claim_strength:     ClaimStrength::ConservativeUnderProfile,
+            evidence_basis: FactBasis::Observed,
+            claim_strength: ClaimStrength::ConservativeUnderProfile,
             identity_assurance: IdentityAssuranceClass::ControllerBound,
-            quorum_threshold:   1,
-            members:            vec![CommitteeMember {
-                node_id:       LOCAL_NODE_ID,
+            quorum_threshold: 1,
+            members: vec![CommitteeMember {
+                node_id: LOCAL_NODE_ID,
                 controller_id: ControllerId([1; 32]),
-                role:          CommitteeRole::Participant,
+                role: CommitteeRole::Participant,
             }],
         }))
     }
@@ -754,21 +740,21 @@ fn route_capable_services(
             scope: ServiceScope::Discovery(DiscoveryScopeId([7; 16])),
             valid_for,
             capacity: Belief::Estimated(Estimate {
-                value:               jacquard_core::CapacityHint {
+                value: jacquard_core::CapacityHint {
                     saturation_permille: RatioPermille(100),
-                    repair_capacity:     Belief::Estimated(Estimate {
-                        value:               4,
+                    repair_capacity: Belief::Estimated(Estimate {
+                        value: 4,
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(1),
+                        updated_at_tick: Tick(1),
                     }),
                     hold_capacity_bytes: Belief::Estimated(Estimate {
-                        value:               ByteCount(4096),
+                        value: ByteCount(4096),
                         confidence_permille: RatioPermille(1000),
-                        updated_at_tick:     Tick(1),
+                        updated_at_tick: Tick(1),
                     }),
                 },
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
         })
         .collect()
@@ -776,9 +762,9 @@ fn route_capable_services(
 
 fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
     LinkEndpoint {
-        protocol:  TransportProtocol::BleGatt,
-        address:   EndpointAddress::Ble {
-            device_id:  BleDeviceId(vec![device_byte]),
+        protocol: TransportProtocol::BleGatt,
+        address: EndpointAddress::Ble {
+            device_id: BleDeviceId(vec![device_byte]),
             profile_id: BleProfileId([device_byte; 16]),
         },
         mtu_bytes: ByteCount(256),
@@ -788,29 +774,29 @@ fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
 fn link(device_byte: u8, confidence: u16) -> Link {
     Link {
         endpoint: ble_endpoint(device_byte),
-        state:    LinkState {
+        state: LinkState {
             state: LinkRuntimeState::Active,
             median_rtt_ms: DurationMs(40),
             transfer_rate_bytes_per_sec: Belief::Estimated(Estimate {
-                value:               2048,
+                value: 2048,
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
             stability_horizon_ms: Belief::Estimated(Estimate {
-                value:               DurationMs(500),
+                value: DurationMs(500),
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
             loss_permille: RatioPermille(50),
             delivery_confidence_permille: Belief::Estimated(Estimate {
-                value:               RatioPermille(confidence),
+                value: RatioPermille(confidence),
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
             symmetry_permille: Belief::Estimated(Estimate {
-                value:               RatioPermille(900),
+                value: RatioPermille(900),
                 confidence_permille: RatioPermille(1000),
-                updated_at_tick:     Tick(1),
+                updated_at_tick: Tick(1),
             }),
         },
     }

@@ -93,19 +93,19 @@ const MESH_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 // repair, hold, and decidable-admission support. This is the static
 // capability envelope the router sees during engine registration.
 pub const MESH_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilities {
-    engine:                  RoutingEngineId::Mesh,
-    max_protection:          jacquard_core::RouteProtectionClass::LinkProtected,
-    max_connectivity:        RouteConnectivityProfile {
-        repair:    jacquard_core::RouteRepairClass::Repairable,
+    engine: RoutingEngineId::Mesh,
+    max_protection: jacquard_core::RouteProtectionClass::LinkProtected,
+    max_connectivity: RouteConnectivityProfile {
+        repair: jacquard_core::RouteRepairClass::Repairable,
         partition: RoutePartitionClass::PartitionTolerant,
     },
-    repair_support:          jacquard_core::RepairSupport::Supported,
-    hold_support:            jacquard_core::HoldSupport::Supported,
-    decidable_admission:     jacquard_core::DecidableSupport::Supported,
+    repair_support: jacquard_core::RepairSupport::Supported,
+    hold_support: jacquard_core::HoldSupport::Supported,
+    decidable_admission: jacquard_core::DecidableSupport::Supported,
     quantitative_bounds:
         jacquard_core::QuantitativeBoundSupport::ProductiveAndSchedulerLifted,
     reconfiguration_support: jacquard_core::ReconfigurationSupport::LinkAndDelegate,
-    route_shape_visibility:  jacquard_core::RouteShapeVisibility::Explicit,
+    route_shape_visibility: jacquard_core::RouteShapeVisibility::Explicit,
 };
 
 // `candidate_cache` memoizes planning work so `check_candidate` and
@@ -334,7 +334,7 @@ where
         MeshGuestRuntime::new(MeshProtocolRuntimeAdapter {
             transport: &mut self.transport,
             retention: &mut self.retention,
-            effects:   &mut self.effects,
+            effects: &mut self.effects,
         })
     }
 }

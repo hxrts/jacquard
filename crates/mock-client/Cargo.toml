@@ -1,18 +1,19 @@
 [package]
-name = "jacquard-mock-device"
+name = "jacquard-mock-client"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Mock device-side Jacquard integration harness"
+description = "Mock client-side Jacquard integration harness"
 
 [lints]
 workspace = true
 
 [dependencies]
 jacquard-core = { path = "../core" }
+jacquard-mem-link-profile = { path = "../mem-link-profile" }
+jacquard-mem-node-profile = { path = "../mem-node-profile" }
 jacquard-mesh = { path = "../mesh" }
-jacquard-mock-transport = { path = "../mock-transport" }
 jacquard-router = { path = "../router" }
 jacquard-traits = { path = "../traits" }
 

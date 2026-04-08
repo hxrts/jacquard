@@ -1,6 +1,6 @@
-//! Mock device-side wiring for Jacquard integration tests and examples.
+//! Mock client wiring for Jacquard integration tests and examples.
 //!
-//! Control flow intuition: a mock device owns only local host composition. It
+//! Control flow intuition: a mock client owns only local host composition. It
 //! assembles shared topology observations, a router instance, and in-memory
 //! transport/runtime adapters, then submits typed router operations. It does
 //! not mint canonical route truth on its own.
@@ -11,21 +11,28 @@
 
 #![forbid(unsafe_code)]
 
+pub mod fixtures;
 mod mesh;
 
 use jacquard_core::{Configuration, Observation};
+pub use jacquard_mem_link_profile::{
+    InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
+    SharedInMemoryNetwork, SimulatedLinkProfile,
+};
+pub use jacquard_mem_node_profile::{
+    NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor,
+};
 pub use mesh::{
-    build_mock_mesh_device, build_mock_mesh_device_with_profile, MockMeshDevice,
-    MockMeshRouter,
+    build_mesh_client, build_mesh_client_with_profile, MeshClient, MeshRouter,
 };
 
-/// Minimal device wrapper that demonstrates host-side composition.
-pub struct MockDevice<Router> {
+/// Minimal client wrapper that demonstrates host-side composition.
+pub struct Client<Router> {
     topology: Observation<Configuration>,
-    router:   Router,
+    router: Router,
 }
 
-impl<Router> MockDevice<Router> {
+impl<Router> Client<Router> {
     #[must_use]
     pub fn new(topology: Observation<Configuration>, router: Router) -> Self {
         Self { topology, router }

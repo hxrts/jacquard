@@ -9,12 +9,12 @@ use crate::{RouteConnectivityProfile, RouteProtectionClass};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Output of the local policy engine. Runtime-local, never shared.
 pub struct AdaptiveRoutingProfile {
-    pub selected_protection:            RouteProtectionClass,
-    pub selected_connectivity:          RouteConnectivityProfile,
-    pub deployment_profile:             DeploymentProfile,
-    pub diversity_floor:                u8,
+    pub selected_protection: RouteProtectionClass,
+    pub selected_connectivity: RouteConnectivityProfile,
+    pub deployment_profile: DeploymentProfile,
+    pub diversity_floor: u8,
     pub routing_engine_fallback_policy: RoutingEngineFallbackPolicy,
-    pub route_replacement_policy:       RouteReplacementPolicy,
+    pub route_replacement_policy: RouteReplacementPolicy,
 }
 
 #[public_model]

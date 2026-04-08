@@ -13,27 +13,27 @@ use crate::{
 pub enum RouteEvent {
     RouteMaterialized {
         handle: RouteHandle,
-        proof:  RouteMaterializationProof,
+        proof: RouteMaterializationProof,
     },
     RouteMaintenanceCompleted {
         route_id: RouteId,
-        result:   RouteMaintenanceResult,
+        result: RouteMaintenanceResult,
     },
     RouteCommitmentUpdated {
-        route_id:      RouteId,
+        route_id: RouteId,
         commitment_id: RouteCommitmentId,
-        resolution:    RouteCommitmentResolution,
+        resolution: RouteCommitmentResolution,
     },
     RouteHealthObserved {
         route_id: RouteId,
-        health:   Observation<RouteHealth>,
+        health: Observation<RouteHealth>,
     },
 }
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteEventStamped {
-    pub order_stamp:     OrderStamp,
+    pub order_stamp: OrderStamp,
     pub emitted_at_tick: Tick,
-    pub event:           RouteEvent,
+    pub event: RouteEvent,
 }

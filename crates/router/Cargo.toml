@@ -17,4 +17,4 @@ serde = { workspace = true }
 
 [dev-dependencies]
 jacquard-mesh = { path = "../mesh" }
-jacquard-mock-transport = { path = "../mock-transport" }
+jacquard-mem-link-profile = { path = "../mem-link-profile" }

@@ -12,8 +12,8 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Engine-agnostic estimate of what one route candidate is likely to provide.
 pub struct RouteEstimate {
-    pub estimated_protection:   RouteProtectionClass,
+    pub estimated_protection: RouteProtectionClass,
     pub estimated_connectivity: RouteConnectivityProfile,
-    pub topology_epoch:         RouteEpoch,
-    pub degradation:            RouteDegradation,
+    pub topology_epoch: RouteEpoch,
+    pub degradation: RouteDegradation,
 }

@@ -48,10 +48,10 @@ pub(crate) struct MeshProtocolSessionKey(pub(crate) String);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MeshProtocolSpec {
-    pub(crate) kind:          MeshProtocolKind,
-    pub(crate) source_path:   &'static str,
+    pub(crate) kind: MeshProtocolKind,
+    pub(crate) source_path: &'static str,
     pub(crate) protocol_name: String,
-    pub(crate) role_names:    Vec<String>,
+    pub(crate) role_names: Vec<String>,
 }
 
 pub(crate) fn protocol_spec(

@@ -295,9 +295,9 @@ fn hold_advertised_without_available_capacity_is_not_deferred_delivery_capable()
         .get_mut(&NodeId([3; 32]))
         .expect("destination node present");
     destination.state.hold_capacity_available_bytes = Belief::Estimated(Estimate {
-        value:               ByteCount(0),
+        value: ByteCount(0),
         confidence_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
-        updated_at_tick:     Tick(2),
+        updated_at_tick: Tick(2),
     });
 
     let goal = objective(DestinationId::Node(NodeId([3; 32])));

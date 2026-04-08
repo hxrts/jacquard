@@ -232,7 +232,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     ) -> Result<RoutingTickOutcome, RouteError> {
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,
-            change:         RoutingTickChange::NoChange,
+            change: RoutingTickChange::NoChange,
         })
     }
 

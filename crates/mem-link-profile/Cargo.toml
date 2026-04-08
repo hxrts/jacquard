@@ -1,10 +1,10 @@
 [package]
-name = "jacquard-mock-transport"
+name = "jacquard-mem-link-profile"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "In-memory mesh transport and retention harness for Jacquard tests"
+description = "In-memory link profile and carrier implementations for Jacquard tests"
 
 [lints]
 workspace = true
@@ -12,5 +12,6 @@ workspace = true
 [dependencies]
 jacquard-core = { path = "../core" }
 jacquard-traits = { path = "../traits" }
+serde = { workspace = true }
 
 [dev-dependencies]

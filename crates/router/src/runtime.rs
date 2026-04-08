@@ -1,11 +1,11 @@
 //! Router-owned persistence and publication sequencing helpers.
 //!
-//! Control flow intuition: middleware hands this module a fully formed
-//! canonical route snapshot plus its commitments. The adapter persists that
-//! snapshot under a router-scoped namespace, records the replay-visible route
-//! event, and only then lets middleware expose the route through the live
-//! canonical tables. Recovery walks the same router-owned registry and asks the
-//! selected engine to restore only its opaque private runtime payloads.
+//! Control flow: middleware hands this module a fully formed canonical route
+//! snapshot plus its commitments. The adapter persists that snapshot under a
+//! router-scoped namespace, records the replay-visible route event, and only
+//! then lets middleware expose the route through the live canonical tables.
+//! Recovery walks the same router-owned registry and asks the selected engine
+//! to restore only its opaque private runtime payloads.
 
 use std::collections::BTreeSet;
 
@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct RouterCheckpointRecord {
-    pub(crate) route:       MaterializedRoute,
+    pub(crate) route: MaterializedRoute,
     pub(crate) commitments: Vec<RouteCommitment>,
 }
 
@@ -36,7 +36,7 @@ impl<T> RouterRuntimeEffects for T where
 
 pub(crate) struct RouterRuntimeAdapter<'a, Effects> {
     local_node_id: NodeId,
-    effects:       &'a mut Effects,
+    effects: &'a mut Effects,
 }
 
 impl<'a, Effects> RouterRuntimeAdapter<'a, Effects>
