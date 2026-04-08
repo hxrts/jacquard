@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, ControllerId, DeploymentProfile, Environment, FactSourceClass,
+        Configuration, ControllerId, OperatingMode, Environment, FactSourceClass,
         Link, LinkRuntimeState, LinkState, Node, NodeId, NodeProfile, NodeState,
         Observation, OriginAuthenticationClass, RatioPermille, RouteEpoch, RouteEvent,
         RouteEventStamped, RoutingObjective, Tick,
@@ -17,7 +17,7 @@ use jacquard_traits::{
 struct StubScenario {
     name: String,
     seed: u64,
-    deployment_profile: DeploymentProfile,
+    deployment_profile: OperatingMode,
     initial_configuration: Observation<Configuration>,
     objectives: Vec<RoutingObjective>,
 }
@@ -31,7 +31,7 @@ impl RoutingScenario for StubScenario {
         self.seed
     }
 
-    fn deployment_profile(&self) -> &DeploymentProfile {
+    fn deployment_profile(&self) -> &OperatingMode {
         &self.deployment_profile
     }
 
@@ -271,7 +271,7 @@ fn sample_scenario() -> StubScenario {
     StubScenario {
         name: "smoke".to_owned(),
         seed: 7,
-        deployment_profile: DeploymentProfile::SparseLowPower,
+        deployment_profile: OperatingMode::SparseLowPower,
         initial_configuration: Observation {
             value: sample_configuration(),
             source_class: FactSourceClass::Local,
@@ -292,7 +292,7 @@ fn routing_scenario_is_a_pure_description_surface() {
     assert_eq!(scenario.seed(), 7);
     assert_eq!(
         scenario.deployment_profile(),
-        &DeploymentProfile::SparseLowPower
+        &OperatingMode::SparseLowPower
     );
     assert!(scenario.objectives().is_empty());
 }

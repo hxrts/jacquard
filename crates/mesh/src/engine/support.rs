@@ -391,12 +391,12 @@ pub(super) fn limit_u32(limit: Limit<u32>) -> u32 {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        AdaptiveRoutingProfile, AdmissionAssumptions, AdversaryRegime, Belief,
+        SelectedRoutingParameters, AdmissionAssumptions, AdversaryRegime, Belief,
         ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
         ConnectivityRegime, ContentId, ControllerId, DestinationId, Environment,
         Estimate, FailureModelClass, HoldFallbackPolicy, HostName, Limit, LinkEndpoint,
         MessageFlowAssumptionClass, NetworkHost, NodeDensityClass, RatioPermille,
-        RouteConnectivityProfile, RouteCost, RouteEpoch, RoutePartitionClass,
+        ConnectivityPosture, RouteCost, RouteEpoch, RoutePartitionClass,
         RouteProtectionClass, RouteRepairClass, RouteServiceKind, RouteSummary,
         RoutingObjective, RuntimeEnvelopeClass, Tick,
     };
@@ -422,7 +422,7 @@ mod tests {
             service_kind: RouteServiceKind::Move,
             target_protection: floor,
             protection_floor: floor,
-            target_connectivity: RouteConnectivityProfile {
+            target_connectivity: ConnectivityPosture {
                 repair: RouteRepairClass::Repairable,
                 partition: RoutePartitionClass::ConnectedOnly,
             },
@@ -436,12 +436,12 @@ mod tests {
     fn profile_with(
         repair: RouteRepairClass,
         partition: RoutePartitionClass,
-    ) -> AdaptiveRoutingProfile {
-        AdaptiveRoutingProfile {
+    ) -> SelectedRoutingParameters {
+        SelectedRoutingParameters {
             selected_protection: RouteProtectionClass::LinkProtected,
-            selected_connectivity: RouteConnectivityProfile { repair, partition },
+            selected_connectivity: ConnectivityPosture { repair, partition },
             deployment_profile:
-                jacquard_core::DeploymentProfile::FieldPartitionTolerant,
+                jacquard_core::OperatingMode::FieldPartitionTolerant,
             diversity_floor: 1,
             routing_engine_fallback_policy:
                 jacquard_core::RoutingEngineFallbackPolicy::Allowed,
@@ -457,7 +457,7 @@ mod tests {
         RouteSummary {
             engine: MESH_ENGINE_ID,
             protection,
-            connectivity: RouteConnectivityProfile { repair, partition },
+            connectivity: ConnectivityPosture { repair, partition },
             protocol_mix: Vec::new(),
             hop_count_hint: Belief::Estimated(Estimate {
                 value: 1_u8,

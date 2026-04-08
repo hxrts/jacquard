@@ -6,7 +6,7 @@ This page introduces Jacquard's shared routing pipeline and then covers the firs
 
 Jacquard's shared model is organized as a five-stage pipeline. `world` defines the abstract objects the router reasons about. `observation` wraps those objects with explicit provenance. `estimation` derives routing-relevant beliefs from the observation stream.
 
-`policy` turns beliefs into the currently selected routing action. `action` records that selection as the currently selected routing parameters. In the current API surface that action object is still named `AdaptiveRoutingProfile`. The stages stay distinct even when one runtime computes several of them in a single component.
+`policy` turns beliefs into the currently selected routing action. `action` records that selection as the currently selected routing parameters (`SelectedRoutingParameters`). The stages stay distinct even when one runtime computes several of them in a single component.
 
 ```mermaid
 graph LR
@@ -95,11 +95,12 @@ pub struct InformationSetSummary {
 
 ### Link
 
-A connection is a `Link` with a stable `LinkEndpoint` and a changing `LinkState`.
+A connection is a `Link` with a stable `LinkEndpoint`, a stable `LinkProfile`, and a changing `LinkState`.
 
 ```rust
 pub struct Link {
     pub endpoint: LinkEndpoint,
+    pub profile: LinkProfile,
     pub state: LinkState,
 }
 
@@ -107,6 +108,15 @@ pub struct LinkEndpoint {
     pub protocol: TransportProtocol,
     pub address: EndpointAddress,
     pub mtu_bytes: ByteCount,
+}
+
+pub struct LinkProfile {
+    pub protocol: TransportProtocol,
+    pub codec_stack: Vec<CodecId>,
+    pub mtu_floor_bytes: ByteCount,
+    pub latency_floor_ms: DurationMs,
+    pub repair_capability: RepairCapability,
+    pub partition_recovery_supported: bool,
 }
 
 pub struct LinkState {
@@ -120,11 +130,13 @@ pub struct LinkState {
 }
 ```
 
+LinkProfile captures the static capabilities of a directed link (what the link *can* do). LinkState captures runtime observations (what the link is currently *doing*). LinkEndpoint identifies the remote address and transport protocol.
+
 `transfer_rate_bytes_per_sec` answers whether a meaningful exchange fits inside the contact window. `stability_horizon_ms` answers how long the contact is likely to remain useful. `delivery_confidence_permille` and `symmetry_permille` answer whether the link supports exchange in the expected direction.
 
 A routing engine that wants peer-relative novelty, reach, bridge value, or flow-gradient heuristics derives them above this shared boundary. Those estimates stay engine-owned rather than being promoted into the shared schema. See [Route Lifecycle](106_route_lifecycle.md) for how engines consume the shared link signals.
 
-`jacquard-mem-link-profile` is the in-tree reference implementation of this boundary for tests and examples. It shows how to model `LinkEndpoint`, `LinkState`, and a deterministic in-memory carrier without embedding routing semantics in the link-profile crate itself.
+`jacquard-mem-link-profile` is the in-tree reference implementation of this boundary for tests and examples. It shows how to model `LinkEndpoint`, `LinkProfile`, `LinkState`, and a deterministic in-memory carrier without embedding routing semantics. See [LinkProfile Extension Point](107_link_profile_extension.md) for how to extend Jacquard with new network types that provide their own LinkProfile implementations.
 
 ### Environment
 

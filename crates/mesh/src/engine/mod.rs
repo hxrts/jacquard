@@ -28,7 +28,7 @@ use std::{cell::RefCell, collections::BTreeMap};
 
 use jacquard_core::{
     Blake3Digest, Configuration, ContentId, NodeId, Observation, ReceiptId,
-    RouteCommitmentId, RouteConnectivityProfile, RouteEpoch, RouteError, RouteId,
+    RouteCommitmentId, ConnectivityPosture, RouteEpoch, RouteError, RouteId,
     RoutePartitionClass, RouteRuntimeError, RouteSelectionError,
     RoutingEngineCapabilities, RoutingEngineId,
 };
@@ -95,7 +95,7 @@ const MESH_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 pub const MESH_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilities {
     engine: RoutingEngineId::Mesh,
     max_protection: jacquard_core::RouteProtectionClass::LinkProtected,
-    max_connectivity: RouteConnectivityProfile {
+    max_connectivity: ConnectivityPosture {
         repair: jacquard_core::RouteRepairClass::Repairable,
         partition: RoutePartitionClass::PartitionTolerant,
     },

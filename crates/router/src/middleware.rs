@@ -15,7 +15,7 @@
 use std::{cmp::Reverse, collections::BTreeMap};
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, AdmissionDecision, Belief, CapabilityError, Configuration,
+    SelectedRoutingParameters, AdmissionDecision, Belief, CapabilityError, Configuration,
     FactSourceClass, MaterializedRoute, Observation, OrderStamp,
     OriginAuthenticationClass, PublicationId, RouteCandidate, RouteCommitment,
     RouteDegradation, RouteError, RouteHandle, RouteHealth, RouteId, RouteLease,
@@ -38,12 +38,12 @@ const DEFAULT_ROUTE_LEASE_TICKS: u64 = 32;
 
 #[derive(Clone, Debug)]
 pub struct FixedPolicyEngine {
-    profile: AdaptiveRoutingProfile,
+    profile: SelectedRoutingParameters,
 }
 
 impl FixedPolicyEngine {
     #[must_use]
-    pub fn new(profile: AdaptiveRoutingProfile) -> Self {
+    pub fn new(profile: SelectedRoutingParameters) -> Self {
         Self { profile }
     }
 }
@@ -53,7 +53,7 @@ impl PolicyEngine for FixedPolicyEngine {
         &self,
         _objective: &RoutingObjective,
         _inputs: &RoutingPolicyInputs,
-    ) -> AdaptiveRoutingProfile {
+    ) -> SelectedRoutingParameters {
         self.profile.clone()
     }
 }
@@ -279,7 +279,7 @@ where
     fn activate_with_profile(
         &mut self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
     ) -> Result<MaterializedRoute, RouteError> {
         let _ = self.tick_all_engines()?;
         let candidate = self
@@ -365,7 +365,7 @@ where
     fn ordered_candidates(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
     ) -> Vec<RouteCandidate> {
         let mut candidates = self
             .registered_engines

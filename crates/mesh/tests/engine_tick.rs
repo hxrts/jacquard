@@ -29,7 +29,7 @@ use jacquard_traits::{
     MeshRoutingEngine, RoutingEngine, RoutingEnginePlanner,
 };
 
-fn connected_only_policy() -> jacquard_traits::jacquard_core::AdaptiveRoutingProfile {
+fn connected_only_policy() -> jacquard_traits::jacquard_core::SelectedRoutingParameters {
     profile_with_connectivity(
         RouteRepairClass::BestEffort,
         RoutePartitionClass::ConnectedOnly,

@@ -11,9 +11,9 @@
 //! - no canonical route publication outside the router-owned path
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, Configuration, DeploymentProfile, DurationMs, HealthScore,
+    SelectedRoutingParameters, Configuration, OperatingMode, DurationMs, HealthScore,
     IdentityAssuranceClass, LinkEndpoint, NodeId, Observation, RatioPermille,
-    RouteConnectivityProfile, RoutePartitionClass, RouteProtectionClass,
+    ConnectivityPosture, RoutePartitionClass, RouteProtectionClass,
     RouteRepairClass, RouteReplacementPolicy, RoutingEngineFallbackPolicy,
     RoutingPolicyInputs, Tick,
 };
@@ -51,7 +51,7 @@ pub fn build_mesh_client_with_profile(
     topology: Observation<Configuration>,
     network: SharedInMemoryNetwork,
     now: Tick,
-    profile: AdaptiveRoutingProfile,
+    profile: SelectedRoutingParameters,
 ) -> MeshClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
     let mut transport = InMemoryMeshTransport::attached(
@@ -131,14 +131,14 @@ fn policy_inputs_for(
     }
 }
 
-fn default_profile() -> AdaptiveRoutingProfile {
-    AdaptiveRoutingProfile {
+fn default_profile() -> SelectedRoutingParameters {
+    SelectedRoutingParameters {
         selected_protection: RouteProtectionClass::LinkProtected,
-        selected_connectivity: RouteConnectivityProfile {
+        selected_connectivity: ConnectivityPosture {
             repair: RouteRepairClass::Repairable,
             partition: RoutePartitionClass::PartitionTolerant,
         },
-        deployment_profile: DeploymentProfile::FieldPartitionTolerant,
+        deployment_profile: OperatingMode::FieldPartitionTolerant,
         diversity_floor: 1,
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,

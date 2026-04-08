@@ -12,10 +12,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bincode::Options;
 use jacquard_core::{
-    AdaptiveRoutingProfile, AdmissionAssumptions, ClaimStrength, CommitteeId,
+    SelectedRoutingParameters, AdmissionAssumptions, ClaimStrength, CommitteeId,
     CommitteeMember, CommitteeRole, CommitteeSelection, Configuration, ControllerId,
     FactBasis, HealthScore, IdentityAssuranceClass, NodeDensityClass, NodeId,
-    Observation, PenaltyPoints, RouteConnectivityProfile, RouteEpoch, RouteError,
+    Observation, PenaltyPoints, ConnectivityPosture, RouteEpoch, RouteError,
     RoutePartitionClass, RouteRepairClass, RoutingEngineId, RoutingObjective,
     ServiceScope, Tick, TimeWindow,
 };
@@ -93,7 +93,7 @@ impl CommitteeSelector for NoCommitteeSelector {
     fn select_committee(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _topology: &Observation<Self::TopologyView>,
     ) -> Result<Option<CommitteeSelection>, RouteError> {
         Ok(None)
@@ -300,7 +300,7 @@ where
     fn select_committee(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Self::TopologyView>,
     ) -> Result<Option<CommitteeSelection>, RouteError> {
         let configuration = &topology.value;
@@ -336,7 +336,7 @@ where
 {
     fn should_coordinate(
         &self,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         current_tick: Tick,
         configuration: &Configuration,
     ) -> bool {
@@ -485,7 +485,7 @@ where
 // connectivity regime; repair policy drives claim strength.
 #[must_use]
 pub fn mesh_admission_assumptions(
-    profile: &AdaptiveRoutingProfile,
+    profile: &SelectedRoutingParameters,
     configuration: &Configuration,
 ) -> AdmissionAssumptions {
     let churn = configuration.environment.churn_permille.get();
@@ -511,9 +511,9 @@ pub fn mesh_admission_assumptions(
 
 #[must_use]
 pub fn mesh_route_connectivity(
-    profile: &AdaptiveRoutingProfile,
-) -> RouteConnectivityProfile {
-    RouteConnectivityProfile {
+    profile: &SelectedRoutingParameters,
+) -> ConnectivityPosture {
+    ConnectivityPosture {
         repair: profile.selected_connectivity.repair,
         partition: profile.selected_connectivity.partition,
     }
@@ -607,12 +607,12 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        AdaptiveRoutingProfile, Belief, BleDeviceId, BleProfileId, ByteCount,
-        Configuration, ControllerId, DeploymentProfile, DestinationId, Environment,
+        SelectedRoutingParameters, Belief, BleDeviceId, BleProfileId, ByteCount,
+        Configuration, ControllerId, OperatingMode, DestinationId, Environment,
         Estimate, FactSourceClass, HoldFallbackPolicy, Limit, Link, LinkEndpoint,
         LinkRuntimeState, LinkState, Node, NodeProfile, NodeRelayBudget, NodeState,
         Observation, OriginAuthenticationClass, PriorityPoints, RatioPermille,
-        RouteConnectivityProfile, RouteEpoch, RoutePartitionClass,
+        ConnectivityPosture, RouteEpoch, RoutePartitionClass,
         RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
         RouteServiceKind, RoutingEngineFallbackPolicy, RoutingEvidenceClass,
         RoutingObjective, ServiceDescriptor, ServiceId, ServiceScope, Tick, TimeWindow,
@@ -764,7 +764,7 @@ mod tests {
             service_kind: RouteServiceKind::Move,
             target_protection: RouteProtectionClass::LinkProtected,
             protection_floor: RouteProtectionClass::LinkProtected,
-            target_connectivity: RouteConnectivityProfile {
+            target_connectivity: ConnectivityPosture {
                 repair: RouteRepairClass::Repairable,
                 partition: RoutePartitionClass::PartitionTolerant,
             },
@@ -778,11 +778,11 @@ mod tests {
     fn profile_with(
         repair: RouteRepairClass,
         partition: RoutePartitionClass,
-    ) -> AdaptiveRoutingProfile {
-        AdaptiveRoutingProfile {
+    ) -> SelectedRoutingParameters {
+        SelectedRoutingParameters {
             selected_protection: RouteProtectionClass::LinkProtected,
-            selected_connectivity: RouteConnectivityProfile { repair, partition },
-            deployment_profile: DeploymentProfile::FieldPartitionTolerant,
+            selected_connectivity: ConnectivityPosture { repair, partition },
+            deployment_profile: OperatingMode::FieldPartitionTolerant,
             diversity_floor: 1,
             routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
             route_replacement_policy: RouteReplacementPolicy::Allowed,

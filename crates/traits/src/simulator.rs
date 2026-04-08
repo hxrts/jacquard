@@ -9,7 +9,7 @@
 //! - `RoutingReplayView` is a read-only artifact inspection surface.
 
 use jacquard_core::{
-    Configuration, DeploymentProfile, Observation, RouteEvent, RouteEventStamped,
+    Configuration, OperatingMode, Observation, RouteEvent, RouteEventStamped,
     RoutingObjective, Tick,
 };
 use jacquard_macros::purity;
@@ -23,7 +23,7 @@ pub trait RoutingScenario {
 
     fn seed(&self) -> u64;
 
-    fn deployment_profile(&self) -> &DeploymentProfile;
+    fn deployment_profile(&self) -> &OperatingMode;
 
     fn initial_configuration(&self) -> &Observation<Configuration>;
 

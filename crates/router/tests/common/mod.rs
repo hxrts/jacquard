@@ -6,14 +6,14 @@ use std::{
 };
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, Belief, BleDeviceId, BleProfileId, ByteCount,
+    SelectedRoutingParameters, Belief, BleDeviceId, BleProfileId, ByteCount,
     ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
     Configuration, ControllerId, DestinationId, DiscoveryScopeId, DurationMs,
     EndpointAddress, Environment, Estimate, FactBasis, FactSourceClass, HealthScore,
     IdentityAssuranceClass, InformationSetSummary, InformationSummaryEncoding, Link,
     LinkEndpoint, LinkRuntimeState, LinkState, Node, NodeId, NodeProfile,
     NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass, PriorityPoints,
-    RatioPermille, RouteConnectivityProfile, RouteMaintenanceOutcome,
+    RatioPermille, ConnectivityPosture, RouteMaintenanceOutcome,
     RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
     RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
     RoutingPolicyInputs, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
@@ -178,14 +178,14 @@ pub(crate) fn sample_policy_inputs(
     }
 }
 
-pub(crate) fn profile() -> AdaptiveRoutingProfile {
-    AdaptiveRoutingProfile {
+pub(crate) fn profile() -> SelectedRoutingParameters {
+    SelectedRoutingParameters {
         selected_protection: RouteProtectionClass::LinkProtected,
-        selected_connectivity: RouteConnectivityProfile {
+        selected_connectivity: ConnectivityPosture {
             repair: RouteRepairClass::Repairable,
             partition: jacquard_core::RoutePartitionClass::PartitionTolerant,
         },
-        deployment_profile: jacquard_core::DeploymentProfile::FieldPartitionTolerant,
+        deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
         diversity_floor: 1,
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
@@ -198,7 +198,7 @@ pub(crate) fn objective(destination: DestinationId) -> RoutingObjective {
         service_kind: RouteServiceKind::Move,
         target_protection: RouteProtectionClass::LinkProtected,
         protection_floor: RouteProtectionClass::LinkProtected,
-        target_connectivity: RouteConnectivityProfile {
+        target_connectivity: ConnectivityPosture {
             repair: RouteRepairClass::Repairable,
             partition: jacquard_core::RoutePartitionClass::PartitionTolerant,
         },
@@ -271,7 +271,7 @@ impl jacquard_traits::RoutingEnginePlanner for NullCandidateEngine {
         jacquard_core::RoutingEngineCapabilities {
             engine: self.engine_id.clone(),
             max_protection: RouteProtectionClass::LinkProtected,
-            max_connectivity: RouteConnectivityProfile {
+            max_connectivity: ConnectivityPosture {
                 repair: RouteRepairClass::BestEffort,
                 partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
@@ -288,7 +288,7 @@ impl jacquard_traits::RoutingEnginePlanner for NullCandidateEngine {
     fn candidate_routes(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _topology: &Observation<Configuration>,
     ) -> Vec<jacquard_core::RouteCandidate> {
         Vec::new()
@@ -297,7 +297,7 @@ impl jacquard_traits::RoutingEnginePlanner for NullCandidateEngine {
     fn check_candidate(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _candidate: &jacquard_core::RouteCandidate,
         _topology: &Observation<Configuration>,
     ) -> Result<jacquard_core::RouteAdmissionCheck, jacquard_core::RouteError> {
@@ -307,7 +307,7 @@ impl jacquard_traits::RoutingEnginePlanner for NullCandidateEngine {
     fn admit_route(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _candidate: jacquard_core::RouteCandidate,
         _topology: &Observation<Configuration>,
     ) -> Result<jacquard_core::RouteAdmission, jacquard_core::RouteError> {
@@ -418,7 +418,7 @@ impl jacquard_traits::RoutingEnginePlanner for RecoverableTestEngine {
         jacquard_core::RoutingEngineCapabilities {
             engine: Self::engine_id_value(),
             max_protection: RouteProtectionClass::LinkProtected,
-            max_connectivity: RouteConnectivityProfile {
+            max_connectivity: ConnectivityPosture {
                 repair: RouteRepairClass::BestEffort,
                 partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
@@ -435,7 +435,7 @@ impl jacquard_traits::RoutingEnginePlanner for RecoverableTestEngine {
     fn candidate_routes(
         &self,
         objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Vec<jacquard_core::RouteCandidate> {
         vec![jacquard_core::RouteCandidate {
@@ -460,7 +460,7 @@ impl jacquard_traits::RoutingEnginePlanner for RecoverableTestEngine {
     fn check_candidate(
         &self,
         objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _candidate: &jacquard_core::RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<jacquard_core::RouteAdmissionCheck, jacquard_core::RouteError> {
@@ -476,7 +476,7 @@ impl jacquard_traits::RoutingEnginePlanner for RecoverableTestEngine {
     fn admit_route(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         candidate: jacquard_core::RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<jacquard_core::RouteAdmission, jacquard_core::RouteError> {
@@ -693,7 +693,7 @@ impl CommitteeSelector for AdvisoryCommitteeSelector {
     fn select_committee(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         topology: &Observation<Self::TopologyView>,
     ) -> Result<Option<CommitteeSelection>, jacquard_core::RouteError> {
         if self.fail {

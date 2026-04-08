@@ -20,7 +20,7 @@ pub struct RoutingObjective {
     pub target_protection: RouteProtectionClass,
     /// Hard lower bound. Admission fails if no routing engine can satisfy this.
     pub protection_floor: RouteProtectionClass,
-    pub target_connectivity: RouteConnectivityProfile,
+    pub target_connectivity: ConnectivityPosture,
     pub hold_fallback_policy: HoldFallbackPolicy,
     pub latency_budget_ms: Limit<DurationMs>,
     pub protection_priority: PriorityPoints,
@@ -73,7 +73,7 @@ pub enum RoutePartitionClass {
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
 /// Abstract connectivity profile that a routing engine may provide.
-pub struct RouteConnectivityProfile {
+pub struct ConnectivityPosture {
     pub repair: RouteRepairClass,
     pub partition: RoutePartitionClass,
 }

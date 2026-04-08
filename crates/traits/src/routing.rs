@@ -2,7 +2,7 @@
 //! control/data planes.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, CommitteeSelection, Configuration, LayerParameters,
+    SelectedRoutingParameters, CommitteeSelection, Configuration, LayerParameters,
     MaterializedRoute, MaterializedRouteIdentity, NodeId, Observation, RouteAdmission,
     RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError, RouteHealth,
     RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
@@ -26,7 +26,7 @@ pub trait PolicyEngine {
         &self,
         objective: &RoutingObjective,
         inputs: &RoutingPolicyInputs,
-    ) -> AdaptiveRoutingProfile;
+    ) -> SelectedRoutingParameters;
 }
 
 #[purity(pure)]
@@ -42,7 +42,7 @@ pub trait CommitteeSelector {
     fn select_committee(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Self::TopologyView>,
     ) -> Result<Option<CommitteeSelection>, RouteError>;
 }
@@ -112,7 +112,7 @@ pub trait LayeredRoutingEnginePlanner {
     fn candidate_routes_on_substrate(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         substrate: &SubstrateLease,
         parameters: &LayerParameters,
     ) -> Vec<RouteCandidate>;
@@ -120,7 +120,7 @@ pub trait LayeredRoutingEnginePlanner {
     fn admit_route_on_substrate(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         substrate: &SubstrateLease,
         parameters: &LayerParameters,
         candidate: RouteCandidate,
@@ -161,7 +161,7 @@ pub trait RoutingEnginePlanner {
     fn candidate_routes(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate>;
 
@@ -175,7 +175,7 @@ pub trait RoutingEnginePlanner {
     fn check_candidate(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         candidate: &RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError>;
@@ -189,7 +189,7 @@ pub trait RoutingEnginePlanner {
     fn admit_route(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         candidate: RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError>;

@@ -13,7 +13,7 @@ use std::{
 
 use jacquard_core::{
     Belief, Configuration, DestinationId, Estimate, NodeId, Observation,
-    RouteConnectivityProfile, RoutePartitionClass, RouteRepairClass, RouteServiceKind,
+    ConnectivityPosture, RoutePartitionClass, RouteRepairClass, RouteServiceKind,
     RoutingObjective, Tick, ROUTE_HOP_COUNT_MAX,
 };
 use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
@@ -234,14 +234,14 @@ where
         topology: &Observation<Configuration>,
         node_path: &[NodeId],
         route_class: &MeshRouteClass,
-    ) -> RouteConnectivityProfile {
+    ) -> ConnectivityPosture {
         let repair = if self.local_repair_slack(&topology.value, node_path) {
             RouteRepairClass::Repairable
         } else {
             RouteRepairClass::BestEffort
         };
         match route_class {
-            | MeshRouteClass::DeferredDelivery => RouteConnectivityProfile {
+            | MeshRouteClass::DeferredDelivery => ConnectivityPosture {
                 repair,
                 partition: if objective.hold_fallback_policy
                     == jacquard_core::HoldFallbackPolicy::Allowed
@@ -251,7 +251,7 @@ where
                     RoutePartitionClass::ConnectedOnly
                 },
             },
-            | _ => RouteConnectivityProfile {
+            | _ => ConnectivityPosture {
                 repair,
                 partition: RoutePartitionClass::ConnectedOnly,
             },

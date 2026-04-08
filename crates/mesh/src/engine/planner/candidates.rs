@@ -7,7 +7,7 @@
 //! stays memoization-only rather than semantic.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, BackendRouteId, Configuration, NodeId, Observation,
+    SelectedRoutingParameters, BackendRouteId, Configuration, NodeId, Observation,
     RouteError, RouteSelectionError, RouteWitness, RoutingObjective, Tick, TimeWindow,
 };
 use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
@@ -39,7 +39,7 @@ where
     pub(super) fn candidate_for_path(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
         node_path: &[NodeId],
         destination_node: &jacquard_core::Node,
@@ -61,7 +61,7 @@ where
     fn plan_token_for_path(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
         node_path: &[NodeId],
         destination_node: &jacquard_core::Node,
@@ -100,7 +100,7 @@ where
     fn cached_candidate_from_plan(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
         node_path: &[NodeId],
         plan: &MeshPlanToken,
@@ -173,7 +173,7 @@ where
     pub(in crate::engine) fn derive_candidate_from_backend_ref(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
         backend_route_id: &BackendRouteId,
     ) -> Result<CachedCandidate, RouteError> {

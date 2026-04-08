@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, Configuration, DeploymentProfile, DestinationId,
+    SelectedRoutingParameters, Configuration, OperatingMode, DestinationId,
     DurationMs, Environment, FactSourceClass, NodeId, Observation,
-    OriginAuthenticationClass, PriorityPoints, RatioPermille, RouteConnectivityProfile,
+    OriginAuthenticationClass, PriorityPoints, RatioPermille, ConnectivityPosture,
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
     RouteReplacementPolicy, RouteServiceKind, RoutingEngineFallbackPolicy,
     RoutingEvidenceClass, RoutingObjective, Tick,
@@ -100,14 +100,14 @@ fn forward_and_assert_ingress(
     );
 }
 
-fn relay_profile() -> AdaptiveRoutingProfile {
-    AdaptiveRoutingProfile {
+fn relay_profile() -> SelectedRoutingParameters {
+    SelectedRoutingParameters {
         selected_protection: RouteProtectionClass::LinkProtected,
-        selected_connectivity: RouteConnectivityProfile {
+        selected_connectivity: ConnectivityPosture {
             repair: RouteRepairClass::BestEffort,
             partition: RoutePartitionClass::ConnectedOnly,
         },
-        deployment_profile: DeploymentProfile::DenseInteractive,
+        deployment_profile: OperatingMode::DenseInteractive,
         diversity_floor: 1,
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
@@ -120,7 +120,7 @@ fn objective(destination: DestinationId) -> RoutingObjective {
         service_kind: RouteServiceKind::Move,
         target_protection: RouteProtectionClass::LinkProtected,
         protection_floor: RouteProtectionClass::LinkProtected,
-        target_connectivity: RouteConnectivityProfile {
+        target_connectivity: ConnectivityPosture {
             repair: RouteRepairClass::Repairable,
             partition: RoutePartitionClass::PartitionTolerant,
         },

@@ -941,7 +941,7 @@ mod tests {
             service_kind: RouteServiceKind::Move,
             target_protection: jacquard_core::RouteProtectionClass::LinkProtected,
             protection_floor: jacquard_core::RouteProtectionClass::LinkProtected,
-            target_connectivity: jacquard_core::RouteConnectivityProfile {
+            target_connectivity: jacquard_core::ConnectivityPosture {
                 repair: jacquard_core::RouteRepairClass::Repairable,
                 partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
             },

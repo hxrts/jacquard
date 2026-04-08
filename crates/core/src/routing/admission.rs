@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    AdaptiveRoutingProfile, BackendRouteId, Belief, Estimate, Limit,
-    RouteConnectivityProfile, RouteCost, RouteEpoch, RouteEstimate, RouteId,
+    SelectedRoutingParameters, BackendRouteId, Belief, Estimate, Limit,
+    ConnectivityPosture, RouteCost, RouteEpoch, RouteEstimate, RouteId,
     RouteProtectionClass, RoutingEngineId, RoutingObjective, TimeWindow,
     TransportProtocol,
 };
@@ -16,7 +16,7 @@ use crate::{
 pub struct RoutingEngineCapabilities {
     pub engine: RoutingEngineId,
     pub max_protection: RouteProtectionClass,
-    pub max_connectivity: RouteConnectivityProfile,
+    pub max_connectivity: ConnectivityPosture,
     pub repair_support: RepairSupport,
     pub hold_support: HoldSupport,
     pub decidable_admission: DecidableSupport,
@@ -170,7 +170,7 @@ pub enum ClaimStrength {
 pub struct RouteSummary {
     pub engine: RoutingEngineId,
     pub protection: RouteProtectionClass,
-    pub connectivity: RouteConnectivityProfile,
+    pub connectivity: ConnectivityPosture,
     pub protocol_mix: Vec<TransportProtocol>,
     /// Bounded by [`ROUTE_HOP_COUNT_MAX`](crate::ROUTE_HOP_COUNT_MAX).
     pub hop_count_hint: Belief<u8>,
@@ -237,7 +237,7 @@ pub struct RouteAdmission {
     pub route_id: RouteId,
     pub backend_ref: BackendRouteRef,
     pub objective: RoutingObjective,
-    pub profile: AdaptiveRoutingProfile,
+    pub profile: SelectedRoutingParameters,
     pub admission_check: RouteAdmissionCheck,
     pub summary: RouteSummary,
     pub witness: RouteWitness,
@@ -250,8 +250,8 @@ pub struct RouteAdmission {
 pub struct RouteWitness {
     pub objective_protection: RouteProtectionClass,
     pub delivered_protection: RouteProtectionClass,
-    pub objective_connectivity: RouteConnectivityProfile,
-    pub delivered_connectivity: RouteConnectivityProfile,
+    pub objective_connectivity: ConnectivityPosture,
+    pub delivered_connectivity: ConnectivityPosture,
     pub admission_profile: AdmissionAssumptions,
     pub topology_epoch: RouteEpoch,
     pub degradation: RouteDegradation,

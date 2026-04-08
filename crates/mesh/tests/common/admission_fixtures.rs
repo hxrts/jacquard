@@ -2,10 +2,10 @@
 //! costs.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, AdmissionAssumptions, AdversaryRegime, Belief,
+    SelectedRoutingParameters, AdmissionAssumptions, AdversaryRegime, Belief,
     ClaimStrength, ConnectivityRegime, DestinationId, Estimate, FailureModelClass,
     HoldFallbackPolicy, Limit, MessageFlowAssumptionClass, NodeDensityClass, NodeId,
-    RatioPermille, RouteConnectivityProfile, RouteCost, RoutePartitionClass,
+    RatioPermille, ConnectivityPosture, RouteCost, RoutePartitionClass,
     RouteProtectionClass, RouteRepairClass, RouteServiceKind, RouteSummary,
     RoutingObjective, RuntimeEnvelopeClass, Tick, TimeWindow,
 };
@@ -29,7 +29,7 @@ pub fn objective_with_floor(floor: RouteProtectionClass) -> RoutingObjective {
         service_kind: RouteServiceKind::Move,
         target_protection: floor,
         protection_floor: floor,
-        target_connectivity: RouteConnectivityProfile {
+        target_connectivity: ConnectivityPosture {
             repair: RouteRepairClass::Repairable,
             partition: RoutePartitionClass::ConnectedOnly,
         },
@@ -43,11 +43,11 @@ pub fn objective_with_floor(floor: RouteProtectionClass) -> RoutingObjective {
 pub fn profile_with(
     repair: RouteRepairClass,
     partition: RoutePartitionClass,
-) -> AdaptiveRoutingProfile {
-    AdaptiveRoutingProfile {
+) -> SelectedRoutingParameters {
+    SelectedRoutingParameters {
         selected_protection: RouteProtectionClass::LinkProtected,
-        selected_connectivity: RouteConnectivityProfile { repair, partition },
-        deployment_profile: jacquard_core::DeploymentProfile::FieldPartitionTolerant,
+        selected_connectivity: ConnectivityPosture { repair, partition },
+        deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
         diversity_floor: 1,
         routing_engine_fallback_policy:
             jacquard_core::RoutingEngineFallbackPolicy::Allowed,
@@ -63,7 +63,7 @@ pub fn summary_with(
     RouteSummary {
         engine: MESH_ENGINE_ID,
         protection,
-        connectivity: RouteConnectivityProfile { repair, partition },
+        connectivity: ConnectivityPosture { repair, partition },
         protocol_mix: Vec::new(),
         hop_count_hint: Belief::Estimated(Estimate {
             value: 1_u8,

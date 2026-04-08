@@ -5,16 +5,16 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision,
+        SelectedRoutingParameters, AdmissionAssumptions, AdmissionDecision,
         AdversaryRegime, BackendRouteRef, Belief, ByteCount, ClaimStrength,
         CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection, Configuration,
-        ConnectivityRegime, DeploymentProfile, Environment, Estimate, Fact, FactBasis,
+        ConnectivityRegime, OperatingMode, Environment, Estimate, Fact, FactBasis,
         FailureModelClass, IdentityAssuranceClass, LayerParameter, LayerParameters,
         Limit, MaterializedRoute, MaterializedRouteIdentity,
         MessageFlowAssumptionClass, NodeDensityClass, Observation, PublicationId,
         ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteBinding,
         RouteCandidate, RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
-        RouteConnectivityProfile, RouteCost, RouteDegradation, RouteEpoch,
+        ConnectivityPosture, RouteCost, RouteDegradation, RouteEpoch,
         RouteEstimate, RouteHandle, RouteHealth, RouteId, RouteInstallation,
         RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome,
         RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
@@ -32,8 +32,8 @@ use jacquard_traits::{
     RoutingEnginePlanner, SubstratePlanner, SubstrateRuntime,
 };
 
-fn repairable_connected() -> RouteConnectivityProfile {
-    RouteConnectivityProfile {
+fn repairable_connected() -> ConnectivityPosture {
+    ConnectivityPosture {
         repair: RouteRepairClass::Repairable,
         partition: RoutePartitionClass::ConnectedOnly,
     }
@@ -59,7 +59,7 @@ impl CommitteeSelector for StubCommitteeSelector {
     fn select_committee(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _topology: &Observation<Self::TopologyView>,
     ) -> Result<Option<CommitteeSelection>, jacquard_traits::jacquard_core::RouteError>
     {
@@ -127,7 +127,7 @@ impl RoutingEnginePlanner for StubEngine {
     fn candidate_routes(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
         vec![RouteCandidate {
@@ -171,7 +171,7 @@ impl RoutingEnginePlanner for StubEngine {
     fn check_candidate(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _candidate: &RouteCandidate,
         _topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, jacquard_traits::jacquard_core::RouteError> {
@@ -181,7 +181,7 @@ impl RoutingEnginePlanner for StubEngine {
     fn admit_route(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _candidate: RouteCandidate,
         _topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, jacquard_traits::jacquard_core::RouteError> {
@@ -254,7 +254,7 @@ impl LayeredRoutingEnginePlanner for StubEngine {
     fn candidate_routes_on_substrate(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _substrate: &SubstrateLease,
         _parameters: &LayerParameters,
     ) -> Vec<RouteCandidate> {
@@ -299,7 +299,7 @@ impl LayeredRoutingEnginePlanner for StubEngine {
     fn admit_route_on_substrate(
         &self,
         _objective: &RoutingObjective,
-        _profile: &AdaptiveRoutingProfile,
+        _profile: &SelectedRoutingParameters,
         _substrate: &SubstrateLease,
         _parameters: &LayerParameters,
         _candidate: RouteCandidate,
@@ -410,11 +410,11 @@ fn sample_objective() -> RoutingObjective {
     }
 }
 
-fn sample_profile() -> AdaptiveRoutingProfile {
-    AdaptiveRoutingProfile {
+fn sample_profile() -> SelectedRoutingParameters {
+    SelectedRoutingParameters {
         selected_protection: RouteProtectionClass::LinkProtected,
         selected_connectivity: repairable_connected(),
-        deployment_profile: DeploymentProfile::SparseLowPower,
+        deployment_profile: OperatingMode::SparseLowPower,
         diversity_floor: 1,
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
@@ -436,7 +436,7 @@ fn sample_admission_assumptions() -> AdmissionAssumptions {
 // long-block-exception: canonical route assembly fixture for contract tests.
 fn sample_route(
     objective: RoutingObjective,
-    profile: AdaptiveRoutingProfile,
+    profile: SelectedRoutingParameters,
 ) -> MaterializedRoute {
     let input = RouteMaterializationInput {
         handle: RouteHandle {

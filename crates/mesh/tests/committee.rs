@@ -182,7 +182,7 @@ impl CommitteeSelector for ErroringCommitteeSelector {
     fn select_committee(
         &self,
         _objective: &jacquard_traits::jacquard_core::RoutingObjective,
-        _profile: &jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
+        _profile: &jacquard_traits::jacquard_core::SelectedRoutingParameters,
         _topology: &jacquard_traits::jacquard_core::Observation<Self::TopologyView>,
     ) -> Result<Option<jacquard_traits::jacquard_core::CommitteeSelection>, RouteError>
     {

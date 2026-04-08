@@ -8,8 +8,8 @@
 use std::cmp::Reverse;
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, Belief, Configuration, Estimate, Observation,
-    RouteCandidate, RouteConnectivityProfile, RouteEstimate, RouteSummary,
+    SelectedRoutingParameters, Belief, Configuration, Estimate, Observation,
+    RouteCandidate, ConnectivityPosture, RouteEstimate, RouteSummary,
     RoutingObjective, TimeWindow,
 };
 
@@ -31,7 +31,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     pub(super) fn build_candidate_summary(
         &self,
         topology: &Observation<Configuration>,
-        connectivity: RouteConnectivityProfile,
+        connectivity: ConnectivityPosture,
         segments: &[MeshRouteSegment],
         valid_for: TimeWindow,
     ) -> RouteSummary {
@@ -53,7 +53,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     pub(super) fn build_candidate_estimate(
         &self,
         topology: &Observation<Configuration>,
-        connectivity: RouteConnectivityProfile,
+        connectivity: ConnectivityPosture,
         route_class: &MeshRouteClass,
         segments: &[MeshRouteSegment],
     ) -> Estimate<RouteEstimate> {
@@ -80,7 +80,7 @@ where
     pub(super) fn maybe_select_committee(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Result<Option<jacquard_core::CommitteeSelection>, jacquard_core::RouteError>
     {
@@ -100,7 +100,7 @@ where
     pub(super) fn collect_candidates(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Vec<(jacquard_core::BackendRouteId, CachedCandidate)> {
         let configuration = &topology.value;

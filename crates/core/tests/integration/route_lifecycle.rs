@@ -2,12 +2,12 @@
 //! state.
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, AdmissionAssumptions, AdmissionDecision, AdversaryRegime,
+    SelectedRoutingParameters, AdmissionAssumptions, AdmissionDecision, AdversaryRegime,
     BackendRouteRef, Belief, ByteCount, ClaimStrength, ConnectivityRegime,
-    DeploymentProfile, Estimate, Fact, FactBasis, FailureModelClass,
+    OperatingMode, Estimate, Fact, FactBasis, FailureModelClass,
     HoldFallbackPolicy, Limit, MaterializedRoute, MessageFlowAssumptionClass,
     NodeDensityClass, PublicationId, ReachabilityState, RouteAdmission,
-    RouteAdmissionCheck, RouteCandidate, RouteConnectivityProfile, RouteCost,
+    RouteAdmissionCheck, RouteCandidate, ConnectivityPosture, RouteCost,
     RouteDegradation, RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId,
     RouteInstallation, RouteLease, RouteLifecycleEvent, RouteMaterializationInput,
     RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
@@ -17,8 +17,8 @@ use jacquard_core::{
     RuntimeEnvelopeClass, Tick, TimeWindow, TransportProtocol,
 };
 
-fn repairable_connected() -> RouteConnectivityProfile {
-    RouteConnectivityProfile {
+fn repairable_connected() -> ConnectivityPosture {
+    ConnectivityPosture {
         repair: RouteRepairClass::Repairable,
         partition: RoutePartitionClass::ConnectedOnly,
     }
@@ -124,10 +124,10 @@ fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInst
             route_id: RouteId([5; 16]),
             backend_ref: candidate.backend_ref.clone(),
             objective,
-            profile: AdaptiveRoutingProfile {
+            profile: SelectedRoutingParameters {
                 selected_protection: RouteProtectionClass::LinkProtected,
                 selected_connectivity: repairable_connected(),
-                deployment_profile: DeploymentProfile::DenseInteractive,
+                deployment_profile: OperatingMode::DenseInteractive,
                 diversity_floor: 1,
                 routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
                 route_replacement_policy: RouteReplacementPolicy::Allowed,

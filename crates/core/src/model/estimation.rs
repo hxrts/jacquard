@@ -5,7 +5,7 @@ use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    RouteConnectivityProfile, RouteDegradation, RouteEpoch, RouteProtectionClass,
+    ConnectivityPosture, RouteDegradation, RouteEpoch, RouteProtectionClass,
 };
 
 #[public_model]
@@ -13,7 +13,7 @@ use crate::{
 /// Engine-agnostic estimate of what one route candidate is likely to provide.
 pub struct RouteEstimate {
     pub estimated_protection: RouteProtectionClass,
-    pub estimated_connectivity: RouteConnectivityProfile,
+    pub estimated_connectivity: ConnectivityPosture,
     pub topology_epoch: RouteEpoch,
     pub degradation: RouteDegradation,
 }

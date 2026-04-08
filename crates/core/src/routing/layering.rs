@@ -4,7 +4,7 @@ use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ByteCount, DurationMs, IdentityAssuranceClass, Limit, RouteConnectivityProfile,
+    ByteCount, DurationMs, IdentityAssuranceClass, Limit, ConnectivityPosture,
     RouteHandle, RouteHealth, RouteLease, RouteProtectionClass, RoutingEngineId,
 };
 
@@ -14,7 +14,7 @@ use crate::{
 /// engine.
 pub struct SubstrateRequirements {
     pub min_protection: RouteProtectionClass,
-    pub min_connectivity: RouteConnectivityProfile,
+    pub min_connectivity: ConnectivityPosture,
     pub latency_budget_ms: Limit<DurationMs>,
     pub mtu_floor_bytes: ByteCount,
     pub identity_assurance_floor: IdentityAssuranceClass,
@@ -26,7 +26,7 @@ pub struct SubstrateRequirements {
 pub struct SubstrateCapabilities {
     pub engine: RoutingEngineId,
     pub protection: RouteProtectionClass,
-    pub connectivity: RouteConnectivityProfile,
+    pub connectivity: ConnectivityPosture,
     pub mtu_bytes: ByteCount,
 }
 

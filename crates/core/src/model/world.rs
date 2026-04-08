@@ -64,6 +64,16 @@ pub struct LinkState {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Instantiated link object in the routing world model.
+///
+/// A link represents a directed connection from one node to another. The
+/// link's `endpoint` identifies the remote address and protocol. The `state`
+/// captures current runtime observations (latency, loss, delivery confidence).
+///
+/// LinkProfile (static capabilities) is implemented by transport extensions
+/// and kept separate from this routing-world object. See
+/// [LinkProfile Extension Point](../../docs/107_link_profile_extension.md) for
+/// how to implement LinkProfile for new network types. `jacquard-mem-link-profile`
+/// is the canonical in-memory implementation used in tests.
 pub struct Link {
     pub endpoint: LinkEndpoint,
     pub state: LinkState,

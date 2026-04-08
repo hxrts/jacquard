@@ -8,7 +8,7 @@ use jacquard_traits::{
         NodeProfile, NodeRelayBudget, NodeState, PublicationId, RatioPermille,
         RetentionError, RouteAdmission, RouteAdmissionCheck, RouteBinding,
         RouteCommitment, RouteCommitmentId, RouteCommitmentResolution,
-        RouteConnectivityProfile, RouteCost, RouteEpoch, RouteHealth, RouteId,
+        ConnectivityPosture, RouteCost, RouteEpoch, RouteHealth, RouteId,
         RouteInstallation, RouteLifecycleEvent, RouteMaintenanceOutcome,
         RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
         RouteMaterializationProof, RouteProtectionClass, RouteRuntimeState,
@@ -178,7 +178,7 @@ impl RoutingEnginePlanner for StubMeshEngine {
         RoutingEngineCapabilities {
             engine: RoutingEngineId::Mesh,
             max_protection: RouteProtectionClass::LinkProtected,
-            max_connectivity: RouteConnectivityProfile {
+            max_connectivity: ConnectivityPosture {
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
                 partition:
                     jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
@@ -199,7 +199,7 @@ impl RoutingEnginePlanner for StubMeshEngine {
     fn candidate_routes(
         &self,
         _objective: &jacquard_traits::jacquard_core::RoutingObjective,
-        _profile: &jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
+        _profile: &jacquard_traits::jacquard_core::SelectedRoutingParameters,
         _topology: &jacquard_traits::jacquard_core::Observation<Configuration>,
     ) -> Vec<jacquard_traits::jacquard_core::RouteCandidate> {
         Vec::new()
@@ -208,7 +208,7 @@ impl RoutingEnginePlanner for StubMeshEngine {
     fn check_candidate(
         &self,
         _objective: &jacquard_traits::jacquard_core::RoutingObjective,
-        _profile: &jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
+        _profile: &jacquard_traits::jacquard_core::SelectedRoutingParameters,
         _candidate: &jacquard_traits::jacquard_core::RouteCandidate,
         _topology: &jacquard_traits::jacquard_core::Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, jacquard_traits::jacquard_core::RouteError> {
@@ -240,7 +240,7 @@ impl RoutingEnginePlanner for StubMeshEngine {
     fn admit_route(
         &self,
         objective: &jacquard_traits::jacquard_core::RoutingObjective,
-        profile: &jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
+        profile: &jacquard_traits::jacquard_core::SelectedRoutingParameters,
         _candidate: jacquard_traits::jacquard_core::RouteCandidate,
         _topology: &jacquard_traits::jacquard_core::Observation<Configuration>,
     ) -> Result<RouteAdmission, jacquard_traits::jacquard_core::RouteError> {
@@ -421,7 +421,7 @@ fn sample_configuration() -> Configuration {
 // long-block-exception: fully populated shared admission fixture.
 fn sample_route_admission(
     objective: jacquard_traits::jacquard_core::RoutingObjective,
-    profile: jacquard_traits::jacquard_core::AdaptiveRoutingProfile,
+    profile: jacquard_traits::jacquard_core::SelectedRoutingParameters,
 ) -> RouteAdmission {
     RouteAdmission {
         route_id: RouteId([3; 16]),
@@ -457,7 +457,7 @@ fn sample_route_admission(
         summary: RouteSummary {
             engine: RoutingEngineId::Mesh,
             protection: RouteProtectionClass::LinkProtected,
-            connectivity: RouteConnectivityProfile {
+            connectivity: ConnectivityPosture {
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
                 partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
@@ -472,11 +472,11 @@ fn sample_route_admission(
         witness: RouteWitness {
             objective_protection: RouteProtectionClass::LinkProtected,
             delivered_protection: RouteProtectionClass::LinkProtected,
-            objective_connectivity: RouteConnectivityProfile {
+            objective_connectivity: ConnectivityPosture {
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
                 partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
-            delivered_connectivity: RouteConnectivityProfile {
+            delivered_connectivity: ConnectivityPosture {
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
                 partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
             },

@@ -17,7 +17,7 @@ mod publishing;
 mod scoring;
 
 use jacquard_core::{
-    AdaptiveRoutingProfile, AdmissionDecision, Configuration, Observation,
+    SelectedRoutingParameters, AdmissionDecision, Configuration, Observation,
     RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
     RouteSelectionError, RoutingObjective,
 };
@@ -58,7 +58,7 @@ where
     fn candidate_routes(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
         let mut cached = self.collect_candidates(objective, profile, topology);
@@ -69,7 +69,7 @@ where
     fn check_candidate(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         candidate: &RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
@@ -96,7 +96,7 @@ where
     fn admit_route(
         &self,
         objective: &RoutingObjective,
-        profile: &AdaptiveRoutingProfile,
+        profile: &SelectedRoutingParameters,
         candidate: RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError> {
@@ -140,7 +140,7 @@ mod tests {
         AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength,
         ConnectivityRegime, DestinationId, Estimate, FailureModelClass,
         HoldFallbackPolicy, Limit, MessageFlowAssumptionClass, NodeDensityClass,
-        NodeId, RatioPermille, RouteAdmissionRejection, RouteConnectivityProfile,
+        NodeId, RatioPermille, RouteAdmissionRejection, ConnectivityPosture,
         RouteCost, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
         RouteServiceKind, RouteSummary, RoutingObjective, RuntimeEnvelopeClass, Tick,
         TimeWindow,
@@ -167,7 +167,7 @@ mod tests {
             service_kind: RouteServiceKind::Move,
             target_protection: floor,
             protection_floor: floor,
-            target_connectivity: RouteConnectivityProfile {
+            target_connectivity: ConnectivityPosture {
                 repair: RouteRepairClass::Repairable,
                 partition: RoutePartitionClass::ConnectedOnly,
             },
@@ -181,12 +181,12 @@ mod tests {
     fn profile_with(
         repair: RouteRepairClass,
         partition: RoutePartitionClass,
-    ) -> AdaptiveRoutingProfile {
-        AdaptiveRoutingProfile {
+    ) -> SelectedRoutingParameters {
+        SelectedRoutingParameters {
             selected_protection: RouteProtectionClass::LinkProtected,
-            selected_connectivity: RouteConnectivityProfile { repair, partition },
+            selected_connectivity: ConnectivityPosture { repair, partition },
             deployment_profile:
-                jacquard_core::DeploymentProfile::FieldPartitionTolerant,
+                jacquard_core::OperatingMode::FieldPartitionTolerant,
             diversity_floor: 1,
             routing_engine_fallback_policy:
                 jacquard_core::RoutingEngineFallbackPolicy::Allowed,
@@ -202,7 +202,7 @@ mod tests {
         RouteSummary {
             engine: MESH_ENGINE_ID,
             protection,
-            connectivity: RouteConnectivityProfile { repair, partition },
+            connectivity: ConnectivityPosture { repair, partition },
             protocol_mix: Vec::new(),
             hop_count_hint: Belief::Estimated(Estimate {
                 value: 1_u8,

@@ -11,9 +11,9 @@
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
     jacquard_core::{
-        AdaptiveRoutingProfile, Configuration, DeploymentProfile, DestinationId,
+        SelectedRoutingParameters, Configuration, OperatingMode, DestinationId,
         DurationMs, HoldFallbackPolicy, Limit, MaterializedRouteIdentity, NodeId,
-        Observation, PriorityPoints, PublicationId, RouteConnectivityProfile,
+        Observation, PriorityPoints, PublicationId, ConnectivityPosture,
         RouteHandle, RouteLease, RouteMaterializationInput, RoutePartitionClass,
         RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
         RouteRuntimeState, RouteServiceKind, RoutingEngineFallbackPolicy,
@@ -59,8 +59,8 @@ pub fn build_engine_for_node_at_tick(local_node_id: NodeId, now: Tick) -> TestEn
     )
 }
 
-pub fn mesh_connectivity(partition: RoutePartitionClass) -> RouteConnectivityProfile {
-    RouteConnectivityProfile {
+pub fn mesh_connectivity(partition: RoutePartitionClass) -> ConnectivityPosture {
+    ConnectivityPosture {
         repair: RouteRepairClass::Repairable,
         partition,
     }
@@ -92,7 +92,7 @@ pub fn objective_with_floor(
     }
 }
 
-pub fn profile() -> AdaptiveRoutingProfile {
+pub fn profile() -> SelectedRoutingParameters {
     profile_with_connectivity(
         RouteRepairClass::Repairable,
         RoutePartitionClass::PartitionTolerant,
@@ -102,11 +102,11 @@ pub fn profile() -> AdaptiveRoutingProfile {
 pub fn profile_with_connectivity(
     repair: RouteRepairClass,
     partition: RoutePartitionClass,
-) -> AdaptiveRoutingProfile {
-    AdaptiveRoutingProfile {
+) -> SelectedRoutingParameters {
+    SelectedRoutingParameters {
         selected_protection: RouteProtectionClass::LinkProtected,
-        selected_connectivity: RouteConnectivityProfile { repair, partition },
-        deployment_profile: DeploymentProfile::FieldPartitionTolerant,
+        selected_connectivity: ConnectivityPosture { repair, partition },
+        deployment_profile: OperatingMode::FieldPartitionTolerant,
         diversity_floor: 1,
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
@@ -171,7 +171,7 @@ pub fn activate_route_with_profile(
     engine: &mut TestEngine,
     topology: &Observation<Configuration>,
     goal: &RoutingObjective,
-    policy: &AdaptiveRoutingProfile,
+    policy: &SelectedRoutingParameters,
     lease_value: RouteLease,
 ) -> (MaterializedRouteIdentity, RouteRuntimeState) {
     let materialization_tick = lease_value.valid_for.start_tick();
