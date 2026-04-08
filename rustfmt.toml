@@ -16,7 +16,6 @@ fn_params_layout = "Tall"
 fn_call_width = 60
 struct_lit_width = 40
 struct_variant_width = 40
-struct_field_align_threshold = 20
 enum_discrim_align_threshold = 20
 empty_item_single_line = true
 
