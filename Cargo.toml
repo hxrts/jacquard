@@ -32,11 +32,11 @@ unimplemented = "deny"
 wildcard_imports = "warn"
 
 [workspace.dependencies]
-# local
-telltale        = { path = "../telltale" }
-telltale-types   = { path = "../telltale/rust/types" }
-telltale-macros  = { path = "../telltale/rust/macros" }
-telltale-runtime = { path = "../telltale/rust/runtime" }
+# choreography/runtime
+telltale = "11.3.0"
+telltale-types = "11.3.0"
+telltale-macros = "11.3.0"
+telltale-runtime = "11.3.0"
 
 # async
 futures     = "0.3"
