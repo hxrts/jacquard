@@ -22,12 +22,12 @@ use jacquard_mock_transport::{
     InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
     SharedInMemoryMeshNetwork,
 };
-use jacquard_router::{FixedPolicyEngine, MeshOnlyRouter};
+use jacquard_router::{FixedPolicyEngine, SingleEngineRouter};
 use jacquard_traits::Blake3Hashing;
 
 use crate::MockDevice;
 
-pub type MockMeshRouter = MeshOnlyRouter<
+pub type MockMeshRouter = SingleEngineRouter<
     MeshEngine<
         DeterministicMeshTopologyModel,
         InMemoryMeshTransport,
@@ -80,7 +80,7 @@ pub fn build_mock_mesh_device_with_profile(
         InMemoryRuntimeEffects { now, ..Default::default() },
         Blake3Hashing,
     );
-    let router = MeshOnlyRouter::new(
+    let router = SingleEngineRouter::new(
         engine,
         FixedPolicyEngine::new(profile),
         InMemoryRuntimeEffects { now, ..Default::default() },

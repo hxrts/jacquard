@@ -32,7 +32,7 @@ use jacquard_core::{
     RoutePartitionClass, RouteRuntimeError, RouteSelectionError,
     RoutingEngineCapabilities, RoutingEngineId,
 };
-use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing};
+use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngine};
 pub(crate) use support::DOMAIN_TAG_COMMITTEE_ID;
 use trait_bounds::{
     MeshEffectsBounds, MeshHasherBounds, MeshRetentionBounds, MeshSelectorBounds,
@@ -137,6 +137,38 @@ pub struct MeshEngine<
     last_checkpointed_topology_epoch: Option<RouteEpoch>,
     candidate_cache: RefCell<BTreeMap<jacquard_core::BackendRouteId, CachedCandidate>>,
     active_routes: BTreeMap<RouteId, ActiveMeshRoute>,
+}
+
+impl<Topology, Transport, Retention, Effects, Hasher, Selector> RouterManagedEngine
+    for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
+where
+    Topology: MeshTopologyBounds,
+    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
+    Transport: MeshTransportBounds,
+    Retention: MeshRetentionBounds,
+    Effects: MeshEffectsBounds,
+    Hasher: MeshHasherBounds,
+    Selector: MeshSelectorBounds,
+{
+    fn local_node_id_for_router(&self) -> NodeId {
+        self.local_node_id()
+    }
+
+    fn forward_payload_for_router(
+        &mut self,
+        route_id: &RouteId,
+        payload: &[u8],
+    ) -> Result<(), RouteError> {
+        self.forward_payload(route_id, payload)
+    }
+
+    fn restore_route_runtime_for_router(
+        &mut self,
+        route_id: &RouteId,
+    ) -> Result<bool, RouteError> {
+        Ok(self.restore_checkpointed_route(route_id)?.is_some())
+    }
 }
 
 // Engine Construction

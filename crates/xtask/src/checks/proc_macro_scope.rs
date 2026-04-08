@@ -53,7 +53,7 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/mock-device/src/lib.rs",
     "crates/mock-device/src/mesh.rs",
     "crates/router/src/lib.rs",
-    "crates/router/src/mesh_router.rs",
+    "crates/router/src/single_engine.rs",
     "crates/router/src/runtime.rs",
 ];
 

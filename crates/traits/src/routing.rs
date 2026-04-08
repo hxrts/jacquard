@@ -3,7 +3,7 @@
 
 use jacquard_core::{
     AdaptiveRoutingProfile, CommitteeSelection, Configuration, LayerParameters,
-    MaterializedRoute, MaterializedRouteIdentity, Observation, RouteAdmission,
+    MaterializedRoute, MaterializedRouteIdentity, NodeId, Observation, RouteAdmission,
     RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError, RouteHealth,
     RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
     RouteMaterializationInput, RouteRuntimeState, RouteSemanticHandoff,
@@ -250,6 +250,35 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     ) -> Result<RouteMaintenanceResult, RouteError>;
 
     fn teardown(&mut self, route_id: &RouteId);
+}
+
+#[purity(effectful)]
+/// Supplemental engine boundary used by the generic router middleware.
+///
+/// The shared `RoutingEngine` trait intentionally stops at canonical planning,
+/// materialization, commitments, and route-private maintenance. A host-owned
+/// router still needs three engine-owned hooks:
+/// - the local node identity used for router-scoped checkpoint namespacing
+/// - data-plane forwarding over an already-admitted route
+/// - restoration of engine-private runtime state during router-led recovery
+///
+/// This remains generic middleware surface area rather than family-specific
+/// mesh behavior. Any engine that wants to sit behind the in-tree router must
+/// provide these hooks without exposing engine-private internals.
+pub trait RouterManagedEngine: RoutingEngine {
+    #[must_use]
+    fn local_node_id_for_router(&self) -> NodeId;
+
+    fn forward_payload_for_router(
+        &mut self,
+        route_id: &RouteId,
+        payload: &[u8],
+    ) -> Result<(), RouteError>;
+
+    fn restore_route_runtime_for_router(
+        &mut self,
+        route_id: &RouteId,
+    ) -> Result<bool, RouteError>;
 }
 
 #[purity(effectful)]

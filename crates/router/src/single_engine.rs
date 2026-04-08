@@ -1,14 +1,14 @@
-//! Mesh-only router implementation over the shared routing traits.
+//! Generic single-engine router implementation over the shared routing traits.
 //!
 //! Control flow intuition: activation goes `objective -> profile ->
 //! candidate set -> admissible candidate -> router-owned handle/lease -> engine
 //! materialization -> canonical publication`. Maintenance and anti-entropy stay
-//! router-owned at the semantic level even when the mesh engine performs the
-//! route-private work underneath.
+//! router-owned at the semantic level even when the concrete engine performs
+//! the route-private work underneath.
 //!
 //! Ownership:
 //! - canonical route mutations happen here
-//! - mesh only returns typed evidence and route-private runtime state
+//! - the engine only returns typed evidence and route-private runtime state
 
 use std::{cmp::Reverse, collections::BTreeMap};
 
@@ -24,12 +24,9 @@ use jacquard_core::{
     RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingPolicyInputs,
     RoutingTickChange, RoutingTickContext, Tick, TimeWindow, TransportProtocol,
 };
-use jacquard_mesh::MeshEngine;
 use jacquard_traits::{
-    CommitteeSelector, HashDigestBytes, Hashing, MeshNeighborhoodEstimateAccess,
-    MeshPeerEstimateAccess, MeshTopologyModel, MeshTransport, OrderEffects,
-    PolicyEngine, RetentionStore, RouteEventLogEffects, Router, RoutingControlPlane,
-    RoutingDataPlane, RoutingEngine, StorageEffects, TimeEffects,
+    OrderEffects, PolicyEngine, RouteEventLogEffects, Router, RouterManagedEngine,
+    RoutingControlPlane, RoutingDataPlane, RoutingEngine, StorageEffects, TimeEffects,
 };
 
 use crate::runtime::{RouterCheckpointRecord, RouterRuntimeAdapter};
@@ -59,57 +56,8 @@ impl PolicyEngine for FixedPolicyEngine {
     }
 }
 
-/// Local bridge for the still-mesh-specific data-plane seam.
-pub trait MeshRouterEngineBridge: RoutingEngine {
-    fn local_node_id_for_router(&self) -> jacquard_core::NodeId;
-
-    fn forward_payload_for_router(
-        &mut self,
-        route_id: &RouteId,
-        payload: &[u8],
-    ) -> Result<(), RouteError>;
-
-    fn restore_route_runtime_for_router(
-        &mut self,
-        route_id: &RouteId,
-    ) -> Result<bool, RouteError>;
-}
-
-impl<Topology, Transport, Retention, Effects, Hasher, Selector> MeshRouterEngineBridge
-    for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
-where
-    Topology: MeshTopologyModel,
-    Topology::PeerEstimate: MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
-    Transport: MeshTransport + Send + Sync + 'static,
-    Retention: RetentionStore,
-    Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
-    Hasher: Hashing,
-    Hasher::Digest: HashDigestBytes,
-    Selector: CommitteeSelector<TopologyView = Configuration>,
-{
-    fn local_node_id_for_router(&self) -> jacquard_core::NodeId {
-        self.local_node_id()
-    }
-
-    fn forward_payload_for_router(
-        &mut self,
-        route_id: &RouteId,
-        payload: &[u8],
-    ) -> Result<(), RouteError> {
-        self.forward_payload(route_id, payload)
-    }
-
-    fn restore_route_runtime_for_router(
-        &mut self,
-        route_id: &RouteId,
-    ) -> Result<bool, RouteError> {
-        Ok(self.restore_checkpointed_route(route_id)?.is_some())
-    }
-}
-
-/// Router-owned canonical mesh route table plus one mesh engine.
-pub struct MeshOnlyRouter<Engine, Policy, Effects> {
+/// Router-owned canonical route table plus one concrete routing engine.
+pub struct SingleEngineRouter<Engine, Policy, Effects> {
     engine:                  Engine,
     registered_engine_id:    RoutingEngineId,
     registered_capabilities: RoutingEngineCapabilities,
@@ -121,9 +69,9 @@ pub struct MeshOnlyRouter<Engine, Policy, Effects> {
     published_commitments:   BTreeMap<RouteId, Vec<RouteCommitment>>,
 }
 
-impl<Engine, Policy, Effects> MeshOnlyRouter<Engine, Policy, Effects>
+impl<Engine, Policy, Effects> SingleEngineRouter<Engine, Policy, Effects>
 where
-    Engine: MeshRouterEngineBridge,
+    Engine: RouterManagedEngine,
     Policy: PolicyEngine,
     Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
 {
@@ -494,9 +442,9 @@ where
     }
 }
 
-impl<Engine, Policy, Effects> Router for MeshOnlyRouter<Engine, Policy, Effects>
+impl<Engine, Policy, Effects> Router for SingleEngineRouter<Engine, Policy, Effects>
 where
-    Engine: MeshRouterEngineBridge,
+    Engine: RouterManagedEngine,
     Policy: PolicyEngine,
     Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
 {
@@ -562,9 +510,9 @@ where
 }
 
 impl<Engine, Policy, Effects> RoutingControlPlane
-    for MeshOnlyRouter<Engine, Policy, Effects>
+    for SingleEngineRouter<Engine, Policy, Effects>
 where
-    Engine: MeshRouterEngineBridge,
+    Engine: RouterManagedEngine,
     Policy: PolicyEngine,
     Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
 {
@@ -618,9 +566,9 @@ where
 }
 
 impl<Engine, Policy, Effects> RoutingDataPlane
-    for MeshOnlyRouter<Engine, Policy, Effects>
+    for SingleEngineRouter<Engine, Policy, Effects>
 where
-    Engine: MeshRouterEngineBridge,
+    Engine: RouterManagedEngine,
     Policy: PolicyEngine,
     Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
 {

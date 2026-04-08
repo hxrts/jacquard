@@ -20,7 +20,7 @@ use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID};
 use jacquard_mock_transport::{
     InMemoryMeshTransport, InMemoryRetentionStore, InMemoryRuntimeEffects,
 };
-use jacquard_router::{FixedPolicyEngine, MeshOnlyRouter};
+use jacquard_router::{FixedPolicyEngine, SingleEngineRouter};
 use jacquard_traits::{
     Blake3Hashing, CommitteeSelector, Router, RoutingControlPlane, RoutingDataPlane,
 };
@@ -385,14 +385,15 @@ fn recovery_restores_router_and_mesh_state_from_router_owned_registry() {
 
 fn build_router(
     now: Tick,
-) -> MeshOnlyRouter<TestMeshEngine, FixedPolicyEngine, InMemoryRuntimeEffects> {
+) -> SingleEngineRouter<TestMeshEngine, FixedPolicyEngine, InMemoryRuntimeEffects> {
     build_router_with_effects(now, InMemoryRuntimeEffects { now, ..Default::default() })
 }
 
 fn build_router_with_selector(
     now: Tick,
     selector: AdvisoryCommitteeSelector,
-) -> MeshOnlyRouter<CommitteeMeshEngine, FixedPolicyEngine, InMemoryRuntimeEffects> {
+) -> SingleEngineRouter<CommitteeMeshEngine, FixedPolicyEngine, InMemoryRuntimeEffects>
+{
     let topology = sample_configuration();
     let policy_inputs = sample_policy_inputs(&topology);
     let engine = MeshEngine::with_committee_selector(
@@ -407,7 +408,7 @@ fn build_router_with_selector(
     let policy_engine = FixedPolicyEngine::new(profile());
     let router_effects = InMemoryRuntimeEffects { now, ..Default::default() };
 
-    MeshOnlyRouter::new(
+    SingleEngineRouter::new(
         engine,
         policy_engine,
         router_effects,
@@ -419,7 +420,7 @@ fn build_router_with_selector(
 fn build_router_with_effects(
     now: Tick,
     router_effects: InMemoryRuntimeEffects,
-) -> MeshOnlyRouter<TestMeshEngine, FixedPolicyEngine, InMemoryRuntimeEffects> {
+) -> SingleEngineRouter<TestMeshEngine, FixedPolicyEngine, InMemoryRuntimeEffects> {
     build_router_with_runtime_pair(
         now,
         router_effects,
@@ -431,7 +432,7 @@ fn build_router_with_runtime_pair(
     _now: Tick,
     router_effects: InMemoryRuntimeEffects,
     engine_effects: InMemoryRuntimeEffects,
-) -> MeshOnlyRouter<TestMeshEngine, FixedPolicyEngine, InMemoryRuntimeEffects> {
+) -> SingleEngineRouter<TestMeshEngine, FixedPolicyEngine, InMemoryRuntimeEffects> {
     let topology = sample_configuration();
     let policy_inputs = sample_policy_inputs(&topology);
     let engine = MeshEngine::without_committee_selector(
@@ -444,7 +445,7 @@ fn build_router_with_runtime_pair(
     );
     let policy_engine = FixedPolicyEngine::new(profile());
 
-    MeshOnlyRouter::new(
+    SingleEngineRouter::new(
         engine,
         policy_engine,
         router_effects,

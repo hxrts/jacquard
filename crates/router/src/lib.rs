@@ -1,11 +1,10 @@
-//! Mesh-only router and control/data plane surfaces for Jacquard.
+//! Generic router middleware and control/data plane surfaces for Jacquard.
 //!
 //! Control flow intuition: the router owns canonical route identity, lease
-//! issuance, and active-route publication. It asks one mesh engine for
-//! candidates and proofs, then commits the resulting canonical route state on
-//! the router side. Forwarding remains mesh-engine-specific for now, so the
-//! router uses a small local bridge trait instead of pretending the data plane
-//! is already engine-neutral.
+//! issuance, and active-route publication. It asks one concrete routing engine
+//! for candidates and proofs, then commits the resulting canonical route state
+//! on the router side. The router itself remains engine-family-agnostic and
+//! depends only on shared trait boundaries.
 //!
 //! Ownership:
 //! - `ActorOwned`: canonical route table, lease transfer, and commitment view
@@ -14,7 +13,7 @@
 
 #![forbid(unsafe_code)]
 
-mod mesh_router;
 mod runtime;
+mod single_engine;
 
-pub use mesh_router::{FixedPolicyEngine, MeshOnlyRouter, MeshRouterEngineBridge};
+pub use single_engine::{FixedPolicyEngine, SingleEngineRouter};
