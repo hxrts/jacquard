@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 mod checks;
+mod exemptions;
 mod sources;
 mod util;
 
