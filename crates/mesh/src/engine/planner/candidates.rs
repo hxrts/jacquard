@@ -7,9 +7,9 @@
 //! stays memoization-only rather than semantic.
 
 use jacquard_core::{
-    BackendRouteId, Configuration, NodeId, Observation, RouteError,
-    RouteSelectionError, RouteWitness, RoutingObjective, SelectedRoutingParameters,
-    Tick, TimeWindow,
+    BackendRouteId, Configuration, NodeId, ObjectiveVsDelivered, Observation,
+    RouteError, RouteSelectionError, RouteWitness, RoutingObjective,
+    SelectedRoutingParameters, Tick, TimeWindow,
 };
 
 use super::{
@@ -148,10 +148,14 @@ where
             &plan.committee_status,
         );
         let witness = RouteWitness {
-            objective_protection: objective.target_protection,
-            delivered_protection: summary.protection,
-            objective_connectivity: objective.target_connectivity,
-            delivered_connectivity: summary.connectivity,
+            protection: ObjectiveVsDelivered {
+                objective: objective.target_protection,
+                delivered: summary.protection,
+            },
+            connectivity: ObjectiveVsDelivered {
+                objective: objective.target_connectivity,
+                delivered: summary.connectivity,
+            },
             admission_profile: admission_assumptions,
             topology_epoch: topology.value.epoch,
             degradation: estimate.value.degradation,

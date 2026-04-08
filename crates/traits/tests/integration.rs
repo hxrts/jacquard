@@ -1,5 +1,7 @@
 //! Integration tests for jacquard-traits.
 
+#[path = "common/mod.rs"]
+pub mod common;
 #[path = "integration/mesh_component_contract.rs"]
 mod mesh_component_contract;
 #[path = "integration/routing_engine_contract.rs"]

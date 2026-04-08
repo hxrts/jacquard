@@ -15,11 +15,12 @@ use jacquard_traits::{
     jacquard_core::{
         Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs,
         HoldFallbackPolicy, Limit, MaterializedRouteIdentity, NodeId, Observation,
-        OperatingMode, PriorityPoints, PublicationId, RouteHandle, RouteLease,
-        RouteMaterializationInput, RoutePartitionClass, RouteProtectionClass,
-        RouteRepairClass, RouteReplacementPolicy, RouteRuntimeState, RouteServiceKind,
-        RoutingEngineFallbackPolicy, RoutingObjective, RoutingTickContext,
-        SelectedRoutingParameters, Tick, TimeWindow,
+        OperatingMode, PriorityPoints, PublicationId, RouteAdmission, RouteCandidate,
+        RouteHandle, RouteLease, RouteMaterializationInput, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+        RouteRuntimeState, RouteServiceKind, RoutingEngineFallbackPolicy,
+        RoutingObjective, RoutingTickContext, SelectedRoutingParameters, Tick,
+        TimeWindow,
     },
     Blake3Hashing, RoutingEngine, RoutingEnginePlanner,
 };
@@ -176,6 +177,68 @@ pub fn materialization_input(
     }
 }
 
+/// Step 1 of the activate pipeline: tick the engine and collect candidates
+/// for the given objective/profile against the supplied topology.
+pub fn tick_and_get_candidates(
+    engine: &mut TestEngine,
+    topology: &Observation<Configuration>,
+    goal: &RoutingObjective,
+    policy: &SelectedRoutingParameters,
+) -> Vec<RouteCandidate> {
+    engine.engine_tick(&tick_context(topology)).expect("engine tick");
+    engine.candidate_routes(goal, policy, topology)
+}
+
+/// Step 2 of the activate pipeline: admit the first candidate from the
+/// supplied list. Panics if the list is empty or admission fails.
+pub fn admit_first_candidate(
+    engine: &mut TestEngine,
+    topology: &Observation<Configuration>,
+    goal: &RoutingObjective,
+    policy: &SelectedRoutingParameters,
+    candidates: Vec<RouteCandidate>,
+) -> RouteAdmission {
+    let candidate = candidates
+        .into_iter()
+        .next()
+        .expect("admit_first_candidate requires at least one candidate");
+    engine
+        .admit_route(goal, policy, candidate, topology)
+        .expect("admit_first_candidate admission")
+}
+
+/// Step 3 of the activate pipeline: materialize an admitted route and
+/// assemble the canonical `(MaterializedRouteIdentity, RouteRuntimeState)`
+/// pair that the engine expects on `maintain_route` calls.
+pub fn materialize_admitted(
+    engine: &mut TestEngine,
+    admission: RouteAdmission,
+    lease_value: RouteLease,
+) -> (MaterializedRouteIdentity, RouteRuntimeState) {
+    let materialization_tick = lease_value.valid_for.start_tick();
+    let input = materialization_input(admission, lease_value);
+    let installation = engine
+        .materialize_route(input.clone())
+        .expect("materialize_admitted materialization");
+
+    let runtime = RouteRuntimeState {
+        last_lifecycle_event: installation.last_lifecycle_event,
+        health: installation.health,
+        progress: installation.progress,
+    };
+    let identity = MaterializedRouteIdentity {
+        handle: input.handle,
+        materialization_proof: installation.materialization_proof,
+        admission: input.admission,
+        lease: input.lease,
+    };
+    debug_assert_eq!(
+        materialization_tick, identity.handle.materialized_at_tick,
+        "materialization_input should use the lease start tick",
+    );
+    (identity, runtime)
+}
+
 /// Drive a route from candidate production to a fully materialized
 /// runtime. Returns the canonical identity and runtime state the engine
 /// expects on `maintain_route` calls. The objective always uses the
@@ -202,38 +265,7 @@ pub fn activate_route_with_profile(
     policy: &SelectedRoutingParameters,
     lease_value: RouteLease,
 ) -> (MaterializedRouteIdentity, RouteRuntimeState) {
-    let materialization_tick = lease_value.valid_for.start_tick();
-
-    engine
-        .engine_tick(&tick_context(topology))
-        .expect("engine tick");
-    let candidate = engine
-        .candidate_routes(goal, policy, topology)
-        .into_iter()
-        .next()
-        .expect("activate_route requires at least one candidate");
-    let admission = engine
-        .admit_route(goal, policy, candidate, topology)
-        .expect("activate_route admission");
-    let input = materialization_input(admission, lease_value);
-    let installation = engine
-        .materialize_route(input.clone())
-        .expect("activate_route materialization");
-
-    let runtime = RouteRuntimeState {
-        last_lifecycle_event: installation.last_lifecycle_event,
-        health: installation.health,
-        progress: installation.progress,
-    };
-    let identity = MaterializedRouteIdentity {
-        handle: input.handle,
-        materialization_proof: installation.materialization_proof,
-        admission: input.admission,
-        lease: input.lease,
-    };
-    debug_assert_eq!(
-        materialization_tick, identity.handle.materialized_at_tick,
-        "materialization_input should use the lease start tick",
-    );
-    (identity, runtime)
+    let candidates = tick_and_get_candidates(engine, topology, goal, policy);
+    let admission = admit_first_candidate(engine, topology, goal, policy, candidates);
+    materialize_admitted(engine, admission, lease_value)
 }

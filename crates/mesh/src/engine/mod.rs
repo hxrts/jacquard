@@ -32,7 +32,10 @@ use jacquard_core::{
     RouteRuntimeError, RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId,
 };
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngine};
-pub(crate) use support::DOMAIN_TAG_COMMITTEE_ID;
+pub(crate) use support::{
+    current_segment, digest_prefix, MaintenanceResultExt, StorageResultExt,
+    DOMAIN_TAG_COMMITTEE_ID,
+};
 use trait_bounds::{
     MeshEffectsBounds, MeshHasherBounds, MeshRetentionBounds, MeshSelectorBounds,
     MeshTopologyBounds, TransportEffectsBounds,
@@ -275,11 +278,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         Effects: MeshEffectsBounds,
     {
         let key = support::topology_epoch_storage_key(&self.local_node_id);
-        let Some(bytes) = self
-            .effects
-            .load_bytes(&key)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?
-        else {
+        let Some(bytes) = self.effects.load_bytes(&key).storage_invalid()? else {
             return Ok(None);
         };
         // Epoch is stored as raw LE bytes (not bincode) for cheap comparison.
@@ -300,11 +299,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         Effects: MeshEffectsBounds,
     {
         let key = support::route_storage_key(&self.local_node_id, route_id);
-        let Some(bytes) = self
-            .effects
-            .load_bytes(&key)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?
-        else {
+        let Some(bytes) = self.effects.load_bytes(&key).storage_invalid()? else {
             return Ok(None);
         };
         let active_route = support::decode_checkpoint_bytes(&bytes)
@@ -361,17 +356,13 @@ where
         if active_route.forwarding.current_owner_node_id != self.local_node_id {
             return Err(RouteRuntimeError::StaleOwner.into());
         }
-        let partition_mode = active_route.anti_entropy.partition_mode;
-        let next_segment = active_route
-            .path
-            .segments
-            .get(usize::from(active_route.forwarding.next_hop_index))
+        let partition_mode = active_route.is_in_partition_mode();
+        let next_segment = current_segment(active_route)
             .cloned()
             .ok_or(RouteRuntimeError::Invalidated)?;
         if partition_mode {
-            self.retain_for_route(route_id, payload).map_err(|_| {
-                RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)
-            })?;
+            self.retain_for_route(route_id, payload)
+                .maintenance_failed()?;
             return Ok(());
         }
 
@@ -450,27 +441,21 @@ where
         let digest = self
             .hashing
             .hash_tagged(support::DOMAIN_TAG_ROUTE_ID, &route_key_bytes);
-        let mut route_id = [0_u8; 16];
-        route_id.copy_from_slice(&digest.as_bytes()[..16]);
-        Ok(RouteId(route_id))
+        Ok(RouteId(support::digest_prefix::<16>(digest.as_bytes())))
     }
 
     fn commitment_id_for_route(&self, route_id: &RouteId) -> RouteCommitmentId {
         let digest = self
             .hashing
             .hash_tagged(support::DOMAIN_TAG_COMMITMENT, &route_id.0);
-        let mut commitment_id = [0_u8; 16];
-        commitment_id.copy_from_slice(&digest.as_bytes()[..16]);
-        RouteCommitmentId(commitment_id)
+        RouteCommitmentId(support::digest_prefix::<16>(digest.as_bytes()))
     }
 
     fn receipt_id_for_route(&self, route_id: &RouteId) -> ReceiptId {
         let digest = self
             .hashing
             .hash_tagged(support::DOMAIN_TAG_HANDOFF_RECEIPT, &route_id.0);
-        let mut receipt_id = [0_u8; 16];
-        receipt_id.copy_from_slice(&digest.as_bytes()[..16]);
-        ReceiptId(receipt_id)
+        ReceiptId(support::digest_prefix::<16>(digest.as_bytes()))
     }
 
     fn retention_object_id(
@@ -510,15 +495,20 @@ where
             &active_route.path.route_id,
         );
         let value = support::checkpoint_bytes(active_route);
-        self.effects
-            .store_bytes(&key, &value)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+        self.effects.store_bytes(&key, &value).storage_invalid()
+    }
+
+    /// Store a checkpoint for `active_route`, intentionally discarding any
+    /// storage error. Use only in rollback paths where the route is going
+    /// away regardless and storage hygiene is best-effort.
+    pub(super) fn checkpoint_best_effort(&mut self, active_route: &ActiveMeshRoute) {
+        let _ = self.store_checkpoint(active_route);
     }
 
     fn remove_checkpoint(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
         self.effects
             .remove_bytes(&support::route_storage_key(&self.local_node_id, route_id))
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+            .storage_invalid()
     }
 
     // Handoff target is the next owner in the owner-relative path view.

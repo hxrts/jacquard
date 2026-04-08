@@ -13,9 +13,34 @@
 //! cross-engine traits.
 
 use jacquard_core::{
-    Blake3Digest, ContentId, LinkEndpoint, StorageError, Tick, TransportObservation,
+    Blake3Digest, ContentId, LinkEndpoint, RouteError, RouteRuntimeError, StorageError,
+    Tick, TransportObservation,
 };
 use jacquard_traits::{RetentionStore, StorageEffects, TimeEffects, TransportEffects};
+
+/// Extension trait for converting choreography protocol errors into
+/// `RouteError::Runtime(MaintenanceFailed)`.
+pub(crate) trait ChoreographyResultExt<T> {
+    fn choreography_failed(self) -> Result<T, RouteError>;
+}
+
+impl<T, E> ChoreographyResultExt<T> for Result<T, E> {
+    fn choreography_failed(self) -> Result<T, RouteError> {
+        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    }
+}
+
+/// Extension trait for converting encoding/storage errors into
+/// `RouteError::Runtime(Invalidated)`.
+pub(crate) trait InvalidatedResultExt<T> {
+    fn invalidated(self) -> Result<T, RouteError>;
+}
+
+impl<T, E> InvalidatedResultExt<T> for Result<T, E> {
+    fn invalidated(self) -> Result<T, RouteError> {
+        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+    }
+}
 
 use crate::choreography::artifacts::{MeshProtocolKind, MeshProtocolSessionKey};
 

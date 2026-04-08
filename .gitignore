@@ -24,3 +24,6 @@ theme/
 # specs
 work/
 .tmp/
+
+# claude code
+.claude/

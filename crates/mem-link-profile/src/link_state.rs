@@ -3,6 +3,13 @@ use jacquard_core::{
     LinkState, PartitionRecoveryClass, RatioPermille, RepairCapability, Tick,
 };
 
+/// BLE latency floor (minimum one-way latency for a BLE GATT link).
+pub const BLE_LATENCY_FLOOR_MS: DurationMs = DurationMs(8);
+/// Typical round-trip time for a BLE GATT link.
+pub const BLE_TYPICAL_RTT_MS: DurationMs = DurationMs(40);
+/// Default stability horizon used when no better estimate is available.
+pub const DEFAULT_STABILITY_HORIZON_MS: DurationMs = DurationMs(500);
+
 /// Builder for one in-memory directed link profile and its initial runtime
 /// state.
 ///
@@ -30,13 +37,13 @@ impl SimulatedLinkProfile {
     pub fn new(endpoint: LinkEndpoint) -> Self {
         Self {
             endpoint,
-            latency_floor_ms: DurationMs(8),
+            latency_floor_ms: BLE_LATENCY_FLOOR_MS,
             repair_capability: RepairCapability::TransportRetransmit,
             partition_recovery: PartitionRecoveryClass::LocalReconnect,
             runtime_state: LinkRuntimeState::Active,
-            median_rtt_ms: DurationMs(40),
+            median_rtt_ms: BLE_TYPICAL_RTT_MS,
             transfer_rate_bytes_per_sec: 2048,
-            stability_horizon_ms: DurationMs(500),
+            stability_horizon_ms: DEFAULT_STABILITY_HORIZON_MS,
             loss_permille: RatioPermille(50),
             delivery_confidence_permille: RatioPermille(950),
             symmetry_permille: RatioPermille(900),
@@ -130,7 +137,11 @@ impl SimulatedLinkProfile {
             },
             state: LinkState {
                 state: self.runtime_state,
-                median_rtt_ms: self.median_rtt_ms,
+                median_rtt_ms: Belief::Estimated(Estimate {
+                    value: self.median_rtt_ms,
+                    confidence_permille: RatioPermille(1000),
+                    updated_at_tick: self.observed_at_tick,
+                }),
                 transfer_rate_bytes_per_sec: Belief::Estimated(Estimate {
                     value: self.transfer_rate_bytes_per_sec,
                     confidence_permille: RatioPermille(1000),
@@ -185,6 +196,13 @@ mod tests {
             link.profile.partition_recovery,
             PartitionRecoveryClass::EndToEndRecoverable,
         );
-        assert_eq!(link.state.median_rtt_ms, DurationMs(9));
+        assert_eq!(
+            link.state.median_rtt_ms,
+            Belief::Estimated(Estimate {
+                value: DurationMs(9),
+                confidence_permille: RatioPermille(1000),
+                updated_at_tick: Tick(0),
+            })
+        );
     }
 }

@@ -16,6 +16,18 @@ use jacquard_core::{
 use jacquard_traits::{
     OrderEffects, RouteEventLogEffects, StorageEffects, TimeEffects,
 };
+
+/// Extension trait for converting storage errors into
+/// `RouteError::Runtime(Invalidated)`.
+trait StorageResultExt<T> {
+    fn storage_invalid(self) -> Result<T, RouteError>;
+}
+
+impl<T, E> StorageResultExt<T> for Result<T, E> {
+    fn storage_invalid(self) -> Result<T, RouteError> {
+        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+    }
+}
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,11 +67,10 @@ where
             &self.local_node_id,
             &record.route.identity.handle.route_id,
         );
-        let route_bytes = bincode::serialize(record)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+        let route_bytes = bincode::serialize(record).storage_invalid()?;
         self.effects
             .store_bytes(&route_key, &route_bytes)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+            .storage_invalid()?;
 
         let mut registry = self.load_route_registry()?;
         registry.insert(record.route.identity.handle.route_id);
@@ -76,9 +87,7 @@ where
         route_id: &RouteId,
     ) -> Result<(), RouteError> {
         let route_key = route_storage_key(&self.local_node_id, route_id);
-        self.effects
-            .remove_bytes(&route_key)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+        self.effects.remove_bytes(&route_key).storage_invalid()?;
         let mut registry = self.load_route_registry()?;
         registry.remove(route_id);
         self.store_route_registry(&registry)
@@ -92,16 +101,13 @@ where
         let mut pruned_registry = registry.clone();
         for route_id in registry {
             let route_key = route_storage_key(&self.local_node_id, &route_id);
-            let Some(bytes) = self
-                .effects
-                .load_bytes(&route_key)
-                .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?
+            let Some(bytes) = self.effects.load_bytes(&route_key).storage_invalid()?
             else {
                 pruned_registry.remove(&route_id);
                 continue;
             };
             let record = bincode::deserialize::<RouterCheckpointRecord>(&bytes)
-                .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+                .storage_invalid()?;
             recovered.push((route_id, record));
         }
         if pruned_registry != self.load_route_registry()? {
@@ -122,20 +128,16 @@ where
                 emitted_at_tick,
                 event,
             })
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+            .storage_invalid()
     }
 
     fn load_route_registry(&mut self) -> Result<BTreeSet<RouteId>, RouteError> {
         let registry_key = route_registry_storage_key(&self.local_node_id);
-        let Some(bytes) = self
-            .effects
-            .load_bytes(&registry_key)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?
+        let Some(bytes) = self.effects.load_bytes(&registry_key).storage_invalid()?
         else {
             return Ok(BTreeSet::new());
         };
-        bincode::deserialize(&bytes)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+        bincode::deserialize(&bytes).storage_invalid()
     }
 
     fn store_route_registry(
@@ -143,11 +145,10 @@ where
         registry: &BTreeSet<RouteId>,
     ) -> Result<(), RouteError> {
         let registry_key = route_registry_storage_key(&self.local_node_id);
-        let registry_bytes = bincode::serialize(registry)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+        let registry_bytes = bincode::serialize(registry).storage_invalid()?;
         self.effects
             .store_bytes(&registry_key, &registry_bytes)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+            .storage_invalid()
     }
 }
 

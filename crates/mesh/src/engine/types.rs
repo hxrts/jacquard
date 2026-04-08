@@ -49,18 +49,22 @@ pub(crate) struct MeshForwardingState {
     pub current_owner_node_id: NodeId,
     pub next_hop_index: u8,
     pub in_flight_frames: u32,
+    /// `None` means this event has never occurred.
     pub last_ack_at_tick: Option<Tick>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct MeshRepairState {
     pub steps_remaining: u32,
+    /// `None` means this event has never occurred.
     pub last_repaired_at_tick: Option<Tick>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct MeshHandoffState {
+    /// `None` means this event has never occurred.
     pub last_receipt_id: Option<ReceiptId>,
+    /// `None` means this event has never occurred.
     pub last_handoff_at_tick: Option<Tick>,
 }
 
@@ -68,6 +72,7 @@ pub(crate) struct MeshHandoffState {
 pub(crate) struct MeshRouteAntiEntropyState {
     pub partition_mode: bool,
     pub retained_objects: BTreeSet<ContentId<Blake3Digest>>,
+    /// `None` means this event has never occurred.
     pub last_refresh_at_tick: Option<Tick>,
 }
 
@@ -85,6 +90,12 @@ pub(crate) struct ActiveMeshRoute {
     pub anti_entropy: MeshRouteAntiEntropyState,
 }
 
+impl ActiveMeshRoute {
+    pub(crate) fn is_in_partition_mode(&self) -> bool {
+        self.anti_entropy.partition_mode
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshObservedRemoteLink {
     pub last_observed_at_tick: Tick,
@@ -94,6 +105,7 @@ pub struct MeshObservedRemoteLink {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshTransportObservationSummary {
+    /// `None` means this event has never occurred.
     pub last_observed_at_tick: Option<Tick>,
     pub payload_event_count: u16,
     pub observed_link_count: u16,
@@ -114,6 +126,7 @@ pub enum MeshTransportFreshness {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MeshAntiEntropyState {
     pub pressure_score: HealthScore,
+    /// `None` means this event has never occurred.
     pub last_refreshed_at_tick: Option<Tick>,
 }
 

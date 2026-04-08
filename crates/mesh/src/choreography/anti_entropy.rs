@@ -6,13 +6,16 @@
 
 use std::{error::Error, marker, result};
 
-use jacquard_core::{RouteError, RouteId, RouteRuntimeError};
+use jacquard_core::{RouteError, RouteId};
 use telltale::{
     futures::{executor, try_join},
     tell, try_session,
 };
 
-use super::runtime::{MeshAntiEntropySnapshot, MeshGuestRuntime};
+use super::{
+    effects::ChoreographyResultExt,
+    runtime::{MeshAntiEntropySnapshot, MeshGuestRuntime},
+};
 
 pub(crate) const SOURCE_PATH: &str = "crates/mesh/src/choreography/anti_entropy.rs";
 pub(crate) const PROTOCOL_NAME: &str = "AntiEntropyExchange";
@@ -68,7 +71,7 @@ pub(crate) fn execute<E>(
         )
     })
     .map(|(_, _, detail)| detail)
-    .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    .choreography_failed()
 }
 
 async fn current_owner_role(

@@ -23,6 +23,33 @@ pub enum Belief<T> {
     Estimated(Estimate<T>),
 }
 
+impl<T: Clone> Belief<T> {
+    /// Returns `None` for `Absent`, `Some(est.value.clone())` for `Estimated`.
+    pub fn value(&self) -> Option<T> {
+        match self {
+            | Belief::Absent => None,
+            | Belief::Estimated(est) => Some(est.value.clone()),
+        }
+    }
+
+    /// Returns `None` for `Absent`, `Some(est.confidence_permille)` for
+    /// `Estimated`.
+    pub fn confidence(&self) -> Option<RatioPermille> {
+        match self {
+            | Belief::Absent => None,
+            | Belief::Estimated(est) => Some(est.confidence_permille),
+        }
+    }
+
+    /// Returns `default` for `Absent`, `est.value.clone()` for `Estimated`.
+    pub fn value_or(&self, default: T) -> T {
+        match self {
+            | Belief::Absent => default,
+            | Belief::Estimated(est) => est.value.clone(),
+        }
+    }
+}
+
 #[public_model]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,

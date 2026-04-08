@@ -6,7 +6,7 @@
 
 use std::{error::Error, marker, result};
 
-use jacquard_core::{RouteError, RouteId, RouteRuntimeError};
+use jacquard_core::{RouteError, RouteId};
 use telltale::{
     futures::{executor, try_join},
     tell, try_session,
@@ -44,7 +44,10 @@ use BoundedSuffixRepair::sessions::{
     RepairRejected, RepairRequest, Roles,
 };
 
-use super::{effects::MeshProtocolRuntime, runtime::MeshGuestRuntime};
+use super::{
+    effects::{ChoreographyResultExt, MeshProtocolRuntime},
+    runtime::MeshGuestRuntime,
+};
 
 pub(crate) fn execute<E>(
     _runtime: &mut MeshGuestRuntime<E>,
@@ -65,7 +68,7 @@ where
         )
     })
     .map(|_| ())
-    .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    .choreography_failed()
 }
 
 async fn current_owner_role(

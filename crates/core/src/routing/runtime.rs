@@ -44,6 +44,16 @@ impl RoutingTickContext {
     }
 }
 
+impl RoutingTickOutcome {
+    #[must_use]
+    pub fn no_change_for(tick: &RoutingTickContext) -> Self {
+        Self {
+            topology_epoch: tick.topology.value.epoch,
+            change: RoutingTickChange::NoChange,
+        }
+    }
+}
+
 #[public_model]
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
@@ -340,6 +350,18 @@ pub struct MaterializedRouteIdentity {
 impl MaterializedRouteIdentity {
     pub fn ensure_lease_valid_at(&self, tick: Tick) -> Result<(), RouteRuntimeError> {
         self.lease.ensure_valid_at(tick)
+    }
+
+    pub fn route_id(&self) -> &RouteId {
+        &self.handle.route_id
+    }
+
+    pub fn topology_epoch(&self) -> RouteEpoch {
+        self.handle.topology_epoch
+    }
+
+    pub fn materialized_at_tick(&self) -> Tick {
+        self.handle.materialized_at_tick
     }
 }
 

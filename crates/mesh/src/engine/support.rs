@@ -14,11 +14,36 @@ use std::{
 use bincode::Options;
 #[allow(unused_imports)]
 use jacquard_core::{
-    BackendRouteId, ByteCount, CommitteeSelection, Configuration, DegradationReason,
-    DestinationId, DeterministicOrderKey, DiversityFloor, Limit, NodeId, OrderStamp,
-    QuorumThreshold, RouteCost, RouteDegradation, RouteEpoch, RouteId, TimeWindow,
+    BackendRouteId, Belief, ByteCount, CommitteeSelection, Configuration,
+    DegradationReason, DestinationId, DeterministicOrderKey, DiversityFloor, Limit,
+    NodeId, OrderStamp, QuorumThreshold, RatioPermille, RouteCost, RouteDegradation,
+    RouteEpoch, RouteError, RouteId, RouteRuntimeError, TimeWindow,
 };
 use jacquard_traits::{HashDigestBytes, Hashing};
+
+/// Extension trait for converting storage errors into
+/// `RouteError::Runtime(Invalidated)`.
+pub(crate) trait StorageResultExt<T> {
+    fn storage_invalid(self) -> Result<T, RouteError>;
+}
+
+impl<T, E> StorageResultExt<T> for Result<T, E> {
+    fn storage_invalid(self) -> Result<T, RouteError> {
+        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+    }
+}
+
+/// Extension trait for converting effects errors into
+/// `RouteError::Runtime(MaintenanceFailed)`.
+pub(crate) trait MaintenanceResultExt<T> {
+    fn maintenance_failed(self) -> Result<T, RouteError>;
+}
+
+impl<T, E> MaintenanceResultExt<T> for Result<T, E> {
+    fn maintenance_failed(self) -> Result<T, RouteError> {
+        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    }
+}
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -26,6 +51,34 @@ use super::{
     MESH_HOLD_RESERVED_BYTES, MESH_PER_HOP_BYTE_COST,
 };
 use crate::topology::{adjacent_link_between, adjacent_node_ids, belief_into_estimate};
+
+/// Per-link quality penalties derived from a single `LinkState`.
+pub(crate) struct LinkPenalties {
+    pub delivery: u32,
+    pub symmetry: u32,
+    pub loss: u32,
+}
+
+/// Compute delivery, symmetry, and loss penalties from a single link's state.
+/// Each penalty is on a 0–1000 scale (higher = worse link quality).
+pub(crate) fn link_quality_penalties(
+    state: &jacquard_core::LinkState,
+) -> LinkPenalties {
+    let delivery = 1000_u32.saturating_sub(u32::from(
+        state
+            .delivery_confidence_permille
+            .value_or(jacquard_core::RatioPermille(0))
+            .get(),
+    ));
+    let symmetry = 1000_u32.saturating_sub(u32::from(
+        state
+            .symmetry_permille
+            .value_or(jacquard_core::RatioPermille(0))
+            .get(),
+    ));
+    let loss = u32::from(state.loss_permille.get());
+    LinkPenalties { delivery, symmetry, loss }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct MeshPlanToken {
@@ -42,6 +95,12 @@ pub(super) struct MeshPlanToken {
 }
 
 pub(super) use crate::engine::types::MeshCommitteeStatus as CommitteeStatus;
+
+/// Maps a `Belief<RatioPermille>` to a `u32` health score.
+/// `Absent` maps to 0; `Estimated` maps to the inner permille value as `u32`.
+pub(crate) fn belief_to_health_score(belief: &Belief<RatioPermille>) -> u32 {
+    u32::from(belief.value_or(RatioPermille(0)).get())
+}
 
 pub(crate) const DOMAIN_TAG_ROUTE_ID: &[u8] = b"mesh-route-id";
 pub(crate) const DOMAIN_TAG_COMMITMENT: &[u8] = b"mesh-commitment";
@@ -202,17 +261,26 @@ pub(super) fn decode_backend_token(
     decode_versioned(&backend_route_id.0, PLAN_TOKEN_ENCODING_VERSION)
 }
 
+/// Extract the first `N` bytes of a digest's byte slice as a fixed-size array.
+/// Used to derive typed ID newtypes and tie-break keys from tagged hash
+/// outputs.
+pub(crate) fn digest_prefix<const N: usize>(digest_bytes: &[u8]) -> [u8; N] {
+    let mut out = [0u8; N];
+    out.copy_from_slice(&digest_bytes[..N]);
+    out
+}
+
 pub(super) fn deterministic_order_key<H: Hashing>(
     route_id: RouteId,
     hashing: &H,
     path_bytes: &[u8],
 ) -> DeterministicOrderKey<RouteId> {
     let digest = hashing.hash_tagged(DOMAIN_TAG_ORDER_KEY, path_bytes);
-    let mut tie_break_bytes = [0_u8; 8];
-    tie_break_bytes.copy_from_slice(&digest.as_bytes()[..8]);
     DeterministicOrderKey {
         stable_key: route_id,
-        tie_break: OrderStamp(u64::from_le_bytes(tie_break_bytes)),
+        tie_break: OrderStamp(u64::from_le_bytes(digest_prefix::<8>(
+            digest.as_bytes(),
+        ))),
     }
 }
 
@@ -308,7 +376,7 @@ fn route_quality_penalties(
     (delivery_penalty, symmetry_penalty, congestion_penalty)
 }
 
-fn protocol_diversity_bonus(segments: &[MeshRouteSegment]) -> u32 {
+pub(crate) fn protocol_diversity_bonus(segments: &[MeshRouteSegment]) -> u32 {
     let protocol_mix = unique_protocol_mix(segments);
     let u32_max_as_usize =
         usize::try_from(u32::MAX).expect("u32::MAX fits on supported targets");
@@ -359,6 +427,15 @@ pub(super) fn route_cost_for_segments(
     }
 }
 
+/// Returns the segment at the current forwarding cursor position, or `None`
+/// if the route has been fully forwarded.
+pub(crate) fn current_segment(route: &ActiveMeshRoute) -> Option<&MeshRouteSegment> {
+    route
+        .path
+        .segments
+        .get(usize::from(route.forwarding.next_hop_index))
+}
+
 pub(super) fn checkpoint_bytes(active_route: &ActiveMeshRoute) -> Vec<u8> {
     encode_versioned(CHECKPOINT_ENCODING_VERSION, active_route)
 }
@@ -401,6 +478,7 @@ mod tests {
         RouteRepairClass, RouteServiceKind, RouteSummary, RoutingObjective,
         RuntimeEnvelopeClass, SelectedRoutingParameters, Tick,
     };
+    use jacquard_mem_link_profile::BLE_MTU_BYTES;
 
     use super::*;
     use crate::{MeshPath, MESH_ENGINE_ID};
@@ -523,7 +601,7 @@ mod tests {
                     device_id: jacquard_core::BleDeviceId(vec![0]),
                     profile_id: jacquard_core::BleProfileId([0; 16]),
                 },
-                mtu_bytes: ByteCount(256),
+                mtu_bytes: BLE_MTU_BYTES,
             },
             profile: jacquard_core::LinkProfile {
                 latency_floor_ms: jacquard_core::DurationMs(8),
@@ -533,7 +611,7 @@ mod tests {
             },
             state: jacquard_core::LinkState {
                 state: jacquard_core::LinkRuntimeState::Active,
-                median_rtt_ms: jacquard_core::DurationMs(40),
+                median_rtt_ms: Belief::Absent,
                 transfer_rate_bytes_per_sec: Belief::Absent,
                 stability_horizon_ms: Belief::Absent,
                 loss_permille: RatioPermille(0),
@@ -612,7 +690,7 @@ mod tests {
                             device_id: jacquard_core::BleDeviceId(vec![2]),
                             profile_id: jacquard_core::BleProfileId([2; 16]),
                         },
-                        mtu_bytes: ByteCount(256),
+                        mtu_bytes: BLE_MTU_BYTES,
                     },
                 },
                 MeshRouteSegment {
@@ -798,7 +876,7 @@ mod tests {
                     device_id: jacquard_core::BleDeviceId(vec![2]),
                     profile_id: jacquard_core::BleProfileId([2; 16]),
                 },
-                mtu_bytes: ByteCount(256),
+                mtu_bytes: BLE_MTU_BYTES,
             },
         }];
         let wifi_segments = vec![MeshRouteSegment {

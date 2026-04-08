@@ -6,11 +6,12 @@
 //! inputs, letting the planner sort candidates without changing their shared
 //! shape.
 
-use jacquard_core::{Belief, Configuration, NodeId, Observation, RoutingObjective};
+use jacquard_core::{Configuration, NodeId, Observation, RoutingObjective};
 
 use super::{
-    MeshEngine, PATH_METRIC_BASE_HOP_COST, PATH_METRIC_DELIVERY_PENALTY_WEIGHT,
-    PATH_METRIC_LOSS_PENALTY_WEIGHT, PATH_METRIC_SYMMETRY_PENALTY_WEIGHT,
+    super::support::link_quality_penalties, MeshEngine, PATH_METRIC_BASE_HOP_COST,
+    PATH_METRIC_DELIVERY_PENALTY_WEIGHT, PATH_METRIC_LOSS_PENALTY_WEIGHT,
+    PATH_METRIC_SYMMETRY_PENALTY_WEIGHT,
 };
 use crate::{
     topology::{
@@ -125,8 +126,9 @@ where
         let configuration = &topology.value;
         let (_, link_state) =
             estimate_hop_link(from_node_id, to_node_id, configuration)?;
+        let penalties = link_quality_penalties(&link_state);
         let (delivery_penalty, symmetry_penalty, loss_penalty) =
-            Self::link_metric_penalties(&link_state);
+            (penalties.delivery, penalties.symmetry, penalties.loss);
         let peer_bonus = self.peer_bonus_for_edge(
             objective,
             topology,
@@ -153,23 +155,6 @@ where
                 .saturating_add(neighborhood_penalty)
                 .saturating_sub(peer_bonus.saturating_add(neighborhood_bonus)),
         )
-    }
-
-    fn link_metric_penalties(link_state: &jacquard_core::LinkState) -> (u32, u32, u32) {
-        let delivery_penalty = match link_state.delivery_confidence_permille {
-            | Belief::Absent => 1000,
-            | Belief::Estimated(estimate) => {
-                1000_u32.saturating_sub(u32::from(estimate.value.get()))
-            },
-        };
-        let symmetry_penalty = match link_state.symmetry_permille {
-            | Belief::Absent => 1000,
-            | Belief::Estimated(estimate) => {
-                1000_u32.saturating_sub(u32::from(estimate.value.get()))
-            },
-        };
-        let loss_penalty = u32::from(link_state.loss_permille.get());
-        (delivery_penalty, symmetry_penalty, loss_penalty)
     }
 
     fn peer_bonus_for_edge(

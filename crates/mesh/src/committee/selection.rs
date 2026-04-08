@@ -466,8 +466,6 @@ where
         let digest = self
             .hashing
             .hash_tagged(crate::engine::DOMAIN_TAG_COMMITTEE_ID, &payload);
-        let mut bytes = [0_u8; 16];
-        bytes.copy_from_slice(&digest.as_bytes()[..16]);
-        CommitteeId(bytes)
+        CommitteeId(crate::engine::digest_prefix::<16>(digest.as_bytes()))
     }
 }

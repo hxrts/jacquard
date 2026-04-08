@@ -7,28 +7,17 @@
 
 use std::collections::BTreeMap;
 
+use jacquard_mem_link_profile::ble_endpoint;
 use jacquard_mesh::MESH_ENGINE_ID;
 use jacquard_traits::jacquard_core::{
-    Belief, BleDeviceId, BleProfileId, ByteCount, Configuration, ControllerId,
-    DiscoveryScopeId, DurationMs, EndpointAddress, Environment, Estimate,
-    FactSourceClass, HoldItemCount, InformationSetSummary, InformationSummaryEncoding,
-    Link, LinkEndpoint, LinkRuntimeState, LinkState, MaintenanceWorkBudget, Node,
-    NodeId, NodeProfile, NodeRelayBudget, NodeState, Observation,
-    OriginAuthenticationClass, RatioPermille, RelayWorkBudget, RepairCapacitySlots,
-    RouteEpoch, RouteServiceKind, RoutingEvidenceClass, ServiceDescriptor,
-    ServiceScope, Tick, TimeWindow, TransportProtocol,
+    Belief, ByteCount, Configuration, ControllerId, DiscoveryScopeId, DurationMs,
+    Environment, Estimate, FactSourceClass, HoldItemCount, InformationSetSummary,
+    InformationSummaryEncoding, Link, LinkRuntimeState, LinkState,
+    MaintenanceWorkBudget, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
+    Observation, OriginAuthenticationClass, RatioPermille, RelayWorkBudget,
+    RepairCapacitySlots, RouteEpoch, RouteServiceKind, RoutingEvidenceClass,
+    ServiceDescriptor, ServiceScope, Tick, TimeWindow,
 };
-
-pub fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
-    LinkEndpoint {
-        protocol: TransportProtocol::BleGatt,
-        address: EndpointAddress::Ble {
-            device_id: BleDeviceId(vec![device_byte]),
-            profile_id: BleProfileId([device_byte; 16]),
-        },
-        mtu_bytes: ByteCount(256),
-    }
-}
 
 pub fn route_capable_services(
     node_id: NodeId,
@@ -148,7 +137,11 @@ pub fn link(device_byte: u8, confidence: u16) -> Link {
         },
         state: LinkState {
             state: LinkRuntimeState::Active,
-            median_rtt_ms: DurationMs(40),
+            median_rtt_ms: Belief::Estimated(Estimate {
+                value: DurationMs(40),
+                confidence_permille: RatioPermille(1000),
+                updated_at_tick: Tick(1),
+            }),
             transfer_rate_bytes_per_sec: Belief::Estimated(Estimate {
                 value: 2048,
                 confidence_permille: RatioPermille(1000),

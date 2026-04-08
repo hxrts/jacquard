@@ -15,6 +15,6 @@ pub mod profile;
 pub mod services;
 pub mod state;
 
-pub use profile::SimulatedNodeProfile;
+pub use profile::{SimulatedNodeProfile, DEFAULT_HOLD_CAPACITY_BYTES};
 pub use services::SimulatedServiceDescriptor;
 pub use state::NodeStateSnapshot;

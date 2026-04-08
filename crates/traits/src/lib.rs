@@ -34,10 +34,21 @@
 
 #![forbid(unsafe_code)]
 
+/// Expands to `#[must_use = "unread {name} result silently discards {description}"]`
+/// applied to the following item.
+/// Use on trait methods that return meaningful values whose results must not be silently dropped.
+macro_rules! must_use_evidence {
+    ($name:literal, $desc:literal; $($item:tt)+) => {
+        #[must_use = concat!("unread ", $name, " result silently discards ", $desc)]
+        $($item)+
+    };
+}
+
 extern crate self as jacquard_traits;
 
 mod effects;
 mod handler;
+mod sealed;
 mod hashing;
 mod mesh;
 mod routing;

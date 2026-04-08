@@ -3,8 +3,8 @@
 
 use jacquard_traits::{
     jacquard_core::{
-        Belief, ControllerId, DurationMs, Environment, Link, LinkEndpoint,
-        LinkRuntimeState, LinkState, Node, NodeId, NodeRelayBudget, Observation,
+        Belief, ControllerId, DurationMs, Environment, Link,
+        LinkRuntimeState, LinkState, NodeId, NodeRelayBudget, Observation,
         ObservedValue, RatioPermille, RepairCapacitySlots, RoutingEngineId,
         ServiceDescriptor, ServiceScope, Tick, TimeWindow, TransportObservation,
         TransportProtocol, WorldError, WorldObservation,
@@ -76,22 +76,14 @@ impl LinkWorldExtension for StubWorldExtension {
     }
 }
 
-fn sample_endpoint() -> LinkEndpoint {
-    common::sample_endpoint()
-}
-
-fn sample_node() -> Node {
-    common::sample_node()
-}
-
 fn sample_node_observation() -> WorldObservation {
-    common::local_observation(ObservedValue::Node(sample_node()), Tick(2))
+    common::local_observation(ObservedValue::Node(common::sample_node()), Tick(2))
 }
 
 fn sample_link_observation() -> WorldObservation {
     common::local_observation(
         ObservedValue::Link(Link {
-            endpoint: sample_endpoint(),
+            endpoint: common::sample_endpoint(),
             profile: jacquard_traits::jacquard_core::LinkProfile {
                 latency_floor_ms: DurationMs(2),
                 repair_capability:
@@ -123,7 +115,7 @@ fn sample_service_observation() -> WorldObservation {
             provider_node_id: NodeId([8; 32]),
             controller_id: ControllerId([3; 32]),
             service_kind: jacquard_traits::jacquard_core::RouteServiceKind::Discover,
-            endpoints: vec![sample_endpoint()],
+            endpoints: vec![common::sample_endpoint()],
             routing_engines: vec![RoutingEngineId::from_contract_bytes([1; 16])],
             scope: ServiceScope::Introduction { scope_token: vec![9] },
             valid_for: TimeWindow::new(Tick(2), Tick(20))
@@ -150,7 +142,7 @@ fn sample_transport_observation() -> WorldObservation {
     common::local_observation(
         ObservedValue::Transport(TransportObservation::PayloadReceived {
             from_node_id: NodeId([9; 32]),
-            endpoint: sample_endpoint(),
+            endpoint: common::sample_endpoint(),
             payload: b"hello".to_vec(),
             observed_at_tick: Tick(2),
         }),

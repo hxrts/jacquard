@@ -3,6 +3,9 @@ use jacquard_core::{
     TransportProtocol,
 };
 
+/// BLE GATT MTU in bytes.
+pub const BLE_MTU_BYTES: ByteCount = ByteCount(256);
+
 #[must_use]
 pub fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
     LinkEndpoint {
@@ -11,7 +14,7 @@ pub fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
             device_id: BleDeviceId(vec![device_byte]),
             profile_id: BleProfileId([device_byte; 16]),
         },
-        mtu_bytes: ByteCount(256),
+        mtu_bytes: BLE_MTU_BYTES,
     }
 }
 

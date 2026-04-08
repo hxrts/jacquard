@@ -82,8 +82,7 @@ impl NodeStateSnapshot {
     }
 
     pub fn reserve_hold_capacity(&mut self, bytes: ByteCount) {
-        self.hold_capacity_available_bytes =
-            ByteCount(self.hold_capacity_available_bytes.0.saturating_sub(bytes.0));
+        self.hold_capacity_available_bytes = self.hold_capacity_available_bytes - bytes;
     }
 
     pub fn open_connection(&mut self) {

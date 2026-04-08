@@ -18,6 +18,8 @@ use jacquard_core::{
     Observation, PenaltyPoints, RelayWorkBudget, RoutePartitionClass, RouteRepairClass,
     RoutingObjective, SelectedRoutingParameters, Tick,
 };
+#[cfg(test)]
+use jacquard_mem_link_profile::BLE_MTU_BYTES;
 pub use selection::{DeterministicCommitteeSelector, NoCommitteeSelector};
 
 use crate::topology::bounded_health_score;
@@ -185,7 +187,7 @@ mod tests {
                 device_id: BleDeviceId(vec![byte]),
                 profile_id: BleProfileId([byte; 16]),
             },
-            mtu_bytes: ByteCount(256),
+            mtu_bytes: BLE_MTU_BYTES,
         }
     }
 
@@ -268,7 +270,7 @@ mod tests {
             },
             state: LinkState {
                 state: LinkRuntimeState::Active,
-                median_rtt_ms: jacquard_core::DurationMs(40),
+                median_rtt_ms: Belief::Absent,
                 transfer_rate_bytes_per_sec: Belief::Absent,
                 stability_horizon_ms: Belief::Absent,
                 loss_permille: RatioPermille(20),

@@ -6,6 +6,10 @@
 //! handles so assertions can inspect sent frames, stored bytes, and retained
 //! payloads without requiring public mesh-engine getters for those internals.
 
+const EFFECTS_LOCK: &str = "test effects lock";
+const TRANSPORT_LOCK: &str = "test transport lock";
+const RETENTION_LOCK: &str = "test retention lock";
+
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
@@ -30,18 +34,14 @@ impl TestTransport {
     pub fn push_observation(&self, observation: TransportObservation) {
         self.0
             .lock()
-            .expect("test transport lock")
+            .expect(TRANSPORT_LOCK)
             .observations
             .push(observation);
     }
 
     #[must_use]
     pub fn sent_frames(&self) -> Vec<(jacquard_core::LinkEndpoint, Vec<u8>)> {
-        self.0
-            .lock()
-            .expect("test transport lock")
-            .sent_frames
-            .clone()
+        self.0.lock().expect(TRANSPORT_LOCK).sent_frames.clone()
     }
 }
 
@@ -54,12 +54,12 @@ impl TransportEffects for TestTransport {
     ) -> Result<(), TransportError> {
         self.0
             .lock()
-            .expect("test transport lock")
+            .expect(TRANSPORT_LOCK)
             .send_transport(endpoint, payload)
     }
 
     fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
-        self.0.lock().expect("test transport lock").poll_transport()
+        self.0.lock().expect(TRANSPORT_LOCK).poll_transport()
     }
 }
 
@@ -75,49 +75,41 @@ impl TestRuntimeEffects {
     }
 
     pub fn set_now(&self, now: Tick) {
-        self.0.lock().expect("test effects lock").now = now;
+        self.0.lock().expect(EFFECTS_LOCK).now = now;
     }
 
     pub fn set_fail_store_bytes(&self, fail: bool) {
-        self.0.lock().expect("test effects lock").fail_store_bytes = fail;
+        self.0.lock().expect(EFFECTS_LOCK).fail_store_bytes = fail;
     }
 
     pub fn set_fail_record_route_event(&self, fail: bool) {
-        self.0
-            .lock()
-            .expect("test effects lock")
-            .fail_record_route_event = fail;
+        self.0.lock().expect(EFFECTS_LOCK).fail_record_route_event = fail;
     }
 
     #[must_use]
     pub fn events(&self) -> Vec<RouteEventStamped> {
-        self.0.lock().expect("test effects lock").events.clone()
+        self.0.lock().expect(EFFECTS_LOCK).events.clone()
     }
 
     #[must_use]
     pub fn storage_clone(&self) -> BTreeMap<Vec<u8>, Vec<u8>> {
-        self.0.lock().expect("test effects lock").storage.clone()
+        self.0.lock().expect(EFFECTS_LOCK).storage.clone()
     }
 
     pub fn replace_storage(&self, storage: BTreeMap<Vec<u8>, Vec<u8>>) {
-        self.0.lock().expect("test effects lock").storage = storage;
+        self.0.lock().expect(EFFECTS_LOCK).storage = storage;
     }
 
     #[must_use]
     pub fn storage_value(&self, key: &[u8]) -> Option<Vec<u8>> {
-        self.0
-            .lock()
-            .expect("test effects lock")
-            .storage
-            .get(key)
-            .cloned()
+        self.0.lock().expect(EFFECTS_LOCK).storage.get(key).cloned()
     }
 
     #[must_use]
     pub fn storage_keys(&self) -> Vec<Vec<u8>> {
         self.0
             .lock()
-            .expect("test effects lock")
+            .expect(EFFECTS_LOCK)
             .storage
             .keys()
             .cloned()
@@ -128,32 +120,29 @@ impl TestRuntimeEffects {
 #[effect_handler]
 impl TimeEffects for TestRuntimeEffects {
     fn now_tick(&self) -> Tick {
-        self.0.lock().expect("test effects lock").now_tick()
+        self.0.lock().expect(EFFECTS_LOCK).now_tick()
     }
 }
 
 #[effect_handler]
 impl OrderEffects for TestRuntimeEffects {
     fn next_order_stamp(&mut self) -> OrderStamp {
-        self.0.lock().expect("test effects lock").next_order_stamp()
+        self.0.lock().expect(EFFECTS_LOCK).next_order_stamp()
     }
 }
 
 #[effect_handler]
 impl StorageEffects for TestRuntimeEffects {
     fn load_bytes(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        self.0.lock().expect("test effects lock").load_bytes(key)
+        self.0.lock().expect(EFFECTS_LOCK).load_bytes(key)
     }
 
     fn store_bytes(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
-        self.0
-            .lock()
-            .expect("test effects lock")
-            .store_bytes(key, value)
+        self.0.lock().expect(EFFECTS_LOCK).store_bytes(key, value)
     }
 
     fn remove_bytes(&mut self, key: &[u8]) -> Result<(), StorageError> {
-        self.0.lock().expect("test effects lock").remove_bytes(key)
+        self.0.lock().expect(EFFECTS_LOCK).remove_bytes(key)
     }
 }
 
@@ -163,10 +152,7 @@ impl RouteEventLogEffects for TestRuntimeEffects {
         &mut self,
         event: RouteEventStamped,
     ) -> Result<(), RouteEventLogError> {
-        self.0
-            .lock()
-            .expect("test effects lock")
-            .record_route_event(event)
+        self.0.lock().expect(EFFECTS_LOCK).record_route_event(event)
     }
 }
 
@@ -176,7 +162,7 @@ pub struct TestRetentionStore(Arc<Mutex<InMemoryRetentionStore>>);
 impl TestRetentionStore {
     #[must_use]
     pub fn payload_count(&self) -> usize {
-        self.0.lock().expect("test retention lock").payloads.len()
+        self.0.lock().expect(RETENTION_LOCK).payloads.len()
     }
 }
 
@@ -189,7 +175,7 @@ impl RetentionStore for TestRetentionStore {
     ) -> Result<(), RetentionError> {
         self.0
             .lock()
-            .expect("test retention lock")
+            .expect(RETENTION_LOCK)
             .retain_payload(object_id, payload)
     }
 
@@ -199,7 +185,7 @@ impl RetentionStore for TestRetentionStore {
     ) -> Result<Option<Vec<u8>>, RetentionError> {
         self.0
             .lock()
-            .expect("test retention lock")
+            .expect(RETENTION_LOCK)
             .take_retained_payload(object_id)
     }
 
@@ -209,7 +195,7 @@ impl RetentionStore for TestRetentionStore {
     ) -> Result<bool, RetentionError> {
         self.0
             .lock()
-            .expect("test retention lock")
+            .expect(RETENTION_LOCK)
             .contains_retained_payload(object_id)
     }
 }

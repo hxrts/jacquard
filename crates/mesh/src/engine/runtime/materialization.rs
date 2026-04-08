@@ -241,7 +241,7 @@ where
             .activation_handshake(&route_id, input.handle.topology_epoch)
         {
             if let Some(previous_active_route) = previous_active_route.as_ref() {
-                let _ = self.store_checkpoint(previous_active_route);
+                self.checkpoint_best_effort(previous_active_route);
             } else {
                 let _ = self.remove_checkpoint(&route_id);
             }

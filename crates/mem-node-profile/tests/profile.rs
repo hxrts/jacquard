@@ -21,7 +21,7 @@ fn simulated_profile_builds_node_profile_and_services() {
     let controller_id = ControllerId([8; 32]);
     let profile = SimulatedNodeProfile::new()
         .with_connection_count_max(8)
-        .with_relay_budget(10)
+        .with_relay_work_budget_max(10)
         .with_hold_capacity(ByteCount(8192))
         .with_endpoint(endpoint(1))
         .with_service(

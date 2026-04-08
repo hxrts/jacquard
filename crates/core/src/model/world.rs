@@ -63,7 +63,7 @@ pub struct LinkProfile {
 /// Current link state in the routing world model.
 pub struct LinkState {
     pub state: LinkRuntimeState,
-    pub median_rtt_ms: DurationMs,
+    pub median_rtt_ms: Belief<DurationMs>,
     pub transfer_rate_bytes_per_sec: Belief<u32>,
     pub stability_horizon_ms: Belief<DurationMs>,
     pub loss_permille: RatioPermille,
@@ -111,7 +111,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
-    use crate::NodeId;
+    use crate::{Estimate, NodeId};
 
     fn empty_node(controller_byte: u8) -> Node {
         Node {
@@ -173,7 +173,11 @@ mod tests {
             },
             state: LinkState {
                 state: LinkRuntimeState::Active,
-                median_rtt_ms: DurationMs(20),
+                median_rtt_ms: Belief::Estimated(Estimate {
+                    value: DurationMs(20),
+                    confidence_permille: RatioPermille(900),
+                    updated_at_tick: crate::Tick(1),
+                }),
                 transfer_rate_bytes_per_sec: Belief::Absent,
                 stability_horizon_ms: Belief::Absent,
                 loss_permille: RatioPermille(10),
@@ -183,6 +187,13 @@ mod tests {
         };
 
         assert_eq!(link.profile.latency_floor_ms, DurationMs(8));
-        assert_eq!(link.state.median_rtt_ms, DurationMs(20));
+        assert_eq!(
+            link.state.median_rtt_ms,
+            Belief::Estimated(Estimate {
+                value: DurationMs(20),
+                confidence_permille: RatioPermille(900),
+                updated_at_tick: crate::Tick(1),
+            })
+        );
     }
 }

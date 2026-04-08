@@ -70,3 +70,7 @@ jobs:
         run: nix develop ./nix/nightly --command cargo dylint --path lints/model_policy --all -- --all-targets
       - name: Dylint Routing Invariants
         run: nix develop ./nix/nightly --command cargo dylint --path lints/routing_invariants --all -- --all-targets
+      - name: Dylint Trait Must Use
+        run: nix develop ./nix/nightly --command cargo dylint --path lints/trait_must_use --all -- --all-targets
+      - name: Dylint Naked Map Err
+        run: nix develop ./nix/nightly --command cargo dylint --path lints/naked_map_err --all -- --all-targets

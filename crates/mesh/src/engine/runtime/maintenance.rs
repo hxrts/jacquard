@@ -16,8 +16,8 @@ use jacquard_core::{
 
 use super::{
     super::{
-        support::{route_cost_for_segments, shortest_paths},
-        ActiveMeshRoute,
+        support::{current_segment, route_cost_for_segments, shortest_paths},
+        ActiveMeshRoute, MaintenanceResultExt,
     },
     MaintenanceContext, MeshEffectsBounds, MeshEngine, MeshHasherBounds,
     MeshSelectorBounds, TransportEffectsBounds,
@@ -224,11 +224,7 @@ where
         &self,
         active_route: &ActiveMeshRoute,
     ) -> Option<LinkEndpoint> {
-        active_route
-            .path
-            .segments
-            .get(usize::from(active_route.forwarding.next_hop_index))
-            .map(|segment| segment.endpoint.clone())
+        current_segment(active_route).map(|segment| segment.endpoint.clone())
     }
 
     fn retained_object_ids(
@@ -284,7 +280,7 @@ where
     ) -> Result<Option<Vec<u8>>, RouteError> {
         self.choreography_runtime()
             .recover_held_payload(&active_route.path.route_id, &object_id)
-            .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+            .maintenance_failed()
     }
 
     fn replay_retained_payload(
@@ -317,7 +313,7 @@ where
         runtime: &mut jacquard_core::RouteRuntimeState,
         now: jacquard_core::Tick,
     ) -> Result<Option<RouteMaintenanceResult>, RouteError> {
-        if !active_route.anti_entropy.partition_mode {
+        if !active_route.is_in_partition_mode() {
             return Ok(None);
         }
 
@@ -395,14 +391,12 @@ where
         if !self.repair_allowed(active_route) {
             return Ok(Self::replacement_required(trigger));
         }
-        let Some(topology) = context.latest_topology else {
-            return Ok(Self::replacement_required(trigger));
-        };
-        let repaired = self.repair_remaining_suffix(active_route, &topology.value);
+        let repaired =
+            self.repair_remaining_suffix(active_route, &context.latest_topology.value);
         if !repaired {
             return Ok(Self::replacement_required(trigger));
         }
-        active_route.current_epoch = topology.value.epoch;
+        active_route.current_epoch = context.latest_topology.value.epoch;
         let result = self.apply_repair(
             &context.identity.handle.route_id,
             active_route,

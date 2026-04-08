@@ -59,8 +59,9 @@ pub trait OrderEffects {
 ///
 /// Effectful runtime boundary.
 pub trait StorageEffects {
-    #[must_use = "unread load_bytes result silently discards storage errors"]
-    fn load_bytes(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
+    must_use_evidence!("load_bytes", "storage errors";
+        fn load_bytes(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
+    );
 
     #[must_use = "unchecked store_bytes result silently discards write failures"]
     fn store_bytes(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError>;
@@ -95,8 +96,9 @@ pub trait TransportEffects {
         payload: &[u8],
     ) -> Result<(), TransportError>;
 
-    #[must_use = "unread poll_transport result silently discards received observations"]
-    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
+    must_use_evidence!("poll_transport", "received observations";
+        fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
+    );
 }
 
 #[effect_trait]
@@ -111,17 +113,19 @@ pub trait RetentionStore {
         payload: Vec<u8>,
     ) -> Result<(), RetentionError>;
 
-    #[must_use = "unread take_retained_payload result silently discards the held payload"]
-    fn take_retained_payload(
-        &mut self,
-        object_id: &ContentId<Blake3Digest>,
-    ) -> Result<Option<Vec<u8>>, RetentionError>;
+    must_use_evidence!("take_retained_payload", "the held payload";
+        fn take_retained_payload(
+            &mut self,
+            object_id: &ContentId<Blake3Digest>,
+        ) -> Result<Option<Vec<u8>>, RetentionError>;
+    );
 
-    #[must_use = "unread contains_retained_payload result silently discards storage errors"]
-    fn contains_retained_payload(
-        &self,
-        object_id: &ContentId<Blake3Digest>,
-    ) -> Result<bool, RetentionError>;
+    must_use_evidence!("contains_retained_payload", "storage errors";
+        fn contains_retained_payload(
+            &self,
+            object_id: &ContentId<Blake3Digest>,
+        ) -> Result<bool, RetentionError>;
+    );
 }
 
 #[purity(effectful)]

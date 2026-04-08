@@ -201,6 +201,8 @@ where
         RouterRuntimeAdapter::new(self.local_node_id, &mut self.effects)
     }
 
+    // T8: get/get_mut variants intentionally separate due to borrow-checker
+    // requirements.
     fn engine_for_id(
         &self,
         engine_id: &RoutingEngineId,

@@ -7,7 +7,7 @@
 
 use std::{error::Error, marker, result};
 
-use jacquard_core::{RouteEpoch, RouteError, RouteId, RouteRuntimeError};
+use jacquard_core::{RouteEpoch, RouteError, RouteId};
 use telltale::{
     futures::{executor, try_join},
     tell, try_session,
@@ -46,7 +46,10 @@ use ActivationHandshake::sessions::{
     Rejected, Roles, Router, RouterSession,
 };
 
-use super::{effects::MeshProtocolRuntime, runtime::MeshGuestRuntime};
+use super::{
+    effects::{ChoreographyResultExt, InvalidatedResultExt, MeshProtocolRuntime},
+    runtime::MeshGuestRuntime,
+};
 
 pub(crate) fn execute<E>(
     _runtime: &mut MeshGuestRuntime<E>,
@@ -56,8 +59,7 @@ pub(crate) fn execute<E>(
 where
     E: MeshProtocolRuntime,
 {
-    let epoch = i64::try_from(epoch.0)
-        .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+    let epoch = i64::try_from(epoch.0).invalidated()?;
     let route_id = hex_bytes(&route_id.0);
     let Roles(mut router, mut current_owner, mut next_hop, mut destination) =
         Roles::default();
@@ -71,7 +73,7 @@ where
         )
     })
     .map(|_| ())
-    .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    .choreography_failed()
 }
 
 async fn router_role(

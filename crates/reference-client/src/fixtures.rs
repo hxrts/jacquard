@@ -44,7 +44,7 @@ fn route_capable_profile(
         .with_neighbor_state_count_max(8)
         .with_simultaneous_transfer_count_max(4)
         .with_active_route_count_max(4)
-        .with_relay_budget(10)
+        .with_relay_work_budget_max(10)
         .with_maintenance_budget(10)
         .with_hold_item_count(8)
         .with_hold_capacity(ByteCount(8192))

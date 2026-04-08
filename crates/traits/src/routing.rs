@@ -4,13 +4,13 @@
 use jacquard_core::{
     CommitteeSelection, Configuration, LayerParameters, MaterializedRoute,
     MaterializedRouteIdentity, NodeId, Observation, RouteAdmission,
-    RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteError, RouteHealth,
-    RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
-    RouteMaterializationInput, RouteRuntimeState, RouteSemanticHandoff,
-    RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
-    RoutingEngineId, RoutingObjective, RoutingPolicyInputs, RoutingTickContext,
-    RoutingTickOutcome, SelectedRoutingParameters, SubstrateCandidate, SubstrateLease,
-    SubstrateRequirements,
+    RouteAdmissionCheck, RouteCandidate, RouteCommitment, RouteEpoch, RouteError,
+    RouteHandle, RouteHealth, RouteId, RouteInstallation, RouteMaintenanceResult,
+    RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
+    RouteRuntimeState, RouteSemanticHandoff, RouterMaintenanceOutcome,
+    RouterTickOutcome, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
+    RoutingPolicyInputs, RoutingTickContext, RoutingTickOutcome,
+    SelectedRoutingParameters, SubstrateCandidate, SubstrateLease, SubstrateRequirements,
 };
 use jacquard_macros::purity;
 
@@ -39,13 +39,14 @@ pub trait PolicyEngine {
 pub trait CommitteeSelector {
     type TopologyView;
 
-    #[must_use = "unread committee selection result silently discards routing evidence"]
-    fn select_committee(
-        &self,
-        objective: &RoutingObjective,
-        profile: &SelectedRoutingParameters,
-        topology: &Observation<Self::TopologyView>,
-    ) -> Result<Option<CommitteeSelection>, RouteError>;
+    must_use_evidence!("committee selection", "routing evidence";
+        fn select_committee(
+            &self,
+            objective: &RoutingObjective,
+            profile: &SelectedRoutingParameters,
+            topology: &Observation<Self::TopologyView>,
+        ) -> Result<Option<CommitteeSelection>, RouteError>;
+    );
 }
 
 #[purity(read_only)]
@@ -96,13 +97,14 @@ pub trait SubstrateRuntime {
     #[must_use = "unchecked release_substrate result silently discards release failures"]
     fn release_substrate(&mut self, lease: &SubstrateLease) -> Result<(), RouteError>;
 
-    /// Runtime observation over an acquired substrate lease. This is read-only
-    /// with respect to canonical route truth.
-    #[must_use = "unread substrate health observation silently discards health data"]
-    fn observe_substrate_health(
-        &self,
-        lease: &SubstrateLease,
-    ) -> Result<Observation<RouteHealth>, RouteError>;
+    must_use_evidence!("substrate health observation", "health data";
+        /// Runtime observation over an acquired substrate lease. This is read-only
+        /// with respect to canonical route truth.
+        fn observe_substrate_health(
+            &self,
+            lease: &SubstrateLease,
+        ) -> Result<Observation<RouteHealth>, RouteError>;
+    );
 }
 
 #[purity(pure)]
@@ -171,21 +173,22 @@ pub trait RoutingEnginePlanner {
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate>;
 
-    /// Engine-level feasibility check against the current observed topology.
-    ///
-    /// Rule:
-    /// - if a planning judgment depends on observations, that observation
-    ///   context must be explicit in the method inputs
-    /// - backend refs may be opaque engine-private plan tokens, but engines
-    ///   must not depend semantically on hidden mutable planner caches
-    #[must_use = "unread admission check result silently discards candidate evidence"]
-    fn check_candidate(
-        &self,
-        objective: &RoutingObjective,
-        profile: &SelectedRoutingParameters,
-        candidate: &RouteCandidate,
-        topology: &Observation<Configuration>,
-    ) -> Result<RouteAdmissionCheck, RouteError>;
+    must_use_evidence!("admission check", "candidate evidence";
+        /// Engine-level feasibility check against the current observed topology.
+        ///
+        /// Rule:
+        /// - if a planning judgment depends on observations, that observation
+        ///   context must be explicit in the method inputs
+        /// - backend refs may be opaque engine-private plan tokens, but engines
+        ///   must not depend semantically on hidden mutable planner caches
+        fn check_candidate(
+            &self,
+            objective: &RoutingObjective,
+            profile: &SelectedRoutingParameters,
+            candidate: &RouteCandidate,
+            topology: &Observation<Configuration>,
+        ) -> Result<RouteAdmissionCheck, RouteError>;
+    );
 
     /// Admit one candidate against the current observed topology.
     ///
@@ -226,37 +229,39 @@ pub trait RoutingEngine: RoutingEnginePlanner {
     #[must_use = "unread route commitments silently discard commitment state"]
     fn route_commitments(&self, route: &MaterializedRoute) -> Vec<RouteCommitment>;
 
-    /// Optional engine-wide periodic progress hook.
-    ///
-    /// Engines may use this to refresh engine-private adaptive state, decay
-    /// stale observations, update coordination posture, or perform other
-    /// bootstrap and convergence logic that is not tied to one active route.
-    /// The default implementation is a no-op.
-    ///
-    /// This hook must not publish canonical route truth directly. Any
-    /// resulting activation, replacement, or maintenance decisions still flow
-    /// through the router/control-plane path.
-    #[must_use = "unread engine tick outcome silently discards routing progress signals"]
-    fn engine_tick(
-        &mut self,
-        tick: &RoutingTickContext,
-    ) -> Result<RoutingTickOutcome, RouteError> {
-        Ok(RoutingTickOutcome::no_change_for(tick))
-    }
+    must_use_evidence!("engine tick outcome", "routing progress signals";
+        /// Optional engine-wide periodic progress hook.
+        ///
+        /// Engines may use this to refresh engine-private adaptive state, decay
+        /// stale observations, update coordination posture, or perform other
+        /// bootstrap and convergence logic that is not tied to one active route.
+        /// The default implementation is a no-op.
+        ///
+        /// This hook must not publish canonical route truth directly. Any
+        /// resulting activation, replacement, or maintenance decisions still flow
+        /// through the router/control-plane path.
+        fn engine_tick(
+            &mut self,
+            tick: &RoutingTickContext,
+        ) -> Result<RoutingTickOutcome, RouteError> {
+            Ok(RoutingTickOutcome::no_change_for(tick))
+        }
+    );
 
-    /// Maintenance receives immutable router-owned route identity plus mutable
-    /// engine-owned runtime state. Engines must not mutate canonical handle,
-    /// lease, or admission through this surface.
-    ///
-    /// Maintenance returns a typed semantic result so replacement, handoff,
-    /// and failure paths keep their payload rather than collapsing to a flag.
-    #[must_use = "unread maintenance result silently discards repair or replacement decisions"]
-    fn maintain_route(
-        &mut self,
-        identity: &MaterializedRouteIdentity,
-        runtime: &mut RouteRuntimeState,
-        trigger: RouteMaintenanceTrigger,
-    ) -> Result<RouteMaintenanceResult, RouteError>;
+    must_use_evidence!("maintenance result", "repair or replacement decisions";
+        /// Maintenance receives immutable router-owned route identity plus mutable
+        /// engine-owned runtime state. Engines must not mutate canonical handle,
+        /// lease, or admission through this surface.
+        ///
+        /// Maintenance returns a typed semantic result so replacement, handoff,
+        /// and failure paths keep their payload rather than collapsing to a flag.
+        fn maintain_route(
+            &mut self,
+            identity: &MaterializedRouteIdentity,
+            runtime: &mut RouteRuntimeState,
+            trigger: RouteMaintenanceTrigger,
+        ) -> Result<RouteMaintenanceResult, RouteError>;
+    );
 
     fn teardown(&mut self, route_id: &RouteId);
 }
@@ -285,11 +290,12 @@ pub trait RouterManagedEngine: RoutingEngine {
         payload: &[u8],
     ) -> Result<(), RouteError>;
 
-    #[must_use = "unread restore_route_runtime_for_router result silently discards restoration status"]
-    fn restore_route_runtime_for_router(
-        &mut self,
-        route_id: &RouteId,
-    ) -> Result<bool, RouteError>;
+    must_use_evidence!("restore_route_runtime_for_router", "restoration status";
+        fn restore_route_runtime_for_router(
+            &mut self,
+            route_id: &RouteId,
+        ) -> Result<bool, RouteError>;
+    );
 }
 
 #[purity(effectful)]
@@ -326,8 +332,9 @@ pub trait RoutingMiddleware: RouterEngineRegistry {
 
     fn replace_policy_inputs(&mut self, inputs: RoutingPolicyInputs);
 
-    #[must_use = "unread recovered route count silently discards recovery status"]
-    fn recover_checkpointed_routes(&mut self) -> Result<usize, RouteError>;
+    must_use_evidence!("recovered route count", "recovery status";
+        fn recover_checkpointed_routes(&mut self) -> Result<usize, RouteError>;
+    );
 }
 
 #[purity(effectful)]
@@ -392,17 +399,19 @@ pub trait RoutingControlPlane {
         objective: RoutingObjective,
     ) -> Result<MaterializedRoute, RouteError>;
 
-    #[must_use = "unread maintenance outcome silently discards repair or replacement decisions"]
-    fn maintain_route(
-        &mut self,
-        route_id: &RouteId,
-        trigger: RouteMaintenanceTrigger,
-    ) -> Result<RouterMaintenanceOutcome, RouteError>;
+    must_use_evidence!("maintenance outcome", "repair or replacement decisions";
+        fn maintain_route(
+            &mut self,
+            route_id: &RouteId,
+            trigger: RouteMaintenanceTrigger,
+        ) -> Result<RouterMaintenanceOutcome, RouteError>;
+    );
 
-    /// Periodic consistency sweep: refresh engine-wide adaptive state, expire
-    /// leases, and detect stale routes.
-    #[must_use = "unread anti-entropy tick outcome silently discards routing progress signals"]
-    fn anti_entropy_tick(&mut self) -> Result<RouterTickOutcome, RouteError>;
+    must_use_evidence!("anti-entropy tick outcome", "routing progress signals";
+        /// Periodic consistency sweep: refresh engine-wide adaptive state, expire
+        /// leases, and detect stale routes.
+        fn anti_entropy_tick(&mut self) -> Result<RouterTickOutcome, RouteError>;
+    );
 }
 
 #[purity(effectful)]
@@ -421,11 +430,47 @@ pub trait RoutingDataPlane {
         payload: &[u8],
     ) -> Result<(), RouteError>;
 
-    /// Health reads are observational. They must not silently become canonical
-    /// route truth without an explicit control-plane publication step.
-    #[must_use = "unread route health observation silently discards health data"]
-    fn observe_route_health(
-        &self,
-        route_id: &RouteId,
-    ) -> Result<Observation<RouteHealth>, RouteError>;
+    must_use_evidence!("route health observation", "health data";
+        /// Health reads are observational. They must not silently become canonical
+        /// route truth without an explicit control-plane publication step.
+        fn observe_route_health(
+            &self,
+            route_id: &RouteId,
+        ) -> Result<Observation<RouteHealth>, RouteError>;
+    );
+}
+
+/// A value that is scoped to a specific topology version.
+pub trait TopologyVersioned {
+    fn topology_epoch(&self) -> RouteEpoch;
+}
+
+impl TopologyVersioned for RouteHandle {
+    fn topology_epoch(&self) -> RouteEpoch {
+        self.topology_epoch
+    }
+}
+
+impl TopologyVersioned for RouteMaterializationProof {
+    fn topology_epoch(&self) -> RouteEpoch {
+        self.topology_epoch
+    }
+}
+
+impl TopologyVersioned for RoutingTickOutcome {
+    fn topology_epoch(&self) -> RouteEpoch {
+        self.topology_epoch
+    }
+}
+
+impl TopologyVersioned for RouterTickOutcome {
+    fn topology_epoch(&self) -> RouteEpoch {
+        self.topology_epoch
+    }
+}
+
+impl TopologyVersioned for MaterializedRouteIdentity {
+    fn topology_epoch(&self) -> RouteEpoch {
+        self.handle.topology_epoch
+    }
 }

@@ -65,7 +65,7 @@ fn low_quality_link_observation() -> TransportObservation {
                 },
                 state: LinkState {
                     state: LinkRuntimeState::Active,
-                    median_rtt_ms: DurationMs(40),
+                    median_rtt_ms: Belief::Absent,
                     transfer_rate_bytes_per_sec: Belief::Absent,
                     stability_horizon_ms: Belief::Absent,
                     loss_permille: RatioPermille(400),

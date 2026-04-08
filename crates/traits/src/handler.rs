@@ -9,17 +9,7 @@ use jacquard_macros::purity;
 
 use crate::Effect;
 
-/// Sealing module for `EffectHandler`. The blanket impl admits any
-/// `Send + Sync + 'static` type, but the trait is `pub(crate)` so external
-/// crates can only implement `EffectHandler` through the `#[effect_handler]`
-/// proc macro (which attaches the required `HandlerDefinition` bound).
-///
-/// `Effect` uses its own inline sealed module because it gates on
-/// `EffectDefinition`, which is a stronger requirement.
-mod sealed {
-    pub(crate) trait Sealed {}
-    impl<T> Sealed for T where T: ?Sized + Send + Sync + 'static {}
-}
+use crate::sealed;
 
 #[purity(effectful)]
 /// Marker trait for concrete implementations of one effect vocabulary.

@@ -10,15 +10,16 @@ use jacquard_core::{
     MaterializedRoute, MaterializedRouteIdentity, RouteBinding, RouteCommitment,
     RouteCommitmentResolution, RouteError, RouteInvalidationReason,
     RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
-    RouteMaintenanceResult, RouteOperationId, RouteProgressState, RouteRuntimeError,
-    RoutingTickChange, RoutingTickContext, RoutingTickOutcome, TimeoutPolicy,
+    RouteMaintenanceResult, RouteOperationId, RouteProgressState, RoutingTickChange,
+    RoutingTickContext, RoutingTickOutcome, TimeoutPolicy,
 };
 
 use super::{
     super::{
         support::topology_epoch_storage_key, ActiveMeshRoute, MeshRouteClass,
-        MESH_COMMITMENT_ATTEMPT_COUNT_MAX, MESH_COMMITMENT_BACKOFF_MS_MAX,
-        MESH_COMMITMENT_INITIAL_BACKOFF_MS, MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
+        StorageResultExt, MESH_COMMITMENT_ATTEMPT_COUNT_MAX,
+        MESH_COMMITMENT_BACKOFF_MS_MAX, MESH_COMMITMENT_INITIAL_BACKOFF_MS,
+        MESH_COMMITMENT_OVERALL_TIMEOUT_MS,
     },
     MeshEffectsBounds, MeshEngine, MeshHasherBounds, MeshSelectorBounds,
     TransportEffectsBounds,
@@ -118,7 +119,7 @@ where
             let epoch_key = topology_epoch_storage_key(&self.local_node_id);
             self.effects
                 .store_bytes(&epoch_key, &epoch_bytes)
-                .map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+                .storage_invalid()?;
             self.last_checkpointed_topology_epoch = Some(topology.value.epoch);
         }
         let observations = self
@@ -226,7 +227,7 @@ where
             .to_owned(),
             hop_count: u32::try_from(active_route.path.segments.len())
                 .unwrap_or(u32::MAX),
-            partition_mode: active_route.anti_entropy.partition_mode,
+            partition_mode: active_route.is_in_partition_mode(),
         }
     }
 
@@ -243,7 +244,7 @@ where
         let retained_count =
             u32::try_from(active_route.anti_entropy.retained_objects.len())
                 .unwrap_or(u32::MAX);
-        if !active_route.anti_entropy.partition_mode
+        if !active_route.is_in_partition_mode()
             && retained_count == 0
             && pressure_score.0 == 0
         {
@@ -252,7 +253,7 @@ where
         Some(MeshAntiEntropySnapshot {
             retained_count,
             pressure_score,
-            partition_mode: active_route.anti_entropy.partition_mode,
+            partition_mode: active_route.is_in_partition_mode(),
         })
     }
 }

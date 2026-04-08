@@ -1,16 +1,58 @@
 //! Deterministic time model and integer-scaled metric types.
 
+use std::{
+    fmt,
+    ops::{Add, Sub},
+};
+
 use jacquard_macros::{bounded_value, id_type, public_model};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+/// Generates an `#[id_type]` newtype over a primitive integer, and adds
+/// `Display`, `From<$inner>`, `Add`, and `Sub` delegating impls.
+/// Use for scalar metrics where arithmetic is semantically valid.
+macro_rules! arithmetic_newtype {
+    ($name:ident: $inner:ty) => {
+        #[id_type]
+        pub struct $name(pub $inner);
+
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", self.0)
+            }
+        }
+
+        impl From<$inner> for $name {
+            fn from(value: $inner) -> Self {
+                Self(value)
+            }
+        }
+
+        impl Add for $name {
+            type Output = Self;
+
+            fn add(self, rhs: Self) -> Self {
+                Self(self.0.saturating_add(rhs.0))
+            }
+        }
+
+        impl Sub for $name {
+            type Output = Self;
+
+            fn sub(self, rhs: Self) -> Self {
+                Self(self.0.saturating_sub(rhs.0))
+            }
+        }
+    };
+}
 
 /// Local monotonic time. Not wall clock.
 #[id_type]
 pub struct Tick(pub u64);
 
-/// Local duration. Used for timeouts, backoff, and validity windows.
-#[id_type]
-pub struct DurationMs(pub u32);
+// Local duration. Used for timeouts, backoff, and validity windows.
+arithmetic_newtype!(DurationMs: u32);
 
 /// Deterministic ordering that does not depend on wall clock.
 #[id_type]
@@ -24,9 +66,8 @@ pub struct RouteEpoch(pub u64);
 #[id_type]
 pub struct SimulationSeed(pub u64);
 
-/// Deterministic quantity of bytes for budgets, capacities, and size limits.
-#[id_type]
-pub struct ByteCount(pub u64);
+// Deterministic quantity of bytes for budgets, capacities, and size limits.
+arithmetic_newtype!(ByteCount: u64);
 
 /// Integer-scaled ratio, 0..=1000.
 #[bounded_value(max = 1000)]
@@ -35,11 +76,8 @@ pub struct RatioPermille(pub u16);
 #[id_type]
 pub struct PriorityPoints(pub u32);
 
-#[id_type]
-pub struct HealthScore(pub u32);
-
-#[id_type]
-pub struct PenaltyPoints(pub u32);
+arithmetic_newtype!(HealthScore: u32);
+arithmetic_newtype!(PenaltyPoints: u32);
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

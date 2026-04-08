@@ -5,7 +5,7 @@ use std::net::IpAddr;
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
-use crate::RouteEpoch;
+use crate::{content::Blake3Digest, RouteEpoch};
 
 // NodeId identifies a running Jacquard participant instance.
 // ControllerId identifies the cryptographic actor behind one or more nodes.
@@ -102,4 +102,38 @@ pub struct NodeBinding {
 pub enum NodeBindingProof {
     Signature { key_id: KeyId, signature_bytes: Vec<u8> },
     Opaque(Vec<u8>),
+}
+
+// Conversions from Blake3Digest to 16-byte routing identity newtypes.
+// Each impl takes the first 16 bytes of the 32-byte digest.
+impl From<&Blake3Digest> for RouteId {
+    fn from(digest: &Blake3Digest) -> Self {
+        let mut id = [0u8; 16];
+        id.copy_from_slice(&digest.0[..16]);
+        RouteId(id)
+    }
+}
+
+impl From<&Blake3Digest> for RouteCommitmentId {
+    fn from(digest: &Blake3Digest) -> Self {
+        let mut id = [0u8; 16];
+        id.copy_from_slice(&digest.0[..16]);
+        RouteCommitmentId(id)
+    }
+}
+
+impl From<&Blake3Digest> for ReceiptId {
+    fn from(digest: &Blake3Digest) -> Self {
+        let mut id = [0u8; 16];
+        id.copy_from_slice(&digest.0[..16]);
+        ReceiptId(id)
+    }
+}
+
+impl From<&Blake3Digest> for CommitteeId {
+    fn from(digest: &Blake3Digest) -> Self {
+        let mut id = [0u8; 16];
+        id.copy_from_slice(&digest.0[..16]);
+        CommitteeId(id)
+    }
 }

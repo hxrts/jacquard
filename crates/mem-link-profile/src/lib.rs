@@ -22,6 +22,9 @@ mod retention;
 pub use effects::InMemoryRuntimeEffects;
 pub use endpoint::SharedInMemoryNetwork;
 pub use frame_carrier::InMemoryTransport;
-pub use link_state::SimulatedLinkProfile;
-pub use protocol::{ble_endpoint, opaque_endpoint};
+pub use link_state::{
+    SimulatedLinkProfile, BLE_LATENCY_FLOOR_MS, BLE_TYPICAL_RTT_MS,
+    DEFAULT_STABILITY_HORIZON_MS,
+};
+pub use protocol::{ble_endpoint, opaque_endpoint, BLE_MTU_BYTES};
 pub use retention::InMemoryRetentionStore;

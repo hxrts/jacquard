@@ -18,8 +18,9 @@ use jacquard_core::{
 };
 
 use super::{
-    MeshEngine, PATH_METRIC_BASE_HOP_COST, PATH_METRIC_DEFERRED_DELIVERY_BONUS,
-    PATH_METRIC_DIVERSITY_BONUS, PATH_METRIC_PROTOCOL_REPEAT_PENALTY,
+    super::support::protocol_diversity_bonus, MeshEngine, PATH_METRIC_BASE_HOP_COST,
+    PATH_METRIC_DEFERRED_DELIVERY_BONUS, PATH_METRIC_DIVERSITY_BONUS,
+    PATH_METRIC_PROTOCOL_REPEAT_PENALTY,
 };
 use crate::{
     topology::estimate_hop_link, MeshNeighborhoodEstimateAccess,
@@ -63,13 +64,7 @@ where
             }
         }
 
-        let u32_max_as_usize =
-            usize::try_from(u32::MAX).expect("u32::MAX fits on supported targets");
-        debug_assert!(protocol_mix.len() <= u32_max_as_usize);
-        let diversity_count = u32::try_from(protocol_mix.len())
-            .expect("protocol diversity is bounded by segment count");
-        let diversity_bonus = diversity_count
-            .saturating_sub(1)
+        let diversity_bonus = protocol_diversity_bonus(segments)
             .saturating_mul(PATH_METRIC_DIVERSITY_BONUS);
         score = score.saturating_sub(diversity_bonus);
 

@@ -8,7 +8,7 @@
 
 use std::{cell::RefCell, error::Error, marker, rc::Rc, result};
 
-use jacquard_core::{ContentId, LinkEndpoint, RouteError, RouteId, RouteRuntimeError};
+use jacquard_core::{ContentId, LinkEndpoint, RouteError, RouteId};
 use serde_json::json;
 use telltale::{
     futures::{executor, try_join},
@@ -95,7 +95,8 @@ use HoldReplayExchange::{
 use super::{
     artifacts::{protocol_spec, MeshProtocolKind},
     effects::{
-        MeshChoreoFrame, MeshHeldPayload, MeshProtocolObservation, MeshProtocolRuntime,
+        ChoreographyResultExt, MeshChoreoFrame, MeshHeldPayload,
+        MeshProtocolObservation, MeshProtocolRuntime,
     },
     runtime::{route_session, MeshGuestRuntime},
 };
@@ -272,7 +273,7 @@ where
         )
     })
     .map(|_| ())
-    .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    .choreography_failed()
 }
 
 async fn owner_role(

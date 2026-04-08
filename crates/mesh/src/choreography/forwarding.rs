@@ -7,7 +7,7 @@
 
 use std::{cell::RefCell, error::Error, marker, rc::Rc, result};
 
-use jacquard_core::{LinkEndpoint, RouteError, RouteId, RouteRuntimeError};
+use jacquard_core::{LinkEndpoint, RouteError, RouteId};
 use serde_json::json;
 use telltale::{
     futures::{executor, try_join},
@@ -18,7 +18,10 @@ use telltale::{
 use super::effects::{MeshCheckpointEnvelope, MeshHeldPayload};
 use super::{
     artifacts::{protocol_spec, MeshProtocolKind},
-    effects::{MeshChoreoFrame, MeshProtocolObservation, MeshProtocolRuntime},
+    effects::{
+        ChoreographyResultExt, MeshChoreoFrame, MeshProtocolObservation,
+        MeshProtocolRuntime,
+    },
     runtime::{route_session, MeshGuestRuntime},
 };
 
@@ -198,7 +201,7 @@ where
         )
     })
     .map(|_| ())
-    .map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+    .choreography_failed()
 }
 
 async fn current_owner_role(
@@ -283,6 +286,7 @@ fn hex_bytes(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{LinkEndpoint, Tick, TransportObservation, TransportProtocol};
+    use jacquard_mem_link_profile::BLE_MTU_BYTES;
 
     use super::*;
 
@@ -367,7 +371,7 @@ mod tests {
             LinkEndpoint {
                 protocol: TransportProtocol::BleGatt,
                 address: jacquard_core::EndpointAddress::Opaque(vec![1]),
-                mtu_bytes: jacquard_core::ByteCount(256),
+                mtu_bytes: BLE_MTU_BYTES,
             },
             b"frame",
         )

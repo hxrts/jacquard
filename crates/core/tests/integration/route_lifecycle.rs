@@ -5,16 +5,17 @@ use jacquard_core::{
     AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief,
     ByteCount, ClaimStrength, ConnectivityPosture, ConnectivityRegime, DiversityFloor,
     Estimate, Fact, FactBasis, FailureModelClass, HoldFallbackPolicy, Limit,
-    MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass, OperatingMode,
-    PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
-    RouteCandidate, RouteCost, RouteDegradation, RouteEpoch, RouteEstimate,
-    RouteHandle, RouteHealth, RouteId, RouteInstallation, RouteLease,
-    RouteLifecycleEvent, RouteMaterializationInput, RouteMaterializationProof,
-    RoutePartitionClass, RouteProgressContract, RouteProgressState,
-    RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteRuntimeError,
-    RouteServiceKind, RouteSummary, RouteWitness, RoutingEngineFallbackPolicy,
-    RoutingEngineId, RoutingObjective, RuntimeEnvelopeClass, SelectedRoutingParameters,
-    Tick, TimeWindow, TransportProtocol,
+    MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass,
+    ObjectiveVsDelivered, OperatingMode, PublicationId, ReachabilityState,
+    RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost, RouteDegradation,
+    RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId, RouteInstallation,
+    RouteLease, RouteLifecycleEvent, RouteMaterializationInput,
+    RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
+    RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+    RouteRuntimeError, RouteServiceKind, RouteSummary, RouteWitness,
+    RoutingEngineFallbackPolicy, RoutingEngineId, RoutingObjective,
+    RuntimeEnvelopeClass, SelectedRoutingParameters, Tick, TimeWindow,
+    TransportProtocol,
 };
 
 fn repairable_connected() -> ConnectivityPosture {
@@ -72,10 +73,14 @@ fn sample_summary() -> RouteSummary {
 
 fn sample_witness(admission_profile: AdmissionAssumptions) -> RouteWitness {
     RouteWitness {
-        objective_protection: RouteProtectionClass::LinkProtected,
-        delivered_protection: RouteProtectionClass::LinkProtected,
-        objective_connectivity: repairable_connected(),
-        delivered_connectivity: repairable_connected(),
+        protection: ObjectiveVsDelivered {
+            objective: RouteProtectionClass::LinkProtected,
+            delivered: RouteProtectionClass::LinkProtected,
+        },
+        connectivity: ObjectiveVsDelivered {
+            objective: repairable_connected(),
+            delivered: repairable_connected(),
+        },
         admission_profile,
         topology_epoch: RouteEpoch(4),
         degradation: RouteDegradation::None,

@@ -469,7 +469,7 @@ pub(crate) fn services_meet_requirements(
         engine_id,
         current_tick,
         requirements,
-    ) == required_service_count(requirements)
+    ) == requirements.count()
 }
 
 pub(crate) fn service_surface_health_score(
@@ -491,7 +491,7 @@ pub(crate) fn service_surface_health_score_for_requirements(
     current_tick: Tick,
     requirements: MeshServiceRequirements,
 ) -> u32 {
-    let required = required_service_count(requirements);
+    let required = requirements.count();
     if required == 0 {
         return HEALTH_SCORE_MAX;
     }
@@ -506,10 +506,6 @@ pub(crate) fn service_surface_health_score_for_requirements(
     } else {
         service_count.saturating_mul(HEALTH_SCORE_MAX / required)
     }
-}
-
-fn required_service_count(requirements: MeshServiceRequirements) -> u32 {
-    requirements.count()
 }
 
 pub(crate) fn optional_health_score_value(score: Option<HealthScore>) -> u32 {
@@ -558,6 +554,7 @@ mod tests {
         LinkRuntimeState, NodeProfile, NodeState, RouteEpoch, ServiceDescriptor, Tick,
         TimeWindow,
     };
+    use jacquard_mem_link_profile::BLE_MTU_BYTES;
 
     use super::*;
 
@@ -626,7 +623,7 @@ mod tests {
                     device_id: BleDeviceId(vec![byte]),
                     profile_id: BleProfileId([byte; 16]),
                 },
-                mtu_bytes: ByteCount(256),
+                mtu_bytes: BLE_MTU_BYTES,
             },
             profile: default_link_profile(),
             state: LinkState {
@@ -714,7 +711,7 @@ mod tests {
                                     device_id: BleDeviceId(vec![1]),
                                     profile_id: BleProfileId([1; 16]),
                                 },
-                                mtu_bytes: ByteCount(256),
+                                mtu_bytes: BLE_MTU_BYTES,
                             }],
                             connection_count_max: 4,
                             neighbor_state_count_max: 4,
@@ -803,7 +800,7 @@ mod tests {
                             device_id: BleDeviceId(vec![2]),
                             profile_id: BleProfileId([2; 16]),
                         },
-                        mtu_bytes: ByteCount(256),
+                        mtu_bytes: BLE_MTU_BYTES,
                     },
                     profile: default_link_profile(),
                     state: LinkState {
@@ -1011,7 +1008,7 @@ mod tests {
                 device_id: jacquard_core::BleDeviceId(vec![1]),
                 profile_id: jacquard_core::BleProfileId([1; 16]),
             },
-            mtu_bytes: ByteCount(256),
+            mtu_bytes: BLE_MTU_BYTES,
         };
         let link = Link {
             endpoint,

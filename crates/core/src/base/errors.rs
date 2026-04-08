@@ -6,6 +6,19 @@ use thiserror::Error;
 
 use crate::RouteAdmissionRejection;
 
+/// Generates the shared error-enum header: `#[public_model]`, all standard
+/// error derives, and the `pub enum` declaration. Variants are passed verbatim
+/// so thiserror attributes (`#[error("...")]`, `#[from]`) work normally.
+macro_rules! define_error_enum {
+    ($name:ident { $($body:tt)* }) => {
+        #[public_model]
+        #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
+        pub enum $name {
+            $($body)*
+        }
+    };
+}
+
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
 pub enum RouteError {
@@ -21,9 +34,7 @@ pub enum RouteError {
     Transport(#[from] TransportError),
 }
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum RouteSelectionError {
+define_error_enum!(RouteSelectionError {
     #[error("no candidate route was available")]
     NoCandidate,
     #[error("protection floor was not satisfied")]
@@ -32,11 +43,9 @@ pub enum RouteSelectionError {
     Inadmissible(RouteAdmissionRejection),
     #[error("routing policy conflict")]
     PolicyConflict,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum RouteRuntimeError {
+define_error_enum!(RouteRuntimeError {
     #[error("route lease expired")]
     LeaseExpired,
     #[error("stale owner attempted a mutation")]
@@ -49,97 +58,79 @@ pub enum RouteRuntimeError {
     TimedOut,
     #[error("route state was invalidated")]
     Invalidated,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum RoutePolicyError {
+define_error_enum!(RoutePolicyError {
     #[error("fallback is forbidden")]
     FallbackForbidden,
     #[error("profile is unsupported")]
     ProfileUnsupported,
     #[error("budget exceeded")]
     BudgetExceeded,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum CapabilityError {
+define_error_enum!(CapabilityError {
     #[error("capability is unsupported")]
     Unsupported,
     #[error("capability was rejected")]
     Rejected,
     #[error("capability budget exceeded")]
     BudgetExceeded,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum TransportError {
+define_error_enum!(TransportError {
     #[error("transport is unavailable")]
     Unavailable,
     #[error("transport operation timed out")]
     TimedOut,
     #[error("transport rejected the operation")]
     Rejected,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum MediumError {
+define_error_enum!(MediumError {
     #[error("medium rejected the frame")]
     Rejected,
     #[error("medium data was corrupted")]
     Corrupted,
     #[error("medium operation timed out")]
     TimedOut,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum RetentionError {
+define_error_enum!(RetentionError {
     #[error("retention store is unavailable")]
     Unavailable,
     #[error("retention store is full")]
     Full,
     #[error("retention operation was rejected")]
     Rejected,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum HoldError {
+define_error_enum!(HoldError {
     #[error("hold service is unavailable")]
     Unavailable,
     #[error("held object expired")]
     Expired,
     #[error("hold operation was rejected")]
     Rejected,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum StorageError {
+define_error_enum!(StorageError {
     #[error("storage is unavailable")]
     Unavailable,
     #[error("storage key was missing")]
     Missing,
     #[error("storage write was rejected")]
     Rejected,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum RouteEventLogError {
+define_error_enum!(RouteEventLogError {
     #[error("route-event log is unavailable")]
     Unavailable,
     #[error("route-event log entry was rejected")]
     Rejected,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum WorldError {
+define_error_enum!(WorldError {
     #[error("world extension is unavailable")]
     Unavailable,
     #[error("world extension timed out")]
@@ -148,15 +139,13 @@ pub enum WorldError {
     Rejected,
     #[error("world observation was invalid")]
     Invalid,
-}
+});
 
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
-pub enum PathSetupError {
+define_error_enum!(PathSetupError {
     #[error("path setup is unsupported")]
     Unsupported,
     #[error("path setup was rejected")]
     Rejected,
     #[error("path setup was invalid")]
     Invalid,
-}
+});

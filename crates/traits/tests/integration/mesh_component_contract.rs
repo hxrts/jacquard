@@ -21,6 +21,8 @@ use jacquard_traits::{
     RoutingEnginePlanner, TransportEffects,
 };
 
+use super::common;
+
 struct StubTopologyModel;
 
 fn stub_engine_id() -> RoutingEngineId {
@@ -345,28 +347,28 @@ fn sample_node(controller_seed: u8) -> Node {
             hold_capacity_bytes_max: ByteCount(1024),
         },
         state: NodeState {
-            relay_budget: Belief::Estimated(jacquard_traits::jacquard_core::Estimate {
-                value: NodeRelayBudget {
+            relay_budget: common::estimated(
+                NodeRelayBudget {
                     relay_work_budget: Belief::Absent,
                     utilization_permille: RatioPermille(0),
                     retention_horizon_ms: Belief::Absent,
                 },
-                confidence_permille: RatioPermille(1000),
-                updated_at_tick: jacquard_traits::jacquard_core::Tick(1),
-            }),
+                1000,
+                Tick(1),
+            ),
             available_connection_count: Belief::Absent,
             hold_capacity_available_bytes: Belief::Absent,
-            information_summary: Belief::Estimated(jacquard_traits::jacquard_core::Estimate {
-                value: InformationSetSummary {
+            information_summary: common::estimated(
+                InformationSetSummary {
                     summary_encoding:
                         jacquard_traits::jacquard_core::InformationSummaryEncoding::BloomFilter,
                     item_count: Belief::Absent,
                     byte_count: Belief::Absent,
                     false_positive_permille: Belief::Absent,
                 },
-                confidence_permille: RatioPermille(1000),
-                updated_at_tick: jacquard_traits::jacquard_core::Tick(1),
-            }),
+                1000,
+                Tick(1),
+            ),
         },
     }
 }
@@ -383,7 +385,7 @@ fn sample_link() -> Link {
         },
         state: LinkState {
             state: LinkRuntimeState::Active,
-            median_rtt_ms: DurationMs(5),
+            median_rtt_ms: Belief::Absent,
             transfer_rate_bytes_per_sec: Belief::Absent,
             stability_horizon_ms: Belief::Absent,
             loss_permille: RatioPermille(0),
@@ -468,15 +470,19 @@ fn sample_route_admission(
             .expect("valid route summary window"),
         },
         witness: RouteWitness {
-            objective_protection: RouteProtectionClass::LinkProtected,
-            delivered_protection: RouteProtectionClass::LinkProtected,
-            objective_connectivity: ConnectivityPosture {
-                repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
-                partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
+            protection: jacquard_traits::jacquard_core::ObjectiveVsDelivered {
+                objective: RouteProtectionClass::LinkProtected,
+                delivered: RouteProtectionClass::LinkProtected,
             },
-            delivered_connectivity: ConnectivityPosture {
-                repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
-                partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
+            connectivity: jacquard_traits::jacquard_core::ObjectiveVsDelivered {
+                objective: ConnectivityPosture {
+                    repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
+                    partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
+                },
+                delivered: ConnectivityPosture {
+                    repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
+                    partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
+                },
             },
             admission_profile: jacquard_traits::jacquard_core::AdmissionAssumptions {
                 message_flow_assumption:

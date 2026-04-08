@@ -65,3 +65,16 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 ## Telltale dependency
 
 Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, currently `11.3.0`). Individual crates import them via `{ workspace = true }`.
+
+## long-block-exception
+
+Some test helpers and fixture functions use `executor::block_on(async { ... })` or
+similar blocking constructs. Where Clippy or a lint warns about blocking in async
+context, a `// long-block-exception: <reason>` comment suppresses the warning.
+
+Rules for when this is permitted:
+1. The block is in a test-only context (behind `#[cfg(test)]` or in `tests/`)
+2. The blocking call is a known-safe `executor::block_on` on a test fixture
+3. The reason clearly explains why non-blocking is impractical here
+
+Do not use `long-block-exception` in production code paths.

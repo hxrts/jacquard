@@ -32,7 +32,7 @@ struct MaintenanceContext<'a> {
     identity: &'a MaterializedRouteIdentity,
     now: jacquard_core::Tick,
     handoff_receipt_id: jacquard_core::ReceiptId,
-    latest_topology: Option<&'a Observation<Configuration>>,
+    latest_topology: Observation<Configuration>,
 }
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEngine
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -105,10 +105,19 @@ where
     ) -> Result<RouteMaintenanceResult, RouteError> {
         let now = self.effects.now_tick();
         let handoff_receipt_id = self.receipt_id_for_route(&identity.handle.route_id);
-        let latest_topology = self.latest_topology.clone();
         if !identity.lease.is_valid_at(now) {
             return self.expired_lease_result(identity, runtime);
         }
+        // Maintenance requires an observed topology. Without one the route
+        // cannot be re-evaluated, so the only safe result is replacement.
+        let Some(latest_topology) = self.latest_topology.clone() else {
+            return Ok(jacquard_core::RouteMaintenanceResult {
+                event: jacquard_core::RouteLifecycleEvent::Replaced,
+                outcome: jacquard_core::RouteMaintenanceOutcome::ReplacementRequired {
+                    trigger,
+                },
+            });
+        };
 
         let original_active_route = self
             .active_routes
@@ -125,7 +134,7 @@ where
                 identity,
                 now,
                 handoff_receipt_id,
-                latest_topology: latest_topology.as_ref(),
+                latest_topology,
             },
         )?;
 

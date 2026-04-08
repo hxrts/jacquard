@@ -73,8 +73,9 @@ where
 pub trait ContentAddressable {
     type Digest: Clone + Eq;
 
-    #[must_use = "unread canonical bytes result silently discards encoding errors"]
-    fn canonical_bytes(&self) -> Result<Vec<u8>, ContentEncodingError>;
+    must_use_evidence!("canonical bytes", "encoding errors";
+        fn canonical_bytes(&self) -> Result<Vec<u8>, ContentEncodingError>;
+    );
 
     #[must_use = "dropping a computed content id usually means the artifact identity was not checked or recorded"]
     fn content_id<H: Hashing<Digest = Self::Digest>>(
@@ -93,8 +94,9 @@ pub trait ContentAddressable {
 pub trait TemplateAddressable {
     type Digest: Clone + Eq;
 
-    #[must_use = "unread template bytes result silently discards encoding errors"]
-    fn template_bytes(&self) -> Result<Vec<u8>, ContentEncodingError>;
+    must_use_evidence!("template bytes", "encoding errors";
+        fn template_bytes(&self) -> Result<Vec<u8>, ContentEncodingError>;
+    );
 
     #[must_use = "dropping a computed template id usually means the template identity was not checked or recorded"]
     fn template_id<H: Hashing<Digest = Self::Digest>>(

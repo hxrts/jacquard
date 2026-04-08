@@ -1,9 +1,12 @@
 use jacquard_core::{
     ByteCount, ControllerId, HoldItemCount, LinkEndpoint, MaintenanceWorkBudget, Node,
-    NodeId, NodeProfile, RelayWorkBudget,
+    NodeId, NodeProfile, RelayWorkBudget, Tick,
 };
 
 use crate::{services::SimulatedServiceDescriptor, state::NodeStateSnapshot};
+
+/// Default maximum hold capacity for a simulated node.
+pub const DEFAULT_HOLD_CAPACITY_BYTES: ByteCount = ByteCount(4096);
 
 /// Builder for the stable capability half of one node.
 #[derive(Clone, Debug, Default)]
@@ -18,6 +21,7 @@ pub struct SimulatedNodeProfile {
     maintenance_work_budget_max: u32,
     hold_item_count_max: u32,
     hold_capacity_bytes_max: ByteCount,
+    observed_at_tick: Tick,
 }
 
 impl SimulatedNodeProfile {
@@ -31,7 +35,7 @@ impl SimulatedNodeProfile {
             relay_work_budget_max: 4,
             maintenance_work_budget_max: 4,
             hold_item_count_max: 4,
-            hold_capacity_bytes_max: ByteCount(4096),
+            hold_capacity_bytes_max: DEFAULT_HOLD_CAPACITY_BYTES,
             ..Self::default()
         }
     }
@@ -73,7 +77,7 @@ impl SimulatedNodeProfile {
     }
 
     #[must_use]
-    pub fn with_relay_budget(mut self, budget: u32) -> Self {
+    pub fn with_relay_work_budget_max(mut self, budget: u32) -> Self {
         self.relay_work_budget_max = budget;
         self
     }
@@ -81,6 +85,12 @@ impl SimulatedNodeProfile {
     #[must_use]
     pub fn with_maintenance_budget(mut self, budget: u32) -> Self {
         self.maintenance_work_budget_max = budget;
+        self
+    }
+
+    #[must_use]
+    pub fn with_observed_at_tick(mut self, tick: Tick) -> Self {
+        self.observed_at_tick = tick;
         self
     }
 
@@ -125,10 +135,14 @@ impl SimulatedNodeProfile {
         controller_id: ControllerId,
         state: &NodeStateSnapshot,
     ) -> Node {
+        let observed_at_tick = self.observed_at_tick;
         Node {
             controller_id,
             profile: self.build(node_id, controller_id),
-            state: state.clone().build(),
+            state: state
+                .clone()
+                .with_observed_at_tick(observed_at_tick)
+                .build(),
         }
     }
 }
