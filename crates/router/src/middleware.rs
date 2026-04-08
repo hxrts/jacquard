@@ -7,6 +7,9 @@
 //! canonical state`. Maintenance, re-selection, expiry, and anti-entropy reuse
 //! the same engine registry and always mutate canonical state on the router
 //! side, even when one selected engine performs the route-private work.
+//! Candidate ordering, admission, and publication operate on shared summaries,
+//! checks, and installation evidence; they do not require explicit hop-by-hop
+//! path disclosure from every engine.
 //!
 //! Ownership:
 //! - canonical route mutations and registry-level engine dispatch happen here
@@ -24,7 +27,8 @@ use jacquard_core::{
     RouteSelectionError, RouteSemanticHandoff, RouterCanonicalMutation,
     RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
     RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingPolicyInputs,
-    RoutingTickChange, RoutingTickContext, SelectedRoutingParameters, Tick, TimeWindow,
+    RoutingTickChange, RoutingTickContext, RoutingTickHint,
+    SelectedRoutingParameters, Tick, TimeWindow,
     TransportProtocol,
 };
 use jacquard_traits::{
@@ -244,16 +248,20 @@ where
         Ok(self.engine_for_id(&engine_id)?.route_commitments(route))
     }
 
-    fn tick_all_engines(&mut self) -> Result<RoutingTickChange, RouteError> {
+    fn tick_all_engines(
+        &mut self,
+    ) -> Result<(RoutingTickChange, RoutingTickHint), RouteError> {
         let tick = RoutingTickContext::new(self.topology.clone());
         let mut aggregate = RoutingTickChange::NoChange;
+        let mut hint = RoutingTickHint::HostDefault;
         for entry in self.registered_engines.values_mut() {
             let outcome = entry.engine.engine_tick(&tick)?;
             if outcome.change == RoutingTickChange::PrivateStateUpdated {
                 aggregate = RoutingTickChange::PrivateStateUpdated;
             }
+            hint = hint.more_urgent(outcome.next_tick_hint);
         }
-        Ok(aggregate)
+        Ok((aggregate, hint))
     }
 
     fn remove_published_route(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
@@ -686,7 +694,7 @@ where
     }
 
     fn anti_entropy_tick(&mut self) -> Result<RouterTickOutcome, RouteError> {
-        let aggregate = self.tick_all_engines()?;
+        let (aggregate, tick_hint) = self.tick_all_engines()?;
         let expired_route_id = if aggregate == RoutingTickChange::PrivateStateUpdated {
             self.expire_stale_leases()?
         } else {
@@ -698,6 +706,7 @@ where
         Ok(RouterTickOutcome {
             topology_epoch: self.topology.value.epoch,
             engine_change: aggregate,
+            engine_tick_hint: tick_hint,
             canonical_mutation,
         })
     }

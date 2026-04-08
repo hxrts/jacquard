@@ -1,6 +1,6 @@
 # Mesh Routing
 
-`jacquard-mesh` is Jacquard's first-party routing-engine implementation. It consumes the shared world model from `jacquard-core` and implements the stable routing boundaries from `jacquard-traits`. Mesh-only heuristics, runtime caches, and repair state remain inside the mesh crate.
+`jacquard-mesh` is Jacquard's first-party routing-engine implementation. It consumes the shared world model from `jacquard-core` and implements the stable routing boundaries from `jacquard-traits`. Mesh-only heuristics, runtime caches, and repair state remain inside the mesh crate. Proactive engines such as Babel- or BATMAN-style implementations would remain separate routing-engine crates rather than changing mesh's explicit-path semantics.
 
 ## Shared Inputs
 

@@ -50,6 +50,7 @@ impl RoutingTickOutcome {
         Self {
             topology_epoch: tick.topology.value.epoch,
             change: RoutingTickChange::NoChange,
+            next_tick_hint: RoutingTickHint::HostDefault,
         }
     }
 }
@@ -64,14 +65,44 @@ pub enum RoutingTickChange {
 }
 
 #[public_model]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Advisory scheduling pressure reported by one routing engine tick.
+///
+/// The engine may indicate when more proactive work would be useful, but the
+/// host/router still owns final scheduling.
+pub enum RoutingTickHint {
+    HostDefault,
+    Immediate,
+    WithinTicks(Tick),
+}
+
+impl RoutingTickHint {
+    #[must_use]
+    pub fn more_urgent(self, other: Self) -> Self {
+        match (self, other) {
+            | (Self::Immediate, _) | (_, Self::Immediate) => Self::Immediate,
+            | (Self::WithinTicks(left), Self::WithinTicks(right)) => {
+                Self::WithinTicks(std::cmp::min(left, right))
+            },
+            | (Self::WithinTicks(left), Self::HostDefault)
+            | (Self::HostDefault, Self::WithinTicks(left)) => Self::WithinTicks(left),
+            | (Self::HostDefault, Self::HostDefault) => Self::HostDefault,
+        }
+    }
+}
+
+#[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// Shared report shape returned by one engine progress step.
 ///
 /// This gives the router a minimal, engine-neutral summary of whether the
 /// tick changed engine-private state while keeping engine internals private.
+/// Engines may also report scheduling pressure for their next proactive work
+/// step without taking ownership of the global clock.
 pub struct RoutingTickOutcome {
     pub topology_epoch: RouteEpoch,
     pub change: RoutingTickChange,
+    pub next_tick_hint: RoutingTickHint,
 }
 
 #[public_model]
@@ -111,6 +142,7 @@ pub struct RouterMaintenanceOutcome {
 pub struct RouterTickOutcome {
     pub topology_epoch: RouteEpoch,
     pub engine_change: RoutingTickChange,
+    pub engine_tick_hint: RoutingTickHint,
     pub canonical_mutation: RouterCanonicalMutation,
 }
 
@@ -544,6 +576,10 @@ pub enum RouteMaintenanceFailure {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        Configuration, Environment, Observation, OriginAuthenticationClass,
+        RoutingEvidenceClass,
+    };
 
     #[test]
     fn route_ordering_key_is_total() {
@@ -559,5 +595,43 @@ mod tests {
         };
 
         assert!(low < high);
+    }
+
+    #[test]
+    fn no_change_tick_defaults_to_host_cadence() {
+        let tick = crate::RoutingTickContext::new(Observation {
+            value: Configuration {
+                epoch: crate::RouteEpoch(3),
+                nodes: std::collections::BTreeMap::new(),
+                links: std::collections::BTreeMap::new(),
+                environment: Environment {
+                    reachable_neighbor_count: 0,
+                    churn_permille: crate::RatioPermille(0),
+                    contention_permille: crate::RatioPermille(0),
+                },
+            },
+            source_class: crate::FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::AdmissionWitnessed,
+            origin_authentication: OriginAuthenticationClass::Controlled,
+            observed_at_tick: Tick(5),
+        });
+
+        let outcome = RoutingTickOutcome::no_change_for(&tick);
+        assert_eq!(outcome.change, RoutingTickChange::NoChange);
+        assert_eq!(outcome.next_tick_hint, RoutingTickHint::HostDefault);
+    }
+
+    #[test]
+    fn immediate_tick_hint_dominates_merge() {
+        let merged = RoutingTickHint::WithinTicks(Tick(4))
+            .more_urgent(RoutingTickHint::Immediate);
+        assert_eq!(merged, RoutingTickHint::Immediate);
+    }
+
+    #[test]
+    fn within_ticks_merge_chooses_smaller_horizon() {
+        let merged = RoutingTickHint::WithinTicks(Tick(9))
+            .more_urgent(RoutingTickHint::WithinTicks(Tick(3)));
+        assert_eq!(merged, RoutingTickHint::WithinTicks(Tick(3)));
     }
 }

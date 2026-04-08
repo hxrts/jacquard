@@ -40,7 +40,7 @@ impl jacquard_traits::RoutingEnginePlanner for NullCandidateEngine {
             quantitative_bounds:
                 jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support: jacquard_core::ReconfigurationSupport::ReplaceOnly,
-            route_shape_visibility: jacquard_core::RouteShapeVisibility::Opaque,
+            route_shape_visibility: jacquard_core::RouteShapeVisibility::NextHopOnly,
         }
     }
 

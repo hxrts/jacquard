@@ -14,6 +14,7 @@ use jacquard_traits::Blake3Hashing;
 use super::{
     committee_selector::AdvisoryCommitteeSelector,
     fixtures::{profile, sample_configuration, sample_policy_inputs, LOCAL_NODE_ID},
+    proactive_engine::ProactiveTableTestEngine,
     recoverable_engine::RecoverableTestEngine,
 };
 
@@ -134,5 +135,31 @@ pub(crate) fn build_router_with_recoverable_engine(
             now,
         )))
         .expect("register recoverable test engine");
+    router
+}
+
+pub(crate) fn build_router_with_proactive_engine(
+    now: Tick,
+    engine_id: jacquard_core::RoutingEngineId,
+    visibility: jacquard_core::RouteShapeVisibility,
+) -> MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects> {
+    let topology = sample_configuration();
+    let policy_inputs = sample_policy_inputs(&topology);
+    let policy_engine = FixedPolicyEngine::new(profile());
+    let mut router = MultiEngineRouter::new(
+        LOCAL_NODE_ID,
+        policy_engine,
+        InMemoryRuntimeEffects { now, ..Default::default() },
+        topology,
+        policy_inputs,
+    );
+    router
+        .register_engine(Box::new(ProactiveTableTestEngine::new(
+            LOCAL_NODE_ID,
+            engine_id,
+            visibility,
+            now,
+        )))
+        .expect("register proactive test engine");
     router
 }

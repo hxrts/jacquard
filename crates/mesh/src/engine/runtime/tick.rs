@@ -11,7 +11,7 @@ use jacquard_core::{
     RouteCommitmentResolution, RouteError, RouteInvalidationReason,
     RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
     RouteMaintenanceResult, RouteOperationId, RouteProgressState, RoutingTickChange,
-    RoutingTickContext, RoutingTickOutcome, TimeoutPolicy,
+    RoutingTickContext, RoutingTickHint, RoutingTickOutcome, Tick, TimeoutPolicy,
 };
 
 use super::{
@@ -149,6 +149,7 @@ where
         Ok(RoutingTickOutcome {
             topology_epoch: topology.value.epoch,
             change,
+            next_tick_hint: RoutingTickHint::WithinTicks(Tick(1)),
         })
     }
 

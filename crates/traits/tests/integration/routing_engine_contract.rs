@@ -126,7 +126,7 @@ impl RoutingEnginePlanner for StubEngine {
             reconfiguration_support:
                 jacquard_traits::jacquard_core::ReconfigurationSupport::ReplaceOnly,
             route_shape_visibility:
-                jacquard_traits::jacquard_core::RouteShapeVisibility::Explicit,
+                jacquard_traits::jacquard_core::RouteShapeVisibility::ExplicitPath,
         }
     }
 

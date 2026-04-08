@@ -4,6 +4,8 @@
 pub mod common;
 #[path = "integration/effects_component_contract.rs"]
 mod effects_component_contract;
+#[path = "integration/proactive_engine_contract.rs"]
+mod proactive_engine_contract;
 #[path = "integration/routing_engine_contract.rs"]
 mod routing_engine_contract;
 #[path = "integration/simulator_contract.rs"]

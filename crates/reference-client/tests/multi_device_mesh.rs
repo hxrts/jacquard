@@ -98,6 +98,10 @@ fn forward_and_assert_ingress(
         outcome.engine_change,
         jacquard_core::RoutingTickChange::PrivateStateUpdated,
     );
+    assert_eq!(
+        outcome.engine_tick_hint,
+        jacquard_core::RoutingTickHint::WithinTicks(jacquard_core::Tick(1)),
+    );
 }
 
 fn relay_profile() -> SelectedRoutingParameters {
