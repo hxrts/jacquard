@@ -40,10 +40,11 @@ fn materialize_route_succeeds_at_lease_start_tick() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
-    let input = materialization_input(admission, lease(Tick(5), Tick(20)));
+    let input = materialization_input(route_id, admission, lease(Tick(5), Tick(20)));
     engine
         .materialize_route(input)
         .expect("materialization should succeed at the lease start tick");
@@ -66,12 +67,13 @@ fn materialize_route_fails_at_lease_end_tick() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
     // Lease end is exclusive, so the engine clock at tick 10 is already
     // outside the [2, 10) window.
-    let input = materialization_input(admission, lease(Tick(2), Tick(10)));
+    let input = materialization_input(route_id, admission, lease(Tick(2), Tick(10)));
     let error = engine
         .materialize_route(input)
         .expect_err("materialization should fail at the lease end tick");

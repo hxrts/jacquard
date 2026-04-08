@@ -86,6 +86,7 @@ impl jacquard_traits::RoutingEnginePlanner for RecoverableTestEngine {
         topology: &Observation<Configuration>,
     ) -> Vec<jacquard_core::RouteCandidate> {
         vec![jacquard_core::RouteCandidate {
+            route_id: Self::route_id(),
             summary: self.route_summary(objective),
             estimate: jacquard_core::Estimate {
                 value: jacquard_core::RouteEstimate {
@@ -128,7 +129,6 @@ impl jacquard_traits::RoutingEnginePlanner for RecoverableTestEngine {
         topology: &Observation<Configuration>,
     ) -> Result<jacquard_core::RouteAdmission, jacquard_core::RouteError> {
         Ok(jacquard_core::RouteAdmission {
-            route_id: Self::route_id(),
             backend_ref: candidate.backend_ref,
             objective: objective.clone(),
             profile: profile.clone(),

@@ -120,7 +120,6 @@ where
 
         match cached.admission_check.decision {
             | AdmissionDecision::Admissible => Ok(RouteAdmission {
-                route_id: cached.route_id,
                 backend_ref: candidate.backend_ref,
                 objective: objective.clone(),
                 profile: profile.clone(),

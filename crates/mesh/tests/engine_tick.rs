@@ -101,11 +101,16 @@ fn materialization_before_first_tick_fails_closed() {
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("route admission");
     let error = engine
-        .materialize_route(materialization_input(admission, lease(Tick(2), Tick(12))))
+        .materialize_route(materialization_input(
+            route_id,
+            admission,
+            lease(Tick(2), Tick(12)),
+        ))
         .expect_err("materialization should fail before any topology tick");
 
     assert!(matches!(

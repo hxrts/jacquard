@@ -25,7 +25,10 @@ trait StorageResultExt<T> {
 
 impl<T, E> StorageResultExt<T> for Result<T, E> {
     fn storage_invalid(self) -> Result<T, RouteError> {
-        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+        match self {
+            | Ok(value) => Ok(value),
+            | Err(_) => Err(RouteError::Runtime(RouteRuntimeError::Invalidated)),
+        }
     }
 }
 use serde::{Deserialize, Serialize};

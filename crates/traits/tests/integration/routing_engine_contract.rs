@@ -137,6 +137,7 @@ impl RoutingEnginePlanner for StubEngine {
         _topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
         vec![RouteCandidate {
+            route_id: self.route.identity.stamp.route_id,
             summary: self.route.identity.admission.summary.clone(),
             estimate: Estimate {
                 value: RouteEstimate {
@@ -265,6 +266,7 @@ impl LayeredRoutingEnginePlanner for StubEngine {
         _parameters: &LayerParameters,
     ) -> Vec<RouteCandidate> {
         vec![RouteCandidate {
+            route_id: self.route.identity.stamp.route_id,
             summary: self.route.identity.admission.summary.clone(),
             estimate: Estimate {
                 value: RouteEstimate {
@@ -449,7 +451,6 @@ fn sample_route(
     let input = RouteMaterializationInput {
         handle: RouteHandle { stamp: stamp.clone() },
         admission: RouteAdmission {
-            route_id: RouteId([3; 16]),
             backend_ref: BackendRouteRef {
                 engine: stub_engine_id(),
                 backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![

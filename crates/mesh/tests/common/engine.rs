@@ -161,6 +161,7 @@ pub fn tick_context(topology: &Observation<Configuration>) -> RoutingTickContext
 /// using a deterministic publication id and the lease start tick as the
 /// materialization tick.
 pub fn materialization_input(
+    route_id: jacquard_traits::jacquard_core::RouteId,
     admission: jacquard_traits::jacquard_core::RouteAdmission,
     lease_value: RouteLease,
 ) -> RouteMaterializationInput {
@@ -168,7 +169,7 @@ pub fn materialization_input(
     RouteMaterializationInput {
         handle: RouteHandle {
             stamp: RouteIdentityStamp {
-                route_id: admission.route_id,
+                route_id,
                 topology_epoch: lease_value.lease_epoch,
                 materialized_at_tick,
                 publication_id: PublicationId([7; 16]),
@@ -201,14 +202,16 @@ pub fn admit_first_candidate(
     goal: &RoutingObjective,
     policy: &SelectedRoutingParameters,
     candidates: Vec<RouteCandidate>,
-) -> RouteAdmission {
+) -> (jacquard_traits::jacquard_core::RouteId, RouteAdmission) {
     let candidate = candidates
         .into_iter()
         .next()
         .expect("admit_first_candidate requires at least one candidate");
-    engine
+    let route_id = candidate.route_id;
+    let admission = engine
         .admit_route(goal, policy, candidate, topology)
-        .expect("admit_first_candidate admission")
+        .expect("admit_first_candidate admission");
+    (route_id, admission)
 }
 
 /// Step 3 of the activate pipeline: materialize an admitted route and
@@ -216,11 +219,12 @@ pub fn admit_first_candidate(
 /// pair that the engine expects on `maintain_route` calls.
 pub fn materialize_admitted(
     engine: &mut TestEngine,
+    route_id: jacquard_traits::jacquard_core::RouteId,
     admission: RouteAdmission,
     lease_value: RouteLease,
 ) -> (MaterializedRouteIdentity, RouteRuntimeState) {
     let materialization_tick = lease_value.valid_for.start_tick();
-    let input = materialization_input(admission, lease_value);
+    let input = materialization_input(route_id, admission, lease_value);
     let installation = engine
         .materialize_route(input.clone())
         .expect("materialize_admitted materialization");
@@ -270,6 +274,7 @@ pub fn activate_route_with_profile(
     lease_value: RouteLease,
 ) -> (MaterializedRouteIdentity, RouteRuntimeState) {
     let candidates = tick_and_get_candidates(engine, topology, goal, policy);
-    let admission = admit_first_candidate(engine, topology, goal, policy, candidates);
-    materialize_admitted(engine, admission, lease_value)
+    let (route_id, admission) =
+        admit_first_candidate(engine, topology, goal, policy, candidates);
+    materialize_admitted(engine, route_id, admission, lease_value)
 }

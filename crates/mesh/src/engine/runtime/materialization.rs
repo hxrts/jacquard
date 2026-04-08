@@ -136,11 +136,10 @@ where
 
         let derived_route_id =
             self.route_id_for_backend(&input.admission.backend_ref.backend_route_id)?;
-        // Validate the plan token is consistent with what was admitted. The
-        // canonical route_id lives in the handle stamp (router-assigned); the
-        // engine-computed derived_route_id is compared only against the
-        // admission's route_id, not the handle's stamp.
-        if derived_route_id != input.admission.route_id {
+        // Validate the plan token is consistent with the canonical handle
+        // stamp chosen by the router. Admission evidence no longer restates
+        // canonical identity.
+        if derived_route_id != *input.handle.route_id() {
             return Err(RouteRuntimeError::Invalidated.into());
         }
 
@@ -200,7 +199,7 @@ where
                 &input.admission.backend_ref.backend_route_id,
             )
             .map_err(|_| RouteRuntimeError::Invalidated)?;
-        if derived.route_id != input.admission.route_id
+        if derived.route_id != *input.handle.route_id()
             || derived.summary != input.admission.summary
             || derived.witness != input.admission.witness
             || derived.admission_check != input.admission.admission_check

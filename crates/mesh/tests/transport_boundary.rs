@@ -97,11 +97,11 @@ fn mesh_engine_accepts_transport_effects_without_a_mesh_specific_transport_trait
         .into_iter()
         .next()
         .expect("candidate");
+    let route_id = candidate.route_id;
     let admission = engine
         .admit_route(&goal, &profile, candidate, &topology)
         .expect("admission");
-    let input = materialization_input(admission, lease(Tick(2), Tick(12)));
-    let route_id = input.handle.stamp.route_id;
+    let input = materialization_input(route_id, admission, lease(Tick(2), Tick(12)));
     engine
         .materialize_route(input)
         .expect("materialization succeeds");

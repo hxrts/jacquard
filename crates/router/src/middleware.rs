@@ -290,6 +290,7 @@ where
             .into_iter()
             .next()
             .ok_or(RouteSelectionError::NoCandidate)?;
+        let route_id = candidate.route_id;
         let engine_id = candidate.backend_ref.engine.clone();
         let admission = self.engine_for_id(&engine_id)?.admit_route(
             objective,
@@ -307,7 +308,7 @@ where
             .into());
         }
 
-        let input = self.materialization_input(&admission)?;
+        let input = self.materialization_input(route_id, &admission)?;
         let route_id = *input.handle.route_id();
         let installation = self
             .engine_for_id_mut(&engine_id)?
@@ -342,6 +343,7 @@ where
 
     fn materialization_input(
         &mut self,
+        route_id: RouteId,
         admission: &jacquard_core::RouteAdmission,
     ) -> Result<RouteMaterializationInput, RouteError> {
         let publication_id = publication_id(self.effects.next_order_stamp());
@@ -358,7 +360,7 @@ where
         Ok(RouteMaterializationInput {
             handle: RouteHandle {
                 stamp: RouteIdentityStamp {
-                    route_id: admission.route_id,
+                    route_id,
                     topology_epoch: self.topology.value.epoch,
                     materialized_at_tick: now,
                     publication_id,

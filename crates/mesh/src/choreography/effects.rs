@@ -26,7 +26,10 @@ pub(crate) trait ChoreographyResultExt<T> {
 
 impl<T, E> ChoreographyResultExt<T> for Result<T, E> {
     fn choreography_failed(self) -> Result<T, RouteError> {
-        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::MaintenanceFailed))
+        match self {
+            | Ok(value) => Ok(value),
+            | Err(_) => Err(RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)),
+        }
     }
 }
 
@@ -38,7 +41,10 @@ pub(crate) trait InvalidatedResultExt<T> {
 
 impl<T, E> InvalidatedResultExt<T> for Result<T, E> {
     fn invalidated(self) -> Result<T, RouteError> {
-        self.map_err(|_| RouteError::Runtime(RouteRuntimeError::Invalidated))
+        match self {
+            | Ok(value) => Ok(value),
+            | Err(_) => Err(RouteError::Runtime(RouteRuntimeError::Invalidated)),
+        }
     }
 }
 

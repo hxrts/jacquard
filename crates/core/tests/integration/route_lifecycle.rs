@@ -106,6 +106,7 @@ fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInst
     let summary = sample_summary();
     let witness = sample_witness(admission_profile.clone());
     let candidate = RouteCandidate {
+        route_id: RouteId([5; 16]),
         summary: summary.clone(),
         estimate: Estimate {
             value: RouteEstimate {
@@ -132,7 +133,6 @@ fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInst
             },
         },
         admission: RouteAdmission {
-            route_id: RouteId([5; 16]),
             backend_ref: candidate.backend_ref.clone(),
             objective,
             profile: SelectedRoutingParameters {
