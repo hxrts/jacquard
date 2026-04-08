@@ -25,7 +25,7 @@ use jacquard_traits::{
         RouteMaintenanceOutcome, RouteMaintenanceTrigger, RoutePartitionClass,
         RouteRepairClass, RouteRuntimeError, Tick,
     },
-    RoutingEngine,
+    RouterManagedEngine, RoutingEngine,
 };
 
 // CapacityExceeded is replacement pressure, not partition evidence. The
@@ -58,7 +58,7 @@ fn capacity_exceeded_requires_replacement_without_entering_partition_mode() {
     let active_route = engine
         .active_route(&identity.handle.route_id)
         .expect("active route remains installed");
-    assert!(!active_route.anti_entropy.partition_mode);
+    assert!(!active_route.retention.partition_mode);
 }
 
 // PolicyShift must produce a HandedOff outcome carrying a populated
@@ -100,7 +100,7 @@ fn policy_shift_rebases_runtime_to_the_next_owner_relative_hop() {
     assert_eq!(active_route.forwarding.next_hop_index, 1);
 
     let error = engine
-        .forward_payload(&identity.handle.route_id, b"payload")
+        .forward_payload_for_router(&identity.handle.route_id, b"payload")
         .expect_err("old owner must fail closed after handoff");
     assert!(matches!(
         error,
@@ -147,7 +147,7 @@ fn single_hop_policy_shift_advances_cursor_to_path_end() {
     );
     assert_eq!(
         usize::from(active_route.forwarding.next_hop_index),
-        active_route.path.segments.len()
+        active_route.segment_count
     );
 }
 
@@ -278,11 +278,10 @@ fn maintenance_checkpoint_failure_leaves_runtime_and_active_route_unchanged() {
     let original_runtime = runtime.clone();
     let original_active_route = engine
         .active_route(&identity.handle.route_id)
-        .expect("active route present")
-        .clone();
-    let original_event_count = engine.runtime_effects().events.len();
+        .expect("active route present");
+    let original_event_count = engine.effects.events().len();
 
-    engine.runtime_effects_mut().fail_store_bytes = true;
+    engine.effects.set_fail_store_bytes(true);
     let error = engine
         .maintain_route(
             &identity,
@@ -300,9 +299,9 @@ fn maintenance_checkpoint_failure_leaves_runtime_and_active_route_unchanged() {
         engine
             .active_route(&identity.handle.route_id)
             .expect("active route remains installed"),
-        &original_active_route
+        original_active_route
     );
-    assert_eq!(engine.runtime_effects().events.len(), original_event_count);
+    assert_eq!(engine.effects.events().len(), original_event_count);
 }
 
 // In v1 mesh, AntiEntropyRequired is a typed progress refresh over the
@@ -320,7 +319,7 @@ fn anti_entropy_required_is_a_progress_refresh_in_v1_mesh() {
     );
 
     let before = runtime.progress.last_progress_at_tick;
-    engine.runtime_effects_mut().now = Tick(7);
+    engine.effects.set_now(Tick(7));
     let result = engine
         .maintain_route(
             &identity,
@@ -352,7 +351,7 @@ fn policy_shift_flushes_retained_payloads_before_handoff() {
         )
         .expect("partition maintenance");
     engine
-        .forward_payload(&identity.handle.route_id, b"held-before-handoff")
+        .forward_payload_for_router(&identity.handle.route_id, b"held-before-handoff")
         .expect("partitioned forwarding retains payload");
 
     let result = engine
@@ -369,10 +368,10 @@ fn policy_shift_flushes_retained_payloads_before_handoff() {
     let active_route = engine
         .active_route(&identity.handle.route_id)
         .expect("active route remains installed");
-    assert!(active_route.anti_entropy.retained_objects.is_empty());
+    assert_eq!(active_route.retention.retained_object_count, 0);
     assert!(engine
-        .transport_adapter()
-        .sent_frames
+        .transport
+        .sent_frames()
         .iter()
         .any(|(_endpoint, payload)| payload == b"held-before-handoff"));
 }
@@ -393,7 +392,7 @@ fn link_degraded_consumes_one_repair_budget_step_in_v1_mesh() {
 
     let before = engine
         .active_route(&identity.handle.route_id)
-        .map(|route| route.repair.steps_remaining)
+        .map(|route| route.repair_steps_remaining)
         .expect("active route exists");
     let result = engine
         .maintain_route(
@@ -404,7 +403,7 @@ fn link_degraded_consumes_one_repair_budget_step_in_v1_mesh() {
         .expect("maintenance succeeds");
     let after = engine
         .active_route(&identity.handle.route_id)
-        .map(|route| route.repair.steps_remaining)
+        .map(|route| route.repair_steps_remaining)
         .expect("active route exists after repair");
 
     assert_eq!(result.outcome, RouteMaintenanceOutcome::Repaired);
@@ -427,7 +426,7 @@ fn repair_budget_exhausts_and_escalates_to_replacement() {
 
     let initial_budget = engine
         .active_route(&identity.handle.route_id)
-        .map(|route| route.repair.steps_remaining)
+        .map(|route| route.repair_steps_remaining)
         .expect("active route exists");
     assert!(initial_budget > 0, "repair budget should be positive");
 

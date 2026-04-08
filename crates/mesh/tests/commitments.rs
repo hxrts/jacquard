@@ -15,7 +15,7 @@ use jacquard_traits::{
         MaterializedRoute, NodeId, RouteCommitmentResolution, RouteMaintenanceTrigger,
         Tick,
     },
-    RoutingEngine,
+    RouterManagedEngine, RoutingEngine,
 };
 
 fn materialized_route_for(
@@ -66,7 +66,7 @@ fn v1_mesh_exposes_one_commitment_per_route_across_runtime_postures() {
         .expect("partition maintenance");
     runtime.last_lifecycle_event = partition_result.event;
     engine
-        .forward_payload(&identity.handle.route_id, b"retained")
+        .forward_payload_for_router(&identity.handle.route_id, b"retained")
         .expect("retention forwarding");
     let retained = materialized_route_for(identity.clone(), runtime.clone());
     let retained_commitments = engine.route_commitments(&retained);
@@ -103,7 +103,7 @@ fn expired_route_still_has_one_invalidated_commitment() {
         NodeId([3; 32]),
         lease(Tick(2), Tick(10)),
     );
-    engine.runtime_effects_mut().now = Tick(11);
+    engine.effects.set_now(Tick(11));
 
     let route = materialized_route_for(identity, runtime);
     let commitments = engine.route_commitments(&route);

@@ -380,10 +380,7 @@ impl RecoverableTestEngine {
     }
 
     fn engine_id_value() -> jacquard_core::RoutingEngineId {
-        jacquard_core::RoutingEngineId::External {
-            name: "recoverable-test".to_string(),
-            contract_id: jacquard_core::RoutingEngineContractId([8; 16]),
-        }
+        jacquard_core::RoutingEngineId::from_contract_bytes([8; 16])
     }
 
     fn route_summary(

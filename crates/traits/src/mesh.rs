@@ -1,21 +1,21 @@
 //! Mesh-facing subcomponent interfaces.
 //!
-//! These traits are the high-level contract boundaries for mesh internals that
-//! need to remain swappable across crates and runtimes.
+//! These traits stay shared only for narrow read-only mesh boundaries that an
+//! external host, test harness, or alternate first-party mesh implementation
+//! may legitimately swap or observe without reaching into mesh-private
+//! planner/runtime state.
 //!
 //! Effect boundary:
 //! - `MeshTopologyModel` is read-only. It should be deterministic with respect
 //!   to its inputs and must not mutate canonical route state.
-//! - `RetentionStore` is effectful. It stores opaque deferred-delivery
-//!   payloads, but it must not interpret higher-level routing semantics.
+//! - `RetentionStore` remains the opaque deferred-delivery storage boundary,
+//!   but it now lives on the neutral shared effect surface rather than in this
+//!   mesh-named module.
 
-use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, HealthScore, Link, LinkEndpoint, Node,
-    NodeId, RetentionError, Tick,
-};
+use jacquard_core::{Configuration, Link, LinkEndpoint, Node, NodeId, Tick};
 use jacquard_macros::purity;
 
-use crate::RoutingEngine;
+use crate::{RetentionStore, RoutingEngine};
 
 #[purity(read_only)]
 /// Deterministic, read-only topology queries used by the mesh planner/runtime.
@@ -26,7 +26,9 @@ use crate::RoutingEngine;
 /// boundary rather than in `jacquard-core`. The associated estimate types let
 /// one mesh implementation expose novelty, reach, bridge, or flow heuristics to
 /// its own planner/runtime without turning them into shared cross-engine
-/// schema.
+/// schema. This trait remains shared because substituting the read-only
+/// topology view is a legitimate extension point; the estimate-access traits
+/// themselves stay mesh-owned.
 pub trait MeshTopologyModel {
     type PeerEstimate;
     type NeighborhoodEstimate;
@@ -78,56 +80,15 @@ pub trait MeshTopologyModel {
 }
 
 #[purity(read_only)]
-/// Score components mesh consumes from a peer-local estimate.
-pub trait MeshPeerEstimateAccess {
-    fn relay_value_score(&self) -> Option<HealthScore>;
-    fn retention_value_score(&self) -> Option<HealthScore>;
-    fn stability_score(&self) -> Option<HealthScore>;
-    fn service_score(&self) -> Option<HealthScore>;
-}
-
-#[purity(read_only)]
-/// Score components mesh consumes from a neighborhood-local estimate.
-pub trait MeshNeighborhoodEstimateAccess {
-    fn density_score(&self) -> Option<HealthScore>;
-    fn repair_pressure_score(&self) -> Option<HealthScore>;
-    fn partition_risk_score(&self) -> Option<HealthScore>;
-    fn service_stability_score(&self) -> Option<HealthScore>;
-}
-
-#[purity(effectful)]
-/// Effectful deferred-delivery retention boundary.
-///
-/// Effectful runtime boundary.
-pub trait RetentionStore {
-    #[must_use = "unchecked retain_payload result silently discards retention failures"]
-    fn retain_payload(
-        &mut self,
-        object_id: ContentId<Blake3Digest>,
-        payload: Vec<u8>,
-    ) -> Result<(), RetentionError>;
-
-    #[must_use = "unread take_retained_payload result silently discards the held payload"]
-    fn take_retained_payload(
-        &mut self,
-        object_id: &ContentId<Blake3Digest>,
-    ) -> Result<Option<Vec<u8>>, RetentionError>;
-
-    #[must_use = "unread contains_retained_payload result silently discards storage errors"]
-    fn contains_retained_payload(
-        &self,
-        object_id: &ContentId<Blake3Digest>,
-    ) -> Result<bool, RetentionError>;
-}
-
-#[purity(effectful)]
-/// Mesh-specialized routing-engine boundary for mesh-private deterministic
-/// semantics.
+/// Narrow mesh-specialized routing-engine boundary for mesh-private
+/// deterministic semantics.
 ///
 /// Planning purity stays in `RoutingEnginePlanner` plus `MeshTopologyModel`.
 /// This trait binds the effectful routing-engine runtime only to the mesh
 /// subcomponents that remain mesh-specific after transport is moved onto the
-/// shared `TransportEffects` boundary.
+/// shared `TransportEffects` boundary. It intentionally exposes only
+/// read-only subcomponent access; mutation of retained payload state remains
+/// engine-private.
 ///
 /// Effectful runtime boundary with read-only subcomponent accessors.
 pub trait MeshRoutingEngine: RoutingEngine {
@@ -137,6 +98,4 @@ pub trait MeshRoutingEngine: RoutingEngine {
     fn topology_model(&self) -> &Self::TopologyModel;
 
     fn retention_store(&self) -> &Self::Retention;
-
-    fn retention_store_mut(&mut self) -> &mut Self::Retention;
 }

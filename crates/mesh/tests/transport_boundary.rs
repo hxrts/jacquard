@@ -7,6 +7,8 @@
 
 mod common;
 
+use std::sync::{Arc, Mutex};
+
 use common::{
     effects::{TestRetentionStore, TestRuntimeEffects},
     engine::{lease, materialization_input, objective, profile, LOCAL_NODE_ID},
@@ -18,13 +20,28 @@ use jacquard_traits::{
     jacquard_core::{
         DestinationId, LinkEndpoint, Tick, TransportError, TransportObservation,
     },
-    Blake3Hashing, RoutingEngine, RoutingEnginePlanner, TransportEffects,
+    Blake3Hashing, RouterManagedEngine, RoutingEngine, RoutingEnginePlanner,
+    TransportEffects,
 };
 
 #[derive(Default)]
-struct SharedOnlyTransport {
+struct SharedOnlyTransportState {
     sent_frames: Vec<(LinkEndpoint, Vec<u8>)>,
     observations: Vec<TransportObservation>,
+}
+
+#[derive(Clone, Default)]
+struct SharedOnlyTransport(Arc<Mutex<SharedOnlyTransportState>>);
+
+impl SharedOnlyTransport {
+    #[must_use]
+    fn sent_frame_count(&self) -> usize {
+        self.0
+            .lock()
+            .expect("shared-only transport lock")
+            .sent_frames
+            .len()
+    }
 }
 
 #[effect_handler]
@@ -34,24 +51,35 @@ impl TransportEffects for SharedOnlyTransport {
         endpoint: &LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), TransportError> {
-        self.sent_frames.push((endpoint.clone(), payload.to_vec()));
+        self.0
+            .lock()
+            .expect("shared-only transport lock")
+            .sent_frames
+            .push((endpoint.clone(), payload.to_vec()));
         Ok(())
     }
 
     fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
-        Ok(std::mem::take(&mut self.observations))
+        Ok(std::mem::take(
+            &mut self
+                .0
+                .lock()
+                .expect("shared-only transport lock")
+                .observations,
+        ))
     }
 }
 
 #[test]
 fn mesh_engine_accepts_transport_effects_without_a_mesh_specific_transport_trait() {
     let topology = sample_configuration();
+    let transport = SharedOnlyTransport::default();
     let mut engine = MeshEngine::without_committee_selector(
         LOCAL_NODE_ID,
         DeterministicMeshTopologyModel::new(),
-        SharedOnlyTransport::default(),
+        transport.clone(),
         TestRetentionStore::default(),
-        TestRuntimeEffects { now: Tick(2), ..Default::default() },
+        TestRuntimeEffects::with_now(Tick(2)),
         Blake3Hashing,
     );
     let goal = objective(DestinationId::Node(jacquard_traits::jacquard_core::NodeId(
@@ -78,8 +106,8 @@ fn mesh_engine_accepts_transport_effects_without_a_mesh_specific_transport_trait
         .materialize_route(input)
         .expect("materialization succeeds");
     engine
-        .forward_payload(&route_id, b"payload")
+        .forward_payload_for_router(&route_id, b"payload")
         .expect("forwarding succeeds");
 
-    assert_eq!(engine.transport_adapter().sent_frames.len(), 1);
+    assert_eq!(transport.sent_frame_count(), 1);
 }

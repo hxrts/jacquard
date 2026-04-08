@@ -94,7 +94,7 @@ fn maintain_route_succeeds_one_tick_before_lease_end() {
         lease(Tick(2), Tick(10)),
     );
 
-    engine.runtime_effects_mut().now = Tick(9);
+    engine.effects.set_now(Tick(9));
     let result = engine
         .maintain_route(
             &identity,
@@ -121,7 +121,7 @@ fn maintain_route_fails_at_lease_end_tick() {
         lease(Tick(2), Tick(10)),
     );
 
-    engine.runtime_effects_mut().now = Tick(10);
+    engine.effects.set_now(Tick(10));
     let result = engine
         .maintain_route(
             &identity,

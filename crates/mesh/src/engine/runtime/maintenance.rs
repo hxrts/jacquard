@@ -22,13 +22,14 @@ use super::{
     MaintenanceContext, MeshEffectsBounds, MeshEngine, MeshHasherBounds,
     MeshSelectorBounds, TransportEffectsBounds,
 };
+use crate::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: super::super::MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
     Transport: TransportEffectsBounds,
     Retention: super::super::MeshRetentionBounds,
     Effects: MeshEffectsBounds,

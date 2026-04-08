@@ -10,6 +10,14 @@ This page describes the crate layout, the boundary rules, and the implementation
 
 `traits` owns the cross-crate behavioral interfaces, grouped below by purpose. The layering subset is forward-looking. The shared shape is part of the stable design, but in-tree coverage is still contract-oriented rather than a mature production layering stack.
 
+Shared transport vocabulary follows the same rule. `core` keeps a small,
+observed-world transport schema in `TransportProtocol`, `EndpointAddress`, and
+`LinkEndpoint` because those types appear in shared `Link`,
+`ServiceDescriptor`, and `TransportObservation` facts. Jacquard intentionally
+does not force those types fully opaque today; the opaque endpoint variant
+remains available, and a broader opacity refactor should only happen if a
+second transport proves the current shared model too specific.
+
 | Category | Traits |
 |---|---|
 | Routing contract | `RoutingEnginePlanner`, `RoutingEngine`, `Router`, `RoutingControlPlane`, `RoutingDataPlane`, `PolicyEngine` |
@@ -17,7 +25,7 @@ This page describes the crate layout, the boundary rules, and the implementation
 | Layering | `SubstratePlanner`, `SubstrateRuntime`, `LayeredRoutingEnginePlanner`, `LayeredRoutingEngine`, `LayeringPolicyEngine` |
 | Runtime effects | `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, `TransportEffects` |
 | Hashing and content | `Hashing`, `ContentAddressable`, `TemplateAddressable` |
-| Mesh specialization | `MeshTopologyModel`, `RetentionStore`, `MeshRoutingEngine` |
+| Mesh specialization | `MeshTopologyModel`, `MeshRoutingEngine` |
 | Simulator | `RoutingScenario`, `RoutingEnvironmentModel`, `RoutingSimulator`, `RoutingReplayView` |
 
 ## Dependency Graph

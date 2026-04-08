@@ -8,6 +8,8 @@
 //! step that returns the materialized identity and runtime ready for
 //! maintenance probes.
 
+use std::ops::{Deref, DerefMut};
+
 use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
 use jacquard_traits::{
     jacquard_core::{
@@ -27,14 +29,35 @@ use super::{
     fixtures::sample_configuration,
 };
 
-/// Concrete `MeshEngine` instantiation used by every integration test.
-pub type TestEngine = MeshEngine<
+type RawTestEngine = MeshEngine<
     DeterministicMeshTopologyModel,
     TestTransport,
     TestRetentionStore,
     TestRuntimeEffects,
     Blake3Hashing,
 >;
+
+/// Concrete mesh test harness used by every integration test.
+pub struct TestEngine {
+    engine: RawTestEngine,
+    pub transport: TestTransport,
+    pub retention: TestRetentionStore,
+    pub effects: TestRuntimeEffects,
+}
+
+impl Deref for TestEngine {
+    type Target = RawTestEngine;
+
+    fn deref(&self) -> &Self::Target {
+        &self.engine
+    }
+}
+
+impl DerefMut for TestEngine {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.engine
+    }
+}
 
 /// Local node id used by every test engine. Centralised so the lease
 /// owner and the engine identity stay in sync.
@@ -49,14 +72,19 @@ pub fn build_engine_at_tick(now: Tick) -> TestEngine {
 }
 
 pub fn build_engine_for_node_at_tick(local_node_id: NodeId, now: Tick) -> TestEngine {
-    MeshEngine::without_committee_selector(
+    let transport = TestTransport::default();
+    let retention = TestRetentionStore::default();
+    let effects = TestRuntimeEffects::default();
+    effects.set_now(now);
+    let engine = MeshEngine::without_committee_selector(
         local_node_id,
         DeterministicMeshTopologyModel::new(),
-        TestTransport::default(),
-        TestRetentionStore::default(),
-        TestRuntimeEffects { now, ..Default::default() },
+        transport.clone(),
+        retention.clone(),
+        effects.clone(),
         Blake3Hashing,
-    )
+    );
+    TestEngine { engine, transport, retention, effects }
 }
 
 pub fn mesh_connectivity(partition: RoutePartitionClass) -> ConnectivityPosture {

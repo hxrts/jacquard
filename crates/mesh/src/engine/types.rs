@@ -12,7 +12,7 @@ use jacquard_core::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MeshRouteClass {
     Direct,
     MultiHop,
@@ -21,20 +21,20 @@ pub enum MeshRouteClass {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MeshRouteSegment {
+pub(crate) struct MeshRouteSegment {
     pub node_id: NodeId,
     pub endpoint: LinkEndpoint,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum MeshCommitteeStatus {
+pub(crate) enum MeshCommitteeStatus {
     NotApplicable,
     Selected(CommitteeSelection),
     SelectorFailed,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MeshPath {
+pub(crate) struct MeshPath {
     pub route_id: RouteId,
     pub epoch: jacquard_core::RouteEpoch,
     pub source: NodeId,
@@ -45,7 +45,7 @@ pub struct MeshPath {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MeshForwardingState {
+pub(crate) struct MeshForwardingState {
     pub current_owner_node_id: NodeId,
     pub next_hop_index: u8,
     pub in_flight_frames: u32,
@@ -53,26 +53,26 @@ pub struct MeshForwardingState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MeshRepairState {
+pub(crate) struct MeshRepairState {
     pub steps_remaining: u32,
     pub last_repaired_at_tick: Option<Tick>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MeshHandoffState {
+pub(crate) struct MeshHandoffState {
     pub last_receipt_id: Option<ReceiptId>,
     pub last_handoff_at_tick: Option<Tick>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MeshRouteAntiEntropyState {
+pub(crate) struct MeshRouteAntiEntropyState {
     pub partition_mode: bool,
     pub retained_objects: BTreeSet<ContentId<Blake3Digest>>,
     pub last_refresh_at_tick: Option<Tick>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ActiveMeshRoute {
+pub(crate) struct ActiveMeshRoute {
     pub path: MeshPath,
     pub committee: Option<CommitteeSelection>,
     pub current_epoch: jacquard_core::RouteEpoch,
@@ -123,6 +123,53 @@ pub struct MeshControlState {
     pub transport_stability_score: HealthScore,
     pub repair_pressure_score: HealthScore,
     pub anti_entropy: MeshAntiEntropyState,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MeshForwardingCursor {
+    pub current_owner_node_id: NodeId,
+    pub next_hop_index: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MeshRouteRetentionView {
+    pub partition_mode: bool,
+    pub retained_object_count: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MeshActiveRouteView {
+    pub route_class: MeshRouteClass,
+    pub first_hop_node_id: Option<NodeId>,
+    pub segment_count: usize,
+    pub has_committee: bool,
+    pub forwarding: MeshForwardingCursor,
+    pub retention: MeshRouteRetentionView,
+    pub repair_steps_remaining: u32,
+}
+
+impl From<&ActiveMeshRoute> for MeshActiveRouteView {
+    fn from(active_route: &ActiveMeshRoute) -> Self {
+        Self {
+            route_class: active_route.path.route_class,
+            first_hop_node_id: active_route
+                .path
+                .segments
+                .first()
+                .map(|segment| segment.node_id),
+            segment_count: active_route.path.segments.len(),
+            has_committee: active_route.committee.is_some(),
+            forwarding: MeshForwardingCursor {
+                current_owner_node_id: active_route.forwarding.current_owner_node_id,
+                next_hop_index: active_route.forwarding.next_hop_index,
+            },
+            retention: MeshRouteRetentionView {
+                partition_mode: active_route.anti_entropy.partition_mode,
+                retained_object_count: active_route.anti_entropy.retained_objects.len(),
+            },
+            repair_steps_remaining: active_route.repair.steps_remaining,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

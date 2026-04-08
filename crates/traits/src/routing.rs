@@ -15,9 +15,9 @@ use jacquard_core::{
 use jacquard_macros::purity;
 
 #[purity(pure)]
-/// Owns the protection-versus-connectivity decision. In a mesh-only deployment,
-/// this may return a fixed profile. Richer policy comes from the embedding
-/// host.
+/// Owns the protection-versus-connectivity decision. In a single-engine
+/// deployment this may return a fixed profile. Richer policy comes from the
+/// embedding host.
 ///
 /// Pure deterministic boundary.
 pub trait PolicyEngine {
@@ -273,8 +273,8 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 /// - data-plane forwarding over an already-admitted route
 /// - restoration of engine-private runtime state during router-led recovery
 ///
-/// This remains generic middleware surface area rather than family-specific
-/// mesh behavior. Any engine that wants to sit behind the in-tree router must
+/// This remains generic middleware surface area rather than engine-specific
+/// behavior. Any engine that wants to sit behind the in-tree router must
 /// provide these hooks without exposing engine-private internals.
 pub trait RouterManagedEngine: RoutingEngine {
     #[must_use]

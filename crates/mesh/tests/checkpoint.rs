@@ -8,11 +8,11 @@ use common::{
 };
 use jacquard_traits::{
     jacquard_core::{NodeId, Tick},
-    RoutingEngine,
+    RouterManagedEngine, RoutingEngine,
 };
 
 fn has_protocol_checkpoint(engine: &common::engine::TestEngine, prefix: &str) -> bool {
-    engine.runtime_effects().storage.keys().any(|key| {
+    engine.effects.storage_keys().iter().any(|key| {
         std::str::from_utf8(key).is_ok_and(|value| value.starts_with(prefix))
     })
 }
@@ -29,12 +29,11 @@ fn checkpointed_active_route_round_trips_across_engine_restart() {
     );
     let original_active_route = original
         .active_route(&identity.handle.route_id)
-        .expect("active route present")
-        .clone();
-    let stored_bytes = original.runtime_effects().storage.clone();
+        .expect("active route present");
+    let stored_bytes = original.effects.storage_clone();
 
     let mut recovered = build_engine();
-    recovered.runtime_effects_mut().storage = stored_bytes;
+    recovered.effects.replace_storage(stored_bytes);
 
     assert_eq!(
         recovered
@@ -43,17 +42,14 @@ fn checkpointed_active_route_round_trips_across_engine_restart() {
         Some(topology.value.epoch)
     );
 
-    let restored = recovered
-        .restore_checkpointed_route(&identity.handle.route_id)
-        .expect("restore checkpointed route")
-        .expect("checkpointed route present");
-
-    assert_eq!(restored, original_active_route);
+    assert!(recovered
+        .restore_route_runtime_for_router(&identity.handle.route_id)
+        .expect("restore checkpointed route"));
     assert_eq!(
         recovered
             .active_route(&identity.handle.route_id)
             .expect("restored route present"),
-        &original_active_route
+        original_active_route
     );
 }
 
@@ -83,7 +79,7 @@ fn checkpoint_round_trip_preserves_richer_runtime_substates() {
         )
         .expect("enter partition mode");
     original
-        .forward_payload(&identity.handle.route_id, b"checkpointed payload")
+        .forward_payload_for_router(&identity.handle.route_id, b"checkpointed payload")
         .expect("buffer retained payload");
     original
         .maintain_route(
@@ -95,19 +91,21 @@ fn checkpoint_round_trip_preserves_richer_runtime_substates() {
 
     let original_active_route = original
         .active_route(&identity.handle.route_id)
-        .expect("active route present")
-        .clone();
-    let stored_bytes = original.runtime_effects().storage.clone();
+        .expect("active route present");
+    let stored_bytes = original.effects.storage_clone();
 
     let mut recovered = build_engine();
-    recovered.runtime_effects_mut().storage = stored_bytes;
+    recovered.effects.replace_storage(stored_bytes);
 
-    let restored = recovered
-        .restore_checkpointed_route(&identity.handle.route_id)
-        .expect("restore checkpointed route")
-        .expect("checkpointed route present");
-
-    assert_eq!(restored, original_active_route);
+    assert!(recovered
+        .restore_route_runtime_for_router(&identity.handle.route_id)
+        .expect("restore checkpointed route"));
+    assert_eq!(
+        recovered
+            .active_route(&identity.handle.route_id)
+            .expect("checkpointed route present"),
+        original_active_route
+    );
 }
 
 #[test]
@@ -142,18 +140,13 @@ fn protocol_checkpoints_round_trip_without_hidden_runtime_state() {
         "mesh/protocol/forwarding/tick-epoch-"
     ));
 
-    let stored_bytes = original.runtime_effects().storage.clone();
+    let stored_bytes = original.effects.storage_clone();
     let mut recovered = build_engine();
-    recovered.runtime_effects_mut().storage = stored_bytes;
+    recovered.effects.replace_storage(stored_bytes);
 
-    let restored = recovered
-        .restore_checkpointed_route(&identity.handle.route_id)
-        .expect("restore checkpointed route")
-        .expect("checkpointed route present");
-    assert_eq!(
-        restored.last_lifecycle_event,
-        jacquard_traits::jacquard_core::RouteLifecycleEvent::Repaired
-    );
+    assert!(recovered
+        .restore_route_runtime_for_router(&identity.handle.route_id)
+        .expect("restore checkpointed route"));
     assert!(has_protocol_checkpoint(
         &recovered,
         "mesh/protocol/activation/"

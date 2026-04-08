@@ -16,14 +16,14 @@ use jacquard_core::{
     Observation, RoutePartitionClass, RouteRepairClass, RouteServiceKind,
     RoutingObjective, Tick, ROUTE_HOP_COUNT_MAX,
 };
-use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 
 use super::{
     MeshEngine, PATH_METRIC_BASE_HOP_COST, PATH_METRIC_DEFERRED_DELIVERY_BONUS,
     PATH_METRIC_DIVERSITY_BONUS, PATH_METRIC_PROTOCOL_REPEAT_PENALTY,
 };
 use crate::{
-    topology::estimate_hop_link, MeshRouteClass, MeshRouteSegment, MESH_ENGINE_ID,
+    topology::estimate_hop_link, MeshNeighborhoodEstimateAccess,
+    MeshPeerEstimateAccess, MeshRouteClass, MeshRouteSegment, MESH_ENGINE_ID,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>

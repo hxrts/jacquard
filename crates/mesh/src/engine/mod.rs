@@ -39,44 +39,46 @@ use trait_bounds::{
 };
 use types::{ActiveMeshRoute, CachedCandidate};
 pub use types::{
-    MeshCommitteeStatus, MeshControlState, MeshForwardingState, MeshHandoffState,
-    MeshObservedRemoteLink, MeshPath, MeshRepairState, MeshRouteAntiEntropyState,
-    MeshRouteClass, MeshRouteSegment, MeshTransportFreshness,
-    MeshTransportObservationSummary,
+    MeshActiveRouteView, MeshControlState, MeshForwardingCursor,
+    MeshObservedRemoteLink, MeshRouteClass, MeshRouteRetentionView,
+    MeshTransportFreshness, MeshTransportObservationSummary,
+};
+pub(crate) use types::{
+    MeshForwardingState, MeshHandoffState, MeshPath, MeshRepairState,
+    MeshRouteAntiEntropyState, MeshRouteSegment,
 };
 
 use crate::{
     choreography::{MeshGuestRuntime, MeshProtocolRuntimeAdapter},
     committee::NoCommitteeSelector,
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess,
 };
 
 // Public Engine Identity And Capability Surface
 
-pub const MESH_ENGINE_ID: RoutingEngineId = RoutingEngineId::Mesh;
+pub const MESH_ENGINE_ID: RoutingEngineId =
+    RoutingEngineId::from_contract_bytes(*b"jacquard.mesh.v1");
 
 /// Maximum number of concurrently active materialized routes this engine
 /// will hold. New materializations past this point fail with
 /// `RoutePolicyError::BudgetExceeded`.
-pub const MESH_ACTIVE_ROUTE_COUNT_MAX: usize = 64;
+pub(crate) const MESH_ACTIVE_ROUTE_COUNT_MAX: usize = 64;
 
 /// Maximum number of candidate entries the planner emits per tick.
 /// Sorting and truncation happen after BFS so the cap is deterministic.
-pub const MESH_CANDIDATE_COUNT_MAX: usize = 32;
+pub(crate) const MESH_CANDIDATE_COUNT_MAX: usize = 32;
 
 /// Maximum number of retained payload objects tracked per active route.
-pub const MESH_RETAINED_PER_ROUTE_COUNT_MAX: usize = 32;
+pub(crate) const MESH_RETAINED_PER_ROUTE_COUNT_MAX: usize = 32;
 
 /// Validity window applied to newly derived mesh candidates, in ticks.
-pub const MESH_CANDIDATE_VALIDITY_TICKS: u64 = 12;
+pub(crate) const MESH_CANDIDATE_VALIDITY_TICKS: u64 = 12;
 
 /// Per-hop byte cost used in `RouteCost` derivation.
-pub const MESH_PER_HOP_BYTE_COST: u64 = 1024;
+pub(crate) const MESH_PER_HOP_BYTE_COST: u64 = 1024;
 
 /// Hold capacity reserved for deferred-delivery routes, in bytes.
-pub const MESH_HOLD_RESERVED_BYTES: u64 = 1024;
-
-/// Maximum canonical byte length for a v1 mesh backend plan token.
-pub const MESH_BACKEND_ROUTE_ID_BYTES_MAX: usize = 2048;
+pub(crate) const MESH_HOLD_RESERVED_BYTES: u64 = 1024;
 
 // Route-commitment retry budget. Mesh uses a short, fixed policy because
 // commitments represent already-admitted routes; exceeding the budget is
@@ -92,7 +94,7 @@ const MESH_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 // repair, hold, and decidable-admission support. This is the static
 // capability envelope the router sees during engine registration.
 pub const MESH_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilities {
-    engine: RoutingEngineId::Mesh,
+    engine: MESH_ENGINE_ID,
     max_protection: jacquard_core::RouteProtectionClass::LinkProtected,
     max_connectivity: ConnectivityPosture {
         repair: jacquard_core::RouteRepairClass::Repairable,
@@ -142,8 +144,8 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector> RouterManagedEng
     for MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
     Transport: TransportEffectsBounds,
     Retention: MeshRetentionBounds,
     Effects: MeshEffectsBounds,
@@ -240,31 +242,15 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     }
 
     #[must_use]
-    pub fn runtime_effects(&self) -> &Effects {
-        &self.effects
-    }
-
-    pub fn runtime_effects_mut(&mut self) -> &mut Effects {
-        &mut self.effects
-    }
-
-    #[must_use]
-    pub fn transport_adapter(&self) -> &Transport {
-        &self.transport
-    }
-
-    pub fn transport_adapter_mut(&mut self) -> &mut Transport {
-        &mut self.transport
-    }
-
-    #[must_use]
     pub fn latest_topology(&self) -> Option<&Observation<Configuration>> {
         self.latest_topology.as_ref()
     }
 
     #[must_use]
-    pub fn active_route(&self, route_id: &RouteId) -> Option<&ActiveMeshRoute> {
-        self.active_routes.get(route_id)
+    pub fn active_route(&self, route_id: &RouteId) -> Option<MeshActiveRouteView> {
+        self.active_routes
+            .get(route_id)
+            .map(types::MeshActiveRouteView::from)
     }
 
     #[must_use]
@@ -306,7 +292,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         Ok(Some(RouteEpoch(u64::from_le_bytes(epoch_bytes))))
     }
 
-    pub fn restore_checkpointed_route(
+    pub(crate) fn restore_checkpointed_route(
         &mut self,
         route_id: &RouteId,
     ) -> Result<Option<ActiveMeshRoute>, RouteError>
@@ -357,7 +343,7 @@ where
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
 {
-    pub fn forward_payload(
+    pub(crate) fn forward_payload(
         &mut self,
         route_id: &RouteId,
         payload: &[u8],
@@ -417,7 +403,7 @@ where
     Effects: MeshEffectsBounds,
     Hasher: MeshHasherBounds,
 {
-    pub fn retain_for_route(
+    pub(crate) fn retain_for_route(
         &mut self,
         route_id: &RouteId,
         payload: &[u8],
@@ -439,22 +425,6 @@ where
             active_route.anti_entropy.retained_objects.insert(object_id);
         }
         Ok(object_id)
-    }
-
-    pub fn recover_retained_payload(
-        &mut self,
-        route_id: &RouteId,
-        object_id: &ContentId<Blake3Digest>,
-    ) -> Result<Option<Vec<u8>>, jacquard_core::RetentionError> {
-        let payload = self
-            .choreography_runtime()
-            .recover_held_payload(route_id, object_id)?;
-        if payload.is_some() {
-            if let Some(active_route) = self.active_routes.get_mut(route_id) {
-                active_route.anti_entropy.retained_objects.remove(object_id);
-            }
-        }
-        Ok(payload)
     }
 }
 

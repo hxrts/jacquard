@@ -175,7 +175,7 @@ fn mesh_engine_accepts_non_blake3_hashing_for_route_identity() {
         DeterministicMeshTopologyModel::new(),
         TestTransport::default(),
         TestRetentionStore::default(),
-        TestRuntimeEffects { now: Tick(2), ..Default::default() },
+        TestRuntimeEffects::with_now(Tick(2)),
         AltHashing,
     );
     let topology = sample_configuration();

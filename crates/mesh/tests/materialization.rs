@@ -159,22 +159,22 @@ fn materialize_route_does_not_depend_on_router_event_logging() {
         .expect("admission");
     let input = materialization_input(admission, lease(Tick(2), Tick(20)));
 
-    engine.runtime_effects_mut().fail_record_route_event = true;
+    engine.effects.set_fail_record_route_event(true);
     let installation = engine
         .materialize_route(input.clone())
         .expect("engine materialization stays independent of router event logging");
 
     assert_eq!(engine.active_route_count(), 1);
-    assert!(engine.runtime_effects().events.is_empty());
+    assert!(engine.effects.events().is_empty());
     assert_eq!(
         installation.materialization_proof.route_id,
         input.handle.route_id,
     );
     let remaining_keys = engine
-        .runtime_effects()
-        .storage
-        .keys()
-        .map(|key| String::from_utf8_lossy(key).into_owned())
+        .effects
+        .storage_keys()
+        .into_iter()
+        .map(|key| String::from_utf8_lossy(&key).into_owned())
         .collect::<Vec<_>>();
     assert!(remaining_keys
         .iter()
@@ -274,7 +274,7 @@ fn materialize_route_fails_closed_when_plan_token_has_expired() {
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
     let input = materialization_input(admission, lease(Tick(20), Tick(30)));
-    engine.runtime_effects_mut().now = Tick(20);
+    engine.effects.set_now(Tick(20));
 
     let error = engine
         .materialize_route(input)

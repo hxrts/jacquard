@@ -24,6 +24,10 @@ fn repairable_connected() -> ConnectivityPosture {
     }
 }
 
+fn sample_engine_id() -> RoutingEngineId {
+    RoutingEngineId::from_contract_bytes([1; 16])
+}
+
 fn sample_objective() -> RoutingObjective {
     RoutingObjective {
         destination: jacquard_core::DestinationId::Node(jacquard_core::NodeId([7; 32])),
@@ -52,7 +56,7 @@ fn sample_admission_assumptions() -> AdmissionAssumptions {
 
 fn sample_summary() -> RouteSummary {
     RouteSummary {
-        engine: RoutingEngineId::Mesh,
+        engine: sample_engine_id(),
         protection: RouteProtectionClass::LinkProtected,
         connectivity: repairable_connected(),
         protocol_mix: vec![TransportProtocol::BleGatt, TransportProtocol::WifiLan],
@@ -109,7 +113,7 @@ fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInst
             updated_at_tick: Tick(100),
         },
         backend_ref: BackendRouteRef {
-            engine: RoutingEngineId::Mesh,
+            engine: sample_engine_id(),
             backend_route_id: jacquard_core::BackendRouteId(vec![1, 2, 3]),
         },
     };
@@ -189,7 +193,7 @@ fn sample_route() -> (RouteCandidate, MaterializedRoute) {
 fn materialized_route_can_be_built_from_shared_lifecycle_types() {
     let (candidate, route) = sample_route();
 
-    assert_eq!(candidate.summary.engine, RoutingEngineId::Mesh);
+    assert_eq!(candidate.summary.engine, sample_engine_id());
     assert_eq!(
         candidate.estimate.value.estimated_connectivity,
         repairable_connected(),

@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{Blake3Digest, ContentId, RetentionError};
-use jacquard_traits::RetentionStore;
+use jacquard_traits::{effect_handler, RetentionStore};
 
 #[derive(Default)]
 pub struct InMemoryRetentionStore {
     pub payloads: BTreeMap<ContentId<Blake3Digest>, Vec<u8>>,
 }
 
+#[effect_handler]
 impl RetentionStore for InMemoryRetentionStore {
     fn retain_payload(
         &mut self,

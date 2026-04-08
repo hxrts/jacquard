@@ -1,10 +1,8 @@
 //! Integration tests for the deterministic mesh topology model.
 //!
-//! Unit tests in `topology.rs` cover the small private helpers that
-//! drive route capability and adjacency logic. This file exercises the
-//! public `DeterministicMeshTopologyModel` query surface against the
-//! standard sample fixture and confirms the mesh-private intrinsic,
-//! medium, and neighborhood estimates are derived as expected.
+//! Unit tests in `topology.rs` cover the private helper and internal
+//! topology-derivation surfaces. This file stays focused on the public
+//! topology-model contract and candidate-ordering behavior.
 
 mod common;
 
@@ -20,38 +18,10 @@ use jacquard_traits::{
     jacquard_core::{
         Configuration, DestinationId, Environment, Node, NodeId, Observation,
         RatioPermille, RouteEpoch, RoutingObjective, RoutingTickContext, ServiceId,
-        Tick, TransportProtocol,
+        Tick,
     },
     Blake3Hashing, MeshTopologyModel, RoutingEngine, RoutingEnginePlanner,
 };
-
-// The deterministic topology model must surface mesh-private intrinsic
-// node state, per-protocol medium counts, and a non-trivial
-// neighborhood density estimate from a shared `Configuration`.
-#[test]
-fn topology_model_exposes_medium_and_node_intrinsic_support() {
-    let topology = sample_configuration();
-    let model = DeterministicMeshTopologyModel::new();
-
-    let intrinsic = model
-        .node_intrinsic_state(&NodeId([1; 32]), &topology.value)
-        .expect("local node intrinsic state");
-    let medium = model.medium_state(&NodeId([1; 32]), &topology.value);
-    let neighborhood = model
-        .neighborhood_estimate(
-            &NodeId([1; 32]),
-            topology.observed_at_tick,
-            &topology.value,
-        )
-        .expect("neighborhood estimate");
-
-    assert_eq!(intrinsic.available_connection_count, 4);
-    assert_eq!(
-        medium.protocol_counts.get(&TransportProtocol::BleGatt),
-        Some(&2)
-    );
-    assert!(neighborhood.density_score.expect("density score").0 > 0);
-}
 
 #[derive(Clone)]
 struct PreferredPeerTopologyModel {
@@ -156,10 +126,7 @@ fn build_preferred_engine(preferred_peer: NodeId) -> PreferredEngine {
         PreferredPeerTopologyModel::new(preferred_peer),
         TestTransport::default(),
         TestRetentionStore::default(),
-        TestRuntimeEffects {
-            now: jacquard_traits::jacquard_core::Tick(2),
-            ..Default::default()
-        },
+        TestRuntimeEffects::with_now(jacquard_traits::jacquard_core::Tick(2)),
         Blake3Hashing,
     )
 }
@@ -261,5 +228,5 @@ fn metric_aware_search_prefers_higher_quality_equal_hop_path() {
     let route = engine
         .active_route(&installation.materialization_proof.route_id)
         .expect("active route");
-    assert_eq!(route.path.segments[0].node_id, NodeId([2; 32]));
+    assert_eq!(route.first_hop_node_id, Some(NodeId([2; 32])));
 }

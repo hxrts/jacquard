@@ -7,7 +7,9 @@
 
 // long-file-exception: cohesive topology model, estimates, and fixture tests.
 
-use std::collections::{BTreeMap, BTreeSet};
+#[cfg(test)]
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 #[allow(unused_imports)]
 use jacquard_core::HoldItemCount;
@@ -18,25 +20,41 @@ use jacquard_core::{
     RelayWorkBudget, RouteServiceKind, RoutingEngineId, RoutingObjective,
     ServiceDescriptor, ServiceId, ServiceScope, Tick, TransportProtocol,
 };
-use jacquard_traits::{
-    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshTopologyModel,
-};
+use jacquard_traits::MeshTopologyModel;
+
+#[jacquard_traits::purity(read_only)]
+/// Score components mesh consumes from a peer-local estimate.
+pub trait MeshPeerEstimateAccess {
+    fn relay_value_score(&self) -> Option<HealthScore>;
+    fn retention_value_score(&self) -> Option<HealthScore>;
+    fn stability_score(&self) -> Option<HealthScore>;
+    fn service_score(&self) -> Option<HealthScore>;
+}
+
+#[jacquard_traits::purity(read_only)]
+/// Score components mesh consumes from a neighborhood-local estimate.
+pub trait MeshNeighborhoodEstimateAccess {
+    fn density_score(&self) -> Option<HealthScore>;
+    fn repair_pressure_score(&self) -> Option<HealthScore>;
+    fn partition_risk_score(&self) -> Option<HealthScore>;
+    fn service_stability_score(&self) -> Option<HealthScore>;
+}
 
 /// Number of routable service kinds (Discover, Move, Hold) a node must
 /// advertise to be considered route-capable for this engine.
-pub const MESH_REQUIRED_SERVICE_COUNT: u32 = 3;
+pub(crate) const MESH_REQUIRED_SERVICE_COUNT: u32 = 3;
 
 /// Upper bound for HealthScore values produced by this crate.
 /// Matches the shared `RatioPermille` scale so scores compose cleanly
 /// with confidence and loss metrics elsewhere.
-pub const HEALTH_SCORE_MAX: u32 = 1000;
+pub(crate) const HEALTH_SCORE_MAX: u32 = 1000;
 
 /// Multiplier applied to reachable-neighbor counts when scaling them
 /// into the HealthScore range in `neighborhood_estimate`.
-pub const DENSITY_SCORE_SCALE: u32 = 100;
+pub(crate) const DENSITY_SCORE_SCALE: u32 = 100;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct MeshServiceRequirements {
+pub(crate) struct MeshServiceRequirements {
     pub discover: bool,
     pub activate: bool,
     pub move_: bool,
@@ -96,20 +114,6 @@ impl MeshNeighborhoodEstimateAccess for MeshNeighborhoodEstimate {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MeshMediumState {
-    pub protocol_counts: BTreeMap<TransportProtocol, u32>,
-    pub loss_floor_permille: RatioPermille,
-    pub symmetry_floor_permille: RatioPermille,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MeshNodeIntrinsicState {
-    pub available_connection_count: u32,
-    pub hold_capacity_available_bytes: ByteCount,
-    pub relay_budget: Option<NodeRelayBudget>,
-}
-
 #[derive(Clone, Debug, Default)]
 pub struct DeterministicMeshTopologyModel;
 
@@ -117,66 +121,6 @@ impl DeterministicMeshTopologyModel {
     #[must_use]
     pub fn new() -> Self {
         Self
-    }
-
-    #[must_use]
-    pub fn node_intrinsic_state(
-        &self,
-        local_node_id: &NodeId,
-        configuration: &Configuration,
-    ) -> Option<MeshNodeIntrinsicState> {
-        let node = configuration.nodes.get(local_node_id)?;
-        Some(MeshNodeIntrinsicState {
-            available_connection_count: belief_u32(
-                node.state.available_connection_count,
-            ),
-            hold_capacity_available_bytes: belief_byte_count(
-                node.state.hold_capacity_available_bytes,
-            ),
-            relay_budget: match &node.state.relay_budget {
-                | Belief::Absent => None,
-                | Belief::Estimated(estimate) => Some(estimate.value.clone()),
-            },
-        })
-    }
-
-    #[must_use]
-    pub fn medium_state(
-        &self,
-        local_node_id: &NodeId,
-        configuration: &Configuration,
-    ) -> MeshMediumState {
-        // Aggregates per-protocol link counts plus the worst-case loss and
-        // worst-case symmetry across all adjacent links. `u16::MAX` is a
-        // sentinel for "no adjacent links observed"; on that path we
-        // publish the most pessimistic defaults (total loss, zero symmetry)
-        // so downstream scoring treats an unobserved medium as unusable.
-        let mut protocol_counts = BTreeMap::new();
-        let mut loss_floor = u16::MAX;
-        let mut symmetry_floor = u16::MAX;
-
-        for link in self.adjacent_links(local_node_id, configuration) {
-            *protocol_counts.entry(link.endpoint.protocol).or_insert(0) += 1;
-            loss_floor = loss_floor.min(link.state.loss_permille.get());
-            symmetry_floor = symmetry_floor.min(
-                belief_ratio(link.state.symmetry_permille)
-                    .map_or(0, |value| value.get()),
-            );
-        }
-
-        MeshMediumState {
-            protocol_counts,
-            loss_floor_permille: if loss_floor == u16::MAX {
-                RatioPermille(1000)
-            } else {
-                RatioPermille(loss_floor)
-            },
-            symmetry_floor_permille: if symmetry_floor == u16::MAX {
-                RatioPermille(0)
-            } else {
-                RatioPermille(symmetry_floor)
-            },
-        }
     }
 }
 
@@ -284,7 +228,7 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
         let stability = mean_score(confidence, symmetry).map(HealthScore);
         let service_score = Some(bounded_health_score(service_surface_health_score(
             &peer.profile.services,
-            &RoutingEngineId::Mesh,
+            &crate::MESH_ENGINE_ID,
             observed_at_tick,
         )));
 
@@ -340,7 +284,7 @@ impl MeshTopologyModel for DeterministicMeshTopologyModel {
                 .map(|node| {
                     service_surface_health_score(
                         &node.profile.services,
-                        &RoutingEngineId::Mesh,
+                        &crate::MESH_ENGINE_ID,
                         observed_at_tick,
                     )
                 })
@@ -572,14 +516,6 @@ pub(crate) fn estimate_hop_link(
         .map(|link| (link.endpoint.clone(), link.state.clone()))
 }
 
-fn belief_u32(belief: Belief<u32>) -> u32 {
-    belief_into_estimate(belief).map_or(0, |estimate| estimate.value)
-}
-
-fn belief_byte_count(belief: Belief<ByteCount>) -> ByteCount {
-    belief_into_estimate(belief).map_or(ByteCount(0), |estimate| estimate.value)
-}
-
 fn belief_ratio(belief: Belief<RatioPermille>) -> Option<RatioPermille> {
     belief_into_estimate(belief).map(|estimate| estimate.value)
 }
@@ -692,23 +628,23 @@ mod tests {
     fn route_capable_requires_all_three_services() {
         let validity = TimeWindow::new(Tick(0), Tick(100)).unwrap();
         let two_of_three = node_with_services(vec![
-            service(RouteServiceKind::Discover, RoutingEngineId::Mesh, validity),
-            service(RouteServiceKind::Move, RoutingEngineId::Mesh, validity),
+            service(RouteServiceKind::Discover, crate::MESH_ENGINE_ID, validity),
+            service(RouteServiceKind::Move, crate::MESH_ENGINE_ID, validity),
         ]);
         assert!(!route_capable_for_engine(
             &two_of_three,
-            &RoutingEngineId::Mesh,
+            &crate::MESH_ENGINE_ID,
             Tick(0),
         ));
 
         let all_three = node_with_services(vec![
-            service(RouteServiceKind::Discover, RoutingEngineId::Mesh, validity),
-            service(RouteServiceKind::Move, RoutingEngineId::Mesh, validity),
-            service(RouteServiceKind::Hold, RoutingEngineId::Mesh, validity),
+            service(RouteServiceKind::Discover, crate::MESH_ENGINE_ID, validity),
+            service(RouteServiceKind::Move, crate::MESH_ENGINE_ID, validity),
+            service(RouteServiceKind::Hold, crate::MESH_ENGINE_ID, validity),
         ]);
         assert!(route_capable_for_engine(
             &all_three,
-            &RoutingEngineId::Mesh,
+            &crate::MESH_ENGINE_ID,
             Tick(0),
         ));
     }
@@ -719,10 +655,7 @@ mod tests {
     #[test]
     fn route_capable_filters_by_engine_id() {
         let validity = TimeWindow::new(Tick(0), Tick(100)).unwrap();
-        let other_engine = RoutingEngineId::External {
-            name: "external-test".into(),
-            contract_id: jacquard_core::RoutingEngineContractId([1; 16]),
-        };
+        let other_engine = RoutingEngineId::from_contract_bytes([9; 16]);
         let foreign = node_with_services(vec![
             service(RouteServiceKind::Discover, other_engine.clone(), validity),
             service(RouteServiceKind::Move, other_engine.clone(), validity),
@@ -730,9 +663,77 @@ mod tests {
         ]);
         assert!(!route_capable_for_engine(
             &foreign,
-            &RoutingEngineId::Mesh,
+            &crate::MESH_ENGINE_ID,
             Tick(0),
         ));
+    }
+
+    #[test]
+    // long-block-exception: dense topology fixture kept inline to preserve score
+    // intent.
+    fn topology_model_exposes_medium_and_node_intrinsic_support() {
+        let topology = Configuration {
+            epoch: RouteEpoch(0),
+            nodes: BTreeMap::from([
+                (
+                    NodeId([1; 32]),
+                    Node {
+                        controller_id: ControllerId([1; 32]),
+                        profile: NodeProfile {
+                            services: Vec::new(),
+                            endpoints: vec![LinkEndpoint {
+                                protocol: TransportProtocol::BleGatt,
+                                address: jacquard_core::EndpointAddress::Ble {
+                                    device_id: BleDeviceId(vec![1]),
+                                    profile_id: BleProfileId([1; 16]),
+                                },
+                                mtu_bytes: ByteCount(256),
+                            }],
+                            connection_count_max: 4,
+                            neighbor_state_count_max: 4,
+                            simultaneous_transfer_count_max: 2,
+                            active_route_count_max: 2,
+                            relay_work_budget_max: RelayWorkBudget(8),
+                            maintenance_work_budget_max: MaintenanceWorkBudget(8),
+                            hold_item_count_max: HoldItemCount(4),
+                            hold_capacity_bytes_max: ByteCount(2048),
+                        },
+                        state: NodeState {
+                            relay_budget: Belief::Absent,
+                            available_connection_count: Belief::Estimated(Estimate {
+                                value: 4,
+                                confidence_permille: RatioPermille(1000),
+                                updated_at_tick: Tick(0),
+                            }),
+                            hold_capacity_available_bytes: Belief::Estimated(
+                                Estimate {
+                                    value: ByteCount(2048),
+                                    confidence_permille: RatioPermille(1000),
+                                    updated_at_tick: Tick(0),
+                                },
+                            ),
+                            information_summary: Belief::Absent,
+                        },
+                    },
+                ),
+                (NodeId([2; 32]), node_with_services(vec![])),
+                (NodeId([3; 32]), node_with_services(vec![])),
+            ]),
+            links: BTreeMap::from([
+                ((NodeId([1; 32]), NodeId([2; 32])), active_link(2, 950)),
+                ((NodeId([1; 32]), NodeId([3; 32])), active_link(3, 900)),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 2,
+                churn_permille: RatioPermille(100),
+                contention_permille: RatioPermille(100),
+            },
+        };
+        let neighborhood = DeterministicMeshTopologyModel::new()
+            .neighborhood_estimate(&NodeId([1; 32]), Tick(0), &topology)
+            .expect("neighborhood estimate");
+
+        assert!(neighborhood.density_score.expect("density score").0 > 0);
     }
 
     // long-block-exception: dense peer-estimate fixture and assertions.
@@ -750,17 +751,17 @@ mod tests {
                     node_with_services(vec![
                         service(
                             RouteServiceKind::Discover,
-                            RoutingEngineId::Mesh,
+                            crate::MESH_ENGINE_ID,
                             validity,
                         ),
                         service(
                             RouteServiceKind::Move,
-                            RoutingEngineId::Mesh,
+                            crate::MESH_ENGINE_ID,
                             validity,
                         ),
                         service(
                             RouteServiceKind::Hold,
-                            RoutingEngineId::Mesh,
+                            crate::MESH_ENGINE_ID,
                             validity,
                         ),
                     ]),
@@ -812,14 +813,14 @@ mod tests {
     fn route_capable_rejects_expired_service_windows() {
         let expired = TimeWindow::new(Tick(0), Tick(5)).unwrap();
         let stale = node_with_services(vec![
-            service(RouteServiceKind::Discover, RoutingEngineId::Mesh, expired),
-            service(RouteServiceKind::Move, RoutingEngineId::Mesh, expired),
-            service(RouteServiceKind::Hold, RoutingEngineId::Mesh, expired),
+            service(RouteServiceKind::Discover, crate::MESH_ENGINE_ID, expired),
+            service(RouteServiceKind::Move, crate::MESH_ENGINE_ID, expired),
+            service(RouteServiceKind::Hold, crate::MESH_ENGINE_ID, expired),
         ]);
         // Tick 10 is outside the [0, 5) window.
         assert!(!route_capable_for_engine(
             &stale,
-            &RoutingEngineId::Mesh,
+            &crate::MESH_ENGINE_ID,
             Tick(10),
         ));
     }
@@ -830,29 +831,29 @@ mod tests {
         let node = node_with_services(vec![
             service(
                 RouteServiceKind::Discover,
-                RoutingEngineId::Mesh,
+                crate::MESH_ENGINE_ID,
                 short_validity,
             ),
             service(
                 RouteServiceKind::Move,
-                RoutingEngineId::Mesh,
+                crate::MESH_ENGINE_ID,
                 short_validity,
             ),
             service(
                 RouteServiceKind::Hold,
-                RoutingEngineId::Mesh,
+                crate::MESH_ENGINE_ID,
                 short_validity,
             ),
         ]);
 
         assert!(route_capable_for_engine(
             &node,
-            &RoutingEngineId::Mesh,
+            &crate::MESH_ENGINE_ID,
             Tick(1),
         ));
         assert!(!route_capable_for_engine(
             &node,
-            &RoutingEngineId::Mesh,
+            &crate::MESH_ENGINE_ID,
             Tick(10),
         ));
     }
@@ -871,17 +872,17 @@ mod tests {
                     node_with_services(vec![
                         service(
                             RouteServiceKind::Discover,
-                            RoutingEngineId::Mesh,
+                            crate::MESH_ENGINE_ID,
                             long_validity,
                         ),
                         service(
                             RouteServiceKind::Move,
-                            RoutingEngineId::Mesh,
+                            crate::MESH_ENGINE_ID,
                             long_validity,
                         ),
                         service(
                             RouteServiceKind::Hold,
-                            RoutingEngineId::Mesh,
+                            crate::MESH_ENGINE_ID,
                             long_validity,
                         ),
                     ]),
@@ -935,9 +936,9 @@ mod tests {
     fn objective_matches_node_destination_requires_exact_id() {
         let validity = TimeWindow::new(Tick(0), Tick(100)).unwrap();
         let candidate = node_with_services(vec![
-            service(RouteServiceKind::Discover, RoutingEngineId::Mesh, validity),
-            service(RouteServiceKind::Move, RoutingEngineId::Mesh, validity),
-            service(RouteServiceKind::Hold, RoutingEngineId::Mesh, validity),
+            service(RouteServiceKind::Discover, crate::MESH_ENGINE_ID, validity),
+            service(RouteServiceKind::Move, crate::MESH_ENGINE_ID, validity),
+            service(RouteServiceKind::Hold, crate::MESH_ENGINE_ID, validity),
         ]);
         let objective = RoutingObjective {
             destination: DestinationId::Node(NodeId([7; 32])),
@@ -958,14 +959,14 @@ mod tests {
             &NodeId([7; 32]),
             &candidate,
             &objective,
-            &RoutingEngineId::Mesh,
+            &crate::MESH_ENGINE_ID,
             Tick(1),
         ));
         assert!(!objective_matches_node(
             &NodeId([8; 32]),
             &candidate,
             &objective,
-            &RoutingEngineId::Mesh,
+            &crate::MESH_ENGINE_ID,
             Tick(1),
         ));
     }

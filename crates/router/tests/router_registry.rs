@@ -35,13 +35,10 @@ fn multi_engine_router_rejects_duplicate_mesh_registration() {
 #[test]
 fn multi_engine_router_registers_multiple_engines_and_selects_mesh_candidate() {
     let mut router = build_router(Tick(2));
-    let auxiliary = NullCandidateEngine::new(
-        LOCAL_NODE_ID,
-        jacquard_core::RoutingEngineId::External {
-            name: "aux".to_string(),
-            contract_id: jacquard_core::RoutingEngineContractId([6; 16]),
-        },
-    );
+    let auxiliary_engine_id =
+        jacquard_core::RoutingEngineId::from_contract_bytes([6; 16]);
+    let auxiliary =
+        NullCandidateEngine::new(LOCAL_NODE_ID, auxiliary_engine_id.clone());
 
     router
         .register_engine(Box::new(auxiliary))
@@ -55,13 +52,7 @@ fn multi_engine_router_registers_multiple_engines_and_selects_mesh_candidate() {
 
     assert_eq!(
         router.registered_engine_ids(),
-        vec![
-            MESH_ENGINE_ID,
-            jacquard_core::RoutingEngineId::External {
-                name: "aux".to_string(),
-                contract_id: jacquard_core::RoutingEngineContractId([6; 16]),
-            },
-        ],
+        vec![auxiliary_engine_id, MESH_ENGINE_ID],
     );
     assert_eq!(route.identity.admission.summary.engine, MESH_ENGINE_ID);
 }

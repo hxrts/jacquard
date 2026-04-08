@@ -205,10 +205,7 @@ fn router_engine_registry_tracks_shared_engine_metadata() {
     let topology = sample_topology();
     let inputs = sample_policy_inputs();
     let mut middleware = StubMiddleware::new(topology, inputs);
-    let engine_id = RoutingEngineId::External {
-        name: "stub".to_string(),
-        contract_id: jacquard_traits::jacquard_core::RoutingEngineContractId([9; 16]),
-    };
+    let engine_id = RoutingEngineId::from_contract_bytes([9; 16]);
 
     middleware
         .register_engine(Box::new(StubManagedEngine::new(

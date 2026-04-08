@@ -58,15 +58,24 @@ pub enum NetworkHost {
 }
 
 #[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-/// Identifies a routing-engine contract. Mesh is first-party; External covers
-/// third-party engines.
-pub enum RoutingEngineId {
-    Mesh,
-    External {
-        name: String,
-        contract_id: RoutingEngineContractId,
-    },
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+/// Neutral identifier for a routing-engine contract.
+pub struct RoutingEngineId {
+    pub contract_id: RoutingEngineContractId,
+}
+
+impl RoutingEngineId {
+    #[must_use]
+    pub const fn new(contract_id: RoutingEngineContractId) -> Self {
+        Self { contract_id }
+    }
+
+    #[must_use]
+    pub const fn from_contract_bytes(contract_id: [u8; 16]) -> Self {
+        Self::new(RoutingEngineContractId(contract_id))
+    }
 }
 
 #[public_model]

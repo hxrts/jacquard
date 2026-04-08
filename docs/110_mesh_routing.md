@@ -12,7 +12,7 @@ The static `MESH_CAPABILITIES` envelope is exercised by contract tests. The in-t
 
 ## Deterministic Topology Model
 
-`DeterministicMeshTopologyModel` is the mesh-owned read-only query surface. It queries shared `Configuration` objects and then derives four mesh-private estimate types: `MeshPeerEstimate`, `MeshNeighborhoodEstimate`, `MeshMediumState`, and `MeshNodeIntrinsicState`. These estimates are encapsulated in `jacquard-mesh` so engine-specific scoring doesn't leak into the shared cross-engine schema.
+`DeterministicMeshTopologyModel` is the mesh-owned read-only query surface. It queries shared `Configuration` objects and then derives mesh-private estimate types such as `MeshPeerEstimate` and `MeshNeighborhoodEstimate`. Those estimates stay encapsulated in `jacquard-mesh` so engine-specific scoring does not leak into the shared cross-engine schema.
 
 Peer and neighborhood estimates expose optional score components, so unknown and zero remain distinct without turning those mesh-private components into shared observed facts. The components are clamped to the crate's `HealthScore` range so composition stays bounded. Where service validity matters, the topology model receives `observed_at_tick` explicitly rather than reinterpreting `RouteEpoch` as time. Mesh uses these estimates directly in candidate ordering and committee selection, so swapping the topology model changes mesh-private route preference and coordination behavior without changing the shared world schema.
 
@@ -148,7 +148,7 @@ The choreography layer adds a second scoped recovery surface: protocol checkpoin
 
 ## Swappable Trait Surface
 
-The mesh engine exposes its internal seams as four traits in `jacquard-traits`. Substituting any of them replaces one mesh subcomponent without forking the engine. For host runtime effects beyond these mesh-specific seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
+The mesh engine exposes its narrow read-only mesh seams as two traits in `jacquard-traits`: `MeshTopologyModel` and `MeshRoutingEngine`. Substituting either one replaces a mesh subcomponent without forking the engine. `RetentionStore` remains a shared runtime boundary too, but it now lives on the neutral shared effect surface rather than in the mesh-named trait module. For host runtime effects beyond these seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
 
 ### Topology Model
 
@@ -208,14 +208,12 @@ pub trait MeshRoutingEngine: RoutingEngine {
     fn topology_model(&self) -> &Self::TopologyModel;
 
     fn retention_store(&self) -> &Self::Retention;
-
-    fn retention_store_mut(&mut self) -> &mut Self::Retention;
 }
 ```
 
-`MeshRoutingEngine` binds one concrete topology model and one retention store to a mesh engine instance. Transport send/poll capability is no longer a mesh-specialized shared trait; mesh consumes the shared `TransportEffects` boundary directly and keeps any concrete transport adapter private to the engine instance or host composition layer.
+`MeshRoutingEngine` binds one concrete topology model and one retention store to a mesh engine instance. It stays narrow on purpose: hosts can inspect the read-only mesh subcomponents without gaining a mutation hook into mesh-private runtime state. Transport send/poll capability is no longer a mesh-specialized shared trait; mesh consumes the shared `TransportEffects` boundary directly and keeps any concrete transport adapter private to the engine instance or host composition layer.
 
-### Retention
+### Shared Retention Boundary
 
 ```rust
 pub trait RetentionStore {
@@ -237,4 +235,4 @@ pub trait RetentionStore {
 }
 ```
 
-`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. It stays intentionally narrow so platform-specific persistence can substitute without forcing the rest of the mesh engine to know about it.
+`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. It stays intentionally narrow so platform-specific persistence can substitute without forcing the rest of the mesh engine to know about it, but it is no longer treated as a mesh-specific trait surface.

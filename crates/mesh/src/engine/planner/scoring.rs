@@ -7,7 +7,6 @@
 //! shape.
 
 use jacquard_core::{Belief, Configuration, NodeId, Observation, RoutingObjective};
-use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 
 use super::{
     MeshEngine, PATH_METRIC_BASE_HOP_COST, PATH_METRIC_DELIVERY_PENALTY_WEIGHT,
@@ -19,7 +18,8 @@ use crate::{
         service_requirements_for_objective,
         service_surface_health_score_for_requirements,
     },
-    MeshRouteClass, MESH_ENGINE_ID,
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshRouteClass,
+    MESH_ENGINE_ID,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>

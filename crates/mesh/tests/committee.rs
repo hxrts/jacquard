@@ -24,10 +24,10 @@ use jacquard_mesh::{
 use jacquard_traits::{
     jacquard_core::{
         AdmissionDecision, Configuration, ControllerId, DestinationId,
-        DiscoveryScopeId, Environment, Node, NodeId, Observation, PenaltyPoints,
-        RatioPermille, RouteAdmissionRejection, RouteEpoch, RouteError,
-        RoutePartitionClass, RouteRepairClass, RouteRuntimeError, RoutingTickContext,
-        ServiceId, ServiceScope, Tick,
+        DiscoveryScopeId, Environment, Node, NodeId, Observation, RatioPermille,
+        RouteAdmissionRejection, RouteEpoch, RouteError, RoutePartitionClass,
+        RouteRepairClass, RouteRuntimeError, RoutingTickContext, ServiceId,
+        ServiceScope, Tick,
     },
     Blake3Hashing, CommitteeSelector, MeshTopologyModel, RoutingEngine,
     RoutingEnginePlanner,
@@ -207,7 +207,7 @@ fn build_engine_with_selector<Selector>(
         DeterministicMeshTopologyModel::new(),
         TestTransport::default(),
         TestRetentionStore::default(),
-        TestRuntimeEffects { now: Tick(2), ..Default::default() },
+        TestRuntimeEffects::with_now(Tick(2)),
         Blake3Hashing,
         selector,
     )
@@ -340,11 +340,12 @@ fn committee_selector_some_is_carried_into_active_route() {
         .materialize_route(input)
         .expect("materialize route with committee");
 
-    assert!(engine
-        .active_route(&route_id)
-        .expect("active route")
-        .committee
-        .is_some());
+    assert!(
+        engine
+            .active_route(&route_id)
+            .expect("active route")
+            .has_committee
+    );
 }
 
 #[test]
@@ -430,31 +431,4 @@ fn committee_selection_enforces_controller_and_discovery_scope_diversity() {
     assert!(member_ids.contains(&NodeId([6; 32])));
     assert!(!member_ids.contains(&NodeId([4; 32])));
     assert!(!member_ids.contains(&NodeId([5; 32])));
-}
-
-#[test]
-fn behavior_history_can_disqualify_otherwise_high_scoring_members() {
-    let topology = diversity_topology();
-    let goal = objective(DestinationId::Node(NodeId([6; 32])));
-    let policy = profile();
-    let selector = DeterministicCommitteeSelector::new(LOCAL_NODE_ID)
-        .with_behavior_history(BTreeMap::from([(
-            NodeId([2; 32]),
-            jacquard_mesh::MeshBehaviorHistory {
-                reliability_score: jacquard_traits::jacquard_core::HealthScore(100),
-                misbehavior_penalty_points: PenaltyPoints(800),
-            },
-        )]));
-
-    let committee = selector
-        .select_committee(&goal, &policy, &topology)
-        .expect("selector result")
-        .expect("committee");
-    let member_ids = committee
-        .members
-        .iter()
-        .map(|member| member.node_id)
-        .collect::<Vec<_>>();
-
-    assert!(!member_ids.contains(&NodeId([2; 32])));
 }

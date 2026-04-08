@@ -24,6 +24,14 @@ pub enum RouteServiceKind {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// Shared transport taxonomy for observed links, services, and transport
+/// observations.
+///
+/// Jacquard intentionally keeps a small amount of concrete transport
+/// vocabulary in `core` because these variants appear in shared world facts
+/// like `LinkEndpoint` and `ServiceDescriptor`. Adapter-specific metadata
+/// should still stay out of `core`, and the opaque forms remain available for
+/// transports that do not fit the built-in shapes.
 pub enum TransportProtocol {
     BleGatt,
     BleL2cap,
@@ -36,6 +44,12 @@ pub enum TransportProtocol {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// Shared endpoint-address vocabulary for observed carriers.
+///
+/// BLE remains modeled explicitly here because it is part of the current
+/// shared world schema rather than a mesh-private adapter detail. Jacquard
+/// intentionally does not force the address model fully opaque until a second
+/// transport proves the current shared schema too specific.
 pub enum EndpointAddress {
     Ble {
         device_id: BleDeviceId,

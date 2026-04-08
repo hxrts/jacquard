@@ -20,6 +20,12 @@ The shared world schema is documented in [Pipeline and World Observations](105_p
 
 In practice, adding support for a new device means translating that device's capabilities into a concrete `NodeProfile`, pairing it with the current observed `NodeState`, and returning the result as a `NodeObservation`. In this example, the device is a BLE relay with one BLE endpoint, four concurrent connections, limited transfer concurrency, and a moderate local retention budget.
 
+BLE appears explicitly in this example because Jacquard's shared world schema
+still models a small amount of transport vocabulary directly. That is an
+intentional current design choice for shared `LinkEndpoint` and
+`ServiceDescriptor` facts, not a claim that every future transport must get a
+bespoke first-class variant.
+
 The in-tree reference crates for this split are `jacquard-mem-node-profile` and `jacquard-mem-link-profile`. They keep profile modeling separate from routing-engine composition. `jacquard-reference-client` then composes those profile implementations with a router and one engine for end-to-end tests.
 
 ```rust

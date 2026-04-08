@@ -36,7 +36,7 @@ The engine does not mint the canonical handle, publish the canonical lease, or s
 
 ## Tick and Maintenance
 
-The router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize ingress. They may run family-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
+The router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize ingress. They may run engine-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
 
 When maintenance returns a typed engine result, the router decides whether that implies canonical mutation. `ReplacementRequired` triggers router-owned reselection and replacement. `HandedOff` triggers router-owned lease transfer. `LeaseExpired` or `Expired` removes the canonical route.
 

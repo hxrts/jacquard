@@ -21,14 +21,15 @@ use jacquard_core::{
     RouteCandidate, RouteError, RouteSelectionError, RoutingObjective,
     SelectedRoutingParameters,
 };
-use jacquard_traits::{
-    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, RoutingEnginePlanner,
-};
+use jacquard_traits::RoutingEnginePlanner;
 
 use super::{
     MeshEngine, MeshHasherBounds, MeshSelectorBounds, MESH_CAPABILITIES, MESH_ENGINE_ID,
 };
-use crate::topology::objective_matches_node;
+use crate::{
+    topology::objective_matches_node, MeshNeighborhoodEstimateAccess,
+    MeshPeerEstimateAccess,
+};
 
 const PATH_METRIC_BASE_HOP_COST: u32 = 1_000;
 const PATH_METRIC_DELIVERY_PENALTY_WEIGHT: u32 = 2;

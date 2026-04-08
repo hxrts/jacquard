@@ -22,7 +22,8 @@ use super::{
 };
 use crate::{
     engine::{CachedCandidate, MeshSelectorBounds, MESH_CANDIDATE_COUNT_MAX},
-    MeshRouteClass, MeshRouteSegment, MESH_ENGINE_ID,
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshRouteClass,
+    MeshRouteSegment, MESH_ENGINE_ID,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -92,8 +93,8 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     MeshEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Topology: super::super::MeshTopologyBounds,
-    Topology::PeerEstimate: jacquard_traits::MeshPeerEstimateAccess,
-    Topology::NeighborhoodEstimate: jacquard_traits::MeshNeighborhoodEstimateAccess,
+    Topology::PeerEstimate: MeshPeerEstimateAccess,
+    Topology::NeighborhoodEstimate: MeshNeighborhoodEstimateAccess,
     Hasher: super::MeshHasherBounds,
     Selector: MeshSelectorBounds,
 {

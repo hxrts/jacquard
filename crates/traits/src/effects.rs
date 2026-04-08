@@ -6,8 +6,8 @@
 //! truth. Concrete handlers live in the separate `handler` module.
 
 use jacquard_core::{
-    OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick,
-    TransportError, TransportObservation,
+    Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError,
+    RouteEventStamped, StorageError, Tick, TransportError, TransportObservation,
 };
 use jacquard_macros::{effect_trait, purity};
 
@@ -96,6 +96,31 @@ pub trait TransportEffects {
 
     #[must_use = "unread poll_transport result silently discards received observations"]
     fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
+}
+
+#[effect_trait]
+/// Runtime boundary for opaque deferred-delivery payload storage.
+///
+/// Effectful runtime boundary.
+pub trait RetentionStore {
+    #[must_use = "unchecked retain_payload result silently discards retention failures"]
+    fn retain_payload(
+        &mut self,
+        object_id: ContentId<Blake3Digest>,
+        payload: Vec<u8>,
+    ) -> Result<(), RetentionError>;
+
+    #[must_use = "unread take_retained_payload result silently discards the held payload"]
+    fn take_retained_payload(
+        &mut self,
+        object_id: &ContentId<Blake3Digest>,
+    ) -> Result<Option<Vec<u8>>, RetentionError>;
+
+    #[must_use = "unread contains_retained_payload result silently discards storage errors"]
+    fn contains_retained_payload(
+        &self,
+        object_id: &ContentId<Blake3Digest>,
+    ) -> Result<bool, RetentionError>;
 }
 
 #[purity(effectful)]

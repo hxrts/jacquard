@@ -1,11 +1,215 @@
-//! Shared in-memory runtime adapters used by the mesh integration tests.
+//! Shared in-memory runtime handles used by the mesh integration tests.
 //!
-//! Control flow: mesh tests should exercise the same mock transport,
-//! retention, and runtime-effect crate that router/device integration uses.
-//! This module keeps the old local names only as thin aliases so the test
-//! suite does not maintain a second parallel harness.
+//! The integration tests should exercise the real mesh public boundary, not
+//! engine-private escape hatches. These wrappers keep the concrete in-memory
+//! adapters shared with the reference client, while exposing separate test
+//! handles so assertions can inspect sent frames, stored bytes, and retained
+//! payloads without requiring public mesh-engine getters for those internals.
 
-pub use jacquard_mem_link_profile::{
-    InMemoryRetentionStore as TestRetentionStore,
-    InMemoryRuntimeEffects as TestRuntimeEffects, InMemoryTransport as TestTransport,
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
 };
+
+use jacquard_core::{
+    Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError,
+    RouteEventStamped, StorageError, Tick, TransportError, TransportObservation,
+};
+use jacquard_mem_link_profile::{
+    InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
+};
+use jacquard_traits::{
+    effect_handler, OrderEffects, RetentionStore, RouteEventLogEffects, StorageEffects,
+    TimeEffects, TransportEffects,
+};
+
+#[derive(Clone, Default)]
+pub struct TestTransport(Arc<Mutex<InMemoryTransport>>);
+
+impl TestTransport {
+    pub fn push_observation(&self, observation: TransportObservation) {
+        self.0
+            .lock()
+            .expect("test transport lock")
+            .observations
+            .push(observation);
+    }
+
+    #[must_use]
+    pub fn sent_frames(&self) -> Vec<(jacquard_core::LinkEndpoint, Vec<u8>)> {
+        self.0
+            .lock()
+            .expect("test transport lock")
+            .sent_frames
+            .clone()
+    }
+}
+
+#[effect_handler]
+impl TransportEffects for TestTransport {
+    fn send_transport(
+        &mut self,
+        endpoint: &jacquard_core::LinkEndpoint,
+        payload: &[u8],
+    ) -> Result<(), TransportError> {
+        self.0
+            .lock()
+            .expect("test transport lock")
+            .send_transport(endpoint, payload)
+    }
+
+    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
+        self.0.lock().expect("test transport lock").poll_transport()
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct TestRuntimeEffects(Arc<Mutex<InMemoryRuntimeEffects>>);
+
+impl TestRuntimeEffects {
+    #[must_use]
+    pub fn with_now(now: Tick) -> Self {
+        let effects = Self::default();
+        effects.set_now(now);
+        effects
+    }
+
+    pub fn set_now(&self, now: Tick) {
+        self.0.lock().expect("test effects lock").now = now;
+    }
+
+    pub fn set_fail_store_bytes(&self, fail: bool) {
+        self.0.lock().expect("test effects lock").fail_store_bytes = fail;
+    }
+
+    pub fn set_fail_record_route_event(&self, fail: bool) {
+        self.0
+            .lock()
+            .expect("test effects lock")
+            .fail_record_route_event = fail;
+    }
+
+    #[must_use]
+    pub fn events(&self) -> Vec<RouteEventStamped> {
+        self.0.lock().expect("test effects lock").events.clone()
+    }
+
+    #[must_use]
+    pub fn storage_clone(&self) -> BTreeMap<Vec<u8>, Vec<u8>> {
+        self.0.lock().expect("test effects lock").storage.clone()
+    }
+
+    pub fn replace_storage(&self, storage: BTreeMap<Vec<u8>, Vec<u8>>) {
+        self.0.lock().expect("test effects lock").storage = storage;
+    }
+
+    #[must_use]
+    pub fn storage_value(&self, key: &[u8]) -> Option<Vec<u8>> {
+        self.0
+            .lock()
+            .expect("test effects lock")
+            .storage
+            .get(key)
+            .cloned()
+    }
+
+    #[must_use]
+    pub fn storage_keys(&self) -> Vec<Vec<u8>> {
+        self.0
+            .lock()
+            .expect("test effects lock")
+            .storage
+            .keys()
+            .cloned()
+            .collect()
+    }
+}
+
+#[effect_handler]
+impl TimeEffects for TestRuntimeEffects {
+    fn now_tick(&self) -> Tick {
+        self.0.lock().expect("test effects lock").now_tick()
+    }
+}
+
+#[effect_handler]
+impl OrderEffects for TestRuntimeEffects {
+    fn next_order_stamp(&mut self) -> OrderStamp {
+        self.0.lock().expect("test effects lock").next_order_stamp()
+    }
+}
+
+#[effect_handler]
+impl StorageEffects for TestRuntimeEffects {
+    fn load_bytes(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
+        self.0.lock().expect("test effects lock").load_bytes(key)
+    }
+
+    fn store_bytes(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
+        self.0
+            .lock()
+            .expect("test effects lock")
+            .store_bytes(key, value)
+    }
+
+    fn remove_bytes(&mut self, key: &[u8]) -> Result<(), StorageError> {
+        self.0.lock().expect("test effects lock").remove_bytes(key)
+    }
+}
+
+#[effect_handler]
+impl RouteEventLogEffects for TestRuntimeEffects {
+    fn record_route_event(
+        &mut self,
+        event: RouteEventStamped,
+    ) -> Result<(), RouteEventLogError> {
+        self.0
+            .lock()
+            .expect("test effects lock")
+            .record_route_event(event)
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct TestRetentionStore(Arc<Mutex<InMemoryRetentionStore>>);
+
+impl TestRetentionStore {
+    #[must_use]
+    pub fn payload_count(&self) -> usize {
+        self.0.lock().expect("test retention lock").payloads.len()
+    }
+}
+
+#[effect_handler]
+impl RetentionStore for TestRetentionStore {
+    fn retain_payload(
+        &mut self,
+        object_id: ContentId<Blake3Digest>,
+        payload: Vec<u8>,
+    ) -> Result<(), RetentionError> {
+        self.0
+            .lock()
+            .expect("test retention lock")
+            .retain_payload(object_id, payload)
+    }
+
+    fn take_retained_payload(
+        &mut self,
+        object_id: &ContentId<Blake3Digest>,
+    ) -> Result<Option<Vec<u8>>, RetentionError> {
+        self.0
+            .lock()
+            .expect("test retention lock")
+            .take_retained_payload(object_id)
+    }
+
+    fn contains_retained_payload(
+        &self,
+        object_id: &ContentId<Blake3Digest>,
+    ) -> Result<bool, RetentionError> {
+        self.0
+            .lock()
+            .expect("test retention lock")
+            .contains_retained_payload(object_id)
+    }
+}

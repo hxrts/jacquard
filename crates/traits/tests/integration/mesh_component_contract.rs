@@ -23,6 +23,10 @@ use jacquard_traits::{
 
 struct StubTopologyModel;
 
+fn stub_engine_id() -> RoutingEngineId {
+    RoutingEngineId::from_contract_bytes([1; 16])
+}
+
 impl MeshTopologyModel for StubTopologyModel {
     type NeighborhoodEstimate = ();
     type PeerEstimate = ();
@@ -137,6 +141,7 @@ struct StubRetentionStore {
     payloads: BTreeMap<ContentId<Blake3Digest>, Vec<u8>>,
 }
 
+#[effect_handler]
 impl RetentionStore for StubRetentionStore {
     fn retain_payload(
         &mut self,
@@ -170,12 +175,12 @@ struct StubMeshEngine {
 
 impl RoutingEnginePlanner for StubMeshEngine {
     fn engine_id(&self) -> RoutingEngineId {
-        RoutingEngineId::Mesh
+        stub_engine_id()
     }
 
     fn capabilities(&self) -> RoutingEngineCapabilities {
         RoutingEngineCapabilities {
-            engine: RoutingEngineId::Mesh,
+            engine: stub_engine_id(),
             max_protection: RouteProtectionClass::LinkProtected,
             max_connectivity: ConnectivityPosture {
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
@@ -311,10 +316,6 @@ impl MeshRoutingEngine for StubMeshEngine {
     fn retention_store(&self) -> &Self::Retention {
         &self.retention
     }
-
-    fn retention_store_mut(&mut self) -> &mut Self::Retention {
-        &mut self.retention
-    }
 }
 
 fn sample_endpoint() -> LinkEndpoint {
@@ -416,7 +417,7 @@ fn sample_route_admission(
     RouteAdmission {
         route_id: RouteId([3; 16]),
         backend_ref: jacquard_traits::jacquard_core::BackendRouteRef {
-            engine: jacquard_traits::jacquard_core::RoutingEngineId::Mesh,
+            engine: stub_engine_id(),
             backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![1, 2, 3]),
         },
         objective,
@@ -445,7 +446,7 @@ fn sample_route_admission(
             },
         },
         summary: RouteSummary {
-            engine: RoutingEngineId::Mesh,
+            engine: stub_engine_id(),
             protection: RouteProtectionClass::LinkProtected,
             connectivity: ConnectivityPosture {
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::Repairable,
@@ -588,9 +589,14 @@ fn transport_effects_handlers_do_not_require_mesh_specific_traits() {
 
 #[test]
 fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
-    let mut engine = StubMeshEngine {
+    let engine = StubMeshEngine {
         topology: StubTopologyModel,
-        retention: StubRetentionStore { payloads: BTreeMap::new() },
+        retention: StubRetentionStore {
+            payloads: BTreeMap::from([(
+                ContentId { digest: Blake3Digest([8; 32]) },
+                b"payload".to_vec(),
+            )]),
+        },
         route: None,
     };
 
@@ -601,13 +607,6 @@ fn mesh_routing_engine_exposes_explicit_subcomponent_boundaries() {
             .len(),
         1
     );
-    engine
-        .retention_store_mut()
-        .retain_payload(
-            ContentId { digest: Blake3Digest([8; 32]) },
-            b"payload".to_vec(),
-        )
-        .expect("store payload");
     assert!(engine
         .retention_store()
         .contains_retained_payload(&ContentId { digest: Blake3Digest([8; 32]) })

@@ -22,7 +22,7 @@ use jacquard_traits::{HashDigestBytes, Hashing};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ActiveMeshRoute, MeshCommitteeStatus, MeshRouteClass, MeshRouteSegment,
+    types::MeshCommitteeStatus, ActiveMeshRoute, MeshRouteClass, MeshRouteSegment,
     MESH_HOLD_RESERVED_BYTES, MESH_PER_HOP_BYTE_COST,
 };
 use crate::topology::{adjacent_link_between, adjacent_node_ids, belief_into_estimate};
@@ -41,7 +41,7 @@ pub(super) struct MeshPlanToken {
     pub(super) committee_status: MeshCommitteeStatus,
 }
 
-pub(super) use super::MeshCommitteeStatus as CommitteeStatus;
+pub(super) use crate::engine::types::MeshCommitteeStatus as CommitteeStatus;
 
 pub(crate) const DOMAIN_TAG_ROUTE_ID: &[u8] = b"mesh-route-id";
 pub(crate) const DOMAIN_TAG_COMMITMENT: &[u8] = b"mesh-commitment";
@@ -746,6 +746,8 @@ mod tests {
 
     #[test]
     fn backend_route_id_size_is_bounded() {
+        const BACKEND_ROUTE_ID_BYTES_MAX: usize = 2048;
+
         let mut plan = sample_plan_token();
         plan.segments = (0..usize::from(jacquard_core::ROUTE_HOP_COUNT_MAX))
             .map(|index| {
@@ -764,7 +766,7 @@ mod tests {
             .collect();
 
         let encoded = encode_backend_token(&plan);
-        assert!(encoded.0.len() <= crate::engine::MESH_BACKEND_ROUTE_ID_BYTES_MAX);
+        assert!(encoded.0.len() <= BACKEND_ROUTE_ID_BYTES_MAX);
     }
 
     #[test]

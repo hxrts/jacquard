@@ -11,7 +11,6 @@ use jacquard_core::{
     RouteSelectionError, RouteWitness, RoutingObjective, SelectedRoutingParameters,
     Tick, TimeWindow,
 };
-use jacquard_traits::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 
 use super::{
     super::support::{
@@ -25,7 +24,7 @@ use super::{
 use crate::{
     committee::mesh_admission_assumptions,
     engine::{CachedCandidate, MESH_CANDIDATE_VALIDITY_TICKS},
-    MeshRouteSegment,
+    MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess, MeshRouteSegment,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -91,7 +90,7 @@ where
             destination: objective.destination.clone(),
             segments: segments.clone(),
             valid_for,
-            route_class: route_class.clone(),
+            route_class,
             committee_status,
         };
         Some((plan, segments))

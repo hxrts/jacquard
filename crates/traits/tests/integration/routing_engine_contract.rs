@@ -38,6 +38,10 @@ fn repairable_connected() -> ConnectivityPosture {
     }
 }
 
+fn stub_engine_id() -> RoutingEngineId {
+    RoutingEngineId::from_contract_bytes([1; 16])
+}
+
 struct StubEngine {
     route: MaterializedRoute,
     selector: Option<StubCommitteeSelector>,
@@ -102,12 +106,12 @@ impl CommitteeCoordinatedEngine for StubEngine {
 
 impl RoutingEnginePlanner for StubEngine {
     fn engine_id(&self) -> RoutingEngineId {
-        RoutingEngineId::Mesh
+        stub_engine_id()
     }
 
     fn capabilities(&self) -> RoutingEngineCapabilities {
         RoutingEngineCapabilities {
-            engine: RoutingEngineId::Mesh,
+            engine: stub_engine_id(),
             max_protection: RouteProtectionClass::LinkProtected,
             max_connectivity: repairable_connected(),
             repair_support: jacquard_traits::jacquard_core::RepairSupport::Supported,
@@ -159,7 +163,7 @@ impl RoutingEnginePlanner for StubEngine {
                 updated_at_tick: Tick(1),
             },
             backend_ref: BackendRouteRef {
-                engine: RoutingEngineId::Mesh,
+                engine: stub_engine_id(),
                 backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![
                     1,
                 ]),
@@ -287,7 +291,7 @@ impl LayeredRoutingEnginePlanner for StubEngine {
                 updated_at_tick: Tick(1),
             },
             backend_ref: BackendRouteRef {
-                engine: RoutingEngineId::Mesh,
+                engine: stub_engine_id(),
                 backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![
                     9,
                 ]),
@@ -332,7 +336,7 @@ impl SubstratePlanner for StubSubstrateProvider {
     ) -> Vec<SubstrateCandidate> {
         vec![SubstrateCandidate {
             capabilities: SubstrateCapabilities {
-                engine: RoutingEngineId::Mesh,
+                engine: stub_engine_id(),
                 protection: RouteProtectionClass::LinkProtected,
                 connectivity: repairable_connected(),
                 mtu_bytes: ByteCount(1200),
@@ -447,7 +451,7 @@ fn sample_route(
         admission: RouteAdmission {
             route_id: RouteId([3; 16]),
             backend_ref: BackendRouteRef {
-                engine: RoutingEngineId::Mesh,
+                engine: stub_engine_id(),
                 backend_route_id: jacquard_traits::jacquard_core::BackendRouteId(vec![
                     1, 2, 3,
                 ]),
@@ -469,7 +473,7 @@ fn sample_route(
                 },
             },
             summary: RouteSummary {
-                engine: RoutingEngineId::Mesh,
+                engine: stub_engine_id(),
                 protection: RouteProtectionClass::LinkProtected,
                 connectivity: repairable_connected(),
                 protocol_mix: vec![TransportProtocol::BleGatt],
@@ -784,18 +788,13 @@ fn substrate_and_layering_traits_support_policy_driven_composition() {
     let coordinated = coordinator
         .activate_layered_route(
             sample_objective(),
-            RoutingEngineId::External {
-                name: "onion".into(),
-                contract_id: jacquard_traits::jacquard_core::RoutingEngineContractId(
-                    [1; 16],
-                ),
-            },
+            RoutingEngineId::from_contract_bytes([9; 16]),
             sample_substrate_requirements(),
             parameters,
         )
         .expect("coordinated layered route");
 
-    assert_eq!(substrate.capabilities.engine, RoutingEngineId::Mesh);
+    assert_eq!(substrate.capabilities.engine, stub_engine_id());
     assert_eq!(
         substrate_health.value.reachability_state,
         ReachabilityState::Reachable

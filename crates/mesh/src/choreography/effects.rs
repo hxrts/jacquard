@@ -222,6 +222,7 @@ mod tests {
         payloads: BTreeMap<Vec<u8>, Vec<u8>>,
     }
 
+    #[effect_handler]
     impl jacquard_traits::RetentionStore for FakeRetention {
         fn retain_payload(
             &mut self,

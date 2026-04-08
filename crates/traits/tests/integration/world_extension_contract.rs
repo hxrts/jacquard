@@ -189,7 +189,7 @@ fn sample_service_observation() -> WorldObservation {
             controller_id: ControllerId([3; 32]),
             service_kind: jacquard_traits::jacquard_core::RouteServiceKind::Discover,
             endpoints: vec![sample_endpoint()],
-            routing_engines: vec![RoutingEngineId::Mesh],
+            routing_engines: vec![RoutingEngineId::from_contract_bytes([1; 16])],
             scope: ServiceScope::Introduction { scope_token: vec![9] },
             valid_for: TimeWindow::new(Tick(2), Tick(20))
                 .expect("valid service window"),

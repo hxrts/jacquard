@@ -8,10 +8,11 @@
 
 use jacquard_core::Configuration;
 use jacquard_traits::{
-    CommitteeSelector, HashDigestBytes, Hashing, MeshNeighborhoodEstimateAccess,
-    MeshPeerEstimateAccess, OrderEffects, RetentionStore, RouteEventLogEffects,
-    StorageEffects, TimeEffects, TransportEffects,
+    CommitteeSelector, HashDigestBytes, Hashing, OrderEffects, RetentionStore,
+    RouteEventLogEffects, StorageEffects, TimeEffects, TransportEffects,
 };
+
+use crate::{MeshNeighborhoodEstimateAccess, MeshPeerEstimateAccess};
 
 pub(crate) trait MeshTopologyBounds: jacquard_traits::MeshTopologyModel
 where
