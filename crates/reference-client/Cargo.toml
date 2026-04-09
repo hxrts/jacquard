@@ -10,13 +10,13 @@ description = "Reference in-memory Jacquard client composition"
 workspace = true
 
 [dependencies]
-jacquard-adapter = { path = "../adapter", version = "0.3.0" }
-jacquard-batman = { path = "../batman", version = "0.3.0" }
-jacquard-core = { path = "../core", version = "0.3.0" }
-jacquard-mem-link-profile = { path = "../mem-link-profile", version = "0.3.0" }
-jacquard-mem-node-profile = { path = "../mem-node-profile", version = "0.3.0" }
-jacquard-pathway = { path = "../pathway", version = "0.3.0" }
-jacquard-router = { path = "../router", version = "0.3.0" }
-jacquard-traits = { path = "../traits", version = "0.3.0" }
+jacquard-adapter = { path = "../adapter", version = "0.3.1" }
+jacquard-batman = { path = "../batman", version = "0.3.1" }
+jacquard-core = { path = "../core", version = "0.3.1" }
+jacquard-mem-link-profile = { path = "../mem-link-profile", version = "0.3.1" }
+jacquard-mem-node-profile = { path = "../mem-node-profile", version = "0.3.1" }
+jacquard-pathway = { path = "../pathway", version = "0.3.1" }
+jacquard-router = { path = "../router", version = "0.3.1" }
+jacquard-traits = { path = "../traits", version = "0.3.1" }
 
 [dev-dependencies]
