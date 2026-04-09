@@ -1,0 +1,25 @@
+[package]
+name = "jacquard-simulator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+jacquard-adapter = { path = "../adapter" }
+jacquard-batman = { path = "../batman" }
+jacquard-core = { path = "../core" }
+jacquard-mem-link-profile = { path = "../mem-link-profile" }
+jacquard-reference-client = { path = "../reference-client" }
+jacquard-router = { path = "../router" }
+jacquard-traits = { path = "../traits" }
+
+serde.workspace = true
+telltale-simulator.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+jacquard-pathway = { path = "../pathway" }
+
+[lints]
+workspace = true

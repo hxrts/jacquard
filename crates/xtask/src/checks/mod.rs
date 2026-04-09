@@ -11,7 +11,7 @@
 //!   no-usize-in-models, ownership-invariants, pathway-async-boundary,
 //!   pathway-choreography, proc-macro-scope, proof-bearing-actions,
 //!   reference-bridge-boundary, result-must-use, router-round-boundary,
-//!   routing-invariants, surface-classification, test-boundaries,
+//!   routing-invariants, simulator-boundary, surface-classification, test-boundaries,
 //!   trait-purity, transport-authoring-boundary, transport-ownership-boundary.
 
 pub mod adapter_boundary;
@@ -35,6 +35,7 @@ pub mod reference_bridge_boundary;
 pub mod result_must_use;
 pub mod router_round_boundary;
 pub mod routing_invariants;
+pub mod simulator_boundary;
 pub mod surface_classification;
 pub mod test_boundaries;
 pub mod trait_purity;
@@ -69,6 +70,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "result-must-use" => result_must_use::run(),
         | "router-round-boundary" => router_round_boundary::run(),
         | "routing-invariants" => routing_invariants::run(rest),
+        | "simulator-boundary" => simulator_boundary::run(),
         | "surface-classification" => surface_classification::run(),
         | "test-boundaries" => test_boundaries::run(),
         | "transport-authoring-boundary" => transport_authoring_boundary::run(),

@@ -46,6 +46,8 @@ jobs:
         run: nix develop --command cargo xtask check router-round-boundary
       - name: Reference Bridge Boundary
         run: nix develop --command cargo xtask check reference-bridge-boundary
+      - name: Simulator Boundary
+        run: nix develop --command cargo xtask check simulator-boundary
       - name: Ownership Invariants
         run: nix develop --command cargo xtask check ownership-invariants
       - name: No usize in Models

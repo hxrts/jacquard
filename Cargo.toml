@@ -11,6 +11,7 @@ members = [
   "crates/pathway",
   "crates/reference-client",
   "crates/router",
+  "crates/simulator",
   "crates/traits",
   "crates/xtask",
 ]
@@ -44,6 +45,7 @@ telltale = "11.3.0"
 telltale-types = "11.3.0"
 telltale-macros = "11.3.0"
 telltale-runtime = "11.3.0"
+telltale-simulator = "11.3.0"
 
 # async
 futures     = "0.3"

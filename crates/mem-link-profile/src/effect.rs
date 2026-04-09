@@ -20,7 +20,7 @@ use jacquard_traits::{
     effect_handler, OrderEffects, RouteEventLogEffects, StorageEffects, TimeEffects,
 };
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct InMemoryRuntimeEffects {
     pub now: Tick,
     pub next_order: u64,

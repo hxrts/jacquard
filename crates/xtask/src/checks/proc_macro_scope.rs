@@ -86,6 +86,11 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/field/src/lib.rs",
     "crates/field/src/planner.rs",
     "crates/field/src/runtime.rs",
+    "crates/field/src/summary.rs",
+    "crates/field/src/choreography.rs",
+    "crates/field/src/control.rs",
+    "crates/field/src/state.rs",
+    "crates/field/src/observer.rs",
     "crates/reference-client/src/clients.rs",
     "crates/reference-client/src/bridge.rs",
     "crates/reference-client/src/lib.rs",
@@ -94,6 +99,12 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/router/src/lib.rs",
     "crates/router/src/middleware.rs",
     "crates/router/src/runtime.rs",
+    "crates/simulator/src/environment.rs",
+    "crates/simulator/src/harness.rs",
+    "crates/simulator/src/lib.rs",
+    "crates/simulator/src/presets.rs",
+    "crates/simulator/src/replay.rs",
+    "crates/simulator/src/scenario.rs",
 ];
 
 const MARKERS: &[&str] = &[

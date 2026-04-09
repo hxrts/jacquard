@@ -258,6 +258,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "either"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -544,7 +550,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jacquard-adapter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "jacquard-core",
  "jacquard-macros",
@@ -553,7 +559,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-batman"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-core",
@@ -565,7 +571,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "jacquard-macros",
  "serde",
@@ -574,8 +580,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-field"
+version = "0.2.0"
+dependencies = [
+ "jacquard-adapter",
+ "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
+ "jacquard-traits",
+]
+
+[[package]]
 name = "jacquard-macros"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -586,7 +603,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-mem-link-profile"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-core",
@@ -596,7 +613,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-mem-node-profile"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-core",
@@ -606,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-pathway"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bincode",
  "jacquard-core",
@@ -619,7 +636,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-reference-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-batman",
@@ -633,7 +650,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-router"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bincode",
  "jacquard-core",
@@ -645,8 +662,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-simulator"
+version = "0.2.0"
+dependencies = [
+ "jacquard-adapter",
+ "jacquard-batman",
+ "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-pathway",
+ "jacquard-reference-client",
+ "jacquard-router",
+ "jacquard-traits",
+ "serde",
+ "telltale-simulator",
+ "thiserror",
+]
+
+[[package]]
 name = "jacquard-traits"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "jacquard-core",
@@ -657,7 +691,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-xtask"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "camino",
@@ -849,6 +883,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
+name = "ppv-lite86"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
+dependencies = [
+ "zerocopy",
+]
+
+[[package]]
 name = "prettyplease"
 version = "0.2.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -900,6 +943,56 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+
+[[package]]
+name = "rand"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
+dependencies = [
+ "libc",
+ "rand_chacha",
+ "rand_core",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
+dependencies = [
+ "ppv-lite86",
+ "rand_core",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
+dependencies = [
+ "getrandom 0.2.17",
+]
+
+[[package]]
+name = "rayon"
+version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "368f01d005bf8fd9b1206fb6fa653e6c4a81ceb1466406b81792d87c5677a58f"
+dependencies = [
+ "either",
+ "rayon-core",
+]
+
+[[package]]
+name = "rayon-core"
+version = "1.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
+dependencies = [
+ "crossbeam-deque",
+ "crossbeam-utils",
+]
 
 [[package]]
 name = "redox_syscall"
@@ -1196,6 +1289,7 @@ dependencies = [
  "cfg-if",
  "getrandom 0.2.17",
  "parking_lot 0.12.5",
+ "rayon",
  "serde",
  "serde_cbor",
  "serde_json",
@@ -1216,6 +1310,24 @@ dependencies = [
  "quote",
  "syn",
  "telltale-language",
+]
+
+[[package]]
+name = "telltale-simulator"
+version = "11.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7acb548f6f918757624f2144bff3f03458352d9be3aa66014471ee4a2868a7e"
+dependencies = [
+ "getrandom 0.2.17",
+ "rand",
+ "rand_chacha",
+ "serde",
+ "serde_cbor",
+ "serde_json",
+ "telltale-machine",
+ "telltale-theory",
+ "telltale-types",
+ "toml 0.8.23",
 ]
 
 [[package]]
