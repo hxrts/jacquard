@@ -166,6 +166,7 @@ ci-dry-run:
     add_step "Invariant Specs"            "cargo xtask check invariant-specs"
     add_step "Fail-Closed Ordering"       "cargo xtask check fail-closed-ordering"
     add_step "No Scratch Refs in Rust"    "cargo xtask check no-scratch-refs-in-rust"
+    add_step "Pathway Async Boundary"     "cargo xtask check pathway-async-boundary"
     add_step "Pathway Choreography"          "cargo xtask check pathway-choreography"
     add_step "Pathway Choreography Validate" "cargo xtask check pathway-choreography --validate"
     add_step "Routing Invariants"         "cargo xtask check routing-invariants"

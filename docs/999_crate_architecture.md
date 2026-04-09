@@ -82,6 +82,8 @@ The effect traits are narrower than the higher-level component traits. They mode
 
 First-party mesh keeps one additional internal layer above those shared effects: pathway-private choreography effect interfaces generated from Telltale protocols. Those generated interfaces are not promoted into `jacquard-traits`. Concrete host/runtime adapters implement the shared effect traits, and `jacquard-pathway` interprets its private choreography requests in terms of those stable shared boundaries.
 
+Within `jacquard-pathway` itself, the async envelope is narrower still. Telltale session futures are driven to completion only inside choreography modules. The engine/runtime layer owns a bounded explicit ingress queue, consumes it during one synchronous round, and exposes a pathway round-progress snapshot for host-facing inspection. It does not own transport drivers, ambient async callbacks, or executor-shaped advancement.
+
 ## Invariants
 
 - No crate may use floating-point types in routing logic, routing state, routing policy, or simulator verdicts.

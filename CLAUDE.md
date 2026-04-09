@@ -51,6 +51,7 @@ Run individual policy checks with `cargo xtask check <name>`. Registered names:
 - `fail-closed-ordering` — delegates to `routing-invariants` for fail-closed mutation ordering
 - `invariant-specs` — every `## Invariant:` section needs enforcement locus, failure mode, and verification hooks
 - `pathway-choreography` — pathway choreography protocol coverage (pass `--validate` to execute the fixture pass)
+- `pathway-async-boundary` — pathway may use async/Telltale session stepping only inside choreography modules, and pathway must not own transport drivers directly
 - `no-scratch-refs-in-rust` — rust sources and comments must not reference the private scratch directory
 - `no-usize-in-models` — bare `usize` fields rejected in `core`/`traits` model structs
 - `ownership-invariants` — `core` and `traits` `lib.rs` must document the required ownership sections

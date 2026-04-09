@@ -12,6 +12,9 @@ use jacquard_core::{
     Blake3Digest, ContentId, HealthScore, LinkEndpoint, NodeId, RouteEpoch, RouteError,
     RouteId, RouteRuntimeError, Tick, TransportObservation,
 };
+use jacquard_traits::{
+    RetentionStore, StorageEffects, TimeEffects, TransportSenderEffects,
+};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -384,6 +387,261 @@ where
             });
         Ok(())
     }
+}
+
+fn with_guest_runtime<T, R, E, F, Out>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    step: F,
+) -> Result<Out, RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+    F: FnOnce(
+        &mut PathwayGuestRuntime<
+            super::effects::PathwayProtocolRuntimeAdapter<'_, T, R, E>,
+        >,
+    ) -> Result<Out, RouteError>,
+{
+    let mut runtime =
+        PathwayGuestRuntime::new(super::effects::PathwayProtocolRuntimeAdapter {
+            transport,
+            retention,
+            effects,
+        });
+    step(&mut runtime)
+}
+
+fn with_guest_runtime_retention<T, R, E, F, Out>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    step: F,
+) -> Result<Out, jacquard_core::RetentionError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+    F: FnOnce(
+        &mut PathwayGuestRuntime<
+            super::effects::PathwayProtocolRuntimeAdapter<'_, T, R, E>,
+        >,
+    ) -> Result<Out, jacquard_core::RetentionError>,
+{
+    let mut runtime =
+        PathwayGuestRuntime::new(super::effects::PathwayProtocolRuntimeAdapter {
+            transport,
+            retention,
+            effects,
+        });
+    step(&mut runtime)
+}
+
+pub(crate) fn activation_handshake<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    route_id: &RouteId,
+    epoch: RouteEpoch,
+) -> Result<(), RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime(transport, retention, effects, |runtime| {
+        runtime.activation_handshake(route_id, epoch)
+    })
+}
+
+pub(crate) fn repair_exchange<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    route_id: &RouteId,
+) -> Result<(), RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime(transport, retention, effects, |runtime| {
+        runtime.repair_exchange(route_id)
+    })
+}
+
+pub(crate) fn handoff_exchange<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    route_id: &RouteId,
+) -> Result<(), RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime(transport, retention, effects, |runtime| {
+        runtime.handoff_exchange(route_id)
+    })
+}
+
+pub(crate) fn clear_route_protocols<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    route_id: &RouteId,
+) -> Result<(), RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime(transport, retention, effects, |runtime| {
+        runtime.clear_route_protocols(route_id)
+    })
+}
+
+pub(crate) fn forwarding_hop<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    route_id: &RouteId,
+    endpoint: LinkEndpoint,
+    payload: &[u8],
+) -> Result<(), RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime(transport, retention, effects, |runtime| {
+        runtime.forwarding_hop(route_id, endpoint, payload)
+    })
+}
+
+pub(crate) fn route_export_exchange<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    route_id: &RouteId,
+    snapshot: &PathwayRouteExportSnapshot,
+) -> Result<(), RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime(transport, retention, effects, |runtime| {
+        runtime.route_export_exchange(route_id, snapshot)
+    })
+}
+
+pub(crate) fn neighbor_advertisement_exchange<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    epoch: RouteEpoch,
+    snapshot: &PathwayNeighborAdvertisementSnapshot,
+) -> Result<(), RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime(transport, retention, effects, |runtime| {
+        runtime.neighbor_advertisement_exchange(epoch, snapshot)
+    })
+}
+
+pub(crate) fn anti_entropy_exchange<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    route_id: &RouteId,
+    snapshot: &PathwayAntiEntropySnapshot,
+) -> Result<(), RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime(transport, retention, effects, |runtime| {
+        runtime.anti_entropy_exchange(route_id, snapshot)
+    })
+}
+
+pub(crate) fn retain_for_replay<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    route_id: &RouteId,
+    object_id: ContentId<Blake3Digest>,
+    payload: &[u8],
+) -> Result<(), jacquard_core::RetentionError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime_retention(transport, retention, effects, |runtime| {
+        runtime.retain_for_replay(route_id, object_id, payload)
+    })
+}
+
+pub(crate) fn replay_to_next_hop<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    route_id: &RouteId,
+    object_id: ContentId<Blake3Digest>,
+    endpoint: LinkEndpoint,
+    payload: Vec<u8>,
+) -> Result<(), RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime(transport, retention, effects, |runtime| {
+        runtime.replay_to_next_hop(route_id, object_id, endpoint, payload)
+    })
+}
+
+pub(crate) fn recover_held_payload<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    route_id: &RouteId,
+    object_id: &ContentId<Blake3Digest>,
+) -> Result<Option<Vec<u8>>, jacquard_core::RetentionError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime_retention(transport, retention, effects, |runtime| {
+        runtime.recover_held_payload(route_id, object_id)
+    })
+}
+
+pub(crate) fn record_tick_ingress<T, R, E>(
+    transport: &mut T,
+    retention: &mut R,
+    effects: &mut E,
+    epoch: RouteEpoch,
+    observations: &[TransportObservation],
+) -> Result<(), RouteError>
+where
+    T: TransportSenderEffects,
+    R: RetentionStore,
+    E: StorageEffects + TimeEffects,
+{
+    with_guest_runtime(transport, retention, effects, |runtime| {
+        runtime.record_tick_ingress(epoch, observations)
+    })
 }
 
 pub(crate) fn route_session(

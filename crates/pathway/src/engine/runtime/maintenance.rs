@@ -22,7 +22,9 @@ use super::{
     MaintenanceContext, PathwayEffectsBounds, PathwayEngine, PathwayHasherBounds,
     PathwaySelectorBounds, PathwayTransportBounds,
 };
-use crate::{PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess};
+use crate::{
+    choreography, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
+};
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -49,7 +51,12 @@ where
         active_route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         runtime.progress.last_progress_at_tick = now;
-        self.choreography_runtime().repair_exchange(route_id)?;
+        choreography::repair_exchange(
+            &mut self.transport,
+            &mut self.retention,
+            &mut self.effects,
+            route_id,
+        )?;
         Ok(RouteMaintenanceResult {
             event: RouteLifecycleEvent::Repaired,
             outcome: RouteMaintenanceOutcome::Repaired,
@@ -102,8 +109,12 @@ where
             Some(runtime.progress.last_progress_at_tick);
         active_route.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         runtime.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
-        self.choreography_runtime()
-            .handoff_exchange(&identity.stamp.route_id)?;
+        choreography::handoff_exchange(
+            &mut self.transport,
+            &mut self.retention,
+            &mut self.effects,
+            &identity.stamp.route_id,
+        )?;
         Ok(RouteMaintenanceResult {
             event: RouteLifecycleEvent::HandedOff,
             outcome: RouteMaintenanceOutcome::HandedOff(handoff),
@@ -278,9 +289,14 @@ where
         active_route: &ActivePathwayRoute,
         object_id: ContentId<Blake3Digest>,
     ) -> Result<Option<Vec<u8>>, RouteError> {
-        self.choreography_runtime()
-            .recover_held_payload(&active_route.path.route_id, &object_id)
-            .maintenance_failed()
+        choreography::recover_held_payload(
+            &mut self.transport,
+            &mut self.retention,
+            &mut self.effects,
+            &active_route.path.route_id,
+            &object_id,
+        )
+        .maintenance_failed()
     }
 
     fn replay_retained_payload(
@@ -290,7 +306,10 @@ where
         next_endpoint: LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), RouteError> {
-        if let Err(error) = self.choreography_runtime().replay_to_next_hop(
+        if let Err(error) = choreography::replay_to_next_hop(
+            &mut self.transport,
+            &mut self.retention,
+            &mut self.effects,
             route_id,
             object_id,
             next_endpoint,
@@ -299,9 +318,14 @@ where
             // Best-effort re-retain: the replay send failed; try to keep the
             // payload for the next flush. The primary RouteError is
             // returned below regardless.
-            let _ = self
-                .choreography_runtime()
-                .retain_for_replay(route_id, object_id, payload);
+            let _ = choreography::retain_for_replay(
+                &mut self.transport,
+                &mut self.retention,
+                &mut self.effects,
+                route_id,
+                object_id,
+                payload,
+            );
             return Err(error);
         }
         Ok(())

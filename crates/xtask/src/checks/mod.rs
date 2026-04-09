@@ -11,6 +11,7 @@ pub mod invariant_specs;
 pub mod no_scratch_refs_in_rust;
 pub mod no_usize_in_models;
 pub mod ownership_invariants;
+pub mod pathway_async_boundary;
 pub mod pathway_choreography;
 pub mod pre_commit;
 pub mod proc_macro_scope;
@@ -40,6 +41,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "engine-service-boundary" => engine_service_boundary::run(),
         | "fail-closed-ordering" => fail_closed_ordering::run(),
         | "invariant-specs" => invariant_specs::run(),
+        | "pathway-async-boundary" => pathway_async_boundary::run(),
         | "pathway-choreography" => pathway_choreography::run(rest),
         | "no-scratch-refs-in-rust" => no_scratch_refs_in_rust::run(),
         | "no-usize-in-models" => no_usize_in_models::run(),

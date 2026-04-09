@@ -8,7 +8,8 @@
 //! each return a typed `RouteMaintenanceResult`. `engine_tick` is the
 //! engine-internal middleware loop that refreshes the latest topology,
 //! clears stale candidate-cache entries, checkpoints the current epoch,
-//! and polls transport ingress.
+//! records explicitly queued transport ingress, and emits a host-facing
+//! pathway round-progress snapshot.
 
 mod health;
 mod maintenance;
@@ -28,7 +29,8 @@ use super::{
     PathwayTransportBounds,
 };
 use crate::{
-    PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess, PathwayRoutingEngine,
+    choreography, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
+    PathwayRoutingEngine,
 };
 
 struct MaintenanceContext<'a> {
@@ -82,7 +84,12 @@ where
         // less harmful than refusing to drop the in-memory active
         // route. v1 mesh does not reconcile orphaned checkpoints later;
         // hosts that care about storage hygiene must sweep them out of band.
-        let _ = self.choreography_runtime().clear_route_protocols(route_id);
+        let _ = choreography::clear_route_protocols(
+            &mut self.transport,
+            &mut self.retention,
+            &mut self.effects,
+            route_id,
+        );
         let _ = self.remove_checkpoint(route_id);
         self.active_routes.remove(route_id);
     }

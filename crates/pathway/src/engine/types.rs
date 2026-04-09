@@ -8,7 +8,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use jacquard_core::{
     Blake3Digest, CommitteeSelection, ContentId, DestinationId, DeterministicOrderKey,
     HealthScore, LinkEndpoint, NodeId, PenaltyPoints, ReceiptId, RouteCost, RouteId,
-    RouteLifecycleEvent, RouteSummary, Tick, TimeWindow,
+    RouteLifecycleEvent, RouteSummary, RoutingTickChange, RoutingTickHint,
+    RoutingTickOutcome, Tick, TimeWindow,
 };
 use serde::{Deserialize, Serialize};
 
@@ -136,6 +137,59 @@ pub struct PathwayControlState {
     pub transport_stability_score: HealthScore,
     pub repair_pressure_score: HealthScore,
     pub anti_entropy: MeshAntiEntropyState,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PathwayRoundReport {
+    pub tick_outcome: RoutingTickOutcome,
+    pub ingested_transport_observation_count: usize,
+    pub dropped_transport_observation_count: usize,
+    pub transport_summary: Option<PathwayTransportObservationSummary>,
+    pub control_state: Option<PathwayControlState>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PathwayRoundWaitState {
+    pub next_tick_hint: RoutingTickHint,
+    pub pending_transport_observation_count: usize,
+    pub dropped_transport_observation_count: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PathwayRoundProgress {
+    Advanced(Box<PathwayRoundReport>),
+    Waiting(PathwayRoundWaitState),
+}
+
+impl PathwayRoundProgress {
+    #[must_use]
+    pub fn from_tick_outcome(
+        tick_outcome: RoutingTickOutcome,
+        ingested_transport_observation_count: usize,
+        dropped_transport_observation_count: usize,
+        pending_transport_observation_count: usize,
+        transport_summary: Option<PathwayTransportObservationSummary>,
+        control_state: Option<PathwayControlState>,
+    ) -> Self {
+        if tick_outcome.change == RoutingTickChange::NoChange
+            && ingested_transport_observation_count == 0
+            && dropped_transport_observation_count == 0
+        {
+            return Self::Waiting(PathwayRoundWaitState {
+                next_tick_hint: tick_outcome.next_tick_hint,
+                pending_transport_observation_count,
+                dropped_transport_observation_count,
+            });
+        }
+
+        Self::Advanced(Box::new(PathwayRoundReport {
+            tick_outcome,
+            ingested_transport_observation_count,
+            dropped_transport_observation_count,
+            transport_summary,
+            control_state,
+        }))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

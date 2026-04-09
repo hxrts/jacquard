@@ -24,7 +24,10 @@ mod support;
 mod trait_bounds;
 mod types;
 
-use std::{cell::RefCell, collections::BTreeMap};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, VecDeque},
+};
 
 use jacquard_core::{
     Blake3Digest, Configuration, ConnectivityPosture, ContentId, NodeId, Observation,
@@ -44,7 +47,8 @@ use trait_bounds::{
 use types::{ActivePathwayRoute, CachedCandidate};
 pub use types::{
     PathwayActiveRouteView, PathwayControlState, PathwayForwardingCursor,
-    PathwayObservedRemoteLink, PathwayRouteClass, PathwayRouteRetentionView,
+    PathwayObservedRemoteLink, PathwayRoundProgress, PathwayRoundReport,
+    PathwayRoundWaitState, PathwayRouteClass, PathwayRouteRetentionView,
     PathwayTransportFreshness, PathwayTransportObservationSummary,
 };
 pub(crate) use types::{
@@ -53,9 +57,8 @@ pub(crate) use types::{
 };
 
 use crate::{
-    choreography::{PathwayGuestRuntime, PathwayProtocolRuntimeAdapter},
-    committee::NoCommitteeSelector,
-    PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
+    choreography, committee::NoCommitteeSelector, PathwayNeighborhoodEstimateAccess,
+    PathwayPeerEstimateAccess,
 };
 
 // Public Engine Identity And Capability Surface
@@ -74,6 +77,7 @@ pub(crate) const PATHWAY_CANDIDATE_COUNT_MAX: usize = 32;
 
 /// Maximum number of retained payload objects tracked per active route.
 pub(crate) const PATHWAY_RETAINED_PER_ROUTE_COUNT_MAX: usize = 32;
+pub(crate) const PATHWAY_PENDING_TRANSPORT_INGRESS_COUNT_MAX: usize = 64;
 
 /// Validity window applied to newly derived mesh candidates, in ticks.
 pub(crate) const PATHWAY_CANDIDATE_VALIDITY_TICKS: u64 = 12;
@@ -136,10 +140,12 @@ pub struct PathwayEngine<
     effects: Effects,
     hashing: Hasher,
     selector: Selector,
-    pending_transport_ingress: Vec<TransportObservation>,
+    pending_transport_ingress: VecDeque<TransportObservation>,
+    dropped_transport_ingress_since_last_tick: usize,
     latest_topology: Option<Observation<Configuration>>,
     last_transport_summary: Option<PathwayTransportObservationSummary>,
     control_state: Option<types::PathwayControlState>,
+    last_round_progress: Option<types::PathwayRoundProgress>,
     last_checkpointed_topology_epoch: Option<RouteEpoch>,
     candidate_cache: RefCell<BTreeMap<jacquard_core::BackendRouteId, CachedCandidate>>,
     active_routes: BTreeMap<RouteId, ActivePathwayRoute>,
@@ -165,7 +171,16 @@ where
         &mut self,
         observation: &TransportObservation,
     ) -> Result<(), RouteError> {
-        self.pending_transport_ingress.push(observation.clone());
+        if self.pending_transport_ingress.len()
+            >= PATHWAY_PENDING_TRANSPORT_INGRESS_COUNT_MAX
+        {
+            self.dropped_transport_ingress_since_last_tick = self
+                .dropped_transport_ingress_since_last_tick
+                .saturating_add(1);
+        } else {
+            self.pending_transport_ingress
+                .push_back(observation.clone());
+        }
         Ok(())
     }
 
@@ -207,10 +222,12 @@ impl<Topology, Transport, Retention, Effects, Hasher>
             effects,
             hashing,
             selector: NoCommitteeSelector,
-            pending_transport_ingress: Vec::new(),
+            pending_transport_ingress: VecDeque::new(),
+            dropped_transport_ingress_since_last_tick: 0,
             latest_topology: None,
             last_transport_summary: None,
             control_state: None,
+            last_round_progress: None,
             last_checkpointed_topology_epoch: None,
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
@@ -241,10 +258,12 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
             effects,
             hashing,
             selector,
-            pending_transport_ingress: Vec::new(),
+            pending_transport_ingress: VecDeque::new(),
+            dropped_transport_ingress_since_last_tick: 0,
             latest_topology: None,
             last_transport_summary: None,
             control_state: None,
+            last_round_progress: None,
             last_checkpointed_topology_epoch: None,
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
@@ -259,6 +278,11 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     #[must_use]
     pub fn latest_topology(&self) -> Option<&Observation<Configuration>> {
         self.latest_topology.as_ref()
+    }
+
+    #[must_use]
+    pub fn last_round_progress(&self) -> Option<&types::PathwayRoundProgress> {
+        self.last_round_progress.as_ref()
     }
 
     #[must_use]
@@ -321,26 +345,6 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     }
 }
 
-impl<Topology, Transport, Retention, Effects, Hasher, Selector>
-    PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
-where
-    Transport: PathwayTransportBounds,
-    Retention: PathwayRetentionBounds,
-    Effects: PathwayEffectsBounds,
-{
-    fn choreography_runtime(
-        &mut self,
-    ) -> PathwayGuestRuntime<
-        PathwayProtocolRuntimeAdapter<'_, Transport, Retention, Effects>,
-    > {
-        PathwayGuestRuntime::new(PathwayProtocolRuntimeAdapter {
-            transport: &mut self.transport,
-            retention: &mut self.retention,
-            effects: &mut self.effects,
-        })
-    }
-}
-
 // Transport-Capability Helpers
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -379,7 +383,10 @@ where
             return Ok(());
         }
 
-        self.choreography_runtime().forwarding_hop(
+        choreography::forwarding_hop(
+            &mut self.transport,
+            &mut self.retention,
+            &mut self.effects,
             route_id,
             next_segment.endpoint,
             payload,
@@ -423,8 +430,14 @@ where
             }
         }
         let object_id = self.retention_object_id(route_id, payload);
-        self.choreography_runtime()
-            .retain_for_replay(route_id, object_id, payload)?;
+        choreography::retain_for_replay(
+            &mut self.transport,
+            &mut self.retention,
+            &mut self.effects,
+            route_id,
+            object_id,
+            payload,
+        )?;
         if let Some(active_route) = self.active_routes.get_mut(route_id) {
             active_route.anti_entropy.retained_objects.insert(object_id);
         }

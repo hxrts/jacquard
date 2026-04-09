@@ -15,7 +15,9 @@ use common::{
     },
     fixtures::sample_configuration,
 };
-use jacquard_pathway::{PathwayTransportFreshness, PathwayTransportObservationSummary};
+use jacquard_pathway::{
+    PathwayRoundProgress, PathwayTransportFreshness, PathwayTransportObservationSummary,
+};
 use jacquard_traits::{
     jacquard_core::{
         Belief, ByteCount, DestinationId, DurationMs, EndpointLocator, Estimate,
@@ -205,6 +207,51 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
         }
     );
     assert_eq!(left.control_state(), right.control_state());
+    assert_eq!(left.last_round_progress(), right.last_round_progress());
+}
+
+#[test]
+fn quiet_tick_surfaces_a_waiting_round_progress_snapshot() {
+    let topology = sample_configuration();
+    let mut engine = build_engine();
+
+    engine
+        .engine_tick(&RoutingTickContext::new(topology.clone()))
+        .expect("bootstrap quiet engine tick");
+    engine
+        .engine_tick(&RoutingTickContext::new(topology))
+        .expect("steady-state quiet engine tick");
+
+    let Some(PathwayRoundProgress::Waiting(wait)) = engine.last_round_progress() else {
+        panic!("expected a waiting round-progress snapshot");
+    };
+    assert_eq!(wait.pending_transport_observation_count, 0);
+    assert_eq!(wait.dropped_transport_observation_count, 0);
+}
+
+#[test]
+fn bounded_pending_ingress_reports_dropped_observations_in_round_progress() {
+    let topology = sample_configuration();
+    let mut engine = build_engine();
+
+    for _ in 0..80 {
+        engine.ingest_transport_observation(&low_quality_link_observation());
+    }
+
+    engine
+        .engine_tick(&RoutingTickContext::new(topology))
+        .expect("ingress-heavy engine tick");
+
+    let Some(PathwayRoundProgress::Advanced(report)) = engine.last_round_progress()
+    else {
+        panic!("expected an advanced round-progress snapshot");
+    };
+    assert_eq!(
+        report.tick_outcome.change,
+        RoutingTickChange::PrivateStateUpdated
+    );
+    assert!(report.ingested_transport_observation_count < 80);
+    assert!(report.dropped_transport_observation_count > 0);
 }
 
 #[test]

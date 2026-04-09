@@ -25,7 +25,7 @@ use jacquard_mem_link_profile::{
 };
 use jacquard_traits::{
     effect_handler, OrderEffects, RetentionStore, RouteEventLogEffects, StorageEffects,
-    TimeEffects, TransportDriver, TransportSenderEffects,
+    TimeEffects, TransportSenderEffects,
 };
 
 #[derive(Clone, Default)]
@@ -78,17 +78,6 @@ impl TransportSenderEffects for TestTransport {
             .lock()
             .expect(TRANSPORT_LOCK)
             .send_transport(endpoint, payload)
-    }
-}
-
-impl TransportDriver for TestTransport {
-    fn drain_transport_ingress(
-        &mut self,
-    ) -> Result<Vec<TransportIngressEvent>, TransportError> {
-        self.0
-            .lock()
-            .expect(TRANSPORT_LOCK)
-            .drain_transport_ingress()
     }
 }
 

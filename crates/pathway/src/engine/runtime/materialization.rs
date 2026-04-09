@@ -24,7 +24,9 @@ use super::{
     PathwayEffectsBounds, PathwayEngine, PathwayHasherBounds, PathwaySelectorBounds,
     PathwayTransportBounds,
 };
-use crate::{PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess};
+use crate::{
+    choreography, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
+};
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -243,10 +245,13 @@ where
             ..installation
         };
         self.store_checkpoint(&active_route)?;
-        if let Err(error) = self
-            .choreography_runtime()
-            .activation_handshake(&route_id, input.handle.topology_epoch())
-        {
+        if let Err(error) = choreography::activation_handshake(
+            &mut self.transport,
+            &mut self.retention,
+            &mut self.effects,
+            &route_id,
+            input.handle.topology_epoch(),
+        ) {
             if let Some(previous_active_route) = previous_active_route.as_ref() {
                 self.checkpoint_best_effort(previous_active_route);
             } else {

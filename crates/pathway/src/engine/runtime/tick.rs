@@ -26,7 +26,7 @@ use super::{
 };
 use crate::{
     choreography::{
-        PathwayAntiEntropySnapshot, PathwayNeighborAdvertisementSnapshot,
+        self, PathwayAntiEntropySnapshot, PathwayNeighborAdvertisementSnapshot,
         PathwayRouteExportSnapshot,
     },
     PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
@@ -113,17 +113,9 @@ where
 
         self.latest_topology = Some(topology.clone());
         self.candidate_cache.borrow_mut().clear();
-        if self.last_checkpointed_topology_epoch != Some(topology.value.epoch) {
-            let epoch_bytes = topology.value.epoch.0.to_le_bytes();
-            let epoch_key = topology_epoch_storage_key(&self.local_node_id);
-            self.effects
-                .store_bytes(&epoch_key, &epoch_bytes)
-                .storage_invalid()?;
-            self.last_checkpointed_topology_epoch = Some(topology.value.epoch);
-        }
-        let observations = std::mem::take(&mut self.pending_transport_ingress);
-        self.choreography_runtime()
-            .record_tick_ingress(topology.value.epoch, &observations)?;
+        self.checkpoint_topology_epoch_if_needed(topology)?;
+        let (observations, dropped_transport_observation_count) =
+            self.drain_tick_ingress(topology.value.epoch)?;
         self.last_transport_summary = Self::next_transport_summary(
             self.last_transport_summary.as_ref(),
             Self::summarize_transport_observations(&observations),
@@ -133,24 +125,87 @@ where
             self.next_control_state(topology, self.last_transport_summary.as_ref()),
         );
         self.emit_cooperative_tick_protocols(topology)?;
+        let change = self.tick_change(
+            topology.value.epoch,
+            prior_topology_epoch,
+            prior_transport_summary.as_ref(),
+            prior_control_state.as_ref(),
+            prior_checkpointed_epoch,
+            had_cached_candidates,
+        );
+        let tick_outcome = RoutingTickOutcome {
+            topology_epoch: topology.value.epoch,
+            change,
+            next_tick_hint: RoutingTickHint::WithinTicks(Tick(1)),
+        };
+        self.last_round_progress =
+            Some(crate::PathwayRoundProgress::from_tick_outcome(
+                tick_outcome.clone(),
+                observations.len(),
+                dropped_transport_observation_count,
+                self.pending_transport_ingress.len(),
+                self.last_transport_summary.clone(),
+                self.control_state.clone(),
+            ));
+        Ok(tick_outcome)
+    }
+
+    fn checkpoint_topology_epoch_if_needed(
+        &mut self,
+        topology: &jacquard_core::Observation<jacquard_core::Configuration>,
+    ) -> Result<(), RouteError> {
+        if self.last_checkpointed_topology_epoch == Some(topology.value.epoch) {
+            return Ok(());
+        }
+
+        let epoch_bytes = topology.value.epoch.0.to_le_bytes();
+        let epoch_key = topology_epoch_storage_key(&self.local_node_id);
+        self.effects
+            .store_bytes(&epoch_key, &epoch_bytes)
+            .storage_invalid()?;
+        self.last_checkpointed_topology_epoch = Some(topology.value.epoch);
+        Ok(())
+    }
+
+    fn drain_tick_ingress(
+        &mut self,
+        epoch: jacquard_core::RouteEpoch,
+    ) -> Result<(Vec<jacquard_core::TransportObservation>, usize), RouteError> {
+        let observations = self.pending_transport_ingress.drain(..).collect::<Vec<_>>();
+        let dropped_transport_observation_count =
+            std::mem::take(&mut self.dropped_transport_ingress_since_last_tick);
+        choreography::record_tick_ingress(
+            &mut self.transport,
+            &mut self.retention,
+            &mut self.effects,
+            epoch,
+            &observations,
+        )?;
+        Ok((observations, dropped_transport_observation_count))
+    }
+
+    fn tick_change(
+        &self,
+        topology_epoch: jacquard_core::RouteEpoch,
+        prior_topology_epoch: Option<jacquard_core::RouteEpoch>,
+        prior_transport_summary: Option<&crate::PathwayTransportObservationSummary>,
+        prior_control_state: Option<&crate::PathwayControlState>,
+        prior_checkpointed_epoch: Option<jacquard_core::RouteEpoch>,
+        had_cached_candidates: bool,
+    ) -> RoutingTickChange {
         // Include had_cached_candidates: a tick that clears a non-empty
         // cache invalidates prior plan tokens and must be reported as a
         // state update even when topology and transport are unchanged.
-        let change = if prior_topology_epoch != Some(topology.value.epoch)
-            || prior_transport_summary != self.last_transport_summary
-            || prior_control_state != self.control_state
+        if prior_topology_epoch != Some(topology_epoch)
+            || prior_transport_summary != self.last_transport_summary.as_ref()
+            || prior_control_state != self.control_state.as_ref()
             || prior_checkpointed_epoch != self.last_checkpointed_topology_epoch
             || had_cached_candidates
         {
             RoutingTickChange::PrivateStateUpdated
         } else {
             RoutingTickChange::NoChange
-        };
-        Ok(RoutingTickOutcome {
-            topology_epoch: topology.value.epoch,
-            change,
-            next_tick_hint: RoutingTickHint::WithinTicks(Tick(1)),
-        })
+        }
     }
 
     fn emit_cooperative_tick_protocols(
@@ -174,18 +229,30 @@ where
             })
             .collect::<Vec<_>>();
 
-        self.choreography_runtime()
-            .neighbor_advertisement_exchange(
-                topology.value.epoch,
-                &neighbor_snapshot,
-            )?;
+        choreography::neighbor_advertisement_exchange(
+            &mut self.transport,
+            &mut self.retention,
+            &mut self.effects,
+            topology.value.epoch,
+            &neighbor_snapshot,
+        )?;
         for (route_id, snapshot) in route_exports {
-            self.choreography_runtime()
-                .route_export_exchange(&route_id, &snapshot)?;
+            choreography::route_export_exchange(
+                &mut self.transport,
+                &mut self.retention,
+                &mut self.effects,
+                &route_id,
+                &snapshot,
+            )?;
         }
         for (route_id, snapshot) in anti_entropy_snapshots {
-            self.choreography_runtime()
-                .anti_entropy_exchange(&route_id, &snapshot)?;
+            choreography::anti_entropy_exchange(
+                &mut self.transport,
+                &mut self.retention,
+                &mut self.effects,
+                &route_id,
+                &snapshot,
+            )?;
         }
         Ok(())
     }

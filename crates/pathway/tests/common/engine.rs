@@ -69,6 +69,13 @@ impl TestEngine {
             .ingest_transport_observation_for_router(observation)
             .expect("ingest transport observation");
     }
+
+    #[must_use]
+    pub fn last_round_progress(
+        &self,
+    ) -> Option<&jacquard_pathway::PathwayRoundProgress> {
+        self.engine.last_round_progress()
+    }
 }
 
 /// Local node id used by every test engine. Centralised so the lease

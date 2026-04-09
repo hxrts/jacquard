@@ -62,10 +62,12 @@ jobs:
         run: nix develop --command cargo xtask check fail-closed-ordering
       - name: No Scratch Refs in Rust
         run: nix develop --command cargo xtask check no-scratch-refs-in-rust
-      - name: Mesh Choreography
-        run: nix develop --command cargo xtask check mesh-choreography
-      - name: Mesh Choreography Validate
-        run: nix develop --command cargo xtask check mesh-choreography --validate
+      - name: Pathway Async Boundary
+        run: nix develop --command cargo xtask check pathway-async-boundary
+      - name: Pathway Choreography
+        run: nix develop --command cargo xtask check pathway-choreography
+      - name: Pathway Choreography Validate
+        run: nix develop --command cargo xtask check pathway-choreography --validate
       - name: Routing Invariants
         run: nix develop --command cargo xtask check routing-invariants
       - name: Routing Invariants Validate
