@@ -10,8 +10,8 @@ description = "Proactive BATMAN-style next-hop routing engine for Jacquard"
 workspace = true
 
 [dependencies]
-jacquard-core = { path = "../core" }
-jacquard-traits = { path = "../traits" }
+jacquard-core = { path = "../core", version = "0.1.0" }
+jacquard-traits = { path = "../traits", version = "0.1.0" }
 
 [dev-dependencies]
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
