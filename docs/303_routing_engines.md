@@ -1,6 +1,6 @@
 # Routing Engines
 
-This page describes the trait surface for adding a routing algorithm to Jacquard. See [World Extensions](302_world_extensions.md) for the layering overview, [Runtime Effects](301_runtime_effects.md) for the host capability surface, [Pathway Routing](401_pathway_routing.md) for the in-tree explicit-path implementation and its swappable subcomponents, and [BATMAN Routing](402_batman_routing.md) for the in-tree proactive next-hop engine.
+This page describes the trait surface for adding a routing algorithm to Jacquard. It also captures the host capability boundary that engines consume and the in-tree BATMAN engine shape. See [Pathway Routing](401_pathway_routing.md) for the in-tree explicit-path implementation and its swappable subcomponents.
 
 ## Routing Engine Contract
 
@@ -82,6 +82,16 @@ That activation step also enforces the shared control-plane invariants. The admi
 An engine may still use a richer internal runtime model behind that hook. First-party pathway, for example, now drives protocol-side ingress and bounded control-state refresh through a private choreography guest runtime while keeping the shared `engine_tick` signature unchanged.
 
 That private choreography runtime does not replace the shared Jacquard effect traits. Generated Telltale effect interfaces remain engine-private implementation details, and the pathway interpreter adapts them onto the stable `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `TransportSenderEffects` surfaces exposed by `jacquard-traits`. Host-owned `TransportDriver` implementations now stop at the router or bridge layer, which delivers explicit ingress before each synchronous router round.
+
+## Runtime Effect Boundary
+
+The host capability surface stays narrow on purpose.
+
+- `TransportSenderEffects` is the shared synchronous send capability engines use during a deterministic round.
+- `TransportDriver` is the host-owned ingress and supervision surface.
+- `TimeEffects`, `OrderEffects`, `StorageEffects`, and `RouteEventLogEffects` remain capability traits, not runtime-owner traits.
+
+Engines do not own async streams, driver supervision loops, or Jacquard time assignment. Hosts and bridges own those responsibilities and inject observations before the next synchronous router round.
 
 ## Contract Rules
 

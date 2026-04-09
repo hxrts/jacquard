@@ -36,6 +36,18 @@ objective
 
 The engine does not mint the canonical handle, publish the canonical lease, or surface commitments as canonical truth. The router consumes `RouteMaterializationProof`, `RouteWitness`, `RouteMaintenanceResult`, and `RouteSemanticHandoff` to publish canonical state.
 
+## Route Lifecycle
+
+The route lifecycle is owned by the control plane above the engine boundary.
+
+1. A host activates a `RoutingObjective`.
+2. The router computes policy and queries registered engines for candidates.
+3. The selected engine admits and materializes under router-owned identity.
+4. The router publishes canonical route state and commitments.
+5. Later rounds drive maintenance, replacement, handoff, expiry, or teardown.
+
+Maintenance is still typed. Engines report proof-bearing maintenance outcomes such as continued health, repair, handoff, replacement pressure, or expiry. The router decides whether that engine result implies canonical mutation.
+
 ## Tick and Maintenance
 
 The router advances through explicit synchronous rounds. Hosts feed topology, policy inputs, and transport observations into `RoutingMiddleware`, then call `advance_round` on the control plane. During that round the router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize previously ingested observations. They may run engine-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.

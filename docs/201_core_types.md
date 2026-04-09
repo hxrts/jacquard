@@ -51,7 +51,7 @@ This group of types shows two important boundaries. `NodeBinding` says who contr
 
 ## World Schema
 
-`Configuration` is the shared graph-shaped world object the router reasons about. It wires together `Node`, `Link`, and `Environment`. World extensions emit `Observation<ObservedValue>` items that contribute to that picture. See [Pipeline and World Observations](203_pipeline_observations.md) for the full schema and the observation surface.
+`Configuration` is the shared graph-shaped world object the router reasons about. It wires together `Node`, `Link`, and `Environment`. World extensions emit `Observation<ObservedValue>` items that contribute to that picture.
 
 Pathway-specific peer or neighborhood heuristics do not live here. Novelty scoring, bridge detection, reach estimation, and similar derived pathway signals stay behind the pathway trait boundary as engine-owned estimate types. `core` carries the world facts those heuristics are computed from, not the heuristics themselves.
 
@@ -61,7 +61,7 @@ Pathway-specific peer or neighborhood heuristics do not live here. Novelty scori
 
 Live routes are split into router-owned `PublishedRouteRecord` and engine-mutable `RouteRuntimeState`, composed as `MaterializedRoute`. Canonical route state does not come directly from a transport callback or raw health observation. Activation enforces the structural invariants. The admission decision must be admissible, the realized protection must satisfy the objective protection floor, and lease validity must be checked explicitly before publication or maintenance continues.
 
-See [Route Lifecycle](204_route_lifecycle.md) for the full lifecycle flow from objective through teardown.
+See [Router Control Plane](304_router_control_plane.md) for the full lifecycle flow from objective through teardown.
 
 ## Coordination And Layering
 
@@ -70,3 +70,26 @@ See [Route Lifecycle](204_route_lifecycle.md) for the full lifecycle flow from o
 `SubstrateRequirements`, `SubstrateCandidate`, `SubstrateLease`, and `LayerParameters` are the shared layering objects. They exist so a host-level orchestrator can compose engines without teaching one engine about another's internals. `core` exposes the carrier contract shape, not the host policy that decides when one engine should migrate to another.
 
 `DiscoveryScopeId` is separate from the routing concept of a neighborhood. It is only a service-scope identifier used in `ServiceScope::Discovery`. It does not name a routing authority set or an engine-local topology object.
+
+## Pipeline And Observations
+
+Jacquard keeps the shared routing pipeline explicit:
+
+```text
+observation -> estimate -> fact -> candidate -> admission -> materialization -> publication
+```
+
+Only the first three stages live in the shared world model. `Observation<T>` carries raw local or remote input with provenance. `Estimate<T>` carries engine- or host-derived belief. `Fact<T>` carries the stronger claims the system is willing to treat as established routing truth. Candidate production, admission, materialization, and publication happen above this layer through the router and engine contracts.
+
+This split matters because a recent link sighting, an engine-scored path preference, and a router-published route witness are not the same kind of statement. The type system keeps those boundaries visible.
+
+## World Extension Surface
+
+World extensions contribute shared `Node`, `Link`, `Environment`, and related observation values without taking ownership of routing semantics.
+
+- Extensions emit transport-neutral observations into the shared graph.
+- Extensions do not publish canonical route truth.
+- Engine-local heuristics such as novelty, relay value, bridge centrality, or next-hop scores stay private to the engine that derives them.
+- Transport-specific authoring and handshake logic stays outside `jacquard-core`.
+
+This is the boundary that lets concrete transports, host integrations, and profile crates describe the world honestly while keeping route selection and publication above the shared model.
