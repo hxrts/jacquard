@@ -24,11 +24,11 @@ use cargo_metadata::{Metadata, MetadataCommand};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LayerTag {
-    Core = 1,
-    Traits = 2,
+    Core          = 1,
+    Traits        = 2,
     PathwayRouter = 3,
-    MockInfra = 4,
-    Tests = 5,
+    MockInfra     = 4,
+    Tests         = 5,
 }
 
 impl LayerTag {
