@@ -1,7 +1,24 @@
-//! `SimulatedNodeProfile`, a builder for the stable capability half of a
-//! node. Attaches endpoints and services, sets connection and transfer
-//! budgets and hold capacity, and emits a shared `NodeProfile` or a full
-//! `Node` bound to a `(NodeId, ControllerId)` pair.
+//! `SimulatedNodeProfile`, a builder for the stable capability half of a node.
+//!
+//! This module assembles the `NodeProfile` portion of a `Node`: endpoint list,
+//! service descriptors, connection limits, work budgets, and hold capacity. It
+//! delegates service construction to `SimulatedServiceDescriptor` and
+//! node-state construction to `NodeStateSnapshot`, then emits a fully specified
+//! `Node` via `NodeBuilder` from `jacquard-core`.
+//!
+//! Two output paths are available:
+//! - `build(node_id, controller_id)` returns only the `NodeProfile`, useful
+//!   when the caller manages state separately.
+//! - `build_node(node_id, controller_id, state)` combines the profile with a
+//!   `NodeStateSnapshot` into a complete `Node` value.
+//!
+//! `DEFAULT_HOLD_CAPACITY_BYTES` (4096 bytes) is the module-level constant used
+//! by all default preset constructors.
+//!
+//! Most callers should prefer `ReferenceNode` from the `authoring` module,
+//! which wraps this builder with preset constructors. Use
+//! `SimulatedNodeProfile` directly only when a test needs exact control over
+//! the profile fields.
 
 use jacquard_core::{
     ByteCount, ControllerId, HoldItemCount, LinkEndpoint, MaintenanceWorkBudget, Node,

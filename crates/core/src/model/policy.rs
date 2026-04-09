@@ -1,4 +1,18 @@
-//! Routing objectives, policy inputs, and policy vocabulary.
+//! Routing objectives, protection and connectivity classes, and policy inputs.
+//!
+//! This module defines the shared policy vocabulary that sits between the
+//! world model and the routing engine admission stage. It describes what a
+//! caller wants from a route and what the policy engine has measured about
+//! the local network environment.
+//!
+//! Key types: [`RoutingObjective`] (destination, service kind, target and
+//! floor protection, connectivity requirements, and priority weights),
+//! [`RouteProtectionClass`] (the abstract protection level an engine provides),
+//! [`ConnectivityPosture`] (repair and partition-tolerance axes),
+//! [`RouteRepairClass`] and [`RoutePartitionClass`] (the two posture
+//! dimensions), [`HoldFallbackPolicy`] (whether deferred delivery is
+//! acceptable), and [`RoutingPolicyInputs`] (the derived local measurements
+//! that the policy engine passes as context during engine selection).
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};

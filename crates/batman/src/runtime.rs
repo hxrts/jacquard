@@ -1,8 +1,22 @@
-//! `RoutingEngine` impl for `BatmanEngine`. Materialization resolves the
-//! admitted backend route against the current best next-hop table, records
-//! an active route, and issues a proof. Forwarding, maintenance, and
-//! teardown follow the same table-lookup path without touching shared
-//! route truth.
+//! `RoutingEngine` and `RouterManagedEngine` impls for `BatmanEngine`.
+//!
+//! Provides the full lifecycle surface for installed BATMAN routes:
+//!
+//! - `materialize_route` — resolves the admitted backend route against the
+//!   current best next-hop table, records an `ActiveBatmanRoute`, and returns a
+//!   `RouteInstallation` with a `RouteMaterializationProof` and initial route
+//!   health derived from the best-next-hop TQ score.
+//! - `engine_tick` — delegates to `refresh_private_state` and returns the
+//!   appropriate `RoutingTickHint`: `Immediate` when private state changed,
+//!   otherwise `WithinTicks` bounded by
+//!   `decay_window.next_refresh_within_ticks`.
+//! - `maintain_route` — checks whether the active route's next-hop has been
+//!   superseded by a better neighbor; returns `ReplacementRequired` if so, or
+//!   `Failed(LostReachability)` if the originator has become unreachable.
+//! - `teardown` — removes the route from the active table.
+//! - `RouterManagedEngine` — provides `local_node_id_for_router`,
+//!   `forward_payload_for_router` (sends to the next-hop endpoint via
+//!   `TransportSenderEffects`), and `restore_route_runtime_for_router`.
 
 use jacquard_core::{
     DestinationId, Fact, FactBasis, HealthScore, Limit, NodeId, PublishedRouteRecord,
@@ -14,14 +28,14 @@ use jacquard_core::{
     RoutingTickChange, RoutingTickContext, RoutingTickHint, RoutingTickOutcome, Tick,
 };
 use jacquard_traits::{
-    RouterManagedEngine, RoutingEngine, TimeEffects, TransportEffects,
+    RouterManagedEngine, RoutingEngine, TimeEffects, TransportSenderEffects,
 };
 
 use crate::{public_state::ActiveBatmanRoute, BatmanEngine, BATMAN_ENGINE_ID};
 
 impl<Transport, Effects> RoutingEngine for BatmanEngine<Transport, Effects>
 where
-    Transport: TransportEffects,
+    Transport: TransportSenderEffects,
     Effects: TimeEffects,
 {
     fn materialize_route(
@@ -142,7 +156,7 @@ where
 
 impl<Transport, Effects> RouterManagedEngine for BatmanEngine<Transport, Effects>
 where
-    Transport: TransportEffects,
+    Transport: TransportSenderEffects,
     Effects: TimeEffects,
 {
     fn local_node_id_for_router(&self) -> NodeId {
@@ -177,12 +191,12 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        Belief, ByteCount, Configuration, ConnectivityPosture, DestinationId,
-        DurationMs, EndpointAddress, Environment, Link, LinkEndpoint, LinkProfile,
-        LinkRuntimeState, LinkState, Node, Observation, RatioPermille,
+        Belief, ByteCount, Configuration, ConnectivityPosture, ControllerId,
+        DestinationId, DurationMs, EndpointLocator, Environment, Link, LinkEndpoint,
+        LinkProfile, LinkRuntimeState, LinkState, Node, Observation, RatioPermille,
         RepairCapability, RouteEpoch, RouteMaintenanceTrigger, RoutePartitionClass,
         RouteProtectionClass, RouteRepairClass, RoutingTickContext,
-        SelectedRoutingParameters, Tick, TimeWindow, TransportProtocol,
+        SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
     };
     use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
     use jacquard_mem_node_profile::ReferenceNode;
@@ -195,17 +209,28 @@ mod tests {
         NodeId([byte; 32])
     }
 
+    fn endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(64),
+        )
+    }
+
     fn batman_node(byte: u8) -> Node {
-        ReferenceNode::ble_route_capable(byte, &BATMAN_ENGINE_ID, Tick(1)).build()
+        ReferenceNode::route_capable(
+            node(byte),
+            ControllerId([byte; 32]),
+            endpoint(byte),
+            &BATMAN_ENGINE_ID,
+            Tick(1),
+        )
+        .build()
     }
 
     fn link(remote: u8, delivery: u16, symmetry: u16, loss: u16) -> Link {
         Link {
-            endpoint: LinkEndpoint {
-                protocol: TransportProtocol::BleGatt,
-                address: EndpointAddress::Opaque(vec![remote]),
-                mtu_bytes: ByteCount(64),
-            },
+            endpoint: endpoint(remote),
             profile: LinkProfile {
                 latency_floor_ms: DurationMs(5),
                 repair_capability: RepairCapability::TransportRetransmit,

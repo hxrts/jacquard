@@ -1,7 +1,16 @@
 //! Validates that mutations in critical paths follow fail-closed ordering.
 //!
-//! Fail-closed ordering: read/validate → early return on error → only then
-//! mutate.
+//! Fail-closed ordering requires: read/validate state first, return early on
+//! any error, and only then apply mutations. This prevents partial updates
+//! that leave shared state inconsistent when an error occurs mid-operation.
+//!
+//! Deep AST analysis of function bodies is required to verify this property
+//! reliably (track `let mut` positions, `?` operator placement, and mutation
+//! sites). The full enforcement is currently delegated to the
+//! `routing-invariants` check, which validates the critical functions where
+//! this ordering matters most.
+//!
+//! Registered as: `cargo xtask check fail-closed-ordering`
 
 use anyhow::Result;
 

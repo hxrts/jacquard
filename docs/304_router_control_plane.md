@@ -4,7 +4,7 @@
 
 ## Ownership
 
-The router owns canonical route-handle issuance, canonical lease publication, canonical commitment publication, and router-owned tick cadence. The router also dispatches maintenance triggers to engines.
+The router owns canonical route-handle issuance, canonical lease publication, canonical commitment publication, explicit ingress queues, and router-owned round cadence. The router also dispatches maintenance triggers to engines.
 
 Routing engines remain the owners of route-private runtime state and proof-bearing evidence. Profile implementations and test harnesses remain observational with respect to canonical route truth.
 
@@ -23,7 +23,9 @@ The control-plane path is:
 ```text
 objective
   -> policy profile
-  -> authoritative topology tick
+  -> authoritative topology observation
+  -> explicit queued ingress
+  -> synchronous router round
   -> cross-engine candidate ordering
   -> selected-engine admission
   -> router-owned handle + lease
@@ -36,7 +38,7 @@ The engine does not mint the canonical handle, publish the canonical lease, or s
 
 ## Tick and Maintenance
 
-The router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize ingress. They may run engine-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
+The router advances through explicit synchronous rounds. Hosts feed topology, policy inputs, and transport observations into `RoutingMiddleware`, then call `advance_round` on the control plane. During that round the router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize previously ingested observations. They may run engine-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
 
 `RoutingTickOutcome.next_tick_hint` lets proactive engines report scheduling pressure without taking ownership of cadence. The router or host may honor that hint, clamp it, or ignore it, but the cadence decision remains router/host owned.
 
@@ -55,23 +57,23 @@ typed engine evidence
   -> in-memory canonical publication
 ```
 
-Mesh may still checkpoint route-private runtime payloads, but canonical route publication and canonical route-event emission now happen in the router.
+Pathway may still checkpoint route-private runtime payloads, but canonical route publication and canonical route-event emission now happen in the router.
 
 ## Configuration and State Updates
 
-The router exposes `RoutingMiddleware` for hosts to update observable topology and policy inputs without triggering route activation or maintenance. Hosts replace topology when new observations arrive. Hosts replace policy inputs when local conditions (capacity, churn, health) change.
+The router exposes `RoutingMiddleware` for hosts to update observable topology, policy inputs, and transport ingress without triggering route activation or maintenance. Hosts ingest topology observations when new world state arrives. Hosts ingest policy inputs when local conditions (capacity, churn, health) change. Hosts ingest transport observations explicitly instead of letting engines or routers poll transport adapters directly.
 
 The router also exposes a recovery interface for checkpoint replay. Hosts call `recover_checkpointed_routes` after restart to restore the previous canonical route table and active materialized state.
 
 ## Discovery Boundary
 
-Shared discovery and coarse capability selection stay on `ServiceDescriptor`. Mesh nodes advertise route-capable surfaces through shared service descriptors. The router and test harness consume those shared descriptors. Jacquard does not introduce one universal handshake object for `Discover`, `Activate`, `Repair`, or `Hold`.
+Shared discovery and coarse capability selection stay on `ServiceDescriptor`. Pathway nodes advertise route-capable surfaces through shared service descriptors. The router and test harness consume those shared descriptors. Jacquard does not introduce one universal handshake object for `Discover`, `Activate`, `Repair`, or `Hold`.
 
 If a future engine needs stronger bilateral terms, add service-specific negotiation objects on that concrete path only.
 
 ## Multi-Device Composition
 
-A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-reference-client` shows the minimum host/client wiring for a new device target. The end-to-end multi-device test exercises `reference-client`, `router`, `mesh`, and `mem-link-profile` across multiple runtimes.
+A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-reference-client` now shows the minimum host bridge wiring for a new device target: one bridge-owned transport driver, one or more queue-backed transport senders handed to engines, explicit ingress stamping, and explicit synchronous router rounds. The end-to-end multi-device test exercises `reference-client`, `router`, `pathway`, `batman`, and `mem-link-profile` across multiple runtimes.
 
 This harness proves crate-boundary composition. It does not replace the simulator. The simulator remains the scenario/replay layer above these shared boundaries.
 
@@ -80,9 +82,9 @@ This harness proves crate-boundary composition. It does not replace the simulato
 The reference example for a new deployment target is in `crates/reference-client/tests/e2e_multi_layer_routing.rs`.
 
 1. build a shared `Observation<Configuration>` with ordinary `ServiceDescriptor` values
-2. attach one shared `TransportEffects` implementation per device runtime
-3. construct one mesh engine per device
-4. wrap each engine in one router that owns canonical publication
-5. submit typed router commands instead of minting route truth directly
+2. attach one bridge-owned `TransportDriver` per device runtime
+3. construct one or more engines per device over queue-backed `TransportSenderEffects`
+4. wrap those engines in one router that owns canonical publication
+5. bind one host bridge owner per runtime, ingest topology and transport updates explicitly there, and advance the router through synchronous bridge rounds instead of minting route truth directly
 
-The minimum composition surface for a new device includes world input, transport registration, router activation, and data-plane forwarding over admitted routes.
+The minimum composition surface for a new device includes world input, bridge-owned transport registration, router activation, and data-plane forwarding over admitted routes.

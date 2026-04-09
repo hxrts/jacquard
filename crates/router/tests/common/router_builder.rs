@@ -1,5 +1,21 @@
 //! Builders for pre-wired `MultiEngineRouter` instances used across router
 //! integration tests.
+//!
+//! Each builder function composes a `MultiEngineRouter<FixedPolicyEngine,
+//! InMemoryRuntimeEffects>` from the shared fixture topology, a policy engine,
+//! and one registered routing engine appropriate for the test scenario:
+//!
+//! - `build_router`: standard pathway-only router at a given `Tick`.
+//! - `build_router_with_effects`: same as above but with caller-supplied router
+//!   runtime effects, used for fail-closed injection tests.
+//! - `build_router_with_selector`: pathway engine wired with an
+//!   `AdvisoryCommitteeSelector`, used for committee selection tests.
+//! - `build_router_with_recoverable_engine`: registers a
+//!   `RecoverableTestEngine` backed by a shared `BTreeSet`, used for recovery
+//!   and checkpoint tests.
+//! - `build_router_with_proactive_engine`: registers a
+//!   `ProactiveTableTestEngine` with a caller-specified `RouteShapeVisibility`,
+//!   used for proactive routing tests.
 
 use std::sync::{Arc, Mutex};
 
@@ -7,7 +23,7 @@ use jacquard_core::Tick;
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
 };
-use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
+use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::Blake3Hashing;
 
@@ -18,16 +34,16 @@ use super::{
     recoverable_engine::RecoverableTestEngine,
 };
 
-pub(crate) type TestMeshEngine = MeshEngine<
-    DeterministicMeshTopologyModel,
+pub(crate) type TestPathwayEngine = PathwayEngine<
+    DeterministicPathwayTopologyModel,
     InMemoryTransport,
     InMemoryRetentionStore,
     InMemoryRuntimeEffects,
     Blake3Hashing,
 >;
 
-pub(crate) type CommitteeMeshEngine = MeshEngine<
-    DeterministicMeshTopologyModel,
+pub(crate) type CommitteePathwayEngine = PathwayEngine<
+    DeterministicPathwayTopologyModel,
     InMemoryTransport,
     InMemoryRetentionStore,
     InMemoryRuntimeEffects,
@@ -47,9 +63,9 @@ pub(crate) fn build_router_with_selector(
 ) -> MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects> {
     let topology = sample_configuration();
     let policy_inputs = sample_policy_inputs(&topology);
-    let engine: CommitteeMeshEngine = MeshEngine::with_committee_selector(
+    let engine: CommitteePathwayEngine = PathwayEngine::with_committee_selector(
         LOCAL_NODE_ID,
-        DeterministicMeshTopologyModel::new(),
+        DeterministicPathwayTopologyModel::new(),
         InMemoryTransport::new(),
         InMemoryRetentionStore::default(),
         InMemoryRuntimeEffects { now, ..Default::default() },
@@ -68,7 +84,7 @@ pub(crate) fn build_router_with_selector(
     );
     router
         .register_engine(Box::new(engine))
-        .expect("register committee mesh engine");
+        .expect("register committee pathway engine");
     router
 }
 
@@ -90,9 +106,9 @@ pub(crate) fn build_router_with_runtime_pair(
 ) -> MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects> {
     let topology = sample_configuration();
     let policy_inputs = sample_policy_inputs(&topology);
-    let engine: TestMeshEngine = MeshEngine::without_committee_selector(
+    let engine: TestPathwayEngine = PathwayEngine::without_committee_selector(
         LOCAL_NODE_ID,
-        DeterministicMeshTopologyModel::new(),
+        DeterministicPathwayTopologyModel::new(),
         InMemoryTransport::new(),
         InMemoryRetentionStore::default(),
         engine_effects,
@@ -109,7 +125,7 @@ pub(crate) fn build_router_with_runtime_pair(
     );
     router
         .register_engine(Box::new(engine))
-        .expect("register mesh engine");
+        .expect("register pathway engine");
     router
 }
 

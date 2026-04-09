@@ -2,23 +2,23 @@
 //!
 //! Most implementers should start here. This module exposes the intended
 //! authoring flow for in-memory links:
-//! - choose an endpoint shape such as BLE or opaque
+//! - choose or construct a shared `LinkEndpoint`
 //! - choose a link shape such as active, degraded, lossy, or recoverable
 //! - optionally refine latency or repair semantics
 //! - build the shared `Link`
 //!
 //! [`ReferenceLink`] keeps [`SimulatedLinkProfile`] as the low-level escape
 //! hatch when a test needs exact control over the underlying `LinkProfile` /
-//! `LinkState` split.
+//! `LinkState` split. Callers provide shared `LinkEndpoint` values; this crate
+//! stays endpoint-agnostic.
 
 use jacquard_core::{
-    ByteCount, DurationMs, Link, LinkRuntimeState, PartitionRecoveryClass,
-    RatioPermille, RepairCapability, Tick, TransportProtocol,
+    DurationMs, Link, LinkRuntimeState, PartitionRecoveryClass, RatioPermille,
+    RepairCapability, Tick,
 };
 
 use crate::{
-    ble_endpoint, opaque_endpoint, SimulatedLinkProfile, BLE_TYPICAL_RTT_MS,
-    DEFAULT_STABILITY_HORIZON_MS,
+    SimulatedLinkProfile, DEFAULT_STABILITY_HORIZON_MS, REFERENCE_TYPICAL_RTT_MS,
 };
 
 /// Default transfer rate used by the reference in-memory link presets.
@@ -32,42 +32,44 @@ pub struct ReferenceLink {
 
 impl ReferenceLink {
     #[must_use]
-    pub fn ble(device_byte: u8) -> Self {
+    pub fn new(endpoint: jacquard_core::LinkEndpoint) -> Self {
         Self {
-            simulated: SimulatedLinkProfile::new(ble_endpoint(device_byte)),
+            simulated: SimulatedLinkProfile::new(endpoint),
         }
     }
 
     #[must_use]
-    pub fn opaque(protocol: TransportProtocol, bytes: Vec<u8>, mtu: ByteCount) -> Self {
-        Self {
-            simulated: SimulatedLinkProfile::new(opaque_endpoint(protocol, bytes, mtu)),
-        }
+    pub fn active(
+        endpoint: jacquard_core::LinkEndpoint,
+        observed_at_tick: Tick,
+    ) -> Self {
+        Self::new(endpoint).active_at(observed_at_tick)
     }
 
     #[must_use]
-    pub fn ble_active(device_byte: u8, observed_at_tick: Tick) -> Self {
-        Self::ble(device_byte).active_at(observed_at_tick)
+    pub fn degraded(
+        endpoint: jacquard_core::LinkEndpoint,
+        observed_at_tick: Tick,
+    ) -> Self {
+        Self::new(endpoint).degraded_at(observed_at_tick)
     }
 
     #[must_use]
-    pub fn ble_degraded(device_byte: u8, observed_at_tick: Tick) -> Self {
-        Self::ble(device_byte).degraded_at(observed_at_tick)
-    }
-
-    #[must_use]
-    pub fn ble_lossy(
-        device_byte: u8,
+    pub fn lossy(
+        endpoint: jacquard_core::LinkEndpoint,
         delivery_confidence_permille: RatioPermille,
         observed_at_tick: Tick,
     ) -> Self {
-        Self::ble_active(device_byte, observed_at_tick)
+        Self::active(endpoint, observed_at_tick)
             .with_confidence(delivery_confidence_permille)
     }
 
     #[must_use]
-    pub fn ble_recoverable(device_byte: u8, observed_at_tick: Tick) -> Self {
-        Self::ble_active(device_byte, observed_at_tick)
+    pub fn recoverable(
+        endpoint: jacquard_core::LinkEndpoint,
+        observed_at_tick: Tick,
+    ) -> Self {
+        Self::active(endpoint, observed_at_tick)
             .with_repair_capability(RepairCapability::ApplicationRetransmit)
             .with_partition_recovery(PartitionRecoveryClass::EndToEndRecoverable)
     }
@@ -78,7 +80,7 @@ impl ReferenceLink {
             .simulated
             .with_runtime_state(LinkRuntimeState::Active)
             .with_runtime_observation(
-                BLE_TYPICAL_RTT_MS,
+                REFERENCE_TYPICAL_RTT_MS,
                 DEFAULT_REFERENCE_TRANSFER_RATE_BYTES_PER_SEC,
                 DEFAULT_STABILITY_HORIZON_MS,
                 observed_at_tick,
@@ -92,7 +94,7 @@ impl ReferenceLink {
             .simulated
             .with_runtime_state(LinkRuntimeState::Degraded)
             .with_runtime_observation(
-                BLE_TYPICAL_RTT_MS,
+                REFERENCE_TYPICAL_RTT_MS,
                 DEFAULT_REFERENCE_TRANSFER_RATE_BYTES_PER_SEC,
                 DEFAULT_STABILITY_HORIZON_MS,
                 observed_at_tick,
@@ -197,11 +199,22 @@ impl ReferenceLink {
 
 #[cfg(test)]
 mod tests {
+    use jacquard_core::{ByteCount, EndpointLocator, LinkEndpoint, TransportKind};
+
     use super::*;
 
+    fn endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(128),
+        )
+    }
+
     #[test]
-    fn ble_lossy_matches_expected_delivery_confidence() {
-        let link = ReferenceLink::ble_lossy(7, RatioPermille(650), Tick(3)).build();
+    fn lossy_matches_expected_delivery_confidence() {
+        let link =
+            ReferenceLink::lossy(endpoint(7), RatioPermille(650), Tick(3)).build();
 
         assert_eq!(
             link.state
@@ -213,8 +226,8 @@ mod tests {
     }
 
     #[test]
-    fn ble_recoverable_upgrades_repair_defaults() {
-        let link = ReferenceLink::ble_recoverable(9, Tick(4)).build();
+    fn recoverable_upgrades_repair_defaults() {
+        let link = ReferenceLink::recoverable(endpoint(9), Tick(4)).build();
 
         assert_eq!(
             link.profile.repair_capability,
@@ -224,5 +237,18 @@ mod tests {
             link.profile.partition_recovery,
             PartitionRecoveryClass::EndToEndRecoverable,
         );
+    }
+
+    #[test]
+    fn endpoint_first_active_constructor_preserves_endpoint_identity() {
+        let endpoint = LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![1, 2, 3]),
+            ByteCount(128),
+        );
+        let link = ReferenceLink::active(endpoint.clone(), Tick(2)).build();
+
+        assert_eq!(link.endpoint, endpoint);
+        assert_eq!(link.state.state, LinkRuntimeState::Active);
     }
 }

@@ -1,3 +1,21 @@
+//! Integration tests for the router middleware layer: topology ingestion,
+//! policy-input propagation, and capability enforcement.
+//!
+//! These tests exercise the `RoutingControlPlane` surface of
+//! `MultiEngineRouter` to verify that topology observations and policy inputs
+//! flow through the middleware before engine ticks and candidate selection, and
+//! that the router accurately reflects the registered capability set of its
+//! engines.
+//!
+//! Key behaviors covered:
+//! - Topology and policy inputs ingested before activation are reflected in the
+//!   materialized route's `topology_epoch` stamp.
+//! - Registered engine IDs and capabilities are accurately surfaced through the
+//!   router's `registered_engine_ids` and `registered_engine_capabilities`
+//!   APIs.
+//! - `advance_round` aggregates per-engine tick outcomes into a shared
+//!   `RouterRoundOutcome` and propagates the most urgent `next_round_hint`.
+
 mod common;
 
 use common::{build_router, objective, sample_configuration, FAR_NODE_ID};
@@ -7,15 +25,15 @@ use jacquard_core::{
 use jacquard_traits::{Router, RoutingControlPlane};
 
 #[test]
-fn middleware_replaces_topology_and_policy_inputs() {
+fn middleware_ingests_topology_and_policy_inputs() {
     let mut router = build_router(Tick(2));
     let mut topology = sample_configuration();
     topology.value.environment.reachable_neighbor_count = 5;
     let mut policy_inputs = common::sample_policy_inputs(&topology);
     policy_inputs.routing_engine_count = 3;
 
-    router.replace_topology(topology.clone());
-    router.replace_policy_inputs(policy_inputs.clone());
+    router.ingest_topology_observation(topology.clone());
+    router.ingest_policy_inputs(policy_inputs.clone());
 
     let route = Router::activate_route(
         &mut router,
@@ -32,20 +50,20 @@ fn middleware_tracks_registered_capabilities() {
 
     assert_eq!(
         router.registered_engine_ids(),
-        vec![jacquard_mesh::MESH_ENGINE_ID]
+        vec![jacquard_pathway::PATHWAY_ENGINE_ID]
     );
     let capabilities = router
-        .registered_engine_capabilities(&jacquard_mesh::MESH_ENGINE_ID)
-        .expect("mesh capabilities");
+        .registered_engine_capabilities(&jacquard_pathway::PATHWAY_ENGINE_ID)
+        .expect("pathway capabilities");
 
-    assert_eq!(capabilities.engine, jacquard_mesh::MESH_ENGINE_ID);
+    assert_eq!(capabilities.engine, jacquard_pathway::PATHWAY_ENGINE_ID);
 }
 
 #[test]
-fn anti_entropy_tick_reports_shared_router_outcome() {
+fn advance_round_reports_shared_router_outcome() {
     let mut router = build_router(Tick(2));
 
-    let outcome = router.anti_entropy_tick().expect("anti-entropy tick");
+    let outcome = router.advance_round().expect("advance round");
 
     assert_eq!(outcome.topology_epoch, sample_configuration().value.epoch);
     assert_eq!(
@@ -53,7 +71,7 @@ fn anti_entropy_tick_reports_shared_router_outcome() {
         RoutingTickChange::PrivateStateUpdated
     );
     assert_eq!(
-        outcome.engine_tick_hint,
+        outcome.next_round_hint,
         RoutingTickHint::WithinTicks(Tick(1))
     );
     assert_eq!(outcome.canonical_mutation, RouterCanonicalMutation::None);

@@ -1,4 +1,18 @@
 //! Explicit wrappers for bounded values, observations, estimates, and facts.
+//!
+//! This module defines the epistemic and provenance wrapper types that appear
+//! throughout the shared routing world model. [`Belief`] wraps an optional
+//! `Estimate` to represent a value that may be absent or held with some
+//! confidence. [`Estimate`] pairs a value with a confidence permille and an
+//! observation tick. [`Fact`] is the stronger version used when a value has
+//! been established from admission or publication evidence.
+//!
+//! Provenance classifiers: [`FactSourceClass`] (local vs. remote),
+//! [`RoutingEvidenceClass`] (direct observation, peer claim, or witnessed
+//! admission), [`OriginAuthenticationClass`] (controlled, authenticated, or
+//! unauthenticated), and [`IdentityAssuranceClass`] (the grounding strength
+//! of a node identity for routing-control decisions). [`Observation`] bundles
+//! a value with all four provenance axes and the observation tick.
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};

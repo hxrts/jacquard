@@ -1,7 +1,26 @@
-//! Engine-private state maintenance for `BatmanEngine`. Refreshes per
-//! originator observations from the latest topology, ranks neighbors by
-//! transmit quality and hop count, and derives the best next-hop table
-//! consumed by the planner and runtime.
+//! Engine-private state maintenance for `BatmanEngine`.
+//!
+//! Refreshes per-originator observations from the latest topology, ranks
+//! neighbors by transmit quality and hop count, and derives the best next-hop
+//! table consumed by the planner and runtime modules.
+//!
+//! The main entry point is `refresh_private_state`, which runs on each engine
+//! tick and performs three passes:
+//! 1. `derive_originator_observations` — for each remote node visible in the
+//!    topology, compute a per-neighbor TQ score using `scoring::derive_tq` and
+//!    `scoring::tq_product` over the best known path through each direct
+//!    neighbor.
+//! 2. `merge_observations` — merge fresh observations with non-stale prior
+//!    entries so that destinations last seen within
+//!    `decay_window.stale_after_ticks` are retained even when they are
+//!    temporarily absent from the topology.
+//! 3. Ranking and best-next-hop derivation — sort each originator's neighbor
+//!    list by TQ descending, hop count ascending, then neighbor id, and extract
+//!    the first entry as the `BestNextHop`.
+//!
+//! Also exposes helper methods used by the planner and runtime:
+//! `candidate_for`, `admission_for`, `route_id_for`, `backend_route_id_for`,
+//! and `is_stale`.
 
 use std::collections::BTreeMap;
 
@@ -63,7 +82,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                             tq: best.tq,
                             hop_count: best.hop_count,
                             updated_at_tick: best.observed_at_tick,
-                            protocol: best.protocol.clone(),
+                            transport_kind: best.transport_kind.clone(),
                             degradation: best.degradation,
                             backend_route_id: self
                                 .backend_route_id_for(*originator, best.via_neighbor),
@@ -141,7 +160,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                             tq,
                             hop_count: remote_hops.saturating_add(1),
                             observed_at_tick: now,
-                            protocol: local_protocol.clone(),
+                            transport_kind: local_protocol.clone(),
                             degradation,
                         },
                     );
@@ -219,7 +238,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                 engine: BATMAN_ENGINE_ID,
                 protection: objective.target_protection,
                 connectivity: objective.target_connectivity,
-                protocol_mix: vec![best.protocol.clone()],
+                protocol_mix: vec![best.transport_kind.clone()],
                 hop_count_hint: Belief::certain(best.hop_count, best.updated_at_tick),
                 valid_for: TimeWindow::new(
                     best.updated_at_tick,
@@ -367,9 +386,9 @@ pub(crate) fn max_degradation(
 #[allow(clippy::wildcard_imports)]
 mod tests {
     use jacquard_core::{
-        ControllerId, DurationMs, EndpointAddress, Environment, Link, LinkProfile,
+        ControllerId, DurationMs, EndpointLocator, Environment, Link, LinkProfile,
         LinkState, Node, NodeProfile, NodeState, RatioPermille, RepairCapability,
-        RouteEpoch, RoutingTickContext, RoutingTickHint, Tick, TransportProtocol,
+        RouteEpoch, RoutingTickContext, RoutingTickHint, Tick, TransportKind,
     };
     use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
     use jacquard_traits::RoutingEngine;
@@ -386,11 +405,11 @@ mod tests {
             controller_id: ControllerId([byte; 32]),
             profile: NodeProfile {
                 services: Vec::new(),
-                endpoints: vec![LinkEndpoint {
-                    protocol: TransportProtocol::BleGatt,
-                    address: EndpointAddress::Opaque(vec![byte]),
-                    mtu_bytes: ByteCount(64),
-                }],
+                endpoints: vec![LinkEndpoint::new(
+                    TransportKind::Custom("reference-hop".into()),
+                    EndpointLocator::Opaque(vec![byte]),
+                    ByteCount(64),
+                )],
                 connection_count_max: 4,
                 neighbor_state_count_max: 4,
                 simultaneous_transfer_count_max: 1,
@@ -411,11 +430,11 @@ mod tests {
 
     fn link(remote: u8, delivery: u16, symmetry: u16, loss: u16) -> Link {
         Link {
-            endpoint: LinkEndpoint {
-                protocol: TransportProtocol::BleGatt,
-                address: EndpointAddress::Opaque(vec![remote]),
-                mtu_bytes: ByteCount(64),
-            },
+            endpoint: LinkEndpoint::new(
+                TransportKind::Custom("reference-hop".into()),
+                EndpointLocator::Opaque(vec![remote]),
+                ByteCount(64),
+            ),
             profile: LinkProfile {
                 latency_floor_ms: DurationMs(5),
                 repair_capability: RepairCapability::TransportRetransmit,

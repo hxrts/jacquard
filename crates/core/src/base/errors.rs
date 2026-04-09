@@ -1,4 +1,17 @@
 //! Error types for routing, transport, retention, and medium operations.
+//!
+//! This module defines the shared error-enum hierarchy used across all
+//! routing, transport, storage, and hold subsystems. The top-level
+//! [`RouteError`] composes the domain-specific error enums via `#[from]`
+//! conversions. Each domain enum is generated with `define_error_enum!`, which
+//! attaches the standard shared-model derives and `thiserror` support.
+//!
+//! Error enums defined here: [`RouteError`], [`RouteSelectionError`],
+//! [`RouteRuntimeError`], [`RoutePolicyError`], [`CapabilityError`],
+//! [`TransportError`], [`MediumError`], [`RetentionError`], [`HoldError`],
+//! [`StorageError`], [`RouteEventLogError`], [`WorldError`],
+//! [`PathSetupError`]. These types are consumed by traits in
+//! `jacquard-traits` and implementations in engine and router crates.
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};

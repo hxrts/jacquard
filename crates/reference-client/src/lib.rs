@@ -1,22 +1,39 @@
-//! Reference client wiring for Jacquard integration tests and examples.
+//! Reference host bridge for Jacquard integration tests and examples.
 //!
-//! Control flow: a reference client owns only local host composition.
-//! It assembles shared topology observations, a router instance, and in-memory
-//! transport/runtime adapters, then submits typed router operations. It does
-//! not mint canonical route truth on its own.
-//! Reusable reference topology builders live in `topology`, so other crates can
-//! compose the same in-memory node/link shapes without copying fixture logic.
+//! This crate demonstrates the intended host-side composition:
+//! - build one router plus one or more engines
+//! - attach one bridge-owned transport driver
+//! - queue outbound transport commands during synchronous routing work
+//! - stamp ingress with Jacquard logical time at the bridge boundary
+//! - advance the router through explicit synchronous rounds
+//!
+//! `clients` contains concrete bridge builders. `bridge` contains the
+//! host-bridge surface. `topology` contains reusable route-capable `Node`
+//! and `Link` builders for tests and examples. In-memory profile types from
+//! `mem-link-profile` and `mem-node-profile` are re-exported so downstream
+//! test crates only depend on this crate.
 //!
 //! Ownership:
-//! - narrow local `ActorOwned` host loop for composition only
 //! - observational with respect to canonical route truth
+//! - bridge-owned with respect to transport ingress, outbound queueing, and
+//!   round advancement
+//! - never publishes the canonical route table, only the router does
 
 #![forbid(unsafe_code)]
 
-mod mesh;
+mod bridge;
+mod clients;
 pub mod topology;
 
-use jacquard_core::{Configuration, Observation};
+pub use bridge::{
+    BoundHostBridge, BridgeRoundProgress, BridgeRoundReport, BridgeWaitState,
+    HostBridge,
+};
+pub use clients::{
+    build_pathway_batman_client, build_pathway_batman_client_with_profile,
+    build_pathway_client, build_pathway_client_with_profile, PathwayClient,
+    PathwayRouter,
+};
 pub use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
     SharedInMemoryNetwork, SimulatedLinkProfile,
@@ -24,38 +41,3 @@ pub use jacquard_mem_link_profile::{
 pub use jacquard_mem_node_profile::{
     NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor,
 };
-pub use mesh::{
-    build_mesh_batman_client, build_mesh_batman_client_with_profile, build_mesh_client,
-    build_mesh_client_with_profile, MeshClient, MeshRouter,
-};
-
-/// Minimal client wrapper that demonstrates host-side composition.
-pub struct Client<Router> {
-    topology: Observation<Configuration>,
-    router: Router,
-}
-
-impl<Router> Client<Router> {
-    #[must_use]
-    pub fn new(topology: Observation<Configuration>, router: Router) -> Self {
-        Self { topology, router }
-    }
-
-    #[must_use]
-    pub fn topology(&self) -> &Observation<Configuration> {
-        &self.topology
-    }
-
-    pub fn replace_topology(&mut self, topology: Observation<Configuration>) {
-        self.topology = topology;
-    }
-
-    #[must_use]
-    pub fn router(&self) -> &Router {
-        &self.router
-    }
-
-    pub fn router_mut(&mut self) -> &mut Router {
-        &mut self.router
-    }
-}

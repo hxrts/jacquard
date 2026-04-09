@@ -1,7 +1,23 @@
 //! `SimulatedServiceDescriptor`, a builder for one shared `ServiceDescriptor`
-//! emitted by a simulated node. Carries the service kind, endpoints, scope,
-//! validity window, saturation, and repair capacity, and binds the descriptor
-//! to a `(NodeId, ControllerId)` pair on build.
+//! emitted by a simulated node.
+//!
+//! This module assembles a single `ServiceDescriptor` that a node advertises to
+//! peers. Each descriptor carries the service kind (`Discover`, `Move`, or
+//! `Hold`), one or more `LinkEndpoint` values, a `ServiceScope`, a validity
+//! `TimeWindow`, saturation level, and repair capacity. The descriptor is bound
+//! to a `(NodeId, ControllerId)` identity pair at `build` time.
+//!
+//! Three preset constructors mirror the standard service triple:
+//! - `discover_service`: advertises route-discovery participation.
+//! - `move_service`: advertises payload forwarding capability.
+//! - `hold_service`: advertises deferred-delivery buffering with a hold
+//!   capacity hint.
+//!
+//! The generic `advertised` constructor covers non-standard service kinds.
+//! Routing engines are attached via `with_routing_engine` before building.
+//!
+//! This builder is used by `SimulatedNodeProfile` and `ReferenceNode`; callers
+//! should rarely need to construct it directly.
 
 use jacquard_core::{
     ByteCount, CapacityHint, ControllerId, LinkEndpoint, NodeId, RatioPermille,

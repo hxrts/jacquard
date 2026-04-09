@@ -1,6 +1,17 @@
 //! `AdvisoryCommitteeSelector` — a configurable committee selector stub
 //! that either returns a single-member committee or deliberately fails,
 //! used to exercise router fail-closed and committee paths.
+//!
+//! The selector wraps a single boolean `fail` field. When `fail` is `false`
+//! it produces a minimal `CommitteeSelection` with `LOCAL_NODE_ID` as the
+//! sole `Leader` member, satisfying the router's proof-bearing activation
+//! requirement. When `fail` is `true` it returns
+//! `RouteAdmissionRejection::BackendUnavailable` so tests can assert that
+//! the router refuses to publish canonical route truth when the committee
+//! layer is unavailable.
+//!
+//! Used by `router_builder::build_router_with_selector` and the fail-closed
+//! integration tests in `router_fail_closed`.
 
 use jacquard_core::{
     ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,

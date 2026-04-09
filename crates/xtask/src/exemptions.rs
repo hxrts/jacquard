@@ -1,5 +1,17 @@
-//! Centralized permitted style-guide exemptions (mock infrastructure, tests,
-//! documented exceptions).
+//! Centralized exemption tables for xtask policy checks.
+//!
+//! Collects every place where a style-guide rule has a documented, intentional
+//! exception so that exemptions are auditable in code review rather than
+//! scattered across individual check modules.
+//!
+//! Tables included:
+//! - `BARE_PRIMITIVES_EXEMPT_PATHS` — crates and path prefixes whose public
+//!   structs are allowed to use `usize` (test infrastructure and reference
+//!   crates with justified justification).
+//! - `STYLE_GUIDE_EXCEPTIONS` — per-function `long-block-exception` records for
+//!   bodies that legitimately exceed the 60-line cap.
+//! - `OWNERSHIP_PERMITS` — named patterns permitted by design with a brief
+//!   justification string, referenced by the ownership-invariants check.
 
 /// Crates and paths exempt from bare-primitive-type enforcement.
 /// These are test infrastructure or have documented justification.
@@ -16,7 +28,7 @@ pub const BARE_PRIMITIVES_EXEMPT_PATHS: &[&str] = &[
 #[allow(dead_code)]
 pub const STYLE_GUIDE_EXCEPTIONS: &[(&str, &str)] = &[
     (
-        "jacquard_mesh::routing_invariants::run",
+        "jacquard_pathway::routing_invariants::run",
         "long-block-exception: rule coordination workflow",
     ),
     // Add as discovered via code review

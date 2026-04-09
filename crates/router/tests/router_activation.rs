@@ -1,3 +1,26 @@
+//! Integration tests for the router's route activation, reselection, and
+//! maintenance flows.
+//!
+//! These tests exercise `Router::activate_route`, `reselect_route`,
+//! `maintain_route`, and `advance_round` through the `MultiEngineRouter` public
+//! API. Each test builds a pre-wired router from the shared fixture helpers and
+//! asserts on the canonical state that the router publishes after a successful
+//! proof-bearing activation.
+//!
+//! Key behaviors covered:
+//! - Activation stores a router-owned `MaterializedRoute` with matching
+//!   identity and publication stamps.
+//! - Route commitments reflect the router-published route identity, not engine-
+//!   private state.
+//! - Reselection issues a distinct `publication_id` while preserving the same
+//!   `RouteId` in the canonical table.
+//! - `advance_round` drives engine ticks and surfaces a `RouterRoundOutcome`
+//!   without exposing engine-private forwarding state.
+//! - Pathway cooperative choreographies progress when `advance_round` is called
+//!   after a partition-mode transition.
+//! - Health observation reports router-owned evidence class and matches the
+//!   admission-time health recorded in the materialized route.
+
 mod common;
 
 use common::{build_router, objective, FAR_NODE_ID};
@@ -98,21 +121,21 @@ fn maintain_route_dispatches_to_engine_via_control_plane() {
 }
 
 #[test]
-fn anti_entropy_tick_drives_engine_tick_without_exposing_private_state() {
+fn advance_round_drives_engine_tick_without_exposing_private_state() {
     let mut router = build_router(Tick(2));
 
-    let outcome = router.anti_entropy_tick().expect("anti-entropy tick");
+    let outcome = router.advance_round().expect("advance round");
 
     assert_eq!(
         router.registered_engine_ids(),
-        vec![jacquard_mesh::MESH_ENGINE_ID]
+        vec![jacquard_pathway::PATHWAY_ENGINE_ID]
     );
     assert_eq!(
         router
-            .registered_engine_capabilities(&jacquard_mesh::MESH_ENGINE_ID)
+            .registered_engine_capabilities(&jacquard_pathway::PATHWAY_ENGINE_ID)
             .expect("registered capabilities")
             .engine,
-        jacquard_mesh::MESH_ENGINE_ID
+        jacquard_pathway::PATHWAY_ENGINE_ID
     );
     assert_eq!(
         outcome.topology_epoch,
@@ -122,7 +145,7 @@ fn anti_entropy_tick_drives_engine_tick_without_exposing_private_state() {
 }
 
 #[test]
-fn anti_entropy_tick_drives_mesh_cooperative_choreographies_through_router_cadence() {
+fn advance_round_drives_pathway_cooperative_choreographies_through_router_cadence() {
     let mut router = build_router(Tick(2));
     let route = Router::activate_route(
         &mut router,
@@ -136,7 +159,7 @@ fn anti_entropy_tick_drives_mesh_cooperative_choreographies_through_router_caden
         )
         .expect("enter partition mode");
 
-    let outcome = router.anti_entropy_tick().expect("anti-entropy tick");
+    let outcome = router.advance_round().expect("advance round");
 
     assert_eq!(
         outcome.topology_epoch,
@@ -147,7 +170,7 @@ fn anti_entropy_tick_drives_mesh_cooperative_choreographies_through_router_caden
         jacquard_core::RoutingTickChange::PrivateStateUpdated,
     );
     assert_eq!(
-        outcome.engine_tick_hint,
+        outcome.next_round_hint,
         RoutingTickHint::WithinTicks(Tick(1))
     );
     assert!(router

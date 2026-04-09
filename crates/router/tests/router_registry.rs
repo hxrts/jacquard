@@ -1,3 +1,21 @@
+//! Integration tests for engine registration, selection precedence, and
+//! router-owned lease management.
+//!
+//! These tests exercise the `MultiEngineRouter::register_engine` path and the
+//! router's handling of multiple simultaneously registered engines. The
+//! `NullCandidateEngine` stub is used as an auxiliary engine that never
+//! produces candidates, confirming that the router correctly falls back to
+//! pathway when an auxiliary engine provides no route opinions.
+//!
+//! Key behaviors covered:
+//! - Duplicate engine registration for the same `RoutingEngineId` is rejected
+//!   with `CapabilityError::Rejected`.
+//! - Multiple engines can be registered; the pathway engine wins candidate
+//!   selection when all other engines produce no candidates.
+//! - `transfer_route_lease` updates the router-owned lease to reflect the new
+//!   owner node and increments the `lease_epoch`, enforcing that lease
+//!   ownership is tracked exclusively in canonical router state.
+
 mod common;
 
 use common::{
@@ -10,15 +28,17 @@ use jacquard_core::{
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
 };
-use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine, MESH_ENGINE_ID};
+use jacquard_pathway::{
+    DeterministicPathwayTopologyModel, PathwayEngine, PATHWAY_ENGINE_ID,
+};
 use jacquard_traits::{Blake3Hashing, Router};
 
 #[test]
-fn multi_engine_router_rejects_duplicate_mesh_registration() {
+fn multi_engine_router_rejects_duplicate_pathway_registration() {
     let mut router = build_router(Tick(2));
-    let duplicate_engine = MeshEngine::without_committee_selector(
+    let duplicate_engine = PathwayEngine::without_committee_selector(
         LOCAL_NODE_ID,
-        DeterministicMeshTopologyModel::new(),
+        DeterministicPathwayTopologyModel::new(),
         InMemoryTransport::new(),
         InMemoryRetentionStore::default(),
         InMemoryRuntimeEffects { now: Tick(2), ..Default::default() },
@@ -27,13 +47,13 @@ fn multi_engine_router_rejects_duplicate_mesh_registration() {
 
     let error = router
         .register_engine(Box::new(duplicate_engine))
-        .expect_err("duplicate mesh engine should be rejected");
+        .expect_err("duplicate pathway engine should be rejected");
 
     assert_eq!(error, CapabilityError::Rejected.into());
 }
 
 #[test]
-fn multi_engine_router_registers_multiple_engines_and_selects_mesh_candidate() {
+fn multi_engine_router_registers_multiple_engines_and_selects_pathway_candidate() {
     let mut router = build_router(Tick(2));
     let auxiliary_engine_id =
         jacquard_core::RoutingEngineId::from_contract_bytes([6; 16]);
@@ -52,9 +72,9 @@ fn multi_engine_router_registers_multiple_engines_and_selects_mesh_candidate() {
 
     assert_eq!(
         router.registered_engine_ids(),
-        vec![auxiliary_engine_id, MESH_ENGINE_ID],
+        vec![auxiliary_engine_id, PATHWAY_ENGINE_ID],
     );
-    assert_eq!(route.identity.admission.summary.engine, MESH_ENGINE_ID);
+    assert_eq!(route.identity.admission.summary.engine, PATHWAY_ENGINE_ID);
 }
 
 #[test]

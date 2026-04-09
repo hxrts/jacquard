@@ -1,4 +1,17 @@
 //! Parsing helpers for proc-macro inputs.
+//!
+//! Provides three functions shared across the model attribute macros:
+//!
+//! - `parse_single_field_tuple_struct` — parses a `TokenStream` as a
+//!   `syn::ItemStruct` and validates that it is a non-generic tuple struct with
+//!   exactly one unnamed field. Returns a descriptive compile error at the
+//!   macro call site if either constraint is violated.
+//! - `tuple_struct_field_type` — extracts the inner field type from a validated
+//!   single-field tuple struct, panicking only if called on an unvalidated
+//!   item.
+//! - `parse_max_expr` — parses the `max = <expr>` argument form used by
+//!   `#[bounded_value]` and returns the expression as a `syn::Expr` for use in
+//!   the generated `MAX` constant and checked `new` constructor.
 
 use proc_macro2::TokenStream;
 use syn::{parse::Parser, Error, Expr, Fields, ItemStruct, Type};

@@ -1,6 +1,17 @@
-//! Node, controller, route, and scope identifiers.
-
-use std::net::IpAddr;
+//! Node, controller, route, and scope identifier newtypes.
+//!
+//! This module defines all fixed-size byte-array identifiers used in the
+//! routing world model. Participant and authority identifiers (`NodeId`,
+//! `ControllerId`, `KeyId`) are 32-byte values. Routing and scope identifiers
+//! (`RouteId`, `CommitteeId`, `PathId`, and others) are 16-byte values derived
+//! from `Blake3Digest` truncation. Structural types include `RoutingEngineId`
+//! (an engine contract wrapper), `DestinationId` (the three-way node/service/
+//! gateway address form), and `NodeBinding` with `NodeBindingProof` (the
+//! attestable link between a node instance and its controlling authority).
+//!
+//! All newtypes are declared with `bytes_newtype!` or `id_type` and inherit the
+//! standard routing model derives. `From<&Blake3Digest>` impls for the 16-byte
+//! routing id types live at the bottom of this file.
 
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
@@ -12,7 +23,6 @@ use crate::{content::Blake3Digest, RouteEpoch};
 super::bytes_newtype!(NodeId, 32);
 super::bytes_newtype!(ControllerId, 32);
 super::bytes_newtype!(KeyId, 32);
-super::bytes_newtype!(BleProfileId, 16);
 super::bytes_newtype!(DiscoveryScopeId, 16);
 super::bytes_newtype!(HomeId, 16);
 super::bytes_newtype!(ClusterId, 16);
@@ -38,24 +48,6 @@ pub struct ServiceId(pub Vec<u8>);
     Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 pub struct BackendRouteId(pub Vec<u8>);
-
-/// Platform-specific BLE device address. Format depends on the host BLE stack.
-#[derive(
-    Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-pub struct BleDeviceId(pub Vec<u8>);
-
-#[derive(
-    Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-pub struct HostName(pub String);
-
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum NetworkHost {
-    Ip(IpAddr),
-    Name(HostName),
-}
 
 #[public_model]
 #[derive(

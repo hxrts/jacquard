@@ -1,4 +1,17 @@
 //! Validation helpers for public-model macros.
+//!
+//! Rejects forbidden field types in `#[public_model]`-annotated structs and
+//! enums at compile time, enforcing Jacquard's determinism model constraint:
+//!
+//! - `validate_public_model_struct` — iterates all named and unnamed fields of
+//!   a struct and rejects any forbidden type.
+//! - `validate_public_model_enum` — iterates all variant fields across the enum
+//!   and applies the same rejection logic.
+//!
+//! Forbidden types: raw `bool` (use an enum), `f32`, `f64` (no floating-point
+//! in deterministic model types), `usize`, `isize` (use fixed-width integers),
+//! `std::time::Instant`, `std::time::SystemTime` (use the Jacquard typed time
+//! model), and `Option<T>` where `T` is itself a forbidden type.
 
 use quote::ToTokens;
 use syn::{

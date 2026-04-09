@@ -1,12 +1,24 @@
-//! Enforces that every non-exempt `.rs` file under `crates/*/src`
-//! uses at least one Jacquard proc macro annotation. Stale exempt
-//! entries that no longer point at real files also fail.
+//! Enforces Jacquard proc-macro annotation coverage across workspace sources.
+//!
+//! Every non-exempt `.rs` file under `crates/*/src/` must carry at least one
+//! Jacquard proc-macro annotation (e.g. `#[public_model]`, `#[purity(...)]`,
+//! `#[effect_trait]`). This ensures the macro system's invariants apply
+//! broadly and that files are not accidentally left outside the policy surface.
+//!
+//! Additionally, stale entries in the exemption list that no longer point at
+//! real files are reported as violations, keeping the exemption table clean.
+//!
+//! Scans: all parsed workspace sources via `parse_workspace_sources`. Each
+//! source is checked for at least one attribute that resolves to a known
+//! Jacquard macro name.
+//! Registered as: `cargo xtask check proc-macro-scope`
 
 use anyhow::{bail, Result};
 
 use crate::sources::parse_workspace_sources;
 
 const EXEMPT_FILES: &[&str] = &[
+    "crates/adapter/src/lib.rs",
     "crates/core/src/lib.rs",
     "crates/core/src/base/mod.rs",
     "crates/core/src/base/constants.rs",
@@ -31,37 +43,35 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/traits/src/lib.rs",
     "crates/traits/src/routing.rs",
     "crates/traits/src/sealed.rs",
-    "crates/mesh/src/committee/mod.rs",
-    "crates/mesh/src/committee/selection.rs",
-    "crates/mesh/src/choreography/artifacts.rs",
-    "crates/mesh/src/choreography/mod.rs",
-    "crates/mesh/src/engine/mod.rs",
-    "crates/mesh/src/engine/planner/admission.rs",
-    "crates/mesh/src/engine/planner/candidates.rs",
-    "crates/mesh/src/engine/planner/mod.rs",
-    "crates/mesh/src/engine/planner/pathing.rs",
-    "crates/mesh/src/engine/planner/publishing.rs",
-    "crates/mesh/src/engine/planner/scoring.rs",
-    "crates/mesh/src/engine/runtime/health.rs",
-    "crates/mesh/src/engine/runtime/materialization.rs",
-    "crates/mesh/src/engine/runtime/maintenance.rs",
-    "crates/mesh/src/engine/runtime/mod.rs",
-    "crates/mesh/src/engine/runtime/tick.rs",
-    "crates/mesh/src/engine/support.rs",
-    "crates/mesh/src/engine/trait_bounds.rs",
-    "crates/mesh/src/engine/types.rs",
-    "crates/mesh/src/lib.rs",
-    "crates/mesh/src/topology.rs",
+    "crates/pathway/src/committee/mod.rs",
+    "crates/pathway/src/committee/selection.rs",
+    "crates/pathway/src/choreography/artifacts.rs",
+    "crates/pathway/src/choreography/mod.rs",
+    "crates/pathway/src/engine/mod.rs",
+    "crates/pathway/src/engine/planner/admission.rs",
+    "crates/pathway/src/engine/planner/candidates.rs",
+    "crates/pathway/src/engine/planner/mod.rs",
+    "crates/pathway/src/engine/planner/pathing.rs",
+    "crates/pathway/src/engine/planner/publishing.rs",
+    "crates/pathway/src/engine/planner/scoring.rs",
+    "crates/pathway/src/engine/runtime/health.rs",
+    "crates/pathway/src/engine/runtime/materialization.rs",
+    "crates/pathway/src/engine/runtime/maintenance.rs",
+    "crates/pathway/src/engine/runtime/mod.rs",
+    "crates/pathway/src/engine/runtime/tick.rs",
+    "crates/pathway/src/engine/support.rs",
+    "crates/pathway/src/engine/trait_bounds.rs",
+    "crates/pathway/src/engine/types.rs",
+    "crates/pathway/src/lib.rs",
+    "crates/pathway/src/topology.rs",
     "crates/mem-link-profile/src/authoring.rs",
     "crates/mem-link-profile/src/effect.rs",
-    "crates/mem-link-profile/src/endpoint.rs",
     "crates/mem-link-profile/src/lib.rs",
     "crates/mem-link-profile/src/network.rs",
     "crates/mem-link-profile/src/retention.rs",
     "crates/mem-link-profile/src/state.rs",
     "crates/mem-link-profile/src/transport.rs",
     "crates/mem-node-profile/src/authoring.rs",
-    "crates/mem-node-profile/src/endpoint.rs",
     "crates/mem-node-profile/src/lib.rs",
     "crates/mem-node-profile/src/profile.rs",
     "crates/mem-node-profile/src/service.rs",
@@ -72,8 +82,9 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/batman/src/public_state.rs",
     "crates/batman/src/runtime.rs",
     "crates/batman/src/scoring.rs",
+    "crates/reference-client/src/clients.rs",
+    "crates/reference-client/src/bridge.rs",
     "crates/reference-client/src/lib.rs",
-    "crates/reference-client/src/mesh.rs",
     "crates/reference-client/src/topology.rs",
     "crates/router/src/lib.rs",
     "crates/router/src/middleware.rs",

@@ -1,20 +1,35 @@
-//! `RoutingEnginePlanner` impl for `BatmanEngine`. Candidate enumeration
-//! reads the best next-hop table keyed by destination node, admission
-//! checks the objective against table entries, and emits one candidate per
-//! known destination without searching the shared topology.
+//! `RoutingEnginePlanner` impl for `BatmanEngine`.
+//!
+//! Candidate enumeration reads the best next-hop table keyed by destination
+//! node and emits at most one `RouteCandidate` per known destination without
+//! searching the shared topology for explicit paths. BATMAN only knows which
+//! direct neighbor to use next — the full route shape is `NextHopOnly`.
+//!
+//! Key behaviors:
+//! - `candidate_routes` — returns a single candidate per destination node if
+//!   the node is reachable via the best next-hop table and the destination's
+//!   node profile declares support for the BATMAN engine.
+//! - `check_candidate` — delegates to `admit_route` and extracts the
+//!   `RouteAdmissionCheck` from the result.
+//! - `admit_route` — validates that the candidate's `BackendRouteRef` matches
+//!   the current best next-hop entry and computes a full `RouteAdmission`
+//!   including witness and admission assumptions.
+//!
+//! Destination service support is verified against the node profile in the
+//! shared topology observation before any table lookup.
 
 use jacquard_core::{
     Configuration, DestinationId, Observation, RouteAdmission, RouteAdmissionCheck,
     RouteAdmissionRejection, RouteCandidate, RouteError, RouteSelectionError,
     RoutingEngineCapabilities, RoutingEngineId, SelectedRoutingParameters,
 };
-use jacquard_traits::{RoutingEnginePlanner, TimeEffects, TransportEffects};
+use jacquard_traits::{RoutingEnginePlanner, TimeEffects, TransportSenderEffects};
 
 use crate::{BatmanEngine, BATMAN_CAPABILITIES, BATMAN_ENGINE_ID};
 
 impl<Transport, Effects> RoutingEnginePlanner for BatmanEngine<Transport, Effects>
 where
-    Transport: TransportEffects,
+    Transport: TransportSenderEffects,
     Effects: TimeEffects,
 {
     fn engine_id(&self) -> RoutingEngineId {
@@ -116,11 +131,12 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        Configuration, ConnectivityPosture, DestinationId, DurationMs, Environment,
-        FactSourceClass, NodeId, Observation, OriginAuthenticationClass, RatioPermille,
+        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
+        DurationMs, EndpointLocator, Environment, FactSourceClass, LinkEndpoint,
+        NodeId, Observation, OriginAuthenticationClass, RatioPermille,
         RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
         RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingTickContext,
-        SelectedRoutingParameters, Tick,
+        SelectedRoutingParameters, Tick, TransportKind,
     };
     use jacquard_mem_link_profile::{
         InMemoryRuntimeEffects, InMemoryTransport, ReferenceLink,
@@ -132,6 +148,14 @@ mod tests {
 
     fn node(byte: u8) -> NodeId {
         NodeId([byte; 32])
+    }
+
+    fn endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(128),
+        )
     }
 
     fn sample_objective(destination: NodeId) -> RoutingObjective {
@@ -173,18 +197,30 @@ mod tests {
                 nodes: BTreeMap::from([
                     (
                         node(1),
-                        ReferenceNode::ble_route_capable(1, &BATMAN_ENGINE_ID, Tick(1))
-                            .build(),
+                        ReferenceNode::route_capable(
+                            node(1),
+                            ControllerId([1; 32]),
+                            endpoint(1),
+                            &BATMAN_ENGINE_ID,
+                            Tick(1),
+                        )
+                        .build(),
                     ),
                     (
                         node(2),
-                        ReferenceNode::ble_route_capable(2, &BATMAN_ENGINE_ID, Tick(1))
-                            .build(),
+                        ReferenceNode::route_capable(
+                            node(2),
+                            ControllerId([2; 32]),
+                            endpoint(2),
+                            &BATMAN_ENGINE_ID,
+                            Tick(1),
+                        )
+                        .build(),
                     ),
                 ]),
                 links: BTreeMap::from([(
                     (node(1), node(2)),
-                    ReferenceLink::ble_active(2, Tick(1)).build(),
+                    ReferenceLink::active(endpoint(2), Tick(1)).build(),
                 )]),
                 environment: Environment {
                     reachable_neighbor_count: 1,
@@ -206,7 +242,14 @@ mod tests {
         let mut unsupported = topology.clone();
         unsupported.value.nodes.insert(
             node(2),
-            ReferenceNode::ble_route_capable(2, &foreign_engine, Tick(1)).build(),
+            ReferenceNode::route_capable(
+                node(2),
+                ControllerId([2; 32]),
+                endpoint(2),
+                &foreign_engine,
+                Tick(1),
+            )
+            .build(),
         );
         let mut engine = BatmanEngine::new(
             node(1),

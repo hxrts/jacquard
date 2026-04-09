@@ -1,4 +1,16 @@
-//! Cross-cutting primitives and foundational shared types.
+//! Cross-cutting primitives and foundational shared types for jacquard-core.
+//!
+//! The `base` module is the lowest layer of `jacquard-core`. It provides the
+//! building blocks that every other module in this crate depends on. Submodules
+//! cover: constants (capacity and dimension bounds), errors (the shared error
+//! enum hierarchy), identity (all node, route, and scope identifier newtypes),
+//! qualifiers (belief, observation, estimate, and fact wrappers), and time
+//! (the deterministic time model and integer-scaled metric types).
+//!
+//! The `bytes_newtype!` macro is defined here and re-exported to sibling
+//! modules so they can declare fixed-size byte-array newtypes with the
+//! standard `#[id_type]` derives in one line. No behavioral traits or
+//! runtime-dependent code belongs in this module.
 
 /// Fixed-size byte-array newtype with standard derives via `id_type`.
 macro_rules! bytes_newtype {

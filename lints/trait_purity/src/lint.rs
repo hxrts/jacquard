@@ -1,4 +1,20 @@
 //! Lint pass for explicit purity/effect annotations on public traits.
+//!
+//! Requires every public trait definition to carry a Jacquard purity or effect
+//! annotation immediately above the `trait` keyword in source. The accepted
+//! markers are `#[purity(...)]` (e.g., `#[purity(pure)]`, `#[purity(read)]`,
+//! `#[purity(write)]`) and `#[effect_trait]`.
+//!
+//! Purity and side-effect boundaries are part of the trait contract in
+//! Jacquard. An unmarked public trait leaves those boundaries implicit, making
+//! them easy to violate or drift without notice during refactoring. The
+//! annotation is checked in source text rather than via HIR attributes because
+//! the relevant proc-macro annotations may not be visible to the compiler at
+//! the lint site.
+//!
+//! Accepts: public traits with `#[purity(...)]` or `#[effect_trait]` in source.
+//! Rejects: public traits missing both annotations. Internal support traits
+//! (`Sealed`, `EffectDefinition`, `HandlerDefinition`) are exempt.
 
 use rustc_hir::{Item, ItemKind};
 use rustc_errors::DiagDecorator;

@@ -1,5 +1,19 @@
-//! Drive stub simulator interfaces through the pure scenario/effectful harness
-//! split.
+//! Contract tests for the `RoutingSimulator` and related simulator traits.
+//!
+//! This module drives stub implementations of the simulator interface through
+//! the pure scenario-description / effectful harness split, verifying that the
+//! trait surface is implementable and that replay artifacts flow correctly
+//! across the run and resume paths.
+//!
+//! Coverage areas:
+//! - `RoutingScenario` — pure scenario description: name, seed, deployment
+//!   profile, initial configuration, and objectives.
+//! - `RoutingEnvironmentModel` — deterministic environment evolution that emits
+//!   typed per-tick artifacts without mutating canonical route state.
+//! - `RoutingSimulator` — effectful harness that executes a scenario against an
+//!   environment model and produces replay artifacts and simulation stats.
+//! - `RoutingReplayView` — read-only inspection of stamped route events inside
+//!   a replay artifact.
 
 use std::collections::BTreeMap;
 
@@ -225,14 +239,11 @@ fn sample_configuration() -> Configuration {
     links.insert(
         (local, remote),
         Link {
-            endpoint: jacquard_traits::jacquard_core::LinkEndpoint {
-                protocol: jacquard_traits::jacquard_core::TransportProtocol::BleGatt,
-                address: jacquard_traits::jacquard_core::EndpointAddress::Ble {
-                    device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
-                    profile_id: jacquard_traits::jacquard_core::BleProfileId([2; 16]),
-                },
-                mtu_bytes: jacquard_traits::jacquard_core::ByteCount(512),
-            },
+            endpoint: jacquard_traits::jacquard_core::LinkEndpoint::new(
+                jacquard_traits::jacquard_core::TransportKind::WifiAware,
+                jacquard_traits::jacquard_core::EndpointLocator::Opaque(vec![1]),
+                jacquard_traits::jacquard_core::ByteCount(512),
+            ),
             profile: jacquard_traits::jacquard_core::LinkProfile {
                 latency_floor_ms: jacquard_traits::jacquard_core::DurationMs(2),
                 repair_capability:

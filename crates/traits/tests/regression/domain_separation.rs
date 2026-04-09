@@ -1,4 +1,10 @@
-//! Verify tagged hashing separates ambiguous domain/payload pairs.
+//! Regression test: tagged hashing must separate ambiguous domain/payload
+//! pairs.
+//!
+//! The `Blake3Hashing::hash_tagged` method length-prefixes the domain tag so
+//! that a (domain="ab", payload="c") pair cannot collide with
+//! (domain="a", payload="bc"). This test guards that invariant from regressing
+//! if the domain-tag encoding ever changes.
 
 use jacquard_traits::{Blake3Hashing, Hashing};
 

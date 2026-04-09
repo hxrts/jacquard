@@ -1,13 +1,25 @@
 //! Transport protocols, link endpoints, service descriptors, and connectivity
-//! surfaces.
+//! surfaces for the shared routing world model.
+//!
+//! This module defines the engine-neutral vocabulary for what a node can reach
+//! and what it advertises. Key types include [`TransportKind`] (the protocol
+//! taxonomy), [`EndpointLocator`] (the shared address form), [`LinkEndpoint`]
+//! (the carrier identity a link uses), [`ServiceDescriptor`] (what a node
+//! advertises as a service surface), and [`TransportIngressEvent`] /
+//! [`TransportObservation`] (the raw ingress events that the host bridge
+//! stamps with Jacquard time before engines consume them).
+//!
+//! Transport-specific endpoint construction and metadata belong in
+//! transport-owned profile crates, not here. `jacquard-core` owns only the
+//! shared structural shapes that all engines and routers work against.
 
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Belief, BleDeviceId, BleProfileId, ByteCount, ClusterId, ControllerId,
-    DiscoveryScopeId, GatewayId, HomeId, NetworkHost, NodeId, RatioPermille,
-    RoutingEngineId, Tick, TimeWindow,
+    Belief, ByteCount, ClusterId, ControllerId, DiscoveryScopeId, FactSourceClass,
+    GatewayId, HomeId, Link, NodeId, OriginAuthenticationClass, RatioPermille,
+    RoutingEngineId, RoutingEvidenceClass, Tick, TimeWindow,
 };
 
 #[public_model]
@@ -32,7 +44,7 @@ pub enum RouteServiceKind {
 /// like `LinkEndpoint` and `ServiceDescriptor`. Adapter-specific metadata
 /// should still stay out of `core`, and the opaque forms remain available for
 /// transports that do not fit the built-in shapes.
-pub enum TransportProtocol {
+pub enum TransportKind {
     BleGatt,
     BleL2cap,
     WifiAware,
@@ -44,21 +56,14 @@ pub enum TransportProtocol {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-/// Shared endpoint-address vocabulary for observed carriers.
+/// Shared endpoint-locator vocabulary for observed carriers.
 ///
-/// BLE remains modeled explicitly here because it is part of the current
-/// shared world schema rather than a mesh-private adapter detail. Jacquard
-/// intentionally does not force the address model fully opaque until a second
-/// transport proves the current shared schema too specific.
-pub enum EndpointAddress {
-    Ble {
-        device_id: BleDeviceId,
-        profile_id: BleProfileId,
-    },
-    Ip {
-        host: NetworkHost,
-        port: u16,
-    },
+/// The shared shape stays transport-neutral. Transport-specific crates may map
+/// their concrete endpoint identities into one of these locator forms, but
+/// `jacquard-core` does not own those transport-specific constructors.
+pub enum EndpointLocator {
+    Socket { host: String, port: u16 },
+    ScopedBytes { scope: String, bytes: Vec<u8> },
     Opaque(Vec<u8>),
 }
 
@@ -94,11 +99,22 @@ pub enum PartitionRecoveryClass {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LinkEndpoint {
-    pub protocol: TransportProtocol,
-    pub address: EndpointAddress,
+    pub transport_kind: TransportKind,
+    pub locator: EndpointLocator,
     /// Link endpoints are frame carriers only. Ordering and traffic control
     /// live above this layer in routing and protocol logic.
     pub mtu_bytes: ByteCount,
+}
+
+impl LinkEndpoint {
+    #[must_use]
+    pub fn new(
+        transport_kind: TransportKind,
+        locator: EndpointLocator,
+        mtu_bytes: ByteCount,
+    ) -> Self {
+        Self { transport_kind, locator, mtu_bytes }
+    }
 }
 
 #[public_model]
@@ -169,6 +185,59 @@ impl CapacityHint {
         self.hold_capacity_bytes =
             Belief::certain(hold_capacity_bytes, updated_at_tick);
         self
+    }
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Raw host-driver ingress event before the host bridge attaches Jacquard time.
+///
+/// Drivers own wall-clock I/O and stream supervision, but they do not assign
+/// Jacquard `Tick` values internally.
+pub enum TransportIngressEvent {
+    PayloadReceived {
+        from_node_id: NodeId,
+        endpoint: LinkEndpoint,
+        payload: Vec<u8>,
+    },
+    LinkObserved {
+        remote_node_id: NodeId,
+        link: Link,
+        source_class: FactSourceClass,
+        evidence_class: RoutingEvidenceClass,
+        origin_authentication: OriginAuthenticationClass,
+    },
+}
+
+impl TransportIngressEvent {
+    #[must_use]
+    pub fn observe_at(self, observed_at_tick: crate::Tick) -> TransportObservation {
+        match self {
+            | Self::PayloadReceived { from_node_id, endpoint, payload } => {
+                TransportObservation::PayloadReceived {
+                    from_node_id,
+                    endpoint,
+                    payload,
+                    observed_at_tick,
+                }
+            },
+            | Self::LinkObserved {
+                remote_node_id,
+                link,
+                source_class,
+                evidence_class,
+                origin_authentication,
+            } => TransportObservation::LinkObserved {
+                remote_node_id,
+                observation: crate::Observation {
+                    value: link,
+                    source_class,
+                    evidence_class,
+                    origin_authentication,
+                    observed_at_tick,
+                },
+            },
+        }
     }
 }
 

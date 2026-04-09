@@ -23,8 +23,8 @@ diagnostic value:
 | `.invalidated()` | `RouteError::Runtime(RouteRuntimeError::Invalidated)` |
 
 These are defined in:
-- `crates/mesh/src/engine/support.rs` — `StorageResultExt`, `MaintenanceResultExt`
-- `crates/mesh/src/choreography/effects.rs` — `ChoreographyResultExt`, `InvalidatedResultExt`
+- `crates/pathway/src/engine/support.rs` — `StorageResultExt`, `MaintenanceResultExt`
+- `crates/pathway/src/choreography/effects.rs` — `ChoreographyResultExt`, `InvalidatedResultExt`
 - `crates/router/src/runtime.rs` — `StorageResultExt`
 
 ## How to run

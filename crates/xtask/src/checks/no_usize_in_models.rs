@@ -1,6 +1,16 @@
-//! Rejects bare `usize` field types in public structs and enums under
-//! `crates/core` and `crates/traits`. The style guide requires explicit
-//! newtypes or fixed-width integer choices for stored model fields.
+//! Rejects bare `usize` field types in model structs and enums.
+//!
+//! Public structs and enums under `crates/core/` and `crates/traits/` must
+//! not use `usize` as a field type. The style guide requires explicit newtypes
+//! or fixed-width integer types (`u32`, `u64`, etc.) for all stored model
+//! fields to guarantee deterministic encoding across platforms with different
+//! pointer widths.
+//!
+//! Uses a `syn` AST visitor to inspect struct field types and enum variant
+//! field types, reporting each `usize` occurrence in the `L1` (core) and
+//! `L2` (traits) layers as a violation.
+//!
+//! Registered as: `cargo xtask check no-usize-in-models`
 
 use anyhow::{bail, Result};
 use syn::{visit::Visit, Fields, Item, Type};

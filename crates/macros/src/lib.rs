@@ -1,3 +1,24 @@
+//! Proc-macro crate entry point for `jacquard-macros`.
+//!
+//! This crate owns syntax-local code generation and annotation-site validation
+//! for the Jacquard workspace. It exposes the following proc-macro attributes:
+//!
+//! - `#[id_type]` — wraps a single-field tuple struct as an opaque identifier
+//!   with canonical derives and `new`/`get` constructors.
+//! - `#[bounded_value]` — wraps a single-field tuple struct as a range-bounded
+//!   numeric value with a `MAX` constant and a checked `new` constructor.
+//! - `#[must_use_handle]` — applies a `#[must_use]` annotation to structs or
+//!   enums that represent routing handles or leases.
+//! - `#[public_model]` — applies canonical derives to shared model structs and
+//!   enums, rejecting forbidden field types (`bool`, floats, `usize`,
+//!   wall-clock time types) at compile time.
+//! - `#[purity(..)]` — validates trait method receiver shapes against the
+//!   declared purity class (`pure`, `read_only`, or `effectful`).
+//! - `#[effect_trait]` — stamps a trait as an effect surface and injects the
+//!   sealed marker plumbing required by the effect system.
+//! - `#[effect_handler]` — stamps an impl block as a concrete effect handler
+//!   and injects the `HandlerDefinition` impl that links it to its trait.
+
 #![forbid(unsafe_code)]
 
 mod model;

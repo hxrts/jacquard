@@ -25,10 +25,10 @@ use jacquard_core::{
     RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteRuntimeError,
     RouteSelectionError, RouteSemanticHandoff, RouterCanonicalMutation,
-    RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
+    RouterMaintenanceOutcome, RouterRoundOutcome, RoutingEngineCapabilities,
     RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingPolicyInputs,
     RoutingTickChange, RoutingTickContext, RoutingTickHint, SelectedRoutingParameters,
-    Tick, TimeWindow, TransportProtocol,
+    Tick, TimeWindow, TransportKind, TransportObservation,
 };
 use jacquard_traits::{
     OrderEffects, PolicyEngine, RouteEventLogEffects, Router, RouterEngineRegistry,
@@ -122,12 +122,27 @@ where
         Ok(())
     }
 
-    pub fn replace_topology(&mut self, topology: Observation<Configuration>) {
+    pub fn ingest_topology_observation(
+        &mut self,
+        topology: Observation<Configuration>,
+    ) {
         self.topology = topology;
     }
 
-    pub fn replace_policy_inputs(&mut self, inputs: RoutingPolicyInputs) {
+    pub fn ingest_policy_inputs(&mut self, inputs: RoutingPolicyInputs) {
         self.policy_inputs = inputs;
+    }
+
+    pub fn ingest_transport_observation(
+        &mut self,
+        observation: &TransportObservation,
+    ) -> Result<(), RouteError> {
+        for entry in self.registered_engines.values_mut() {
+            entry
+                .engine
+                .ingest_transport_observation_for_router(observation)?;
+        }
+        Ok(())
     }
 
     pub fn recover_checkpointed_routes(&mut self) -> Result<usize, RouteError> {
@@ -247,7 +262,7 @@ where
         Ok(self.engine_for_id(&engine_id)?.route_commitments(route))
     }
 
-    fn tick_all_engines(
+    fn advance_all_engines(
         &mut self,
     ) -> Result<(RoutingTickChange, RoutingTickHint), RouteError> {
         let tick = RoutingTickContext::new(self.topology.clone());
@@ -291,7 +306,7 @@ where
         objective: &RoutingObjective,
         profile: &SelectedRoutingParameters,
     ) -> Result<MaterializedRoute, RouteError> {
-        let _ = self.tick_all_engines()?;
+        let _ = self.advance_all_engines()?;
         let candidate = self
             .ordered_candidates(objective, profile)
             .into_iter()
@@ -586,12 +601,19 @@ where
     Policy: PolicyEngine,
     Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
 {
-    fn replace_topology(&mut self, topology: Observation<Configuration>) {
-        Self::replace_topology(self, topology);
+    fn ingest_topology_observation(&mut self, topology: Observation<Configuration>) {
+        Self::ingest_topology_observation(self, topology);
     }
 
-    fn replace_policy_inputs(&mut self, inputs: RoutingPolicyInputs) {
-        Self::replace_policy_inputs(self, inputs);
+    fn ingest_policy_inputs(&mut self, inputs: RoutingPolicyInputs) {
+        Self::ingest_policy_inputs(self, inputs);
+    }
+
+    fn ingest_transport_observation(
+        &mut self,
+        observation: &TransportObservation,
+    ) -> Result<(), RouteError> {
+        Self::ingest_transport_observation(self, observation)
     }
 
     fn recover_checkpointed_routes(&mut self) -> Result<usize, RouteError> {
@@ -692,8 +714,8 @@ where
         self.apply_maintenance_result(route_id, next_runtime, result)
     }
 
-    fn anti_entropy_tick(&mut self) -> Result<RouterTickOutcome, RouteError> {
-        let (aggregate, tick_hint) = self.tick_all_engines()?;
+    fn advance_round(&mut self) -> Result<RouterRoundOutcome, RouteError> {
+        let (aggregate, tick_hint) = self.advance_all_engines()?;
         let expired_route_id = if aggregate == RoutingTickChange::PrivateStateUpdated {
             self.expire_stale_leases()?
         } else {
@@ -702,10 +724,10 @@ where
         let canonical_mutation = expired_route_id
             .map(|route_id| RouterCanonicalMutation::RouteExpired { route_id })
             .unwrap_or(RouterCanonicalMutation::None);
-        Ok(RouterTickOutcome {
+        Ok(RouterRoundOutcome {
             topology_epoch: self.topology.value.epoch,
             engine_change: aggregate,
-            engine_tick_hint: tick_hint,
+            next_round_hint: tick_hint,
             canonical_mutation,
         })
     }
@@ -756,7 +778,7 @@ type CandidateOrderingKey = (
     Reverse<RoutePartitionClass>,
     RouteDegradation,
     Belief<u8>,
-    Vec<TransportProtocol>,
+    Vec<TransportKind>,
     RoutingEngineId,
     Vec<u8>,
 );

@@ -13,17 +13,23 @@
 //!
 //! ## Effect Capabilities
 //!
-//! Shared effect traits such as [`TransportEffects`], [`StorageEffects`],
+//! Shared effect traits such as [`TransportSenderEffects`], [`StorageEffects`],
 //! [`TimeEffects`], and [`RouteEventLogEffects`] live here. These are neutral
 //! host/runtime capabilities, not engine-specific adapter traits.
+//!
+//! Host-owned supervision surfaces such as [`TransportDriver`] also live here,
+//! but they are not effect capabilities and must not be treated as part of the
+//! synchronous routing-effect vocabulary. Reusable adapter-support helpers such
+//! as raw ingress mailboxes or peer/claim bookkeeping live in
+//! `jacquard-adapter`, not in this contract crate.
 //!
 //! ## Engine And Router Contracts
 //!
 //! Shared behavioral boundaries such as [`RoutingEngine`],
 //! [`RouterManagedEngine`], [`RoutingMiddleware`], and [`RouterEngineRegistry`]
 //! live here. Engines implement these contracts; routers orchestrate across
-//! them without depending on engine-private runtime details. Mesh-specific
-//! read-only extension traits live in `jacquard-mesh`, not here.
+//! them without depending on engine-private runtime details. Pathway-specific
+//! read-only extension traits live in `jacquard-pathway`, not here.
 //!
 //! ## Ownership
 //!
@@ -48,6 +54,7 @@ macro_rules! must_use_evidence {
 
 extern crate self as jacquard_traits;
 
+mod drivers;
 mod effects;
 mod handler;
 mod hashing;
@@ -56,6 +63,7 @@ mod sealed;
 mod simulator;
 mod world;
 
+pub use drivers::*;
 pub use effects::*;
 pub use handler::*;
 pub use hashing::*;

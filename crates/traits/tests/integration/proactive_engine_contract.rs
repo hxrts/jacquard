@@ -1,5 +1,19 @@
-//! Proactive routing-engine contract coverage for engines that maintain a
-//! private table on `engine_tick` before serving advisory candidates.
+//! Contract tests for proactive routing engines that build private tables.
+//!
+//! This module covers the `engine_tick` path for routing engines that maintain
+//! engine-private state (such as a reachability table) between planning calls.
+//! The pattern under test is: on each `engine_tick` the engine rebuilds an
+//! internal table from the topology observation, then serves advisory
+//! candidates from that table when `candidate_routes` is called.
+//!
+//! Coverage areas:
+//! - `RoutingEngine::engine_tick` returning `PrivateStateUpdated` on first tick
+//!   when the topology differs from the previously cached table.
+//! - `engine_tick` returning `NoChange` on a second tick with the same
+//!   topology.
+//! - Advisory candidate production from the proactive table, including engines
+//!   that operate with `RouteShapeVisibility::NextHopOnly` rather than full
+//!   explicit path visibility.
 
 use std::collections::BTreeMap;
 
@@ -16,7 +30,7 @@ use jacquard_traits::{
         RouteShapeVisibility, RouteSummary, RouteWitness, RoutingEngineCapabilities,
         RoutingEngineId, RoutingObjective, RoutingTickChange, RoutingTickContext,
         RoutingTickHint, RoutingTickOutcome, RuntimeEnvelopeClass,
-        SelectedRoutingParameters, Tick, TimeWindow, TransportProtocol,
+        SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
     },
     RoutingEngine, RoutingEnginePlanner,
 };
@@ -78,7 +92,7 @@ impl RoutingEnginePlanner for ProactiveContractEngine {
                         engine: Self::engine_id(),
                         protection: objective.target_protection,
                         connectivity: objective.target_connectivity,
-                        protocol_mix: vec![TransportProtocol::BleGatt],
+                        protocol_mix: vec![TransportKind::WifiAware],
                         hop_count_hint: Belief::certain(2, *updated_at_tick),
                         valid_for: TimeWindow::new(
                             *updated_at_tick,
@@ -288,7 +302,7 @@ mod common {
         NodeState, Observation, OriginAuthenticationClass, RatioPermille,
         RepairCapability, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
         RouteRepairClass, RouteServiceKind, RoutingEvidenceClass, RoutingObjective,
-        SelectedRoutingParameters, Tick, TransportProtocol,
+        SelectedRoutingParameters, Tick, TransportKind,
     };
 
     pub(super) fn sample_configuration() -> Observation<Configuration> {
@@ -363,13 +377,11 @@ mod common {
             controller_id: ControllerId([byte; 32]),
             profile: NodeProfile {
                 services: Vec::new(),
-                endpoints: vec![LinkEndpoint {
-                    protocol: TransportProtocol::BleGatt,
-                    address: jacquard_traits::jacquard_core::EndpointAddress::Opaque(
-                        vec![byte],
-                    ),
-                    mtu_bytes: jacquard_traits::jacquard_core::ByteCount(64),
-                }],
+                endpoints: vec![LinkEndpoint::new(
+                    TransportKind::WifiAware,
+                    jacquard_traits::jacquard_core::EndpointLocator::Opaque(vec![byte]),
+                    jacquard_traits::jacquard_core::ByteCount(64),
+                )],
                 connection_count_max: 4,
                 neighbor_state_count_max: 4,
                 simultaneous_transfer_count_max: 1,
@@ -395,11 +407,13 @@ mod common {
 
     fn active_link(remote_byte: u8) -> Link {
         Link {
-            endpoint: LinkEndpoint {
-                protocol: TransportProtocol::BleGatt,
-                address: jacquard_traits::jacquard_core::EndpointAddress::Opaque(vec![remote_byte]),
-                mtu_bytes: jacquard_traits::jacquard_core::ByteCount(64),
-            },
+            endpoint: LinkEndpoint::new(
+                TransportKind::WifiAware,
+                jacquard_traits::jacquard_core::EndpointLocator::Opaque(vec![
+                    remote_byte,
+                ]),
+                jacquard_traits::jacquard_core::ByteCount(64),
+            ),
             profile: LinkProfile {
                 latency_floor_ms: jacquard_traits::jacquard_core::DurationMs(5),
                 repair_capability: RepairCapability::TransportRetransmit,

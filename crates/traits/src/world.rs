@@ -1,13 +1,29 @@
-//! World extension traits.
+//! World extension traits for typed topology observations.
 //!
-//! These traits are the boundary for teams contributing hardware-specific,
-//! runtime-specific, or transport-adjacent observation logic without taking
-//! ownership of canonical route state or forking the shared world schema.
+//! These traits are the extension boundary for contributors who need to add
+//! hardware-specific, runtime-specific, or transport-adjacent observation logic
+//! without taking ownership of canonical route state or forking the shared
+//! world schema defined in `jacquard-core`.
+//!
+//! Key traits exported from this module:
+//! - [`WorldExtensionDescriptor`] — pure metadata: identity and transport
+//!   reach.
+//! - [`WorldExtension<O>`] — generic effectful poll surface for any observation
+//!   value type `O`; each typed facet trait blanket-implements this.
+//! - [`NodeWorldExtension`] — contribute observed `Node` instances.
+//! - [`LinkWorldExtension`] — contribute observed `Link` instances.
+//! - [`EnvironmentWorldExtension`] — contribute local environment observations.
+//! - [`ServiceWorldExtension`] — contribute shared `ServiceDescriptor` facts.
+//! - [`TransportWorldExtension`] — contribute raw `TransportObservation`
+//!   events.
+//!
+//! Extensions must not publish canonical route truth. They provide raw
+//! observational input; the router and engines decide what to do with it.
 
 use jacquard_core::{
     Environment, EnvironmentObservation, Link, LinkObservation, Node, NodeObservation,
-    Observation, ServiceDescriptor, ServiceObservation, TransportObservation,
-    TransportProtocol, WorldError,
+    Observation, ServiceDescriptor, ServiceObservation, TransportKind,
+    TransportObservation, WorldError,
 };
 use jacquard_macros::purity;
 
@@ -21,7 +37,7 @@ pub trait WorldExtensionDescriptor {
     fn extension_id(&self) -> &str;
 
     #[must_use]
-    fn supported_transports(&self) -> Vec<TransportProtocol>;
+    fn supported_transports(&self) -> Vec<TransportKind>;
 }
 
 #[purity(effectful)]

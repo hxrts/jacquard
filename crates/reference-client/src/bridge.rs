@@ -1,0 +1,437 @@
+//! Host bridge for the reference client.
+//!
+//! The bridge is the only surface in this crate that may:
+//! - own a transport driver
+//! - stamp raw ingress with Jacquard logical time
+//! - flush queued outbound transport commands to the driver
+//! - advance the router through synchronous rounds
+//!
+//! Tests and examples should bind an owner with [`HostBridge::bind`] and then
+//! drive the router through that owner rather than mutating transport drivers
+//! or calling `advance_round` on the router directly.
+
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+};
+
+use jacquard_core::{
+    Configuration, LinkEndpoint, Observation, RouteError, RouterRoundOutcome, Tick,
+    TransportError, TransportIngressEvent, TransportObservation,
+};
+use jacquard_mem_link_profile::InMemoryTransport;
+use jacquard_traits::{
+    effect_handler, RoutingControlPlane, TransportDriver, TransportSenderEffects,
+};
+
+use crate::PathwayRouter;
+
+const DEFAULT_BRIDGE_QUEUE_CAPACITY: usize = 64;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OutboundTransportCommand {
+    endpoint: LinkEndpoint,
+    payload: Vec<u8>,
+}
+
+#[derive(Clone)]
+pub(crate) struct QueuedTransportSender {
+    queue: Arc<Mutex<VecDeque<OutboundTransportCommand>>>,
+    capacity: usize,
+}
+
+impl QueuedTransportSender {
+    #[must_use]
+    fn new(
+        queue: Arc<Mutex<VecDeque<OutboundTransportCommand>>>,
+        capacity: usize,
+    ) -> Self {
+        Self { queue, capacity }
+    }
+}
+
+#[effect_handler]
+impl TransportSenderEffects for QueuedTransportSender {
+    fn send_transport(
+        &mut self,
+        endpoint: &LinkEndpoint,
+        payload: &[u8],
+    ) -> Result<(), TransportError> {
+        let mut guard = self.queue.lock().expect("bridge transport queue lock");
+        if guard.len() >= self.capacity {
+            return Err(TransportError::Unavailable);
+        }
+        guard.push_back(OutboundTransportCommand {
+            endpoint: endpoint.clone(),
+            payload: payload.to_vec(),
+        });
+        Ok(())
+    }
+}
+
+pub(crate) struct BridgeTransport {
+    driver: InMemoryTransport,
+    outbound: Arc<Mutex<VecDeque<OutboundTransportCommand>>>,
+}
+
+impl BridgeTransport {
+    pub(crate) fn new(driver: InMemoryTransport) -> Self {
+        Self {
+            driver,
+            outbound: Arc::new(Mutex::new(VecDeque::new())),
+        }
+    }
+
+    pub(crate) fn sender(&self, capacity: usize) -> QueuedTransportSender {
+        QueuedTransportSender::new(Arc::clone(&self.outbound), capacity)
+    }
+
+    fn drain_raw_ingress(
+        &mut self,
+    ) -> Result<Vec<TransportIngressEvent>, TransportError> {
+        self.driver.drain_transport_ingress()
+    }
+
+    fn flush_outbound(&mut self) -> Result<usize, TransportError> {
+        let commands = {
+            let mut guard = self.outbound.lock().expect("bridge transport queue lock");
+            guard.drain(..).collect::<Vec<_>>()
+        };
+        for command in &commands {
+            self.driver
+                .send_transport(&command.endpoint, &command.payload)?;
+        }
+        Ok(commands.len())
+    }
+
+    fn pending_outbound(&self) -> usize {
+        self.outbound
+            .lock()
+            .expect("bridge transport queue lock")
+            .len()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BridgeRoundReport {
+    pub router_outcome: RouterRoundOutcome,
+    pub ingested_transport_observations: Vec<TransportObservation>,
+    pub flushed_transport_commands: usize,
+    pub dropped_transport_observations: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BridgeWaitState {
+    pub next_round_hint: jacquard_core::RoutingTickHint,
+    pub pending_transport_observations: usize,
+    pub pending_transport_commands: usize,
+    pub dropped_transport_observations: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BridgeRoundProgress {
+    Advanced(Box<BridgeRoundReport>),
+    Waiting(BridgeWaitState),
+}
+
+pub struct HostBridge<Router> {
+    topology: Observation<Configuration>,
+    router: Router,
+    transport: BridgeTransport,
+    pending_transport_observations: VecDeque<TransportObservation>,
+    inbound_capacity: usize,
+    next_tick: Tick,
+    dropped_transport_observations: usize,
+}
+
+pub struct BoundHostBridge<'a, Router> {
+    bridge: &'a mut HostBridge<Router>,
+}
+
+impl<Router> HostBridge<Router> {
+    #[must_use]
+    pub fn new(
+        topology: Observation<Configuration>,
+        router: Router,
+        transport: InMemoryTransport,
+    ) -> Self {
+        Self::with_queue_capacity(
+            topology,
+            router,
+            transport,
+            DEFAULT_BRIDGE_QUEUE_CAPACITY,
+        )
+    }
+
+    #[must_use]
+    pub fn with_queue_capacity(
+        topology: Observation<Configuration>,
+        router: Router,
+        transport: InMemoryTransport,
+        inbound_capacity: usize,
+    ) -> Self {
+        let next_tick = Tick(topology.observed_at_tick.0.saturating_add(1));
+        Self {
+            topology,
+            router,
+            transport: BridgeTransport::new(transport),
+            pending_transport_observations: VecDeque::new(),
+            inbound_capacity,
+            next_tick,
+            dropped_transport_observations: 0,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn from_transport(
+        topology: Observation<Configuration>,
+        router: Router,
+        transport: BridgeTransport,
+        inbound_capacity: usize,
+    ) -> Self {
+        let next_tick = Tick(topology.observed_at_tick.0.saturating_add(1));
+        Self {
+            topology,
+            router,
+            transport,
+            pending_transport_observations: VecDeque::new(),
+            inbound_capacity,
+            next_tick,
+            dropped_transport_observations: 0,
+        }
+    }
+
+    #[must_use]
+    pub fn topology(&self) -> &Observation<Configuration> {
+        &self.topology
+    }
+
+    pub fn bind(&mut self) -> BoundHostBridge<'_, Router> {
+        BoundHostBridge { bridge: self }
+    }
+}
+
+impl HostBridge<PathwayRouter> {
+    fn sync_router_time(&mut self, tick: Tick) {
+        self.router.effects_mut().now = tick;
+    }
+
+    fn advance_tick(&mut self) -> Tick {
+        let tick = self.next_tick;
+        self.next_tick = Tick(self.next_tick.0.saturating_add(1));
+        self.sync_router_time(tick);
+        tick
+    }
+
+    fn stage_transport_ingress(&mut self) -> Result<(), RouteError> {
+        let observed_at_tick = self.advance_tick();
+        let raw_events = self.transport.drain_raw_ingress()?;
+        for event in raw_events {
+            if self.pending_transport_observations.len() >= self.inbound_capacity {
+                self.dropped_transport_observations =
+                    self.dropped_transport_observations.saturating_add(1);
+                continue;
+            }
+            self.pending_transport_observations
+                .push_back(event.observe_at(observed_at_tick));
+        }
+        Ok(())
+    }
+}
+
+impl BoundHostBridge<'_, PathwayRouter> {
+    #[must_use]
+    pub fn topology(&self) -> &Observation<Configuration> {
+        self.bridge.topology()
+    }
+
+    #[must_use]
+    pub fn router(&self) -> &PathwayRouter {
+        &self.bridge.router
+    }
+
+    pub fn router_mut(&mut self) -> &mut PathwayRouter {
+        &mut self.bridge.router
+    }
+
+    pub fn replace_shared_topology(&mut self, topology: Observation<Configuration>) {
+        self.bridge
+            .router
+            .ingest_topology_observation(topology.clone());
+        self.bridge.topology = topology;
+    }
+
+    pub fn advance_round(&mut self) -> Result<BridgeRoundProgress, RouteError> {
+        self.bridge.stage_transport_ingress()?;
+        let ingested = self
+            .bridge
+            .pending_transport_observations
+            .drain(..)
+            .collect::<Vec<_>>();
+        for observation in &ingested {
+            self.bridge
+                .router
+                .ingest_transport_observation(observation)?;
+        }
+
+        let router_outcome = self.bridge.router.advance_round()?;
+        let flushed_transport_commands = self.bridge.transport.flush_outbound()?;
+        let dropped_transport_observations =
+            std::mem::take(&mut self.bridge.dropped_transport_observations);
+
+        if ingested.is_empty()
+            && flushed_transport_commands == 0
+            && dropped_transport_observations == 0
+            && router_outcome.engine_change
+                == jacquard_core::RoutingTickChange::NoChange
+        {
+            return Ok(BridgeRoundProgress::Waiting(BridgeWaitState {
+                next_round_hint: router_outcome.next_round_hint,
+                pending_transport_observations: self
+                    .bridge
+                    .pending_transport_observations
+                    .len(),
+                pending_transport_commands: self.bridge.transport.pending_outbound(),
+                dropped_transport_observations,
+            }));
+        }
+
+        Ok(BridgeRoundProgress::Advanced(Box::new(BridgeRoundReport {
+            router_outcome,
+            ingested_transport_observations: ingested,
+            flushed_transport_commands,
+            dropped_transport_observations,
+        })))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use jacquard_core::{
+        ByteCount, EndpointLocator, NodeId, RouteEpoch, RoutingTickChange,
+        RoutingTickHint, TransportKind,
+    };
+    use jacquard_mem_link_profile::InMemoryRuntimeEffects;
+    use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
+
+    use super::*;
+
+    fn endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(128),
+        )
+    }
+
+    fn sample_topology(_local_node_id: NodeId) -> Observation<Configuration> {
+        Observation {
+            value: Configuration {
+                epoch: RouteEpoch(1),
+                nodes: std::collections::BTreeMap::new(),
+                links: std::collections::BTreeMap::new(),
+                environment: jacquard_core::Environment {
+                    reachable_neighbor_count: 0,
+                    churn_permille: jacquard_core::RatioPermille(0),
+                    contention_permille: jacquard_core::RatioPermille(0),
+                },
+            },
+            source_class: jacquard_core::FactSourceClass::Local,
+            evidence_class: jacquard_core::RoutingEvidenceClass::DirectObservation,
+            origin_authentication: jacquard_core::OriginAuthenticationClass::Controlled,
+            observed_at_tick: Tick(1),
+        }
+    }
+
+    fn sample_router(local_node_id: NodeId) -> PathwayRouter {
+        MultiEngineRouter::new(
+            local_node_id,
+            FixedPolicyEngine::new(crate::clients::default_profile()),
+            InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+            sample_topology(local_node_id),
+            crate::clients::policy_inputs_for_empty(local_node_id),
+        )
+    }
+
+    #[test]
+    fn owner_binding_is_required_for_round_progression() {
+        let local_node_id = NodeId([7; 32]);
+        let transport =
+            InMemoryTransport::attach(local_node_id, [endpoint(7)], Default::default());
+        let mut bridge = HostBridge::new(
+            sample_topology(local_node_id),
+            sample_router(local_node_id),
+            transport,
+        );
+
+        let mut owner = bridge.bind();
+        let progress = owner.advance_round().expect("advance bridge round");
+
+        assert_eq!(
+            progress,
+            BridgeRoundProgress::Waiting(BridgeWaitState {
+                next_round_hint: RoutingTickHint::HostDefault,
+                pending_transport_observations: 0,
+                pending_transport_commands: 0,
+                dropped_transport_observations: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn bounded_ingress_reports_dropped_observations() {
+        let local_node_id = NodeId([9; 32]);
+        let network = jacquard_mem_link_profile::SharedInMemoryNetwork::default();
+        let transport =
+            InMemoryTransport::attach(local_node_id, [endpoint(9)], network.clone());
+        let mut remote =
+            InMemoryTransport::attach(NodeId([8; 32]), [endpoint(8)], network);
+
+        let mut bridge = HostBridge::with_queue_capacity(
+            sample_topology(local_node_id),
+            sample_router(local_node_id),
+            transport,
+            1,
+        );
+        remote
+            .send_transport(&endpoint(9), b"first")
+            .expect("send first ingress frame");
+        remote
+            .send_transport(&endpoint(9), b"second")
+            .expect("send second ingress frame");
+
+        let mut owner = bridge.bind();
+        let progress = owner.advance_round().expect("advance bridge round");
+        let BridgeRoundProgress::Advanced(report) = progress else {
+            panic!("expected advanced bridge round");
+        };
+        assert_eq!(report.router_outcome.topology_epoch, RouteEpoch(1));
+        assert_eq!(
+            report.router_outcome.engine_change,
+            RoutingTickChange::NoChange
+        );
+        assert_eq!(report.ingested_transport_observations.len(), 1);
+        assert_eq!(report.dropped_transport_observations, 1);
+    }
+
+    #[test]
+    fn outbound_queue_reports_backpressure_fail_closed() {
+        let local_node_id = NodeId([5; 32]);
+        let transport = BridgeTransport::new(InMemoryTransport::attach(
+            local_node_id,
+            [endpoint(5)],
+            Default::default(),
+        ));
+        let mut sender = transport.sender(1);
+
+        sender
+            .send_transport(&endpoint(5), b"first")
+            .expect("queue first outbound frame");
+        let error = sender
+            .send_transport(&endpoint(5), b"second")
+            .expect_err("outbound queue should fail closed when full");
+
+        assert_eq!(error, TransportError::Unavailable);
+        assert_eq!(transport.pending_outbound(), 1);
+    }
+}

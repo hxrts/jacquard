@@ -1,4 +1,16 @@
-//! Validates service/engine boundary consistency.
+//! Validates the pathway engine/service export boundary.
+//!
+//! `crates/pathway/src/lib.rs` is the public face of the pathway crate. It
+//! must not re-export engine-private types that belong only inside the
+//! pathway runtime internals. Leaking these types across the crate boundary
+//! couples downstream consumers to implementation details and breaks the
+//! layering contract between `jacquard-pathway` and its callers.
+//!
+//! The check scans `crates/pathway/src/lib.rs` for `pub use` statements that
+//! expose any type listed in `FORBIDDEN_PUBLIC_TYPES` and reports each
+//! occurrence as a boundary violation.
+//!
+//! Registered as: `cargo xtask check engine-service-boundary`
 
 use std::fs;
 
@@ -7,11 +19,11 @@ use anyhow::{bail, Result};
 use crate::util::workspace_root;
 
 const FORBIDDEN_PUBLIC_TYPES: &[&str] = &[
-    "MeshRouteSegment",
+    "PathwayRouteSegment",
     "DeterministicCommitteeSelector",
-    "MeshEngineRuntime",
-    "MeshPlanner",
-    "MeshCandidate",
+    "PathwayEngineRuntime",
+    "PathwayPlanner",
+    "PathwayCandidate",
     "BackendRouteId",
 ];
 
@@ -19,21 +31,21 @@ const FORBIDDEN_PUBLIC_TYPES: &[&str] = &[
 const ALLOWED_PUBLIC_TYPES: &[&str] = &[
     "RoutingEngine",
     "Configuration",
-    "MeshTopologyModel",
+    "PathwayTopologyModel",
     "RetentionStore",
-    "MeshRoutingEngine",
+    "PathwayRoutingEngine",
 ];
 
 pub fn run() -> Result<()> {
     let root = workspace_root()?;
-    let mesh_lib = root.join("crates/mesh/src/lib.rs");
+    let pathway_lib = root.join("crates/pathway/src/lib.rs");
 
-    if !mesh_lib.exists() {
-        println!("engine-service-boundary: no mesh/src/lib.rs found");
+    if !pathway_lib.exists() {
+        println!("engine-service-boundary: no pathway/src/lib.rs found");
         return Ok(());
     }
 
-    let contents = fs::read_to_string(&mesh_lib)?;
+    let contents = fs::read_to_string(&pathway_lib)?;
 
     // Check for forbidden public exports
     let mut violations = Vec::new();

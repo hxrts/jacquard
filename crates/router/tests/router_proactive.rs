@@ -1,3 +1,21 @@
+//! Integration tests for proactive routing engine support in the router.
+//!
+//! These tests verify that `MultiEngineRouter` correctly handles engines that
+//! operate with `RouteShapeVisibility::AggregatePath` and
+//! `RouteShapeVisibility::NextHopOnly` without requiring the router to inspect
+//! engine-private forwarding tables. The `ProactiveTableTestEngine` stub
+//! rebuilds its next-hop table on each `engine_tick` and serves candidates from
+//! that private state.
+//!
+//! Key behaviors covered:
+//! - Activation succeeds and the materialized route's admission summary names
+//!   the proactive engine when it is the highest-priority candidate source.
+//! - The router correctly records and surfaces `RouteShapeVisibility` from the
+//!   registered engine capabilities.
+//! - Engine-private periodic work (`advance_round` before any activation)
+//!   completes without error and the router correctly reflects the resulting
+//!   `RoutingTickChange::PrivateStateUpdated` hint to the host.
+
 mod common;
 
 use common::{
@@ -79,14 +97,14 @@ fn router_tolerates_engine_private_periodic_work_before_activation() {
         RouteShapeVisibility::AggregatePath,
     );
 
-    let outcome = router.anti_entropy_tick().expect("proactive engine tick");
+    let outcome = router.advance_round().expect("router round");
 
     assert_eq!(outcome.topology_epoch, jacquard_core::RouteEpoch(2));
     assert_eq!(
         outcome.engine_change,
         RoutingTickChange::PrivateStateUpdated
     );
-    assert_eq!(outcome.engine_tick_hint, RoutingTickHint::Immediate);
+    assert_eq!(outcome.next_round_hint, RoutingTickHint::Immediate);
 
     let route = Router::activate_route(
         &mut router,

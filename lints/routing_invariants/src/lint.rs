@@ -1,4 +1,32 @@
 //! Lint passes for routing-invariant policy.
+//!
+//! Registers and implements all routing-invariant lint passes. Each pass
+//! scans source text once per file (tracked via `seen_files`) and emits a
+//! diagnostic if a prohibited pattern is found.
+//!
+//! Lint passes defined here:
+//! - `PLANNER_CACHE_DEPENDENCE` — materialization must not call planner-cache
+//!   lookup helpers; admission and materialization must be cache-independent.
+//! - `FAIL_CLOSED_ORDERING` — active route state must not be mutated before
+//!   `RouteMaterialized` is recorded; maintenance triggers must not fire before
+//!   the checkpoint is persisted.
+//! - `TICK_EPOCH_CONFLATION` — `Tick` and `RouteEpoch` wrappers must not be
+//!   reconstructed by crossing their inner values.
+//! - `CHECKED_SCORE_ARITHMETIC` — bounded routing score arithmetic must use
+//!   `saturating_add` rather than plain `+`.
+//! - `TYPED_WRAPPER_ARITHMETIC` — typed time and version wrappers must not be
+//!   rebuilt with unchecked raw-field addition.
+//! - `COMMITTEE_SWALLOW` — committee selector errors must not be silently erased
+//!   with `.ok().flatten()`.
+//! - `NULL_OBJECT_SELECTOR` — null-object selectors must not be wrapped in a
+//!   dead `Option` field.
+//! - `ROUTER_IDENTITY_MUTATION` — engine code must not mutate router-owned
+//!   identity fields (`lease`, `handle`, `route_id`).
+//! - `UNSCOPED_STORAGE_KEYS` — pathway storage keys must be scoped by the local
+//!   engine identity; bare path prefixes are rejected.
+//! - `SYNTHETIC_FALLBACK` — routing code must not synthesize authoritative state
+//!   via `fallback_health_configuration` fallbacks.
+//! - `NAMED_THRESHOLDS` — routing threshold literals must use named constants.
 
 use std::collections::BTreeSet;
 
@@ -179,7 +207,7 @@ struct NamedThresholds {
 impl<'tcx> LateLintPass<'tcx> for PlannerCacheDependence {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.contains("crates/mesh/src/engine/runtime") {
+            if !rel.contains("crates/pathway/src/engine/runtime") {
                 return None;
             }
             let line = first_line_matching(contents, &Regex::new(r"find_cached_candidate_by_route_id\(").ok()?)?;
@@ -194,7 +222,7 @@ impl<'tcx> LateLintPass<'tcx> for PlannerCacheDependence {
 impl<'tcx> LateLintPass<'tcx> for FailClosedOrdering {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.contains("crates/mesh/src/engine/runtime") {
+            if !rel.contains("crates/pathway/src/engine/runtime") {
                 return None;
             }
             let insert_line = line_position(contents, "self.active_routes.insert(");
@@ -248,7 +276,7 @@ impl<'tcx> LateLintPass<'tcx> for TickEpochConflation {
 impl<'tcx> LateLintPass<'tcx> for CheckedScoreArithmetic {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.ends_with("crates/mesh/src/engine/runtime/health.rs") {
+            if !rel.ends_with("crates/pathway/src/engine/runtime/health.rs") {
                 return None;
             }
             let re = Regex::new(
@@ -295,7 +323,7 @@ impl<'tcx> LateLintPass<'tcx> for TypedWrapperArithmetic {
 impl<'tcx> LateLintPass<'tcx> for CommitteeSwallow {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.contains("crates/mesh/src/engine/planner") {
+            if !rel.contains("crates/pathway/src/engine/planner") {
                 return None;
             }
             let line = first_line_matching(contents, &Regex::new(r"\.ok\(\)\.flatten\(\)").ok()?)?;
@@ -310,7 +338,7 @@ impl<'tcx> LateLintPass<'tcx> for CommitteeSwallow {
 impl<'tcx> LateLintPass<'tcx> for NullObjectSelector {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.ends_with("crates/mesh/src/engine/mod.rs") {
+            if !rel.ends_with("crates/pathway/src/engine/mod.rs") {
                 return None;
             }
             let line =
@@ -326,7 +354,7 @@ impl<'tcx> LateLintPass<'tcx> for NullObjectSelector {
 impl<'tcx> LateLintPass<'tcx> for RouterIdentityMutation {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.contains("/crates/mesh/src/") && !rel.contains("/crates/router/src/") {
+            if !rel.contains("/crates/pathway/src/") && !rel.contains("/crates/router/src/") {
                 return None;
             }
             let line = first_line_matching(
@@ -344,10 +372,10 @@ impl<'tcx> LateLintPass<'tcx> for RouterIdentityMutation {
 impl<'tcx> LateLintPass<'tcx> for UnscopedStorageKeys {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.contains("/crates/mesh/src/") {
+            if !rel.contains("/crates/pathway/src/") {
                 return None;
             }
-            let line = first_line_matching(contents, &Regex::new(r#"b"mesh/(topology-epoch|route/)"#).ok()?)?;
+            let line = first_line_matching(contents, &Regex::new(r#"b"pathway/(topology-epoch|route/)"#).ok()?)?;
             Some((
                 UNSCOPED_STORAGE_KEYS,
                 format!("{rel}:{line}: storage key is not scoped by local engine identity"),
@@ -359,7 +387,7 @@ impl<'tcx> LateLintPass<'tcx> for UnscopedStorageKeys {
 impl<'tcx> LateLintPass<'tcx> for SyntheticFallback {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.contains("/crates/mesh/src/") {
+            if !rel.contains("/crates/pathway/src/") {
                 return None;
             }
             let line = first_line_matching(
@@ -380,7 +408,7 @@ impl<'tcx> LateLintPass<'tcx> for SyntheticFallback {
 impl<'tcx> LateLintPass<'tcx> for NamedThresholds {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         scan_once(cx, item, &mut self.seen_files, |rel, contents| {
-            if !rel.contains("/crates/mesh/src/") {
+            if !rel.contains("/crates/pathway/src/") {
                 return None;
             }
             let line = first_line_matching(contents, &Regex::new(r">\s*600\b").ok()?)?;

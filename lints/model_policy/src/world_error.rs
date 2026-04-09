@@ -1,4 +1,14 @@
 //! Lint pass for keeping world-extension errors separate from routing errors.
+//!
+//! Enforces that `crates/traits/src/world.rs` does not mention `RouteError`.
+//! World extensions produce observations about the environment; they must not
+//! import or reference routing-layer failure types. Mixing the two layers
+//! creates a hidden downward dependency from the observation boundary into the
+//! routing engine, which undermines the separation of concerns the traits crate
+//! is designed to maintain.
+//!
+//! Accepts: files that contain no mention of `RouteError` in the world module.
+//! Rejects: any occurrence of `RouteError` anywhere in `world.rs`.
 
 use std::collections::BTreeSet;
 

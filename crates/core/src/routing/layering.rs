@@ -1,4 +1,19 @@
-//! Shared layering and substrate objects for composing routing engines.
+//! Substrate layering types for composing routing engines as carriers.
+//!
+//! This module defines the shared vocabulary used when one routing engine
+//! acts as the lower-layer carrier for another. The substrate model lets an
+//! upper-layer engine declare what it needs from a carrier, inspect what
+//! candidate carriers can provide, and acquire a strong lease binding the
+//! chosen substrate for its use.
+//!
+//! Key types: [`SubstrateRequirements`] (min protection, connectivity, latency
+//! budget, MTU floor, and identity assurance floor), [`SubstrateCapabilities`]
+//! (what one engine can provide as a carrier), [`SubstrateCandidate`] (the
+//! advisory candidate object surfaced to a layering orchestrator), and
+//! [`SubstrateLease`] (the strong, must-use-handle lease acquired from the
+//! chosen carrier engine). [`LayerParameter`] and [`LayerParameters`] carry
+//! per-layer adaptation hints downward from upper-layer or host-level policy
+//! engines into a substrate-aware lower-layer engine.
 
 use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};

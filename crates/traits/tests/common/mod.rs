@@ -1,10 +1,23 @@
 //! Shared test helpers for jacquard-traits integration tests.
+//!
+//! This module provides small constructors that integration test modules use to
+//! build plausible observation wrappers, node profiles, and belief values
+//! without repeating the full field setup inline. Helpers here are
+//! intentionally minimal and produce the simplest valid value for each type.
+//!
+//! Exported helpers:
+//! - `local_observation` — wrap any value as a locally observed, directly
+//!   evidenced, controller-bound `Observation<T>`.
+//! - `sample_endpoint` — a minimal `LinkEndpoint` using WifiAware transport.
+//! - `sample_node` — a minimal `Node` with all state beliefs absent.
+//! - `estimated` — construct a `Belief::Estimated` from a value, confidence,
+//!   and tick without spelling out the full `Estimate` struct inline.
 
 use jacquard_traits::jacquard_core::{
-    Belief, ByteCount, ControllerId, EndpointAddress, Estimate, FactSourceClass,
+    Belief, ByteCount, ControllerId, EndpointLocator, Estimate, FactSourceClass,
     HoldItemCount, InformationSetSummary, LinkEndpoint, MaintenanceWorkBudget, Node,
     NodeProfile, NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass,
-    RatioPermille, RelayWorkBudget, RoutingEvidenceClass, Tick, TransportProtocol,
+    RatioPermille, RelayWorkBudget, RoutingEvidenceClass, Tick, TransportKind,
 };
 
 /// Construct a local, directly-observed, controller-bound `Observation<T>`.
@@ -25,8 +38,8 @@ pub fn local_observation<T>(value: T, tick: Tick) -> Observation<T> {
 /// A minimal `LinkEndpoint` suitable for use in test fixtures.
 pub fn sample_endpoint() -> LinkEndpoint {
     LinkEndpoint {
-        protocol: TransportProtocol::BleGatt,
-        address: EndpointAddress::Opaque(vec![1, 2, 3]),
+        transport_kind: TransportKind::WifiAware,
+        locator: EndpointLocator::Opaque(vec![1, 2, 3]),
         mtu_bytes: ByteCount(512),
     }
 }

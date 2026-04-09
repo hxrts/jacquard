@@ -1,4 +1,16 @@
 //! Source-level helpers for scanning explicit trait annotation markers.
+//!
+//! Provides `source_has_trait_purity_marker`, which checks whether a public
+//! trait definition in source code is immediately preceded by a purity or
+//! effect annotation. The scan walks backward from the trait's opening line,
+//! skipping blank lines and doc comments, and returns `true` only if the first
+//! non-skipped line is `#[purity(...)]` or `#[effect_trait]`.
+//!
+//! This source-level scan is necessary because the relevant proc-macro
+//! annotations (`#[purity(...)]`, `#[effect_trait]`) are applied before
+//! expansion and may not be directly visible through the HIR attribute list at
+//! the lint site. Reading the file on disk provides a reliable detection path
+//! independent of how the compiler represents those attributes internally.
 
 use rustc_hir::Item;
 use rustc_span::source_map::SourceMap;

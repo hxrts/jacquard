@@ -1,6 +1,17 @@
 //! `RecoverableTestEngine` — a routing engine stub that owns mutable route
 //! state behind a shared `BTreeSet`, used to exercise router recovery and
 //! handoff logic.
+//!
+//! The engine stores active `RouteId` values in an `Arc<Mutex<BTreeSet>>`
+//! that can be injected into a second router instance to simulate a process
+//! restart. When `restore_route_runtime_for_router` is called on the
+//! recovered instance it looks up the route in the shared set, allowing the
+//! router's `recover_checkpointed_routes` path to confirm that engine-private
+//! state can be restored without re-running the full activation sequence.
+//!
+//! Used by the recovery assertions in `router_fail_closed` that verify the
+//! router can reconstitute canonical route truth from its own checkpoint
+//! storage and then delegate runtime-state restoration to the engine.
 
 use std::sync::{Arc, Mutex};
 
@@ -8,7 +19,7 @@ use jacquard_core::{
     Belief, ByteCount, Configuration, ConnectivityPosture, FactBasis, HealthScore,
     Observation, RatioPermille, RouteMaintenanceOutcome, RouteProtectionClass,
     RouteRepairClass, RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
-    TransportProtocol,
+    TransportKind,
 };
 
 use super::fixtures::profile;
@@ -40,7 +51,7 @@ impl RecoverableTestEngine {
             engine: Self::engine_id_value(),
             protection: objective.target_protection,
             connectivity: objective.target_connectivity,
-            protocol_mix: vec![TransportProtocol::BleGatt],
+            protocol_mix: vec![TransportKind::WifiAware],
             hop_count_hint: Belief::Estimated(jacquard_core::Estimate {
                 value: 1,
                 confidence_permille: RatioPermille(1000),

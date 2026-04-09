@@ -1,6 +1,17 @@
-//! Shared helpers: `Violation` reporter, workspace metadata access,
-//! path normalization, markdown file enumeration, and `just` recipe
-//! lookup.
+//! Shared infrastructure for all xtask checks.
+//!
+//! Provides:
+//! - `Violation` — structured diagnostic with file path, line number, and
+//!   message, rendered for terminal output.
+//! - `workspace_root` / `workspace_metadata` — locate the Cargo workspace root
+//!   and load `cargo metadata` output used by graph-based checks.
+//! - `normalize_rel_path` — convert an absolute path to a workspace-relative
+//!   slash-separated string, used as a stable key in violation messages.
+//! - `collect_rust_files` / `collect_markdown_files` — enumerate source files
+//!   for text-scanning checks, respecting `.gitignore` via the `ignore` crate.
+//! - `layer_for_rel_path` / `layer_of` — map a file path to the crate-layer
+//!   enum (`L1` core through `L5` tests) used by boundary checks.
+//! - `just_recipes` — list available `just` recipe names for drift detection.
 
 use std::{
     collections::BTreeSet,
@@ -13,11 +24,11 @@ use cargo_metadata::{Metadata, MetadataCommand};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LayerTag {
-    Core       = 1,
-    Traits     = 2,
-    MeshRouter = 3,
-    MockInfra  = 4,
-    Tests      = 5,
+    Core          = 1,
+    Traits        = 2,
+    PathwayRouter = 3,
+    MockInfra     = 4,
+    Tests         = 5,
 }
 
 impl LayerTag {
@@ -25,7 +36,7 @@ impl LayerTag {
         match self {
             | Self::Core => "L1",
             | Self::Traits => "L2",
-            | Self::MeshRouter => "L3",
+            | Self::PathwayRouter => "L3",
             | Self::MockInfra => "L4",
             | Self::Tests => "L5",
         }
@@ -36,7 +47,7 @@ pub fn layer_of(crate_name: &str) -> LayerTag {
     match crate_name {
         | "jacquard-core" => LayerTag::Core,
         | "jacquard-traits" => LayerTag::Traits,
-        | "jacquard-mesh" | "jacquard-router" => LayerTag::MeshRouter,
+        | "jacquard-pathway" | "jacquard-router" => LayerTag::PathwayRouter,
         | "jacquard-mem-link-profile" | "jacquard-reference-client" => {
             LayerTag::MockInfra
         },
@@ -49,10 +60,10 @@ pub fn layer_for_rel_path(rel_path: &str) -> LayerTag {
         LayerTag::Core
     } else if rel_path.starts_with("crates/traits/") {
         LayerTag::Traits
-    } else if rel_path.starts_with("crates/mesh/")
+    } else if rel_path.starts_with("crates/pathway/")
         || rel_path.starts_with("crates/router/")
     {
-        LayerTag::MeshRouter
+        LayerTag::PathwayRouter
     } else if rel_path.starts_with("crates/mem-link-profile/")
         || rel_path.starts_with("crates/reference-client/")
         || rel_path.starts_with("crates/mem-node-profile/")

@@ -1,6 +1,6 @@
 # Runtime Effects
 
-This page describes the narrow runtime capability surface that Jacquard exposes to pure routing logic. See [World Extensions](302_world_extensions.md) for the layering overview, [Routing Engines](303_routing_engines.md) for the engine and policy contracts, and [Mesh Routing](401_mesh_routing.md) for the in-tree mesh implementation and its operational subcomponents.
+This page describes the narrow runtime capability surface that Jacquard exposes to pure routing logic. See [World Extensions](302_world_extensions.md) for the layering overview, [Routing Engines](303_routing_engines.md) for the engine and policy contracts, and [Pathway Routing](401_pathway_routing.md) for the in-tree explicit-path implementation and its operational subcomponents.
 
 ## Effect Surface
 
@@ -32,37 +32,42 @@ pub trait RouteEventLogEffects {
     ) -> Result<(), RouteEventLogError>;
 }
 
-pub trait TransportEffects {
+pub trait TransportSenderEffects {
     fn send_transport(
         &mut self,
         endpoint: &LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), TransportError>;
-
-    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
 }
 
 pub trait RoutingRuntimeEffects:
-    TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects + TransportEffects
+    TimeEffects
+    + OrderEffects
+    + StorageEffects
+    + RouteEventLogEffects
+    + TransportSenderEffects
 {}
 ```
 
-Each effect trait covers one concern. `TimeEffects` provides monotonic local time. `OrderEffects` provides deterministic ordering tokens. `StorageEffects` provides byte-level key-value persistence. `RouteEventLogEffects` provides replay-visible route event recording. `TransportEffects` provides endpoint-addressed payload send and transport observation polling. It is the only shared transport send/poll boundary; engines do not define separate transport effect traits in `jacquard-traits`.
+Each effect trait covers one concern. `TimeEffects` provides monotonic local time. `OrderEffects` provides deterministic ordering tokens. `StorageEffects` provides byte-level key-value persistence. `RouteEventLogEffects` provides replay-visible route event recording. `TransportSenderEffects` provides endpoint-addressed payload send only. Host-owned ingress supervision lives on `TransportDriver`, outside the effect vocabulary.
+
+Reusable adapter-side support primitives are not effect traits either. The bounded raw-ingress mailbox, unresolved/resolved peer bookkeeping, and in-flight claim guards live in `jacquard-adapter`. That crate exists so transport/profile implementers can share ownership scaffolding without pushing runtime helper infrastructure into `jacquard-core` or `jacquard-traits`.
 
 ## Why The Boundary Exists
 
-The effect surface is what lets one routing engine compile against one set of traits and run unchanged across production, in-process tests, and the deterministic simulator. The simulator implements `TimeEffects` from a virtual clock, `TransportEffects` from a scenario script, and `StorageEffects` from an in-memory map. The production runtime backs the same traits with real OS calls. Routing logic depends on the trait, not the implementation.
+The effect surface is what lets one routing engine compile against one set of traits and run unchanged across production, in-process tests, and the deterministic simulator. The simulator implements `TimeEffects` from a virtual clock, `TransportSenderEffects` from a scenario script, and `StorageEffects` from an in-memory map. The production runtime backs the same traits with real OS calls. Routing logic depends on the trait, not the implementation.
 
 This is what keeps Jacquard testable end-to-end without forking the routing model. A test that wants to advance time, drop a frame, or simulate a storage failure does so by swapping the effect implementation, not by editing the routing engine. The same engine binary participates in deterministic replay because every nondeterministic input crosses one of these traits.
 
-First-party mesh adds one private layer above these shared traits: Telltale-generated choreography effect interfaces used only inside `jacquard-mesh`. Those generated interfaces are not promoted into `jacquard-traits`. Instead, mesh interprets its private protocol requests onto the stable shared effect traits through a concrete host/runtime adapter.
+First-party pathway adds one private layer above these shared traits: Telltale-generated choreography effect interfaces used only inside `jacquard-pathway`. Those generated interfaces are not promoted into `jacquard-traits`. Instead, pathway interprets its private protocol requests onto the stable shared effect traits through a concrete host/runtime adapter.
 
-The new Phase 3 crates keep that split intact:
+The current in-tree composition crates keep that split intact:
 
 - `jacquard-router` consumes shared effect traits to mint publication ids, build leases, and drive router-owned cadence
 - `jacquard-router` also wraps those traits in one router-local sequencing adapter so checkpoint writes, route-event logging, and canonical publication stay in one fail-closed order
+- `jacquard-adapter` provides transport-neutral adapter-side support primitives such as raw ingress mailboxes and claim guards
 - `jacquard-mem-link-profile` implements the shared effect traits and in-memory carrier traits for tests and examples only
-- `jacquard-reference-client` composes routers, engines, and profile implementations, but remains observational with respect to canonical route truth
+- `jacquard-reference-client` composes routers, engines, and profile implementations through one host bridge per runtime, but remains observational with respect to canonical route truth
 
 In other words, Jacquard now has both sides of the runtime-adapter story:
 
@@ -75,9 +80,9 @@ Each effect trait carries rules that runtimes must honor for routing logic to re
 
 `StorageEffects` reads must reflect prior writes from the same runtime within the same logical session. Writes are not assumed to be visible to other runtimes or processes. `RouteEventLogEffects::record_route_event` is append-only and must commit before the control plane reports the next lifecycle transition as durable, so replay can reconstruct the same routing state. A runtime that persists state across restarts must also persist enough order-stamp state to keep stamps unique after recovery.
 
-`TransportEffects::send_transport` delivers a frame on a best-effort basis, and `TransportEffects::poll_transport` returns transport observations as they arrive. Neither method may invent or mutate canonical route truth. Transport may report links, timing, and frame events, and the control plane decides whether any of that changes a materialized route.
+`TransportSenderEffects::send_transport` delivers a frame on a best-effort basis. Transport ingress is not polled through the effect surface anymore; host-owned `TransportDriver` implementations supervise ingress and hand observations to the bridge/router explicitly. Neither surface may invent or mutate canonical route truth.
 
-This rule applies directly to the in-memory multi-device harness too. The shared in-memory transport may deliver `PayloadReceived` observations between attached endpoints, but it still does not choose routes, repair canonical state, or mint route handles. The router remains the semantic owner of canonical route truth even in tests.
+This rule applies directly to the in-memory multi-device harness too. The shared in-memory transport may deliver `PayloadReceived` observations between attached endpoints, but it still does not choose routes, repair canonical state, or mint route handles. The reference-client bridge drains that ingress, attaches Jacquard time, and advances the router through explicit synchronous rounds. The router remains the semantic owner of canonical route truth even in tests.
 
 ## Aggregate And Constituent Bounds
 

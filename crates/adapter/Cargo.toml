@@ -1,0 +1,15 @@
+[package]
+name = "jacquard-adapter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Reusable adapter-support primitives for Jacquard transport/profile implementers"
+
+[lints]
+workspace = true
+
+[dependencies]
+jacquard-core = { path = "../core" }
+jacquard-macros = { path = "../macros" }
+serde = { workspace = true }

@@ -1,4 +1,18 @@
-//! Validates detailed invariant specification format.
+//! Validates that `## Invariant:` sections in markdown docs are fully
+//! specified.
+//!
+//! Every invariant section must contain three required subsections:
+//! - `Enforcement locus` — which crate or module is responsible for upholding
+//!   the invariant at runtime.
+//! - `Failure mode` — what observable incorrect behavior results if the
+//!   invariant is violated.
+//! - `Verification hooks` — how the invariant is tested or statically checked.
+//!
+//! Scans: all `.md` files under `docs/` line by line, tracking state as it
+//! enters and exits each `## Invariant:` heading. Invariants missing any of
+//! the three required fields are reported as violations.
+//!
+//! Registered as: `cargo xtask check invariant-specs`
 
 use std::{fs, path::Path};
 

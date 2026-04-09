@@ -1,4 +1,19 @@
 //! Routing-engine capabilities, admission checks, candidates, and witnesses.
+//!
+//! This module defines the shared types that flow across the engine-to-router
+//! admission boundary. [`RoutingEngineCapabilities`] declares what one engine
+//! can provide. [`RouteCandidate`] is the advisory pre-admission object an
+//! engine surfaces for a given objective. [`RouteAdmissionCheck`] records the
+//! engine's admission decision plus cost bounds and assumption profile.
+//! [`RouteAdmission`] is the proof-bearing artifact produced after a successful
+//! admission check; it carries the objective, selected parameters, check
+//! result, route summary, and a [`RouteWitness`] that makes the
+//! objective-vs-delivered gap explicit.
+//!
+//! Assumption vocabulary: [`AdmissionAssumptions`] describes the message-flow,
+//! failure, density, and adversary regime under which an admission claim holds.
+//! [`RouteDegradation`] and [`DegradationReason`] represent cases where the
+//! admitted route falls short of the objective protection or connectivity.
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
@@ -7,7 +22,7 @@ use thiserror::Error;
 use crate::{
     BackendRouteId, Belief, ConnectivityPosture, Estimate, Limit, RouteCost,
     RouteEpoch, RouteEstimate, RouteId, RouteProtectionClass, RoutingEngineId,
-    RoutingObjective, SelectedRoutingParameters, TimeWindow, TransportProtocol,
+    RoutingObjective, SelectedRoutingParameters, TimeWindow, TransportKind,
 };
 
 /// Generates a binary capability enum with `Unsupported` / `Supported`
@@ -171,7 +186,7 @@ pub struct RouteSummary {
     pub engine: RoutingEngineId,
     pub protection: RouteProtectionClass,
     pub connectivity: ConnectivityPosture,
-    pub protocol_mix: Vec<TransportProtocol>,
+    pub protocol_mix: Vec<TransportKind>,
     /// Bounded by [`ROUTE_HOP_COUNT_MAX`](crate::ROUTE_HOP_COUNT_MAX).
     pub hop_count_hint: Belief<u8>,
     pub valid_for: TimeWindow,

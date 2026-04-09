@@ -1,4 +1,16 @@
-//! Enforces unit-test boundary hygiene for source-tree tests.
+//! Enforces unit-test boundary hygiene for in-source test modules.
+//!
+//! Two rules are enforced across all workspace crates (excluding xtask
+//! itself, target directories, and dedicated test/bench trees):
+//! - Standalone `tests.rs` files directly under `src/` sub-paths are rejected;
+//!   unit tests must be co-located in the module they cover via `#[cfg(test)]`
+//!   blocks, not in separate files.
+//! - Importing from the external `tests/` directory via `#[path = ...]` or
+//!   `include_str!` inside source files is forbidden; integration tests must
+//!   remain self-contained in their own compilation unit.
+//!
+//! Scans: all `.rs` files under `crates/*/src/` using regex patterns.
+//! Registered as: `cargo xtask check test-boundaries`
 
 use std::{fs, path::PathBuf};
 

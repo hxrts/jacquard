@@ -1,4 +1,17 @@
-//! Policy outputs and selected routing actions.
+//! Policy outputs, selected routing parameters, and operating mode vocabulary.
+//!
+//! This module defines the shared types that represent the output of the local
+//! routing policy engine. These values are runtime-local: they are computed
+//! from policy inputs and drive engine selection, fallback behavior, and route
+//! replacement decisions, but are never shared across the network.
+//!
+//! Key types: [`SelectedRoutingParameters`] (the full policy output bundle
+//! including protection class, connectivity posture, and fallback policies),
+//! [`RoutingEngineFallbackPolicy`] (whether the router may switch engines),
+//! [`RouteReplacementPolicy`] (whether a live route may be displaced by a
+//! newly admitted one), [`OperatingMode`] and [`OperatingModeName`] (the
+//! host-defined deployment posture for the current routing action), and
+//! [`DiversityFloor`] (the minimum path diversity the policy requires).
 
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};

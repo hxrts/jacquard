@@ -32,5 +32,5 @@ pub(crate) use recoverable_engine::RecoverableTestEngine;
 pub(crate) use router_builder::{
     build_router, build_router_with_effects, build_router_with_proactive_engine,
     build_router_with_recoverable_engine, build_router_with_runtime_pair,
-    build_router_with_selector, CommitteeMeshEngine, TestMeshEngine,
+    build_router_with_selector, CommitteePathwayEngine, TestPathwayEngine,
 };

@@ -1,4 +1,18 @@
 //! Source-level helpers for scanning explicit model-policy annotations.
+//!
+//! This module provides utilities used by the model-policy lint passes to
+//! inspect raw source text alongside the HIR. The compiler's attribute
+//! representation does not always expose proc-macro annotations the same
+//! way they appear in source, so these helpers read the file on disk and
+//! scan lines directly.
+//!
+//! Key functions:
+//! - `source_has_attribute` — checks whether an item is preceded by a given
+//!   `#[attr_name]` annotation in the source file, skipping doc comments and
+//!   other attributes in between.
+//! - `source_file_contents` — reads the full source text for the file
+//!   containing a given HIR item, returning the resolved path alongside it.
+//! - `line_number` — maps a `Span` to its 1-based source line number.
 
 use std::path::PathBuf;
 

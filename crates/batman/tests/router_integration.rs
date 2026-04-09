@@ -1,26 +1,53 @@
+//! Router integration tests for `jacquard-batman`.
+//!
+//! Exercises `BatmanEngine` wired into a `MultiEngineRouter` with
+//! `InMemoryTransport` and `InMemoryRuntimeEffects`, verifying end-to-end
+//! behavior from route activation through payload forwarding.
+//!
+//! Tests in this module confirm:
+//! - `BatmanEngine` can be registered with a `MultiEngineRouter` and its
+//!   `BATMAN_ENGINE_ID` capabilities are accessible after registration.
+//! - `Router::activate_route` selects a next-hop-only route with
+//!   `RouteShapeVisibility::NextHopOnly` via the BATMAN engine.
+//! - After an `advance_round` tick, `forward_payload` delivers a payload to the
+//!   correct next-hop `InMemoryTransport` node, verifiable by draining the
+//!   ingress queue of the expected neighbor.
+//!
+//! The sample topology uses four nodes with two paths to destination node 4:
+//! a high-quality path via node 2 and a lossier path via node 3.
+
 use std::collections::BTreeMap;
 
 use jacquard_batman::{BatmanEngine, BATMAN_ENGINE_ID};
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DestinationId, DurationMs, Environment,
-    HealthScore, IdentityAssuranceClass, Observation, RatioPermille,
-    RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-    RouteReplacementPolicy, RoutingEngineFallbackPolicy, RoutingPolicyInputs,
-    RoutingTickChange, SelectedRoutingParameters, Tick,
+    ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
+    DurationMs, EndpointLocator, Environment, HealthScore, IdentityAssuranceClass,
+    LinkEndpoint, Observation, RatioPermille, RoutePartitionClass,
+    RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+    RoutingEngineFallbackPolicy, RoutingPolicyInputs, RoutingTickChange,
+    SelectedRoutingParameters, Tick, TransportKind,
 };
 use jacquard_mem_link_profile::{
     InMemoryRuntimeEffects, InMemoryTransport, ReferenceLink, SharedInMemoryNetwork,
 };
 use jacquard_mem_node_profile::ReferenceNode;
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
-use jacquard_traits::{
-    Router, RoutingControlPlane, RoutingDataPlane, TransportEffects,
-};
+use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane, TransportDriver};
 
 fn node(byte: u8) -> jacquard_core::NodeId {
     jacquard_core::NodeId([byte; 32])
 }
 
+fn endpoint(byte: u8) -> LinkEndpoint {
+    LinkEndpoint::new(
+        TransportKind::WifiAware,
+        EndpointLocator::Opaque(vec![byte]),
+        ByteCount(128),
+    )
+}
+
+// long-block-exception: integration topology intentionally kept inline so the
+// mixed next-hop path and weaker fallback path remain readable together.
 fn sample_topology() -> Observation<Configuration> {
     Observation {
         value: Configuration {
@@ -28,41 +55,67 @@ fn sample_topology() -> Observation<Configuration> {
             nodes: BTreeMap::from([
                 (
                     node(1),
-                    ReferenceNode::ble_route_capable(1, &BATMAN_ENGINE_ID, Tick(1))
-                        .build(),
+                    ReferenceNode::route_capable(
+                        node(1),
+                        ControllerId([1; 32]),
+                        endpoint(1),
+                        &BATMAN_ENGINE_ID,
+                        Tick(1),
+                    )
+                    .build(),
                 ),
                 (
                     node(2),
-                    ReferenceNode::ble_route_capable(2, &BATMAN_ENGINE_ID, Tick(1))
-                        .build(),
+                    ReferenceNode::route_capable(
+                        node(2),
+                        ControllerId([2; 32]),
+                        endpoint(2),
+                        &BATMAN_ENGINE_ID,
+                        Tick(1),
+                    )
+                    .build(),
                 ),
                 (
                     node(3),
-                    ReferenceNode::ble_route_capable(3, &BATMAN_ENGINE_ID, Tick(1))
-                        .build(),
+                    ReferenceNode::route_capable(
+                        node(3),
+                        ControllerId([3; 32]),
+                        endpoint(3),
+                        &BATMAN_ENGINE_ID,
+                        Tick(1),
+                    )
+                    .build(),
                 ),
                 (
                     node(4),
-                    ReferenceNode::ble_route_capable(4, &BATMAN_ENGINE_ID, Tick(1))
-                        .build(),
+                    ReferenceNode::route_capable(
+                        node(4),
+                        ControllerId([4; 32]),
+                        endpoint(4),
+                        &BATMAN_ENGINE_ID,
+                        Tick(1),
+                    )
+                    .build(),
                 ),
             ]),
             links: BTreeMap::from([
                 (
                     (node(1), node(2)),
-                    ReferenceLink::ble_active(2, Tick(1)).build(),
+                    ReferenceLink::active(endpoint(2), Tick(1)).build(),
                 ),
                 (
                     (node(2), node(4)),
-                    ReferenceLink::ble_active(4, Tick(1)).build(),
+                    ReferenceLink::active(endpoint(4), Tick(1)).build(),
                 ),
                 (
                     (node(1), node(3)),
-                    ReferenceLink::ble_lossy(3, RatioPermille(650), Tick(1)).build(),
+                    ReferenceLink::lossy(endpoint(3), RatioPermille(650), Tick(1))
+                        .build(),
                 ),
                 (
                     (node(3), node(4)),
-                    ReferenceLink::ble_lossy(4, RatioPermille(600), Tick(1)).build(),
+                    ReferenceLink::lossy(endpoint(4), RatioPermille(600), Tick(1))
+                        .build(),
                 ),
             ]),
             environment: Environment {
@@ -139,12 +192,11 @@ fn sample_objective() -> jacquard_core::RoutingObjective {
 fn batman_router_activates_next_hop_only_routes() {
     let topology = sample_topology();
     let network = SharedInMemoryNetwork::default();
-    let mut local_transport = InMemoryTransport::attach(
+    let local_transport = InMemoryTransport::attach(
         node(1),
         topology.value.nodes[&node(1)].profile.endpoints.clone(),
         network,
     );
-    local_transport.set_ingress_tick(Tick(1));
     let engine = BatmanEngine::new(
         node(1),
         local_transport,
@@ -178,18 +230,16 @@ fn batman_router_activates_next_hop_only_routes() {
 fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
     let topology = sample_topology();
     let network = SharedInMemoryNetwork::default();
-    let mut local_transport = InMemoryTransport::attach(
+    let local_transport = InMemoryTransport::attach(
         node(1),
         topology.value.nodes[&node(1)].profile.endpoints.clone(),
         network.clone(),
     );
-    local_transport.set_ingress_tick(Tick(1));
     let mut next_hop_transport = InMemoryTransport::attach(
         node(2),
         topology.value.nodes[&node(2)].profile.endpoints.clone(),
         network,
     );
-    next_hop_transport.set_ingress_tick(Tick(1));
 
     let engine = BatmanEngine::new(
         node(1),
@@ -207,9 +257,7 @@ fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
         .register_engine(Box::new(engine))
         .expect("register BATMAN engine");
 
-    let tick = router
-        .anti_entropy_tick()
-        .expect("pre-activation proactive tick");
+    let tick = router.advance_round().expect("pre-activation router round");
     assert_eq!(tick.engine_change, RoutingTickChange::PrivateStateUpdated);
 
     let route = Router::activate_route(&mut router, sample_objective())
@@ -219,11 +267,11 @@ fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
         .expect("forward payload");
 
     let observations = next_hop_transport
-        .poll_transport()
-        .expect("poll next-hop transport");
+        .drain_transport_ingress()
+        .expect("drain next-hop ingress");
     assert_eq!(observations.len(), 1);
     match &observations[0] {
-        | jacquard_core::TransportObservation::PayloadReceived {
+        | jacquard_core::TransportIngressEvent::PayloadReceived {
             from_node_id,
             payload,
             ..

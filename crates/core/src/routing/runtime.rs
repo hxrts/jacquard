@@ -1,5 +1,25 @@
-//! Router-owned route identity, engine installation results, and runtime
-//! lifecycle objects.
+//! Router-owned route identity, installation results, and runtime lifecycle
+//! objects for the full route control plane.
+//!
+//! This module defines the most comprehensive portion of the shared routing
+//! boundary: everything from how the router canonically identifies a route
+//! through how it tracks maintenance, commitments, leases, and round outcomes.
+//!
+//! Identity and proof: [`RouteIdentityStamp`] (the four-field canonical key),
+//! [`RouteHandle`] (the must-use-handle capability token), [`RouteLease`]
+//! (lease-based ownership with validity checking),
+//! [`RouteMaterializationProof`] (engine echo-back of the stamp plus a witness
+//! fact), [`RouteMaterializationInput`] (the canonical identity the router
+//! passes to an engine during realization), and [`RouteInstallation`] (the
+//! engine's installation result).
+//!
+//! Lifecycle and maintenance: [`MaterializedRoute`], [`PublishedRouteRecord`],
+//! [`RouteRuntimeState`], [`RouteLifecycleEvent`], [`RouteMaintenanceResult`],
+//! [`RouteMaintenanceOutcome`], [`RouteMaintenanceFailure`], and
+//! [`RouteSemanticHandoff`]. Commitments: [`RouteCommitment`],
+//! [`RouteCommitmentResolution`], [`RouteCommitmentFailure`],
+//! [`RouteInvalidationReason`]. Tick machinery: [`RoutingTickContext`],
+//! [`RoutingTickOutcome`], [`RoutingTickHint`], [`RouterRoundOutcome`].
 
 use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
@@ -137,12 +157,12 @@ pub struct RouterMaintenanceOutcome {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Router-owned tick outcome that keeps engine-private change reporting
+/// Router-owned round outcome that keeps engine-private change reporting
 /// separate from canonical route mutation.
-pub struct RouterTickOutcome {
+pub struct RouterRoundOutcome {
     pub topology_epoch: RouteEpoch,
     pub engine_change: RoutingTickChange,
-    pub engine_tick_hint: RoutingTickHint,
+    pub next_round_hint: RoutingTickHint,
     pub canonical_mutation: RouterCanonicalMutation,
 }
 

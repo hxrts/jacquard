@@ -20,7 +20,7 @@ The engine requires only a BATMAN OGM-equivalent observation baseline via
 ## Candidate and Admission Rules
 
 BATMAN emits advisory candidates from its best-next-hop table only for
-destinations that advertise BATMAN support for the requested service kind. A destination that advertises only mesh support receives no BATMAN candidates. A destination that advertises both mesh and BATMAN support may participate in
+destinations that advertise BATMAN support for the requested service kind. A destination that advertises only pathway support receives no BATMAN candidates. A destination that advertises both pathway and BATMAN support may participate in
 either layer.
 
 Admission and materialization remain thin. The router owns canonical route
@@ -35,8 +35,8 @@ Route maintenance watches for next-hop degradation, better next-hop replacement 
 
 ## Mixed-Engine Composition
 
-The reference client demonstrates registering BATMAN and mesh together in one router. The mixed-engine path uses a BATMAN-backed first hop where the
-destination advertises BATMAN support, and a mesh-backed second hop where the next destination advertises only mesh support.
+The reference client demonstrates registering BATMAN and pathway together in one router. The mixed-engine path uses a BATMAN-backed first hop where the
+destination advertises BATMAN support, and a pathway-backed second hop where the next destination advertises only pathway support.
 
 Each engine remains private and honest about its visibility model. The router owns multi-engine orchestration. Cross-layer message movement happens by composing separate canonical routes, not by having one engine claim ownership of both layers.
 

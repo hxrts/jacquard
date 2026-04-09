@@ -1,4 +1,18 @@
 //! Expansion logic for the `#[id_type]` proc macro.
+//!
+//! `#[id_type]` wraps a single-field tuple struct as an opaque, canonical
+//! identifier. It accepts no arguments and rejects generic structs. The macro:
+//!
+//! - Applies `repr(transparent)` so the wrapper has the same layout as its
+//!   inner field.
+//! - Injects the canonical id-type derives: `Clone`, `Copy`, `Debug`,
+//!   `Default`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Serialize`,
+//!   `Deserialize`.
+//! - Generates `const fn new(value: <FieldType>) -> Self` and `const fn
+//!   get(self) -> <FieldType>` constructors.
+//!
+//! Parsing and attribute injection are delegated to `support::parsing` and
+//! `support::attrs` respectively.
 
 use proc_macro::TokenStream;
 use quote::quote;

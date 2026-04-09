@@ -1,3 +1,21 @@
+//! Integration tests for router fail-closed semantics, determinism, and
+//! checkpoint recovery.
+//!
+//! These tests verify that the router refuses to publish canonical route truth
+//! whenever any required safety precondition fails, and that it can restore
+//! previously activated routes from router-owned checkpoint storage.
+//!
+//! Key behaviors covered:
+//! - A failing `CommitteeSelector` blocks proof-bearing activation and leaves
+//!   the active route count at zero.
+//! - A failing route-event log causes activation to roll back, leaving no
+//!   committed route state and no logged events.
+//! - Activation, maintenance, and reselection produce identical canonical
+//!   output for two routers built from equal inputs, confirming determinism.
+//! - `recover_checkpointed_routes` restores the router's canonical table and
+//!   delegates engine-private runtime restoration to the registered engine,
+//!   allowing `forward_payload` to succeed on the recovered instance.
+
 mod common;
 
 use std::{
@@ -103,7 +121,7 @@ fn activation_reselection_and_maintenance_are_deterministic_for_equal_inputs() {
 }
 
 #[test]
-fn recovery_restores_router_and_mesh_state_from_router_owned_registry() {
+fn recovery_restores_router_and_pathway_state_from_router_owned_registry() {
     let shared_state = Arc::new(Mutex::new(BTreeSet::new()));
     let mut router = build_router_with_recoverable_engine(
         Tick(2),

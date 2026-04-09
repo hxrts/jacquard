@@ -1,4 +1,18 @@
 //! Lint pass to prevent engine-private vocabulary leaking into shared crates.
+//!
+//! Detects public structs, enums, and type aliases in `jacquard-core` and
+//! `jacquard-traits` whose names begin with engine-specific prefixes: `Pathway`,
+//! `Mesh`, `Onion`, or `Field`. These prefixes identify vocabulary that belongs
+//! to a particular routing engine and must not appear in the shared schema or
+//! contract crates.
+//!
+//! The shared crates define engine-neutral types that all engines depend on.
+//! Introducing engine-specific names there creates an upward coupling that
+//! makes it impossible to swap or add engines without touching the shared layer.
+//!
+//! Accepts: shared-crate types with engine-neutral names.
+//! Rejects: public types in `core/` or `traits/` whose names start with
+//! `Pathway`, `Mesh`, `Onion`, or `Field`.
 
 use rustc_hir::{Item, ItemKind};
 use rustc_errors::DiagDecorator;
@@ -46,7 +60,11 @@ impl<'tcx> LateLintPass<'tcx> for SharedPrivateBoundary {
 
         let name = cx.tcx.item_name(item.owner_id.def_id);
         let name = name.as_str();
-        if !(name.starts_with("Mesh") || name.starts_with("Onion") || name.starts_with("Field")) {
+        if !(name.starts_with("Pathway")
+            || name.starts_with("Mesh")
+            || name.starts_with("Onion")
+            || name.starts_with("Field"))
+        {
             return;
         }
 

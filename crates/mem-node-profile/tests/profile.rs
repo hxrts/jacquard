@@ -1,18 +1,30 @@
+//! Integration tests for `jacquard-mem-node-profile`.
+//!
+//! These tests exercise the full construction pipeline from builder to
+//! `jacquard-core` model types without importing any router or engine logic.
+//! They verify that `SimulatedNodeProfile` and `NodeStateSnapshot` produce
+//! correctly shaped `NodeProfile` and `NodeState` values, that service
+//! descriptors carry the expected provider identity, and that assembled `Node`
+//! values round-trip through `serde_json` without loss.
+//!
+//! Mutation helpers (`consume_relay_budget`, `reserve_hold_capacity`,
+//! `open_connection`) are tested against their expected arithmetic so that
+//! test scenarios relying on budget-tracking remain trustworthy.
+
 use jacquard_core::{
-    ByteCount, ControllerId, EndpointAddress, LinkEndpoint, NodeId, RatioPermille,
-    RelayWorkBudget, RouteServiceKind, ServiceScope, Tick, TimeWindow,
-    TransportProtocol,
+    ByteCount, ControllerId, EndpointLocator, LinkEndpoint, NodeId, RatioPermille,
+    RelayWorkBudget, RouteServiceKind, ServiceScope, Tick, TimeWindow, TransportKind,
 };
 use jacquard_mem_node_profile::{
     NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor,
 };
 
 fn endpoint(byte: u8) -> LinkEndpoint {
-    LinkEndpoint {
-        protocol: TransportProtocol::BleGatt,
-        address: EndpointAddress::Opaque(vec![byte]),
-        mtu_bytes: ByteCount(256),
-    }
+    LinkEndpoint::new(
+        TransportKind::WifiAware,
+        EndpointLocator::Opaque(vec![byte]),
+        ByteCount(256),
+    )
 }
 
 #[test]

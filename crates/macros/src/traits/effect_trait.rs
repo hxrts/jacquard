@@ -1,4 +1,19 @@
 //! Expansion logic for the `#[effect_trait]` proc macro.
+//!
+//! `#[effect_trait]` stamps a trait as an effect surface and injects the
+//! required plumbing for the effect-handler linkage mechanism. It accepts no
+//! arguments and is applied to trait definitions.
+//!
+//! The macro injects three things:
+//!
+//! - `Send + Sync + 'static` supertraits, required by the effect system so that
+//!   trait objects can be stored and passed across thread boundaries.
+//! - A hidden `__jacquard_handler_marker` required method that returns
+//!   `HandlerToken<Self, dyn TraitName>`. The method is `#[doc(hidden)]` and
+//!   `where Self: Sized`, preserving object safety while acting as a sealed
+//!   compile-time witness that a concrete handler is linked to the trait.
+//! - A `EffectDefinition` impl for `dyn TraitName`, which registers the trait
+//!   object with the effect system.
 
 use proc_macro::TokenStream;
 use quote::quote;

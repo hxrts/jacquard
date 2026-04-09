@@ -1,7 +1,17 @@
-//! Scans backtick code spans in docs and cross-checks them against
-//! workspace reality: unknown just recipes, missing file paths,
-//! unresolved PascalCase identifiers, unknown crate names, stale
-//! version strings, and deprecated identifiers.
+//! Detects semantic drift between documentation and workspace reality.
+//!
+//! Scans backtick code spans in every `.md` file under `docs/` and
+//! cross-checks each span against the live workspace:
+//! - `just <recipe>` spans are validated against actual `just` recipe names.
+//! - File path spans are checked for existence on disk.
+//! - PascalCase identifiers are resolved against the full set of type and
+//!   function names extracted from parsed workspace sources.
+//! - Crate name spans are verified against `cargo metadata` package list.
+//! - Version strings are checked for staleness against `Cargo.toml`.
+//!
+//! Scans: all `.md` files under `docs/` via `pulldown_cmark`; workspace
+//! sources via `parse_workspace_sources`.
+//! Registered as: `cargo xtask check docs-semantic-drift`
 
 use std::collections::BTreeSet;
 
@@ -134,8 +144,12 @@ const EXTERNAL_PREFIXES: &[&str] = &[
     "telltale",
 ];
 
-const PLANNED_CRATES: &[&str] =
-    &["jacquard-mesh", "jacquard-router", "jacquard-transport", "jacquard-simulator"];
+const PLANNED_CRATES: &[&str] = &[
+    "jacquard-pathway",
+    "jacquard-router",
+    "jacquard-transport",
+    "jacquard-simulator",
+];
 
 pub fn run() -> Result<()> {
     let root = workspace_root()?;

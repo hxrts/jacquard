@@ -1,6 +1,16 @@
-//! Rejects public traits under `crates/traits/src` that lack
-//! `#[purity(...)]` or `#[effect_trait]`. Stable-toolchain mirror of
-//! the nightly dylint rule in `lints/trait_purity`.
+//! Rejects public traits under `crates/traits/src` that lack purity
+//! annotations.
+//!
+//! Every public trait in the `L2` (traits) layer must carry either
+//! `#[purity(...)]` or `#[effect_trait]` to make its side-effect contract
+//! explicit. This is the stable-toolchain fast-path mirror of the nightly
+//! dylint rule in `lints/trait_purity`, allowing CI to enforce the rule
+//! without requiring a nightly compiler.
+//!
+//! Exempt traits: `Sealed`, `EffectDefinition`, `HandlerDefinition` — these
+//! are infrastructure traits for the macro system that do not need purity
+//! annotations. Scans: all parsed sources in `crates/traits/src/`.
+//! Registered as: `cargo xtask check trait-purity`
 
 use anyhow::{bail, Result};
 
