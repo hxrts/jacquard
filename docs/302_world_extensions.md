@@ -33,8 +33,12 @@ A future BLE-owned profile crate would map BLE concerns into
 
 The in-tree reference crates for this split are `jacquard-mem-node-profile` and
 `jacquard-mem-link-profile`. They keep profile modeling separate from
-routing-engine composition. `jacquard-reference-client` then composes those
-profile implementations with a router and one engine for end-to-end tests.
+routing-engine composition. When a concrete adapter needs generic runtime-side
+support such as a bounded raw-ingress mailbox or unresolved/resolved peer
+bookkeeping, that support now belongs in `jacquard-adapter` rather than in
+`jacquard-core`, `jacquard-traits`, or the mem/reference profile crates.
+`jacquard-reference-client` then composes those profile implementations with a
+router and one engine for end-to-end tests.
 
 ```rust
 // Link objects separate endpoint identity, stable link capability, and current

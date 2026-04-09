@@ -30,6 +30,17 @@ Run a single test: `cargo test -p <crate> <test_name>`
 
 `core` defines what exists. `traits` defines what components are allowed to do. `core` must not grow behavioral traits. All cross-crate behavioral interfaces belong in `traits`. `core` and `traits` must remain runtime-free.
 
+`adapter` exists for transport-neutral adapter support primitives only:
+- bounded raw-ingress mailbox helpers
+- unresolved/resolved peer bookkeeping
+- in-flight claim ownership guards
+
+`adapter` must not grow:
+- world-model vocabulary that belongs in `core`
+- capability or driver traits that belong in `traits`
+- transport-specific protocol logic or endpoint constructors
+- Jacquard time or ordering assignment
+
 Transport ownership is split deliberately:
 
 - `TransportSenderEffects` is the shared synchronous send capability.
@@ -44,6 +55,7 @@ Transport ownership is split deliberately:
 Run individual policy checks with `cargo xtask check <name>`. Registered names:
 
 - `checkpoint-namespacing` — storage keys inside pathway and router source trees must use the engine/pathway or router namespace prefix
+- `adapter-boundary` — `jacquard-adapter` must stay transport-neutral, and adapter helper shapes must not leak back into `core` or `traits`
 - `crate-boundary` — workspace dependency-graph invariants
 - `docs-link-check` — broken, scratch-directory, or absolute-path links in markdown
 - `docs-semantic-drift` — stale backtick references in markdown
@@ -85,6 +97,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 
 - `jacquard-core`: type invariants, canonical encoding, boundedness, deterministic ordering, content-addressing stability.
 - `jacquard-traits`: compile-only surface checks, trait-object and generic-boundary tests.
+- `jacquard-adapter`: transport-neutral ingress mailbox, peer-directory, and claim-guard helpers with explicit ownership semantics.
 - `jacquard-pathway`: deterministic candidate production, admission/materialization, commitment tracking, forwarding, repair, topology-change, observation handling.
 - `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, explicit ingress, synchronous round advancement, fallback legality, adaptive-profile derivation.
 - `jacquard-mem-node-profile`: deterministic node-profile and node-state builders with no routing-engine knowledge.
@@ -92,7 +105,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-reference-client`: host-side bridge composition of router + pathway/batman + in-memory profiles for end-to-end tests.
 - `jacquard-xtask`: workspace policy checks, docs link/drift validation, and pre-commit entry point.
 
-Transport-specific endpoint authoring belongs outside the transport-neutral mem profile crates. `jacquard-core` owns the shared `TransportKind` / `EndpointLocator` schema; transport-owned profile crates own any BLE-, IP-, or other transport-specific endpoint helpers and defaults.
+Transport-specific endpoint authoring belongs outside the transport-neutral mem profile crates and outside `jacquard-adapter`. `jacquard-core` owns the shared `TransportKind` / `EndpointLocator` schema; `jacquard-adapter` owns generic adapter-side support helpers; transport-owned profile crates own any BLE-, IP-, or other transport-specific endpoint helpers and defaults.
 
 ## Telltale dependency
 

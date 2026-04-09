@@ -51,6 +51,8 @@ pub trait RoutingRuntimeEffects:
 
 Each effect trait covers one concern. `TimeEffects` provides monotonic local time. `OrderEffects` provides deterministic ordering tokens. `StorageEffects` provides byte-level key-value persistence. `RouteEventLogEffects` provides replay-visible route event recording. `TransportSenderEffects` provides endpoint-addressed payload send only. Host-owned ingress supervision lives on `TransportDriver`, outside the effect vocabulary.
 
+Reusable adapter-side support primitives are not effect traits either. The bounded raw-ingress mailbox, unresolved/resolved peer bookkeeping, and in-flight claim guards live in `jacquard-adapter`. That crate exists so transport/profile implementers can share ownership scaffolding without pushing runtime helper infrastructure into `jacquard-core` or `jacquard-traits`.
+
 ## Why The Boundary Exists
 
 The effect surface is what lets one routing engine compile against one set of traits and run unchanged across production, in-process tests, and the deterministic simulator. The simulator implements `TimeEffects` from a virtual clock, `TransportSenderEffects` from a scenario script, and `StorageEffects` from an in-memory map. The production runtime backs the same traits with real OS calls. Routing logic depends on the trait, not the implementation.
@@ -63,6 +65,7 @@ The current in-tree composition crates keep that split intact:
 
 - `jacquard-router` consumes shared effect traits to mint publication ids, build leases, and drive router-owned cadence
 - `jacquard-router` also wraps those traits in one router-local sequencing adapter so checkpoint writes, route-event logging, and canonical publication stay in one fail-closed order
+- `jacquard-adapter` provides transport-neutral adapter-side support primitives such as raw ingress mailboxes and claim guards
 - `jacquard-mem-link-profile` implements the shared effect traits and in-memory carrier traits for tests and examples only
 - `jacquard-reference-client` composes routers, engines, and profile implementations through one host bridge per runtime, but remains observational with respect to canonical route truth
 
