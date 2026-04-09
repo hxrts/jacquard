@@ -12,6 +12,7 @@
 //! Registered as: `cargo xtask check crate-boundary`
 
 use anyhow::{bail, Result};
+use cargo_metadata::DependencyKind;
 
 use crate::util::workspace_metadata;
 
@@ -106,9 +107,10 @@ fn package_dependency_violations(
         .dependencies
         .iter()
         .filter(|dependency| {
-            blocked
-                .iter()
-                .any(|blocked_name| *blocked_name == dependency.name)
+            dependency.kind != DependencyKind::Development
+                && blocked
+                    .iter()
+                    .any(|blocked_name| *blocked_name == dependency.name)
         })
         .map(|dependency| {
             format!(

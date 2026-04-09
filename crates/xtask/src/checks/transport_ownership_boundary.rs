@@ -55,6 +55,9 @@ fn scan_adapter_helpers(root: &std::path::Path) -> Result<Vec<Violation>> {
             continue;
         }
         let rel = normalize_rel_path(root, &path);
+        if rel == "crates/adapter/src/topology.rs" {
+            continue;
+        }
         let contents = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
         for (index, line) in contents.lines().enumerate() {

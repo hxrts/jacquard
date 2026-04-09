@@ -17,6 +17,8 @@ jobs:
   policy:
     name: Architectural Policy
     runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v24
@@ -58,6 +60,8 @@ jobs:
         run: nix develop --command cargo xtask check proof-bearing-actions
       - name: Surface Classification
         run: nix develop --command cargo xtask check surface-classification
+      - name: Rust Style Guide
+        run: nix develop --command cargo xtask check rust-style-guide
       - name: Checkpoint Namespacing
         run: nix develop --command cargo xtask check checkpoint-namespacing
       - name: Engine Service Boundary

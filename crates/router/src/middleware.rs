@@ -301,6 +301,8 @@ where
         Ok(())
     }
 
+    // long-block-exception: activation is one fail-closed canonical route
+    // publication path from candidate selection through checkpointing.
     fn activate_with_profile(
         &mut self,
         objective: &RoutingObjective,

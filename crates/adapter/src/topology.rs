@@ -231,7 +231,7 @@ impl TopologyProjector {
             destination: route.identity.admission.objective.destination.clone(),
             engine_id: summary.engine.clone(),
             route_shape: self.project_shape(&summary.engine),
-            hop_count_hint: summary.hop_count_hint.clone(),
+            hop_count_hint: summary.hop_count_hint,
             topology_epoch: route.identity.topology_epoch(),
             publication_id: *route.identity.publication_id(),
             lease: route.identity.lease.clone(),
@@ -735,6 +735,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: this test exercises the full canonical mutation
+    // lifecycle in one sequence so lease transfer and expiry stay legible.
     fn round_outcomes_apply_router_owned_canonical_mutations() {
         let mut projector = TopologyProjector::new(LOCAL_NODE_ID, topology());
         let route = materialized_route(PATHWAY_ENGINE_ID, 9);
@@ -750,11 +752,10 @@ mod tests {
                 route: Box::new(replacement.clone()),
             },
         });
-        assert!(projector
+        assert!(!projector
             .snapshot()
             .active_routes
-            .get(route.identity.route_id())
-            .is_none());
+            .contains_key(route.identity.route_id()));
         assert!(projector
             .snapshot()
             .active_routes
@@ -799,13 +800,14 @@ mod tests {
                 route_id: *replacement.identity.route_id(),
             },
         });
-        assert!(projector
+        assert!(!projector
             .snapshot()
             .active_routes
-            .get(replacement.identity.route_id())
-            .is_none());
+            .contains_key(replacement.identity.route_id()));
     }
 
+    // long-block-exception: this regression keeps one full published route
+    // event fixture inline so the non-invention contract is auditable.
     #[test]
     fn route_event_without_canonical_route_does_not_invent_route_truth() {
         let mut projector = TopologyProjector::new(LOCAL_NODE_ID, topology());

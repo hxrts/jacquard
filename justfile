@@ -164,6 +164,7 @@ ci-dry-run:
     add_step "Result Must Use"            "cargo xtask check result-must-use"
     add_step "Proof Bearing Actions"      "cargo xtask check proof-bearing-actions"
     add_step "Surface Classification"     "cargo xtask check surface-classification"
+    add_step "Rust Style Guide"           "cargo xtask check rust-style-guide"
     add_step "Checkpoint Namespacing"     "cargo xtask check checkpoint-namespacing"
     add_step "Engine Service Boundary"    "cargo xtask check engine-service-boundary"
     add_step "Invariant Specs"            "cargo xtask check invariant-specs"
@@ -175,11 +176,11 @@ ci-dry-run:
     add_step "Routing Invariants"         "cargo xtask check routing-invariants"
     add_step "Routing Invariants Validate" "cargo xtask check routing-invariants --validate"
     add_step "Install cargo-dylint"       "nix develop ./nix/nightly --command install-dylint"
-    add_step "Dylint Trait Purity"        "nix develop ./nix/nightly --command cargo dylint --path lints/trait_purity --all -- --all-targets"
-    add_step "Dylint Model Policy"        "nix develop ./nix/nightly --command cargo dylint --path lints/model_policy --all -- --all-targets"
-    add_step "Dylint Routing Invariants"  "nix develop ./nix/nightly --command cargo dylint --path lints/routing_invariants --all -- --all-targets"
-    add_step "Dylint Trait Must Use"      "nix develop ./nix/nightly --command cargo dylint --path lints/trait_must_use --all -- --all-targets"
-    add_step "Dylint Naked Map Err"       "nix develop ./nix/nightly --command cargo dylint --path lints/naked_map_err --all -- --all-targets"
+    add_step "Dylint Trait Purity"        "nix develop ./nix/nightly --command env CARGO_INCREMENTAL=0 cargo dylint --path lints/trait_purity --all -- --all-targets"
+    add_step "Dylint Model Policy"        "nix develop ./nix/nightly --command env CARGO_INCREMENTAL=0 cargo dylint --path lints/model_policy --all -- --all-targets"
+    add_step "Dylint Routing Invariants"  "nix develop ./nix/nightly --command env CARGO_INCREMENTAL=0 cargo dylint --path lints/routing_invariants --all -- --all-targets"
+    add_step "Dylint Trait Must Use"      "nix develop ./nix/nightly --command env CARGO_INCREMENTAL=0 cargo dylint --path lints/trait_must_use --all -- --all-targets"
+    add_step "Dylint Naked Map Err"       "nix develop ./nix/nightly --command env CARGO_INCREMENTAL=0 cargo dylint --path lints/naked_map_err --all -- --all-targets"
     add_step "Docs Semantic Drift"        "cargo xtask check docs-semantic-drift"
     add_step "Docs Build"                 "just book"
 
@@ -230,6 +231,10 @@ ownership-invariants:
 # enforce routing correctness invariants
 routing-invariants:
     cargo xtask check routing-invariants
+
+# enforce mechanized Rust style-guide rules
+rust-style-guide:
+    cargo xtask check rust-style-guide
 
 # validate routing-invariant checks against seeded fixtures
 routing-invariants-validate:

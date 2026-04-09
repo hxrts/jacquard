@@ -95,7 +95,7 @@ fn sample_configuration() -> Observation<Configuration> {
 }
 
 /// Three-node mixed-engine topology. A and B are dual-engine (batman plus
-/// mesh). C is pathway-only. Links are A-B and B-C, so B is the hinge where
+/// pathway). C is pathway-only. Links are A-B and B-C, so B is the hinge where
 /// the batman leg hands off to the pathway leg.
 fn mixed_engine_configuration() -> Observation<Configuration> {
     Observation {
@@ -178,7 +178,7 @@ fn relay_profile() -> SelectedRoutingParameters {
 
 /// Build three pathway-only clients (A, B, C) attached to one shared network.
 /// B gets the relay profile so it can sit on the middle hop.
-fn build_client_triplet(
+fn client_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
 ) -> (PathwayClient, PathwayClient, PathwayClient) {
@@ -308,8 +308,7 @@ fn pathway_forwarding_across_shared_network() {
 
     // 3. Clients. Three pathway clients, each wrapping its own router and engine.
     //    Client B takes the relay profile because it sits on the middle hop.
-    let (mut client_a, mut client_b, mut client_c) =
-        build_client_triplet(&topology, network);
+    let (mut client_a, mut client_b, mut client_c) = client_triplet(&topology, network);
     let mut client_a = client_a.bind();
     let mut client_b = client_b.bind();
     let mut client_c = client_c.bind();

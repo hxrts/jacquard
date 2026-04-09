@@ -17,7 +17,7 @@ use jacquard_reference_client::{
 };
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::{
-    Router, RoutingEnvironmentModel, RoutingReplayView, RoutingScenario,
+    purity, Router, RoutingEnvironmentModel, RoutingReplayView, RoutingScenario,
     RoutingSimulator,
 };
 use telltale_simulator::{BatchConfig, SimRng};
@@ -46,6 +46,7 @@ pub enum SimulationError {
     Route(#[from] jacquard_core::RouteError),
 }
 
+#[purity(pure)]
 pub trait JacquardHostAdapter {
     fn build_hosts(
         &self,
@@ -90,7 +91,7 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
                     topology.observed_at_tick,
                 )
                 .build(),
-                | EngineLane::Batman => build_batman_only_client(
+                | EngineLane::Batman => batman_only_host(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
@@ -168,6 +169,9 @@ where
         ))
     }
 
+    // long-block-exception: the simulator round loop intentionally keeps
+    // checkpoint, environment, routing, and replay stitching in one harness
+    // path so deterministic replay is auditable end to end.
     fn run_from_state(
         &self,
         scenario: &JacquardScenario,
@@ -521,6 +525,8 @@ fn failure_summaries_for(
     summaries
 }
 
+// long-block-exception: checkpoint replay stitching compares prefix and suffix
+// artifacts in one place to preserve deterministic accounting.
 fn stitch_replay_from_checkpoint(
     replay: &JacquardReplayArtifact,
     completed_rounds: u32,
@@ -604,7 +610,7 @@ fn activate_objectives(
     Ok(())
 }
 
-fn build_batman_only_client(
+fn batman_only_host(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
     network: SharedInMemoryNetwork,

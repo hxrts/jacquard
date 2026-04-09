@@ -13,6 +13,7 @@ camino = "1"
 ignore = "0.4"
 pulldown-cmark = "0.10"
 regex = "1"
+proc-macro2 = { version = "1", features = ["span-locations"] }
 serde_json.workspace = true
 syn = { version = "2", features = ["full", "visit"] }
 telltale.workspace = true

@@ -128,6 +128,42 @@ fn admit_route_rejects_when_profile_requires_repair_and_candidate_is_best_effort
     ));
 }
 
+// The same direct route remains admissible when the profile honestly asks for
+// BestEffort repair semantics. This locks in the boundary that "best effort"
+// and "repairable" remain distinct rather than being silently collapsed.
+#[test]
+fn admit_route_accepts_best_effort_candidate_when_profile_matches() {
+    let engine = build_engine();
+    let topology = sample_configuration();
+    let goal = objective_with_floor(
+        DestinationId::Node(NodeId([2; 32])),
+        RouteProtectionClass::LinkProtected,
+        RouteProtectionClass::LinkProtected,
+    );
+    let policy = profile_with_connectivity(
+        RouteRepairClass::BestEffort,
+        RoutePartitionClass::ConnectedOnly,
+    );
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("direct path candidate should be produced");
+    let admission = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect("best-effort profile should admit best-effort candidate");
+
+    assert_eq!(
+        admission.witness.connectivity.delivered.repair,
+        RouteRepairClass::BestEffort
+    );
+    assert!(matches!(
+        admission.admission_check.decision,
+        AdmissionDecision::Admissible
+    ));
+}
+
 // Asking for partition tolerance against a direct route still exercises
 // the partition mismatch path independently of the new repair
 // classification.

@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn candidate_routes_require_destination_service_support_for_batman() {
         let topology = supported_topology();
-        let foreign_engine = RoutingEngineId::from_contract_bytes(*b"foreign-mesh-sup");
+        let foreign_engine = RoutingEngineId::from_contract_bytes(*b"foreign-path-sup");
         let mut unsupported = topology.clone();
         unsupported.value.nodes.insert(
             node(2),

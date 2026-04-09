@@ -7,6 +7,9 @@
 //!   factory functions; client construction goes through `ClientBuilder`.
 //! - Human-facing preset/client modules should not drift back toward long
 //!   positional public signatures.
+//! - Stale topology helper names, stale `mesh`-as-engine prose, and explicit
+//!   legacy/compatibility-wrapper wording must not reappear in source, tests,
+//!   docs, or `CLAUDE.md`.
 //!
 //! Registered as: `cargo xtask check dx-surface`
 
@@ -18,6 +21,56 @@ use crate::util::{normalize_rel_path, workspace_root, Violation};
 
 const PRESET_NAME_NEEDLES: &[&str] = &["ReferenceLink", "ReferenceNode"];
 const MAX_POSITIONAL_PARAMS: usize = 4;
+const FORBIDDEN_LEGACY_PATTERNS: &[(&str, &str)] = &[
+    (
+        "build_",
+        "stale `build_*client*` naming is forbidden; prefer `ClientBuilder` and direct helper names",
+    ),
+    (
+        "route_capable_node",
+        "stale topology helper name is forbidden; use the current topology preset helpers",
+    ),
+    (
+        "dual_engine_route_capable_node",
+        "stale topology helper name is forbidden; use the current topology preset helpers",
+    ),
+    (
+        "route_capable_node_for_engine",
+        "stale topology helper name is forbidden; use the current topology preset helpers",
+    ),
+    (
+        "active_link",
+        "stale topology helper name is forbidden; use `fixture_link` or the current preset helpers",
+    ),
+    (
+        "mesh-only",
+        "stale `mesh`-as-engine terminology is forbidden; use `pathway` terminology",
+    ),
+    (
+        "mesh routing",
+        "stale `mesh`-as-engine terminology is forbidden; use `pathway` terminology",
+    ),
+    (
+        "mesh engine",
+        "stale `mesh`-as-engine terminology is forbidden; use `pathway` terminology",
+    ),
+    (
+        "plus mesh",
+        "stale `mesh`-as-engine terminology is forbidden; use `pathway` terminology",
+    ),
+    (
+        "legacy",
+        "explicit legacy wording is forbidden; delete the stale surface instead of documenting it",
+    ),
+    (
+        "compatibility wrapper",
+        "compatibility-wrapper wording is forbidden; delete the wrapper instead",
+    ),
+    (
+        "compatibility wrappers",
+        "compatibility-wrapper wording is forbidden; delete the wrapper instead",
+    ),
+];
 
 pub fn run() -> Result<()> {
     let root = workspace_root()?;
@@ -26,6 +79,7 @@ pub fn run() -> Result<()> {
     violations.extend(scan_forbidden_preset_names(&root)?);
     violations.extend(scan_factory_surface(&root)?);
     violations.extend(scan_public_signature_lengths(&root)?);
+    violations.extend(scan_zero_legacy_surface(&root)?);
 
     if !violations.is_empty() {
         for violation in &violations {
@@ -123,6 +177,68 @@ fn scan_public_signature_lengths(root: &Path) -> Result<Vec<Violation>> {
         ));
     }
     Ok(violations)
+}
+
+fn scan_zero_legacy_surface(root: &Path) -> Result<Vec<Violation>> {
+    let mut violations = Vec::new();
+    let mut scan_paths = Vec::new();
+    for rel in ["crates", "docs"] {
+        let dir = root.join(rel);
+        if !dir.exists() {
+            continue;
+        }
+        for entry in walkdir::WalkDir::new(&dir)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+        {
+            scan_paths.push(entry.into_path());
+        }
+    }
+    let claude = root.join("CLAUDE.md");
+    if claude.is_file() {
+        scan_paths.push(claude);
+    }
+
+    for path in scan_paths {
+        let rel = normalize_rel_path(root, &path);
+        if should_skip_zero_legacy_scan(&rel) {
+            continue;
+        }
+        let is_scannable = matches!(
+            path.extension().and_then(|ext| ext.to_str()),
+            Some("rs" | "md")
+        ) || rel == "CLAUDE.md";
+        if !is_scannable {
+            continue;
+        }
+
+        let contents = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        for (line_no, line) in contents.lines().enumerate() {
+            if line.contains("build_") && line.contains("client") {
+                violations.push(Violation::new(
+                    rel.clone(),
+                    line_no + 1,
+                    FORBIDDEN_LEGACY_PATTERNS[0].1,
+                ));
+            }
+            for &(needle, message) in &FORBIDDEN_LEGACY_PATTERNS[1..] {
+                if line.contains(needle) {
+                    violations.push(Violation::new(rel.clone(), line_no + 1, message));
+                }
+            }
+        }
+    }
+
+    Ok(violations)
+}
+
+fn should_skip_zero_legacy_scan(rel: &str) -> bool {
+    rel.starts_with("docs/book/")
+        || rel.starts_with("crates/xtask/src/checks/")
+        || rel == "crates/pathway/src/engine/mod.rs"
+        || rel == "crates/macros/src/support/attrs.rs"
 }
 
 fn scan_file_for_long_public_signatures(rel: &str, contents: &str) -> Vec<Violation> {

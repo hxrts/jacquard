@@ -7,9 +7,9 @@
 //! is now honest and local to the pathway crate.
 
 use jacquard_core::{Configuration, Link, LinkEndpoint, Node, NodeId, Tick};
-use jacquard_traits::{RetentionStore, RoutingEngine};
+use jacquard_traits::{purity, RetentionStore, RoutingEngine};
 
-#[jacquard_traits::purity(read_only)]
+#[purity(read_only)]
 /// Deterministic, read-only topology queries used by the pathway
 /// planner/runtime.
 ///
@@ -68,7 +68,7 @@ pub trait PathwayTopologyModel {
     ) -> Option<Self::NeighborhoodEstimate>;
 }
 
-#[jacquard_traits::purity(read_only)]
+#[purity(read_only)]
 /// Narrow pathway-specialized routing-engine boundary for read-only pathway
 /// subcomponent access.
 ///
