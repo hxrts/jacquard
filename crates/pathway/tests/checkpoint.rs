@@ -1,4 +1,19 @@
 //! Integration tests for pathway checkpoint storage and recovery.
+//!
+//! The pathway engine persists route runtime state and protocol checkpoints
+//! through the `StorageEffects` surface so that a restarted engine can
+//! restore active routes without losing buffered payloads, repair counters,
+//! or handoff state. These tests verify three invariants:
+//!
+//! 1. A basic active route round-trips across an engine restart with the same
+//!    `ActiveRoute` value visible through `active_route`.
+//! 2. Richer runtime sub-states (partition buffering, repair, handoff) are
+//!    faithfully preserved through checkpoint storage and restored on the
+//!    recovered engine.
+//! 3. Protocol-layer checkpoints (activation, repair, forwarding tick) are
+//!    written under their canonical `pathway/protocol/` key prefixes and
+//!    survive a storage round-trip without hidden runtime state leaking across
+//!    the restart boundary.
 
 mod common;
 

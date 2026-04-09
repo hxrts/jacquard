@@ -1,4 +1,17 @@
 //! Expansion logic for the `#[public_model]` proc macro.
+//!
+//! `#[public_model]` applies canonical model derives to a struct or enum and
+//! rejects forbidden field types at compile time. It accepts no arguments and
+//! may be applied to any struct or enum item.
+//!
+//! The injected derives are: `Clone`, `Debug`, `PartialEq`, `Eq`, `Serialize`,
+//! `Deserialize`. Callers may add additional derives (e.g. `Copy`, `Ord`,
+//! `Hash`) on the annotated item directly; existing derives are preserved.
+//!
+//! Forbidden field types include raw `bool`, `f32`, `f64`, `usize`, `isize`,
+//! `std::time::Instant`, `std::time::SystemTime`, and `Option<T>` where `T`
+//! is any of the above. Validation is delegated to `support::validation` and
+//! is applied before any derive injection.
 
 use proc_macro::TokenStream;
 use quote::ToTokens;

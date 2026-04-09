@@ -1,4 +1,20 @@
 //! Source-level helpers for routing-invariant scans.
+//!
+//! Provides utilities shared across all routing-invariant lint passes for
+//! reading and searching raw source text. Because many routing invariants are
+//! structural patterns in source (e.g., ordering of mutations relative to
+//! persistence calls, or literal patterns like unscoped storage key strings),
+//! the lint passes operate on file text rather than purely on the HIR.
+//!
+//! Key functions:
+//! - `source_file_contents` — resolves a HIR item's source file path and reads
+//!   the full file text, returning both.
+//! - `rel_path` — normalizes a path to a forward-slash-separated string for
+//!   consistent cross-platform substring matching.
+//! - `first_line_matching` — returns the 1-based line number of the first line
+//!   in a file that matches a given regex.
+//! - `line_position` — returns the 1-based line number of the first line
+//!   containing a given literal substring.
 
 use std::path::{Path, PathBuf};
 

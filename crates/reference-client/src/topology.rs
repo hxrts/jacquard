@@ -1,8 +1,17 @@
-//! Reusable topology fixture builders used across integration tests.
-//! Assembles `Node` and `Link` values from the mem-node-profile and
-//! mem-link-profile builders. Provides route-capable nodes for a named
-//! routing engine and `dual_engine_route_capable_node` for pathway-plus-
-//! batman composition.
+//! Reusable topology fixture builders for reference-client integration tests.
+//!
+//! This module assembles `Node` and `Link` values from the `mem-node-profile`
+//! and `mem-link-profile` builders, giving tests a single place to construct
+//! route-capable topology fixtures without duplicating builder boilerplate.
+//!
+//! `route_capable_node` produces a node registered for the pathway engine.
+//! `route_capable_node_for_engine` accepts an arbitrary `RoutingEngineId` for
+//! tests that exercise a single non-default engine.
+//! `route_capable_node_for_engines` registers a node with multiple engines at
+//! once, used by `dual_engine_route_capable_node` to produce
+//! pathway-plus-batman nodes for mixed-engine topology tests.
+//! `active_link` produces a lossy but active `Link` with a configurable
+//! confidence permille value and a stable `WifiAware` endpoint.
 
 use jacquard_batman::BATMAN_ENGINE_ID;
 use jacquard_core::{

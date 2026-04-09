@@ -1,5 +1,16 @@
-//! Validates that crate-level ownership and boundary docs stay explicit in the
-//! shared crates.
+//! Validates that crate-level ownership and boundary documentation is explicit.
+//!
+//! The two lowest crate layers (`jacquard-core` and `jacquard-traits`) must
+//! document their ownership contracts in `lib.rs` using prescribed headings.
+//! Required sections include `## Connectivity Surface`, `## Service Surface`,
+//! `## Routing Engine Boundary`, and `## Ownership` with specific required
+//! terms under each heading.
+//!
+//! The check reads each target `lib.rs`, locates required headings, and
+//! verifies that the expected vocabulary terms appear in the section body.
+//! Missing headings or absent required terms are reported as violations.
+//!
+//! Registered as: `cargo xtask check ownership-invariants`
 
 use std::fs;
 
@@ -59,6 +70,17 @@ const TRAITS_REQUIREMENTS: &[DocRequirement] = &[
     },
 ];
 
+const ADAPTER_REQUIREMENTS: &[DocRequirement] = &[
+    DocRequirement {
+        heading: "## Adapter Support Surface",
+        required_terms: &["transport-neutral", "peer", "claim"],
+    },
+    DocRequirement {
+        heading: "## Ownership",
+        required_terms: &["jacquard-core", "jacquard-traits", "Tick", "OrderStamp"],
+    },
+];
+
 const REQUIRED_FILES: &[FileRequirement] = &[
     FileRequirement {
         rel_path: "crates/core/src/lib.rs",
@@ -67,6 +89,10 @@ const REQUIRED_FILES: &[FileRequirement] = &[
     FileRequirement {
         rel_path: "crates/traits/src/lib.rs",
         requirements: TRAITS_REQUIREMENTS,
+    },
+    FileRequirement {
+        rel_path: "crates/adapter/src/lib.rs",
+        requirements: ADAPTER_REQUIREMENTS,
     },
 ];
 

@@ -1,7 +1,20 @@
 //! `SharedInMemoryNetwork`, the in-memory carrier fabric that multiple
-//! `InMemoryTransport` instances attach to. Owns endpoint-to-node ownership
-//! and per-node inbox queues so tests can compose several device runtimes
-//! without a real radio.
+//! `InMemoryTransport` instances attach to.
+//!
+//! This module owns the shared routing table that maps `LinkEndpoint` values to
+//! `NodeId` owners, and maintains per-node inbox queues for in-flight frames.
+//! When one `InMemoryTransport` sends a frame to a known endpoint, the network
+//! places a `TransportIngressEvent::PayloadReceived` into the destination
+//! node's inbox. The receiving transport drains that inbox on the next call to
+//! `drain_transport_ingress`.
+//!
+//! The network is cloneable and reference-counted (`Arc<Mutex<_>>`) so multiple
+//! transport handles can share it across a test without unsafe aliasing. All
+//! internal state is protected by a single `Mutex` for deterministic ordering.
+//!
+//! Used by test harnesses, fixtures, and the reference client to compose
+//! several simulated device runtimes without requiring a real radio or socket
+//! layer.
 
 use std::{
     collections::BTreeMap,

@@ -2,7 +2,12 @@
 //!
 //! These tests live in `jacquard-pathway` because `PathwayTopologyModel` and
 //! `PathwayRoutingEngine` are pathway-specific contracts, not shared `traits`
-//! boundaries.
+//! boundaries. They verify that the extension seams exposed on
+//! `PathwayRoutingEngine` — `topology_model()` and `retention` — delegate
+//! correctly to the underlying subcomponents rather than returning stale
+//! copies or empty stubs. A test that accidentally reads a stale topology
+//! digest or a zero-object retention count would mask a broken subcomponent
+//! reference, so each assertion is driven by a concrete write first.
 
 mod common;
 

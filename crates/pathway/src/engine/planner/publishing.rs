@@ -3,7 +3,16 @@
 //! Control flow: once a candidate has been fully derived, this module builds
 //! the shared `RouteSummary`/`RouteEstimate`, applies final ordering and
 //! truncation, stores the memoized candidate entry, and publishes the shared
-//! `RouteCandidate` values the router sees.
+//! `RouteCandidate` values the router sees. Key methods:
+//! `build_candidate_summary` assembles the shared `RouteSummary` including
+//! protocol mix and hop count belief; `build_candidate_estimate` produces the
+//! `RouteEstimate` with confidence derived from segment count and topology;
+//! `collect_candidates` drives weighted path search and filters to
+//! objective-matching destinations; `sort_candidates` applies the three-key
+//! sort (path metric, preference score descending, deterministic order key) and
+//! truncates to `PATHWAY_CANDIDATE_COUNT_MAX`; `cache_and_publish_candidates`
+//! populates the planner cache and converts entries to the router-visible
+//! `RouteCandidate`.
 
 use std::cmp::Reverse;
 

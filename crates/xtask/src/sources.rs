@@ -1,5 +1,15 @@
-//! Parses every `crates/*/src/**/*.rs` file once with `syn` and exposes
-//! visitor helpers shared by the AST-based checks.
+//! Workspace source cache and AST visitor helpers.
+//!
+//! `parse_workspace_sources` walks every `.rs` file under `crates/*/src/`
+//! once, parses each with `syn`, and returns a `Vec<ParsedSource>` that
+//! AST-based checks can iterate without re-reading or re-parsing files.
+//!
+//! Also exposes targeted visitor helpers reused across multiple checks:
+//! - `public_traits` — iterate public trait items in a parsed file.
+//! - `attributes_match` — test whether any attribute on an item has a given
+//!   identifier, covering both `#[foo]` and `#[foo(...)]` forms.
+//! - `all_identifiers` — collect every declared type and function identifier
+//!   from the workspace, used by the semantic-drift check.
 
 use std::collections::BTreeSet;
 

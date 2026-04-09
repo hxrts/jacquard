@@ -4,7 +4,14 @@
 //! module then computes the ranking signals layered on top of that search:
 //! per-hop penalties, topology-model preference, deterministic tie-break
 //! inputs, letting the planner sort candidates without changing their shared
-//! shape.
+//! shape. Key methods on `PathwayEngine`: `candidate_preference_score`
+//! combines first-hop peer estimates and neighborhood estimates into an
+//! overall preference adjustment used as a secondary sort key after raw
+//! path-metric score; `edge_metric_score` computes the weighted per-edge
+//! cost from delivery, symmetry, and loss penalties minus peer and
+//! neighborhood bonuses; `path_metric_score` aggregates edge scores across
+//! all segments with protocol-diversity bonuses and deferred-delivery
+//! discounts. All scoring is deterministic and uses no floating-point types.
 
 use jacquard_core::{Configuration, NodeId, Observation, RoutingObjective};
 

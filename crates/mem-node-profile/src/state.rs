@@ -1,7 +1,21 @@
 //! `NodeStateSnapshot`, a mutable in-memory node-state simulator for tests.
-//! Lets callers vary relay budget, available connections, hold-capacity
-//! headroom, and information-set summary independently, then build a shared
-//! `NodeState` snapshot.
+//!
+//! This module tracks the runtime state half of a simulated node: relay work
+//! budget and utilization, retention horizon, available connection count,
+//! hold-capacity headroom, and information-set summary (item count, byte count,
+//! Bloom false-positive rate). These fields map directly onto `NodeState` from
+//! `jacquard-core`.
+//!
+//! Callers can vary each dimension independently via builder methods, then call
+//! `build` to produce a fully specified `NodeState` snapshot. Three imperative
+//! mutation helpers (`consume_relay_budget`, `reserve_hold_capacity`,
+//! `open_connection`, `close_connection`) let tests simulate incremental state
+//! changes without rebuilding from scratch.
+//!
+//! `route_capable` is a preset constructor that sets generous defaults suitable
+//! for most routing-engine tests. Use the builder methods to override
+//! individual fields when a test scenario requires tighter or looser capacity
+//! constraints.
 
 use jacquard_core::{
     ByteCount, DurationMs, HoldItemCount, NodeState, NodeStateBuilder, RatioPermille,

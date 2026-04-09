@@ -1,9 +1,18 @@
-//! Rejects references to the private scratch directory inside the rust
-//! codebase. The committed sources and inline comments must not point at
-//! files outside the published crate, doc, and CI surfaces.
+//! Rejects references to the private scratch directory in committed Rust
+//! sources.
 //!
-//! Exemption: this check itself and `docs_link_check` are allowed to mention
-//! the prefix because they are the enforcement mechanism.
+//! Committed sources, inline comments, and string literals must not reference
+//! the private `work/` scratch prefix. That directory is local-only and must
+//! not appear in published crate, doc, or CI surfaces. References would create
+//! broken paths for anyone without the local scratch tree.
+//!
+//! Scans every `.rs` file in the workspace as raw bytes, searching for the
+//! forbidden byte prefix `work/`. Files are scanned including comments because
+//! even commented-out scratch paths are disallowed.
+//!
+//! Exempt files: this check itself and `docs_link_check` may mention the
+//! prefix, as they are the enforcement mechanism.
+//! Registered as: `cargo xtask check no-scratch-refs-in-rust`
 
 use std::fs;
 

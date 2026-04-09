@@ -1,3 +1,21 @@
+//! Integration tests for the router middleware layer: topology ingestion,
+//! policy-input propagation, and capability enforcement.
+//!
+//! These tests exercise the `RoutingControlPlane` surface of
+//! `MultiEngineRouter` to verify that topology observations and policy inputs
+//! flow through the middleware before engine ticks and candidate selection, and
+//! that the router accurately reflects the registered capability set of its
+//! engines.
+//!
+//! Key behaviors covered:
+//! - Topology and policy inputs ingested before activation are reflected in the
+//!   materialized route's `topology_epoch` stamp.
+//! - Registered engine IDs and capabilities are accurately surfaced through the
+//!   router's `registered_engine_ids` and `registered_engine_capabilities`
+//!   APIs.
+//! - `advance_round` aggregates per-engine tick outcomes into a shared
+//!   `RouterRoundOutcome` and propagates the most urgent `next_round_hint`.
+
 mod common;
 
 use common::{build_router, objective, sample_configuration, FAR_NODE_ID};

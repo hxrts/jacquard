@@ -1,5 +1,19 @@
-//! Observation-layer support types, shared observed payloads, and observation
-//! aliases over world objects.
+//! Observation-layer support types, relay budget facts, and world observation
+//! aliases.
+//!
+//! This module provides the shared types used by world extensions to surface
+//! node-level observations and relay budget facts into the routing pipeline.
+//! Budget types: [`RelayWorkBudget`], [`MaintenanceWorkBudget`],
+//! [`HoldItemCount`], [`NodeRelayBudget`] (the full relay budget snapshot
+//! including utilization and retention horizon), and [`InformationSetSummary`]
+//! (the bloom-filter or sketch summary of a node's retained information).
+//!
+//! Observation type aliases make provenance explicit: [`NodeObservation`],
+//! [`LinkObservation`], [`EnvironmentObservation`], [`ServiceObservation`],
+//! [`ConfigurationObservation`], and [`WorldObservation`] each wrap the
+//! underlying value in `Observation<T>` with full source, evidence, and
+//! authentication provenance. [`ObservedValue`] is the self-describing payload
+//! enum that world extensions emit.
 
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};

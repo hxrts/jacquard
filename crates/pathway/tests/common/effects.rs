@@ -34,32 +34,31 @@ pub struct TestTransport(Arc<Mutex<InMemoryTransport>>);
 
 impl TestTransport {
     pub fn push_observation(&self, observation: TransportObservation) {
-        self.0
-            .lock()
-            .expect(TRANSPORT_LOCK)
-            .ingress_events
-            .push(match observation {
-                | TransportObservation::PayloadReceived {
-                    from_node_id,
-                    endpoint,
-                    payload,
-                    ..
-                } => TransportIngressEvent::PayloadReceived {
-                    from_node_id,
-                    endpoint,
-                    payload,
-                },
-                | TransportObservation::LinkObserved {
-                    remote_node_id,
-                    observation,
-                } => TransportIngressEvent::LinkObserved {
+        let event = match observation {
+            | TransportObservation::PayloadReceived {
+                from_node_id,
+                endpoint,
+                payload,
+                ..
+            } => TransportIngressEvent::PayloadReceived {
+                from_node_id,
+                endpoint,
+                payload,
+            },
+            | TransportObservation::LinkObserved { remote_node_id, observation } => {
+                TransportIngressEvent::LinkObserved {
                     remote_node_id,
                     link: observation.value,
                     source_class: observation.source_class,
                     evidence_class: observation.evidence_class,
                     origin_authentication: observation.origin_authentication,
-                },
-            });
+                }
+            },
+        };
+        self.0
+            .lock()
+            .expect(TRANSPORT_LOCK)
+            .push_ingress_event(event);
     }
 
     #[must_use]

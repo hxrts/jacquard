@@ -1,5 +1,15 @@
 //! Admission-test fixtures for route objectives, profiles, summaries, and
 //! costs.
+//!
+//! These builders produce the typed inputs consumed by the admission tests in
+//! `admission.rs`. Each function is pure and deterministic: same arguments
+//! always yield the same struct value. `neutral_assumptions` provides the
+//! benign baseline assumption set. `objective_with_floor` produces a
+//! `RoutingObjective` with a configurable protection floor. `profile_with`
+//! selects repair and partition classes independently. `summary_with`
+//! constructs a `RouteSummary` keyed to the pathway engine. `unit_route_cost`
+//! returns a minimal single-hop cost bound used to drive rejection branches
+//! that depend on cost constraints.
 
 use jacquard_core::{
     AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength, ConnectivityPosture,

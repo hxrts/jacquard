@@ -1,8 +1,16 @@
 //! Enforces the reference-client host-bridge boundary.
 //!
-//! `jacquard-reference-client` may own `TransportDriver` only inside its bridge
-//! layer, and only the bridge/builders may attach concrete in-memory
-//! transports. Tests must advance the bridge, not the router directly.
+//! `jacquard-reference-client` is the host-side integration layer that
+//! composes router, pathway/batman engine, and in-memory profiles for
+//! end-to-end tests. Its internal boundary rules are:
+//! - `TransportDriver` may only appear inside `bridge.rs` or `clients.rs`.
+//! - Direct in-memory transport attachment is allowed only in bridge/builders.
+//! - Tests must advance the bridge (which owns time and ingress), not the
+//!   router directly, preserving the host-owns-time invariant.
+//!
+//! Scans: all `.rs` files under `crates/reference-client/src/` for forbidden
+//! patterns outside the designated bridge files.
+//! Registered as: `cargo xtask check reference-bridge-boundary`
 
 use anyhow::{bail, Context, Result};
 

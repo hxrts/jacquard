@@ -1,11 +1,16 @@
 //! Validates that high-consequence decisions are returned as typed
 //! proof/evidence.
 //!
-//! Enforces that pub methods returning `Result<MaterializedRoute, _>`,
-//! `Result<RouteInstallation, _>`, or `Result<RouteMaintenanceResult, _>`
-//! have explicit doc comments explaining the proof semantics they carry.
-//! These are high-consequence control-plane surfaces where silently dropping
-//! the returned proof loses audit evidence.
+//! Enforces that public methods returning `Result<MaterializedRoute, _>`,
+//! `Result<RouteInstallation, _>`, `Result<RouteMaintenanceResult, _>`, or
+//! other high-consequence types carry explicit doc comments that explain the
+//! proof semantics of the returned value. These are control-plane surfaces
+//! where silently dropping the returned proof loses audit evidence.
+//!
+//! Uses a `syn` AST visitor over `ItemImpl` blocks, inspecting each public
+//! method's return type and attribute list. Methods returning one of the
+//! `HIGH_CONSEQUENCE_TYPES` without a `///` doc comment are reported.
+//! Registered as: `cargo xtask check proof-bearing-actions`
 
 use anyhow::{bail, Result};
 use syn::visit::Visit;

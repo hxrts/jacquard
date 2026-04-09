@@ -1,4 +1,18 @@
-//! World and configuration primitives for routing.
+//! Instantiated world model types: nodes, links, environment, and
+//! configuration.
+//!
+//! This module defines the routing world model objects that engines and routers
+//! operate on. Each major world entity is split into a stable capability
+//! surface and a mutable runtime state: [`NodeProfile`] / [`NodeState`] /
+//! [`Node`] for participant nodes, and [`LinkProfile`] / [`LinkState`] /
+//! [`Link`] for directed connections. [`Environment`] captures local
+//! neighborhood conditions (neighbor count, churn, contention).
+//! [`Configuration`] assembles these into a partial local view keyed by epoch.
+//!
+//! All collections use `BTreeMap` with deterministic key ordering to preserve
+//! the no-ambient-randomness invariant. Node and link profile values are
+//! bounded by the constants in `base/constants.rs`. Runtime state fields use
+//! `Belief<T>` to represent observations that may be absent or estimated.
 
 use std::collections::BTreeMap;
 

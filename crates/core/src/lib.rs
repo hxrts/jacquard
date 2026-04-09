@@ -30,8 +30,10 @@
 //!
 //! `jacquard-core` is shared data only. It must not publish canonical route
 //! truth, hide runtime mutation behind convenience helpers, or grow behavioral
-//! traits that belong in `jacquard-traits`. Canonical route ownership remains
-//! above this crate.
+//! traits that belong in `jacquard-traits`. Generic adapter-support helpers
+//! such as ingress mailboxes or peer/claim ownership scaffolding belong in
+//! `jacquard-adapter`, not here. Canonical route ownership remains above this
+//! crate.
 
 #![forbid(unsafe_code)]
 

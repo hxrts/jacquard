@@ -1,4 +1,17 @@
-//! Node, controller, route, and scope identifiers.
+//! Node, controller, route, and scope identifier newtypes.
+//!
+//! This module defines all fixed-size byte-array identifiers used in the
+//! routing world model. Participant and authority identifiers (`NodeId`,
+//! `ControllerId`, `KeyId`) are 32-byte values. Routing and scope identifiers
+//! (`RouteId`, `CommitteeId`, `PathId`, and others) are 16-byte values derived
+//! from `Blake3Digest` truncation. Structural types include `RoutingEngineId`
+//! (an engine contract wrapper), `DestinationId` (the three-way node/service/
+//! gateway address form), and `NodeBinding` with `NodeBindingProof` (the
+//! attestable link between a node instance and its controlling authority).
+//!
+//! All newtypes are declared with `bytes_newtype!` or `id_type` and inherit the
+//! standard routing model derives. `From<&Blake3Digest>` impls for the 16-byte
+//! routing id types live at the bottom of this file.
 
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};

@@ -1,4 +1,17 @@
 //! Helpers for applying and normalizing Rust attributes.
+//!
+//! Provides three functions used by the model and trait proc macros to safely
+//! inject or verify attributes on the item being annotated:
+//!
+//! - `ensure_derive` — inspects existing `#[derive(...)]` attributes and
+//!   injects a single additional `#[derive(...)]` for any required paths that
+//!   are missing. Path comparison is whitespace-normalized so `serde ::
+//!   Serialize` and `serde::Serialize` are treated as the same path.
+//! - `ensure_must_use` — injects `#[must_use = "<message>"]` when no
+//!   `#[must_use]` attribute is already present on the item.
+//! - `ensure_repr_transparent` — injects `#[repr(transparent)]` when no
+//!   `#[repr(transparent)]` is already present, which is required by both
+//!   `#[id_type]` and `#[bounded_value]` to guarantee ABI compatibility.
 
 use std::collections::BTreeSet;
 

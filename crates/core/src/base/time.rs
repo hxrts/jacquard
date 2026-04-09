@@ -1,4 +1,20 @@
 //! Deterministic time model and integer-scaled metric types.
+//!
+//! Jacquard is fully deterministic: no floating-point types, no wall-clock
+//! APIs, and no ambient randomness appear in routing or protocol state. This
+//! module defines the typed time and metric primitives that enforce that
+//! invariant throughout the workspace.
+//!
+//! Core time types: [`Tick`] (local monotonic time, not wall clock),
+//! [`DurationMs`] (integer millisecond duration for timeouts and windows),
+//! [`OrderStamp`] (deterministic ordering independent of wall clock), and
+//! [`RouteEpoch`] (topology and reconfiguration version counter).
+//!
+//! Metric types: [`ByteCount`] (deterministic byte quantity), [`RatioPermille`]
+//! (bounded 0..=1000 integer-scaled ratio), [`PriorityPoints`],
+//! [`HealthScore`], and [`PenaltyPoints`]. [`TimeWindow`] models half-open
+//! `[start_tick, end_tick)` lease intervals. [`TimeoutPolicy`] packages retry
+//! and backoff parameters without referencing wall time.
 
 use std::{
     fmt,

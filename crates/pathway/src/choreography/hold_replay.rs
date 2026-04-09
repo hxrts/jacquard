@@ -4,7 +4,13 @@
 //! holder, the holder announces storage to the observer, and the recipient
 //! either replays immediately or defers. Pathway keeps the owner-visible
 //! retained object accounting in ordinary route runtime state rather than
-//! sending a second protocol-level tail message back to the owner.
+//! sending a second protocol-level tail message back to the owner. The
+//! four-role `HoldReplayExchange` protocol uses `PathwayRuntime` (store and
+//! replay retention commands) and `PathwayAudit` (observer-side event
+//! recording). `HolderHost` implements the runtime effect; `ObserverHost`
+//! implements the audit effect. The public entry points are `retain` (deferred
+//! disposition) and `replay` (immediate replay with frame forwarding); both
+//! delegate to a shared private `execute` with a typed `ReplayDisposition`.
 
 use std::{cell::RefCell, error::Error, marker, rc::Rc, result};
 

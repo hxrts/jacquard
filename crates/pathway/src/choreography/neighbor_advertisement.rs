@@ -2,7 +2,14 @@
 //!
 //! Control flow: the local node advertises coarse neighbor-facing
 //! capability state, the neighbor either sees or ignores it, and the observer
-//! receives that same visible outcome through the generated branch.
+//! receives that same visible outcome through the generated branch. The
+//! three-role `NeighborAdvertisementExchange` protocol carries a small
+//! capability snapshot: service count and adjacent neighbor count. The
+//! neighbor branch resolves to `Seen` when service count is positive and
+//! `Ignored` otherwise. The `execute` entry point is called from the pathway
+//! tick runtime and returns the observer-branch detail string so the caller
+//! can emit a structured protocol observation without reading session types
+//! directly. Protocol constants are exported for the artifacts catalog.
 
 use std::{error::Error, marker, result};
 

@@ -1,7 +1,26 @@
-//! Engine-private state maintenance for `BatmanEngine`. Refreshes per
-//! originator observations from the latest topology, ranks neighbors by
-//! transmit quality and hop count, and derives the best next-hop table
-//! consumed by the planner and runtime.
+//! Engine-private state maintenance for `BatmanEngine`.
+//!
+//! Refreshes per-originator observations from the latest topology, ranks
+//! neighbors by transmit quality and hop count, and derives the best next-hop
+//! table consumed by the planner and runtime modules.
+//!
+//! The main entry point is `refresh_private_state`, which runs on each engine
+//! tick and performs three passes:
+//! 1. `derive_originator_observations` — for each remote node visible in the
+//!    topology, compute a per-neighbor TQ score using `scoring::derive_tq` and
+//!    `scoring::tq_product` over the best known path through each direct
+//!    neighbor.
+//! 2. `merge_observations` — merge fresh observations with non-stale prior
+//!    entries so that destinations last seen within
+//!    `decay_window.stale_after_ticks` are retained even when they are
+//!    temporarily absent from the topology.
+//! 3. Ranking and best-next-hop derivation — sort each originator's neighbor
+//!    list by TQ descending, hop count ascending, then neighbor id, and extract
+//!    the first entry as the `BestNextHop`.
+//!
+//! Also exposes helper methods used by the planner and runtime:
+//! `candidate_for`, `admission_for`, `route_id_for`, `backend_route_id_for`,
+//! and `is_stale`.
 
 use std::collections::BTreeMap;
 

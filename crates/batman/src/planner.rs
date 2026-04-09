@@ -1,7 +1,22 @@
-//! `RoutingEnginePlanner` impl for `BatmanEngine`. Candidate enumeration
-//! reads the best next-hop table keyed by destination node, admission
-//! checks the objective against table entries, and emits one candidate per
-//! known destination without searching the shared topology.
+//! `RoutingEnginePlanner` impl for `BatmanEngine`.
+//!
+//! Candidate enumeration reads the best next-hop table keyed by destination
+//! node and emits at most one `RouteCandidate` per known destination without
+//! searching the shared topology for explicit paths. BATMAN only knows which
+//! direct neighbor to use next — the full route shape is `NextHopOnly`.
+//!
+//! Key behaviors:
+//! - `candidate_routes` — returns a single candidate per destination node if
+//!   the node is reachable via the best next-hop table and the destination's
+//!   node profile declares support for the BATMAN engine.
+//! - `check_candidate` — delegates to `admit_route` and extracts the
+//!   `RouteAdmissionCheck` from the result.
+//! - `admit_route` — validates that the candidate's `BackendRouteRef` matches
+//!   the current best next-hop entry and computes a full `RouteAdmission`
+//!   including witness and admission assumptions.
+//!
+//! Destination service support is verified against the node profile in the
+//! shared topology observation before any table lookup.
 
 use jacquard_core::{
     Configuration, DestinationId, Observation, RouteAdmission, RouteAdmissionCheck,

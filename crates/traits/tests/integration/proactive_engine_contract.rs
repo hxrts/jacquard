@@ -1,5 +1,19 @@
-//! Proactive routing-engine contract coverage for engines that maintain a
-//! private table on `engine_tick` before serving advisory candidates.
+//! Contract tests for proactive routing engines that build private tables.
+//!
+//! This module covers the `engine_tick` path for routing engines that maintain
+//! engine-private state (such as a reachability table) between planning calls.
+//! The pattern under test is: on each `engine_tick` the engine rebuilds an
+//! internal table from the topology observation, then serves advisory
+//! candidates from that table when `candidate_routes` is called.
+//!
+//! Coverage areas:
+//! - `RoutingEngine::engine_tick` returning `PrivateStateUpdated` on first tick
+//!   when the topology differs from the previously cached table.
+//! - `engine_tick` returning `NoChange` on a second tick with the same
+//!   topology.
+//! - Advisory candidate production from the proactive table, including engines
+//!   that operate with `RouteShapeVisibility::NextHopOnly` rather than full
+//!   explicit path visibility.
 
 use std::collections::BTreeMap;
 

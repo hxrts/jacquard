@@ -1,4 +1,18 @@
-//! Enforces the internal pathway choreography boundary.
+//! Enforces the internal pathway choreography module structure.
+//!
+//! Pathway choreography modules must follow a prescribed layout: each
+//! choreography sub-path must contain the required module files and must not
+//! introduce transport drivers or other non-choreography concerns.
+//!
+//! Supports two modes:
+//! - Default (no flags): validates the live workspace under `crates/pathway/`.
+//! - `--validate`: runs against synthetic fixtures in
+//!   `crates/xtask/fixtures/pathway_choreography/` and expects at least one
+//!   violation to be triggered, confirming the rules fire correctly.
+//!
+//! Scans: `.rs` files under the chosen root, filtered to pathway choreography
+//! paths, checking for required module structure and forbidden patterns.
+//! Registered as: `cargo xtask check pathway-choreography [--validate]`
 
 use std::{
     fs,

@@ -1,3 +1,19 @@
+//! Contract tests for effect and driver component traits.
+//!
+//! This module verifies that the transport sender/driver ownership split and
+//! the retention store interface are correctly implemented by the in-memory
+//! profile crates, and that the effect-handler machinery correctly classifies
+//! those implementations.
+//!
+//! Coverage areas:
+//! - `TransportSenderEffects` and `TransportDriver` operating on the same
+//!   in-memory transport without conflating the send and supervision surfaces.
+//! - `RetentionStore` retaining, confirming, and releasing opaque payloads by
+//!   content id without leaking held data after `take_retained_payload`.
+//! - `EffectHandler<dyn TransportSenderEffects>` satisfied by
+//!   `InMemoryTransport` through the `#[effect_handler]` attribute, while
+//!   `TransportDriver` stays outside the effect-handler vocabulary.
+
 use jacquard_mem_link_profile::{InMemoryRetentionStore, InMemoryTransport};
 use jacquard_traits::{
     jacquard_core::{

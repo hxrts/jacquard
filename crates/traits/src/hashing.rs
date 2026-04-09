@@ -1,4 +1,21 @@
 //! Hashing traits and content-addressable identity for routing artifacts.
+//!
+//! This module defines the pure deterministic hashing surface used throughout
+//! Jacquard to derive stable content identifiers from canonical byte encodings.
+//! All hashing must remain deterministic: no ambient randomness, no wall-clock
+//! seeds, and no host-dependent state.
+//!
+//! Key items exported from this module:
+//! - [`Hashing`] — pure trait over a concrete digest type; callers hash raw
+//!   bytes or domain-tagged payloads without depending on one algorithm.
+//! - [`HashDigestBytes`] — view a digest as its raw byte representation.
+//! - [`Blake3Hashing`] — concrete `Hashing` implementation using BLAKE3.
+//! - [`ContentAddressable`] — derive a `ContentId` from canonical encoding.
+//! - [`TemplateAddressable`] — like `ContentAddressable` but for schema or
+//!   template identity rather than instance identity.
+//!
+//! Domain-tagged hashing (`hash_tagged`) length-prefixes the domain tag to
+//! prevent ambiguous collisions between different (domain, payload) pairs.
 
 use jacquard_core::{Blake3Digest, ContentEncodingError, ContentId};
 use jacquard_macros::purity;

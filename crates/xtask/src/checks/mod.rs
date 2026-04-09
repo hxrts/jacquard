@@ -1,6 +1,20 @@
-//! Check registry. Each submodule implements one `cargo xtask check <name>`
-//! rule. `run` matches the requested name against the registered set.
+//! Check registry for `cargo xtask check <name>`.
+//!
+//! Each public submodule implements exactly one named policy check. The `run`
+//! function dispatches on the first CLI argument, routing to the matching
+//! submodule or returning an informative error for unknown names.
+//!
+//! Registered check names:
+//!   adapter-boundary, checkpoint-namespacing, crate-boundary,
+//!   docs-link-check, docs-semantic-drift, engine-service-boundary,
+//!   fail-closed-ordering, invariant-specs, no-scratch-refs-in-rust,
+//!   no-usize-in-models, ownership-invariants, pathway-async-boundary,
+//!   pathway-choreography, proc-macro-scope, proof-bearing-actions,
+//!   reference-bridge-boundary, result-must-use, router-round-boundary,
+//!   routing-invariants, surface-classification, test-boundaries,
+//!   trait-purity, transport-authoring-boundary, transport-ownership-boundary.
 
+pub mod adapter_boundary;
 pub mod checkpoint_namespacing;
 pub mod crate_boundary;
 pub mod docs_link_check;
@@ -34,6 +48,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
     };
     let rest = &args[1..];
     match name {
+        | "adapter-boundary" => adapter_boundary::run(),
         | "checkpoint-namespacing" => checkpoint_namespacing::run(),
         | "crate-boundary" => crate_boundary::run(),
         | "docs-link-check" => docs_link_check::run(),

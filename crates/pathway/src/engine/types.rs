@@ -1,7 +1,16 @@
 //! Pathway-owned route and runtime data types.
 //!
 //! These types stay inside `jacquard-pathway` even when they are assembled
-//! from shared world inputs and shared route lifecycle objects.
+//! from shared world inputs and shared route lifecycle objects. Includes the
+//! active-route record (`ActivePathwayRoute`) that holds forwarding, repair,
+//! handoff, and anti-entropy sub-state; per-route projection views used by
+//! the router-facing API (`PathwayActiveRouteView`, `PathwayForwardingCursor`);
+//! engine-wide control summaries (`PathwayControlState`,
+//! `PathwayAntiEntropyState`, `PathwayTransportObservationSummary`); and the
+//! round-progress discriminant (`PathwayRoundProgress`) that the host sees
+//! after each `engine_tick` call. The planner cache entry (`CachedCandidate`)
+//! is also defined here so it can be shared across the `planner` and
+//! `runtime` sub-modules without crossing visibility boundaries.
 
 use std::collections::{BTreeMap, BTreeSet};
 

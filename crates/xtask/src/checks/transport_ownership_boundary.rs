@@ -1,7 +1,17 @@
-//! Enforces the transport ownership split:
-//! - `TransportSenderEffects` is the only shared transport effect capability
-//! - ingress draining must live on `TransportDriver`, outside effect vocabulary
-//! - concrete driver implementations must not stamp Jacquard time internally
+//! Enforces the transport ownership split between effects and drivers.
+//!
+//! The transport layer is divided into two distinct surfaces that must not
+//! bleed into each other:
+//! - `TransportSenderEffects` is the only shared synchronous send capability;
+//!   it must not grow ingress or supervision methods.
+//! - `TransportDriver` is the host-owned ingress and supervision surface;
+//!   ingress draining must live here, not inside the effect vocabulary.
+//! - Concrete driver implementations must not stamp Jacquard time (`Tick`,
+//!   `DurationMs`) internally; time assignment belongs to the host bridge.
+//!
+//! Scans: the effect-capability file, the driver-contract file, driver
+//! implementations, and adapter helpers across the workspace.
+//! Registered as: `cargo xtask check transport-ownership-boundary`
 
 use anyhow::{bail, Context, Result};
 
@@ -15,6 +25,7 @@ pub fn run() -> Result<()> {
     let mut violations = scan_effect_capability_file(&root)?;
     violations.extend(scan_driver_contract_file(&root)?);
     violations.extend(scan_driver_impls(&root)?);
+    violations.extend(scan_adapter_helpers(&root)?);
 
     if !violations.is_empty() {
         for violation in &violations {
@@ -30,6 +41,45 @@ pub fn run() -> Result<()> {
 
     println!("transport-ownership-boundary: transport ownership split is valid");
     Ok(())
+}
+
+fn scan_adapter_helpers(root: &std::path::Path) -> Result<Vec<Violation>> {
+    let adapter_path = root.join("crates/adapter/src");
+    let mut violations = Vec::new();
+    if !adapter_path.exists() {
+        return Ok(violations);
+    }
+
+    for path in collect_rust_files(root)? {
+        if !path.starts_with(&adapter_path) {
+            continue;
+        }
+        let rel = normalize_rel_path(root, &path);
+        let contents = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        for (index, line) in contents.lines().enumerate() {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("//") {
+                continue;
+            }
+            if line.contains("Tick")
+                || line.contains("OrderStamp")
+                || line.contains("observed_at_tick")
+                || line.contains(".observe_at(")
+                || line.contains("now_tick(")
+                || line.contains("next_order_stamp(")
+            {
+                violations.push(Violation::with_layer(
+                    rel.clone(),
+                    index + 1,
+                    "adapter helpers must stay free of Jacquard time and ordering assignment",
+                    layer_for_rel_path(&rel),
+                ));
+            }
+        }
+    }
+
+    Ok(violations)
 }
 
 fn scan_effect_capability_file(root: &std::path::Path) -> Result<Vec<Violation>> {

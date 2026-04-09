@@ -1,9 +1,24 @@
 //! Effect vocabulary traits for deterministic routing.
 //!
 //! In Jacquard, an effect trait names a narrow abstract runtime capability that
-//! the pure routing core may request. It describes the operation vocabulary.
-//! It does not own supervision, background orchestration, or canonical routing
-//! truth. Concrete handlers live in the separate `handler` module.
+//! the pure routing core may request. It describes the operation vocabulary
+//! without owning supervision, background orchestration, or canonical routing
+//! truth. Concrete implementations are attached to handler structs via the
+//! `#[effect_handler]` proc-macro attribute and registered against these
+//! traits.
+//!
+//! Key traits exported from this module:
+//! - [`TimeEffects`] — read-only access to monotonic logical time (`Tick`).
+//! - [`OrderEffects`] — deterministic `OrderStamp` allocation.
+//! - [`StorageEffects`] — opaque byte persistence (load, store, remove).
+//! - [`RouteEventLogEffects`] — append-only stamped route-event log.
+//! - [`TransportSenderEffects`] — synchronous byte-send capability over a named
+//!   endpoint; ingress supervision lives on `TransportDriver` instead.
+//! - [`RetentionStore`] — deferred-delivery payload retention by content id.
+//! - [`RoutingRuntimeEffects`] — blanket aggregate for the minimal required
+//!   set.
+//! - [`Effect`] — sealed marker that every effect trait automatically
+//!   satisfies.
 
 use jacquard_core::{
     Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError,

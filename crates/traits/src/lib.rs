@@ -19,7 +19,9 @@
 //!
 //! Host-owned supervision surfaces such as [`TransportDriver`] also live here,
 //! but they are not effect capabilities and must not be treated as part of the
-//! synchronous routing-effect vocabulary.
+//! synchronous routing-effect vocabulary. Reusable adapter-support helpers such
+//! as raw ingress mailboxes or peer/claim bookkeeping live in
+//! `jacquard-adapter`, not in this contract crate.
 //!
 //! ## Engine And Router Contracts
 //!

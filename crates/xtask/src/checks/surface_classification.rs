@@ -1,10 +1,16 @@
-//! Validates that transport-related traits are classified as connectivity or
-//! service surface in their doc comments.
+//! Validates that transport-related traits are classified in their doc
+//! comments.
 //!
-//! Only targets traits whose name contains "Transport" — these are the
-//! traits that describe a physical/network boundary and need explicit
-//! classification as connectivity surface (carries opaque bytes) or service
-//! surface (carries typed semantic operations).
+//! Traits whose name contains "Transport" describe a physical or network
+//! boundary and must declare their surface kind in their module-level docs:
+//! - `connectivity surface` — the trait carries opaque bytes across a link.
+//! - `service surface` — the trait carries typed semantic operations.
+//!
+//! Scans: all parsed workspace sources via `parse_workspace_sources`. Each
+//! public trait whose name matches `is_transport_trait` is inspected for the
+//! required classification phrase in its doc-comment text.
+//!
+//! Registered as: `cargo xtask check surface-classification`
 
 use anyhow::{bail, Result};
 

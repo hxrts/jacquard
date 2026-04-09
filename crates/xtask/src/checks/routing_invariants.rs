@@ -1,6 +1,17 @@
-//! High-leverage routing-invariant checks. Each rule is a small AST
-//! or text visitor that either passes cleanly or reports violations.
-//! No waivers: if a rule fires on real code, the code gets fixed.
+//! High-leverage routing-invariant checks.
+//!
+//! Each rule is a small AST or text visitor that either passes cleanly or
+//! reports violations with no waiver mechanism: if a rule fires on real code,
+//! the code gets fixed. Rules cover:
+//! - Explicit topology planner signatures (no implicit topology capture)
+//! - World-extension error purity (no lossy error coercions)
+//! - Fail-closed mutation ordering (validate before mutate)
+//! - Storage key namespace prefix compliance
+//!
+//! Supports `--validate` to run against synthetic fixtures and confirm that
+//! the rules fire correctly. Scans: all `.rs` files in the workspace root
+//! selected by each rule's own path filter.
+//! Registered as: `cargo xtask check routing-invariants [--validate]`
 
 use std::{
     fs,

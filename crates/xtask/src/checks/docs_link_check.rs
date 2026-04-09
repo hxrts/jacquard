@@ -1,5 +1,16 @@
-//! Validates markdown links. Rejects broken docs targets, links into the
-//! private scratch directory, and absolute filesystem paths.
+//! Validates markdown hyperlinks across the docs directory.
+//!
+//! Rejects three categories of link problem found in committed `.md` files:
+//! - Missing targets: relative links that point to a file or anchor that does
+//!   not exist on disk under the docs tree.
+//! - Scratch-directory references: any link whose target begins with the
+//!   private `work/` prefix, which must not appear in committed documentation.
+//! - Absolute filesystem paths: links starting with `/` that encode a
+//!   machine-specific absolute path rather than a portable relative reference.
+//!
+//! Scans: all `.md` files under `docs/` using `pulldown_cmark` to extract
+//! link targets without false-positives from code blocks.
+//! Registered as: `cargo xtask check docs-link-check`
 
 use std::path::{Path, PathBuf};
 

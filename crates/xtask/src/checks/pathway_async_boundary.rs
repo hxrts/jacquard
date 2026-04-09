@@ -1,9 +1,17 @@
-//! Enforces pathway's sync/async envelope.
+//! Enforces pathway's synchronous/asynchronous envelope.
 //!
-//! The pathway engine/runtime layer must stay synchronous and driver-free.
-//! `executor::block_on` and `async fn` are allowed only inside pathway's
+//! The pathway engine and runtime layer must stay synchronous and driver-free.
+//! `executor::block_on` and `async fn` are permitted only inside pathway's
 //! choreography modules, where Telltale-generated protocol sessions are driven
-//! to completion inside one synchronous round.
+//! to completion within a single synchronous round. Pathway must not own
+//! transport drivers or spawn background tasks.
+//!
+//! Scans: all `.rs` files under `crates/pathway/src/`. Files inside
+//! `choreography/` sub-paths are allowed to use async vocabulary; all other
+//! pathway files that contain `async fn` or `block_on` are reported as
+//! violations.
+//!
+//! Registered as: `cargo xtask check pathway-async-boundary`
 
 use anyhow::{bail, Context, Result};
 

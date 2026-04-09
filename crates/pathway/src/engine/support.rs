@@ -2,9 +2,16 @@
 //!
 //! Every function in this module is a deterministic function of its
 //! inputs: no runtime state, no effects, no hidden context. Includes
-//! the repair-time shortest-path helper, the self-contained
-//! `BackendRouteId` encoding and decoding, byte encoders used by
-//! tagged hashing, and the `RouteCost` derivation.
+//! the repair-time shortest-path helper (`repair_shortest_path`), the
+//! self-contained `BackendRouteId` encoding and decoding
+//! (`encode_backend_token`, `decode_backend_token`), byte encoders used by
+//! tagged hashing (`encode_path_bytes`), the `RouteCost` derivation
+//! (`route_cost_for_segments`), and small scoring helpers used by both
+//! the planner and the scoring sub-module (`link_quality_penalties`,
+//! `protocol_diversity_bonus`). The `CommitteeStatus` wrapper and
+//! `StorageResultExt`/`MaintenanceResultExt` error-mapping extension
+//! traits also live here so planner and runtime can share them without
+//! a circular dependency.
 
 use std::{
     collections::{BTreeMap, VecDeque},

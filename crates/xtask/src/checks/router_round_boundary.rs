@@ -7,6 +7,10 @@
 //!   `replace_policy_inputs` names must be gone from tracked Rust sources
 //! - transport ingress must not be drained directly from router/pathway engine
 //!   runtime code
+//!
+//! Scans: all workspace sources via `parse_workspace_sources`, filtered to
+//! router, traits, reference-client, batman, and pathway crate paths.
+//! Registered as: `cargo xtask check router-round-boundary`
 
 use anyhow::{bail, Result};
 

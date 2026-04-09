@@ -1,3 +1,21 @@
+//! Integration tests for explicit router round advancement and transport
+//! ingress delivery.
+//!
+//! These tests verify the `advance_round` / `ingest_transport_observation`
+//! contract of `MultiEngineRouter`. A local `RecordingIngressEngine` stub
+//! accumulates ingested payloads in a pending queue and flushes them to a
+//! shared log during `engine_tick`, providing an observable side-effect for
+//! assertions without touching canonical route state.
+//!
+//! Key behaviors covered:
+//! - Payloads submitted via `ingest_transport_observation` before
+//!   `advance_round` are delivered to the engine in FIFO order during the tick.
+//! - Two routers given identical ingress produce identical `RouterRoundOutcome`
+//!   values and identical engine-side ingress logs, confirming determinism.
+//! - `advance_round` with no pending ingress reports
+//!   `RoutingTickChange::NoChange` and `RoutingTickHint::HostDefault`, so the
+//!   host knows it does not need to schedule an immediate follow-up round.
+
 mod common;
 
 use std::sync::{Arc, Mutex};

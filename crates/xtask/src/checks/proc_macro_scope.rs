@@ -1,12 +1,24 @@
-//! Enforces that every non-exempt `.rs` file under `crates/*/src`
-//! uses at least one Jacquard proc macro annotation. Stale exempt
-//! entries that no longer point at real files also fail.
+//! Enforces Jacquard proc-macro annotation coverage across workspace sources.
+//!
+//! Every non-exempt `.rs` file under `crates/*/src/` must carry at least one
+//! Jacquard proc-macro annotation (e.g. `#[public_model]`, `#[purity(...)]`,
+//! `#[effect_trait]`). This ensures the macro system's invariants apply
+//! broadly and that files are not accidentally left outside the policy surface.
+//!
+//! Additionally, stale entries in the exemption list that no longer point at
+//! real files are reported as violations, keeping the exemption table clean.
+//!
+//! Scans: all parsed workspace sources via `parse_workspace_sources`. Each
+//! source is checked for at least one attribute that resolves to a known
+//! Jacquard macro name.
+//! Registered as: `cargo xtask check proc-macro-scope`
 
 use anyhow::{bail, Result};
 
 use crate::sources::parse_workspace_sources;
 
 const EXEMPT_FILES: &[&str] = &[
+    "crates/adapter/src/lib.rs",
     "crates/core/src/lib.rs",
     "crates/core/src/base/mod.rs",
     "crates/core/src/base/constants.rs",

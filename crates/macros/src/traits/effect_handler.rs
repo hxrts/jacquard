@@ -1,4 +1,18 @@
 //! Expansion logic for the `#[effect_handler]` proc macro.
+//!
+//! `#[effect_handler]` stamps a trait impl block as a concrete handler for
+//! an effect trait. It may only be applied to trait impl blocks (not inherent
+//! impls) and accepts no arguments.
+//!
+//! The macro injects two things into the annotated impl:
+//!
+//! - A hidden `__jacquard_handler_marker` method that returns a
+//!   `HandlerToken<Self, dyn TraitPath>` backed by `PhantomData`. This method
+//!   is `where Self: Sized` to preserve object safety and exists solely to
+//!   prove the impl relationship at compile time with no runtime cost.
+//! - A blanket `HandlerDefinition<dyn TraitPath>` impl for the concrete type,
+//!   which allows the effect system to verify that a handler is registered for
+//!   a given trait object at compile time.
 
 use proc_macro::TokenStream;
 use quote::quote;

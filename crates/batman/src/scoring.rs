@@ -1,3 +1,21 @@
+//! Route quality scoring for the BATMAN engine.
+//!
+//! Derives a TQ (transmit quality) scalar from Jacquard link observations,
+//! using an OGM-equivalent baseline derived from `LinkRuntimeState` and
+//! optionally enriching it with richer per-link observations when present:
+//!
+//! - `derive_tq` — computes a `(RatioPermille, RouteDegradation,
+//!   TransportKind)` triple for a single link. The TQ is an averaged permille
+//!   score combining up to four terms: an OGM-equivalent state baseline,
+//!   delivery confidence, link symmetry, transfer rate, and stability horizon.
+//!   Links with TQ below 700 are marked `Degraded`.
+//! - `tq_product` — multiplies two TQ permille values (saturating at 1000) to
+//!   derive a compound end-to-end score over a two-hop path, matching the
+//!   classical BATMAN TQ propagation rule.
+//!
+//! All scoring is deterministic: no floating-point arithmetic is used and
+//! all inputs are fixed-width integers derived from the shared world model.
+
 use jacquard_core::{
     Belief, DurationMs, Link, LinkRuntimeState, RatioPermille, RouteDegradation,
     TransportKind,

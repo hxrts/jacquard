@@ -3,6 +3,13 @@
 //! Control flow: the exporting node offers a route-shaped summary to
 //! a neighbor, the neighbor either publishes or ignores it, and the generated
 //! branch structure becomes the only live sequencing path for that exchange.
+//! The three-role `RouteExportExchange` protocol (`Exporter`, `Neighbor`,
+//! `Observer`) carries hop count, route class, and partition mode. The
+//! neighbor branch resolves to `Ignored` when the route is in partition mode
+//! and `Published` otherwise. The `execute` entry point is called from the
+//! pathway tick runtime and returns the observer detail string (`"exported"` or
+//! `"ignored"`) so the caller can emit a structured observation. Protocol
+//! constants are exported for the artifacts catalog.
 
 use std::{error::Error, marker, result};
 

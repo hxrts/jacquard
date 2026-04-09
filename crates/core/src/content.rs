@@ -1,4 +1,17 @@
-//! Content-addressed identifiers and digest types.
+//! Content-addressed identifiers and digest types for routing artifacts.
+//!
+//! This module defines the shared hashing and content-addressing primitives
+//! used to give routing artifacts stable, deterministic identities. The
+//! primary types are [`Blake3Digest`] (a 32-byte Blake3 hash value),
+//! [`ContentId`] (a generic wrapper that pairs a type parameter with its
+//! digest), [`BloomFilter`] (a marker type for bloom-filter content
+//! summaries), and [`ContentEncodingError`] (the error cases raised when
+//! an artifact is not in a canonically addressable state).
+//!
+//! Content addresses are used by routing identity newtypes such as `RouteId`,
+//! `RouteCommitmentId`, `CommitteeId`, and `ReceiptId`, which are truncated
+//! to 16 bytes from a full `Blake3Digest` via the `From<&Blake3Digest>`
+//! conversions in `base/identity.rs`.
 
 use core::fmt;
 

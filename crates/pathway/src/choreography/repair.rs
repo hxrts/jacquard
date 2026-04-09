@@ -2,7 +2,14 @@
 //!
 //! Control flow: the current owner proposes a repair through a
 //! candidate relay, and the destination accepts or rejects the offered suffix.
-//! The generated session code owns that visible branch structure.
+//! The generated session code owns that visible branch structure. The
+//! three-role `BoundedSuffixRepair` protocol (`CurrentOwner`, `CandidateRelay`,
+//! `Destination`) is declared via `tell!` under the `Replay` profile and
+//! executed synchronously via `executor::block_on`. The `execute` entry point
+//! is called from the pathway maintenance state machine when a
+//! `RouteMaintenanceTrigger::Repair` trigger arrives. Protocol constants are
+//! exported so the artifacts catalog can resolve metadata for checkpoints and
+//! observations without depending on generated session types.
 
 use std::{error::Error, marker, result};
 

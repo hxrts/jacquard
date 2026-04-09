@@ -2,7 +2,13 @@
 //!
 //! Control flow: the old owner offers transfer to the new owner, and
 //! the new owner accepts or rejects. The generated session code owns that
-//! visible ownership branch structure.
+//! visible ownership branch structure. The two-role `SemanticHandoff`
+//! protocol (`OldOwner`, `NewOwner`) is declared via `tell!` and executed
+//! synchronously. The `execute` entry point is called from the pathway
+//! maintenance state machine when a `RouteMaintenanceTrigger::Handoff`
+//! trigger arrives and the engine decides to transfer route ownership to
+//! a successor node. Protocol constants (`SOURCE_PATH`, `PROTOCOL_NAME`,
+//! `ROLE_NAMES`) are exported for the artifacts catalog.
 
 use std::{error::Error, marker, result};
 

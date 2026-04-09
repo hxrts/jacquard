@@ -3,7 +3,16 @@
 //! The types below are pathway-owned interpretations of the shared
 //! world schema from `jacquard_core`. `DeterministicPathwayTopologyModel`
 //! is a pure read-only query surface: every method is a deterministic
-//! function of its inputs with no hidden state.
+//! function of its inputs with no hidden state. The module also defines
+//! `PathwayPeerEstimateAccess` and `PathwayNeighborhoodEstimateAccess`,
+//! the read-only estimate traits consumed by the planner and scoring
+//! sub-modules. Free functions `adjacent_node_ids`, `adjacent_link_between`,
+//! `estimate_hop_link`, and `belief_into_estimate` are shared helpers used
+//! by both the planner path search and the runtime health sub-module.
+//! Scoring helpers (`optional_health_score_value`,
+//! `service_surface_health_score_for_requirements`,
+//! `service_requirements_for_objective`) convert topology observations into
+//! the bounded integer scores the planner uses for candidate ranking.
 
 // long-file-exception: cohesive topology model, estimates, and fixture tests.
 

@@ -1,4 +1,17 @@
 //! Expansion logic for the `#[bounded_value]` proc macro.
+//!
+//! `#[bounded_value(max = <expr>)]` wraps a single-field tuple struct as a
+//! range-bounded numeric value. It applies `repr(transparent)` and the
+//! canonical id-type derives, then generates:
+//!
+//! - `MAX: <FieldType>` — a public constant set to the `max` expression.
+//! - `fn new(value: <FieldType>) -> Option<Self>` — a `const` checked
+//!   constructor that returns `None` when `value > MAX`.
+//! - `fn get(self) -> <FieldType>` — a `const` accessor for the inner value.
+//!
+//! The macro rejects generic structs and structs with more than one field.
+//! It delegates attribute injection to `support::attrs` and parsing to
+//! `support::parsing`.
 
 use proc_macro::TokenStream;
 use quote::quote;

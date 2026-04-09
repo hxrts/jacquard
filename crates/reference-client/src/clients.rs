@@ -1,10 +1,21 @@
 //! Concrete reference-client bridge builders.
 //!
-//! `build_pathway_client` registers a single pathway engine.
-//! `build_pathway_batman_client` registers both pathway and batman.
-//! Each builder constructs one bridge-owned in-memory transport driver, creates
-//! one or more queue-backed sender capabilities for the engines, wires up the
-//! router, and returns a host bridge.
+//! This module provides factory functions that assemble a complete host-side
+//! client from its constituent parts: a `MultiEngineRouter`, one or more
+//! routing engines (`PathwayEngine`, `BatmanEngine`), an in-memory transport
+//! driver, and queue-backed sender capabilities for each engine. The result is
+//! a `HostBridge` that owns the transport attachment and drives the router
+//! through synchronous rounds.
+//!
+//! `build_pathway_client` registers a single pathway engine. The
+//! `_with_profile` variants accept an explicit `SelectedRoutingParameters` for
+//! tests that need non-default routing profiles (e.g. relay nodes with
+//! best-effort connectivity). `build_pathway_batman_client` registers both
+//! pathway and batman, wiring each engine to its own independent outbound queue
+//! over the shared transport driver.
+//!
+//! `PathwayRouter` and `PathwayClient` are type aliases exported for use by
+//! integration tests that need to name the bridge type concretely.
 
 use jacquard_batman::BatmanEngine;
 use jacquard_core::{

@@ -1,7 +1,15 @@
-//! Rejects `fn method(...) -> Result<T, E>` in trait definitions without
-//! `#[must_use]` in crates/traits/src. The style guide requires `#[must_use]`
-//! on all Result-returning methods to prevent silent drops of errors or
-//! important routing evidence.
+//! Rejects `Result`-returning trait methods that lack `#[must_use]`.
+//!
+//! Every `fn method(...) -> Result<T, E>` declared inside a public trait
+//! under `crates/traits/src/` must carry `#[must_use]`. The style guide
+//! requires this annotation to prevent callers from silently discarding errors
+//! or important routing evidence at trait-boundary call sites.
+//!
+//! Uses a `syn` AST visitor over `ItemTrait` blocks, inspecting each trait
+//! method's return type. Methods returning `Result<..>` without `#[must_use]`
+//! in the `L2` (traits) layer are reported as violations.
+//!
+//! Registered as: `cargo xtask check result-must-use`
 
 use anyhow::Result;
 use syn::{visit::Visit, Item, ReturnType, Type};

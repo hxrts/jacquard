@@ -1,8 +1,17 @@
 //! Integration tests for pathway engine-wide progress.
 //!
-//! These tests exercise the bounded engine-private state retained by
-//! `engine_tick`: pre-tick bootstrap health, transport-observation
-//! summaries, and deterministic replay for the same inputs.
+//! `engine_tick` is the per-round entry point that ingests a
+//! `RoutingTickContext` carrying the current topology and transport
+//! observations, updates internal engine state, and emits a
+//! `PathwayRoundProgress` summary. These tests cover:
+//!
+//! - Bootstrap health before any tick has run vs. after the first tick.
+//! - Transport-observation ingestion: freshness classification, link-score
+//!   updates, and the observation summary visible on `PathwayRoundProgress`.
+//! - Deterministic replay: two engine instances given identical tick inputs
+//!   must produce byte-identical `PathwayRoundProgress` values.
+//! - Interaction between active routes and tick-driven topology changes,
+//!   including `RoutingTickChange` detection on epoch advance.
 
 mod common;
 

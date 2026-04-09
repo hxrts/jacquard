@@ -3,7 +3,14 @@
 //! Control flow: the router asks the current owner to activate a
 //! route, the owner prepares the next hop, and the destination either accepts
 //! or rejects. The generated session code owns that visible handshake shape;
-//! pathway runtime code only decides when to enter it.
+//! pathway runtime code only decides when to enter it. The four-role
+//! `ActivationHandshake` protocol is declared via `tell!` and executed
+//! synchronously through `executor::block_on`. The `execute` entry point is
+//! called from the pathway guest runtime when the router triggers route
+//! activation. Protocol constants (`SOURCE_PATH`, `PROTOCOL_NAME`,
+//! `ROLE_NAMES`) are exported for the artifacts catalog so checkpoints and
+//! observations can resolve protocol metadata without depending on generated
+//! session types directly.
 
 use std::{error::Error, marker, result};
 

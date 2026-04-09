@@ -1,8 +1,22 @@
-//! `RoutingEngine` impl for `BatmanEngine`. Materialization resolves the
-//! admitted backend route against the current best next-hop table, records
-//! an active route, and issues a proof. Forwarding, maintenance, and
-//! teardown follow the same table-lookup path without touching shared
-//! route truth.
+//! `RoutingEngine` and `RouterManagedEngine` impls for `BatmanEngine`.
+//!
+//! Provides the full lifecycle surface for installed BATMAN routes:
+//!
+//! - `materialize_route` — resolves the admitted backend route against the
+//!   current best next-hop table, records an `ActiveBatmanRoute`, and returns a
+//!   `RouteInstallation` with a `RouteMaterializationProof` and initial route
+//!   health derived from the best-next-hop TQ score.
+//! - `engine_tick` — delegates to `refresh_private_state` and returns the
+//!   appropriate `RoutingTickHint`: `Immediate` when private state changed,
+//!   otherwise `WithinTicks` bounded by
+//!   `decay_window.next_refresh_within_ticks`.
+//! - `maintain_route` — checks whether the active route's next-hop has been
+//!   superseded by a better neighbor; returns `ReplacementRequired` if so, or
+//!   `Failed(LostReachability)` if the originator has become unreachable.
+//! - `teardown` — removes the route from the active table.
+//! - `RouterManagedEngine` — provides `local_node_id_for_router`,
+//!   `forward_payload_for_router` (sends to the next-hop endpoint via
+//!   `TransportSenderEffects`), and `restore_route_runtime_for_router`.
 
 use jacquard_core::{
     DestinationId, Fact, FactBasis, HealthScore, Limit, NodeId, PublishedRouteRecord,

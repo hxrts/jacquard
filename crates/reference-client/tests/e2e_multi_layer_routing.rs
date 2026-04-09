@@ -1,12 +1,22 @@
-//! End-to-end routing tests over one `SharedInMemoryNetwork`. One test
-//! covers pathway-only forwarding across a four-node topology. The other
-//! covers mixed batman-plus-pathway forwarding across a three-node topology
-//! where B is the hinge between the two engines. Both assert that route
-//! activation, bridge-driven outbound flush, and receiver-side bridge rounds
-//! stay consistent across device boundaries.
+//! End-to-end routing tests over one `SharedInMemoryNetwork`.
 //!
-//! Reading order is bottom-up: world topologies, routing parameters,
-//! client builders, observation helpers, then the two tests at the end.
+//! Two tests exercise the full host-side composition stack: topology fixtures,
+//! client builders, bridge-driven round advancement, outbound flush, and
+//! receiver-side ingress stamping.
+//!
+//! `pathway_forwarding_across_shared_network` uses a four-node pathway-only
+//! topology (A, B, C, D) and forwards a payload two hops from A to C through B,
+//! asserting route activation, bridge flush, and receiver tick consistency.
+//!
+//! `routing_spans_batman_then_pathway` uses a three-node mixed-engine topology
+//! where A and B run both batman and pathway engines and C is pathway-only.
+//! A forwards over batman to B; B re-forwards over pathway to C. The test
+//! verifies that the router selects the expected engine per hop, that batman
+//! relays bytes verbatim, and that pathway hex-encodes the payload on this
+//! carrier.
+//!
+//! Reading order is bottom-up: world topologies, routing parameters, client
+//! builders, observation helpers, then the two tests at the end.
 
 use std::collections::BTreeMap;
 

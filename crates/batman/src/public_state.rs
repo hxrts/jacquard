@@ -1,7 +1,23 @@
-//! Engine-public state types for `BatmanEngine`. Defines the observation
-//! records, ranked neighbor tables, and best next-hop entries that travel
-//! across planner and runtime boundaries, along with the decay window that
-//! governs freshness and refresh cadence.
+//! Engine-public state types for `BatmanEngine`.
+//!
+//! Defines the observation records, ranked neighbor tables, and best next-hop
+//! entries that travel across the planner and runtime module boundaries, along
+//! with the decay window that governs observation freshness and refresh
+//! cadence.
+//!
+//! Key types:
+//! - `DecayWindow` — configures how many ticks an observation remains fresh
+//!   (`stale_after_ticks`) and how often the engine should re-run its tick to
+//!   refresh tables (`next_refresh_within_ticks`).
+//! - `OriginatorObservation` — one entry in the per-originator, per-neighbor
+//!   observation table: TQ score, hop count, tick, transport kind, degradation.
+//! - `NeighborRanking` — the ranked list of neighbors for a single originator,
+//!   sorted by descending TQ then ascending hop count then neighbor id.
+//! - `BestNextHop` — the best neighbor entry selected from the ranking table,
+//!   plus the derived `BackendRouteId` and `RouteEpoch` for route construction.
+//! - `ActiveBatmanRoute` — the runtime record of an installed route, keyed by
+//!   `RouteId`, tracking destination, next-hop, backend id, and install tick.
+//! - `OriginatorObservationTable` — the nested `BTreeMap` type alias.
 
 use std::collections::BTreeMap;
 

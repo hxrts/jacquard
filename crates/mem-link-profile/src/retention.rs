@@ -1,6 +1,19 @@
 //! `InMemoryRetentionStore`, the shared `RetentionStore` adapter used by
-//! tests. Buffers opaque deferred-delivery payloads in a `BTreeMap` keyed
-//! by content id so partition-mode flush paths stay deterministic.
+//! tests and the reference client.
+//!
+//! This module provides a deterministic in-memory implementation of the
+//! `RetentionStore` trait from `jacquard-traits`. Payloads are buffered in a
+//! `BTreeMap` keyed by `ContentId<Blake3Digest>`, which gives deterministic
+//! iteration order across all callers.
+//!
+//! The store supports the three operations that `RetentionStore` requires:
+//! retaining a payload, checking whether a payload is present, and taking
+//! (removing and returning) a retained payload. It does not impose size limits
+//! or eviction policy; capacity management belongs to the host runtime.
+//!
+//! Intended for use in partition-mode flush tests, reference composition, and
+//! any scenario that needs stable deferred-delivery buffering without a
+//! persistent backend.
 
 use std::collections::BTreeMap;
 

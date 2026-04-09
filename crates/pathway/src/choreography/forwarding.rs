@@ -4,6 +4,13 @@
 //! next hop, the next hop decides accept/reject through the generated protocol
 //! branch, and the observer records the same visible outcome. The only
 //! handwritten logic here is host adaptation around the generated session code.
+//! The `ForwardingHop` protocol uses two Telltale effects: `PathwayRuntime`
+//! (carries the actual frame send and ingress poll) and `PathwayAudit`
+//! (emits an observation after the observer branch resolves). `NextHopHost`
+//! and `ObserverHost` implement these effects backed by the shared
+//! `PathwayProtocolRuntime`. The `execute` entry point is called from the
+//! pathway runtime when the engine decides to forward a payload frame over
+//! an active route segment.
 
 use std::{cell::RefCell, error::Error, marker, rc::Rc, result};
 

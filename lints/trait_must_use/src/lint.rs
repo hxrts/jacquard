@@ -1,5 +1,17 @@
-//! Lint pass: public trait methods with non-unit return types must have
+//! Lint pass: public trait methods with non-unit return types must carry
 //! `#[must_use]`.
+//!
+//! Checks every method in a public trait definition. If the method's return
+//! type is not `()` (unit) and not `Result<(), _>`, the method must be
+//! annotated with `#[must_use]` or `#[must_use = "..."]`.
+//!
+//! Without this annotation, callers can silently drop route candidates,
+//! maintenance results, observation sets, or other values that represent
+//! completed work or routing evidence. Jacquard routing traits enforce this
+//! uniformly so that discarded return values are always a compile-time warning.
+//!
+//! Accepts: trait methods that are `()`, `Result<(), _>`, or carry `#[must_use]`.
+//! Rejects: public trait methods with meaningful return types and no `#[must_use]`.
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{FnRetTy, Item, ItemKind, TraitItem, TraitItemKind, TyKind};

@@ -1,3 +1,21 @@
+//! Integration tests for proactive routing engine support in the router.
+//!
+//! These tests verify that `MultiEngineRouter` correctly handles engines that
+//! operate with `RouteShapeVisibility::AggregatePath` and
+//! `RouteShapeVisibility::NextHopOnly` without requiring the router to inspect
+//! engine-private forwarding tables. The `ProactiveTableTestEngine` stub
+//! rebuilds its next-hop table on each `engine_tick` and serves candidates from
+//! that private state.
+//!
+//! Key behaviors covered:
+//! - Activation succeeds and the materialized route's admission summary names
+//!   the proactive engine when it is the highest-priority candidate source.
+//! - The router correctly records and surfaces `RouteShapeVisibility` from the
+//!   registered engine capabilities.
+//! - Engine-private periodic work (`advance_round` before any activation)
+//!   completes without error and the router correctly reflects the resulting
+//!   `RoutingTickChange::PrivateStateUpdated` hint to the host.
+
 mod common;
 
 use common::{

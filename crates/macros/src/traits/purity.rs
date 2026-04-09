@@ -1,4 +1,19 @@
 //! Expansion logic for the `#[purity(...)]` proc macro.
+//!
+//! `#[purity(mode)]` validates that every method receiver in a trait is
+//! consistent with the declared purity class, then emits the trait unchanged.
+//! The three recognized purity classes are:
+//!
+//! - `pure` — all methods must use `&self` receivers. No `&mut self` or
+//!   by-value receivers are allowed. Side-effect-free query traits use this.
+//! - `read_only` — same receiver constraints as `pure`. Traits that read shared
+//!   state without mutation use this class.
+//! - `effectful` — allows `&mut self` receivers and requires at least one.
+//!   Traits with only `&self` methods must use `pure` or `read_only` instead.
+//!
+//! The macro is used across `jacquard-traits` to annotate all public traits
+//! with an explicit purity declaration, enforced by the `trait-purity` xtask
+//! policy check and the `trait_purity` dylint crate.
 
 use proc_macro::TokenStream;
 use quote::quote;

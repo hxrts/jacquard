@@ -2,7 +2,15 @@
 //!
 //! Control flow: the current owner proposes reconciliation state to
 //! a peer, the peer either syncs or defers, and the generated branch becomes
-//! the only live sequencing path for pathway anti-entropy exchange.
+//! the only live sequencing path for pathway anti-entropy exchange. The
+//! three-role `AntiEntropyExchange` protocol (`CurrentOwner`, `Peer`,
+//! `Observer`) carries retained object count, pressure score, and partition
+//! mode. The peer branch resolves to `Deferred` when the owner is partitioned,
+//! has retained objects, or has non-zero pressure; otherwise `Synced`. The
+//! `execute` entry point is called from the pathway tick runtime and returns
+//! the observer detail string (`"anti-entropy-synced"` or
+//! `"anti-entropy-deferred"`) for structured observation. Protocol constants
+//! are exported for the artifacts catalog.
 
 use std::{error::Error, marker, result};
 

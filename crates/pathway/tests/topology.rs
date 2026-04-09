@@ -1,8 +1,18 @@
 //! Integration tests for the deterministic pathway topology model.
 //!
-//! Unit tests in `topology.rs` cover the private helper and internal
-//! topology-derivation surfaces. This file stays focused on the public
-//! topology-model contract and candidate-ordering behavior.
+//! The topology model is a read-only, content-addressed view of the network
+//! graph used by candidate selection. These tests cover the public contract
+//! of `PathwayTopologyModel` and `DeterministicPathwayTopologyModel`:
+//!
+//! - Candidate ordering is stable and deterministic across repeated calls with
+//!   the same topology.
+//! - Pluggable topology model implementations can re-order or filter candidates
+//!   without breaking the engine's admission or materialization path, verified
+//!   via a `PreferredPeerTopologyModel` fixture that promotes a specific node
+//!   to the front.
+//! - Epoch transitions observed through `engine_tick` correctly update the
+//!   topology digest visible on the model and produce a `TopologyChanged`
+//!   tick-change record.
 
 mod common;
 

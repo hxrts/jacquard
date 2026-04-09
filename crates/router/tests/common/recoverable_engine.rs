@@ -1,6 +1,17 @@
 //! `RecoverableTestEngine` — a routing engine stub that owns mutable route
 //! state behind a shared `BTreeSet`, used to exercise router recovery and
 //! handoff logic.
+//!
+//! The engine stores active `RouteId` values in an `Arc<Mutex<BTreeSet>>`
+//! that can be injected into a second router instance to simulate a process
+//! restart. When `restore_route_runtime_for_router` is called on the
+//! recovered instance it looks up the route in the shared set, allowing the
+//! router's `recover_checkpointed_routes` path to confirm that engine-private
+//! state can be restored without re-running the full activation sequence.
+//!
+//! Used by the recovery assertions in `router_fail_closed` that verify the
+//! router can reconstitute canonical route truth from its own checkpoint
+//! storage and then delegate runtime-state restoration to the engine.
 
 use std::sync::{Arc, Mutex};
 

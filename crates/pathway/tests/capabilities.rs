@@ -1,4 +1,16 @@
 //! Contract tests for the static pathway capability envelope.
+//!
+//! `PATHWAY_CAPABILITIES` is a compile-time constant that declares what the
+//! pathway engine supports: hold buffering, partition tolerance, link repair,
+//! decidable admission, and explicit route-shape visibility. These tests
+//! verify that the constant is not just a declaration — each advertised
+//! capability is exercised end-to-end so that a regression in the engine's
+//! behavior causes a test failure rather than a silent capability drift.
+//!
+//! Each test covers one advertised flag: deferred-delivery admission for
+//! partition tolerance, payload retention under partition buffering for hold
+//! support, `Repaired` outcome for repair support, typed rejection for
+//! decidable admission, and non-zero segment count for explicit route shape.
 
 mod common;
 

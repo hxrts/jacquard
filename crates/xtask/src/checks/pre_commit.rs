@@ -1,6 +1,17 @@
-//! Fast pre-commit gate. Runs the staged-file gitignored guard plus
-//! `cargo fmt --check` and `cargo check` scoped to the affected crates
-//! so contributors get quick feedback before pushing.
+//! Fast pre-commit gate for the git pre-commit hook.
+//!
+//! Invoked by `cargo xtask pre-commit` (and by the hook installed via
+//! `just install-hooks`). Runs three quick checks scoped to the crates
+//! touched by staged files, so contributors get rapid feedback:
+//!
+//! 1. Staged-file guard: rejects any staged file that matches `.gitignore`
+//!    patterns, preventing accidental commits of build artifacts or secrets.
+//! 2. Format check: runs `cargo fmt -- --check` on the affected crates only.
+//! 3. Compile check: runs `cargo check` on the affected crates only.
+//!
+//! Affected-crate detection maps each staged `.rs` file back to its owning
+//! workspace package via `cargo metadata`, so only relevant crates are checked.
+//! Registered as: `cargo xtask pre-commit`
 
 use std::{
     collections::BTreeSet,

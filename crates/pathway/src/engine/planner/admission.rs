@@ -4,7 +4,12 @@
 //! computed `RouteCost`, and any committee outcome. This module folds those
 //! pieces together with the requested objective/profile and returns the
 //! typed `RouteAdmissionCheck` that `check_candidate` and `admit_route` both
-//! expose.
+//! expose. The single exported function `pathway_admission_check` is pure:
+//! it has no side effects and makes no routing decisions beyond the
+//! admission verdict. Rejection reasons are typed
+//! (`ProtectionFloorUnsatisfied`, `BranchingInfeasible`, `BackendUnavailable`)
+//! so the router can surface structured diagnostics rather than opaque
+//! failures.
 
 use jacquard_core::{
     AdmissionAssumptions, AdmissionDecision, Limit, RouteAdmissionCheck,

@@ -1,5 +1,24 @@
 //! Abstract routing traits: policy engines, routing engines, the router, and
 //! control/data planes.
+//!
+//! This module is the primary behavioral contract surface for the routing
+//! system. It defines what each participant is allowed to do without dictating
+//! how they do it. Concrete engine logic lives in crates such as
+//! `jacquard-pathway` and `jacquard-batman`; the traits here name only the
+//! shared surface those engines expose to the router and host.
+//!
+//! Key traits exported from this module:
+//! - [`PolicyEngine`] — pure protection-versus-connectivity decision.
+//! - [`RoutingEnginePlanner`] — pure candidate enumeration and admission.
+//! - [`RoutingEngine`] — effectful materialization, maintenance, and teardown.
+//! - [`RouterManagedEngine`] — supplemental hooks required by the generic
+//!   router middleware (forwarding, restoration, local node identity).
+//! - [`RouterEngineRegistry`] / [`RoutingMiddleware`] — composable engine
+//!   registration and orchestration seams.
+//! - [`Router`] / [`RoutingControlPlane`] / [`RoutingDataPlane`] — top-level
+//!   control and forwarding entry points.
+//! - Forward-looking substrate and layering traits for multi-engine
+//!   composition.
 
 use jacquard_core::{
     CommitteeSelection, Configuration, LayerParameters, MaterializedRoute, NodeId,

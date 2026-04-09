@@ -1,6 +1,16 @@
 //! `NullCandidateEngine` — a routing engine stub that never produces
 //! candidates, useful for testing the router's handling of engines that
 //! have no route opinions.
+//!
+//! The engine implements the full `RoutingEnginePlanner` and `RoutingEngine`
+//! surface but returns empty candidate lists and rejects every admission
+//! attempt with `RouteSelectionError::NoCandidate`. This lets multi-engine
+//! registry tests register an auxiliary engine without affecting which
+//! candidate the router ultimately selects — pathway always wins because
+//! `NullCandidateEngine` provides no competition.
+//!
+//! Used by `router_registry` tests that verify registration ordering and
+//! engine-selection precedence when multiple engines are present.
 
 use jacquard_core::{
     Configuration, ConnectivityPosture, Observation, RouteProtectionClass,

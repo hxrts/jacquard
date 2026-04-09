@@ -1,6 +1,17 @@
-//! Shared helpers: `Violation` reporter, workspace metadata access,
-//! path normalization, markdown file enumeration, and `just` recipe
-//! lookup.
+//! Shared infrastructure for all xtask checks.
+//!
+//! Provides:
+//! - `Violation` — structured diagnostic with file path, line number, and
+//!   message, rendered for terminal output.
+//! - `workspace_root` / `workspace_metadata` — locate the Cargo workspace root
+//!   and load `cargo metadata` output used by graph-based checks.
+//! - `normalize_rel_path` — convert an absolute path to a workspace-relative
+//!   slash-separated string, used as a stable key in violation messages.
+//! - `collect_rust_files` / `collect_markdown_files` — enumerate source files
+//!   for text-scanning checks, respecting `.gitignore` via the `ignore` crate.
+//! - `layer_for_rel_path` / `layer_of` — map a file path to the crate-layer
+//!   enum (`L1` core through `L5` tests) used by boundary checks.
+//! - `just_recipes` — list available `just` recipe names for drift detection.
 
 use std::{
     collections::BTreeSet,

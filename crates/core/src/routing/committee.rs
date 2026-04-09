@@ -1,4 +1,19 @@
-//! Committee-selection results shared across routing engines.
+//! Committee-selection results and membership types shared across routing
+//! engines.
+//!
+//! This module defines the shared types that represent the output of a routing
+//! engine's committee-selection process. The selection policy itself is
+//! engine-local; only the resulting membership, lease, and evidentiary posture
+//! are exposed through these shared types.
+//!
+//! [`CommitteeRole`] declares the roles available to members — leaderless
+//! protocols may assign `Participant` to all members. [`CommitteeMember`]
+//! pairs a node and controller identity with its declared role. The top-level
+//! [`CommitteeSelection`] bundles the committee identity, topology epoch,
+//! selection tick, validity window, evidence basis, claim strength, identity
+//! assurance posture, quorum threshold, and the bounded member list. Member
+//! count is bounded by
+//! [`PROVIDER_CANDIDATE_COUNT_MAX`](crate::PROVIDER_CANDIDATE_COUNT_MAX).
 
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};

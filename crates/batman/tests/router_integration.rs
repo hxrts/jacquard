@@ -1,3 +1,21 @@
+//! Router integration tests for `jacquard-batman`.
+//!
+//! Exercises `BatmanEngine` wired into a `MultiEngineRouter` with
+//! `InMemoryTransport` and `InMemoryRuntimeEffects`, verifying end-to-end
+//! behavior from route activation through payload forwarding.
+//!
+//! Tests in this module confirm:
+//! - `BatmanEngine` can be registered with a `MultiEngineRouter` and its
+//!   `BATMAN_ENGINE_ID` capabilities are accessible after registration.
+//! - `Router::activate_route` selects a next-hop-only route with
+//!   `RouteShapeVisibility::NextHopOnly` via the BATMAN engine.
+//! - After an `advance_round` tick, `forward_payload` delivers a payload to the
+//!   correct next-hop `InMemoryTransport` node, verifiable by draining the
+//!   ingress queue of the expected neighbor.
+//!
+//! The sample topology uses four nodes with two paths to destination node 4:
+//! a high-quality path via node 2 and a lossier path via node 3.
+
 use std::collections::BTreeMap;
 
 use jacquard_batman::{BatmanEngine, BATMAN_ENGINE_ID};

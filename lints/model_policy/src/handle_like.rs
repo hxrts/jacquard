@@ -1,4 +1,17 @@
 //! Lint pass for explicit `#[must_use_handle]` on handle-like shared model types.
+//!
+//! Detects public structs and enums in shared model crates whose names end in
+//! `Handle`, `Lease`, or `Handoff` and that carry `#[public_model]` but lack
+//! an explicit `#[must_use_handle]` annotation.
+//!
+//! These name suffixes signal strong routing ownership or transfer semantics.
+//! Relying on `#[public_model]` alone to impose `must_use` hides the policy
+//! inside a generic data-model macro, making it easy to miss during review.
+//! An explicit `#[must_use_handle]` keeps the intent visible at the definition
+//! site and auditable in code review.
+//!
+//! Accepts: handle-like types that carry `#[must_use_handle]` above `#[public_model]`.
+//! Rejects: handle-like types with `#[public_model]` but without `#[must_use_handle]`.
 
 use rustc_hir::{Item, ItemKind};
 use rustc_errors::DiagDecorator;

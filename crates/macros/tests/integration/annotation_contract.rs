@@ -1,3 +1,16 @@
+//! Integration tests for the annotation contract exposed by `jacquard-macros`.
+//!
+//! Verifies that the model proc-macro attributes expand correctly and produce
+//! the expected constructor functions, constants, and trait impls:
+//!
+//! - `#[id_type]` generates `new`/`get` const constructors on a newtype.
+//! - `#[bounded_value]` generates a `MAX` constant and a checked `new`
+//!   constructor that returns `None` for out-of-range values.
+//! - `#[public_model]` preserves existing derives (e.g. `Ord`, `Hash`) added by
+//!   the caller alongside the injected canonical set.
+//! - `#[must_use_handle]` leaves the annotated type fully constructible; only
+//!   the `#[must_use]` attribute is added — no other behavior is changed.
+
 use jacquard_macros::{bounded_value, id_type, must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 

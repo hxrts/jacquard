@@ -1,7 +1,15 @@
-//! Validates that checkpoint keys follow the namespace pattern.
+//! Validates that checkpoint storage keys follow the namespace prefix rules.
 //!
-//! Only checks string literals passed to storage operations (store_bytes,
-//! load_bytes, remove_bytes) — not arbitrary strings or choreography names.
+//! Every string literal passed to storage operations (`store_bytes`,
+//! `load_bytes`, `remove_bytes`, `checkpoint`, `restore`) inside pathway and
+//! router source trees must be prefixed with the engine/pathway or router
+//! namespace, preventing key collisions across routing components.
+//!
+//! Scans: `crates/pathway/src/` and `crates/router/src/` via the shared
+//! workspace source cache. Only string literals at the key-argument position
+//! are checked; dynamic keys constructed at runtime are out of scope.
+//!
+//! Registered as: `cargo xtask check checkpoint-namespacing`
 
 use anyhow::{bail, Result};
 use syn::visit::Visit;

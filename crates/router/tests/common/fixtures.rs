@@ -1,4 +1,24 @@
 //! Topology, node, link, and service fixtures shared across router tests.
+//!
+//! Provides a stable, deterministic sample world used by all router integration
+//! test binaries. Every helper here produces the same output for the same
+//! inputs so that tests can rely on fixed canonical state without coupling to
+//! host-dependent or time-dependent values.
+//!
+//! Exported constants:
+//! - `LOCAL_NODE_ID`, `PEER_NODE_ID`, `FAR_NODE_ID`, `BRIDGE_NODE_ID`: fixed
+//!   `NodeId` values that stand in for a local node, a direct peer, a remote
+//!   multi-hop destination, and a bridge relay respectively.
+//!
+//! Exported helpers:
+//! - `sample_configuration`: a minimal `Configuration` observation with one
+//!   active link per peer, seeded so activation tests have at least one
+//!   admissible candidate.
+//! - `sample_policy_inputs`: derives `RoutingPolicyInputs` from a topology
+//!   observation, matching the local-node projection expected by the router.
+//! - `objective`: constructs a `RoutingObjective` for a given `DestinationId`.
+//! - `profile`: returns the `SelectedRoutingParameters` fixture used by the
+//!   `FixedPolicyEngine` in pre-wired router builders.
 
 use std::collections::BTreeMap;
 

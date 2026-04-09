@@ -1,7 +1,19 @@
 //! Integration tests for admitted-plan materialization in the pathway engine.
 //!
-//! These tests make sure materialization is driven by the admitted opaque
-//! backend plan token rather than the planner cache.
+//! Materialization converts an admitted opaque backend plan token into an
+//! installed active route. The plan token is cryptographically bound to the
+//! topology epoch at admission time, so the engine must fail closed when that
+//! binding is violated. These tests cover:
+//!
+//! - Successful materialization after the planner cache is cleared by a
+//!   subsequent `engine_tick` call, confirming materialization is driven by the
+//!   admitted token, not the cache.
+//! - Successful materialization after an unrelated candidate rebuild, showing
+//!   the installed token survives concurrent planning work.
+//! - Fail-closed rejection for mismatched, corrupted, expired, and
+//!   epoch-mismatched backend plan tokens.
+//! - Independence from router event logging: materialization succeeds and
+//!   writes the correct storage keys even when event recording is disabled.
 
 mod common;
 

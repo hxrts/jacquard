@@ -6,6 +6,18 @@
 //! then lets middleware expose the route through the live canonical tables.
 //! Recovery walks the same router-owned registry and asks the selected engine
 //! to restore only its opaque private runtime payloads.
+//!
+//! Responsibilities:
+//! - `RouterCheckpointRecord`: the durable unit written on every activation,
+//!   reselection, and lease transfer; contains the `MaterializedRoute` and its
+//!   associated `RouteCommitment` set.
+//! - `RouterRuntimeEffects`: the combined effect bound (`TimeEffects`,
+//!   `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`) required by the
+//!   persistence helpers. Middleware parameterises over this bound rather than
+//!   spelling out individual effect traits at every call site.
+//! - Storage and event-log failures are converted to
+//!   `RouteError::Runtime(Invalidated)` so that middleware can enforce
+//!   fail-closed semantics uniformly at the activation boundary.
 
 use std::collections::BTreeSet;
 

@@ -1,18 +1,31 @@
-//! Shared contract checks for the router-facing middleware traits.
+//! Contract tests for the router-facing middleware traits.
+//!
+//! This module drives stub implementations of `RouterManagedEngine`,
+//! `RouterEngineRegistry`, and `RoutingMiddleware` through the composition
+//! and orchestration seams exposed by those traits.
+//!
+//! Coverage areas:
+//! - `RouterManagedEngine` — local node identity, transport observation
+//!   ingestion, data-plane forwarding, and route-runtime restoration.
+//! - `RouterEngineRegistry` — registering an engine by boxed trait object and
+//!   querying the registered engine ids and capabilities.
+//! - `RoutingMiddleware` — topology observation ingestion, policy input
+//!   updates, transport observation forwarding, and checkpointed route recovery
+//!   count.
 
 use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, ConnectivityPosture, Environment, NodeId, Observation,
-        RouteCommitment, RouteError, RouteId, RouteMaintenanceResult,
-        RouteMaintenanceTrigger, RouteProtectionClass, RouteRuntimeState,
-        RoutingEngineCapabilities, RoutingEngineId,
-        RoutingObjective, RoutingPolicyInputs, RoutingTickContext,
+        Configuration, ConnectivityPosture, Environment, HoldItemCount,
+        MaintenanceWorkBudget, NodeId, Observation, RelayWorkBudget, RouteCommitment,
+        RouteError, RouteId, RouteMaintenanceResult, RouteMaintenanceTrigger,
+        RouteProtectionClass, RouteRuntimeState, RoutingEngineCapabilities,
+        RoutingEngineId, RoutingObjective, RoutingPolicyInputs, RoutingTickContext,
         RoutingTickOutcome, SelectedRoutingParameters, Tick, TransportObservation,
     },
-    RouterEngineRegistry, RouterManagedEngine, RoutingEngine,
-    RoutingEnginePlanner, RoutingMiddleware,
+    RouterEngineRegistry, RouterManagedEngine, RoutingEngine, RoutingEnginePlanner,
+    RoutingMiddleware,
 };
 
 struct StubManagedEngine {
@@ -42,11 +55,13 @@ impl RoutingEnginePlanner for StubManagedEngine {
             max_protection: RouteProtectionClass::LinkProtected,
             max_connectivity: ConnectivityPosture {
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::BestEffort,
-                partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
+                partition:
+                    jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
             repair_support: jacquard_traits::jacquard_core::RepairSupport::Unsupported,
             hold_support: jacquard_traits::jacquard_core::HoldSupport::Unsupported,
-            decidable_admission: jacquard_traits::jacquard_core::DecidableSupport::Supported,
+            decidable_admission:
+                jacquard_traits::jacquard_core::DecidableSupport::Supported,
             quantitative_bounds:
                 jacquard_traits::jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support:
@@ -108,7 +123,8 @@ impl RoutingEngine for StubManagedEngine {
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,
             change: jacquard_traits::jacquard_core::RoutingTickChange::NoChange,
-            next_tick_hint: jacquard_traits::jacquard_core::RoutingTickHint::HostDefault,
+            next_tick_hint:
+                jacquard_traits::jacquard_core::RoutingTickHint::HostDefault,
         })
     }
 
@@ -249,7 +265,11 @@ fn routing_middleware_updates_topology_policy_inputs_and_recovery_state() {
     middleware.ingest_policy_inputs(next_inputs.clone());
 
     assert_eq!(
-        middleware.topology.value.environment.reachable_neighbor_count,
+        middleware
+            .topology
+            .value
+            .environment
+            .reachable_neighbor_count,
         7,
     );
     assert_eq!(middleware.inputs.routing_engine_count, 3);
@@ -309,8 +329,7 @@ fn sample_policy_inputs() -> RoutingPolicyInputs {
     }
 }
 
-fn sample_node_observation(
-) -> Observation<jacquard_traits::jacquard_core::Node> {
+fn sample_node_observation() -> Observation<jacquard_traits::jacquard_core::Node> {
     Observation {
         value: jacquard_traits::jacquard_core::Node {
             controller_id: jacquard_traits::jacquard_core::ControllerId([1; 32]),

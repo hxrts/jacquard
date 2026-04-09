@@ -1,5 +1,17 @@
 //! Transport protocols, link endpoints, service descriptors, and connectivity
-//! surfaces.
+//! surfaces for the shared routing world model.
+//!
+//! This module defines the engine-neutral vocabulary for what a node can reach
+//! and what it advertises. Key types include [`TransportKind`] (the protocol
+//! taxonomy), [`EndpointLocator`] (the shared address form), [`LinkEndpoint`]
+//! (the carrier identity a link uses), [`ServiceDescriptor`] (what a node
+//! advertises as a service surface), and [`TransportIngressEvent`] /
+//! [`TransportObservation`] (the raw ingress events that the host bridge
+//! stamps with Jacquard time before engines consume them).
+//!
+//! Transport-specific endpoint construction and metadata belong in
+//! transport-owned profile crates, not here. `jacquard-core` owns only the
+//! shared structural shapes that all engines and routers work against.
 
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};

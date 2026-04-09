@@ -1,4 +1,16 @@
-//! Validates service/engine boundary consistency.
+//! Validates the pathway engine/service export boundary.
+//!
+//! `crates/pathway/src/lib.rs` is the public face of the pathway crate. It
+//! must not re-export engine-private types that belong only inside the
+//! pathway runtime internals. Leaking these types across the crate boundary
+//! couples downstream consumers to implementation details and breaks the
+//! layering contract between `jacquard-pathway` and its callers.
+//!
+//! The check scans `crates/pathway/src/lib.rs` for `pub use` statements that
+//! expose any type listed in `FORBIDDEN_PUBLIC_TYPES` and reports each
+//! occurrence as a boundary violation.
+//!
+//! Registered as: `cargo xtask check engine-service-boundary`
 
 use std::fs;
 

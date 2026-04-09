@@ -4,24 +4,32 @@
 //! transport sender capability plus the host-owned transport driver surface.
 //! `InMemoryTransport` attaches one local node to a
 //! [`SharedInMemoryNetwork`](crate::SharedInMemoryNetwork), records sent frames
-//! for inspection, and exposes raw ingress events for the host bridge to stamp
-//! with Jacquard time.
+//! for inspection, and exposes raw ingress events through the shared
+//! `jacquard-adapter` mailbox primitives so the host bridge can stamp them with
+//! Jacquard time.
 //!
 //! It is intentionally reference-only and in-memory. It exists to support
 //! tests, examples, and the reference client, not to model a production
 //! transport backend.
 
+use jacquard_adapter::{
+    transport_ingress_mailbox, TransportIngressClass, TransportIngressReceiver,
+    TransportIngressSender,
+};
 use jacquard_core::{LinkEndpoint, NodeId, TransportError, TransportIngressEvent};
 use jacquard_traits::{effect_handler, TransportDriver, TransportSenderEffects};
 
 use crate::network::SharedInMemoryNetwork;
+
+const DEFAULT_TRANSPORT_INGRESS_CAPACITY: usize = 1024;
 
 /// In-memory transport adapter backed by one shared network.
 pub struct InMemoryTransport {
     local_node_id: Option<NodeId>,
     network: Option<SharedInMemoryNetwork>,
     pub sent_frames: Vec<(jacquard_core::LinkEndpoint, Vec<u8>)>,
-    pub ingress_events: Vec<TransportIngressEvent>,
+    ingress_sender: TransportIngressSender,
+    ingress_receiver: TransportIngressReceiver,
 }
 
 impl Default for InMemoryTransport {
@@ -33,11 +41,14 @@ impl Default for InMemoryTransport {
 impl InMemoryTransport {
     #[must_use]
     pub fn new() -> Self {
+        let (ingress_sender, ingress_receiver, _) =
+            transport_ingress_mailbox(DEFAULT_TRANSPORT_INGRESS_CAPACITY);
         Self {
             local_node_id: None,
             network: None,
             sent_frames: Vec::new(),
-            ingress_events: Vec::new(),
+            ingress_sender,
+            ingress_receiver,
         }
     }
 
@@ -47,6 +58,8 @@ impl InMemoryTransport {
         endpoints: impl IntoIterator<Item = LinkEndpoint>,
         network: SharedInMemoryNetwork,
     ) -> Self {
+        let (ingress_sender, ingress_receiver, _) =
+            transport_ingress_mailbox(DEFAULT_TRANSPORT_INGRESS_CAPACITY);
         let endpoints = endpoints.into_iter().collect::<Vec<_>>();
         if let Some(first_endpoint) = endpoints.first() {
             debug_assert!(endpoints.iter().all(
@@ -61,7 +74,8 @@ impl InMemoryTransport {
             local_node_id: Some(local_node_id),
             network: Some(network),
             sent_frames: Vec::new(),
-            ingress_events: Vec::new(),
+            ingress_sender,
+            ingress_receiver,
         }
     }
 
@@ -72,6 +86,17 @@ impl InMemoryTransport {
         network: SharedInMemoryNetwork,
     ) -> Self {
         Self::attach(local_node_id, endpoints, network)
+    }
+
+    /// Inject a raw ingress event directly into this transport's mailbox.
+    ///
+    /// Used by test harnesses that need to simulate incoming transport
+    /// observations without going through the network layer.
+    pub fn push_ingress_event(&mut self, event: TransportIngressEvent) {
+        let _ = self
+            .ingress_sender
+            .emit(TransportIngressClass::Payload, event)
+            .expect("push ingress event to in-memory transport mailbox");
     }
 }
 
@@ -99,9 +124,14 @@ impl TransportDriver for InMemoryTransport {
         if let (Some(network), Some(local_node_id)) =
             (&self.network, self.local_node_id)
         {
-            self.ingress_events.extend(network.take_for(local_node_id));
+            for event in network.take_for(local_node_id) {
+                let _ = self
+                    .ingress_sender
+                    .emit(TransportIngressClass::Payload, event)
+                    .expect("in-memory transport payload ingress mailbox");
+            }
         }
-        Ok(std::mem::take(&mut self.ingress_events))
+        Ok(self.ingress_receiver.drain().events)
     }
 }
 
@@ -148,5 +178,27 @@ mod tests {
             },
             | other => panic!("unexpected ingress event: {other:?}"),
         }
+    }
+
+    #[test]
+    fn shared_adapter_mailbox_drains_multiple_ingress_frames() {
+        let network = SharedInMemoryNetwork::default();
+        let mut sender =
+            InMemoryTransport::attach(NodeId([1; 32]), [endpoint(1)], network.clone());
+        let mut receiver =
+            InMemoryTransport::attach(NodeId([2; 32]), [endpoint(2)], network);
+
+        sender
+            .send_transport(&endpoint(2), b"first")
+            .expect("send first transport frame");
+        sender
+            .send_transport(&endpoint(2), b"second")
+            .expect("send second transport frame");
+
+        let ingress = receiver
+            .drain_transport_ingress()
+            .expect("drain transport ingress");
+
+        assert_eq!(ingress.len(), 2);
     }
 }

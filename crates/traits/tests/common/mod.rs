@@ -1,4 +1,17 @@
 //! Shared test helpers for jacquard-traits integration tests.
+//!
+//! This module provides small constructors that integration test modules use to
+//! build plausible observation wrappers, node profiles, and belief values
+//! without repeating the full field setup inline. Helpers here are
+//! intentionally minimal and produce the simplest valid value for each type.
+//!
+//! Exported helpers:
+//! - `local_observation` — wrap any value as a locally observed, directly
+//!   evidenced, controller-bound `Observation<T>`.
+//! - `sample_endpoint` — a minimal `LinkEndpoint` using WifiAware transport.
+//! - `sample_node` — a minimal `Node` with all state beliefs absent.
+//! - `estimated` — construct a `Belief::Estimated` from a value, confidence,
+//!   and tick without spelling out the full `Estimate` struct inline.
 
 use jacquard_traits::jacquard_core::{
     Belief, ByteCount, ControllerId, EndpointLocator, Estimate, FactSourceClass,

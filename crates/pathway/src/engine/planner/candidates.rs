@@ -4,7 +4,13 @@
 //! that into pathway segments, classify the route, derive route cost/summary/
 //! witness/admission state, and encode the result into a self-contained
 //! backend token. The same logic is also used on cache miss so planner state
-//! stays memoization-only rather than semantic.
+//! stays memoization-only rather than semantic. Key entry points:
+//! `candidate_for_path` — primary path-to-candidate assembly used during
+//! `produce_candidates`; `derive_candidate_from_backend_ref` — on-demand
+//! re-derivation used by `check_candidate` and `admit_route` when the cache
+//! does not have the requested token; `validated_plan_for_backend_ref` —
+//! decodes and validates a backend token against the current objective and
+//! topology epoch before re-deriving, ensuring the plan token is still live.
 
 use jacquard_core::{
     BackendRouteId, Configuration, NodeId, ObjectiveVsDelivered, Observation,

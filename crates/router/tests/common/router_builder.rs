@@ -1,5 +1,21 @@
 //! Builders for pre-wired `MultiEngineRouter` instances used across router
 //! integration tests.
+//!
+//! Each builder function composes a `MultiEngineRouter<FixedPolicyEngine,
+//! InMemoryRuntimeEffects>` from the shared fixture topology, a policy engine,
+//! and one registered routing engine appropriate for the test scenario:
+//!
+//! - `build_router`: standard pathway-only router at a given `Tick`.
+//! - `build_router_with_effects`: same as above but with caller-supplied router
+//!   runtime effects, used for fail-closed injection tests.
+//! - `build_router_with_selector`: pathway engine wired with an
+//!   `AdvisoryCommitteeSelector`, used for committee selection tests.
+//! - `build_router_with_recoverable_engine`: registers a
+//!   `RecoverableTestEngine` backed by a shared `BTreeSet`, used for recovery
+//!   and checkpoint tests.
+//! - `build_router_with_proactive_engine`: registers a
+//!   `ProactiveTableTestEngine` with a caller-specified `RouteShapeVisibility`,
+//!   used for proactive routing tests.
 
 use std::sync::{Arc, Mutex};
 

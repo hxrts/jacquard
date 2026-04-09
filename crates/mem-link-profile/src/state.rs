@@ -1,7 +1,24 @@
-//! `SimulatedLinkProfile`, a builder for a shared `Link` value plus the
-//! reference link-level defaults (`REFERENCE_LATENCY_FLOOR_MS`,
-//! `REFERENCE_TYPICAL_RTT_MS`, `DEFAULT_STABILITY_HORIZON_MS`) used as seeds by
-//! tests and fixtures.
+//! `SimulatedLinkProfile`, a builder for a shared `Link` value, plus the
+//! reference link-level defaults used as seeds by tests and fixtures.
+//!
+//! This module provides the low-level link profile and state builder. Callers
+//! set endpoint identity, stable `LinkProfile` fields (latency floor, repair
+//! capability, partition recovery class), and runtime observation fields (RTT,
+//! transfer rate, stability horizon, loss permille, delivery confidence,
+//! symmetry). The `build` method assembles a fully specified `Link` via
+//! `LinkBuilder` from `jacquard-core`.
+//!
+//! Three module-level constants establish the reference defaults:
+//! - `REFERENCE_LATENCY_FLOOR_MS` (8 ms): minimum one-way latency for the
+//!   in-memory link preset.
+//! - `REFERENCE_TYPICAL_RTT_MS` (40 ms): round-trip time for the preset.
+//! - `DEFAULT_STABILITY_HORIZON_MS` (500 ms): stability observation window used
+//!   when no better estimate is available.
+//!
+//! Most callers should prefer [`crate::authoring::ReferenceLink`], which wraps
+//! this builder with preset constructors (`active`, `lossy`, `recoverable`).
+//! Use `SimulatedLinkProfile` directly only when a test needs exact control
+//! over the `LinkProfile` / `LinkState` split.
 
 use jacquard_core::{
     DurationMs, Link, LinkBuilder, LinkEndpoint, LinkRuntimeState,

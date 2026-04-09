@@ -4,7 +4,13 @@
 //! searches outward from the local node, scores feasible next hops, and
 //! chooses weighted paths. It then converts the winning node path into pathway
 //! segments, route class, and connectivity posture that later planner stages
-//! can publish and admit.
+//! can publish and admit. Key methods on `PathwayEngine`: `weighted_paths`
+//! runs a Dijkstra-style BFS with a lexicographic tie-break to produce the
+//! set of best paths per destination; `determine_route_class` maps hop count
+//! and hold-capability into `PathwayRouteClass`; `local_repair_slack` checks
+//! whether the current topology offers a bypass node for each segment pair,
+//! informing the `RouteRepairClass`; `derive_segments` translates a node path
+//! into typed `PathwayRouteSegment` values via the topology link model.
 
 use std::{
     cmp::Reverse,

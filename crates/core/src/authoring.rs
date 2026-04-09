@@ -1,9 +1,18 @@
-//! Shared model authoring helpers for node/link extensions.
+//! Shared model authoring helpers for node and link world objects.
 //!
-//! These builders reduce structural boilerplate when assembling shared world
-//! objects. They intentionally do not choose transport- or product-specific
-//! semantic defaults; reference crates such as `mem-link-profile` and
-//! `mem-node-profile` layer presets on top.
+//! This module provides builder types for constructing `Link`, `Node`,
+//! `NodeProfile`, `NodeState`, and `ServiceDescriptor` values without
+//! requiring callers to fill in every field by hand. Builders start from
+//! safe zero-value defaults and expose fluent setters for each dimension.
+//!
+//! The builders do not pick transport- or product-specific semantic defaults.
+//! Higher-level crates such as `jacquard-mem-link-profile` and
+//! `jacquard-mem-node-profile` layer their own presets on top of these
+//! shared builders. `jacquard-core` owns the shared structural shape; the
+//! semantic interpretation of field values belongs to the callers.
+//!
+//! Exported types: [`LinkBuilder`], [`ServiceDescriptorBuilder`],
+//! [`NodeProfileBuilder`], [`NodeStateBuilder`], [`NodeBuilder`].
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};

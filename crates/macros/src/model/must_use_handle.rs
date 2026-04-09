@@ -1,4 +1,17 @@
 //! Expansion logic for the `#[must_use_handle]` proc macro.
+//!
+//! `#[must_use_handle]` applies a descriptive `#[must_use]` annotation to a
+//! struct or enum that represents a routing handle or lease. It accepts no
+//! arguments and may be applied to any struct or enum item.
+//!
+//! The generated `#[must_use]` message follows the form:
+//!   "dropping `<TypeName>` discards a routing handle or lease without making
+//!    that choice explicit"
+//!
+//! This ensures callers are warned at compile time if a handle type is dropped
+//! without being explicitly consumed or released. The macro delegates
+//! attribute injection to `support::attrs::ensure_must_use` and rejects
+//! application to non-struct and non-enum items with a compile error.
 
 use proc_macro::TokenStream;
 use quote::ToTokens;

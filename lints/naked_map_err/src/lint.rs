@@ -1,5 +1,19 @@
 //! Lint pass: `.map_err(|_| RouteError::Runtime(...))` with a discarded
 //! error must use a `ResultExt` extension method instead.
+//!
+//! Detects method call expressions of the form
+//! `<recv>.map_err(|_| RouteError::Runtime(...))` where the closure parameter
+//! is a wildcard, indicating the original error is silently dropped. This
+//! pattern makes failures harder to diagnose and violates the workspace
+//! error-mapping convention.
+//!
+//! The lint requires callers to use one of the named `ResultExt` methods
+//! instead: `storage_invalid()`, `choreography_failed()`,
+//! `maintenance_failed()`, or `invalidated()`. These methods preserve the
+//! original error context while naming the mapping intent explicitly.
+//!
+//! Accepts: any `.map_err` closure that binds and uses the error argument.
+//! Rejects: `.map_err(|_| RouteError::Runtime(...))` with a wildcard arg.
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Expr, ExprKind, PatKind, QPath};

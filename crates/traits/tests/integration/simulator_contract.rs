@@ -1,5 +1,19 @@
-//! Drive stub simulator interfaces through the pure scenario/effectful harness
-//! split.
+//! Contract tests for the `RoutingSimulator` and related simulator traits.
+//!
+//! This module drives stub implementations of the simulator interface through
+//! the pure scenario-description / effectful harness split, verifying that the
+//! trait surface is implementable and that replay artifacts flow correctly
+//! across the run and resume paths.
+//!
+//! Coverage areas:
+//! - `RoutingScenario` — pure scenario description: name, seed, deployment
+//!   profile, initial configuration, and objectives.
+//! - `RoutingEnvironmentModel` — deterministic environment evolution that emits
+//!   typed per-tick artifacts without mutating canonical route state.
+//! - `RoutingSimulator` — effectful harness that executes a scenario against an
+//!   environment model and produces replay artifacts and simulation stats.
+//! - `RoutingReplayView` — read-only inspection of stamped route events inside
+//!   a replay artifact.
 
 use std::collections::BTreeMap;
 

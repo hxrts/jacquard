@@ -1,8 +1,18 @@
 //! Integration tests for the choreography-backed pathway runtime entry points.
 //!
-//! These tests verify that the router-facing runtime API still behaves the same
-//! while materialization, maintenance, forwarding, and tick progress now route
-//! protocol-side sequencing through the pathway choreography guest runtime.
+//! The pathway engine routes protocol-side sequencing through a choreography
+//! guest runtime for materialization, maintenance, forwarding, and tick
+//! progress. These tests verify that the router-facing runtime API is
+//! unaffected by that internal routing — outcomes, storage key structure,
+//! and checkpoint semantics must match what a direct implementation would
+//! produce. Specifically, the tests confirm:
+//!
+//! - Materialization writes an activation protocol checkpoint under the
+//!   canonical `pathway/protocol/activation/` prefix.
+//! - Maintenance writes repair and handoff checkpoints under their own prefixes
+//!   after the corresponding trigger variants are applied.
+//! - `engine_tick` writes a forwarding tick-epoch checkpoint and a
+//!   neighbor-advertisement checkpoint for the current tick.
 
 mod common;
 
