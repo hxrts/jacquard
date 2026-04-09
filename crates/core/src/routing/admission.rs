@@ -91,7 +91,7 @@ pub enum ReconfigurationSupport {
 )]
 pub enum RouteShapeVisibility {
     ExplicitPath,
-    AggregatePath,
+    CorridorEnvelope,
     NextHopOnly,
     Opaque,
 }
@@ -351,10 +351,10 @@ mod tests {
     #[test]
     fn route_shape_visibility_orders_by_specificity() {
         assert!(
-            RouteShapeVisibility::ExplicitPath < RouteShapeVisibility::AggregatePath
+            RouteShapeVisibility::ExplicitPath < RouteShapeVisibility::CorridorEnvelope
         );
         assert!(
-            RouteShapeVisibility::AggregatePath < RouteShapeVisibility::NextHopOnly
+            RouteShapeVisibility::CorridorEnvelope < RouteShapeVisibility::NextHopOnly
         );
         assert!(RouteShapeVisibility::NextHopOnly < RouteShapeVisibility::Opaque);
     }

@@ -1,7 +1,7 @@
 //! Integration tests for proactive routing engine support in the router.
 //!
 //! These tests verify that `MultiEngineRouter` correctly handles engines that
-//! operate with `RouteShapeVisibility::AggregatePath` and
+//! operate with `RouteShapeVisibility::CorridorEnvelope` and
 //! `RouteShapeVisibility::NextHopOnly` without requiring the router to inspect
 //! engine-private forwarding tables. The `ProactiveTableTestEngine` stub
 //! rebuilds its next-hop table on each `engine_tick` and serves candidates from
@@ -36,18 +36,18 @@ fn next_hop_engine_id() -> RoutingEngineId {
 }
 
 #[test]
-fn router_activates_route_from_aggregate_path_proactive_engine() {
+fn router_activates_route_from_corridor_envelope_proactive_engine() {
     let mut router = build_router_with_proactive_engine(
         Tick(2),
         aggregate_engine_id(),
-        RouteShapeVisibility::AggregatePath,
+        RouteShapeVisibility::CorridorEnvelope,
     );
 
     let route = Router::activate_route(
         &mut router,
         objective(DestinationId::Node(FAR_NODE_ID)),
     )
-    .expect("aggregate-path activation");
+    .expect("corridor-envelope activation");
 
     assert_eq!(
         route.identity.admission.summary.engine,
@@ -58,7 +58,7 @@ fn router_activates_route_from_aggregate_path_proactive_engine() {
             .registered_engine_capabilities(&aggregate_engine_id())
             .expect("registered engine")
             .route_shape_visibility,
-        RouteShapeVisibility::AggregatePath
+        RouteShapeVisibility::CorridorEnvelope
     );
 }
 
@@ -94,7 +94,7 @@ fn router_tolerates_engine_private_periodic_work_before_activation() {
     let mut router = build_router_with_proactive_engine(
         Tick(2),
         aggregate_engine_id(),
-        RouteShapeVisibility::AggregatePath,
+        RouteShapeVisibility::CorridorEnvelope,
     );
 
     let outcome = router.advance_round().expect("router round");

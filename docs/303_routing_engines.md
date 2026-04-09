@@ -94,12 +94,12 @@ External routing engines should depend on `jacquard-core` and `jacquard-traits`.
 Jacquard does not require every routing engine to expose a full hop-by-hop path.
 
 - `ExplicitPath` - engine can expose an actual route path shape
-- `AggregatePath` - engine has an end-to-end route view but only publishes aggregate route shape and metric information
+- `CorridorEnvelope` - engine exposes a conservative end-to-end corridor envelope without claiming an explicit path
 - `NextHopOnly` - engine only claims best-next-hop visibility toward the destination
 - `Opaque` - engine does not expose useful route shape beyond viability
 
 This matters for proactive engines. Pathway remains `ExplicitPath`, a Babel-like
-engine would typically be `AggregatePath`, and a BATMAN-like engine would
+engine would typically be `CorridorEnvelope`, and a BATMAN-like engine would
 honestly report `NextHopOnly`.
 
 ## In-Tree BATMAN Engine

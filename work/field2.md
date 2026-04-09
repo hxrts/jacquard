@@ -1922,7 +1922,7 @@ Implementation note:
 - [x] Audit existing `RouteShapeVisibility` usage and identify all places that
   must support the corridor-envelope semantics.
 - [x] Gate: run `just ci-dry-run` and make sure it is clean.
-- [ ] Gate: make a git commit for Phase 0.
+- [x] Gate: make a git commit for Phase 0.
 
 ### Phase 1: Shared Surface And Visibility Plumbing
 
