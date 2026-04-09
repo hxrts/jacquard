@@ -3,9 +3,8 @@
 //! Rules:
 //! - `ReferenceLink` / `ReferenceNode` must not reappear in the workspace as
 //!   developer-facing preset names.
-//! - `jacquard-reference-client` must keep the legacy `build_*client*`
-//!   compatibility wrappers bounded; new client-construction paths should go
-//!   through `ClientBuilder`.
+//! - `jacquard-reference-client` must not reintroduce public `build_*client*`
+//!   factory functions; client construction goes through `ClientBuilder`.
 //! - Human-facing preset/client modules should not drift back toward long
 //!   positional public signatures.
 //!
@@ -18,12 +17,6 @@ use anyhow::{bail, Context, Result};
 use crate::util::{normalize_rel_path, workspace_root, Violation};
 
 const PRESET_NAME_NEEDLES: &[&str] = &["ReferenceLink", "ReferenceNode"];
-const FACTORY_ALLOWLIST: &[&str] = &[
-    "build_pathway_client",
-    "build_pathway_client_with_profile",
-    "build_pathway_batman_client",
-    "build_pathway_batman_client_with_profile",
-];
 const MAX_POSITIONAL_PARAMS: usize = 4;
 
 pub fn run() -> Result<()> {
@@ -88,7 +81,6 @@ fn scan_factory_surface(root: &Path) -> Result<Vec<Violation>> {
     let contents = std::fs::read_to_string(&path)
         .with_context(|| format!("reading {}", path.display()))?;
     let rel = normalize_rel_path(root, &path);
-    let mut factory_count = 0_usize;
     let mut violations = Vec::new();
 
     for (line_no, line) in contents.lines().enumerate() {
@@ -102,21 +94,12 @@ fn scan_factory_surface(root: &Path) -> Result<Vec<Violation>> {
         else {
             continue;
         };
-        factory_count = factory_count.saturating_add(1);
-        if !FACTORY_ALLOWLIST.contains(&name) {
-            violations.push(Violation::new(
-                rel.clone(),
-                line_no + 1,
-                "new public client factory functions must not be added; extend `ClientBuilder` instead",
-            ));
-        }
-    }
-
-    if factory_count > FACTORY_ALLOWLIST.len() {
         violations.push(Violation::new(
-            rel,
-            1,
-            "legacy client factory family has grown; keep public construction centered on `ClientBuilder`",
+            rel.clone(),
+            line_no + 1,
+            format!(
+                "public client factory `{name}` is forbidden; construct clients through `ClientBuilder`"
+            ),
         ));
     }
 
@@ -168,9 +151,6 @@ fn scan_file_for_long_public_signatures(rel: &str, contents: &str) -> Vec<Violat
         else {
             continue;
         };
-        if FACTORY_ALLOWLIST.contains(&name) {
-            continue;
-        }
         let Some(params) = signature
             .split_once('(')
             .and_then(|(_, rest)| rest.split_once(')'))
@@ -206,16 +186,6 @@ fn scan_file_for_long_public_signatures(rel: &str, contents: &str) -> Vec<Violat
 #[cfg(test)]
 mod tests {
     use super::scan_file_for_long_public_signatures;
-
-    #[test]
-    fn ignores_allowed_legacy_client_wrappers() {
-        let violations = scan_file_for_long_public_signatures(
-            "crates/reference-client/src/clients.rs",
-            "pub fn build_pathway_client_with_profile(a: u8, b: u8, c: u8, d: u8, e: u8) {}",
-        );
-
-        assert!(violations.is_empty());
-    }
 
     #[test]
     fn flags_long_human_facing_signatures() {

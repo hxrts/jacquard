@@ -632,7 +632,7 @@ mod tests {
         )
     }
 
-    fn active_link(byte: u8, confidence: u16) -> Link {
+    fn fixture_link(byte: u8, confidence: u16) -> Link {
         Link {
             endpoint: endpoint(byte),
             profile: default_link_profile(),
@@ -755,8 +755,8 @@ mod tests {
                 (NodeId([3; 32]), node_with_services(vec![])),
             ]),
             links: BTreeMap::from([
-                ((NodeId([1; 32]), NodeId([2; 32])), active_link(2, 950)),
-                ((NodeId([1; 32]), NodeId([3; 32])), active_link(3, 900)),
+                ((NodeId([1; 32]), NodeId([2; 32])), fixture_link(2, 950)),
+                ((NodeId([1; 32]), NodeId([3; 32])), fixture_link(3, 900)),
             ]),
             environment: Environment {
                 reachable_neighbor_count: 2,
@@ -921,7 +921,7 @@ mod tests {
                     ]),
                 ),
             ]),
-            links: BTreeMap::from([((local, peer), active_link(2, 950))]),
+            links: BTreeMap::from([((local, peer), fixture_link(2, 950))]),
             environment: Environment {
                 reachable_neighbor_count: 1,
                 churn_permille: RatioPermille(0),

@@ -14,10 +14,29 @@
 
 use jacquard_core::{
     ControllerId, DiscoveryScopeId, LinkEndpoint, Node, NodeId, RoutingEngineId,
-    ServiceScope, Tick,
+    ServiceScope, Tick, TimeWindow,
 };
 
-use crate::{defaults, NodeStateSnapshot, SimulatedNodeProfile};
+use crate::{NodeStateSnapshot, SimulatedNodeProfile};
+
+/// Default discovery scope token used by the standard route-capable node
+/// preset.
+pub const DEFAULT_ROUTE_SERVICE_SCOPE_ID: [u8; 16] = DiscoveryScopeId([7; 16]).0;
+/// Default route-service window length used by the standard node preset.
+pub const DEFAULT_ROUTE_SERVICE_WINDOW_TICKS: u64 = 20;
+
+#[must_use]
+pub fn default_route_service_window(observed_at_tick: Tick) -> TimeWindow {
+    TimeWindow::new(
+        observed_at_tick,
+        Tick(
+            observed_at_tick
+                .0
+                .saturating_add(DEFAULT_ROUTE_SERVICE_WINDOW_TICKS.saturating_sub(1)),
+        ),
+    )
+    .expect("reference node defaults use a valid service window")
+}
 
 /// Typed identity for the common node preset path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,10 +86,9 @@ impl NodePreset {
         routing_engines: &[RoutingEngineId],
     ) -> Self {
         let NodePresetOptions { identity, endpoint, observed_at_tick } = options;
-        let valid_for = defaults::default_route_service_window(observed_at_tick);
-        let scope = ServiceScope::Discovery(DiscoveryScopeId(
-            defaults::DEFAULT_ROUTE_SERVICE_SCOPE_ID,
-        ));
+        let valid_for = default_route_service_window(observed_at_tick);
+        let scope =
+            ServiceScope::Discovery(DiscoveryScopeId(DEFAULT_ROUTE_SERVICE_SCOPE_ID));
         let profile = SimulatedNodeProfile::route_capable_for_engines(
             &endpoint,
             routing_engines,

@@ -84,18 +84,13 @@
 
 mod bridge;
 mod clients;
-pub mod defaults;
 pub mod topology;
 
 pub use bridge::{
     BoundHostBridge, BridgeQueueConfig, BridgeRoundProgress, BridgeRoundReport,
     BridgeWaitState, HostBridge,
 };
-pub use clients::{
-    build_pathway_batman_client, build_pathway_batman_client_with_profile,
-    build_pathway_client, build_pathway_client_with_profile, ClientBuildOptions,
-    ClientBuilder, PathwayClient, PathwayRouter,
-};
+pub use clients::{ClientBuildOptions, ClientBuilder, PathwayClient, PathwayRouter};
 pub use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, LinkPreset,
     LinkPresetOptions, SharedInMemoryNetwork, SimulatedLinkProfile,

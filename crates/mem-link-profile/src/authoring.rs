@@ -18,7 +18,8 @@ use jacquard_core::{
 };
 
 use crate::{
-    SimulatedLinkProfile, DEFAULT_STABILITY_HORIZON_MS, REFERENCE_TYPICAL_RTT_MS,
+    SimulatedLinkProfile, DEFAULT_DELIVERY_CONFIDENCE_PERMILLE,
+    DEFAULT_STABILITY_HORIZON_MS, REFERENCE_TYPICAL_RTT_MS,
 };
 
 /// Default transfer rate used by the reference in-memory link presets.
@@ -38,8 +39,7 @@ impl LinkPresetOptions {
         Self {
             endpoint,
             observed_at_tick,
-            delivery_confidence_permille:
-                crate::defaults::DEFAULT_DELIVERY_CONFIDENCE_PERMILLE,
+            delivery_confidence_permille: DEFAULT_DELIVERY_CONFIDENCE_PERMILLE,
         }
     }
 

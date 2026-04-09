@@ -27,6 +27,9 @@ use jacquard_traits::{
 use crate::PathwayRouter;
 
 const DEFAULT_BRIDGE_QUEUE_CAPACITY: usize = 64;
+/// Default queue capacities used by the reference client bridge.
+pub(crate) const DEFAULT_BRIDGE_QUEUE_CONFIG: BridgeQueueConfig =
+    BridgeQueueConfig::new(64, 64);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BridgeQueueConfig {
@@ -49,7 +52,7 @@ impl BridgeQueueConfig {
 
 impl Default for BridgeQueueConfig {
     fn default() -> Self {
-        Self::new(DEFAULT_BRIDGE_QUEUE_CAPACITY, DEFAULT_BRIDGE_QUEUE_CAPACITY)
+        DEFAULT_BRIDGE_QUEUE_CONFIG
     }
 }
 

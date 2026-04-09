@@ -9,9 +9,6 @@
 //! - `node(byte).pathway().build()`
 //! - `node(byte).for_engines(&[...]).build()`
 //! - `link(byte).with_confidence(...).build()`
-//!
-//! The small helper functions at the bottom are compatibility wrappers over the
-//! builder-style API.
 
 use jacquard_adapter::opaque_endpoint;
 use jacquard_batman::BATMAN_ENGINE_ID;
@@ -141,39 +138,4 @@ impl TopologyLinkPreset {
         )
         .build()
     }
-}
-
-#[doc(hidden)]
-#[must_use]
-pub fn route_capable_node(node_byte: u8) -> Node {
-    node(node_byte).pathway().build()
-}
-
-#[doc(hidden)]
-#[must_use]
-pub fn route_capable_node_for_engine(node_byte: u8, engine: &RoutingEngineId) -> Node {
-    node(node_byte).for_engine(engine).build()
-}
-
-#[doc(hidden)]
-#[must_use]
-pub fn route_capable_node_for_engines(
-    node_byte: u8,
-    engines: &[RoutingEngineId],
-) -> Node {
-    node(node_byte).for_engines(engines).build()
-}
-
-#[doc(hidden)]
-#[must_use]
-pub fn dual_engine_route_capable_node(node_byte: u8) -> Node {
-    node(node_byte).pathway_and_batman().build()
-}
-
-#[doc(hidden)]
-#[must_use]
-pub fn active_link(device_byte: u8, confidence: u16) -> Link {
-    link(device_byte)
-        .with_confidence(RatioPermille(confidence))
-        .build()
 }

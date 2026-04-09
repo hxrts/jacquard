@@ -8,9 +8,6 @@
 //! `HostBridge` that owns the transport attachment and drives the router
 //! through synchronous rounds.
 //!
-//! The legacy `build_*client*` functions remain as thin wrappers over the
-//! builder for tests that still prefer function-style setup.
-//!
 //! `PathwayRouter` and `PathwayClient` are type aliases exported for use by
 //! integration tests that need to name the bridge type concretely.
 
@@ -31,8 +28,7 @@ use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::Blake3Hashing;
 
 use crate::{
-    bridge::{BridgeQueueConfig, BridgeTransport},
-    defaults::DEFAULT_BRIDGE_QUEUE_CONFIG,
+    bridge::{BridgeQueueConfig, BridgeTransport, DEFAULT_BRIDGE_QUEUE_CONFIG},
     HostBridge,
 };
 
@@ -195,52 +191,6 @@ impl ClientBuilder {
             self.options.queue_config,
         )
     }
-}
-
-#[doc(hidden)]
-pub fn build_pathway_client(
-    local_node_id: NodeId,
-    topology: Observation<Configuration>,
-    network: SharedInMemoryNetwork,
-    now: Tick,
-) -> PathwayClient {
-    ClientBuilder::pathway(local_node_id, topology, network, now).build()
-}
-
-#[doc(hidden)]
-pub fn build_pathway_client_with_profile(
-    local_node_id: NodeId,
-    topology: Observation<Configuration>,
-    network: SharedInMemoryNetwork,
-    now: Tick,
-    profile: SelectedRoutingParameters,
-) -> PathwayClient {
-    ClientBuilder::pathway(local_node_id, topology, network, now)
-        .with_profile(profile)
-        .build()
-}
-
-#[doc(hidden)]
-pub fn build_pathway_batman_client(
-    local_node_id: NodeId,
-    topology: Observation<Configuration>,
-    network: SharedInMemoryNetwork,
-    now: Tick,
-) -> PathwayClient {
-    ClientBuilder::pathway_and_batman(local_node_id, topology, network, now).build()
-}
-
-#[doc(hidden)]
-pub fn build_pathway_batman_client_with_profile(
-    local_node_id: NodeId,
-    topology: Observation<Configuration>,
-    network: SharedInMemoryNetwork,
-    now: Tick,
-    profile: SelectedRoutingParameters,
-) -> PathwayClient {
-    ClientBuilder::pathway_and_batman(local_node_id, topology, network, now)
-        .with_profile(profile)
-        .build()
 }
 
 fn local_endpoint(

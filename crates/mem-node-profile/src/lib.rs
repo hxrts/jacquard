@@ -14,7 +14,6 @@
 //!
 //! Module map:
 //! - [`authoring`]: human-facing node authoring presets
-//! - [`defaults`]: discoverable reference default values
 //! - [`profile`]: low-level node capability builder
 //! - [`service`]: low-level service descriptor builder
 //! - [`state`]: low-level node state builder
@@ -56,12 +55,14 @@
 #![forbid(unsafe_code)]
 
 pub mod authoring;
-pub mod defaults;
 pub mod profile;
 pub mod service;
 pub mod state;
 
-pub use authoring::{NodeIdentity, NodePreset, NodePresetOptions};
+pub use authoring::{
+    default_route_service_window, NodeIdentity, NodePreset, NodePresetOptions,
+    DEFAULT_ROUTE_SERVICE_SCOPE_ID, DEFAULT_ROUTE_SERVICE_WINDOW_TICKS,
+};
 pub use profile::{SimulatedNodeProfile, DEFAULT_HOLD_CAPACITY_BYTES};
 pub use service::{RouteServiceBundle, SimulatedServiceDescriptor};
 pub use state::NodeStateSnapshot;

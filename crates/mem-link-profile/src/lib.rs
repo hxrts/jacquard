@@ -15,7 +15,6 @@
 //!
 //! Module map:
 //! - [`authoring`]: human-facing link authoring presets
-//! - [`defaults`]: discoverable reference default values
 //! - [`state`]: low-level link profile/state builder
 //! - `transport`: in-memory transport sender + driver implementation
 //! - `network`: shared in-memory carrier fabric
@@ -66,7 +65,6 @@
 #![forbid(unsafe_code)]
 
 pub mod authoring;
-pub mod defaults;
 mod effect;
 mod network;
 mod retention;
