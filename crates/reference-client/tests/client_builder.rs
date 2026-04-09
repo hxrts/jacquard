@@ -199,8 +199,5 @@ fn topology_projector_reads_stable_snapshot_from_reference_client_surfaces() {
         .get(route.identity.route_id())
         .expect("projected route");
     assert_eq!(projected.destination, DestinationId::Node(remote_node_id));
-    assert_eq!(
-        projected.route_shape,
-        ObservedRouteShape::ExplicitPath { hop_count_visible: true }
-    );
+    assert_eq!(projected.route_shape, ObservedRouteShape::ExplicitPath);
 }
