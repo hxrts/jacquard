@@ -19,19 +19,29 @@
 //!   `TransportSenderEffects`), and `restore_route_runtime_for_router`.
 
 use jacquard_core::{
-    DestinationId, Fact, FactBasis, HealthScore, Limit, NodeId, PublishedRouteRecord,
-    RatioPermille, ReachabilityState, RouteCommitment, RouteError, RouteHealth,
-    RouteId, RouteInstallation, RouteLifecycleEvent, RouteMaintenanceFailure,
-    RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
-    RouteMaterializationInput, RouteMaterializationProof, RouteProgressContract,
-    RouteProgressState, RouteRuntimeError, RouteRuntimeState, RouteSelectionError,
-    RoutingTickChange, RoutingTickContext, RoutingTickHint, RoutingTickOutcome, Tick,
+    Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, LinkEndpoint,
+    NodeId, Observation, PublishedRouteRecord, RatioPermille, ReachabilityState,
+    RouteCommitment, RouteError, RouteHealth, RouteId, RouteInstallation,
+    RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
+    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+    RouteMaterializationProof, RouteProgressContract, RouteProgressState,
+    RouteRuntimeError, RouteRuntimeState, RouteSelectionError, RoutingTickChange,
+    RoutingTickContext, RoutingTickHint, RoutingTickOutcome, Tick,
+    TransportObservation,
 };
 use jacquard_traits::{
     RouterManagedEngine, RoutingEngine, TimeEffects, TransportSenderEffects,
 };
 
-use crate::{public_state::ActiveBatmanRoute, scoring, BatmanEngine, BATMAN_ENGINE_ID};
+use crate::{
+    gossip::{
+        decode_advertisement, encode_advertisement, local_advertisement,
+        LearnedAdvertisement,
+    },
+    private_state::link_is_usable,
+    public_state::ActiveBatmanRoute,
+    scoring, BatmanEngine, BATMAN_ENGINE_ID,
+};
 
 fn health_scores_from_tq(
     tq: RatioPermille,
@@ -43,6 +53,85 @@ fn health_scores_from_tq(
         HealthScore(u32::from(tq.0)),
         jacquard_core::PenaltyPoints(u32::from(penalty)),
     )
+}
+
+impl<Transport, Effects> BatmanEngine<Transport, Effects>
+where
+    Transport: TransportSenderEffects,
+    Effects: TimeEffects,
+{
+    fn direct_neighbor_endpoints(
+        &self,
+        topology: &Observation<Configuration>,
+    ) -> Vec<LinkEndpoint> {
+        topology
+            .value
+            .links
+            .iter()
+            .filter(|((from_node_id, _), link)| {
+                *from_node_id == self.local_node_id && link_is_usable(link.state.state)
+            })
+            .map(|((_, _), link)| link.endpoint.clone())
+            .collect()
+    }
+
+    fn flood_gossip(
+        &mut self,
+        topology: &Observation<Configuration>,
+        observed_at_tick: Tick,
+    ) -> Result<(), RouteError> {
+        let neighbor_endpoints = self.direct_neighbor_endpoints(topology);
+        if neighbor_endpoints.is_empty() {
+            return Ok(());
+        }
+
+        let mut advertisements = self
+            .learned_advertisements
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        advertisements.push(LearnedAdvertisement::new(
+            local_advertisement(self.local_node_id, topology, observed_at_tick.0),
+            observed_at_tick,
+        ));
+
+        for neighbor in &neighbor_endpoints {
+            for learned in &advertisements {
+                let Ok(payload) = encode_advertisement(&learned.advertisement) else {
+                    continue;
+                };
+                self.transport.send_transport(neighbor, &payload)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn ingest_advertisement(&mut self, payload: &[u8], observed_at_tick: Tick) {
+        let Some(advertisement) = decode_advertisement(payload) else {
+            return;
+        };
+        if advertisement.originator == self.local_node_id {
+            return;
+        }
+
+        let Some(is_newer) = self
+            .learned_advertisements
+            .get(&advertisement.originator)
+            .map(|known| advertisement.sequence > known.advertisement.sequence)
+            .or(Some(true))
+        else {
+            return;
+        };
+        if !is_newer {
+            return;
+        }
+
+        self.learned_advertisements.insert(
+            advertisement.originator,
+            LearnedAdvertisement::new(advertisement, observed_at_tick),
+        );
+    }
 }
 
 impl<Transport, Effects> RoutingEngine for BatmanEngine<Transport, Effects>
@@ -115,6 +204,7 @@ where
     ) -> Result<RoutingTickOutcome, RouteError> {
         let change =
             self.refresh_private_state(&tick.topology, tick.topology.observed_at_tick);
+        self.flood_gossip(&tick.topology, tick.topology.observed_at_tick)?;
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,
             change,
@@ -176,6 +266,19 @@ where
 {
     fn local_node_id_for_router(&self) -> NodeId {
         self.local_node_id
+    }
+
+    fn ingest_transport_observation_for_router(
+        &mut self,
+        observation: &TransportObservation,
+    ) -> Result<(), RouteError> {
+        if let TransportObservation::PayloadReceived {
+            payload, observed_at_tick, ..
+        } = observation
+        {
+            self.ingest_advertisement(payload, *observed_at_tick);
+        }
+        Ok(())
     }
 
     fn forward_payload_for_router(

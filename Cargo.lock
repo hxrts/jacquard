@@ -561,12 +561,14 @@ dependencies = [
 name = "jacquard-batman"
 version = "0.3.0"
 dependencies = [
+ "bincode",
  "jacquard-adapter",
  "jacquard-core",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-router",
  "jacquard-traits",
+ "serde",
 ]
 
 [[package]]

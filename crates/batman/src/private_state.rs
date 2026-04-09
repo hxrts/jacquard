@@ -36,6 +36,7 @@ use jacquard_core::{
 };
 
 use crate::{
+    gossip::merge_advertisements,
     public_state::{
         BestNextHop, NeighborRanking, OriginatorObservation, OriginatorObservationTable,
     },
@@ -50,7 +51,17 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
         topology: &Observation<Configuration>,
         now: Tick,
     ) -> RoutingTickChange {
-        let observed = self.derive_originator_observations(topology, now);
+        let stale_after_ticks = self.decay_window.stale_after_ticks;
+        self.learned_advertisements.retain(|_, learned| {
+            now.0.saturating_sub(learned.observed_at_tick.0) <= stale_after_ticks
+        });
+        let merged_topology = merge_advertisements(
+            topology,
+            &self.learned_advertisements,
+            now,
+            stale_after_ticks,
+        );
+        let observed = self.derive_originator_observations(&merged_topology, now);
         let next_observations = self.merge_observations(observed, now);
         let next_rankings = next_observations
             .iter()
@@ -88,7 +99,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                             degradation: best.degradation,
                             backend_route_id: self
                                 .backend_route_id_for(*originator, best.via_neighbor),
-                            topology_epoch: topology.value.epoch,
+                            topology_epoch: merged_topology.value.epoch,
                         },
                     )
                 })
@@ -98,7 +109,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
         let changed = self.originator_observations != next_observations
             || self.neighbor_rankings != next_rankings
             || self.best_next_hops != next_best;
-        self.latest_topology = Some(topology.clone());
+        self.latest_topology = Some(merged_topology);
         self.originator_observations = next_observations;
         self.neighbor_rankings = next_rankings;
         self.best_next_hops = next_best;

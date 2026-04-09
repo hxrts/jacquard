@@ -14,6 +14,7 @@
 
 #![forbid(unsafe_code)]
 
+mod gossip;
 mod planner;
 mod private_state;
 mod public_state;
@@ -22,6 +23,7 @@ mod scoring;
 
 use std::collections::BTreeMap;
 
+use gossip::LearnedAdvertisement;
 use jacquard_core::{
     Configuration, ConnectivityPosture, NodeId, Observation, RouteId,
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteShapeVisibility,
@@ -56,6 +58,7 @@ pub struct BatmanEngine<Transport, Effects> {
     effects: Effects,
     latest_topology: Option<Observation<Configuration>>,
     decay_window: DecayWindow,
+    learned_advertisements: BTreeMap<NodeId, LearnedAdvertisement>,
     originator_observations: OriginatorObservationTable,
     neighbor_rankings: BTreeMap<NodeId, NeighborRanking>,
     best_next_hops: BTreeMap<NodeId, BestNextHop>,
@@ -86,6 +89,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
             effects,
             latest_topology: None,
             decay_window,
+            learned_advertisements: BTreeMap::new(),
             originator_observations: BTreeMap::new(),
             neighbor_rankings: BTreeMap::new(),
             best_next_hops: BTreeMap::new(),
