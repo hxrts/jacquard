@@ -1,7 +1,7 @@
-//! Mesh-owned contract tests for the public read-only extension seams.
+//! Pathway-owned contract tests for the public read-only extension seams.
 //!
 //! These tests live in `jacquard-pathway` because `PathwayTopologyModel` and
-//! `PathwayRoutingEngine` are mesh-specific contracts, not shared `traits`
+//! `PathwayRoutingEngine` are pathway-specific contracts, not shared `traits`
 //! boundaries.
 
 mod common;

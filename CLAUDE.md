@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Jacquard is an adaptive mesh routing system built on choreographic protocols. It uses Telltale for session types, choreography macros, and the effect-based runtime.
+Jacquard is a deterministic multi-engine routing system built around explicit router ownership, host bridges, and choreographic protocol support where an engine needs it. It uses Telltale for session types and choreography macros inside pathway, while the shared runtime model stays bridge-and-driver based rather than effect-stream based.
 
 Jacquard is fully deterministic. No floating-point types, host-dependent ordering, or ambient randomness in routing or protocol state. Use typed time effects (`Tick`, `DurationMs`, `OrderStamp`, `RouteEpoch`) rather than raw wall-clock APIs or ad hoc `u64` timestamp fields.
 

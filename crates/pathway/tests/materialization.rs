@@ -1,4 +1,4 @@
-//! Integration tests for admitted-plan materialization in the mesh engine.
+//! Integration tests for admitted-plan materialization in the pathway engine.
 //!
 //! These tests make sure materialization is driven by the admitted opaque
 //! backend plan token rather than the planner cache.

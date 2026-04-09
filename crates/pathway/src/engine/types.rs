@@ -1,4 +1,4 @@
-//! Mesh-owned route and runtime data types.
+//! Pathway-owned route and runtime data types.
 //!
 //! These types stay inside `jacquard-pathway` even when they are assembled
 //! from shared world inputs and shared route lifecycle objects.

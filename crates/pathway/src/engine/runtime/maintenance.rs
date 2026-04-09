@@ -1,11 +1,11 @@
-//! Route-maintenance state machine for active mesh routes.
+//! Route-maintenance state machine for active pathway routes.
 //!
 //! Control flow: `maintain_route` snapshots router-owned state first, then
 //! dispatches here on the typed maintenance trigger. This module applies the
-//! concrete mesh transition: repair the remaining suffix, enter or recover
+//! concrete pathway transition: repair the remaining suffix, enter or recover
 //! from partition mode, hand the route off, or escalate to replacement or
-//! failure. It mutates only mesh-private runtime state and returns the shared
-//! maintenance outcome.
+//! failure. It mutates only pathway-private runtime state and returns the
+//! shared maintenance outcome.
 
 use jacquard_core::{
     Blake3Digest, Configuration, ContentId, LinkEndpoint, PublishedRouteRecord,

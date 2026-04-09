@@ -2,7 +2,7 @@
 //! `PathwayEngine`.
 //!
 //! Materialization enforces the active-route budget, verifies lease
-//! validity, assembles the mesh-private `ActivePathwayRoute` record, and
+//! validity, assembles the pathway-private `ActivePathwayRoute` record, and
 //! checkpoints it before recording a lifecycle event. Maintenance
 //! dispatches per `RouteMaintenanceTrigger` into small helpers that
 //! each return a typed `RouteMaintenanceResult`. `engine_tick` is the
@@ -82,7 +82,7 @@ where
         // Checkpoint removal is best-effort during teardown: the route
         // is going away regardless, and leaving stale bytes behind is
         // less harmful than refusing to drop the in-memory active
-        // route. v1 mesh does not reconcile orphaned checkpoints later;
+        // route. v1 pathway does not reconcile orphaned checkpoints later;
         // hosts that care about storage hygiene must sweep them out of band.
         let _ = choreography::clear_route_protocols(
             &mut self.transport,

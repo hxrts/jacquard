@@ -1,8 +1,9 @@
-//! Integration tests for v1 mesh route-commitment semantics.
+//! Integration tests for v1 pathway route-commitment semantics.
 //!
-//! V1 mesh publishes one current commitment per route even when the route is in
-//! a repair, handoff, or deferred-delivery posture. Those postures live in the
-//! route's runtime state instead of becoming separate concurrent commitments.
+//! V1 pathway publishes one current commitment per route even when the route is
+//! in a repair, handoff, or deferred-delivery posture. Those postures live in
+//! the route's runtime state instead of becoming separate concurrent
+//! commitments.
 
 mod common;
 

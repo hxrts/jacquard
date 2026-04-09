@@ -1,4 +1,4 @@
-//! Deterministic domain data for the mesh integration tests.
+//! Deterministic domain data for the pathway integration tests.
 //!
 //! Every helper here is pure: same inputs always produce the same
 //! `Node`, `Link`, or `Configuration`. The fixtures are tuned so the

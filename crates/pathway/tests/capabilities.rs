@@ -1,4 +1,4 @@
-//! Contract tests for the static mesh capability envelope.
+//! Contract tests for the static pathway capability envelope.
 
 mod common;
 

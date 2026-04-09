@@ -1,4 +1,4 @@
-//! Final admission judgment for an already-derived mesh candidate.
+//! Final admission judgment for an already-derived pathway candidate.
 //!
 //! Control flow: candidate assembly produces a shared `RouteSummary`, a
 //! computed `RouteCost`, and any committee outcome. This module folds those

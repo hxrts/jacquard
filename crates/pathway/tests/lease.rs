@@ -1,6 +1,6 @@
-//! Integration tests for the mesh lease window boundaries.
+//! Integration tests for the pathway lease window boundaries.
 //!
-//! `TimeWindow::contains` is half-open: `start <= tick < end`. The mesh
+//! `TimeWindow::contains` is half-open: `start <= tick < end`. The pathway
 //! engine uses `RouteLease::is_valid_at` and `ensure_valid_at` to gate
 //! materialization and maintenance, so the boundary cases at `start`,
 //! `end - 1`, and `end` must all behave correctly.

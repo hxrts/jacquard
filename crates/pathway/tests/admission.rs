@@ -1,4 +1,4 @@
-//! Integration tests for the mesh admission rejection paths.
+//! Integration tests for the pathway admission rejection paths.
 //!
 //! `pathway_admission_check` has three rejection branches and one admit
 //! branch. The unit tests in `engine.rs` exercise the function directly
@@ -42,7 +42,7 @@ fn keep_only_move_service(
         .retain(|service| service.service_kind == RouteServiceKind::Move);
 }
 
-// A candidate produced by the mesh engine always carries LinkProtected
+// A candidate produced by the pathway engine always carries LinkProtected
 // summary protection. Asking for a TopologyProtected floor must drive
 // the admission check into ProtectionFloorUnsatisfied.
 #[test]
@@ -250,7 +250,7 @@ fn admit_route_succeeds_for_partition_tolerant_deferred_delivery_path() {
 }
 
 // Repeated admission checks on the same candidate must agree, and the
-// admission record must carry the topology epoch and the mesh engine id
+// admission record must carry the topology epoch and the pathway engine id
 // in its witness and summary so that the router can attribute the route.
 #[test]
 fn admission_emits_stable_check_and_witness_values() {

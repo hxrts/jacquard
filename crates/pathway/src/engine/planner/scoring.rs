@@ -1,4 +1,4 @@
-//! Mesh-private scoring used after raw path search.
+//! Pathway-private scoring used after raw path search.
 //!
 //! Control flow: weighted path search yields feasible node paths first. This
 //! module then computes the ranking signals layered on top of that search:

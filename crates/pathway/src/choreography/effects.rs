@@ -1,11 +1,11 @@
-//! Mesh-owned choreography effect bridge.
+//! Pathway-owned choreography effect bridge.
 //!
 //! Control flow: choreography-facing runtime code talks only to this narrow
 //! effect surface. The bridge stores protocol checkpoints and forwards
 //! retention operations onto the shared transport sender, retention, and
 //! runtime-effect traits.
 //!
-//! The boundary rule is that these mesh-private choreography effects are
+//! The boundary rule is that these pathway-private choreography effects are
 //! not the shared Jacquard effect contract. Generated or protocol-local
 //! effect interfaces stay private to `jacquard-pathway`. Concrete host/runtime
 //! adapters implement the shared traits from `jacquard-traits`, and this
@@ -118,12 +118,12 @@ pub(crate) trait PathwayProtocolRuntime {
     fn emit_protocol_observation(&mut self, observation: PathwayProtocolObservation);
 }
 
-// This adapter is the only place where mesh-private choreography requests are
-// translated onto the shared Jacquard effect traits. The generated effect
+// This adapter is the only place where pathway-private choreography requests
+// are translated onto the shared Jacquard effect traits. The generated effect
 // surface does not implement the shared traits directly; instead, one concrete
 // host object supplies `TimeEffects`, `OrderEffects`, `StorageEffects`, and
-// `RouteEventLogEffects`, and mesh interprets its private protocol requests in
-// terms of that stable runtime boundary.
+// `RouteEventLogEffects`, and pathway interprets its private protocol requests
+// in terms of that stable runtime boundary.
 pub(crate) struct PathwayProtocolRuntimeAdapter<'a, T, R, E> {
     pub(crate) transport: &'a mut T,
     pub(crate) retention: &'a mut R,
@@ -321,7 +321,7 @@ mod tests {
             endpoint: endpoint.clone(),
             payload: b"frame".to_vec(),
         };
-        adapter.send_mesh_frame(&frame).expect("send mesh frame");
+        adapter.send_mesh_frame(&frame).expect("send pathway frame");
 
         let object_id = ContentId { digest: Blake3Digest([7; 32]) };
         let payload = PathwayHeldPayload { object_id, payload: b"payload".to_vec() };

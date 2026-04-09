@@ -13,6 +13,7 @@ use crate::util::{
 pub fn run() -> Result<()> {
     let root = workspace_root()?;
     let mut violations = scan_effect_capability_file(&root)?;
+    violations.extend(scan_driver_contract_file(&root)?);
     violations.extend(scan_driver_impls(&root)?);
 
     if !violations.is_empty() {
@@ -38,12 +39,49 @@ fn scan_effect_capability_file(root: &std::path::Path) -> Result<Vec<Violation>>
     let mut violations = Vec::new();
 
     for (index, line) in effects.lines().enumerate() {
-        if line.contains("TransportEffects") || line.contains("poll_transport(") {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("//") {
+            continue;
+        }
+        if line.contains("TransportEffects")
+            || line.contains("poll_transport(")
+            || line.contains("Stream")
+            || line.contains("subscribe")
+            || line.contains("watch")
+        {
             violations.push(Violation::with_layer(
                 "crates/traits/src/effects.rs",
                 index + 1,
-                "transport ingress ownership must stay out of effect capabilities",
+                "transport effect capabilities must stay free of ingress-stream and supervision vocabulary",
                 layer_for_rel_path("crates/traits/src/effects.rs"),
+            ));
+        }
+    }
+
+    Ok(violations)
+}
+
+fn scan_driver_contract_file(root: &std::path::Path) -> Result<Vec<Violation>> {
+    let drivers_path = root.join("crates/traits/src/drivers.rs");
+    let drivers = std::fs::read_to_string(&drivers_path)
+        .with_context(|| format!("reading {}", drivers_path.display()))?;
+    let mut violations = Vec::new();
+
+    for (index, line) in drivers.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("//") {
+            continue;
+        }
+        if line.contains("Tick")
+            || line.contains("OrderStamp")
+            || line.contains("now_tick(")
+            || line.contains("next_order_stamp(")
+        {
+            violations.push(Violation::with_layer(
+                "crates/traits/src/drivers.rs",
+                index + 1,
+                "transport drivers must not assign Jacquard time or ordering",
+                layer_for_rel_path("crates/traits/src/drivers.rs"),
             ));
         }
     }

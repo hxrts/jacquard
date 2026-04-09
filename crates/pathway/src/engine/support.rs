@@ -146,7 +146,7 @@ fn encode_versioned<T: Serialize>(version: u8, value: &T) -> Vec<u8> {
     bytes.extend(
         canonical_options()
             .serialize(value)
-            .expect("mesh canonical bytes are always serializable"),
+            .expect("pathway canonical bytes are always serializable"),
     );
     bytes
 }
@@ -235,7 +235,7 @@ pub(super) fn encode_route_identity_bytes(plan: &PathwayPlanToken) -> Vec<u8> {
         route_class: &'a PathwayRouteClass,
     }
 
-    // Route ids in v1 mesh are path identities rather than per-epoch instance
+    // Route ids in v1 pathway are path identities rather than per-epoch instance
     // identities. The epoch stays in the plan token and materialization proof,
     // but the stable route id is derived from source, destination, route class,
     // and the concrete segment path only.
@@ -250,7 +250,7 @@ pub(super) fn encode_route_identity_bytes(plan: &PathwayPlanToken) -> Vec<u8> {
     )
 }
 
-// Self-contained plan token: a serialized mesh-private route plan
+// Self-contained plan token: a serialized pathway-private route plan
 // carrying the path, route class, validity window, and optional
 // committee result. Planner cache entries may be dropped; materialize
 // and planner cache-miss paths decode this token instead of depending

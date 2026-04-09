@@ -2,7 +2,7 @@
 //!
 //! Control flow: the current owner proposes reconciliation state to
 //! a peer, the peer either syncs or defers, and the generated branch becomes
-//! the only live sequencing path for mesh anti-entropy exchange.
+//! the only live sequencing path for pathway anti-entropy exchange.
 
 use std::{error::Error, marker, result};
 

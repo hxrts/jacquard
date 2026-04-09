@@ -57,7 +57,7 @@ typed engine evidence
   -> in-memory canonical publication
 ```
 
-Mesh may still checkpoint route-private runtime payloads, but canonical route publication and canonical route-event emission now happen in the router.
+Pathway may still checkpoint route-private runtime payloads, but canonical route publication and canonical route-event emission now happen in the router.
 
 ## Configuration and State Updates
 
@@ -67,7 +67,7 @@ The router also exposes a recovery interface for checkpoint replay. Hosts call `
 
 ## Discovery Boundary
 
-Shared discovery and coarse capability selection stay on `ServiceDescriptor`. Mesh nodes advertise route-capable surfaces through shared service descriptors. The router and test harness consume those shared descriptors. Jacquard does not introduce one universal handshake object for `Discover`, `Activate`, `Repair`, or `Hold`.
+Shared discovery and coarse capability selection stay on `ServiceDescriptor`. Pathway nodes advertise route-capable surfaces through shared service descriptors. The router and test harness consume those shared descriptors. Jacquard does not introduce one universal handshake object for `Discover`, `Activate`, `Repair`, or `Hold`.
 
 If a future engine needs stronger bilateral terms, add service-specific negotiation objects on that concrete path only.
 

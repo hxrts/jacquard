@@ -1,4 +1,4 @@
-//! Mesh choreography metadata catalog.
+//! Pathway choreography metadata catalog.
 //!
 //! Control flow: runtime code refers to protocols by
 //! `PathwayProtocolKind` and resolves small stable metadata from this module.

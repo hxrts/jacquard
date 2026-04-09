@@ -1,10 +1,10 @@
-//! Integration tests for the deterministic mesh committee selector.
+//! Integration tests for the deterministic pathway committee selector.
 //!
 //! Unit tests in `committee.rs` cover the four return-`None` guard
 //! branches in isolation. This file exercises the public selector
 //! through `CommitteeSelector::select_committee` against a configured
 //! topology and confirms the result is deterministic across repeated
-//! calls and non-empty under the standard mesh fixture.
+//! calls and non-empty under the standard pathway fixture.
 
 mod common;
 
@@ -335,7 +335,7 @@ fn committee_selector_some_is_carried_into_active_route() {
     let input = materialization_input(route_id, admission, lease(Tick(2), Tick(12)));
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
-        .expect("prime mesh topology");
+        .expect("prime pathway topology");
     engine
         .materialize_route(input)
         .expect("materialize route with committee");

@@ -4,7 +4,7 @@
 //! Control flow: `engine_tick` folds raw transport observations into a bounded
 //! summary and control state, then runtime operations ask this module to turn
 //! the latest topology plus the active route suffix into route-scoped health.
-//! The result is the shared `RouteHealth` surface without exposing mesh's
+//! The result is the shared `RouteHealth` surface without exposing pathway's
 //! private accumulators directly.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -326,7 +326,7 @@ where
         }
     }
 
-    // Suppress the last repair step under moderate mesh pressure (>300) to
+    // Suppress the last repair step under moderate pathway pressure (>300) to
     // avoid burning the final budget during a transient congestion burst.
     // Repairs are unrestricted when multiple steps remain.
     pub(super) fn repair_allowed(&self, active_route: &ActivePathwayRoute) -> bool {

@@ -1,4 +1,4 @@
-//! Integration tests for mesh engine-wide progress.
+//! Integration tests for pathway engine-wide progress.
 //!
 //! These tests exercise the bounded engine-private state retained by
 //! `engine_tick`: pre-tick bootstrap health, transport-observation

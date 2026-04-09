@@ -3,7 +3,7 @@
 //! Candidate production runs a five-step deterministic pipeline: metric-aware
 //! path search from the local node, filter by engine capability and objective
 //! match, derive a self-contained `BackendRouteId` plan token plus admission
-//! check, sort by path metric, mesh-private topology-model preference, and
+//! check, sort by path metric, pathway-private topology-model preference, and
 //! deterministic order key, then truncate to
 //! `PATHWAY_CANDIDATE_COUNT_MAX`. `check_candidate` and `admit_route` take
 //! topology explicitly and re-derive from the plan token on cache miss,

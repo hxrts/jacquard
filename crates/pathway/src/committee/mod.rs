@@ -1,10 +1,10 @@
-//! Optional committee coordination for mesh.
+//! Optional committee coordination for pathway.
 //!
 //! `NoCommitteeSelector` is the always-`None` default.
 //! `DeterministicCommitteeSelector` is the in-tree implementation used when an
 //! engine opts in. Committee output is advisory evidence only: canonical route
 //! admission, witnesses, and lease ownership still flow through the shared
-//! router boundary. This module also exposes the helpers that derive mesh
+//! router boundary. This module also exposes the helpers that derive pathway
 //! admission assumptions and health scores from the shared `Configuration`.
 
 mod selection;
@@ -29,7 +29,7 @@ pub(crate) const PATHWAY_COMMITTEE_MEMBERSHIP_CAP: u8 = 3;
 pub(crate) const PATHWAY_COMMITTEE_VALIDITY_TICKS: u64 = 8;
 
 /// Minimum reachable neighbor count required before forming a committee.
-/// Below this, mesh does not attempt local coordination.
+/// Below this, pathway does not attempt local coordination.
 pub(crate) const PATHWAY_COMMITTEE_MIN_NEIGHBOR_COUNT: u32 = 2;
 
 /// Churn threshold (permille) at which the admission assumptions flip to
@@ -51,7 +51,7 @@ pub(crate) const DENSITY_MODERATE_NEIGHBOR_MIN: u32 = 3;
 /// never a viable committee member regardless of other signals.
 const PATHWAY_COMMITTEE_SERVICE_WEIGHT: u32 = 100;
 
-/// Minimum mesh-private service stability required before local coordination
+/// Minimum pathway-private service stability required before local coordination
 /// is worthwhile. This reads through `PathwayNeighborhoodEstimate` so committee
 /// gating and candidate ordering use the same topology-model interpretation.
 const PATHWAY_COMMITTEE_SERVICE_STABILITY_FLOOR: u32 = 500;
@@ -105,11 +105,11 @@ pub fn pathway_route_connectivity(
 
 #[must_use]
 pub fn pathway_health_score(configuration: &Configuration) -> HealthScore {
-    // Mesh health stays on the shared 0..=HEALTH_SCORE_MAX scale. The score
+    // Pathway health stays on the shared 0..=HEALTH_SCORE_MAX scale. The score
     // rewards both usable neighbor density and environmental stability instead
     // of letting either dominate alone:
-    // - density_score measures how close the local neighborhood is to a dense mesh
-    //   regime, saturating once dense membership is reached.
+    // - density_score measures how close the local neighborhood is to a dense
+    //   pathway regime, saturating once dense membership is reached.
     // - stability_score measures how calm the environment is after averaging churn
     //   and contention penalties.
     // The final score is the midpoint of the two so sparse-but-calm and

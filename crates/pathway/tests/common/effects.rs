@@ -1,10 +1,11 @@
-//! Shared in-memory runtime handles used by the mesh integration tests.
+//! Shared in-memory runtime handles used by the pathway integration tests.
 //!
-//! The integration tests should exercise the real mesh public boundary, not
+//! The integration tests should exercise the real pathway public boundary, not
 //! engine-private escape hatches. These wrappers keep the concrete in-memory
 //! adapters shared with the reference client, while exposing separate test
 //! handles so assertions can inspect sent frames, stored bytes, and retained
-//! payloads without requiring public mesh-engine getters for those internals.
+//! payloads without requiring public pathway-engine getters for those
+//! internals.
 
 const EFFECTS_LOCK: &str = "test effects lock";
 const TRANSPORT_LOCK: &str = "test transport lock";

@@ -1,6 +1,6 @@
 //! Integration tests for the engine's determinism guarantee.
 //!
-//! The mesh engine claims that its candidate output is a deterministic
+//! The pathway engine claims that its candidate output is a deterministic
 //! function of the input topology. The existing integration test only
 //! checks that two calls on the same `Configuration` agree. These tests
 //! check stronger properties: byte-identical candidate output across

@@ -8,7 +8,7 @@ Jacquard is extended at several layers. World extensions add observed objects to
 
 These layers stay separate on purpose. A team can extend the world without becoming a routing-engine author, add a routing engine without redefining the world schema, or add host policy without modifying a routing engine.
 
-This page covers the world layer. See [Routing Engines](303_routing_engines.md) for the engine and policy contracts, [Runtime Effects](301_runtime_effects.md) for the host capability surface, and [Pathway Routing](401_pathway_routing.md) for the in-tree mesh implementation and its swappable subcomponents.
+This page covers the world layer. See [Routing Engines](303_routing_engines.md) for the engine and policy contracts, [Runtime Effects](301_runtime_effects.md) for the host capability surface, and [Pathway Routing](401_pathway_routing.md) for the in-tree explicit-path implementation and its swappable subcomponents.
 
 ## World Extension Surface
 

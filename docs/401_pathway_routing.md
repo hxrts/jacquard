@@ -6,9 +6,9 @@
 
 Pathway planning consumes the shared world picture from `jacquard-core`. The engine reads `Observation<Configuration>`, `Node`, `Link`, `Environment`, `ServiceDescriptor`, and `NodeRelayBudget` without wrapping or reshaping them.
 
-The pathway engine treats `ServiceDescriptor` as the shared capability-advertisement plane. Route-capable mesh nodes expose the default Jacquard routing surface, which includes the `Discover`, `Move`, and `Hold` services along with relay headroom, hold capacity, link-quality observations, and coarse environment posture. Pathway does not add a second advertisement protocol or a mesh-global algorithm handshake on top of that surface.
+The pathway engine treats `ServiceDescriptor` as the shared capability-advertisement plane. Route-capable pathway nodes expose the default Jacquard routing surface, which includes the `Discover`, `Move`, and `Hold` services along with relay headroom, hold capacity, link-quality observations, and coarse environment posture. Pathway does not add a second advertisement protocol or a pathway-global algorithm handshake on top of that surface.
 
-The static `PATHWAY_CAPABILITIES` envelope is exercised by contract tests. The in-tree mesh crate proves its `Repair`, `Hold`, partition-tolerance, decidable-admission, and explicit-route-shape claims against live planner and runtime behavior.
+The static `PATHWAY_CAPABILITIES` envelope is exercised by contract tests. The in-tree pathway crate proves its `Repair`, `Hold`, partition-tolerance, decidable-admission, and explicit-route-shape claims against live planner and runtime behavior.
 
 ## Deterministic Topology Model
 
@@ -44,7 +44,7 @@ Admission and witness generation operate on shared result objects. The pathway e
 - admitted routes carry that opaque backend ref forward so `materialize_route` can decode the selected pathway plan without searching planner cache state
 - materialization still revalidates that decoded plan against the latest observed topology, the shared topology epoch, and the plan validity window before issuing a proof
 
-Pathway route ids are path identities in v1. The stable route id is derived from source, destination, route class, and concrete segment path. Epoch stays in the plan token and proof instead of becoming part of the stable route identity. Mesh-private plan tokens, route-identity bytes, ordering keys, and runtime checkpoints all use the same versioned canonical binary encoding policy so replay, hashing, and checkpoint recovery stay aligned.
+Pathway route ids are path identities in v1. The stable route id is derived from source, destination, route class, and concrete segment path. Epoch stays in the plan token and proof instead of becoming part of the stable route identity. Pathway-private plan tokens, route-identity bytes, ordering keys, and runtime checkpoints all use the same versioned canonical binary encoding policy so replay, hashing, and checkpoint recovery stay aligned.
 
 ## Engine Middleware
 
@@ -65,7 +65,7 @@ Discovery enters the pathway engine through the shared world picture: nodes, lin
 
 ## Internal Choreography Surface
 
-Mesh now carries a private Telltale choreography layer inside `jacquard-pathway`. This does not change the shared Jacquard routing contract. Router-facing planning, admission, materialization, maintenance, and tick flow still use the shared `RoutingEngine` trait plus the pathway-owned `PathwayRoutingEngine` extension seam.
+Pathway now carries a private Telltale choreography layer inside `jacquard-pathway`. This does not change the shared Jacquard routing contract. Router-facing planning, admission, materialization, maintenance, and tick flow still use the shared `RoutingEngine` trait plus the pathway-owned `PathwayRoutingEngine` extension seam.
 
 The internal split is:
 
@@ -132,7 +132,7 @@ As in planning, `median_rtt_ms` is not currently part of the published route-hea
 
 Lifecycle sequencing is explicit and fail-closed. Pathway validates first, builds the next active-route state off to the side, persists the checkpoint, records the route event, and only then publishes the in-memory runtime mutation. If checkpoint or route-event logging fails, the new state is not committed.
 
-Protocol checkpoints follow the same fail-closed rule. Mesh writes or updates the protocol checkpoint through the choreography guest runtime before treating that step as complete, and rollback paths remove route-scoped protocol checkpoints when materialization or teardown does not commit. Those checkpoints now carry protocol metadata derived from the live inline protocol modules themselves, including the protocol name, declared roles, and source-path identity, so replay and recovery stay aligned with the live generated protocol surface rather than with a handwritten local label only.
+Protocol checkpoints follow the same fail-closed rule. Pathway writes or updates the protocol checkpoint through the choreography guest runtime before treating that step as complete, and rollback paths remove route-scoped protocol checkpoints when materialization or teardown does not commit. Those checkpoints now carry protocol metadata derived from the live inline protocol modules themselves, including the protocol name, declared roles, and source-path identity, so replay and recovery stay aligned with the live generated protocol surface rather than with a handwritten local label only.
 
 Maintenance is expressed through the shared `RouteMaintenanceResult` surface. In v1 pathway, repair means a bounded local suffix-repair algorithm over the latest observed topology. `LinkDegraded` and `EpochAdvanced` attempt to recompute the remaining suffix from the current owner to the final destination, consume one repair step on success, and escalate to typed replacement when no bounded patch is available or the repair budget is exhausted.
 
@@ -148,13 +148,13 @@ Old owners fail closed with `StaleOwner`, exhausted owner-relative paths fail wi
 
 Pathway can attach a swappable `CommitteeSelector`, with `DeterministicCommitteeSelector` as the optional in-tree implementation. The selector returns `Option<CommitteeSelection>` rather than assuming a committee always exists. The in-tree selector reads the pathway neighborhood estimate for committee gating and the pathway peer estimate for ranking. Route ordering and local coordination stay on the same topology-model interpretation.
 
-Committee eligibility is stricter than forwarding value alone. A member must be route-capable for pathway, must present a usable shared service surface, and may be disqualified by bounded behavior-history penalties before ranking happens. Selection is diversity-constrained: controller diversity is mandatory, and discovery-scope diversity is enforced when alternatives exist. If discovery-scope diversity would suppress the minimum viable committee, mesh falls back to controller-only diversity rather than silently disabling coordination.
+Committee eligibility is stricter than forwarding value alone. A member must be route-capable for pathway, must present a usable shared service surface, and may be disqualified by bounded behavior-history penalties before ranking happens. Selection is diversity-constrained: controller diversity is mandatory, and discovery-scope diversity is enforced when alternatives exist. If discovery-scope diversity would suppress the minimum viable committee, pathway falls back to controller-only diversity rather than silently disabling coordination.
 
 `None` means no committee applies, and a selector error is not silently downgraded to `None`. Pathway surfaces a selector error as a typed inadmissible candidate using `BackendUnavailable`. The result is advisory coordination evidence only and does not replace canonical route admission, route witness, or route lease ownership.
 
 ## Retention and Storage
 
-The pathway engine uses the shared `RetentionStore` boundary for deferred-delivery payloads. While a route is in partition mode, `forward_payload` buffers payloads into the retention store instead of sending them immediately. Mesh then flushes those retained payloads on recovery or before handoff when a next hop becomes available. The typed partition fallback surface remains `RouteMaintenanceOutcome::HoldFallback`, which now carries the retained-object count visible on the route at the time the fallback was entered.
+The pathway engine uses the shared `RetentionStore` boundary for deferred-delivery payloads. While a route is in partition mode, `forward_payload` buffers payloads into the retention store instead of sending them immediately. Pathway then flushes those retained payloads on recovery or before handoff when a next hop becomes available. The typed partition fallback surface remains `RouteMaintenanceOutcome::HoldFallback`, which now carries the retained-object count visible on the route at the time the fallback was entered.
 
 Retained payload identity flows through the shared `Hashing` boundary. Route and runtime checkpoints flow through the shared storage and route-event-log effects. Storage keys and runtime checkpoints are scoped by the local engine identity so multiple local pathway engines can share one backend without overwriting one another.
 
@@ -164,7 +164,7 @@ The choreography layer adds a second scoped recovery surface: protocol checkpoin
 
 ## Swappable Trait Surface
 
-The pathway engine exposes its narrow read-only mesh seams as two traits in `jacquard-pathway`: `PathwayTopologyModel` and `PathwayRoutingEngine`. Substituting either one replaces a mesh subcomponent without forking the engine, but the coupling is now honestly pathway-specific instead of leaking into `jacquard-traits`. `RetentionStore` remains a shared runtime boundary on the neutral effect surface. For host runtime effects beyond these seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
+The pathway engine exposes its narrow read-only pathway seams as two traits in `jacquard-pathway`: `PathwayTopologyModel` and `PathwayRoutingEngine`. Substituting either one replaces a pathway subcomponent without forking the engine, but the coupling is now honestly pathway-specific instead of leaking into `jacquard-traits`. `RetentionStore` remains a shared runtime boundary on the neutral effect surface. For host runtime effects beyond these seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
 
 ### Topology Model
 

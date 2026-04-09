@@ -1,15 +1,16 @@
-//! First-party deterministic mesh routing engine for Jacquard.
+//! First-party deterministic explicit-path routing engine for Jacquard.
 //!
 //! `engine` is the [`PathwayEngine`] state machine that implements the shared
 //! [`RoutingEnginePlanner`] and [`RoutingEngine`] contracts. `contracts` holds
-//! the mesh-specific read-only extension points that stay mesh-owned rather
-//! than leaking into `jacquard-traits`. `topology` is the read-only
+//! the pathway-specific read-only extension points that stay pathway-owned
+//! rather than leaking into `jacquard-traits`. `topology` is the read-only
 //! [`PathwayTopologyModel`] over shared `Configuration` objects and the
-//! mesh-private estimate types. `committee` is the optional
+//! pathway-private estimate types. `committee` is the optional
 //! [`CommitteeSelector`] used for local coordination when the profile asks for
 //! repair plus partition tolerance. `choreography` is the internal
-//! Telltale-backed protocol surface that will gradually absorb cooperative mesh
-//! runtime behavior without changing the public engine-neutral routing traits.
+//! Telltale-backed protocol surface that will gradually absorb cooperative
+//! pathway runtime behavior without changing the public engine-neutral routing
+//! traits.
 //!
 //! [`PathwayEngine`]: engine::PathwayEngine
 //! [`RoutingEnginePlanner`]: jacquard_traits::RoutingEnginePlanner

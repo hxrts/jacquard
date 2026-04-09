@@ -1,4 +1,4 @@
-//! Integration tests for the mesh maintenance trigger matrix and the
+//! Integration tests for the pathway maintenance trigger matrix and the
 //! repair budget exhaustion path.
 //!
 //! Each `RouteMaintenanceTrigger` variant maps to a specific
@@ -284,9 +284,9 @@ fn maintenance_checkpoint_failure_leaves_runtime_and_active_route_unchanged() {
     assert_eq!(engine.effects.events().len(), original_event_count);
 }
 
-// In v1 mesh, AntiEntropyRequired is a typed progress refresh over the
+// In v1 pathway, AntiEntropyRequired is a typed progress refresh over the
 // shared-world view. It does not yet perform route-export exchange or
-// mesh-private reconciliation work.
+// pathway-private reconciliation work.
 #[test]
 fn anti_entropy_required_is_a_progress_refresh_in_v1_mesh() {
     let mut engine = build_engine();

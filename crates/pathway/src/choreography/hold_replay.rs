@@ -2,9 +2,9 @@
 //!
 //! Control flow: a partitioned owner stores a held payload with a
 //! holder, the holder announces storage to the observer, and the recipient
-//! either replays immediately or defers. Mesh keeps the owner-visible retained
-//! object accounting in ordinary route runtime state rather than sending a
-//! second protocol-level tail message back to the owner.
+//! either replays immediately or defers. Pathway keeps the owner-visible
+//! retained object accounting in ordinary route runtime state rather than
+//! sending a second protocol-level tail message back to the owner.
 
 use std::{cell::RefCell, error::Error, marker, rc::Rc, result};
 

@@ -91,7 +91,7 @@ pub struct InformationSetSummary {
 
 `NodeProfile` exposes device and policy constraints in a form the router can use without learning hardware details. `NodeState` says how much connection headroom, forwarding capacity, and retention space remain now. A node with spare capacity but a short `retention_horizon_ms` is a weak retention target because routing decisions depend on future forwarding value rather than current free space alone.
 
-`jacquard-mem-node-profile` is the in-tree reference implementation of this boundary for tests and examples. It demonstrates how to model `NodeProfile`, evolve `NodeState`, and assemble a `Node` without importing router or mesh internals.
+`jacquard-mem-node-profile` is the in-tree reference implementation of this boundary for tests and examples. It demonstrates how to model `NodeProfile`, evolve `NodeState`, and assemble a `Node` without importing router or pathway internals.
 
 ### Link
 
@@ -206,7 +206,7 @@ The routing core sees budget, retention horizon, link quality, and aggregate nei
 
 The boundary is observational only. It feeds planning, admission, and maintenance decisions. It does not publish canonical route truth on its own. Promotion from observation to established routing state belongs to the control plane through explicit route objects and lifecycle transitions.
 
-Engine-specific peer or neighborhood heuristics live above this boundary. A mesh engine that wants novelty, reach, bridge, or flow-gradient estimates derives them from `Node`, `Link`, `Environment`, and world observations without promoting those derived estimates into the shared schema.
+Engine-specific peer or neighborhood heuristics live above this boundary. A pathway engine that wants novelty, reach, bridge, or flow-gradient estimates derives them from `Node`, `Link`, `Environment`, and world observations without promoting those derived estimates into the shared schema.
 
 ## Extending the World
 

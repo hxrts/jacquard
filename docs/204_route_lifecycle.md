@@ -51,7 +51,7 @@ Cache misses must still lead to the same planning or admission result for the sa
 
 `engine_tick` is the optional engine-wide convergence hook for refreshing local regime estimates, decaying stale state, retaining bounded observational summaries, or updating coordination posture before any specific route is active. In richer engines that can include maintaining bounded repair pressure, anti-entropy pressure, or transport-derived health posture. See [Routing Engines](303_routing_engines.md) for the full trait signatures.
 
-First-party mesh now routes protocol-side runtime work through a private choreography guest runtime before it touches transport, retention, route-event logging, or protocol checkpoint storage. That keeps the public lifecycle contract unchanged while making forwarding, repair, handoff, hold/replay, and tick-ingress sequencing explicit and replay-friendly inside the owning engine crate.
+First-party pathway now routes protocol-side runtime work through a private choreography guest runtime before it touches transport, retention, route-event logging, or protocol checkpoint storage. That keeps the public lifecycle contract unchanged while making forwarding, repair, handoff, hold/replay, and tick-ingress sequencing explicit and replay-friendly inside the owning engine crate.
 
 ## Active Route
 
@@ -69,7 +69,7 @@ Maintenance is expressed through `RoutingEngine::maintain_route`, which receives
 
 ## Overlay Example
 
-Layering lets an overlay engine use mesh as a carrier without awareness of pathway-private topology. Mesh provides substrate reachability inside one cluster. The overlay engine consumes those paths as leased substrates for inter-cluster carriage or egress.
+Layering lets an overlay engine use pathway as a carrier without awareness of pathway-private topology. Pathway provides substrate reachability inside one cluster. The overlay engine consumes those paths as leased substrates for inter-cluster carriage or egress.
 
 ```mermaid
 graph TD
@@ -83,7 +83,7 @@ graph TD
 
     substrate["substrate lease"]
 
-    subgraph mesh["mesh engine"]
+    subgraph pathway["pathway engine"]
         m_plan["planning: topology model, candidate production"]
         m_activate["activation: route materialization"]
         m_maintain["maintenance: forwarding, repair, retention"]

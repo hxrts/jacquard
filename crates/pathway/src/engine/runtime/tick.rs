@@ -1,10 +1,10 @@
 //! Engine-wide progress, commitment exposure, and router-facing sweep helpers.
 //!
-//! Control flow: the router drives `engine_tick`, which refreshes mesh's
+//! Control flow: the router drives `engine_tick`, which refreshes pathway's
 //! private control state from the latest tick context and returns a small
 //! shared outcome. The same module also exposes current route commitments and
 //! lease-expiry helpers so the router can perform canonical sweeps without
-//! reading mesh-private internals.
+//! reading pathway-private internals.
 
 use jacquard_core::{
     MaterializedRoute, PublishedRouteRecord, RouteBinding, RouteCommitment,

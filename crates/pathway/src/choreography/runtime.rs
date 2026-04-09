@@ -1,9 +1,9 @@
-//! Mesh guest-runtime entry points over the choreography effect bridge.
+//! Pathway guest-runtime entry points over the choreography effect bridge.
 //!
 //! Control flow: pathway runtime code enters this module at protocol boundaries
 //! such as activation, repair, handoff, forwarding, hold/replay, and tick
 //! ingress. The guest runtime stores small protocol checkpoints, emits
-//! mesh-local protocol observations, and funnels transport/retention/runtime
+//! pathway-local protocol observations, and funnels transport/retention/runtime
 //! side effects through `PathwayProtocolRuntime` instead of scattering those
 //! calls across imperative engine helpers.
 
@@ -673,7 +673,7 @@ fn checkpoint_bytes(checkpoint: &PathwayProtocolCheckpoint) -> Vec<u8> {
         bincode::DefaultOptions::new()
             .with_fixint_encoding()
             .serialize(checkpoint)
-            .expect("mesh protocol checkpoints are always serializable"),
+            .expect("pathway protocol checkpoints are always serializable"),
     );
     bytes
 }

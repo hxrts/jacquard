@@ -50,7 +50,7 @@ jacquard-batman┼──→ jacquard-router ←── jacquard-reference-client
 jacquard-xtask
 ```
 
-Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits` only when they need behavioral boundaries. `jacquard-router` depends on registered engines only through shared traits, not through mesh or BATMAN internals. `jacquard-mem-node-profile` depends only on `jacquard-core` plus serialization support. `jacquard-mem-link-profile` depends on `jacquard-core` and `jacquard-traits` because it implements shared transport, retention, and effect traits. `jacquard-core` and `jacquard-traits` remain runtime-free.
+Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits` only when they need behavioral boundaries. `jacquard-router` depends on registered engines only through shared traits, not through pathway or BATMAN internals. `jacquard-mem-node-profile` depends only on `jacquard-core` plus serialization support. `jacquard-mem-link-profile` depends on `jacquard-core` and `jacquard-traits` because it implements shared transport, retention, and effect traits. `jacquard-core` and `jacquard-traits` remain runtime-free.
 
 ## Crate Layout
 
@@ -68,7 +68,7 @@ Jacquard treats purity and side effects as part of the trait contract.
 
 Signature design follows the same split. Use `&self` for pure and read-only methods. Use `&mut self` only when the method has explicit state mutation or side effects. Do not mix pure planning and effectful runtime mutation in one trait unless the split is impossible and documented.
 
-That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `SubstratePlanner` from `SubstrateRuntime`, and `LayeredRoutingEnginePlanner` from `LayeredRoutingEngine`. Engine-specific read-only seams such as mesh topology access stay in the owning engine crate rather than leaking into `jacquard-traits`. The shared round lifecycle follows the same rule: router-owned cadence and explicit ingress live at the contract layer, while engine-specific control loops and control-state contents stay inside the owning engine crate.
+That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `SubstratePlanner` from `SubstrateRuntime`, and `LayeredRoutingEnginePlanner` from `LayeredRoutingEngine`. Engine-specific read-only seams such as pathway topology access stay in the owning engine crate rather than leaking into `jacquard-traits`. The shared round lifecycle follows the same rule: router-owned cadence and explicit ingress live at the contract layer, while engine-specific control loops and control-state contents stay inside the owning engine crate.
 
 ## Enforcement
 
@@ -80,7 +80,7 @@ The routing core does not call platform APIs directly. Hashing, storage, route-e
 
 The effect traits are narrower than the higher-level component traits. They model runtime capabilities, not whole subsystems. `RoutingEngine`, `Router`, and `RetentionStore` are larger behavioral contracts and should not be forced through the effect layer.
 
-First-party mesh keeps one additional internal layer above those shared effects: pathway-private choreography effect interfaces generated from Telltale protocols. Those generated interfaces are not promoted into `jacquard-traits`. Concrete host/runtime adapters implement the shared effect traits, and `jacquard-pathway` interprets its private choreography requests in terms of those stable shared boundaries.
+First-party pathway keeps one additional internal layer above those shared effects: pathway-private choreography effect interfaces generated from Telltale protocols. Those generated interfaces are not promoted into `jacquard-traits`. Concrete host/runtime adapters implement the shared effect traits, and `jacquard-pathway` interprets its private choreography requests in terms of those stable shared boundaries.
 
 Within `jacquard-pathway` itself, the async envelope is narrower still. Telltale session futures are driven to completion only inside choreography modules. The engine/runtime layer owns a bounded explicit ingress queue, consumes it during one synchronous round, and exposes a pathway round-progress snapshot for host-facing inspection. It does not own transport drivers, ambient async callbacks, or executor-shaped advancement.
 
@@ -103,7 +103,7 @@ Each crate owns a narrow slice of runtime state.
 |---|---|
 | `jacquard-core` | Shared vocabulary. No live state. |
 | `jacquard-traits` | Compile-time boundaries. No runtime state. |
-| `jacquard-pathway` | Mesh-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
+| `jacquard-pathway` | Pathway-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
 | `jacquard-batman` | BATMAN-private originator observations, next-hop ranking tables, TQ derivation, and active next-hop forwarding records. |
 | `jacquard-router` | Canonical route identity, materialization inputs, leases, handle issuance, top-level route-health publication, and multi-engine orchestration state. |
 | `jacquard-mem-node-profile` | In-memory node capability and node-state modeling only. No routing semantics. |
@@ -119,4 +119,4 @@ A host-owned policy engine above the router may own cross-engine migration polic
 
 The extension surface is split across [World Extensions](302_world_extensions.md), [Routing Engines](303_routing_engines.md), [Runtime Effects](301_runtime_effects.md), and [Pathway Routing](401_pathway_routing.md).
 
-For first-party mesh specifically, Telltale stays an internal implementation substrate. Shared crates remain runtime-free. The future router may drive mesh through shared planning, tick, maintenance, and checkpoint orchestration, but it must not depend on pathway-private choreography payloads, protocol session keys, or guest-runtime internals.
+For first-party pathway specifically, Telltale stays an internal implementation substrate. Shared crates remain runtime-free. The future router may drive pathway through shared planning, tick, maintenance, and checkpoint orchestration, but it must not depend on pathway-private choreography payloads, protocol session keys, or guest-runtime internals.

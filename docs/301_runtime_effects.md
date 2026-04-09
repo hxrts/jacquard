@@ -1,6 +1,6 @@
 # Runtime Effects
 
-This page describes the narrow runtime capability surface that Jacquard exposes to pure routing logic. See [World Extensions](302_world_extensions.md) for the layering overview, [Routing Engines](303_routing_engines.md) for the engine and policy contracts, and [Pathway Routing](401_pathway_routing.md) for the in-tree mesh implementation and its operational subcomponents.
+This page describes the narrow runtime capability surface that Jacquard exposes to pure routing logic. See [World Extensions](302_world_extensions.md) for the layering overview, [Routing Engines](303_routing_engines.md) for the engine and policy contracts, and [Pathway Routing](401_pathway_routing.md) for the in-tree explicit-path implementation and its operational subcomponents.
 
 ## Effect Surface
 
@@ -57,7 +57,7 @@ The effect surface is what lets one routing engine compile against one set of tr
 
 This is what keeps Jacquard testable end-to-end without forking the routing model. A test that wants to advance time, drop a frame, or simulate a storage failure does so by swapping the effect implementation, not by editing the routing engine. The same engine binary participates in deterministic replay because every nondeterministic input crosses one of these traits.
 
-First-party mesh adds one private layer above these shared traits: Telltale-generated choreography effect interfaces used only inside `jacquard-pathway`. Those generated interfaces are not promoted into `jacquard-traits`. Instead, mesh interprets its private protocol requests onto the stable shared effect traits through a concrete host/runtime adapter.
+First-party pathway adds one private layer above these shared traits: Telltale-generated choreography effect interfaces used only inside `jacquard-pathway`. Those generated interfaces are not promoted into `jacquard-traits`. Instead, pathway interprets its private protocol requests onto the stable shared effect traits through a concrete host/runtime adapter.
 
 The current in-tree composition crates keep that split intact:
 

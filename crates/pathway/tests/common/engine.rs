@@ -1,4 +1,4 @@
-//! Engine builders and high-level helpers for the mesh integration tests.
+//! Engine builders and high-level helpers for the pathway integration tests.
 //!
 //! `TestEngine` is the concrete `PathwayEngine` instantiation used by every
 //! integration test, with the test runtime effects, transport, and
@@ -38,7 +38,7 @@ type RawTestEngine = PathwayEngine<
     Blake3Hashing,
 >;
 
-/// Concrete mesh test harness used by every integration test.
+/// Concrete pathway test harness used by every integration test.
 pub struct TestEngine {
     engine: RawTestEngine,
     pub transport: TestTransport,
@@ -268,7 +268,7 @@ pub fn materialize_admitted(
 /// Drive a route from candidate production to a fully materialized
 /// runtime. Returns the canonical identity and runtime state the engine
 /// expects on `maintain_route` calls. The objective always uses the
-/// supplied destination with the standard mesh objective and profile.
+/// supplied destination with the standard pathway objective and profile.
 ///
 /// This is the canonical "set up an active route to probe" recipe and
 /// every test that needs an active route should use it instead of

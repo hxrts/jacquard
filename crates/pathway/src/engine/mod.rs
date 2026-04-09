@@ -13,7 +13,7 @@
 //! hash-derived ID helpers). `planner` implements `RoutingEnginePlanner`,
 //! `runtime` implements `RoutingEngine`/`PathwayRoutingEngine`, `support`
 //! holds the pure helpers shared between them, `types` defines the
-//! mesh-private object model, and `trait_bounds` defines the internal
+//! pathway-private object model, and `trait_bounds` defines the internal
 //! bound aliases used in `impl` headers.
 
 #![allow(private_bounds)]
@@ -79,7 +79,7 @@ pub(crate) const PATHWAY_CANDIDATE_COUNT_MAX: usize = 32;
 pub(crate) const PATHWAY_RETAINED_PER_ROUTE_COUNT_MAX: usize = 32;
 pub(crate) const PATHWAY_PENDING_TRANSPORT_INGRESS_COUNT_MAX: usize = 64;
 
-/// Validity window applied to newly derived mesh candidates, in ticks.
+/// Validity window applied to newly derived pathway candidates, in ticks.
 pub(crate) const PATHWAY_CANDIDATE_VALIDITY_TICKS: u64 = 12;
 
 /// Per-hop byte cost used in `RouteCost` derivation.
@@ -88,7 +88,7 @@ pub(crate) const PATHWAY_PER_HOP_BYTE_COST: u64 = 1024;
 /// Hold capacity reserved for deferred-delivery routes, in bytes.
 pub(crate) const PATHWAY_HOLD_RESERVED_BYTES: u64 = 1024;
 
-// Route-commitment retry budget. Mesh uses a short, fixed policy because
+// Route-commitment retry budget. Pathway uses a short, fixed policy because
 // commitments represent already-admitted routes; exceeding the budget is
 // a teardown signal rather than a reason to keep retrying.
 const PATHWAY_COMMITMENT_ATTEMPT_COUNT_MAX: u32 = 2;
@@ -98,7 +98,7 @@ const PATHWAY_COMMITMENT_INITIAL_BACKOFF_MS: u32 = 25;
 const PATHWAY_COMMITMENT_BACKOFF_MS_MAX: u32 = 25;
 const PATHWAY_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 
-// Mesh advertises link-level protection, explicit route shape, and full
+// Pathway advertises link-level protection, explicit route shape, and full
 // repair, hold, and decidable-admission support. This is the static
 // capability envelope the router sees during engine registration.
 pub const PATHWAY_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilities {
@@ -123,7 +123,7 @@ pub const PATHWAY_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabil
 // optimization only: `BackendRouteRef` is a self-contained opaque plan
 // token, so planner cache misses and materialization must still work.
 // It is `RefCell<...>` because the planner trait methods take `&self`.
-// `active_routes` holds the mesh-private runtime state for each
+// `active_routes` holds the pathway-private runtime state for each
 // materialized route. Canonical identity lives on the router side.
 pub struct PathwayEngine<
     Topology,
@@ -445,7 +445,7 @@ where
     }
 }
 
-// Hash-Derived Mesh Identifiers
+// Hash-Derived Pathway Identifiers
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>

@@ -1,4 +1,4 @@
-//! Integration tests for mesh checkpoint storage and recovery.
+//! Integration tests for pathway checkpoint storage and recovery.
 
 mod common;
 

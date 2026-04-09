@@ -1,6 +1,6 @@
 # Introduction
 
-Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and one in-tree routing engine, `Mesh`. It is designed so a host can add an external routing engine through the same contract.
+Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and two in-tree explicit-path routing engines, `Pathway` and `batman`. It is designed so a host can add external routing engines through the same contract.
 
 See [Core Types](201_core_types.md) for the model objects that carry the system. See [Time Model](202_time.md) for the deterministic time rules. See [Runtime Effects](301_runtime_effects.md) for the narrow runtime capability surface that hosts implement. See [Pipeline and World Observations](203_pipeline_observations.md) for the shared pipeline, the world schema, and the observation layer. See [Route Lifecycle](204_route_lifecycle.md) for how a route moves from objective through materialization, maintenance, and teardown. See [Crate Architecture](999_crate_architecture.md) for separation of concerns and implementation policies.
 
@@ -10,7 +10,7 @@ Jacquard owns the shared routing contract and the first-party pathway routing en
 
 The central split is between shared facts and local runtime state. Service descriptors, topology observations, admission checks, and route witnesses are explicit shared objects. Adaptive policy, selected routing actions, installed-route ownership, and engine-private runtime state stay local.
 
-The routing model is shaped so admission, installation, maintenance, and replay remain explicit. The codebase is organized around shared model types, abstract trait boundaries, and first-party mesh logic, with router orchestration and simulation reserved as future crates.
+The routing model is shaped so admission, installation, maintenance, and replay remain explicit. The codebase is organized around shared model types, abstract trait boundaries, and a first-party explicit-path engine, with router orchestration and simulation reserved as future crates.
 
 ## Problem
 
@@ -18,7 +18,7 @@ Jacquard is aimed at networks that are unstable, capacity-constrained, and poten
 
 That creates two competing pressures. The system needs stronger coordination than naive flooding or purely local heuristics, but it also cannot afford to hard-code one routing doctrine such as GPS-based clique membership, singleton leaders, or full consensus on every routing transition.
 
-It also needs to support more than one routing engine being present at once. A host such as Aura may want to run onion and mesh side by side, migrate traffic gradually from one to the other, or use one engine as a limited lower-layer carrier for another. Those are different cases and should not be collapsed into one mechanism.
+It also needs to support more than one routing engine being present at once. A host such as Aura may want to run onion and pathway side by side, migrate traffic gradually from one to the other, or use one engine as a limited lower-layer carrier for another. Those are different cases and should not be collapsed into one mechanism.
 
 ## System Shape
 

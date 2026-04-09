@@ -1,6 +1,6 @@
-//! Mesh-private topology queries and derived estimates.
+//! Pathway-private topology queries and derived estimates.
 //!
-//! The types below are private mesh-owned interpretations of the shared
+//! The types below are pathway-owned interpretations of the shared
 //! world schema from `jacquard_core`. `DeterministicPathwayTopologyModel`
 //! is a pure read-only query surface: every method is a deterministic
 //! function of its inputs with no hidden state.
@@ -24,7 +24,7 @@ use jacquard_core::{
 use crate::PathwayTopologyModel;
 
 #[jacquard_traits::purity(read_only)]
-/// Score components mesh consumes from a peer-local estimate.
+/// Score components pathway consumes from a peer-local estimate.
 pub trait PathwayPeerEstimateAccess {
     fn relay_value_score(&self) -> Option<HealthScore>;
     fn retention_value_score(&self) -> Option<HealthScore>;
@@ -33,7 +33,7 @@ pub trait PathwayPeerEstimateAccess {
 }
 
 #[jacquard_traits::purity(read_only)]
-/// Score components mesh consumes from a neighborhood-local estimate.
+/// Score components pathway consumes from a neighborhood-local estimate.
 pub trait PathwayNeighborhoodEstimateAccess {
     fn density_score(&self) -> Option<HealthScore>;
     fn repair_pressure_score(&self) -> Option<HealthScore>;
@@ -62,7 +62,7 @@ pub(crate) const HEALTH_SCORE_MAX: u32 = 1000;
 /// into the HealthScore range in `neighborhood_estimate`.
 pub(crate) const DENSITY_SCORE_SCALE: u32 = 100;
 
-/// Compact bitset of required `RouteServiceKind` values for mesh capability
+/// Compact bitset of required `RouteServiceKind` values for pathway capability
 /// gating. Replaces five individual bool fields with a single `u8`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ServiceKindSet(u8);
@@ -684,7 +684,7 @@ mod tests {
 
     // Service descriptors carry an engine id list. A node that lists all
     // three services for a different engine must not be treated as
-    // route-capable for mesh.
+    // route-capable for pathway.
     #[test]
     fn route_capable_filters_by_engine_id() {
         let validity = TimeWindow::new(Tick(0), Tick(100)).unwrap();

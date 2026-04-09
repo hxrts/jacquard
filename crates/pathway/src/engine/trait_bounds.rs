@@ -1,9 +1,9 @@
-//! Internal trait-bound bundles for the mesh engine module.
+//! Internal trait-bound bundles for the pathway engine module.
 //!
 //! Each alias groups the set of traits that one `PathwayEngine` generic
 //! parameter must satisfy. Using the aliases keeps `impl` headers
 //! readable without changing the public engine-neutral trait surface in
-//! `jacquard-traits` or the mesh-owned extension seams in this crate.
+//! `jacquard-traits` or the pathway-owned extension seams in this crate.
 //! Every alias has a blanket impl, so referring to an alias is
 //! identical to inlining its full trait list.
 

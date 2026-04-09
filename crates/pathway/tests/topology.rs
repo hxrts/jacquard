@@ -1,4 +1,4 @@
-//! Integration tests for the deterministic mesh topology model.
+//! Integration tests for the deterministic pathway topology model.
 //!
 //! Unit tests in `topology.rs` cover the private helper and internal
 //! topology-derivation surfaces. This file stays focused on the public

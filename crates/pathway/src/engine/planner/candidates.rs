@@ -1,7 +1,7 @@
 //! Candidate assembly and plan-token re-derivation.
 //!
 //! Control flow: path search hands this module a concrete node path. We turn
-//! that into mesh segments, classify the route, derive route cost/summary/
+//! that into pathway segments, classify the route, derive route cost/summary/
 //! witness/admission state, and encode the result into a self-contained
 //! backend token. The same logic is also used on cache miss so planner state
 //! stays memoization-only rather than semantic.
@@ -80,7 +80,7 @@ where
                     .saturating_add(PATHWAY_CANDIDATE_VALIDITY_TICKS),
             ),
         )
-        .expect("mesh candidates always use a positive validity window");
+        .expect("pathway candidates always use a positive validity window");
         let committee_status = super::super::support::committee_status(
             self.maybe_select_committee(objective, profile, topology),
         );

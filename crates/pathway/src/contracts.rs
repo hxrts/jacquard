@@ -1,21 +1,22 @@
-//! Public mesh-specific contract surfaces.
+//! Public pathway-specific contract surfaces.
 //!
 //! These traits stay in `jacquard-pathway`, not `jacquard-traits`, because they
-//! describe first-party mesh semantics rather than engine-neutral routing
-//! behavior. External code may still use them to swap read-only topology models
-//! or observe explicit mesh subcomponents, but that coupling is now honest and
-//! local to the mesh crate.
+//! describe first-party explicit-path semantics rather than engine-neutral
+//! routing behavior. External code may still use them to swap read-only
+//! topology models or observe explicit pathway subcomponents, but that coupling
+//! is now honest and local to the pathway crate.
 
 use jacquard_core::{Configuration, Link, LinkEndpoint, Node, NodeId, Tick};
 use jacquard_traits::{RetentionStore, RoutingEngine};
 
 #[jacquard_traits::purity(read_only)]
-/// Deterministic, read-only topology queries used by the mesh planner/runtime.
+/// Deterministic, read-only topology queries used by the pathway
+/// planner/runtime.
 ///
-/// Mesh-specific peer and neighborhood estimates belong behind this trait
+/// Pathway-specific peer and neighborhood estimates belong behind this trait
 /// boundary rather than in `jacquard-core`. The associated estimate types let
-/// one mesh implementation expose novelty, reach, bridge, or flow heuristics to
-/// its own planner/runtime without turning them into shared cross-engine
+/// the pathway implementation expose novelty, reach, bridge, or flow heuristics
+/// to its own planner/runtime without turning them into shared cross-engine
 /// schema.
 pub trait PathwayTopologyModel {
     type PeerEstimate;
@@ -68,7 +69,7 @@ pub trait PathwayTopologyModel {
 }
 
 #[jacquard_traits::purity(read_only)]
-/// Narrow mesh-specialized routing-engine boundary for read-only mesh
+/// Narrow pathway-specialized routing-engine boundary for read-only pathway
 /// subcomponent access.
 ///
 /// Planning purity stays in `RoutingEnginePlanner` plus `PathwayTopologyModel`.

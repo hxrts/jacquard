@@ -3,7 +3,7 @@
 //! This module owns the optional coordination protocol that turns a topology
 //! observation into an advisory committee selection. The flow is:
 //! 1. gate on the requested connectivity profile and neighborhood stability
-//! 2. rank eligible peers from mesh-private estimates and behavior history
+//! 2. rank eligible peers from pathway-private estimates and behavior history
 //! 3. prefer controller- and scope-diverse members
 //! 4. emit an advisory `CommitteeSelection` with a bounded validity window
 

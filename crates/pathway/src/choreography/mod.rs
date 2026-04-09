@@ -1,9 +1,10 @@
-//! Mesh-local Telltale choreography surface.
+//! Pathway-local Telltale choreography surface.
 //!
-//! This module is the internal boundary between Jacquard mesh planning/runtime
-//! code and Telltale's generated protocol surfaces. Mesh protocols are defined
-//! inline with `tell!` so the generated session/effect code lives next to the
-//! Rust host logic that enters those protocols.
+//! This module is the internal boundary between Jacquard pathway
+//! planning/runtime code and Telltale's generated protocol surfaces. Pathway
+//! protocols are defined inline with `tell!` so the generated
+//! session/effect code lives next to the Rust host logic that enters those
+//! protocols.
 
 mod activation;
 mod anti_entropy;

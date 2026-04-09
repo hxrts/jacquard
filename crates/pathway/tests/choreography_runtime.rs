@@ -1,8 +1,8 @@
-//! Integration tests for the choreography-backed mesh runtime entry points.
+//! Integration tests for the choreography-backed pathway runtime entry points.
 //!
 //! These tests verify that the router-facing runtime API still behaves the same
 //! while materialization, maintenance, forwarding, and tick progress now route
-//! protocol-side sequencing through the mesh choreography guest runtime.
+//! protocol-side sequencing through the pathway choreography guest runtime.
 
 mod common;
 
