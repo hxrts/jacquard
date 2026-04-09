@@ -712,6 +712,7 @@ dependencies = [
  "camino",
  "cargo_metadata",
  "ignore",
+ "proc-macro2",
  "pulldown-cmark",
  "regex",
  "serde_json",

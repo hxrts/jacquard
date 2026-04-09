@@ -43,6 +43,8 @@ use crate::{
 };
 
 impl<Transport, Effects> BatmanEngine<Transport, Effects> {
+    // long-block-exception: one refresh pass derives observations, rankings,
+    // and best-next-hop state in a single bounded state update.
     pub(crate) fn refresh_private_state(
         &mut self,
         topology: &Observation<Configuration>,
@@ -107,6 +109,8 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
         }
     }
 
+    // long-block-exception: one pass walks direct neighbors and derives the
+    // per-originator observation table without intermediate ownership hops.
     fn derive_originator_observations(
         &self,
         topology: &Observation<Configuration>,

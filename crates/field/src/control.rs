@@ -52,6 +52,8 @@ impl ControlMeasurements {
     }
 
     #[must_use]
+    // long-block-exception: this is one bounded projection from topology
+    // observations into the control-plane pressure vector.
     pub(crate) fn from_topology(
         topology: &Configuration,
         local_node_id: NodeId,

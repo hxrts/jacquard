@@ -806,6 +806,8 @@ mod tests {
             .contains_key(replacement.identity.route_id()));
     }
 
+    // long-block-exception: this regression keeps one full published route
+    // event fixture inline so the non-invention contract is auditable.
     #[test]
     fn route_event_without_canonical_route_does_not_invent_route_truth() {
         let mut projector = TopologyProjector::new(LOCAL_NODE_ID, topology());

@@ -641,6 +641,8 @@ impl FieldProtocolRuntime {
         Ok(())
     }
 
+    // long-block-exception: one bounded round intentionally keeps
+    // cancellation, stepping, artifact capture, and outbound flush together.
     pub(crate) fn advance_host_bridged_round(
         &mut self,
         capability: &FieldSessionCapability,

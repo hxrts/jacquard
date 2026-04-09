@@ -210,6 +210,8 @@ fn crate_names(packages: &[Package]) -> BTreeSet<String> {
     names
 }
 
+// long-block-exception: this validator keeps the ordered snippet
+// classification checks in one bounded decision chain.
 fn check_snippet(
     file: &str,
     snippet: &str,

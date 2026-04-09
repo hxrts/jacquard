@@ -164,6 +164,7 @@ ci-dry-run:
     add_step "Result Must Use"            "cargo xtask check result-must-use"
     add_step "Proof Bearing Actions"      "cargo xtask check proof-bearing-actions"
     add_step "Surface Classification"     "cargo xtask check surface-classification"
+    add_step "Rust Style Guide"           "cargo xtask check rust-style-guide"
     add_step "Checkpoint Namespacing"     "cargo xtask check checkpoint-namespacing"
     add_step "Engine Service Boundary"    "cargo xtask check engine-service-boundary"
     add_step "Invariant Specs"            "cargo xtask check invariant-specs"
@@ -230,6 +231,10 @@ ownership-invariants:
 # enforce routing correctness invariants
 routing-invariants:
     cargo xtask check routing-invariants
+
+# enforce mechanized Rust style-guide rules
+rust-style-guide:
+    cargo xtask check rust-style-guide
 
 # validate routing-invariant checks against seeded fixtures
 routing-invariants-validate:
