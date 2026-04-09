@@ -77,6 +77,7 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/mem-node-profile/src/service.rs",
     "crates/mem-node-profile/src/state.rs",
     "crates/batman/src/lib.rs",
+    "crates/batman/src/gossip.rs",
     "crates/batman/src/planner.rs",
     "crates/batman/src/private_state.rs",
     "crates/batman/src/public_state.rs",

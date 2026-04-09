@@ -40,6 +40,7 @@ const NODE_A: NodeId = NodeId([1; 32]);
 const NODE_B: NodeId = NodeId([2; 32]);
 const NODE_C: NodeId = NodeId([3; 32]);
 const NODE_D: NodeId = NodeId([4; 32]);
+const BATMAN_GOSSIP_MAGIC: &[u8; 8] = b"JQBATMAN";
 
 // -- World topologies --------------------------------------------------
 
@@ -251,8 +252,8 @@ fn assert_tick_after_forward(
     );
 }
 
-/// Advance the receiver bridge once, assert exactly one `PayloadReceived`
-/// observation, and return its bytes.
+/// Advance the receiver bridge once, assert at least one `PayloadReceived`
+/// observation, and return the first payload bytes.
 fn advance_and_capture_payload(
     receiver: &mut BoundHostBridge<'_, PathwayRouter>,
     expected_epoch: jacquard_core::RouteEpoch,
@@ -264,13 +265,21 @@ fn advance_and_capture_payload(
         panic!("expected a bridge-driven round with ingress")
     };
     assert_eq!(report.router_outcome.topology_epoch, expected_epoch);
-    assert_eq!(report.ingested_transport_observations.len(), 1);
-    match &report.ingested_transport_observations[0] {
-        | jacquard_core::TransportObservation::PayloadReceived { payload, .. } => {
-            payload.clone()
-        },
-        | other => panic!("unexpected observation: {other:?}"),
-    }
+    report
+        .ingested_transport_observations
+        .iter()
+        .find_map(|observation| match observation {
+            | jacquard_core::TransportObservation::PayloadReceived {
+                payload, ..
+            } if !payload.starts_with(BATMAN_GOSSIP_MAGIC) => Some(payload.clone()),
+            | _ => None,
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "expected payload observation, got {:?}",
+                report.ingested_transport_observations
+            )
+        })
 }
 
 /// Advance the sender bridge once and assert that it flushed at least one
