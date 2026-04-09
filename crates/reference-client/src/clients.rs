@@ -65,6 +65,8 @@ pub fn build_pathway_client_with_profile(
     let local_endpoint = local_endpoint(&topology, local_node_id);
     let driver = InMemoryTransport::attach(local_node_id, [local_endpoint], network);
     let transport = BridgeTransport::new(driver);
+    // Each engine gets its own sender over the shared transport driver so their
+    // outbound queues are independent and don't block each other.
     let pathway_sender = transport.sender(DEFAULT_OUTBOUND_QUEUE_CAPACITY);
 
     let engine = PathwayEngine::without_committee_selector(
@@ -118,6 +120,7 @@ pub fn build_pathway_batman_client_with_profile(
     let local_endpoint = local_endpoint(&topology, local_node_id);
     let driver = InMemoryTransport::attach(local_node_id, [local_endpoint], network);
     let transport = BridgeTransport::new(driver);
+    // Two independent outbound queues, one per engine, over the same driver.
     let pathway_sender = transport.sender(DEFAULT_OUTBOUND_QUEUE_CAPACITY);
     let batman_sender = transport.sender(DEFAULT_OUTBOUND_QUEUE_CAPACITY);
 
@@ -168,6 +171,8 @@ fn local_endpoint(
         .expect("reference topology must provide at least one local endpoint")
 }
 
+// Extracts per-node and environment facts from the shared topology observation,
+// using reference defaults for RTT, loss, and adversary pressure.
 pub(crate) fn policy_inputs_for(
     topology: &Observation<Configuration>,
     local_node_id: NodeId,

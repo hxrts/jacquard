@@ -10,11 +10,11 @@
 //! drive the router through that owner rather than mutating transport drivers
 //! or calling `advance_round` on the router directly.
 
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex},
-};
+use std::collections::VecDeque;
 
+use jacquard_adapter::{
+    dispatch_mailbox, DispatchOverflow, DispatchReceiver, DispatchSender,
+};
 use jacquard_core::{
     Configuration, LinkEndpoint, Observation, RouteError, RouterRoundOutcome, Tick,
     TransportError, TransportIngressEvent, TransportObservation,
@@ -34,19 +34,17 @@ struct OutboundTransportCommand {
     payload: Vec<u8>,
 }
 
+// Decouples engine send calls from driver I/O: engines enqueue during a round
+// and the bridge flushes to the driver in one pass after advance_round returns.
 #[derive(Clone)]
 pub(crate) struct QueuedTransportSender {
-    queue: Arc<Mutex<VecDeque<OutboundTransportCommand>>>,
-    capacity: usize,
+    queue: DispatchSender<OutboundTransportCommand>,
 }
 
 impl QueuedTransportSender {
     #[must_use]
-    fn new(
-        queue: Arc<Mutex<VecDeque<OutboundTransportCommand>>>,
-        capacity: usize,
-    ) -> Self {
-        Self { queue, capacity }
+    fn new(queue: DispatchSender<OutboundTransportCommand>) -> Self {
+        Self { queue }
     }
 }
 
@@ -57,33 +55,41 @@ impl TransportSenderEffects for QueuedTransportSender {
         endpoint: &LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), TransportError> {
-        let mut guard = self.queue.lock().expect("bridge transport queue lock");
-        if guard.len() >= self.capacity {
-            return Err(TransportError::Unavailable);
-        }
-        guard.push_back(OutboundTransportCommand {
-            endpoint: endpoint.clone(),
-            payload: payload.to_vec(),
-        });
-        Ok(())
+        self.queue
+            .send(OutboundTransportCommand {
+                endpoint: endpoint.clone(),
+                payload: payload.to_vec(),
+            })
+            .map(|_| ())
+            .map_err(|DispatchOverflow| TransportError::Unavailable)
     }
 }
 
 pub(crate) struct BridgeTransport {
     driver: InMemoryTransport,
-    outbound: Arc<Mutex<VecDeque<OutboundTransportCommand>>>,
+    outbound_sender: DispatchSender<OutboundTransportCommand>,
+    outbound_receiver: DispatchReceiver<OutboundTransportCommand>,
 }
 
 impl BridgeTransport {
     pub(crate) fn new(driver: InMemoryTransport) -> Self {
+        Self::with_outbound_capacity(driver, DEFAULT_BRIDGE_QUEUE_CAPACITY)
+    }
+
+    pub(crate) fn with_outbound_capacity(
+        driver: InMemoryTransport,
+        capacity: usize,
+    ) -> Self {
+        let (outbound_sender, outbound_receiver) = dispatch_mailbox(capacity);
         Self {
             driver,
-            outbound: Arc::new(Mutex::new(VecDeque::new())),
+            outbound_sender,
+            outbound_receiver,
         }
     }
 
-    pub(crate) fn sender(&self, capacity: usize) -> QueuedTransportSender {
-        QueuedTransportSender::new(Arc::clone(&self.outbound), capacity)
+    pub(crate) fn sender(&self, _capacity: usize) -> QueuedTransportSender {
+        QueuedTransportSender::new(self.outbound_sender.clone())
     }
 
     fn drain_raw_ingress(
@@ -92,11 +98,9 @@ impl BridgeTransport {
         self.driver.drain_transport_ingress()
     }
 
+    // Drains the outbound queue built up during a round to the real driver.
     fn flush_outbound(&mut self) -> Result<usize, TransportError> {
-        let commands = {
-            let mut guard = self.outbound.lock().expect("bridge transport queue lock");
-            guard.drain(..).collect::<Vec<_>>()
-        };
+        let commands = self.outbound_receiver.drain();
         for command in &commands {
             self.driver
                 .send_transport(&command.endpoint, &command.payload)?;
@@ -105,10 +109,7 @@ impl BridgeTransport {
     }
 
     fn pending_outbound(&self) -> usize {
-        self.outbound
-            .lock()
-            .expect("bridge transport queue lock")
-            .len()
+        self.outbound_receiver.pending_len()
     }
 }
 
@@ -224,9 +225,14 @@ impl HostBridge<PathwayRouter> {
     }
 
     fn stage_transport_ingress(&mut self) -> Result<(), RouteError> {
+        // Advance the logical clock once per ingress drain so every event in
+        // this batch shares the same Jacquard tick — the host owns time here,
+        // not the transport driver.
         let observed_at_tick = self.advance_tick();
         let raw_events = self.transport.drain_raw_ingress()?;
         for event in raw_events {
+            // Enforce the inbound capacity bound; excess events are counted but
+            // not queued so the caller can observe backpressure.
             if self.pending_transport_observations.len() >= self.inbound_capacity {
                 self.dropped_transport_observations =
                     self.dropped_transport_observations.saturating_add(1);
@@ -262,6 +268,8 @@ impl BoundHostBridge<'_, PathwayRouter> {
     }
 
     pub fn advance_round(&mut self) -> Result<BridgeRoundProgress, RouteError> {
+        // Round sequence: drain+stamp ingress → ingest observations → advance
+        // router → flush outbound queue to driver → report progress.
         self.bridge.stage_transport_ingress()?;
         let ingested = self
             .bridge
@@ -279,6 +287,7 @@ impl BoundHostBridge<'_, PathwayRouter> {
         let dropped_transport_observations =
             std::mem::take(&mut self.bridge.dropped_transport_observations);
 
+        // Return Waiting when nothing moved this round so callers can back off.
         if ingested.is_empty()
             && flushed_transport_commands == 0
             && dropped_transport_observations == 0
@@ -417,11 +426,10 @@ mod tests {
     #[test]
     fn outbound_queue_reports_backpressure_fail_closed() {
         let local_node_id = NodeId([5; 32]);
-        let transport = BridgeTransport::new(InMemoryTransport::attach(
-            local_node_id,
-            [endpoint(5)],
-            Default::default(),
-        ));
+        let transport = BridgeTransport::with_outbound_capacity(
+            InMemoryTransport::attach(local_node_id, [endpoint(5)], Default::default()),
+            1,
+        );
         let mut sender = transport.sender(1);
 
         sender

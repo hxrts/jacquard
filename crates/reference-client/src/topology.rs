@@ -22,6 +22,8 @@ use jacquard_mem_link_profile::ReferenceLink;
 use jacquard_mem_node_profile::ReferenceNode;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 
+// Stable WifiAware endpoint keyed by a single byte — used as a compact,
+// collision-free node identity in fixture topologies (byte 1 → node 1, etc.).
 fn reference_endpoint(byte: u8) -> jacquard_core::LinkEndpoint {
     LinkEndpoint::new(
         TransportKind::WifiAware,
@@ -62,6 +64,8 @@ pub fn route_capable_node_for_engines(
     .build()
 }
 
+/// Produces a node advertising both pathway and BATMAN, used in mixed-engine
+/// topology tests where both engines compete for route selection.
 #[must_use]
 pub fn dual_engine_route_capable_node(node_byte: u8) -> Node {
     route_capable_node_for_engines(node_byte, &[PATHWAY_ENGINE_ID, BATMAN_ENGINE_ID])
