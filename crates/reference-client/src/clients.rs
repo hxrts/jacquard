@@ -1,4 +1,5 @@
-//! Concrete router/engine wiring for the reference-client crate.
+//! Concrete client builders that wire a router together with one or more
+//! routing engines for the reference-client crate.
 //!
 //! Control flow: the host/client assembles shared topology observations,
 //! attaches one or more in-memory transports to the shared carrier, builds one
@@ -159,7 +160,7 @@ fn local_endpoint(
         .endpoints
         .first()
         .cloned()
-        .unwrap_or_else(|| jacquard_mem_link_profile::ble_endpoint(local_node_id.0[0]))
+        .expect("reference topology must provide at least one local endpoint")
 }
 
 fn policy_inputs_for(

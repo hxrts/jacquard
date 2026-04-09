@@ -13,7 +13,7 @@
 
 #![forbid(unsafe_code)]
 
-mod mesh;
+mod clients;
 pub mod topology;
 
 use jacquard_core::{Configuration, Observation};
@@ -24,7 +24,7 @@ pub use jacquard_mem_link_profile::{
 pub use jacquard_mem_node_profile::{
     NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor,
 };
-pub use mesh::{
+pub use clients::{
     build_mesh_batman_client, build_mesh_batman_client_with_profile, build_mesh_client,
     build_mesh_client_with_profile, MeshClient, MeshRouter,
 };

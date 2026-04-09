@@ -3,6 +3,10 @@
 //! topology, activates routes across them through the router-owned
 //! canonical path, and asserts that transport, route events, and route
 //! handles stay consistent across device boundaries.
+//!
+//! Reading order is bottom-up: world topologies, then routing parameters,
+//! then client builders, then observation helpers, then the two tests
+//! that tie everything together at the end of the file.
 
 use std::collections::BTreeMap;
 
@@ -29,6 +33,215 @@ const NODE_A: NodeId = NodeId([1; 32]);
 const NODE_B: NodeId = NodeId([2; 32]);
 const NODE_C: NodeId = NodeId([3; 32]);
 const NODE_D: NodeId = NodeId([4; 32]);
+
+// -- World topologies --------------------------------------------------
+
+/// Four-node mesh topology used by the mesh-only test. A, B, C, D are all
+/// mesh route-capable, with links A-B, B-C, A-D, and B-D.
+fn sample_configuration() -> Observation<Configuration> {
+    Observation {
+        value: Configuration {
+            epoch: jacquard_core::RouteEpoch(2),
+            nodes: BTreeMap::from([
+                (NODE_A, topology::route_capable_node(1)),
+                (NODE_B, topology::route_capable_node(2)),
+                (NODE_C, topology::route_capable_node(3)),
+                (NODE_D, topology::route_capable_node(4)),
+            ]),
+            links: BTreeMap::from([
+                ((NODE_A, NODE_B), topology::active_link(2, 950)),
+                ((NODE_B, NODE_C), topology::active_link(3, 875)),
+                ((NODE_A, NODE_D), topology::active_link(4, 925)),
+                ((NODE_B, NODE_D), topology::active_link(4, 900)),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 3,
+                churn_permille: RatioPermille(150),
+                contention_permille: RatioPermille(120),
+            },
+        },
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication: OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(2),
+    }
+}
+
+/// Three-node mixed-engine topology. A and B are dual-engine (batman plus
+/// mesh). C is mesh-only. Links are A-B and B-C, so B is the hinge where
+/// the batman leg hands off to the mesh leg.
+fn mixed_engine_configuration() -> Observation<Configuration> {
+    Observation {
+        value: Configuration {
+            epoch: jacquard_core::RouteEpoch(3),
+            nodes: BTreeMap::from([
+                (NODE_A, topology::dual_engine_route_capable_node(1)),
+                (NODE_B, topology::dual_engine_route_capable_node(2)),
+                (
+                    NODE_C,
+                    topology::route_capable_node_for_engine(3, &MESH_ENGINE_ID),
+                ),
+            ]),
+            links: BTreeMap::from([
+                ((NODE_A, NODE_B), topology::active_link(2, 940)),
+                ((NODE_B, NODE_C), topology::active_link(3, 910)),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 2,
+                churn_permille: RatioPermille(75),
+                contention_permille: RatioPermille(60),
+            },
+        },
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication: OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(2),
+    }
+}
+
+// -- Routing parameters ------------------------------------------------
+
+/// Stock `Move`-kind routing objective with link-protected, repairable,
+/// partition-tolerant defaults. Parameterized by destination so the tests
+/// can activate routes to any node.
+fn objective(destination: DestinationId) -> RoutingObjective {
+    RoutingObjective {
+        destination,
+        service_kind: RouteServiceKind::Move,
+        target_protection: RouteProtectionClass::LinkProtected,
+        protection_floor: RouteProtectionClass::LinkProtected,
+        target_connectivity: ConnectivityPosture {
+            repair: RouteRepairClass::Repairable,
+            partition: RoutePartitionClass::PartitionTolerant,
+        },
+        hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
+        latency_budget_ms: jacquard_core::Limit::Bounded(DurationMs(250)),
+        protection_priority: PriorityPoints(10),
+        connectivity_priority: PriorityPoints(20),
+    }
+}
+
+/// Routing parameters for a dense-interactive relay client. Used for the
+/// middle-hop B client in both tests.
+fn relay_profile() -> SelectedRoutingParameters {
+    SelectedRoutingParameters {
+        selected_protection: RouteProtectionClass::LinkProtected,
+        selected_connectivity: ConnectivityPosture {
+            repair: RouteRepairClass::BestEffort,
+            partition: RoutePartitionClass::ConnectedOnly,
+        },
+        deployment_profile: OperatingMode::DenseInteractive,
+        diversity_floor: DiversityFloor(1),
+        routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
+        route_replacement_policy: RouteReplacementPolicy::Allowed,
+    }
+}
+
+// -- Client builders ---------------------------------------------------
+
+/// Build three mesh-only clients (A, B, C) attached to one shared network.
+/// B gets the relay profile so it can sit on the middle hop.
+fn build_client_triplet(
+    topology: &Observation<Configuration>,
+    network: SharedInMemoryNetwork,
+) -> (MeshClient, MeshClient, MeshClient) {
+    let client_a =
+        build_mesh_client(NODE_A, topology.clone(), network.clone(), Tick(2));
+    let client_b = build_mesh_client_with_profile(
+        NODE_B,
+        topology.clone(),
+        network.clone(),
+        Tick(2),
+        relay_profile(),
+    );
+    let client_c = build_mesh_client(NODE_C, topology.clone(), network, Tick(2));
+    (client_a, client_b, client_c)
+}
+
+/// Build three dual-engine clients (batman + mesh) plus side-channel
+/// observers attached to B and C. The observers read ingress straight off
+/// the shared network without going through a client's own transport.
+fn build_mixed_engine_triplet(
+    topology: &Observation<Configuration>,
+    network: SharedInMemoryNetwork,
+) -> (
+    MeshClient,
+    MeshClient,
+    MeshClient,
+    InMemoryTransport,
+    InMemoryTransport,
+) {
+    let b_endpoint = topology.value.nodes[&NODE_B].profile.endpoints.clone();
+    let c_endpoint = topology.value.nodes[&NODE_C].profile.endpoints.clone();
+    let mut observer_b = InMemoryTransport::attach(NODE_B, b_endpoint, network.clone());
+    observer_b.set_ingress_tick(Tick(2));
+    let mut observer_c = InMemoryTransport::attach(NODE_C, c_endpoint, network.clone());
+    observer_c.set_ingress_tick(Tick(2));
+    let client_a =
+        build_mesh_batman_client(NODE_A, topology.clone(), network.clone(), Tick(2));
+    let client_b = build_mesh_batman_client_with_profile(
+        NODE_B,
+        topology.clone(),
+        network.clone(),
+        Tick(2),
+        relay_profile(),
+    );
+    let client_c = build_mesh_batman_client(NODE_C, topology.clone(), network, Tick(2));
+
+    (client_a, client_b, client_c, observer_b, observer_c)
+}
+
+// -- Observation helpers -----------------------------------------------
+
+/// Run one anti-entropy tick on the receiver and assert the router
+/// reported the expected topology epoch, a private-state update, and a
+/// one-tick scheduling hint. Used to confirm a mesh forward landed.
+fn assert_tick_after_forward(
+    receiver: &mut MeshClient,
+    expected_epoch: jacquard_core::RouteEpoch,
+    tick_context: &str,
+) {
+    let outcome = receiver
+        .router_mut()
+        .anti_entropy_tick()
+        .expect(tick_context);
+
+    assert_eq!(outcome.topology_epoch, expected_epoch);
+    assert_eq!(
+        outcome.engine_change,
+        jacquard_core::RoutingTickChange::PrivateStateUpdated,
+    );
+    assert_eq!(
+        outcome.engine_tick_hint,
+        jacquard_core::RoutingTickHint::WithinTicks(jacquard_core::Tick(1)),
+    );
+}
+
+/// Poll the observer transport once, assert exactly one `PayloadReceived`
+/// observation, and return its bytes.
+fn drain_payload(transport: &mut InMemoryTransport, context: &str) -> Vec<u8> {
+    let observations = transport.poll_transport().expect(context);
+    assert_eq!(observations.len(), 1);
+    match &observations[0] {
+        | TransportObservation::PayloadReceived { payload, .. } => payload.clone(),
+        | other => panic!("unexpected observation: {other:?}"),
+    }
+}
+
+/// Lowercase hex encoding of a byte slice. The mesh carrier hex-encodes
+/// payloads on this network, so the second-hop assertion compares against
+/// this form rather than the raw bytes.
+fn hex_bytes(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(char::from(HEX[usize::from(byte >> 4)]));
+        out.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    out
+}
+
+// -- Tests -------------------------------------------------------------
 
 #[test]
 fn mesh_forwarding_across_shared_network() {
@@ -83,8 +296,6 @@ fn mesh_forwarding_across_shared_network() {
 }
 
 #[test]
-// long-block-exception: this end-to-end mixed-engine flow is intentionally
-// linear so the cross-layer forwarding narrative stays readable in one place.
 fn routing_spans_batman_then_mesh() {
     // 1. World. A three-node topology where A and B run both batman and mesh
     //    engines, and C is mesh-only.
@@ -148,203 +359,4 @@ fn routing_spans_batman_then_mesh() {
         .anti_entropy_tick()
         .expect("client C anti-entropy tick");
     assert_eq!(outcome.topology_epoch, jacquard_core::RouteEpoch(3));
-}
-
-/// Build three mesh-only clients (A, B, C) attached to one shared network.
-/// B gets the relay profile so it can sit on the middle hop.
-fn build_client_triplet(
-    topology: &Observation<Configuration>,
-    network: SharedInMemoryNetwork,
-) -> (MeshClient, MeshClient, MeshClient) {
-    let client_a =
-        build_mesh_client(NODE_A, topology.clone(), network.clone(), Tick(2));
-    let client_b = build_mesh_client_with_profile(
-        NODE_B,
-        topology.clone(),
-        network.clone(),
-        Tick(2),
-        relay_profile(),
-    );
-    let client_c = build_mesh_client(NODE_C, topology.clone(), network, Tick(2));
-    (client_a, client_b, client_c)
-}
-
-/// Build three dual-engine clients (batman + mesh) plus side-channel
-/// observers attached to B and C. The observers read ingress straight off
-/// the shared network without going through a client's own transport.
-fn build_mixed_engine_triplet(
-    topology: &Observation<Configuration>,
-    network: SharedInMemoryNetwork,
-) -> (
-    MeshClient,
-    MeshClient,
-    MeshClient,
-    InMemoryTransport,
-    InMemoryTransport,
-) {
-    let b_endpoint = topology.value.nodes[&NODE_B].profile.endpoints.clone();
-    let c_endpoint = topology.value.nodes[&NODE_C].profile.endpoints.clone();
-    let mut observer_b = InMemoryTransport::attach(NODE_B, b_endpoint, network.clone());
-    observer_b.set_ingress_tick(Tick(2));
-    let mut observer_c = InMemoryTransport::attach(NODE_C, c_endpoint, network.clone());
-    observer_c.set_ingress_tick(Tick(2));
-    let client_a =
-        build_mesh_batman_client(NODE_A, topology.clone(), network.clone(), Tick(2));
-    let client_b = build_mesh_batman_client_with_profile(
-        NODE_B,
-        topology.clone(),
-        network.clone(),
-        Tick(2),
-        relay_profile(),
-    );
-    let client_c = build_mesh_batman_client(NODE_C, topology.clone(), network, Tick(2));
-
-    (client_a, client_b, client_c, observer_b, observer_c)
-}
-
-/// Run one anti-entropy tick on the receiver and assert the router
-/// reported the expected topology epoch, a private-state update, and a
-/// one-tick scheduling hint. Used to confirm a mesh forward landed.
-fn assert_tick_after_forward(
-    receiver: &mut MeshClient,
-    expected_epoch: jacquard_core::RouteEpoch,
-    tick_context: &str,
-) {
-    let outcome = receiver
-        .router_mut()
-        .anti_entropy_tick()
-        .expect(tick_context);
-
-    assert_eq!(outcome.topology_epoch, expected_epoch);
-    assert_eq!(
-        outcome.engine_change,
-        jacquard_core::RoutingTickChange::PrivateStateUpdated,
-    );
-    assert_eq!(
-        outcome.engine_tick_hint,
-        jacquard_core::RoutingTickHint::WithinTicks(jacquard_core::Tick(1)),
-    );
-}
-
-/// Poll the observer transport once, assert exactly one `PayloadReceived`
-/// observation, and return its bytes.
-fn drain_payload(transport: &mut InMemoryTransport, context: &str) -> Vec<u8> {
-    let observations = transport.poll_transport().expect(context);
-    assert_eq!(observations.len(), 1);
-    match &observations[0] {
-        | TransportObservation::PayloadReceived { payload, .. } => payload.clone(),
-        | other => panic!("unexpected observation: {other:?}"),
-    }
-}
-
-/// Lowercase hex encoding of a byte slice. The mesh carrier hex-encodes
-/// payloads on this network, so the second-hop assertion compares against
-/// this form rather than the raw bytes.
-fn hex_bytes(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push(char::from(HEX[usize::from(byte >> 4)]));
-        out.push(char::from(HEX[usize::from(byte & 0x0f)]));
-    }
-    out
-}
-
-/// Routing parameters for a dense-interactive relay client. Used for the
-/// middle-hop B client in both tests.
-fn relay_profile() -> SelectedRoutingParameters {
-    SelectedRoutingParameters {
-        selected_protection: RouteProtectionClass::LinkProtected,
-        selected_connectivity: ConnectivityPosture {
-            repair: RouteRepairClass::BestEffort,
-            partition: RoutePartitionClass::ConnectedOnly,
-        },
-        deployment_profile: OperatingMode::DenseInteractive,
-        diversity_floor: DiversityFloor(1),
-        routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
-        route_replacement_policy: RouteReplacementPolicy::Allowed,
-    }
-}
-
-/// Stock `Move`-kind routing objective with link-protected, repairable,
-/// partition-tolerant defaults. Parameterized by destination so the tests
-/// can activate routes to any node.
-fn objective(destination: DestinationId) -> RoutingObjective {
-    RoutingObjective {
-        destination,
-        service_kind: RouteServiceKind::Move,
-        target_protection: RouteProtectionClass::LinkProtected,
-        protection_floor: RouteProtectionClass::LinkProtected,
-        target_connectivity: ConnectivityPosture {
-            repair: RouteRepairClass::Repairable,
-            partition: RoutePartitionClass::PartitionTolerant,
-        },
-        hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
-        latency_budget_ms: jacquard_core::Limit::Bounded(DurationMs(250)),
-        protection_priority: PriorityPoints(10),
-        connectivity_priority: PriorityPoints(20),
-    }
-}
-
-/// Four-node mesh topology used by the mesh-only test. A, B, C, D are all
-/// mesh route-capable, with links A-B, B-C, A-D, and B-D.
-fn sample_configuration() -> Observation<Configuration> {
-    Observation {
-        value: Configuration {
-            epoch: jacquard_core::RouteEpoch(2),
-            nodes: BTreeMap::from([
-                (NODE_A, topology::route_capable_node(1)),
-                (NODE_B, topology::route_capable_node(2)),
-                (NODE_C, topology::route_capable_node(3)),
-                (NODE_D, topology::route_capable_node(4)),
-            ]),
-            links: BTreeMap::from([
-                ((NODE_A, NODE_B), topology::active_link(2, 950)),
-                ((NODE_B, NODE_C), topology::active_link(3, 875)),
-                ((NODE_A, NODE_D), topology::active_link(4, 925)),
-                ((NODE_B, NODE_D), topology::active_link(4, 900)),
-            ]),
-            environment: Environment {
-                reachable_neighbor_count: 3,
-                churn_permille: RatioPermille(150),
-                contention_permille: RatioPermille(120),
-            },
-        },
-        source_class: FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
-        origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(2),
-    }
-}
-
-/// Three-node mixed-engine topology. A and B are dual-engine (batman plus
-/// mesh). C is mesh-only. Links are A-B and B-C, so B is the hinge where
-/// the batman leg hands off to the mesh leg.
-fn mixed_engine_configuration() -> Observation<Configuration> {
-    Observation {
-        value: Configuration {
-            epoch: jacquard_core::RouteEpoch(3),
-            nodes: BTreeMap::from([
-                (NODE_A, topology::dual_engine_route_capable_node(1)),
-                (NODE_B, topology::dual_engine_route_capable_node(2)),
-                (
-                    NODE_C,
-                    topology::route_capable_node_for_engine(3, &MESH_ENGINE_ID),
-                ),
-            ]),
-            links: BTreeMap::from([
-                ((NODE_A, NODE_B), topology::active_link(2, 940)),
-                ((NODE_B, NODE_C), topology::active_link(3, 910)),
-            ]),
-            environment: Environment {
-                reachable_neighbor_count: 2,
-                churn_permille: RatioPermille(75),
-                contention_permille: RatioPermille(60),
-            },
-        },
-        source_class: FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
-        origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(2),
-    }
 }
