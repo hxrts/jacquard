@@ -21,6 +21,19 @@ use jacquard_core::{
     TransportKind,
 };
 
+/// TQ permille value below which a link is classified as `Degraded`.
+pub(crate) const TQ_DEGRADED_BELOW: u16 = 700;
+
+/// Permille scale denominator — the maximum value of a `RatioPermille`.
+pub(crate) const PERMILLE_MAX: u32 = 1000;
+
+/// Transfer-rate ceiling used when normalising bytes-per-second to a 0–1000
+/// score.
+pub(crate) const TQ_TRANSFER_RATE_SATURATION_BPS: u32 = 128_000;
+
+/// Stability-horizon ceiling used when normalising duration to a 0–1000 score.
+pub(crate) const TQ_STABILITY_SATURATION_MS: u32 = 4_000;
+
 /// BATMAN-private TQ-like scalar derived from an OGM-equivalent baseline plus
 /// optional richer Jacquard link observations.
 ///
@@ -49,14 +62,15 @@ pub(crate) fn derive_tq(
     }
     if let Some(throughput) = normalize_bytes_per_sec(
         &link.state.transfer_rate_bytes_per_sec.value(),
-        128_000,
+        TQ_TRANSFER_RATE_SATURATION_BPS,
     ) {
         score_total = score_total.saturating_add(throughput);
         score_terms = score_terms.saturating_add(1);
     }
-    if let Some(stability) =
-        normalize_duration_ms(&link.state.stability_horizon_ms.value(), 4_000)
-    {
+    if let Some(stability) = normalize_duration_ms(
+        &link.state.stability_horizon_ms.value(),
+        TQ_STABILITY_SATURATION_MS,
+    ) {
         score_total = score_total.saturating_add(stability);
         score_terms = score_terms.saturating_add(1);
     }
@@ -64,7 +78,7 @@ pub(crate) fn derive_tq(
     let tq = RatioPermille(
         u16::try_from(score_total / score_terms).expect("permille score"),
     );
-    let degradation = if tq.0 < 700 {
+    let degradation = if tq.0 < TQ_DEGRADED_BELOW {
         RouteDegradation::Degraded(jacquard_core::DegradationReason::LinkInstability)
     } else {
         RouteDegradation::None
@@ -74,7 +88,7 @@ pub(crate) fn derive_tq(
 
 #[must_use]
 pub(crate) fn tq_product(left: RatioPermille, right: RatioPermille) -> RatioPermille {
-    let value = (u32::from(left.0) * u32::from(right.0)) / 1000;
+    let value = (u32::from(left.0) * u32::from(right.0)) / PERMILLE_MAX;
     RatioPermille(u16::try_from(value).expect("permille product"))
 }
 

@@ -20,8 +20,8 @@
 
 use jacquard_core::{
     DestinationId, Fact, FactBasis, HealthScore, Limit, NodeId, PublishedRouteRecord,
-    ReachabilityState, RouteCommitment, RouteError, RouteHealth, RouteId,
-    RouteInstallation, RouteLifecycleEvent, RouteMaintenanceFailure,
+    RatioPermille, ReachabilityState, RouteCommitment, RouteError, RouteHealth,
+    RouteId, RouteInstallation, RouteLifecycleEvent, RouteMaintenanceFailure,
     RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
     RouteMaterializationInput, RouteMaterializationProof, RouteProgressContract,
     RouteProgressState, RouteRuntimeError, RouteRuntimeState, RouteSelectionError,
@@ -31,7 +31,19 @@ use jacquard_traits::{
     RouterManagedEngine, RoutingEngine, TimeEffects, TransportSenderEffects,
 };
 
-use crate::{public_state::ActiveBatmanRoute, BatmanEngine, BATMAN_ENGINE_ID};
+use crate::{public_state::ActiveBatmanRoute, scoring, BatmanEngine, BATMAN_ENGINE_ID};
+
+fn health_scores_from_tq(
+    tq: RatioPermille,
+) -> (HealthScore, jacquard_core::PenaltyPoints) {
+    let penalty = u16::try_from(scoring::PERMILLE_MAX)
+        .expect("permille max fits u16")
+        .saturating_sub(tq.0);
+    (
+        HealthScore(u32::from(tq.0)),
+        jacquard_core::PenaltyPoints(u32::from(penalty)),
+    )
+}
 
 impl<Transport, Effects> RoutingEngine for BatmanEngine<Transport, Effects>
 where
@@ -71,13 +83,15 @@ where
                 },
             },
             last_lifecycle_event: RouteLifecycleEvent::Activated,
-            health: RouteHealth {
-                reachability_state: ReachabilityState::Reachable,
-                stability_score: HealthScore(u32::from(best.tq.0)),
-                congestion_penalty_points: jacquard_core::PenaltyPoints(u32::from(
-                    1000_u16.saturating_sub(best.tq.0),
-                )),
-                last_validated_at_tick: self.effects.now_tick(),
+            health: {
+                let (stability_score, congestion_penalty_points) =
+                    health_scores_from_tq(best.tq);
+                RouteHealth {
+                    reachability_state: ReachabilityState::Reachable,
+                    stability_score,
+                    congestion_penalty_points,
+                    last_validated_at_tick: self.effects.now_tick(),
+                }
             },
             progress: RouteProgressContract {
                 productive_step_count_max: Limit::Bounded(1),
@@ -131,10 +145,11 @@ where
                 ),
             });
         };
+        let (stability_score, congestion_penalty_points) =
+            health_scores_from_tq(best.tq);
         runtime.health.last_validated_at_tick = self.effects.now_tick();
-        runtime.health.stability_score = HealthScore(u32::from(best.tq.0));
-        runtime.health.congestion_penalty_points =
-            jacquard_core::PenaltyPoints(u32::from(1000_u16.saturating_sub(best.tq.0)));
+        runtime.health.stability_score = stability_score;
+        runtime.health.congestion_penalty_points = congestion_penalty_points;
         if best.next_hop != active_route.next_hop {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Replaced,
