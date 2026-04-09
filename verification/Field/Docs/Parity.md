@@ -7,11 +7,11 @@ not drift silently.
 
 | Artifact | Owner | Rust surface | Lean surface | Serialization / representation | Compatibility policy |
 | --- | --- | --- | --- | --- | --- |
-| Local field evidence shape | `crates/field` | `observer.rs`, `summary.rs` | `FieldModelAPI.EvidenceInput` | bounded discrete fields, no transport payloads | semantic drift requires explicit review and note update |
-| Corridor-envelope projection shape | `crates/field` | `observer.rs`, `planner.rs`, `route.rs` | `FieldModelAPI.CorridorEnvelopeProjection` | bounded support plus hop band | projection honesty must stay conservative across both sides |
-| Protocol machine snapshot | `crates/field` | `choreography.rs` | `FieldProtocolAPI.MachineSnapshot` | bounded budget / blocked / disposition / emitted count | additions must preserve observational boundary |
-| Protocol output batch | `crates/field` | `summary.rs`, `runtime.rs` | `FieldProtocolAPI.ProtocolOutput` | observational-only batch count | must never gain canonical route authority |
-| Protocol-to-observer adapter | `crates/field` | field-private adapter logic | `FieldBoundary.protocolOutputToEvidence` | bounded evidence projection | must remain corridor-only / observational |
+| Local field evidence shape | `crates/field` | `observer.rs`, `summary.rs` | `FieldModelAPI.EvidenceInput` in `verification/Field/Model/API.lean` | bounded discrete fields, no transport payloads | semantic drift requires explicit review and note update |
+| Corridor-envelope projection shape | `crates/field` | `observer.rs`, `planner.rs`, `route.rs` | `FieldModelAPI.CorridorEnvelopeProjection` in `verification/Field/Model/API.lean` | bounded support plus hop band | projection honesty must stay conservative across both sides |
+| Protocol machine snapshot | `crates/field` | `choreography.rs` | `FieldProtocolAPI.MachineSnapshot` in `verification/Field/Protocol/API.lean` | bounded budget / blocked / disposition / emitted count | additions must preserve observational boundary |
+| Protocol output batch | `crates/field` | `summary.rs`, `runtime.rs` | `FieldProtocolAPI.ProtocolOutput` in `verification/Field/Protocol/API.lean` | observational-only batch count | must never gain canonical route authority |
+| Protocol-to-observer adapter | `crates/field` | field-private adapter logic | `FieldBoundary.protocolOutputToEvidence` in `verification/Field/Model/Boundary.lean` | bounded evidence projection | must remain corridor-only / observational |
 
 ## Checklist Gate
 

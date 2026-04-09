@@ -1,5 +1,5 @@
-import FieldModelInstance
-import FieldProtocolInstance
+import Field.Model.Instance
+import Field.Protocol.Instance
 
 /-
 The Problem. The proof story needs one narrow theorem linking private protocol

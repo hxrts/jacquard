@@ -26,19 +26,19 @@ This work does not prove:
 ## Where New Proof Work Should Land
 
 - local observer-controller model changes:
-  - `FieldModelAPI.lean`
-  - `FieldModelInstance.lean`
-  - `FieldModelNotes.md`
+  - `verification/Field/Model/API.lean`
+  - `verification/Field/Model/Instance.lean`
+  - `verification/Field/Docs/Model.md`
 - private choreography / protocol changes:
-  - `FieldProtocolAPI.lean`
-  - `FieldProtocolInstance.lean`
-  - `FieldProtocolNotes.md`
+  - `verification/Field/Protocol/API.lean`
+  - `verification/Field/Protocol/Instance.lean`
+  - `verification/Field/Docs/Protocol.md`
 - boundary or parity changes:
-  - `FieldBoundary.lean`
-  - `FieldParity.md`
+  - `verification/Field/Model/Boundary.lean`
+  - `verification/Field/Docs/Parity.md`
 
 ## Read This First
 
-- `FieldModelNotes.md`
-- `FieldProtocolNotes.md`
-- `FieldParity.md`
+- `verification/Field/Docs/Model.md`
+- `verification/Field/Docs/Protocol.md`
+- `verification/Field/Docs/Parity.md`

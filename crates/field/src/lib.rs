@@ -15,11 +15,12 @@
 //! At this stage the crate only locks the public contract. The richer field
 //! data model is added incrementally in later phases.
 //!
-//! Verification notes for the first formal model live under `verification/`:
-//! - `verification/README.md`
-//! - `verification/FieldModelNotes.md`
-//! - `verification/FieldProtocolNotes.md`
-//! - `verification/FieldParity.md`
+//! Verification notes for the first formal model live under
+//! `verification/Field/Docs/`:
+//! - `verification/Field/Docs/README.md`
+//! - `verification/Field/Docs/Model.md`
+//! - `verification/Field/Docs/Protocol.md`
+//! - `verification/Field/Docs/Parity.md`
 //!
 //! The current proof boundary is intentionally narrow:
 //! - Lean covers a bounded local observer-controller model

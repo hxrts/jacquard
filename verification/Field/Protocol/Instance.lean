@@ -1,4 +1,4 @@
-import FieldProtocolAPI
+import Field.Protocol.API
 
 /-
 The Problem. The field protocol layer needs one concrete reduced protocol
@@ -142,8 +142,8 @@ instance fieldProtocolLaws : FieldProtocolAPI.Laws where
   exports_remain_observational := by
     intro snapshot output hOutput
     -- Exported batches carry only observational authority by construction.
-    simp [FieldProtocolAPI.exportOutputs, exportOutputsImpl] at hOutput
-    simpa using hOutput
+    simp [exportOutputsImpl] at hOutput
+    simp [hOutput]
 
 /-! ## Representative Machine Lemmas -/
 

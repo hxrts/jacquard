@@ -4,8 +4,8 @@ open Lake DSL
 /-! # Jacquard Verification
 
 Lake build definition for the Jacquard formal verification library.
-Proofs are organized as theorem packs over the routing protocols defined
-as Telltale choreographies inside `jacquard-pathway`.
+The verification package currently contains one real proof surface:
+the field local model, protocol boundary, and parity notes.
 
 Run `just lean-setup` once from inside `nix develop` to pin the manifest
 and fetch prebuilt Mathlib oleans. Mathlib is never rebuilt from source.
@@ -24,35 +24,22 @@ package jacquard where
 require telltale from git
   "https://github.com/hxrts/telltale" @ "main" / "lean"
 
-/-! ## Theorem Packs
+/-! ## Verification Root
 
-Each module proves properties about one or more of Jacquard's routing
-choreographies (defined with `tell!` in `crates/pathway/src/`).
-Theorem packs are consumed by `jacquard-simulator` to gate capabilities
-and validate scenarios at compile time.
+The package is organized by feature, not by placeholder theorem packs.
+Today the only built verification root is `Jacquard.Verification`, which
+re-exports the field model and protocol boundary modules.
 -/
 
-/-- Routing invariants: determinism, boundedness, ordered-time separation. -/
+/-- Jacquard verification root: feature-organized Lean modules and notes. -/
 @[default_target]
-lean_lib RoutingInvariants where
-  roots := #[`RoutingInvariants]
-
-/-- Time model: Tick monotonicity, epoch versioning, typed time separation. -/
-lean_lib TimeModel where
-  roots := #[`TimeModel]
-
-/-- Protocol correctness: session type properties for pathway choreographies. -/
-lean_lib ProtocolCorrectness where
-  roots := #[`ProtocolCorrectness]
-
-/-- Field verification: local model, protocol boundary, and parity notes. -/
-@[default_target]
-lean_lib FieldVerification where
+lean_lib JacquardVerification where
   roots := #[
-    `FieldVerification,
-    `FieldModelAPI,
-    `FieldModelInstance,
-    `FieldProtocolAPI,
-    `FieldProtocolInstance,
-    `FieldBoundary
+    `Verification,
+    `Field.Field,
+    `Field.Model.API,
+    `Field.Model.Instance,
+    `Field.Model.Boundary,
+    `Field.Protocol.API,
+    `Field.Protocol.Instance
   ]

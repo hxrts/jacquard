@@ -59,7 +59,7 @@ The first reduced protocol requires:
 
 ## API / Instance Split
 
-`FieldProtocolAPI.lean` defines:
+`verification/Field/Protocol/API.lean` defines:
 
 - protocol roles
 - message labels
@@ -68,7 +68,7 @@ The first reduced protocol requires:
 - abstract projection, machine advance, and export operations
 - abstract laws for harmony, bounded stepping, fail-closed cancellation, and observational-only export
 
-`FieldProtocolInstance.lean` defines:
+`verification/Field/Protocol/Instance.lean` defines:
 
 - the first reduced summary-exchange action list
 - the first concrete local projections
