@@ -2,10 +2,7 @@
 
 `jacquard-simulator` is the deterministic scenario harness for Jacquard. It reuses the same core ownership model as the host bridge. The four core types are `JacquardScenario`, `ScriptedEnvironmentModel`, `JacquardSimulator`, and `JacquardReplayArtifact`.
 
-- Hosts own transport drivers.
-- The bridge stamps ingress with Jacquard `Tick`.
-- The router advances through explicit synchronous rounds.
-- Engines keep private runtime state below the shared routing boundary.
+Hosts own transport drivers. The bridge stamps ingress with Jacquard `Tick`. The router advances through explicit synchronous rounds. Engines keep private runtime state below the shared routing boundary.
 
 The simulator runs two lanes, selected per host through `EngineLane`. The `pathway` engine uses a Telltale-backed lane. Its runtime is choreography-driven internally. The `batman` engine uses a plain deterministic-round lane.
 
@@ -15,10 +12,7 @@ The `batman` engine is a proactive next-hop state machine. Mixed-engine scenario
 
 The simulator reuses existing Jacquard composition surfaces. It does not maintain a simulator-only stack.
 
-- `jacquard-reference-client` for host bridge ownership and round advancement
-- `jacquard-adapter` for queueing and adapter support primitives
-- `jacquard-mem-link-profile` for in-memory transport composition
-- `jacquard-mem-node-profile` and `reference-client::topology` for fixture topology authoring
+`jacquard-reference-client` provides host bridge ownership and round advancement. `jacquard-adapter` provides queueing and adapter support primitives. `jacquard-mem-link-profile` provides in-memory transport composition. `jacquard-mem-node-profile` and `reference-client::topology` provide fixture topology authoring.
 
 ## Environment Model
 
