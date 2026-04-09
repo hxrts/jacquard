@@ -14,8 +14,7 @@ use jacquard_core::{
     RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
     RouteRuntimeError, RouteServiceKind, RouteSummary, RouteWitness,
     RoutingEngineFallbackPolicy, RoutingEngineId, RoutingObjective,
-    RuntimeEnvelopeClass, SelectedRoutingParameters, Tick, TimeWindow,
-    TransportProtocol,
+    RuntimeEnvelopeClass, SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
 };
 
 fn repairable_connected() -> ConnectivityPosture {
@@ -60,7 +59,7 @@ fn sample_summary() -> RouteSummary {
         engine: sample_engine_id(),
         protection: RouteProtectionClass::LinkProtected,
         connectivity: repairable_connected(),
-        protocol_mix: vec![TransportProtocol::BleGatt, TransportProtocol::WifiLan],
+        protocol_mix: vec![TransportKind::WifiAware, TransportKind::WifiLan],
         hop_count_hint: Belief::Estimated(Estimate {
             value: 3,
             confidence_permille: jacquard_core::RatioPermille(1000),

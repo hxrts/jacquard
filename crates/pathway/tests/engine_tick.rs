@@ -18,13 +18,13 @@ use common::{
 use jacquard_pathway::{PathwayTransportFreshness, PathwayTransportObservationSummary};
 use jacquard_traits::{
     jacquard_core::{
-        Belief, DestinationId, DurationMs, EndpointAddress, Estimate, FactSourceClass,
-        HealthScore, Link, LinkEndpoint, LinkRuntimeState, LinkState, NodeId,
-        Observation, OriginAuthenticationClass, PenaltyPoints, RatioPermille,
+        Belief, ByteCount, DestinationId, DurationMs, EndpointLocator, Estimate,
+        FactSourceClass, HealthScore, Link, LinkEndpoint, LinkRuntimeState, LinkState,
+        NodeId, Observation, OriginAuthenticationClass, PenaltyPoints, RatioPermille,
         RouteError, RouteMaintenanceOutcome, RouteMaintenanceTrigger,
         RoutePartitionClass, RouteRepairClass, RouteRuntimeError, RoutingEvidenceClass,
-        RoutingTickChange, RoutingTickContext, Tick, TransportObservation,
-        TransportProtocol,
+        RoutingTickChange, RoutingTickContext, Tick, TransportKind,
+        TransportObservation,
     },
     RoutingEngine, RoutingEnginePlanner,
 };
@@ -46,16 +46,11 @@ fn low_quality_link_observation() -> TransportObservation {
         remote_node_id: NodeId([4; 32]),
         observation: Observation {
             value: Link {
-                endpoint: LinkEndpoint {
-                    protocol: TransportProtocol::BleGatt,
-                    address: EndpointAddress::Ble {
-                        device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![4]),
-                        profile_id: jacquard_traits::jacquard_core::BleProfileId(
-                            [4; 16],
-                        ),
-                    },
-                    mtu_bytes: jacquard_traits::jacquard_core::ByteCount(256),
-                },
+                endpoint: LinkEndpoint::new(
+                    TransportKind::WifiAware,
+                    EndpointLocator::Opaque(vec![4]),
+                    ByteCount(256),
+                ),
                 profile: jacquard_traits::jacquard_core::LinkProfile {
                     latency_floor_ms: DurationMs(8),
                     repair_capability:

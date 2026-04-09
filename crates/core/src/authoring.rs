@@ -9,43 +9,12 @@ use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Belief, BleDeviceId, BleProfileId, ByteCount, CapacityHint, ControllerId,
-    DurationMs, EndpointAddress, HoldItemCount, InformationSetSummary, Link,
-    LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState, MaintenanceWorkBudget,
-    Node, NodeProfile, NodeRelayBudget, NodeState, RatioPermille, RelayWorkBudget,
-    RepairCapability, RoutingEngineId, ServiceDescriptor, ServiceScope, Tick,
-    TimeWindow, TransportProtocol,
+    Belief, ByteCount, CapacityHint, ControllerId, DurationMs, HoldItemCount,
+    InformationSetSummary, Link, LinkEndpoint, LinkProfile, LinkRuntimeState,
+    LinkState, MaintenanceWorkBudget, Node, NodeProfile, NodeRelayBudget, NodeState,
+    RatioPermille, RelayWorkBudget, RepairCapability, RoutingEngineId,
+    ServiceDescriptor, ServiceScope, Tick, TimeWindow,
 };
-
-/// Reference BLE GATT MTU used by the shared endpoint authoring helpers.
-pub const BLE_MTU_BYTES: ByteCount = ByteCount(256);
-
-/// Construct a BLE-shaped shared endpoint.
-#[must_use]
-pub fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
-    LinkEndpoint {
-        protocol: TransportProtocol::BleGatt,
-        address: EndpointAddress::Ble {
-            device_id: BleDeviceId(vec![device_byte]),
-            profile_id: BleProfileId([device_byte; 16]),
-        },
-        mtu_bytes: BLE_MTU_BYTES,
-    }
-}
-
-/// Construct a generic opaque shared endpoint.
-#[must_use]
-pub fn opaque_endpoint(
-    protocol: TransportProtocol,
-    bytes: Vec<u8>,
-    mtu: ByteCount,
-) -> LinkEndpoint {
-    LinkEndpoint {
-        protocol,
-        address: EndpointAddress::Opaque(bytes),
-        mtu_bytes: mtu,
-    }
-}
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -457,15 +426,15 @@ impl NodeBuilder {
 mod tests {
     use super::*;
     use crate::{
-        EndpointAddress, PartitionRecoveryClass, RouteServiceKind, ServiceScope,
-        TransportProtocol,
+        EndpointLocator, PartitionRecoveryClass, RouteServiceKind, ServiceScope,
+        TransportKind,
     };
 
     #[test]
     fn link_builder_builds_shared_link() {
         let endpoint = LinkEndpoint {
-            protocol: TransportProtocol::BleGatt,
-            address: EndpointAddress::Opaque(vec![1]),
+            transport_kind: TransportKind::WifiAware,
+            locator: EndpointLocator::Opaque(vec![1]),
             mtu_bytes: ByteCount(256),
         };
         let link = LinkBuilder::new(endpoint.clone())
@@ -490,8 +459,8 @@ mod tests {
     #[test]
     fn node_builders_build_shared_node() {
         let endpoint = LinkEndpoint {
-            protocol: TransportProtocol::BleGatt,
-            address: EndpointAddress::Opaque(vec![2]),
+            transport_kind: TransportKind::WifiAware,
+            locator: EndpointLocator::Opaque(vec![2]),
             mtu_bytes: ByteCount(256),
         };
         let node_id = crate::NodeId([2; 32]);

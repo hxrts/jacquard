@@ -225,14 +225,11 @@ fn sample_configuration() -> Configuration {
     links.insert(
         (local, remote),
         Link {
-            endpoint: jacquard_traits::jacquard_core::LinkEndpoint {
-                protocol: jacquard_traits::jacquard_core::TransportProtocol::BleGatt,
-                address: jacquard_traits::jacquard_core::EndpointAddress::Ble {
-                    device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
-                    profile_id: jacquard_traits::jacquard_core::BleProfileId([2; 16]),
-                },
-                mtu_bytes: jacquard_traits::jacquard_core::ByteCount(512),
-            },
+            endpoint: jacquard_traits::jacquard_core::LinkEndpoint::new(
+                jacquard_traits::jacquard_core::TransportKind::WifiAware,
+                jacquard_traits::jacquard_core::EndpointLocator::Opaque(vec![1]),
+                jacquard_traits::jacquard_core::ByteCount(512),
+            ),
             profile: jacquard_traits::jacquard_core::LinkProfile {
                 latency_floor_ms: jacquard_traits::jacquard_core::DurationMs(2),
                 repair_capability:

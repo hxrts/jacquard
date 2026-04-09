@@ -18,7 +18,7 @@ use jacquard_core::{
     Belief, ByteCount, Configuration, Environment, HealthScore, Link, LinkEndpoint,
     LinkState, MaintenanceWorkBudget, Node, NodeId, NodeRelayBudget, RatioPermille,
     RelayWorkBudget, RouteServiceKind, RoutingEngineId, RoutingObjective,
-    ServiceDescriptor, ServiceId, ServiceScope, Tick, TransportProtocol,
+    ServiceDescriptor, ServiceId, ServiceScope, Tick, TransportKind,
 };
 
 use crate::PathwayTopologyModel;
@@ -551,9 +551,9 @@ fn mean_score(left: Option<u32>, right: Option<u32>) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        ble_endpoint, ControllerId, DestinationId, Estimate, LinkRuntimeState,
-        NodeProfile, NodeState, RouteEpoch, ServiceDescriptor, Tick, TimeWindow,
-        BLE_MTU_BYTES,
+        ByteCount, ControllerId, DestinationId, EndpointLocator, Estimate,
+        LinkEndpoint, LinkRuntimeState, NodeProfile, NodeState, RouteEpoch,
+        ServiceDescriptor, Tick, TimeWindow, TransportKind,
     };
 
     use super::*;
@@ -615,9 +615,17 @@ mod tests {
         }
     }
 
+    fn endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(128),
+        )
+    }
+
     fn active_link(byte: u8, confidence: u16) -> Link {
         Link {
-            endpoint: ble_endpoint(byte),
+            endpoint: endpoint(byte),
             profile: default_link_profile(),
             state: LinkState {
                 state: LinkRuntimeState::Active,
@@ -706,7 +714,7 @@ mod tests {
                         controller_id: ControllerId([1; 32]),
                         profile: NodeProfile {
                             services: Vec::new(),
-                            endpoints: vec![ble_endpoint(1)],
+                            endpoints: vec![endpoint(1)],
                             connection_count_max: 4,
                             neighbor_state_count_max: 4,
                             simultaneous_transfer_count_max: 2,
@@ -788,7 +796,7 @@ mod tests {
             links: BTreeMap::from([(
                 (local, peer),
                 Link {
-                    endpoint: ble_endpoint(2),
+                    endpoint: endpoint(2),
                     profile: default_link_profile(),
                     state: LinkState {
                         state: LinkRuntimeState::Active,
@@ -997,14 +1005,7 @@ mod tests {
     fn adjacent_link_between_handles_both_orderings() {
         let left = NodeId([1; 32]);
         let right = NodeId([2; 32]);
-        let endpoint = LinkEndpoint {
-            protocol: TransportProtocol::BleGatt,
-            address: jacquard_core::EndpointAddress::Ble {
-                device_id: jacquard_core::BleDeviceId(vec![1]),
-                profile_id: jacquard_core::BleProfileId([1; 16]),
-            },
-            mtu_bytes: BLE_MTU_BYTES,
-        };
+        let endpoint = endpoint(1);
         let link = Link {
             endpoint,
             profile: default_link_profile(),

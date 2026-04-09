@@ -1,6 +1,6 @@
 use jacquard_core::{
     Belief, DurationMs, Link, LinkRuntimeState, RatioPermille, RouteDegradation,
-    TransportProtocol,
+    TransportKind,
 };
 
 /// BATMAN-private TQ-like scalar derived from an OGM-equivalent baseline plus
@@ -17,7 +17,7 @@ use jacquard_core::{
 #[must_use]
 pub(crate) fn derive_tq(
     link: &Link,
-) -> (RatioPermille, RouteDegradation, TransportProtocol) {
+) -> (RatioPermille, RouteDegradation, TransportKind) {
     let mut score_total = u32::from(ogm_equivalent_tq(link.state.state).0);
     let mut score_terms = 1_u32;
 
@@ -51,7 +51,7 @@ pub(crate) fn derive_tq(
     } else {
         RouteDegradation::None
     };
-    (tq, degradation, link.endpoint.protocol.clone())
+    (tq, degradation, link.endpoint.transport_kind.clone())
 }
 
 #[must_use]
@@ -94,8 +94,8 @@ fn ogm_equivalent_tq(state: LinkRuntimeState) -> RatioPermille {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        ByteCount, EndpointAddress, LinkEndpoint, LinkProfile, LinkState,
-        PartitionRecoveryClass, RepairCapability, Tick,
+        ByteCount, EndpointLocator, LinkEndpoint, LinkProfile, LinkState,
+        PartitionRecoveryClass, RepairCapability, Tick, TransportKind,
     };
 
     use super::*;
@@ -103,8 +103,8 @@ mod tests {
     fn link_with_richer_observations(remote: u8, delivery: u16, symmetry: u16) -> Link {
         Link {
             endpoint: LinkEndpoint {
-                protocol: TransportProtocol::BleGatt,
-                address: EndpointAddress::Opaque(vec![remote]),
+                transport_kind: TransportKind::WifiAware,
+                locator: EndpointLocator::Opaque(vec![remote]),
                 mtu_bytes: ByteCount(64),
             },
             profile: LinkProfile {
@@ -149,8 +149,8 @@ mod tests {
     fn tq_derivation_has_an_ogm_equivalent_baseline_without_richer_beliefs() {
         let link = Link {
             endpoint: LinkEndpoint {
-                protocol: TransportProtocol::BleGatt,
-                address: EndpointAddress::Opaque(vec![9]),
+                transport_kind: TransportKind::WifiAware,
+                locator: EndpointLocator::Opaque(vec![9]),
                 mtu_bytes: ByteCount(64),
             },
             profile: LinkProfile {

@@ -6,15 +6,19 @@
 
 use jacquard_batman::BATMAN_ENGINE_ID;
 use jacquard_core::{
-    opaque_endpoint, ByteCount, ControllerId, Link, Node, NodeId, RoutingEngineId,
-    Tick, TransportProtocol,
+    ByteCount, ControllerId, EndpointLocator, Link, LinkEndpoint, Node, NodeId,
+    RoutingEngineId, Tick, TransportKind,
 };
 use jacquard_mem_link_profile::ReferenceLink;
 use jacquard_mem_node_profile::ReferenceNode;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 
 fn reference_endpoint(byte: u8) -> jacquard_core::LinkEndpoint {
-    opaque_endpoint(TransportProtocol::WifiAware, vec![byte], ByteCount(256))
+    LinkEndpoint::new(
+        TransportKind::WifiAware,
+        EndpointLocator::Opaque(vec![byte]),
+        ByteCount(256),
+    )
 }
 
 #[must_use]

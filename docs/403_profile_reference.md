@@ -13,10 +13,10 @@ Profile crates are `Observed`. They model capability advertisement, transport ca
 | Crate | Provides | Shared boundary it implements |
 | --- | --- | --- |
 | `jacquard-mem-node-profile` | `SimulatedNodeProfile`, `NodeStateSnapshot`, `SimulatedServiceDescriptor` builders | none — it only emits `jacquard-core` model values |
-| `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, BLE profile defaults | `TransportEffects`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
-| `jacquard-reference-client` | `fixtures::{route_capable_node, active_link}`, `Client<Router>`, `PathwayRouter`/`PathwayClient` aliases, `build_pathway_client` | none — it is pure composition over the crates above |
+| `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportEffects`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
+| `jacquard-reference-client` | `topology::{route_capable_node, active_link}`, `Client<Router>`, `PathwayRouter`/`PathwayClient` aliases, `build_pathway_client` | none — it is pure composition over the crates above |
 
-The `mem-*` crates stay routing-engine-neutral: they carry frames, emit observations, and build shared model values, but they do not mint route truth or interpret routing policy. Reference-client fixtures are the single place where a service descriptor picks up the `PATHWAY_ENGINE_ID` routing-engine tag, because that decision is composition, not profile.
+The `mem-*` crates stay routing-engine-neutral and transport-neutral: they carry frames, emit observations, and build shared model values, but they do not mint route truth, interpret routing policy, or own BLE/IP-specific authoring helpers. Reference-client fixtures are the single place where a service descriptor picks up the `PATHWAY_ENGINE_ID` routing-engine tag, because that decision is composition, not profile.
 
 ## Composition
 
@@ -43,6 +43,6 @@ The reference end-to-end example is [`e2e_multi_layer_routing.rs`](../crates/ref
 
 ## Extension Guidance
 
-Mirror the existing layering when adding a new device or transport profile. Build node-side world inputs as builders over the shared `NodeProfile`, `NodeState`, and `ServiceDescriptor` types. Build link-side and transport behavior as adapters that implement the shared effect boundaries listed above. Compose the new profile with the router and a routing engine through a host harness that looks like `jacquard-reference-client`. Do not introduce a parallel node schema or a pathway-specific transport trait along the way.
+Mirror the existing layering when adding a new device or transport profile. Build node-side world inputs as builders over the shared `NodeProfile`, `NodeState`, and `ServiceDescriptor` types. Build link-side and transport behavior as adapters that implement the shared effect boundaries listed above. Compose the new profile with the router and a routing engine through a host harness that looks like `jacquard-reference-client`. Do not introduce a parallel node schema, a pathway-specific transport trait, or transport-specific endpoint constructors inside the mem/reference profile crates.
 
 Keep the ownership boundary strict. Profile crates stay `Observed`. Routers stay the canonical `ActorOwned` route publisher. Routing engines own only route-private runtime state and typed evidence. The [Crate Architecture](999_crate_architecture.md) document has the full dependency graph and ownership rules these crates fit into.

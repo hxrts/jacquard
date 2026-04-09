@@ -8,8 +8,8 @@
 //! Most callers should start with the [`authoring`] module, especially
 //! [`ReferenceNode`]. [`SimulatedNodeProfile`] and [`NodeStateSnapshot`]
 //! remain available as the lower-level escape hatches when tests need exact
-//! control over the profile/state split. Shared endpoint constructors live in
-//! `jacquard-core`, not in this crate.
+//! control over the profile/state split. Callers construct shared
+//! `LinkEndpoint` values directly via `jacquard-core`.
 //!
 //! Module map:
 //! - [`authoring`]: human-facing node authoring presets
@@ -19,8 +19,8 @@
 //!
 //! ```rust
 //! use jacquard_core::{
-//!     opaque_endpoint, ByteCount, ControllerId, NodeId, RoutingEngineId, Tick,
-//!     TransportProtocol,
+//!     ByteCount, ControllerId, EndpointLocator, LinkEndpoint, NodeId,
+//!     RoutingEngineId, Tick, TransportKind,
 //! };
 //! use jacquard_mem_node_profile::ReferenceNode;
 //!
@@ -28,7 +28,11 @@
 //! let node = ReferenceNode::route_capable(
 //!     NodeId([3; 32]),
 //!     ControllerId([3; 32]),
-//!     opaque_endpoint(TransportProtocol::WifiAware, vec![3], ByteCount(512)),
+//!     LinkEndpoint::new(
+//!         TransportKind::WifiAware,
+//!         EndpointLocator::Opaque(vec![3]),
+//!         ByteCount(512),
+//!     ),
 //!     &engine,
 //!     Tick(1),
 //! )

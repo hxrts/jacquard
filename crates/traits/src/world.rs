@@ -6,8 +6,8 @@
 
 use jacquard_core::{
     Environment, EnvironmentObservation, Link, LinkObservation, Node, NodeObservation,
-    Observation, ServiceDescriptor, ServiceObservation, TransportObservation,
-    TransportProtocol, WorldError,
+    Observation, ServiceDescriptor, ServiceObservation, TransportKind,
+    TransportObservation, WorldError,
 };
 use jacquard_macros::purity;
 
@@ -21,7 +21,7 @@ pub trait WorldExtensionDescriptor {
     fn extension_id(&self) -> &str;
 
     #[must_use]
-    fn supported_transports(&self) -> Vec<TransportProtocol>;
+    fn supported_transports(&self) -> Vec<TransportKind>;
 }
 
 #[purity(effectful)]

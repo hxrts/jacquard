@@ -50,9 +50,9 @@ impl InMemoryTransport {
     ) -> Self {
         let endpoints = endpoints.into_iter().collect::<Vec<_>>();
         if let Some(first_endpoint) = endpoints.first() {
-            debug_assert!(endpoints
-                .iter()
-                .all(|endpoint| endpoint.protocol == first_endpoint.protocol));
+            debug_assert!(endpoints.iter().all(
+                |endpoint| endpoint.transport_kind == first_endpoint.transport_kind
+            ));
         }
         for endpoint in &endpoints {
             network.attach_endpoint(local_node_id, endpoint.clone());

@@ -209,9 +209,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        Blake3Digest, BleDeviceId, BleProfileId, ByteCount, ContentId, EndpointAddress,
-        LinkEndpoint, NodeId, StorageError, Tick, TransportObservation,
-        TransportProtocol,
+        Blake3Digest, ByteCount, ContentId, EndpointLocator, LinkEndpoint, NodeId,
+        StorageError, Tick, TransportKind, TransportObservation,
     };
     use jacquard_traits::{
         effect_handler, StorageEffects, TimeEffects, TransportEffects,
@@ -228,7 +227,7 @@ mod tests {
 
     #[derive(Default)]
     struct FakeTransport {
-        sent: Vec<(TransportProtocol, Vec<u8>)>,
+        sent: Vec<(TransportKind, Vec<u8>)>,
         observations: Vec<TransportObservation>,
     }
 
@@ -240,7 +239,7 @@ mod tests {
             payload: &[u8],
         ) -> Result<(), jacquard_core::TransportError> {
             self.sent
-                .push((endpoint.protocol.clone(), payload.to_vec()));
+                .push((endpoint.transport_kind.clone(), payload.to_vec()));
             Ok(())
         }
 
@@ -318,14 +317,11 @@ mod tests {
     // long-block-exception: comprehensive adapter contract verification
     #[test]
     fn fake_mesh_choreo_adapter_maps_runtime_actions() {
-        let endpoint = LinkEndpoint {
-            protocol: TransportProtocol::BleGatt,
-            address: EndpointAddress::Ble {
-                device_id: BleDeviceId(vec![1]),
-                profile_id: BleProfileId([1; 16]),
-            },
-            mtu_bytes: ByteCount(128),
-        };
+        let endpoint = LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![1]),
+            ByteCount(128),
+        );
         let mut transport = FakeTransport::default();
         transport
             .observations

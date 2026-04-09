@@ -1,10 +1,10 @@
 //! Shared test helpers for jacquard-traits integration tests.
 
 use jacquard_traits::jacquard_core::{
-    Belief, ByteCount, ControllerId, EndpointAddress, Estimate, FactSourceClass,
+    Belief, ByteCount, ControllerId, EndpointLocator, Estimate, FactSourceClass,
     HoldItemCount, InformationSetSummary, LinkEndpoint, MaintenanceWorkBudget, Node,
     NodeProfile, NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass,
-    RatioPermille, RelayWorkBudget, RoutingEvidenceClass, Tick, TransportProtocol,
+    RatioPermille, RelayWorkBudget, RoutingEvidenceClass, Tick, TransportKind,
 };
 
 /// Construct a local, directly-observed, controller-bound `Observation<T>`.
@@ -25,8 +25,8 @@ pub fn local_observation<T>(value: T, tick: Tick) -> Observation<T> {
 /// A minimal `LinkEndpoint` suitable for use in test fixtures.
 pub fn sample_endpoint() -> LinkEndpoint {
     LinkEndpoint {
-        protocol: TransportProtocol::BleGatt,
-        address: EndpointAddress::Opaque(vec![1, 2, 3]),
+        transport_kind: TransportKind::WifiAware,
+        locator: EndpointLocator::Opaque(vec![1, 2, 3]),
         mtu_bytes: ByteCount(512),
     }
 }

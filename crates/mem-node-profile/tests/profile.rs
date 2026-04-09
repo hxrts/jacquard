@@ -1,18 +1,17 @@
 use jacquard_core::{
-    ByteCount, ControllerId, EndpointAddress, LinkEndpoint, NodeId, RatioPermille,
-    RelayWorkBudget, RouteServiceKind, ServiceScope, Tick, TimeWindow,
-    TransportProtocol,
+    ByteCount, ControllerId, EndpointLocator, LinkEndpoint, NodeId, RatioPermille,
+    RelayWorkBudget, RouteServiceKind, ServiceScope, Tick, TimeWindow, TransportKind,
 };
 use jacquard_mem_node_profile::{
     NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor,
 };
 
 fn endpoint(byte: u8) -> LinkEndpoint {
-    LinkEndpoint {
-        protocol: TransportProtocol::WifiAware,
-        address: EndpointAddress::Opaque(vec![byte]),
-        mtu_bytes: ByteCount(256),
-    }
+    LinkEndpoint::new(
+        TransportKind::WifiAware,
+        EndpointLocator::Opaque(vec![byte]),
+        ByteCount(256),
+    )
 }
 
 #[test]

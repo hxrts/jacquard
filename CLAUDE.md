@@ -78,6 +78,8 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-reference-client`: host-side composition of router + pathway + in-memory profiles for end-to-end tests.
 - `jacquard-xtask`: workspace policy checks, docs link/drift validation, and pre-commit entry point.
 
+Transport-specific endpoint authoring belongs outside the transport-neutral mem profile crates. `jacquard-core` owns the shared `TransportKind` / `EndpointLocator` schema; transport-owned profile crates own any BLE-, IP-, or other transport-specific endpoint helpers and defaults.
+
 ## Telltale dependency
 
 Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, currently `11.3.0`). Individual crates import them via `{ workspace = true }`.

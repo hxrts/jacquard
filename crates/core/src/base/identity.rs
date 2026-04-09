@@ -1,7 +1,5 @@
 //! Node, controller, route, and scope identifiers.
 
-use std::net::IpAddr;
-
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +10,6 @@ use crate::{content::Blake3Digest, RouteEpoch};
 super::bytes_newtype!(NodeId, 32);
 super::bytes_newtype!(ControllerId, 32);
 super::bytes_newtype!(KeyId, 32);
-super::bytes_newtype!(BleProfileId, 16);
 super::bytes_newtype!(DiscoveryScopeId, 16);
 super::bytes_newtype!(HomeId, 16);
 super::bytes_newtype!(ClusterId, 16);
@@ -38,24 +35,6 @@ pub struct ServiceId(pub Vec<u8>);
     Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 pub struct BackendRouteId(pub Vec<u8>);
-
-/// Platform-specific BLE device address. Format depends on the host BLE stack.
-#[derive(
-    Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-pub struct BleDeviceId(pub Vec<u8>);
-
-#[derive(
-    Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-pub struct HostName(pub String);
-
-#[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum NetworkHost {
-    Ip(IpAddr),
-    Name(HostName),
-}
 
 #[public_model]
 #[derive(

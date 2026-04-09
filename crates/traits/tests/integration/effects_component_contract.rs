@@ -1,18 +1,16 @@
 use jacquard_mem_link_profile::{InMemoryRetentionStore, InMemoryTransport};
 use jacquard_traits::{
     jacquard_core::{
-        Blake3Digest, ByteCount, ContentId, LinkEndpoint, TransportProtocol,
+        Blake3Digest, ByteCount, ContentId, EndpointLocator, LinkEndpoint,
+        TransportKind,
     },
     EffectHandler, RetentionStore, TransportEffects,
 };
 
 fn sample_endpoint() -> LinkEndpoint {
     LinkEndpoint {
-        protocol: TransportProtocol::BleGatt,
-        address: jacquard_traits::jacquard_core::EndpointAddress::Ble {
-            device_id: jacquard_traits::jacquard_core::BleDeviceId(vec![1]),
-            profile_id: jacquard_traits::jacquard_core::BleProfileId([2; 16]),
-        },
+        transport_kind: TransportKind::WifiAware,
+        locator: EndpointLocator::Opaque(vec![1, 2]),
         mtu_bytes: ByteCount(512),
     }
 }

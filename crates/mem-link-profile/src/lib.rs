@@ -9,8 +9,8 @@
 //! Most callers should start with the [`authoring`] module, especially
 //! [`ReferenceLink`]. [`SimulatedLinkProfile`] remains available as the
 //! lower-level escape hatch when tests need exact control over `LinkProfile`
-//! and `LinkState`. Shared endpoint constructors live in `jacquard-core`, not
-//! in this crate.
+//! and `LinkState`. Callers construct shared `LinkEndpoint` values directly via
+//! `jacquard-core`.
 //!
 //! Module map:
 //! - [`authoring`]: human-facing link authoring presets
@@ -21,16 +21,26 @@
 //! - `effect`: in-memory runtime-effect implementations
 //!
 //! ```rust
-//! use jacquard_core::{opaque_endpoint, ByteCount, Tick, TransportProtocol};
+//! use jacquard_core::{
+//!     ByteCount, EndpointLocator, LinkEndpoint, Tick, TransportKind,
+//! };
 //! use jacquard_mem_link_profile::ReferenceLink;
 //!
 //! let active = ReferenceLink::active(
-//!     opaque_endpoint(TransportProtocol::WifiAware, vec![7], ByteCount(128)),
+//!     LinkEndpoint::new(
+//!         TransportKind::WifiAware,
+//!         EndpointLocator::Opaque(vec![7]),
+//!         ByteCount(128),
+//!     ),
 //!     Tick(1),
 //! )
 //! .build();
 //! let lossy = ReferenceLink::lossy(
-//!     opaque_endpoint(TransportProtocol::WifiAware, vec![8], ByteCount(128)),
+//!     LinkEndpoint::new(
+//!         TransportKind::WifiAware,
+//!         EndpointLocator::Opaque(vec![8]),
+//!         ByteCount(128),
+//!     ),
 //!     jacquard_core::RatioPermille(650),
 //!     Tick(1),
 //! )

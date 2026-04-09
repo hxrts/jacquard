@@ -116,12 +116,12 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        ble_endpoint, Configuration, ConnectivityPosture, ControllerId, DestinationId,
-        DurationMs, Environment, FactSourceClass, NodeId, Observation,
-        OriginAuthenticationClass, RatioPermille, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteServiceKind, RoutingEngineId,
-        RoutingEvidenceClass, RoutingObjective, RoutingTickContext,
-        SelectedRoutingParameters, Tick,
+        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
+        DurationMs, EndpointLocator, Environment, FactSourceClass, LinkEndpoint,
+        NodeId, Observation, OriginAuthenticationClass, RatioPermille,
+        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
+        RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingTickContext,
+        SelectedRoutingParameters, Tick, TransportKind,
     };
     use jacquard_mem_link_profile::{
         InMemoryRuntimeEffects, InMemoryTransport, ReferenceLink,
@@ -133,6 +133,14 @@ mod tests {
 
     fn node(byte: u8) -> NodeId {
         NodeId([byte; 32])
+    }
+
+    fn endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(128),
+        )
     }
 
     fn sample_objective(destination: NodeId) -> RoutingObjective {
@@ -177,7 +185,7 @@ mod tests {
                         ReferenceNode::route_capable(
                             node(1),
                             ControllerId([1; 32]),
-                            ble_endpoint(1),
+                            endpoint(1),
                             &BATMAN_ENGINE_ID,
                             Tick(1),
                         )
@@ -188,7 +196,7 @@ mod tests {
                         ReferenceNode::route_capable(
                             node(2),
                             ControllerId([2; 32]),
-                            ble_endpoint(2),
+                            endpoint(2),
                             &BATMAN_ENGINE_ID,
                             Tick(1),
                         )
@@ -197,7 +205,7 @@ mod tests {
                 ]),
                 links: BTreeMap::from([(
                     (node(1), node(2)),
-                    ReferenceLink::active(ble_endpoint(2), Tick(1)).build(),
+                    ReferenceLink::active(endpoint(2), Tick(1)).build(),
                 )]),
                 environment: Environment {
                     reachable_neighbor_count: 1,
@@ -222,7 +230,7 @@ mod tests {
             ReferenceNode::route_capable(
                 node(2),
                 ControllerId([2; 32]),
-                ble_endpoint(2),
+                endpoint(2),
                 &foreign_engine,
                 Tick(1),
             )

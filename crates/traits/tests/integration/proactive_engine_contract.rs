@@ -16,7 +16,7 @@ use jacquard_traits::{
         RouteShapeVisibility, RouteSummary, RouteWitness, RoutingEngineCapabilities,
         RoutingEngineId, RoutingObjective, RoutingTickChange, RoutingTickContext,
         RoutingTickHint, RoutingTickOutcome, RuntimeEnvelopeClass,
-        SelectedRoutingParameters, Tick, TimeWindow, TransportProtocol,
+        SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
     },
     RoutingEngine, RoutingEnginePlanner,
 };
@@ -78,7 +78,7 @@ impl RoutingEnginePlanner for ProactiveContractEngine {
                         engine: Self::engine_id(),
                         protection: objective.target_protection,
                         connectivity: objective.target_connectivity,
-                        protocol_mix: vec![TransportProtocol::BleGatt],
+                        protocol_mix: vec![TransportKind::WifiAware],
                         hop_count_hint: Belief::certain(2, *updated_at_tick),
                         valid_for: TimeWindow::new(
                             *updated_at_tick,
@@ -288,7 +288,7 @@ mod common {
         NodeState, Observation, OriginAuthenticationClass, RatioPermille,
         RepairCapability, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
         RouteRepairClass, RouteServiceKind, RoutingEvidenceClass, RoutingObjective,
-        SelectedRoutingParameters, Tick, TransportProtocol,
+        SelectedRoutingParameters, Tick, TransportKind,
     };
 
     pub(super) fn sample_configuration() -> Observation<Configuration> {
@@ -363,13 +363,11 @@ mod common {
             controller_id: ControllerId([byte; 32]),
             profile: NodeProfile {
                 services: Vec::new(),
-                endpoints: vec![LinkEndpoint {
-                    protocol: TransportProtocol::BleGatt,
-                    address: jacquard_traits::jacquard_core::EndpointAddress::Opaque(
-                        vec![byte],
-                    ),
-                    mtu_bytes: jacquard_traits::jacquard_core::ByteCount(64),
-                }],
+                endpoints: vec![LinkEndpoint::new(
+                    TransportKind::WifiAware,
+                    jacquard_traits::jacquard_core::EndpointLocator::Opaque(vec![byte]),
+                    jacquard_traits::jacquard_core::ByteCount(64),
+                )],
                 connection_count_max: 4,
                 neighbor_state_count_max: 4,
                 simultaneous_transfer_count_max: 1,
@@ -395,11 +393,13 @@ mod common {
 
     fn active_link(remote_byte: u8) -> Link {
         Link {
-            endpoint: LinkEndpoint {
-                protocol: TransportProtocol::BleGatt,
-                address: jacquard_traits::jacquard_core::EndpointAddress::Opaque(vec![remote_byte]),
-                mtu_bytes: jacquard_traits::jacquard_core::ByteCount(64),
-            },
+            endpoint: LinkEndpoint::new(
+                TransportKind::WifiAware,
+                jacquard_traits::jacquard_core::EndpointLocator::Opaque(vec![
+                    remote_byte,
+                ]),
+                jacquard_traits::jacquard_core::ByteCount(64),
+            ),
             profile: LinkProfile {
                 latency_floor_ms: jacquard_traits::jacquard_core::DurationMs(5),
                 repair_capability: RepairCapability::TransportRetransmit,

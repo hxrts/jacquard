@@ -107,8 +107,8 @@ pub struct Link {
 }
 
 pub struct LinkEndpoint {
-    pub protocol: TransportProtocol,
-    pub address: EndpointAddress,
+    pub transport_kind: TransportKind,
+    pub locator: EndpointLocator,
     pub mtu_bytes: ByteCount,
 }
 
@@ -129,7 +129,10 @@ pub struct LinkState {
 }
 ```
 
-`LinkEndpoint` answers where and how the carrier is addressed. `LinkProfile`
+`LinkEndpoint` answers where and how the carrier is addressed. `TransportKind`
+keeps the small shared transport taxonomy that routing and diagnostics
+genuinely consume. `EndpointLocator` carries the transport-neutral locator
+shape: opaque bytes, scoped bytes, or a neutral socket locator. `LinkProfile`
 answers what the carrier can stably do. `LinkState` answers what the carrier is
 currently doing. Keeping those three scopes separate gives links the same
 static/observed split that nodes already have with `NodeProfile` and
@@ -209,4 +212,4 @@ Engine-specific peer or neighborhood heuristics live above this boundary. A mesh
 
 World extensions are the entry path for observed nodes, links, environments, services, and transport activity. An extension emits `Observation<ObservedValue>` values that wrap objects conforming to the shared schema rather than defining a private alternative.
 
-This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [World Extensions](302_world_extensions.md) for the trait surface and an end-to-end BLE relay example.
+This boundary is where hardware-specific, runtime-specific, or transport-adjacent observation logic contributes to the world picture without taking ownership of routing semantics. See [World Extensions](302_world_extensions.md) for the trait surface and a transport-neutral end-to-end extension example.

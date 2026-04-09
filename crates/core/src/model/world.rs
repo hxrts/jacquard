@@ -162,8 +162,8 @@ mod tests {
     fn link_preserves_profile_and_state_split() {
         let link = Link {
             endpoint: LinkEndpoint {
-                protocol: crate::TransportProtocol::BleGatt,
-                address: crate::EndpointAddress::Opaque(vec![1, 2, 3]),
+                transport_kind: crate::TransportKind::WifiAware,
+                locator: crate::EndpointLocator::Opaque(vec![1, 2, 3]),
                 mtu_bytes: ByteCount(128),
             },
             profile: LinkProfile {

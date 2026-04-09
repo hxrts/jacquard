@@ -8,7 +8,7 @@ use jacquard_core::{
     Belief, ByteCount, Configuration, ConnectivityPosture, FactBasis, HealthScore,
     Observation, RatioPermille, RouteMaintenanceOutcome, RouteProtectionClass,
     RouteRepairClass, RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
-    TransportProtocol,
+    TransportKind,
 };
 
 use super::fixtures::profile;
@@ -40,7 +40,7 @@ impl RecoverableTestEngine {
             engine: Self::engine_id_value(),
             protection: objective.target_protection,
             connectivity: objective.target_connectivity,
-            protocol_mix: vec![TransportProtocol::BleGatt],
+            protocol_mix: vec![TransportKind::WifiAware],
             hop_count_hint: Belief::Estimated(jacquard_core::Estimate {
                 value: 1,
                 confidence_permille: RatioPermille(1000),

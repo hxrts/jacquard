@@ -21,15 +21,15 @@ The shared world schema is documented in [Pipeline and World Observations](203_p
 In practice, adding support for a new device means translating that device's
 stable capabilities into `NodeProfile` and `LinkProfile`, pairing them with the
 current observed `NodeState` and `LinkState`, and returning the resulting
-shared objects as observations. In this example, the device is a BLE relay with
-one BLE endpoint, four concurrent connections, limited transfer concurrency,
+shared objects as observations. In this example, the device is a field relay
+with one endpoint, four concurrent connections, limited transfer concurrency,
 and a moderate local retention budget.
 
-BLE appears explicitly in this example because Jacquard's shared world schema
-still models a small amount of transport vocabulary directly. That is an
-intentional current design choice for shared `LinkEndpoint` and
-`ServiceDescriptor` facts, not a claim that every future transport must get a
-bespoke first-class variant.
+The important boundary is that shared docs stay transport-neutral. `jacquard-core`
+models a small shared transport taxonomy and a neutral `EndpointLocator`, but
+transport-specific constructor helpers belong in transport-owned profile crates.
+A future BLE-owned profile crate would map BLE concerns into
+`TransportKind::BleGatt` plus an appropriate locator representation.
 
 The in-tree reference crates for this split are `jacquard-mem-node-profile` and
 `jacquard-mem-link-profile`. They keep profile modeling separate from
@@ -39,19 +39,19 @@ profile implementations with a router and one engine for end-to-end tests.
 ```rust
 // Link objects separate endpoint identity, stable link capability, and current
 // observed link health.
-let ble_relay_endpoint = LinkEndpoint {
-    protocol: TransportProtocol::BleGatt,
-    address: EndpointAddress::Opaque(vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
-    mtu_bytes: ByteCount(185),
-};
+let relay_endpoint = LinkEndpoint::new(
+    TransportKind::Custom("field-radio".into()),
+    EndpointLocator::Opaque(vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06]),
+    ByteCount(185),
+);
 
-let ble_relay_link_profile = LinkProfile {
+let relay_link_profile = LinkProfile {
     latency_floor_ms: DurationMs(8),
     repair_capability: RepairCapability::TransportRetransmit,
     partition_recovery: PartitionRecoveryClass::LocalReconnect,
 };
 
-let ble_relay_link_state = LinkState {
+let relay_link_state = LinkState {
     state: LinkRuntimeState::Active,
     median_rtt_ms: DurationMs(35),
     transfer_rate_bytes_per_sec: Belief::Estimated(Estimate {
@@ -77,18 +77,18 @@ let ble_relay_link_state = LinkState {
     }),
 };
 
-let ble_relay_link = Link {
-    endpoint: ble_relay_endpoint.clone(),
-    profile: ble_relay_link_profile,
-    state: ble_relay_link_state,
+let relay_link = Link {
+    endpoint: relay_endpoint.clone(),
+    profile: relay_link_profile,
+    state: relay_link_state,
 };
 
 // Node objects use the same stable/live split.
-let ble_relay_profile = NodeProfile {
+let relay_profile = NodeProfile {
     services: vec![
         /* Discover / Move / Hold descriptors for this node */
     ],
-    endpoints: vec![ble_relay_endpoint.clone()],
+    endpoints: vec![relay_endpoint.clone()],
     connection_count_max: 4,
     neighbor_state_count_max: 16,
     simultaneous_transfer_count_max: 2,
@@ -99,36 +99,36 @@ let ble_relay_profile = NodeProfile {
     hold_capacity_bytes_max: ByteCount(65_536),
 };
 
-let ble_relay_state = NodeState {
+let relay_state = NodeState {
     relay_budget: Belief::Absent,
     available_connection_count: Belief::Absent,
     hold_capacity_available_bytes: Belief::Absent,
     information_summary: Belief::Absent,
 };
 
-let ble_relay_node = Node {
+let relay_node = Node {
     controller_id: ControllerId([7; 32]),
-    profile: ble_relay_profile,
-    state: ble_relay_state,
+    profile: relay_profile,
+    state: relay_state,
 };
 
 // Assembly turns those shared objects into a world extension that emits observations.
-struct BleRelayExtension;
+struct FieldRelayExtension;
 
-impl WorldExtensionDescriptor for BleRelayExtension {
+impl WorldExtensionDescriptor for FieldRelayExtension {
     fn extension_id(&self) -> &str {
-        "ble-relay"
+        "field-relay"
     }
 
-    fn supported_transports(&self) -> Vec<TransportProtocol> {
-        vec![TransportProtocol::BleGatt]
+    fn supported_transports(&self) -> Vec<TransportKind> {
+        vec![TransportKind::Custom("field-radio".into())]
     }
 }
 
-impl NodeWorldExtension for BleRelayExtension {
+impl NodeWorldExtension for FieldRelayExtension {
     fn poll_node_observations(&mut self) -> Result<Vec<NodeObservation>, WorldError> {
         Ok(vec![Observation {
-            value: ble_relay_node,
+            value: relay_node,
             source_class: FactSourceClass::Local,
             evidence_class: RoutingEvidenceClass::DirectObservation,
             origin_authentication: OriginAuthenticationClass::Controlled,
@@ -137,10 +137,10 @@ impl NodeWorldExtension for BleRelayExtension {
     }
 }
 
-impl LinkWorldExtension for BleRelayExtension {
+impl LinkWorldExtension for FieldRelayExtension {
     fn poll_link_observations(&mut self) -> Result<Vec<LinkObservation>, WorldError> {
         Ok(vec![Observation {
-            value: ble_relay_link,
+            value: relay_link,
             source_class: FactSourceClass::Local,
             evidence_class: RoutingEvidenceClass::DirectObservation,
             origin_authentication: OriginAuthenticationClass::Controlled,
@@ -193,7 +193,7 @@ pub trait WorldExtensionDescriptor {
     fn extension_id(&self) -> &str;
 
     #[must_use]
-    fn supported_transports(&self) -> Vec<TransportProtocol>;
+    fn supported_transports(&self) -> Vec<TransportKind>;
 }
 
 pub trait NodeWorldExtension: WorldExtensionDescriptor {
@@ -237,7 +237,7 @@ pub trait WorldExtension: WorldExtensionDescriptor {
 
 `WorldExtensionDescriptor` is pure metadata. `WorldExtension` is effectful. Use it when one extension discovers many kinds of observed objects together and the host prefers to ingest them as one self-describing stream. Higher-level batching, diffing, merging, and checkpointing still happen above this boundary.
 
-This is the main cooperative extension surface in Jacquard. One team may add observed BLE nodes. Another may add observed Wi-Fi links. Another may add platform-specific service or transport observations. A host merges those contributions into one world picture. Routing engines then consume that merged picture through the shared routing traits.
+This is the main cooperative extension surface in Jacquard. One team may add observed radio nodes. Another may add observed Wi-Fi links. Another may add platform-specific service or transport observations. A host merges those contributions into one world picture. Routing engines then consume that merged picture through the shared routing traits.
 
 ## Capability Advertisement
 

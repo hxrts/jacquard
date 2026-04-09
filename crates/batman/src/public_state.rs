@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use jacquard_core::{
     BackendRouteId, NodeId, RatioPermille, RouteDegradation, RouteEpoch, Tick,
-    TransportProtocol,
+    TransportKind,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,7 +32,7 @@ pub(crate) struct OriginatorObservation {
     pub tq: RatioPermille,
     pub hop_count: u8,
     pub observed_at_tick: Tick,
-    pub protocol: TransportProtocol,
+    pub transport_kind: TransportKind,
     pub degradation: RouteDegradation,
 }
 
@@ -49,7 +49,7 @@ pub(crate) struct BestNextHop {
     pub tq: RatioPermille,
     pub hop_count: u8,
     pub updated_at_tick: Tick,
-    pub protocol: TransportProtocol,
+    pub transport_kind: TransportKind,
     pub degradation: RouteDegradation,
     pub backend_route_id: BackendRouteId,
     pub topology_epoch: RouteEpoch,

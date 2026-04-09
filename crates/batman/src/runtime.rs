@@ -177,13 +177,12 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        ble_endpoint, Belief, ByteCount, Configuration, ConnectivityPosture,
-        ControllerId, DestinationId, DurationMs, EndpointAddress, Environment, Link,
-        LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState, Node, Observation,
-        RatioPermille, RepairCapability, RouteEpoch, RouteMaintenanceTrigger,
-        RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-        RoutingTickContext, SelectedRoutingParameters, Tick, TimeWindow,
-        TransportProtocol,
+        Belief, ByteCount, Configuration, ConnectivityPosture, ControllerId,
+        DestinationId, DurationMs, EndpointLocator, Environment, Link, LinkEndpoint,
+        LinkProfile, LinkRuntimeState, LinkState, Node, Observation, RatioPermille,
+        RepairCapability, RouteEpoch, RouteMaintenanceTrigger, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RoutingTickContext,
+        SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
     };
     use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
     use jacquard_mem_node_profile::ReferenceNode;
@@ -196,11 +195,19 @@ mod tests {
         NodeId([byte; 32])
     }
 
+    fn endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(64),
+        )
+    }
+
     fn batman_node(byte: u8) -> Node {
         ReferenceNode::route_capable(
             node(byte),
             ControllerId([byte; 32]),
-            ble_endpoint(byte),
+            endpoint(byte),
             &BATMAN_ENGINE_ID,
             Tick(1),
         )
@@ -209,11 +216,7 @@ mod tests {
 
     fn link(remote: u8, delivery: u16, symmetry: u16, loss: u16) -> Link {
         Link {
-            endpoint: LinkEndpoint {
-                protocol: TransportProtocol::BleGatt,
-                address: EndpointAddress::Opaque(vec![remote]),
-                mtu_bytes: ByteCount(64),
-            },
+            endpoint: endpoint(remote),
             profile: LinkProfile {
                 latency_floor_ms: DurationMs(5),
                 repair_capability: RepairCapability::TransportRetransmit,

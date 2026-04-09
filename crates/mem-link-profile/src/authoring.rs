@@ -9,8 +9,8 @@
 //!
 //! [`ReferenceLink`] keeps [`SimulatedLinkProfile`] as the low-level escape
 //! hatch when a test needs exact control over the underlying `LinkProfile` /
-//! `LinkState` split. Transport-specific endpoint helpers are provided by
-//! `jacquard-core`; this crate stays endpoint-agnostic.
+//! `LinkState` split. Callers provide shared `LinkEndpoint` values; this crate
+//! stays endpoint-agnostic.
 
 use jacquard_core::{
     DurationMs, Link, LinkRuntimeState, PartitionRecoveryClass, RatioPermille,
@@ -199,12 +199,16 @@ impl ReferenceLink {
 
 #[cfg(test)]
 mod tests {
-    use jacquard_core::{opaque_endpoint, ByteCount, TransportProtocol};
+    use jacquard_core::{ByteCount, EndpointLocator, LinkEndpoint, TransportKind};
 
     use super::*;
 
-    fn endpoint(byte: u8) -> jacquard_core::LinkEndpoint {
-        opaque_endpoint(TransportProtocol::WifiAware, vec![byte], ByteCount(128))
+    fn endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(128),
+        )
     }
 
     #[test]
@@ -237,9 +241,9 @@ mod tests {
 
     #[test]
     fn endpoint_first_active_constructor_preserves_endpoint_identity() {
-        let endpoint = opaque_endpoint(
-            TransportProtocol::WifiAware,
-            vec![1, 2, 3],
+        let endpoint = LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![1, 2, 3]),
             ByteCount(128),
         );
         let link = ReferenceLink::active(endpoint.clone(), Tick(2)).build();

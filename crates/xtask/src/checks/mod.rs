@@ -20,6 +20,7 @@ pub mod routing_invariants;
 pub mod surface_classification;
 pub mod test_boundaries;
 pub mod trait_purity;
+pub mod transport_authoring_boundary;
 
 use anyhow::{bail, Result};
 
@@ -46,6 +47,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "routing-invariants" => routing_invariants::run(rest),
         | "surface-classification" => surface_classification::run(),
         | "test-boundaries" => test_boundaries::run(),
+        | "transport-authoring-boundary" => transport_authoring_boundary::run(),
         | "trait-purity" => trait_purity::run(),
         | other => bail!("xtask: unknown check: {other}"),
     }

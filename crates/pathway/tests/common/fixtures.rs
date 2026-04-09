@@ -9,14 +9,23 @@ use std::collections::BTreeMap;
 
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_traits::jacquard_core::{
-    ble_endpoint, Belief, ByteCount, Configuration, ControllerId, DiscoveryScopeId,
-    DurationMs, Environment, Estimate, FactSourceClass, HoldItemCount,
-    InformationSetSummary, InformationSummaryEncoding, Link, LinkRuntimeState,
-    LinkState, MaintenanceWorkBudget, Node, NodeId, NodeProfile, NodeRelayBudget,
-    NodeState, Observation, OriginAuthenticationClass, RatioPermille, RelayWorkBudget,
-    RepairCapacitySlots, RouteEpoch, RouteServiceKind, RoutingEvidenceClass,
-    ServiceDescriptor, ServiceScope, Tick, TimeWindow,
+    Belief, ByteCount, Configuration, ControllerId, DiscoveryScopeId, DurationMs,
+    EndpointLocator, Environment, Estimate, FactSourceClass, HoldItemCount,
+    InformationSetSummary, InformationSummaryEncoding, Link, LinkEndpoint,
+    LinkRuntimeState, LinkState, MaintenanceWorkBudget, Node, NodeId, NodeProfile,
+    NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass, RatioPermille,
+    RelayWorkBudget, RepairCapacitySlots, RouteEpoch, RouteServiceKind,
+    RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
+    TransportKind,
 };
+
+fn endpoint(byte: u8) -> LinkEndpoint {
+    LinkEndpoint::new(
+        TransportKind::WifiAware,
+        EndpointLocator::Opaque(vec![byte]),
+        ByteCount(128),
+    )
+}
 
 pub fn route_capable_services(
     node_id: NodeId,
@@ -29,7 +38,7 @@ pub fn route_capable_services(
             provider_node_id: node_id,
             controller_id,
             service_kind,
-            endpoints: vec![ble_endpoint(node_id.0[0])],
+            endpoints: vec![endpoint(node_id.0[0])],
             routing_engines: vec![PATHWAY_ENGINE_ID],
             scope: ServiceScope::Discovery(DiscoveryScopeId([7; 16])),
             valid_for,
@@ -62,7 +71,7 @@ pub fn node(node_byte: u8) -> Node {
         controller_id,
         profile: NodeProfile {
             services: route_capable_services(node_id, controller_id),
-            endpoints: vec![ble_endpoint(node_byte)],
+            endpoints: vec![endpoint(node_byte)],
             connection_count_max: 8,
             neighbor_state_count_max: 8,
             simultaneous_transfer_count_max: 4,
@@ -128,7 +137,7 @@ pub fn node(node_byte: u8) -> Node {
 
 pub fn link(device_byte: u8, confidence: u16) -> Link {
     Link {
-        endpoint: ble_endpoint(device_byte),
+        endpoint: endpoint(device_byte),
         profile: jacquard_core::LinkProfile {
             latency_floor_ms: DurationMs(8),
             repair_capability: jacquard_core::RepairCapability::TransportRetransmit,

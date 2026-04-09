@@ -6,8 +6,7 @@ use jacquard_traits::{
         Belief, ControllerId, DurationMs, Environment, Link, LinkRuntimeState,
         LinkState, NodeId, NodeRelayBudget, Observation, ObservedValue, RatioPermille,
         RepairCapacitySlots, RoutingEngineId, ServiceDescriptor, ServiceScope, Tick,
-        TimeWindow, TransportObservation, TransportProtocol, WorldError,
-        WorldObservation,
+        TimeWindow, TransportKind, TransportObservation, WorldError, WorldObservation,
     },
     LinkWorldExtension, NodeWorldExtension, WorldExtension, WorldExtensionDescriptor,
 };
@@ -23,8 +22,8 @@ impl WorldExtensionDescriptor for StubWorldExtension {
         "stub-world"
     }
 
-    fn supported_transports(&self) -> Vec<TransportProtocol> {
-        vec![TransportProtocol::BleGatt, TransportProtocol::WifiLan]
+    fn supported_transports(&self) -> Vec<TransportKind> {
+        vec![TransportKind::BleGatt, TransportKind::WifiLan]
     }
 }
 
@@ -175,7 +174,7 @@ fn world_extensions_publish_self_describing_observations() {
     assert_eq!(extension.extension_id(), "stub-world");
     assert_eq!(
         extension.supported_transports(),
-        vec![TransportProtocol::BleGatt, TransportProtocol::WifiLan],
+        vec![TransportKind::BleGatt, TransportKind::WifiLan],
     );
     assert_eq!(observations.len(), 5);
     assert!(matches!(observations[0].value, ObservedValue::Node(_)));
@@ -242,7 +241,7 @@ fn world_extension_facets_can_contribute_nodes_and_links_explicitly() {
         ControllerId([3; 32])
     );
     assert_eq!(
-        link_observations[0].value.endpoint.protocol,
-        TransportProtocol::BleGatt
+        link_observations[0].value.endpoint.transport_kind,
+        TransportKind::WifiAware
     );
 }

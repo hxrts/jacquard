@@ -25,7 +25,7 @@ use jacquard_traits::{
         RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingTickChange,
         RoutingTickContext, RuntimeEnvelopeClass, SelectedRoutingParameters,
         SubstrateCandidate, SubstrateCapabilities, SubstrateLease,
-        SubstrateRequirements, Tick, TimeWindow, TransportProtocol,
+        SubstrateRequirements, Tick, TimeWindow, TransportKind,
     },
     CommitteeCoordinatedEngine, CommitteeSelector, LayeredRoutingEngine,
     LayeredRoutingEnginePlanner, LayeringPolicyEngine, RoutingEngine,
@@ -477,7 +477,7 @@ fn sample_route(
                 engine: stub_engine_id(),
                 protection: RouteProtectionClass::LinkProtected,
                 connectivity: repairable_connected(),
-                protocol_mix: vec![TransportProtocol::BleGatt],
+                protocol_mix: vec![TransportKind::WifiAware],
                 hop_count_hint: common::estimated(2, 1000, Tick(1)),
                 valid_for: TimeWindow::new(Tick(1), Tick(50))
                     .expect("valid route summary window"),

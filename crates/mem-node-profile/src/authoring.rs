@@ -9,8 +9,8 @@
 //!
 //! [`ReferenceNode`] keeps [`SimulatedNodeProfile`] and [`NodeStateSnapshot`]
 //! as the low-level escape hatches when a test needs exact control over the
-//! profile/state split. Transport-specific endpoint helpers are provided by
-//! `jacquard-core`; this crate stays endpoint-agnostic.
+//! profile/state split. Callers bring their own shared `LinkEndpoint` values;
+//! this crate stays endpoint-agnostic.
 
 use jacquard_core::{
     ControllerId, DiscoveryScopeId, LinkEndpoint, Node, NodeId, RoutingEngineId,
@@ -134,14 +134,18 @@ impl ReferenceNode {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        opaque_endpoint, ByteCount, ControllerId, EndpointAddress, LinkEndpoint,
-        NodeId, RoutingEngineId, Tick, TransportProtocol,
+        ByteCount, ControllerId, EndpointLocator, LinkEndpoint, NodeId,
+        RoutingEngineId, Tick, TransportKind,
     };
 
     use super::*;
 
     fn endpoint(byte: u8) -> LinkEndpoint {
-        opaque_endpoint(TransportProtocol::WifiAware, vec![byte], ByteCount(512))
+        LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(512),
+        )
     }
 
     #[test]
@@ -182,11 +186,11 @@ mod tests {
     #[test]
     fn endpoint_first_route_capable_uses_supplied_endpoint() {
         let routing_engine = RoutingEngineId::from_contract_bytes(*b"reference-mem-01");
-        let endpoint = LinkEndpoint {
-            protocol: TransportProtocol::WifiAware,
-            address: EndpointAddress::Opaque(vec![9, 8, 7]),
-            mtu_bytes: ByteCount(512),
-        };
+        let endpoint = LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![9, 8, 7]),
+            ByteCount(512),
+        );
         let node = ReferenceNode::route_capable(
             NodeId([3; 32]),
             ControllerId([3; 32]),

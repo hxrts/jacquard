@@ -26,7 +26,7 @@ use jacquard_core::{
     RouteSelectionError, RouteShapeVisibility, RouteSummary, RouteWitness,
     RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, RoutingTickChange,
     RoutingTickContext, RoutingTickHint, RoutingTickOutcome, RuntimeEnvelopeClass,
-    SelectedRoutingParameters, Tick, TimeWindow, TransportProtocol,
+    SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,7 +38,7 @@ struct ProactiveTableEntry {
     topology_epoch: RouteEpoch,
     updated_at_tick: Tick,
     degradation: RouteDegradation,
-    protocol: TransportProtocol,
+    transport_kind: TransportKind,
 }
 
 pub(crate) struct ProactiveTableTestEngine {
@@ -109,7 +109,7 @@ impl ProactiveTableTestEngine {
     ) -> Option<ProactiveTableEntry> {
         let direct = self
             .link_score(topology, self.local_node_id, destination)
-            .map(|(score, protocol, degradation)| ProactiveTableEntry {
+            .map(|(score, transport_kind, degradation)| ProactiveTableEntry {
                 destination,
                 next_hop: destination,
                 tq: score,
@@ -117,7 +117,7 @@ impl ProactiveTableTestEngine {
                 topology_epoch: topology.value.epoch,
                 updated_at_tick: now,
                 degradation,
-                protocol,
+                transport_kind,
             });
 
         let via_neighbor = topology
@@ -126,7 +126,7 @@ impl ProactiveTableTestEngine {
             .keys()
             .filter(|(from, to)| *from == self.local_node_id && *to != destination)
             .filter_map(|(_, neighbor)| {
-                let (first_hop_score, protocol, first_degradation) =
+                let (first_hop_score, transport_kind, first_degradation) =
                     self.link_score(topology, self.local_node_id, *neighbor)?;
                 let (second_hop_score, _, second_degradation) =
                     self.link_score(topology, *neighbor, destination)?;
@@ -139,7 +139,7 @@ impl ProactiveTableTestEngine {
                     topology_epoch: topology.value.epoch,
                     updated_at_tick: now,
                     degradation: max_degradation(first_degradation, second_degradation),
-                    protocol,
+                    transport_kind,
                 })
             })
             .max_by_key(|entry| (entry.tq, std::cmp::Reverse(entry.next_hop)));
@@ -158,7 +158,7 @@ impl ProactiveTableTestEngine {
         topology: &Observation<Configuration>,
         from: NodeId,
         to: NodeId,
-    ) -> Option<(RatioPermille, TransportProtocol, RouteDegradation)> {
+    ) -> Option<(RatioPermille, TransportKind, RouteDegradation)> {
         let link = topology.value.links.get(&(from, to))?;
         if matches!(
             link.state.state,
@@ -180,7 +180,7 @@ impl ProactiveTableTestEngine {
         } else {
             RouteDegradation::None
         };
-        Some((score, link.endpoint.protocol.clone(), degradation))
+        Some((score, link.endpoint.transport_kind.clone(), degradation))
     }
 
     fn candidate_for(
@@ -194,7 +194,7 @@ impl ProactiveTableTestEngine {
                 engine: self.engine_id.clone(),
                 protection: objective.target_protection,
                 connectivity: objective.target_connectivity,
-                protocol_mix: vec![entry.protocol.clone()],
+                protocol_mix: vec![entry.transport_kind.clone()],
                 hop_count_hint: Belief::certain(entry.hop_count, entry.updated_at_tick),
                 valid_for: TimeWindow::new(
                     entry.updated_at_tick,

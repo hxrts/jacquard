@@ -286,7 +286,8 @@ fn hex_bytes(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        LinkEndpoint, Tick, TransportObservation, TransportProtocol, BLE_MTU_BYTES,
+        ByteCount, EndpointLocator, LinkEndpoint, Tick, TransportKind,
+        TransportObservation,
     };
 
     use super::*;
@@ -372,11 +373,11 @@ mod tests {
         execute(
             &mut runtime,
             &RouteId([7; 16]),
-            LinkEndpoint {
-                protocol: TransportProtocol::BleGatt,
-                address: jacquard_core::EndpointAddress::Opaque(vec![1]),
-                mtu_bytes: BLE_MTU_BYTES,
-            },
+            LinkEndpoint::new(
+                TransportKind::WifiAware,
+                EndpointLocator::Opaque(vec![1]),
+                ByteCount(128),
+            ),
             b"frame",
         )
         .expect("generated forwarding executes");

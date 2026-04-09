@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::{
     BackendRouteId, Belief, ConnectivityPosture, Estimate, Limit, RouteCost,
     RouteEpoch, RouteEstimate, RouteId, RouteProtectionClass, RoutingEngineId,
-    RoutingObjective, SelectedRoutingParameters, TimeWindow, TransportProtocol,
+    RoutingObjective, SelectedRoutingParameters, TimeWindow, TransportKind,
 };
 
 /// Generates a binary capability enum with `Unsupported` / `Supported`
@@ -171,7 +171,7 @@ pub struct RouteSummary {
     pub engine: RoutingEngineId,
     pub protection: RouteProtectionClass,
     pub connectivity: ConnectivityPosture,
-    pub protocol_mix: Vec<TransportProtocol>,
+    pub protocol_mix: Vec<TransportKind>,
     /// Bounded by [`ROUTE_HOP_COUNT_MAX`](crate::ROUTE_HOP_COUNT_MAX).
     pub hop_count_hint: Belief<u8>,
     pub valid_for: TimeWindow,

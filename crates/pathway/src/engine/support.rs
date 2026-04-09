@@ -196,10 +196,10 @@ pub(super) fn shortest_paths(
 
 pub(super) fn unique_protocol_mix(
     segments: &[PathwayRouteSegment],
-) -> Vec<jacquard_core::TransportProtocol> {
+) -> Vec<jacquard_core::TransportKind> {
     let mut protocols = segments
         .iter()
-        .map(|segment| segment.endpoint.protocol.clone())
+        .map(|segment| segment.endpoint.transport_kind.clone())
         .collect::<Vec<_>>();
     protocols.sort();
     protocols.dedup();
@@ -477,15 +477,15 @@ pub(super) fn limit_u32(limit: Limit<u32>) -> u32 {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        ble_endpoint, AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength,
+        AdmissionAssumptions, AdversaryRegime, Belief, ByteCount, ClaimStrength,
         CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
         ConnectivityPosture, ConnectivityRegime, ContentId, ControllerId,
-        DestinationId, Environment, Estimate, FailureModelClass, HoldFallbackPolicy,
-        HostName, Limit, LinkEndpoint, MessageFlowAssumptionClass, NetworkHost,
+        DestinationId, EndpointLocator, Environment, Estimate, FailureModelClass,
+        HoldFallbackPolicy, Limit, LinkEndpoint, MessageFlowAssumptionClass,
         NodeDensityClass, RatioPermille, RouteCost, RouteEpoch, RoutePartitionClass,
         RouteProtectionClass, RouteRepairClass, RouteServiceKind, RouteSummary,
         RoutingObjective, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick,
-        BLE_MTU_BYTES,
+        TransportKind,
     };
 
     use super::*;
@@ -565,6 +565,40 @@ mod tests {
         }
     }
 
+    fn opaque_endpoint(
+        transport_kind: TransportKind,
+        bytes: Vec<u8>,
+        mtu_bytes: ByteCount,
+    ) -> LinkEndpoint {
+        LinkEndpoint::new(transport_kind, EndpointLocator::Opaque(bytes), mtu_bytes)
+    }
+
+    fn scoped_endpoint(
+        transport_kind: TransportKind,
+        scope: &str,
+        bytes: Vec<u8>,
+        mtu_bytes: ByteCount,
+    ) -> LinkEndpoint {
+        LinkEndpoint::new(
+            transport_kind,
+            EndpointLocator::ScopedBytes { scope: scope.into(), bytes },
+            mtu_bytes,
+        )
+    }
+
+    fn socket_endpoint(
+        transport_kind: TransportKind,
+        host: &str,
+        port: u16,
+        mtu_bytes: ByteCount,
+    ) -> LinkEndpoint {
+        LinkEndpoint::new(
+            transport_kind,
+            EndpointLocator::Socket { host: host.into(), port },
+            mtu_bytes,
+        )
+    }
+
     #[test]
     fn storage_keys_are_scoped_by_local_node_id() {
         let left_node = NodeId([1; 32]);
@@ -599,11 +633,9 @@ mod tests {
         assert_eq!(paths.get(&local).map(Vec::len), Some(1));
     }
 
-    fn link_with_protocol(
-        protocol: jacquard_core::TransportProtocol,
-    ) -> jacquard_core::Link {
+    fn link_with_protocol(protocol: TransportKind) -> jacquard_core::Link {
         jacquard_core::Link {
-            endpoint: LinkEndpoint { protocol, ..ble_endpoint(0) },
+            endpoint: opaque_endpoint(protocol, vec![0], ByteCount(64)),
             profile: jacquard_core::LinkProfile {
                 latency_floor_ms: jacquard_core::DurationMs(8),
                 repair_capability: jacquard_core::RepairCapability::TransportRetransmit,
@@ -632,7 +664,7 @@ mod tests {
             nodes: BTreeMap::new(),
             links: BTreeMap::from([(
                 (local, connected),
-                link_with_protocol(jacquard_core::TransportProtocol::BleGatt),
+                link_with_protocol(TransportKind::WifiAware),
             )]),
             environment: Environment {
                 reachable_neighbor_count: 1,
@@ -685,25 +717,21 @@ mod tests {
             segments: vec![
                 PathwayRouteSegment {
                     node_id: NodeId([2; 32]),
-                    endpoint: LinkEndpoint {
-                        protocol: jacquard_core::TransportProtocol::BleGatt,
-                        address: jacquard_core::EndpointAddress::Ble {
-                            device_id: jacquard_core::BleDeviceId(vec![2]),
-                            profile_id: jacquard_core::BleProfileId([2; 16]),
-                        },
-                        mtu_bytes: BLE_MTU_BYTES,
-                    },
+                    endpoint: scoped_endpoint(
+                        TransportKind::BleGatt,
+                        "ble",
+                        vec![2; 17],
+                        ByteCount(64),
+                    ),
                 },
                 PathwayRouteSegment {
                     node_id: NodeId([3; 32]),
-                    endpoint: LinkEndpoint {
-                        protocol: jacquard_core::TransportProtocol::WifiLan,
-                        address: jacquard_core::EndpointAddress::Ip {
-                            host: NetworkHost::Name(HostName("relay-3".into())),
-                            port: 4040,
-                        },
-                        mtu_bytes: ByteCount(1400),
-                    },
+                    endpoint: socket_endpoint(
+                        TransportKind::WifiLan,
+                        "relay-3",
+                        4040,
+                        ByteCount(1400),
+                    ),
                 },
             ],
             valid_for: TimeWindow::new(Tick(2), Tick(14)).unwrap(),
@@ -816,16 +844,16 @@ mod tests {
         let route_id = &route_id_digest.as_bytes()[..16];
         assert_eq!(
             hex(&encode_backend_token(&plan).0),
-            "01020000000000000001010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000000000000100000000000000020202020202020202020202020202020200010000000000000303030303030303030303030303030303030303030303030303030303030303030000000100000001000000070000000000000072656c61792d33c80f780500000000000002000000000000000e000000000000000300000001000000090909090909090909090909090909090200000000000000020000000000000002000000000000000a000000000000000100000001000000010000000101000000000000000202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020200000000"
+            "01020000000000000001010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000010000000300000000000000626c6511000000000000000202020202020202020202020202020202400000000000000003030303030303030303030303030303030303030303030303030303030303030300000000000000070000000000000072656c61792d33c80f780500000000000002000000000000000e000000000000000300000001000000090909090909090909090909090909090200000000000000020000000000000002000000000000000a000000000000000100000001000000010000000101000000000000000202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020200000000"
         );
         assert_eq!(
             hex(&route_identity),
-            "0101010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000000000000100000000000000020202020202020202020202020202020200010000000000000303030303030303030303030303030303030303030303030303030303030303030000000100000001000000070000000000000072656c61792d33c80f780500000000000003000000"
+            "0101010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000010000000300000000000000626c6511000000000000000202020202020202020202020202020202400000000000000003030303030303030303030303030303030303030303030303030303030303030300000000000000070000000000000072656c61792d33c80f780500000000000003000000"
         );
-        assert_eq!(hex(route_id), "f98f7e44a7904e4f3b3d7ec88a1feafb");
+        assert_eq!(hex(route_id), "1ef139d2aea41bd22fd5d67598669ce5");
         assert_eq!(
             hex(&checkpoint_bytes(&checkpointed_route)),
-            "0107070707070707070707070707070707020000000000000001010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000000000000100000000000000020202020202020202020202020202020200010000000000000303030303030303030303030303030303030303030303030303030303030303030000000100000001000000070000000000000072656c61792d33c80f780500000000000002000000000000000e000000000000000300000001090909090909090909090909090909090200000000000000020000000000000002000000000000000a00000000000000010000000100000001000000010100000000000000020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020000000002000000000000000000000001000000010000000100000000040000000000000101000000010000000100000000000000000000000100000002000000070707070707070707070707070707071100000000000000010101010101010101010101010101010101010101010101010101010101010101020000000103000000000000000300000001040000000000000001050505050505050505050505050505050105000000000000000101000000000000000606060606060606060606060606060606060606060606060606060606060606010600000000000000"
+            "0107070707070707070707070707070707020000000000000001010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000010000000300000000000000626c6511000000000000000202020202020202020202020202020202400000000000000003030303030303030303030303030303030303030303030303030303030303030300000000000000070000000000000072656c61792d33c80f780500000000000002000000000000000e000000000000000300000001090909090909090909090909090909090200000000000000020000000000000002000000000000000a00000000000000010000000100000001000000010100000000000000020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020000000002000000000000000000000001000000010000000100000000040000000000000101000000010000000100000000000000000000000100000002000000070707070707070707070707070707071100000000000000010101010101010101010101010101010101010101010101010101010101010101020000000103000000000000000300000001040000000000000001050505050505050505050505050505050105000000000000000101000000000000000606060606060606060606060606060606060606060606060606060606060606010600000000000000"
         );
     }
 
@@ -839,13 +867,11 @@ mod tests {
                 let byte = u8::try_from(index + 1).unwrap_or(u8::MAX);
                 PathwayRouteSegment {
                     node_id: NodeId([byte; 32]),
-                    endpoint: LinkEndpoint {
-                        protocol: jacquard_core::TransportProtocol::Custom(format!(
-                            "mesh-{byte}"
-                        )),
-                        address: jacquard_core::EndpointAddress::Opaque(vec![byte; 32]),
-                        mtu_bytes: ByteCount(1400),
-                    },
+                    endpoint: opaque_endpoint(
+                        TransportKind::Custom(format!("mesh-{byte}")),
+                        vec![byte; 32],
+                        ByteCount(1400),
+                    ),
                 }
             })
             .collect();
@@ -871,25 +897,21 @@ mod tests {
         let path = vec![NodeId([1; 32]), NodeId([2; 32])];
         let ble_segments = vec![PathwayRouteSegment {
             node_id: NodeId([2; 32]),
-            endpoint: LinkEndpoint {
-                protocol: jacquard_core::TransportProtocol::BleGatt,
-                address: jacquard_core::EndpointAddress::Ble {
-                    device_id: jacquard_core::BleDeviceId(vec![2]),
-                    profile_id: jacquard_core::BleProfileId([2; 16]),
-                },
-                mtu_bytes: BLE_MTU_BYTES,
-            },
+            endpoint: scoped_endpoint(
+                TransportKind::BleGatt,
+                "ble",
+                vec![2; 17],
+                ByteCount(64),
+            ),
         }];
         let wifi_segments = vec![PathwayRouteSegment {
             node_id: NodeId([2; 32]),
-            endpoint: LinkEndpoint {
-                protocol: jacquard_core::TransportProtocol::WifiLan,
-                address: jacquard_core::EndpointAddress::Ip {
-                    host: NetworkHost::Name(HostName("relay-2".into())),
-                    port: 4040,
-                },
-                mtu_bytes: ByteCount(1400),
-            },
+            endpoint: socket_endpoint(
+                TransportKind::WifiLan,
+                "relay-2",
+                4040,
+                ByteCount(1400),
+            ),
         }];
 
         assert_ne!(

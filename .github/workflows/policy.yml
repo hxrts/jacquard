@@ -34,6 +34,8 @@ jobs:
         run: nix develop --command cargo xtask check trait-purity
       - name: Crate Boundary
         run: nix develop --command cargo xtask check crate-boundary
+      - name: Transport Authoring Boundary
+        run: nix develop --command cargo xtask check transport-authoring-boundary
       - name: Ownership Invariants
         run: nix develop --command cargo xtask check ownership-invariants
       - name: No usize in Models

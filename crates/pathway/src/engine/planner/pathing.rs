@@ -58,10 +58,10 @@ where
                 )
                 .unwrap_or(PATH_METRIC_BASE_HOP_COST.saturating_mul(4)),
             );
-            if protocol_mix.contains(&segment.endpoint.protocol) {
+            if protocol_mix.contains(&segment.endpoint.transport_kind) {
                 score = score.saturating_add(PATH_METRIC_PROTOCOL_REPEAT_PENALTY);
             } else {
-                protocol_mix.push(segment.endpoint.protocol.clone());
+                protocol_mix.push(segment.endpoint.transport_kind.clone());
             }
         }
 

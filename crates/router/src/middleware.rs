@@ -28,7 +28,7 @@ use jacquard_core::{
     RouterMaintenanceOutcome, RouterTickOutcome, RoutingEngineCapabilities,
     RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingPolicyInputs,
     RoutingTickChange, RoutingTickContext, RoutingTickHint, SelectedRoutingParameters,
-    Tick, TimeWindow, TransportProtocol,
+    Tick, TimeWindow, TransportKind,
 };
 use jacquard_traits::{
     OrderEffects, PolicyEngine, RouteEventLogEffects, Router, RouterEngineRegistry,
@@ -756,7 +756,7 @@ type CandidateOrderingKey = (
     Reverse<RoutePartitionClass>,
     RouteDegradation,
     Belief<u8>,
-    Vec<TransportProtocol>,
+    Vec<TransportKind>,
     RoutingEngineId,
     Vec<u8>,
 );

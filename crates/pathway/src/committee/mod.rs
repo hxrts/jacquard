@@ -158,15 +158,15 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        ble_endpoint, Belief, ByteCount, Configuration, ConnectivityPosture,
-        ControllerId, DestinationId, Environment, Estimate, FactSourceClass,
-        HoldFallbackPolicy, Limit, Link, LinkRuntimeState, LinkState, Node,
-        NodeProfile, NodeRelayBudget, NodeState, Observation, OperatingMode,
+        Belief, ByteCount, Configuration, ConnectivityPosture, ControllerId,
+        DestinationId, EndpointLocator, Environment, Estimate, FactSourceClass,
+        HoldFallbackPolicy, Limit, Link, LinkEndpoint, LinkRuntimeState, LinkState,
+        Node, NodeProfile, NodeRelayBudget, NodeState, Observation, OperatingMode,
         OriginAuthenticationClass, PriorityPoints, QuorumThreshold, RatioPermille,
         RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
         RouteReplacementPolicy, RouteServiceKind, RoutingEngineFallbackPolicy,
         RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters,
-        ServiceDescriptor, ServiceId, ServiceScope, Tick, TimeWindow,
+        ServiceDescriptor, ServiceId, ServiceScope, Tick, TimeWindow, TransportKind,
     };
     use jacquard_traits::CommitteeSelector;
 
@@ -177,6 +177,14 @@ mod tests {
     // tests. They pin exact controller/service layouts for committee scoring
     // and diversity behavior, while the integration fixtures are broader
     // end-to-end network shapes owned by `tests/common`.
+    fn endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(128),
+        )
+    }
+
     fn route_capable_services(
         node_id: NodeId,
         controller_id: ControllerId,
@@ -188,7 +196,7 @@ mod tests {
                 provider_node_id: node_id,
                 controller_id,
                 service_kind: kind,
-                endpoints: vec![ble_endpoint(node_id.0[0])],
+                endpoints: vec![endpoint(node_id.0[0])],
                 routing_engines: vec![crate::PATHWAY_ENGINE_ID],
                 scope: ServiceScope::Discovery(jacquard_core::DiscoveryScopeId(
                     [7; 16],
@@ -206,7 +214,7 @@ mod tests {
             controller_id,
             profile: NodeProfile {
                 services: route_capable_services(node_id, controller_id),
-                endpoints: vec![ble_endpoint(byte)],
+                endpoints: vec![endpoint(byte)],
                 connection_count_max: 4,
                 neighbor_state_count_max: 4,
                 simultaneous_transfer_count_max: 2,
@@ -247,7 +255,7 @@ mod tests {
 
     fn link(byte: u8) -> Link {
         Link {
-            endpoint: ble_endpoint(byte),
+            endpoint: endpoint(byte),
             profile: jacquard_core::LinkProfile {
                 latency_floor_ms: jacquard_core::DurationMs(8),
                 repair_capability: jacquard_core::RepairCapability::TransportRetransmit,

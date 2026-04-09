@@ -185,19 +185,17 @@ impl SimulatedLinkProfile {
 
 #[cfg(test)]
 mod tests {
-    use jacquard_core::{
-        Belief, ByteCount, EndpointAddress, Estimate, TransportProtocol,
-    };
+    use jacquard_core::{Belief, ByteCount, EndpointLocator, Estimate, TransportKind};
 
     use super::*;
 
     #[test]
     fn build_preserves_profile_and_state_split() {
-        let link = SimulatedLinkProfile::new(LinkEndpoint {
-            protocol: TransportProtocol::WifiAware,
-            address: EndpointAddress::Opaque(vec![1, 2, 3]),
-            mtu_bytes: ByteCount(512),
-        })
+        let link = SimulatedLinkProfile::new(LinkEndpoint::new(
+            TransportKind::WifiAware,
+            EndpointLocator::Opaque(vec![1, 2, 3]),
+            ByteCount(512),
+        ))
         .with_profile(
             DurationMs(3),
             RepairCapability::ApplicationRetransmit,
