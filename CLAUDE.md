@@ -63,6 +63,7 @@ Run individual policy checks with `cargo xtask check <name>`. Registered names:
 - `test-boundaries` — unit vs integration test boundary rules
 - `transport-authoring-boundary` — transport-neutral mem/reference crates must stay free of transport-specific endpoint authoring helpers
 - `transport-ownership-boundary` — transport send capability and host-owned ingress supervision must stay split, and drivers must not stamp Jacquard time internally
+- `reference-bridge-boundary` — reference-client may own drivers and direct transport attachment only inside its bridge/builders, and tests must advance bridges rather than routers directly
 - `trait-purity` — public traits must be annotated with a `#[purity(..)]` mode
 
 For nightly compiler-backed lint parity, use the nightly shell, run `install-dylint` once, and then run each dylint crate:
@@ -87,7 +88,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, explicit ingress, synchronous round advancement, fallback legality, adaptive-profile derivation.
 - `jacquard-mem-node-profile`: deterministic node-profile and node-state builders with no routing-engine knowledge.
 - `jacquard-mem-link-profile`: in-memory link-profile, carrier, retention, runtime-effect adapters, and host-owned transport driver surfaces with no routing semantics.
-- `jacquard-reference-client`: host-side composition of router + pathway + in-memory profiles for end-to-end tests.
+- `jacquard-reference-client`: host-side bridge composition of router + pathway/batman + in-memory profiles for end-to-end tests.
 - `jacquard-xtask`: workspace policy checks, docs link/drift validation, and pre-commit entry point.
 
 Transport-specific endpoint authoring belongs outside the transport-neutral mem profile crates. `jacquard-core` owns the shared `TransportKind` / `EndpointLocator` schema; transport-owned profile crates own any BLE-, IP-, or other transport-specific endpoint helpers and defaults.

@@ -73,7 +73,7 @@ If a future engine needs stronger bilateral terms, add service-specific negotiat
 
 ## Multi-Device Composition
 
-A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-reference-client` shows the minimum host/client wiring for a new device target. The end-to-end multi-device test exercises `reference-client`, `router`, `mesh`, and `mem-link-profile` across multiple runtimes.
+A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-reference-client` now shows the minimum host bridge wiring for a new device target: one bridge-owned transport driver, one or more queue-backed transport senders handed to engines, explicit ingress stamping, and explicit synchronous router rounds. The end-to-end multi-device test exercises `reference-client`, `router`, `pathway`, `batman`, and `mem-link-profile` across multiple runtimes.
 
 This harness proves crate-boundary composition. It does not replace the simulator. The simulator remains the scenario/replay layer above these shared boundaries.
 
@@ -82,10 +82,9 @@ This harness proves crate-boundary composition. It does not replace the simulato
 The reference example for a new deployment target is in `crates/reference-client/tests/e2e_multi_layer_routing.rs`.
 
 1. build a shared `Observation<Configuration>` with ordinary `ServiceDescriptor` values
-2. attach one shared `TransportSenderEffects` implementation plus a host-owned
-   `TransportDriver` per device runtime
-3. construct one mesh engine per device
-4. wrap each engine in one router that owns canonical publication
-5. ingest topology, policy, and transport updates explicitly, then advance the router with synchronous rounds instead of minting route truth directly
+2. attach one bridge-owned `TransportDriver` per device runtime
+3. construct one or more engines per device over queue-backed `TransportSenderEffects`
+4. wrap those engines in one router that owns canonical publication
+5. bind one host bridge owner per runtime, ingest topology and transport updates explicitly there, and advance the router through synchronous bridge rounds instead of minting route truth directly
 
-The minimum composition surface for a new device includes world input, transport registration, router activation, and data-plane forwarding over admitted routes.
+The minimum composition surface for a new device includes world input, bridge-owned transport registration, router activation, and data-plane forwarding over admitted routes.

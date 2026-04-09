@@ -71,6 +71,7 @@ const EXEMPT_FILES: &[&str] = &[
     "crates/batman/src/runtime.rs",
     "crates/batman/src/scoring.rs",
     "crates/reference-client/src/clients.rs",
+    "crates/reference-client/src/bridge.rs",
     "crates/reference-client/src/lib.rs",
     "crates/reference-client/src/topology.rs",
     "crates/router/src/lib.rs",

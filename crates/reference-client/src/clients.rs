@@ -1,8 +1,10 @@
-//! Concrete client builders that pair a `MultiEngineRouter` with one or
-//! more routing engines. `build_pathway_client` registers a single mesh
-//! engine. `build_pathway_batman_client` registers both mesh and batman.
-//! Each builder attaches an `InMemoryTransport` to the shared network,
-//! wires up the engine instances, and returns a `PathwayClient`.
+//! Concrete reference-client bridge builders.
+//!
+//! `build_pathway_client` registers a single pathway engine.
+//! `build_pathway_batman_client` registers both pathway and batman.
+//! Each builder constructs one bridge-owned in-memory transport driver, creates
+//! one or more queue-backed sender capabilities for the engines, wires up the
+//! router, and returns a host bridge.
 
 use jacquard_batman::BatmanEngine;
 use jacquard_core::{
@@ -20,11 +22,12 @@ use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::Blake3Hashing;
 
-use crate::Client;
+use crate::{bridge::BridgeTransport, HostBridge};
 
 pub type PathwayRouter = MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>;
+pub type PathwayClient = HostBridge<PathwayRouter>;
 
-pub type PathwayClient = Client<PathwayRouter>;
+const DEFAULT_OUTBOUND_QUEUE_CAPACITY: usize = 64;
 
 pub fn build_pathway_client(
     local_node_id: NodeId,
@@ -49,12 +52,14 @@ pub fn build_pathway_client_with_profile(
     profile: SelectedRoutingParameters,
 ) -> PathwayClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
-    let transport = InMemoryTransport::attach(local_node_id, [local_endpoint], network);
+    let driver = InMemoryTransport::attach(local_node_id, [local_endpoint], network);
+    let transport = BridgeTransport::new(driver);
+    let pathway_sender = transport.sender(DEFAULT_OUTBOUND_QUEUE_CAPACITY);
 
     let engine = PathwayEngine::without_committee_selector(
         local_node_id,
         DeterministicPathwayTopologyModel::new(),
-        transport,
+        pathway_sender,
         InMemoryRetentionStore::default(),
         InMemoryRuntimeEffects { now, ..Default::default() },
         Blake3Hashing,
@@ -68,8 +73,13 @@ pub fn build_pathway_client_with_profile(
     );
     router
         .register_engine(Box::new(engine))
-        .expect("register mesh engine");
-    Client::new(topology, router)
+        .expect("register pathway engine");
+    HostBridge::from_transport(
+        topology,
+        router,
+        transport,
+        DEFAULT_OUTBOUND_QUEUE_CAPACITY,
+    )
 }
 
 pub fn build_pathway_batman_client(
@@ -95,25 +105,22 @@ pub fn build_pathway_batman_client_with_profile(
     profile: SelectedRoutingParameters,
 ) -> PathwayClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
-    let mesh_transport = InMemoryTransport::attach(
-        local_node_id,
-        [local_endpoint.clone()],
-        network.clone(),
-    );
-    let batman_transport =
-        InMemoryTransport::attach(local_node_id, [local_endpoint], network);
+    let driver = InMemoryTransport::attach(local_node_id, [local_endpoint], network);
+    let transport = BridgeTransport::new(driver);
+    let pathway_sender = transport.sender(DEFAULT_OUTBOUND_QUEUE_CAPACITY);
+    let batman_sender = transport.sender(DEFAULT_OUTBOUND_QUEUE_CAPACITY);
 
-    let mesh_engine = PathwayEngine::without_committee_selector(
+    let pathway_engine = PathwayEngine::without_committee_selector(
         local_node_id,
         DeterministicPathwayTopologyModel::new(),
-        mesh_transport,
+        pathway_sender,
         InMemoryRetentionStore::default(),
         InMemoryRuntimeEffects { now, ..Default::default() },
         Blake3Hashing,
     );
     let batman_engine = BatmanEngine::new(
         local_node_id,
-        batman_transport,
+        batman_sender,
         InMemoryRuntimeEffects { now, ..Default::default() },
     );
 
@@ -125,19 +132,17 @@ pub fn build_pathway_batman_client_with_profile(
         policy_inputs_for(&topology, local_node_id),
     );
     router
-        .register_engine(Box::new(mesh_engine))
-        .expect("register mesh engine");
+        .register_engine(Box::new(pathway_engine))
+        .expect("register pathway engine");
     router
         .register_engine(Box::new(batman_engine))
         .expect("register batman engine");
-    Client::new(topology, router)
-}
-
-impl Client<PathwayRouter> {
-    pub fn replace_shared_topology(&mut self, topology: Observation<Configuration>) {
-        self.router.ingest_topology_observation(topology.clone());
-        self.topology = topology;
-    }
+    HostBridge::from_transport(
+        topology,
+        router,
+        transport,
+        DEFAULT_OUTBOUND_QUEUE_CAPACITY,
+    )
 }
 
 fn local_endpoint(
@@ -152,7 +157,7 @@ fn local_endpoint(
         .expect("reference topology must provide at least one local endpoint")
 }
 
-fn policy_inputs_for(
+pub(crate) fn policy_inputs_for(
     topology: &Observation<Configuration>,
     local_node_id: NodeId,
 ) -> RoutingPolicyInputs {
@@ -181,7 +186,40 @@ fn policy_inputs_for(
     }
 }
 
-fn default_profile() -> SelectedRoutingParameters {
+#[cfg(test)]
+pub(crate) fn policy_inputs_for_empty(local_node_id: NodeId) -> RoutingPolicyInputs {
+    let empty_node = jacquard_mem_node_profile::ReferenceNode::route_capable(
+        local_node_id,
+        jacquard_core::ControllerId(local_node_id.0),
+        jacquard_core::LinkEndpoint::new(
+            jacquard_core::TransportKind::Custom("reference".to_owned()),
+            jacquard_core::EndpointLocator::Opaque(vec![0]),
+            jacquard_core::ByteCount(64),
+        ),
+        &jacquard_pathway::PATHWAY_ENGINE_ID,
+        Tick(1),
+    )
+    .build();
+    let topology = Observation {
+        value: Configuration {
+            epoch: jacquard_core::RouteEpoch(1),
+            nodes: std::collections::BTreeMap::from([(local_node_id, empty_node)]),
+            links: std::collections::BTreeMap::new(),
+            environment: jacquard_core::Environment {
+                reachable_neighbor_count: 0,
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
+            },
+        },
+        source_class: jacquard_core::FactSourceClass::Local,
+        evidence_class: jacquard_core::RoutingEvidenceClass::DirectObservation,
+        origin_authentication: jacquard_core::OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(1),
+    };
+    policy_inputs_for(&topology, local_node_id)
+}
+
+pub(crate) fn default_profile() -> SelectedRoutingParameters {
     SelectedRoutingParameters {
         selected_protection: RouteProtectionClass::LinkProtected,
         selected_connectivity: ConnectivityPosture {

@@ -14,20 +14,20 @@ Profile crates are `Observed`. They model capability advertisement, transport ca
 | --- | --- | --- |
 | `jacquard-mem-node-profile` | `SimulatedNodeProfile`, `NodeStateSnapshot`, `SimulatedServiceDescriptor` builders | none — it only emits `jacquard-core` model values |
 | `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportSenderEffects`, `TransportDriver`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
-| `jacquard-reference-client` | `topology::{route_capable_node, active_link}`, `Client<Router>`, `PathwayRouter`/`PathwayClient` aliases, `build_pathway_client` | none — it is pure composition over the crates above |
+| `jacquard-reference-client` | `topology::{route_capable_node, active_link}`, `HostBridge`, `PathwayRouter`/`PathwayClient` aliases, `build_pathway_client` | none — it is pure composition over the crates above |
 
-The `mem-*` crates stay routing-engine-neutral and transport-neutral: they carry frames, emit observations, and build shared model values, but they do not mint route truth, interpret routing policy, or own BLE/IP-specific authoring helpers. Reference-client fixtures are the single place where a service descriptor picks up the `PATHWAY_ENGINE_ID` routing-engine tag, because that decision is composition, not profile.
+The `mem-*` crates stay routing-engine-neutral and transport-neutral: they carry frames, emit observations, and build shared model values, but they do not mint route truth, interpret routing policy, or own BLE/IP-specific authoring helpers. Reference-client fixtures are the single place where a service descriptor picks up the `PATHWAY_ENGINE_ID` routing-engine tag, because that decision is composition, not profile. The reference-client bridge is also the only sanctioned place where transport ingress is drained and stamped before delivery to the router.
 
 ## Composition
 
-`build_pathway_client` and `build_pathway_client_with_profile` are the wiring entry points. They attach an `InMemoryTransport` to a `SharedInMemoryNetwork`, construct a `PathwayEngine` over a `DeterministicPathwayTopologyModel`, plug in an `InMemoryRetentionStore` and `InMemoryRuntimeEffects`, register that engine on a fresh `MultiEngineRouter`, and return a `PathwayClient`. Multiple clients built against the same network share one deterministic carrier.
+`build_pathway_client` and `build_pathway_client_with_profile` are the wiring entry points. They attach one bridge-owned `InMemoryTransport` driver to a `SharedInMemoryNetwork`, construct queue-backed sender capabilities for pathway (and optionally batman), plug those into a `PathwayEngine` over a `DeterministicPathwayTopologyModel`, register the engine set on a fresh `MultiEngineRouter`, and return a `PathwayClient` host bridge. Multiple clients built against the same network share one deterministic carrier while still advancing routing state through explicit bridge rounds.
 
 ```mermaid
 graph LR
   NodeProfile[jacquard-mem-node-profile<br/>SimulatedNodeProfile<br/>NodeStateSnapshot<br/>SimulatedServiceDescriptor]
   LinkProfile[jacquard-mem-link-profile<br/>SimulatedLinkProfile<br/>InMemoryTransport<br/>InMemoryRetentionStore<br/>InMemoryRuntimeEffects]
   Network((SharedInMemoryNetwork))
-  Ref[jacquard-reference-client<br/>fixtures + build_pathway_client]
+  Ref[jacquard-reference-client<br/>fixtures + HostBridge + build_pathway_client]
   Router[MultiEngineRouter]
   Mesh[PathwayEngine]
 
@@ -39,7 +39,7 @@ graph LR
   Router -- registers --> Mesh
 ```
 
-The reference end-to-end example is [`e2e_multi_layer_routing.rs`](../crates/reference-client/tests/e2e_multi_layer_routing.rs). It shows how to add a new client runtime to the same in-memory network without bypassing the router-owned canonical path.
+The reference end-to-end example is [`e2e_multi_layer_routing.rs`](../crates/reference-client/tests/e2e_multi_layer_routing.rs). It shows how to add a new client runtime to the same in-memory network without bypassing the bridge-owned ingress path or the router-owned canonical path.
 
 ## Extension Guidance
 

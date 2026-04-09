@@ -59,12 +59,12 @@ This is what keeps Jacquard testable end-to-end without forking the routing mode
 
 First-party mesh adds one private layer above these shared traits: Telltale-generated choreography effect interfaces used only inside `jacquard-pathway`. Those generated interfaces are not promoted into `jacquard-traits`. Instead, mesh interprets its private protocol requests onto the stable shared effect traits through a concrete host/runtime adapter.
 
-The new Phase 3 crates keep that split intact:
+The current in-tree composition crates keep that split intact:
 
 - `jacquard-router` consumes shared effect traits to mint publication ids, build leases, and drive router-owned cadence
 - `jacquard-router` also wraps those traits in one router-local sequencing adapter so checkpoint writes, route-event logging, and canonical publication stay in one fail-closed order
 - `jacquard-mem-link-profile` implements the shared effect traits and in-memory carrier traits for tests and examples only
-- `jacquard-reference-client` composes routers, engines, and profile implementations, but remains observational with respect to canonical route truth
+- `jacquard-reference-client` composes routers, engines, and profile implementations through one host bridge per runtime, but remains observational with respect to canonical route truth
 
 In other words, Jacquard now has both sides of the runtime-adapter story:
 
@@ -79,7 +79,7 @@ Each effect trait carries rules that runtimes must honor for routing logic to re
 
 `TransportSenderEffects::send_transport` delivers a frame on a best-effort basis. Transport ingress is not polled through the effect surface anymore; host-owned `TransportDriver` implementations supervise ingress and hand observations to the bridge/router explicitly. Neither surface may invent or mutate canonical route truth.
 
-This rule applies directly to the in-memory multi-device harness too. The shared in-memory transport may deliver `PayloadReceived` observations between attached endpoints, but it still does not choose routes, repair canonical state, or mint route handles. The router remains the semantic owner of canonical route truth even in tests.
+This rule applies directly to the in-memory multi-device harness too. The shared in-memory transport may deliver `PayloadReceived` observations between attached endpoints, but it still does not choose routes, repair canonical state, or mint route handles. The reference-client bridge drains that ingress, attaches Jacquard time, and advances the router through explicit synchronous rounds. The router remains the semantic owner of canonical route truth even in tests.
 
 ## Aggregate And Constituent Bounds
 

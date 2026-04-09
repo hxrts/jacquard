@@ -2,8 +2,8 @@
 //! covers pathway-only forwarding across a four-node topology. The other
 //! covers mixed batman-plus-pathway forwarding across a three-node topology
 //! where B is the hinge between the two engines. Both assert that route
-//! activation, forwarding, and receiver-side anti-entropy ticks stay
-//! consistent across device boundaries.
+//! activation, bridge-driven outbound flush, and receiver-side bridge rounds
+//! stay consistent across device boundaries.
 //!
 //! Reading order is bottom-up: world topologies, routing parameters,
 //! client builders, observation helpers, then the two tests at the end.
@@ -19,13 +19,13 @@ use jacquard_core::{
     RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
     SelectedRoutingParameters, Tick,
 };
-use jacquard_mem_link_profile::{InMemoryTransport, SharedInMemoryNetwork};
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
     build_pathway_batman_client, build_pathway_batman_client_with_profile,
-    build_pathway_client, build_pathway_client_with_profile, topology, PathwayClient,
+    build_pathway_client, build_pathway_client_with_profile, topology, BoundHostBridge,
+    BridgeRoundProgress, PathwayClient, PathwayRouter, SharedInMemoryNetwork,
 };
-use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane, TransportDriver};
+use jacquard_traits::{Router, RoutingDataPlane};
 
 const NODE_A: NodeId = NodeId([1; 32]);
 const NODE_B: NodeId = NodeId([2; 32]);
@@ -156,23 +156,13 @@ fn build_client_triplet(
     (client_a, client_b, client_c)
 }
 
-/// Build three dual-engine clients (batman + pathway) plus side-channel
-/// observers attached to B and C. The observers read ingress straight off
-/// the shared network without going through a client's own transport.
+/// Build three dual-engine clients (batman + pathway) attached to one shared
+/// network. The receiving client bridges will expose the stamped ingress
+/// observations for assertion after each host-driven round.
 fn build_mixed_engine_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
-) -> (
-    PathwayClient,
-    PathwayClient,
-    PathwayClient,
-    InMemoryTransport,
-    InMemoryTransport,
-) {
-    let b_endpoint = topology.value.nodes[&NODE_B].profile.endpoints.clone();
-    let c_endpoint = topology.value.nodes[&NODE_C].profile.endpoints.clone();
-    let observer_b = InMemoryTransport::attach(NODE_B, b_endpoint, network.clone());
-    let observer_c = InMemoryTransport::attach(NODE_C, c_endpoint, network.clone());
+) -> (PathwayClient, PathwayClient, PathwayClient) {
     let client_a =
         build_pathway_batman_client(NODE_A, topology.clone(), network.clone(), Tick(2));
     let client_b = build_pathway_batman_client_with_profile(
@@ -185,20 +175,25 @@ fn build_mixed_engine_triplet(
     let client_c =
         build_pathway_batman_client(NODE_C, topology.clone(), network, Tick(2));
 
-    (client_a, client_b, client_c, observer_b, observer_c)
+    (client_a, client_b, client_c)
 }
 
 // -- Observation helpers -----------------------------------------------
 
-/// Run one router round on the receiver and assert the router
-/// reported the expected topology epoch, a private-state update, and a
-/// one-tick scheduling hint. Used to confirm a pathway forward landed.
+/// Run one bridge round on the receiver and assert the router reported the
+/// expected topology epoch, a private-state update, and a one-tick scheduling
+/// hint. Used to confirm a pathway forward landed.
 fn assert_tick_after_forward(
-    receiver: &mut PathwayClient,
+    receiver: &mut BoundHostBridge<'_, PathwayRouter>,
     expected_epoch: jacquard_core::RouteEpoch,
     tick_context: &str,
 ) {
-    let outcome = receiver.router_mut().advance_round().expect(tick_context);
+    let BridgeRoundProgress::Advanced(report) =
+        receiver.advance_round().expect(tick_context)
+    else {
+        panic!("expected a bridge-driven round with ingress")
+    };
+    let outcome = report.router_outcome;
 
     assert_eq!(outcome.topology_epoch, expected_epoch);
     assert_eq!(
@@ -211,17 +206,36 @@ fn assert_tick_after_forward(
     );
 }
 
-/// Drain the observer transport once, assert exactly one `PayloadReceived`
+/// Advance the receiver bridge once, assert exactly one `PayloadReceived`
 /// observation, and return its bytes.
-fn drain_payload(transport: &mut InMemoryTransport, context: &str) -> Vec<u8> {
-    let observations = transport.drain_transport_ingress().expect(context);
-    assert_eq!(observations.len(), 1);
-    match &observations[0] {
-        | jacquard_core::TransportIngressEvent::PayloadReceived { payload, .. } => {
+fn advance_and_capture_payload(
+    receiver: &mut BoundHostBridge<'_, PathwayRouter>,
+    expected_epoch: jacquard_core::RouteEpoch,
+    context: &str,
+) -> Vec<u8> {
+    let BridgeRoundProgress::Advanced(report) =
+        receiver.advance_round().expect(context)
+    else {
+        panic!("expected a bridge-driven round with ingress")
+    };
+    assert_eq!(report.router_outcome.topology_epoch, expected_epoch);
+    assert_eq!(report.ingested_transport_observations.len(), 1);
+    match &report.ingested_transport_observations[0] {
+        | jacquard_core::TransportObservation::PayloadReceived { payload, .. } => {
             payload.clone()
         },
         | other => panic!("unexpected observation: {other:?}"),
     }
+}
+
+/// Advance the sender bridge once and assert that it flushed at least one
+/// queued transport command after the synchronous router round.
+fn flush_sender_round(sender: &mut BoundHostBridge<'_, PathwayRouter>, context: &str) {
+    let BridgeRoundProgress::Advanced(report) = sender.advance_round().expect(context)
+    else {
+        panic!("expected a bridge-driven round with outbound flush")
+    };
+    assert!(report.flushed_transport_commands >= 1);
 }
 
 /// Lowercase hex encoding of a byte slice. The pathway carrier hex-encodes
@@ -251,6 +265,9 @@ fn pathway_forwarding_across_shared_network() {
     //    Client B takes the relay profile because it sits on the middle hop.
     let (mut client_a, mut client_b, mut client_c) =
         build_client_triplet(&topology, network);
+    let mut client_a = client_a.bind();
+    let mut client_b = client_b.bind();
+    let mut client_c = client_c.bind();
 
     // 4. Activation. A and B each ask their router for a route to C. The router
     //    picks candidates, admits one, and returns a canonical handle.
@@ -272,6 +289,7 @@ fn pathway_forwarding_across_shared_network() {
         .router_mut()
         .forward_payload(&route_a_to_c.identity.stamp.route_id, payload)
         .expect("client A forwards toward B");
+    flush_sender_round(&mut client_a, "client A flush round");
     assert_tick_after_forward(
         &mut client_b,
         topology.value.epoch,
@@ -284,6 +302,7 @@ fn pathway_forwarding_across_shared_network() {
         .router_mut()
         .forward_payload(&route_b_to_c.identity.stamp.route_id, payload)
         .expect("client B forwards toward C");
+    flush_sender_round(&mut client_b, "client B flush round");
     assert_tick_after_forward(
         &mut client_c,
         topology.value.epoch,
@@ -304,8 +323,11 @@ fn routing_spans_batman_then_pathway() {
     // 2. Clients plus two side-channel observers attached to B and C. The observers
     //    let the test read ingress directly off the shared network without routing
     //    through a client's own transport.
-    let (mut client_a, mut client_b, mut client_c, mut observer_b, mut observer_c) =
+    let (mut client_a, mut client_b, mut client_c) =
         build_mixed_engine_triplet(&topology, network);
+    let mut client_a = client_a.bind();
+    let mut client_b = client_b.bind();
+    let mut client_c = client_c.bind();
 
     // 3. Activation. A requests a route to B. The router picks batman because
     //    batman holds next-hop data for that overlay. B requests a route to C. The
@@ -332,14 +354,20 @@ fn routing_spans_batman_then_pathway() {
         PATHWAY_ENGINE_ID
     );
 
-    // 5. Hop one, batman. A forwards the raw payload and B's observer reads it
-    //    verbatim because batman relays bytes as-is on this carrier.
+    // 5. Hop one, batman. A forwards the raw payload and B's bridge delivers the
+    //    stamped ingress observation verbatim because batman relays bytes as-is on
+    //    this carrier.
     let payload = b"dual-engine-hop";
     client_a
         .router_mut()
         .forward_payload(route_a_to_b.identity.route_id(), payload)
         .expect("client A forwards over batman");
-    let received_by_b = drain_payload(&mut observer_b, "observe batman ingress at B");
+    flush_sender_round(&mut client_a, "client A batman flush round");
+    let received_by_b = advance_and_capture_payload(
+        &mut client_b,
+        topology.value.epoch,
+        "client B bridge round",
+    );
     assert_eq!(received_by_b, payload);
 
     // 6. Hop two, pathway. B re-forwards the payload. Pathway hex-encodes payloads
@@ -348,14 +376,24 @@ fn routing_spans_batman_then_pathway() {
         .router_mut()
         .forward_payload(route_b_to_c.identity.route_id(), &received_by_b)
         .expect("client B forwards over pathway");
-    let received_by_c = drain_payload(&mut observer_c, "observe pathway ingress at C");
+    flush_sender_round(&mut client_b, "client B pathway flush round");
+    let received_by_c = advance_and_capture_payload(
+        &mut client_c,
+        topology.value.epoch,
+        "client C bridge round",
+    );
     assert_eq!(received_by_c, hex_bytes(payload).into_bytes());
 
     // 7. Epoch check. C's router tick still reports the current topology epoch
-    //    after the dual-engine path has completed.
-    let outcome = client_c
-        .router_mut()
-        .advance_round()
-        .expect("client C router round");
-    assert_eq!(outcome.topology_epoch, jacquard_core::RouteEpoch(3));
+    //    after the dual-engine path has completed, regardless of whether the bridge
+    //    reports an idle wait state or a proactive private-state round.
+    match client_c.advance_round().expect("client C router round") {
+        | BridgeRoundProgress::Advanced(report) => {
+            assert_eq!(
+                report.router_outcome.topology_epoch,
+                jacquard_core::RouteEpoch(3)
+            );
+        },
+        | BridgeRoundProgress::Waiting(_) => {},
+    }
 }

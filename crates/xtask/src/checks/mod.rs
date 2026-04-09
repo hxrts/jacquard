@@ -15,6 +15,7 @@ pub mod pathway_choreography;
 pub mod pre_commit;
 pub mod proc_macro_scope;
 pub mod proof_bearing_actions;
+pub mod reference_bridge_boundary;
 pub mod result_must_use;
 pub mod router_round_boundary;
 pub mod routing_invariants;
@@ -45,6 +46,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "ownership-invariants" => ownership_invariants::run(),
         | "proc-macro-scope" => proc_macro_scope::run(),
         | "proof-bearing-actions" => proof_bearing_actions::run(),
+        | "reference-bridge-boundary" => reference_bridge_boundary::run(),
         | "result-must-use" => result_must_use::run(),
         | "router-round-boundary" => router_round_boundary::run(),
         | "routing-invariants" => routing_invariants::run(rest),

@@ -1,7 +1,7 @@
 //! Reusable topology fixture builders used across integration tests.
 //! Assembles `Node` and `Link` values from the mem-node-profile and
 //! mem-link-profile builders. Provides route-capable nodes for a named
-//! routing engine and `dual_engine_route_capable_node` for mesh-plus-
+//! routing engine and `dual_engine_route_capable_node` for pathway-plus-
 //! batman composition.
 
 use jacquard_batman::BATMAN_ENGINE_ID;
