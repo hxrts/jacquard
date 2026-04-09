@@ -1,3 +1,14 @@
+//! Framework routing trait contract tests for the field engine.
+//!
+//! These tests verify that `FieldEngine` correctly implements the shared
+//! `RoutingEngine` and `RoutingEnginePlanner` trait surfaces. A minimal
+//! two-node topology with no links is used so that `candidate_routes` returns
+//! empty, exercising the planner's admission path without requiring a live
+//! attractor. `field_engine_advertises_corridor_envelope_visibility` confirms
+//! the declared engine ID and route shape visibility. `field_engine_compiles_
+//! against_shared_routing_traits` confirms the tick and planner APIs accept
+//! the standard context and objective shapes without panicking.
+
 use jacquard_adapter::opaque_endpoint;
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,

@@ -1,4 +1,5 @@
-//! `FieldClientBuilder` and `FieldClient`: host handle for the field routing engine.
+//! `FieldClientBuilder` and `FieldClient`: host handle for the field routing
+//! engine.
 //!
 //! `FieldClient` drives a `FieldEngine` directly without a router or bridge
 //! layer by calling `RoutingEngine` and `RouterManagedEngine` methods in the

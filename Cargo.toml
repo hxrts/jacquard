@@ -5,6 +5,7 @@ members = [
   "crates/batman",
   "crates/core",
   "crates/field",
+  "crates/field-client",
   "crates/macros",
   "crates/mem-link-profile",
   "crates/mem-node-profile",

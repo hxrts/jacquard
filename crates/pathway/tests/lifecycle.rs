@@ -133,3 +133,38 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
         ReachabilityState::Reachable
     ));
 }
+
+// The same active route should survive the common repair → partition →
+// recovery transition sequence without drifting to a new canonical route id or
+// losing its owner-relative runtime progress record.
+#[test]
+fn transition_sequence_preserves_active_route_identity() {
+    let mut engine = build_engine();
+    let topology = sample_configuration();
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        NodeId([3; 32]),
+        lease(Tick(2), Tick(100)),
+    );
+    let route_id = identity.stamp.route_id;
+
+    for trigger in [
+        RouteMaintenanceTrigger::LinkDegraded,
+        RouteMaintenanceTrigger::PartitionDetected,
+        RouteMaintenanceTrigger::AntiEntropyRequired,
+    ] {
+        let result = engine
+            .maintain_route(&identity, &mut runtime, trigger)
+            .expect("maintenance trigger should succeed");
+        runtime.last_lifecycle_event = result.event;
+        assert!(engine.active_route(&route_id).is_some());
+        assert_eq!(identity.stamp.route_id, route_id);
+    }
+
+    let active = engine
+        .active_route(&route_id)
+        .expect("active route remains");
+    assert_eq!(active.segment_count, 2);
+    assert!(usize::from(active.forwarding.next_hop_index) <= active.segment_count);
+}

@@ -29,10 +29,11 @@ use jacquard_core::{
     RelayWorkBudget, RouteServiceKind, RoutingEngineId, RoutingObjective,
     ServiceDescriptor, ServiceId, ServiceScope, Tick, TransportKind,
 };
+use jacquard_traits::purity;
 
 use crate::PathwayTopologyModel;
 
-#[jacquard_traits::purity(read_only)]
+#[purity(read_only)]
 /// Score components pathway consumes from a peer-local estimate.
 pub trait PathwayPeerEstimateAccess {
     fn relay_value_score(&self) -> Option<HealthScore>;
@@ -41,7 +42,7 @@ pub trait PathwayPeerEstimateAccess {
     fn service_score(&self) -> Option<HealthScore>;
 }
 
-#[jacquard_traits::purity(read_only)]
+#[purity(read_only)]
 /// Score components pathway consumes from a neighborhood-local estimate.
 pub trait PathwayNeighborhoodEstimateAccess {
     fn density_score(&self) -> Option<HealthScore>;

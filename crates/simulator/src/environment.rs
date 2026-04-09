@@ -25,7 +25,7 @@ pub enum EnvironmentHook {
         left: NodeId,
         from_right: NodeId,
         to_right: NodeId,
-        link: Link,
+        link: Box<Link>,
     },
     IntrinsicLimit {
         node_id: NodeId,
@@ -145,7 +145,9 @@ fn apply_hook(
         },
         | EnvironmentHook::MobilityRelink { left, from_right, to_right, link } => {
             configuration.links.remove(&(*left, *from_right));
-            configuration.links.insert((*left, *to_right), link.clone());
+            configuration
+                .links
+                .insert((*left, *to_right), link.as_ref().clone());
         },
         | EnvironmentHook::IntrinsicLimit {
             node_id,

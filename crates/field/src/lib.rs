@@ -17,8 +17,15 @@
 
 #![forbid(unsafe_code)]
 
+mod attractor;
+mod choreography;
+mod control;
 mod engine;
+mod observer;
 mod planner;
+mod route;
 mod runtime;
+mod state;
+mod summary;
 
 pub use engine::{FieldEngine, FIELD_CAPABILITIES, FIELD_ENGINE_ID};

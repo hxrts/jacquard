@@ -11,8 +11,9 @@
 //!   no-usize-in-models, ownership-invariants, pathway-async-boundary,
 //!   pathway-choreography, proc-macro-scope, proof-bearing-actions,
 //!   reference-bridge-boundary, result-must-use, router-round-boundary,
-//!   routing-invariants, simulator-boundary, surface-classification, test-boundaries,
-//!   trait-purity, transport-authoring-boundary, transport-ownership-boundary.
+//!   routing-invariants, simulator-boundary, surface-classification,
+//! test-boundaries,   trait-purity, transport-authoring-boundary,
+//! transport-ownership-boundary.
 
 pub mod adapter_boundary;
 pub mod checkpoint_namespacing;
