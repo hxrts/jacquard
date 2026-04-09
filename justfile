@@ -287,10 +287,6 @@ lean-setup:
 lean-build:
     cd verification && lake build
 
-# Smoke-test: build and run Hello.lean to confirm telltale dependency resolves.
-lean-hello:
-    cd verification && lake build hello && .lake/build/bin/hello
-
 # install git hooks
 install-hooks:
     git config core.hooksPath .githooks

@@ -14,6 +14,8 @@ Formal session-type properties for Jacquard's choreography protocols.
   observable at the shared `jacquard-traits` boundary.
 -/
 
+import SessionTypes.Core
+
 namespace ProtocolCorrectness
 
 -- Placeholder: proofs go here.
