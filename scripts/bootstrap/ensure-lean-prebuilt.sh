@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Ensure the Lean verification package has its Mathlib olean cache hydrated.
 #
-# On first run: resolves the Mathlib revision compatible with the pinned Lean
-# toolchain and writes lake-manifest.json, then fetches prebuilt oleans from
-# https://cache.leanprover.community so Mathlib is never rebuilt from source.
+# Telltale (the direct dependency) pins Mathlib to a specific git commit.
+# lake exe cache get downloads prebuilt .olean files from
+# cache.leanprover.community keyed by that commit — Mathlib is never
+# rebuilt from source when the cache entry exists.
 #
-# On subsequent runs: checks that the manifest and olean markers are present;
-# re-fetches only if something is missing.
+# Iris and Paco come through Telltale and compile once into .lake/packages/.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -24,7 +24,8 @@ fi
 
 cd "${LEAN_DIR}"
 
-# Step 1: generate or refresh lake-manifest.json so the mathlib revision is pinned.
+# Step 1: generate or refresh lake-manifest.json.
+# This pins the exact commit of telltale (and transitively mathlib/iris/paco).
 if [[ ! -f "lake-manifest.json" ]]; then
   echo "== lake update (generating lake-manifest.json) =="
   lake update
@@ -32,23 +33,22 @@ else
   echo "OK   lake-manifest.json present"
 fi
 
-# Step 2: fetch prebuilt oleans from the Mathlib cache server.
-# lake exe cache get downloads .olean files matching the exact mathlib commit
-# pinned in lake-manifest.json; it never rebuilds mathlib from source.
-MATHLIB_OLEAN_MARKER=".lake/packages/mathlib/.lake/build/lib/lean/Mathlib.olean"
-if [[ ! -f "${MATHLIB_OLEAN_MARKER}" ]]; then
+# Step 2: fetch prebuilt Mathlib oleans from cache.leanprover.community.
+# The cache key is the exact mathlib commit resolved transitively through
+# telltale and pinned in lake-manifest.json.
+MATHLIB_MARKER=".lake/packages/mathlib/.lake/build/lib/lean/Mathlib.olean"
+if [[ ! -f "${MATHLIB_MARKER}" ]]; then
   echo "== lake exe cache get (fetching prebuilt Mathlib oleans) =="
   lake exe cache get
 else
-  echo "OK   Mathlib olean cache present at ${LEAN_DIR}/${MATHLIB_OLEAN_MARKER}"
+  echo "OK   Mathlib olean cache present"
 fi
 
-# Verify the marker is now present.
-if [[ ! -f "${MATHLIB_OLEAN_MARKER}" ]]; then
-  echo "error: Mathlib olean marker missing after cache fetch:" >&2
-  echo "  ${LEAN_DIR}/${MATHLIB_OLEAN_MARKER}" >&2
+if [[ ! -f "${MATHLIB_MARKER}" ]]; then
+  echo "error: Mathlib olean marker missing after cache fetch" >&2
+  echo "  expected: ${LEAN_DIR}/${MATHLIB_MARKER}" >&2
   echo "hint: try 'lake exe cache get' manually inside verification/" >&2
   exit 1
 fi
 
-echo "== Lean prebuilt cache ready — run 'lake build Hello' to verify =="
+echo "== Lean prebuilt cache ready — run 'just lean-build' to compile verification =="
