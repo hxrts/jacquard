@@ -57,7 +57,11 @@ let relay_link_profile = LinkProfile {
 
 let relay_link_state = LinkState {
     state: LinkRuntimeState::Active,
-    median_rtt_ms: DurationMs(35),
+    median_rtt_ms: Belief::Estimated(Estimate {
+        value: DurationMs(35),
+        confidence_permille: RatioPermille(900),
+        updated_at_tick: Tick(42),
+    }),
     transfer_rate_bytes_per_sec: Belief::Estimated(Estimate {
         value: 12_000,
         confidence_permille: RatioPermille(900),
@@ -99,7 +103,7 @@ let relay_profile = NodeProfile {
     active_route_count_max: 8,
     relay_work_budget_max: 64,
     maintenance_work_budget_max: 32,
-    hold_item_count_max: 128,
+    hold_item_count_max: HoldItemCount(128),
     hold_capacity_bytes_max: ByteCount(65_536),
 };
 
@@ -231,11 +235,11 @@ world input. It does not own routing semantics.
 
 ### Umbrella World Extension
 
-This surface is optional. It is useful when an extension naturally wants to emit one combined world-observation stream instead of separate node, link, environment, service, or transport streams.
+This surface is optional. Each specific extension trait (`NodeWorldExtension`, `LinkWorldExtension`, etc.) blanket-implements `WorldExtension<O>` for its matching observation type, so any implementor of a specific trait automatically satisfies the generic bound.
 
 ```rust
-pub trait WorldExtension: WorldExtensionDescriptor {
-    fn poll_observations(&mut self) -> Result<Vec<WorldObservation>, WorldError>;
+pub trait WorldExtension<O>: WorldExtensionDescriptor {
+    fn poll_observations(&mut self) -> Result<Vec<Observation<O>>, WorldError>;
 }
 ```
 

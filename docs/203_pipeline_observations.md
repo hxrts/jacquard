@@ -83,7 +83,7 @@ pub struct NodeRelayBudget {
 
 pub struct InformationSetSummary {
     pub summary_encoding: InformationSummaryEncoding,
-    pub item_count: Belief<u32>,
+    pub item_count: Belief<HoldItemCount>,
     pub byte_count: Belief<ByteCount>,
     pub false_positive_permille: Belief<RatioPermille>,
 }
@@ -120,7 +120,7 @@ pub struct LinkProfile {
 
 pub struct LinkState {
     pub state: LinkRuntimeState,
-    pub median_rtt_ms: DurationMs,
+    pub median_rtt_ms: Belief<DurationMs>,
     pub transfer_rate_bytes_per_sec: Belief<u32>,
     pub stability_horizon_ms: Belief<DurationMs>,
     pub loss_permille: RatioPermille,

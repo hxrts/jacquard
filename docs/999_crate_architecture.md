@@ -50,7 +50,7 @@ jacquard-batman┼──→ jacquard-router ←── jacquard-reference-client
 jacquard-xtask
 ```
 
-Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits` only when they need behavioral boundaries. `jacquard-adapter` depends only on `jacquard-core` plus proc-macro/serialization support because it owns reusable mailbox and ownership helpers, not runtime traits or router semantics. `jacquard-router` depends on registered engines only through shared traits, not through pathway or BATMAN internals. `jacquard-mem-node-profile` depends only on `jacquard-core` plus serialization support. `jacquard-mem-link-profile` depends on `jacquard-core`, `jacquard-traits`, and `jacquard-adapter` because it implements shared transport, retention, and effect traits while reusing the canonical raw-ingress mailbox. `jacquard-core` and `jacquard-traits` remain runtime-free.
+Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits` only when they need behavioral boundaries. `jacquard-adapter` depends only on `jacquard-core` plus proc-macro/serialization support because it owns reusable mailbox and ownership helpers, not runtime traits or router semantics. `jacquard-router` depends on registered engines only through shared traits, not through pathway or BATMAN internals. `jacquard-mem-node-profile` depends on `jacquard-core` and `jacquard-adapter` plus serialization support. `jacquard-mem-link-profile` depends on `jacquard-core`, `jacquard-traits`, and `jacquard-adapter` because it implements shared transport, retention, and effect traits while reusing the canonical raw-ingress mailbox. `jacquard-core` and `jacquard-traits` remain runtime-free.
 
 ## Crate Layout
 

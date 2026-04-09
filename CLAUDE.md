@@ -59,6 +59,7 @@ Run individual policy checks with `cargo xtask check <name>`. Registered names:
 - `crate-boundary` — workspace dependency-graph invariants
 - `docs-link-check` — broken, scratch-directory, or absolute-path links in markdown
 - `docs-semantic-drift` — stale backtick references in markdown
+- `dx-surface` — preset/client DX surface must use `NodePreset`/`LinkPreset` naming and `ClientBuilder`; public human-facing APIs must not exceed 4 positional parameters
 - `engine-service-boundary` — `crates/pathway/src/lib.rs` must not export engine-private types
 - `fail-closed-ordering` — delegates to `routing-invariants` for fail-closed mutation ordering
 - `invariant-specs` — every `## Invariant:` section needs enforcement locus, failure mode, and verification hooks
