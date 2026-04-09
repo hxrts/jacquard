@@ -1,17 +1,8 @@
 //! In-memory link authoring, transport, retention, and effect adapters.
 //!
-//! Control flow: callers define shared endpoints, choose preset-oriented links,
-//! and attach transports to an in-memory network. The crate also exposes
-//! deterministic retention and runtime-effect adapters for tests. It does not
-//! plan routes or interpret routing policy. It only provides reusable in-memory
-//! infrastructure.
-//!
-//! Most callers should start with the [`authoring`] module, especially
-//! [`LinkPreset`]. [`SimulatedLinkProfile`] remains available as the
-//! lower-level escape hatch when tests need exact control over `LinkProfile`
-//! and `LinkState`. Callers construct shared `LinkEndpoint` values directly via
-//! `jacquard-core` or use [`jacquard_adapter::opaque_endpoint`] for the common
-//! opaque-locator path.
+//! Most callers should start with [`LinkPreset`]. The low-level
+//! `SimulatedLinkProfile` builder stays available when a test needs exact
+//! control over `LinkProfile` and `LinkState`.
 //!
 //! Module map:
 //! - [`authoring`]: human-facing link authoring presets

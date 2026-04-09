@@ -1,24 +1,4 @@
-//! `SimulatedNodeProfile`, a builder for the stable capability half of a node.
-//!
-//! This module assembles the `NodeProfile` portion of a `Node`: endpoint list,
-//! service descriptors, connection limits, work budgets, and hold capacity. It
-//! delegates service construction to `SimulatedServiceDescriptor` and
-//! node-state construction to `NodeStateSnapshot`, then emits a fully specified
-//! `Node` via `NodeBuilder` from `jacquard-core`.
-//!
-//! Two output paths are available:
-//! - `build(node_id, controller_id)` returns only the `NodeProfile`, useful
-//!   when the caller manages state separately.
-//! - `build_node(node_id, controller_id, state)` combines the profile with a
-//!   `NodeStateSnapshot` into a complete `Node` value.
-//!
-//! `DEFAULT_HOLD_CAPACITY_BYTES` (4096 bytes) is the module-level constant used
-//! by all default preset constructors.
-//!
-//! Most callers should prefer `NodePreset` from the `authoring` module,
-//! which wraps this builder with preset constructors. Use
-//! `SimulatedNodeProfile` directly only when a test needs exact control over
-//! the profile fields.
+//! Stable node-capability builder for tests and presets.
 
 use jacquard_core::{
     ByteCount, ControllerId, HoldItemCount, LinkEndpoint, MaintenanceWorkBudget, Node,
@@ -73,8 +53,11 @@ impl SimulatedNodeProfile {
     }
 
     #[must_use]
-    pub fn with_route_service_bundle(mut self, bundle: RouteServiceBundle) -> Self {
-        self.services.extend(bundle.into_services());
+    pub fn with_route_service_bundle(
+        mut self,
+        bundle: Vec<SimulatedServiceDescriptor>,
+    ) -> Self {
+        self.services.extend(bundle);
         self
     }
 

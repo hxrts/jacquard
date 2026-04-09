@@ -1,16 +1,7 @@
 //! In-memory node profile and node-state builders for tests and examples.
 //!
-//! Control flow: this crate owns only node capability and node-state
-//! simulation. Callers build a stable `NodeProfile`, evolve a local
-//! `NodeStateSnapshot`, and then assemble a `Node` without importing any engine
-//! planner or router logic.
-//!
-//! Most callers should start with the [`authoring`] module, especially
-//! [`NodePreset`]. [`SimulatedNodeProfile`] and [`NodeStateSnapshot`]
-//! remain available as the lower-level escape hatches when tests need exact
-//! control over the profile/state split. Callers construct shared
-//! `LinkEndpoint` values directly via `jacquard-core` or use
-//! [`jacquard_adapter::opaque_endpoint`] for the common opaque-locator path.
+//! Most callers should start with [`NodePreset`]. The lower-level builders stay
+//! available when a test needs exact control over the profile/state split.
 //!
 //! Module map:
 //! - [`authoring`]: human-facing node authoring presets

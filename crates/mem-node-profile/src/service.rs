@@ -1,27 +1,8 @@
-//! `SimulatedServiceDescriptor`, a builder for one shared `ServiceDescriptor`
-//! emitted by a simulated node.
+//! Service-descriptor builders for simulated nodes.
 //!
-//! This module assembles a single `ServiceDescriptor` that a node advertises to
-//! peers. Each descriptor carries the service kind (`Discover`, `Move`, or
-//! `Hold`), one or more `LinkEndpoint` values, a `ServiceScope`, a validity
-//! `TimeWindow`, saturation level, and repair capacity. The descriptor is bound
-//! to a `(NodeId, ControllerId)` identity pair at `build` time.
-//!
-//! Three preset constructors mirror the standard service triple:
-//! - `discover_service`: advertises route-discovery participation.
-//! - `move_service`: advertises payload forwarding capability.
-//! - `hold_service`: advertises deferred-delivery buffering with a hold
-//!   capacity hint.
-//!
-//! `RouteServiceBundle` captures the standard discover/move/hold triple as a
-//! named concept so human-facing node presets do not need to assemble the
-//! service set imperatively.
-//!
-//! The generic `advertised` constructor covers non-standard service kinds.
-//! Routing engines are attached via `with_routing_engine` before building.
-//!
-//! This builder is used by `SimulatedNodeProfile` and `NodePreset`; callers
-//! should rarely need to construct it directly.
+//! `SimulatedServiceDescriptor` covers one shared descriptor.
+//! `RouteServiceBundle` names the standard discover/move/hold service set used
+//! by route-capable node presets.
 
 use jacquard_core::{
     ByteCount, CapacityHint, ControllerId, LinkEndpoint, NodeId, RatioPermille,
@@ -44,10 +25,8 @@ pub struct SimulatedServiceDescriptor {
 }
 
 /// Named bundle for the standard route-service triple (discover, move, hold).
-#[derive(Clone, Debug)]
-pub struct RouteServiceBundle {
-    services: Vec<SimulatedServiceDescriptor>,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RouteServiceBundle;
 
 impl SimulatedServiceDescriptor {
     #[must_use]
@@ -224,7 +203,7 @@ impl RouteServiceBundle {
         scope: &ServiceScope,
         valid_for: TimeWindow,
         observed_at_tick: Tick,
-    ) -> Self {
+    ) -> Vec<SimulatedServiceDescriptor> {
         let mut services = Vec::with_capacity(routing_engines.len().saturating_mul(3));
         for routing_engine in routing_engines {
             services.push(
@@ -255,10 +234,6 @@ impl RouteServiceBundle {
                 .with_routing_engine(routing_engine),
             );
         }
-        Self { services }
-    }
-
-    pub(crate) fn into_services(self) -> Vec<SimulatedServiceDescriptor> {
-        self.services
+        services
     }
 }

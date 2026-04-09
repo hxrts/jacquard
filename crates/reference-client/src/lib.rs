@@ -16,8 +16,7 @@
 //!
 //! Starter path:
 //! 1. Build a small topology with [`topology::node`] and [`topology::link`].
-//! 2. Use [`ClientBuilder`] or `ClientBuildOptions` to choose engines and queue
-//!    configuration.
+//! 2. Use [`ClientBuilder`] to choose engines and queue configuration.
 //! 3. Bind the resulting [`HostBridge`] and drive explicit rounds.
 //!
 //! ```rust
@@ -90,7 +89,7 @@ pub use bridge::{
     BoundHostBridge, BridgeQueueConfig, BridgeRoundProgress, BridgeRoundReport,
     BridgeWaitState, HostBridge,
 };
-pub use clients::{ClientBuildOptions, ClientBuilder, PathwayClient, PathwayRouter};
+pub use clients::{ClientBuilder, PathwayClient, PathwayRouter};
 pub use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, LinkPreset,
     LinkPresetOptions, SharedInMemoryNetwork, SimulatedLinkProfile,

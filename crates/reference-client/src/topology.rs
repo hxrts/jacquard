@@ -1,9 +1,4 @@
-//! Reusable topology fixture builders for reference-client integration tests.
-//!
-//! This module assembles `Node` and `Link` values from the `mem-node-profile`
-//! and `mem-link-profile` preset builders, giving tests a single place to
-//! construct route-capable topology fixtures without duplicating builder
-//! boilerplate.
+//! Reusable topology fixture presets for reference-client tests.
 //!
 //! The intended path is builder-style:
 //! - `node(byte).pathway().build()`
@@ -28,12 +23,20 @@ fn reference_endpoint(byte: u8) -> jacquard_core::LinkEndpoint {
 
 #[must_use]
 pub fn node(node_byte: u8) -> TopologyNodePreset {
-    TopologyNodePreset::new(node_byte)
+    TopologyNodePreset {
+        node_byte,
+        routing_engines: vec![PATHWAY_ENGINE_ID],
+        observed_at_tick: Tick(1),
+    }
 }
 
 #[must_use]
 pub fn link(node_byte: u8) -> TopologyLinkPreset {
-    TopologyLinkPreset::new(node_byte)
+    TopologyLinkPreset {
+        endpoint_byte: node_byte,
+        confidence: RatioPermille(950),
+        observed_at_tick: Tick(1),
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -44,15 +47,6 @@ pub struct TopologyNodePreset {
 }
 
 impl TopologyNodePreset {
-    #[must_use]
-    pub fn new(node_byte: u8) -> Self {
-        Self {
-            node_byte,
-            routing_engines: vec![PATHWAY_ENGINE_ID],
-            observed_at_tick: Tick(1),
-        }
-    }
-
     #[must_use]
     pub fn for_engine(mut self, engine: &RoutingEngineId) -> Self {
         self.routing_engines = vec![engine.clone()];
@@ -106,15 +100,6 @@ pub struct TopologyLinkPreset {
 }
 
 impl TopologyLinkPreset {
-    #[must_use]
-    pub fn new(endpoint_byte: u8) -> Self {
-        Self {
-            endpoint_byte,
-            confidence: RatioPermille(950),
-            observed_at_tick: Tick(1),
-        }
-    }
-
     #[must_use]
     pub fn with_confidence(mut self, confidence: RatioPermille) -> Self {
         self.confidence = confidence;

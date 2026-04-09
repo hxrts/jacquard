@@ -26,7 +26,6 @@ use jacquard_traits::{
 
 use crate::PathwayRouter;
 
-const DEFAULT_BRIDGE_QUEUE_CAPACITY: usize = 64;
 /// Default queue capacities used by the reference client bridge.
 pub(crate) const DEFAULT_BRIDGE_QUEUE_CONFIG: BridgeQueueConfig =
     BridgeQueueConfig::new(64, 64);
@@ -206,21 +205,6 @@ impl<Router> HostBridge<Router> {
             next_tick,
             dropped_transport_observations: 0,
         }
-    }
-
-    #[must_use]
-    pub fn with_queue_capacity(
-        topology: Observation<Configuration>,
-        router: Router,
-        transport: InMemoryTransport,
-        inbound_capacity: usize,
-    ) -> Self {
-        Self::with_queue_config(
-            topology,
-            router,
-            transport,
-            BridgeQueueConfig::new(inbound_capacity, DEFAULT_BRIDGE_QUEUE_CAPACITY),
-        )
     }
 
     #[must_use]
@@ -436,11 +420,11 @@ mod tests {
         let mut remote =
             InMemoryTransport::attach(NodeId([8; 32]), [endpoint(8)], network);
 
-        let mut bridge = HostBridge::with_queue_capacity(
+        let mut bridge = HostBridge::with_queue_config(
             sample_topology(local_node_id),
             sample_router(local_node_id),
             transport,
-            1,
+            BridgeQueueConfig::new(1, 64),
         );
         remote
             .send_transport(&endpoint(9), b"first")
