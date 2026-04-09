@@ -1,4 +1,16 @@
-//! `FieldClientBuilder` and the `FieldClient` host handle for field-engine scenarios.
+//! `FieldClientBuilder` and `FieldClient`: host handle for the field routing engine.
+//!
+//! `FieldClient` drives a `FieldEngine` directly without a router or bridge
+//! layer by calling `RoutingEngine` and `RouterManagedEngine` methods in the
+//! order the engine expects. Each node in a multi-node scenario gets its own
+//! `FieldClient` instance connected to a shared `SharedInMemoryNetwork`.
+//!
+//! The handle covers the full single-hop route lifecycle: `advance_round` seeds
+//! local field state from a topology observation, `activate_route` runs
+//! candidate selection through admission and materialization, `maintain_route`
+//! applies maintenance triggers and handles expiry, `forward_payload` sends a
+//! payload over in-memory transport, and `drain_peer_ingress` reads what the
+//! remote peer received.
 
 use std::collections::BTreeMap;
 
