@@ -205,16 +205,17 @@ where
 mod tests {
     use std::collections::BTreeMap;
 
+    use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{
         Belief, ByteCount, Configuration, ConnectivityPosture, ControllerId,
-        DestinationId, DurationMs, EndpointLocator, Environment, Link, LinkEndpoint,
-        LinkProfile, LinkRuntimeState, LinkState, Node, Observation, RatioPermille,
+        DestinationId, DurationMs, Environment, Link, LinkEndpoint, LinkProfile,
+        LinkRuntimeState, LinkState, Node, Observation, RatioPermille,
         RepairCapability, RouteEpoch, RouteMaintenanceTrigger, RoutePartitionClass,
         RouteProtectionClass, RouteRepairClass, RoutingTickContext,
         SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
     };
     use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
-    use jacquard_mem_node_profile::ReferenceNode;
+    use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
     use jacquard_traits::{RoutingEngine, RoutingEnginePlanner};
 
     use super::*;
@@ -225,20 +226,17 @@ mod tests {
     }
 
     fn endpoint(byte: u8) -> LinkEndpoint {
-        LinkEndpoint::new(
-            TransportKind::WifiAware,
-            EndpointLocator::Opaque(vec![byte]),
-            ByteCount(64),
-        )
+        opaque_endpoint(TransportKind::WifiAware, vec![byte], ByteCount(64))
     }
 
     fn batman_node(byte: u8) -> Node {
-        ReferenceNode::route_capable(
-            node(byte),
-            ControllerId([byte; 32]),
-            endpoint(byte),
+        NodePreset::route_capable(
+            NodePresetOptions::new(
+                NodeIdentity::new(node(byte), ControllerId([byte; 32])),
+                endpoint(byte),
+                Tick(1),
+            ),
             &BATMAN_ENGINE_ID,
-            Tick(1),
         )
         .build()
     }

@@ -31,9 +31,8 @@ use jacquard_core::{
 };
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
-    build_pathway_batman_client, build_pathway_batman_client_with_profile,
-    build_pathway_client, build_pathway_client_with_profile, topology, BoundHostBridge,
-    BridgeRoundProgress, PathwayClient, PathwayRouter, SharedInMemoryNetwork,
+    topology, BoundHostBridge, BridgeRoundProgress, ClientBuilder, PathwayClient,
+    PathwayRouter, SharedInMemoryNetwork,
 };
 use jacquard_traits::{Router, RoutingDataPlane};
 
@@ -51,16 +50,36 @@ fn sample_configuration() -> Observation<Configuration> {
         value: Configuration {
             epoch: jacquard_core::RouteEpoch(2),
             nodes: BTreeMap::from([
-                (NODE_A, topology::route_capable_node(1)),
-                (NODE_B, topology::route_capable_node(2)),
-                (NODE_C, topology::route_capable_node(3)),
-                (NODE_D, topology::route_capable_node(4)),
+                (NODE_A, topology::node(1).pathway().build()),
+                (NODE_B, topology::node(2).pathway().build()),
+                (NODE_C, topology::node(3).pathway().build()),
+                (NODE_D, topology::node(4).pathway().build()),
             ]),
             links: BTreeMap::from([
-                ((NODE_A, NODE_B), topology::active_link(2, 950)),
-                ((NODE_B, NODE_C), topology::active_link(3, 875)),
-                ((NODE_A, NODE_D), topology::active_link(4, 925)),
-                ((NODE_B, NODE_D), topology::active_link(4, 900)),
+                (
+                    (NODE_A, NODE_B),
+                    topology::link(2)
+                        .with_confidence(RatioPermille(950))
+                        .build(),
+                ),
+                (
+                    (NODE_B, NODE_C),
+                    topology::link(3)
+                        .with_confidence(RatioPermille(875))
+                        .build(),
+                ),
+                (
+                    (NODE_A, NODE_D),
+                    topology::link(4)
+                        .with_confidence(RatioPermille(925))
+                        .build(),
+                ),
+                (
+                    (NODE_B, NODE_D),
+                    topology::link(4)
+                        .with_confidence(RatioPermille(900))
+                        .build(),
+                ),
             ]),
             environment: Environment {
                 reachable_neighbor_count: 3,
@@ -83,16 +102,26 @@ fn mixed_engine_configuration() -> Observation<Configuration> {
         value: Configuration {
             epoch: jacquard_core::RouteEpoch(3),
             nodes: BTreeMap::from([
-                (NODE_A, topology::dual_engine_route_capable_node(1)),
-                (NODE_B, topology::dual_engine_route_capable_node(2)),
+                (NODE_A, topology::node(1).pathway_and_batman().build()),
+                (NODE_B, topology::node(2).pathway_and_batman().build()),
                 (
                     NODE_C,
-                    topology::route_capable_node_for_engine(3, &PATHWAY_ENGINE_ID),
+                    topology::node(3).for_engine(&PATHWAY_ENGINE_ID).build(),
                 ),
             ]),
             links: BTreeMap::from([
-                ((NODE_A, NODE_B), topology::active_link(2, 940)),
-                ((NODE_B, NODE_C), topology::active_link(3, 910)),
+                (
+                    (NODE_A, NODE_B),
+                    topology::link(2)
+                        .with_confidence(RatioPermille(940))
+                        .build(),
+                ),
+                (
+                    (NODE_B, NODE_C),
+                    topology::link(3)
+                        .with_confidence(RatioPermille(910))
+                        .build(),
+                ),
             ]),
             environment: Environment {
                 reachable_neighbor_count: 2,
@@ -154,15 +183,14 @@ fn build_client_triplet(
     network: SharedInMemoryNetwork,
 ) -> (PathwayClient, PathwayClient, PathwayClient) {
     let client_a =
-        build_pathway_client(NODE_A, topology.clone(), network.clone(), Tick(2));
-    let client_b = build_pathway_client_with_profile(
-        NODE_B,
-        topology.clone(),
-        network.clone(),
-        Tick(2),
-        relay_profile(),
-    );
-    let client_c = build_pathway_client(NODE_C, topology.clone(), network, Tick(2));
+        ClientBuilder::pathway(NODE_A, topology.clone(), network.clone(), Tick(2))
+            .build();
+    let client_b =
+        ClientBuilder::pathway(NODE_B, topology.clone(), network.clone(), Tick(2))
+            .with_profile(relay_profile())
+            .build();
+    let client_c =
+        ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2)).build();
     (client_a, client_b, client_c)
 }
 
@@ -173,17 +201,24 @@ fn build_mixed_engine_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
 ) -> (PathwayClient, PathwayClient, PathwayClient) {
-    let client_a =
-        build_pathway_batman_client(NODE_A, topology.clone(), network.clone(), Tick(2));
-    let client_b = build_pathway_batman_client_with_profile(
+    let client_a = ClientBuilder::pathway_and_batman(
+        NODE_A,
+        topology.clone(),
+        network.clone(),
+        Tick(2),
+    )
+    .build();
+    let client_b = ClientBuilder::pathway_and_batman(
         NODE_B,
         topology.clone(),
         network.clone(),
         Tick(2),
-        relay_profile(),
-    );
+    )
+    .with_profile(relay_profile())
+    .build();
     let client_c =
-        build_pathway_batman_client(NODE_C, topology.clone(), network, Tick(2));
+        ClientBuilder::pathway_and_batman(NODE_C, topology.clone(), network, Tick(2))
+            .build();
 
     (client_a, client_b, client_c)
 }

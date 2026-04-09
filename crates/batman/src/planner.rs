@@ -130,18 +130,19 @@ fn destination_supports_objective(
 mod tests {
     use std::collections::BTreeMap;
 
+    use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{
         ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
-        DurationMs, EndpointLocator, Environment, FactSourceClass, LinkEndpoint,
-        NodeId, Observation, OriginAuthenticationClass, RatioPermille,
-        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
-        RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingTickContext,
+        DurationMs, Environment, FactSourceClass, LinkEndpoint, NodeId, Observation,
+        OriginAuthenticationClass, RatioPermille, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteServiceKind, RoutingEngineId,
+        RoutingEvidenceClass, RoutingObjective, RoutingTickContext,
         SelectedRoutingParameters, Tick, TransportKind,
     };
     use jacquard_mem_link_profile::{
-        InMemoryRuntimeEffects, InMemoryTransport, ReferenceLink,
+        InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions,
     };
-    use jacquard_mem_node_profile::ReferenceNode;
+    use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
     use jacquard_traits::{RoutingEngine, RoutingEnginePlanner};
 
     use super::*;
@@ -151,11 +152,7 @@ mod tests {
     }
 
     fn endpoint(byte: u8) -> LinkEndpoint {
-        LinkEndpoint::new(
-            TransportKind::WifiAware,
-            EndpointLocator::Opaque(vec![byte]),
-            ByteCount(128),
-        )
+        opaque_endpoint(TransportKind::WifiAware, vec![byte], ByteCount(128))
     }
 
     fn sample_objective(destination: NodeId) -> RoutingObjective {
@@ -197,30 +194,33 @@ mod tests {
                 nodes: BTreeMap::from([
                     (
                         node(1),
-                        ReferenceNode::route_capable(
-                            node(1),
-                            ControllerId([1; 32]),
-                            endpoint(1),
+                        NodePreset::route_capable(
+                            NodePresetOptions::new(
+                                NodeIdentity::new(node(1), ControllerId([1; 32])),
+                                endpoint(1),
+                                Tick(1),
+                            ),
                             &BATMAN_ENGINE_ID,
-                            Tick(1),
                         )
                         .build(),
                     ),
                     (
                         node(2),
-                        ReferenceNode::route_capable(
-                            node(2),
-                            ControllerId([2; 32]),
-                            endpoint(2),
+                        NodePreset::route_capable(
+                            NodePresetOptions::new(
+                                NodeIdentity::new(node(2), ControllerId([2; 32])),
+                                endpoint(2),
+                                Tick(1),
+                            ),
                             &BATMAN_ENGINE_ID,
-                            Tick(1),
                         )
                         .build(),
                     ),
                 ]),
                 links: BTreeMap::from([(
                     (node(1), node(2)),
-                    ReferenceLink::active(endpoint(2), Tick(1)).build(),
+                    LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1)))
+                        .build(),
                 )]),
                 environment: Environment {
                     reachable_neighbor_count: 1,
@@ -242,12 +242,13 @@ mod tests {
         let mut unsupported = topology.clone();
         unsupported.value.nodes.insert(
             node(2),
-            ReferenceNode::route_capable(
-                node(2),
-                ControllerId([2; 32]),
-                endpoint(2),
+            NodePreset::route_capable(
+                NodePresetOptions::new(
+                    NodeIdentity::new(node(2), ControllerId([2; 32])),
+                    endpoint(2),
+                    Tick(1),
+                ),
                 &foreign_engine,
-                Tick(1),
             )
             .build(),
         );

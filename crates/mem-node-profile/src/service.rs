@@ -13,10 +13,14 @@
 //! - `hold_service`: advertises deferred-delivery buffering with a hold
 //!   capacity hint.
 //!
+//! `RouteServiceBundle` captures the standard discover/move/hold triple as a
+//! named concept so human-facing node presets do not need to assemble the
+//! service set imperatively.
+//!
 //! The generic `advertised` constructor covers non-standard service kinds.
 //! Routing engines are attached via `with_routing_engine` before building.
 //!
-//! This builder is used by `SimulatedNodeProfile` and `ReferenceNode`; callers
+//! This builder is used by `SimulatedNodeProfile` and `NodePreset`; callers
 //! should rarely need to construct it directly.
 
 use jacquard_core::{
@@ -37,6 +41,12 @@ pub struct SimulatedServiceDescriptor {
     repair_capacity: u32,
     hold_capacity_bytes: Option<ByteCount>,
     observed_at_tick: Tick,
+}
+
+/// Named bundle for the standard route-service triple (discover, move, hold).
+#[derive(Clone, Debug)]
+pub struct RouteServiceBundle {
+    services: Vec<SimulatedServiceDescriptor>,
 }
 
 impl SimulatedServiceDescriptor {
@@ -203,5 +213,52 @@ impl SimulatedServiceDescriptor {
                 .with_hold_capacity_bytes(hold_capacity_bytes, self.observed_at_tick);
         }
         capacity
+    }
+}
+
+impl RouteServiceBundle {
+    #[must_use]
+    pub fn route_capable(
+        endpoint: &LinkEndpoint,
+        routing_engines: &[RoutingEngineId],
+        scope: &ServiceScope,
+        valid_for: TimeWindow,
+        observed_at_tick: Tick,
+    ) -> Self {
+        let mut services = Vec::with_capacity(routing_engines.len().saturating_mul(3));
+        for routing_engine in routing_engines {
+            services.push(
+                SimulatedServiceDescriptor::discover_service(
+                    endpoint.clone(),
+                    scope.clone(),
+                    valid_for,
+                    observed_at_tick,
+                )
+                .with_routing_engine(routing_engine),
+            );
+            services.push(
+                SimulatedServiceDescriptor::move_service(
+                    endpoint.clone(),
+                    scope.clone(),
+                    valid_for,
+                    observed_at_tick,
+                )
+                .with_routing_engine(routing_engine),
+            );
+            services.push(
+                SimulatedServiceDescriptor::hold_service(
+                    endpoint.clone(),
+                    scope.clone(),
+                    valid_for,
+                    observed_at_tick,
+                )
+                .with_routing_engine(routing_engine),
+            );
+        }
+        Self { services }
+    }
+
+    pub(crate) fn into_services(self) -> Vec<SimulatedServiceDescriptor> {
+        self.services
     }
 }

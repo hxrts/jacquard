@@ -15,7 +15,7 @@
 //! - `DEFAULT_STABILITY_HORIZON_MS` (500 ms): stability observation window used
 //!   when no better estimate is available.
 //!
-//! Most callers should prefer [`crate::authoring::ReferenceLink`], which wraps
+//! Most callers should prefer [`crate::authoring::LinkPreset`], which wraps
 //! this builder with preset constructors (`active`, `lossy`, `recoverable`).
 //! Use `SimulatedLinkProfile` directly only when a test needs exact control
 //! over the `LinkProfile` / `LinkState` split.
@@ -33,12 +33,11 @@ pub const REFERENCE_TYPICAL_RTT_MS: DurationMs = DurationMs(40);
 /// Default stability horizon used when no better estimate is available.
 pub const DEFAULT_STABILITY_HORIZON_MS: DurationMs = DurationMs(500);
 /// Default loss rate for an active in-memory link.
-pub(crate) const DEFAULT_LOSS_PERMILLE: RatioPermille = RatioPermille(50);
+pub const DEFAULT_LOSS_PERMILLE: RatioPermille = RatioPermille(50);
 /// Default delivery confidence for an active in-memory link.
-pub(crate) const DEFAULT_DELIVERY_CONFIDENCE_PERMILLE: RatioPermille =
-    RatioPermille(950);
+pub const DEFAULT_DELIVERY_CONFIDENCE_PERMILLE: RatioPermille = RatioPermille(950);
 /// Default symmetry for an active in-memory link.
-pub(crate) const DEFAULT_SYMMETRY_PERMILLE: RatioPermille = RatioPermille(900);
+pub const DEFAULT_SYMMETRY_PERMILLE: RatioPermille = RatioPermille(900);
 
 /// Builder for one in-memory directed link profile and its initial runtime
 /// state.

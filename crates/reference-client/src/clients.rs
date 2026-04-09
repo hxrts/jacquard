@@ -1,18 +1,15 @@
 //! Concrete reference-client bridge builders.
 //!
-//! This module provides factory functions that assemble a complete host-side
-//! client from its constituent parts: a `MultiEngineRouter`, one or more
-//! routing engines (`PathwayEngine`, `BatmanEngine`), an in-memory transport
-//! driver, and queue-backed sender capabilities for each engine. The result is
-//! a `HostBridge` that owns the transport attachment and drives the router
+//! This module provides the primary developer-facing client construction path:
+//! [`ClientBuilder`]. It assembles a complete host-side client from its
+//! constituent parts: a `MultiEngineRouter`, one or more routing engines
+//! (`PathwayEngine`, `BatmanEngine`), an in-memory transport driver, and
+//! queue-backed sender capabilities for each engine. The result is a
+//! `HostBridge` that owns the transport attachment and drives the router
 //! through synchronous rounds.
 //!
-//! `build_pathway_client` registers a single pathway engine. The
-//! `_with_profile` variants accept an explicit `SelectedRoutingParameters` for
-//! tests that need non-default routing profiles (e.g. relay nodes with
-//! best-effort connectivity). `build_pathway_batman_client` registers both
-//! pathway and batman, wiring each engine to its own independent outbound queue
-//! over the shared transport driver.
+//! The legacy `build_*client*` functions remain as thin wrappers over the
+//! builder for tests that still prefer function-style setup.
 //!
 //! `PathwayRouter` and `PathwayClient` are type aliases exported for use by
 //! integration tests that need to name the bridge type concretely.
@@ -33,28 +30,184 @@ use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::Blake3Hashing;
 
-use crate::{bridge::BridgeTransport, HostBridge};
+use crate::{
+    bridge::{BridgeQueueConfig, BridgeTransport},
+    defaults::DEFAULT_BRIDGE_QUEUE_CONFIG,
+    HostBridge,
+};
 
 pub type PathwayRouter = MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>;
 pub type PathwayClient = HostBridge<PathwayRouter>;
 
-const DEFAULT_OUTBOUND_QUEUE_CAPACITY: usize = 64;
+#[derive(Clone)]
+pub struct ClientBuildOptions {
+    pub local_node_id: NodeId,
+    pub topology: Observation<Configuration>,
+    pub network: SharedInMemoryNetwork,
+    pub now: Tick,
+    pub profile: SelectedRoutingParameters,
+    pub queue_config: BridgeQueueConfig,
+}
 
+impl ClientBuildOptions {
+    #[must_use]
+    pub fn new(
+        local_node_id: NodeId,
+        topology: Observation<Configuration>,
+        network: SharedInMemoryNetwork,
+        now: Tick,
+    ) -> Self {
+        Self {
+            local_node_id,
+            topology,
+            network,
+            now,
+            profile: default_profile(),
+            queue_config: DEFAULT_BRIDGE_QUEUE_CONFIG,
+        }
+    }
+
+    #[must_use]
+    pub fn with_profile(mut self, profile: SelectedRoutingParameters) -> Self {
+        self.profile = profile;
+        self
+    }
+
+    #[must_use]
+    pub fn with_queue_config(mut self, queue_config: BridgeQueueConfig) -> Self {
+        self.queue_config = queue_config;
+        self
+    }
+}
+
+#[derive(Clone)]
+pub struct ClientBuilder {
+    options: ClientBuildOptions,
+    include_batman: bool,
+}
+
+impl ClientBuilder {
+    #[must_use]
+    pub fn pathway(
+        local_node_id: NodeId,
+        topology: Observation<Configuration>,
+        network: SharedInMemoryNetwork,
+        now: Tick,
+    ) -> Self {
+        Self::from_options(ClientBuildOptions::new(
+            local_node_id,
+            topology,
+            network,
+            now,
+        ))
+    }
+
+    #[must_use]
+    pub fn pathway_and_batman(
+        local_node_id: NodeId,
+        topology: Observation<Configuration>,
+        network: SharedInMemoryNetwork,
+        now: Tick,
+    ) -> Self {
+        Self::pathway(local_node_id, topology, network, now).with_batman()
+    }
+
+    #[must_use]
+    pub fn from_options(options: ClientBuildOptions) -> Self {
+        Self { options, include_batman: false }
+    }
+
+    #[must_use]
+    pub fn with_profile(mut self, profile: SelectedRoutingParameters) -> Self {
+        self.options = self.options.with_profile(profile);
+        self
+    }
+
+    #[must_use]
+    pub fn with_queue_config(mut self, queue_config: BridgeQueueConfig) -> Self {
+        self.options = self.options.with_queue_config(queue_config);
+        self
+    }
+
+    #[must_use]
+    pub fn with_batman(mut self) -> Self {
+        self.include_batman = true;
+        self
+    }
+
+    #[must_use]
+    pub fn build(self) -> PathwayClient {
+        let local_endpoint =
+            local_endpoint(&self.options.topology, self.options.local_node_id);
+        let driver = InMemoryTransport::attach(
+            self.options.local_node_id,
+            [local_endpoint],
+            self.options.network,
+        );
+        let transport =
+            BridgeTransport::with_queue_config(driver, self.options.queue_config);
+        let pathway_sender = transport.sender();
+
+        let pathway_engine = PathwayEngine::without_committee_selector(
+            self.options.local_node_id,
+            DeterministicPathwayTopologyModel::new(),
+            pathway_sender,
+            InMemoryRetentionStore::default(),
+            InMemoryRuntimeEffects {
+                now: self.options.now,
+                ..Default::default()
+            },
+            Blake3Hashing,
+        );
+
+        let mut router = MultiEngineRouter::new(
+            self.options.local_node_id,
+            FixedPolicyEngine::new(self.options.profile),
+            InMemoryRuntimeEffects {
+                now: self.options.now,
+                ..Default::default()
+            },
+            self.options.topology.clone(),
+            policy_inputs_for(&self.options.topology, self.options.local_node_id),
+        );
+        router
+            .register_engine(Box::new(pathway_engine))
+            .expect("register pathway engine");
+
+        if self.include_batman {
+            let batman_engine = BatmanEngine::new(
+                self.options.local_node_id,
+                transport.sender(),
+                InMemoryRuntimeEffects {
+                    now: self.options.now,
+                    ..Default::default()
+                },
+            );
+            router
+                .register_engine(Box::new(batman_engine))
+                .expect("register batman engine");
+        }
+
+        HostBridge::from_transport(
+            self.options.topology,
+            router,
+            transport,
+            self.options.queue_config,
+        )
+    }
+}
+
+#[doc(hidden)]
 pub fn build_pathway_client(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
     network: SharedInMemoryNetwork,
     now: Tick,
 ) -> PathwayClient {
-    build_pathway_client_with_profile(
-        local_node_id,
-        topology,
-        network,
-        now,
-        default_profile(),
-    )
+    ClientBuilder::pathway(local_node_id, topology, network, now).build()
 }
 
+#[doc(hidden)]
 pub fn build_pathway_client_with_profile(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
@@ -62,54 +215,22 @@ pub fn build_pathway_client_with_profile(
     now: Tick,
     profile: SelectedRoutingParameters,
 ) -> PathwayClient {
-    let local_endpoint = local_endpoint(&topology, local_node_id);
-    let driver = InMemoryTransport::attach(local_node_id, [local_endpoint], network);
-    let transport = BridgeTransport::new(driver);
-    // Each engine gets its own sender over the shared transport driver so their
-    // outbound queues are independent and don't block each other.
-    let pathway_sender = transport.sender(DEFAULT_OUTBOUND_QUEUE_CAPACITY);
-
-    let engine = PathwayEngine::without_committee_selector(
-        local_node_id,
-        DeterministicPathwayTopologyModel::new(),
-        pathway_sender,
-        InMemoryRetentionStore::default(),
-        InMemoryRuntimeEffects { now, ..Default::default() },
-        Blake3Hashing,
-    );
-    let mut router = MultiEngineRouter::new(
-        local_node_id,
-        FixedPolicyEngine::new(profile),
-        InMemoryRuntimeEffects { now, ..Default::default() },
-        topology.clone(),
-        policy_inputs_for(&topology, local_node_id),
-    );
-    router
-        .register_engine(Box::new(engine))
-        .expect("register pathway engine");
-    HostBridge::from_transport(
-        topology,
-        router,
-        transport,
-        DEFAULT_OUTBOUND_QUEUE_CAPACITY,
-    )
+    ClientBuilder::pathway(local_node_id, topology, network, now)
+        .with_profile(profile)
+        .build()
 }
 
+#[doc(hidden)]
 pub fn build_pathway_batman_client(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
     network: SharedInMemoryNetwork,
     now: Tick,
 ) -> PathwayClient {
-    build_pathway_batman_client_with_profile(
-        local_node_id,
-        topology,
-        network,
-        now,
-        default_profile(),
-    )
+    ClientBuilder::pathway_and_batman(local_node_id, topology, network, now).build()
 }
 
+#[doc(hidden)]
 pub fn build_pathway_batman_client_with_profile(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
@@ -117,46 +238,9 @@ pub fn build_pathway_batman_client_with_profile(
     now: Tick,
     profile: SelectedRoutingParameters,
 ) -> PathwayClient {
-    let local_endpoint = local_endpoint(&topology, local_node_id);
-    let driver = InMemoryTransport::attach(local_node_id, [local_endpoint], network);
-    let transport = BridgeTransport::new(driver);
-    // Two independent outbound queues, one per engine, over the same driver.
-    let pathway_sender = transport.sender(DEFAULT_OUTBOUND_QUEUE_CAPACITY);
-    let batman_sender = transport.sender(DEFAULT_OUTBOUND_QUEUE_CAPACITY);
-
-    let pathway_engine = PathwayEngine::without_committee_selector(
-        local_node_id,
-        DeterministicPathwayTopologyModel::new(),
-        pathway_sender,
-        InMemoryRetentionStore::default(),
-        InMemoryRuntimeEffects { now, ..Default::default() },
-        Blake3Hashing,
-    );
-    let batman_engine = BatmanEngine::new(
-        local_node_id,
-        batman_sender,
-        InMemoryRuntimeEffects { now, ..Default::default() },
-    );
-
-    let mut router = MultiEngineRouter::new(
-        local_node_id,
-        FixedPolicyEngine::new(profile),
-        InMemoryRuntimeEffects { now, ..Default::default() },
-        topology.clone(),
-        policy_inputs_for(&topology, local_node_id),
-    );
-    router
-        .register_engine(Box::new(pathway_engine))
-        .expect("register pathway engine");
-    router
-        .register_engine(Box::new(batman_engine))
-        .expect("register batman engine");
-    HostBridge::from_transport(
-        topology,
-        router,
-        transport,
-        DEFAULT_OUTBOUND_QUEUE_CAPACITY,
-    )
+    ClientBuilder::pathway_and_batman(local_node_id, topology, network, now)
+        .with_profile(profile)
+        .build()
 }
 
 fn local_endpoint(
@@ -204,16 +288,20 @@ pub(crate) fn policy_inputs_for(
 
 #[cfg(test)]
 pub(crate) fn policy_inputs_for_empty(local_node_id: NodeId) -> RoutingPolicyInputs {
-    let empty_node = jacquard_mem_node_profile::ReferenceNode::route_capable(
-        local_node_id,
-        jacquard_core::ControllerId(local_node_id.0),
-        jacquard_core::LinkEndpoint::new(
-            jacquard_core::TransportKind::Custom("reference".to_owned()),
-            jacquard_core::EndpointLocator::Opaque(vec![0]),
-            jacquard_core::ByteCount(64),
+    let empty_node = jacquard_mem_node_profile::NodePreset::route_capable(
+        jacquard_mem_node_profile::NodePresetOptions::new(
+            jacquard_mem_node_profile::NodeIdentity::new(
+                local_node_id,
+                jacquard_core::ControllerId(local_node_id.0),
+            ),
+            jacquard_adapter::opaque_endpoint(
+                jacquard_core::TransportKind::Custom("reference".to_owned()),
+                vec![0],
+                jacquard_core::ByteCount(64),
+            ),
+            Tick(1),
         ),
         &jacquard_pathway::PATHWAY_ENGINE_ID,
-        Tick(1),
     )
     .build();
     let topology = Observation {
@@ -246,5 +334,84 @@ pub(crate) fn default_profile() -> SelectedRoutingParameters {
         diversity_floor: DiversityFloor(1),
         routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: RouteReplacementPolicy::Allowed,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use jacquard_core::{
+        Environment, FactSourceClass, OriginAuthenticationClass, RouteEpoch,
+        RoutingEvidenceClass,
+    };
+
+    use super::*;
+    use crate::{topology, BridgeRoundProgress};
+
+    fn sample_topology(local_node_id: NodeId) -> Observation<Configuration> {
+        Observation {
+            value: Configuration {
+                epoch: RouteEpoch(1),
+                nodes: BTreeMap::from([(
+                    local_node_id,
+                    topology::node(1).pathway().build(),
+                )]),
+                links: BTreeMap::new(),
+                environment: Environment {
+                    reachable_neighbor_count: 0,
+                    churn_permille: RatioPermille(0),
+                    contention_permille: RatioPermille(0),
+                },
+            },
+            source_class: FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::DirectObservation,
+            origin_authentication: OriginAuthenticationClass::Controlled,
+            observed_at_tick: Tick(1),
+        }
+    }
+
+    #[test]
+    fn client_builder_constructs_waiting_pathway_bridge() {
+        let local_node_id = NodeId([1; 32]);
+        let topology = sample_topology(local_node_id);
+        let network = SharedInMemoryNetwork::default();
+        let mut client =
+            ClientBuilder::pathway(local_node_id, topology, network, Tick(1)).build();
+        let mut bound = client.bind();
+
+        let progress = bound.advance_round().expect("advance initial round");
+
+        match progress {
+            | BridgeRoundProgress::Advanced(report) => {
+                assert_eq!(report.router_outcome.topology_epoch, RouteEpoch(1));
+            },
+            | BridgeRoundProgress::Waiting(_) => {},
+        }
+    }
+
+    #[test]
+    fn client_builder_accepts_explicit_queue_config_and_profile() {
+        let local_node_id = NodeId([1; 32]);
+        let options = ClientBuildOptions::new(
+            local_node_id,
+            sample_topology(local_node_id),
+            SharedInMemoryNetwork::default(),
+            Tick(1),
+        )
+        .with_profile(default_profile())
+        .with_queue_config(BridgeQueueConfig::new(1, 1));
+
+        let mut client = ClientBuilder::from_options(options).with_batman().build();
+        let mut bound = client.bind();
+
+        let progress = bound.advance_round().expect("advance initial round");
+
+        match progress {
+            | BridgeRoundProgress::Advanced(report) => {
+                assert_eq!(report.router_outcome.topology_epoch, RouteEpoch(1));
+            },
+            | BridgeRoundProgress::Waiting(_) => {},
+        }
     }
 }
