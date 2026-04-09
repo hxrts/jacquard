@@ -105,6 +105,7 @@ Each crate owns a narrow slice of runtime state.
 | `jacquard-traits` | Compile-time boundaries. No runtime state. |
 | `jacquard-adapter` | Generic adapter-side ingress mailboxes, peer identity bookkeeping, claim ownership helpers, transport-neutral endpoint conveniences, and host-side observational read models. No route truth, no transport-specific protocol logic, no router actions, no time/order stamping. |
 | `jacquard-pathway` | Pathway-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
+| `jacquard-field` | Field-private posterior state, mean-field compression, regime/posture control state, continuation scoring, and any field-private choreography runtime used only for observational summary exchange. |
 | `jacquard-batman` | BATMAN-private originator observations, next-hop ranking tables, TQ derivation, and active next-hop forwarding records. |
 | `jacquard-router` | Canonical route identity, materialization inputs, leases, handle issuance, top-level route-health publication, and multi-engine orchestration state. |
 | `jacquard-mem-node-profile` | In-memory node capability and node-state modeling only. No routing semantics. |
@@ -121,3 +122,8 @@ A host-owned policy engine above the router may own cross-engine migration polic
 The extension surface is split across [Core Types](201_core_types.md), [Routing Engines](303_routing_engines.md), and [Pathway Routing](401_pathway_routing.md).
 
 For first-party pathway specifically, Telltale stays an internal implementation substrate. Shared crates remain runtime-free. The future router may drive pathway through shared planning, tick, maintenance, and checkpoint orchestration, but it must not depend on pathway-private choreography payloads, protocol session keys, or guest-runtime internals.
+
+For first-party field, the proof and ownership boundary is even stricter:
+field-private choreography may supply only observational evidence into the
+deterministic local controller. It must not publish canonical route truth or
+leak field-private session semantics into shared router surfaces.
