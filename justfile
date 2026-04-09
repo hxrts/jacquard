@@ -287,10 +287,6 @@ lean-setup:
 lean-build:
     cd verification && lake build
 
-# Elaborate the Hello.lean smoke-test (fast check that cache is healthy).
-lean-hello:
-    cd verification && lake build Hello
-
 # install git hooks
 install-hooks:
     git config core.hooksPath .githooks

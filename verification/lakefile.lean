@@ -22,7 +22,7 @@ package jacquard where
 -- Mathlib and Paco are transitive dependencies through Telltale.
 -- Revision is pinned; run `lake update` to advance.
 require telltale from git
-  "https://github.com/hxrts/telltale" @ "main"
+  "https://github.com/hxrts/telltale" @ "main" / "lean"
 
 /-! ## Theorem Packs
 
