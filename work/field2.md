@@ -1935,17 +1935,17 @@ Implementation note:
 - [x] Keep `ExplicitPath`, `CorridorEnvelope`, `NextHopOnly`, and `Opaque`
   semantics explicit in shared docs and tests.
 - [x] Gate: run `just ci-dry-run` and make sure it is clean.
-- [ ] Gate: make a git commit for Phase 1.
+- [x] Gate: make a git commit for Phase 1.
 
 ### Phase 2: Field Crate Scaffolding
 
-- [ ] Create the field engine crate and wire it into the workspace.
-- [ ] Add engine identity, capability envelope, and crate-level docs.
-- [ ] Scaffold the public engine surface to implement the shared planner and
+- [x] Create the field engine crate and wire it into the workspace.
+- [x] Add engine identity, capability envelope, and crate-level docs.
+- [x] Scaffold the public engine surface to implement the shared planner and
   runtime traits.
-- [ ] Add initial compile-only contract tests proving the crate advertises
+- [x] Add initial compile-only contract tests proving the crate advertises
   `CorridorEnvelope` visibility and compiles against the shared routing traits.
-- [ ] Gate: run `just ci-dry-run` and make sure it is clean.
+- [x] Gate: run `just ci-dry-run` and make sure it is clean.
 - [ ] Gate: make a git commit for Phase 2.
 
 ### Phase 3: Core Private State And Bounded Data Model
