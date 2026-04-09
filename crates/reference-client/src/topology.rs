@@ -1,82 +1,126 @@
-//! Reusable topology fixture builders for reference-client integration tests.
+//! Reusable topology fixture presets for reference-client tests.
 //!
-//! This module assembles `Node` and `Link` values from the `mem-node-profile`
-//! and `mem-link-profile` builders, giving tests a single place to construct
-//! route-capable topology fixtures without duplicating builder boilerplate.
-//!
-//! `route_capable_node` produces a node registered for the pathway engine.
-//! `route_capable_node_for_engine` accepts an arbitrary `RoutingEngineId` for
-//! tests that exercise a single non-default engine.
-//! `route_capable_node_for_engines` registers a node with multiple engines at
-//! once, used by `dual_engine_route_capable_node` to produce
-//! pathway-plus-batman nodes for mixed-engine topology tests.
-//! `active_link` produces a lossy but active `Link` with a configurable
-//! confidence permille value and a stable `WifiAware` endpoint.
+//! The intended path is builder-style:
+//! - `node(byte).pathway().build()`
+//! - `node(byte).for_engines(&[...]).build()`
+//! - `link(byte).with_confidence(...).build()`
 
+use jacquard_adapter::opaque_endpoint;
 use jacquard_batman::BATMAN_ENGINE_ID;
 use jacquard_core::{
-    ByteCount, ControllerId, EndpointLocator, Link, LinkEndpoint, Node, NodeId,
-    RoutingEngineId, Tick, TransportKind,
+    ByteCount, ControllerId, Link, Node, NodeId, RatioPermille, RoutingEngineId, Tick,
+    TransportKind,
 };
-use jacquard_mem_link_profile::ReferenceLink;
-use jacquard_mem_node_profile::ReferenceNode;
+use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
+use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 
 // Stable WifiAware endpoint keyed by a single byte — used as a compact,
 // collision-free node identity in fixture topologies (byte 1 → node 1, etc.).
 fn reference_endpoint(byte: u8) -> jacquard_core::LinkEndpoint {
-    LinkEndpoint::new(
-        TransportKind::WifiAware,
-        EndpointLocator::Opaque(vec![byte]),
-        ByteCount(256),
-    )
+    opaque_endpoint(TransportKind::WifiAware, vec![byte], ByteCount(256))
 }
 
 #[must_use]
-pub fn route_capable_node(node_byte: u8) -> Node {
-    route_capable_node_for_engine(node_byte, &PATHWAY_ENGINE_ID)
+pub fn node(node_byte: u8) -> TopologyNodePreset {
+    TopologyNodePreset {
+        node_byte,
+        routing_engines: vec![PATHWAY_ENGINE_ID],
+        observed_at_tick: Tick(1),
+    }
 }
 
 #[must_use]
-pub fn route_capable_node_for_engine(node_byte: u8, engine: &RoutingEngineId) -> Node {
-    ReferenceNode::route_capable(
-        NodeId([node_byte; 32]),
-        ControllerId([node_byte; 32]),
-        reference_endpoint(node_byte),
-        engine,
-        Tick(1),
-    )
-    .build()
+pub fn link(node_byte: u8) -> TopologyLinkPreset {
+    TopologyLinkPreset {
+        endpoint_byte: node_byte,
+        confidence: RatioPermille(950),
+        observed_at_tick: Tick(1),
+    }
 }
 
-#[must_use]
-pub fn route_capable_node_for_engines(
+#[derive(Clone, Debug)]
+pub struct TopologyNodePreset {
     node_byte: u8,
-    engines: &[RoutingEngineId],
-) -> Node {
-    ReferenceNode::route_capable_for_engines(
-        NodeId([node_byte; 32]),
-        ControllerId([node_byte; 32]),
-        reference_endpoint(node_byte),
-        engines,
-        Tick(1),
-    )
-    .build()
+    routing_engines: Vec<RoutingEngineId>,
+    observed_at_tick: Tick,
 }
 
-/// Produces a node advertising both pathway and BATMAN, used in mixed-engine
-/// topology tests where both engines compete for route selection.
-#[must_use]
-pub fn dual_engine_route_capable_node(node_byte: u8) -> Node {
-    route_capable_node_for_engines(node_byte, &[PATHWAY_ENGINE_ID, BATMAN_ENGINE_ID])
+impl TopologyNodePreset {
+    #[must_use]
+    pub fn for_engine(mut self, engine: &RoutingEngineId) -> Self {
+        self.routing_engines = vec![engine.clone()];
+        self
+    }
+
+    #[must_use]
+    pub fn for_engines(mut self, engines: &[RoutingEngineId]) -> Self {
+        self.routing_engines = engines.to_vec();
+        self
+    }
+
+    #[must_use]
+    pub fn pathway(self) -> Self {
+        self.for_engine(&PATHWAY_ENGINE_ID)
+    }
+
+    #[must_use]
+    pub fn pathway_and_batman(self) -> Self {
+        self.for_engines(&[PATHWAY_ENGINE_ID, BATMAN_ENGINE_ID])
+    }
+
+    #[must_use]
+    pub fn observed_at(mut self, observed_at_tick: Tick) -> Self {
+        self.observed_at_tick = observed_at_tick;
+        self
+    }
+
+    #[must_use]
+    pub fn build(self) -> Node {
+        NodePreset::route_capable_for_engines(
+            NodePresetOptions::new(
+                NodeIdentity::new(
+                    NodeId([self.node_byte; 32]),
+                    ControllerId([self.node_byte; 32]),
+                ),
+                reference_endpoint(self.node_byte),
+                self.observed_at_tick,
+            ),
+            &self.routing_engines,
+        )
+        .build()
+    }
 }
 
-#[must_use]
-pub fn active_link(device_byte: u8, confidence: u16) -> Link {
-    ReferenceLink::lossy(
-        reference_endpoint(device_byte),
-        jacquard_core::RatioPermille(confidence),
-        Tick(1),
-    )
-    .build()
+#[derive(Clone, Debug)]
+pub struct TopologyLinkPreset {
+    endpoint_byte: u8,
+    confidence: RatioPermille,
+    observed_at_tick: Tick,
+}
+
+impl TopologyLinkPreset {
+    #[must_use]
+    pub fn with_confidence(mut self, confidence: RatioPermille) -> Self {
+        self.confidence = confidence;
+        self
+    }
+
+    #[must_use]
+    pub fn observed_at(mut self, observed_at_tick: Tick) -> Self {
+        self.observed_at_tick = observed_at_tick;
+        self
+    }
+
+    #[must_use]
+    pub fn build(self) -> Link {
+        LinkPreset::lossy(
+            LinkPresetOptions::new(
+                reference_endpoint(self.endpoint_byte),
+                self.observed_at_tick,
+            )
+            .with_confidence(self.confidence),
+        )
+        .build()
+    }
 }

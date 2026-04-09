@@ -1,16 +1,8 @@
 //! In-memory link authoring, transport, retention, and effect adapters.
 //!
-//! Control flow: callers define shared endpoints, choose preset-oriented links,
-//! and attach transports to an in-memory network. The crate also exposes
-//! deterministic retention and runtime-effect adapters for tests. It does not
-//! plan routes or interpret routing policy. It only provides reusable in-memory
-//! infrastructure.
-//!
-//! Most callers should start with the [`authoring`] module, especially
-//! [`ReferenceLink`]. [`SimulatedLinkProfile`] remains available as the
-//! lower-level escape hatch when tests need exact control over `LinkProfile`
-//! and `LinkState`. Callers construct shared `LinkEndpoint` values directly via
-//! `jacquard-core`.
+//! Most callers should start with [`LinkPreset`]. The low-level
+//! `SimulatedLinkProfile` builder stays available when a test needs exact
+//! control over `LinkProfile` and `LinkState`.
 //!
 //! Module map:
 //! - [`authoring`]: human-facing link authoring presets
@@ -21,28 +13,21 @@
 //! - `effect`: in-memory runtime-effect implementations
 //!
 //! ```rust
-//! use jacquard_core::{
-//!     ByteCount, EndpointLocator, LinkEndpoint, Tick, TransportKind,
-//! };
-//! use jacquard_mem_link_profile::ReferenceLink;
+//! use jacquard_adapter::opaque_endpoint;
+//! use jacquard_core::{ByteCount, Tick, TransportKind};
+//! use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 //!
-//! let active = ReferenceLink::active(
-//!     LinkEndpoint::new(
-//!         TransportKind::WifiAware,
-//!         EndpointLocator::Opaque(vec![7]),
-//!         ByteCount(128),
-//!     ),
+//! let active = LinkPreset::active(LinkPresetOptions::new(
+//!     opaque_endpoint(TransportKind::WifiAware, vec![7], ByteCount(128)),
 //!     Tick(1),
-//! )
+//! ))
 //! .build();
-//! let lossy = ReferenceLink::lossy(
-//!     LinkEndpoint::new(
-//!         TransportKind::WifiAware,
-//!         EndpointLocator::Opaque(vec![8]),
-//!         ByteCount(128),
-//!     ),
-//!     jacquard_core::RatioPermille(650),
-//!     Tick(1),
+//! let lossy = LinkPreset::lossy(
+//!     LinkPresetOptions::new(
+//!         opaque_endpoint(TransportKind::WifiAware, vec![8], ByteCount(128)),
+//!         Tick(1),
+//!     )
+//!     .with_confidence(jacquard_core::RatioPermille(650)),
 //! )
 //! .build();
 //!
@@ -55,6 +40,14 @@
 //!     jacquard_core::RatioPermille(650)
 //! );
 //! ```
+//!
+//! Starter path:
+//! 1. Construct an endpoint with `jacquard_adapter::opaque_endpoint`.
+//! 2. Choose a `LinkPreset` constructor such as `active`, `lossy`, or
+//!    `recoverable`.
+//! 3. Use `LinkPresetOptions` for the common setup path.
+//! 4. Drop to `SimulatedLinkProfile` only when the low-level profile/state
+//!    split matters to the test.
 //!
 //! Ownership:
 //! - `Observed`: link capability and transport observation surface only
@@ -69,12 +62,15 @@ mod retention;
 mod state;
 mod transport;
 
-pub use authoring::{ReferenceLink, DEFAULT_REFERENCE_TRANSFER_RATE_BYTES_PER_SEC};
+pub use authoring::{
+    LinkPreset, LinkPresetOptions, DEFAULT_REFERENCE_TRANSFER_RATE_BYTES_PER_SEC,
+};
 pub use effect::InMemoryRuntimeEffects;
 pub use network::SharedInMemoryNetwork;
 pub use retention::InMemoryRetentionStore;
 pub use state::{
-    SimulatedLinkProfile, DEFAULT_STABILITY_HORIZON_MS, REFERENCE_LATENCY_FLOOR_MS,
-    REFERENCE_TYPICAL_RTT_MS,
+    SimulatedLinkProfile, DEFAULT_DELIVERY_CONFIDENCE_PERMILLE, DEFAULT_LOSS_PERMILLE,
+    DEFAULT_STABILITY_HORIZON_MS, DEFAULT_SYMMETRY_PERMILLE,
+    REFERENCE_LATENCY_FLOOR_MS, REFERENCE_TYPICAL_RTT_MS,
 };
 pub use transport::InMemoryTransport;

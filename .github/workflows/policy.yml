@@ -36,6 +36,8 @@ jobs:
         run: nix develop --command cargo xtask check crate-boundary
       - name: Adapter Boundary
         run: nix develop --command cargo xtask check adapter-boundary
+      - name: DX Surface
+        run: nix develop --command cargo xtask check dx-surface
       - name: Transport Authoring Boundary
         run: nix develop --command cargo xtask check transport-authoring-boundary
       - name: Transport Ownership Boundary

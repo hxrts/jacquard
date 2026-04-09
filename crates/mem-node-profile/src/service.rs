@@ -1,23 +1,8 @@
-//! `SimulatedServiceDescriptor`, a builder for one shared `ServiceDescriptor`
-//! emitted by a simulated node.
+//! Service-descriptor builders for simulated nodes.
 //!
-//! This module assembles a single `ServiceDescriptor` that a node advertises to
-//! peers. Each descriptor carries the service kind (`Discover`, `Move`, or
-//! `Hold`), one or more `LinkEndpoint` values, a `ServiceScope`, a validity
-//! `TimeWindow`, saturation level, and repair capacity. The descriptor is bound
-//! to a `(NodeId, ControllerId)` identity pair at `build` time.
-//!
-//! Three preset constructors mirror the standard service triple:
-//! - `discover_service`: advertises route-discovery participation.
-//! - `move_service`: advertises payload forwarding capability.
-//! - `hold_service`: advertises deferred-delivery buffering with a hold
-//!   capacity hint.
-//!
-//! The generic `advertised` constructor covers non-standard service kinds.
-//! Routing engines are attached via `with_routing_engine` before building.
-//!
-//! This builder is used by `SimulatedNodeProfile` and `ReferenceNode`; callers
-//! should rarely need to construct it directly.
+//! `SimulatedServiceDescriptor` covers one shared descriptor.
+//! `RouteServiceBundle` names the standard discover/move/hold service set used
+//! by route-capable node presets.
 
 use jacquard_core::{
     ByteCount, CapacityHint, ControllerId, LinkEndpoint, NodeId, RatioPermille,
@@ -38,6 +23,10 @@ pub struct SimulatedServiceDescriptor {
     hold_capacity_bytes: Option<ByteCount>,
     observed_at_tick: Tick,
 }
+
+/// Named bundle for the standard route-service triple (discover, move, hold).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RouteServiceBundle;
 
 impl SimulatedServiceDescriptor {
     #[must_use]
@@ -203,5 +192,48 @@ impl SimulatedServiceDescriptor {
                 .with_hold_capacity_bytes(hold_capacity_bytes, self.observed_at_tick);
         }
         capacity
+    }
+}
+
+impl RouteServiceBundle {
+    #[must_use]
+    pub fn route_capable(
+        endpoint: &LinkEndpoint,
+        routing_engines: &[RoutingEngineId],
+        scope: &ServiceScope,
+        valid_for: TimeWindow,
+        observed_at_tick: Tick,
+    ) -> Vec<SimulatedServiceDescriptor> {
+        let mut services = Vec::with_capacity(routing_engines.len().saturating_mul(3));
+        for routing_engine in routing_engines {
+            services.push(
+                SimulatedServiceDescriptor::discover_service(
+                    endpoint.clone(),
+                    scope.clone(),
+                    valid_for,
+                    observed_at_tick,
+                )
+                .with_routing_engine(routing_engine),
+            );
+            services.push(
+                SimulatedServiceDescriptor::move_service(
+                    endpoint.clone(),
+                    scope.clone(),
+                    valid_for,
+                    observed_at_tick,
+                )
+                .with_routing_engine(routing_engine),
+            );
+            services.push(
+                SimulatedServiceDescriptor::hold_service(
+                    endpoint.clone(),
+                    scope.clone(),
+                    valid_for,
+                    observed_at_tick,
+                )
+                .with_routing_engine(routing_engine),
+            );
+        }
+        services
     }
 }

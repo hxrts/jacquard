@@ -26,7 +26,34 @@ use jacquard_traits::{
 
 use crate::PathwayRouter;
 
-const DEFAULT_BRIDGE_QUEUE_CAPACITY: usize = 64;
+/// Default queue capacities used by the reference client bridge.
+pub(crate) const DEFAULT_BRIDGE_QUEUE_CONFIG: BridgeQueueConfig =
+    BridgeQueueConfig::new(64, 64);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BridgeQueueConfig {
+    pub inbound_capacity: usize,
+    pub outbound_capacity_per_engine: usize,
+}
+
+impl BridgeQueueConfig {
+    #[must_use]
+    pub const fn new(
+        inbound_capacity: usize,
+        outbound_capacity_per_engine: usize,
+    ) -> Self {
+        Self {
+            inbound_capacity,
+            outbound_capacity_per_engine,
+        }
+    }
+}
+
+impl Default for BridgeQueueConfig {
+    fn default() -> Self {
+        DEFAULT_BRIDGE_QUEUE_CONFIG
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct OutboundTransportCommand {
@@ -72,15 +99,12 @@ pub(crate) struct BridgeTransport {
 }
 
 impl BridgeTransport {
-    pub(crate) fn new(driver: InMemoryTransport) -> Self {
-        Self::with_outbound_capacity(driver, DEFAULT_BRIDGE_QUEUE_CAPACITY)
-    }
-
-    pub(crate) fn with_outbound_capacity(
+    pub(crate) fn with_queue_config(
         driver: InMemoryTransport,
-        capacity: usize,
+        queue_config: BridgeQueueConfig,
     ) -> Self {
-        let (outbound_sender, outbound_receiver) = dispatch_mailbox(capacity);
+        let (outbound_sender, outbound_receiver) =
+            dispatch_mailbox(queue_config.outbound_capacity_per_engine);
         Self {
             driver,
             outbound_sender,
@@ -88,7 +112,7 @@ impl BridgeTransport {
         }
     }
 
-    pub(crate) fn sender(&self, _capacity: usize) -> QueuedTransportSender {
+    pub(crate) fn sender(&self) -> QueuedTransportSender {
         QueuedTransportSender::new(self.outbound_sender.clone())
     }
 
@@ -156,28 +180,28 @@ impl<Router> HostBridge<Router> {
         router: Router,
         transport: InMemoryTransport,
     ) -> Self {
-        Self::with_queue_capacity(
+        Self::with_queue_config(
             topology,
             router,
             transport,
-            DEFAULT_BRIDGE_QUEUE_CAPACITY,
+            BridgeQueueConfig::default(),
         )
     }
 
     #[must_use]
-    pub fn with_queue_capacity(
+    pub fn with_queue_config(
         topology: Observation<Configuration>,
         router: Router,
         transport: InMemoryTransport,
-        inbound_capacity: usize,
+        queue_config: BridgeQueueConfig,
     ) -> Self {
         let next_tick = Tick(topology.observed_at_tick.0.saturating_add(1));
         Self {
             topology,
             router,
-            transport: BridgeTransport::new(transport),
+            transport: BridgeTransport::with_queue_config(transport, queue_config),
             pending_transport_observations: VecDeque::new(),
-            inbound_capacity,
+            inbound_capacity: queue_config.inbound_capacity,
             next_tick,
             dropped_transport_observations: 0,
         }
@@ -188,7 +212,7 @@ impl<Router> HostBridge<Router> {
         topology: Observation<Configuration>,
         router: Router,
         transport: BridgeTransport,
-        inbound_capacity: usize,
+        queue_config: BridgeQueueConfig,
     ) -> Self {
         let next_tick = Tick(topology.observed_at_tick.0.saturating_add(1));
         Self {
@@ -196,7 +220,7 @@ impl<Router> HostBridge<Router> {
             router,
             transport,
             pending_transport_observations: VecDeque::new(),
-            inbound_capacity,
+            inbound_capacity: queue_config.inbound_capacity,
             next_tick,
             dropped_transport_observations: 0,
         }
@@ -396,11 +420,11 @@ mod tests {
         let mut remote =
             InMemoryTransport::attach(NodeId([8; 32]), [endpoint(8)], network);
 
-        let mut bridge = HostBridge::with_queue_capacity(
+        let mut bridge = HostBridge::with_queue_config(
             sample_topology(local_node_id),
             sample_router(local_node_id),
             transport,
-            1,
+            BridgeQueueConfig::new(1, 64),
         );
         remote
             .send_transport(&endpoint(9), b"first")
@@ -426,11 +450,11 @@ mod tests {
     #[test]
     fn outbound_queue_reports_backpressure_fail_closed() {
         let local_node_id = NodeId([5; 32]);
-        let transport = BridgeTransport::with_outbound_capacity(
+        let transport = BridgeTransport::with_queue_config(
             InMemoryTransport::attach(local_node_id, [endpoint(5)], Default::default()),
-            1,
+            BridgeQueueConfig::new(1, 1),
         );
-        let mut sender = transport.sender(1);
+        let mut sender = transport.sender();
 
         sender
             .send_transport(&endpoint(5), b"first")

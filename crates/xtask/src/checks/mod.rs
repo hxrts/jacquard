@@ -6,7 +6,7 @@
 //!
 //! Registered check names:
 //!   adapter-boundary, checkpoint-namespacing, crate-boundary,
-//!   docs-link-check, docs-semantic-drift, engine-service-boundary,
+//!   docs-link-check, docs-semantic-drift, dx-surface, engine-service-boundary,
 //!   fail-closed-ordering, invariant-specs, no-scratch-refs-in-rust,
 //!   no-usize-in-models, ownership-invariants, pathway-async-boundary,
 //!   pathway-choreography, proc-macro-scope, proof-bearing-actions,
@@ -19,6 +19,7 @@ pub mod checkpoint_namespacing;
 pub mod crate_boundary;
 pub mod docs_link_check;
 pub mod docs_semantic_drift;
+pub mod dx_surface;
 pub mod engine_service_boundary;
 pub mod fail_closed_ordering;
 pub mod invariant_specs;
@@ -53,6 +54,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "crate-boundary" => crate_boundary::run(),
         | "docs-link-check" => docs_link_check::run(),
         | "docs-semantic-drift" => docs_semantic_drift::run(),
+        | "dx-surface" => dx_surface::run(),
         | "engine-service-boundary" => engine_service_boundary::run(),
         | "fail-closed-ordering" => fail_closed_ordering::run(),
         | "invariant-specs" => invariant_specs::run(),

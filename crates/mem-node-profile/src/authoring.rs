@@ -7,7 +7,7 @@
 //! - optionally override profile or state details
 //! - build the shared `Node`
 //!
-//! [`ReferenceNode`] keeps [`SimulatedNodeProfile`] and [`NodeStateSnapshot`]
+//! [`NodePreset`] keeps [`SimulatedNodeProfile`] and [`NodeStateSnapshot`]
 //! as the low-level escape hatches when a test needs exact control over the
 //! profile/state split. Callers bring their own shared `LinkEndpoint` values;
 //! this crate stays endpoint-agnostic.
@@ -17,88 +17,95 @@ use jacquard_core::{
     ServiceScope, Tick, TimeWindow,
 };
 
-use crate::{NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor};
+use crate::{NodeStateSnapshot, SimulatedNodeProfile};
+
+/// Default discovery scope token used by the standard route-capable node
+/// preset.
+pub const DEFAULT_ROUTE_SERVICE_SCOPE_ID: [u8; 16] = DiscoveryScopeId([7; 16]).0;
+/// Default route-service window length used by the standard node preset.
+pub const DEFAULT_ROUTE_SERVICE_WINDOW_TICKS: u64 = 20;
+
+#[must_use]
+pub fn default_route_service_window(observed_at_tick: Tick) -> TimeWindow {
+    TimeWindow::new(
+        observed_at_tick,
+        Tick(
+            observed_at_tick
+                .0
+                .saturating_add(DEFAULT_ROUTE_SERVICE_WINDOW_TICKS.saturating_sub(1)),
+        ),
+    )
+    .expect("reference node defaults use a valid service window")
+}
+
+/// Typed identity for the common node preset path.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NodeIdentity {
+    pub node_id: NodeId,
+    pub controller_id: ControllerId,
+}
+
+impl NodeIdentity {
+    #[must_use]
+    pub fn new(node_id: NodeId, controller_id: ControllerId) -> Self {
+        Self { node_id, controller_id }
+    }
+}
+
+/// Typed setup for the common node preset path.
+#[derive(Clone, Debug)]
+pub struct NodePresetOptions {
+    pub identity: NodeIdentity,
+    pub endpoint: LinkEndpoint,
+    pub observed_at_tick: Tick,
+}
+
+impl NodePresetOptions {
+    #[must_use]
+    pub fn new(
+        identity: NodeIdentity,
+        endpoint: LinkEndpoint,
+        observed_at_tick: Tick,
+    ) -> Self {
+        Self { identity, endpoint, observed_at_tick }
+    }
+}
 
 /// Preset-first wrapper around `SimulatedNodeProfile` plus `NodeStateSnapshot`.
 #[derive(Clone, Debug)]
-pub struct ReferenceNode {
-    node_id: NodeId,
-    controller_id: ControllerId,
+pub struct NodePreset {
+    identity: NodeIdentity,
     profile: SimulatedNodeProfile,
     state: NodeStateSnapshot,
 }
 
-impl ReferenceNode {
+impl NodePreset {
     #[must_use]
     pub fn route_capable_for_engines(
-        node_id: NodeId,
-        controller_id: ControllerId,
-        endpoint: LinkEndpoint,
+        options: NodePresetOptions,
         routing_engines: &[RoutingEngineId],
-        observed_at_tick: Tick,
     ) -> Self {
-        let valid_for = TimeWindow::new(
+        let NodePresetOptions { identity, endpoint, observed_at_tick } = options;
+        let valid_for = default_route_service_window(observed_at_tick);
+        let scope =
+            ServiceScope::Discovery(DiscoveryScopeId(DEFAULT_ROUTE_SERVICE_SCOPE_ID));
+        let profile = SimulatedNodeProfile::route_capable_for_engines(
+            &endpoint,
+            routing_engines,
+            &scope,
+            valid_for,
             observed_at_tick,
-            Tick(observed_at_tick.0.saturating_add(19)),
-        )
-        .expect("reference node uses a valid service window");
-        let scope = ServiceScope::Discovery(DiscoveryScopeId([7; 16]));
-        let service_endpoint = endpoint.clone();
-        let mut profile = SimulatedNodeProfile::new()
-            .with_endpoint(endpoint)
-            .with_connection_limits(8, 8, 4, 4)
-            .with_work_budgets(10, 10)
-            .with_hold_limits(8, jacquard_core::ByteCount(8192))
-            .with_observed_at_tick(observed_at_tick);
-        for routing_engine in routing_engines {
-            profile = profile
-                .with_service(
-                    SimulatedServiceDescriptor::discover_service(
-                        service_endpoint.clone(),
-                        scope.clone(),
-                        valid_for,
-                        observed_at_tick,
-                    )
-                    .with_routing_engine(routing_engine),
-                )
-                .with_service(
-                    SimulatedServiceDescriptor::move_service(
-                        service_endpoint.clone(),
-                        scope.clone(),
-                        valid_for,
-                        observed_at_tick,
-                    )
-                    .with_routing_engine(routing_engine),
-                )
-                .with_service(
-                    SimulatedServiceDescriptor::hold_service(
-                        service_endpoint.clone(),
-                        scope.clone(),
-                        valid_for,
-                        observed_at_tick,
-                    )
-                    .with_routing_engine(routing_engine),
-                );
-        }
+        );
         let state = NodeStateSnapshot::route_capable(observed_at_tick);
-        Self { node_id, controller_id, profile, state }
+        Self { identity, profile, state }
     }
 
     #[must_use]
     pub fn route_capable(
-        node_id: NodeId,
-        controller_id: ControllerId,
-        endpoint: LinkEndpoint,
+        options: NodePresetOptions,
         routing_engine: &RoutingEngineId,
-        observed_at_tick: Tick,
     ) -> Self {
-        Self::route_capable_for_engines(
-            node_id,
-            controller_id,
-            endpoint,
-            std::slice::from_ref(routing_engine),
-            observed_at_tick,
-        )
+        Self::route_capable_for_engines(options, std::slice::from_ref(routing_engine))
     }
 
     #[must_use]
@@ -119,48 +126,44 @@ impl ReferenceNode {
         node_id: NodeId,
         controller_id: ControllerId,
     ) -> Self {
-        self.node_id = node_id;
-        self.controller_id = controller_id;
+        self.identity = NodeIdentity::new(node_id, controller_id);
         self
     }
 
     #[must_use]
     pub fn build(self) -> Node {
-        self.profile
-            .build_node(self.node_id, self.controller_id, &self.state)
+        self.profile.build_node(
+            self.identity.node_id,
+            self.identity.controller_id,
+            &self.state,
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{
-        ByteCount, ControllerId, EndpointLocator, LinkEndpoint, NodeId,
-        RoutingEngineId, Tick, TransportKind,
+        ByteCount, LinkEndpoint, NodeId, RoutingEngineId, Tick, TransportKind,
     };
 
     use super::*;
 
     fn endpoint(byte: u8) -> LinkEndpoint {
-        LinkEndpoint::new(
-            TransportKind::WifiAware,
-            EndpointLocator::Opaque(vec![byte]),
-            ByteCount(512),
-        )
+        opaque_endpoint(TransportKind::WifiAware, vec![byte], ByteCount(512))
     }
 
     #[test]
     fn route_capable_builds_node_with_matching_identity() {
         let routing_engine = RoutingEngineId::from_contract_bytes(*b"reference-mem-01");
-        let node = ReferenceNode::route_capable(
-            NodeId([3; 32]),
-            ControllerId([3; 32]),
-            endpoint(3),
+        let identity = NodeIdentity::new(NodeId([3; 32]), ControllerId([3; 32]));
+        let node = NodePreset::route_capable(
+            NodePresetOptions::new(identity, endpoint(3), Tick(1)),
             &routing_engine,
-            Tick(1),
         )
         .build();
 
-        assert_eq!(node.controller_id, ControllerId([3; 32]));
+        assert_eq!(node.controller_id, identity.controller_id);
         assert_eq!(node.profile.endpoints.len(), 1);
         assert_eq!(node.profile.services.len(), 3);
     }
@@ -171,12 +174,13 @@ mod tests {
             RoutingEngineId::from_contract_bytes(*b"reference-mem-01"),
             RoutingEngineId::from_contract_bytes(*b"reference-mem-02"),
         ];
-        let node = ReferenceNode::route_capable_for_engines(
-            NodeId([3; 32]),
-            ControllerId([3; 32]),
-            endpoint(3),
+        let node = NodePreset::route_capable_for_engines(
+            NodePresetOptions::new(
+                NodeIdentity::new(NodeId([3; 32]), ControllerId([3; 32])),
+                endpoint(3),
+                Tick(1),
+            ),
             &engines,
-            Tick(1),
         )
         .build();
 
@@ -186,17 +190,15 @@ mod tests {
     #[test]
     fn endpoint_first_route_capable_uses_supplied_endpoint() {
         let routing_engine = RoutingEngineId::from_contract_bytes(*b"reference-mem-01");
-        let endpoint = LinkEndpoint::new(
-            TransportKind::WifiAware,
-            EndpointLocator::Opaque(vec![9, 8, 7]),
-            ByteCount(512),
-        );
-        let node = ReferenceNode::route_capable(
-            NodeId([3; 32]),
-            ControllerId([3; 32]),
-            endpoint.clone(),
+        let endpoint =
+            opaque_endpoint(TransportKind::WifiAware, vec![9, 8, 7], ByteCount(512));
+        let node = NodePreset::route_capable(
+            NodePresetOptions::new(
+                NodeIdentity::new(NodeId([3; 32]), ControllerId([3; 32])),
+                endpoint.clone(),
+                Tick(1),
+            ),
             &routing_engine,
-            Tick(1),
         )
         .build();
 

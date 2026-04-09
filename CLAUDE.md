@@ -70,7 +70,7 @@ Run individual policy checks with `cargo xtask check <name>`. Registered names:
 - `proc-macro-scope` — every non-exempt Rust source file under a crate's `src/` tree must carry at least one Jacquard proc-macro annotation
 - `proof-bearing-actions` — public methods returning high-consequence types must carry doc comments explaining proof semantics
 - `result-must-use` — `fn method(...) -> Result<..>` trait methods under `crates/traits/src/` must carry `#[must_use]`
-- `router-round-boundary` — explicit router ingress and `advance_round` vocabulary must remain in place, and legacy poll-shaped router advancement is forbidden
+- `router-round-boundary` — explicit router ingress and `advance_round` vocabulary must remain in place, and poll-shaped router advancement is forbidden
 - `routing-invariants` — routing-invariant rules (pass `--validate` to run fixture validation)
 - `surface-classification` — traits whose name contains `Transport` must declare `connectivity surface` or `service surface`
 - `test-boundaries` — unit vs integration test boundary rules

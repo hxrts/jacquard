@@ -7,69 +7,91 @@
 //! - optionally refine latency or repair semantics
 //! - build the shared `Link`
 //!
-//! [`ReferenceLink`] keeps [`SimulatedLinkProfile`] as the low-level escape
+//! [`LinkPreset`] keeps [`SimulatedLinkProfile`] as the low-level escape
 //! hatch when a test needs exact control over the underlying `LinkProfile` /
 //! `LinkState` split. Callers provide shared `LinkEndpoint` values; this crate
 //! stays endpoint-agnostic.
 
 use jacquard_core::{
-    DurationMs, Link, LinkRuntimeState, PartitionRecoveryClass, RatioPermille,
-    RepairCapability, Tick,
+    DurationMs, Link, LinkEndpoint, LinkRuntimeState, PartitionRecoveryClass,
+    RatioPermille, RepairCapability, Tick,
 };
 
 use crate::{
-    SimulatedLinkProfile, DEFAULT_STABILITY_HORIZON_MS, REFERENCE_TYPICAL_RTT_MS,
+    SimulatedLinkProfile, DEFAULT_DELIVERY_CONFIDENCE_PERMILLE,
+    DEFAULT_STABILITY_HORIZON_MS, REFERENCE_TYPICAL_RTT_MS,
 };
 
 /// Default transfer rate used by the reference in-memory link presets.
 pub const DEFAULT_REFERENCE_TRANSFER_RATE_BYTES_PER_SEC: u32 = 2048;
 
+/// Typed setup for the common link preset path.
+#[derive(Clone, Debug)]
+pub struct LinkPresetOptions {
+    pub endpoint: LinkEndpoint,
+    pub observed_at_tick: Tick,
+    pub delivery_confidence_permille: RatioPermille,
+}
+
+impl LinkPresetOptions {
+    #[must_use]
+    pub fn new(endpoint: LinkEndpoint, observed_at_tick: Tick) -> Self {
+        Self {
+            endpoint,
+            observed_at_tick,
+            delivery_confidence_permille: DEFAULT_DELIVERY_CONFIDENCE_PERMILLE,
+        }
+    }
+
+    #[must_use]
+    pub fn with_confidence(
+        mut self,
+        delivery_confidence_permille: RatioPermille,
+    ) -> Self {
+        self.delivery_confidence_permille = delivery_confidence_permille;
+        self
+    }
+}
+
 /// Preset-first wrapper around `SimulatedLinkProfile`.
 #[derive(Clone, Debug)]
-pub struct ReferenceLink {
+pub struct LinkPreset {
     simulated: SimulatedLinkProfile,
 }
 
-impl ReferenceLink {
+impl LinkPreset {
     #[must_use]
-    pub fn new(endpoint: jacquard_core::LinkEndpoint) -> Self {
+    pub fn new(endpoint: LinkEndpoint) -> Self {
         Self {
             simulated: SimulatedLinkProfile::new(endpoint),
         }
     }
 
     #[must_use]
-    pub fn active(
-        endpoint: jacquard_core::LinkEndpoint,
-        observed_at_tick: Tick,
-    ) -> Self {
-        Self::new(endpoint).active_at(observed_at_tick)
+    pub fn active(options: LinkPresetOptions) -> Self {
+        Self::new(options.endpoint).active_at(options.observed_at_tick)
     }
 
     #[must_use]
-    pub fn degraded(
-        endpoint: jacquard_core::LinkEndpoint,
-        observed_at_tick: Tick,
-    ) -> Self {
-        Self::new(endpoint).degraded_at(observed_at_tick)
+    pub fn degraded(options: LinkPresetOptions) -> Self {
+        Self::new(options.endpoint).degraded_at(options.observed_at_tick)
     }
 
     #[must_use]
-    pub fn lossy(
-        endpoint: jacquard_core::LinkEndpoint,
-        delivery_confidence_permille: RatioPermille,
-        observed_at_tick: Tick,
-    ) -> Self {
-        Self::active(endpoint, observed_at_tick)
+    pub fn lossy(options: LinkPresetOptions) -> Self {
+        let LinkPresetOptions {
+            endpoint,
+            observed_at_tick,
+            delivery_confidence_permille,
+        } = options;
+        Self::new(endpoint)
+            .active_at(observed_at_tick)
             .with_confidence(delivery_confidence_permille)
     }
 
     #[must_use]
-    pub fn recoverable(
-        endpoint: jacquard_core::LinkEndpoint,
-        observed_at_tick: Tick,
-    ) -> Self {
-        Self::active(endpoint, observed_at_tick)
+    pub fn recoverable(options: LinkPresetOptions) -> Self {
+        Self::active(options)
             .with_repair_capability(RepairCapability::ApplicationRetransmit)
             .with_partition_recovery(PartitionRecoveryClass::EndToEndRecoverable)
     }
@@ -140,53 +162,6 @@ impl ReferenceLink {
     }
 
     #[must_use]
-    pub fn with_profile(
-        mut self,
-        latency_floor_ms: DurationMs,
-        repair_capability: RepairCapability,
-        partition_recovery: PartitionRecoveryClass,
-    ) -> Self {
-        self.simulated = self.simulated.with_profile(
-            latency_floor_ms,
-            repair_capability,
-            partition_recovery,
-        );
-        self
-    }
-
-    #[must_use]
-    pub fn with_runtime_observation(
-        mut self,
-        median_rtt_ms: DurationMs,
-        transfer_rate_bytes_per_sec: u32,
-        stability_horizon_ms: DurationMs,
-        observed_at_tick: Tick,
-    ) -> Self {
-        self.simulated = self.simulated.with_runtime_observation(
-            median_rtt_ms,
-            transfer_rate_bytes_per_sec,
-            stability_horizon_ms,
-            observed_at_tick,
-        );
-        self
-    }
-
-    #[must_use]
-    pub fn with_quality(
-        mut self,
-        loss_permille: RatioPermille,
-        delivery_confidence_permille: RatioPermille,
-        symmetry_permille: RatioPermille,
-    ) -> Self {
-        self.simulated = self.simulated.with_quality(
-            loss_permille,
-            delivery_confidence_permille,
-            symmetry_permille,
-        );
-        self
-    }
-
-    #[must_use]
     pub fn into_simulated(self) -> SimulatedLinkProfile {
         self.simulated
     }
@@ -199,22 +174,22 @@ impl ReferenceLink {
 
 #[cfg(test)]
 mod tests {
-    use jacquard_core::{ByteCount, EndpointLocator, LinkEndpoint, TransportKind};
+    use jacquard_adapter::opaque_endpoint;
+    use jacquard_core::{ByteCount, LinkEndpoint, TransportKind};
 
     use super::*;
 
     fn endpoint(byte: u8) -> LinkEndpoint {
-        LinkEndpoint::new(
-            TransportKind::WifiAware,
-            EndpointLocator::Opaque(vec![byte]),
-            ByteCount(128),
-        )
+        opaque_endpoint(TransportKind::WifiAware, vec![byte], ByteCount(128))
     }
 
     #[test]
     fn lossy_matches_expected_delivery_confidence() {
-        let link =
-            ReferenceLink::lossy(endpoint(7), RatioPermille(650), Tick(3)).build();
+        let link = LinkPreset::lossy(
+            LinkPresetOptions::new(endpoint(7), Tick(3))
+                .with_confidence(RatioPermille(650)),
+        )
+        .build();
 
         assert_eq!(
             link.state
@@ -227,7 +202,9 @@ mod tests {
 
     #[test]
     fn recoverable_upgrades_repair_defaults() {
-        let link = ReferenceLink::recoverable(endpoint(9), Tick(4)).build();
+        let link =
+            LinkPreset::recoverable(LinkPresetOptions::new(endpoint(9), Tick(4)))
+                .build();
 
         assert_eq!(
             link.profile.repair_capability,
@@ -241,12 +218,11 @@ mod tests {
 
     #[test]
     fn endpoint_first_active_constructor_preserves_endpoint_identity() {
-        let endpoint = LinkEndpoint::new(
-            TransportKind::WifiAware,
-            EndpointLocator::Opaque(vec![1, 2, 3]),
-            ByteCount(128),
-        );
-        let link = ReferenceLink::active(endpoint.clone(), Tick(2)).build();
+        let endpoint =
+            opaque_endpoint(TransportKind::WifiAware, vec![1, 2, 3], ByteCount(128));
+        let link =
+            LinkPreset::active(LinkPresetOptions::new(endpoint.clone(), Tick(2)))
+                .build();
 
         assert_eq!(link.endpoint, endpoint);
         assert_eq!(link.state.state, LinkRuntimeState::Active);

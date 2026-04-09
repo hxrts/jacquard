@@ -18,19 +18,21 @@
 
 use std::collections::BTreeMap;
 
+use jacquard_adapter::opaque_endpoint;
 use jacquard_batman::{BatmanEngine, BATMAN_ENGINE_ID};
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
-    DurationMs, EndpointLocator, Environment, HealthScore, IdentityAssuranceClass,
-    LinkEndpoint, Observation, RatioPermille, RoutePartitionClass,
-    RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-    RoutingEngineFallbackPolicy, RoutingPolicyInputs, RoutingTickChange,
-    SelectedRoutingParameters, Tick, TransportKind,
+    DurationMs, Environment, HealthScore, IdentityAssuranceClass, LinkEndpoint,
+    Observation, RatioPermille, RoutePartitionClass, RouteProtectionClass,
+    RouteRepairClass, RouteReplacementPolicy, RoutingEngineFallbackPolicy,
+    RoutingPolicyInputs, RoutingTickChange, SelectedRoutingParameters, Tick,
+    TransportKind,
 };
 use jacquard_mem_link_profile::{
-    InMemoryRuntimeEffects, InMemoryTransport, ReferenceLink, SharedInMemoryNetwork,
+    InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions,
+    SharedInMemoryNetwork,
 };
-use jacquard_mem_node_profile::ReferenceNode;
+use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane, TransportDriver};
 
@@ -39,11 +41,7 @@ fn node(byte: u8) -> jacquard_core::NodeId {
 }
 
 fn endpoint(byte: u8) -> LinkEndpoint {
-    LinkEndpoint::new(
-        TransportKind::WifiAware,
-        EndpointLocator::Opaque(vec![byte]),
-        ByteCount(128),
-    )
+    opaque_endpoint(TransportKind::WifiAware, vec![byte], ByteCount(128))
 }
 
 // long-block-exception: integration topology intentionally kept inline so the
@@ -55,45 +53,49 @@ fn sample_topology() -> Observation<Configuration> {
             nodes: BTreeMap::from([
                 (
                     node(1),
-                    ReferenceNode::route_capable(
-                        node(1),
-                        ControllerId([1; 32]),
-                        endpoint(1),
+                    NodePreset::route_capable(
+                        NodePresetOptions::new(
+                            NodeIdentity::new(node(1), ControllerId([1; 32])),
+                            endpoint(1),
+                            Tick(1),
+                        ),
                         &BATMAN_ENGINE_ID,
-                        Tick(1),
                     )
                     .build(),
                 ),
                 (
                     node(2),
-                    ReferenceNode::route_capable(
-                        node(2),
-                        ControllerId([2; 32]),
-                        endpoint(2),
+                    NodePreset::route_capable(
+                        NodePresetOptions::new(
+                            NodeIdentity::new(node(2), ControllerId([2; 32])),
+                            endpoint(2),
+                            Tick(1),
+                        ),
                         &BATMAN_ENGINE_ID,
-                        Tick(1),
                     )
                     .build(),
                 ),
                 (
                     node(3),
-                    ReferenceNode::route_capable(
-                        node(3),
-                        ControllerId([3; 32]),
-                        endpoint(3),
+                    NodePreset::route_capable(
+                        NodePresetOptions::new(
+                            NodeIdentity::new(node(3), ControllerId([3; 32])),
+                            endpoint(3),
+                            Tick(1),
+                        ),
                         &BATMAN_ENGINE_ID,
-                        Tick(1),
                     )
                     .build(),
                 ),
                 (
                     node(4),
-                    ReferenceNode::route_capable(
-                        node(4),
-                        ControllerId([4; 32]),
-                        endpoint(4),
+                    NodePreset::route_capable(
+                        NodePresetOptions::new(
+                            NodeIdentity::new(node(4), ControllerId([4; 32])),
+                            endpoint(4),
+                            Tick(1),
+                        ),
                         &BATMAN_ENGINE_ID,
-                        Tick(1),
                     )
                     .build(),
                 ),
@@ -101,21 +103,29 @@ fn sample_topology() -> Observation<Configuration> {
             links: BTreeMap::from([
                 (
                     (node(1), node(2)),
-                    ReferenceLink::active(endpoint(2), Tick(1)).build(),
+                    LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1)))
+                        .build(),
                 ),
                 (
                     (node(2), node(4)),
-                    ReferenceLink::active(endpoint(4), Tick(1)).build(),
+                    LinkPreset::active(LinkPresetOptions::new(endpoint(4), Tick(1)))
+                        .build(),
                 ),
                 (
                     (node(1), node(3)),
-                    ReferenceLink::lossy(endpoint(3), RatioPermille(650), Tick(1))
-                        .build(),
+                    LinkPreset::lossy(
+                        LinkPresetOptions::new(endpoint(3), Tick(1))
+                            .with_confidence(RatioPermille(650)),
+                    )
+                    .build(),
                 ),
                 (
                     (node(3), node(4)),
-                    ReferenceLink::lossy(endpoint(4), RatioPermille(600), Tick(1))
-                        .build(),
+                    LinkPreset::lossy(
+                        LinkPresetOptions::new(endpoint(4), Tick(1))
+                            .with_confidence(RatioPermille(600)),
+                    )
+                    .build(),
                 ),
             ]),
             environment: Environment {

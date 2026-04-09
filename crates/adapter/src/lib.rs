@@ -29,9 +29,13 @@
 #![forbid(unsafe_code)]
 
 mod claims;
+mod dispatch;
+mod endpoint;
 mod mailbox;
 mod peers;
 
 pub use claims::*;
+pub use dispatch::*;
+pub use endpoint::*;
 pub use mailbox::*;
 pub use peers::*;

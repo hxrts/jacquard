@@ -3,8 +3,8 @@
 //! Phase 2 invariants:
 //! - router/control traits must expose `advance_round`
 //! - router middleware must expose explicit ingress APIs
-//! - legacy `anti_entropy_tick`, `replace_topology`, and
-//!   `replace_policy_inputs` names must be gone from tracked Rust sources
+//! - `anti_entropy_tick`, `replace_topology`, and `replace_policy_inputs` names
+//!   must be gone from tracked Rust sources
 //! - transport ingress must not be drained directly from router/pathway engine
 //!   runtime code
 //!
@@ -85,7 +85,7 @@ pub fn run() -> Result<()> {
                     violations.push(Violation::new(
                         rel_path,
                         line_idx + 1,
-                        format!("legacy router-round pattern `{pattern}` is forbidden"),
+                        format!("router-round pattern `{pattern}` is forbidden"),
                     ));
                 }
             }

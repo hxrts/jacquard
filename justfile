@@ -153,6 +153,7 @@ ci-dry-run:
     add_step "Trait Purity"               "cargo xtask check trait-purity"
     add_step "Crate Boundary"             "cargo xtask check crate-boundary"
     add_step "Adapter Boundary"           "cargo xtask check adapter-boundary"
+    add_step "DX Surface"                "cargo xtask check dx-surface"
     add_step "Transport Authoring Boundary" "cargo xtask check transport-authoring-boundary"
     add_step "Transport Ownership Boundary" "cargo xtask check transport-ownership-boundary"
     add_step "Router Round Boundary"     "cargo xtask check router-round-boundary"

@@ -555,6 +555,7 @@ dependencies = [
 name = "jacquard-batman"
 version = "0.1.0"
 dependencies = [
+ "jacquard-adapter",
  "jacquard-core",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
@@ -597,6 +598,7 @@ dependencies = [
 name = "jacquard-mem-node-profile"
 version = "0.1.0"
 dependencies = [
+ "jacquard-adapter",
  "jacquard-core",
  "serde",
  "serde_json",
@@ -619,6 +621,7 @@ dependencies = [
 name = "jacquard-reference-client"
 version = "0.1.0"
 dependencies = [
+ "jacquard-adapter",
  "jacquard-batman",
  "jacquard-core",
  "jacquard-mem-link-profile",

@@ -30,7 +30,7 @@ use jacquard_core::{
     RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
     RoutingPolicyInputs, SelectedRoutingParameters, Tick,
 };
-use jacquard_reference_client::topology::{active_link, route_capable_node};
+use jacquard_reference_client::topology;
 
 pub(crate) const LOCAL_NODE_ID: NodeId = NodeId([1; 32]);
 pub(crate) const PEER_NODE_ID: NodeId = NodeId([2; 32]);
@@ -101,15 +101,30 @@ pub(crate) fn sample_configuration() -> Observation<jacquard_core::Configuration
         value: jacquard_core::Configuration {
             epoch: jacquard_core::RouteEpoch(2),
             nodes: BTreeMap::from([
-                (LOCAL_NODE_ID, route_capable_node(1)),
-                (PEER_NODE_ID, route_capable_node(2)),
-                (FAR_NODE_ID, route_capable_node(3)),
-                (BRIDGE_NODE_ID, route_capable_node(4)),
+                (LOCAL_NODE_ID, topology::node(1).pathway().build()),
+                (PEER_NODE_ID, topology::node(2).pathway().build()),
+                (FAR_NODE_ID, topology::node(3).pathway().build()),
+                (BRIDGE_NODE_ID, topology::node(4).pathway().build()),
             ]),
             links: BTreeMap::from([
-                ((LOCAL_NODE_ID, PEER_NODE_ID), active_link(2, 950)),
-                ((PEER_NODE_ID, FAR_NODE_ID), active_link(3, 875)),
-                ((LOCAL_NODE_ID, BRIDGE_NODE_ID), active_link(4, 925)),
+                (
+                    (LOCAL_NODE_ID, PEER_NODE_ID),
+                    topology::link(2)
+                        .with_confidence(RatioPermille(950))
+                        .build(),
+                ),
+                (
+                    (PEER_NODE_ID, FAR_NODE_ID),
+                    topology::link(3)
+                        .with_confidence(RatioPermille(875))
+                        .build(),
+                ),
+                (
+                    (LOCAL_NODE_ID, BRIDGE_NODE_ID),
+                    topology::link(4)
+                        .with_confidence(RatioPermille(925))
+                        .build(),
+                ),
             ]),
             environment: Environment {
                 reachable_neighbor_count: 3,

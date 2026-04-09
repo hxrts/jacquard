@@ -315,8 +315,8 @@ mod common {
                     (node(3), empty_node(3)),
                 ]),
                 links: BTreeMap::from([
-                    ((node(1), node(2)), active_link(2)),
-                    ((node(2), node(3)), active_link(3)),
+                    ((node(1), node(2)), fixture_link(2)),
+                    ((node(2), node(3)), fixture_link(3)),
                 ]),
                 environment: Environment {
                     reachable_neighbor_count: 2,
@@ -405,7 +405,7 @@ mod common {
         }
     }
 
-    fn active_link(remote_byte: u8) -> Link {
+    fn fixture_link(remote_byte: u8) -> Link {
         Link {
             endpoint: LinkEndpoint::new(
                 TransportKind::WifiAware,
