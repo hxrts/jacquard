@@ -116,10 +116,11 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        Configuration, ConnectivityPosture, DestinationId, DurationMs, Environment,
-        FactSourceClass, NodeId, Observation, OriginAuthenticationClass, RatioPermille,
-        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
-        RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingTickContext,
+        ble_endpoint, Configuration, ConnectivityPosture, ControllerId, DestinationId,
+        DurationMs, Environment, FactSourceClass, NodeId, Observation,
+        OriginAuthenticationClass, RatioPermille, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteServiceKind, RoutingEngineId,
+        RoutingEvidenceClass, RoutingObjective, RoutingTickContext,
         SelectedRoutingParameters, Tick,
     };
     use jacquard_mem_link_profile::{
@@ -173,18 +174,30 @@ mod tests {
                 nodes: BTreeMap::from([
                     (
                         node(1),
-                        ReferenceNode::ble_route_capable(1, &BATMAN_ENGINE_ID, Tick(1))
-                            .build(),
+                        ReferenceNode::route_capable(
+                            node(1),
+                            ControllerId([1; 32]),
+                            ble_endpoint(1),
+                            &BATMAN_ENGINE_ID,
+                            Tick(1),
+                        )
+                        .build(),
                     ),
                     (
                         node(2),
-                        ReferenceNode::ble_route_capable(2, &BATMAN_ENGINE_ID, Tick(1))
-                            .build(),
+                        ReferenceNode::route_capable(
+                            node(2),
+                            ControllerId([2; 32]),
+                            ble_endpoint(2),
+                            &BATMAN_ENGINE_ID,
+                            Tick(1),
+                        )
+                        .build(),
                     ),
                 ]),
                 links: BTreeMap::from([(
                     (node(1), node(2)),
-                    ReferenceLink::ble_active(2, Tick(1)).build(),
+                    ReferenceLink::active(ble_endpoint(2), Tick(1)).build(),
                 )]),
                 environment: Environment {
                     reachable_neighbor_count: 1,
@@ -206,7 +219,14 @@ mod tests {
         let mut unsupported = topology.clone();
         unsupported.value.nodes.insert(
             node(2),
-            ReferenceNode::ble_route_capable(2, &foreign_engine, Tick(1)).build(),
+            ReferenceNode::route_capable(
+                node(2),
+                ControllerId([2; 32]),
+                ble_endpoint(2),
+                &foreign_engine,
+                Tick(1),
+            )
+            .build(),
         );
         let mut engine = BatmanEngine::new(
             node(1),

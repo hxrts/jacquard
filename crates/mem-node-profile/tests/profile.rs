@@ -9,7 +9,7 @@ use jacquard_mem_node_profile::{
 
 fn endpoint(byte: u8) -> LinkEndpoint {
     LinkEndpoint {
-        protocol: TransportProtocol::BleGatt,
+        protocol: TransportProtocol::WifiAware,
         address: EndpointAddress::Opaque(vec![byte]),
         mtu_bytes: ByteCount(256),
     }

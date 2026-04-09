@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use jacquard_batman::{BatmanEngine, BATMAN_ENGINE_ID};
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DestinationId, DurationMs, Environment,
-    HealthScore, IdentityAssuranceClass, Observation, RatioPermille,
-    RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+    ble_endpoint, Configuration, ConnectivityPosture, ControllerId, DestinationId,
+    DurationMs, Environment, HealthScore, IdentityAssuranceClass, Observation,
+    RatioPermille, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
     RouteReplacementPolicy, RoutingEngineFallbackPolicy, RoutingPolicyInputs,
     RoutingTickChange, SelectedRoutingParameters, Tick,
 };
@@ -21,6 +21,8 @@ fn node(byte: u8) -> jacquard_core::NodeId {
     jacquard_core::NodeId([byte; 32])
 }
 
+// long-block-exception: integration topology intentionally kept inline so the
+// mixed next-hop path and weaker fallback path remain readable together.
 fn sample_topology() -> Observation<Configuration> {
     Observation {
         value: Configuration {
@@ -28,41 +30,67 @@ fn sample_topology() -> Observation<Configuration> {
             nodes: BTreeMap::from([
                 (
                     node(1),
-                    ReferenceNode::ble_route_capable(1, &BATMAN_ENGINE_ID, Tick(1))
-                        .build(),
+                    ReferenceNode::route_capable(
+                        node(1),
+                        ControllerId([1; 32]),
+                        ble_endpoint(1),
+                        &BATMAN_ENGINE_ID,
+                        Tick(1),
+                    )
+                    .build(),
                 ),
                 (
                     node(2),
-                    ReferenceNode::ble_route_capable(2, &BATMAN_ENGINE_ID, Tick(1))
-                        .build(),
+                    ReferenceNode::route_capable(
+                        node(2),
+                        ControllerId([2; 32]),
+                        ble_endpoint(2),
+                        &BATMAN_ENGINE_ID,
+                        Tick(1),
+                    )
+                    .build(),
                 ),
                 (
                     node(3),
-                    ReferenceNode::ble_route_capable(3, &BATMAN_ENGINE_ID, Tick(1))
-                        .build(),
+                    ReferenceNode::route_capable(
+                        node(3),
+                        ControllerId([3; 32]),
+                        ble_endpoint(3),
+                        &BATMAN_ENGINE_ID,
+                        Tick(1),
+                    )
+                    .build(),
                 ),
                 (
                     node(4),
-                    ReferenceNode::ble_route_capable(4, &BATMAN_ENGINE_ID, Tick(1))
-                        .build(),
+                    ReferenceNode::route_capable(
+                        node(4),
+                        ControllerId([4; 32]),
+                        ble_endpoint(4),
+                        &BATMAN_ENGINE_ID,
+                        Tick(1),
+                    )
+                    .build(),
                 ),
             ]),
             links: BTreeMap::from([
                 (
                     (node(1), node(2)),
-                    ReferenceLink::ble_active(2, Tick(1)).build(),
+                    ReferenceLink::active(ble_endpoint(2), Tick(1)).build(),
                 ),
                 (
                     (node(2), node(4)),
-                    ReferenceLink::ble_active(4, Tick(1)).build(),
+                    ReferenceLink::active(ble_endpoint(4), Tick(1)).build(),
                 ),
                 (
                     (node(1), node(3)),
-                    ReferenceLink::ble_lossy(3, RatioPermille(650), Tick(1)).build(),
+                    ReferenceLink::lossy(ble_endpoint(3), RatioPermille(650), Tick(1))
+                        .build(),
                 ),
                 (
                     (node(3), node(4)),
-                    ReferenceLink::ble_lossy(4, RatioPermille(600), Tick(1)).build(),
+                    ReferenceLink::lossy(ble_endpoint(4), RatioPermille(600), Tick(1))
+                        .build(),
                 ),
             ]),
             environment: Environment {

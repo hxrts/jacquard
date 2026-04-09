@@ -18,8 +18,6 @@ use jacquard_core::{
     Observation, PenaltyPoints, RelayWorkBudget, RoutePartitionClass, RouteRepairClass,
     RoutingObjective, SelectedRoutingParameters, Tick,
 };
-#[cfg(test)]
-use jacquard_mem_link_profile::BLE_MTU_BYTES;
 pub use selection::{DeterministicCommitteeSelector, NoCommitteeSelector};
 
 use crate::topology::bounded_health_score;
@@ -160,16 +158,15 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        Belief, BleDeviceId, BleProfileId, ByteCount, Configuration,
-        ConnectivityPosture, ControllerId, DestinationId, Environment, Estimate,
-        FactSourceClass, HoldFallbackPolicy, Limit, Link, LinkEndpoint,
-        LinkRuntimeState, LinkState, Node, NodeProfile, NodeRelayBudget, NodeState,
-        Observation, OperatingMode, OriginAuthenticationClass, PriorityPoints,
-        QuorumThreshold, RatioPermille, RouteEpoch, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-        RouteServiceKind, RoutingEngineFallbackPolicy, RoutingEvidenceClass,
-        RoutingObjective, SelectedRoutingParameters, ServiceDescriptor, ServiceId,
-        ServiceScope, Tick, TimeWindow, TransportProtocol,
+        ble_endpoint, Belief, ByteCount, Configuration, ConnectivityPosture,
+        ControllerId, DestinationId, Environment, Estimate, FactSourceClass,
+        HoldFallbackPolicy, Limit, Link, LinkRuntimeState, LinkState, Node,
+        NodeProfile, NodeRelayBudget, NodeState, Observation, OperatingMode,
+        OriginAuthenticationClass, PriorityPoints, QuorumThreshold, RatioPermille,
+        RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+        RouteReplacementPolicy, RouteServiceKind, RoutingEngineFallbackPolicy,
+        RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters,
+        ServiceDescriptor, ServiceId, ServiceScope, Tick, TimeWindow,
     };
     use jacquard_traits::CommitteeSelector;
 
@@ -180,17 +177,6 @@ mod tests {
     // tests. They pin exact controller/service layouts for committee scoring
     // and diversity behavior, while the integration fixtures are broader
     // end-to-end network shapes owned by `tests/common`.
-    fn ble_endpoint(byte: u8) -> LinkEndpoint {
-        LinkEndpoint {
-            protocol: TransportProtocol::BleGatt,
-            address: jacquard_core::EndpointAddress::Ble {
-                device_id: BleDeviceId(vec![byte]),
-                profile_id: BleProfileId([byte; 16]),
-            },
-            mtu_bytes: BLE_MTU_BYTES,
-        }
-    }
-
     fn route_capable_services(
         node_id: NodeId,
         controller_id: ControllerId,

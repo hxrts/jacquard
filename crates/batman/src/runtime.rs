@@ -177,12 +177,13 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        Belief, ByteCount, Configuration, ConnectivityPosture, DestinationId,
-        DurationMs, EndpointAddress, Environment, Link, LinkEndpoint, LinkProfile,
-        LinkRuntimeState, LinkState, Node, Observation, RatioPermille,
-        RepairCapability, RouteEpoch, RouteMaintenanceTrigger, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RoutingTickContext,
-        SelectedRoutingParameters, Tick, TimeWindow, TransportProtocol,
+        ble_endpoint, Belief, ByteCount, Configuration, ConnectivityPosture,
+        ControllerId, DestinationId, DurationMs, EndpointAddress, Environment, Link,
+        LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState, Node, Observation,
+        RatioPermille, RepairCapability, RouteEpoch, RouteMaintenanceTrigger,
+        RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+        RoutingTickContext, SelectedRoutingParameters, Tick, TimeWindow,
+        TransportProtocol,
     };
     use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
     use jacquard_mem_node_profile::ReferenceNode;
@@ -196,7 +197,14 @@ mod tests {
     }
 
     fn batman_node(byte: u8) -> Node {
-        ReferenceNode::ble_route_capable(byte, &BATMAN_ENGINE_ID, Tick(1)).build()
+        ReferenceNode::route_capable(
+            node(byte),
+            ControllerId([byte; 32]),
+            ble_endpoint(byte),
+            &BATMAN_ENGINE_ID,
+            Tick(1),
+        )
+        .build()
     }
 
     fn link(remote: u8, delivery: u16, symmetry: u16, loss: u16) -> Link {

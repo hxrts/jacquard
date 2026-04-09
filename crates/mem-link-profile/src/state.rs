@@ -1,16 +1,18 @@
 //! `SimulatedLinkProfile`, a builder for a shared `Link` value plus the
-//! BLE-GATT link-level defaults (`BLE_LATENCY_FLOOR_MS`, `BLE_TYPICAL_RTT_MS`,
-//! `DEFAULT_STABILITY_HORIZON_MS`) used as seeds by tests and fixtures.
+//! reference link-level defaults (`REFERENCE_LATENCY_FLOOR_MS`,
+//! `REFERENCE_TYPICAL_RTT_MS`, `DEFAULT_STABILITY_HORIZON_MS`) used as seeds by
+//! tests and fixtures.
 
 use jacquard_core::{
     DurationMs, Link, LinkBuilder, LinkEndpoint, LinkRuntimeState,
     PartitionRecoveryClass, RatioPermille, RepairCapability, Tick,
 };
 
-/// BLE latency floor (minimum one-way latency for a BLE GATT link).
-pub const BLE_LATENCY_FLOOR_MS: DurationMs = DurationMs(8);
-/// Typical round-trip time for a BLE GATT link.
-pub const BLE_TYPICAL_RTT_MS: DurationMs = DurationMs(40);
+/// Reference latency floor (minimum one-way latency for the in-memory link
+/// preset).
+pub const REFERENCE_LATENCY_FLOOR_MS: DurationMs = DurationMs(8);
+/// Reference round-trip time for the in-memory link preset.
+pub const REFERENCE_TYPICAL_RTT_MS: DurationMs = DurationMs(40);
 /// Default stability horizon used when no better estimate is available.
 pub const DEFAULT_STABILITY_HORIZON_MS: DurationMs = DurationMs(500);
 /// Default loss rate for an active in-memory link.
@@ -48,11 +50,11 @@ impl SimulatedLinkProfile {
     pub fn new(endpoint: LinkEndpoint) -> Self {
         Self {
             endpoint,
-            latency_floor_ms: BLE_LATENCY_FLOOR_MS,
+            latency_floor_ms: REFERENCE_LATENCY_FLOOR_MS,
             repair_capability: RepairCapability::TransportRetransmit,
             partition_recovery: PartitionRecoveryClass::LocalReconnect,
             runtime_state: LinkRuntimeState::Active,
-            median_rtt_ms: BLE_TYPICAL_RTT_MS,
+            median_rtt_ms: REFERENCE_TYPICAL_RTT_MS,
             transfer_rate_bytes_per_sec: 2048,
             stability_horizon_ms: DEFAULT_STABILITY_HORIZON_MS,
             loss_permille: DEFAULT_LOSS_PERMILLE,
@@ -136,7 +138,7 @@ impl SimulatedLinkProfile {
     #[must_use]
     pub fn active(endpoint: LinkEndpoint, observed_at_tick: Tick) -> Self {
         Self::new(endpoint).with_runtime_observation(
-            BLE_TYPICAL_RTT_MS,
+            REFERENCE_TYPICAL_RTT_MS,
             2048,
             DEFAULT_STABILITY_HORIZON_MS,
             observed_at_tick,

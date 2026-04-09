@@ -551,11 +551,10 @@ fn mean_score(left: Option<u32>, right: Option<u32>) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        BleDeviceId, BleProfileId, ControllerId, DestinationId, Estimate,
-        LinkRuntimeState, NodeProfile, NodeState, RouteEpoch, ServiceDescriptor, Tick,
-        TimeWindow,
+        ble_endpoint, ControllerId, DestinationId, Estimate, LinkRuntimeState,
+        NodeProfile, NodeState, RouteEpoch, ServiceDescriptor, Tick, TimeWindow,
+        BLE_MTU_BYTES,
     };
-    use jacquard_mem_link_profile::BLE_MTU_BYTES;
 
     use super::*;
 
@@ -618,14 +617,7 @@ mod tests {
 
     fn active_link(byte: u8, confidence: u16) -> Link {
         Link {
-            endpoint: LinkEndpoint {
-                protocol: TransportProtocol::BleGatt,
-                address: jacquard_core::EndpointAddress::Ble {
-                    device_id: BleDeviceId(vec![byte]),
-                    profile_id: BleProfileId([byte; 16]),
-                },
-                mtu_bytes: BLE_MTU_BYTES,
-            },
+            endpoint: ble_endpoint(byte),
             profile: default_link_profile(),
             state: LinkState {
                 state: LinkRuntimeState::Active,
@@ -706,14 +698,7 @@ mod tests {
                         controller_id: ControllerId([1; 32]),
                         profile: NodeProfile {
                             services: Vec::new(),
-                            endpoints: vec![LinkEndpoint {
-                                protocol: TransportProtocol::BleGatt,
-                                address: jacquard_core::EndpointAddress::Ble {
-                                    device_id: BleDeviceId(vec![1]),
-                                    profile_id: BleProfileId([1; 16]),
-                                },
-                                mtu_bytes: BLE_MTU_BYTES,
-                            }],
+                            endpoints: vec![ble_endpoint(1)],
                             connection_count_max: 4,
                             neighbor_state_count_max: 4,
                             simultaneous_transfer_count_max: 2,
@@ -795,14 +780,7 @@ mod tests {
             links: BTreeMap::from([(
                 (local, peer),
                 Link {
-                    endpoint: LinkEndpoint {
-                        protocol: TransportProtocol::BleGatt,
-                        address: jacquard_core::EndpointAddress::Ble {
-                            device_id: BleDeviceId(vec![2]),
-                            profile_id: BleProfileId([2; 16]),
-                        },
-                        mtu_bytes: BLE_MTU_BYTES,
-                    },
+                    endpoint: ble_endpoint(2),
                     profile: default_link_profile(),
                     state: LinkState {
                         state: LinkRuntimeState::Active,

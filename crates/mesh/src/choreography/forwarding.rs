@@ -285,8 +285,9 @@ fn hex_bytes(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use jacquard_core::{LinkEndpoint, Tick, TransportObservation, TransportProtocol};
-    use jacquard_mem_link_profile::BLE_MTU_BYTES;
+    use jacquard_core::{
+        LinkEndpoint, Tick, TransportObservation, TransportProtocol, BLE_MTU_BYTES,
+    };
 
     use super::*;
 

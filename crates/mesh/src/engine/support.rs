@@ -475,16 +475,16 @@ pub(super) fn limit_u32(limit: Limit<u32>) -> u32 {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength, CommitteeId,
-        CommitteeMember, CommitteeRole, CommitteeSelection, ConnectivityPosture,
-        ConnectivityRegime, ContentId, ControllerId, DestinationId, Environment,
-        Estimate, FailureModelClass, HoldFallbackPolicy, HostName, Limit, LinkEndpoint,
-        MessageFlowAssumptionClass, NetworkHost, NodeDensityClass, RatioPermille,
-        RouteCost, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
-        RouteRepairClass, RouteServiceKind, RouteSummary, RoutingObjective,
-        RuntimeEnvelopeClass, SelectedRoutingParameters, Tick,
+        ble_endpoint, AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength,
+        CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
+        ConnectivityPosture, ConnectivityRegime, ContentId, ControllerId,
+        DestinationId, Environment, Estimate, FailureModelClass, HoldFallbackPolicy,
+        HostName, Limit, LinkEndpoint, MessageFlowAssumptionClass, NetworkHost,
+        NodeDensityClass, RatioPermille, RouteCost, RouteEpoch, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteServiceKind, RouteSummary,
+        RoutingObjective, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick,
+        BLE_MTU_BYTES,
     };
-    use jacquard_mem_link_profile::BLE_MTU_BYTES;
 
     use super::*;
     use crate::{MeshPath, MESH_ENGINE_ID};
@@ -601,14 +601,7 @@ mod tests {
         protocol: jacquard_core::TransportProtocol,
     ) -> jacquard_core::Link {
         jacquard_core::Link {
-            endpoint: LinkEndpoint {
-                protocol,
-                address: jacquard_core::EndpointAddress::Ble {
-                    device_id: jacquard_core::BleDeviceId(vec![0]),
-                    profile_id: jacquard_core::BleProfileId([0; 16]),
-                },
-                mtu_bytes: BLE_MTU_BYTES,
-            },
+            endpoint: LinkEndpoint { protocol, ..ble_endpoint(0) },
             profile: jacquard_core::LinkProfile {
                 latency_floor_ms: jacquard_core::DurationMs(8),
                 repair_capability: jacquard_core::RepairCapability::TransportRetransmit,

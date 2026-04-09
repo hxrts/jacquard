@@ -9,12 +9,43 @@ use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Belief, ByteCount, CapacityHint, ControllerId, DurationMs, HoldItemCount,
-    InformationSetSummary, Link, LinkEndpoint, LinkProfile, LinkRuntimeState,
-    LinkState, MaintenanceWorkBudget, Node, NodeProfile, NodeRelayBudget, NodeState,
-    RatioPermille, RelayWorkBudget, RepairCapability, RoutingEngineId,
-    ServiceDescriptor, ServiceScope, Tick, TimeWindow,
+    Belief, BleDeviceId, BleProfileId, ByteCount, CapacityHint, ControllerId,
+    DurationMs, EndpointAddress, HoldItemCount, InformationSetSummary, Link,
+    LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState, MaintenanceWorkBudget,
+    Node, NodeProfile, NodeRelayBudget, NodeState, RatioPermille, RelayWorkBudget,
+    RepairCapability, RoutingEngineId, ServiceDescriptor, ServiceScope, Tick,
+    TimeWindow, TransportProtocol,
 };
+
+/// Reference BLE GATT MTU used by the shared endpoint authoring helpers.
+pub const BLE_MTU_BYTES: ByteCount = ByteCount(256);
+
+/// Construct a BLE-shaped shared endpoint.
+#[must_use]
+pub fn ble_endpoint(device_byte: u8) -> LinkEndpoint {
+    LinkEndpoint {
+        protocol: TransportProtocol::BleGatt,
+        address: EndpointAddress::Ble {
+            device_id: BleDeviceId(vec![device_byte]),
+            profile_id: BleProfileId([device_byte; 16]),
+        },
+        mtu_bytes: BLE_MTU_BYTES,
+    }
+}
+
+/// Construct a generic opaque shared endpoint.
+#[must_use]
+pub fn opaque_endpoint(
+    protocol: TransportProtocol,
+    bytes: Vec<u8>,
+    mtu: ByteCount,
+) -> LinkEndpoint {
+    LinkEndpoint {
+        protocol,
+        address: EndpointAddress::Opaque(bytes),
+        mtu_bytes: mtu,
+    }
+}
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq)]

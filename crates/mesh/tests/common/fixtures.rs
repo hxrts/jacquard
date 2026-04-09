@@ -7,14 +7,13 @@
 
 use std::collections::BTreeMap;
 
-use jacquard_mem_link_profile::ble_endpoint;
 use jacquard_mesh::MESH_ENGINE_ID;
 use jacquard_traits::jacquard_core::{
-    Belief, ByteCount, Configuration, ControllerId, DiscoveryScopeId, DurationMs,
-    Environment, Estimate, FactSourceClass, HoldItemCount, InformationSetSummary,
-    InformationSummaryEncoding, Link, LinkRuntimeState, LinkState,
-    MaintenanceWorkBudget, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState,
-    Observation, OriginAuthenticationClass, RatioPermille, RelayWorkBudget,
+    ble_endpoint, Belief, ByteCount, Configuration, ControllerId, DiscoveryScopeId,
+    DurationMs, Environment, Estimate, FactSourceClass, HoldItemCount,
+    InformationSetSummary, InformationSummaryEncoding, Link, LinkRuntimeState,
+    LinkState, MaintenanceWorkBudget, Node, NodeId, NodeProfile, NodeRelayBudget,
+    NodeState, Observation, OriginAuthenticationClass, RatioPermille, RelayWorkBudget,
     RepairCapacitySlots, RouteEpoch, RouteServiceKind, RoutingEvidenceClass,
     ServiceDescriptor, ServiceScope, Tick, TimeWindow,
 };

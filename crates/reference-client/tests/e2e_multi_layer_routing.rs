@@ -31,14 +31,20 @@ const NODE_C: NodeId = NodeId([3; 32]);
 const NODE_D: NodeId = NodeId([4; 32]);
 
 #[test]
-fn multi_device_mesh_routing_uses_shared_router_transport_and_device_boundaries() {
-    // Shared four-node topology plus one in-memory network backing all clients.
+fn mesh_forwarding_across_shared_network() {
+    // 1. World. A four-node topology that every client will observe.
     let topology = sample_configuration();
+
+    // 2. Fabric. One in-memory network plays the role of the shared radio.
     let network = SharedInMemoryNetwork::default();
+
+    // 3. Clients. Three mesh clients, each wrapping its own router and engine.
+    //    Client B takes the relay profile because it sits on the middle hop.
     let (mut client_a, mut client_b, mut client_c) =
         build_client_triplet(&topology, network);
 
-    // Each client activates its own route to C through its router-owned path.
+    // 4. Activation. A and B each ask their router for a route to C. The router
+    //    picks candidates, admits one, and returns a canonical handle.
     let route_a_to_c = Router::activate_route(
         client_a.router_mut(),
         objective(DestinationId::Node(NODE_C)),
@@ -50,48 +56,93 @@ fn multi_device_mesh_routing_uses_shared_router_transport_and_device_boundaries(
     )
     .expect("client B route activation");
 
-    // Forward A to B to C and assert that each receiving client observes the
-    // payload through its own anti-entropy tick with the expected epoch.
+    // 5. Hop one. A forwards a payload along its A-to-C route. The first hop lands
+    //    at B through the shared network.
     let payload = b"mesh-e2e";
-    forward_and_assert_ingress(
-        &mut client_a,
-        &route_a_to_c.identity.stamp.route_id,
+    client_a
+        .router_mut()
+        .forward_payload(&route_a_to_c.identity.stamp.route_id, payload)
+        .expect("client A forwards toward B");
+    assert_tick_after_forward(
         &mut client_b,
-        payload,
         topology.value.epoch,
-        "client A forwards toward B",
         "client B ingress tick",
     );
-    forward_and_assert_ingress(
-        &mut client_b,
-        &route_b_to_c.identity.stamp.route_id,
+
+    // 6. Hop two. B forwards along its own B-to-C route. Same pattern, next
+    //    receiver.
+    client_b
+        .router_mut()
+        .forward_payload(&route_b_to_c.identity.stamp.route_id, payload)
+        .expect("client B forwards toward C");
+    assert_tick_after_forward(
         &mut client_c,
-        payload,
         topology.value.epoch,
-        "client B forwards toward C",
         "client C ingress tick",
     );
 }
 
 #[test]
-fn multi_device_routing_can_span_batman_then_mesh_layers() {
+// long-block-exception: this end-to-end mixed-engine flow is intentionally
+// linear so the cross-layer forwarding narrative stays readable in one place.
+fn routing_spans_batman_then_mesh() {
+    // 1. World. A three-node topology where A and B run both batman and mesh
+    //    engines, and C is mesh-only.
     let topology = mixed_engine_configuration();
     let network = SharedInMemoryNetwork::default();
+
+    // 2. Clients plus two side-channel observers attached to B and C. The observers
+    //    let the test read ingress directly off the shared network without routing
+    //    through a client's own transport.
     let (mut client_a, mut client_b, mut client_c, mut observer_b, mut observer_c) =
         build_mixed_engine_triplet(&topology, network);
-    let (route_a_to_b, route_b_to_c) =
-        activate_mixed_engine_routes(&mut client_a, &mut client_b);
 
-    assert_route_engines(&route_a_to_b, &route_b_to_c);
-    forward_across_batman_then_mesh(
-        &mut client_a,
-        &mut client_b,
-        &mut observer_b,
-        &mut observer_c,
-        &route_a_to_b.identity.stamp.route_id,
-        &route_b_to_c.identity.stamp.route_id,
+    // 3. Activation. A requests a route to B. The router picks batman because
+    //    batman holds next-hop data for that overlay. B requests a route to C. The
+    //    router picks mesh for that one.
+    let route_a_to_b = Router::activate_route(
+        client_a.router_mut(),
+        objective(DestinationId::Node(NODE_B)),
+    )
+    .expect("client A batman route activation");
+    let route_b_to_c = Router::activate_route(
+        client_b.router_mut(),
+        objective(DestinationId::Node(NODE_C)),
+    )
+    .expect("client B mesh route activation");
+
+    // 4. Engine check. Verify that the router actually picked the expected engine
+    //    per objective rather than silently falling back.
+    assert_eq!(
+        route_a_to_b.identity.admission.summary.engine,
+        BATMAN_ENGINE_ID
+    );
+    assert_eq!(
+        route_b_to_c.identity.admission.summary.engine,
+        MESH_ENGINE_ID
     );
 
+    // 5. Hop one, batman. A forwards the raw payload and B's observer reads it
+    //    verbatim because batman relays bytes as-is on this carrier.
+    let payload = b"dual-engine-hop";
+    client_a
+        .router_mut()
+        .forward_payload(route_a_to_b.identity.route_id(), payload)
+        .expect("client A forwards over batman");
+    let received_by_b = drain_payload(&mut observer_b, "observe batman ingress at B");
+    assert_eq!(received_by_b, payload);
+
+    // 6. Hop two, mesh. B re-forwards the payload. Mesh hex-encodes payloads on
+    //    this carrier, so C observes the hex form instead of the raw bytes.
+    client_b
+        .router_mut()
+        .forward_payload(route_b_to_c.identity.route_id(), &received_by_b)
+        .expect("client B forwards over mesh");
+    let received_by_c = drain_payload(&mut observer_c, "observe mesh ingress at C");
+    assert_eq!(received_by_c, hex_bytes(payload).into_bytes());
+
+    // 7. Epoch check. C's router tick still reports the current topology epoch
+    //    after the dual-engine path has completed.
     let outcome = client_c
         .router_mut()
         .anti_entropy_tick()
@@ -99,6 +150,8 @@ fn multi_device_routing_can_span_batman_then_mesh_layers() {
     assert_eq!(outcome.topology_epoch, jacquard_core::RouteEpoch(3));
 }
 
+/// Build three mesh-only clients (A, B, C) attached to one shared network.
+/// B gets the relay profile so it can sit on the middle hop.
 fn build_client_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
@@ -116,6 +169,9 @@ fn build_client_triplet(
     (client_a, client_b, client_c)
 }
 
+/// Build three dual-engine clients (batman + mesh) plus side-channel
+/// observers attached to B and C. The observers read ingress straight off
+/// the shared network without going through a client's own transport.
 fn build_mixed_engine_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
@@ -146,78 +202,14 @@ fn build_mixed_engine_triplet(
     (client_a, client_b, client_c, observer_b, observer_c)
 }
 
-fn activate_mixed_engine_routes(
-    client_a: &mut MeshClient,
-    client_b: &mut MeshClient,
-) -> (
-    jacquard_core::MaterializedRoute,
-    jacquard_core::MaterializedRoute,
-) {
-    let route_a_to_b = Router::activate_route(
-        client_a.router_mut(),
-        objective(DestinationId::Node(NODE_B)),
-    )
-    .expect("client A BATMAN route activation");
-    let route_b_to_c = Router::activate_route(
-        client_b.router_mut(),
-        objective(DestinationId::Node(NODE_C)),
-    )
-    .expect("client B mesh route activation");
-
-    (route_a_to_b, route_b_to_c)
-}
-
-fn assert_route_engines(
-    route_a_to_b: &jacquard_core::MaterializedRoute,
-    route_b_to_c: &jacquard_core::MaterializedRoute,
-) {
-    assert_eq!(
-        route_a_to_b.identity.admission.summary.engine,
-        BATMAN_ENGINE_ID
-    );
-    assert_eq!(
-        route_b_to_c.identity.admission.summary.engine,
-        MESH_ENGINE_ID
-    );
-}
-
-fn forward_across_batman_then_mesh(
-    client_a: &mut MeshClient,
-    client_b: &mut MeshClient,
-    observer_b: &mut InMemoryTransport,
-    observer_c: &mut InMemoryTransport,
-    route_a_to_b: &jacquard_core::RouteId,
-    route_b_to_c: &jacquard_core::RouteId,
-) {
-    let payload = b"dual-engine-hop";
-    client_a
-        .router_mut()
-        .forward_payload(route_a_to_b, payload)
-        .expect("client A forwards over BATMAN");
-    let received_by_b = drain_payload(observer_b, "observe BATMAN ingress at B");
-    assert_eq!(received_by_b, payload);
-
-    client_b
-        .router_mut()
-        .forward_payload(route_b_to_c, &received_by_b)
-        .expect("client B forwards over mesh");
-    let received_by_c = drain_payload(observer_c, "observe mesh ingress at C");
-    assert_eq!(received_by_c, hex_bytes(payload).into_bytes());
-}
-
-fn forward_and_assert_ingress(
-    sender: &mut MeshClient,
-    route_id: &jacquard_core::RouteId,
+/// Run one anti-entropy tick on the receiver and assert the router
+/// reported the expected topology epoch, a private-state update, and a
+/// one-tick scheduling hint. Used to confirm a mesh forward landed.
+fn assert_tick_after_forward(
     receiver: &mut MeshClient,
-    payload: &[u8],
     expected_epoch: jacquard_core::RouteEpoch,
-    forward_context: &str,
     tick_context: &str,
 ) {
-    sender
-        .router_mut()
-        .forward_payload(route_id, payload)
-        .expect(forward_context);
     let outcome = receiver
         .router_mut()
         .anti_entropy_tick()
@@ -234,6 +226,8 @@ fn forward_and_assert_ingress(
     );
 }
 
+/// Poll the observer transport once, assert exactly one `PayloadReceived`
+/// observation, and return its bytes.
 fn drain_payload(transport: &mut InMemoryTransport, context: &str) -> Vec<u8> {
     let observations = transport.poll_transport().expect(context);
     assert_eq!(observations.len(), 1);
@@ -243,6 +237,9 @@ fn drain_payload(transport: &mut InMemoryTransport, context: &str) -> Vec<u8> {
     }
 }
 
+/// Lowercase hex encoding of a byte slice. The mesh carrier hex-encodes
+/// payloads on this network, so the second-hop assertion compares against
+/// this form rather than the raw bytes.
 fn hex_bytes(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
@@ -253,6 +250,8 @@ fn hex_bytes(bytes: &[u8]) -> String {
     out
 }
 
+/// Routing parameters for a dense-interactive relay client. Used for the
+/// middle-hop B client in both tests.
 fn relay_profile() -> SelectedRoutingParameters {
     SelectedRoutingParameters {
         selected_protection: RouteProtectionClass::LinkProtected,
@@ -267,6 +266,9 @@ fn relay_profile() -> SelectedRoutingParameters {
     }
 }
 
+/// Stock `Move`-kind routing objective with link-protected, repairable,
+/// partition-tolerant defaults. Parameterized by destination so the tests
+/// can activate routes to any node.
 fn objective(destination: DestinationId) -> RoutingObjective {
     RoutingObjective {
         destination,
@@ -284,6 +286,8 @@ fn objective(destination: DestinationId) -> RoutingObjective {
     }
 }
 
+/// Four-node mesh topology used by the mesh-only test. A, B, C, D are all
+/// mesh route-capable, with links A-B, B-C, A-D, and B-D.
 fn sample_configuration() -> Observation<Configuration> {
     Observation {
         value: Configuration {
@@ -313,6 +317,9 @@ fn sample_configuration() -> Observation<Configuration> {
     }
 }
 
+/// Three-node mixed-engine topology. A and B are dual-engine (batman plus
+/// mesh). C is mesh-only. Links are A-B and B-C, so B is the hinge where
+/// the batman leg hands off to the mesh leg.
 fn mixed_engine_configuration() -> Observation<Configuration> {
     Observation {
         value: Configuration {
