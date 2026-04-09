@@ -18,6 +18,8 @@
 //! 1. Build a small topology with [`topology::node`] and [`topology::link`].
 //! 2. Use [`ClientBuilder`] to choose engines and queue configuration.
 //! 3. Bind the resulting [`HostBridge`] and drive explicit rounds.
+//! 4. Optionally project host-readable topology and route state with
+//!    [`TopologyProjector`].
 //!
 //! ```rust
 //! use std::collections::BTreeMap;
@@ -90,6 +92,10 @@ pub use bridge::{
     BridgeWaitState, HostBridge,
 };
 pub use clients::{ClientBuilder, PathwayClient, PathwayRouter};
+pub use jacquard_adapter::{
+    ObservedLink, ObservedNode, ObservedRoute, ObservedRouteShape, TopologyProjector,
+    TopologySnapshot,
+};
 pub use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, LinkPreset,
     LinkPresetOptions, SharedInMemoryNetwork, SimulatedLinkProfile,

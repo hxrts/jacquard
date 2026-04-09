@@ -1,12 +1,19 @@
 //! Enforces the adapter-support crate split.
 //!
-//! `jacquard-adapter` provides transport-neutral ingress/peer-directory
-//! helpers shared by host bridges. Its boundary rules:
+//! `jacquard-adapter` provides transport-neutral adapter helpers and
+//! observational read-model utilities shared by host bridges. Its boundary
+//! rules:
 //! - `jacquard-adapter` must stay transport-neutral: no BLE, GATT, L2CAP, Wi-Fi
 //!   Aware, or socket-specific terms may appear in its source.
+//! - `jacquard-adapter` may host pure observational projectors, but it must not
+//!   implement router actions, engine actions, or default async watch/broadcast
+//!   frameworks.
 //! - Adapter helper shapes (`TransportIngressSender`, `PeerDirectory`, etc.)
 //!   must not be reintroduced into `jacquard-core` or `jacquard-traits`; they
 //!   belong exclusively in the adapter crate.
+//! - `jacquard-reference-client` and `jacquard-simulator` must not define new
+//!   local mailbox/dispatch helper abstractions when shared adapter surfaces
+//!   already exist.
 //!
 //! Scans: `crates/adapter/src/` for transport-specific terms, and
 //! `crates/core/src/` and `crates/traits/src/` for adapter helper names.
@@ -33,12 +40,27 @@ const ADAPTER_HELPER_NAMES: &[&str] = &[
 const TRANSPORT_SPECIFIC_TERMS: &[&str] =
     &["Ble", "Gatt", "L2cap", "WifiAware", "socket_", "Socket", "ble_", "wifi_"];
 
+const FORBIDDEN_ADAPTER_LOGIC_TERMS: &[&str] = &[
+    "activate_route(",
+    "reselect_route(",
+    "maintain_route(",
+    "register_engine(",
+    "ingest_transport_observation_for_router(",
+    "forward_payload_for_router(",
+    "tokio::sync::watch",
+    "tokio::sync::broadcast",
+    "watch::channel(",
+    "broadcast::channel(",
+];
+
 pub fn run() -> Result<()> {
     let root = workspace_root()?;
     let mut violations = Vec::new();
 
     violations.extend(scan_adapter_for_transport_specific_terms(&root)?);
+    violations.extend(scan_adapter_for_forbidden_logic_terms(&root)?);
     violations.extend(scan_core_and_traits_for_adapter_helpers(&root)?);
+    violations.extend(scan_host_layers_for_local_helper_duplicates(&root)?);
 
     if !violations.is_empty() {
         for violation in &violations {
@@ -54,6 +76,83 @@ pub fn run() -> Result<()> {
 
     println!("adapter-boundary: adapter split is valid");
     Ok(())
+}
+
+fn scan_host_layers_for_local_helper_duplicates(root: &Path) -> Result<Vec<Violation>> {
+    let mut violations = Vec::new();
+
+    for rel in ["crates/reference-client/src", "crates/simulator/src"] {
+        let dir = root.join(rel);
+        if !dir.exists() {
+            continue;
+        }
+        for entry in walkdir::WalkDir::new(&dir)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+            .filter(|entry| entry.file_type().is_file())
+        {
+            if entry.path().extension().and_then(|ext| ext.to_str()) != Some("rs") {
+                continue;
+            }
+            let contents = std::fs::read_to_string(entry.path())
+                .with_context(|| format!("reading {}", entry.path().display()))?;
+            let rel = normalize_rel_path(root, entry.path());
+            for (index, line) in contents.lines().enumerate() {
+                let trimmed = line.trim_start();
+                if trimmed.starts_with("//")
+                    || trimmed.starts_with("use ")
+                    || trimmed.starts_with("pub use ")
+                {
+                    continue;
+                }
+                if is_local_helper_duplicate_definition(trimmed) {
+                    violations.push(Violation::new(
+                        rel.clone(),
+                        index + 1,
+                        "host/simulator helper duplicates mailbox or dispatch support that belongs in jacquard-adapter",
+                    ));
+                }
+            }
+        }
+    }
+
+    Ok(violations)
+}
+
+fn is_local_helper_duplicate_definition(trimmed: &str) -> bool {
+    let Some(defined_name) = defined_name(trimmed) else {
+        return false;
+    };
+    let duplicate_needles = [
+        "Mailbox",
+        "DispatchSender",
+        "DispatchReceiver",
+        "dispatch_mailbox",
+        "TransportIngressSender",
+        "TransportIngressReceiver",
+        "PeerDirectory",
+        "PendingClaims",
+        "ClaimGuard",
+    ];
+    duplicate_needles
+        .iter()
+        .any(|needle| defined_name.contains(needle))
+}
+
+fn defined_name(trimmed: &str) -> Option<&str> {
+    for keyword in ["struct ", "enum ", "type ", "fn "] {
+        let Some(rest) = trimmed.strip_prefix(keyword) else {
+            continue;
+        };
+        return Some(
+            rest.split(|ch: char| {
+                ch == '<' || ch == '(' || ch == ':' || ch.is_whitespace()
+            })
+            .next()
+            .unwrap_or(rest),
+        );
+    }
+    None
 }
 
 fn scan_adapter_for_transport_specific_terms(root: &Path) -> Result<Vec<Violation>> {
@@ -76,6 +175,32 @@ fn scan_adapter_for_transport_specific_terms(root: &Path) -> Result<Vec<Violatio
             &contents,
             TRANSPORT_SPECIFIC_TERMS,
             "jacquard-adapter must stay transport-neutral",
+        ));
+    }
+
+    Ok(violations)
+}
+
+fn scan_adapter_for_forbidden_logic_terms(root: &Path) -> Result<Vec<Violation>> {
+    let adapter_src = root.join("crates/adapter/src");
+    let mut violations = Vec::new();
+
+    for entry in walkdir::WalkDir::new(&adapter_src)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+    {
+        if entry.path().extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        let contents = std::fs::read_to_string(entry.path())
+            .with_context(|| format!("reading {}", entry.path().display()))?;
+        let rel = normalize_rel_path(root, entry.path());
+        violations.extend(scan_non_test_lines(
+            &rel,
+            &contents,
+            FORBIDDEN_ADAPTER_LOGIC_TERMS,
+            "jacquard-adapter must stay observational and must not own router actions or watch/broadcast runtime frameworks",
         ));
     }
 
