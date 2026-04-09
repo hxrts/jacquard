@@ -1,7 +1,8 @@
 //! Regression test for the shared transport-capability boundary.
 //!
 //! Control flow: this test instantiates `PathwayEngine` with a local transport
-//! that implements only `TransportEffects`. If route activation and
+//! that implements the shared send capability plus host-owned ingress driver,
+//! but no pathway-specific transport trait. If route activation and
 //! forwarding succeed, mesh is still generic over the shared transport effect
 //! surface rather than over a mesh-specific transport trait.
 
@@ -18,16 +19,16 @@ use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
 use jacquard_traits::{
     effect_handler,
     jacquard_core::{
-        DestinationId, LinkEndpoint, Tick, TransportError, TransportObservation,
+        DestinationId, LinkEndpoint, Tick, TransportError, TransportIngressEvent,
     },
     Blake3Hashing, RouterManagedEngine, RoutingEngine, RoutingEnginePlanner,
-    TransportEffects,
+    TransportDriver, TransportSenderEffects,
 };
 
 #[derive(Default)]
 struct SharedOnlyTransportState {
     sent_frames: Vec<(LinkEndpoint, Vec<u8>)>,
-    observations: Vec<TransportObservation>,
+    ingress_events: Vec<TransportIngressEvent>,
 }
 
 #[derive(Clone, Default)]
@@ -45,7 +46,7 @@ impl SharedOnlyTransport {
 }
 
 #[effect_handler]
-impl TransportEffects for SharedOnlyTransport {
+impl TransportSenderEffects for SharedOnlyTransport {
     fn send_transport(
         &mut self,
         endpoint: &LinkEndpoint,
@@ -58,20 +59,25 @@ impl TransportEffects for SharedOnlyTransport {
             .push((endpoint.clone(), payload.to_vec()));
         Ok(())
     }
+}
 
-    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
+impl TransportDriver for SharedOnlyTransport {
+    fn drain_transport_ingress(
+        &mut self,
+    ) -> Result<Vec<TransportIngressEvent>, TransportError> {
         Ok(std::mem::take(
             &mut self
                 .0
                 .lock()
                 .expect("shared-only transport lock")
-                .observations,
+                .ingress_events,
         ))
     }
 }
 
 #[test]
-fn mesh_engine_accepts_transport_effects_without_a_mesh_specific_transport_trait() {
+fn mesh_engine_accepts_shared_transport_sender_and_driver_without_a_pathway_transport_trait(
+) {
     let topology = sample_configuration();
     let transport = SharedOnlyTransport::default();
     let mut engine = PathwayEngine::without_committee_selector(

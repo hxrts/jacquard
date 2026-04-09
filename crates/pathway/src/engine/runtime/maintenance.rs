@@ -20,7 +20,7 @@ use super::{
         ActivePathwayRoute, MaintenanceResultExt,
     },
     MaintenanceContext, PathwayEffectsBounds, PathwayEngine, PathwayHasherBounds,
-    PathwaySelectorBounds, TransportEffectsBounds,
+    PathwaySelectorBounds, PathwayTransportBounds,
 };
 use crate::{PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess};
 
@@ -30,7 +30,7 @@ where
     Topology: super::super::PathwayTopologyBounds,
     Topology::PeerEstimate: PathwayPeerEstimateAccess,
     Topology::NeighborhoodEstimate: PathwayNeighborhoodEstimateAccess,
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: super::super::PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
     Hasher: PathwayHasherBounds,

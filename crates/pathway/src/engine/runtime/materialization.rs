@@ -22,7 +22,7 @@ use super::{
         ActivePathwayRoute, PATHWAY_ACTIVE_ROUTE_COUNT_MAX,
     },
     PathwayEffectsBounds, PathwayEngine, PathwayHasherBounds, PathwaySelectorBounds,
-    TransportEffectsBounds,
+    PathwayTransportBounds,
 };
 use crate::{PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess};
 
@@ -32,7 +32,7 @@ where
     Topology: super::super::PathwayTopologyBounds,
     Topology::PeerEstimate: PathwayPeerEstimateAccess,
     Topology::NeighborhoodEstimate: PathwayNeighborhoodEstimateAccess,
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: super::super::PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
     Hasher: PathwayHasherBounds,

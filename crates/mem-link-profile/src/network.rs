@@ -8,12 +8,12 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use jacquard_core::{LinkEndpoint, NodeId, Tick, TransportObservation};
+use jacquard_core::{LinkEndpoint, NodeId, TransportIngressEvent};
 
 #[derive(Default)]
 struct SharedNetworkState {
     endpoint_owners: BTreeMap<LinkEndpoint, NodeId>,
-    inboxes: BTreeMap<NodeId, Vec<TransportObservation>>,
+    inboxes: BTreeMap<NodeId, Vec<TransportIngressEvent>>,
 }
 
 /// Shared in-memory observation network used by frame-carrier tests.
@@ -33,22 +33,20 @@ impl SharedInMemoryNetwork {
         from_node_id: NodeId,
         endpoint: LinkEndpoint,
         payload: Vec<u8>,
-        observed_at_tick: Tick,
     ) {
         let mut guard = self.inner.lock().expect("shared network lock");
         if let Some(remote_node_id) = guard.endpoint_owners.get(&endpoint).copied() {
             guard.inboxes.entry(remote_node_id).or_default().push(
-                TransportObservation::PayloadReceived {
+                TransportIngressEvent::PayloadReceived {
                     from_node_id,
                     endpoint,
                     payload,
-                    observed_at_tick,
                 },
             );
         }
     }
 
-    pub(crate) fn take_for(&self, node_id: NodeId) -> Vec<TransportObservation> {
+    pub(crate) fn take_for(&self, node_id: NodeId) -> Vec<TransportIngressEvent> {
         let mut guard = self.inner.lock().expect("shared network lock");
         guard.inboxes.remove(&node_id).unwrap_or_default()
     }

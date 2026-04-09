@@ -22,7 +22,7 @@ use super::{
         PATHWAY_COMMITMENT_OVERALL_TIMEOUT_MS,
     },
     PathwayEffectsBounds, PathwayEngine, PathwayHasherBounds, PathwaySelectorBounds,
-    TransportEffectsBounds,
+    PathwayTransportBounds,
 };
 use crate::{
     choreography::{
@@ -38,7 +38,7 @@ where
     Topology: super::super::PathwayTopologyBounds,
     Topology::PeerEstimate: PathwayPeerEstimateAccess,
     Topology::NeighborhoodEstimate: PathwayNeighborhoodEstimateAccess,
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: super::super::PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
     Hasher: PathwayHasherBounds,

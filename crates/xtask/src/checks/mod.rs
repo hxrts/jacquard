@@ -21,6 +21,7 @@ pub mod surface_classification;
 pub mod test_boundaries;
 pub mod trait_purity;
 pub mod transport_authoring_boundary;
+pub mod transport_ownership_boundary;
 
 use anyhow::{bail, Result};
 
@@ -48,6 +49,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "surface-classification" => surface_classification::run(),
         | "test-boundaries" => test_boundaries::run(),
         | "transport-authoring-boundary" => transport_authoring_boundary::run(),
+        | "transport-ownership-boundary" => transport_ownership_boundary::run(),
         | "trait-purity" => trait_purity::run(),
         | other => bail!("xtask: unknown check: {other}"),
     }

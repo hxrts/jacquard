@@ -15,7 +15,7 @@
 //! Module map:
 //! - [`authoring`]: human-facing link authoring presets
 //! - [`state`]: low-level link profile/state builder
-//! - `transport`: in-memory `TransportEffects` implementation
+//! - `transport`: in-memory transport sender + driver implementation
 //! - `network`: shared in-memory carrier fabric
 //! - `retention`: in-memory retention-store implementation
 //! - `effect`: in-memory runtime-effect implementations

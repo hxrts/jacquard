@@ -38,7 +38,7 @@ pub(crate) use support::{
 };
 use trait_bounds::{
     PathwayEffectsBounds, PathwayHasherBounds, PathwayRetentionBounds,
-    PathwaySelectorBounds, PathwayTopologyBounds, TransportEffectsBounds,
+    PathwaySelectorBounds, PathwayTopologyBounds, PathwayTransportBounds,
 };
 use types::{ActivePathwayRoute, CachedCandidate};
 pub use types::{
@@ -149,7 +149,7 @@ where
     Topology: PathwayTopologyBounds,
     Topology::PeerEstimate: PathwayPeerEstimateAccess,
     Topology::NeighborhoodEstimate: PathwayNeighborhoodEstimateAccess,
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
     Hasher: PathwayHasherBounds,
@@ -312,7 +312,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
 {
@@ -334,7 +334,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
     Hasher: PathwayHasherBounds,
@@ -390,7 +390,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
     Hasher: PathwayHasherBounds,
@@ -483,7 +483,7 @@ where
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
 {

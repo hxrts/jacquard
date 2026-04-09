@@ -7,7 +7,7 @@
 
 use jacquard_core::{
     Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError,
-    RouteEventStamped, StorageError, Tick, TransportError, TransportObservation,
+    RouteEventStamped, StorageError, Tick, TransportError,
 };
 use jacquard_macros::{effect_trait, purity};
 
@@ -83,22 +83,17 @@ pub trait RouteEventLogEffects {
 }
 
 #[effect_trait]
-/// Runtime frame send/poll boundary. This carries bytes and transport
-/// observations only.
+/// Runtime transport-send capability. This carries bytes only.
 ///
-/// Effectful runtime boundary — connectivity surface. Carries opaque bytes
-/// and transport observations, not typed semantic routing operations.
-pub trait TransportEffects {
+/// Effectful runtime boundary — connectivity surface. Host-owned ingress
+/// supervision lives on `TransportDriver`, not in the effect vocabulary.
+pub trait TransportSenderEffects {
     #[must_use = "unchecked send_transport result silently discards send failures"]
     fn send_transport(
         &mut self,
         endpoint: &jacquard_core::LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), TransportError>;
-
-    must_use_evidence!("poll_transport", "received observations";
-        fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError>;
-    );
 }
 
 #[effect_trait]
@@ -133,7 +128,11 @@ pub trait RetentionStore {
 ///
 /// Effectful runtime boundary.
 pub trait RoutingRuntimeEffects:
-    TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects + TransportEffects
+    TimeEffects
+    + OrderEffects
+    + StorageEffects
+    + RouteEventLogEffects
+    + TransportSenderEffects
 {
 }
 
@@ -142,7 +141,7 @@ impl<T> RoutingRuntimeEffects for T where
         + OrderEffects
         + StorageEffects
         + RouteEventLogEffects
-        + TransportEffects
+        + TransportSenderEffects
 {
 }
 
@@ -150,12 +149,12 @@ impl<T> RoutingRuntimeEffects for T where
 mod tests {
     use jacquard_core::{
         OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick,
-        TransportError, TransportObservation,
+        TransportError,
     };
 
     use super::{
         Effect, OrderEffects, RouteEventLogEffects, RoutingRuntimeEffects,
-        StorageEffects, TimeEffects, TransportEffects,
+        StorageEffects, TimeEffects, TransportSenderEffects,
     };
     use crate::effect_handler;
 
@@ -205,19 +204,13 @@ mod tests {
     }
 
     #[effect_handler]
-    impl TransportEffects for DummyRuntime {
+    impl TransportSenderEffects for DummyRuntime {
         fn send_transport(
             &mut self,
             _endpoint: &jacquard_core::LinkEndpoint,
             _payload: &[u8],
         ) -> Result<(), TransportError> {
             Ok(())
-        }
-
-        fn poll_transport(
-            &mut self,
-        ) -> Result<Vec<TransportObservation>, TransportError> {
-            Ok(Vec::new())
         }
     }
 
@@ -239,7 +232,7 @@ mod tests {
         assert_effect::<dyn OrderEffects>();
         assert_effect::<dyn StorageEffects>();
         assert_effect::<dyn RouteEventLogEffects>();
-        assert_effect::<dyn TransportEffects>();
+        assert_effect::<dyn TransportSenderEffects>();
     }
 
     #[test]

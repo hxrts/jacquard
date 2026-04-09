@@ -8,13 +8,13 @@ use jacquard_core::{
     RouteAdmissionRejection, RouteCandidate, RouteError, RouteSelectionError,
     RoutingEngineCapabilities, RoutingEngineId, SelectedRoutingParameters,
 };
-use jacquard_traits::{RoutingEnginePlanner, TimeEffects, TransportEffects};
+use jacquard_traits::{RoutingEnginePlanner, TimeEffects, TransportSenderEffects};
 
 use crate::{BatmanEngine, BATMAN_CAPABILITIES, BATMAN_ENGINE_ID};
 
 impl<Transport, Effects> RoutingEnginePlanner for BatmanEngine<Transport, Effects>
 where
-    Transport: TransportEffects,
+    Transport: TransportSenderEffects,
     Effects: TimeEffects,
 {
     fn engine_id(&self) -> RoutingEngineId {

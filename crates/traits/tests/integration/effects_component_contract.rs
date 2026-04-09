@@ -4,7 +4,7 @@ use jacquard_traits::{
         Blake3Digest, ByteCount, ContentId, EndpointLocator, LinkEndpoint,
         TransportKind,
     },
-    EffectHandler, RetentionStore, TransportEffects,
+    EffectHandler, RetentionStore, TransportDriver, TransportSenderEffects,
 };
 
 fn sample_endpoint() -> LinkEndpoint {
@@ -16,7 +16,7 @@ fn sample_endpoint() -> LinkEndpoint {
 }
 
 #[test]
-fn transport_effects_send_and_poll_without_engine_specific_traits() {
+fn transport_sender_and_driver_split_without_engine_specific_traits() {
     let endpoint = sample_endpoint();
     let mut transport = InMemoryTransport::default();
 
@@ -24,8 +24,8 @@ fn transport_effects_send_and_poll_without_engine_specific_traits() {
         .send_transport(&endpoint, b"frame")
         .expect("send transport payload");
     let observations = transport
-        .poll_transport()
-        .expect("poll transport observations");
+        .drain_transport_ingress()
+        .expect("drain transport ingress");
 
     assert!(observations.is_empty());
     assert_eq!(transport.sent_frames, vec![(endpoint, b"frame".to_vec())]);
@@ -53,12 +53,19 @@ fn retention_store_retains_and_releases_opaque_payloads() {
 }
 
 #[test]
-fn transport_effect_handlers_do_not_require_engine_specific_traits() {
+fn transport_sender_effect_handlers_do_not_require_engine_specific_traits() {
     fn assert_transport_handler<T>()
     where
-        T: TransportEffects + EffectHandler<dyn TransportEffects>,
+        T: TransportSenderEffects + EffectHandler<dyn TransportSenderEffects>,
     {
     }
 
     assert_transport_handler::<InMemoryTransport>();
+}
+
+#[test]
+fn transport_driver_stays_outside_effect_handler_vocabulary() {
+    fn assert_transport_driver<T: TransportDriver>() {}
+
+    assert_transport_driver::<InMemoryTransport>();
 }

@@ -14,9 +14,7 @@ use jacquard_mem_link_profile::{
 };
 use jacquard_mem_node_profile::ReferenceNode;
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
-use jacquard_traits::{
-    Router, RoutingControlPlane, RoutingDataPlane, TransportEffects,
-};
+use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane, TransportDriver};
 
 fn node(byte: u8) -> jacquard_core::NodeId {
     jacquard_core::NodeId([byte; 32])
@@ -176,12 +174,11 @@ fn sample_objective() -> jacquard_core::RoutingObjective {
 fn batman_router_activates_next_hop_only_routes() {
     let topology = sample_topology();
     let network = SharedInMemoryNetwork::default();
-    let mut local_transport = InMemoryTransport::attach(
+    let local_transport = InMemoryTransport::attach(
         node(1),
         topology.value.nodes[&node(1)].profile.endpoints.clone(),
         network,
     );
-    local_transport.set_ingress_tick(Tick(1));
     let engine = BatmanEngine::new(
         node(1),
         local_transport,
@@ -215,18 +212,16 @@ fn batman_router_activates_next_hop_only_routes() {
 fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
     let topology = sample_topology();
     let network = SharedInMemoryNetwork::default();
-    let mut local_transport = InMemoryTransport::attach(
+    let local_transport = InMemoryTransport::attach(
         node(1),
         topology.value.nodes[&node(1)].profile.endpoints.clone(),
         network.clone(),
     );
-    local_transport.set_ingress_tick(Tick(1));
     let mut next_hop_transport = InMemoryTransport::attach(
         node(2),
         topology.value.nodes[&node(2)].profile.endpoints.clone(),
         network,
     );
-    next_hop_transport.set_ingress_tick(Tick(1));
 
     let engine = BatmanEngine::new(
         node(1),
@@ -256,11 +251,11 @@ fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
         .expect("forward payload");
 
     let observations = next_hop_transport
-        .poll_transport()
-        .expect("poll next-hop transport");
+        .drain_transport_ingress()
+        .expect("drain next-hop ingress");
     assert_eq!(observations.len(), 1);
     match &observations[0] {
-        | jacquard_core::TransportObservation::PayloadReceived {
+        | jacquard_core::TransportIngressEvent::PayloadReceived {
             from_node_id,
             payload,
             ..

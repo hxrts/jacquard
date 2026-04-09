@@ -13,7 +13,7 @@ Profile crates are `Observed`. They model capability advertisement, transport ca
 | Crate | Provides | Shared boundary it implements |
 | --- | --- | --- |
 | `jacquard-mem-node-profile` | `SimulatedNodeProfile`, `NodeStateSnapshot`, `SimulatedServiceDescriptor` builders | none — it only emits `jacquard-core` model values |
-| `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportEffects`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
+| `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportSenderEffects`, `TransportDriver`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
 | `jacquard-reference-client` | `topology::{route_capable_node, active_link}`, `Client<Router>`, `PathwayRouter`/`PathwayClient` aliases, `build_pathway_client` | none — it is pure composition over the crates above |
 
 The `mem-*` crates stay routing-engine-neutral and transport-neutral: they carry frames, emit observations, and build shared model values, but they do not mint route truth, interpret routing policy, or own BLE/IP-specific authoring helpers. Reference-client fixtures are the single place where a service descriptor picks up the `PATHWAY_ENGINE_ID` routing-engine tag, because that decision is composition, not profile.

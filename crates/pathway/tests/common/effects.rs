@@ -17,14 +17,15 @@ use std::{
 
 use jacquard_core::{
     Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError,
-    RouteEventStamped, StorageError, Tick, TransportError, TransportObservation,
+    RouteEventStamped, StorageError, Tick, TransportError, TransportIngressEvent,
+    TransportObservation,
 };
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
 };
 use jacquard_traits::{
     effect_handler, OrderEffects, RetentionStore, RouteEventLogEffects, StorageEffects,
-    TimeEffects, TransportEffects,
+    TimeEffects, TransportDriver, TransportSenderEffects,
 };
 
 #[derive(Clone, Default)]
@@ -35,8 +36,29 @@ impl TestTransport {
         self.0
             .lock()
             .expect(TRANSPORT_LOCK)
-            .observations
-            .push(observation);
+            .ingress_events
+            .push(match observation {
+                | TransportObservation::PayloadReceived {
+                    from_node_id,
+                    endpoint,
+                    payload,
+                    ..
+                } => TransportIngressEvent::PayloadReceived {
+                    from_node_id,
+                    endpoint,
+                    payload,
+                },
+                | TransportObservation::LinkObserved {
+                    remote_node_id,
+                    observation,
+                } => TransportIngressEvent::LinkObserved {
+                    remote_node_id,
+                    link: observation.value,
+                    source_class: observation.source_class,
+                    evidence_class: observation.evidence_class,
+                    origin_authentication: observation.origin_authentication,
+                },
+            });
     }
 
     #[must_use]
@@ -46,7 +68,7 @@ impl TestTransport {
 }
 
 #[effect_handler]
-impl TransportEffects for TestTransport {
+impl TransportSenderEffects for TestTransport {
     fn send_transport(
         &mut self,
         endpoint: &jacquard_core::LinkEndpoint,
@@ -57,9 +79,16 @@ impl TransportEffects for TestTransport {
             .expect(TRANSPORT_LOCK)
             .send_transport(endpoint, payload)
     }
+}
 
-    fn poll_transport(&mut self) -> Result<Vec<TransportObservation>, TransportError> {
-        self.0.lock().expect(TRANSPORT_LOCK).poll_transport()
+impl TransportDriver for TestTransport {
+    fn drain_transport_ingress(
+        &mut self,
+    ) -> Result<Vec<TransportIngressEvent>, TransportError> {
+        self.0
+            .lock()
+            .expect(TRANSPORT_LOCK)
+            .drain_transport_ingress()
     }
 }
 

@@ -30,6 +30,13 @@ Run a single test: `cargo test -p <crate> <test_name>`
 
 `core` defines what exists. `traits` defines what components are allowed to do. `core` must not grow behavioral traits. All cross-crate behavioral interfaces belong in `traits`. `core` and `traits` must remain runtime-free.
 
+Transport ownership is split deliberately:
+
+- `TransportSenderEffects` is the shared synchronous send capability.
+- `TransportDriver` is the host-owned ingress and supervision surface.
+- routers and engines must not own transport streams or assign `Tick`.
+- host bridges own ingress draining, batching, and time attachment.
+
 `macros` owns syntax-local code generation and annotation-site validation. `lints/` owns nightly compiler-backed policy checks. `crates/xtask` owns the stable fast-path workspace checks used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
 Run individual policy checks with `cargo xtask check <name>`. Registered names:
@@ -51,6 +58,8 @@ Run individual policy checks with `cargo xtask check <name>`. Registered names:
 - `routing-invariants` — routing-invariant rules (pass `--validate` to run fixture validation)
 - `surface-classification` — traits whose name contains `Transport` must declare `connectivity surface` or `service surface`
 - `test-boundaries` — unit vs integration test boundary rules
+- `transport-authoring-boundary` — transport-neutral mem/reference crates must stay free of transport-specific endpoint authoring helpers
+- `transport-ownership-boundary` — transport send capability and host-owned ingress supervision must stay split, and drivers must not stamp Jacquard time internally
 - `trait-purity` — public traits must be annotated with a `#[purity(..)]` mode
 
 For nightly compiler-backed lint parity, use the nightly shell, run `install-dylint` once, and then run each dylint crate:
@@ -74,7 +83,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-pathway`: deterministic candidate production, admission/materialization, commitment tracking, forwarding, repair, topology-change, observation handling.
 - `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, fallback legality, anti-entropy, adaptive-profile derivation.
 - `jacquard-mem-node-profile`: deterministic node-profile and node-state builders with no routing-engine knowledge.
-- `jacquard-mem-link-profile`: in-memory link-profile, carrier, retention, and runtime-effect adapters with no routing semantics.
+- `jacquard-mem-link-profile`: in-memory link-profile, carrier, retention, runtime-effect adapters, and host-owned transport driver surfaces with no routing semantics.
 - `jacquard-reference-client`: host-side composition of router + pathway + in-memory profiles for end-to-end tests.
 - `jacquard-xtask`: workspace policy checks, docs link/drift validation, and pre-commit entry point.
 

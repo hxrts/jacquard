@@ -5,8 +5,9 @@ use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Belief, ByteCount, ClusterId, ControllerId, DiscoveryScopeId, GatewayId, HomeId,
-    NodeId, RatioPermille, RoutingEngineId, Tick, TimeWindow,
+    Belief, ByteCount, ClusterId, ControllerId, DiscoveryScopeId, FactSourceClass,
+    GatewayId, HomeId, Link, NodeId, OriginAuthenticationClass, RatioPermille,
+    RoutingEngineId, RoutingEvidenceClass, Tick, TimeWindow,
 };
 
 #[public_model]
@@ -172,6 +173,59 @@ impl CapacityHint {
         self.hold_capacity_bytes =
             Belief::certain(hold_capacity_bytes, updated_at_tick);
         self
+    }
+}
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Raw host-driver ingress event before the host bridge attaches Jacquard time.
+///
+/// Drivers own wall-clock I/O and stream supervision, but they do not assign
+/// Jacquard `Tick` values internally.
+pub enum TransportIngressEvent {
+    PayloadReceived {
+        from_node_id: NodeId,
+        endpoint: LinkEndpoint,
+        payload: Vec<u8>,
+    },
+    LinkObserved {
+        remote_node_id: NodeId,
+        link: Link,
+        source_class: FactSourceClass,
+        evidence_class: RoutingEvidenceClass,
+        origin_authentication: OriginAuthenticationClass,
+    },
+}
+
+impl TransportIngressEvent {
+    #[must_use]
+    pub fn observe_at(self, observed_at_tick: crate::Tick) -> TransportObservation {
+        match self {
+            | Self::PayloadReceived { from_node_id, endpoint, payload } => {
+                TransportObservation::PayloadReceived {
+                    from_node_id,
+                    endpoint,
+                    payload,
+                    observed_at_tick,
+                }
+            },
+            | Self::LinkObserved {
+                remote_node_id,
+                link,
+                source_class,
+                evidence_class,
+                origin_authentication,
+            } => TransportObservation::LinkObserved {
+                remote_node_id,
+                observation: crate::Observation {
+                    value: link,
+                    source_class,
+                    evidence_class,
+                    origin_authentication,
+                    observed_at_tick,
+                },
+            },
+        }
     }
 }
 

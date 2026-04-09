@@ -43,7 +43,11 @@ const TRAITS_REQUIREMENTS: &[DocRequirement] = &[
     },
     DocRequirement {
         heading: "## Effect Capabilities",
-        required_terms: &["TransportEffects", "StorageEffects"],
+        required_terms: &[
+            "TransportSenderEffects",
+            "TransportDriver",
+            "StorageEffects",
+        ],
     },
     DocRequirement {
         heading: "## Engine And Router Contracts",

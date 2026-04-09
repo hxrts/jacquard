@@ -1,9 +1,9 @@
 //! Mesh-owned choreography effect bridge.
 //!
 //! Control flow: choreography-facing runtime code talks only to this narrow
-//! effect surface. The bridge stores protocol checkpoints, polls ingress, and
-//! forwards retention operations onto the shared transport, retention, and
-//! runtime-effect traits.
+//! effect surface. The bridge stores protocol checkpoints, drains host-owned
+//! transport ingress, and forwards retention operations onto the shared
+//! transport sender, retention, and runtime-effect traits.
 //!
 //! The boundary rule is that these mesh-private choreography effects are
 //! not the shared Jacquard effect contract. Generated or protocol-local
@@ -16,7 +16,10 @@ use jacquard_core::{
     Blake3Digest, ContentId, LinkEndpoint, RouteError, RouteRuntimeError, StorageError,
     Tick, TransportObservation,
 };
-use jacquard_traits::{RetentionStore, StorageEffects, TimeEffects, TransportEffects};
+use jacquard_traits::{
+    RetentionStore, StorageEffects, TimeEffects, TransportDriver,
+    TransportSenderEffects,
+};
 
 /// Extension trait for converting choreography protocol errors into
 /// `RouteError::Runtime(MaintenanceFailed)`.
@@ -133,7 +136,7 @@ pub(crate) struct PathwayProtocolRuntimeAdapter<'a, T, R, E> {
 
 impl<T, R, E> PathwayProtocolRuntime for PathwayProtocolRuntimeAdapter<'_, T, R, E>
 where
-    T: TransportEffects,
+    T: TransportSenderEffects + TransportDriver,
     R: RetentionStore,
     E: StorageEffects + TimeEffects,
 {
@@ -152,7 +155,13 @@ where
     fn poll_mesh_ingress(
         &mut self,
     ) -> Result<Vec<TransportObservation>, jacquard_core::TransportError> {
-        self.transport.poll_transport()
+        let observed_at_tick = self.effects.now_tick();
+        Ok(self
+            .transport
+            .drain_transport_ingress()?
+            .into_iter()
+            .map(|event| event.observe_at(observed_at_tick))
+            .collect())
     }
 
     fn store_held_payload(
@@ -210,10 +219,11 @@ mod tests {
 
     use jacquard_core::{
         Blake3Digest, ByteCount, ContentId, EndpointLocator, LinkEndpoint, NodeId,
-        StorageError, Tick, TransportKind, TransportObservation,
+        StorageError, Tick, TransportIngressEvent, TransportKind,
     };
     use jacquard_traits::{
-        effect_handler, StorageEffects, TimeEffects, TransportEffects,
+        effect_handler, StorageEffects, TimeEffects, TransportDriver,
+        TransportSenderEffects,
     };
 
     use super::{
@@ -228,11 +238,11 @@ mod tests {
     #[derive(Default)]
     struct FakeTransport {
         sent: Vec<(TransportKind, Vec<u8>)>,
-        observations: Vec<TransportObservation>,
+        observations: Vec<TransportIngressEvent>,
     }
 
     #[effect_handler]
-    impl TransportEffects for FakeTransport {
+    impl TransportSenderEffects for FakeTransport {
         fn send_transport(
             &mut self,
             endpoint: &LinkEndpoint,
@@ -242,10 +252,12 @@ mod tests {
                 .push((endpoint.transport_kind.clone(), payload.to_vec()));
             Ok(())
         }
+    }
 
-        fn poll_transport(
+    impl TransportDriver for FakeTransport {
+        fn drain_transport_ingress(
             &mut self,
-        ) -> Result<Vec<TransportObservation>, jacquard_core::TransportError> {
+        ) -> Result<Vec<TransportIngressEvent>, jacquard_core::TransportError> {
             Ok(self.observations.clone())
         }
     }
@@ -325,11 +337,10 @@ mod tests {
         let mut transport = FakeTransport::default();
         transport
             .observations
-            .push(TransportObservation::PayloadReceived {
+            .push(TransportIngressEvent::PayloadReceived {
                 from_node_id: NodeId([9; 32]),
                 endpoint: endpoint.clone(),
                 payload: b"observed".to_vec(),
-                observed_at_tick: Tick(1),
             });
         let mut retention = FakeRetention::default();
         let mut effects = FakeEffects::default();

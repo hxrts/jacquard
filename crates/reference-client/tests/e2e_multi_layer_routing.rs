@@ -17,7 +17,7 @@ use jacquard_core::{
     OriginAuthenticationClass, PriorityPoints, RatioPermille, RoutePartitionClass,
     RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
     RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
-    SelectedRoutingParameters, Tick, TransportObservation,
+    SelectedRoutingParameters, Tick,
 };
 use jacquard_mem_link_profile::{InMemoryTransport, SharedInMemoryNetwork};
 use jacquard_pathway::PATHWAY_ENGINE_ID;
@@ -25,9 +25,7 @@ use jacquard_reference_client::{
     build_pathway_batman_client, build_pathway_batman_client_with_profile,
     build_pathway_client, build_pathway_client_with_profile, topology, PathwayClient,
 };
-use jacquard_traits::{
-    Router, RoutingControlPlane, RoutingDataPlane, TransportEffects,
-};
+use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane, TransportDriver};
 
 const NODE_A: NodeId = NodeId([1; 32]);
 const NODE_B: NodeId = NodeId([2; 32]);
@@ -173,10 +171,8 @@ fn build_mixed_engine_triplet(
 ) {
     let b_endpoint = topology.value.nodes[&NODE_B].profile.endpoints.clone();
     let c_endpoint = topology.value.nodes[&NODE_C].profile.endpoints.clone();
-    let mut observer_b = InMemoryTransport::attach(NODE_B, b_endpoint, network.clone());
-    observer_b.set_ingress_tick(Tick(2));
-    let mut observer_c = InMemoryTransport::attach(NODE_C, c_endpoint, network.clone());
-    observer_c.set_ingress_tick(Tick(2));
+    let observer_b = InMemoryTransport::attach(NODE_B, b_endpoint, network.clone());
+    let observer_c = InMemoryTransport::attach(NODE_C, c_endpoint, network.clone());
     let client_a =
         build_pathway_batman_client(NODE_A, topology.clone(), network.clone(), Tick(2));
     let client_b = build_pathway_batman_client_with_profile(
@@ -218,13 +214,15 @@ fn assert_tick_after_forward(
     );
 }
 
-/// Poll the observer transport once, assert exactly one `PayloadReceived`
+/// Drain the observer transport once, assert exactly one `PayloadReceived`
 /// observation, and return its bytes.
 fn drain_payload(transport: &mut InMemoryTransport, context: &str) -> Vec<u8> {
-    let observations = transport.poll_transport().expect(context);
+    let observations = transport.drain_transport_ingress().expect(context);
     assert_eq!(observations.len(), 1);
     match &observations[0] {
-        | TransportObservation::PayloadReceived { payload, .. } => payload.clone(),
+        | jacquard_core::TransportIngressEvent::PayloadReceived { payload, .. } => {
+            payload.clone()
+        },
         | other => panic!("unexpected observation: {other:?}"),
     }
 }

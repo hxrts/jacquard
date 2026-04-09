@@ -14,14 +14,14 @@ use jacquard_core::{
     RoutingTickChange, RoutingTickContext, RoutingTickHint, RoutingTickOutcome, Tick,
 };
 use jacquard_traits::{
-    RouterManagedEngine, RoutingEngine, TimeEffects, TransportEffects,
+    RouterManagedEngine, RoutingEngine, TimeEffects, TransportSenderEffects,
 };
 
 use crate::{public_state::ActiveBatmanRoute, BatmanEngine, BATMAN_ENGINE_ID};
 
 impl<Transport, Effects> RoutingEngine for BatmanEngine<Transport, Effects>
 where
-    Transport: TransportEffects,
+    Transport: TransportSenderEffects,
     Effects: TimeEffects,
 {
     fn materialize_route(
@@ -142,7 +142,7 @@ where
 
 impl<Transport, Effects> RouterManagedEngine for BatmanEngine<Transport, Effects>
 where
-    Transport: TransportEffects,
+    Transport: TransportSenderEffects,
     Effects: TimeEffects,
 {
     fn local_node_id_for_router(&self) -> NodeId {

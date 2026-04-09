@@ -74,7 +74,7 @@ pub trait PathwayTopologyModel {
 /// Planning purity stays in `RoutingEnginePlanner` plus `PathwayTopologyModel`.
 /// This trait binds the effectful routing-engine runtime only to the mesh
 /// subcomponents that remain mesh-specific after transport is moved onto the
-/// shared `TransportEffects` boundary.
+/// shared transport sender capability plus host-owned driver boundary.
 pub trait PathwayRoutingEngine: RoutingEngine {
     type TopologyModel: PathwayTopologyModel;
     type Retention: RetentionStore;

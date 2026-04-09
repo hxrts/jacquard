@@ -24,7 +24,8 @@ in `core` or the transport-neutral mem profile crates.
 | Routing contract | `RoutingEnginePlanner`, `RoutingEngine`, `Router`, `RoutingControlPlane`, `RoutingDataPlane`, `PolicyEngine` |
 | Local coordination | `CommitteeSelector`, `CommitteeCoordinatedEngine` |
 | Layering | `SubstratePlanner`, `SubstrateRuntime`, `LayeredRoutingEnginePlanner`, `LayeredRoutingEngine`, `LayeringPolicyEngine` |
-| Runtime effects | `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, `TransportEffects` |
+| Runtime effects | `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, `TransportSenderEffects` |
+| Host-owned drivers | `TransportDriver` |
 | Hashing and content | `Hashing`, `ContentAddressable`, `TemplateAddressable` |
 | Simulator | `RoutingScenario`, `RoutingEnvironmentModel`, `RoutingSimulator`, `RoutingReplayView` |
 

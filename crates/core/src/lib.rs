@@ -6,9 +6,10 @@
 //!
 //! ## Connectivity Surface
 //!
-//! Connectivity facts such as [`LinkEndpoint`], [`TransportObservation`],
-//! [`LinkState`], and [`ConnectivityPosture`] live here as engine-neutral world
-//! data. Engines consume this surface; they do not fork it.
+//! Connectivity facts such as [`LinkEndpoint`], [`TransportIngressEvent`],
+//! [`TransportObservation`], [`LinkState`], and [`ConnectivityPosture`] live
+//! here as engine-neutral world data. Engines consume this surface; they do
+//! not fork it.
 //!
 //! ## Service Surface
 //!

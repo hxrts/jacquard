@@ -10,7 +10,8 @@
 use jacquard_core::Configuration;
 use jacquard_traits::{
     CommitteeSelector, HashDigestBytes, Hashing, OrderEffects, RetentionStore,
-    RouteEventLogEffects, StorageEffects, TimeEffects, TransportEffects,
+    RouteEventLogEffects, StorageEffects, TimeEffects, TransportDriver,
+    TransportSenderEffects,
 };
 
 use crate::{
@@ -32,12 +33,15 @@ where
 {
 }
 
-pub(crate) trait TransportEffectsBounds:
-    TransportEffects + Send + Sync + 'static
+pub(crate) trait PathwayTransportBounds:
+    TransportSenderEffects + TransportDriver + Send + Sync + 'static
 {
 }
 
-impl<T> TransportEffectsBounds for T where T: TransportEffects + Send + Sync + 'static {}
+impl<T> PathwayTransportBounds for T where
+    T: TransportSenderEffects + TransportDriver + Send + Sync + 'static
+{
+}
 
 pub(crate) trait PathwayRetentionBounds: RetentionStore {}
 

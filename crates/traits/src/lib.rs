@@ -13,9 +13,13 @@
 //!
 //! ## Effect Capabilities
 //!
-//! Shared effect traits such as [`TransportEffects`], [`StorageEffects`],
+//! Shared effect traits such as [`TransportSenderEffects`], [`StorageEffects`],
 //! [`TimeEffects`], and [`RouteEventLogEffects`] live here. These are neutral
 //! host/runtime capabilities, not engine-specific adapter traits.
+//!
+//! Host-owned supervision surfaces such as [`TransportDriver`] also live here,
+//! but they are not effect capabilities and must not be treated as part of the
+//! synchronous routing-effect vocabulary.
 //!
 //! ## Engine And Router Contracts
 //!
@@ -48,6 +52,7 @@ macro_rules! must_use_evidence {
 
 extern crate self as jacquard_traits;
 
+mod drivers;
 mod effects;
 mod handler;
 mod hashing;
@@ -56,6 +61,7 @@ mod sealed;
 mod simulator;
 mod world;
 
+pub use drivers::*;
 pub use effects::*;
 pub use handler::*;
 pub use hashing::*;

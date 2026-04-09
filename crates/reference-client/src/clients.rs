@@ -49,9 +49,7 @@ pub fn build_pathway_client_with_profile(
     profile: SelectedRoutingParameters,
 ) -> PathwayClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
-    let mut transport =
-        InMemoryTransport::attach(local_node_id, [local_endpoint], network);
-    transport.set_ingress_tick(now);
+    let transport = InMemoryTransport::attach(local_node_id, [local_endpoint], network);
 
     let engine = PathwayEngine::without_committee_selector(
         local_node_id,
@@ -97,15 +95,13 @@ pub fn build_pathway_batman_client_with_profile(
     profile: SelectedRoutingParameters,
 ) -> PathwayClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
-    let mut mesh_transport = InMemoryTransport::attach(
+    let mesh_transport = InMemoryTransport::attach(
         local_node_id,
         [local_endpoint.clone()],
         network.clone(),
     );
-    mesh_transport.set_ingress_tick(now);
-    let mut batman_transport =
+    let batman_transport =
         InMemoryTransport::attach(local_node_id, [local_endpoint], network);
-    batman_transport.set_ingress_tick(now);
 
     let mesh_engine = PathwayEngine::without_committee_selector(
         local_node_id,

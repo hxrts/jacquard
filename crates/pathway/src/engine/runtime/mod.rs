@@ -25,7 +25,7 @@ use jacquard_traits::{CommitteeCoordinatedEngine, RoutingEngine};
 
 use super::{
     PathwayEffectsBounds, PathwayEngine, PathwayHasherBounds, PathwaySelectorBounds,
-    TransportEffectsBounds,
+    PathwayTransportBounds,
 };
 use crate::{
     PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess, PathwayRoutingEngine,
@@ -43,7 +43,7 @@ where
     Topology: super::PathwayTopologyBounds,
     Topology::PeerEstimate: PathwayPeerEstimateAccess,
     Topology::NeighborhoodEstimate: PathwayNeighborhoodEstimateAccess,
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: super::PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
     Hasher: PathwayHasherBounds,
@@ -94,7 +94,7 @@ where
     Topology: super::PathwayTopologyBounds,
     Topology::PeerEstimate: PathwayPeerEstimateAccess,
     Topology::NeighborhoodEstimate: PathwayNeighborhoodEstimateAccess,
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: super::PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
     Hasher: PathwayHasherBounds,
@@ -156,7 +156,7 @@ where
     Topology: super::PathwayTopologyBounds,
     Topology::PeerEstimate: PathwayPeerEstimateAccess,
     Topology::NeighborhoodEstimate: PathwayNeighborhoodEstimateAccess,
-    Transport: TransportEffectsBounds,
+    Transport: PathwayTransportBounds,
     Retention: super::PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
     Hasher: PathwayHasherBounds,

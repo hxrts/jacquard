@@ -80,7 +80,8 @@ This harness proves crate-boundary composition. It does not replace the simulato
 The reference example for a new deployment target is in `crates/reference-client/tests/e2e_multi_layer_routing.rs`.
 
 1. build a shared `Observation<Configuration>` with ordinary `ServiceDescriptor` values
-2. attach one shared `TransportEffects` implementation per device runtime
+2. attach one shared `TransportSenderEffects` implementation plus a host-owned
+   `TransportDriver` per device runtime
 3. construct one mesh engine per device
 4. wrap each engine in one router that owns canonical publication
 5. submit typed router commands instead of minting route truth directly
