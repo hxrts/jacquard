@@ -35,12 +35,24 @@ and validate scenarios at compile time.
 /-- Routing invariants: determinism, boundedness, ordered-time separation. -/
 @[default_target]
 lean_lib RoutingInvariants where
-  globs := #[`RoutingInvariants.*]
+  roots := #[`RoutingInvariants]
 
 /-- Time model: Tick monotonicity, epoch versioning, typed time separation. -/
 lean_lib TimeModel where
-  globs := #[`TimeModel.*]
+  roots := #[`TimeModel]
 
 /-- Protocol correctness: session type properties for pathway choreographies. -/
 lean_lib ProtocolCorrectness where
-  globs := #[`ProtocolCorrectness.*]
+  roots := #[`ProtocolCorrectness]
+
+/-- Field verification: local model, protocol boundary, and parity notes. -/
+@[default_target]
+lean_lib FieldVerification where
+  roots := #[
+    `FieldVerification,
+    `FieldModelAPI,
+    `FieldModelInstance,
+    `FieldProtocolAPI,
+    `FieldProtocolInstance,
+    `FieldBoundary
+  ]

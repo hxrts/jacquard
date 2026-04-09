@@ -14,6 +14,17 @@
 //!
 //! At this stage the crate only locks the public contract. The richer field
 //! data model is added incrementally in later phases.
+//!
+//! Verification notes for the first formal model live under `verification/`:
+//! - `verification/README.md`
+//! - `verification/FieldModelNotes.md`
+//! - `verification/FieldProtocolNotes.md`
+//! - `verification/FieldParity.md`
+//!
+//! The current proof boundary is intentionally narrow:
+//! - Lean covers a bounded local observer-controller model
+//! - Lean covers a reduced private summary-exchange protocol boundary
+//! - Lean does not own canonical route publication or router lifecycle truth
 
 #![forbid(unsafe_code)]
 
