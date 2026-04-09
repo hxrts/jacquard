@@ -32,6 +32,9 @@ Theorem packs are consumed by `jacquard-simulator` to gate capabilities
 and validate scenarios at compile time.
 -/
 
+lean_exe hello where
+  root := `Hello
+
 /-- Routing invariants: determinism, boundedness, ordered-time separation. -/
 @[default_target]
 lean_lib RoutingInvariants where
