@@ -106,7 +106,7 @@ pub fn build_engine_for_node_at_tick(local_node_id: NodeId, now: Tick) -> TestEn
     TestEngine { engine, transport, retention, effects }
 }
 
-pub fn mesh_connectivity(partition: RoutePartitionClass) -> ConnectivityPosture {
+pub fn pathway_connectivity(partition: RoutePartitionClass) -> ConnectivityPosture {
     ConnectivityPosture {
         repair: RouteRepairClass::Repairable,
         partition,
@@ -131,7 +131,9 @@ pub fn objective_with_floor(
         service_kind: RouteServiceKind::Move,
         target_protection: target,
         protection_floor: floor,
-        target_connectivity: mesh_connectivity(RoutePartitionClass::PartitionTolerant),
+        target_connectivity: pathway_connectivity(
+            RoutePartitionClass::PartitionTolerant,
+        ),
         hold_fallback_policy: HoldFallbackPolicy::Allowed,
         latency_budget_ms: Limit::Bounded(DurationMs(250)),
         protection_priority: PriorityPoints(10),

@@ -35,7 +35,7 @@ fn materialization_records_activation_protocol_checkpoint() {
 
     assert!(has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/activation/"
+        "pathway/protocol/activation/"
     ));
 }
 
@@ -65,8 +65,11 @@ fn maintenance_records_repair_and_handoff_protocol_checkpoints() {
         )
         .expect("handoff maintenance");
 
-    assert!(has_protocol_checkpoint(&engine, "mesh/protocol/repair/"));
-    assert!(has_protocol_checkpoint(&engine, "mesh/protocol/handoff/"));
+    assert!(has_protocol_checkpoint(&engine, "pathway/protocol/repair/"));
+    assert!(has_protocol_checkpoint(
+        &engine,
+        "pathway/protocol/handoff/"
+    ));
 }
 
 #[test]
@@ -96,11 +99,11 @@ fn forwarding_and_partition_hold_use_protocol_runtime_paths() {
 
     assert!(has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/forwarding/"
+        "pathway/protocol/forwarding/"
     ));
     assert!(has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/hold-replay/"
+        "pathway/protocol/hold-replay/"
     ));
 }
 
@@ -129,19 +132,19 @@ fn engine_tick_records_tick_and_cooperative_protocol_checkpoints() {
 
     assert!(has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/forwarding/tick-epoch-"
+        "pathway/protocol/forwarding/tick-epoch-"
     ));
     assert!(has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/neighbor-advertisement/tick-epoch-"
+        "pathway/protocol/neighbor-advertisement/tick-epoch-"
     ));
     assert!(has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/route-export/"
+        "pathway/protocol/route-export/"
     ));
     assert!(has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/anti-entropy/"
+        "pathway/protocol/anti-entropy/"
     ));
 }
 
@@ -160,18 +163,18 @@ fn teardown_clears_route_scoped_protocol_checkpoints_but_keeps_tick_state() {
 
     assert!(!has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/activation/activation-"
+        "pathway/protocol/activation/activation-"
     ));
     assert!(!has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/route-export/"
+        "pathway/protocol/route-export/"
     ));
     assert!(!has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/anti-entropy/"
+        "pathway/protocol/anti-entropy/"
     ));
     assert!(has_protocol_checkpoint(
         &engine,
-        "mesh/protocol/forwarding/tick-epoch-"
+        "pathway/protocol/forwarding/tick-epoch-"
     ));
 }

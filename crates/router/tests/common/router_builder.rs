@@ -68,7 +68,7 @@ pub(crate) fn build_router_with_selector(
     );
     router
         .register_engine(Box::new(engine))
-        .expect("register committee mesh engine");
+        .expect("register committee pathway engine");
     router
 }
 
@@ -109,7 +109,7 @@ pub(crate) fn build_router_with_runtime_pair(
     );
     router
         .register_engine(Box::new(engine))
-        .expect("register mesh engine");
+        .expect("register pathway engine");
     router
 }
 

@@ -27,7 +27,7 @@ pub fn run(args: &[String]) -> Result<()> {
 
     if validate {
         if violations.is_empty() {
-            bail!("mesh-choreography: validation fixtures did not trigger any rule");
+            bail!("pathway-choreography: validation fixtures did not trigger any rule");
         }
         println!(
             "pathway-choreography: validation fixtures triggered {} violation(s)",

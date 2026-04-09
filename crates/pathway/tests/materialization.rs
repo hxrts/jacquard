@@ -184,16 +184,16 @@ fn materialize_route_does_not_depend_on_router_event_logging() {
         .collect::<Vec<_>>();
     assert!(remaining_keys
         .iter()
-        .any(|key| key == &format!("mesh/{}/topology-epoch", "\u{1}".repeat(32))));
+        .any(|key| key == &format!("pathway/{}/topology-epoch", "\u{1}".repeat(32))));
     assert!(remaining_keys
         .iter()
-        .any(|key| key.starts_with(&format!("mesh/{}/route/", "\u{1}".repeat(32)))));
+        .any(|key| key.starts_with(&format!("pathway/{}/route/", "\u{1}".repeat(32)))));
     assert!(remaining_keys
         .iter()
-        .any(|key| key == "mesh/protocol/forwarding/tick-epoch-2"));
+        .any(|key| key == "pathway/protocol/forwarding/tick-epoch-2"));
     assert!(remaining_keys
         .iter()
-        .any(|key| key == "mesh/protocol/neighbor-advertisement/tick-epoch-2"));
+        .any(|key| key == "pathway/protocol/neighbor-advertisement/tick-epoch-2"));
 }
 
 #[test]

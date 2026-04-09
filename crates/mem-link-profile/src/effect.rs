@@ -1,7 +1,7 @@
 //! In-memory runtime-effect adapters for reference composition and tests.
 //!
 //! This module provides a deterministic implementation of the shared runtime
-//! effect traits used by router and mesh:
+//! effect traits used by router and engine:
 //! - time
 //! - ordering
 //! - key-value storage

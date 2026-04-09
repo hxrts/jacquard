@@ -1,5 +1,0 @@
-profile Replay fairness eventual admissibility replay escalation_window bounded
-
-protocol BadMeshProtocol under Replay =
-  roles A, B
-  A -> B : Msg { value : String }

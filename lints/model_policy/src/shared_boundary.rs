@@ -46,7 +46,11 @@ impl<'tcx> LateLintPass<'tcx> for SharedPrivateBoundary {
 
         let name = cx.tcx.item_name(item.owner_id.def_id);
         let name = name.as_str();
-        if !(name.starts_with("Mesh") || name.starts_with("Onion") || name.starts_with("Field")) {
+        if !(name.starts_with("Pathway")
+            || name.starts_with("Mesh")
+            || name.starts_with("Onion")
+            || name.starts_with("Field"))
+        {
             return;
         }
 

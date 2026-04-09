@@ -36,7 +36,7 @@ fn middleware_tracks_registered_capabilities() {
     );
     let capabilities = router
         .registered_engine_capabilities(&jacquard_pathway::PATHWAY_ENGINE_ID)
-        .expect("mesh capabilities");
+        .expect("pathway capabilities");
 
     assert_eq!(capabilities.engine, jacquard_pathway::PATHWAY_ENGINE_ID);
 }

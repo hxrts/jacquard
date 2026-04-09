@@ -50,7 +50,7 @@ pub(crate) const PATHWAY_REQUIRED_SERVICE_COUNT: u32 = 3;
 /// `ServiceKindSet::insert` is not `const fn` — bits match
 /// `ServiceKindSet::bit` for each kind. (Discover=bit0, Move=bit2, Hold=bit4 →
 /// 0b10101 = 21)
-pub(crate) const DEFAULT_PATHWAY_SERVICE_REQUIREMENTS: MeshServiceRequirements =
+pub(crate) const DEFAULT_PATHWAY_SERVICE_REQUIREMENTS: PathwayServiceRequirements =
     ServiceKindSet(0b0001_0101);
 
 /// Upper bound for HealthScore values produced by this crate.
@@ -91,7 +91,7 @@ impl ServiceKindSet {
     }
 }
 
-pub(crate) type MeshServiceRequirements = ServiceKindSet;
+pub(crate) type PathwayServiceRequirements = ServiceKindSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PathwayPeerEstimate {
@@ -345,8 +345,8 @@ pub(crate) fn route_capable_for_engine(
 pub(crate) fn service_requirements_for_objective(
     objective: &RoutingObjective,
     require_hold: bool,
-) -> MeshServiceRequirements {
-    let mut requirements = MeshServiceRequirements::default();
+) -> PathwayServiceRequirements {
+    let mut requirements = PathwayServiceRequirements::default();
     requirements.insert(objective.service_kind);
     if require_hold {
         requirements.insert(RouteServiceKind::Hold);
@@ -436,7 +436,7 @@ pub(crate) fn service_surface_score_for_requirements(
     services: &[ServiceDescriptor],
     engine_id: &RoutingEngineId,
     current_tick: Tick,
-    requirements: MeshServiceRequirements,
+    requirements: PathwayServiceRequirements,
 ) -> u32 {
     let has_kind = |kind: RouteServiceKind| {
         services.iter().any(|service| {
@@ -463,7 +463,7 @@ pub(crate) fn services_meet_requirements(
     services: &[ServiceDescriptor],
     engine_id: &RoutingEngineId,
     current_tick: Tick,
-    requirements: MeshServiceRequirements,
+    requirements: PathwayServiceRequirements,
 ) -> bool {
     service_surface_score_for_requirements(
         services,
@@ -490,7 +490,7 @@ pub(crate) fn service_surface_health_score_for_requirements(
     services: &[ServiceDescriptor],
     engine_id: &RoutingEngineId,
     current_tick: Tick,
-    requirements: MeshServiceRequirements,
+    requirements: PathwayServiceRequirements,
 ) -> u32 {
     let required = requirements.count();
     if required == 0 {

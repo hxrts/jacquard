@@ -108,12 +108,12 @@ pub(crate) fn belief_to_health_score(belief: &Belief<RatioPermille>) -> u32 {
     u32::from(belief.value_or(RatioPermille(0)).get())
 }
 
-pub(crate) const DOMAIN_TAG_ROUTE_ID: &[u8] = b"mesh-route-id";
-pub(crate) const DOMAIN_TAG_COMMITMENT: &[u8] = b"mesh-commitment";
-pub(crate) const DOMAIN_TAG_HANDOFF_RECEIPT: &[u8] = b"mesh-handoff-receipt";
-pub(crate) const DOMAIN_TAG_RETENTION: &[u8] = b"mesh-retention";
-pub(crate) const DOMAIN_TAG_COMMITTEE_ID: &[u8] = b"mesh-committee-id";
-pub(crate) const DOMAIN_TAG_ORDER_KEY: &[u8] = b"mesh-order-key";
+pub(crate) const DOMAIN_TAG_ROUTE_ID: &[u8] = b"pathway-route-id";
+pub(crate) const DOMAIN_TAG_COMMITMENT: &[u8] = b"pathway-commitment";
+pub(crate) const DOMAIN_TAG_HANDOFF_RECEIPT: &[u8] = b"pathway-handoff-receipt";
+pub(crate) const DOMAIN_TAG_RETENTION: &[u8] = b"pathway-retention";
+pub(crate) const DOMAIN_TAG_COMMITTEE_ID: &[u8] = b"pathway-committee-id";
+pub(crate) const DOMAIN_TAG_ORDER_KEY: &[u8] = b"pathway-order-key";
 
 const PLAN_TOKEN_ENCODING_VERSION: u8 = 1;
 const ROUTE_IDENTITY_ENCODING_VERSION: u8 = 1;
@@ -453,7 +453,7 @@ pub(super) fn decode_checkpoint_bytes(bytes: &[u8]) -> Option<ActivePathwayRoute
 }
 
 pub(super) fn route_storage_key(local_node_id: &NodeId, route_id: &RouteId) -> Vec<u8> {
-    let mut key = b"mesh/".to_vec();
+    let mut key = b"pathway/".to_vec();
     key.extend_from_slice(&local_node_id.0);
     key.extend_from_slice(b"/route/");
     key.extend_from_slice(&route_id.0);
@@ -461,7 +461,7 @@ pub(super) fn route_storage_key(local_node_id: &NodeId, route_id: &RouteId) -> V
 }
 
 pub(super) fn topology_epoch_storage_key(local_node_id: &NodeId) -> Vec<u8> {
-    let mut key = b"mesh/".to_vec();
+    let mut key = b"pathway/".to_vec();
     key.extend_from_slice(&local_node_id.0);
     key.extend_from_slice(b"/topology-epoch");
     key
@@ -687,24 +687,24 @@ mod tests {
         let mut tagged_a = route_a.0.to_vec();
         tagged_a.extend_from_slice(b"payload");
         let id_a_first = ContentId {
-            digest: hashing.hash_tagged(b"mesh-retention", &tagged_a),
+            digest: hashing.hash_tagged(b"pathway-retention", &tagged_a),
         };
         let id_a_second = ContentId {
-            digest: hashing.hash_tagged(b"mesh-retention", &tagged_a),
+            digest: hashing.hash_tagged(b"pathway-retention", &tagged_a),
         };
         assert_eq!(id_a_first, id_a_second);
 
         let mut tagged_b = route_b.0.to_vec();
         tagged_b.extend_from_slice(b"payload");
         let id_b = ContentId {
-            digest: hashing.hash_tagged(b"mesh-retention", &tagged_b),
+            digest: hashing.hash_tagged(b"pathway-retention", &tagged_b),
         };
         assert_ne!(id_a_first, id_b);
 
         let mut tagged_c = route_a.0.to_vec();
         tagged_c.extend_from_slice(b"different");
         let id_c = ContentId {
-            digest: hashing.hash_tagged(b"mesh-retention", &tagged_c),
+            digest: hashing.hash_tagged(b"pathway-retention", &tagged_c),
         };
         assert_ne!(id_a_first, id_c);
     }
@@ -821,7 +821,7 @@ mod tests {
     }
 
     #[test]
-    fn mesh_domain_tags_are_unique() {
+    fn pathway_domain_tags_are_unique() {
         let tags = [
             DOMAIN_TAG_ROUTE_ID,
             DOMAIN_TAG_COMMITMENT,
@@ -850,7 +850,7 @@ mod tests {
             hex(&route_identity),
             "0101010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000010000000300000000000000626c6511000000000000000202020202020202020202020202020202400000000000000003030303030303030303030303030303030303030303030303030303030303030300000000000000070000000000000072656c61792d33c80f780500000000000003000000"
         );
-        assert_eq!(hex(route_id), "1ef139d2aea41bd22fd5d67598669ce5");
+        assert_eq!(hex(route_id), "1e935e11a0b1c424705ee0d6502f47ee");
         assert_eq!(
             hex(&checkpoint_bytes(&checkpointed_route)),
             "0107070707070707070707070707070707020000000000000001010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000010000000300000000000000626c6511000000000000000202020202020202020202020202020202400000000000000003030303030303030303030303030303030303030303030303030303030303030300000000000000070000000000000072656c61792d33c80f780500000000000002000000000000000e000000000000000300000001090909090909090909090909090909090200000000000000020000000000000002000000000000000a00000000000000010000000100000001000000010100000000000000020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020000000002000000000000000000000001000000010000000100000000040000000000000101000000010000000100000000000000000000000100000002000000070707070707070707070707070707071100000000000000010101010101010101010101010101010101010101010101010101010101010101020000000103000000000000000300000001040000000000000001050505050505050505050505050505050105000000000000000101000000000000000606060606060606060606060606060606060606060606060606060606060606010600000000000000"
@@ -868,7 +868,7 @@ mod tests {
                 PathwayRouteSegment {
                     node_id: NodeId([byte; 32]),
                     endpoint: opaque_endpoint(
-                        TransportKind::Custom(format!("mesh-{byte}")),
+                        TransportKind::Custom(format!("transport-{byte}")),
                         vec![byte; 32],
                         ByteCount(1400),
                     ),

@@ -83,7 +83,7 @@ pub(crate) struct PathwayProtocolObservation {
 pub(crate) trait PathwayProtocolRuntime {
     fn now_tick(&self) -> Tick;
 
-    fn send_mesh_frame(
+    fn send_frame(
         &mut self,
         frame: &PathwayChoreoFrame,
     ) -> Result<(), jacquard_core::TransportError>;
@@ -140,7 +140,7 @@ where
         self.effects.now_tick()
     }
 
-    fn send_mesh_frame(
+    fn send_frame(
         &mut self,
         frame: &PathwayChoreoFrame,
     ) -> Result<(), jacquard_core::TransportError> {
@@ -302,7 +302,7 @@ mod tests {
 
     // long-block-exception: comprehensive adapter contract verification
     #[test]
-    fn fake_mesh_choreo_adapter_maps_runtime_actions() {
+    fn fake_pathway_choreo_adapter_maps_runtime_actions() {
         let endpoint = LinkEndpoint::new(
             TransportKind::WifiAware,
             EndpointLocator::Opaque(vec![1]),
@@ -321,7 +321,7 @@ mod tests {
             endpoint: endpoint.clone(),
             payload: b"frame".to_vec(),
         };
-        adapter.send_mesh_frame(&frame).expect("send pathway frame");
+        adapter.send_frame(&frame).expect("send pathway frame");
 
         let object_id = ContentId { digest: Blake3Digest([7; 32]) };
         let payload = PathwayHeldPayload { object_id, payload: b"payload".to_vec() };
@@ -336,7 +336,7 @@ mod tests {
             .expect("take held payload");
 
         let checkpoint = PathwayCheckpointEnvelope {
-            key: b"mesh/choreo/activation".to_vec(),
+            key: b"pathway/choreo/activation".to_vec(),
             bytes: b"checkpoint".to_vec(),
         };
         adapter

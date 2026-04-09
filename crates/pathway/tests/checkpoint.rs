@@ -132,12 +132,15 @@ fn protocol_checkpoints_round_trip_without_hidden_runtime_state() {
 
     assert!(has_protocol_checkpoint(
         &original,
-        "mesh/protocol/activation/"
+        "pathway/protocol/activation/"
     ));
-    assert!(has_protocol_checkpoint(&original, "mesh/protocol/repair/"));
     assert!(has_protocol_checkpoint(
         &original,
-        "mesh/protocol/forwarding/tick-epoch-"
+        "pathway/protocol/repair/"
+    ));
+    assert!(has_protocol_checkpoint(
+        &original,
+        "pathway/protocol/forwarding/tick-epoch-"
     ));
 
     let stored_bytes = original.effects.storage_clone();
@@ -149,11 +152,14 @@ fn protocol_checkpoints_round_trip_without_hidden_runtime_state() {
         .expect("restore checkpointed route"));
     assert!(has_protocol_checkpoint(
         &recovered,
-        "mesh/protocol/activation/"
+        "pathway/protocol/activation/"
     ));
-    assert!(has_protocol_checkpoint(&recovered, "mesh/protocol/repair/"));
     assert!(has_protocol_checkpoint(
         &recovered,
-        "mesh/protocol/forwarding/tick-epoch-"
+        "pathway/protocol/repair/"
+    ));
+    assert!(has_protocol_checkpoint(
+        &recovered,
+        "pathway/protocol/forwarding/tick-epoch-"
     ));
 }

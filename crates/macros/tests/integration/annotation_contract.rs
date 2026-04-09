@@ -13,7 +13,7 @@ struct LeaseReceipt(u8);
 #[public_model]
 #[derive(Clone, Copy, PartialOrd, Ord, Hash)]
 enum RouteMode {
-    Mesh,
+    Pathway,
     Deferred,
 }
 
@@ -40,11 +40,11 @@ fn bounded_value_rejects_out_of_range_values() {
 fn public_model_preserves_existing_derives() {
     let descriptor = RouteDescriptor {
         route_id: ExampleId::new(1),
-        mode: RouteMode::Mesh,
+        mode: RouteMode::Pathway,
     };
 
     assert_eq!(descriptor.route_id.get(), 1);
-    assert!(RouteMode::Mesh < RouteMode::Deferred);
+    assert!(RouteMode::Pathway < RouteMode::Deferred);
 }
 
 #[test]

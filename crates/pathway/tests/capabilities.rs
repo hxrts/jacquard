@@ -21,7 +21,7 @@ use jacquard_traits::{
 };
 
 #[test]
-fn mesh_capability_surface_matches_the_advertised_constant() {
+fn pathway_capability_surface_matches_the_advertised_constant() {
     let engine = build_engine();
     assert_eq!(engine.capabilities(), PATHWAY_CAPABILITIES);
 }

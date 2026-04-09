@@ -125,7 +125,7 @@ where
         let endpoint = shared.endpoint.clone();
         shared
             .effects
-            .send_mesh_frame(&PathwayChoreoFrame {
+            .send_frame(&PathwayChoreoFrame {
                 endpoint,
                 payload: input.payload_digest.as_bytes().to_vec(),
             })
@@ -302,7 +302,7 @@ mod tests {
             Tick(1)
         }
 
-        fn send_mesh_frame(
+        fn send_frame(
             &mut self,
             frame: &PathwayChoreoFrame,
         ) -> Result<(), jacquard_core::TransportError> {

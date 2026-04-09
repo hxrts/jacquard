@@ -380,7 +380,7 @@ fn storage_key_scope(root: &Path) -> Result<Vec<Violation>> {
     grep_rule(
         root,
         &["crates/pathway/src"],
-        r#"b"mesh/(topology-epoch|route/)"#,
+        r#"b"pathway/(topology-epoch|route/)"#,
         "storage key is not scoped by local engine identity",
     )
 }

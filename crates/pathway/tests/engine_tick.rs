@@ -333,7 +333,7 @@ fn repeated_ticks_on_the_same_epoch_do_not_rewrite_epoch_checkpoint() {
     let topology = sample_configuration();
     let mut engine = build_engine();
     let topology_epoch_key = {
-        let mut key = b"mesh/".to_vec();
+        let mut key = b"pathway/".to_vec();
         key.extend_from_slice(&LOCAL_NODE_ID.0);
         key.extend_from_slice(b"/topology-epoch");
         key

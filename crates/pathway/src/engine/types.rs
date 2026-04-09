@@ -125,7 +125,7 @@ pub enum PathwayTransportFreshness {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MeshAntiEntropyState {
+pub struct PathwayAntiEntropyState {
     pub pressure_score: HealthScore,
     /// `None` means this event has never occurred.
     pub last_refreshed_at_tick: Option<Tick>,
@@ -136,7 +136,7 @@ pub struct PathwayControlState {
     pub last_updated_at_tick: Tick,
     pub transport_stability_score: HealthScore,
     pub repair_pressure_score: HealthScore,
-    pub anti_entropy: MeshAntiEntropyState,
+    pub anti_entropy: PathwayAntiEntropyState,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

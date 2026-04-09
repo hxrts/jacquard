@@ -288,7 +288,7 @@ fn maintenance_checkpoint_failure_leaves_runtime_and_active_route_unchanged() {
 // shared-world view. It does not yet perform route-export exchange or
 // pathway-private reconciliation work.
 #[test]
-fn anti_entropy_required_is_a_progress_refresh_in_v1_mesh() {
+fn anti_entropy_required_is_a_progress_refresh_in_v1_pathway() {
     let mut engine = build_engine();
     let topology = sample_configuration();
     let (identity, mut runtime) = activate_route(
@@ -360,7 +360,7 @@ fn policy_shift_flushes_retained_payloads_before_handoff() {
 // budget. Once the budget is gone, the next LinkDegraded must escalate
 // to ReplacementRequired rather than continuing to report Repaired.
 #[test]
-fn link_degraded_consumes_one_repair_budget_step_in_v1_mesh() {
+fn link_degraded_consumes_one_repair_budget_step_in_v1_pathway() {
     let mut engine = build_engine();
     let topology = sample_configuration();
     let (identity, mut runtime) = activate_route(

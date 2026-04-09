@@ -40,7 +40,7 @@ fn active_routes_respect_repairs_partitions_and_retention_boundaries() {
     let route_id = identity.stamp.route_id;
 
     engine
-        .forward_payload_for_router(&route_id, b"mesh-payload")
+        .forward_payload_for_router(&route_id, b"test-payload")
         .expect("forwarding");
     assert_eq!(engine.transport.sent_frames().len(), 1);
 

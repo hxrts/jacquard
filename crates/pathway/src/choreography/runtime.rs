@@ -663,7 +663,7 @@ fn protocol_checkpoint_key(
     protocol: PathwayProtocolKind,
     session: &PathwayProtocolSessionKey,
 ) -> Vec<u8> {
-    format!("mesh/protocol/{}/{}", protocol.as_str(), session.0).into_bytes()
+    format!("pathway/protocol/{}/{}", protocol.as_str(), session.0).into_bytes()
 }
 
 fn checkpoint_bytes(checkpoint: &PathwayProtocolCheckpoint) -> Vec<u8> {
@@ -776,7 +776,7 @@ mod tests {
             Tick(4)
         }
 
-        fn send_mesh_frame(
+        fn send_frame(
             &mut self,
             _frame: &crate::choreography::effects::PathwayChoreoFrame,
         ) -> Result<(), jacquard_core::TransportError> {

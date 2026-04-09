@@ -37,14 +37,16 @@ impl<'ast> Visit<'ast> for CheckpointKeyVisitor {
 impl CheckpointKeyVisitor {
     fn validate_key(&mut self, key: &str) {
         let valid = match self.crate_type {
-            | "mesh" => key.starts_with("engine/mesh/") || key.starts_with("mesh/"),
+            | "pathway" => {
+                key.starts_with("engine/pathway/") || key.starts_with("pathway/")
+            },
             | "router" => key.starts_with("router/"),
             | _ => true,
         };
 
         if !valid {
             let suggested = match self.crate_type {
-                | "mesh" => format!("engine/mesh/{}", key),
+                | "pathway" => format!("engine/pathway/{}", key),
                 | "router" => format!("router/{}", key),
                 | _ => key.to_string(),
             };
@@ -65,7 +67,7 @@ pub fn run() -> Result<()> {
 
     for source in parsed {
         let crate_type = if source.rel_path.starts_with("crates/pathway/src/") {
-            "mesh"
+            "pathway"
         } else if source.rel_path.starts_with("crates/router/src/") {
             "router"
         } else {

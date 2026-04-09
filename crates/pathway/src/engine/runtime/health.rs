@@ -263,7 +263,7 @@ where
             last_updated_at_tick: topology.observed_at_tick,
             transport_stability_score: HealthScore(transport_stability.min(1000)),
             repair_pressure_score: HealthScore(repair_pressure),
-            anti_entropy: super::super::types::MeshAntiEntropyState {
+            anti_entropy: super::super::types::PathwayAntiEntropyState {
                 pressure_score: HealthScore(anti_entropy_pressure),
                 last_refreshed_at_tick: previous
                     .and_then(|state| state.anti_entropy.last_refreshed_at_tick),

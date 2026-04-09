@@ -454,8 +454,8 @@ where
 {
     // The four ID helpers below all derive stable content addresses from
     // a route-specific byte input using tagged hashing. Domain tags
-    // ("mesh-route-id", "mesh-commitment", "mesh-handoff-receipt",
-    // "mesh-retention") prevent cross-domain collisions even when two
+    // ("pathway-route-id", "pathway-commitment", "pathway-handoff-receipt",
+    // "pathway-retention") prevent cross-domain collisions even when two
     // derivations happen to share bytes.
     fn route_id_for_backend(
         &self,

@@ -162,7 +162,7 @@ where
         if let Some(endpoint) = endpoint {
             shared
                 .effects
-                .send_mesh_frame(&PathwayChoreoFrame { endpoint, payload })
+                .send_frame(&PathwayChoreoFrame { endpoint, payload })
                 .map_err(|_| effects::PathwayProtocolError::Unavailable)?;
         }
         Ok(effects::HoldReceipt {

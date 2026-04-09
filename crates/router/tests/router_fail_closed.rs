@@ -103,7 +103,7 @@ fn activation_reselection_and_maintenance_are_deterministic_for_equal_inputs() {
 }
 
 #[test]
-fn recovery_restores_router_and_mesh_state_from_router_owned_registry() {
+fn recovery_restores_router_and_pathway_state_from_router_owned_registry() {
     let shared_state = Arc::new(Mutex::new(BTreeSet::new()));
     let mut router = build_router_with_recoverable_engine(
         Tick(2),

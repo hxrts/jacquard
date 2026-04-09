@@ -347,7 +347,7 @@ impl<'tcx> LateLintPass<'tcx> for UnscopedStorageKeys {
             if !rel.contains("/crates/pathway/src/") {
                 return None;
             }
-            let line = first_line_matching(contents, &Regex::new(r#"b"mesh/(topology-epoch|route/)"#).ok()?)?;
+            let line = first_line_matching(contents, &Regex::new(r#"b"pathway/(topology-epoch|route/)"#).ok()?)?;
             Some((
                 UNSCOPED_STORAGE_KEYS,
                 format!("{rel}:{line}: storage key is not scoped by local engine identity"),

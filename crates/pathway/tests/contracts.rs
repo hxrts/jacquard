@@ -17,7 +17,7 @@ use jacquard_traits::{
 };
 
 #[test]
-fn mesh_routing_engine_exposes_explicit_mesh_owned_subcomponents() {
+fn pathway_routing_engine_exposes_explicit_pathway_owned_subcomponents() {
     let mut engine = build_engine();
     let object_id = ContentId { digest: Blake3Digest([8; 32]) };
     engine

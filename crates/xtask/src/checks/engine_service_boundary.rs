@@ -26,14 +26,14 @@ const ALLOWED_PUBLIC_TYPES: &[&str] = &[
 
 pub fn run() -> Result<()> {
     let root = workspace_root()?;
-    let mesh_lib = root.join("crates/pathway/src/lib.rs");
+    let pathway_lib = root.join("crates/pathway/src/lib.rs");
 
-    if !mesh_lib.exists() {
-        println!("engine-service-boundary: no mesh/src/lib.rs found");
+    if !pathway_lib.exists() {
+        println!("engine-service-boundary: no pathway/src/lib.rs found");
         return Ok(());
     }
 
-    let contents = fs::read_to_string(&mesh_lib)?;
+    let contents = fs::read_to_string(&pathway_lib)?;
 
     // Check for forbidden public exports
     let mut violations = Vec::new();

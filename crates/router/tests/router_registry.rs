@@ -16,7 +16,7 @@ use jacquard_pathway::{
 use jacquard_traits::{Blake3Hashing, Router};
 
 #[test]
-fn multi_engine_router_rejects_duplicate_mesh_registration() {
+fn multi_engine_router_rejects_duplicate_pathway_registration() {
     let mut router = build_router(Tick(2));
     let duplicate_engine = PathwayEngine::without_committee_selector(
         LOCAL_NODE_ID,
@@ -29,13 +29,13 @@ fn multi_engine_router_rejects_duplicate_mesh_registration() {
 
     let error = router
         .register_engine(Box::new(duplicate_engine))
-        .expect_err("duplicate mesh engine should be rejected");
+        .expect_err("duplicate pathway engine should be rejected");
 
     assert_eq!(error, CapabilityError::Rejected.into());
 }
 
 #[test]
-fn multi_engine_router_registers_multiple_engines_and_selects_mesh_candidate() {
+fn multi_engine_router_registers_multiple_engines_and_selects_pathway_candidate() {
     let mut router = build_router(Tick(2));
     let auxiliary_engine_id =
         jacquard_core::RoutingEngineId::from_contract_bytes([6; 16]);

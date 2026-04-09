@@ -3,7 +3,7 @@
 //! Control flow: callers define shared endpoints, choose preset-oriented links,
 //! and attach transports to an in-memory network. The crate also exposes
 //! deterministic retention and runtime-effect adapters for tests. It does not
-//! plan routes or interpret mesh policy. It only provides reusable in-memory
+//! plan routes or interpret routing policy. It only provides reusable in-memory
 //! infrastructure.
 //!
 //! Most callers should start with the [`authoring`] module, especially

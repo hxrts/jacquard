@@ -2,7 +2,7 @@
 //!
 //! Control flow: this crate owns only node capability and node-state
 //! simulation. Callers build a stable `NodeProfile`, evolve a local
-//! `NodeStateSnapshot`, and then assemble a `Node` without importing any mesh
+//! `NodeStateSnapshot`, and then assemble a `Node` without importing any engine
 //! planner or router logic.
 //!
 //! Most callers should start with the [`authoring`] module, especially

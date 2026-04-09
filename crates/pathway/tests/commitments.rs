@@ -28,7 +28,7 @@ fn materialized_route_for(
 
 #[test]
 // long-block-exception: steady/repair/partition/handoff posture in one block.
-fn v1_mesh_exposes_one_commitment_per_route_across_runtime_postures() {
+fn v1_pathway_exposes_one_commitment_per_route_across_runtime_postures() {
     let topology = sample_configuration();
     let mut engine = build_engine();
     let (identity, mut runtime) = activate_route(

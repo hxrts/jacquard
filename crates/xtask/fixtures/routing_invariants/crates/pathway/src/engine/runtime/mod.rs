@@ -10,7 +10,7 @@ pub fn maintain_route() {
 }
 
 pub fn store() {
-    self.store_bytes(b"mesh/topology-epoch", bytes);
+    self.store_bytes(b"pathway/topology-epoch", bytes);
 }
 
 pub fn health() {

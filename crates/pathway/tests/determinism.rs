@@ -169,7 +169,7 @@ impl Hashing for AltHashing {
 }
 
 #[test]
-fn mesh_engine_accepts_non_blake3_hashing_for_route_identity() {
+fn pathway_engine_accepts_non_blake3_hashing_for_route_identity() {
     let engine = PathwayEngine::without_committee_selector(
         LOCAL_NODE_ID,
         DeterministicPathwayTopologyModel::new(),

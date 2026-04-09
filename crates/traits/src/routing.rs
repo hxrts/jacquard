@@ -208,7 +208,7 @@ pub trait RoutingEnginePlanner {
 }
 
 #[purity(effectful)]
-/// The effectful routing-engine boundary. Each routing engine (eg. mesh)
+/// The effectful routing-engine boundary. Each routing engine (eg. pathway)
 /// implements this trait. Jacquard core interacts with engine runtime state
 /// only through this surface.
 ///
