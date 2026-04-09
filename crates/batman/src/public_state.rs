@@ -55,6 +55,12 @@ pub(crate) struct OriginatorObservation {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct NeighborRanking {
     pub originator: NodeId,
+    /// Neighbors ranked by descending TQ then ascending hop count then neighbor
+    /// id.
+    ///
+    /// Length is bounded by the number of direct neighbours reachable from the
+    /// local node in the current topology, which is bounded by
+    /// `NodeProfile::neighbor_state_count_max`.
     pub ranked_neighbors: Vec<OriginatorObservation>,
 }
 

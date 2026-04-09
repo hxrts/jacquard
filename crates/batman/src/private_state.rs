@@ -144,7 +144,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                     let tq = scoring::tq_product(*local_tq, remote_tq);
                     let degradation = max_degradation(
                         *local_degradation,
-                        if tq.0 < 700 {
+                        if tq.0 < scoring::TQ_DEGRADED_BELOW {
                             RouteDegradation::Degraded(
                                 jacquard_core::DegradationReason::LinkInstability,
                             )
