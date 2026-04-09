@@ -158,6 +158,7 @@ ci-dry-run:
     add_step "Transport Ownership Boundary" "cargo xtask check transport-ownership-boundary"
     add_step "Router Round Boundary"     "cargo xtask check router-round-boundary"
     add_step "Reference Bridge Boundary" "cargo xtask check reference-bridge-boundary"
+    add_step "Simulator Boundary"        "cargo xtask check simulator-boundary"
     add_step "Ownership Invariants"       "cargo xtask check ownership-invariants"
     add_step "No usize in Models"         "cargo xtask check no-usize-in-models"
     add_step "Result Must Use"            "cargo xtask check result-must-use"
@@ -276,6 +277,19 @@ release \
       args+=(--no-require-main)
     fi
     ./scripts/ops/release.sh "${args[@]}"
+
+# Hydrate the Mathlib olean cache so lean-build never rebuilds Mathlib from source.
+# Must be run once from inside `nix develop` before lean-build will work.
+lean-setup:
+    ./scripts/bootstrap/ensure-lean-prebuilt.sh
+
+# Build the Lean verification package (requires lean-setup to have been run once).
+lean-build:
+    cd verification && lake build
+
+# Elaborate the Hello.lean smoke-test (fast check that cache is healthy).
+lean-hello:
+    cd verification && lake build Hello
 
 # install git hooks
 install-hooks:

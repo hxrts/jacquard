@@ -30,5 +30,7 @@ work/
 .claude/
 
 # lean / lake
+# .lake/ contains build artifacts and downloaded package sources — not committed.
+# lake-manifest.json IS committed (pins the exact mathlib revision).
 verification/.lake/
 verification/artifacts/
