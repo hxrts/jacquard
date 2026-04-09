@@ -6,7 +6,8 @@
 //!
 //! 1. Staged-file guard: rejects any staged file that matches `.gitignore`
 //!    patterns, preventing accidental commits of build artifacts or secrets.
-//! 2. Format check: runs `cargo fmt -- --check` on the affected crates only.
+//! 2. Format check: runs the same Nix nightly rustfmt path used in CI on the
+//!    affected crates only.
 //! 3. Compile check: runs `cargo check` on the affected crates only.
 //!
 //! Affected-crate detection maps each staged `.rs` file back to its owning
@@ -33,14 +34,7 @@ pub fn run() -> Result<()> {
     let staged_rs = staged_rust_files(staged_files);
     let crates = affected_crates(&root, &staged_rs)?;
 
-    run_optional_cargo_check(
-        "Checking formatting",
-        &root,
-        &crates,
-        "fmt",
-        &["--", "--check"],
-        "Run `cargo fmt --all` to fix formatting",
-    )?;
+    run_optional_format_check(&root, &crates)?;
     run_optional_cargo_check(
         "Checking compilation",
         &root,
@@ -111,6 +105,27 @@ fn run_optional_cargo_check(
         extra_args,
         help_message,
     )?;
+    println!("OK");
+    Ok(())
+}
+
+fn run_optional_format_check(root: &Path, crates: &BTreeSet<String>) -> Result<()> {
+    print!("Checking formatting... ");
+    if crates.is_empty() {
+        println!("OK (no Rust files staged)");
+        return Ok(());
+    }
+
+    let mut command = Command::new("nix");
+    command.args(["develop", "./nix/nightly", "--command", "cargo-fmt-nightly"]);
+    command.args(package_args(crates));
+    command.args(["--", "--check"]);
+    command.current_dir(root);
+    let status = command.status().context("running Nix nightly formatter")?;
+    if !status.success() {
+        eprintln!("pre-commit: Run `just fmt` to fix formatting");
+        bail!("pre-commit failed");
+    }
     println!("OK");
     Ok(())
 }
