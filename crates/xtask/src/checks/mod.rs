@@ -16,6 +16,7 @@ pub mod pre_commit;
 pub mod proc_macro_scope;
 pub mod proof_bearing_actions;
 pub mod result_must_use;
+pub mod router_round_boundary;
 pub mod routing_invariants;
 pub mod surface_classification;
 pub mod test_boundaries;
@@ -45,6 +46,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "proc-macro-scope" => proc_macro_scope::run(),
         | "proof-bearing-actions" => proof_bearing_actions::run(),
         | "result-must-use" => result_must_use::run(),
+        | "router-round-boundary" => router_round_boundary::run(),
         | "routing-invariants" => routing_invariants::run(rest),
         | "surface-classification" => surface_classification::run(),
         | "test-boundaries" => test_boundaries::run(),

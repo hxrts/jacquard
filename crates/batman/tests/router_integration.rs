@@ -239,9 +239,7 @@ fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
         .register_engine(Box::new(engine))
         .expect("register BATMAN engine");
 
-    let tick = router
-        .anti_entropy_tick()
-        .expect("pre-activation proactive tick");
+    let tick = router.advance_round().expect("pre-activation router round");
     assert_eq!(tick.engine_change, RoutingTickChange::PrivateStateUpdated);
 
     let route = Router::activate_route(&mut router, sample_objective())

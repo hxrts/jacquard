@@ -81,7 +81,7 @@ That activation step also enforces the shared control-plane invariants. The admi
 
 An engine may still use a richer internal runtime model behind that hook. First-party mesh, for example, now drives protocol-side ingress and bounded control-state refresh through a private choreography guest runtime while keeping the shared `engine_tick` signature unchanged.
 
-That private choreography runtime does not replace the shared Jacquard effect traits. Generated Telltale effect interfaces remain engine-private implementation details, and the mesh interpreter adapts them onto the stable `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, `TransportSenderEffects`, `TransportDriver`, and other shared trait surfaces exposed by `jacquard-traits`.
+That private choreography runtime does not replace the shared Jacquard effect traits. Generated Telltale effect interfaces remain engine-private implementation details, and the pathway interpreter adapts them onto the stable `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `TransportSenderEffects` surfaces exposed by `jacquard-traits`. Host-owned `TransportDriver` implementations now stop at the router or bridge layer, which delivers explicit ingress before each synchronous router round.
 
 ## Contract Rules
 

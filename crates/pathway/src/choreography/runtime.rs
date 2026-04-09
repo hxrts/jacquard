@@ -291,28 +291,32 @@ where
         Ok(payload)
     }
 
-    pub(crate) fn poll_tick_ingress(
+    pub(crate) fn record_tick_ingress(
         &mut self,
         epoch: RouteEpoch,
-    ) -> Result<Vec<TransportObservation>, RouteError> {
-        let mut observations = Vec::new();
+        observations: &[TransportObservation],
+    ) -> Result<(), RouteError> {
         let detail = self.protocol_step(
             PathwayProtocolKind::ForwardingHop,
             tick_session(epoch),
-            |runtime| {
-                observations = runtime
-                    .effects
-                    .poll_mesh_ingress()
-                    .map_err(RouteError::from)?;
-                Ok("tick")
-            },
+            |_runtime| Ok("tick"),
         )?;
         self.protocol_detail_checkpoint(
             PathwayProtocolKind::ForwardingHop,
             tick_session(epoch),
             detail,
         )?;
-        Ok(observations)
+        if !observations.is_empty() {
+            self.effects
+                .emit_protocol_observation(PathwayProtocolObservation {
+                    protocol: PathwayProtocolKind::ForwardingHop,
+                    protocol_name: "ForwardingHop".to_owned(),
+                    role_names: vec!["transport-ingress".to_owned()],
+                    session: tick_session(epoch),
+                    detail: "ingested",
+                });
+        }
+        Ok(())
     }
 
     fn protocol_step<T, F>(
@@ -458,7 +462,7 @@ mod tests {
     use bincode::Options;
     use jacquard_core::{
         Blake3Digest, ContentId, RouteEpoch, RouteError, RouteId, RouteRuntimeError,
-        StorageError, Tick, TransportObservation,
+        StorageError, Tick,
     };
     use jacquard_traits::{effect_handler, StorageEffects, TimeEffects};
 
@@ -480,7 +484,6 @@ mod tests {
     struct FakeEffects {
         checkpoints: BTreeMap<Vec<u8>, Vec<u8>>,
         observations: Vec<PathwayProtocolObservation>,
-        ingress: Vec<TransportObservation>,
     }
 
     #[effect_handler]
@@ -520,12 +523,6 @@ mod tests {
             _frame: &crate::choreography::effects::PathwayChoreoFrame,
         ) -> Result<(), jacquard_core::TransportError> {
             Ok(())
-        }
-
-        fn poll_mesh_ingress(
-            &mut self,
-        ) -> Result<Vec<TransportObservation>, jacquard_core::TransportError> {
-            Ok(std::mem::take(&mut self.ingress))
         }
 
         fn store_held_payload(
@@ -605,9 +602,9 @@ mod tests {
         runtime
             .activation_handshake(&RouteId([3; 16]), RouteEpoch(3))
             .expect("activation");
-        let ingress = runtime
-            .poll_tick_ingress(RouteEpoch(2))
-            .expect("tick ingress");
+        runtime
+            .record_tick_ingress(RouteEpoch(2), &[])
+            .expect("record tick ingress");
         let hold_checkpoint = load_checkpoint(
             &runtime,
             PathwayProtocolKind::HoldReplay,
@@ -621,7 +618,6 @@ mod tests {
         )
         .expect("tick checkpoint present");
 
-        assert!(ingress.is_empty());
         assert!(runtime.effects.checkpoints.len() >= 3);
         assert!(runtime.effects.observations.len() >= 2);
         assert_eq!(hold_checkpoint.detail, "retained");

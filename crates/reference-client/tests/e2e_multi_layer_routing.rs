@@ -190,7 +190,7 @@ fn build_mixed_engine_triplet(
 
 // -- Observation helpers -----------------------------------------------
 
-/// Run one anti-entropy tick on the receiver and assert the router
+/// Run one router round on the receiver and assert the router
 /// reported the expected topology epoch, a private-state update, and a
 /// one-tick scheduling hint. Used to confirm a pathway forward landed.
 fn assert_tick_after_forward(
@@ -198,10 +198,7 @@ fn assert_tick_after_forward(
     expected_epoch: jacquard_core::RouteEpoch,
     tick_context: &str,
 ) {
-    let outcome = receiver
-        .router_mut()
-        .anti_entropy_tick()
-        .expect(tick_context);
+    let outcome = receiver.router_mut().advance_round().expect(tick_context);
 
     assert_eq!(outcome.topology_epoch, expected_epoch);
     assert_eq!(
@@ -209,7 +206,7 @@ fn assert_tick_after_forward(
         jacquard_core::RoutingTickChange::PrivateStateUpdated,
     );
     assert_eq!(
-        outcome.engine_tick_hint,
+        outcome.next_round_hint,
         jacquard_core::RoutingTickHint::WithinTicks(jacquard_core::Tick(1)),
     );
 }
@@ -358,7 +355,7 @@ fn routing_spans_batman_then_pathway() {
     //    after the dual-engine path has completed.
     let outcome = client_c
         .router_mut()
-        .anti_entropy_tick()
-        .expect("client C anti-entropy tick");
+        .advance_round()
+        .expect("client C router round");
     assert_eq!(outcome.topology_epoch, jacquard_core::RouteEpoch(3));
 }

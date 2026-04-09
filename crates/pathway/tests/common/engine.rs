@@ -22,7 +22,7 @@ use jacquard_traits::{
         RoutingEngineFallbackPolicy, RoutingObjective, RoutingTickContext,
         SelectedRoutingParameters, Tick, TimeWindow,
     },
-    Blake3Hashing, RoutingEngine, RoutingEnginePlanner,
+    Blake3Hashing, RouterManagedEngine, RoutingEngine, RoutingEnginePlanner,
 };
 
 use super::{
@@ -57,6 +57,17 @@ impl Deref for TestEngine {
 impl DerefMut for TestEngine {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.engine
+    }
+}
+
+impl TestEngine {
+    pub fn ingest_transport_observation(
+        &mut self,
+        observation: &jacquard_traits::jacquard_core::TransportObservation,
+    ) {
+        self.engine
+            .ingest_transport_observation_for_router(observation)
+            .expect("ingest transport observation");
     }
 }
 

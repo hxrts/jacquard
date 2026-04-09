@@ -89,16 +89,17 @@ Pathway protocols now live inline in the pathway crate as `tell!` definitions. T
 Pathway also keeps one pathway-owned choreography interpreter surface above the shared runtime traits. That interpreter maps protocol-local requests onto the existing Jacquard boundaries:
 
 - `TransportSenderEffects` for endpoint-addressed payload sends
-- `TransportDriver` for host-owned ingress draining outside the effect vocabulary
 - `RetentionStore` for deferred-delivery payload storage
 - `RouteEventLogEffects` for replay-visible route events
 - router-owned checkpoint orchestration for persisted pathway-private state
 
-This is intentionally still pathway-private. The router should only observe shared route objects, shared tick context, shared tick outcome, and shared checkpoint orchestration. It should not depend on pathway-private choreography payloads or generated effect interfaces.
+Host-owned ingress draining now stops outside pathway itself. The router or bridge drains `TransportDriver`, converts raw ingress into shared observations, and feeds those observations into pathway through explicit router ingestion before a synchronous round.
+
+This is intentionally still pathway-private. The router should only observe shared route objects, shared tick context, shared round outcome, and shared checkpoint orchestration. It should not depend on pathway-private choreography payloads or generated effect interfaces.
 
 The generated or protocol-local Telltale effect interfaces are not the shared Jacquard effect contract. They stay inside `jacquard-pathway` as implementation-facing protocol surfaces. Concrete host adapters still implement the shared traits from `jacquard-traits`, and the pathway choreography interpreter translates protocol-local requests onto those stable cross-engine traits instead of replacing them.
 
-At runtime, pathway entry points now cross one private guest-runtime layer before touching transport send capability, transport ingress draining, retention, or route-event logging directly. `forward_payload`, materialization-side activation, maintenance-side repair and handoff, retained-payload replay, tick ingress, route export, neighbor advertisement, and anti-entropy exchange all enter that pathway-local choreography boundary first. The guest runtime resolves stable inline protocol metadata for the protocol being entered, fails closed if that metadata is unavailable, and then records small protocol checkpoints keyed by protocol kind plus route or tick session so recovery does not depend on hidden in-memory sequencing state.
+At runtime, pathway entry points now cross one private guest-runtime layer before touching transport send capability, retention, or route-event logging directly. `forward_payload`, materialization-side activation, maintenance-side repair and handoff, retained-payload replay, round-side ingress recording, route export, neighbor advertisement, and anti-entropy exchange all enter that pathway-local choreography boundary first. The guest runtime resolves stable inline protocol metadata for the protocol being entered, fails closed if that metadata is unavailable, and then records small protocol checkpoints keyed by protocol kind plus route or tick session so recovery does not depend on hidden in-memory sequencing state.
 
 ## Runtime and Repair
 
@@ -226,7 +227,7 @@ pub trait PathwayRoutingEngine: RoutingEngine {
 }
 ```
 
-`PathwayRoutingEngine` binds one concrete topology model and one retention store to a pathway engine instance. It stays narrow on purpose: hosts can inspect the read-only mesh subcomponents without gaining a mutation hook into pathway-private runtime state. Transport send capability and host-owned ingress supervision are now split: pathway consumes the shared `TransportSenderEffects` capability plus the host-owned `TransportDriver` boundary and keeps any concrete transport adapter private to the engine instance or host composition layer.
+`PathwayRoutingEngine` binds one concrete topology model and one retention store to a pathway engine instance. It stays narrow on purpose: hosts can inspect the read-only pathway subcomponents without gaining a mutation hook into pathway-private runtime state. Transport send capability and transport ingress ownership are now split cleanly: pathway consumes the shared `TransportSenderEffects` capability, while the host/router owns ingress supervision and delivers explicit observations before each round.
 
 ### Shared Retention Boundary
 

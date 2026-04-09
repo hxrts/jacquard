@@ -1,10 +1,10 @@
 //! Regression test for the shared transport-capability boundary.
 //!
 //! Control flow: this test instantiates `PathwayEngine` with a local transport
-//! that implements the shared send capability plus host-owned ingress driver,
-//! but no pathway-specific transport trait. If route activation and
-//! forwarding succeed, mesh is still generic over the shared transport effect
-//! surface rather than over a mesh-specific transport trait.
+//! that implements the shared send capability only, but no pathway-specific
+//! transport trait. If route activation and forwarding succeed, pathway is
+//! still generic over the shared transport effect surface rather than over a
+//! pathway-specific transport trait.
 
 mod common;
 
@@ -18,17 +18,14 @@ use common::{
 use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
 use jacquard_traits::{
     effect_handler,
-    jacquard_core::{
-        DestinationId, LinkEndpoint, Tick, TransportError, TransportIngressEvent,
-    },
+    jacquard_core::{DestinationId, LinkEndpoint, Tick, TransportError},
     Blake3Hashing, RouterManagedEngine, RoutingEngine, RoutingEnginePlanner,
-    TransportDriver, TransportSenderEffects,
+    TransportSenderEffects,
 };
 
 #[derive(Default)]
 struct SharedOnlyTransportState {
     sent_frames: Vec<(LinkEndpoint, Vec<u8>)>,
-    ingress_events: Vec<TransportIngressEvent>,
 }
 
 #[derive(Clone, Default)]
@@ -61,23 +58,8 @@ impl TransportSenderEffects for SharedOnlyTransport {
     }
 }
 
-impl TransportDriver for SharedOnlyTransport {
-    fn drain_transport_ingress(
-        &mut self,
-    ) -> Result<Vec<TransportIngressEvent>, TransportError> {
-        Ok(std::mem::take(
-            &mut self
-                .0
-                .lock()
-                .expect("shared-only transport lock")
-                .ingress_events,
-        ))
-    }
-}
-
 #[test]
-fn mesh_engine_accepts_shared_transport_sender_and_driver_without_a_pathway_transport_trait(
-) {
+fn pathway_engine_accepts_shared_transport_sender_without_a_pathway_transport_trait() {
     let topology = sample_configuration();
     let transport = SharedOnlyTransport::default();
     let mut engine = PathwayEngine::without_committee_selector(

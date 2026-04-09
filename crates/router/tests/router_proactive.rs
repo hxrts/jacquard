@@ -79,14 +79,14 @@ fn router_tolerates_engine_private_periodic_work_before_activation() {
         RouteShapeVisibility::AggregatePath,
     );
 
-    let outcome = router.anti_entropy_tick().expect("proactive engine tick");
+    let outcome = router.advance_round().expect("router round");
 
     assert_eq!(outcome.topology_epoch, jacquard_core::RouteEpoch(2));
     assert_eq!(
         outcome.engine_change,
         RoutingTickChange::PrivateStateUpdated
     );
-    assert_eq!(outcome.engine_tick_hint, RoutingTickHint::Immediate);
+    assert_eq!(outcome.next_round_hint, RoutingTickHint::Immediate);
 
     let route = Router::activate_route(
         &mut router,

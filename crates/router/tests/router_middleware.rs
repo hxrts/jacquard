@@ -7,15 +7,15 @@ use jacquard_core::{
 use jacquard_traits::{Router, RoutingControlPlane};
 
 #[test]
-fn middleware_replaces_topology_and_policy_inputs() {
+fn middleware_ingests_topology_and_policy_inputs() {
     let mut router = build_router(Tick(2));
     let mut topology = sample_configuration();
     topology.value.environment.reachable_neighbor_count = 5;
     let mut policy_inputs = common::sample_policy_inputs(&topology);
     policy_inputs.routing_engine_count = 3;
 
-    router.replace_topology(topology.clone());
-    router.replace_policy_inputs(policy_inputs.clone());
+    router.ingest_topology_observation(topology.clone());
+    router.ingest_policy_inputs(policy_inputs.clone());
 
     let route = Router::activate_route(
         &mut router,
@@ -42,10 +42,10 @@ fn middleware_tracks_registered_capabilities() {
 }
 
 #[test]
-fn anti_entropy_tick_reports_shared_router_outcome() {
+fn advance_round_reports_shared_router_outcome() {
     let mut router = build_router(Tick(2));
 
-    let outcome = router.anti_entropy_tick().expect("anti-entropy tick");
+    let outcome = router.advance_round().expect("advance round");
 
     assert_eq!(outcome.topology_epoch, sample_configuration().value.epoch);
     assert_eq!(
@@ -53,7 +53,7 @@ fn anti_entropy_tick_reports_shared_router_outcome() {
         RoutingTickChange::PrivateStateUpdated
     );
     assert_eq!(
-        outcome.engine_tick_hint,
+        outcome.next_round_hint,
         RoutingTickHint::WithinTicks(Tick(1))
     );
     assert_eq!(outcome.canonical_mutation, RouterCanonicalMutation::None);

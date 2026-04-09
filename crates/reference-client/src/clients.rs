@@ -135,7 +135,7 @@ pub fn build_pathway_batman_client_with_profile(
 
 impl Client<PathwayRouter> {
     pub fn replace_shared_topology(&mut self, topology: Observation<Configuration>) {
-        self.router.replace_topology(topology.clone());
+        self.router.ingest_topology_observation(topology.clone());
         self.topology = topology;
     }
 }

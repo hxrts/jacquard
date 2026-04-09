@@ -1,24 +1,24 @@
 //! Mesh-owned choreography effect bridge.
 //!
 //! Control flow: choreography-facing runtime code talks only to this narrow
-//! effect surface. The bridge stores protocol checkpoints, drains host-owned
-//! transport ingress, and forwards retention operations onto the shared
-//! transport sender, retention, and runtime-effect traits.
+//! effect surface. The bridge stores protocol checkpoints and forwards
+//! retention operations onto the shared transport sender, retention, and
+//! runtime-effect traits.
 //!
 //! The boundary rule is that these mesh-private choreography effects are
 //! not the shared Jacquard effect contract. Generated or protocol-local
 //! effect interfaces stay private to `jacquard-pathway`. Concrete host/runtime
 //! adapters implement the shared traits from `jacquard-traits`, and this
 //! bridge interprets pathway choreography requests in terms of those stable
-//! cross-engine traits.
+//! cross-engine traits after the router has already delivered any explicit
+//! transport ingress for the current round.
 
 use jacquard_core::{
     Blake3Digest, ContentId, LinkEndpoint, RouteError, RouteRuntimeError, StorageError,
-    Tick, TransportObservation,
+    Tick,
 };
 use jacquard_traits::{
-    RetentionStore, StorageEffects, TimeEffects, TransportDriver,
-    TransportSenderEffects,
+    RetentionStore, StorageEffects, TimeEffects, TransportSenderEffects,
 };
 
 /// Extension trait for converting choreography protocol errors into
@@ -88,10 +88,6 @@ pub(crate) trait PathwayProtocolRuntime {
         frame: &PathwayChoreoFrame,
     ) -> Result<(), jacquard_core::TransportError>;
 
-    fn poll_mesh_ingress(
-        &mut self,
-    ) -> Result<Vec<TransportObservation>, jacquard_core::TransportError>;
-
     fn store_held_payload(
         &mut self,
         payload: &PathwayHeldPayload,
@@ -136,7 +132,7 @@ pub(crate) struct PathwayProtocolRuntimeAdapter<'a, T, R, E> {
 
 impl<T, R, E> PathwayProtocolRuntime for PathwayProtocolRuntimeAdapter<'_, T, R, E>
 where
-    T: TransportSenderEffects + TransportDriver,
+    T: TransportSenderEffects,
     R: RetentionStore,
     E: StorageEffects + TimeEffects,
 {
@@ -150,18 +146,6 @@ where
     ) -> Result<(), jacquard_core::TransportError> {
         self.transport
             .send_transport(&frame.endpoint, &frame.payload)
-    }
-
-    fn poll_mesh_ingress(
-        &mut self,
-    ) -> Result<Vec<TransportObservation>, jacquard_core::TransportError> {
-        let observed_at_tick = self.effects.now_tick();
-        Ok(self
-            .transport
-            .drain_transport_ingress()?
-            .into_iter()
-            .map(|event| event.observe_at(observed_at_tick))
-            .collect())
     }
 
     fn store_held_payload(
@@ -218,12 +202,11 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        Blake3Digest, ByteCount, ContentId, EndpointLocator, LinkEndpoint, NodeId,
-        StorageError, Tick, TransportIngressEvent, TransportKind,
+        Blake3Digest, ByteCount, ContentId, EndpointLocator, LinkEndpoint,
+        StorageError, Tick, TransportKind,
     };
     use jacquard_traits::{
-        effect_handler, StorageEffects, TimeEffects, TransportDriver,
-        TransportSenderEffects,
+        effect_handler, StorageEffects, TimeEffects, TransportSenderEffects,
     };
 
     use super::{
@@ -238,7 +221,6 @@ mod tests {
     #[derive(Default)]
     struct FakeTransport {
         sent: Vec<(TransportKind, Vec<u8>)>,
-        observations: Vec<TransportIngressEvent>,
     }
 
     #[effect_handler]
@@ -251,14 +233,6 @@ mod tests {
             self.sent
                 .push((endpoint.transport_kind.clone(), payload.to_vec()));
             Ok(())
-        }
-    }
-
-    impl TransportDriver for FakeTransport {
-        fn drain_transport_ingress(
-            &mut self,
-        ) -> Result<Vec<TransportIngressEvent>, jacquard_core::TransportError> {
-            Ok(self.observations.clone())
         }
     }
 
@@ -335,13 +309,6 @@ mod tests {
             ByteCount(128),
         );
         let mut transport = FakeTransport::default();
-        transport
-            .observations
-            .push(TransportIngressEvent::PayloadReceived {
-                from_node_id: NodeId([9; 32]),
-                endpoint: endpoint.clone(),
-                payload: b"observed".to_vec(),
-            });
         let mut retention = FakeRetention::default();
         let mut effects = FakeEffects::default();
         let mut adapter = PathwayProtocolRuntimeAdapter {
@@ -355,7 +322,6 @@ mod tests {
             payload: b"frame".to_vec(),
         };
         adapter.send_mesh_frame(&frame).expect("send mesh frame");
-        let observations = adapter.poll_mesh_ingress().expect("poll ingress");
 
         let object_id = ContentId { digest: Blake3Digest([7; 32]) };
         let payload = PathwayHeldPayload { object_id, payload: b"payload".to_vec() };
@@ -392,7 +358,6 @@ mod tests {
         });
 
         assert_eq!(adapter.transport.sent.len(), 1);
-        assert_eq!(observations.len(), 1);
         assert!(loaded.is_some());
         assert!(recovered.is_none());
         assert!(adapter.retention.payloads.is_empty());

@@ -35,6 +35,8 @@ Transport ownership is split deliberately:
 - `TransportSenderEffects` is the shared synchronous send capability.
 - `TransportDriver` is the host-owned ingress and supervision surface.
 - routers and engines must not own transport streams or assign `Tick`.
+- routers consume explicit ingress through router-owned ingestion APIs and
+  advance synchronously through `advance_round`.
 - host bridges own ingress draining, batching, and time attachment.
 
 `macros` owns syntax-local code generation and annotation-site validation. `lints/` owns nightly compiler-backed policy checks. `crates/xtask` owns the stable fast-path workspace checks used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
@@ -55,6 +57,7 @@ Run individual policy checks with `cargo xtask check <name>`. Registered names:
 - `proc-macro-scope` — every non-exempt Rust source file under a crate's `src/` tree must carry at least one Jacquard proc-macro annotation
 - `proof-bearing-actions` — public methods returning high-consequence types must carry doc comments explaining proof semantics
 - `result-must-use` — `fn method(...) -> Result<..>` trait methods under `crates/traits/src/` must carry `#[must_use]`
+- `router-round-boundary` — explicit router ingress and `advance_round` vocabulary must remain in place, and legacy poll-shaped router advancement is forbidden
 - `routing-invariants` — routing-invariant rules (pass `--validate` to run fixture validation)
 - `surface-classification` — traits whose name contains `Transport` must declare `connectivity surface` or `service surface`
 - `test-boundaries` — unit vs integration test boundary rules
@@ -81,7 +84,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-core`: type invariants, canonical encoding, boundedness, deterministic ordering, content-addressing stability.
 - `jacquard-traits`: compile-only surface checks, trait-object and generic-boundary tests.
 - `jacquard-pathway`: deterministic candidate production, admission/materialization, commitment tracking, forwarding, repair, topology-change, observation handling.
-- `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, fallback legality, anti-entropy, adaptive-profile derivation.
+- `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, explicit ingress, synchronous round advancement, fallback legality, adaptive-profile derivation.
 - `jacquard-mem-node-profile`: deterministic node-profile and node-state builders with no routing-engine knowledge.
 - `jacquard-mem-link-profile`: in-memory link-profile, carrier, retention, runtime-effect adapters, and host-owned transport driver surfaces with no routing semantics.
 - `jacquard-reference-client`: host-side composition of router + pathway + in-memory profiles for end-to-end tests.

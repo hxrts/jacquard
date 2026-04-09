@@ -98,10 +98,10 @@ fn maintain_route_dispatches_to_engine_via_control_plane() {
 }
 
 #[test]
-fn anti_entropy_tick_drives_engine_tick_without_exposing_private_state() {
+fn advance_round_drives_engine_tick_without_exposing_private_state() {
     let mut router = build_router(Tick(2));
 
-    let outcome = router.anti_entropy_tick().expect("anti-entropy tick");
+    let outcome = router.advance_round().expect("advance round");
 
     assert_eq!(
         router.registered_engine_ids(),
@@ -122,7 +122,7 @@ fn anti_entropy_tick_drives_engine_tick_without_exposing_private_state() {
 }
 
 #[test]
-fn anti_entropy_tick_drives_mesh_cooperative_choreographies_through_router_cadence() {
+fn advance_round_drives_pathway_cooperative_choreographies_through_router_cadence() {
     let mut router = build_router(Tick(2));
     let route = Router::activate_route(
         &mut router,
@@ -136,7 +136,7 @@ fn anti_entropy_tick_drives_mesh_cooperative_choreographies_through_router_caden
         )
         .expect("enter partition mode");
 
-    let outcome = router.anti_entropy_tick().expect("anti-entropy tick");
+    let outcome = router.advance_round().expect("advance round");
 
     assert_eq!(
         outcome.topology_epoch,
@@ -147,7 +147,7 @@ fn anti_entropy_tick_drives_mesh_cooperative_choreographies_through_router_caden
         jacquard_core::RoutingTickChange::PrivateStateUpdated,
     );
     assert_eq!(
-        outcome.engine_tick_hint,
+        outcome.next_round_hint,
         RoutingTickHint::WithinTicks(Tick(1))
     );
     assert!(router

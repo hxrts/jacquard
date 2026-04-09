@@ -30,6 +30,7 @@ use jacquard_core::{
     Blake3Digest, Configuration, ConnectivityPosture, ContentId, NodeId, Observation,
     ReceiptId, RouteCommitmentId, RouteEpoch, RouteError, RouteId, RoutePartitionClass,
     RouteRuntimeError, RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId,
+    TransportObservation,
 };
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngine};
 pub(crate) use support::{
@@ -135,6 +136,7 @@ pub struct PathwayEngine<
     effects: Effects,
     hashing: Hasher,
     selector: Selector,
+    pending_transport_ingress: Vec<TransportObservation>,
     latest_topology: Option<Observation<Configuration>>,
     last_transport_summary: Option<PathwayTransportObservationSummary>,
     control_state: Option<types::PathwayControlState>,
@@ -157,6 +159,14 @@ where
 {
     fn local_node_id_for_router(&self) -> NodeId {
         self.local_node_id()
+    }
+
+    fn ingest_transport_observation_for_router(
+        &mut self,
+        observation: &TransportObservation,
+    ) -> Result<(), RouteError> {
+        self.pending_transport_ingress.push(observation.clone());
+        Ok(())
     }
 
     fn forward_payload_for_router(
@@ -197,6 +207,7 @@ impl<Topology, Transport, Retention, Effects, Hasher>
             effects,
             hashing,
             selector: NoCommitteeSelector,
+            pending_transport_ingress: Vec::new(),
             latest_topology: None,
             last_transport_summary: None,
             control_state: None,
@@ -230,6 +241,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
             effects,
             hashing,
             selector,
+            pending_transport_ingress: Vec::new(),
             latest_topology: None,
             last_transport_summary: None,
             control_state: None,

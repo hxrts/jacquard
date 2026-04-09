@@ -137,12 +137,12 @@ pub struct RouterMaintenanceOutcome {
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-/// Router-owned tick outcome that keeps engine-private change reporting
+/// Router-owned round outcome that keeps engine-private change reporting
 /// separate from canonical route mutation.
-pub struct RouterTickOutcome {
+pub struct RouterRoundOutcome {
     pub topology_epoch: RouteEpoch,
     pub engine_change: RoutingTickChange,
-    pub engine_tick_hint: RoutingTickHint,
+    pub next_round_hint: RoutingTickHint,
     pub canonical_mutation: RouterCanonicalMutation,
 }
 

@@ -128,9 +128,7 @@ fn engine_tick_transport_observations_change_health_inputs() {
     );
 
     let mut observed_engine = build_engine();
-    observed_engine
-        .transport
-        .push_observation(low_quality_link_observation());
+    observed_engine.ingest_transport_observation(&low_quality_link_observation());
     let (_, observed_runtime) = activate_route_with_profile(
         &mut observed_engine,
         &topology,
@@ -163,11 +161,8 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
     let mut left = build_engine();
     let mut right = build_engine();
 
-    left.transport
-        .push_observation(low_quality_link_observation());
-    right
-        .transport
-        .push_observation(low_quality_link_observation());
+    left.ingest_transport_observation(&low_quality_link_observation());
+    right.ingest_transport_observation(&low_quality_link_observation());
 
     let left_outcome = left
         .engine_tick(&RoutingTickContext::new(topology.clone()))
@@ -216,9 +211,7 @@ fn engine_tick_replay_is_deterministic_for_the_same_observations() {
 fn quiet_tick_preserves_still_fresh_transport_summary() {
     let topology = sample_configuration();
     let mut engine = build_engine();
-    engine
-        .transport
-        .push_observation(low_quality_link_observation());
+    engine.ingest_transport_observation(&low_quality_link_observation());
 
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
@@ -249,9 +242,7 @@ fn quiet_tick_preserves_still_fresh_transport_summary() {
 fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
     let topology = sample_configuration();
     let mut engine = build_engine();
-    engine
-        .transport
-        .push_observation(low_quality_link_observation());
+    engine.ingest_transport_observation(&low_quality_link_observation());
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("observed tick");
@@ -278,7 +269,7 @@ fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
     {
         observation.observed_at_tick = Tick(6);
     }
-    engine.transport.push_observation(refreshed_observation);
+    engine.ingest_transport_observation(&refreshed_observation);
     engine
         .engine_tick(&RoutingTickContext::new(refreshed_topology.clone()))
         .expect("refresh tick");
@@ -400,12 +391,8 @@ fn high_transport_pressure_changes_repair_posture() {
         NodeId([3; 32]),
         lease(Tick(2), Tick(20)),
     );
-    pressured_engine
-        .transport
-        .push_observation(low_quality_link_observation());
-    pressured_engine
-        .transport
-        .push_observation(low_quality_link_observation());
+    pressured_engine.ingest_transport_observation(&low_quality_link_observation());
+    pressured_engine.ingest_transport_observation(&low_quality_link_observation());
 
     calm_engine
         .maintain_route(
@@ -464,12 +451,8 @@ fn anti_entropy_required_consumes_bounded_control_pressure() {
         NodeId([3; 32]),
         lease(Tick(2), Tick(20)),
     );
-    engine
-        .transport
-        .push_observation(low_quality_link_observation());
-    engine
-        .transport
-        .push_observation(low_quality_link_observation());
+    engine.ingest_transport_observation(&low_quality_link_observation());
+    engine.ingest_transport_observation(&low_quality_link_observation());
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))
         .expect("refresh tick");

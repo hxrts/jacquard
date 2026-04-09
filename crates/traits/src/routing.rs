@@ -8,10 +8,10 @@ use jacquard_core::{
     RouteId, RouteIdentityStamp, RouteInstallation, RouteMaintenanceResult,
     RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
     RouteRuntimeState, RouteSemanticHandoff, RouterMaintenanceOutcome,
-    RouterTickOutcome, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
+    RouterRoundOutcome, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
     RoutingPolicyInputs, RoutingTickContext, RoutingTickOutcome,
     SelectedRoutingParameters, SubstrateCandidate, SubstrateLease,
-    SubstrateRequirements,
+    SubstrateRequirements, TransportObservation,
 };
 use jacquard_macros::purity;
 
@@ -284,6 +284,14 @@ pub trait RouterManagedEngine: RoutingEngine {
     #[must_use]
     fn local_node_id_for_router(&self) -> NodeId;
 
+    #[must_use = "unchecked ingest_transport_observation_for_router result silently discards ingress failures"]
+    fn ingest_transport_observation_for_router(
+        &mut self,
+        _observation: &TransportObservation,
+    ) -> Result<(), RouteError> {
+        Ok(())
+    }
+
     #[must_use = "unchecked forward_payload_for_router result silently discards forwarding failures"]
     fn forward_payload_for_router(
         &mut self,
@@ -329,9 +337,15 @@ pub trait RouterEngineRegistry {
 /// topology input, engine recovery, and policy input refresh while delegating
 /// route-private planning/runtime work to registered engines.
 pub trait RoutingMiddleware: RouterEngineRegistry {
-    fn replace_topology(&mut self, topology: Observation<Configuration>);
+    fn ingest_topology_observation(&mut self, topology: Observation<Configuration>);
 
-    fn replace_policy_inputs(&mut self, inputs: RoutingPolicyInputs);
+    fn ingest_policy_inputs(&mut self, inputs: RoutingPolicyInputs);
+
+    #[must_use = "unchecked ingest_transport_observation result silently discards transport ingress failures"]
+    fn ingest_transport_observation(
+        &mut self,
+        observation: &TransportObservation,
+    ) -> Result<(), RouteError>;
 
     must_use_evidence!("recovered route count", "recovery status";
         fn recover_checkpointed_routes(&mut self) -> Result<usize, RouteError>;
@@ -408,10 +422,12 @@ pub trait RoutingControlPlane {
         ) -> Result<RouterMaintenanceOutcome, RouteError>;
     );
 
-    must_use_evidence!("anti-entropy tick outcome", "routing progress signals";
-        /// Periodic consistency sweep: refresh engine-wide adaptive state, expire
-        /// leases, and detect stale routes.
-        fn anti_entropy_tick(&mut self) -> Result<RouterTickOutcome, RouteError>;
+    must_use_evidence!("router round outcome", "routing progress signals";
+        /// Synchronous router round: consume explicit host-delivered ingress that
+        /// was queued through router ingestion APIs, refresh engine-wide adaptive
+        /// state, expire leases, and report canonical mutation plus host-facing
+        /// progress hints.
+        fn advance_round(&mut self) -> Result<RouterRoundOutcome, RouteError>;
     );
 }
 
@@ -471,7 +487,7 @@ impl TopologyVersioned for RoutingTickOutcome {
     }
 }
 
-impl TopologyVersioned for RouterTickOutcome {
+impl TopologyVersioned for RouterRoundOutcome {
     fn topology_epoch(&self) -> RouteEpoch {
         self.topology_epoch
     }

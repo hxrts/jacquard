@@ -47,7 +47,10 @@ impl<Router> Client<Router> {
         &self.topology
     }
 
-    pub fn replace_topology(&mut self, topology: Observation<Configuration>) {
+    pub fn ingest_topology_observation(
+        &mut self,
+        topology: Observation<Configuration>,
+    ) {
         self.topology = topology;
     }
 

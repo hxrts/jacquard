@@ -287,7 +287,6 @@ fn hex_bytes(bytes: &[u8]) -> String {
 mod tests {
     use jacquard_core::{
         ByteCount, EndpointLocator, LinkEndpoint, Tick, TransportKind,
-        TransportObservation,
     };
 
     use super::*;
@@ -309,12 +308,6 @@ mod tests {
         ) -> Result<(), jacquard_core::TransportError> {
             self.sent_frames.push(frame.payload.clone());
             Ok(())
-        }
-
-        fn poll_mesh_ingress(
-            &mut self,
-        ) -> Result<Vec<TransportObservation>, jacquard_core::TransportError> {
-            Ok(Vec::new())
         }
 
         fn store_held_payload(

@@ -9,7 +9,7 @@ use jacquard_traits::{
         RouteMaintenanceTrigger, RouteProtectionClass, RouteRuntimeState,
         RoutingEngineCapabilities, RoutingEngineId,
         RoutingObjective, RoutingPolicyInputs, RoutingTickContext,
-        RoutingTickOutcome, SelectedRoutingParameters, Tick,
+        RoutingTickOutcome, SelectedRoutingParameters, Tick, TransportObservation,
     },
     RouterEngineRegistry, RouterManagedEngine, RoutingEngine,
     RoutingEnginePlanner, RoutingMiddleware,
@@ -150,6 +150,7 @@ struct StubMiddleware {
     topology: Observation<Configuration>,
     inputs: RoutingPolicyInputs,
     engines: BTreeMap<RoutingEngineId, RoutingEngineCapabilities>,
+    transport_observations: Vec<TransportObservation>,
     recovered_count: usize,
 }
 
@@ -159,6 +160,7 @@ impl StubMiddleware {
             topology,
             inputs,
             engines: BTreeMap::new(),
+            transport_observations: Vec::new(),
             recovered_count: 0,
         }
     }
@@ -187,12 +189,20 @@ impl RouterEngineRegistry for StubMiddleware {
 }
 
 impl RoutingMiddleware for StubMiddleware {
-    fn replace_topology(&mut self, topology: Observation<Configuration>) {
+    fn ingest_topology_observation(&mut self, topology: Observation<Configuration>) {
         self.topology = topology;
     }
 
-    fn replace_policy_inputs(&mut self, inputs: RoutingPolicyInputs) {
+    fn ingest_policy_inputs(&mut self, inputs: RoutingPolicyInputs) {
         self.inputs = inputs;
+    }
+
+    fn ingest_transport_observation(
+        &mut self,
+        observation: &TransportObservation,
+    ) -> Result<(), RouteError> {
+        self.transport_observations.push(observation.clone());
+        Ok(())
     }
 
     fn recover_checkpointed_routes(&mut self) -> Result<usize, RouteError> {
@@ -235,8 +245,8 @@ fn routing_middleware_updates_topology_policy_inputs_and_recovery_state() {
     let mut next_inputs = inputs;
     next_inputs.routing_engine_count = 3;
 
-    middleware.replace_topology(next_topology.clone());
-    middleware.replace_policy_inputs(next_inputs.clone());
+    middleware.ingest_topology_observation(next_topology.clone());
+    middleware.ingest_policy_inputs(next_inputs.clone());
 
     assert_eq!(
         middleware.topology.value.environment.reachable_neighbor_count,

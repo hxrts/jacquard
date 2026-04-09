@@ -121,9 +121,9 @@ where
                 .storage_invalid()?;
             self.last_checkpointed_topology_epoch = Some(topology.value.epoch);
         }
-        let observations = self
-            .choreography_runtime()
-            .poll_tick_ingress(topology.value.epoch)?;
+        let observations = std::mem::take(&mut self.pending_transport_ingress);
+        self.choreography_runtime()
+            .record_tick_ingress(topology.value.epoch, &observations)?;
         self.last_transport_summary = Self::next_transport_summary(
             self.last_transport_summary.as_ref(),
             Self::summarize_transport_observations(&observations),

@@ -154,6 +154,7 @@ ci-dry-run:
     add_step "Crate Boundary"             "cargo xtask check crate-boundary"
     add_step "Transport Authoring Boundary" "cargo xtask check transport-authoring-boundary"
     add_step "Transport Ownership Boundary" "cargo xtask check transport-ownership-boundary"
+    add_step "Router Round Boundary"     "cargo xtask check router-round-boundary"
     add_step "Ownership Invariants"       "cargo xtask check ownership-invariants"
     add_step "No usize in Models"         "cargo xtask check no-usize-in-models"
     add_step "Result Must Use"            "cargo xtask check result-must-use"

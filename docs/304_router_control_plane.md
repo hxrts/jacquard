@@ -4,7 +4,7 @@
 
 ## Ownership
 
-The router owns canonical route-handle issuance, canonical lease publication, canonical commitment publication, and router-owned tick cadence. The router also dispatches maintenance triggers to engines.
+The router owns canonical route-handle issuance, canonical lease publication, canonical commitment publication, explicit ingress queues, and router-owned round cadence. The router also dispatches maintenance triggers to engines.
 
 Routing engines remain the owners of route-private runtime state and proof-bearing evidence. Profile implementations and test harnesses remain observational with respect to canonical route truth.
 
@@ -23,7 +23,9 @@ The control-plane path is:
 ```text
 objective
   -> policy profile
-  -> authoritative topology tick
+  -> authoritative topology observation
+  -> explicit queued ingress
+  -> synchronous router round
   -> cross-engine candidate ordering
   -> selected-engine admission
   -> router-owned handle + lease
@@ -36,7 +38,7 @@ The engine does not mint the canonical handle, publish the canonical lease, or s
 
 ## Tick and Maintenance
 
-The router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize ingress. They may run engine-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
+The router advances through explicit synchronous rounds. Hosts feed topology, policy inputs, and transport observations into `RoutingMiddleware`, then call `advance_round` on the control plane. During that round the router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize previously ingested observations. They may run engine-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
 
 `RoutingTickOutcome.next_tick_hint` lets proactive engines report scheduling pressure without taking ownership of cadence. The router or host may honor that hint, clamp it, or ignore it, but the cadence decision remains router/host owned.
 
@@ -59,7 +61,7 @@ Mesh may still checkpoint route-private runtime payloads, but canonical route pu
 
 ## Configuration and State Updates
 
-The router exposes `RoutingMiddleware` for hosts to update observable topology and policy inputs without triggering route activation or maintenance. Hosts replace topology when new observations arrive. Hosts replace policy inputs when local conditions (capacity, churn, health) change.
+The router exposes `RoutingMiddleware` for hosts to update observable topology, policy inputs, and transport ingress without triggering route activation or maintenance. Hosts ingest topology observations when new world state arrives. Hosts ingest policy inputs when local conditions (capacity, churn, health) change. Hosts ingest transport observations explicitly instead of letting engines or routers poll transport adapters directly.
 
 The router also exposes a recovery interface for checkpoint replay. Hosts call `recover_checkpointed_routes` after restart to restore the previous canonical route table and active materialized state.
 
@@ -84,6 +86,6 @@ The reference example for a new deployment target is in `crates/reference-client
    `TransportDriver` per device runtime
 3. construct one mesh engine per device
 4. wrap each engine in one router that owns canonical publication
-5. submit typed router commands instead of minting route truth directly
+5. ingest topology, policy, and transport updates explicitly, then advance the router with synchronous rounds instead of minting route truth directly
 
 The minimum composition surface for a new device includes world input, transport registration, router activation, and data-plane forwarding over admitted routes.
