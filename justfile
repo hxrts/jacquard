@@ -248,7 +248,7 @@ nightly-shell:
 # Usage:
 #   just release <version> [dry_run] [skip_ci] [no_tag] [push] [allow_dirty] [no_require_main]
 # Example:
-#   just release 0.2.0 true true true false true false   # dry-run + skip ci + no-tag + allow dirty
+#   just release 0.3.0 true true true false true false   # dry-run + skip ci + no-tag + allow dirty
 release \
   version="" \
   dry_run="false" \

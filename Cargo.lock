@@ -550,7 +550,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jacquard-adapter"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "jacquard-core",
  "jacquard-macros",
@@ -559,7 +559,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-batman"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-core",
@@ -571,7 +571,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "jacquard-macros",
  "jacquard-traits",
@@ -582,7 +582,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-field"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-core",
@@ -593,7 +593,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-field-client"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-core",
@@ -605,7 +605,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -616,7 +616,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-mem-link-profile"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-core",
@@ -626,7 +626,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-mem-node-profile"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-core",
@@ -636,7 +636,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-pathway"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bincode",
  "jacquard-core",
@@ -649,7 +649,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-reference-client"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-batman",
@@ -663,7 +663,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-router"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bincode",
  "jacquard-batman",
@@ -678,7 +678,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-simulator"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-batman",
@@ -695,7 +695,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-traits"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "blake3",
  "jacquard-core",
@@ -706,7 +706,7 @@ dependencies = [
 
 [[package]]
 name = "jacquard-xtask"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "camino",
