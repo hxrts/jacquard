@@ -69,7 +69,7 @@ Maintenance is expressed through `RoutingEngine::maintain_route`, which receives
 
 ## Overlay Example
 
-Layering lets an overlay engine use mesh as a carrier without awareness of mesh-private topology. Mesh provides substrate reachability inside one cluster. The overlay engine consumes those paths as leased substrates for inter-cluster carriage or egress.
+Layering lets an overlay engine use mesh as a carrier without awareness of pathway-private topology. Mesh provides substrate reachability inside one cluster. The overlay engine consumes those paths as leased substrates for inter-cluster carriage or egress.
 
 ```mermaid
 graph TD

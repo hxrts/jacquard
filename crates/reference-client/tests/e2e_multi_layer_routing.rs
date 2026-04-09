@@ -1,6 +1,6 @@
 //! End-to-end routing tests over one `SharedInMemoryNetwork`. One test
-//! covers mesh-only forwarding across a four-node topology. The other
-//! covers mixed batman-plus-mesh forwarding across a three-node topology
+//! covers pathway-only forwarding across a four-node topology. The other
+//! covers mixed batman-plus-pathway forwarding across a three-node topology
 //! where B is the hinge between the two engines. Both assert that route
 //! activation, forwarding, and receiver-side anti-entropy ticks stay
 //! consistent across device boundaries.
@@ -20,10 +20,10 @@ use jacquard_core::{
     SelectedRoutingParameters, Tick, TransportObservation,
 };
 use jacquard_mem_link_profile::{InMemoryTransport, SharedInMemoryNetwork};
-use jacquard_mesh::MESH_ENGINE_ID;
+use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
-    build_mesh_batman_client, build_mesh_batman_client_with_profile, build_mesh_client,
-    build_mesh_client_with_profile, topology, MeshClient,
+    build_pathway_batman_client, build_pathway_batman_client_with_profile,
+    build_pathway_client, build_pathway_client_with_profile, topology, PathwayClient,
 };
 use jacquard_traits::{
     Router, RoutingControlPlane, RoutingDataPlane, TransportEffects,
@@ -36,8 +36,8 @@ const NODE_D: NodeId = NodeId([4; 32]);
 
 // -- World topologies --------------------------------------------------
 
-/// Four-node mesh topology used by the mesh-only test. A, B, C, D are all
-/// mesh route-capable, with links A-B, B-C, A-D, and B-D.
+/// Four-node pathway topology used by the pathway-only test. A, B, C, D are all
+/// pathway route-capable, with links A-B, B-C, A-D, and B-D.
 fn sample_configuration() -> Observation<Configuration> {
     Observation {
         value: Configuration {
@@ -68,8 +68,8 @@ fn sample_configuration() -> Observation<Configuration> {
 }
 
 /// Three-node mixed-engine topology. A and B are dual-engine (batman plus
-/// mesh). C is mesh-only. Links are A-B and B-C, so B is the hinge where
-/// the batman leg hands off to the mesh leg.
+/// mesh). C is pathway-only. Links are A-B and B-C, so B is the hinge where
+/// the batman leg hands off to the pathway leg.
 fn mixed_engine_configuration() -> Observation<Configuration> {
     Observation {
         value: Configuration {
@@ -79,7 +79,7 @@ fn mixed_engine_configuration() -> Observation<Configuration> {
                 (NODE_B, topology::dual_engine_route_capable_node(2)),
                 (
                     NODE_C,
-                    topology::route_capable_node_for_engine(3, &MESH_ENGINE_ID),
+                    topology::route_capable_node_for_engine(3, &PATHWAY_ENGINE_ID),
                 ),
             ]),
             links: BTreeMap::from([
@@ -139,35 +139,35 @@ fn relay_profile() -> SelectedRoutingParameters {
 
 // -- Client builders ---------------------------------------------------
 
-/// Build three mesh-only clients (A, B, C) attached to one shared network.
+/// Build three pathway-only clients (A, B, C) attached to one shared network.
 /// B gets the relay profile so it can sit on the middle hop.
 fn build_client_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
-) -> (MeshClient, MeshClient, MeshClient) {
+) -> (PathwayClient, PathwayClient, PathwayClient) {
     let client_a =
-        build_mesh_client(NODE_A, topology.clone(), network.clone(), Tick(2));
-    let client_b = build_mesh_client_with_profile(
+        build_pathway_client(NODE_A, topology.clone(), network.clone(), Tick(2));
+    let client_b = build_pathway_client_with_profile(
         NODE_B,
         topology.clone(),
         network.clone(),
         Tick(2),
         relay_profile(),
     );
-    let client_c = build_mesh_client(NODE_C, topology.clone(), network, Tick(2));
+    let client_c = build_pathway_client(NODE_C, topology.clone(), network, Tick(2));
     (client_a, client_b, client_c)
 }
 
-/// Build three dual-engine clients (batman + mesh) plus side-channel
+/// Build three dual-engine clients (batman + pathway) plus side-channel
 /// observers attached to B and C. The observers read ingress straight off
 /// the shared network without going through a client's own transport.
 fn build_mixed_engine_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
 ) -> (
-    MeshClient,
-    MeshClient,
-    MeshClient,
+    PathwayClient,
+    PathwayClient,
+    PathwayClient,
     InMemoryTransport,
     InMemoryTransport,
 ) {
@@ -178,15 +178,16 @@ fn build_mixed_engine_triplet(
     let mut observer_c = InMemoryTransport::attach(NODE_C, c_endpoint, network.clone());
     observer_c.set_ingress_tick(Tick(2));
     let client_a =
-        build_mesh_batman_client(NODE_A, topology.clone(), network.clone(), Tick(2));
-    let client_b = build_mesh_batman_client_with_profile(
+        build_pathway_batman_client(NODE_A, topology.clone(), network.clone(), Tick(2));
+    let client_b = build_pathway_batman_client_with_profile(
         NODE_B,
         topology.clone(),
         network.clone(),
         Tick(2),
         relay_profile(),
     );
-    let client_c = build_mesh_batman_client(NODE_C, topology.clone(), network, Tick(2));
+    let client_c =
+        build_pathway_batman_client(NODE_C, topology.clone(), network, Tick(2));
 
     (client_a, client_b, client_c, observer_b, observer_c)
 }
@@ -195,9 +196,9 @@ fn build_mixed_engine_triplet(
 
 /// Run one anti-entropy tick on the receiver and assert the router
 /// reported the expected topology epoch, a private-state update, and a
-/// one-tick scheduling hint. Used to confirm a mesh forward landed.
+/// one-tick scheduling hint. Used to confirm a pathway forward landed.
 fn assert_tick_after_forward(
-    receiver: &mut MeshClient,
+    receiver: &mut PathwayClient,
     expected_epoch: jacquard_core::RouteEpoch,
     tick_context: &str,
 ) {
@@ -228,7 +229,7 @@ fn drain_payload(transport: &mut InMemoryTransport, context: &str) -> Vec<u8> {
     }
 }
 
-/// Lowercase hex encoding of a byte slice. The mesh carrier hex-encodes
+/// Lowercase hex encoding of a byte slice. The pathway carrier hex-encodes
 /// payloads on this network, so the second-hop assertion compares against
 /// this form rather than the raw bytes.
 fn hex_bytes(bytes: &[u8]) -> String {
@@ -244,14 +245,14 @@ fn hex_bytes(bytes: &[u8]) -> String {
 // -- Tests -------------------------------------------------------------
 
 #[test]
-fn mesh_forwarding_across_shared_network() {
+fn pathway_forwarding_across_shared_network() {
     // 1. World. A four-node topology that every client will observe.
     let topology = sample_configuration();
 
     // 2. Fabric. One in-memory network plays the role of the shared radio.
     let network = SharedInMemoryNetwork::default();
 
-    // 3. Clients. Three mesh clients, each wrapping its own router and engine.
+    // 3. Clients. Three pathway clients, each wrapping its own router and engine.
     //    Client B takes the relay profile because it sits on the middle hop.
     let (mut client_a, mut client_b, mut client_c) =
         build_client_triplet(&topology, network);
@@ -271,7 +272,7 @@ fn mesh_forwarding_across_shared_network() {
 
     // 5. Hop one. A forwards a payload along its A-to-C route. The first hop lands
     //    at B through the shared network.
-    let payload = b"mesh-e2e";
+    let payload = b"pathway-e2e";
     client_a
         .router_mut()
         .forward_payload(&route_a_to_c.identity.stamp.route_id, payload)
@@ -295,10 +296,13 @@ fn mesh_forwarding_across_shared_network() {
     );
 }
 
+// long-block-exception: end-to-end scenario traces a single linear routing
+// narrative across two engines; splitting would obscure the hop-by-hop
+// sequence.
 #[test]
-fn routing_spans_batman_then_mesh() {
-    // 1. World. A three-node topology where A and B run both batman and mesh
-    //    engines, and C is mesh-only.
+fn routing_spans_batman_then_pathway() {
+    // 1. World. A three-node topology where A and B run both batman and pathway
+    //    engines, and C is pathway-only.
     let topology = mixed_engine_configuration();
     let network = SharedInMemoryNetwork::default();
 
@@ -310,7 +314,7 @@ fn routing_spans_batman_then_mesh() {
 
     // 3. Activation. A requests a route to B. The router picks batman because
     //    batman holds next-hop data for that overlay. B requests a route to C. The
-    //    router picks mesh for that one.
+    //    router picks pathway for that one.
     let route_a_to_b = Router::activate_route(
         client_a.router_mut(),
         objective(DestinationId::Node(NODE_B)),
@@ -320,7 +324,7 @@ fn routing_spans_batman_then_mesh() {
         client_b.router_mut(),
         objective(DestinationId::Node(NODE_C)),
     )
-    .expect("client B mesh route activation");
+    .expect("client B pathway route activation");
 
     // 4. Engine check. Verify that the router actually picked the expected engine
     //    per objective rather than silently falling back.
@@ -330,7 +334,7 @@ fn routing_spans_batman_then_mesh() {
     );
     assert_eq!(
         route_b_to_c.identity.admission.summary.engine,
-        MESH_ENGINE_ID
+        PATHWAY_ENGINE_ID
     );
 
     // 5. Hop one, batman. A forwards the raw payload and B's observer reads it
@@ -343,13 +347,13 @@ fn routing_spans_batman_then_mesh() {
     let received_by_b = drain_payload(&mut observer_b, "observe batman ingress at B");
     assert_eq!(received_by_b, payload);
 
-    // 6. Hop two, mesh. B re-forwards the payload. Mesh hex-encodes payloads on
-    //    this carrier, so C observes the hex form instead of the raw bytes.
+    // 6. Hop two, pathway. B re-forwards the payload. Pathway hex-encodes payloads
+    //    on this carrier, so C observes the hex form instead of the raw bytes.
     client_b
         .router_mut()
         .forward_payload(route_b_to_c.identity.route_id(), &received_by_b)
-        .expect("client B forwards over mesh");
-    let received_by_c = drain_payload(&mut observer_c, "observe mesh ingress at C");
+        .expect("client B forwards over pathway");
+    let received_by_c = drain_payload(&mut observer_c, "observe pathway ingress at C");
     assert_eq!(received_by_c, hex_bytes(payload).into_bytes());
 
     // 7. Epoch check. C's router tick still reports the current topology epoch

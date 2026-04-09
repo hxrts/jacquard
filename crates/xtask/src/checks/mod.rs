@@ -8,10 +8,10 @@ pub mod docs_semantic_drift;
 pub mod engine_service_boundary;
 pub mod fail_closed_ordering;
 pub mod invariant_specs;
-pub mod mesh_choreography;
 pub mod no_scratch_refs_in_rust;
 pub mod no_usize_in_models;
 pub mod ownership_invariants;
+pub mod pathway_choreography;
 pub mod pre_commit;
 pub mod proc_macro_scope;
 pub mod proof_bearing_actions;
@@ -36,7 +36,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         | "engine-service-boundary" => engine_service_boundary::run(),
         | "fail-closed-ordering" => fail_closed_ordering::run(),
         | "invariant-specs" => invariant_specs::run(),
-        | "mesh-choreography" => mesh_choreography::run(rest),
+        | "pathway-choreography" => pathway_choreography::run(rest),
         | "no-scratch-refs-in-rust" => no_scratch_refs_in_rust::run(),
         | "no-usize-in-models" => no_usize_in_models::run(),
         | "ownership-invariants" => ownership_invariants::run(),

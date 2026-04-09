@@ -7,11 +7,11 @@ use anyhow::{bail, Result};
 use crate::util::workspace_root;
 
 const FORBIDDEN_PUBLIC_TYPES: &[&str] = &[
-    "MeshRouteSegment",
+    "PathwayRouteSegment",
     "DeterministicCommitteeSelector",
-    "MeshEngineRuntime",
-    "MeshPlanner",
-    "MeshCandidate",
+    "PathwayEngineRuntime",
+    "PathwayPlanner",
+    "PathwayCandidate",
     "BackendRouteId",
 ];
 
@@ -19,14 +19,14 @@ const FORBIDDEN_PUBLIC_TYPES: &[&str] = &[
 const ALLOWED_PUBLIC_TYPES: &[&str] = &[
     "RoutingEngine",
     "Configuration",
-    "MeshTopologyModel",
+    "PathwayTopologyModel",
     "RetentionStore",
-    "MeshRoutingEngine",
+    "PathwayRoutingEngine",
 ];
 
 pub fn run() -> Result<()> {
     let root = workspace_root()?;
-    let mesh_lib = root.join("crates/mesh/src/lib.rs");
+    let mesh_lib = root.join("crates/pathway/src/lib.rs");
 
     if !mesh_lib.exists() {
         println!("engine-service-boundary: no mesh/src/lib.rs found");

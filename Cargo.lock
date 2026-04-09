@@ -593,7 +593,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "jacquard-mesh"
+name = "jacquard-pathway"
 version = "0.1.0"
 dependencies = [
  "bincode",
@@ -613,7 +613,7 @@ dependencies = [
  "jacquard-core",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
- "jacquard-mesh",
+ "jacquard-pathway",
  "jacquard-router",
  "jacquard-traits",
 ]
@@ -625,7 +625,7 @@ dependencies = [
  "bincode",
  "jacquard-core",
  "jacquard-mem-link-profile",
- "jacquard-mesh",
+ "jacquard-pathway",
  "jacquard-reference-client",
  "jacquard-traits",
  "serde",

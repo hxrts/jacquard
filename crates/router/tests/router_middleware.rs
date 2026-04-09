@@ -32,13 +32,13 @@ fn middleware_tracks_registered_capabilities() {
 
     assert_eq!(
         router.registered_engine_ids(),
-        vec![jacquard_mesh::MESH_ENGINE_ID]
+        vec![jacquard_pathway::PATHWAY_ENGINE_ID]
     );
     let capabilities = router
-        .registered_engine_capabilities(&jacquard_mesh::MESH_ENGINE_ID)
+        .registered_engine_capabilities(&jacquard_pathway::PATHWAY_ENGINE_ID)
         .expect("mesh capabilities");
 
-    assert_eq!(capabilities.engine, jacquard_mesh::MESH_ENGINE_ID);
+    assert_eq!(capabilities.engine, jacquard_pathway::PATHWAY_ENGINE_ID);
 }
 
 #[test]

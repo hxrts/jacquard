@@ -105,14 +105,14 @@ fn anti_entropy_tick_drives_engine_tick_without_exposing_private_state() {
 
     assert_eq!(
         router.registered_engine_ids(),
-        vec![jacquard_mesh::MESH_ENGINE_ID]
+        vec![jacquard_pathway::PATHWAY_ENGINE_ID]
     );
     assert_eq!(
         router
-            .registered_engine_capabilities(&jacquard_mesh::MESH_ENGINE_ID)
+            .registered_engine_capabilities(&jacquard_pathway::PATHWAY_ENGINE_ID)
             .expect("registered capabilities")
             .engine,
-        jacquard_mesh::MESH_ENGINE_ID
+        jacquard_pathway::PATHWAY_ENGINE_ID
     );
     assert_eq!(
         outcome.topology_epoch,

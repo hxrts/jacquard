@@ -16,6 +16,11 @@
 mod clients;
 pub mod topology;
 
+pub use clients::{
+    build_pathway_batman_client, build_pathway_batman_client_with_profile,
+    build_pathway_client, build_pathway_client_with_profile, PathwayClient,
+    PathwayRouter,
+};
 use jacquard_core::{Configuration, Observation};
 pub use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
@@ -23,10 +28,6 @@ pub use jacquard_mem_link_profile::{
 };
 pub use jacquard_mem_node_profile::{
     NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor,
-};
-pub use clients::{
-    build_mesh_batman_client, build_mesh_batman_client_with_profile, build_mesh_client,
-    build_mesh_client_with_profile, MeshClient, MeshRouter,
 };
 
 /// Minimal client wrapper that demonstrates host-side composition.

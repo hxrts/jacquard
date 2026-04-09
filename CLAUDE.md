@@ -34,14 +34,14 @@ Run a single test: `cargo test -p <crate> <test_name>`
 
 Run individual policy checks with `cargo xtask check <name>`. Registered names:
 
-- `checkpoint-namespacing` — storage keys inside mesh and router source trees must use the engine/mesh or router namespace prefix
+- `checkpoint-namespacing` — storage keys inside pathway and router source trees must use the engine/pathway or router namespace prefix
 - `crate-boundary` — workspace dependency-graph invariants
 - `docs-link-check` — broken, scratch-directory, or absolute-path links in markdown
 - `docs-semantic-drift` — stale backtick references in markdown
-- `engine-service-boundary` — `crates/mesh/src/lib.rs` must not export engine-private types
+- `engine-service-boundary` — `crates/pathway/src/lib.rs` must not export engine-private types
 - `fail-closed-ordering` — delegates to `routing-invariants` for fail-closed mutation ordering
 - `invariant-specs` — every `## Invariant:` section needs enforcement locus, failure mode, and verification hooks
-- `mesh-choreography` — mesh choreography protocol coverage (pass `--validate` to execute the fixture pass)
+- `pathway-choreography` — pathway choreography protocol coverage (pass `--validate` to execute the fixture pass)
 - `no-scratch-refs-in-rust` — rust sources and comments must not reference the private scratch directory
 - `no-usize-in-models` — bare `usize` fields rejected in `core`/`traits` model structs
 - `ownership-invariants` — `core` and `traits` `lib.rs` must document the required ownership sections
@@ -71,11 +71,11 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 
 - `jacquard-core`: type invariants, canonical encoding, boundedness, deterministic ordering, content-addressing stability.
 - `jacquard-traits`: compile-only surface checks, trait-object and generic-boundary tests.
-- `jacquard-mesh`: deterministic candidate production, admission/materialization, commitment tracking, forwarding, repair, topology-change, observation handling.
+- `jacquard-pathway`: deterministic candidate production, admission/materialization, commitment tracking, forwarding, repair, topology-change, observation handling.
 - `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, fallback legality, anti-entropy, adaptive-profile derivation.
 - `jacquard-mem-node-profile`: deterministic node-profile and node-state builders with no routing-engine knowledge.
 - `jacquard-mem-link-profile`: in-memory link-profile, carrier, retention, and runtime-effect adapters with no routing semantics.
-- `jacquard-reference-client`: host-side composition of router + mesh + in-memory profiles for end-to-end tests.
+- `jacquard-reference-client`: host-side composition of router + pathway + in-memory profiles for end-to-end tests.
 - `jacquard-xtask`: workspace policy checks, docs link/drift validation, and pre-commit entry point.
 
 ## Telltale dependency

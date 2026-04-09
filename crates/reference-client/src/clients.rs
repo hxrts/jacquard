@@ -1,8 +1,8 @@
 //! Concrete client builders that pair a `MultiEngineRouter` with one or
-//! more routing engines. `build_mesh_client` registers a single mesh
-//! engine. `build_mesh_batman_client` registers both mesh and batman.
+//! more routing engines. `build_pathway_client` registers a single mesh
+//! engine. `build_pathway_batman_client` registers both mesh and batman.
 //! Each builder attaches an `InMemoryTransport` to the shared network,
-//! wires up the engine instances, and returns a `MeshClient`.
+//! wires up the engine instances, and returns a `PathwayClient`.
 
 use jacquard_batman::BatmanEngine;
 use jacquard_core::{
@@ -16,23 +16,23 @@ use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
     SharedInMemoryNetwork,
 };
-use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
+use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::Blake3Hashing;
 
 use crate::Client;
 
-pub type MeshRouter = MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>;
+pub type PathwayRouter = MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>;
 
-pub type MeshClient = Client<MeshRouter>;
+pub type PathwayClient = Client<PathwayRouter>;
 
-pub fn build_mesh_client(
+pub fn build_pathway_client(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
     network: SharedInMemoryNetwork,
     now: Tick,
-) -> MeshClient {
-    build_mesh_client_with_profile(
+) -> PathwayClient {
+    build_pathway_client_with_profile(
         local_node_id,
         topology,
         network,
@@ -41,21 +41,21 @@ pub fn build_mesh_client(
     )
 }
 
-pub fn build_mesh_client_with_profile(
+pub fn build_pathway_client_with_profile(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
     network: SharedInMemoryNetwork,
     now: Tick,
     profile: SelectedRoutingParameters,
-) -> MeshClient {
+) -> PathwayClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
     let mut transport =
         InMemoryTransport::attach(local_node_id, [local_endpoint], network);
     transport.set_ingress_tick(now);
 
-    let engine = MeshEngine::without_committee_selector(
+    let engine = PathwayEngine::without_committee_selector(
         local_node_id,
-        DeterministicMeshTopologyModel::new(),
+        DeterministicPathwayTopologyModel::new(),
         transport,
         InMemoryRetentionStore::default(),
         InMemoryRuntimeEffects { now, ..Default::default() },
@@ -74,13 +74,13 @@ pub fn build_mesh_client_with_profile(
     Client::new(topology, router)
 }
 
-pub fn build_mesh_batman_client(
+pub fn build_pathway_batman_client(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
     network: SharedInMemoryNetwork,
     now: Tick,
-) -> MeshClient {
-    build_mesh_batman_client_with_profile(
+) -> PathwayClient {
+    build_pathway_batman_client_with_profile(
         local_node_id,
         topology,
         network,
@@ -89,13 +89,13 @@ pub fn build_mesh_batman_client(
     )
 }
 
-pub fn build_mesh_batman_client_with_profile(
+pub fn build_pathway_batman_client_with_profile(
     local_node_id: NodeId,
     topology: Observation<Configuration>,
     network: SharedInMemoryNetwork,
     now: Tick,
     profile: SelectedRoutingParameters,
-) -> MeshClient {
+) -> PathwayClient {
     let local_endpoint = local_endpoint(&topology, local_node_id);
     let mut mesh_transport = InMemoryTransport::attach(
         local_node_id,
@@ -107,9 +107,9 @@ pub fn build_mesh_batman_client_with_profile(
         InMemoryTransport::attach(local_node_id, [local_endpoint], network);
     batman_transport.set_ingress_tick(now);
 
-    let mesh_engine = MeshEngine::without_committee_selector(
+    let mesh_engine = PathwayEngine::without_committee_selector(
         local_node_id,
-        DeterministicMeshTopologyModel::new(),
+        DeterministicPathwayTopologyModel::new(),
         mesh_transport,
         InMemoryRetentionStore::default(),
         InMemoryRuntimeEffects { now, ..Default::default() },
@@ -137,7 +137,7 @@ pub fn build_mesh_batman_client_with_profile(
     Client::new(topology, router)
 }
 
-impl Client<MeshRouter> {
+impl Client<PathwayRouter> {
     pub fn replace_shared_topology(&mut self, topology: Observation<Configuration>) {
         self.router.replace_topology(topology.clone());
         self.topology = topology;

@@ -32,7 +32,7 @@ fn forbidden_dependency_violations(metadata: &cargo_metadata::Metadata) -> Vec<S
             "jacquard-core",
             vec![
                 "jacquard-traits",
-                "jacquard-mesh",
+                "jacquard-pathway",
                 "jacquard-router",
                 "jacquard-simulator",
                 "jacquard-transport",
@@ -42,7 +42,7 @@ fn forbidden_dependency_violations(metadata: &cargo_metadata::Metadata) -> Vec<S
         (
             "jacquard-traits",
             vec![
-                "jacquard-mesh",
+                "jacquard-pathway",
                 "jacquard-router",
                 "jacquard-simulator",
                 "jacquard-transport",
@@ -51,7 +51,7 @@ fn forbidden_dependency_violations(metadata: &cargo_metadata::Metadata) -> Vec<S
         ),
         (
             "jacquard-transport",
-            vec!["jacquard-mesh", "jacquard-router"],
+            vec!["jacquard-pathway", "jacquard-router"],
         ),
     ];
 

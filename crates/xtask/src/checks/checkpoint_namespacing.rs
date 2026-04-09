@@ -64,7 +64,7 @@ pub fn run() -> Result<()> {
     let mut violations = Vec::new();
 
     for source in parsed {
-        let crate_type = if source.rel_path.starts_with("crates/mesh/src/") {
+        let crate_type = if source.rel_path.starts_with("crates/pathway/src/") {
             "mesh"
         } else if source.rel_path.starts_with("crates/router/src/") {
             "router"

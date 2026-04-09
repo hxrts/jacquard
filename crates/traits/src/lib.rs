@@ -22,8 +22,8 @@
 //! Shared behavioral boundaries such as [`RoutingEngine`],
 //! [`RouterManagedEngine`], [`RoutingMiddleware`], and [`RouterEngineRegistry`]
 //! live here. Engines implement these contracts; routers orchestrate across
-//! them without depending on engine-private runtime details. Mesh-specific
-//! read-only extension traits live in `jacquard-mesh`, not here.
+//! them without depending on engine-private runtime details. Pathway-specific
+//! read-only extension traits live in `jacquard-pathway`, not here.
 //!
 //! ## Ownership
 //!

@@ -148,7 +148,7 @@ pub fn run() -> Result<()> {
 
     for source in parsed {
         if !(source.rel_path.starts_with("crates/router/src/")
-            || source.rel_path.starts_with("crates/mesh/src/"))
+            || source.rel_path.starts_with("crates/pathway/src/"))
         {
             continue;
         }

@@ -16,7 +16,7 @@ pub const BARE_PRIMITIVES_EXEMPT_PATHS: &[&str] = &[
 #[allow(dead_code)]
 pub const STYLE_GUIDE_EXCEPTIONS: &[(&str, &str)] = &[
     (
-        "jacquard_mesh::routing_invariants::run",
+        "jacquard_pathway::routing_invariants::run",
         "long-block-exception: rule coordination workflow",
     ),
     // Add as discovered via code review

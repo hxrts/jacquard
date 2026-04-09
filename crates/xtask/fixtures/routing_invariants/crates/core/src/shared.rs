@@ -1,1 +1,1 @@
-pub struct MeshShadowType;
+pub struct PathwayShadowType;

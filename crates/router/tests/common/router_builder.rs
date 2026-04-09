@@ -7,7 +7,7 @@ use jacquard_core::Tick;
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
 };
-use jacquard_mesh::{DeterministicMeshTopologyModel, MeshEngine};
+use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::Blake3Hashing;
 
@@ -18,16 +18,16 @@ use super::{
     recoverable_engine::RecoverableTestEngine,
 };
 
-pub(crate) type TestMeshEngine = MeshEngine<
-    DeterministicMeshTopologyModel,
+pub(crate) type TestPathwayEngine = PathwayEngine<
+    DeterministicPathwayTopologyModel,
     InMemoryTransport,
     InMemoryRetentionStore,
     InMemoryRuntimeEffects,
     Blake3Hashing,
 >;
 
-pub(crate) type CommitteeMeshEngine = MeshEngine<
-    DeterministicMeshTopologyModel,
+pub(crate) type CommitteePathwayEngine = PathwayEngine<
+    DeterministicPathwayTopologyModel,
     InMemoryTransport,
     InMemoryRetentionStore,
     InMemoryRuntimeEffects,
@@ -47,9 +47,9 @@ pub(crate) fn build_router_with_selector(
 ) -> MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects> {
     let topology = sample_configuration();
     let policy_inputs = sample_policy_inputs(&topology);
-    let engine: CommitteeMeshEngine = MeshEngine::with_committee_selector(
+    let engine: CommitteePathwayEngine = PathwayEngine::with_committee_selector(
         LOCAL_NODE_ID,
-        DeterministicMeshTopologyModel::new(),
+        DeterministicPathwayTopologyModel::new(),
         InMemoryTransport::new(),
         InMemoryRetentionStore::default(),
         InMemoryRuntimeEffects { now, ..Default::default() },
@@ -90,9 +90,9 @@ pub(crate) fn build_router_with_runtime_pair(
 ) -> MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects> {
     let topology = sample_configuration();
     let policy_inputs = sample_policy_inputs(&topology);
-    let engine: TestMeshEngine = MeshEngine::without_committee_selector(
+    let engine: TestPathwayEngine = PathwayEngine::without_committee_selector(
         LOCAL_NODE_ID,
-        DeterministicMeshTopologyModel::new(),
+        DeterministicPathwayTopologyModel::new(),
         InMemoryTransport::new(),
         InMemoryRetentionStore::default(),
         engine_effects,

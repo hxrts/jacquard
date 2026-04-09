@@ -219,8 +219,10 @@ fn world_error_purity(root: &Path) -> Result<Vec<Violation>> {
 
 fn shared_private_boundary(root: &Path) -> Result<Vec<Violation>> {
     let mut out = Vec::new();
-    let schema_re = Regex::new(r"pub (struct|enum|type)\s+(Mesh|Onion|Field)[A-Z]\w*")?;
-    let effect_re = Regex::new(r"pub trait\s+(Mesh|Onion|Field)[A-Z]\w*Effects\b")?;
+    let schema_re =
+        Regex::new(r"pub (struct|enum|type)\s+(Pathway|Mesh|Onion|Field)[A-Z]\w*")?;
+    let effect_re =
+        Regex::new(r"pub trait\s+(Pathway|Mesh|Onion|Field)[A-Z]\w*Effects\b")?;
     let allowed_trait_boundary_types: [&str; 0] = [];
     for dir in ["crates/core/src", "crates/traits/src"] {
         for path in rust_files(root.join(dir))? {
@@ -252,14 +254,14 @@ fn shared_private_boundary(root: &Path) -> Result<Vec<Violation>> {
 fn planner_cache_dependence(root: &Path) -> Result<Vec<Violation>> {
     grep_rule(
         root,
-        &["crates/mesh/src"],
+        &["crates/pathway/src"],
         r"find_cached_candidate_by_route_id\(",
         "materialization depends on cache lookup helper",
     )
 }
 
 fn fail_closed_ordering(root: &Path) -> Result<Vec<Violation>> {
-    let runtime_file = root.join("crates/mesh/src/engine/runtime/mod.rs");
+    let runtime_file = root.join("crates/pathway/src/engine/runtime/mod.rs");
     let rel = normalize_rel_path(root, &runtime_file);
     let contents = fs::read_to_string(&runtime_file)
         .with_context(|| format!("reading {}", runtime_file.display()))?;
@@ -295,7 +297,7 @@ fn fail_closed_ordering(root: &Path) -> Result<Vec<Violation>> {
                 rel,
                 apply_line,
                 "maintenance trigger mutates runtime state before checkpoint persistence",
-                crate::util::LayerTag::MeshRouter,
+                crate::util::LayerTag::PathwayRouter,
             ));
         }
     }
@@ -326,7 +328,7 @@ fn checked_score_arithmetic(root: &Path) -> Result<Vec<Violation>> {
     let re = Regex::new(
         r"quiet_pressure\s*\n?\s*\+\s*summary\.congestion_penalty_points\.0\.saturating_mul\(50\)",
     )?;
-    for path in rust_files(root.join("crates/mesh/src"))? {
+    for path in rust_files(root.join("crates/pathway/src"))? {
         let rel = normalize_rel_path(root, &path);
         let contents = fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
@@ -340,7 +342,7 @@ fn checked_score_arithmetic(root: &Path) -> Result<Vec<Violation>> {
                 rel,
                 line,
                 "bounded routing score arithmetic uses plain + instead of saturating_add",
-                crate::util::LayerTag::MeshRouter,
+                crate::util::LayerTag::PathwayRouter,
             ));
         }
     }
@@ -359,7 +361,7 @@ fn typed_wrapper_arithmetic(root: &Path) -> Result<Vec<Violation>> {
 fn committee_swallow(root: &Path) -> Result<Vec<Violation>> {
     grep_rule(
         root,
-        &["crates/mesh/src"],
+        &["crates/pathway/src"],
         r"\.ok\(\)\.flatten\(\)",
         "committee selector error is being silently erased",
     )
@@ -368,7 +370,7 @@ fn committee_swallow(root: &Path) -> Result<Vec<Violation>> {
 fn selector_null_object(root: &Path) -> Result<Vec<Violation>> {
     grep_rule(
         root,
-        &["crates/mesh/src"],
+        &["crates/pathway/src"],
         r"selector:\s+Option<Selector>",
         "null-object selector is wrapped in dead Option state",
     )
@@ -377,7 +379,7 @@ fn selector_null_object(root: &Path) -> Result<Vec<Violation>> {
 fn storage_key_scope(root: &Path) -> Result<Vec<Violation>> {
     grep_rule(
         root,
-        &["crates/mesh/src"],
+        &["crates/pathway/src"],
         r#"b"mesh/(topology-epoch|route/)"#,
         "storage key is not scoped by local engine identity",
     )
@@ -386,7 +388,7 @@ fn storage_key_scope(root: &Path) -> Result<Vec<Violation>> {
 fn synthetic_fallback(root: &Path) -> Result<Vec<Violation>> {
     grep_rule(
         root,
-        &["crates/mesh/src"],
+        &["crates/pathway/src"],
         r"fallback_health_configuration|map_or_else\(\s*\|\|\s*self\.fallback_health_configuration",
         "synthetic authoritative-state fallback detected",
     )
@@ -395,7 +397,7 @@ fn synthetic_fallback(root: &Path) -> Result<Vec<Violation>> {
 fn named_thresholds(root: &Path) -> Result<Vec<Violation>> {
     grep_rule(
         root,
-        &["crates/mesh/src"],
+        &["crates/pathway/src"],
         r">\s*600\b",
         "routing threshold literal should be a named constant",
     )

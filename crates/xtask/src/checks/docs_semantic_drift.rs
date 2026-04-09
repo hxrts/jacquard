@@ -134,8 +134,12 @@ const EXTERNAL_PREFIXES: &[&str] = &[
     "telltale",
 ];
 
-const PLANNED_CRATES: &[&str] =
-    &["jacquard-mesh", "jacquard-router", "jacquard-transport", "jacquard-simulator"];
+const PLANNED_CRATES: &[&str] = &[
+    "jacquard-pathway",
+    "jacquard-router",
+    "jacquard-transport",
+    "jacquard-simulator",
+];
 
 pub fn run() -> Result<()> {
     let root = workspace_root()?;

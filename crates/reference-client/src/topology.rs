@@ -11,7 +11,7 @@ use jacquard_core::{
 };
 use jacquard_mem_link_profile::ReferenceLink;
 use jacquard_mem_node_profile::ReferenceNode;
-use jacquard_mesh::MESH_ENGINE_ID;
+use jacquard_pathway::PATHWAY_ENGINE_ID;
 
 fn reference_endpoint(byte: u8) -> jacquard_core::LinkEndpoint {
     opaque_endpoint(TransportProtocol::WifiAware, vec![byte], ByteCount(256))
@@ -19,7 +19,7 @@ fn reference_endpoint(byte: u8) -> jacquard_core::LinkEndpoint {
 
 #[must_use]
 pub fn route_capable_node(node_byte: u8) -> Node {
-    route_capable_node_for_engine(node_byte, &MESH_ENGINE_ID)
+    route_capable_node_for_engine(node_byte, &PATHWAY_ENGINE_ID)
 }
 
 #[must_use]
@@ -51,7 +51,7 @@ pub fn route_capable_node_for_engines(
 
 #[must_use]
 pub fn dual_engine_route_capable_node(node_byte: u8) -> Node {
-    route_capable_node_for_engines(node_byte, &[MESH_ENGINE_ID, BATMAN_ENGINE_ID])
+    route_capable_node_for_engines(node_byte, &[PATHWAY_ENGINE_ID, BATMAN_ENGINE_ID])
 }
 
 #[must_use]

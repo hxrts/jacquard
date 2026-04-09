@@ -29,7 +29,7 @@ second transport proves the current shared model too specific.
 
 ## Dependency Graph
 
-The workspace today contains ten crates: `jacquard-core`, `jacquard-traits`, `jacquard-macros`, `jacquard-mesh`, `jacquard-batman`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-reference-client`, and `jacquard-xtask`. `jacquard-simulator` remains a planned crate above the shared router and engine boundaries.
+The workspace today contains ten crates: `jacquard-core`, `jacquard-traits`, `jacquard-macros`, `jacquard-pathway`, `jacquard-batman`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-reference-client`, and `jacquard-xtask`. `jacquard-simulator` remains a planned crate above the shared router and engine boundaries.
 
 ```
 jacquard-core
@@ -40,7 +40,7 @@ jacquard-mem-node-profile
       │
 jacquard-mem-link-profile
       │
-jacquard-mesh ─┐
+jacquard-pathway ─┐
 jacquard-batman┼──→ jacquard-router ←── jacquard-reference-client
       │         │         │                ↑
       └─────────┴──→ jacquard-simulator    └── composes mem-* + router + in-tree engines
@@ -78,7 +78,7 @@ The routing core does not call platform APIs directly. Hashing, storage, route-e
 
 The effect traits are narrower than the higher-level component traits. They model runtime capabilities, not whole subsystems. `RoutingEngine`, `Router`, and `RetentionStore` are larger behavioral contracts and should not be forced through the effect layer.
 
-First-party mesh keeps one additional internal layer above those shared effects: mesh-private choreography effect interfaces generated from Telltale protocols. Those generated interfaces are not promoted into `jacquard-traits`. Concrete host/runtime adapters implement the shared effect traits, and `jacquard-mesh` interprets its private choreography requests in terms of those stable shared boundaries.
+First-party mesh keeps one additional internal layer above those shared effects: pathway-private choreography effect interfaces generated from Telltale protocols. Those generated interfaces are not promoted into `jacquard-traits`. Concrete host/runtime adapters implement the shared effect traits, and `jacquard-pathway` interprets its private choreography requests in terms of those stable shared boundaries.
 
 ## Invariants
 
@@ -99,7 +99,7 @@ Each crate owns a narrow slice of runtime state.
 |---|---|
 | `jacquard-core` | Shared vocabulary. No live state. |
 | `jacquard-traits` | Compile-time boundaries. No runtime state. |
-| `jacquard-mesh` | Mesh-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
+| `jacquard-pathway` | Mesh-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
 | `jacquard-batman` | BATMAN-private originator observations, next-hop ranking tables, TQ derivation, and active next-hop forwarding records. |
 | `jacquard-router` | Canonical route identity, materialization inputs, leases, handle issuance, top-level route-health publication, and multi-engine orchestration state. |
 | `jacquard-mem-node-profile` | In-memory node capability and node-state modeling only. No routing semantics. |
@@ -113,6 +113,6 @@ A host-owned policy engine above the router may own cross-engine migration polic
 
 `core::Configuration` is the shared graph-shaped world object. Engine-specific structure such as topology exports, peer novelty, bridge estimates, planning caches, and forwarding tables belongs in the engine crate behind its trait boundary rather than in `core`.
 
-The extension surface is split across [World Extensions](302_world_extensions.md), [Routing Engines](303_routing_engines.md), [Runtime Effects](301_runtime_effects.md), and [Mesh Routing](401_mesh_routing.md).
+The extension surface is split across [World Extensions](302_world_extensions.md), [Routing Engines](303_routing_engines.md), [Runtime Effects](301_runtime_effects.md), and [Pathway Routing](401_pathway_routing.md).
 
-For first-party mesh specifically, Telltale stays an internal implementation substrate. Shared crates remain runtime-free. The future router may drive mesh through shared planning, tick, maintenance, and checkpoint orchestration, but it must not depend on mesh-private choreography payloads, protocol session keys, or guest-runtime internals.
+For first-party mesh specifically, Telltale stays an internal implementation substrate. Shared crates remain runtime-free. The future router may drive mesh through shared planning, tick, maintenance, and checkpoint orchestration, but it must not depend on pathway-private choreography payloads, protocol session keys, or guest-runtime internals.

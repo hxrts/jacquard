@@ -6,7 +6,7 @@ See [Core Types](201_core_types.md) for the model objects that carry the system.
 
 ## Scope
 
-Jacquard owns the shared routing contract and the first-party mesh routing engine today. The top-level router, runtime adapters, and simulation harness are planned future crates that land alongside the router control plane and simulator work. Protection-versus-connectivity policy may be supplied by a host, but Jacquard itself stays routing-engine-neutral at the contract layer.
+Jacquard owns the shared routing contract and the first-party pathway routing engine today. The top-level router, runtime adapters, and simulation harness are planned future crates that land alongside the router control plane and simulator work. Protection-versus-connectivity policy may be supplied by a host, but Jacquard itself stays routing-engine-neutral at the contract layer.
 
 The central split is between shared facts and local runtime state. Service descriptors, topology observations, admission checks, and route witnesses are explicit shared objects. Adaptive policy, selected routing actions, installed-route ownership, and engine-private runtime state stay local.
 
