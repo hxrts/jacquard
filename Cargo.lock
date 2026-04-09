@@ -619,6 +619,7 @@ dependencies = [
 name = "jacquard-reference-client"
 version = "0.1.0"
 dependencies = [
+ "jacquard-adapter",
  "jacquard-batman",
  "jacquard-core",
  "jacquard-mem-link-profile",
