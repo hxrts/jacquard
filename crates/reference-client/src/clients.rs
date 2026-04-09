@@ -1,15 +1,8 @@
-//! Concrete client builders that wire a router together with one or more
-//! routing engines for the reference-client crate.
-//!
-//! Control flow: the host/client assembles shared topology observations,
-//! attaches one or more in-memory transports to the shared carrier, builds one
-//! or more routing engines behind the public traits, and hands those engines
-//! to the router. The client remains observational with respect to canonical
-//! route truth. Only the router publishes the canonical route table.
-//!
-//! Ownership:
-//! - local composition only
-//! - no canonical route publication outside the router-owned path
+//! Concrete client builders that pair a `MultiEngineRouter` with one or
+//! more routing engines. `build_mesh_client` registers a single mesh
+//! engine. `build_mesh_batman_client` registers both mesh and batman.
+//! Each builder attaches an `InMemoryTransport` to the shared network,
+//! wires up the engine instances, and returns a `MeshClient`.
 
 use jacquard_batman::BatmanEngine;
 use jacquard_core::{

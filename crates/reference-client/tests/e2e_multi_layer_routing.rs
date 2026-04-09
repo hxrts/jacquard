@@ -1,12 +1,12 @@
-//! End-to-end multi-device routing tests over one `SharedInMemoryNetwork`.
-//! Builds several `MeshClient` and mesh-plus-batman clients on a four-node
-//! topology, activates routes across them through the router-owned
-//! canonical path, and asserts that transport, route events, and route
-//! handles stay consistent across device boundaries.
+//! End-to-end routing tests over one `SharedInMemoryNetwork`. One test
+//! covers mesh-only forwarding across a four-node topology. The other
+//! covers mixed batman-plus-mesh forwarding across a three-node topology
+//! where B is the hinge between the two engines. Both assert that route
+//! activation, forwarding, and receiver-side anti-entropy ticks stay
+//! consistent across device boundaries.
 //!
-//! Reading order is bottom-up: world topologies, then routing parameters,
-//! then client builders, then observation helpers, then the two tests
-//! that tie everything together at the end of the file.
+//! Reading order is bottom-up: world topologies, routing parameters,
+//! client builders, observation helpers, then the two tests at the end.
 
 use std::collections::BTreeMap;
 

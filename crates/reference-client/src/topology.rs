@@ -1,10 +1,8 @@
-//! Shared reference topology builders, built from the mem-* profile crates.
-//!
-//! Control flow: callers use these helpers to assemble canonical in-memory
-//! `Node` and `Link` shapes from the isolated profile/state builders, then hand
-//! that world state to the router and mesh engine through the normal
-//! composition path. This module is reusable reference composition, not
-//! engine-private business logic.
+//! Reusable topology fixture builders used across integration tests.
+//! Assembles `Node` and `Link` values from the mem-node-profile and
+//! mem-link-profile builders. Provides route-capable nodes for a named
+//! routing engine and `dual_engine_route_capable_node` for mesh-plus-
+//! batman composition.
 
 use jacquard_batman::BATMAN_ENGINE_ID;
 use jacquard_core::{

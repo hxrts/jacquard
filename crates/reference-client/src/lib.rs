@@ -1,15 +1,15 @@
-//! Reference client wiring for Jacquard integration tests and examples.
+//! Reference client for Jacquard integration tests and examples.
 //!
-//! Control flow: a reference client owns only local host composition.
-//! It assembles shared topology observations, a router instance, and in-memory
-//! transport/runtime adapters, then submits typed router operations. It does
-//! not mint canonical route truth on its own.
-//! Reusable reference topology builders live in `topology`, so other crates can
-//! compose the same in-memory node/link shapes without copying fixture logic.
+//! Provides a thin `Client<Router>` wrapper that pairs one shared
+//! topology observation with one router instance. Concrete router-plus-
+//! engine builders live in the `clients` module. Reusable `Node` and
+//! `Link` fixtures live in the `topology` module. In-memory profile types
+//! from `mem-link-profile` and `mem-node-profile` are re-exported so
+//! downstream test crates only depend on this crate.
 //!
 //! Ownership:
-//! - narrow local `ActorOwned` host loop for composition only
 //! - observational with respect to canonical route truth
+//! - never publishes the canonical route table, only the router does
 
 #![forbid(unsafe_code)]
 
