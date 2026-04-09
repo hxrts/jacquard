@@ -344,6 +344,9 @@ fn sample_policy_inputs_for(
     }
 }
 
+// long-block-exception: this fixture intentionally keeps the five-node roster
+// and per-node direct-neighbor edges together so the gossip-learning setup is
+// readable as one world description.
 fn five_node_roster_topology(
     local_node_id: jacquard_core::NodeId,
 ) -> Observation<Configuration> {
@@ -539,6 +542,9 @@ fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
     }));
 }
 
+// long-block-exception: this integration test traces one complete five-node
+// BATMAN convergence narrative from host setup through route activation and
+// next-hop forwarding; splitting it would obscure the sequence under test.
 #[test]
 fn batman_router_activates_a_five_node_route_from_direct_neighbor_observations() {
     let network = SharedInMemoryNetwork::default();
