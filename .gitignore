@@ -28,3 +28,7 @@ work/
 
 # claude code
 .claude/
+
+# lean / lake
+verification/.lake/
+verification/artifacts/
