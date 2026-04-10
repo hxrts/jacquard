@@ -235,7 +235,13 @@ That is stronger than the earlier alignment-only bridge, but it is still not a f
 
 ## Assumptions Packaging
 
-`Field/Assumptions.lean` packages the growing assumption boundary into:
+After the cleanup refactor, the assumptions layer is split into:
+
+- `Field/AssumptionCore.lean`
+- `Field/AssumptionTheorems.lean`
+- `Field/Assumptions.lean` as the thin umbrella import
+
+The shared vocabulary still packages the growing assumption boundary into:
 
 - `SemanticAssumptions`
 - `ProtocolEnvelopeAssumptions`
@@ -273,7 +279,7 @@ contract_yields_runtime_canonical_refinement
 contract_yields_runtime_system_canonical_refinement
 ```
 
-So `Field/Assumptions.lean` is no longer only a container for future assumptions. It already exposes a small usable bridge from the default contract to the current adequacy and controller-boundary results.
+So the assumptions layer is no longer only a container for future assumptions. It already exposes a small usable bridge from the default contract to the current adequacy and controller-boundary results, while keeping contract vocabulary and theorem packaging in separate files.
 It also now distinguishes:
 
 - reduced quality-comparison readiness

@@ -1,11 +1,25 @@
 import Field.Assumptions
 
+/-
+The Problem. Higher layers need a small system-facing summary of the packaged
+contract boundaries without reopening the full assumptions/theorem file. This
+module should stay a thin re-export surface, not a second theorem-definition
+site.
+
+Solution Structure.
+1. Group the explicit non-claims about stronger contracts.
+2. Group the explicit unlock theorems for stronger contracts.
+3. Keep the file thin by forwarding to `FieldAssumptions`.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
 namespace FieldSystemBoundary
 
 open FieldAssumptions
+
+/-! ## Explicit Non-Claims -/
 
 /-- The default contract does not justify strong global optimality claims. -/
 theorem default_contract_does_not_claim_global_optimality_ready :
@@ -37,6 +51,8 @@ theorem reduced_quality_contract_still_does_not_claim_global_optimality_ready :
     ¬ reducedQualityContract.optional.globalOptimalityReady :=
   FieldAssumptions.reduced_quality_contract_still_does_not_claim_global_optimality_ready
 
+/-! ## Explicit Unlocks -/
+
 /-- The support-refinement contract unlocks only support-optimality refinement. -/
 theorem support_optimality_contract_unlocks_support_optimality_refinement :
     supportOptimalityContract.optional.supportOptimalityRefinementReady :=
@@ -56,6 +72,8 @@ theorem runtime_canonical_contract_unlocks_runtime_canonical_refinement :
 theorem runtime_system_contract_unlocks_runtime_system_refinement :
     runtimeSystemContract.optional.runtimeSystemRefinementReady :=
   FieldAssumptions.runtime_system_contract_unlocks_runtime_system_refinement
+
+/-! ## Stronger Contracts Remain Non-Optimality -/
 
 /-- Even the support-refinement contract remains explicitly non-optimality. -/
 theorem support_optimality_contract_still_does_not_claim_global_optimality_ready :

@@ -72,8 +72,12 @@ This map describes the current organization of `verification/Field`.
   - reduced runtime artifact projection generated from `systemStep`, admission/honesty lemmas for that projection, and stronger runtime/system canonical refinement theorems with no extra alignment hypothesis
 - `Field/Adequacy/Instance.lean`
   - first concrete runtime extraction, execution-level observational trace theorem, reduced simulation theorem, router-projection honesty facts, and evidence-agreement theorems
+- `Field/AssumptionCore.lean`
+  - proof-contract vocabulary and default/strengthened contract builders for semantic, protocol-envelope, runtime-envelope, and optional refinement assumptions
+- `Field/AssumptionTheorems.lean`
+  - theorem packaging layer deriving adequacy, quality, canonical-router, runtime-canonical, and projected runtime/system refinement consequences from the shared proof-contract vocabulary
 - `Field/Assumptions.lean`
-  - packaged proof-contract assumptions for semantic, protocol-envelope, runtime-envelope, and optional strengthening theorems, including reduced-quality, support-only refinement, canonical-router refinement, runtime-to-canonical refinement, projected runtime/system refinement, and non-optimality boundaries
+  - thin umbrella importing the proof-contract vocabulary and theorem-packaging layers
 
 ## Network And Router
 
@@ -103,7 +107,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/System/Statistics.lean`
   - aggregate local-support summaries and in-flight support-mass bounds over the async layer
 - `Field/System/Boundary.lean`
-  - system-level assumption-boundary statements above the async/runtime stack
+  - thin system-level assumption-boundary summary above the async/runtime stack
 - `Field/System/EndToEnd.lean`
   - reduced end-to-end state and step relation combining async transport, router lifecycle installation, and lifecycle maintenance, plus first safety/observer lemmas
 - `Field/System/Convergence.lean`
@@ -126,9 +130,9 @@ This map describes the current organization of `verification/Field`.
 - `Field/Docs/Protocol.md`
   - protocol, Telltale mapping, and replay/authority notes
 - `Field/Docs/Adequacy.md`
-  - runtime artifact bridge, reduced runtime router projection, low-level alignment theorem, and stronger projected runtime/system adequacy note
+  - runtime artifact bridge, reduced runtime router projection, low-level alignment theorem, stronger projected runtime/system adequacy note, and the split assumptions-layer packaging note
 - `Field/Docs/Guide.md`
-  - contributor guidance, maturity summary, router-canonical truth versus quality/comparison scope, convergence assumptions, and stack-level module map including the network/router/async/system layers
+  - contributor guidance, maturity summary, router-canonical truth versus quality/comparison scope, convergence assumptions, stack-level module map including the network/router/async/system layers, and the cleaned-up assumptions ownership split
 
 ## Maturity Snapshot
 

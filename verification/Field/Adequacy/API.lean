@@ -3,9 +3,18 @@ import Field.Protocol.Bridge
 import Field.Quality.API
 import Field.Router.Canonical
 
-/-!
-Minimal adequacy-facing boundary between Rust-visible runtime artifacts and the
-reduced Lean private protocol object.
+/- 
+The Problem. The field proof stack needs a narrow adequacy-facing API between
+Rust-visible runtime artifacts and the reduced Lean protocol/router objects.
+This layer must expose just enough structure to talk about traces, evidence,
+and router-facing lifecycle projections without letting adequacy become the
+owner of canonical route truth.
+
+Solution Structure.
+1. Define the reduced runtime artifact vocabulary and admission predicates.
+2. Define the protocol-trace and router-facing wrapper functions used
+   downstream by adequacy theorems.
+3. Package extraction and simulation laws through a small model/laws API.
 -/
 
 set_option autoImplicit false
@@ -18,6 +27,8 @@ open FieldModelAPI
 open FieldProtocolAPI
 open FieldRouterCanonical
 open FieldRouterLifecycle
+
+/-! ## Runtime Artifact Vocabulary -/
 
 /-- Reduced router-facing projection carried by one runtime artifact. This is
 still only an extracted observational/runtime view, not a new owner of router
@@ -37,12 +48,16 @@ structure RuntimeRoundArtifact where
   routerArtifact : Option RuntimeRouterArtifact
   deriving Repr, DecidableEq, BEq
 
+def runtimeLifecycleRouteOfArtifact
+    (artifact : RuntimeRoundArtifact) : Option LifecycleRoute :=
+  artifact.routerArtifact.map RuntimeRouterArtifact.lifecycleRoute
+
 /-- Admitted router-facing runtime projections must stay inside the current
 reduced lifecycle honesty envelope. -/
 def RuntimeRouterArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
-  match artifact.routerArtifact with
+  match runtimeLifecycleRouteOfArtifact artifact with
   | none => True
-  | some routerArtifact => LifecycleHonest routerArtifact.lifecycleRoute
+  | some route => LifecycleHonest route
 
 /-- Envelope expected from the Rust private runtime before we claim any
 adequacy bridge. -/
@@ -69,6 +84,8 @@ def ProtocolTraceAdmitted (trace : ProtocolTrace) : Prop :=
   ∀ object ∈ traceSemanticObjects trace,
     object.authority = OutputAuthority.observationalOnly
 
+/-! ## Extraction Interface -/
+
 class Model where
   extractSnapshot : RuntimeRoundArtifact → MachineSnapshot
   extractTrace : List RuntimeRoundArtifact → ProtocolTrace
@@ -89,7 +106,7 @@ def runtimeEvidence (artifacts : List RuntimeRoundArtifact) : List EvidenceInput
 
 def runtimeLifecycleRoutes
     (artifacts : List RuntimeRoundArtifact) : List LifecycleRoute :=
-  artifacts.filterMap (fun artifact => artifact.routerArtifact.map RuntimeRouterArtifact.lifecycleRoute)
+  artifacts.filterMap runtimeLifecycleRouteOfArtifact
 
 def runtimeCanonicalRoute
     (destination : FieldNetworkAPI.DestinationClass)
@@ -110,6 +127,8 @@ structure RuntimeTraceSimulation
   trace_admitted : ProtocolTraceAdmitted trace
 
 end Wrappers
+
+/-! ## Law Interfaces -/
 
 abbrev RuntimeAdmittedImpliesBoundedAndCoherent (M : Model) : Prop :=
   ∀ artifact,
@@ -143,6 +162,8 @@ class Laws extends Model where
     RuntimeExecutionExtractsToObservationalTrace toModel
 
 instance (priority := 100) lawsToModel [Laws] : Model := Laws.toModel
+
+/-! ## Law Wrappers -/
 
 section LawWrappers
 

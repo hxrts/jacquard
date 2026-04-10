@@ -197,6 +197,7 @@ The adequacy and assumptions layers currently give:
 - an explicit reduced simulation witness
 - a stronger fragment-trace refinement theorem for runtime executions
 - a packaged `ProofContract` for semantic, protocol, runtime, and optional strengthening assumptions
+- a split assumptions layer where `Field/AssumptionCore.lean` owns the contract vocabulary, `Field/AssumptionTheorems.lean` owns the theorem packaging, and `Field/Assumptions.lean` stays a thin umbrella
 - contract-level bridge theorems such as:
   - `contract_yields_runtime_evidence_agreement`
   - `contract_yields_observational_controller_boundary`

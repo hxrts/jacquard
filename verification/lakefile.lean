@@ -49,6 +49,8 @@ lean_lib JacquardVerification where
     `Field.Boundary,
     `Field.Adequacy,
     `Field.Assumptions,
+    `Field.AssumptionCore,
+    `Field.AssumptionTheorems,
     `Field.Model.API,
     `Field.Model.Instance,
     `Field.Model.Decision,
