@@ -6,6 +6,8 @@ The adequacy layer is the first formal bridge between the Rust private field run
 
 This layer does not prove full Rust runtime correctness. It does not prove scheduler correctness, checkpoint correctness, transport correctness, or router correctness. It proves a reduced artifact-to-trace story that is honest about what information is preserved and what information is erased.
 
+It now also proves a small runtime/system safety story on top of the stuttering refinement layer, and it includes proof-facing fixture cases so the canonical theorems are pinned to concrete reduced runtime examples rather than only prose descriptions.
+
 ## Runtime Artifact Boundary
 
 The adequacy boundary is defined in `Field/Adequacy/API.lean`.
@@ -37,6 +39,42 @@ It intentionally erases:
 - outbound queue internals
 - checkpoint payloads
 - transport-local state
+
+## Reduced Runtime State Layer
+
+The adequacy layer now also has a proof-facing runtime-state module:
+
+```text
+Field/Adequacy/Runtime.lean
+```
+
+It introduces:
+
+```text
+RuntimeState
+initialRuntimeState
+RuntimeStep
+runtimeArtifactsOfState
+runtimeArtifactOfStep
+RuntimeStateAdmitted
+```
+
+This is still intentionally reduced. The state records only:
+
+- pending runtime artifacts
+- completed runtime artifacts
+
+and the step relation consumes exactly one pending artifact and appends it to the completed prefix.
+
+This is not yet a faithful host/runtime operational semantics. It is the first proof-facing execution object above flat artifact lists, and it exists so later phases can state runtime-to-system refinement as an execution theorem rather than only as an artifact-alignment theorem.
+
+On top of that state layer, `Field/Adequacy/Safety.lean` now packages the first runtime/system safety consequences:
+
+- support conservativity for quiescent runtime-state winners
+- no false explicit-path promotion for quiescent runtime-state winners
+- no route creation from destination-local silence
+- admissible ready-installed lifecycle origin for canonical winners
+- observational equivalence on quiescent runtime states projecting the same system state
 
 ## Reduced Adequacy Envelope
 
@@ -80,6 +118,21 @@ The trace extraction is intentionally simple:
 - the full trace is the list-level concatenation of those chunks
 
 This means the current adequacy story is trace-oriented rather than scheduler-oriented.
+
+The runtime-state layer reuses that same extraction over completed runtime prefixes via:
+
+```text
+extractTraceOfState
+runtimeEvidenceOfState
+admitted_runtime_state_simulates_reduced_protocol
+admitted_runtime_state_extracts_to_observational_trace
+runtime_step_preserves_state_admitted
+```
+
+So the current adequacy bridge can be read in two compatible ways:
+
+- as an artifact-list bridge
+- as a reduced runtime-state execution-prefix bridge
 
 ## What Is Proved
 
@@ -215,6 +268,47 @@ projectedRuntimeArtifactsOfState
 RuntimeExecutionProjectsSystemState
 ```
 
+and now also proves simple metric-preservation facts such as projected artifact-count preservation across the runtime/system projection.
+
+### Runtime-State Safety Preservation
+
+The stronger runtime-state layer also proves:
+
+```text
+runtime_step_preserves_protocol_and_router_invariants
+quiescent_runtime_state_support_conservative
+quiescent_runtime_state_no_false_explicit_path_promotion
+quiescent_runtime_state_no_route_creation_from_system_silence
+quiescent_runtime_state_canonical_winner_has_admissible_system_origin
+quiescent_runtime_states_projecting_same_system_have_equal_canonical_route
+runtime_projection_observational_equivalence_preserves_canonical_route
+```
+
+These are still reduced theorems. They are not full Rust implementation theorems. But they move the current story beyond bare artifact alignment by showing that the runtime/system refinement relation preserves the first safety claims operators actually care about.
+
+### Proof-Facing Fixtures
+
+The adequacy layer now also contains:
+
+```text
+Field/Adequacy/Fixtures.lean
+```
+
+This file gives reduced runtime cases that exercise:
+
+- support-dominance canonical selection
+- the stronger support-then-hop router selector
+- empty-runtime silence
+- one known non-claim from the quality layer
+
+The intended parity workflow is:
+
+1. define or update a reduced runtime/system scenario
+2. pin the expected canonical outcome with a small theorem in `Fixtures.lean`
+3. keep at least one non-claim or boundary scenario alongside positive cases
+
+This is still a reduced parity workflow, not a direct Rust extraction pipeline.
+
 and proves:
 
 ```text
@@ -232,6 +326,56 @@ This removes the free alignment hypothesis from the stronger top-level story. Th
 - router-owned canonical truth
 
 That is stronger than the earlier alignment-only bridge, but it is still not a full Rust/runtime correctness theorem. The projected artifacts are generated from the reduced Lean `systemStep`, not extracted from arbitrary production Rust executions.
+
+### Runtime-State To System Refinement
+
+The adequacy layer now also contains a runtime-state refinement file:
+
+```text
+Field/Adequacy/Refinement.lean
+```
+
+It defines:
+
+```text
+projectedRuntimeStateOfSystem
+RuntimeStateProjectsSystemState
+RuntimeStateQuiescent
+```
+
+The key idea is a stuttering refinement relation:
+
+- `runtimeArtifactsOfState runtimeState`
+  is the completed runtime prefix
+- `runtimeState.pendingArtifacts`
+  is the remaining runtime suffix
+- their concatenation must match `projectedRuntimeArtifactsOfState state`
+
+So the runtime-state story is no longer phrased only as:
+
+- one synthetic runtime artifact list
+- one canonical theorem over that list
+
+It is now phrased as:
+
+- a reduced runtime state
+- a reduced runtime step relation
+- a runtime/system refinement relation
+- quiescent runtime-state consequences for canonical truth
+
+The main theorems are:
+
+```text
+runtime_step_preserves_runtime_system_refinement
+runtime_step_preserves_runtime_system_refinement_admitted
+quiescent_runtime_state_canonical_route_eq_canonicalSystemRoute
+contract_yields_runtime_execution_canonical_refinement
+quiescent_runtime_state_route_view_eq_bestSystemRouteView_supportDominance
+quiescent_runtime_state_support_conservative
+quiescent_runtime_state_explicit_path_requires_explicit_sender_knowledge
+```
+
+This is still a reduced theorem story. The relation is defined against the projected-runtime view induced by the current Lean `systemStep`, so it is not yet a full extracted-Rust forward simulation. But it is now an execution-state refinement layer, not only an artifact-list bridge.
 
 ## Assumptions Packaging
 
@@ -277,6 +421,7 @@ contract_yields_support_optimality_refinement
 contract_yields_canonical_router_refinement
 contract_yields_runtime_canonical_refinement
 contract_yields_runtime_system_canonical_refinement
+contract_yields_runtime_state_system_canonical_refinement
 ```
 
 So the assumptions layer is no longer only a container for future assumptions. It already exposes a small usable bridge from the default contract to the current adequacy and controller-boundary results, while keeping contract vocabulary and theorem packaging in separate files.

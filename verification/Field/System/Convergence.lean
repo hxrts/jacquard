@@ -69,6 +69,34 @@ theorem candidate_view_iterate_stable_under_reliable_immediate_empty
         _ = lifecycleCandidateView (systemStep state).lifecycle := by
               exact candidate_view_fixed_point_under_reliable_immediate_empty state hAssumptions hEmpty
 
+theorem iterateSystemStep_preserves_reliable_immediate_empty_queue
+    (n : Nat)
+    (state : EndToEndState)
+    (hAssumptions : state.async.assumptions = reliableImmediateAssumptions)
+    (hEmpty : state.async.inFlight = []) :
+    (iterateSystemStep n state).async.assumptions = reliableImmediateAssumptions ∧
+      (iterateSystemStep n state).async.inFlight = [] := by
+  induction n generalizing state with
+  | zero =>
+      simpa [iterateSystemStep] using And.intro hAssumptions hEmpty
+  | succ n ih =>
+      simp [iterateSystemStep]
+      have hStep :=
+        system_step_preserves_reliable_immediate_empty_queue state hAssumptions hEmpty
+      exact ih (systemStep state) hStep.1 hStep.2
+
+/-- Under the clean reliable-immediate / empty-queue regime, one reduced
+end-to-end step is enough to absorb one changed input into the candidate view;
+every later iterate keeps the same candidate view. -/
+theorem candidate_view_recovers_within_one_step_under_reliable_immediate_empty
+    (n : Nat)
+    (state : EndToEndState)
+    (hAssumptions : state.async.assumptions = reliableImmediateAssumptions)
+    (hEmpty : state.async.inFlight = []) :
+    lifecycleCandidateView (iterateSystemStep (n + 1) state).lifecycle =
+      lifecycleCandidateView (systemStep state).lifecycle := by
+  exact candidate_view_iterate_stable_under_reliable_immediate_empty n state hAssumptions hEmpty
+
 theorem candidate_mem_system_step_view_implies_produced
     (state : EndToEndState)
     (hAssumptions : state.async.assumptions = reliableImmediateAssumptions)

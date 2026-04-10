@@ -5,6 +5,7 @@ set_option relaxedAutoImplicit false
 
 namespace FieldRouterCanonical
 
+open FieldModelAPI
 open FieldNetworkAPI
 open FieldRouterLifecycle
 
@@ -55,6 +56,14 @@ def CanonicalSupportBest
       competitor ∈ routes →
         CanonicalRouteEligible destination competitor →
         competitor.candidate.support ≤ winner.candidate.support
+
+def CanonicalSupportAtLeast
+    (threshold : Nat)
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute) : Prop :=
+  ∃ winner,
+    canonicalBestRoute destination routes = some winner ∧
+      threshold ≤ winner.candidate.support
 
 theorem eligibleCanonicalRoute_some_implies_route
     (destination : DestinationClass)
@@ -265,5 +274,258 @@ theorem canonicalBestRoute_some_is_support_best
       exact
         fold_chooseCanonicalRouteBySupport_support_dominates
           head competitor tail hCompetitorEligibleMem
+
+theorem canonicalBestRoute_some_with_support_of_dominating_route
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute)
+    (route : LifecycleRoute)
+    (hMem : route ∈ routes)
+    (hEligible : CanonicalRouteEligible destination route)
+    (hDominates :
+      ∀ competitor,
+        competitor ∈ routes →
+          CanonicalRouteEligible destination competitor →
+            competitor.candidate.support ≤ route.candidate.support) :
+    ∃ winner,
+      canonicalBestRoute destination routes = some winner ∧
+        winner.candidate.support = route.candidate.support := by
+  have hSome :
+      ∃ winner, canonicalBestRoute destination routes = some winner := by
+    unfold canonicalBestRoute
+    have hEligibleMem : route ∈ canonicalEligibleRoutes destination routes := by
+      unfold canonicalEligibleRoutes
+      exact List.mem_filterMap.2 ⟨route, hMem, by simp [eligibleCanonicalRoute, hEligible]⟩
+    cases hRoutes : canonicalEligibleRoutes destination routes with
+    | nil =>
+        rw [hRoutes] at hEligibleMem
+        simp at hEligibleMem
+    | cons head tail =>
+        exact ⟨tail.foldl chooseCanonicalRouteBySupport head, by simp⟩
+  rcases hSome with ⟨winner, hWinner⟩
+  have hBest : CanonicalSupportBest destination routes winner :=
+    canonicalBestRoute_some_is_support_best destination routes winner hWinner
+  have hWinnerLe :
+      winner.candidate.support ≤ route.candidate.support :=
+    hDominates winner hBest.2.1 hBest.1
+  have hRouteLe :
+      route.candidate.support ≤ winner.candidate.support :=
+    hBest.2.2 route hMem hEligible
+  exact ⟨winner, hWinner, Nat.le_antisymm hWinnerLe hRouteLe⟩
+
+theorem canonicalBestRoute_cons_ineligible
+    (destination : DestinationClass)
+    (route : LifecycleRoute)
+    (routes : List LifecycleRoute)
+    (hIneligible : ¬ CanonicalRouteEligible destination route) :
+    canonicalBestRoute destination (route :: routes) =
+      canonicalBestRoute destination routes := by
+  unfold canonicalBestRoute canonicalEligibleRoutes
+  simp [eligibleCanonicalRoute, hIneligible]
+
+theorem canonicalBestRoute_ignores_off_destination_route
+    (destination : DestinationClass)
+    (route : LifecycleRoute)
+    (routes : List LifecycleRoute)
+    (hDestination : route.candidate.destination ≠ destination) :
+    canonicalBestRoute destination (route :: routes) =
+      canonicalBestRoute destination routes := by
+  apply canonicalBestRoute_cons_ineligible
+  intro hEligible
+  exact hDestination hEligible.2
+
+theorem canonicalBestRoute_front_off_destination_routes_irrelevant
+    (destination : DestinationClass)
+    (front routes : List LifecycleRoute)
+    (hFront :
+      ∀ route ∈ front, route.candidate.destination ≠ destination) :
+    canonicalBestRoute destination (front ++ routes) =
+      canonicalBestRoute destination routes := by
+  induction front with
+  | nil =>
+      simp
+  | cons route rest ih =>
+      have hRoute : route.candidate.destination ≠ destination :=
+        hFront route (by simp)
+      have hRest :
+          ∀ competitor ∈ rest, competitor.candidate.destination ≠ destination := by
+        intro competitor hMem
+        exact hFront competitor (by simp [hMem])
+      calc
+        canonicalBestRoute destination ((route :: rest) ++ routes) =
+          canonicalBestRoute destination (rest ++ routes) := by
+            simpa using
+              canonicalBestRoute_ignores_off_destination_route
+                destination route (rest ++ routes) hRoute
+        _ = canonicalBestRoute destination routes := ih hRest
+
+theorem canonicalBestRoute_eq_some_of_unique_eligible
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute)
+    (route : LifecycleRoute)
+    (hMem : route ∈ routes)
+    (hEligible : CanonicalRouteEligible destination route)
+    (hUnique :
+      ∀ competitor,
+        competitor ∈ routes →
+          CanonicalRouteEligible destination competitor →
+            competitor = route) :
+    canonicalBestRoute destination routes = some route := by
+  have hDominates :
+      ∀ competitor,
+        competitor ∈ routes →
+          CanonicalRouteEligible destination competitor →
+            competitor.candidate.support ≤ route.candidate.support := by
+    intro competitor hCompetitorMem hCompetitorEligible
+    have hEq := hUnique competitor hCompetitorMem hCompetitorEligible
+    simp [hEq]
+  rcases canonicalBestRoute_some_with_support_of_dominating_route
+      destination routes route hMem hEligible hDominates with ⟨winner, hWinner, _⟩
+  have hWinnerMem : winner ∈ routes :=
+    canonicalBestRoute_some_mem destination routes winner hWinner
+  have hWinnerEligible : CanonicalRouteEligible destination winner :=
+    canonicalBestRoute_some_is_eligible destination routes winner hWinner
+  have hEq : winner = route := hUnique winner hWinnerMem hWinnerEligible
+  simpa [hEq] using hWinner
+
+theorem canonical_support_at_least_of_dominating_route
+    (threshold : Nat)
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute)
+    (route : LifecycleRoute)
+    (hMem : route ∈ routes)
+    (hEligible : CanonicalRouteEligible destination route)
+    (hThreshold : threshold ≤ route.candidate.support)
+    (hDominates :
+      ∀ competitor,
+        competitor ∈ routes →
+          CanonicalRouteEligible destination competitor →
+            competitor.candidate.support ≤ route.candidate.support) :
+    CanonicalSupportAtLeast threshold destination routes := by
+  rcases canonicalBestRoute_some_with_support_of_dominating_route
+      destination routes route hMem hEligible hDominates with ⟨winner, hWinner, hSupport⟩
+  refine ⟨winner, hWinner, ?_⟩
+  calc
+    threshold ≤ route.candidate.support := hThreshold
+    _ = winner.candidate.support := by simp [hSupport]
+
+theorem not_canonical_support_at_least_of_all_eligible_below_threshold
+    (threshold : Nat)
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute)
+    (hBelow :
+      ∀ route,
+        route ∈ routes →
+          CanonicalRouteEligible destination route →
+            route.candidate.support < threshold) :
+    ¬ CanonicalSupportAtLeast threshold destination routes := by
+  intro hAtLeast
+  rcases hAtLeast with ⟨winner, hWinner, hThreshold⟩
+  have hWinnerMem : winner ∈ routes :=
+    canonicalBestRoute_some_mem destination routes winner hWinner
+  have hWinnerEligible : CanonicalRouteEligible destination winner :=
+    canonicalBestRoute_some_is_eligible destination routes winner hWinner
+  have hLt := hBelow winner hWinnerMem hWinnerEligible
+  exact Nat.not_lt_of_ge hThreshold hLt
+
+theorem canonicalBestRoute_support_bounded_by_threshold_of_all_eligible_bounded
+    (threshold : Nat)
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute)
+    (winner : LifecycleRoute)
+    (hWinner : canonicalBestRoute destination routes = some winner)
+    (hBound :
+      ∀ route,
+        route ∈ routes →
+          CanonicalRouteEligible destination route →
+            route.candidate.support ≤ threshold) :
+    winner.candidate.support ≤ threshold := by
+  exact hBound winner
+    (canonicalBestRoute_some_mem destination routes winner hWinner)
+    (canonicalBestRoute_some_is_eligible destination routes winner hWinner)
+
+theorem threshold_one_discontinuity_example :
+    ∃ low high,
+      canonicalBestRoute .corridorA [low] = some low ∧
+        canonicalBestRoute .corridorA [high] = some high ∧
+        ¬ CanonicalSupportAtLeast 1 .corridorA [low] ∧
+        CanonicalSupportAtLeast 1 .corridorA [high] := by
+  let low : LifecycleRoute :=
+    { candidate :=
+        { publisher := .alpha
+          destination := .corridorA
+          shape := CorridorShape.corridorEnvelope
+          support := 0
+          hopLower := 1
+          hopUpper := 1 }
+      status := .installed }
+  let high : LifecycleRoute :=
+    { candidate :=
+        { publisher := .alpha
+          destination := .corridorA
+          shape := CorridorShape.corridorEnvelope
+          support := 1
+          hopLower := 1
+          hopUpper := 1 }
+      status := .installed }
+  refine ⟨low, high, ?_, ?_, ?_, ?_⟩
+  · simp [canonicalBestRoute, canonicalEligibleRoutes, eligibleCanonicalRoute,
+      CanonicalRouteEligible, low]
+  · simp [canonicalBestRoute, canonicalEligibleRoutes, eligibleCanonicalRoute,
+      CanonicalRouteEligible, high]
+  · apply not_canonical_support_at_least_of_all_eligible_below_threshold 1 .corridorA [low]
+    intro route hMem hEligible
+    simp [low] at hMem
+    subst hMem
+    simp
+  · refine ⟨high, ?_, by decide⟩
+    simp [canonicalBestRoute, canonicalEligibleRoutes, eligibleCanonicalRoute,
+      CanonicalRouteEligible, high]
+
+theorem canonicalBestRoute_eq_none_of_no_eligible
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute)
+    (hNoEligible : ∀ route ∈ routes, ¬ CanonicalRouteEligible destination route) :
+    canonicalBestRoute destination routes = none := by
+  unfold canonicalBestRoute
+  have hEligibleNil : canonicalEligibleRoutes destination routes = [] := by
+    unfold canonicalEligibleRoutes
+    induction routes with
+    | nil =>
+        simp
+    | cons route rest ih =>
+        have hRoute : ¬ CanonicalRouteEligible destination route :=
+          hNoEligible route (by simp)
+        have hRest :
+            ∀ route' ∈ rest, ¬ CanonicalRouteEligible destination route' := by
+          intro route' hMem
+          exact hNoEligible route' (by simp [hMem])
+        simp [eligibleCanonicalRoute, hRoute, ih hRest]
+  simp [hEligibleNil]
+
+theorem canonicalBestRoute_eq_none_of_no_destination_match
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute)
+    (hNoDestination : ∀ route ∈ routes, route.candidate.destination ≠ destination) :
+    canonicalBestRoute destination routes = none := by
+  apply canonicalBestRoute_eq_none_of_no_eligible
+  intro route hRouteMem hEligible
+  exact hNoDestination route hRouteMem hEligible.2
+
+theorem canonicalBestRoute_eq_none_of_no_active_destination_match
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute)
+    (hNoActive :
+      ∀ route ∈ routes,
+        (route.status ≠ .installed ∧ route.status ≠ .refreshed) ∨
+          route.candidate.destination ≠ destination) :
+    canonicalBestRoute destination routes = none := by
+  apply canonicalBestRoute_eq_none_of_no_eligible
+  intro route hRouteMem hEligible
+  rcases hNoActive route hRouteMem with hInactive | hDestination
+  · rcases hEligible with ⟨hStatus, _⟩
+    rcases hStatus with hInstalled | hRefreshed
+    · exact hInactive.1 hInstalled
+    · exact hInactive.2 hRefreshed
+  · exact hDestination hEligible.2
 
 end FieldRouterCanonical

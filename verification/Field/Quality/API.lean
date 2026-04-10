@@ -247,6 +247,21 @@ theorem destinationView_some_implies_admissible
     simpa using hAdm
   · simp [destinationView, hAdm] at hSome
 
+theorem destinationView_of_refreshed_destination_route
+    (route : LifecycleRoute) :
+    destinationView route.candidate.destination
+      { route with status := .refreshed } =
+        some (routeComparisonView { route with status := .refreshed }) := by
+  simp [destinationView, routeComparisonView, RouteViewAdmissible, routeViewIsActive]
+
+theorem bestRouteView_maintainLifecycle_idempotent
+    (objective : ComparisonObjective)
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute) :
+    bestRouteView objective destination (maintainLifecycle (maintainLifecycle routes)) =
+      bestRouteView objective destination (maintainLifecycle routes) := by
+  simp [FieldRouterLifecycle.maintainLifecycle_idempotent]
+
 theorem choosePreferredView_eq_current_or_next
     (objective : ComparisonObjective)
     (current next : RouteComparisonView) :

@@ -222,4 +222,84 @@ theorem system_step_candidate_view_eq_canonical_under_reliable_immediate_empty
   rw [system_step_candidate_view]
   rw [ready_installed_routes_eq_canonical_under_reliable_immediate_empty state.async hAssumptions hEmpty]
 
+theorem system_step_route_has_ready_installed_origin
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ (systemStep state).lifecycle) :
+    ∃ source,
+      source ∈ readyInstalledRoutes state.async ∧
+        lifecycleMaintenance source = route := by
+  unfold systemStep at hMem
+  unfold maintainLifecycle at hMem
+  rcases List.mem_map.1 hMem with ⟨source, hSourceMem, hEq⟩
+  exact ⟨source, hSourceMem, hEq⟩
+
+theorem system_step_route_origin_is_installed
+    (state : EndToEndState)
+    (route source : LifecycleRoute)
+    (hOrigin : source ∈ readyInstalledRoutes state.async)
+    (_hMaintained : lifecycleMaintenance source = route) :
+    source.status = .installed := by
+  unfold readyInstalledRoutes at hOrigin
+  rcases List.mem_filterMap.1 hOrigin with ⟨envelope, _, hSome⟩
+  unfold installLifecycleOfEnvelope at hSome
+  cases hAdmit : admitEnvelopeCandidate (transportStep state.async).network envelope with
+  | none =>
+      simp [hAdmit] at hSome
+  | some admitted =>
+      simp [hAdmit] at hSome
+      subst hSome
+      simp [installCandidateLifecycle]
+
+theorem system_step_route_has_admissible_lifecycle_origin
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ (systemStep state).lifecycle) :
+    ∃ source,
+      source ∈ readyInstalledRoutes state.async ∧
+        source.status = .installed ∧
+        lifecycleMaintenance source = route := by
+  rcases system_step_route_has_ready_installed_origin state route hMem with
+    ⟨source, hSourceMem, hMaintained⟩
+  refine ⟨source, hSourceMem, ?_, hMaintained⟩
+  exact system_step_route_origin_is_installed state route source hSourceMem hMaintained
+
+theorem ready_installed_route_appears_in_system_step_lifecycle
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ readyInstalledRoutes state.async) :
+    lifecycleMaintenance route ∈ (systemStep state).lifecycle := by
+  unfold systemStep maintainLifecycle
+  exact List.mem_map.2 ⟨route, hMem, rfl⟩
+
+/-- In the current reduced scheduler model, a ready installed route is
+processed in the same end-to-end step rather than being postponed behind
+unrelated traffic. -/
+theorem ready_installed_route_not_starved_in_system_step
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ readyInstalledRoutes state.async) :
+    lifecycleMaintenance route ∈ (systemStep state).lifecycle := by
+  exact ready_installed_route_appears_in_system_step_lifecycle state route hMem
+
+/-- The current reduced scheduler also avoids priority inversion at the
+ready-installed boundary: once a route is ready, it is processed immediately in
+the same system step. -/
+theorem ready_installed_route_avoids_priority_inversion_in_system_step
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ readyInstalledRoutes state.async) :
+    lifecycleMaintenance route ∈ (systemStep state).lifecycle := by
+  exact ready_installed_route_appears_in_system_step_lifecycle state route hMem
+
+theorem ready_installed_route_candidate_appears_in_system_step_candidate_view
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ readyInstalledRoutes state.async) :
+    (lifecycleMaintenance route).candidate ∈
+      lifecycleCandidateView (systemStep state).lifecycle := by
+  unfold lifecycleCandidateView
+  exact List.mem_map.2 ⟨lifecycleMaintenance route,
+    ready_installed_route_appears_in_system_step_lifecycle state route hMem, rfl⟩
+
 end FieldSystemEndToEnd

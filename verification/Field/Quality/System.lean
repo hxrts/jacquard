@@ -165,4 +165,33 @@ theorem best_system_route_view_explicit_path_requires_explicit_sender_knowledge
             simp [hWinnerPublisher, hRouteDestination]
     _ = ReachabilityKnowledge.explicitPath := hKnowledge
 
+theorem ready_installed_route_eventually_appears_in_system_destination_views
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ readyInstalledRoutes state.async)
+    (hSupport : route.candidate.support ≠ 0)
+    (hShape : route.candidate.shape ≠ CorridorShape.opaque) :
+    routeComparisonView (lifecycleMaintenance route) ∈
+      destinationViews route.candidate.destination (systemStep state).lifecycle := by
+  unfold destinationViews
+  apply List.mem_filterMap.2
+  refine ⟨lifecycleMaintenance route,
+    ready_installed_route_appears_in_system_step_lifecycle state route hMem, ?_⟩
+  have hMaintained :
+      lifecycleMaintenance route =
+        { route with status := .refreshed } := by
+    cases route with
+    | mk candidate status =>
+        simp [lifecycleMaintenance, hSupport, hShape, refreshLifecycleRoute]
+  rw [hMaintained]
+  simp [destinationView, routeComparisonView, RouteViewAdmissible, routeViewIsActive]
+
+theorem best_system_route_view_idempotent_under_lifecycle_maintenance
+    (objective : ComparisonObjective)
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute) :
+    bestRouteView objective destination (maintainLifecycle (maintainLifecycle routes)) =
+      bestRouteView objective destination (maintainLifecycle routes) := by
+  exact bestRouteView_maintainLifecycle_idempotent objective destination routes
+
 end FieldQualitySystem

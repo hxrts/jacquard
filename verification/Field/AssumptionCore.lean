@@ -53,6 +53,13 @@ structure ProofContract where
   runtime : RuntimeEnvelopeAssumptions
   optional : OptionalStrengtheningAssumptions
 
+/-! ## Explicit Non-Claims -/
+
+/-- Global marker used by the assumptions layer to say explicitly that the
+current reduced theorem packs still do not justify full Rust/runtime
+implementation-correctness claims. -/
+def FullRustRuntimeCorrectnessReady : Prop := False
+
 /-! ## Default Envelopes -/
 
 def defaultSemanticAssumptions : SemanticAssumptions :=

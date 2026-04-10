@@ -104,6 +104,24 @@ theorem lifecycle_maintenance_preserves_candidate
     · simp [hSupport, hOpaque, withdrawLifecycleRoute]
     · simp [hSupport, hOpaque, refreshLifecycleRoute]
 
+theorem lifecycleMaintenance_idempotent
+    (route : LifecycleRoute) :
+    lifecycleMaintenance (lifecycleMaintenance route) = lifecycleMaintenance route := by
+  unfold lifecycleMaintenance
+  by_cases hSupport : route.candidate.support = 0
+  · simp [hSupport, expireLifecycleRoute]
+  · by_cases hOpaque : route.candidate.shape = CorridorShape.opaque
+    · simp [hSupport, hOpaque, withdrawLifecycleRoute]
+    · simp [hSupport, hOpaque, refreshLifecycleRoute]
+
+theorem lifecycleMaintenance_refreshes_positive_nonopaque_route
+    (route : LifecycleRoute)
+    (hSupport : route.candidate.support ≠ 0)
+    (hShape : route.candidate.shape ≠ CorridorShape.opaque) :
+    lifecycleMaintenance route = { route with status := .refreshed } := by
+  unfold lifecycleMaintenance
+  simp [hSupport, hShape, refreshLifecycleRoute]
+
 theorem maintain_lifecycle_preserves_candidate_view
     (routes : List LifecycleRoute) :
     (maintainLifecycle routes).map LifecycleRoute.candidate = routes.map LifecycleRoute.candidate := by
@@ -112,6 +130,15 @@ theorem maintain_lifecycle_preserves_candidate_view
       simp [maintainLifecycle]
   | cons route rest ih =>
       simp [maintainLifecycle, lifecycle_maintenance_preserves_candidate]
+
+theorem maintainLifecycle_idempotent
+    (routes : List LifecycleRoute) :
+    maintainLifecycle (maintainLifecycle routes) = maintainLifecycle routes := by
+  induction routes with
+  | nil =>
+      simp [maintainLifecycle]
+  | cons route rest ih =>
+      simp [maintainLifecycle, lifecycleMaintenance_idempotent]
 
 theorem observed_route_is_honest_when_publication_is_well_formed
     (candidate : PublishedCandidate)

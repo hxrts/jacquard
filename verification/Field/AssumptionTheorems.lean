@@ -1,11 +1,17 @@
 import Field.AssumptionCore
 import Field.Adequacy.Canonical
+import Field.Adequacy.Fixtures
 import Field.Adequacy.Instance
 import Field.Adequacy.Projection
+import Field.Adequacy.Refinement
+import Field.Adequacy.Safety
 import Field.Information.Blindness
 import Field.Protocol.Conservation
 import Field.Quality.Refinement
+import Field.Router.Resilience
 import Field.System.Canonical
+import Field.System.CanonicalStrong
+import Field.System.Resilience
 
 /-
 The Problem. After the assumption vocabulary is defined, the field proof stack
@@ -28,6 +34,9 @@ open FieldAdequacyAPI
 open FieldAdequacyCanonical
 open FieldAdequacyInstance
 open FieldAdequacyProjection
+open FieldAdequacyRefinement
+open FieldAdequacyRuntime
+open FieldAdequacySafety
 open FieldBoundary
 open FieldInformationBlindness
 open FieldProtocolAPI
@@ -36,8 +45,12 @@ open FieldQualityAPI
 open FieldQualityReference
 open FieldQualityRefinement
 open FieldQualitySystem
+open FieldRouterLifecycle
+open FieldRouterResilience
 open FieldSystemCanonical
 open FieldSystemEndToEnd
+open FieldSystemCanonicalStrong
+open FieldSystemResilience
 
 /-! ## Runtime And Boundary Packaging -/
 
@@ -178,6 +191,152 @@ theorem contract_yields_runtime_system_canonical_refinement
       canonicalSystemRoute destination state := by
   exact projected_runtime_canonical_route_eq_canonicalSystemRoute destination state
 
+theorem contract_yields_runtime_state_system_canonical_refinement
+    (contract : ProofContract)
+    (_hReady : contract.optional.runtimeSystemRefinementReady)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (runtimeState : RuntimeState)
+    (state : EndToEndState)
+    (hRefinement : RuntimeStateProjectsSystemState runtimeState state)
+    (hQuiescent : RuntimeStateQuiescent runtimeState) :
+    runtimeCanonicalRoute destination (runtimeArtifactsOfState runtimeState) =
+      canonicalSystemRoute destination state := by
+  exact
+    quiescent_runtime_state_canonical_route_eq_canonicalSystemRoute
+      destination runtimeState state hRefinement hQuiescent
+
+/-- Preferred runtime-facing canonical theorem on the execution-state surface.
+Use this when a proof already talks about runtime states rather than one
+projected artifact list. -/
+theorem contract_yields_runtime_execution_canonical_refinement
+    (contract : ProofContract)
+    (_hReady : contract.optional.runtimeSystemRefinementReady)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (runtimeState : RuntimeState)
+    (state : EndToEndState)
+    (hRefinement : RuntimeStateProjectsSystemState runtimeState state)
+    (hQuiescent : RuntimeStateQuiescent runtimeState) :
+    runtimeCanonicalRoute destination (runtimeArtifactsOfState runtimeState) =
+      canonicalSystemRoute destination state := by
+  exact
+    contract_yields_runtime_state_system_canonical_refinement
+      contract _hReady destination runtimeState state hRefinement hQuiescent
+
+theorem contract_yields_runtime_state_support_safety
+    (contract : ProofContract)
+    (_hReady : contract.optional.runtimeSystemRefinementReady)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (runtimeState : RuntimeState)
+    (state : EndToEndState)
+    (hRefinement : RuntimeStateProjectsSystemState runtimeState state)
+    (hQuiescent : RuntimeStateQuiescent runtimeState)
+    (hAssumptions : state.async.assumptions = FieldAsyncAPI.reliableImmediateAssumptions)
+    (hEmpty : state.async.inFlight = [])
+    (hHarmony : FieldNetworkAPI.NetworkLocallyHarmonious state.async.network)
+    (winner : RouteComparisonView)
+    (hWinner :
+      runtimeCanonicalRouteView destination (runtimeArtifactsOfState runtimeState) = some winner) :
+    winner.support ≤
+      (state.async.network.localStates winner.publisher destination).posterior.support := by
+  exact
+    quiescent_runtime_state_support_conservative destination runtimeState state
+      hRefinement hQuiescent hAssumptions hEmpty hHarmony winner hWinner
+
+theorem contract_yields_runtime_state_no_false_explicit_path_promotion
+    (contract : ProofContract)
+    (_hReady : contract.optional.runtimeSystemRefinementReady)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (runtimeState : RuntimeState)
+    (state : EndToEndState)
+    (hRefinement : RuntimeStateProjectsSystemState runtimeState state)
+    (hQuiescent : RuntimeStateQuiescent runtimeState)
+    (hAssumptions : state.async.assumptions = FieldAsyncAPI.reliableImmediateAssumptions)
+    (hEmpty : state.async.inFlight = [])
+    (hHarmony : FieldNetworkAPI.NetworkLocallyHarmonious state.async.network)
+    (hNoExplicit :
+      ∀ sender,
+        (state.async.network.localStates sender destination).posterior.knowledge ≠
+          FieldModelAPI.ReachabilityKnowledge.explicitPath)
+    (winner : RouteComparisonView)
+    (hWinner :
+      runtimeCanonicalRouteView destination (runtimeArtifactsOfState runtimeState) = some winner) :
+    winner.shape ≠ FieldModelAPI.CorridorShape.explicitPath := by
+  exact
+    quiescent_runtime_state_no_false_explicit_path_promotion
+      destination runtimeState state hRefinement hQuiescent
+      hAssumptions hEmpty hHarmony hNoExplicit winner hWinner
+
+theorem contract_yields_runtime_state_no_route_creation_from_silence
+    (contract : ProofContract)
+    (_hReady : contract.optional.runtimeSystemRefinementReady)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (runtimeState : RuntimeState)
+    (state : EndToEndState)
+    (hRefinement : RuntimeStateProjectsSystemState runtimeState state)
+    (hQuiescent : RuntimeStateQuiescent runtimeState)
+    (hSilent :
+      ∀ route ∈ (systemStep state).lifecycle,
+        route.candidate.destination ≠ destination) :
+    runtimeCanonicalRoute destination (runtimeArtifactsOfState runtimeState) = none := by
+  exact
+    quiescent_runtime_state_no_route_creation_from_system_silence
+      destination runtimeState state hRefinement hQuiescent hSilent
+
+theorem contract_yields_runtime_state_admissible_origin
+    (contract : ProofContract)
+    (_hReady : contract.optional.runtimeSystemRefinementReady)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (runtimeState : RuntimeState)
+    (state : EndToEndState)
+    (hRefinement : RuntimeStateProjectsSystemState runtimeState state)
+    (hQuiescent : RuntimeStateQuiescent runtimeState)
+    (winner : FieldRouterLifecycle.LifecycleRoute)
+    (hWinner :
+      runtimeCanonicalRoute destination (runtimeArtifactsOfState runtimeState) = some winner) :
+    ∃ source,
+      source ∈ readyInstalledRoutes state.async ∧
+        source.status = .installed ∧
+        lifecycleMaintenance source = winner := by
+  exact
+    quiescent_runtime_state_canonical_winner_has_admissible_system_origin
+      destination runtimeState state hRefinement hQuiescent winner hWinner
+
+theorem contract_yields_stronger_router_selector_stability
+    (contract : ProofContract)
+    (_hReady : contract.optional.canonicalRouterRefinementReady)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (state : EndToEndState)
+    (hAssumptions : state.async.assumptions = FieldAsyncAPI.reliableImmediateAssumptions)
+    (hEmpty : state.async.inFlight = []) :
+    canonicalSystemRouteSupportThenHopThenStableTieBreak destination (systemStep state) =
+      canonicalSystemRouteSupportThenHopThenStableTieBreak destination state := by
+  exact
+    canonical_system_route_supportThenHopThenStableTieBreak_stable_under_reliable_immediate_empty
+      destination state hAssumptions hEmpty
+
+theorem contract_yields_canonical_route_order_insensitivity
+    (contract : ProofContract)
+    (_hReady : contract.optional.runtimeSystemRefinementReady)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (left right : EndToEndState)
+    (hEq : projectedRuntimeArtifactsOfState left = projectedRuntimeArtifactsOfState right) :
+    canonicalSystemRoute destination left = canonicalSystemRoute destination right := by
+  exact
+    canonical_route_order_insensitive_under_equal_projected_artifacts
+      destination left right hEq
+
+theorem contract_yields_canonical_route_view_order_insensitivity
+    (contract : ProofContract)
+    (_hReady : contract.optional.runtimeSystemRefinementReady)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (left right : EndToEndState)
+    (hEq : projectedRuntimeArtifactsOfState left = projectedRuntimeArtifactsOfState right) :
+    bestSystemRouteView .supportDominance destination left =
+      bestSystemRouteView .supportDominance destination right := by
+  exact
+    canonical_route_view_order_insensitive_under_equal_projected_artifacts
+      destination left right hEq
+
 /-! ## Contract Unlocks And Non-Claims -/
 
 theorem default_contract_does_not_claim_support_optimality_refinement_ready :
@@ -258,6 +417,12 @@ theorem runtime_system_contract_unlocks_runtime_system_canonical_refinement :
     runtimeSystemContract.optional.runtimeSystemRefinementReady :=
   runtime_system_contract_unlocks_runtime_system_refinement
 
+/-- Preferred alias aligned to the runtime-state execution refinement theorem
+family. -/
+theorem runtime_system_contract_unlocks_runtime_execution_canonical_refinement :
+    runtimeSystemContract.optional.runtimeSystemRefinementReady :=
+  runtime_system_contract_unlocks_runtime_system_refinement
+
 theorem reduced_quality_contract_still_does_not_claim_global_optimality_ready :
     ¬ reducedQualityContract.optional.globalOptimalityReady := by
   simp [reducedQualityContract, mkProofContract, reducedQualityOptionalStrengtheningAssumptions,
@@ -286,5 +451,17 @@ theorem runtime_system_contract_still_does_not_claim_global_optimality_ready :
     runtimeCanonicalOptionalStrengtheningAssumptions, canonicalRouterOptionalStrengtheningAssumptions,
     supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
     baseOptionalStrengtheningAssumptions]
+
+theorem runtime_system_contract_still_does_not_claim_full_rust_runtime_correctness_ready :
+    ¬ FullRustRuntimeCorrectnessReady := by
+  simp [FullRustRuntimeCorrectnessReady]
+
+theorem silence_dropout_theorems_do_not_extend_to_dishonest_publication :
+    ∃ honest dishonest,
+      FieldRouterCanonical.CanonicalRouteEligible .corridorA honest ∧
+        FieldRouterCanonical.CanonicalRouteEligible .corridorA dishonest ∧
+        honest.candidate.support < dishonest.candidate.support ∧
+        FieldRouterCanonical.canonicalBestRoute .corridorA [honest, dishonest] = some dishonest :=
+  FieldRouterResilience.silence_dropout_nonclaim_does_not_extend_to_dishonest_publication
 
 end FieldAssumptions
