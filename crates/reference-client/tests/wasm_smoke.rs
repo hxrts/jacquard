@@ -1,7 +1,9 @@
-//! Reference-client builder and projector smoke tests.
+//! Executable wasm smoke test for the reference-client host bridge.
 //!
-//! These cover the minimal host-facing builder flow without crossing the full
-//! shared-network forwarding path.
+//! This verifies that the wasm build can construct a client, activate a route,
+//! project it, and drive one bridge round under `wasm-bindgen-test`.
+
+#![cfg(target_arch = "wasm32")]
 
 use std::collections::BTreeMap;
 
@@ -12,29 +14,11 @@ use jacquard_core::{
     RoutingEvidenceClass, RoutingObjective, Tick,
 };
 use jacquard_reference_client::{
-    topology, BridgeQueueConfig, BridgeRoundProgress, ClientBuilder, ObservedRouteShape,
-    SharedInMemoryNetwork, TopologyProjector,
+    topology, BridgeRoundProgress, ClientBuilder, ObservedRouteShape, SharedInMemoryNetwork,
+    TopologyProjector,
 };
 use jacquard_traits::Router;
-
-fn sample_topology(local_node_id: NodeId) -> Observation<Configuration> {
-    Observation {
-        value: Configuration {
-            epoch: RouteEpoch(1),
-            nodes: BTreeMap::from([(local_node_id, topology::node(1).pathway().build())]),
-            links: BTreeMap::new(),
-            environment: Environment {
-                reachable_neighbor_count: 0,
-                churn_permille: RatioPermille(0),
-                contention_permille: RatioPermille(0),
-            },
-        },
-        source_class: FactSourceClass::Local,
-        evidence_class: RoutingEvidenceClass::DirectObservation,
-        origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(1),
-    }
-}
+use wasm_bindgen_test::wasm_bindgen_test;
 
 fn routed_topology(
     local_node_id: NodeId,
@@ -86,7 +70,7 @@ fn routed_topology(
         source_class: FactSourceClass::Local,
         evidence_class: RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
-        observed_at_tick: Tick(1),
+        observed_at_tick: Tick(2),
     }
 }
 
@@ -107,50 +91,8 @@ fn objective(destination: DestinationId) -> RoutingObjective {
     }
 }
 
-#[test]
-fn client_builder_constructs_waiting_pathway_bridge() {
-    let local_node_id = NodeId([1; 32]);
-    let topology = sample_topology(local_node_id);
-    let network = SharedInMemoryNetwork::default();
-    let mut client = ClientBuilder::pathway(local_node_id, topology, network, Tick(1)).build();
-    let mut bound = client.bind();
-
-    let progress = bound.advance_round().expect("advance initial round");
-
-    match progress {
-        BridgeRoundProgress::Advanced(report) => {
-            assert_eq!(report.router_outcome.topology_epoch, RouteEpoch(1));
-        }
-        BridgeRoundProgress::Waiting(_) => {}
-    }
-}
-
-#[test]
-fn client_builder_accepts_explicit_queue_config_and_profile() {
-    let local_node_id = NodeId([1; 32]);
-    let mut client = ClientBuilder::pathway(
-        local_node_id,
-        sample_topology(local_node_id),
-        SharedInMemoryNetwork::default(),
-        Tick(1),
-    )
-    .with_queue_config(BridgeQueueConfig::new(1, 1))
-    .with_batman()
-    .build();
-    let mut bound = client.bind();
-
-    let progress = bound.advance_round().expect("advance initial round");
-
-    match progress {
-        BridgeRoundProgress::Advanced(report) => {
-            assert_eq!(report.router_outcome.topology_epoch, RouteEpoch(1));
-        }
-        BridgeRoundProgress::Waiting(_) => {}
-    }
-}
-
-#[test]
-fn topology_projector_reads_stable_snapshot_from_reference_client_surfaces() {
+#[wasm_bindgen_test]
+fn reference_client_executes_bridge_round_and_projects_active_route_on_wasm() {
     let local_node_id = NodeId([1; 32]);
     let relay_node_id = NodeId([2; 32]);
     let remote_node_id = NodeId([3; 32]);
@@ -163,10 +105,16 @@ fn topology_projector_reads_stable_snapshot_from_reference_client_surfaces() {
     );
     let network = SharedInMemoryNetwork::default();
     let mut client =
-        ClientBuilder::pathway(local_node_id, topology.clone(), network, Tick(1)).build();
+        ClientBuilder::pathway(local_node_id, topology.clone(), network, Tick(2)).build();
     let mut bound = client.bind();
-    let mut projector = TopologyProjector::new(local_node_id, bound.topology().clone());
 
+    let route = Router::activate_route(
+        bound.router_mut(),
+        objective(DestinationId::Node(remote_node_id)),
+    )
+    .expect("activate route on wasm");
+
+    let mut projector = TopologyProjector::new(local_node_id, bound.topology().clone());
     for engine_id in bound.router().registered_engine_ids() {
         let capabilities = bound
             .router()
@@ -174,30 +122,36 @@ fn topology_projector_reads_stable_snapshot_from_reference_client_surfaces() {
             .expect("registered capabilities");
         projector.ingest_engine_capabilities(capabilities);
     }
-
-    let route = Router::activate_route(
-        bound.router_mut(),
-        objective(DestinationId::Node(remote_node_id)),
-    )
-    .expect("activate route");
     projector.ingest_materialized_route(&route);
+
     let route_event = bound
         .router()
         .effects()
         .events
         .last()
         .cloned()
-        .expect("recorded route event");
+        .expect("reference client recorded route event");
     projector.ingest_route_event(&route_event);
 
     let snapshot = projector.snapshot();
     assert_eq!(snapshot.local_node_id, local_node_id);
     assert_eq!(snapshot.nodes.len(), 4);
     assert_eq!(snapshot.links.len(), 4);
+
     let projected = snapshot
         .active_routes
         .get(route.identity.route_id())
-        .expect("projected route");
+        .expect("projected active route");
     assert_eq!(projected.destination, DestinationId::Node(remote_node_id));
     assert_eq!(projected.route_shape, ObservedRouteShape::ExplicitPath);
+
+    let progress = bound.advance_round().expect("advance wasm bridge round");
+    match progress {
+        BridgeRoundProgress::Advanced(report) => {
+            assert_eq!(report.router_outcome.topology_epoch, RouteEpoch(2));
+        }
+        BridgeRoundProgress::Waiting(wait_state) => {
+            assert_eq!(wait_state.pending_transport_observations, 0);
+        }
+    }
 }

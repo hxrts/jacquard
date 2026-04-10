@@ -23,13 +23,21 @@ use std::{
     fmt,
     future::Future,
     pin::Pin,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Mutex},
     task::{Context, Poll, Waker},
 };
 
-use jacquard_core::{DurationMs, TransportIngressEvent};
+use cfg_if::cfg_if;
+use jacquard_core::TransportIngressEvent;
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
+
+cfg_if! {
+    if #[cfg(not(target_arch = "wasm32"))] {
+        use std::sync::Condvar;
+        use jacquard_core::DurationMs;
+    }
+}
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,8 +82,9 @@ struct MailboxState {
 
 struct SharedMailbox {
     state: Mutex<MailboxState>,
-    changed: Condvar,
     capacity: usize,
+    #[cfg(not(target_arch = "wasm32"))]
+    changed: Condvar,
 }
 
 impl SharedMailbox {
@@ -93,12 +102,22 @@ impl SharedMailbox {
         }
     }
 
-    #[expect(
-        clippy::disallowed_types,
-        reason = "Condvar and thread-parking APIs require std::time::Duration internally"
-    )]
-    fn std_duration(timeout: DurationMs) -> std::time::Duration {
-        std::time::Duration::from_millis(u64::from(timeout.0))
+    cfg_if! {
+        if #[cfg(not(target_arch = "wasm32"))] {
+            #[expect(
+                clippy::disallowed_types,
+                reason = "Condvar and thread-parking APIs require std::time::Duration internally"
+            )]
+            fn std_duration(timeout: DurationMs) -> std::time::Duration {
+                std::time::Duration::from_millis(u64::from(timeout.0))
+            }
+
+            fn notify_changed(shared: &Arc<Self>) {
+                shared.changed.notify_all();
+            }
+        } else {
+            fn notify_changed(_shared: &Arc<Self>) {}
+        }
     }
 }
 
@@ -133,11 +152,20 @@ pub fn transport_ingress_mailbox(
         capacity > 0,
         "transport ingress mailbox capacity must be non-zero"
     );
-    let shared = Arc::new(SharedMailbox {
-        state: Mutex::new(MailboxState::default()),
-        changed: Condvar::new(),
-        capacity,
-    });
+    cfg_if! {
+        if #[cfg(not(target_arch = "wasm32"))] {
+            let shared = Arc::new(SharedMailbox {
+                state: Mutex::new(MailboxState::default()),
+                capacity,
+                changed: Condvar::new(),
+            });
+        } else {
+            let shared = Arc::new(SharedMailbox {
+                state: Mutex::new(MailboxState::default()),
+                capacity,
+            });
+        }
+    }
     (
         TransportIngressSender {
             shared: Arc::clone(&shared),
@@ -162,7 +190,7 @@ impl TransportIngressSender {
                 SharedMailbox::bump_generation(&mut guard);
                 let waiters = SharedMailbox::take_waiters(&mut guard);
                 drop(guard);
-                self.shared.changed.notify_all();
+                SharedMailbox::notify_changed(&self.shared);
                 SharedMailbox::wake_waiters(waiters);
                 return Ok(TransportIngressSendOutcome::DroppedPayload);
             }
@@ -173,7 +201,7 @@ impl TransportIngressSender {
         SharedMailbox::bump_generation(&mut guard);
         let waiters = SharedMailbox::take_waiters(&mut guard);
         drop(guard);
-        self.shared.changed.notify_all();
+        SharedMailbox::notify_changed(&self.shared);
         SharedMailbox::wake_waiters(waiters);
         Ok(TransportIngressSendOutcome::Enqueued)
     }
@@ -207,27 +235,31 @@ impl TransportIngressNotifier {
         self.snapshot() != snapshot
     }
 
-    pub fn wait_for_change(&self, snapshot: u64) {
-        let mut guard = self.shared.state.lock().expect("transport ingress lock");
-        while guard.generation == snapshot {
-            guard = self
-                .shared
-                .changed
-                .wait(guard)
-                .expect("transport ingress condvar");
-        }
-    }
+    cfg_if! {
+        if #[cfg(not(target_arch = "wasm32"))] {
+            pub fn wait_for_change(&self, snapshot: u64) {
+                let mut guard = self.shared.state.lock().expect("transport ingress lock");
+                while guard.generation == snapshot {
+                    guard = self
+                        .shared
+                        .changed
+                        .wait(guard)
+                        .expect("transport ingress condvar");
+                }
+            }
 
-    #[must_use]
-    pub fn wait_for_change_timeout(&self, snapshot: u64, timeout: DurationMs) -> bool {
-        let guard = self.shared.state.lock().expect("transport ingress lock");
-        let timeout = SharedMailbox::std_duration(timeout);
-        let (guard, _) = self
-            .shared
-            .changed
-            .wait_timeout_while(guard, timeout, |state| state.generation == snapshot)
-            .expect("transport ingress condvar");
-        guard.generation != snapshot
+            #[must_use]
+            pub fn wait_for_change_timeout(&self, snapshot: u64, timeout: DurationMs) -> bool {
+                let guard = self.shared.state.lock().expect("transport ingress lock");
+                let timeout = SharedMailbox::std_duration(timeout);
+                let (guard, _) = self
+                    .shared
+                    .changed
+                    .wait_timeout_while(guard, timeout, |state| state.generation == snapshot)
+                    .expect("transport ingress condvar");
+                guard.generation != snapshot
+            }
+        }
     }
 
     #[must_use]
@@ -273,10 +305,15 @@ mod tests {
             Arc, Barrier,
         },
         task::{Context, Poll, Wake, Waker},
-        thread,
     };
 
-    use jacquard_core::{ByteCount, DurationMs, EndpointLocator, NodeId, TransportKind};
+    #[cfg(not(target_arch = "wasm32"))]
+    use std::thread;
+
+    use jacquard_core::{ByteCount, EndpointLocator, NodeId, TransportKind};
+
+    #[cfg(not(target_arch = "wasm32"))]
+    use jacquard_core::DurationMs;
 
     use super::{transport_ingress_mailbox, TransportIngressClass, TransportIngressSendOutcome};
 
@@ -292,6 +329,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[expect(
         clippy::disallowed_types,
         reason = "std thread sleep and park APIs require std::time::Duration in tests"
@@ -337,6 +375,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn notifier_timeout_reports_when_no_change_arrives() {
         let (_, _, notifier) = transport_ingress_mailbox(1);
         let snapshot = notifier.snapshot();
@@ -345,6 +384,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn notifier_timeout_reports_when_change_arrives() {
         let (sender, _, notifier) = transport_ingress_mailbox(1);
         let snapshot = notifier.snapshot();
@@ -379,6 +419,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn notifier_wakes_after_ingress_change() {
         let (sender, _, notifier) = transport_ingress_mailbox(1);
         let snapshot = notifier.snapshot();

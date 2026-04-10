@@ -32,6 +32,33 @@ fmt:
 fmt-check:
     {{fmt_cmd}} --all -- --check
 
+# verify Pathway and the reference client compile for wasm32
+wasm-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v rustup >/dev/null 2>&1; then
+      ./scripts/wasm-host-toolchain.sh cargo build --lib --target wasm32-unknown-unknown -p jacquard-pathway
+      ./scripts/wasm-host-toolchain.sh cargo build --lib --target wasm32-unknown-unknown -p jacquard-reference-client
+    elif command -v nix >/dev/null 2>&1; then
+      nix develop --command just wasm-check
+    else
+      echo "wasm-check requires either rustup or nix" >&2
+      exit 1
+    fi
+
+# execute the wasm reference-client integration test under wasm-bindgen-test
+wasm-test-reference-client:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v rustup >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+      ./scripts/wasm-host-toolchain.sh cargo test --target wasm32-unknown-unknown -p jacquard-reference-client --test wasm_smoke
+    elif command -v nix >/dev/null 2>&1; then
+      nix develop --command just wasm-test-reference-client
+    else
+      echo "wasm-test-reference-client requires rustup + node or nix" >&2
+      exit 1
+    fi
+
 # Generate docs/SUMMARY.md from Markdown files in docs/ and subfolders
 summary:
     #!/usr/bin/env bash
@@ -154,6 +181,8 @@ ci-dry-run:
     add_step "Format Check"               "{{fmt_cmd}} --all -- --check"
     add_step "Clippy"                     "cargo clippy --workspace --all-targets -- -D warnings"
     add_step "Tests"                      "cargo test --workspace"
+    add_step "Wasm Check"                 "just wasm-check"
+    add_step "Wasm Reference Client Test" "just wasm-test-reference-client"
     add_step "Docs Links"                 "npx --yes markdown-link-check -q -c .github/config/markdown-link-check.json docs"
     add_step "Docs Link Check"            "{{toolkit_cmd}} check docs-link-check --repo-root . --config policy/toolkit.toml"
     add_step "Proc Macro Scope"           "{{toolkit_cmd}} check proc-macro-scope --repo-root . --config policy/toolkit.toml"

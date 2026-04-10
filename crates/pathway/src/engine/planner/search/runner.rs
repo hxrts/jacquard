@@ -7,13 +7,21 @@
 // calls, so the underlying `SearchMachine` always operates on a consistent
 // frozen snapshot matched to the current `PathwaySearchEpoch`.
 
-use std::{collections::BTreeMap, num::NonZeroU64};
+use std::collections::BTreeMap;
 
+use cfg_if::cfg_if;
 use jacquard_core::{Configuration, NodeId, Observation, RoutingObjective};
 use telltale_search::{
-    commit_epoch_reconfiguration, run_with_executor, EpochReconfigurationRequest,
-    NativeParallelExecutor, SearchMachine, SearchSchedulerProfile, SerialProposalExecutor,
+    commit_epoch_reconfiguration, run_with_executor, EpochReconfigurationRequest, SearchMachine,
+    SearchSchedulerProfile, SerialProposalExecutor,
 };
+
+cfg_if! {
+    if #[cfg(not(target_arch = "wasm32"))] {
+        use std::num::NonZeroU64;
+        use telltale_search::NativeParallelExecutor;
+    }
+}
 
 use super::{
     freeze_snapshot_for_search, snapshot_id_for_configuration, PathwayPlannerSearchRecord,
@@ -260,18 +268,32 @@ where
         machine: &mut SearchMachine<PathwaySearchDomain>,
         config: &PathwaySearchConfig,
     ) -> PathwaySearchRunResult {
-        match config.scheduler_profile() {
-            SearchSchedulerProfile::CanonicalSerial => {
-                run_with_executor(machine, &SerialProposalExecutor, config.run_config())
+        cfg_if! {
+            if #[cfg(target_arch = "wasm32")] {
+                match config.scheduler_profile() {
+                    SearchSchedulerProfile::CanonicalSerial => {
+                        run_with_executor(machine, &SerialProposalExecutor, config.run_config())
+                    }
+                    SearchSchedulerProfile::ThreadedExactSingleLane => {
+                        panic!("threaded Pathway search is not available on wasm32")
+                    }
+                    unsupported => panic!("unsupported pathway search profile: {unsupported:?}"),
+                }
+            } else {
+                match config.scheduler_profile() {
+                    SearchSchedulerProfile::CanonicalSerial => {
+                        run_with_executor(machine, &SerialProposalExecutor, config.run_config())
+                    }
+                    SearchSchedulerProfile::ThreadedExactSingleLane => {
+                        let executor = NativeParallelExecutor::new(
+                            NonZeroU64::new(config.batch_width()).expect("batch width is non-zero"),
+                        )
+                        .expect("threaded exact config requires native parallel executor support");
+                        run_with_executor(machine, &executor, config.run_config())
+                    }
+                    unsupported => panic!("unsupported pathway search profile: {unsupported:?}"),
+                }
             }
-            SearchSchedulerProfile::ThreadedExactSingleLane => {
-                let executor = NativeParallelExecutor::new(
-                    NonZeroU64::new(config.batch_width()).expect("batch width is non-zero"),
-                )
-                .expect("threaded exact config requires native parallel executor support");
-                run_with_executor(machine, &executor, config.run_config())
-            }
-            unsupported => panic!("unsupported pathway search profile: {unsupported:?}"),
         }
     }
 }

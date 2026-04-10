@@ -54,6 +54,8 @@ checks=(
   "Format Check"
   "Clippy"
   "Tests"
+  "Wasm Check"
+  "Wasm Reference Client Test"
   "Docs Links"
   "Docs Link Check"
   "Docs Semantic Drift"

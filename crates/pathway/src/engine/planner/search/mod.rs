@@ -62,6 +62,8 @@ pub enum PathwaySearchHeuristicMode {
 pub enum PathwaySearchConfigError {
     /// Pathway does not expose this scheduler profile.
     UnsupportedSchedulerProfile(SearchSchedulerProfile),
+    /// The requested profile requires native threads on this target.
+    RequiresNativeThreads(SearchSchedulerProfile),
     /// Batch width must be non-zero.
     ZeroBatchWidth,
     /// Exact Pathway profiles require batch width one.
@@ -100,15 +102,7 @@ impl PathwaySearchConfig {
         per_objective_search_budget: usize,
         heuristic_mode: PathwaySearchHeuristicMode,
     ) -> Result<Self, PathwaySearchConfigError> {
-        match scheduler_profile {
-            SearchSchedulerProfile::CanonicalSerial
-            | SearchSchedulerProfile::ThreadedExactSingleLane => {}
-            unsupported => {
-                return Err(PathwaySearchConfigError::UnsupportedSchedulerProfile(
-                    unsupported,
-                ));
-            }
-        }
+        Self::validate_scheduler_profile(scheduler_profile)?;
         if batch_width == 0 {
             return Err(PathwaySearchConfigError::ZeroBatchWidth);
         }
@@ -140,6 +134,26 @@ impl PathwaySearchConfig {
             per_objective_search_budget,
             heuristic_mode,
         })
+    }
+
+    fn validate_scheduler_profile(
+        scheduler_profile: SearchSchedulerProfile,
+    ) -> Result<(), PathwaySearchConfigError> {
+        match scheduler_profile {
+            SearchSchedulerProfile::CanonicalSerial => Ok(()),
+            SearchSchedulerProfile::ThreadedExactSingleLane => {
+                if cfg!(target_arch = "wasm32") {
+                    Err(PathwaySearchConfigError::RequiresNativeThreads(
+                        scheduler_profile,
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+            unsupported => Err(PathwaySearchConfigError::UnsupportedSchedulerProfile(
+                unsupported,
+            )),
+        }
     }
 
     #[must_use]
@@ -348,5 +362,28 @@ mod tests {
                 assumption: SearchFairnessAssumption::DeterministicSchedulerConfluence,
             }),
         );
+    }
+
+    #[test]
+    fn threaded_exact_support_matches_target_capability() {
+        let config = PathwaySearchConfig::try_new(
+            SearchSchedulerProfile::ThreadedExactSingleLane,
+            1,
+            BTreeSet::from([SearchFairnessAssumption::DeterministicSchedulerConfluence]),
+            EpsilonMilli::one(),
+            4,
+            PathwaySearchHeuristicMode::Zero,
+        );
+
+        if cfg!(target_arch = "wasm32") {
+            assert_eq!(
+                config,
+                Err(PathwaySearchConfigError::RequiresNativeThreads(
+                    SearchSchedulerProfile::ThreadedExactSingleLane,
+                )),
+            );
+        } else {
+            assert!(config.is_ok());
+        }
     }
 }

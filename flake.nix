@@ -36,6 +36,9 @@
             "rust-src"
             "rust-analyzer"
           ];
+          targets = [
+            "wasm32-unknown-unknown"
+          ];
         };
 
         toolkitSupport = toolkit.lib.${system}.consumerShellSupport;
@@ -49,6 +52,7 @@
           ripgrep
           perl
           elan
+          nodejs
         ] ++ toolkitSupport.packages;
 
         buildInputs =

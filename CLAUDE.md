@@ -17,6 +17,8 @@ just test           # cargo test --workspace
 just lint           # cargo clippy --workspace --all-targets -- -D warnings
 just fmt            # toolkit-owned nightly rustfmt policy
 just fmt-check      # toolkit-owned nightly rustfmt policy with --check
+just wasm-check     # build jacquard-pathway and jacquard-reference-client for wasm32-unknown-unknown
+just wasm-test-reference-client # run the reference-client wasm integration test under wasm-bindgen-test
 just book           # build mdbook docs (default recipe when running bare `just`)
 just ci-dry-run     # run all CI checks locally (format, clippy, tests, toolkit/policy, dylint)
 just install-hooks  # enable .githooks/pre-commit
@@ -99,7 +101,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 
 ## Telltale dependency
 
-Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, currently `11.3.0`). Individual crates import them via `{ workspace = true }`.
+Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, currently `12.0.0`). Individual crates import them via `{ workspace = true }`.
 
 ## long-block-exception
 
