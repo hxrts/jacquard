@@ -25,31 +25,23 @@ use std::{
 
 use common::{
     build_router, build_router_with_effects, build_router_with_recoverable_engine,
-    build_router_with_selector, objective, AdvisoryCommitteeSelector, FAR_NODE_ID,
-    LOCAL_NODE_ID, PEER_NODE_ID,
+    build_router_with_selector, objective, AdvisoryCommitteeSelector, FAR_NODE_ID, LOCAL_NODE_ID,
+    PEER_NODE_ID,
 };
-use jacquard_core::{
-    DestinationId, RouteMaintenanceOutcome, RouteMaintenanceTrigger, Tick,
-};
+use jacquard_core::{DestinationId, RouteMaintenanceOutcome, RouteMaintenanceTrigger, Tick};
 use jacquard_mem_link_profile::InMemoryRuntimeEffects;
 use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane};
 
 #[test]
 fn failing_committee_selector_cannot_publish_canonical_route_truth() {
-    let mut router =
-        build_router_with_selector(Tick(2), AdvisoryCommitteeSelector { fail: true });
+    let mut router = build_router_with_selector(Tick(2), AdvisoryCommitteeSelector { fail: true });
 
-    let error = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect_err("selector failure must block proof-bearing activation");
+    let error = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect_err("selector failure must block proof-bearing activation");
 
     assert!(matches!(
         error,
-        jacquard_core::RouteError::Selection(
-            jacquard_core::RouteSelectionError::Inadmissible(_)
-        )
+        jacquard_core::RouteError::Selection(jacquard_core::RouteSelectionError::Inadmissible(_))
     ));
     assert_eq!(router.active_route_count(), 0);
 }
@@ -65,17 +57,12 @@ fn activation_fails_closed_when_router_event_logging_fails() {
         },
     );
 
-    let error = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect_err("router must fail closed when canonical event logging fails");
+    let error = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect_err("router must fail closed when canonical event logging fails");
 
     assert!(matches!(
         error,
-        jacquard_core::RouteError::Runtime(
-            jacquard_core::RouteRuntimeError::Invalidated
-        )
+        jacquard_core::RouteError::Runtime(jacquard_core::RouteRuntimeError::Invalidated)
     ));
     assert_eq!(router.active_route_count(), 0);
     assert!(router.effects().events.is_empty());
@@ -86,9 +73,8 @@ fn activation_reselection_and_maintenance_are_deterministic_for_equal_inputs() {
     let mut left = build_router(Tick(2));
     let mut right = build_router(Tick(2));
 
-    let left_route =
-        Router::activate_route(&mut left, objective(DestinationId::Node(FAR_NODE_ID)))
-            .expect("left activation");
+    let left_route = Router::activate_route(&mut left, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("left activation");
     let right_route =
         Router::activate_route(&mut right, objective(DestinationId::Node(FAR_NODE_ID)))
             .expect("right activation");
@@ -128,20 +114,17 @@ fn recovery_restores_router_and_pathway_state_from_router_owned_registry() {
     let shared_state = Arc::new(Mutex::new(BTreeSet::new()));
     let mut router = build_router_with_recoverable_engine(
         Tick(2),
-        InMemoryRuntimeEffects { now: Tick(2), ..Default::default() },
+        InMemoryRuntimeEffects {
+            now: Tick(2),
+            ..Default::default()
+        },
         shared_state.clone(),
     );
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation");
     let persisted_router_effects = router.effects().clone();
-    let mut recovered = build_router_with_recoverable_engine(
-        Tick(2),
-        persisted_router_effects,
-        shared_state,
-    );
+    let mut recovered =
+        build_router_with_recoverable_engine(Tick(2), persisted_router_effects, shared_state);
     let restored_count = recovered
         .recover_checkpointed_routes()
         .expect("recover router and engine state");
@@ -158,11 +141,8 @@ fn recovery_restores_router_and_pathway_state_from_router_owned_registry() {
 #[test]
 fn router_forwarding_fails_closed_after_router_owned_lease_transfer() {
     let mut router = build_router(Tick(2));
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation");
     let maintenance = router
         .maintain_route(
             &route.identity.stamp.route_id,
@@ -170,8 +150,8 @@ fn router_forwarding_fails_closed_after_router_owned_lease_transfer() {
         )
         .expect("policy shift");
     let handoff = match maintenance.engine_result.outcome {
-        | RouteMaintenanceOutcome::HandedOff(handoff) => handoff,
-        | other => panic!("expected handed-off outcome, got {other:?}"),
+        RouteMaintenanceOutcome::HandedOff(handoff) => handoff,
+        other => panic!("expected handed-off outcome, got {other:?}"),
     };
     assert_eq!(handoff.from_node_id, LOCAL_NODE_ID);
     assert_eq!(handoff.to_node_id, PEER_NODE_ID);
@@ -182,20 +162,15 @@ fn router_forwarding_fails_closed_after_router_owned_lease_transfer() {
 
     assert!(matches!(
         error,
-        jacquard_core::RouteError::Runtime(
-            jacquard_core::RouteRuntimeError::StaleOwner
-        )
+        jacquard_core::RouteError::Runtime(jacquard_core::RouteRuntimeError::StaleOwner)
     ));
 }
 
 #[test]
 fn advance_round_expires_routes_after_lease_window_closes() {
     let mut router = build_router(Tick(2));
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation");
 
     router.effects_mut().now = Tick(50);
     let outcome = router
@@ -219,8 +194,6 @@ fn advance_round_expires_routes_after_lease_window_closes() {
         .expect_err("expired routes must not be maintainable");
     assert!(matches!(
         maintenance,
-        jacquard_core::RouteError::Selection(
-            jacquard_core::RouteSelectionError::NoCandidate
-        )
+        jacquard_core::RouteError::Selection(jacquard_core::RouteSelectionError::NoCandidate)
     ));
 }

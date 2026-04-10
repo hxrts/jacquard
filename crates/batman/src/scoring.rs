@@ -17,8 +17,7 @@
 //! all inputs are fixed-width integers derived from the shared world model.
 
 use jacquard_core::{
-    Belief, DurationMs, Link, LinkRuntimeState, RatioPermille, RouteDegradation,
-    TransportKind,
+    Belief, DurationMs, Link, LinkRuntimeState, RatioPermille, RouteDegradation, TransportKind,
 };
 
 /// TQ permille value below which a link is classified as `Degraded`.
@@ -46,9 +45,7 @@ pub(crate) const TQ_STABILITY_SATURATION_MS: u32 = 4_000;
 /// - `transfer_rate_bytes_per_sec`
 /// - `stability_horizon_ms`
 #[must_use]
-pub(crate) fn derive_tq(
-    link: &Link,
-) -> (RatioPermille, RouteDegradation, TransportKind) {
+pub(crate) fn derive_tq(link: &Link) -> (RatioPermille, RouteDegradation, TransportKind) {
     let mut score_total = u32::from(ogm_equivalent_tq(link.state.state).0);
     let mut score_terms = 1_u32;
 
@@ -75,9 +72,7 @@ pub(crate) fn derive_tq(
         score_terms = score_terms.saturating_add(1);
     }
 
-    let tq = RatioPermille(
-        u16::try_from(score_total / score_terms).expect("permille score"),
-    );
+    let tq = RatioPermille(u16::try_from(score_total / score_terms).expect("permille score"));
     let degradation = if tq.0 < TQ_DEGRADED_BELOW {
         RouteDegradation::Degraded(jacquard_core::DegradationReason::LinkInstability)
     } else {
@@ -94,8 +89,8 @@ pub(crate) fn tq_product(left: RatioPermille, right: RatioPermille) -> RatioPerm
 
 fn belief_value(value: &Belief<RatioPermille>) -> Option<RatioPermille> {
     match value {
-        | Belief::Absent => None,
-        | Belief::Estimated(estimate) => Some(estimate.value),
+        Belief::Absent => None,
+        Belief::Estimated(estimate) => Some(estimate.value),
     }
 }
 
@@ -105,10 +100,7 @@ fn normalize_bytes_per_sec(value: &Option<u32>, saturating_at: u32) -> Option<u3
         .map(|value| value.min(1000))
 }
 
-fn normalize_duration_ms(
-    value: &Option<DurationMs>,
-    saturating_at: u32,
-) -> Option<u32> {
+fn normalize_duration_ms(value: &Option<DurationMs>, saturating_at: u32) -> Option<u32> {
     value
         .map(|value| value.0.saturating_mul(1000) / saturating_at)
         .map(|value| value.min(1000))
@@ -116,18 +108,18 @@ fn normalize_duration_ms(
 
 fn ogm_equivalent_tq(state: LinkRuntimeState) -> RatioPermille {
     match state {
-        | LinkRuntimeState::Active => RatioPermille(900),
-        | LinkRuntimeState::Degraded => RatioPermille(650),
-        | LinkRuntimeState::Suspended => RatioPermille(250),
-        | LinkRuntimeState::Faulted => RatioPermille(0),
+        LinkRuntimeState::Active => RatioPermille(900),
+        LinkRuntimeState::Degraded => RatioPermille(650),
+        LinkRuntimeState::Suspended => RatioPermille(250),
+        LinkRuntimeState::Faulted => RatioPermille(0),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        ByteCount, EndpointLocator, LinkEndpoint, LinkProfile, LinkState,
-        PartitionRecoveryClass, RepairCapability, Tick, TransportKind,
+        ByteCount, EndpointLocator, LinkEndpoint, LinkProfile, LinkState, PartitionRecoveryClass,
+        RepairCapability, Tick, TransportKind,
     };
 
     use super::*;
@@ -150,10 +142,7 @@ mod tests {
                 transfer_rate_bytes_per_sec: Belief::certain(128_000, Tick(1)),
                 stability_horizon_ms: Belief::certain(DurationMs(4_000), Tick(1)),
                 loss_permille: RatioPermille(0),
-                delivery_confidence_permille: Belief::certain(
-                    RatioPermille(delivery),
-                    Tick(1),
-                ),
+                delivery_confidence_permille: Belief::certain(RatioPermille(delivery), Tick(1)),
                 symmetry_permille: Belief::certain(RatioPermille(symmetry), Tick(1)),
             },
         }

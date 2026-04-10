@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+  "policy/xtask",
   "crates/adapter",
   "crates/batman",
   "crates/core",
@@ -14,7 +15,6 @@ members = [
   "crates/router",
   "crates/simulator",
   "crates/traits",
-  "crates/xtask",
 ]
 
 [workspace.package]

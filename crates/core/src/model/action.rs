@@ -34,9 +34,7 @@ pub struct SelectedRoutingParameters {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Whether the router may fall back from one routing engine to another.
 pub enum RoutingEngineFallbackPolicy {
     Forbidden,
@@ -44,9 +42,7 @@ pub enum RoutingEngineFallbackPolicy {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Whether a materialized route may be replaced by a newly admitted route.
 pub enum RouteReplacementPolicy {
     Forbidden,

@@ -62,9 +62,9 @@ impl InMemoryTransport {
             transport_ingress_mailbox(DEFAULT_TRANSPORT_INGRESS_CAPACITY);
         let endpoints = endpoints.into_iter().collect::<Vec<_>>();
         if let Some(first_endpoint) = endpoints.first() {
-            debug_assert!(endpoints.iter().all(
-                |endpoint| endpoint.transport_kind == first_endpoint.transport_kind
-            ));
+            debug_assert!(endpoints
+                .iter()
+                .all(|endpoint| endpoint.transport_kind == first_endpoint.transport_kind));
         }
         for endpoint in &endpoints {
             network.attach_endpoint(local_node_id, endpoint.clone());
@@ -108,9 +108,7 @@ impl TransportSenderEffects for InMemoryTransport {
         payload: &[u8],
     ) -> Result<(), TransportError> {
         self.sent_frames.push((endpoint.clone(), payload.to_vec()));
-        if let (Some(network), Some(local_node_id)) =
-            (&self.network, self.local_node_id)
-        {
+        if let (Some(network), Some(local_node_id)) = (&self.network, self.local_node_id) {
             network.deliver(local_node_id, endpoint.clone(), payload.to_vec());
         }
         Ok(())
@@ -118,12 +116,8 @@ impl TransportSenderEffects for InMemoryTransport {
 }
 
 impl TransportDriver for InMemoryTransport {
-    fn drain_transport_ingress(
-        &mut self,
-    ) -> Result<Vec<TransportIngressEvent>, TransportError> {
-        if let (Some(network), Some(local_node_id)) =
-            (&self.network, self.local_node_id)
-        {
+    fn drain_transport_ingress(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError> {
+        if let (Some(network), Some(local_node_id)) = (&self.network, self.local_node_id) {
             for event in network.take_for(local_node_id) {
                 let _ = self
                     .ingress_sender

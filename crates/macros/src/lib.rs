@@ -23,9 +23,18 @@
 
 mod model;
 mod support;
-mod traits;
 
 use proc_macro::TokenStream;
+use proc_macro2::Span;
+use syn::{parse_quote, Ident, Path};
+
+fn jacquard_support_path() -> Path {
+    parse_quote!(::jacquard_traits::__private)
+}
+
+fn jacquard_marker_name() -> Ident {
+    Ident::new("__jacquard_handler_marker", Span::call_site())
+}
 
 #[proc_macro_attribute]
 pub fn id_type(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -49,15 +58,27 @@ pub fn public_model(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn purity(attr: TokenStream, item: TokenStream) -> TokenStream {
-    traits::purity::expand(attr, item)
+    rust_toolkit_trait_contracts::expand_purity(attr.into(), item.into()).into()
 }
 
 #[proc_macro_attribute]
 pub fn effect_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
-    traits::effect_trait::expand(attr, item)
+    rust_toolkit_trait_contracts::expand_effect_trait(
+        attr.into(),
+        item.into(),
+        jacquard_support_path(),
+        jacquard_marker_name(),
+    )
+    .into()
 }
 
 #[proc_macro_attribute]
 pub fn effect_handler(attr: TokenStream, item: TokenStream) -> TokenStream {
-    traits::effect_handler::expand(attr, item)
+    rust_toolkit_trait_contracts::expand_effect_handler(
+        attr.into(),
+        item.into(),
+        jacquard_support_path(),
+        jacquard_marker_name(),
+    )
+    .into()
 }

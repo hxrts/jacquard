@@ -19,12 +19,18 @@ pub struct HostSpec {
 impl HostSpec {
     #[must_use]
     pub fn pathway(local_node_id: NodeId) -> Self {
-        Self { local_node_id, lane: EngineLane::Pathway }
+        Self {
+            local_node_id,
+            lane: EngineLane::Pathway,
+        }
     }
 
     #[must_use]
     pub fn batman(local_node_id: NodeId) -> Self {
-        Self { local_node_id, lane: EngineLane::Batman }
+        Self {
+            local_node_id,
+            lane: EngineLane::Batman,
+        }
     }
 
     #[must_use]
@@ -45,7 +51,10 @@ pub struct BoundObjective {
 impl BoundObjective {
     #[must_use]
     pub fn new(owner_node_id: NodeId, objective: RoutingObjective) -> Self {
-        Self { owner_node_id, objective }
+        Self {
+            owner_node_id,
+            objective,
+        }
     }
 }
 

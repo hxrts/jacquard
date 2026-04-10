@@ -19,8 +19,8 @@ use std::collections::BTreeMap;
 
 use common::{
     engine::{
-        activate_route_with_profile, build_engine, lease, materialization_input,
-        objective, profile_with_connectivity, LOCAL_NODE_ID,
+        activate_route_with_profile, build_engine, lease, materialization_input, objective,
+        profile_with_connectivity, LOCAL_NODE_ID,
     },
     fixtures::sample_configuration,
 };
@@ -29,19 +29,17 @@ use jacquard_pathway::{
 };
 use jacquard_traits::{
     jacquard_core::{
-        Belief, ByteCount, DestinationId, DurationMs, EndpointLocator, Estimate,
-        FactSourceClass, HealthScore, Link, LinkEndpoint, LinkRuntimeState, LinkState,
-        NodeId, Observation, OriginAuthenticationClass, PenaltyPoints, RatioPermille,
-        RouteError, RouteMaintenanceOutcome, RouteMaintenanceTrigger,
-        RoutePartitionClass, RouteRepairClass, RouteRuntimeError, RoutingEvidenceClass,
-        RoutingTickChange, RoutingTickContext, Tick, TransportKind,
-        TransportObservation,
+        Belief, ByteCount, DestinationId, DurationMs, EndpointLocator, Estimate, FactSourceClass,
+        HealthScore, Link, LinkEndpoint, LinkRuntimeState, LinkState, NodeId, Observation,
+        OriginAuthenticationClass, PenaltyPoints, RatioPermille, RouteError,
+        RouteMaintenanceOutcome, RouteMaintenanceTrigger, RoutePartitionClass, RouteRepairClass,
+        RouteRuntimeError, RoutingEvidenceClass, RoutingTickChange, RoutingTickContext, Tick,
+        TransportKind, TransportObservation,
     },
     RoutingEngine, RoutingEnginePlanner,
 };
 
-fn connected_only_policy() -> jacquard_traits::jacquard_core::SelectedRoutingParameters
-{
+fn connected_only_policy() -> jacquard_traits::jacquard_core::SelectedRoutingParameters {
     profile_with_connectivity(
         RouteRepairClass::BestEffort,
         RoutePartitionClass::ConnectedOnly,
@@ -251,8 +249,7 @@ fn bounded_pending_ingress_reports_dropped_observations_in_round_progress() {
         .engine_tick(&RoutingTickContext::new(topology))
         .expect("ingress-heavy engine tick");
 
-    let Some(PathwayRoundProgress::Advanced(report)) = engine.last_round_progress()
-    else {
+    let Some(PathwayRoundProgress::Advanced(report)) = engine.last_round_progress() else {
         panic!("expected an advanced round-progress snapshot");
     };
     assert_eq!(
@@ -320,9 +317,7 @@ fn repeated_quiet_ticks_decay_transport_summary_to_stale_until_refreshed() {
     let mut refreshed_topology = topology.clone();
     refreshed_topology.observed_at_tick = Tick(6);
     let mut refreshed_observation = low_quality_link_observation();
-    if let TransportObservation::LinkObserved { observation, .. } =
-        &mut refreshed_observation
-    {
+    if let TransportObservation::LinkObserved { observation, .. } = &mut refreshed_observation {
         observation.observed_at_tick = Tick(6);
     }
     engine.ingest_transport_observation(&refreshed_observation);

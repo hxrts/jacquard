@@ -54,6 +54,7 @@ checks=(
   "Format Check"
   "Clippy"
   "Tests"
+  "Docs Links"
   "Docs Link Check"
   "Docs Semantic Drift"
   "Proc Macro Scope"

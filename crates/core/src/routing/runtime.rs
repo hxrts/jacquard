@@ -25,10 +25,10 @@ use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AdmissionDecision, ByteCount, Configuration, Fact, HealthScore, HoldItemCount,
-    Limit, NodeId, Observation, OrderStamp, PenaltyPoints, PriorityPoints,
-    PublicationId, ReceiptId, RouteAdmission, RouteCommitmentId, RouteEpoch, RouteId,
-    RouteRuntimeError, RouteWitness, Tick, TimeWindow, TimeoutPolicy,
+    AdmissionDecision, ByteCount, Configuration, Fact, HealthScore, HoldItemCount, Limit, NodeId,
+    Observation, OrderStamp, PenaltyPoints, PriorityPoints, PublicationId, ReceiptId,
+    RouteAdmission, RouteCommitmentId, RouteEpoch, RouteId, RouteRuntimeError, RouteWitness, Tick,
+    TimeWindow, TimeoutPolicy,
 };
 
 #[public_model]
@@ -76,9 +76,7 @@ impl RoutingTickOutcome {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RoutingTickChange {
     NoChange,
     PrivateStateUpdated,
@@ -100,13 +98,13 @@ impl RoutingTickHint {
     #[must_use]
     pub fn more_urgent(self, other: Self) -> Self {
         match (self, other) {
-            | (Self::Immediate, _) | (_, Self::Immediate) => Self::Immediate,
-            | (Self::WithinTicks(left), Self::WithinTicks(right)) => {
+            (Self::Immediate, _) | (_, Self::Immediate) => Self::Immediate,
+            (Self::WithinTicks(left), Self::WithinTicks(right)) => {
                 Self::WithinTicks(std::cmp::min(left, right))
-            },
-            | (Self::WithinTicks(left), Self::HostDefault)
+            }
+            (Self::WithinTicks(left), Self::HostDefault)
             | (Self::HostDefault, Self::WithinTicks(left)) => Self::WithinTicks(left),
-            | (Self::HostDefault, Self::HostDefault) => Self::HostDefault,
+            (Self::HostDefault, Self::HostDefault) => Self::HostDefault,
         }
     }
 }
@@ -310,9 +308,7 @@ pub struct RouteCost {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteLifecycleEvent {
     Activated,
     Repaired,
@@ -334,9 +330,7 @@ pub struct RouteOperationInstance {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteBinding {
     Unbound,
     Bound(RouteId),
@@ -355,9 +349,7 @@ pub struct RouteCommitment {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteCommitmentResolution {
     Pending,
     Blocked,
@@ -369,9 +361,7 @@ pub enum RouteCommitmentResolution {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteCommitmentFailure {
     CapabilityRejected,
     BackendUnavailable,
@@ -381,9 +371,7 @@ pub enum RouteCommitmentFailure {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteInvalidationReason {
     OwnershipTransferred,
     TopologySuperseded,
@@ -413,9 +401,7 @@ pub struct RouteProgressContract {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteProgressState {
     Pending,
     Blocked,
@@ -496,8 +482,7 @@ impl MaterializedRoute {
             "route installation requires an admissible control-plane decision"
         );
         assert!(
-            input.admission.summary.protection
-                >= input.admission.objective.protection_floor,
+            input.admission.summary.protection >= input.admission.objective.protection_floor,
             "route installation must satisfy the objective protection floor"
         );
         assert_eq!(
@@ -530,9 +515,7 @@ pub struct RouteHealth {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ReachabilityState {
     Unknown,
     Reachable,
@@ -540,9 +523,7 @@ pub enum ReachabilityState {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteMaintenanceTrigger {
     LinkDegraded,
     CapacityExceeded,
@@ -581,9 +562,7 @@ pub enum RouteMaintenanceOutcome {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteMaintenanceFailure {
     LostReachability,
     CapacityExceeded,
@@ -597,8 +576,7 @@ pub enum RouteMaintenanceFailure {
 mod tests {
     use super::*;
     use crate::{
-        Configuration, Environment, Observation, OriginAuthenticationClass,
-        RoutingEvidenceClass,
+        Configuration, Environment, Observation, OriginAuthenticationClass, RoutingEvidenceClass,
     };
 
     #[test]
@@ -643,8 +621,7 @@ mod tests {
 
     #[test]
     fn immediate_tick_hint_dominates_merge() {
-        let merged = RoutingTickHint::WithinTicks(Tick(4))
-            .more_urgent(RoutingTickHint::Immediate);
+        let merged = RoutingTickHint::WithinTicks(Tick(4)).more_urgent(RoutingTickHint::Immediate);
         assert_eq!(merged, RoutingTickHint::Immediate);
     }
 

@@ -23,8 +23,8 @@ use common::{
 use jacquard_traits::{
     jacquard_core::{
         DestinationId, RouteError, RouteMaintenanceFailure, RouteMaintenanceOutcome,
-        RouteMaintenanceResult, RouteMaintenanceTrigger, RoutePartitionClass,
-        RouteRepairClass, RouteRuntimeError, Tick,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RoutePartitionClass, RouteRepairClass,
+        RouteRuntimeError, Tick,
     },
     RouterManagedEngine, RoutingEngine,
 };
@@ -108,8 +108,8 @@ fn policy_shift_rebases_runtime_to_the_next_owner_relative_hop() {
         )
         .expect("maintenance succeeds");
     let handoff = match result.outcome {
-        | RouteMaintenanceOutcome::HandedOff(handoff) => handoff,
-        | other => panic!("expected HandedOff, got {other:?}"),
+        RouteMaintenanceOutcome::HandedOff(handoff) => handoff,
+        other => panic!("expected HandedOff, got {other:?}"),
     };
     assert_eq!(handoff.from_node_id, LOCAL_NODE_ID);
     assert_eq!(handoff.to_node_id, PEER_NODE_ID);
@@ -156,8 +156,8 @@ fn single_hop_policy_shift_advances_cursor_to_path_end() {
         )
         .expect("single-hop handoff succeeds");
     let handoff = match result.outcome {
-        | RouteMaintenanceOutcome::HandedOff(handoff) => handoff,
-        | other => panic!("expected HandedOff, got {other:?}"),
+        RouteMaintenanceOutcome::HandedOff(handoff) => handoff,
+        other => panic!("expected HandedOff, got {other:?}"),
     };
     assert_eq!(handoff.to_node_id, BRIDGE_NODE_ID);
     let active_route = engine

@@ -41,12 +41,7 @@ impl SharedInMemoryNetwork {
         guard.endpoint_owners.insert(endpoint, node_id);
     }
 
-    pub(crate) fn deliver(
-        &self,
-        from_node_id: NodeId,
-        endpoint: LinkEndpoint,
-        payload: Vec<u8>,
-    ) {
+    pub(crate) fn deliver(&self, from_node_id: NodeId, endpoint: LinkEndpoint, payload: Vec<u8>) {
         let mut guard = self.inner.lock().expect("shared network lock");
         if let Some(remote_node_id) = guard.endpoint_owners.get(&endpoint).copied() {
             guard.inboxes.entry(remote_node_id).or_default().push(

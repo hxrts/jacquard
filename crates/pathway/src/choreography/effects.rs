@@ -14,12 +14,9 @@
 //! transport ingress for the current round.
 
 use jacquard_core::{
-    Blake3Digest, ContentId, LinkEndpoint, RouteError, RouteRuntimeError, StorageError,
-    Tick,
+    Blake3Digest, ContentId, LinkEndpoint, RouteError, RouteRuntimeError, StorageError, Tick,
 };
-use jacquard_traits::{
-    RetentionStore, StorageEffects, TimeEffects, TransportSenderEffects,
-};
+use jacquard_traits::{RetentionStore, StorageEffects, TimeEffects, TransportSenderEffects};
 
 /// Extension trait for converting choreography protocol errors into
 /// `RouteError::Runtime(MaintenanceFailed)`.
@@ -30,8 +27,8 @@ pub(crate) trait ChoreographyResultExt<T> {
 impl<T, E> ChoreographyResultExt<T> for Result<T, E> {
     fn choreography_failed(self) -> Result<T, RouteError> {
         match self {
-            | Ok(value) => Ok(value),
-            | Err(_) => Err(RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)),
+            Ok(value) => Ok(value),
+            Err(_) => Err(RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)),
         }
     }
 }
@@ -45,8 +42,8 @@ pub(crate) trait InvalidatedResultExt<T> {
 impl<T, E> InvalidatedResultExt<T> for Result<T, E> {
     fn invalidated(self) -> Result<T, RouteError> {
         match self {
-            | Ok(value) => Ok(value),
-            | Err(_) => Err(RouteError::Runtime(RouteRuntimeError::Invalidated)),
+            Ok(value) => Ok(value),
+            Err(_) => Err(RouteError::Runtime(RouteRuntimeError::Invalidated)),
         }
     }
 }
@@ -103,10 +100,7 @@ pub(crate) trait PathwayProtocolRuntime {
         object_id: &ContentId<Blake3Digest>,
     ) -> Result<Option<Vec<u8>>, jacquard_core::RetentionError>;
 
-    fn load_protocol_checkpoint(
-        &self,
-        key: &[u8],
-    ) -> Result<Option<Vec<u8>>, StorageError>;
+    fn load_protocol_checkpoint(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
 
     fn store_protocol_checkpoint(
         &mut self,
@@ -176,10 +170,7 @@ where
         self.retention.take_retained_payload(object_id)
     }
 
-    fn load_protocol_checkpoint(
-        &self,
-        key: &[u8],
-    ) -> Result<Option<Vec<u8>>, StorageError> {
+    fn load_protocol_checkpoint(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
         self.effects.load_bytes(key)
     }
 
@@ -202,21 +193,16 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        Blake3Digest, ByteCount, ContentId, EndpointLocator, LinkEndpoint,
-        StorageError, Tick, TransportKind,
+        Blake3Digest, ByteCount, ContentId, EndpointLocator, LinkEndpoint, StorageError, Tick,
+        TransportKind,
     };
-    use jacquard_traits::{
-        effect_handler, StorageEffects, TimeEffects, TransportSenderEffects,
-    };
+    use jacquard_traits::{effect_handler, StorageEffects, TimeEffects, TransportSenderEffects};
 
     use super::{
         PathwayCheckpointEnvelope, PathwayChoreoFrame, PathwayHeldPayload,
-        PathwayProtocolObservation, PathwayProtocolRuntime,
-        PathwayProtocolRuntimeAdapter,
+        PathwayProtocolObservation, PathwayProtocolRuntime, PathwayProtocolRuntimeAdapter,
     };
-    use crate::choreography::artifacts::{
-        PathwayProtocolKind, PathwayProtocolSessionKey,
-    };
+    use crate::choreography::artifacts::{PathwayProtocolKind, PathwayProtocolSessionKey};
 
     #[derive(Default)]
     struct FakeTransport {
@@ -285,11 +271,7 @@ mod tests {
             Ok(self.payloads.get(key).cloned())
         }
 
-        fn store_bytes(
-            &mut self,
-            key: &[u8],
-            value: &[u8],
-        ) -> Result<(), StorageError> {
+        fn store_bytes(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
             self.payloads.insert(key.to_vec(), value.to_vec());
             Ok(())
         }
@@ -323,8 +305,13 @@ mod tests {
         };
         adapter.send_frame(&frame).expect("send pathway frame");
 
-        let object_id = ContentId { digest: Blake3Digest([7; 32]) };
-        let payload = PathwayHeldPayload { object_id, payload: b"payload".to_vec() };
+        let object_id = ContentId {
+            digest: Blake3Digest([7; 32]),
+        };
+        let payload = PathwayHeldPayload {
+            object_id,
+            payload: b"payload".to_vec(),
+        };
         adapter
             .store_held_payload(&payload)
             .expect("store held payload");

@@ -139,8 +139,12 @@ pub fn transport_ingress_mailbox(
         capacity,
     });
     (
-        TransportIngressSender { shared: Arc::clone(&shared) },
-        TransportIngressReceiver { shared: Arc::clone(&shared) },
+        TransportIngressSender {
+            shared: Arc::clone(&shared),
+        },
+        TransportIngressReceiver {
+            shared: Arc::clone(&shared),
+        },
         TransportIngressNotifier { shared },
     )
 }
@@ -154,8 +158,7 @@ impl TransportIngressSender {
         let mut guard = self.shared.state.lock().expect("transport ingress lock");
         if guard.events.len() >= self.shared.capacity {
             if class == TransportIngressClass::Payload {
-                guard.dropped_payload_count =
-                    guard.dropped_payload_count.saturating_add(1);
+                guard.dropped_payload_count = guard.dropped_payload_count.saturating_add(1);
                 SharedMailbox::bump_generation(&mut guard);
                 let waiters = SharedMailbox::take_waiters(&mut guard);
                 drop(guard);
@@ -182,7 +185,10 @@ impl TransportIngressReceiver {
         let mut guard = self.shared.state.lock().expect("transport ingress lock");
         let events = guard.events.drain(..).collect();
         let dropped_payload_count = std::mem::take(&mut guard.dropped_payload_count);
-        TransportIngressDrain { events, dropped_payload_count }
+        TransportIngressDrain {
+            events,
+            dropped_payload_count,
+        }
     }
 }
 
@@ -226,7 +232,10 @@ impl TransportIngressNotifier {
 
     #[must_use]
     pub fn changed(&self, snapshot: u64) -> TransportIngressChanged<'_> {
-        TransportIngressChanged { notifier: self, snapshot }
+        TransportIngressChanged {
+            notifier: self,
+            snapshot,
+        }
     }
 }
 
@@ -267,13 +276,9 @@ mod tests {
         thread,
     };
 
-    use jacquard_core::{
-        ByteCount, DurationMs, EndpointLocator, NodeId, TransportKind,
-    };
+    use jacquard_core::{ByteCount, DurationMs, EndpointLocator, NodeId, TransportKind};
 
-    use super::{
-        transport_ingress_mailbox, TransportIngressClass, TransportIngressSendOutcome,
-    };
+    use super::{transport_ingress_mailbox, TransportIngressClass, TransportIngressSendOutcome};
 
     fn payload(byte: u8) -> jacquard_core::TransportIngressEvent {
         jacquard_core::TransportIngressEvent::PayloadReceived {

@@ -13,10 +13,10 @@ mod selection;
 use jacquard_core::HoldItemCount;
 #[allow(unused_imports)]
 use jacquard_core::{
-    AdmissionAssumptions, ClaimStrength, Configuration, ConnectivityPosture,
-    DiversityFloor, HealthScore, MaintenanceWorkBudget, NodeDensityClass, NodeId,
-    Observation, PenaltyPoints, RelayWorkBudget, RoutePartitionClass, RouteRepairClass,
-    RoutingObjective, SelectedRoutingParameters, Tick,
+    AdmissionAssumptions, ClaimStrength, Configuration, ConnectivityPosture, DiversityFloor,
+    HealthScore, MaintenanceWorkBudget, NodeDensityClass, NodeId, Observation, PenaltyPoints,
+    RelayWorkBudget, RoutePartitionClass, RouteRepairClass, RoutingObjective,
+    SelectedRoutingParameters, Tick,
 };
 pub use selection::{DeterministicCommitteeSelector, NoCommitteeSelector};
 
@@ -74,18 +74,13 @@ pub fn pathway_admission_assumptions(
 ) -> AdmissionAssumptions {
     let churn = configuration.environment.churn_permille.get();
     AdmissionAssumptions {
-        message_flow_assumption:
-            jacquard_core::MessageFlowAssumptionClass::PerRouteSequenced,
+        message_flow_assumption: jacquard_core::MessageFlowAssumptionClass::PerRouteSequenced,
         failure_model: jacquard_core::FailureModelClass::Benign,
         runtime_envelope: jacquard_core::RuntimeEnvelopeClass::Canonical,
-        node_density_class: density_class(
-            configuration.environment.reachable_neighbor_count,
-        ),
+        node_density_class: density_class(configuration.environment.reachable_neighbor_count),
         connectivity_regime: connectivity_regime(churn),
         adversary_regime: jacquard_core::AdversaryRegime::BenignUntrusted,
-        claim_strength: if profile.selected_connectivity.repair
-            == RouteRepairClass::Repairable
-        {
+        claim_strength: if profile.selected_connectivity.repair == RouteRepairClass::Repairable {
             ClaimStrength::ExactUnderAssumptions
         } else {
             ClaimStrength::ConservativeUnderProfile
@@ -94,9 +89,7 @@ pub fn pathway_admission_assumptions(
 }
 
 #[must_use]
-pub fn pathway_route_connectivity(
-    profile: &SelectedRoutingParameters,
-) -> ConnectivityPosture {
+pub fn pathway_route_connectivity(profile: &SelectedRoutingParameters) -> ConnectivityPosture {
     ConnectivityPosture {
         repair: profile.selected_connectivity.repair,
         partition: profile.selected_connectivity.partition,
@@ -121,16 +114,12 @@ pub fn pathway_health_score(configuration: &Configuration) -> HealthScore {
             .environment
             .reachable_neighbor_count
             .min(DENSITY_DENSE_NEIGHBOR_MIN);
-        bounded_health_score(
-            capped_neighbors.saturating_mul(1000) / DENSITY_DENSE_NEIGHBOR_MIN,
-        )
+        bounded_health_score(capped_neighbors.saturating_mul(1000) / DENSITY_DENSE_NEIGHBOR_MIN)
     };
     let churn_penalty = u32::from(configuration.environment.churn_permille.get());
-    let contention_penalty =
-        u32::from(configuration.environment.contention_permille.get());
-    let stability_score = bounded_health_score(
-        1000_u32.saturating_sub((churn_penalty + contention_penalty) / 2),
-    );
+    let contention_penalty = u32::from(configuration.environment.contention_permille.get());
+    let stability_score =
+        bounded_health_score(1000_u32.saturating_sub((churn_penalty + contention_penalty) / 2));
     bounded_health_score((density_score.0 + stability_score.0) / 2)
 }
 
@@ -158,15 +147,14 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        Belief, ByteCount, Configuration, ConnectivityPosture, ControllerId,
-        DestinationId, EndpointLocator, Environment, Estimate, FactSourceClass,
-        HoldFallbackPolicy, Limit, Link, LinkEndpoint, LinkRuntimeState, LinkState,
-        Node, NodeProfile, NodeRelayBudget, NodeState, Observation, OperatingMode,
-        OriginAuthenticationClass, PriorityPoints, QuorumThreshold, RatioPermille,
-        RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+        Belief, ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
+        EndpointLocator, Environment, Estimate, FactSourceClass, HoldFallbackPolicy, Limit, Link,
+        LinkEndpoint, LinkRuntimeState, LinkState, Node, NodeProfile, NodeRelayBudget, NodeState,
+        Observation, OperatingMode, OriginAuthenticationClass, PriorityPoints, QuorumThreshold,
+        RatioPermille, RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
         RouteReplacementPolicy, RouteServiceKind, RoutingEngineFallbackPolicy,
-        RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters,
-        ServiceDescriptor, ServiceId, ServiceScope, Tick, TimeWindow, TransportKind,
+        RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, ServiceDescriptor,
+        ServiceId, ServiceScope, Tick, TimeWindow, TransportKind,
     };
     use jacquard_traits::CommitteeSelector;
 
@@ -190,21 +178,23 @@ mod tests {
         controller_id: ControllerId,
     ) -> Vec<ServiceDescriptor> {
         let valid_for = TimeWindow::new(Tick(0), Tick(100)).unwrap();
-        [RouteServiceKind::Discover, RouteServiceKind::Move, RouteServiceKind::Hold]
-            .into_iter()
-            .map(|kind| ServiceDescriptor {
-                provider_node_id: node_id,
-                controller_id,
-                service_kind: kind,
-                endpoints: vec![endpoint(node_id.0[0])],
-                routing_engines: vec![crate::PATHWAY_ENGINE_ID],
-                scope: ServiceScope::Discovery(jacquard_core::DiscoveryScopeId(
-                    [7; 16],
-                )),
-                valid_for,
-                capacity: Belief::Absent,
-            })
-            .collect()
+        [
+            RouteServiceKind::Discover,
+            RouteServiceKind::Move,
+            RouteServiceKind::Hold,
+        ]
+        .into_iter()
+        .map(|kind| ServiceDescriptor {
+            provider_node_id: node_id,
+            controller_id,
+            service_kind: kind,
+            endpoints: vec![endpoint(node_id.0[0])],
+            routing_engines: vec![crate::PATHWAY_ENGINE_ID],
+            scope: ServiceScope::Discovery(jacquard_core::DiscoveryScopeId([7; 16])),
+            valid_for,
+            capacity: Belief::Absent,
+        })
+        .collect()
     }
 
     fn node(byte: u8) -> Node {
@@ -259,8 +249,7 @@ mod tests {
             profile: jacquard_core::LinkProfile {
                 latency_floor_ms: jacquard_core::DurationMs(8),
                 repair_capability: jacquard_core::RepairCapability::TransportRetransmit,
-                partition_recovery:
-                    jacquard_core::PartitionRecoveryClass::LocalReconnect,
+                partition_recovery: jacquard_core::PartitionRecoveryClass::LocalReconnect,
             },
             state: LinkState {
                 state: LinkRuntimeState::Active,
@@ -445,8 +434,7 @@ mod tests {
     // Same property for the partition axis: a connected-only profile has no
     // need for committee-coordinated partition tolerance.
     #[test]
-    fn select_committee_returns_none_when_profile_does_not_require_partition_tolerance()
-    {
+    fn select_committee_returns_none_when_profile_does_not_require_partition_tolerance() {
         let selector = DeterministicCommitteeSelector::new(NodeId([1; 32]));
         let topology = topology_with_neighbor_count(3);
         let objective = objective_for_service(vec![1, 2]);
@@ -590,14 +578,15 @@ mod tests {
             RouteRepairClass::Repairable,
             RoutePartitionClass::PartitionTolerant,
         );
-        let selector = DeterministicCommitteeSelector::new(NodeId([1; 32]))
-            .with_behavior_history(BTreeMap::from([(
+        let selector = DeterministicCommitteeSelector::new(NodeId([1; 32])).with_behavior_history(
+            BTreeMap::from([(
                 NodeId([2; 32]),
                 PathwayBehaviorHistory {
                     reliability_score: HealthScore(100),
                     misbehavior_penalty_points: PenaltyPoints(800),
                 },
-            )]));
+            )]),
+        );
 
         let committee = selector
             .select_committee(&goal, &profile, &topology)

@@ -23,8 +23,7 @@ use common::{
 };
 use jacquard_traits::{
     jacquard_core::{
-        DestinationId, NodeId, RouteEpoch, RouteError, RouteRuntimeError,
-        RoutingTickContext, Tick,
+        DestinationId, NodeId, RouteEpoch, RouteError, RouteRuntimeError, RoutingTickContext, Tick,
     },
     RoutingEngine, RoutingEnginePlanner,
 };
@@ -106,8 +105,7 @@ fn materialize_route_fails_closed_for_mismatched_backend_plan_token() {
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
-    let mut input =
-        materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
+    let mut input = materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
 
     let mismatched_candidate = engine
         .candidate_routes(&alternate_goal, &policy, &topology)
@@ -227,8 +225,7 @@ fn materialize_route_fails_closed_for_mismatched_handle_epoch() {
     let admission = engine
         .admit_route(&goal, &policy, candidate, &topology)
         .expect("admission");
-    let mut input =
-        materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
+    let mut input = materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
     input.handle.stamp.topology_epoch = RouteEpoch(99);
 
     let error = engine

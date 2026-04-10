@@ -24,10 +24,10 @@ use std::collections::BTreeSet;
 use jacquard_core::HoldItemCount;
 #[allow(unused_imports)]
 use jacquard_core::{
-    Belief, ByteCount, Configuration, Environment, HealthScore, Link, LinkEndpoint,
-    LinkState, MaintenanceWorkBudget, Node, NodeId, NodeRelayBudget, RatioPermille,
-    RelayWorkBudget, RouteServiceKind, RoutingEngineId, RoutingObjective,
-    ServiceDescriptor, ServiceId, ServiceScope, Tick, TransportKind,
+    Belief, ByteCount, Configuration, Environment, HealthScore, Link, LinkEndpoint, LinkState,
+    MaintenanceWorkBudget, Node, NodeId, NodeRelayBudget, RatioPermille, RelayWorkBudget,
+    RouteServiceKind, RoutingEngineId, RoutingObjective, ServiceDescriptor, ServiceId,
+    ServiceScope, Tick, TransportKind,
 };
 use jacquard_traits::purity;
 
@@ -80,11 +80,11 @@ pub(crate) struct ServiceKindSet(u8);
 impl ServiceKindSet {
     fn bit(kind: RouteServiceKind) -> u8 {
         match kind {
-            | RouteServiceKind::Discover => 1 << 0,
-            | RouteServiceKind::Activate => 1 << 1,
-            | RouteServiceKind::Move => 1 << 2,
-            | RouteServiceKind::Repair => 1 << 3,
-            | RouteServiceKind::Hold => 1 << 4,
+            RouteServiceKind::Discover => 1 << 0,
+            RouteServiceKind::Activate => 1 << 1,
+            RouteServiceKind::Move => 1 << 2,
+            RouteServiceKind::Repair => 1 << 3,
+            RouteServiceKind::Hold => 1 << 4,
         }
     }
 
@@ -173,11 +173,7 @@ impl PathwayTopologyModel for DeterministicPathwayTopologyModel {
     type NeighborhoodEstimate = PathwayNeighborhoodEstimate;
     type PeerEstimate = PathwayPeerEstimate;
 
-    fn local_node(
-        &self,
-        local_node_id: &NodeId,
-        configuration: &Configuration,
-    ) -> Option<Node> {
+    fn local_node(&self, local_node_id: &NodeId, configuration: &Configuration) -> Option<Node> {
         configuration.nodes.get(local_node_id).cloned()
     }
 
@@ -214,11 +210,7 @@ impl PathwayTopologyModel for DeterministicPathwayTopologyModel {
         endpoints
     }
 
-    fn adjacent_links(
-        &self,
-        local_node_id: &NodeId,
-        configuration: &Configuration,
-    ) -> Vec<Link> {
+    fn adjacent_links(&self, local_node_id: &NodeId, configuration: &Configuration) -> Vec<Link> {
         let mut links: Vec<Link> = configuration
             .links
             .iter()
@@ -247,25 +239,23 @@ impl PathwayTopologyModel for DeterministicPathwayTopologyModel {
         let link = adjacent_link_between(local_node_id, peer_node_id, configuration)?;
 
         let relay_budget = match &peer.state.relay_budget {
-            | Belief::Absent => None,
-            | Belief::Estimated(estimate) => {
+            Belief::Absent => None,
+            Belief::Estimated(estimate) => {
                 // Higher is better, so invert utilization.
                 let utilization = u32::from(estimate.value.utilization_permille.get());
                 Some(bounded_health_score(
                     HEALTH_SCORE_MAX.saturating_sub(utilization),
                 ))
-            },
+            }
         };
 
-        let retention_capacity = belief_into_estimate(
-            peer.state.hold_capacity_available_bytes,
-        )
-        .map(|estimate| bounded_health_score(clamp_u64_to_u32(estimate.value.0)));
+        let retention_capacity = belief_into_estimate(peer.state.hold_capacity_available_bytes)
+            .map(|estimate| bounded_health_score(clamp_u64_to_u32(estimate.value.0)));
 
         let confidence = belief_into_estimate(link.state.delivery_confidence_permille)
             .map(|estimate| u32::from(estimate.value.get()));
-        let symmetry = belief_ratio(link.state.symmetry_permille)
-            .map(|value| u32::from(value.get()));
+        let symmetry =
+            belief_ratio(link.state.symmetry_permille).map(|value| u32::from(value.get()));
         let stability = mean_score(confidence, symmetry).map(HealthScore);
         let service_score = Some(bounded_health_score(service_surface_health_score(
             &peer.profile.services,
@@ -307,11 +297,9 @@ impl PathwayTopologyModel for DeterministicPathwayTopologyModel {
         let density_score = Some(bounded_health_score(
             density_source.saturating_mul(DENSITY_SCORE_SCALE),
         ));
-        let repair_pressure_score =
-            Some(bounded_health_score(u32::from(churn_permille.get())));
+        let repair_pressure_score = Some(bounded_health_score(u32::from(churn_permille.get())));
         let partition_risk_score = Some(bounded_health_score(
-            u32::from(churn_permille.get()) / 2
-                + u32::from(contention_permille.get()) / 2,
+            u32::from(churn_permille.get()) / 2 + u32::from(contention_permille.get()) / 2,
         ));
 
         // Sum (not average) across neighbors then clamp. Sum rewards
@@ -475,12 +463,8 @@ pub(crate) fn services_meet_requirements(
     current_tick: Tick,
     requirements: PathwayServiceRequirements,
 ) -> bool {
-    service_surface_score_for_requirements(
-        services,
-        engine_id,
-        current_tick,
-        requirements,
-    ) == requirements.count()
+    service_surface_score_for_requirements(services, engine_id, current_tick, requirements)
+        == requirements.count()
 }
 
 pub(crate) fn service_surface_health_score(
@@ -506,12 +490,8 @@ pub(crate) fn service_surface_health_score_for_requirements(
     if required == 0 {
         return HEALTH_SCORE_MAX;
     }
-    let service_count = service_surface_score_for_requirements(
-        services,
-        engine_id,
-        current_tick,
-        requirements,
-    );
+    let service_count =
+        service_surface_score_for_requirements(services, engine_id, current_tick, requirements);
     if service_count >= required {
         HEALTH_SCORE_MAX
     } else {
@@ -523,12 +503,10 @@ pub(crate) fn optional_health_score_value(score: Option<HealthScore>) -> u32 {
     score.map_or(0, |score| score.0)
 }
 
-pub(crate) fn belief_into_estimate<T>(
-    belief: Belief<T>,
-) -> Option<jacquard_core::Estimate<T>> {
+pub(crate) fn belief_into_estimate<T>(belief: Belief<T>) -> Option<jacquard_core::Estimate<T>> {
     match belief {
-        | Belief::Absent => None,
-        | Belief::Estimated(estimate) => Some(estimate),
+        Belief::Absent => None,
+        Belief::Estimated(estimate) => Some(estimate),
     }
 }
 
@@ -551,19 +529,19 @@ fn clamp_u64_to_u32(value: u64) -> u32 {
 
 fn mean_score(left: Option<u32>, right: Option<u32>) -> Option<u32> {
     match (left, right) {
-        | (Some(left), Some(right)) => Some((left + right) / 2),
-        | (Some(left), None) => Some(left),
-        | (None, Some(right)) => Some(right),
-        | (None, None) => None,
+        (Some(left), Some(right)) => Some((left + right) / 2),
+        (Some(left), None) => Some(left),
+        (None, Some(right)) => Some(right),
+        (None, None) => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        ByteCount, ControllerId, DestinationId, EndpointLocator, Estimate,
-        LinkEndpoint, LinkRuntimeState, NodeProfile, NodeState, RouteEpoch,
-        ServiceDescriptor, Tick, TimeWindow, TransportKind,
+        ByteCount, ControllerId, DestinationId, EndpointLocator, Estimate, LinkEndpoint,
+        LinkRuntimeState, NodeProfile, NodeState, RouteEpoch, ServiceDescriptor, Tick, TimeWindow,
+        TransportKind,
     };
 
     use super::*;
@@ -612,7 +590,10 @@ mod tests {
     fn node_with_services(services: Vec<ServiceDescriptor>) -> Node {
         Node {
             controller_id: ControllerId([0; 32]),
-            profile: NodeProfile { services, ..empty_node_profile() },
+            profile: NodeProfile {
+                services,
+                ..empty_node_profile()
+            },
             state: empty_node_state(),
         }
     }
@@ -741,13 +722,11 @@ mod tests {
                                 confidence_permille: RatioPermille(1000),
                                 updated_at_tick: Tick(0),
                             }),
-                            hold_capacity_available_bytes: Belief::Estimated(
-                                Estimate {
-                                    value: ByteCount(2048),
-                                    confidence_permille: RatioPermille(1000),
-                                    updated_at_tick: Tick(0),
-                                },
-                            ),
+                            hold_capacity_available_bytes: Belief::Estimated(Estimate {
+                                value: ByteCount(2048),
+                                confidence_permille: RatioPermille(1000),
+                                updated_at_tick: Tick(0),
+                            }),
                             information_summary: Belief::Absent,
                         },
                     },
@@ -790,16 +769,8 @@ mod tests {
                             crate::PATHWAY_ENGINE_ID,
                             validity,
                         ),
-                        service(
-                            RouteServiceKind::Move,
-                            crate::PATHWAY_ENGINE_ID,
-                            validity,
-                        ),
-                        service(
-                            RouteServiceKind::Hold,
-                            crate::PATHWAY_ENGINE_ID,
-                            validity,
-                        ),
+                        service(RouteServiceKind::Move, crate::PATHWAY_ENGINE_ID, validity),
+                        service(RouteServiceKind::Hold, crate::PATHWAY_ENGINE_ID, validity),
                     ]),
                 ),
             ]),

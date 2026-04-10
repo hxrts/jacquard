@@ -23,15 +23,14 @@ use crate::support::{
 
 pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
     let max = match parse_max_expr(attr.into()) {
-        | Ok(max) => max,
-        | Err(error) => return error.to_compile_error().into(),
+        Ok(max) => max,
+        Err(error) => return error.to_compile_error().into(),
     };
 
-    let mut item_struct =
-        match parse_single_field_tuple_struct(item.into(), "bounded_value") {
-            | Ok(item_struct) => item_struct,
-            | Err(error) => return error.to_compile_error().into(),
-        };
+    let mut item_struct = match parse_single_field_tuple_struct(item.into(), "bounded_value") {
+        Ok(item_struct) => item_struct,
+        Err(error) => return error.to_compile_error().into(),
+    };
     let ident = item_struct.ident.clone();
     let field_ty = tuple_struct_field_type(&item_struct);
 

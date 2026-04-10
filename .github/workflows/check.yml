@@ -23,7 +23,7 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - name: Format Check
-        run: nix develop ./nix/nightly --command cargo-fmt-nightly --all -- --check
+        run: ./scripts/toolkit-shell.sh toolkit-fmt --all -- --check
       - name: Clippy
         run: nix develop --command cargo clippy --workspace --all-targets -- -D warnings
       - name: Tests

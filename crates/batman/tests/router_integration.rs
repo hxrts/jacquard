@@ -18,21 +18,17 @@
 
 use std::collections::BTreeMap;
 
-use jacquard_adapter::{
-    dispatch_mailbox, opaque_endpoint, DispatchReceiver, DispatchSender,
-};
+use jacquard_adapter::{dispatch_mailbox, opaque_endpoint, DispatchReceiver, DispatchSender};
 use jacquard_batman::{BatmanEngine, BATMAN_ENGINE_ID};
 use jacquard_core::{
-    ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
-    DurationMs, Environment, HealthScore, IdentityAssuranceClass, LinkEndpoint,
-    Observation, RatioPermille, RoutePartitionClass, RouteProtectionClass,
-    RouteRepairClass, RouteReplacementPolicy, RoutingEngineFallbackPolicy,
-    RoutingPolicyInputs, RoutingTickChange, SelectedRoutingParameters, Tick,
-    TransportError, TransportIngressEvent, TransportKind,
+    ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
+    Environment, HealthScore, IdentityAssuranceClass, LinkEndpoint, Observation, RatioPermille,
+    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+    RoutingEngineFallbackPolicy, RoutingPolicyInputs, RoutingTickChange, SelectedRoutingParameters,
+    Tick, TransportError, TransportIngressEvent, TransportKind,
 };
 use jacquard_mem_link_profile::{
-    InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions,
-    SharedInMemoryNetwork,
+    InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions, SharedInMemoryNetwork,
 };
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
@@ -108,13 +104,11 @@ fn sample_topology() -> Observation<Configuration> {
             links: BTreeMap::from([
                 (
                     (node(1), node(2)),
-                    LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1)))
-                        .build(),
+                    LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1))).build(),
                 ),
                 (
                     (node(2), node(4)),
-                    LinkPreset::active(LinkPresetOptions::new(endpoint(4), Tick(1)))
-                        .build(),
+                    LinkPreset::active(LinkPresetOptions::new(endpoint(4), Tick(1))).build(),
                 ),
                 (
                     (node(1), node(3)),
@@ -254,7 +248,9 @@ impl BatmanHost {
             network,
         );
         let (outbound_tx, outbound_rx) = dispatch_mailbox(64);
-        let sender = QueuedTransportSender { outbound: outbound_tx };
+        let sender = QueuedTransportSender {
+            outbound: outbound_tx,
+        };
         let engine = BatmanEngine::new(
             local_node_id,
             sender,
@@ -347,16 +343,14 @@ fn sample_policy_inputs_for(
 // long-block-exception: this fixture intentionally keeps the five-node roster
 // and per-node direct-neighbor edges together so the gossip-learning setup is
 // readable as one world description.
-fn five_node_roster_topology(
-    local_node_id: jacquard_core::NodeId,
-) -> Observation<Configuration> {
+fn five_node_roster_topology(local_node_id: jacquard_core::NodeId) -> Observation<Configuration> {
     let neighbors = match local_node_id {
-        | id if id == node(1) => vec![node(2)],
-        | id if id == node(2) => vec![node(1), node(3)],
-        | id if id == node(3) => vec![node(2), node(4)],
-        | id if id == node(4) => vec![node(3), node(5)],
-        | id if id == node(5) => vec![node(4)],
-        | _ => Vec::new(),
+        id if id == node(1) => vec![node(2)],
+        id if id == node(2) => vec![node(1), node(3)],
+        id if id == node(3) => vec![node(2), node(4)],
+        id if id == node(4) => vec![node(3), node(5)],
+        id if id == node(5) => vec![node(4)],
+        _ => Vec::new(),
     };
     Observation {
         value: Configuration {
@@ -461,12 +455,18 @@ fn batman_router_activates_next_hop_only_routes() {
     let engine = BatmanEngine::new(
         node(1),
         local_transport,
-        InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
     );
     let mut router = MultiEngineRouter::new(
         node(1),
         FixedPolicyEngine::new(sample_profile()),
-        InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
         topology.clone(),
         sample_policy_inputs(&topology),
     );
@@ -474,8 +474,7 @@ fn batman_router_activates_next_hop_only_routes() {
         .register_engine(Box::new(engine))
         .expect("register BATMAN engine");
 
-    let route = Router::activate_route(&mut router, sample_objective())
-        .expect("activate route");
+    let route = Router::activate_route(&mut router, sample_objective()).expect("activate route");
 
     assert_eq!(route.identity.admission.summary.engine, BATMAN_ENGINE_ID);
     assert_eq!(
@@ -505,12 +504,18 @@ fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
     let engine = BatmanEngine::new(
         node(1),
         local_transport,
-        InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
     );
     let mut router = MultiEngineRouter::new(
         node(1),
         FixedPolicyEngine::new(sample_profile()),
-        InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
         topology.clone(),
         sample_policy_inputs(&topology),
     );
@@ -521,8 +526,7 @@ fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
     let tick = router.advance_round().expect("pre-activation router round");
     assert_eq!(tick.engine_change, RoutingTickChange::PrivateStateUpdated);
 
-    let route = Router::activate_route(&mut router, sample_objective())
-        .expect("activate route");
+    let route = Router::activate_route(&mut router, sample_objective()).expect("activate route");
     router
         .forward_payload(route.identity.route_id(), b"batman-payload")
         .expect("forward payload");
@@ -551,35 +555,19 @@ fn batman_router_activates_a_five_node_route_from_direct_neighbor_observations()
     let mut hosts = BTreeMap::from([
         (
             node(1),
-            BatmanHost::new(
-                node(1),
-                five_node_roster_topology(node(1)),
-                network.clone(),
-            ),
+            BatmanHost::new(node(1), five_node_roster_topology(node(1)), network.clone()),
         ),
         (
             node(2),
-            BatmanHost::new(
-                node(2),
-                five_node_roster_topology(node(2)),
-                network.clone(),
-            ),
+            BatmanHost::new(node(2), five_node_roster_topology(node(2)), network.clone()),
         ),
         (
             node(3),
-            BatmanHost::new(
-                node(3),
-                five_node_roster_topology(node(3)),
-                network.clone(),
-            ),
+            BatmanHost::new(node(3), five_node_roster_topology(node(3)), network.clone()),
         ),
         (
             node(4),
-            BatmanHost::new(
-                node(4),
-                five_node_roster_topology(node(4)),
-                network.clone(),
-            ),
+            BatmanHost::new(node(4), five_node_roster_topology(node(4)), network.clone()),
         ),
         (
             node(5),

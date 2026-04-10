@@ -18,13 +18,13 @@
 )]
 
 use jacquard_core::{
-    DegradationReason, DestinationId, GatewayId, Link, LinkRuntimeState, NodeId,
-    RouteDegradation, RouteEpoch, Tick,
+    DegradationReason, DestinationId, GatewayId, Link, LinkRuntimeState, NodeId, RouteDegradation,
+    RouteEpoch, Tick,
 };
 
 use crate::state::{
-    ControlState, CorridorBeliefEnvelope, DestinationPosterior, DivergenceBucket,
-    EntropyBucket, HopBand, OperatingRegime, SupportBucket,
+    ControlState, CorridorBeliefEnvelope, DestinationPosterior, DivergenceBucket, EntropyBucket,
+    HopBand, OperatingRegime, SupportBucket,
 };
 
 pub(crate) const FIELD_SUMMARY_ENCODING_BYTES: usize = 64;
@@ -53,14 +53,14 @@ pub(crate) enum SummaryDestinationKey {
 impl From<&DestinationId> for SummaryDestinationKey {
     fn from(value: &DestinationId) -> Self {
         match value {
-            | DestinationId::Node(id) => Self::Node(*id),
-            | DestinationId::Gateway(id) => Self::Gateway(*id),
-            | DestinationId::Service(id) => {
+            DestinationId::Node(id) => Self::Node(*id),
+            DestinationId::Gateway(id) => Self::Gateway(*id),
+            DestinationId::Service(id) => {
                 let mut bytes = [0_u8; 32];
                 let copy_len = id.0.len().min(bytes.len());
                 bytes[..copy_len].copy_from_slice(&id.0[..copy_len]);
                 Self::Service(bytes)
-            },
+            }
         }
     }
 }
@@ -84,18 +84,18 @@ impl FieldSummary {
     pub(crate) fn encode(&self) -> [u8; FIELD_SUMMARY_ENCODING_BYTES] {
         let mut bytes = [0_u8; FIELD_SUMMARY_ENCODING_BYTES];
         match self.destination {
-            | SummaryDestinationKey::Node(id) => {
+            SummaryDestinationKey::Node(id) => {
                 bytes[0] = 0;
                 bytes[1..33].copy_from_slice(&id.0);
-            },
-            | SummaryDestinationKey::Gateway(id) => {
+            }
+            SummaryDestinationKey::Gateway(id) => {
                 bytes[0] = 1;
                 bytes[1..17].copy_from_slice(&id.0);
-            },
-            | SummaryDestinationKey::Service(id) => {
+            }
+            SummaryDestinationKey::Service(id) => {
                 bytes[0] = 2;
                 bytes[1..33].copy_from_slice(&id);
-            },
+            }
         }
         bytes[33..41].copy_from_slice(&self.freshness_tick.0.to_le_bytes());
         bytes[41..49].copy_from_slice(&self.topology_epoch.0.to_le_bytes());
@@ -110,26 +110,24 @@ impl FieldSummary {
         bytes
     }
 
-    pub(crate) fn decode(
-        bytes: [u8; FIELD_SUMMARY_ENCODING_BYTES],
-    ) -> Result<Self, &'static str> {
+    pub(crate) fn decode(bytes: [u8; FIELD_SUMMARY_ENCODING_BYTES]) -> Result<Self, &'static str> {
         let destination = match bytes[0] {
-            | 0 => {
+            0 => {
                 let mut id = [0_u8; 32];
                 id.copy_from_slice(&bytes[1..33]);
                 SummaryDestinationKey::Node(NodeId(id))
-            },
-            | 1 => {
+            }
+            1 => {
                 let mut id = [0_u8; 16];
                 id.copy_from_slice(&bytes[1..17]);
                 SummaryDestinationKey::Gateway(GatewayId(id))
-            },
-            | 2 => {
+            }
+            2 => {
                 let mut id = [0_u8; 32];
                 id.copy_from_slice(&bytes[1..33]);
                 SummaryDestinationKey::Service(id)
-            },
-            | _ => return Err("unknown destination key"),
+            }
+            _ => return Err("unknown destination key"),
         };
         let freshness_tick = Tick(u64::from_le_bytes(
             bytes[33..41].try_into().expect("freshness bytes"),
@@ -195,13 +193,11 @@ pub(crate) struct LocalOriginTrace {
 }
 
 #[must_use]
-pub(crate) fn evidence_classification(
-    evidence: &FieldEvidence,
-) -> EvidenceContributionClass {
+pub(crate) fn evidence_classification(evidence: &FieldEvidence) -> EvidenceContributionClass {
     match evidence {
-        | FieldEvidence::Direct(_) => EvidenceContributionClass::Direct,
-        | FieldEvidence::Forward(_) => EvidenceContributionClass::ForwardPropagated,
-        | FieldEvidence::Reverse(_) => EvidenceContributionClass::ReverseFeedback,
+        FieldEvidence::Direct(_) => EvidenceContributionClass::Direct,
+        FieldEvidence::Forward(_) => EvidenceContributionClass::ForwardPropagated,
+        FieldEvidence::Reverse(_) => EvidenceContributionClass::ReverseFeedback,
     }
 }
 
@@ -258,9 +254,7 @@ pub(crate) fn compose_summary_with_link(
         delivery_support: if bootstraps_from_direct {
             link_support
         } else {
-            SupportBucket::new(
-                summary.delivery_support.value().min(link_support.value()),
-            )
+            SupportBucket::new(summary.delivery_support.value().min(link_support.value()))
         },
         congestion_penalty: EntropyBucket::new(
             summary
@@ -277,10 +271,7 @@ pub(crate) fn compose_summary_with_link(
 }
 
 #[must_use]
-pub(crate) fn merge_neighbor_summaries(
-    left: &FieldSummary,
-    right: &FieldSummary,
-) -> FieldSummary {
+pub(crate) fn merge_neighbor_summaries(left: &FieldSummary, right: &FieldSummary) -> FieldSummary {
     let preferred = summary_preference(left).cmp(&summary_preference(right));
     let (best, other) = if preferred.is_gt() || preferred.is_eq() {
         (left, right)
@@ -365,11 +356,11 @@ pub(crate) fn clamp_corridor_envelope(
     control_state: &ControlState,
 ) -> CorridorBeliefEnvelope {
     let regime_penalty = match regime {
-        | OperatingRegime::Sparse => 50,
-        | OperatingRegime::Congested => 200,
-        | OperatingRegime::RetentionFavorable => 100,
-        | OperatingRegime::Unstable => 250,
-        | OperatingRegime::Adversarial => 300,
+        OperatingRegime::Sparse => 50,
+        OperatingRegime::Congested => 200,
+        OperatingRegime::RetentionFavorable => 100,
+        OperatingRegime::Unstable => 250,
+        OperatingRegime::Adversarial => 300,
     };
     let congestion = summary
         .congestion_penalty
@@ -415,11 +406,11 @@ pub(crate) fn derive_degradation_class(
         return RouteDegradation::None;
     }
     let reason = match regime {
-        | OperatingRegime::Sparse => DegradationReason::SparseTopology,
-        | OperatingRegime::Congested => DegradationReason::CapacityPressure,
-        | OperatingRegime::RetentionFavorable => DegradationReason::PolicyPreference,
-        | OperatingRegime::Unstable => DegradationReason::LinkInstability,
-        | OperatingRegime::Adversarial => DegradationReason::PartitionRisk,
+        OperatingRegime::Sparse => DegradationReason::SparseTopology,
+        OperatingRegime::Congested => DegradationReason::CapacityPressure,
+        OperatingRegime::RetentionFavorable => DegradationReason::PolicyPreference,
+        OperatingRegime::Unstable => DegradationReason::LinkInstability,
+        OperatingRegime::Adversarial => DegradationReason::PartitionRisk,
     };
     RouteDegradation::Degraded(reason)
 }
@@ -464,10 +455,10 @@ pub(crate) fn summary_divergence(
 
 fn link_support_bucket(link: &Link) -> SupportBucket {
     let state_floor = match link.state.state {
-        | LinkRuntimeState::Active => 900_u16,
-        | LinkRuntimeState::Degraded => 650_u16,
-        | LinkRuntimeState::Suspended => 250_u16,
-        | LinkRuntimeState::Faulted => 0_u16,
+        LinkRuntimeState::Active => 900_u16,
+        LinkRuntimeState::Degraded => 650_u16,
+        LinkRuntimeState::Suspended => 250_u16,
+        LinkRuntimeState::Faulted => 0_u16,
     };
     let confidence = link
         .state
@@ -489,52 +480,51 @@ fn summary_preference(summary: &FieldSummary) -> (u16, u16, u8, Tick) {
 
 fn evidence_code(value: EvidenceContributionClass) -> u8 {
     match value {
-        | EvidenceContributionClass::Direct => 0,
-        | EvidenceContributionClass::ForwardPropagated => 1,
-        | EvidenceContributionClass::ReverseFeedback => 2,
+        EvidenceContributionClass::Direct => 0,
+        EvidenceContributionClass::ForwardPropagated => 1,
+        EvidenceContributionClass::ReverseFeedback => 2,
     }
 }
 
 fn evidence_from_code(value: u8) -> Result<EvidenceContributionClass, &'static str> {
     match value {
-        | 0 => Ok(EvidenceContributionClass::Direct),
-        | 1 => Ok(EvidenceContributionClass::ForwardPropagated),
-        | 2 => Ok(EvidenceContributionClass::ReverseFeedback),
-        | _ => Err("unknown evidence class"),
+        0 => Ok(EvidenceContributionClass::Direct),
+        1 => Ok(EvidenceContributionClass::ForwardPropagated),
+        2 => Ok(EvidenceContributionClass::ReverseFeedback),
+        _ => Err("unknown evidence class"),
     }
 }
 
 fn uncertainty_code(value: SummaryUncertaintyClass) -> u8 {
     match value {
-        | SummaryUncertaintyClass::Low => 0,
-        | SummaryUncertaintyClass::Medium => 1,
-        | SummaryUncertaintyClass::High => 2,
+        SummaryUncertaintyClass::Low => 0,
+        SummaryUncertaintyClass::Medium => 1,
+        SummaryUncertaintyClass::High => 2,
     }
 }
 
 fn uncertainty_from_code(value: u8) -> Result<SummaryUncertaintyClass, &'static str> {
     match value {
-        | 0 => Ok(SummaryUncertaintyClass::Low),
-        | 1 => Ok(SummaryUncertaintyClass::Medium),
-        | 2 => Ok(SummaryUncertaintyClass::High),
-        | _ => Err("unknown uncertainty class"),
+        0 => Ok(SummaryUncertaintyClass::Low),
+        1 => Ok(SummaryUncertaintyClass::Medium),
+        2 => Ok(SummaryUncertaintyClass::High),
+        _ => Err("unknown uncertainty class"),
     }
 }
 
 fn uncertainty_class_for(value: u16) -> SummaryUncertaintyClass {
     match value {
-        | 0..=249 => SummaryUncertaintyClass::Low,
-        | 250..=599 => SummaryUncertaintyClass::Medium,
-        | _ => SummaryUncertaintyClass::High,
+        0..=249 => SummaryUncertaintyClass::Low,
+        250..=599 => SummaryUncertaintyClass::Medium,
+        _ => SummaryUncertaintyClass::High,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        Belief, ByteCount, DestinationId, DurationMs, EndpointLocator, LinkEndpoint,
-        LinkProfile, LinkState, PartitionRecoveryClass, RatioPermille,
-        RepairCapability, TransportKind,
+        Belief, ByteCount, DestinationId, DurationMs, EndpointLocator, LinkEndpoint, LinkProfile,
+        LinkState, PartitionRecoveryClass, RatioPermille, RepairCapability, TransportKind,
     };
 
     use super::*;
@@ -577,10 +567,7 @@ mod tests {
                 transfer_rate_bytes_per_sec: Belief::Absent,
                 stability_horizon_ms: Belief::Absent,
                 loss_permille: RatioPermille(loss),
-                delivery_confidence_permille: Belief::certain(
-                    RatioPermille(confidence),
-                    Tick(10),
-                ),
+                delivery_confidence_permille: Belief::certain(RatioPermille(confidence), Tick(10)),
                 symmetry_permille: Belief::Absent,
             },
         }
@@ -609,10 +596,8 @@ mod tests {
 
     #[test]
     fn direct_composition_has_priority_over_forward_only_support() {
-        let composed = compose_summary_with_link(
-            &summary(&DestinationId::Node(node(3))),
-            &link(650, 50),
-        );
+        let composed =
+            compose_summary_with_link(&summary(&DestinationId::Node(node(3))), &link(650, 50));
         assert_eq!(composed.evidence_class, EvidenceContributionClass::Direct);
         assert_eq!(composed.delivery_support.value(), 650);
     }
@@ -634,9 +619,7 @@ mod tests {
         let baseline = summary(&DestinationId::Node(node(4)));
         let decayed = decay_summary(&baseline, Tick(12));
         assert!(decayed.delivery_support.value() > 0);
-        assert!(
-            decayed.uncertainty_penalty.value() >= baseline.uncertainty_penalty.value()
-        );
+        assert!(decayed.uncertainty_penalty.value() >= baseline.uncertainty_penalty.value());
     }
 
     #[test]

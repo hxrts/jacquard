@@ -31,8 +31,7 @@ use jacquard_batman::BatmanEngine;
 use jacquard_core::Tick;
 use jacquard_field::FieldEngine;
 use jacquard_mem_link_profile::{
-    InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
-    SharedInMemoryNetwork,
+    InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
 };
 use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
 use jacquard_reference_client::topology;
@@ -67,7 +66,13 @@ pub(crate) type CommitteePathwayEngine = PathwayEngine<
 pub(crate) fn build_router(
     now: Tick,
 ) -> MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects> {
-    build_router_with_effects(now, InMemoryRuntimeEffects { now, ..Default::default() })
+    build_router_with_effects(
+        now,
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
+    )
 }
 
 pub(crate) fn build_router_with_selector(
@@ -81,12 +86,18 @@ pub(crate) fn build_router_with_selector(
         DeterministicPathwayTopologyModel::new(),
         InMemoryTransport::new(),
         InMemoryRetentionStore::default(),
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
         Blake3Hashing,
         selector,
     );
     let policy_engine = FixedPolicyEngine::new(profile());
-    let router_effects = InMemoryRuntimeEffects { now, ..Default::default() };
+    let router_effects = InMemoryRuntimeEffects {
+        now,
+        ..Default::default()
+    };
 
     let mut router = MultiEngineRouter::new(
         LOCAL_NODE_ID,
@@ -108,7 +119,10 @@ pub(crate) fn build_router_with_effects(
     build_router_with_runtime_pair(
         now,
         router_effects,
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
     )
 }
 
@@ -178,7 +192,10 @@ pub(crate) fn build_router_with_proactive_engine(
     let mut router = MultiEngineRouter::new(
         LOCAL_NODE_ID,
         policy_engine,
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
         topology,
         policy_inputs,
     );
@@ -203,7 +220,10 @@ pub(crate) fn build_router_with_opaque_engine(
     let mut router = MultiEngineRouter::new(
         LOCAL_NODE_ID,
         policy_engine,
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
         topology,
         policy_inputs,
     );
@@ -273,13 +293,19 @@ pub(crate) fn build_router_with_field(
     let field_engine = FieldEngine::new(
         LOCAL_NODE_ID,
         field_transport,
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
     );
 
     let mut router = MultiEngineRouter::new(
         LOCAL_NODE_ID,
         policy_engine,
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
         topology,
         policy_inputs,
     );
@@ -360,19 +386,28 @@ pub(crate) fn build_router_with_pathway_and_batman(
         DeterministicPathwayTopologyModel::new(),
         pathway_transport,
         InMemoryRetentionStore::default(),
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
         Blake3Hashing,
     );
     let batman_engine = BatmanEngine::new(
         LOCAL_NODE_ID,
         batman_transport,
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
     );
 
     let mut router = MultiEngineRouter::new(
         LOCAL_NODE_ID,
         policy_engine,
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
         topology,
         policy_inputs,
     );

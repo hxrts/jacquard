@@ -17,10 +17,9 @@ mod materialization;
 mod tick;
 
 use jacquard_core::{
-    Configuration, MaterializedRoute, Observation, PublishedRouteRecord,
-    RouteCommitment, RouteError, RouteId, RouteInstallation, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RouteSelectionError,
-    RoutingTickContext, RoutingTickOutcome,
+    Configuration, MaterializedRoute, Observation, PublishedRouteRecord, RouteCommitment,
+    RouteError, RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
+    RouteMaterializationInput, RouteSelectionError, RoutingTickContext, RoutingTickOutcome,
 };
 use jacquard_traits::{CommitteeCoordinatedEngine, RoutingEngine};
 
@@ -62,10 +61,7 @@ where
         self.route_commitments_inner(route)
     }
 
-    fn engine_tick(
-        &mut self,
-        tick: &RoutingTickContext,
-    ) -> Result<RoutingTickOutcome, RouteError> {
+    fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
         self.engine_tick_inner(tick)
     }
 
@@ -123,9 +119,7 @@ where
         let Some(latest_topology) = self.latest_topology.clone() else {
             return Ok(jacquard_core::RouteMaintenanceResult {
                 event: jacquard_core::RouteLifecycleEvent::Replaced,
-                outcome: jacquard_core::RouteMaintenanceOutcome::ReplacementRequired {
-                    trigger,
-                },
+                outcome: jacquard_core::RouteMaintenanceOutcome::ReplacementRequired { trigger },
             });
         };
 
@@ -181,8 +175,7 @@ where
     }
 }
 
-impl<Topology, Transport, Retention, Effects, Hasher, Selector>
-    CommitteeCoordinatedEngine
+impl<Topology, Transport, Retention, Effects, Hasher, Selector> CommitteeCoordinatedEngine
     for PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
     Selector: PathwaySelectorBounds,

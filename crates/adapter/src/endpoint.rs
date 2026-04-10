@@ -27,8 +27,7 @@ mod tests {
 
     #[test]
     fn opaque_endpoint_preserves_transport_kind_and_mtu() {
-        let endpoint =
-            opaque_endpoint(TransportKind::WifiAware, [1_u8, 2, 3], ByteCount(128));
+        let endpoint = opaque_endpoint(TransportKind::WifiAware, [1_u8, 2, 3], ByteCount(128));
 
         assert_eq!(endpoint.transport_kind, TransportKind::WifiAware);
         assert_eq!(endpoint.mtu_bytes, ByteCount(128));

@@ -13,8 +13,8 @@
 //! this crate stays endpoint-agnostic.
 
 use jacquard_core::{
-    ControllerId, DiscoveryScopeId, LinkEndpoint, Node, NodeId, RoutingEngineId,
-    ServiceScope, Tick, TimeWindow,
+    ControllerId, DiscoveryScopeId, LinkEndpoint, Node, NodeId, RoutingEngineId, ServiceScope,
+    Tick, TimeWindow,
 };
 
 use crate::{NodeStateSnapshot, SimulatedNodeProfile};
@@ -48,7 +48,10 @@ pub struct NodeIdentity {
 impl NodeIdentity {
     #[must_use]
     pub fn new(node_id: NodeId, controller_id: ControllerId) -> Self {
-        Self { node_id, controller_id }
+        Self {
+            node_id,
+            controller_id,
+        }
     }
 }
 
@@ -62,12 +65,12 @@ pub struct NodePresetOptions {
 
 impl NodePresetOptions {
     #[must_use]
-    pub fn new(
-        identity: NodeIdentity,
-        endpoint: LinkEndpoint,
-        observed_at_tick: Tick,
-    ) -> Self {
-        Self { identity, endpoint, observed_at_tick }
+    pub fn new(identity: NodeIdentity, endpoint: LinkEndpoint, observed_at_tick: Tick) -> Self {
+        Self {
+            identity,
+            endpoint,
+            observed_at_tick,
+        }
     }
 }
 
@@ -85,10 +88,13 @@ impl NodePreset {
         options: NodePresetOptions,
         routing_engines: &[RoutingEngineId],
     ) -> Self {
-        let NodePresetOptions { identity, endpoint, observed_at_tick } = options;
+        let NodePresetOptions {
+            identity,
+            endpoint,
+            observed_at_tick,
+        } = options;
         let valid_for = default_route_service_window(observed_at_tick);
-        let scope =
-            ServiceScope::Discovery(DiscoveryScopeId(DEFAULT_ROUTE_SERVICE_SCOPE_ID));
+        let scope = ServiceScope::Discovery(DiscoveryScopeId(DEFAULT_ROUTE_SERVICE_SCOPE_ID));
         let profile = SimulatedNodeProfile::route_capable_for_engines(
             &endpoint,
             routing_engines,
@@ -97,14 +103,15 @@ impl NodePreset {
             observed_at_tick,
         );
         let state = NodeStateSnapshot::route_capable(observed_at_tick);
-        Self { identity, profile, state }
+        Self {
+            identity,
+            profile,
+            state,
+        }
     }
 
     #[must_use]
-    pub fn route_capable(
-        options: NodePresetOptions,
-        routing_engine: &RoutingEngineId,
-    ) -> Self {
+    pub fn route_capable(options: NodePresetOptions, routing_engine: &RoutingEngineId) -> Self {
         Self::route_capable_for_engines(options, std::slice::from_ref(routing_engine))
     }
 
@@ -121,11 +128,7 @@ impl NodePreset {
     }
 
     #[must_use]
-    pub fn with_identity(
-        mut self,
-        node_id: NodeId,
-        controller_id: ControllerId,
-    ) -> Self {
+    pub fn with_identity(mut self, node_id: NodeId, controller_id: ControllerId) -> Self {
         self.identity = NodeIdentity::new(node_id, controller_id);
         self
     }
@@ -143,9 +146,7 @@ impl NodePreset {
 #[cfg(test)]
 mod tests {
     use jacquard_adapter::opaque_endpoint;
-    use jacquard_core::{
-        ByteCount, LinkEndpoint, NodeId, RoutingEngineId, Tick, TransportKind,
-    };
+    use jacquard_core::{ByteCount, LinkEndpoint, NodeId, RoutingEngineId, Tick, TransportKind};
 
     use super::*;
 
@@ -190,8 +191,7 @@ mod tests {
     #[test]
     fn endpoint_first_route_capable_uses_supplied_endpoint() {
         let routing_engine = RoutingEngineId::from_contract_bytes(*b"reference-mem-01");
-        let endpoint =
-            opaque_endpoint(TransportKind::WifiAware, vec![9, 8, 7], ByteCount(512));
+        let endpoint = opaque_endpoint(TransportKind::WifiAware, vec![9, 8, 7], ByteCount(512));
         let node = NodePreset::route_capable(
             NodePresetOptions::new(
                 NodeIdentity::new(NodeId([3; 32]), ControllerId([3; 32])),

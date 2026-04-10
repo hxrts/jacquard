@@ -17,12 +17,12 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, ConnectivityPosture, Environment, HoldItemCount,
-        MaintenanceWorkBudget, NodeId, Observation, RelayWorkBudget, RouteCommitment,
-        RouteError, RouteId, RouteMaintenanceResult, RouteMaintenanceTrigger,
-        RouteProtectionClass, RouteRuntimeState, RoutingEngineCapabilities,
-        RoutingEngineId, RoutingObjective, RoutingPolicyInputs, RoutingTickContext,
-        RoutingTickOutcome, SelectedRoutingParameters, Tick, TransportObservation,
+        Configuration, ConnectivityPosture, Environment, HoldItemCount, MaintenanceWorkBudget,
+        NodeId, Observation, RelayWorkBudget, RouteCommitment, RouteError, RouteId,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RouteProtectionClass, RouteRuntimeState,
+        RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, RoutingPolicyInputs,
+        RoutingTickContext, RoutingTickOutcome, SelectedRoutingParameters, Tick,
+        TransportObservation,
     },
     RouterEngineRegistry, RouterManagedEngine, RoutingEngine, RoutingEnginePlanner,
     RoutingMiddleware,
@@ -55,13 +55,11 @@ impl RoutingEnginePlanner for StubManagedEngine {
             max_protection: RouteProtectionClass::LinkProtected,
             max_connectivity: ConnectivityPosture {
                 repair: jacquard_traits::jacquard_core::RouteRepairClass::BestEffort,
-                partition:
-                    jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
+                partition: jacquard_traits::jacquard_core::RoutePartitionClass::ConnectedOnly,
             },
             repair_support: jacquard_traits::jacquard_core::RepairSupport::Unsupported,
             hold_support: jacquard_traits::jacquard_core::HoldSupport::Unsupported,
-            decidable_admission:
-                jacquard_traits::jacquard_core::DecidableSupport::Supported,
+            decidable_admission: jacquard_traits::jacquard_core::DecidableSupport::Supported,
             quantitative_bounds:
                 jacquard_traits::jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support:
@@ -116,15 +114,11 @@ impl RoutingEngine for StubManagedEngine {
         Vec::new()
     }
 
-    fn engine_tick(
-        &mut self,
-        tick: &RoutingTickContext,
-    ) -> Result<RoutingTickOutcome, RouteError> {
+    fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,
             change: jacquard_traits::jacquard_core::RoutingTickChange::NoChange,
-            next_tick_hint:
-                jacquard_traits::jacquard_core::RoutingTickHint::HostDefault,
+            next_tick_hint: jacquard_traits::jacquard_core::RoutingTickHint::HostDefault,
         })
     }
 
@@ -294,8 +288,7 @@ fn sample_topology() -> Observation<Configuration> {
             },
         },
         source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-        evidence_class:
-            jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+        evidence_class: jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
         origin_authentication:
             jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
         observed_at_tick: Tick(1),
@@ -312,8 +305,7 @@ fn sample_policy_inputs() -> RoutingPolicyInputs {
                 contention_permille: jacquard_traits::jacquard_core::RatioPermille(50),
             },
             source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-            evidence_class:
-                jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+            evidence_class: jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
             origin_authentication:
                 jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
             observed_at_tick: Tick(1),
@@ -323,8 +315,7 @@ fn sample_policy_inputs() -> RoutingPolicyInputs {
         loss_permille: jacquard_traits::jacquard_core::RatioPermille(50),
         partition_risk_permille: jacquard_traits::jacquard_core::RatioPermille(25),
         adversary_pressure_permille: jacquard_traits::jacquard_core::RatioPermille(25),
-        identity_assurance:
-            jacquard_traits::jacquard_core::IdentityAssuranceClass::ControllerBound,
+        identity_assurance: jacquard_traits::jacquard_core::IdentityAssuranceClass::ControllerBound,
         direct_reachability_score: jacquard_traits::jacquard_core::HealthScore(900),
     }
 }
@@ -347,16 +338,13 @@ fn sample_node_observation() -> Observation<jacquard_traits::jacquard_core::Node
             },
             state: jacquard_traits::jacquard_core::NodeState {
                 relay_budget: jacquard_traits::jacquard_core::Belief::Absent,
-                available_connection_count:
-                    jacquard_traits::jacquard_core::Belief::Absent,
-                hold_capacity_available_bytes:
-                    jacquard_traits::jacquard_core::Belief::Absent,
+                available_connection_count: jacquard_traits::jacquard_core::Belief::Absent,
+                hold_capacity_available_bytes: jacquard_traits::jacquard_core::Belief::Absent,
                 information_summary: jacquard_traits::jacquard_core::Belief::Absent,
             },
         },
         source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-        evidence_class:
-            jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+        evidence_class: jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
         origin_authentication:
             jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
         observed_at_tick: Tick(1),

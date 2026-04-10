@@ -49,8 +49,8 @@ tell! {
 }
 
 use RouteExportExchange::sessions::{
-    ExportRoute, Exporter, ExporterSession, Ignored, Neighbor, NeighborSession,
-    Observer, ObserverChoice1, ObserverSession, Published, Roles,
+    ExportRoute, Exporter, ExporterSession, Ignored, Neighbor, NeighborSession, Observer,
+    ObserverChoice1, ObserverSession, Published, Roles,
 };
 
 pub(crate) fn execute<E>(
@@ -118,10 +118,8 @@ async fn neighbor_role(role: &mut Neighbor, partitioned: bool) -> ProtocolResult
 async fn observer_role(role: &mut Observer) -> ProtocolResult<&'static str> {
     try_session(role, |s: ObserverSession<'_, _>| async {
         match s.branch().await? {
-            | ObserverChoice1::Published(Published { .. }, end) => {
-                Ok(("exported", end))
-            },
-            | ObserverChoice1::Ignored(Ignored { .. }, end) => Ok(("ignored", end)),
+            ObserverChoice1::Published(Published { .. }, end) => Ok(("exported", end)),
+            ObserverChoice1::Ignored(Ignored { .. }, end) => Ok(("ignored", end)),
         }
     })
     .await

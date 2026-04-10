@@ -1,7 +1,5 @@
 use jacquard_core::{DegradationReason, RouteDegradation, RouteEvent};
-use jacquard_simulator::{
-    presets, EnvironmentHook, JacquardSimulator, ReferenceClientAdapter,
-};
+use jacquard_simulator::{presets, EnvironmentHook, JacquardSimulator, ReferenceClientAdapter};
 use jacquard_traits::{RoutingScenario, RoutingSimulator};
 
 #[test]
@@ -19,10 +17,7 @@ fn churn_regression_emits_environment_artifacts_and_route_progress() {
         .rounds
         .iter()
         .flat_map(|round| round.environment_artifacts.iter())
-        .any(|artifact| matches!(
-            artifact.hook,
-            EnvironmentHook::MobilityRelink { .. }
-        )));
+        .any(|artifact| matches!(artifact.hook, EnvironmentHook::MobilityRelink { .. })));
     assert!(stats.route_event_count > 0);
 }
 
@@ -59,9 +54,7 @@ fn deferred_delivery_regression_surfaces_degraded_partition_tolerant_route_event
             proof: jacquard_core::RouteMaterializationProof {
                 witness: jacquard_core::Fact {
                     value: jacquard_core::RouteWitness {
-                        degradation: RouteDegradation::Degraded(
-                            DegradationReason::LinkInstability
-                        ),
+                        degradation: RouteDegradation::Degraded(DegradationReason::LinkInstability),
                         ..
                     },
                     ..
@@ -88,10 +81,7 @@ fn adversarial_relay_regression_survives_heavy_contention_inputs() {
         .rounds
         .iter()
         .flat_map(|round| round.environment_artifacts.iter())
-        .any(|artifact| matches!(
-            artifact.hook,
-            EnvironmentHook::MediumDegradation { .. }
-        )));
+        .any(|artifact| matches!(artifact.hook, EnvironmentHook::MediumDegradation { .. })));
 }
 
 #[test]

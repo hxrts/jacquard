@@ -114,7 +114,10 @@ impl TimeWindow {
             return Err(TimeWindowError::EndNotAfterStart);
         }
 
-        Ok(Self { start_tick, end_tick })
+        Ok(Self {
+            start_tick,
+            end_tick,
+        })
     }
 
     #[must_use]

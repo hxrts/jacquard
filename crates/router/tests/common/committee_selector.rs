@@ -14,9 +14,9 @@
 //! integration tests in `router_fail_closed`.
 
 use jacquard_core::{
-    ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
-    Configuration, ControllerId, FactBasis, IdentityAssuranceClass, Observation,
-    QuorumThreshold, RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
+    ClaimStrength, CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection, Configuration,
+    ControllerId, FactBasis, IdentityAssuranceClass, Observation, QuorumThreshold,
+    RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
 };
 use jacquard_traits::CommitteeSelector;
 

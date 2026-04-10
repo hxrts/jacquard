@@ -35,9 +35,10 @@ impl SimulatedServiceDescriptor {
             service_kind,
             endpoints: Vec::new(),
             routing_engines: Vec::new(),
-            scope: ServiceScope::Introduction { scope_token: vec![1] },
-            valid_for: TimeWindow::new(Tick(0), Tick(64))
-                .expect("valid default service window"),
+            scope: ServiceScope::Introduction {
+                scope_token: vec![1],
+            },
+            valid_for: TimeWindow::new(Tick(0), Tick(64)).expect("valid default service window"),
             saturation_permille: RatioPermille(100),
             repair_capacity: 0,
             hold_capacity_bytes: None,
@@ -159,17 +160,12 @@ impl SimulatedServiceDescriptor {
     }
 
     #[must_use]
-    pub fn build(
-        self,
-        node_id: NodeId,
-        controller_id: ControllerId,
-    ) -> ServiceDescriptor {
+    pub fn build(self, node_id: NodeId, controller_id: ControllerId) -> ServiceDescriptor {
         let capacity_hint = self.capacity_hint();
-        let mut builder =
-            ServiceDescriptorBuilder::new(node_id, controller_id, self.service_kind)
-                .with_scope(self.scope)
-                .with_valid_for(self.valid_for)
-                .with_capacity(capacity_hint, self.observed_at_tick);
+        let mut builder = ServiceDescriptorBuilder::new(node_id, controller_id, self.service_kind)
+            .with_scope(self.scope)
+            .with_valid_for(self.valid_for)
+            .with_capacity(capacity_hint, self.observed_at_tick);
         for endpoint in self.endpoints {
             builder = builder.with_endpoint(endpoint);
         }
@@ -182,14 +178,13 @@ impl SimulatedServiceDescriptor {
 
 impl SimulatedServiceDescriptor {
     fn capacity_hint(&self) -> CapacityHint {
-        let mut capacity = CapacityHint::new(self.saturation_permille)
-            .with_repair_capacity_slots(
-                RepairCapacitySlots(self.repair_capacity),
-                self.observed_at_tick,
-            );
+        let mut capacity = CapacityHint::new(self.saturation_permille).with_repair_capacity_slots(
+            RepairCapacitySlots(self.repair_capacity),
+            self.observed_at_tick,
+        );
         if let Some(hold_capacity_bytes) = self.hold_capacity_bytes {
-            capacity = capacity
-                .with_hold_capacity_bytes(hold_capacity_bytes, self.observed_at_tick);
+            capacity =
+                capacity.with_hold_capacity_bytes(hold_capacity_bytes, self.observed_at_tick);
         }
         capacity
     }

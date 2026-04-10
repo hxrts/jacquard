@@ -62,15 +62,13 @@ mod retention;
 mod state;
 mod transport;
 
-pub use authoring::{
-    LinkPreset, LinkPresetOptions, DEFAULT_REFERENCE_TRANSFER_RATE_BYTES_PER_SEC,
-};
+pub use authoring::{LinkPreset, LinkPresetOptions, DEFAULT_REFERENCE_TRANSFER_RATE_BYTES_PER_SEC};
 pub use effect::InMemoryRuntimeEffects;
 pub use network::SharedInMemoryNetwork;
 pub use retention::InMemoryRetentionStore;
 pub use state::{
     SimulatedLinkProfile, DEFAULT_DELIVERY_CONFIDENCE_PERMILLE, DEFAULT_LOSS_PERMILLE,
-    DEFAULT_STABILITY_HORIZON_MS, DEFAULT_SYMMETRY_PERMILLE,
-    REFERENCE_LATENCY_FLOOR_MS, REFERENCE_TYPICAL_RTT_MS,
+    DEFAULT_STABILITY_HORIZON_MS, DEFAULT_SYMMETRY_PERMILLE, REFERENCE_LATENCY_FLOOR_MS,
+    REFERENCE_TYPICAL_RTT_MS,
 };
 pub use transport::InMemoryTransport;

@@ -25,9 +25,48 @@ namespace FieldInformationAPI
 open FieldModelAPI
 open EntropyAPI
 
+/-- Explicit probability-simplex style belief object over the reduced field
+hypothesis space. This keeps the richer probabilistic semantics visible at the
+API boundary instead of burying them inside one concrete normalization
+formula. -/
+structure ProbabilitySimplexBelief where
+  distribution : Distribution FieldHypothesis
+
+namespace ProbabilitySimplexBelief
+
+def pmf (belief : ProbabilitySimplexBelief) : FieldHypothesis → ℝ :=
+  belief.distribution.pmf
+
+theorem nonneg
+    (belief : ProbabilitySimplexBelief)
+    (hypothesis : FieldHypothesis) :
+    0 ≤ belief.pmf hypothesis :=
+  belief.distribution.nonneg hypothesis
+
+theorem sum_one (belief : ProbabilitySimplexBelief) :
+    ∑ h, belief.pmf h = 1 :=
+  belief.distribution.sum_one
+
+end ProbabilitySimplexBelief
+
+/-- The simplex belief must agree with the finite weight object, including the
+zero-mass fallback to `unknown`. -/
+abbrev SimplexMatchesFiniteBelief
+    (finite : FiniteBelief)
+    (simplex : ProbabilitySimplexBelief) : Prop :=
+  (finite.totalWeight = 0 →
+      simplex.pmf FieldHypothesis.unknown = 1 ∧
+        simplex.pmf FieldHypothesis.unreachable = 0 ∧
+        simplex.pmf FieldHypothesis.corridor = 0 ∧
+        simplex.pmf FieldHypothesis.explicitPath = 0) ∧
+    (finite.totalWeight ≠ 0 →
+      ∀ hypothesis,
+        simplex.pmf hypothesis =
+          (finite.weight hypothesis : ℝ) / (finite.totalWeight : ℝ))
+
 /-- Information-facing abstraction of the bounded finite belief object. -/
 class Model where
-  normalizeBelief : FiniteBelief → Distribution FieldHypothesis
+  simplexBelief : FiniteBelief → ProbabilitySimplexBelief
   shannonUncertainty : FiniteBelief → ℝ
   explicitPathMass : FiniteBelief → ℝ
   corridorCapableMass : FiniteBelief → ℝ
@@ -36,8 +75,11 @@ section Wrappers
 
 variable [Model]
 
+def simplexBelief (belief : FiniteBelief) : ProbabilitySimplexBelief :=
+  Model.simplexBelief belief
+
 def normalizeBelief (belief : FiniteBelief) : Distribution FieldHypothesis :=
-  Model.normalizeBelief belief
+  (simplexBelief belief).distribution
 
 def shannonUncertainty (belief : FiniteBelief) : ℝ :=
   Model.shannonUncertainty belief
@@ -55,15 +97,15 @@ hypothesis. -/
 abbrev ExplicitPathMassMatches (M : Model) : Prop :=
   ∀ belief,
     @Model.explicitPathMass M belief =
-      (@Model.normalizeBelief M belief).pmf FieldHypothesis.explicitPath
+      ((@Model.simplexBelief M belief).distribution).pmf FieldHypothesis.explicitPath
 
 /-- The corridor-capable mass is the sum of normalized corridor and
 explicit-path masses. -/
 abbrev CorridorCapableMassMatches (M : Model) : Prop :=
   ∀ belief,
     @Model.corridorCapableMass M belief =
-      (@Model.normalizeBelief M belief).pmf FieldHypothesis.corridor +
-        (@Model.normalizeBelief M belief).pmf FieldHypothesis.explicitPath
+      ((@Model.simplexBelief M belief).distribution).pmf FieldHypothesis.corridor +
+        ((@Model.simplexBelief M belief).distribution).pmf FieldHypothesis.explicitPath
 
 /-- Shannon uncertainty is nonnegative on every normalized field belief. -/
 abbrev ShannonUncertaintyNonneg (M : Model) : Prop :=
@@ -76,6 +118,8 @@ abbrev ExplicitPathMassBounded (M : Model) : Prop :=
       @Model.explicitPathMass M belief ≤ @Model.corridorCapableMass M belief
 
 class Laws extends Model where
+  simplex_matches_finite_belief :
+    ∀ belief, SimplexMatchesFiniteBelief belief (toModel.simplexBelief belief)
   explicit_path_mass_matches : ExplicitPathMassMatches toModel
   corridor_capable_mass_matches : CorridorCapableMassMatches toModel
   shannon_uncertainty_nonneg : ShannonUncertaintyNonneg toModel
@@ -110,6 +154,11 @@ theorem explicit_path_mass_bounded
     0 ≤ explicitPathMass belief ∧
       explicitPathMass belief ≤ corridorCapableMass belief :=
   Laws.explicit_path_mass_bounded belief
+
+theorem simplex_matches_finite_belief
+    (belief : FiniteBelief) :
+    SimplexMatchesFiniteBelief belief (simplexBelief belief) :=
+  Laws.simplex_matches_finite_belief belief
 
 end LawWrappers
 

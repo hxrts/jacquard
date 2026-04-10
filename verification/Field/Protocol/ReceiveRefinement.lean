@@ -37,6 +37,13 @@ def SubtypeReplacementShape (receive : RefinedReceive) : Prop :=
   refinedReceiveLabel receive = SummaryLabel.summaryDelta ∨
     refinedReceiveLabel receive = SummaryLabel.antiEntropyAck
 
+structure SubtypeReplacementWitness where
+  refined : RefinedReceive
+  baseLabel : SummaryLabel
+  baseInput : MachineInput
+  labelMatches : refinedReceiveLabel refined = baseLabel
+  inputMatches : refinedReceiveInput refined = baseInput
+
 theorem refined_receive_has_existing_label
     (receive : RefinedReceive) :
     SubtypeReplacementShape receive := by
@@ -48,6 +55,24 @@ theorem refined_receive_respects_existing_projection_surface
       refinedReceiveInput receive = MachineInput.receiveAck := by
   cases receive <;> simp [refinedReceiveInput]
 
+theorem subtype_replacement_style_receive_refinement
+    (receive : RefinedReceive) :
+    refinedReceiveInput receive = MachineInput.receiveSummary ∨
+      refinedReceiveInput receive = MachineInput.receiveAck := by
+  exact refined_receive_respects_existing_projection_surface receive
+
+theorem refined_receive_has_subtype_replacement_witness
+    (receive : RefinedReceive) :
+    ∃ witness : SubtypeReplacementWitness,
+      witness.refined = receive := by
+  cases receive with
+  | summaryDelta summaryCount =>
+      refine ⟨SubtypeReplacementWitness.mk (.summaryDelta summaryCount)
+        SummaryLabel.summaryDelta MachineInput.receiveSummary rfl rfl, rfl⟩
+  | antiEntropyAck remainingBudget =>
+      refine ⟨SubtypeReplacementWitness.mk (.antiEntropyAck remainingBudget)
+        SummaryLabel.antiEntropyAck MachineInput.receiveAck rfl rfl, rfl⟩
+
 theorem refined_receive_preserves_observational_boundary
     (receive : RefinedReceive)
     (snapshot : MachineSnapshot) :
@@ -58,5 +83,22 @@ theorem refined_receive_preserves_observational_boundary
   exact FieldBoundary.all_controller_evidence_from_snapshot_stays_observational
     (snapshot := FieldProtocolAPI.advanceMachine (refinedReceiveInput receive) snapshot)
     evidence hEvidence
+
+theorem subtype_replacement_witness_preserves_observational_boundary
+    (receive : RefinedReceive)
+    (snapshot : MachineSnapshot) :
+    ∀ witness : SubtypeReplacementWitness,
+      witness.refined = receive →
+        ∀ evidence ∈ controllerEvidenceFromSnapshot
+            (FieldProtocolAPI.advanceMachine witness.baseInput snapshot),
+          evidence.reachability = ReachabilitySignal.unknown ∨
+            evidence.reachability = ReachabilitySignal.corridorOnly := by
+  intro witness hWitness evidence hEvidence
+  subst hWitness
+  have hEvidence' :
+      evidence ∈ controllerEvidenceFromSnapshot
+        (FieldProtocolAPI.advanceMachine (refinedReceiveInput witness.refined) snapshot) := by
+    simpa [witness.inputMatches] using hEvidence
+  exact refined_receive_preserves_observational_boundary witness.refined snapshot evidence hEvidence'
 
 end FieldProtocolReceiveRefinement

@@ -1,0 +1,214 @@
+[workspace]
+crate_roots = ["crates"]
+exclude_crates = ["xtask"]
+
+[checks.proc_macro_scope]
+enabled = true
+include_paths = ["crates"]
+required_markers = [
+  "#[effect_trait",
+  "#[effect_handler",
+  "#[id_type",
+  "#[bounded_value",
+  "#[must_use_handle",
+  "#[public_model",
+  "#[purity",
+  "#[jacquard_traits::purity",
+  "tell! {",
+]
+exclude_files = [
+  "crates/adapter/src/lib.rs",
+  "crates/core/src/lib.rs",
+  "crates/core/src/base/mod.rs",
+  "crates/core/src/base/constants.rs",
+  "crates/core/src/model/mod.rs",
+  "crates/core/src/routing/mod.rs",
+  "crates/macros/src/lib.rs",
+  "crates/macros/src/model/bounded_value.rs",
+  "crates/macros/src/model/id_type.rs",
+  "crates/macros/src/model/mod.rs",
+  "crates/macros/src/model/must_use_handle.rs",
+  "crates/macros/src/model/public_model.rs",
+  "crates/macros/src/support/attrs.rs",
+  "crates/macros/src/support/derives.rs",
+  "crates/macros/src/support/mod.rs",
+  "crates/macros/src/support/parsing.rs",
+  "crates/macros/src/support/validation.rs",
+  "crates/traits/src/hashing.rs",
+  "crates/traits/src/lib.rs",
+  "crates/traits/src/routing.rs",
+  "crates/pathway/src/committee/mod.rs",
+  "crates/pathway/src/committee/selection.rs",
+  "crates/pathway/src/choreography/artifacts.rs",
+  "crates/pathway/src/choreography/mod.rs",
+  "crates/pathway/src/engine/mod.rs",
+  "crates/pathway/src/engine/planner/admission.rs",
+  "crates/pathway/src/engine/planner/candidates.rs",
+  "crates/pathway/src/engine/planner/mod.rs",
+  "crates/pathway/src/engine/planner/pathing.rs",
+  "crates/pathway/src/engine/planner/publishing.rs",
+  "crates/pathway/src/engine/planner/scoring.rs",
+  "crates/pathway/src/engine/runtime/health.rs",
+  "crates/pathway/src/engine/runtime/materialization.rs",
+  "crates/pathway/src/engine/runtime/maintenance.rs",
+  "crates/pathway/src/engine/runtime/mod.rs",
+  "crates/pathway/src/engine/runtime/tick.rs",
+  "crates/pathway/src/engine/support.rs",
+  "crates/pathway/src/engine/trait_bounds.rs",
+  "crates/pathway/src/engine/types.rs",
+  "crates/pathway/src/lib.rs",
+  "crates/pathway/src/topology.rs",
+  "crates/mem-link-profile/src/authoring.rs",
+  "crates/mem-link-profile/src/effect.rs",
+  "crates/mem-link-profile/src/lib.rs",
+  "crates/mem-link-profile/src/network.rs",
+  "crates/mem-link-profile/src/retention.rs",
+  "crates/mem-link-profile/src/state.rs",
+  "crates/mem-link-profile/src/transport.rs",
+  "crates/mem-node-profile/src/authoring.rs",
+  "crates/mem-node-profile/src/lib.rs",
+  "crates/mem-node-profile/src/profile.rs",
+  "crates/mem-node-profile/src/service.rs",
+  "crates/mem-node-profile/src/state.rs",
+  "crates/batman/src/lib.rs",
+  "crates/batman/src/gossip.rs",
+  "crates/batman/src/planner.rs",
+  "crates/batman/src/private_state.rs",
+  "crates/batman/src/public_state.rs",
+  "crates/batman/src/runtime.rs",
+  "crates/batman/src/scoring.rs",
+  "crates/field/src/engine.rs",
+  "crates/field/src/lib.rs",
+  "crates/field/src/planner.rs",
+  "crates/field/src/runtime.rs",
+  "crates/field/src/summary.rs",
+  "crates/field/src/choreography.rs",
+  "crates/field/src/control.rs",
+  "crates/field/src/state.rs",
+  "crates/field/src/observer.rs",
+  "crates/field/src/attractor.rs",
+  "crates/field/src/route.rs",
+  "crates/reference-client/src/clients.rs",
+  "crates/reference-client/src/bridge.rs",
+  "crates/reference-client/src/lib.rs",
+  "crates/reference-client/src/topology.rs",
+  "crates/adapter/src/endpoint.rs",
+  "crates/adapter/src/topology.rs",
+  "crates/router/src/lib.rs",
+  "crates/router/src/middleware.rs",
+  "crates/router/src/runtime.rs",
+  "crates/field-client/src/client.rs",
+  "crates/field-client/src/lib.rs",
+  "crates/field-client/src/topology.rs",
+  "crates/simulator/src/environment.rs",
+  "crates/simulator/src/harness.rs",
+  "crates/simulator/src/lib.rs",
+  "crates/simulator/src/presets.rs",
+  "crates/simulator/src/replay.rs",
+  "crates/simulator/src/scenario.rs",
+]
+
+[checks.result_must_use]
+enabled = true
+include_paths = ["crates/traits/src"]
+
+[checks.test_boundaries]
+enabled = true
+scan_roots = ["crates"]
+exclude_path_parts = [
+  "/target/",
+  "/tests/",
+  "/benches/",
+  "/examples/",
+]
+
+[checks.docs_link_check]
+enabled = true
+docs_roots = ["docs"]
+scratch_dir_prefix = "work/"
+
+[checks.docs_semantic_drift]
+enabled = true
+docs_roots = ["docs", "crates", "scripts", ".github"]
+manifest_path = "Cargo.toml"
+planned_crates = [
+  "jacquard-pathway",
+  "jacquard-router",
+  "jacquard-transport",
+  "jacquard-simulator",
+]
+
+[checks.crate_root_policy]
+enabled = true
+required_attributes = [
+  "#![forbid(unsafe_code)]",
+]
+
+[checks.ignored_result]
+enabled = true
+include_paths = ["crates"]
+allowed_comment_markers = ["allow-ignored-result:", "intentionally ignore result"]
+
+[checks.unsafe_boundary]
+enabled = true
+include_paths = ["crates"]
+allowed_path_parts = ["/raw/", "/ffi/", "/sys/"]
+required_comment_markers = ["Safety:"]
+
+[checks.bool_param]
+enabled = true
+include_paths = ["crates"]
+
+[checks.must_use_public_return]
+enabled = true
+include_paths = ["crates"]
+
+[checks.assert_shape]
+enabled = true
+include_paths = ["crates"]
+
+[checks.drop_side_effects]
+enabled = true
+include_paths = ["crates"]
+allow_comment_marker = "drop-side-effects-exception:"
+
+[checks.recursion_guard]
+enabled = true
+include_paths = ["crates"]
+allow_comment_marker = "recursion-exception:"
+
+[checks.naming_units]
+enabled = true
+include_paths = ["crates"]
+
+[checks.limit_constant]
+enabled = true
+include_paths = ["crates"]
+allow_comment_marker = "limit-constant-exception:"
+
+[checks.public_type_width]
+enabled = true
+include_paths = ["crates"]
+banned_types = ["usize", "isize", "f32", "f64"]
+
+[checks.dependency_policy]
+enabled = true
+manifest_roots = ["crates"]
+require_default_features_false = ["serde", "tokio", "futures"]
+banned_dependencies = []
+
+[policy.exemptions]
+bare_primitives_exempt_paths = [
+  "crates/mem-link-profile/src/",
+  "crates/reference-client/src/",
+  "/tests/",
+  "/benches/",
+]
+
+[[policy.exemptions.style_guide]]
+symbol = "jacquard_pathway::routing_invariants::run"
+reason = "long-block-exception: rule coordination workflow"
+
+[[policy.exemptions.ownership_permits]]
+name = "mem-link-profile-test-only"
+reason = "test infrastructure crate; mirrors reference-client"

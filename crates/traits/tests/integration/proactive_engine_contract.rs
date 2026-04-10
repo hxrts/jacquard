@@ -19,17 +19,15 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId,
-        BackendRouteRef, Belief, ByteCount, Configuration, ConnectivityPosture,
-        ConnectivityRegime, DestinationId, Estimate, FailureModelClass,
-        MessageFlowAssumptionClass, NodeDensityClass, NodeId, ObjectiveVsDelivered,
-        Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost,
-        RouteDegradation, RouteEpoch, RouteEstimate, RouteMaintenanceOutcome,
-        RouteMaintenanceResult, RouteMaintenanceTrigger, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteRuntimeState,
-        RouteShapeVisibility, RouteSummary, RouteWitness, RoutingEngineCapabilities,
-        RoutingEngineId, RoutingObjective, RoutingTickChange, RoutingTickContext,
-        RoutingTickHint, RoutingTickOutcome, RuntimeEnvelopeClass,
+        AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId, BackendRouteRef,
+        Belief, ByteCount, Configuration, ConnectivityPosture, ConnectivityRegime, DestinationId,
+        Estimate, FailureModelClass, MessageFlowAssumptionClass, NodeDensityClass, NodeId,
+        ObjectiveVsDelivered, Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate,
+        RouteCost, RouteDegradation, RouteEpoch, RouteEstimate, RouteMaintenanceOutcome,
+        RouteMaintenanceResult, RouteMaintenanceTrigger, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, RouteRuntimeState, RouteShapeVisibility, RouteSummary, RouteWitness,
+        RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, RoutingTickChange,
+        RoutingTickContext, RoutingTickHint, RoutingTickOutcome, RuntimeEnvelopeClass,
         SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
     },
     RoutingEngine, RoutingEnginePlanner,
@@ -41,7 +39,9 @@ struct ProactiveContractEngine {
 
 impl ProactiveContractEngine {
     fn new() -> Self {
-        Self { table: BTreeMap::new() }
+        Self {
+            table: BTreeMap::new(),
+        }
     }
 
     fn engine_id() -> RoutingEngineId {
@@ -64,8 +64,7 @@ impl RoutingEnginePlanner for ProactiveContractEngine {
             },
             repair_support: jacquard_traits::jacquard_core::RepairSupport::Unsupported,
             hold_support: jacquard_traits::jacquard_core::HoldSupport::Unsupported,
-            decidable_admission:
-                jacquard_traits::jacquard_core::DecidableSupport::Supported,
+            decidable_admission: jacquard_traits::jacquard_core::DecidableSupport::Supported,
             quantitative_bounds:
                 jacquard_traits::jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support:
@@ -149,7 +148,8 @@ impl RoutingEnginePlanner for ProactiveContractEngine {
                     node_density_class: NodeDensityClass::Sparse,
                     connectivity_regime: ConnectivityRegime::Stable,
                     adversary_regime: AdversaryRegime::Cooperative,
-                    claim_strength: jacquard_traits::jacquard_core::ClaimStrength::ConservativeUnderProfile,
+                    claim_strength:
+                        jacquard_traits::jacquard_core::ClaimStrength::ConservativeUnderProfile,
                 },
                 productive_step_bound: jacquard_traits::jacquard_core::Limit::Bounded(1),
                 total_step_bound: jacquard_traits::jacquard_core::Limit::Bounded(1),
@@ -158,7 +158,9 @@ impl RoutingEnginePlanner for ProactiveContractEngine {
                     byte_count_max: jacquard_traits::jacquard_core::Limit::Bounded(ByteCount(64)),
                     hop_count: 2,
                     repair_attempt_count_max: jacquard_traits::jacquard_core::Limit::Bounded(0),
-                    hold_bytes_reserved: jacquard_traits::jacquard_core::Limit::Bounded(ByteCount(0)),
+                    hold_bytes_reserved: jacquard_traits::jacquard_core::Limit::Bounded(ByteCount(
+                        0,
+                    )),
                     work_step_count_max: jacquard_traits::jacquard_core::Limit::Bounded(1),
                 },
             },
@@ -179,7 +181,8 @@ impl RoutingEnginePlanner for ProactiveContractEngine {
                     node_density_class: NodeDensityClass::Sparse,
                     connectivity_regime: ConnectivityRegime::Stable,
                     adversary_regime: AdversaryRegime::Cooperative,
-                    claim_strength: jacquard_traits::jacquard_core::ClaimStrength::ConservativeUnderProfile,
+                    claim_strength:
+                        jacquard_traits::jacquard_core::ClaimStrength::ConservativeUnderProfile,
                 },
                 topology_epoch: RouteEpoch(1),
                 degradation: RouteDegradation::None,
@@ -241,8 +244,7 @@ impl RoutingEngine for ProactiveContractEngine {
         _identity: &jacquard_traits::jacquard_core::PublishedRouteRecord,
         _runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
-    ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError>
-    {
+    ) -> Result<RouteMaintenanceResult, jacquard_traits::jacquard_core::RouteError> {
         Ok(RouteMaintenanceResult {
             event: jacquard_traits::jacquard_core::RouteLifecycleEvent::Activated,
             outcome: RouteMaintenanceOutcome::Continued,
@@ -297,12 +299,11 @@ mod common {
     use std::collections::BTreeMap;
 
     use jacquard_traits::jacquard_core::{
-        Configuration, ConnectivityPosture, ControllerId, Environment, Link,
-        LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState, Node, NodeProfile,
-        NodeState, Observation, OriginAuthenticationClass, RatioPermille,
-        RepairCapability, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
-        RouteRepairClass, RouteServiceKind, RoutingEvidenceClass, RoutingObjective,
-        SelectedRoutingParameters, Tick, TransportKind,
+        Configuration, ConnectivityPosture, ControllerId, Environment, Link, LinkEndpoint,
+        LinkProfile, LinkRuntimeState, LinkState, Node, NodeProfile, NodeState, Observation,
+        OriginAuthenticationClass, RatioPermille, RepairCapability, RouteEpoch,
+        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
+        RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick, TransportKind,
     };
 
     pub(super) fn sample_configuration() -> Observation<Configuration> {
@@ -341,8 +342,7 @@ mod common {
                 repair: RouteRepairClass::Repairable,
                 partition: RoutePartitionClass::ConnectedOnly,
             },
-            hold_fallback_policy:
-                jacquard_traits::jacquard_core::HoldFallbackPolicy::Forbidden,
+            hold_fallback_policy: jacquard_traits::jacquard_core::HoldFallbackPolicy::Forbidden,
             latency_budget_ms: jacquard_traits::jacquard_core::Limit::Bounded(
                 jacquard_traits::jacquard_core::DurationMs(100),
             ),
@@ -358,8 +358,7 @@ mod common {
                 repair: RouteRepairClass::Repairable,
                 partition: RoutePartitionClass::ConnectedOnly,
             },
-            deployment_profile:
-                jacquard_traits::jacquard_core::OperatingMode::SparseLowPower,
+            deployment_profile: jacquard_traits::jacquard_core::OperatingMode::SparseLowPower,
             diversity_floor: jacquard_traits::jacquard_core::DiversityFloor(1),
             routing_engine_fallback_policy:
                 jacquard_traits::jacquard_core::RoutingEngineFallbackPolicy::Allowed,
@@ -386,20 +385,17 @@ mod common {
                 neighbor_state_count_max: 4,
                 simultaneous_transfer_count_max: 1,
                 active_route_count_max: 4,
-                relay_work_budget_max: jacquard_traits::jacquard_core::RelayWorkBudget(
+                relay_work_budget_max: jacquard_traits::jacquard_core::RelayWorkBudget(1),
+                maintenance_work_budget_max: jacquard_traits::jacquard_core::MaintenanceWorkBudget(
                     1,
                 ),
-                maintenance_work_budget_max:
-                    jacquard_traits::jacquard_core::MaintenanceWorkBudget(1),
                 hold_item_count_max: jacquard_traits::jacquard_core::HoldItemCount(0),
                 hold_capacity_bytes_max: jacquard_traits::jacquard_core::ByteCount(0),
             },
             state: NodeState {
                 relay_budget: jacquard_traits::jacquard_core::Belief::Absent,
-                available_connection_count:
-                    jacquard_traits::jacquard_core::Belief::Absent,
-                hold_capacity_available_bytes:
-                    jacquard_traits::jacquard_core::Belief::Absent,
+                available_connection_count: jacquard_traits::jacquard_core::Belief::Absent,
+                hold_capacity_available_bytes: jacquard_traits::jacquard_core::Belief::Absent,
                 information_summary: jacquard_traits::jacquard_core::Belief::Absent,
             },
         }
@@ -409,15 +405,14 @@ mod common {
         Link {
             endpoint: LinkEndpoint::new(
                 TransportKind::WifiAware,
-                jacquard_traits::jacquard_core::EndpointLocator::Opaque(vec![
-                    remote_byte,
-                ]),
+                jacquard_traits::jacquard_core::EndpointLocator::Opaque(vec![remote_byte]),
                 jacquard_traits::jacquard_core::ByteCount(64),
             ),
             profile: LinkProfile {
                 latency_floor_ms: jacquard_traits::jacquard_core::DurationMs(5),
                 repair_capability: RepairCapability::TransportRetransmit,
-                partition_recovery: jacquard_traits::jacquard_core::PartitionRecoveryClass::LocalReconnect,
+                partition_recovery:
+                    jacquard_traits::jacquard_core::PartitionRecoveryClass::LocalReconnect,
             },
             state: LinkState {
                 state: LinkRuntimeState::Active,

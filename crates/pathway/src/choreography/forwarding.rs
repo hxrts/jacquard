@@ -100,9 +100,8 @@ tell! {
 use ForwardingHop::{
     effects,
     sessions::{
-        Accepted, CurrentOwner, CurrentOwnerChoice1, CurrentOwnerSession, Forward,
-        NextHop, NextHopSession, Observer, ObserverChoice1, ObserverSession, Rejected,
-        Roles,
+        Accepted, CurrentOwner, CurrentOwnerChoice1, CurrentOwnerSession, Forward, NextHop,
+        NextHopSession, Observer, ObserverChoice1, ObserverSession, Rejected, Roles,
     },
 };
 
@@ -155,9 +154,9 @@ where
     fn record(&mut self, input: effects::AuditEvent) {
         let event = input.get("event").and_then(serde_json::Value::as_str);
         let detail = match event {
-            | Some("generated-forwarded") => "generated-forwarded",
-            | Some("generated-dropped") => "generated-dropped",
-            | _ => "generated-observed",
+            Some("generated-forwarded") => "generated-forwarded",
+            Some("generated-dropped") => "generated-dropped",
+            _ => "generated-observed",
         };
         let Ok(spec) = protocol_spec(PathwayProtocolKind::ForwardingHop) else {
             return;
@@ -193,7 +192,9 @@ where
     let route_id_hex = hex_bytes(&route_id.0);
     let payload_digest = hex_bytes(payload);
     let Roles(mut current_owner, mut next_hop, mut observer) = Roles::default();
-    let mut next_hop_host = NextHopHost { shared: Rc::clone(&shared) };
+    let mut next_hop_host = NextHopHost {
+        shared: Rc::clone(&shared),
+    };
     let mut observer_host = ObserverHost { shared };
 
     executor::block_on(async {
@@ -217,24 +218,32 @@ async fn current_owner_role(
     payload_digest: String,
 ) -> ProtocolResult<()> {
     try_session(role, |s: CurrentOwnerSession<'_, _>| async move {
-        let s = s.send(Forward { route_id, payload_digest }).await?;
+        let s = s
+            .send(Forward {
+                route_id,
+                payload_digest,
+            })
+            .await?;
         match s.branch().await? {
-            | CurrentOwnerChoice1::Accepted(_accepted, s) => Ok(((), s)),
-            | CurrentOwnerChoice1::Rejected(_rejected, s) => Ok(((), s)),
+            CurrentOwnerChoice1::Accepted(_accepted, s) => Ok(((), s)),
+            CurrentOwnerChoice1::Rejected(_rejected, s) => Ok(((), s)),
         }
     })
     .await
 }
 
-async fn next_hop_role<E>(
-    role: &mut NextHop,
-    host: &mut NextHopHost<'_, E>,
-) -> ProtocolResult<()>
+async fn next_hop_role<E>(role: &mut NextHop, host: &mut NextHopHost<'_, E>) -> ProtocolResult<()>
 where
     E: PathwayProtocolRuntime,
 {
     try_session(role, |s: NextHopSession<'_, _>| async {
-        let (Forward { route_id, payload_digest }, s) = s.receive().await?;
+        let (
+            Forward {
+                route_id,
+                payload_digest,
+            },
+            s,
+        ) = s.receive().await?;
         let outcome = effects::PathwayRuntime::forward_frame(
             host,
             effects::HopFrame {
@@ -243,44 +252,49 @@ where
             },
         );
         match outcome {
-            | Ok(_) => {
-                let s = s.select(Accepted { route_id: route_id.clone() }).await?;
+            Ok(_) => {
+                let s = s
+                    .select(Accepted {
+                        route_id: route_id.clone(),
+                    })
+                    .await?;
                 let end = s.send(Accepted { route_id }).await?;
                 Ok(((), end))
-            },
-            | Err(_) => {
-                let s = s.select(Rejected { route_id: route_id.clone() }).await?;
+            }
+            Err(_) => {
+                let s = s
+                    .select(Rejected {
+                        route_id: route_id.clone(),
+                    })
+                    .await?;
                 let end = s.send(Rejected { route_id }).await?;
                 Ok(((), end))
-            },
+            }
         }
     })
     .await
 }
 
-async fn observer_role<E>(
-    role: &mut Observer,
-    host: &mut ObserverHost<'_, E>,
-) -> ProtocolResult<()>
+async fn observer_role<E>(role: &mut Observer, host: &mut ObserverHost<'_, E>) -> ProtocolResult<()>
 where
     E: PathwayProtocolRuntime,
 {
     try_session(role, |s: ObserverSession<'_, _>| async {
         match s.branch().await? {
-            | ObserverChoice1::Accepted(Accepted { route_id }, end) => {
+            ObserverChoice1::Accepted(Accepted { route_id }, end) => {
                 effects::PathwayAudit::record(
                     host,
                     json!({ "event": "generated-forwarded", "route_id": route_id }),
                 );
                 Ok(((), end))
-            },
-            | ObserverChoice1::Rejected(Rejected { route_id }, end) => {
+            }
+            ObserverChoice1::Rejected(Rejected { route_id }, end) => {
                 effects::PathwayAudit::record(
                     host,
                     json!({ "event": "generated-dropped", "route_id": route_id }),
                 );
                 Ok(((), end))
-            },
+            }
         }
     })
     .await
@@ -292,9 +306,7 @@ fn hex_bytes(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use jacquard_core::{
-        ByteCount, EndpointLocator, LinkEndpoint, Tick, TransportKind,
-    };
+    use jacquard_core::{ByteCount, EndpointLocator, LinkEndpoint, Tick, TransportKind};
 
     use super::*;
 
@@ -359,10 +371,7 @@ mod tests {
             Ok(())
         }
 
-        fn emit_protocol_observation(
-            &mut self,
-            observation: PathwayProtocolObservation,
-        ) {
+        fn emit_protocol_observation(&mut self, observation: PathwayProtocolObservation) {
             self.observations.push(observation);
         }
     }

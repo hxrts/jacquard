@@ -23,8 +23,7 @@ use telltale::{
 
 pub(crate) const SOURCE_PATH: &str = "crates/pathway/src/choreography/hold_replay.rs";
 pub(crate) const PROTOCOL_NAME: &str = "HoldReplayExchange";
-pub(crate) const ROLE_NAMES: &[&str] =
-    &["PartitionedOwner", "Holder", "Recipient", "Observer"];
+pub(crate) const ROLE_NAMES: &[&str] = &["PartitionedOwner", "Holder", "Recipient", "Observer"];
 
 type ProtocolResult<T> = result::Result<T, Box<dyn Error + marker::Send + Sync>>;
 
@@ -92,17 +91,16 @@ use HoldReplayExchange::{
     effects,
     sessions::{
         Deferred, Holder, HolderChoice1, HolderSession, Observer, ObserverSession,
-        PartitionedOwner, PartitionedOwnerSession, Recipient, RecipientSession,
-        ReplayAccepted, ReplayDeferred, ReplayHeldPayload, Replayed, Roles,
-        StoreHeldPayload, Stored,
+        PartitionedOwner, PartitionedOwnerSession, Recipient, RecipientSession, ReplayAccepted,
+        ReplayDeferred, ReplayHeldPayload, Replayed, Roles, StoreHeldPayload, Stored,
     },
 };
 
 use super::{
     artifacts::{protocol_spec, PathwayProtocolKind},
     effects::{
-        ChoreographyResultExt, PathwayChoreoFrame, PathwayHeldPayload,
-        PathwayProtocolObservation, PathwayProtocolRuntime,
+        ChoreographyResultExt, PathwayChoreoFrame, PathwayHeldPayload, PathwayProtocolObservation,
+        PathwayProtocolRuntime,
     },
     runtime::{route_session, PathwayGuestRuntime},
 };
@@ -185,10 +183,10 @@ where
     fn record(&mut self, input: effects::AuditEvent) {
         let event = input.get("event").and_then(serde_json::Value::as_str);
         let detail = match event {
-            | Some("generated-stored") => "generated-stored",
-            | Some("generated-released") => "generated-released",
-            | Some("generated-still-held") => "generated-still-held",
-            | _ => "generated-observed",
+            Some("generated-stored") => "generated-stored",
+            Some("generated-released") => "generated-released",
+            Some("generated-still-held") => "generated-still-held",
+            _ => "generated-observed",
         };
         let Ok(spec) = protocol_spec(PathwayProtocolKind::HoldReplay) else {
             return;
@@ -267,7 +265,9 @@ where
         endpoint,
     }));
     let Roles(mut owner, mut holder, mut recipient, mut observer) = Roles::default();
-    let mut holder_host = HolderHost { shared: Rc::clone(&shared) };
+    let mut holder_host = HolderHost {
+        shared: Rc::clone(&shared),
+    };
     let mut observer_host = ObserverHost { shared };
 
     executor::block_on(async {
@@ -289,22 +289,28 @@ async fn owner_role(
 ) -> ProtocolResult<()> {
     try_session(role, |s: PartitionedOwnerSession<'_, _>| async move {
         let end = s
-            .send(StoreHeldPayload { route_id, payload_digest })
+            .send(StoreHeldPayload {
+                route_id,
+                payload_digest,
+            })
             .await?;
         Ok(((), end))
     })
     .await
 }
 
-async fn holder_role<E>(
-    role: &mut Holder,
-    host: &mut HolderHost<'_, E>,
-) -> ProtocolResult<()>
+async fn holder_role<E>(role: &mut Holder, host: &mut HolderHost<'_, E>) -> ProtocolResult<()>
 where
     E: PathwayProtocolRuntime,
 {
     try_session(role, |s: HolderSession<'_, _>| async {
-        let (StoreHeldPayload { route_id, payload_digest }, s) = s.receive().await?;
+        let (
+            StoreHeldPayload {
+                route_id,
+                payload_digest,
+            },
+            s,
+        ) = s.receive().await?;
         let held_payload = effects::HeldPayload {
             route_id: route_id.clone(),
             payload_digest: payload_digest.clone(),
@@ -314,7 +320,11 @@ where
         // fails here the payload will not be replayed but the hold exchange still
         // completes correctly.
         let _ = effects::PathwayRuntime::store_held_payload(host, held_payload.clone());
-        let s = s.send(Stored { route_id: route_id.clone() }).await?;
+        let s = s
+            .send(Stored {
+                route_id: route_id.clone(),
+            })
+            .await?;
         let s = s
             .send(ReplayHeldPayload {
                 route_id: route_id.clone(),
@@ -322,7 +332,7 @@ where
             })
             .await?;
         match s.branch().await? {
-            | HolderChoice1::Replayed(Replayed, s) => {
+            HolderChoice1::Replayed(Replayed, s) => {
                 let (ReplayAccepted { route_id }, s) = s.receive().await?;
                 // Intentionally ignored: replay_held_payload is best-effort. The
                 // session already advanced to the Replayed branch;
@@ -335,12 +345,12 @@ where
                     },
                 );
                 Ok(((), s))
-            },
-            | HolderChoice1::Deferred(Deferred, s) => {
+            }
+            HolderChoice1::Deferred(Deferred, s) => {
                 let (ReplayDeferred { route_id }, s) = s.receive().await?;
                 let _ = route_id;
                 Ok(((), s))
-            },
+            }
         }
     })
     .await
@@ -353,24 +363,21 @@ async fn recipient_role(
     try_session(role, |s: RecipientSession<'_, _>| async move {
         let (ReplayHeldPayload { route_id, .. }, s) = s.receive().await?;
         let end = match disposition {
-            | ReplayDisposition::Deferred => {
+            ReplayDisposition::Deferred => {
                 let s = s.select(Deferred).await?;
                 s.send(ReplayDeferred { route_id }).await?
-            },
-            | ReplayDisposition::Replayed => {
+            }
+            ReplayDisposition::Replayed => {
                 let s = s.select(Replayed).await?;
                 s.send(ReplayAccepted { route_id }).await?
-            },
+            }
         };
         Ok(((), end))
     })
     .await
 }
 
-async fn observer_role<E>(
-    role: &mut Observer,
-    host: &mut ObserverHost<'_, E>,
-) -> ProtocolResult<()>
+async fn observer_role<E>(role: &mut Observer, host: &mut ObserverHost<'_, E>) -> ProtocolResult<()>
 where
     E: PathwayProtocolRuntime,
 {

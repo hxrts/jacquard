@@ -22,8 +22,7 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    BackendRouteId, NodeId, RatioPermille, RouteDegradation, RouteEpoch, Tick,
-    TransportKind,
+    BackendRouteId, NodeId, RatioPermille, RouteDegradation, RouteEpoch, Tick, TransportKind,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

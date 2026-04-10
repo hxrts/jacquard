@@ -21,8 +21,8 @@
 //! over the `LinkProfile` / `LinkState` split.
 
 use jacquard_core::{
-    DurationMs, Link, LinkBuilder, LinkEndpoint, LinkRuntimeState,
-    PartitionRecoveryClass, RatioPermille, RepairCapability, Tick,
+    DurationMs, Link, LinkBuilder, LinkEndpoint, LinkRuntimeState, PartitionRecoveryClass,
+    RatioPermille, RepairCapability, Tick,
 };
 
 /// Reference latency floor (minimum one-way latency for the in-memory link
@@ -100,19 +100,13 @@ impl SimulatedLinkProfile {
     }
 
     #[must_use]
-    pub fn with_repair_capability(
-        mut self,
-        repair_capability: RepairCapability,
-    ) -> Self {
+    pub fn with_repair_capability(mut self, repair_capability: RepairCapability) -> Self {
         self.repair_capability = repair_capability;
         self
     }
 
     #[must_use]
-    pub fn with_partition_recovery(
-        mut self,
-        partition_recovery: PartitionRecoveryClass,
-    ) -> Self {
+    pub fn with_partition_recovery(mut self, partition_recovery: PartitionRecoveryClass) -> Self {
         self.partition_recovery = partition_recovery;
         self
     }
@@ -217,12 +211,7 @@ mod tests {
             RepairCapability::ApplicationRetransmit,
             PartitionRecoveryClass::EndToEndRecoverable,
         )
-        .with_runtime_observation(
-            DurationMs(9),
-            2048,
-            DEFAULT_STABILITY_HORIZON_MS,
-            Tick(0),
-        )
+        .with_runtime_observation(DurationMs(9), 2048, DEFAULT_STABILITY_HORIZON_MS, Tick(0))
         .build();
 
         assert_eq!(link.profile.latency_floor_ms, DurationMs(3));

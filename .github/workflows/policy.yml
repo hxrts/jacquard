@@ -25,72 +25,72 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - name: Docs Link Check
-        run: nix develop --command cargo xtask check docs-link-check
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check docs-link-check --repo-root . --config policy/toolkit.toml
       - name: Docs Semantic Drift
-        run: nix develop --command cargo xtask check docs-semantic-drift
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check docs-semantic-drift --repo-root . --config policy/toolkit.toml
       - name: Proc Macro Scope
-        run: nix develop --command cargo xtask check proc-macro-scope
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check proc-macro-scope --repo-root . --config policy/toolkit.toml
       - name: Test Boundaries
-        run: nix develop --command cargo xtask check test-boundaries
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check test-boundaries --repo-root . --config policy/toolkit.toml
       - name: Trait Purity
-        run: nix develop --command cargo xtask check trait-purity
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check trait-purity
       - name: Crate Boundary
-        run: nix develop --command cargo xtask check crate-boundary
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check crate-boundary
       - name: Adapter Boundary
-        run: nix develop --command cargo xtask check adapter-boundary
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check adapter-boundary
       - name: DX Surface
-        run: nix develop --command cargo xtask check dx-surface
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check dx-surface
       - name: Transport Authoring Boundary
-        run: nix develop --command cargo xtask check transport-authoring-boundary
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check transport-authoring-boundary
       - name: Transport Ownership Boundary
-        run: nix develop --command cargo xtask check transport-ownership-boundary
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check transport-ownership-boundary
       - name: Router Round Boundary
-        run: nix develop --command cargo xtask check router-round-boundary
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check router-round-boundary
       - name: Reference Bridge Boundary
-        run: nix develop --command cargo xtask check reference-bridge-boundary
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check reference-bridge-boundary
       - name: Simulator Boundary
-        run: nix develop --command cargo xtask check simulator-boundary
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check simulator-boundary
       - name: Ownership Invariants
-        run: nix develop --command cargo xtask check ownership-invariants
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check ownership-invariants
       - name: No usize in Models
-        run: nix develop --command cargo xtask check no-usize-in-models
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check no-usize-in-models
       - name: Result Must Use
-        run: nix develop --command cargo xtask check result-must-use
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check result-must-use --repo-root . --config policy/toolkit.toml
       - name: Proof Bearing Actions
-        run: nix develop --command cargo xtask check proof-bearing-actions
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check proof-bearing-actions
       - name: Surface Classification
-        run: nix develop --command cargo xtask check surface-classification
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check surface-classification
       - name: Rust Style Guide
-        run: nix develop --command cargo xtask check rust-style-guide
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check rust-style-guide
       - name: Checkpoint Namespacing
-        run: nix develop --command cargo xtask check checkpoint-namespacing
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check checkpoint-namespacing
       - name: Engine Service Boundary
-        run: nix develop --command cargo xtask check engine-service-boundary
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check engine-service-boundary
       - name: Invariant Specs
-        run: nix develop --command cargo xtask check invariant-specs
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check invariant-specs
       - name: Fail-Closed Ordering
-        run: nix develop --command cargo xtask check fail-closed-ordering
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check fail-closed-ordering
       - name: No Scratch Refs in Rust
-        run: nix develop --command cargo xtask check no-scratch-refs-in-rust
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check no-scratch-refs-in-rust
       - name: Pathway Async Boundary
-        run: nix develop --command cargo xtask check pathway-async-boundary
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check pathway-async-boundary
       - name: Pathway Choreography
-        run: nix develop --command cargo xtask check pathway-choreography
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check pathway-choreography
       - name: Pathway Choreography Validate
-        run: nix develop --command cargo xtask check pathway-choreography --validate
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check pathway-choreography --validate
       - name: Routing Invariants
-        run: nix develop --command cargo xtask check routing-invariants
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check routing-invariants
       - name: Routing Invariants Validate
-        run: nix develop --command cargo xtask check routing-invariants --validate
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check routing-invariants --validate
       - name: Install cargo-dylint
-        run: nix develop ./nix/nightly --command install-dylint
+        run: ./scripts/toolkit-shell.sh toolkit-install-dylint
       - name: Dylint Trait Purity
-        run: nix develop ./nix/nightly --command cargo dylint --path lints/trait_purity --all -- --all-targets
+        run: ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint trait_purity --all -- --all-targets
       - name: Dylint Model Policy
-        run: nix develop ./nix/nightly --command cargo dylint --path lints/model_policy --all -- --all-targets
+        run: ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./policy/lints/model_policy --all -- --all-targets
       - name: Dylint Routing Invariants
-        run: nix develop ./nix/nightly --command cargo dylint --path lints/routing_invariants --all -- --all-targets
+        run: ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./policy/lints/routing_invariants --all -- --all-targets
       - name: Dylint Trait Must Use
-        run: nix develop ./nix/nightly --command cargo dylint --path lints/trait_must_use --all -- --all-targets
+        run: ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint trait_must_use --all -- --all-targets
       - name: Dylint Naked Map Err
-        run: nix develop ./nix/nightly --command cargo dylint --path lints/naked_map_err --all -- --all-targets
+        run: ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint naked_map_err --all -- --all-targets

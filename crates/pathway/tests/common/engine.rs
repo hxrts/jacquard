@@ -15,11 +15,10 @@ use jacquard_traits::{
     jacquard_core::{
         Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs,
         HoldFallbackPolicy, Limit, NodeId, Observation, OperatingMode, PriorityPoints,
-        PublicationId, PublishedRouteRecord, RouteAdmission, RouteCandidate,
-        RouteHandle, RouteIdentityStamp, RouteLease, RouteMaterializationInput,
-        RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-        RouteReplacementPolicy, RouteRuntimeState, RouteServiceKind,
-        RoutingEngineFallbackPolicy, RoutingObjective, RoutingTickContext,
+        PublicationId, PublishedRouteRecord, RouteAdmission, RouteCandidate, RouteHandle,
+        RouteIdentityStamp, RouteLease, RouteMaterializationInput, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteRuntimeState,
+        RouteServiceKind, RoutingEngineFallbackPolicy, RoutingObjective, RoutingTickContext,
         SelectedRoutingParameters, Tick, TimeWindow,
     },
     Blake3Hashing, RouterManagedEngine, RoutingEngine, RoutingEnginePlanner,
@@ -71,9 +70,7 @@ impl TestEngine {
     }
 
     #[must_use]
-    pub fn last_round_progress(
-        &self,
-    ) -> Option<&jacquard_pathway::PathwayRoundProgress> {
+    pub fn last_round_progress(&self) -> Option<&jacquard_pathway::PathwayRoundProgress> {
         self.engine.last_round_progress()
     }
 }
@@ -103,7 +100,12 @@ pub fn build_engine_for_node_at_tick(local_node_id: NodeId, now: Tick) -> TestEn
         effects.clone(),
         Blake3Hashing,
     );
-    TestEngine { engine, transport, retention, effects }
+    TestEngine {
+        engine,
+        transport,
+        retention,
+        effects,
+    }
 }
 
 pub fn pathway_connectivity(partition: RoutePartitionClass) -> ConnectivityPosture {
@@ -131,9 +133,7 @@ pub fn objective_with_floor(
         service_kind: RouteServiceKind::Move,
         target_protection: target,
         protection_floor: floor,
-        target_connectivity: pathway_connectivity(
-            RoutePartitionClass::PartitionTolerant,
-        ),
+        target_connectivity: pathway_connectivity(RoutePartitionClass::PartitionTolerant),
         hold_fallback_policy: HoldFallbackPolicy::Allowed,
         latency_budget_ms: Limit::Bounded(DurationMs(250)),
         protection_priority: PriorityPoints(10),
@@ -294,7 +294,6 @@ pub fn activate_route_with_profile(
     lease_value: RouteLease,
 ) -> (PublishedRouteRecord, RouteRuntimeState) {
     let candidates = tick_and_get_candidates(engine, topology, goal, policy);
-    let (route_id, admission) =
-        admit_first_candidate(engine, topology, goal, policy, candidates);
+    let (route_id, admission) = admit_first_candidate(engine, topology, goal, policy, candidates);
     materialize_admitted(engine, route_id, admission, lease_value)
 }

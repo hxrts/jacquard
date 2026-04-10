@@ -1,0 +1,6 @@
+[workspace]
+resolver = "2"
+members = [
+  "model_policy",
+  "routing_invariants",
+]

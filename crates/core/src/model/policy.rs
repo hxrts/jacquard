@@ -18,8 +18,8 @@ use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    DestinationId, DurationMs, Environment, HealthScore, IdentityAssuranceClass, Limit,
-    Node, Observation, PriorityPoints, RatioPermille, RouteServiceKind,
+    DestinationId, DurationMs, Environment, HealthScore, IdentityAssuranceClass, Limit, Node,
+    Observation, PriorityPoints, RatioPermille, RouteServiceKind,
 };
 
 #[public_model]
@@ -42,9 +42,7 @@ pub struct RoutingObjective {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Whether an operation may fall back to deferred delivery.
 pub enum HoldFallbackPolicy {
     Forbidden,
@@ -52,9 +50,7 @@ pub enum HoldFallbackPolicy {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Abstract protection level that a routing engine may provide.
 pub enum RouteProtectionClass {
     None,
@@ -63,9 +59,7 @@ pub enum RouteProtectionClass {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Connectivity repair posture for one route.
 pub enum RouteRepairClass {
     BestEffort,
@@ -73,9 +67,7 @@ pub enum RouteRepairClass {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Partition posture for one route.
 pub enum RoutePartitionClass {
     ConnectedOnly,
@@ -83,9 +75,7 @@ pub enum RoutePartitionClass {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Abstract connectivity profile that a routing engine may provide.
 pub struct ConnectivityPosture {
     pub repair: RouteRepairClass,

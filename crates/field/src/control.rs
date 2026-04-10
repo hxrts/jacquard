@@ -19,9 +19,9 @@
 use jacquard_core::{Configuration, NodeId, Tick};
 
 use crate::state::{
-    ControlState, DestinationFieldState, DivergenceBucket, EntropyBucket,
-    FieldEngineState, MeanFieldState, OperatingRegime, PostureControllerState,
-    RegimeObserverState, ResidualBucket, RoutingPosture, SupportBucket,
+    ControlState, DestinationFieldState, DivergenceBucket, EntropyBucket, FieldEngineState,
+    MeanFieldState, OperatingRegime, PostureControllerState, RegimeObserverState, ResidualBucket,
+    RoutingPosture, SupportBucket,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -54,19 +54,15 @@ impl ControlMeasurements {
     #[must_use]
     // long-block-exception: this is one bounded projection from topology
     // observations into the control-plane pressure vector.
-    pub(crate) fn from_topology(
-        topology: &Configuration,
-        local_node_id: NodeId,
-    ) -> Self {
+    pub(crate) fn from_topology(topology: &Configuration, local_node_id: NodeId) -> Self {
         let congestion_pressure = topology.environment.contention_permille.0;
         let churn_pressure = topology.environment.churn_permille.0;
-        let fallback_risk = if topology.environment.reachable_neighbor_count == 0
-            && topology.nodes.len() > 1
-        {
-            800
-        } else {
-            0
-        };
+        let fallback_risk =
+            if topology.environment.reachable_neighbor_count == 0 && topology.nodes.len() > 1 {
+                800
+            } else {
+                0
+            };
 
         let Some(local_node) = topology.nodes.get(&local_node_id) else {
             return Self::new(
@@ -131,10 +127,8 @@ pub(crate) fn advance_control_plane(
     measurements: ControlMeasurements,
     now_tick: Tick,
 ) -> ControlTickOutcome {
-    let next_mean_field =
-        compress_mean_field(state.destinations.values(), measurements);
-    let next_control =
-        update_control_state(&state.controller, &next_mean_field, measurements);
+    let next_mean_field = compress_mean_field(state.destinations.values(), measurements);
+    let next_control = update_control_state(&state.controller, &next_mean_field, measurements);
     let next_regime = observe_regime(
         &state.regime,
         &next_mean_field,
@@ -161,7 +155,10 @@ pub(crate) fn advance_control_plane(
     state.posture = next_posture;
     sync_regime_belief(state);
 
-    ControlTickOutcome { changed, measurements }
+    ControlTickOutcome {
+        changed,
+        measurements,
+    }
 }
 
 #[must_use]
@@ -182,10 +179,10 @@ where
 
     for destination in destinations {
         destination_count = destination_count.saturating_add(1);
-        support_sum = support_sum
-            .saturating_add(u32::from(destination.posterior.top_corridor_mass.value()));
-        entropy_sum = entropy_sum
-            .saturating_add(u32::from(destination.posterior.usability_entropy.value()));
+        support_sum =
+            support_sum.saturating_add(u32::from(destination.posterior.top_corridor_mass.value()));
+        entropy_sum =
+            entropy_sum.saturating_add(u32::from(destination.posterior.usability_entropy.value()));
         congestion_sum = congestion_sum.saturating_add(u32::from(
             destination.corridor_belief.congestion_penalty.value(),
         ));
@@ -205,9 +202,11 @@ where
             retention_alignment: SupportBucket::new(
                 1000_u16.saturating_sub(measurements.retention_pressure / 2),
             ),
-            risk_alignment: SupportBucket::new(1000_u16.saturating_sub(
-                measurements.risk_pressure.max(measurements.churn_pressure) / 2,
-            )),
+            risk_alignment: SupportBucket::new(
+                1000_u16.saturating_sub(
+                    measurements.risk_pressure.max(measurements.churn_pressure) / 2,
+                ),
+            ),
             field_strength: SupportBucket::new(1000_u16.saturating_sub(
                 average_u16(&[
                     measurements.relay_pressure,
@@ -221,14 +220,14 @@ where
 
     let destination_count_u16 =
         u16::try_from(destination_count).expect("bounded destination count fits u16");
-    let avg_support = u16::try_from(support_sum / destination_count)
-        .expect("posterior support average fits u16");
-    let avg_entropy = u16::try_from(entropy_sum / destination_count)
-        .expect("entropy average fits u16");
-    let avg_congestion = u16::try_from(congestion_sum / destination_count)
-        .expect("congestion average fits u16");
-    let avg_retention = u16::try_from(retention_sum / destination_count)
-        .expect("retention average fits u16");
+    let avg_support =
+        u16::try_from(support_sum / destination_count).expect("posterior support average fits u16");
+    let avg_entropy =
+        u16::try_from(entropy_sum / destination_count).expect("entropy average fits u16");
+    let avg_congestion =
+        u16::try_from(congestion_sum / destination_count).expect("congestion average fits u16");
+    let avg_retention =
+        u16::try_from(retention_sum / destination_count).expect("retention average fits u16");
 
     let relay_alignment = SupportBucket::new(average_u16(&[
         avg_support,
@@ -272,16 +271,13 @@ pub(crate) fn update_control_state(
         measurements.congestion_pressure,
         mean_field.congestion_alignment,
     );
-    let relay_residual =
-        bounded_residual(measurements.relay_pressure, mean_field.relay_alignment);
+    let relay_residual = bounded_residual(measurements.relay_pressure, mean_field.relay_alignment);
     let retention_residual = bounded_residual(
         measurements.retention_pressure,
         mean_field.retention_alignment,
     );
-    let churn_residual =
-        bounded_residual(measurements.churn_pressure, mean_field.risk_alignment);
-    let risk_residual =
-        bounded_residual(measurements.risk_pressure, mean_field.risk_alignment);
+    let churn_residual = bounded_residual(measurements.churn_pressure, mean_field.risk_alignment);
+    let risk_residual = bounded_residual(measurements.risk_pressure, mean_field.risk_alignment);
 
     ControlState {
         congestion_price: bounded_price(
@@ -312,10 +308,7 @@ pub(crate) fn update_control_state(
             previous.retention_error_integral,
             retention_residual,
         ),
-        relay_error_integral: bounded_integral(
-            previous.relay_error_integral,
-            relay_residual,
-        ),
+        relay_error_integral: bounded_integral(previous.relay_error_integral, relay_residual),
         churn_error_integral: bounded_integral(
             previous.churn_error_integral,
             churn_residual.max(risk_residual),
@@ -335,8 +328,7 @@ pub(crate) fn observe_regime(
 ) -> RegimeObserverState {
     let scored = scored_regimes(mean_field, control, measurements);
     let candidate = scored[0];
-    let current_support =
-        regime_support(previous.current, mean_field, control, measurements);
+    let current_support = regime_support(previous.current, mean_field, control, measurements);
     let current_residual = 1000_u16.saturating_sub(current_support);
     let candidate_residual = 1000_u16.saturating_sub(candidate.1);
     let margin = candidate.1.saturating_sub(scored[1].1);
@@ -411,8 +403,7 @@ pub(crate) fn choose_posture(
 ) -> PostureControllerState {
     let preferred = preferred_posture(regime.current, mean_field, control);
     let preferred_score = posture_score(preferred, regime.current, mean_field, control);
-    let current_score =
-        posture_score(previous.current, regime.current, mean_field, control);
+    let current_score = posture_score(previous.current, regime.current, mean_field, control);
     let in_dwell = now_tick < Tick(previous.last_transition_tick.0.saturating_add(2));
     let primary_posture = primary_posture_for_regime(regime.current);
     let effective_threshold = if preferred == primary_posture
@@ -485,12 +476,7 @@ fn scored_regimes(
         ),
         (
             OperatingRegime::Unstable,
-            regime_support(
-                OperatingRegime::Unstable,
-                mean_field,
-                control,
-                measurements,
-            ),
+            regime_support(OperatingRegime::Unstable, mean_field, control, measurements),
         ),
         (
             OperatingRegime::Adversarial,
@@ -502,8 +488,7 @@ fn scored_regimes(
             ),
         ),
     ];
-    scored
-        .sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+    scored.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
     scored
 }
 
@@ -514,15 +499,13 @@ fn regime_support(
     measurements: ControlMeasurements,
 ) -> u16 {
     match regime {
-        | OperatingRegime::Sparse => average_u16(&[
+        OperatingRegime::Sparse => average_u16(&[
             mean_field.field_strength.value(),
             1000_u16.saturating_sub(measurements.congestion_pressure),
-            1000_u16.saturating_sub(
-                measurements.risk_pressure.max(measurements.churn_pressure),
-            ),
+            1000_u16.saturating_sub(measurements.risk_pressure.max(measurements.churn_pressure)),
             1000_u16.saturating_sub(control.retention_price.value() / 2),
         ]),
-        | OperatingRegime::Congested => average_u16(&[
+        OperatingRegime::Congested => average_u16(&[
             measurements
                 .congestion_pressure
                 .max(control.congestion_price.value()),
@@ -530,7 +513,7 @@ fn regime_support(
             mean_field.relay_alignment.value(),
             1000_u16.saturating_sub(measurements.risk_pressure / 2),
         ]),
-        | OperatingRegime::RetentionFavorable => average_u16(&[
+        OperatingRegime::RetentionFavorable => average_u16(&[
             measurements
                 .retention_pressure
                 .max(control.retention_price.value()),
@@ -538,13 +521,13 @@ fn regime_support(
             mean_field.field_strength.value(),
             1000_u16.saturating_sub(measurements.risk_pressure / 2),
         ]),
-        | OperatingRegime::Unstable => average_u16(&[
+        OperatingRegime::Unstable => average_u16(&[
             measurements.churn_pressure.max(measurements.risk_pressure),
             mean_field.risk_alignment.value(),
             control.risk_price.value(),
             1000_u16.saturating_sub(mean_field.field_strength.value() / 2),
         ]),
-        | OperatingRegime::Adversarial => average_u16(&[
+        OperatingRegime::Adversarial => average_u16(&[
             measurements.risk_pressure,
             control.risk_price.value(),
             measurements.churn_pressure,
@@ -577,37 +560,37 @@ fn posture_score(
     control: &ControlState,
 ) -> u16 {
     let regime_bonus = match (regime, posture) {
-        | (OperatingRegime::Sparse, RoutingPosture::Opportunistic) => 250,
-        | (OperatingRegime::Sparse, RoutingPosture::Structured) => 150,
-        | (OperatingRegime::Congested, RoutingPosture::Structured) => 200,
-        | (OperatingRegime::Congested, RoutingPosture::RetentionBiased) => 250,
-        | (OperatingRegime::RetentionFavorable, RoutingPosture::RetentionBiased) => 350,
-        | (OperatingRegime::Unstable, RoutingPosture::RiskSuppressed)
+        (OperatingRegime::Sparse, RoutingPosture::Opportunistic) => 250,
+        (OperatingRegime::Sparse, RoutingPosture::Structured) => 150,
+        (OperatingRegime::Congested, RoutingPosture::Structured) => 200,
+        (OperatingRegime::Congested, RoutingPosture::RetentionBiased) => 250,
+        (OperatingRegime::RetentionFavorable, RoutingPosture::RetentionBiased) => 350,
+        (OperatingRegime::Unstable, RoutingPosture::RiskSuppressed)
         | (OperatingRegime::Adversarial, RoutingPosture::RiskSuppressed) => 350,
-        | _ => 0,
+        _ => 0,
     };
 
     match posture {
-        | RoutingPosture::Opportunistic => average_u16(&[
+        RoutingPosture::Opportunistic => average_u16(&[
             mean_field.field_strength.value(),
             mean_field.relay_alignment.value(),
             1000_u16.saturating_sub(control.risk_price.value()),
             regime_bonus,
         ]),
-        | RoutingPosture::Structured => average_u16(&[
+        RoutingPosture::Structured => average_u16(&[
             mean_field.field_strength.value(),
             mean_field.relay_alignment.value(),
             mean_field.congestion_alignment.value(),
             regime_bonus,
         ]),
-        | RoutingPosture::RetentionBiased => average_u16(&[
+        RoutingPosture::RetentionBiased => average_u16(&[
             mean_field.retention_alignment.value(),
             mean_field.retention_alignment.value(),
             control.retention_price.value(),
             mean_field.field_strength.value(),
             regime_bonus,
         ]),
-        | RoutingPosture::RiskSuppressed => average_u16(&[
+        RoutingPosture::RiskSuppressed => average_u16(&[
             control.risk_price.value(),
             mean_field.risk_alignment.value(),
             1000_u16.saturating_sub(mean_field.field_strength.value() / 2),
@@ -618,22 +601,17 @@ fn posture_score(
 
 fn primary_posture_for_regime(regime: OperatingRegime) -> RoutingPosture {
     match regime {
-        | OperatingRegime::Sparse => RoutingPosture::Opportunistic,
-        | OperatingRegime::Congested => RoutingPosture::Structured,
-        | OperatingRegime::RetentionFavorable => RoutingPosture::RetentionBiased,
-        | OperatingRegime::Unstable | OperatingRegime::Adversarial => {
-            RoutingPosture::RiskSuppressed
-        },
+        OperatingRegime::Sparse => RoutingPosture::Opportunistic,
+        OperatingRegime::Congested => RoutingPosture::Structured,
+        OperatingRegime::RetentionFavorable => RoutingPosture::RetentionBiased,
+        OperatingRegime::Unstable | OperatingRegime::Adversarial => RoutingPosture::RiskSuppressed,
     }
 }
 
 fn sync_regime_belief(state: &mut FieldEngineState) {
     for destination in state.destinations.values_mut() {
-        destination.posterior.regime_belief.sparse = regime_support_bucket(
-            state.regime.current,
-            OperatingRegime::Sparse,
-            &state.regime,
-        );
+        destination.posterior.regime_belief.sparse =
+            regime_support_bucket(state.regime.current, OperatingRegime::Sparse, &state.regime);
         destination.posterior.regime_belief.congested = regime_support_bucket(
             state.regime.current,
             OperatingRegime::Congested,
@@ -733,15 +711,15 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        ByteCount, Configuration, ControllerId, Environment, HoldItemCount,
-        MaintenanceWorkBudget, NodeBuilder, NodeId, NodeProfileBuilder,
-        NodeStateBuilder, RatioPermille, RelayWorkBudget, Tick,
+        ByteCount, Configuration, ControllerId, Environment, HoldItemCount, MaintenanceWorkBudget,
+        NodeBuilder, NodeId, NodeProfileBuilder, NodeStateBuilder, RatioPermille, RelayWorkBudget,
+        Tick,
     };
 
     use super::*;
     use crate::state::{
-        CorridorBeliefEnvelope, DestinationFieldState, DestinationKey,
-        DestinationPosterior, HopBand,
+        CorridorBeliefEnvelope, DestinationFieldState, DestinationKey, DestinationPosterior,
+        HopBand,
     };
 
     fn sample_destination(
@@ -750,8 +728,7 @@ mod tests {
         congestion: u16,
         retention: u16,
     ) -> DestinationFieldState {
-        let mut state =
-            DestinationFieldState::new(DestinationKey::Node(NodeId([9; 32])), Tick(1));
+        let mut state = DestinationFieldState::new(DestinationKey::Node(NodeId([9; 32])), Tick(1));
         state.posterior = DestinationPosterior {
             usability_entropy: EntropyBucket::new(entropy),
             top_corridor_mass: SupportBucket::new(support),
@@ -792,8 +769,7 @@ mod tests {
             risk_alignment: SupportBucket::new(200),
             field_strength: SupportBucket::new(150),
         };
-        let control =
-            update_control_state(&ControlState::default(), &mean_field, measurements);
+        let control = update_control_state(&ControlState::default(), &mean_field, measurements);
         assert!(control.congestion_price.value() > 0);
         assert!(control.congestion_error_integral.value() > 0);
         assert!(control.risk_price.value() <= 1000);
@@ -848,8 +824,7 @@ mod tests {
             risk_alignment: SupportBucket::new(900),
             field_strength: SupportBucket::new(900),
         };
-        let control =
-            update_control_state(&ControlState::default(), &mean_field, measurements);
+        let control = update_control_state(&ControlState::default(), &mean_field, measurements);
         let regime = observe_regime(
             &RegimeObserverState::default(),
             &mean_field,
@@ -870,14 +845,12 @@ mod tests {
             risk_alignment: SupportBucket::new(600),
             field_strength: SupportBucket::new(450),
         };
-        let control =
-            update_control_state(&ControlState::default(), &mean_field, measurements);
+        let control = update_control_state(&ControlState::default(), &mean_field, measurements);
         let previous = RegimeObserverState {
             regime_error_residual: ResidualBucket::new(680),
             ..RegimeObserverState::default()
         };
-        let regime =
-            observe_regime(&previous, &mean_field, &control, measurements, Tick(5));
+        let regime = observe_regime(&previous, &mean_field, &control, measurements, Tick(5));
         assert_eq!(regime.current, OperatingRegime::Congested);
     }
 
@@ -891,8 +864,7 @@ mod tests {
             risk_alignment: SupportBucket::new(750),
             field_strength: SupportBucket::new(700),
         };
-        let control =
-            update_control_state(&ControlState::default(), &mean_field, measurements);
+        let control = update_control_state(&ControlState::default(), &mean_field, measurements);
         let regime = RegimeObserverState {
             current: OperatingRegime::RetentionFavorable,
             current_regime_score: SupportBucket::new(900),
@@ -918,16 +890,14 @@ mod tests {
             risk_alignment: SupportBucket::new(700),
             field_strength: SupportBucket::new(500),
         };
-        let control =
-            update_control_state(&ControlState::default(), &mean_field, measurements);
+        let control = update_control_state(&ControlState::default(), &mean_field, measurements);
         let previous = RegimeObserverState {
             current: OperatingRegime::Sparse,
             dwell_until_tick: Tick(10),
             regime_error_residual: ResidualBucket::new(680),
             ..RegimeObserverState::default()
         };
-        let regime =
-            observe_regime(&previous, &mean_field, &control, measurements, Tick(5));
+        let regime = observe_regime(&previous, &mean_field, &control, measurements, Tick(5));
         assert_eq!(regime.current, OperatingRegime::Sparse);
     }
 
@@ -941,8 +911,7 @@ mod tests {
             risk_alignment: SupportBucket::new(800),
             field_strength: SupportBucket::new(650),
         };
-        let control =
-            update_control_state(&ControlState::default(), &mean_field, measurements);
+        let control = update_control_state(&ControlState::default(), &mean_field, measurements);
         let posture = choose_posture(
             &PostureControllerState {
                 current: RoutingPosture::Structured,

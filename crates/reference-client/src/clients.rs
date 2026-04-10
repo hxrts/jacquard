@@ -7,14 +7,12 @@
 use jacquard_batman::BatmanEngine;
 use jacquard_core::{
     Configuration, ConnectivityPosture, DiversityFloor, DurationMs, HealthScore,
-    IdentityAssuranceClass, LinkEndpoint, NodeId, Observation, OperatingMode,
-    RatioPermille, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-    RouteReplacementPolicy, RoutingEngineFallbackPolicy, RoutingPolicyInputs,
-    SelectedRoutingParameters, Tick,
+    IdentityAssuranceClass, LinkEndpoint, NodeId, Observation, OperatingMode, RatioPermille,
+    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+    RoutingEngineFallbackPolicy, RoutingPolicyInputs, SelectedRoutingParameters, Tick,
 };
 use jacquard_mem_link_profile::{
-    InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
-    SharedInMemoryNetwork,
+    InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
 };
 use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
@@ -89,11 +87,7 @@ impl ClientBuilder {
     #[must_use]
     pub fn build(self) -> PathwayClient {
         let local_endpoint = local_endpoint(&self.topology, self.local_node_id);
-        let driver = InMemoryTransport::attach(
-            self.local_node_id,
-            [local_endpoint],
-            self.network,
-        );
+        let driver = InMemoryTransport::attach(self.local_node_id, [local_endpoint], self.network);
         let transport = BridgeTransport::with_queue_config(driver, self.queue_config);
         let pathway_sender = transport.sender();
 
@@ -102,14 +96,20 @@ impl ClientBuilder {
             DeterministicPathwayTopologyModel::new(),
             pathway_sender,
             InMemoryRetentionStore::default(),
-            InMemoryRuntimeEffects { now: self.now, ..Default::default() },
+            InMemoryRuntimeEffects {
+                now: self.now,
+                ..Default::default()
+            },
             Blake3Hashing,
         );
 
         let mut router = MultiEngineRouter::new(
             self.local_node_id,
             FixedPolicyEngine::new(self.profile),
-            InMemoryRuntimeEffects { now: self.now, ..Default::default() },
+            InMemoryRuntimeEffects {
+                now: self.now,
+                ..Default::default()
+            },
             self.topology.clone(),
             policy_inputs_for(&self.topology, self.local_node_id),
         );
@@ -121,7 +121,10 @@ impl ClientBuilder {
             let batman_engine = BatmanEngine::new(
                 self.local_node_id,
                 transport.sender(),
-                InMemoryRuntimeEffects { now: self.now, ..Default::default() },
+                InMemoryRuntimeEffects {
+                    now: self.now,
+                    ..Default::default()
+                },
             );
             router
                 .register_engine(Box::new(batman_engine))
@@ -132,10 +135,7 @@ impl ClientBuilder {
     }
 }
 
-fn local_endpoint(
-    topology: &Observation<Configuration>,
-    local_node_id: NodeId,
-) -> LinkEndpoint {
+fn local_endpoint(topology: &Observation<Configuration>, local_node_id: NodeId) -> LinkEndpoint {
     topology.value.nodes[&local_node_id]
         .profile
         .endpoints

@@ -2,7 +2,7 @@
 target/
 result
 artifacts/
-lints/**/Cargo.lock
+policy/lints/Cargo.lock
 
 # nix
 .direnv/

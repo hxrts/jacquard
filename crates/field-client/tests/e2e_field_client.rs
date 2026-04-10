@@ -20,8 +20,8 @@ use jacquard_core::{
     RouteMaintenanceTrigger, RoutingEvidenceClass, Tick, TransportIngressEvent,
 };
 use jacquard_field_client::{
-    default_objective, topology, FieldClientBuilder, NodeIdentity, NodePreset,
-    NodePresetOptions, NodeStateSnapshot, SharedInMemoryNetwork,
+    default_objective, topology, FieldClientBuilder, NodeIdentity, NodePreset, NodePresetOptions,
+    NodeStateSnapshot, SharedInMemoryNetwork,
 };
 
 fn node(byte: u8) -> jacquard_core::NodeId {
@@ -118,8 +118,7 @@ fn stressed_topology(observed_at_tick: Tick) -> Observation<Configuration> {
 fn field_client_routes_end_to_end_over_asymmetric_forward_link() {
     let topology = asymmetric_topology(Tick(2));
     let network = SharedInMemoryNetwork::default();
-    let mut client =
-        FieldClientBuilder::new(node(1), topology, network, Tick(2)).build();
+    let mut client = FieldClientBuilder::new(node(1), topology, network, Tick(2)).build();
 
     let round = client.advance_round().expect("seed field round");
     assert_eq!(round.topology_epoch, RouteEpoch(1));
@@ -151,8 +150,7 @@ fn field_client_routes_end_to_end_over_asymmetric_forward_link() {
 fn field_client_surfaces_regime_or_posture_adaptation_under_sustained_stress() {
     let topology = asymmetric_topology(Tick(2));
     let network = SharedInMemoryNetwork::default();
-    let mut client =
-        FieldClientBuilder::new(node(1), topology, network, Tick(2)).build();
+    let mut client = FieldClientBuilder::new(node(1), topology, network, Tick(2)).build();
 
     let route = client
         .activate_route(&default_objective(DestinationId::Node(node(2))))

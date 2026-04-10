@@ -12,8 +12,8 @@
 //! test scenarios relying on budget-tracking remain trustworthy.
 
 use jacquard_core::{
-    ByteCount, ControllerId, EndpointLocator, LinkEndpoint, NodeId, RatioPermille,
-    RelayWorkBudget, RouteServiceKind, ServiceScope, Tick, TimeWindow, TransportKind,
+    ByteCount, ControllerId, EndpointLocator, LinkEndpoint, NodeId, RatioPermille, RelayWorkBudget,
+    RouteServiceKind, ServiceScope, Tick, TimeWindow, TransportKind,
 };
 use jacquard_mem_node_profile::{
     NodeStateSnapshot, SimulatedNodeProfile, SimulatedServiceDescriptor,
@@ -42,9 +42,7 @@ fn simulated_profile_builds_node_profile_and_services() {
                 .with_scope(ServiceScope::Discovery(jacquard_core::DiscoveryScopeId(
                     [1; 16],
                 )))
-                .with_valid_for(
-                    TimeWindow::new(Tick(1), Tick(10)).expect("valid service window"),
-                ),
+                .with_valid_for(TimeWindow::new(Tick(1), Tick(10)).expect("valid service window")),
         )
         .build(node_id, controller_id);
 
@@ -70,21 +68,21 @@ fn node_state_snapshot_tracks_budget_and_capacity_changes() {
 
     let built = state.build();
     let relay = match built.relay_budget {
-        | jacquard_core::Belief::Estimated(estimate) => estimate,
-        | _ => panic!("expected estimated relay budget"),
+        jacquard_core::Belief::Estimated(estimate) => estimate,
+        _ => panic!("expected estimated relay budget"),
     };
     let available_connections = match built.available_connection_count {
-        | jacquard_core::Belief::Estimated(estimate) => estimate.value,
-        | _ => panic!("expected estimated connection count"),
+        jacquard_core::Belief::Estimated(estimate) => estimate.value,
+        _ => panic!("expected estimated connection count"),
     };
     let hold_bytes = match built.hold_capacity_available_bytes {
-        | jacquard_core::Belief::Estimated(estimate) => estimate.value,
-        | _ => panic!("expected estimated hold capacity"),
+        jacquard_core::Belief::Estimated(estimate) => estimate.value,
+        _ => panic!("expected estimated hold capacity"),
     };
 
     let relay_budget = match relay.value.relay_work_budget {
-        | jacquard_core::Belief::Estimated(estimate) => estimate.value,
-        | _ => panic!("expected relay work budget"),
+        jacquard_core::Belief::Estimated(estimate) => estimate.value,
+        _ => panic!("expected relay work budget"),
     };
 
     assert_eq!(relay_budget, RelayWorkBudget(6));
@@ -103,7 +101,6 @@ fn simulated_node_profile_serializes_through_core_models() {
         );
 
     let json = serde_json::to_string(&node).expect("serialize node");
-    let restored: jacquard_core::Node =
-        serde_json::from_str(&json).expect("deserialize node");
+    let restored: jacquard_core::Node = serde_json::from_str(&json).expect("deserialize node");
     assert_eq!(restored.profile.endpoints.len(), 1);
 }

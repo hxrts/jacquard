@@ -18,8 +18,7 @@ mod scoring;
 
 use jacquard_core::{
     AdmissionDecision, Configuration, Observation, RouteAdmission, RouteAdmissionCheck,
-    RouteCandidate, RouteError, RouteSelectionError, RoutingObjective,
-    SelectedRoutingParameters,
+    RouteCandidate, RouteError, RouteSelectionError, RoutingObjective, SelectedRoutingParameters,
 };
 use jacquard_traits::RoutingEnginePlanner;
 
@@ -28,8 +27,7 @@ use super::{
     PATHWAY_ENGINE_ID,
 };
 use crate::{
-    topology::objective_matches_node, PathwayNeighborhoodEstimateAccess,
-    PathwayPeerEstimateAccess,
+    topology::objective_matches_node, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
 };
 
 const PATH_METRIC_BASE_HOP_COST: u32 = 1_000;
@@ -120,7 +118,7 @@ where
             )?;
 
         match cached.admission_check.decision {
-            | AdmissionDecision::Admissible => Ok(RouteAdmission {
+            AdmissionDecision::Admissible => Ok(RouteAdmission {
                 backend_ref: candidate.backend_ref,
                 objective: objective.clone(),
                 profile: profile.clone(),
@@ -128,9 +126,9 @@ where
                 summary: cached.summary,
                 witness: cached.witness,
             }),
-            | AdmissionDecision::Rejected(rejection) => {
+            AdmissionDecision::Rejected(rejection) => {
                 Err(RouteSelectionError::Inadmissible(rejection).into())
-            },
+            }
         }
     }
 }
@@ -138,12 +136,11 @@ where
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength,
-        ConnectivityPosture, ConnectivityRegime, DestinationId, DiversityFloor,
-        Estimate, FailureModelClass, HoldFallbackPolicy, Limit,
-        MessageFlowAssumptionClass, NodeDensityClass, NodeId, RatioPermille,
-        RouteAdmissionRejection, RouteCost, RoutePartitionClass, RouteProtectionClass,
-        RouteRepairClass, RouteServiceKind, RouteSummary, RoutingObjective,
+        AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength, ConnectivityPosture,
+        ConnectivityRegime, DestinationId, DiversityFloor, Estimate, FailureModelClass,
+        HoldFallbackPolicy, Limit, MessageFlowAssumptionClass, NodeDensityClass, NodeId,
+        RatioPermille, RouteAdmissionRejection, RouteCost, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteServiceKind, RouteSummary, RoutingObjective,
         RuntimeEnvelopeClass, Tick, TimeWindow,
     };
 
@@ -188,8 +185,7 @@ mod tests {
             selected_connectivity: ConnectivityPosture { repair, partition },
             deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
             diversity_floor: DiversityFloor(1),
-            routing_engine_fallback_policy:
-                jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
             route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
         }
     }
@@ -246,9 +242,7 @@ mod tests {
         );
         assert_eq!(
             check.decision,
-            AdmissionDecision::Rejected(
-                RouteAdmissionRejection::ProtectionFloorUnsatisfied
-            ),
+            AdmissionDecision::Rejected(RouteAdmissionRejection::ProtectionFloorUnsatisfied),
         );
     }
 
@@ -349,9 +343,7 @@ mod tests {
         );
         assert_eq!(
             check.decision,
-            AdmissionDecision::Rejected(
-                RouteAdmissionRejection::ProtectionFloorUnsatisfied
-            ),
+            AdmissionDecision::Rejected(RouteAdmissionRejection::ProtectionFloorUnsatisfied),
         );
     }
 

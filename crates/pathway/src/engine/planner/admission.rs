@@ -12,9 +12,9 @@
 //! failures.
 
 use jacquard_core::{
-    AdmissionAssumptions, AdmissionDecision, Limit, RouteAdmissionCheck,
-    RouteAdmissionRejection, RouteCost, RoutePartitionClass, RouteRepairClass,
-    RouteSummary, RoutingObjective, SelectedRoutingParameters,
+    AdmissionAssumptions, AdmissionDecision, Limit, RouteAdmissionCheck, RouteAdmissionRejection,
+    RouteCost, RoutePartitionClass, RouteRepairClass, RouteSummary, RoutingObjective,
+    SelectedRoutingParameters,
 };
 
 pub(super) fn pathway_admission_check(

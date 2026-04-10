@@ -15,10 +15,10 @@
 
 use jacquard_traits::{
     jacquard_core::{
-        Belief, ControllerId, DurationMs, Environment, Link, LinkRuntimeState,
-        LinkState, NodeId, NodeRelayBudget, Observation, ObservedValue, RatioPermille,
-        RepairCapacitySlots, RoutingEngineId, ServiceDescriptor, ServiceScope, Tick,
-        TimeWindow, TransportKind, TransportObservation, WorldError, WorldObservation,
+        Belief, ControllerId, DurationMs, Environment, Link, LinkRuntimeState, LinkState, NodeId,
+        NodeRelayBudget, Observation, ObservedValue, RatioPermille, RepairCapacitySlots,
+        RoutingEngineId, ServiceDescriptor, ServiceScope, Tick, TimeWindow, TransportKind,
+        TransportObservation, WorldError, WorldObservation,
     },
     LinkWorldExtension, NodeWorldExtension, WorldExtension, WorldExtensionDescriptor,
 };
@@ -53,14 +53,14 @@ impl NodeWorldExtension for StubWorldExtension {
             .observations
             .iter()
             .filter_map(|observation| match &observation.value {
-                | ObservedValue::Node(node) => Some(Observation {
+                ObservedValue::Node(node) => Some(Observation {
                     value: node.clone(),
                     source_class: observation.source_class,
                     evidence_class: observation.evidence_class,
                     origin_authentication: observation.origin_authentication,
                     observed_at_tick: observation.observed_at_tick,
                 }),
-                | _ => None,
+                _ => None,
             })
             .collect())
     }
@@ -74,14 +74,14 @@ impl LinkWorldExtension for StubWorldExtension {
             .observations
             .iter()
             .filter_map(|observation| match &observation.value {
-                | ObservedValue::Link(link) => Some(Observation {
+                ObservedValue::Link(link) => Some(Observation {
                     value: link.clone(),
                     source_class: observation.source_class,
                     evidence_class: observation.evidence_class,
                     origin_authentication: observation.origin_authentication,
                     observed_at_tick: observation.observed_at_tick,
                 }),
-                | _ => None,
+                _ => None,
             })
             .collect())
     }
@@ -108,11 +108,7 @@ fn sample_link_observation() -> WorldObservation {
                 transfer_rate_bytes_per_sec: Belief::Absent,
                 stability_horizon_ms: Belief::Absent,
                 loss_permille: RatioPermille(0),
-                delivery_confidence_permille: common::estimated(
-                    RatioPermille(950),
-                    900,
-                    Tick(2),
-                ),
+                delivery_confidence_permille: common::estimated(RatioPermille(950), 900, Tick(2)),
                 symmetry_permille: common::estimated(RatioPermille(1000), 900, Tick(2)),
             },
         }),
@@ -128,17 +124,14 @@ fn sample_service_observation() -> WorldObservation {
             service_kind: jacquard_traits::jacquard_core::RouteServiceKind::Discover,
             endpoints: vec![common::sample_endpoint()],
             routing_engines: vec![RoutingEngineId::from_contract_bytes([1; 16])],
-            scope: ServiceScope::Introduction { scope_token: vec![9] },
-            valid_for: TimeWindow::new(Tick(2), Tick(20))
-                .expect("valid service window"),
+            scope: ServiceScope::Introduction {
+                scope_token: vec![9],
+            },
+            valid_for: TimeWindow::new(Tick(2), Tick(20)).expect("valid service window"),
             capacity: common::estimated(
                 jacquard_traits::jacquard_core::CapacityHint {
                     saturation_permille: RatioPermille(100),
-                    repair_capacity_slots: common::estimated(
-                        RepairCapacitySlots(2),
-                        900,
-                        Tick(2),
-                    ),
+                    repair_capacity_slots: common::estimated(RepairCapacitySlots(2), 900, Tick(2)),
                     hold_capacity_bytes: Belief::Absent,
                 },
                 900,
@@ -199,7 +192,7 @@ fn world_extensions_publish_self_describing_observations() {
     assert!(matches!(observations[4].value, ObservedValue::Transport(_)));
 
     match &observations[0].value {
-        | ObservedValue::Node(node) => assert_eq!(
+        ObservedValue::Node(node) => assert_eq!(
             node.state.relay_budget,
             common::estimated(
                 NodeRelayBudget {
@@ -209,27 +202,23 @@ fn world_extensions_publish_self_describing_observations() {
                         Tick(2),
                     ),
                     utilization_permille: RatioPermille(250),
-                    retention_horizon_ms: common::estimated(
-                        DurationMs(500),
-                        900,
-                        Tick(2)
-                    ),
+                    retention_horizon_ms: common::estimated(DurationMs(500), 900, Tick(2)),
                 },
                 900,
                 Tick(2),
             ),
         ),
-        | _ => panic!("expected node observation"),
+        _ => panic!("expected node observation"),
     }
 
     match &observations[4].value {
-        | ObservedValue::Transport(observation) => match observation {
-            | TransportObservation::PayloadReceived { payload, .. } => {
+        ObservedValue::Transport(observation) => match observation {
+            TransportObservation::PayloadReceived { payload, .. } => {
                 assert_eq!(payload, &b"hello".to_vec());
-            },
-            | _ => panic!("expected payload transport observation"),
+            }
+            _ => panic!("expected payload transport observation"),
         },
-        | _ => panic!("expected transport observation"),
+        _ => panic!("expected transport observation"),
     }
 }
 

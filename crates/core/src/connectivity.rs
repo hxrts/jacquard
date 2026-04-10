@@ -17,15 +17,13 @@ use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Belief, ByteCount, ClusterId, ControllerId, DiscoveryScopeId, FactSourceClass,
-    GatewayId, HomeId, Link, NodeId, OriginAuthenticationClass, RatioPermille,
-    RoutingEngineId, RoutingEvidenceClass, Tick, TimeWindow,
+    Belief, ByteCount, ClusterId, ControllerId, DiscoveryScopeId, FactSourceClass, GatewayId,
+    HomeId, Link, NodeId, OriginAuthenticationClass, RatioPermille, RoutingEngineId,
+    RoutingEvidenceClass, Tick, TimeWindow,
 };
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteServiceKind {
     Discover,
     Activate,
@@ -68,9 +66,7 @@ pub enum EndpointLocator {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum LinkRuntimeState {
     Active,
     Degraded,
@@ -113,7 +109,11 @@ impl LinkEndpoint {
         locator: EndpointLocator,
         mtu_bytes: ByteCount,
     ) -> Self {
-        Self { transport_kind, locator, mtu_bytes }
+        Self {
+            transport_kind,
+            locator,
+            mtu_bytes,
+        }
     }
 }
 
@@ -171,8 +171,7 @@ impl CapacityHint {
         repair_capacity_slots: RepairCapacitySlots,
         updated_at_tick: Tick,
     ) -> Self {
-        self.repair_capacity_slots =
-            Belief::certain(repair_capacity_slots, updated_at_tick);
+        self.repair_capacity_slots = Belief::certain(repair_capacity_slots, updated_at_tick);
         self
     }
 
@@ -182,8 +181,7 @@ impl CapacityHint {
         hold_capacity_bytes: ByteCount,
         updated_at_tick: Tick,
     ) -> Self {
-        self.hold_capacity_bytes =
-            Belief::certain(hold_capacity_bytes, updated_at_tick);
+        self.hold_capacity_bytes = Belief::certain(hold_capacity_bytes, updated_at_tick);
         self
     }
 }
@@ -213,15 +211,17 @@ impl TransportIngressEvent {
     #[must_use]
     pub fn observe_at(self, observed_at_tick: crate::Tick) -> TransportObservation {
         match self {
-            | Self::PayloadReceived { from_node_id, endpoint, payload } => {
-                TransportObservation::PayloadReceived {
-                    from_node_id,
-                    endpoint,
-                    payload,
-                    observed_at_tick,
-                }
+            Self::PayloadReceived {
+                from_node_id,
+                endpoint,
+                payload,
+            } => TransportObservation::PayloadReceived {
+                from_node_id,
+                endpoint,
+                payload,
+                observed_at_tick,
             },
-            | Self::LinkObserved {
+            Self::LinkObserved {
                 remote_node_id,
                 link,
                 source_class,

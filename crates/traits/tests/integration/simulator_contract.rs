@@ -19,11 +19,10 @@ use std::collections::BTreeMap;
 
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, ControllerId, Environment, HoldItemCount, Link,
-        LinkRuntimeState, LinkState, MaintenanceWorkBudget, Node, NodeId, NodeProfile,
-        NodeState, Observation, OperatingMode, RatioPermille, RelayWorkBudget,
-        RouteEpoch, RouteEvent, RouteEventStamped, RoutingObjective, SimulationSeed,
-        Tick,
+        Configuration, ControllerId, Environment, HoldItemCount, Link, LinkRuntimeState, LinkState,
+        MaintenanceWorkBudget, Node, NodeId, NodeProfile, NodeState, Observation, OperatingMode,
+        RatioPermille, RelayWorkBudget, RouteEpoch, RouteEvent, RouteEventStamped,
+        RoutingObjective, SimulationSeed, Tick,
     },
     RoutingEnvironmentModel, RoutingReplayView, RoutingScenario, RoutingSimulator,
 };
@@ -117,24 +116,26 @@ impl RoutingSimulator for StubSimulator {
         );
         let stamped_route_events = artifacts
             .into_iter()
-            .map(|StubEnvironmentArtifact::AdvancedTo(tick)| RouteEventStamped {
-                order_stamp: jacquard_traits::jacquard_core::OrderStamp(1),
-                emitted_at_tick: tick,
-                event: RouteEvent::RouteHealthObserved {
-                    route_id: jacquard_traits::jacquard_core::RouteId([1; 16]),
-                    health: common::local_observation(
-                        jacquard_traits::jacquard_core::RouteHealth {
-                            reachability_state:
-                                jacquard_traits::jacquard_core::ReachabilityState::Reachable,
-                            stability_score: jacquard_traits::jacquard_core::HealthScore(1000),
-                            congestion_penalty_points:
-                                jacquard_traits::jacquard_core::PenaltyPoints(0),
-                            last_validated_at_tick: tick,
-                        },
-                        tick,
-                    ),
+            .map(
+                |StubEnvironmentArtifact::AdvancedTo(tick)| RouteEventStamped {
+                    order_stamp: jacquard_traits::jacquard_core::OrderStamp(1),
+                    emitted_at_tick: tick,
+                    event: RouteEvent::RouteHealthObserved {
+                        route_id: jacquard_traits::jacquard_core::RouteId([1; 16]),
+                        health: common::local_observation(
+                            jacquard_traits::jacquard_core::RouteHealth {
+                                reachability_state:
+                                    jacquard_traits::jacquard_core::ReachabilityState::Reachable,
+                                stability_score: jacquard_traits::jacquard_core::HealthScore(1000),
+                                congestion_penalty_points:
+                                    jacquard_traits::jacquard_core::PenaltyPoints(0),
+                                last_validated_at_tick: tick,
+                            },
+                            tick,
+                        ),
+                    },
                 },
-            })
+            )
             .collect();
 
         Ok((
@@ -142,7 +143,9 @@ impl RoutingSimulator for StubSimulator {
                 route_events: Vec::new(),
                 stamped_route_events,
             },
-            StubSimulationStats { productive_step_count: 1 },
+            StubSimulationStats {
+                productive_step_count: 1,
+            },
         ))
     }
 
@@ -152,7 +155,9 @@ impl RoutingSimulator for StubSimulator {
     ) -> Result<(Self::ReplayArtifact, Self::SimulationStats), Self::Error> {
         Ok((
             replay.clone(),
-            StubSimulationStats { productive_step_count: 0 },
+            StubSimulationStats {
+                productive_step_count: 0,
+            },
         ))
     }
 }
@@ -192,16 +197,12 @@ fn sample_configuration() -> Configuration {
                 relay_work_budget_max: RelayWorkBudget(16),
                 maintenance_work_budget_max: MaintenanceWorkBudget(8),
                 hold_item_count_max: HoldItemCount(8),
-                hold_capacity_bytes_max: jacquard_traits::jacquard_core::ByteCount(
-                    1024,
-                ),
+                hold_capacity_bytes_max: jacquard_traits::jacquard_core::ByteCount(1024),
             },
             state: NodeState {
                 relay_budget: jacquard_traits::jacquard_core::Belief::Absent,
-                available_connection_count:
-                    jacquard_traits::jacquard_core::Belief::Absent,
-                hold_capacity_available_bytes:
-                    jacquard_traits::jacquard_core::Belief::Absent,
+                available_connection_count: jacquard_traits::jacquard_core::Belief::Absent,
+                hold_capacity_available_bytes: jacquard_traits::jacquard_core::Belief::Absent,
                 information_summary: jacquard_traits::jacquard_core::Belief::Absent,
             },
         },
@@ -220,16 +221,12 @@ fn sample_configuration() -> Configuration {
                 relay_work_budget_max: RelayWorkBudget(16),
                 maintenance_work_budget_max: MaintenanceWorkBudget(8),
                 hold_item_count_max: HoldItemCount(8),
-                hold_capacity_bytes_max: jacquard_traits::jacquard_core::ByteCount(
-                    1024,
-                ),
+                hold_capacity_bytes_max: jacquard_traits::jacquard_core::ByteCount(1024),
             },
             state: NodeState {
                 relay_budget: jacquard_traits::jacquard_core::Belief::Absent,
-                available_connection_count:
-                    jacquard_traits::jacquard_core::Belief::Absent,
-                hold_capacity_available_bytes:
-                    jacquard_traits::jacquard_core::Belief::Absent,
+                available_connection_count: jacquard_traits::jacquard_core::Belief::Absent,
+                hold_capacity_available_bytes: jacquard_traits::jacquard_core::Belief::Absent,
                 information_summary: jacquard_traits::jacquard_core::Belief::Absent,
             },
         },
@@ -254,12 +251,10 @@ fn sample_configuration() -> Configuration {
             state: LinkState {
                 state: LinkRuntimeState::Active,
                 median_rtt_ms: jacquard_traits::jacquard_core::Belief::Absent,
-                transfer_rate_bytes_per_sec:
-                    jacquard_traits::jacquard_core::Belief::Absent,
+                transfer_rate_bytes_per_sec: jacquard_traits::jacquard_core::Belief::Absent,
                 stability_horizon_ms: jacquard_traits::jacquard_core::Belief::Absent,
                 loss_permille: RatioPermille(0),
-                delivery_confidence_permille:
-                    jacquard_traits::jacquard_core::Belief::Absent,
+                delivery_confidence_permille: jacquard_traits::jacquard_core::Belief::Absent,
                 symmetry_permille: jacquard_traits::jacquard_core::Belief::Absent,
             },
         },
@@ -282,10 +277,7 @@ fn sample_scenario() -> StubScenario {
         name: "smoke".to_owned(),
         seed: SimulationSeed(7),
         deployment_profile: OperatingMode::SparseLowPower,
-        initial_configuration: common::local_observation(
-            sample_configuration(),
-            Tick(1),
-        ),
+        initial_configuration: common::local_observation(sample_configuration(), Tick(1)),
         objectives: Vec::new(),
     }
 }
@@ -312,8 +304,7 @@ fn routing_simulator_executes_and_replays_through_explicit_artifacts() {
     let (replay, stats) = simulator
         .run_scenario(&scenario, &environment)
         .expect("run scenario");
-    let (resumed, resumed_stats) =
-        simulator.resume_replay(&replay).expect("resume replay");
+    let (resumed, resumed_stats) = simulator.resume_replay(&replay).expect("resume replay");
 
     assert!(simulator.route_events(&replay).is_empty());
     assert_eq!(simulator.stamped_route_events(&replay).len(), 1);

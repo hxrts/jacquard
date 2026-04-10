@@ -9,23 +9,18 @@
 
 use bincode::Options;
 use jacquard_core::{
-    Blake3Digest, ContentId, HealthScore, LinkEndpoint, NodeId, RouteEpoch, RouteError,
-    RouteId, RouteRuntimeError, Tick, TransportObservation,
+    Blake3Digest, ContentId, HealthScore, LinkEndpoint, NodeId, RouteEpoch, RouteError, RouteId,
+    RouteRuntimeError, Tick, TransportObservation,
 };
-use jacquard_traits::{
-    RetentionStore, StorageEffects, TimeEffects, TransportSenderEffects,
-};
+use jacquard_traits::{RetentionStore, StorageEffects, TimeEffects, TransportSenderEffects};
 use serde::{Deserialize, Serialize};
 
 use super::{
     activation, anti_entropy,
     artifacts::{
-        protocol_spec, PathwayProtocolKind, PathwayProtocolSessionKey,
-        PathwayProtocolSpec,
+        protocol_spec, PathwayProtocolKind, PathwayProtocolSessionKey, PathwayProtocolSpec,
     },
-    effects::{
-        PathwayCheckpointEnvelope, PathwayProtocolObservation, PathwayProtocolRuntime,
-    },
+    effects::{PathwayCheckpointEnvelope, PathwayProtocolObservation, PathwayProtocolRuntime},
     forwarding, handoff, hold_replay, neighbor_advertisement, repair, route_export,
 };
 
@@ -61,8 +56,7 @@ pub(crate) struct PathwayAntiEntropySnapshot {
     pub(crate) partition_mode: bool,
 }
 
-type RuntimeSpecResolver =
-    fn(PathwayProtocolKind) -> Result<&'static PathwayProtocolSpec, String>;
+type RuntimeSpecResolver = fn(PathwayProtocolKind) -> Result<&'static PathwayProtocolSpec, String>;
 
 pub(crate) struct PathwayGuestRuntime<E> {
     effects: E,
@@ -77,11 +71,11 @@ where
         Self::with_spec_resolver(effects, protocol_spec)
     }
 
-    pub(crate) fn with_spec_resolver(
-        effects: E,
-        resolve_spec: RuntimeSpecResolver,
-    ) -> Self {
-        Self { effects, resolve_spec }
+    pub(crate) fn with_spec_resolver(effects: E, resolve_spec: RuntimeSpecResolver) -> Self {
+        Self {
+            effects,
+            resolve_spec,
+        }
     }
 
     pub(super) fn protocol_runtime_mut(&mut self) -> &mut E {
@@ -110,10 +104,7 @@ where
         )
     }
 
-    pub(crate) fn repair_exchange(
-        &mut self,
-        route_id: &RouteId,
-    ) -> Result<(), RouteError> {
+    pub(crate) fn repair_exchange(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
         self.protocol_step(
             PathwayProtocolKind::Repair,
             route_session(PathwayProtocolKind::Repair, route_id),
@@ -126,10 +117,7 @@ where
         )
     }
 
-    pub(crate) fn handoff_exchange(
-        &mut self,
-        route_id: &RouteId,
-    ) -> Result<(), RouteError> {
+    pub(crate) fn handoff_exchange(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
         self.protocol_step(
             PathwayProtocolKind::Handoff,
             route_session(PathwayProtocolKind::Handoff, route_id),
@@ -142,10 +130,7 @@ where
         )
     }
 
-    pub(crate) fn clear_route_protocols(
-        &mut self,
-        route_id: &RouteId,
-    ) -> Result<(), RouteError> {
+    pub(crate) fn clear_route_protocols(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
         for kind in [
             PathwayProtocolKind::Activation,
             PathwayProtocolKind::Repair,
@@ -264,9 +249,7 @@ where
         self.protocol_step(
             PathwayProtocolKind::HoldReplay,
             route_session(PathwayProtocolKind::HoldReplay, route_id),
-            |runtime| {
-                hold_replay::replay(runtime, route_id, object_id, endpoint, payload)
-            },
+            |runtime| hold_replay::replay(runtime, route_id, object_id, endpoint, payload),
         )?;
         self.protocol_detail_checkpoint(
             PathwayProtocolKind::HoldReplay,
@@ -400,17 +383,14 @@ where
     R: RetentionStore,
     E: StorageEffects + TimeEffects,
     F: FnOnce(
-        &mut PathwayGuestRuntime<
-            super::effects::PathwayProtocolRuntimeAdapter<'_, T, R, E>,
-        >,
+        &mut PathwayGuestRuntime<super::effects::PathwayProtocolRuntimeAdapter<'_, T, R, E>>,
     ) -> Result<Out, RouteError>,
 {
-    let mut runtime =
-        PathwayGuestRuntime::new(super::effects::PathwayProtocolRuntimeAdapter {
-            transport,
-            retention,
-            effects,
-        });
+    let mut runtime = PathwayGuestRuntime::new(super::effects::PathwayProtocolRuntimeAdapter {
+        transport,
+        retention,
+        effects,
+    });
     step(&mut runtime)
 }
 
@@ -425,17 +405,14 @@ where
     R: RetentionStore,
     E: StorageEffects + TimeEffects,
     F: FnOnce(
-        &mut PathwayGuestRuntime<
-            super::effects::PathwayProtocolRuntimeAdapter<'_, T, R, E>,
-        >,
+        &mut PathwayGuestRuntime<super::effects::PathwayProtocolRuntimeAdapter<'_, T, R, E>>,
     ) -> Result<Out, jacquard_core::RetentionError>,
 {
-    let mut runtime =
-        PathwayGuestRuntime::new(super::effects::PathwayProtocolRuntimeAdapter {
-            transport,
-            retention,
-            effects,
-        });
+    let mut runtime = PathwayGuestRuntime::new(super::effects::PathwayProtocolRuntimeAdapter {
+        transport,
+        retention,
+        effects,
+    });
     step(&mut runtime)
 }
 
@@ -648,11 +625,7 @@ pub(crate) fn route_session(
     protocol: PathwayProtocolKind,
     route_id: &RouteId,
 ) -> PathwayProtocolSessionKey {
-    PathwayProtocolSessionKey(format!(
-        "{}-{}",
-        protocol.as_str(),
-        hex_bytes(&route_id.0)
-    ))
+    PathwayProtocolSessionKey(format!("{}-{}", protocol.as_str(), hex_bytes(&route_id.0)))
 }
 
 pub(crate) fn tick_session(epoch: RouteEpoch) -> PathwayProtocolSessionKey {
@@ -719,8 +692,8 @@ mod tests {
 
     use bincode::Options;
     use jacquard_core::{
-        Blake3Digest, ContentId, RouteEpoch, RouteError, RouteId, RouteRuntimeError,
-        StorageError, Tick,
+        Blake3Digest, ContentId, RouteEpoch, RouteError, RouteId, RouteRuntimeError, StorageError,
+        Tick,
     };
     use jacquard_traits::{effect_handler, StorageEffects, TimeEffects};
 
@@ -729,13 +702,8 @@ mod tests {
         PathwayProtocolCheckpoint,
     };
     use crate::choreography::{
-        artifacts::{
-            PathwayProtocolKind, PathwayProtocolSessionKey, PathwayProtocolSpec,
-        },
-        effects::{
-            PathwayCheckpointEnvelope, PathwayProtocolObservation,
-            PathwayProtocolRuntime,
-        },
+        artifacts::{PathwayProtocolKind, PathwayProtocolSessionKey, PathwayProtocolSpec},
+        effects::{PathwayCheckpointEnvelope, PathwayProtocolObservation, PathwayProtocolRuntime},
     };
 
     #[derive(Default)]
@@ -757,11 +725,7 @@ mod tests {
             Ok(None)
         }
 
-        fn store_bytes(
-            &mut self,
-            key: &[u8],
-            value: &[u8],
-        ) -> Result<(), StorageError> {
+        fn store_bytes(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
             self.checkpoints.insert(key.to_vec(), value.to_vec());
             Ok(())
         }
@@ -804,10 +768,7 @@ mod tests {
             Ok(None)
         }
 
-        fn load_protocol_checkpoint(
-            &self,
-            key: &[u8],
-        ) -> Result<Option<Vec<u8>>, StorageError> {
+        fn load_protocol_checkpoint(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
             Ok(self.checkpoints.get(key).cloned())
         }
 
@@ -820,18 +781,12 @@ mod tests {
             Ok(())
         }
 
-        fn remove_protocol_checkpoint(
-            &mut self,
-            key: &[u8],
-        ) -> Result<(), StorageError> {
+        fn remove_protocol_checkpoint(&mut self, key: &[u8]) -> Result<(), StorageError> {
             self.checkpoints.remove(key);
             Ok(())
         }
 
-        fn emit_protocol_observation(
-            &mut self,
-            observation: PathwayProtocolObservation,
-        ) {
+        fn emit_protocol_observation(&mut self, observation: PathwayProtocolObservation) {
             self.observations.push(observation);
         }
     }
@@ -840,9 +795,7 @@ mod tests {
     fn route_and_tick_sessions_are_stable() {
         assert_eq!(
             route_session(PathwayProtocolKind::Activation, &RouteId([0xab; 16]),),
-            PathwayProtocolSessionKey(
-                "activation-abababababababababababababababab".into()
-            )
+            PathwayProtocolSessionKey("activation-abababababababababababababababab".into())
         );
         assert_eq!(
             tick_session(RouteEpoch(7)),
@@ -852,7 +805,9 @@ mod tests {
 
     #[test]
     fn guest_runtime_records_protocol_checkpoints() {
-        let object_id = ContentId { digest: Blake3Digest([9; 32]) };
+        let object_id = ContentId {
+            digest: Blake3Digest([9; 32]),
+        };
         let mut runtime = PathwayGuestRuntime::new(FakeEffects::default());
         runtime
             .retain_for_replay(&RouteId([3; 16]), object_id, b"payload")
@@ -894,16 +849,12 @@ mod tests {
 
     #[test]
     fn guest_runtime_fails_closed_when_protocol_spec_resolution_fails() {
-        fn failing_spec(
-            _: PathwayProtocolKind,
-        ) -> Result<&'static PathwayProtocolSpec, String> {
+        fn failing_spec(_: PathwayProtocolKind) -> Result<&'static PathwayProtocolSpec, String> {
             Err("broken artifact".into())
         }
 
-        let mut runtime = PathwayGuestRuntime::with_spec_resolver(
-            FakeEffects::default(),
-            failing_spec,
-        );
+        let mut runtime =
+            PathwayGuestRuntime::with_spec_resolver(FakeEffects::default(), failing_spec);
         let error = runtime
             .activation_handshake(&RouteId([7; 16]), RouteEpoch(2))
             .expect_err("invalid protocol artifact should fail closed");

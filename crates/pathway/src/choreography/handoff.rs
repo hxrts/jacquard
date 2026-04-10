@@ -43,8 +43,8 @@ tell! {
 }
 
 use SemanticHandoff::sessions::{
-    NewOwner, NewOwnerSession, OldOwner, OldOwnerChoice1, OldOwnerSession, Roles,
-    Transfer, TransferAccepted, TransferRejected,
+    NewOwner, NewOwnerSession, OldOwner, OldOwnerChoice1, OldOwnerSession, Roles, Transfer,
+    TransferAccepted, TransferRejected,
 };
 
 use super::{
@@ -76,14 +76,12 @@ async fn old_owner_role(role: &mut OldOwner, route_id: String) -> ProtocolResult
     try_session(role, |s: OldOwnerSession<'_, _>| async move {
         let s = s.send(Transfer { route_id }).await?;
         match s.branch().await? {
-            | OldOwnerChoice1::TransferAccepted(
-                TransferAccepted { route_id: _ },
-                end,
-            ) => Ok(((), end)),
-            | OldOwnerChoice1::TransferRejected(
-                TransferRejected { route_id: _ },
-                end,
-            ) => Ok(((), end)),
+            OldOwnerChoice1::TransferAccepted(TransferAccepted { route_id: _ }, end) => {
+                Ok(((), end))
+            }
+            OldOwnerChoice1::TransferRejected(TransferRejected { route_id: _ }, end) => {
+                Ok(((), end))
+            }
         }
     })
     .await

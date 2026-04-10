@@ -51,16 +51,16 @@ pub struct DispatchReceiver<T> {
 }
 
 #[must_use]
-pub fn dispatch_mailbox<T>(
-    capacity: usize,
-) -> (DispatchSender<T>, DispatchReceiver<T>) {
+pub fn dispatch_mailbox<T>(capacity: usize) -> (DispatchSender<T>, DispatchReceiver<T>) {
     assert!(capacity > 0, "dispatch mailbox capacity must be non-zero");
     let shared = Arc::new(SharedDispatch {
         queue: Mutex::new(VecDeque::new()),
         capacity,
     });
     (
-        DispatchSender { shared: Arc::clone(&shared) },
+        DispatchSender {
+            shared: Arc::clone(&shared),
+        },
         DispatchReceiver { shared },
     )
 }

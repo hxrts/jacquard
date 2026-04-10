@@ -1,2 +1,2 @@
 [alias]
-xtask = "run -p jacquard-xtask --"
+xtask = "run -p jacquard-policy-xtask --"

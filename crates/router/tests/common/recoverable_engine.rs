@@ -16,10 +16,9 @@
 use std::sync::{Arc, Mutex};
 
 use jacquard_core::{
-    Belief, ByteCount, Configuration, ConnectivityPosture, FactBasis, HealthScore,
-    Observation, RatioPermille, RouteMaintenanceOutcome, RouteProtectionClass,
-    RouteRepairClass, RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
-    TransportKind,
+    Belief, ByteCount, Configuration, ConnectivityPosture, FactBasis, HealthScore, Observation,
+    RatioPermille, RouteMaintenanceOutcome, RouteProtectionClass, RouteRepairClass,
+    RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
 };
 
 use super::fixtures::profile;
@@ -36,17 +35,18 @@ impl RecoverableTestEngine {
         shared_routes: Arc<Mutex<std::collections::BTreeSet<jacquard_core::RouteId>>>,
         now: Tick,
     ) -> Self {
-        Self { local_node_id, shared_routes, now }
+        Self {
+            local_node_id,
+            shared_routes,
+            now,
+        }
     }
 
     fn engine_id_value() -> jacquard_core::RoutingEngineId {
         jacquard_core::RoutingEngineId::from_contract_bytes([8; 16])
     }
 
-    fn route_summary(
-        &self,
-        objective: &RoutingObjective,
-    ) -> jacquard_core::RouteSummary {
+    fn route_summary(&self, objective: &RoutingObjective) -> jacquard_core::RouteSummary {
         jacquard_core::RouteSummary {
             engine: Self::engine_id_value(),
             protection: objective.target_protection,
@@ -83,11 +83,9 @@ impl jacquard_traits::RoutingEnginePlanner for RecoverableTestEngine {
             repair_support: jacquard_core::RepairSupport::Unsupported,
             hold_support: jacquard_core::HoldSupport::Unsupported,
             decidable_admission: jacquard_core::DecidableSupport::Supported,
-            quantitative_bounds:
-                jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
+            quantitative_bounds: jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support: jacquard_core::ReconfigurationSupport::ReplaceOnly,
-            route_shape_visibility:
-                jacquard_core::RouteShapeVisibility::CorridorEnvelope,
+            route_shape_visibility: jacquard_core::RouteShapeVisibility::CorridorEnvelope,
         }
     }
 

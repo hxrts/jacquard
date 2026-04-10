@@ -23,14 +23,11 @@ use common::{
     engine::{materialization_input, objective, profile, LOCAL_NODE_ID},
     fixtures::{link, node, sample_configuration},
 };
-use jacquard_pathway::{
-    DeterministicPathwayTopologyModel, PathwayEngine, PathwayTopologyModel,
-};
+use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine, PathwayTopologyModel};
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, DestinationId, Environment, Node, NodeId, Observation,
-        RatioPermille, RouteEpoch, RoutingObjective, RoutingTickContext, ServiceId,
-        Tick,
+        Configuration, DestinationId, Environment, Node, NodeId, Observation, RatioPermille,
+        RouteEpoch, RoutingObjective, RoutingTickContext, ServiceId, Tick,
     },
     Blake3Hashing, RoutingEngine, RoutingEnginePlanner,
 };
@@ -100,15 +97,11 @@ impl PathwayTopologyModel for PreferredPeerTopologyModel {
             configuration,
         )?;
         if *peer_node_id == self.preferred_peer {
-            estimate.relay_value_score =
-                Some(jacquard_traits::jacquard_core::HealthScore(1000));
-            estimate.service_score =
-                Some(jacquard_traits::jacquard_core::HealthScore(1000));
+            estimate.relay_value_score = Some(jacquard_traits::jacquard_core::HealthScore(1000));
+            estimate.service_score = Some(jacquard_traits::jacquard_core::HealthScore(1000));
         } else {
-            estimate.relay_value_score =
-                Some(jacquard_traits::jacquard_core::HealthScore(0));
-            estimate.service_score =
-                Some(jacquard_traits::jacquard_core::HealthScore(0));
+            estimate.relay_value_score = Some(jacquard_traits::jacquard_core::HealthScore(0));
+            estimate.service_score = Some(jacquard_traits::jacquard_core::HealthScore(0));
         }
         Some(estimate)
     }
@@ -144,8 +137,7 @@ fn build_preferred_engine(preferred_peer: NodeId) -> PreferredEngine {
 }
 
 fn service_objective() -> RoutingObjective {
-    let mut objective =
-        common::engine::objective(DestinationId::Service(ServiceId(vec![9; 16])));
+    let mut objective = common::engine::objective(DestinationId::Service(ServiceId(vec![9; 16])));
     objective.service_kind = jacquard_traits::jacquard_core::RouteServiceKind::Move;
     objective
 }
@@ -177,8 +169,7 @@ fn equal_hop_quality_configuration() -> Observation<Configuration> {
             },
         },
         source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-        evidence_class:
-            jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+        evidence_class: jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
         origin_authentication:
             jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
         observed_at_tick: Tick(9),
@@ -213,8 +204,7 @@ fn metric_aware_search_prefers_higher_quality_equal_hop_path() {
     let topology = equal_hop_quality_configuration();
     let goal = objective(DestinationId::Node(NodeId([5; 32])));
     let policy = profile();
-    let mut engine =
-        common::engine::build_engine_for_node_at_tick(LOCAL_NODE_ID, Tick(9));
+    let mut engine = common::engine::build_engine_for_node_at_tick(LOCAL_NODE_ID, Tick(9));
 
     engine
         .engine_tick(&RoutingTickContext::new(topology.clone()))

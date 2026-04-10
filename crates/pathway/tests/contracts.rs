@@ -24,7 +24,9 @@ use jacquard_traits::{
 #[test]
 fn pathway_routing_engine_exposes_explicit_pathway_owned_subcomponents() {
     let mut engine = build_engine();
-    let object_id = ContentId { digest: Blake3Digest([8; 32]) };
+    let object_id = ContentId {
+        digest: Blake3Digest([8; 32]),
+    };
     engine
         .retention
         .retain_payload(object_id, b"payload".to_vec())

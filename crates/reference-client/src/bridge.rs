@@ -12,12 +12,10 @@
 
 use std::collections::VecDeque;
 
-use jacquard_adapter::{
-    dispatch_mailbox, DispatchOverflow, DispatchReceiver, DispatchSender,
-};
+use jacquard_adapter::{dispatch_mailbox, DispatchOverflow, DispatchReceiver, DispatchSender};
 use jacquard_core::{
-    Configuration, LinkEndpoint, Observation, RouteError, RouterRoundOutcome, Tick,
-    TransportError, TransportIngressEvent, TransportObservation,
+    Configuration, LinkEndpoint, Observation, RouteError, RouterRoundOutcome, Tick, TransportError,
+    TransportIngressEvent, TransportObservation,
 };
 use jacquard_mem_link_profile::InMemoryTransport;
 use jacquard_traits::{
@@ -27,8 +25,7 @@ use jacquard_traits::{
 use crate::PathwayRouter;
 
 /// Default queue capacities used by the reference client bridge.
-pub(crate) const DEFAULT_BRIDGE_QUEUE_CONFIG: BridgeQueueConfig =
-    BridgeQueueConfig::new(64, 64);
+pub(crate) const DEFAULT_BRIDGE_QUEUE_CONFIG: BridgeQueueConfig = BridgeQueueConfig::new(64, 64);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BridgeQueueConfig {
@@ -38,10 +35,7 @@ pub struct BridgeQueueConfig {
 
 impl BridgeQueueConfig {
     #[must_use]
-    pub const fn new(
-        inbound_capacity: usize,
-        outbound_capacity_per_engine: usize,
-    ) -> Self {
+    pub const fn new(inbound_capacity: usize, outbound_capacity_per_engine: usize) -> Self {
         Self {
             inbound_capacity,
             outbound_capacity_per_engine,
@@ -116,9 +110,7 @@ impl BridgeTransport {
         QueuedTransportSender::new(self.outbound_sender.clone())
     }
 
-    fn drain_raw_ingress(
-        &mut self,
-    ) -> Result<Vec<TransportIngressEvent>, TransportError> {
+    fn drain_raw_ingress(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError> {
         self.driver.drain_transport_ingress()
     }
 
@@ -180,12 +172,7 @@ impl<Router> HostBridge<Router> {
         router: Router,
         transport: InMemoryTransport,
     ) -> Self {
-        Self::with_queue_config(
-            topology,
-            router,
-            transport,
-            BridgeQueueConfig::default(),
-        )
+        Self::with_queue_config(topology, router, transport, BridgeQueueConfig::default())
     }
 
     #[must_use]
@@ -315,15 +302,11 @@ impl BoundHostBridge<'_, PathwayRouter> {
         if ingested.is_empty()
             && flushed_transport_commands == 0
             && dropped_transport_observations == 0
-            && router_outcome.engine_change
-                == jacquard_core::RoutingTickChange::NoChange
+            && router_outcome.engine_change == jacquard_core::RoutingTickChange::NoChange
         {
             return Ok(BridgeRoundProgress::Waiting(BridgeWaitState {
                 next_round_hint: router_outcome.next_round_hint,
-                pending_transport_observations: self
-                    .bridge
-                    .pending_transport_observations
-                    .len(),
+                pending_transport_observations: self.bridge.pending_transport_observations.len(),
                 pending_transport_commands: self.bridge.transport.pending_outbound(),
                 dropped_transport_observations,
             }));
@@ -341,8 +324,8 @@ impl BoundHostBridge<'_, PathwayRouter> {
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        ByteCount, EndpointLocator, NodeId, RouteEpoch, RoutingTickChange,
-        RoutingTickHint, TransportKind,
+        ByteCount, EndpointLocator, NodeId, RouteEpoch, RoutingTickChange, RoutingTickHint,
+        TransportKind,
     };
     use jacquard_mem_link_profile::InMemoryRuntimeEffects;
     use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
@@ -380,7 +363,10 @@ mod tests {
         MultiEngineRouter::new(
             local_node_id,
             FixedPolicyEngine::new(crate::clients::default_profile()),
-            InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
             sample_topology(local_node_id),
             crate::clients::policy_inputs_for_empty(local_node_id),
         )
@@ -389,8 +375,7 @@ mod tests {
     #[test]
     fn owner_binding_is_required_for_round_progression() {
         let local_node_id = NodeId([7; 32]);
-        let transport =
-            InMemoryTransport::attach(local_node_id, [endpoint(7)], Default::default());
+        let transport = InMemoryTransport::attach(local_node_id, [endpoint(7)], Default::default());
         let mut bridge = HostBridge::new(
             sample_topology(local_node_id),
             sample_router(local_node_id),
@@ -415,10 +400,8 @@ mod tests {
     fn bounded_ingress_reports_dropped_observations() {
         let local_node_id = NodeId([9; 32]);
         let network = jacquard_mem_link_profile::SharedInMemoryNetwork::default();
-        let transport =
-            InMemoryTransport::attach(local_node_id, [endpoint(9)], network.clone());
-        let mut remote =
-            InMemoryTransport::attach(NodeId([8; 32]), [endpoint(8)], network);
+        let transport = InMemoryTransport::attach(local_node_id, [endpoint(9)], network.clone());
+        let mut remote = InMemoryTransport::attach(NodeId([8; 32]), [endpoint(8)], network);
 
         let mut bridge = HostBridge::with_queue_config(
             sample_topology(local_node_id),

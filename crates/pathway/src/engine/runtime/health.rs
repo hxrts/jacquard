@@ -10,15 +10,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use jacquard_core::{
-    Configuration, HealthScore, Observation, PenaltyPoints, ReachabilityState,
-    RouteHealth, TransportObservation,
+    Configuration, HealthScore, Observation, PenaltyPoints, ReachabilityState, RouteHealth,
+    TransportObservation,
 };
 
 use super::{
     super::{
-        current_segment, support::belief_to_health_score, ActivePathwayRoute,
-        PathwayControlState, PathwayObservedRemoteLink, PathwayTransportFreshness,
-        PathwayTransportObservationSummary,
+        current_segment, support::belief_to_health_score, ActivePathwayRoute, PathwayControlState,
+        PathwayObservedRemoteLink, PathwayTransportFreshness, PathwayTransportObservationSummary,
     },
     PathwayEffectsBounds, PathwayEngine, PathwayHasherBounds, PathwaySelectorBounds,
     PathwayTransportBounds,
@@ -50,14 +49,15 @@ impl TransportObservationAccumulator {
 
     fn observe(&mut self, observation: &TransportObservation) {
         match observation {
-            | TransportObservation::PayloadReceived {
+            TransportObservation::PayloadReceived {
                 from_node_id,
                 observed_at_tick,
                 ..
             } => self.observe_payload(*from_node_id, *observed_at_tick),
-            | TransportObservation::LinkObserved { remote_node_id, observation } => {
-                self.observe_link(*remote_node_id, observation)
-            },
+            TransportObservation::LinkObserved {
+                remote_node_id,
+                observation,
+            } => self.observe_link(*remote_node_id, observation),
         }
     }
 
@@ -105,11 +105,9 @@ impl TransportObservationAccumulator {
     fn observed_link_stability_score(
         observation: &Observation<jacquard_core::Link>,
     ) -> HealthScore {
-        let delivery = belief_to_health_score(
-            &observation.value.state.delivery_confidence_permille,
-        );
-        let symmetry =
-            belief_to_health_score(&observation.value.state.symmetry_permille);
+        let delivery =
+            belief_to_health_score(&observation.value.state.delivery_confidence_permille);
+        let symmetry = belief_to_health_score(&observation.value.state.symmetry_permille);
         HealthScore((delivery.saturating_add(symmetry)) / 2)
     }
 
@@ -182,8 +180,7 @@ where
         let previous = previous?.clone();
         let last_observed_at_tick = previous.last_observed_at_tick?;
         let quiet_ticks = now.0.saturating_sub(last_observed_at_tick.0);
-        let freshness =
-            Self::transport_freshness_for_quiet_ticks(quiet_ticks, QUIET_STALE_TICKS);
+        let freshness = Self::transport_freshness_for_quiet_ticks(quiet_ticks, QUIET_STALE_TICKS);
         let decay = u32::try_from(quiet_ticks)
             .unwrap_or(u32::MAX)
             .saturating_mul(QUIET_DECAY_STEP);
@@ -197,9 +194,7 @@ where
             observed_link_count: 0,
             reachable_remote_count: previous.reachable_remote_count,
             freshness,
-            stability_score: HealthScore(
-                previous.stability_score.0.saturating_sub(decay),
-            ),
+            stability_score: HealthScore(previous.stability_score.0.saturating_sub(decay)),
             congestion_penalty_points: previous.congestion_penalty_points,
             remote_links: Self::decayed_remote_links(previous.remote_links, decay),
         })
@@ -247,11 +242,9 @@ where
             .as_ref()
             .and_then(|estimate| estimate.repair_pressure_score())
             .map_or(0, |score| score.0);
-        let transport_stability =
-            self.transport_stability_score(previous, transport_summary);
+        let transport_stability = self.transport_stability_score(previous, transport_summary);
         let observed_pressure = Self::observed_pressure_score(transport_summary);
-        let anti_entropy_pressure =
-            self.anti_entropy_pressure(previous, observed_pressure);
+        let anti_entropy_pressure = self.anti_entropy_pressure(previous, observed_pressure);
         // Halve observed pressure before adding to the neighborhood signal.
         // This keeps transient congestion spikes from overwhelming a stable
         // topology reading. Combined score is capped at the 0..=1000 scale.
@@ -290,9 +283,9 @@ where
     ) -> u32 {
         transport_summary.map_or(0, |summary| {
             let quiet_pressure: u32 = match summary.freshness {
-                | PathwayTransportFreshness::Fresh => 0,
-                | PathwayTransportFreshness::Quiet => 100,
-                | PathwayTransportFreshness::Stale => 250,
+                PathwayTransportFreshness::Fresh => 0,
+                PathwayTransportFreshness::Quiet => 100,
+                PathwayTransportFreshness::Stale => 250,
             };
             quiet_pressure
                 .saturating_add(summary.congestion_penalty_points.0.saturating_mul(50))
@@ -334,8 +327,7 @@ where
             return false;
         }
         self.control_state.as_ref().is_none_or(|state| {
-            !(state.repair_pressure_score.0 > 300
-                && active_route.repair.steps_remaining <= 1)
+            !(state.repair_pressure_score.0 > 300 && active_route.repair.steps_remaining <= 1)
         })
     }
 
@@ -351,8 +343,8 @@ where
             return Self::unknown_route_health(now);
         };
 
-        let remaining_segments = &active_route.path.segments
-            [usize::from(active_route.forwarding.next_hop_index)..];
+        let remaining_segments =
+            &active_route.path.segments[usize::from(active_route.forwarding.next_hop_index)..];
         if remaining_segments.is_empty() {
             return Self::terminal_route_health(topology.observed_at_tick);
         }
@@ -419,8 +411,8 @@ where
         active_route: &ActivePathwayRoute,
         topology: &Observation<Configuration>,
     ) {
-        let remaining_segments = &active_route.path.segments
-            [usize::from(active_route.forwarding.next_hop_index)..];
+        let remaining_segments =
+            &active_route.path.segments[usize::from(active_route.forwarding.next_hop_index)..];
         let mut current_node_id = active_route.forwarding.current_owner_node_id;
         for segment in remaining_segments {
             let Some(link) = crate::topology::adjacent_link_between(
@@ -440,11 +432,10 @@ where
         let delivery = belief_to_health_score(&link.state.delivery_confidence_permille);
         let symmetry = belief_to_health_score(&link.state.symmetry_permille);
         let link_stability = (delivery.saturating_add(symmetry)) / 2;
-        health.stability_score =
-            HealthScore(health.stability_score.0.min(link_stability));
-        health.congestion_penalty_points = health.congestion_penalty_points.max(
-            PenaltyPoints(u32::from(link.state.loss_permille.get()) / 100),
-        );
+        health.stability_score = HealthScore(health.stability_score.0.min(link_stability));
+        health.congestion_penalty_points = health.congestion_penalty_points.max(PenaltyPoints(
+            u32::from(link.state.loss_permille.get()) / 100,
+        ));
     }
 
     fn apply_control_state_health(&self, health: &mut RouteHealth) {

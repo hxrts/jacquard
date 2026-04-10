@@ -88,8 +88,8 @@ mod clients;
 pub mod topology;
 
 pub use bridge::{
-    BoundHostBridge, BridgeQueueConfig, BridgeRoundProgress, BridgeRoundReport,
-    BridgeWaitState, HostBridge,
+    BoundHostBridge, BridgeQueueConfig, BridgeRoundProgress, BridgeRoundReport, BridgeWaitState,
+    HostBridge,
 };
 pub use clients::{ClientBuilder, PathwayClient, PathwayRouter};
 pub use jacquard_adapter::{

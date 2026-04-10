@@ -22,12 +22,10 @@
 use std::collections::BTreeSet;
 
 use jacquard_core::{
-    MaterializedRoute, NodeId, RouteCommitment, RouteError, RouteEvent,
-    RouteEventStamped, RouteId, RouteRuntimeError,
+    MaterializedRoute, NodeId, RouteCommitment, RouteError, RouteEvent, RouteEventStamped, RouteId,
+    RouteRuntimeError,
 };
-use jacquard_traits::{
-    OrderEffects, RouteEventLogEffects, StorageEffects, TimeEffects,
-};
+use jacquard_traits::{OrderEffects, RouteEventLogEffects, StorageEffects, TimeEffects};
 
 /// Extension trait for converting storage errors into
 /// `RouteError::Runtime(Invalidated)`.
@@ -38,8 +36,8 @@ trait StorageResultExt<T> {
 impl<T, E> StorageResultExt<T> for Result<T, E> {
     fn storage_invalid(self) -> Result<T, RouteError> {
         match self {
-            | Ok(value) => Ok(value),
-            | Err(_) => Err(RouteError::Runtime(RouteRuntimeError::Invalidated)),
+            Ok(value) => Ok(value),
+            Err(_) => Err(RouteError::Runtime(RouteRuntimeError::Invalidated)),
         }
     }
 }
@@ -71,17 +69,18 @@ where
     Effects: RouterRuntimeEffects,
 {
     pub(crate) fn new(local_node_id: NodeId, effects: &'a mut Effects) -> Self {
-        Self { local_node_id, effects }
+        Self {
+            local_node_id,
+            effects,
+        }
     }
 
     pub(crate) fn persist_route(
         &mut self,
         record: &RouterCheckpointRecord,
     ) -> Result<(), RouteError> {
-        let route_key = route_storage_key(
-            &self.local_node_id,
-            &record.route.identity.stamp.route_id,
-        );
+        let route_key =
+            route_storage_key(&self.local_node_id, &record.route.identity.stamp.route_id);
         let route_bytes = bincode::serialize(record).storage_invalid()?;
         self.effects
             .store_bytes(&route_key, &route_bytes)
@@ -97,10 +96,7 @@ where
         Ok(())
     }
 
-    pub(crate) fn remove_route(
-        &mut self,
-        route_id: &RouteId,
-    ) -> Result<(), RouteError> {
+    pub(crate) fn remove_route(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
         let route_key = route_storage_key(&self.local_node_id, route_id);
         self.effects.remove_bytes(&route_key).storage_invalid()?;
         let mut registry = self.load_route_registry()?;
@@ -116,13 +112,12 @@ where
         let mut pruned_registry = registry.clone();
         for route_id in registry {
             let route_key = route_storage_key(&self.local_node_id, &route_id);
-            let Some(bytes) = self.effects.load_bytes(&route_key).storage_invalid()?
-            else {
+            let Some(bytes) = self.effects.load_bytes(&route_key).storage_invalid()? else {
                 pruned_registry.remove(&route_id);
                 continue;
             };
-            let record = bincode::deserialize::<RouterCheckpointRecord>(&bytes)
-                .storage_invalid()?;
+            let record =
+                bincode::deserialize::<RouterCheckpointRecord>(&bytes).storage_invalid()?;
             recovered.push((route_id, record));
         }
         if pruned_registry != self.load_route_registry()? {
@@ -131,10 +126,7 @@ where
         Ok(recovered)
     }
 
-    pub(crate) fn record_route_event(
-        &mut self,
-        event: RouteEvent,
-    ) -> Result<(), RouteError> {
+    pub(crate) fn record_route_event(&mut self, event: RouteEvent) -> Result<(), RouteError> {
         let order_stamp = self.effects.next_order_stamp();
         let emitted_at_tick = self.effects.now_tick();
         self.effects
@@ -148,17 +140,13 @@ where
 
     fn load_route_registry(&mut self) -> Result<BTreeSet<RouteId>, RouteError> {
         let registry_key = route_registry_storage_key(&self.local_node_id);
-        let Some(bytes) = self.effects.load_bytes(&registry_key).storage_invalid()?
-        else {
+        let Some(bytes) = self.effects.load_bytes(&registry_key).storage_invalid()? else {
             return Ok(BTreeSet::new());
         };
         bincode::deserialize(&bytes).storage_invalid()
     }
 
-    fn store_route_registry(
-        &mut self,
-        registry: &BTreeSet<RouteId>,
-    ) -> Result<(), RouteError> {
+    fn store_route_registry(&mut self, registry: &BTreeSet<RouteId>) -> Result<(), RouteError> {
         let registry_key = route_registry_storage_key(&self.local_node_id);
         let registry_bytes = bincode::serialize(registry).storage_invalid()?;
         self.effects

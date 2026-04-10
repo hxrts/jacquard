@@ -61,4 +61,23 @@ theorem public_projection_is_lossy_observer
   unfold publicProjectionOfBelief
   split_ifs <;> simp
 
+/-- Field-side erasure theorem: once corridor-capable mass is zero, the public
+projection forgets how the remaining belief mass is split between `unknown`
+and `unreachable`. -/
+theorem opaque_projection_erases_unknown_unreachable_split
+    (left right : FiniteBelief)
+    (hLeft : corridorCapableMass left = 0)
+    (hRight : corridorCapableMass right = 0) :
+    publicProjectionOfBelief left = publicProjectionOfBelief right := by
+  have hLeftExplicit : ¬ explicitPathMass left > 0 := by
+    intro hPos
+    have hBound := FieldInformationAPI.explicit_path_mass_bounded left
+    linarith
+  have hRightExplicit : ¬ explicitPathMass right > 0 := by
+    intro hPos
+    have hBound := FieldInformationAPI.explicit_path_mass_bounded right
+    linarith
+  unfold publicProjectionOfBelief
+  simp [hLeft, hRight, hLeftExplicit, hRightExplicit]
+
 end FieldInformationBlindness

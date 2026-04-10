@@ -22,17 +22,16 @@ use std::collections::BTreeMap;
 
 use jacquard_batman::BATMAN_ENGINE_ID;
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs,
-    Environment, FactSourceClass, NodeId, Observation, OperatingMode,
-    OriginAuthenticationClass, PriorityPoints, RatioPermille, RoutePartitionClass,
-    RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
-    RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
-    SelectedRoutingParameters, Tick,
+    Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, Environment,
+    FactSourceClass, NodeId, Observation, OperatingMode, OriginAuthenticationClass, PriorityPoints,
+    RatioPermille, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+    RouteReplacementPolicy, RouteServiceKind, RoutingEngineFallbackPolicy, RoutingEvidenceClass,
+    RoutingObjective, SelectedRoutingParameters, Tick,
 };
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
-    topology, BoundHostBridge, BridgeRoundProgress, ClientBuilder, PathwayClient,
-    PathwayRouter, SharedInMemoryNetwork,
+    topology, BoundHostBridge, BridgeRoundProgress, ClientBuilder, PathwayClient, PathwayRouter,
+    SharedInMemoryNetwork,
 };
 use jacquard_traits::{Router, RoutingDataPlane};
 
@@ -184,42 +183,30 @@ fn client_triplet(
     network: SharedInMemoryNetwork,
 ) -> (PathwayClient, PathwayClient, PathwayClient) {
     let client_a =
-        ClientBuilder::pathway(NODE_A, topology.clone(), network.clone(), Tick(2))
-            .build();
-    let client_b =
-        ClientBuilder::pathway(NODE_B, topology.clone(), network.clone(), Tick(2))
-            .with_profile(relay_profile())
-            .build();
-    let client_c =
-        ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2)).build();
+        ClientBuilder::pathway(NODE_A, topology.clone(), network.clone(), Tick(2)).build();
+    let client_b = ClientBuilder::pathway(NODE_B, topology.clone(), network.clone(), Tick(2))
+        .with_profile(relay_profile())
+        .build();
+    let client_c = ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2)).build();
     (client_a, client_b, client_c)
 }
 
 /// Build three dual-engine clients (batman + pathway) attached to one shared
 /// network. The receiving client bridges will expose the stamped ingress
 /// observations for assertion after each host-driven round.
-fn build_mixed_engine_triplet(
+fn mixed_engine_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
 ) -> (PathwayClient, PathwayClient, PathwayClient) {
-    let client_a = ClientBuilder::pathway_and_batman(
-        NODE_A,
-        topology.clone(),
-        network.clone(),
-        Tick(2),
-    )
-    .build();
-    let client_b = ClientBuilder::pathway_and_batman(
-        NODE_B,
-        topology.clone(),
-        network.clone(),
-        Tick(2),
-    )
-    .with_profile(relay_profile())
-    .build();
-    let client_c =
-        ClientBuilder::pathway_and_batman(NODE_C, topology.clone(), network, Tick(2))
+    let client_a =
+        ClientBuilder::pathway_and_batman(NODE_A, topology.clone(), network.clone(), Tick(2))
             .build();
+    let client_b =
+        ClientBuilder::pathway_and_batman(NODE_B, topology.clone(), network.clone(), Tick(2))
+            .with_profile(relay_profile())
+            .build();
+    let client_c =
+        ClientBuilder::pathway_and_batman(NODE_C, topology.clone(), network, Tick(2)).build();
 
     (client_a, client_b, client_c)
 }
@@ -234,8 +221,7 @@ fn assert_tick_after_forward(
     expected_epoch: jacquard_core::RouteEpoch,
     tick_context: &str,
 ) {
-    let BridgeRoundProgress::Advanced(report) =
-        receiver.advance_round().expect(tick_context)
+    let BridgeRoundProgress::Advanced(report) = receiver.advance_round().expect(tick_context)
     else {
         panic!("expected a bridge-driven round with ingress")
     };
@@ -259,9 +245,7 @@ fn advance_and_capture_payload(
     expected_epoch: jacquard_core::RouteEpoch,
     context: &str,
 ) -> Vec<u8> {
-    let BridgeRoundProgress::Advanced(report) =
-        receiver.advance_round().expect(context)
-    else {
+    let BridgeRoundProgress::Advanced(report) = receiver.advance_round().expect(context) else {
         panic!("expected a bridge-driven round with ingress")
     };
     assert_eq!(report.router_outcome.topology_epoch, expected_epoch);
@@ -269,10 +253,12 @@ fn advance_and_capture_payload(
         .ingested_transport_observations
         .iter()
         .find_map(|observation| match observation {
-            | jacquard_core::TransportObservation::PayloadReceived {
-                payload, ..
-            } if !payload.starts_with(BATMAN_GOSSIP_MAGIC) => Some(payload.clone()),
-            | _ => None,
+            jacquard_core::TransportObservation::PayloadReceived { payload, .. }
+                if !payload.starts_with(BATMAN_GOSSIP_MAGIC) =>
+            {
+                Some(payload.clone())
+            }
+            _ => None,
         })
         .unwrap_or_else(|| {
             panic!(
@@ -285,8 +271,7 @@ fn advance_and_capture_payload(
 /// Advance the sender bridge once and assert that it flushed at least one
 /// queued transport command after the synchronous router round.
 fn flush_sender_round(sender: &mut BoundHostBridge<'_, PathwayRouter>, context: &str) {
-    let BridgeRoundProgress::Advanced(report) = sender.advance_round().expect(context)
-    else {
+    let BridgeRoundProgress::Advanced(report) = sender.advance_round().expect(context) else {
         panic!("expected a bridge-driven round with outbound flush")
     };
     assert!(report.flushed_transport_commands >= 1);
@@ -343,11 +328,7 @@ fn pathway_forwarding_across_shared_network() {
         .forward_payload(&route_a_to_c.identity.stamp.route_id, payload)
         .expect("client A forwards toward B");
     flush_sender_round(&mut client_a, "client A flush round");
-    assert_tick_after_forward(
-        &mut client_b,
-        topology.value.epoch,
-        "client B ingress tick",
-    );
+    assert_tick_after_forward(&mut client_b, topology.value.epoch, "client B ingress tick");
 
     // 6. Hop two. B forwards along its own B-to-C route. Same pattern, next
     //    receiver.
@@ -356,11 +337,7 @@ fn pathway_forwarding_across_shared_network() {
         .forward_payload(&route_b_to_c.identity.stamp.route_id, payload)
         .expect("client B forwards toward C");
     flush_sender_round(&mut client_b, "client B flush round");
-    assert_tick_after_forward(
-        &mut client_c,
-        topology.value.epoch,
-        "client C ingress tick",
-    );
+    assert_tick_after_forward(&mut client_c, topology.value.epoch, "client C ingress tick");
 }
 
 // long-block-exception: end-to-end scenario traces a single linear routing
@@ -376,8 +353,7 @@ fn routing_spans_batman_then_pathway() {
     // 2. Clients plus two side-channel observers attached to B and C. The observers
     //    let the test read ingress directly off the shared network without routing
     //    through a client's own transport.
-    let (mut client_a, mut client_b, mut client_c) =
-        build_mixed_engine_triplet(&topology, network);
+    let (mut client_a, mut client_b, mut client_c) = mixed_engine_triplet(&topology, network);
     let mut client_a = client_a.bind();
     let mut client_b = client_b.bind();
     let mut client_c = client_c.bind();
@@ -416,11 +392,8 @@ fn routing_spans_batman_then_pathway() {
         .forward_payload(route_a_to_b.identity.route_id(), payload)
         .expect("client A forwards over batman");
     flush_sender_round(&mut client_a, "client A batman flush round");
-    let received_by_b = advance_and_capture_payload(
-        &mut client_b,
-        topology.value.epoch,
-        "client B bridge round",
-    );
+    let received_by_b =
+        advance_and_capture_payload(&mut client_b, topology.value.epoch, "client B bridge round");
     assert_eq!(received_by_b, payload);
 
     // 6. Hop two, pathway. B re-forwards the payload. Pathway hex-encodes payloads
@@ -430,23 +403,20 @@ fn routing_spans_batman_then_pathway() {
         .forward_payload(route_b_to_c.identity.route_id(), &received_by_b)
         .expect("client B forwards over pathway");
     flush_sender_round(&mut client_b, "client B pathway flush round");
-    let received_by_c = advance_and_capture_payload(
-        &mut client_c,
-        topology.value.epoch,
-        "client C bridge round",
-    );
+    let received_by_c =
+        advance_and_capture_payload(&mut client_c, topology.value.epoch, "client C bridge round");
     assert_eq!(received_by_c, hex_bytes(payload).into_bytes());
 
     // 7. Epoch check. C's router tick still reports the current topology epoch
     //    after the dual-engine path has completed, regardless of whether the bridge
     //    reports an idle wait state or a proactive private-state round.
     match client_c.advance_round().expect("client C router round") {
-        | BridgeRoundProgress::Advanced(report) => {
+        BridgeRoundProgress::Advanced(report) => {
             assert_eq!(
                 report.router_outcome.topology_epoch,
                 jacquard_core::RouteEpoch(3)
             );
-        },
-        | BridgeRoundProgress::Waiting(_) => {},
+        }
+        BridgeRoundProgress::Waiting(_) => {}
     }
 }

@@ -32,12 +32,11 @@ mod scenario;
 pub mod presets;
 
 pub use environment::{
-    AppliedEnvironmentHook, EnvironmentHook, ScheduledEnvironmentHook,
-    ScriptedEnvironmentModel,
+    AppliedEnvironmentHook, EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel,
 };
 pub use harness::{
-    JacquardHostAdapter, JacquardSimulationHarness, JacquardSimulator,
-    ReferenceClientAdapter, SimulationError,
+    JacquardHostAdapter, JacquardSimulationHarness, JacquardSimulator, ReferenceClientAdapter,
+    SimulationError,
 };
 pub use replay::{
     DriverStatusEvent, HostCheckpointSnapshot, HostRoundArtifact, HostRoundStatus,

@@ -13,8 +13,8 @@
 //! engine-selection precedence when multiple engines are present.
 
 use jacquard_core::{
-    Configuration, ConnectivityPosture, Observation, RouteProtectionClass,
-    RouteRepairClass, RoutingObjective, SelectedRoutingParameters,
+    Configuration, ConnectivityPosture, Observation, RouteProtectionClass, RouteRepairClass,
+    RoutingObjective, SelectedRoutingParameters,
 };
 
 pub(crate) struct NullCandidateEngine {
@@ -27,7 +27,10 @@ impl NullCandidateEngine {
         local_node_id: jacquard_core::NodeId,
         engine_id: jacquard_core::RoutingEngineId,
     ) -> Self {
-        Self { local_node_id, engine_id }
+        Self {
+            local_node_id,
+            engine_id,
+        }
     }
 }
 
@@ -47,8 +50,7 @@ impl jacquard_traits::RoutingEnginePlanner for NullCandidateEngine {
             repair_support: jacquard_core::RepairSupport::Unsupported,
             hold_support: jacquard_core::HoldSupport::Unsupported,
             decidable_admission: jacquard_core::DecidableSupport::Supported,
-            quantitative_bounds:
-                jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
+            quantitative_bounds: jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support: jacquard_core::ReconfigurationSupport::ReplaceOnly,
             route_shape_visibility: jacquard_core::RouteShapeVisibility::NextHopOnly,
         }

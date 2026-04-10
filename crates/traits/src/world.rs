@@ -21,9 +21,8 @@
 //! observational input; the router and engines decide what to do with it.
 
 use jacquard_core::{
-    Environment, EnvironmentObservation, Link, LinkObservation, Node, NodeObservation,
-    Observation, ServiceDescriptor, ServiceObservation, TransportKind,
-    TransportObservation, WorldError,
+    Environment, EnvironmentObservation, Link, LinkObservation, Node, NodeObservation, Observation,
+    ServiceDescriptor, ServiceObservation, TransportKind, TransportObservation, WorldError,
 };
 use jacquard_macros::purity;
 
@@ -104,9 +103,7 @@ pub trait EnvironmentWorldExtension: WorldExtensionDescriptor {
 }
 
 impl<T: EnvironmentWorldExtension> WorldExtension<Environment> for T {
-    fn poll_observations(
-        &mut self,
-    ) -> Result<Vec<Observation<Environment>>, WorldError> {
+    fn poll_observations(&mut self) -> Result<Vec<Observation<Environment>>, WorldError> {
         self.poll_environment_observations()
     }
 }
@@ -123,9 +120,7 @@ pub trait ServiceWorldExtension: WorldExtensionDescriptor {
 }
 
 impl<T: ServiceWorldExtension> WorldExtension<ServiceDescriptor> for T {
-    fn poll_observations(
-        &mut self,
-    ) -> Result<Vec<Observation<ServiceDescriptor>>, WorldError> {
+    fn poll_observations(&mut self) -> Result<Vec<Observation<ServiceDescriptor>>, WorldError> {
         self.poll_service_observations()
     }
 }
@@ -145,9 +140,7 @@ pub trait TransportWorldExtension: WorldExtensionDescriptor {
 }
 
 impl<T: TransportWorldExtension> WorldExtension<TransportObservation> for T {
-    fn poll_observations(
-        &mut self,
-    ) -> Result<Vec<Observation<TransportObservation>>, WorldError> {
+    fn poll_observations(&mut self) -> Result<Vec<Observation<TransportObservation>>, WorldError> {
         self.poll_transport_observations()
     }
 }

@@ -13,16 +13,15 @@
 //! topology epoch before re-deriving, ensuring the plan token is still live.
 
 use jacquard_core::{
-    BackendRouteId, Configuration, NodeId, ObjectiveVsDelivered, Observation,
-    RouteError, RouteSelectionError, RouteWitness, RoutingObjective,
-    SelectedRoutingParameters, Tick, TimeWindow,
+    BackendRouteId, Configuration, NodeId, ObjectiveVsDelivered, Observation, RouteError,
+    RouteSelectionError, RouteWitness, RoutingObjective, SelectedRoutingParameters, Tick,
+    TimeWindow,
 };
 
 use super::{
     super::support::{
-        decode_backend_token, deterministic_order_key, encode_backend_token,
-        encode_path_bytes, node_path_from_plan_token, route_cost_for_segments,
-        PathwayPlanToken,
+        decode_backend_token, deterministic_order_key, encode_backend_token, encode_path_bytes,
+        node_path_from_plan_token, route_cost_for_segments, PathwayPlanToken,
     },
     admission::pathway_admission_check,
     PathwayEngine, PathwayHasherBounds, PathwaySelectorBounds,
@@ -50,17 +49,11 @@ where
         node_path: &[NodeId],
         destination_node: &jacquard_core::Node,
     ) -> Option<(BackendRouteId, CachedCandidate)> {
-        let (plan, _segments) = self.plan_token_for_path(
-            objective,
-            profile,
-            topology,
-            node_path,
-            destination_node,
-        )?;
+        let (plan, _segments) =
+            self.plan_token_for_path(objective, profile, topology, node_path, destination_node)?;
         let backend_route_id = encode_backend_token(&plan);
-        let cached = self.cached_candidate_from_plan(
-            objective, profile, topology, node_path, &plan,
-        )?;
+        let cached =
+            self.cached_candidate_from_plan(objective, profile, topology, node_path, &plan)?;
         Some((backend_route_id, cached))
     }
 
@@ -73,10 +66,9 @@ where
         destination_node: &jacquard_core::Node,
     ) -> Option<(PathwayPlanToken, Vec<PathwayRouteSegment>)> {
         let segments = self.derive_segments(&topology.value, node_path)?;
-        let hold_capable = self
-            .hold_capable_for_destination(destination_node, topology.observed_at_tick);
-        let route_class =
-            self.determine_route_class(objective, segments.len(), hold_capable);
+        let hold_capable =
+            self.hold_capable_for_destination(destination_node, topology.observed_at_tick);
+        let route_class = self.determine_route_class(objective, segments.len(), hold_capable);
         let valid_for = TimeWindow::new(
             topology.observed_at_tick,
             Tick(
@@ -116,35 +108,15 @@ where
             .ok()?;
         let segments = &plan.segments;
         let route_class = &plan.route_class;
-        let connectivity = self.route_connectivity_for_path(
-            objective,
-            topology,
-            node_path,
-            route_class,
-        );
-        let path_metric_score = self.path_metric_score(
-            objective,
-            topology,
-            node_path,
-            segments,
-            route_class,
-        );
-        let route_cost =
-            route_cost_for_segments(node_path, segments, route_class, &topology.value);
-        let summary = self.build_candidate_summary(
-            topology,
-            connectivity,
-            segments,
-            plan.valid_for,
-        );
-        let estimate = self.build_candidate_estimate(
-            topology,
-            connectivity,
-            route_class,
-            segments,
-        );
-        let admission_assumptions =
-            pathway_admission_assumptions(profile, &topology.value);
+        let connectivity =
+            self.route_connectivity_for_path(objective, topology, node_path, route_class);
+        let path_metric_score =
+            self.path_metric_score(objective, topology, node_path, segments, route_class);
+        let route_cost = route_cost_for_segments(node_path, segments, route_class, &topology.value);
+        let summary =
+            self.build_candidate_summary(topology, connectivity, segments, plan.valid_for);
+        let estimate = self.build_candidate_estimate(topology, connectivity, route_class, segments);
+        let admission_assumptions = pathway_admission_assumptions(profile, &topology.value);
         let admission_check = pathway_admission_check(
             objective,
             profile,
@@ -167,8 +139,7 @@ where
             degradation: estimate.value.degradation,
         };
         let path_bytes = encode_path_bytes(node_path, segments);
-        let ordering_key =
-            deterministic_order_key(route_id, &self.hashing, &path_bytes);
+        let ordering_key = deterministic_order_key(route_id, &self.hashing, &path_bytes);
         Some(CachedCandidate {
             route_id,
             path_metric_score,
@@ -187,8 +158,7 @@ where
         topology: &Observation<Configuration>,
         backend_route_id: &BackendRouteId,
     ) -> Result<CachedCandidate, RouteError> {
-        let plan =
-            self.validated_plan_for_backend_ref(objective, topology, backend_route_id)?;
+        let plan = self.validated_plan_for_backend_ref(objective, topology, backend_route_id)?;
         let node_path = node_path_from_plan_token(&plan);
         let candidate = self
             .cached_candidate_from_plan(objective, profile, topology, &node_path, &plan)
@@ -202,8 +172,8 @@ where
         topology: &Observation<Configuration>,
         backend_route_id: &BackendRouteId,
     ) -> Result<PathwayPlanToken, RouteError> {
-        let plan = decode_backend_token(backend_route_id)
-            .ok_or(RouteSelectionError::NoCandidate)?;
+        let plan =
+            decode_backend_token(backend_route_id).ok_or(RouteSelectionError::NoCandidate)?;
         self.ensure_plan_matches_objective(objective, topology, &plan)?;
         self.ensure_plan_matches_current_topology(objective, topology, &plan)?;
         if encode_backend_token(&plan) != *backend_route_id {
@@ -218,13 +188,10 @@ where
         topology: &Observation<Configuration>,
         plan: &PathwayPlanToken,
     ) -> Result<(), RouteError> {
-        if plan.source != self.local_node_id
-            || plan.destination != objective.destination
-        {
+        if plan.source != self.local_node_id || plan.destination != objective.destination {
             return Err(RouteSelectionError::NoCandidate.into());
         }
-        if plan.epoch != topology.value.epoch
-            || !plan.valid_for.contains(topology.observed_at_tick)
+        if plan.epoch != topology.value.epoch || !plan.valid_for.contains(topology.observed_at_tick)
         {
             return Err(RouteSelectionError::NoCandidate.into());
         }
@@ -238,17 +205,15 @@ where
         plan: &PathwayPlanToken,
     ) -> Result<(), RouteError> {
         let node_path = node_path_from_plan_token(plan);
-        let destination_node_id =
-            *node_path.last().ok_or(RouteSelectionError::NoCandidate)?;
+        let destination_node_id = *node_path.last().ok_or(RouteSelectionError::NoCandidate)?;
         let destination_node = topology
             .value
             .nodes
             .get(&destination_node_id)
             .ok_or(RouteSelectionError::NoCandidate)?;
-        let hold_capable = self
-            .hold_capable_for_destination(destination_node, topology.observed_at_tick);
-        let route_class =
-            self.determine_route_class(objective, plan.segments.len(), hold_capable);
+        let hold_capable =
+            self.hold_capable_for_destination(destination_node, topology.observed_at_tick);
+        let route_class = self.determine_route_class(objective, plan.segments.len(), hold_capable);
         if route_class != plan.route_class {
             return Err(RouteSelectionError::NoCandidate.into());
         }

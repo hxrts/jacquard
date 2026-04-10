@@ -21,8 +21,7 @@ use telltale::{
 
 pub(crate) const SOURCE_PATH: &str = "crates/pathway/src/choreography/repair.rs";
 pub(crate) const PROTOCOL_NAME: &str = "BoundedSuffixRepair";
-pub(crate) const ROLE_NAMES: &[&str] =
-    &["CurrentOwner", "CandidateRelay", "Destination"];
+pub(crate) const ROLE_NAMES: &[&str] = &["CurrentOwner", "CandidateRelay", "Destination"];
 
 type ProtocolResult<T> = result::Result<T, Box<dyn Error + marker::Send + Sync>>;
 
@@ -64,8 +63,7 @@ where
     E: PathwayProtocolRuntime,
 {
     let route_id = hex_bytes(&route_id.0);
-    let Roles(mut current_owner, mut candidate_relay, mut destination) =
-        Roles::default();
+    let Roles(mut current_owner, mut candidate_relay, mut destination) = Roles::default();
 
     executor::block_on(async {
         try_join!(
@@ -78,10 +76,7 @@ where
     .choreography_failed()
 }
 
-async fn current_owner_role(
-    role: &mut CurrentOwner,
-    route_id: String,
-) -> ProtocolResult<()> {
+async fn current_owner_role(role: &mut CurrentOwner, route_id: String) -> ProtocolResult<()> {
     try_session(role, |s: CurrentOwnerSession<'_, _>| async move {
         let end = s.send(RepairRequest { route_id }).await?;
         Ok(((), end))
@@ -92,16 +87,18 @@ async fn current_owner_role(
 async fn candidate_relay_role(role: &mut CandidateRelay) -> ProtocolResult<()> {
     try_session(role, |s: CandidateRelaySession<'_, _>| async {
         let (RepairRequest { route_id }, s) = s.receive().await?;
-        let s = s.send(RepairOffer { route_id: route_id.clone() }).await?;
+        let s = s
+            .send(RepairOffer {
+                route_id: route_id.clone(),
+            })
+            .await?;
         match s.branch().await? {
-            | CandidateRelayChoice1::RepairAccepted(
-                RepairAccepted { route_id: _ },
-                end,
-            ) => Ok(((), end)),
-            | CandidateRelayChoice1::RepairRejected(
-                RepairRejected { route_id: _ },
-                end,
-            ) => Ok(((), end)),
+            CandidateRelayChoice1::RepairAccepted(RepairAccepted { route_id: _ }, end) => {
+                Ok(((), end))
+            }
+            CandidateRelayChoice1::RepairRejected(RepairRejected { route_id: _ }, end) => {
+                Ok(((), end))
+            }
         }
     })
     .await

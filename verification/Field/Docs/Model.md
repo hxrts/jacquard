@@ -1,24 +1,72 @@
 # Field Local Model Specification
 
-This note states the first formal object for the field engine in mathematical terms and records how it relates to the Rust implementation.
-
-The purpose of this document is to make the proof object explicit: what the state space is, what one local round means, which invariants are part of the model, and which theorems have actually been established.
+This note describes the current formal object for the field engine in mathematical and proof-structural terms. It is the authoritative description of the current reduced local model, not a sketch of the full production Rust system. The wider field verification stack now also has reduced network and router layers in `Field/Network/*` and `Field/Router/*`, but this document stays focused on the destination-local semantic object they build on.
 
 ## Scope
 
-The current Lean model is a destination-local state machine for one node, one destination class, and one deterministic round step. It is deliberately transport-agnostic, bounded, discrete, and smaller than the production Rust field engine.
+The current field verification stack is no longer only a destination-local model. It now includes:
 
-It does not yet model a network of nodes, asynchronous transport behavior, router publication semantics, route admission semantics, or end-to-end convergence or optimality.
+- a destination-local deterministic observer-controller model
+- a finite normalized information layer over the reduced hypothesis space
+- a reduced private protocol layer
+- a reduced finite network and router boundary
+- a reduced async delivery layer
+- a reduced end-to-end system semantics
+- a reduced routing-quality / comparison layer above system-facing route views
+- first fixed-point / stabilization results under strong reduced assumptions
+- a reduced runtime adequacy layer
+- first system-level summary and boundary results
 
-## State Space
+This document still focuses on the local semantic object at the center of that stack. That local object is a destination-local, deterministic, bounded state machine for one node and one local round, and it remains intentionally smaller than the full Rust field engine.
 
-Let the bounded scalar domain be
+It does model:
+
+- one destination-local observer-controller state
+- one local round transition
+- a finite belief object over reduced reachability hypotheses
+- a reduced information layer built on top of that belief object
+- a small local refinement layer over the composed round step
+- a first quantitative layer over the normalized belief object
+- a public corridor-envelope projection derived from local state
+- a small finite decision layer over a representative evidence alphabet
+
+The local model by itself still does not model:
+
+- asynchronous transport behavior
+- router lifecycle maintenance
+- end-to-end sequencing or stabilization
+- routing-quality or optimality claims
+
+Those wider concerns are now split as follows:
+
+- reduced finite network semantics
+  - `Field/Network/*`
+- reduced publication/admission/installation semantics
+  - `Field/Router/*`
+- reduced router lifecycle semantics
+  - `Field/Router/Lifecycle.lean`
+- reduced async delivery semantics, transport lifecycle lemmas, and first async publication-safety theorems
+  - `Field/Async/*`
+- reduced end-to-end sequencing, observer results, and convergence theorems
+  - `Field/System/EndToEnd.lean`
+  - `Field/System/Convergence.lean`
+- reduced route-comparison and ranking semantics over exported lifecycle/system views
+  - `Field/Quality/API.lean`
+  - `Field/Quality/System.lean`
+- system-level aggregate summaries and assumption-boundary results
+  - `Field/System/*`
+- runtime extraction and reduced simulation witness
+  - `Field/Adequacy/*`
+
+## Core State Space
+
+Let the bounded scalar domain be:
 
 ```text
 B := { n ∈ Nat | 0 ≤ n ≤ 1000 }.
 ```
 
-The current concrete instance represents all scalar quantities with clamped natural numbers in `B`.
+The concrete instance represents all bounded scalar quantities with clamped naturals in `B`.
 
 The finite enumerated domains are:
 
@@ -27,23 +75,24 @@ The finite enumerated domains are:
 - `ReachabilitySignal = { preserve, unknown, unreachable, corridorOnly, explicitPath }`
 - `ObservationFreshness = { stale, fresh }`
 - `ReachabilityKnowledge = { unknown, unreachable, corridor, explicitPath }`
+- `FieldHypothesis = { unknown, unreachable, corridor, explicitPath }`
 - `OperatingRegime = { sparse, congested, retentionFavorable, unstable, adversarial }`
 - `RoutingPosture = { opportunistic, structured, retentionBiased, riskSuppressed }`
 - `CorridorShape = { opaque, corridorEnvelope, explicitPath }`
 
-The formal input space is:
+The local observational input space is:
 
 ```text
 EvidenceInput :=
   RefreshSignal
   × ReachabilitySignal
-  × B                 -- support signal
-  × B                 -- entropy signal
-  × B                 -- controller pressure
+  × B
+  × B
+  × B
   × EvidenceFeedback
 ```
 
-The destination-local semantic state is the product
+The destination-local semantic state is:
 
 ```text
 LocalState :=
@@ -53,10 +102,10 @@ LocalState :=
   × RegimeState
   × PostureState
   × ScoredContinuationSet
-  × CorridorEnvelopeProjection.
+  × CorridorEnvelopeProjection
 ```
 
-With component structure:
+with components:
 
 ```text
 PosteriorState :=
@@ -85,483 +134,232 @@ CorridorEnvelopeProjection :=
   CorridorShape × B × Nat × Nat
 ```
 
-The current model uses `Nat` for hop bounds, but the concrete instance fixes them to a tiny finite family of bands:
+The concrete instance uses a small fixed family of hop bands:
 
 - explicit path: `(2, 2)`
 - corridor envelope: `(1, 3)`
 - opaque: `(0, 4)`
 
-## Information-Theoretic Interpretation
+## Unified Round Semantics
 
-The current Lean object is now split into two information layers:
+The local model is intentionally one unified observer-controller pipeline rather than a bag of disconnected submodels.
 
-- the local controller model in `Field/Model/*`
-- the information-theoretic normalization layer in `Field/Information/*`
+At the semantic level, the one-round flow is:
 
-It is still not a full probabilistic routing model in the Shannon sense. It does not yet prove KL-style update inequalities, mutual-information bounds, or entropy-production statements about the whole controller pipeline. It now does, however, carry an explicit finite belief object and a first concrete weight-normalized distribution over that finite hypothesis space, so the information-theoretic story is no longer only metaphorical.
+```text
+evidence
+  → posterior update
+  → mean-field summary
+  → controller update
+  → regime classification
+  → posture selection
+  → continuation scoring
+  → public corridor projection
+```
 
-### Local Belief and Uncertainty
+This is why `LocalState` carries all of these components together and why the harmony laws matter: they prevent later stages from inventing stronger support or stronger public claims than earlier stages justify.
 
-`FieldHypothesis` is the current finite hypothesis space:
+## Finite Belief And Information Layer
+
+The information story now has two explicit layers:
+
+- `Field/Model/*`
+  - the bounded local controller model
+- `Field/Information/*`
+  - the explicit probabilistic normalization layer built over `FiniteBelief`
+
+### Finite Belief
+
+`FiniteBelief` assigns bounded nonnegative weight to the four reduced hypotheses:
 
 ```text
 FieldHypothesis = { unknown, unreachable, corridor, explicitPath }.
 ```
 
-`PosteriorState` is the first local information-bearing state. Formally it is
+The API exposes:
 
 ```text
-PosteriorState = FiniteBelief × ObservationFreshness × ReachabilityKnowledge.
+weight : FiniteBelief → FieldHypothesis → Nat
+totalWeight : FiniteBelief → Nat
+supportMass : FiniteBelief → Nat
+uncertaintyMass : FiniteBelief → Nat
 ```
 
-Semantically:
-
-- `belief : FiniteBelief` assigns bounded nonnegative weight to each reduced hypothesis
-- `freshness` indicates whether the uncertainty summary is backed by an explicit refresh event
-- `knowledge` records the coarse reachability class currently justified by the local evidence
-
-The instance currently derives two coarse observables from that belief object:
+where the current concrete observables are:
 
 ```text
 supportMass(belief) := min(corridorWeight + explicitPathWeight, 1000)
 uncertaintyMass(belief) := min(unknownWeight + unreachableWeight, 1000)
 ```
 
-and then exposes them as:
+### Probability-Simplex Style Boundary
+
+The information API now defines:
 
 ```text
-PosteriorState.support = supportMass(belief)
-PosteriorState.entropy = uncertaintyMass(belief).
-```
-
-So the model should now be read as carrying a finite private belief object together with one bounded support observable and one bounded uncertainty observable derived from it.
-
-### Mean Field as a Reduced Statistic
-
-`MeanFieldState` is not a second independent source of truth. It is a reduced statistic derived from the posterior and control pressure:
-
-```text
-MeanFieldState = B × B × B.
-```
-
-Its intended role is analogous to a low-order moment summary or compressed field statistic. `fieldStrength` tracks the dominant local support level, `relayAlignment` approximates how well the neighborhood field aligns with continuation pressure, and `riskAlignment` approximates how much uncertainty and control pressure are jointly concentrated.
-
-The harmony law
-
-```text
-s.meanField.fieldStrength = s.posterior.support
-```
-
-is therefore an information-flow statement: the coarse field summary may compress the local posterior, but it is not allowed to invent stronger support than the posterior carries.
-
-### Controller and Regime as Decision-Theoretic Compression
-
-`ControllerState`, `RegimeState`, and `PostureState` do not add new evidence. They are decision-theoretic compressions of the observational state: the controller turns reduced field statistics into slow control variables, the regime classifies the present explanatory situation, and the posture chooses the routing stance compatible with that regime.
-
-So the current local round has the information-processing shape
-
-```text
-evidence
-  → posterior surrogate
-  → reduced field statistic
-  → control statistic
-  → regime classification
-  → posture choice.
-```
-
-This is exactly why the model is written as one unified observer-controller pipeline instead of a set of disconnected submodels.
-
-### Continuation Scores and Public Projection
-
-`ScoredContinuationSet` and `CorridorEnvelopeProjection` are the first places where the model distinguishes between:
-
-- private local scoring
-- public shared claim
-
-`ScoredContinuationSet` is still private and can be read as a bounded ranking over the continuation hypotheses that survive the current local belief state.
-
-`CorridorEnvelopeProjection` is the conservative public image of that private state. It is intentionally lossy. In information-theoretic language, it is a rate-limited projection of the private belief state into a smaller public alphabet:
-
-```text
-CorridorEnvelopeProjection := CorridorShape × B × Nat × Nat.
-```
-
-The current honesty and harmony laws formalize this lossy-public boundary:
-
-- explicit-path publication requires explicit-path knowledge
-- public support is bounded above by local support
-- hop-band disclosure is chosen from a fixed coarse family, not from arbitrary path detail
-
-So the projection is not a posterior announcement. It is a constrained summary channel from private local belief into shared observable state.
-
-### Uncertainty Functional
-
-The current uncertainty functional is still a bounded surrogate, not a true Shannon entropy:
-
-```text
-U(belief) := uncertaintyMass(belief)
-          := min(unknownWeight + unreachableWeight, 1000).
-```
-
-This quantity is intentionally simple. It measures how much belief mass remains in the two noncommittal or failure-like classes. It is useful for conservativity and stabilization proofs, but it is not yet a theorem-backed Shannon quantity.
-
-The right future refinement is:
-
-- refine `U` further with stronger entropy or divergence statements over the now weight-normalized finite distribution
-- compare public projection to private belief using information loss or erasure arguments
-- connect the finite field model to Telltale's `InformationCost.lean` and `ClassicalAnalysisAPI.lean` boundaries
-
-The first concrete information instance now uses a true weight-normalized finite belief distribution with a zero-mass fallback to `unknown`. It defines:
-
-```text
+ProbabilitySimplexBelief
+simplexBelief : FiniteBelief → ProbabilitySimplexBelief
 normalizeBelief : FiniteBelief → Distribution FieldHypothesis
-shannonUncertainty : FiniteBelief → ℝ
 ```
 
-and proves at least one genuine Shannon-style theorem:
+The compatibility law `SimplexMatchesFiniteBelief` requires:
+
+- nonnegative mass
+- total mass one
+- zero-total fallback to a point mass on `unknown`
+- nonzero-total normalization by finite weights
+
+So the current information layer is no longer only “normalized integer weights” in prose. It has an explicit probability-simplex style API boundary.
+
+### What Is Proved In The Information Layer
+
+The current concrete instance proves:
+
+- normalized pmf nonnegativity
+- normalized pmf sums to one
+- explicit-path mass matches normalized explicit-path probability
+- corridor-capable mass matches normalized corridor-plus-explicit-path probability
+- Shannon uncertainty is nonnegative
+- explicit-path mass is bounded by corridor-capable mass
+- explicit-path mass is exactly one when all belief mass sits on explicit-path
+
+This is still an early information layer, but it is a real one.
+
+## Blindness And Erasure
+
+`Field/Information/Blindness.lean` now treats the public corridor projection as a lossy observer over the normalized private belief object.
+
+The key current result is the first genuine erasure theorem:
 
 ```text
-belief_shannon_entropy_nonnegative :
-  0 ≤ shannonUncertainty(belief).
+opaque_projection_erases_unknown_unreachable_split
 ```
 
-That theorem is modest, but it is no longer only a bounded-surrogate statement. It uses the real information-theoretic API boundary instead of only the coarse `uncertaintyMass` proxy. The next refinement should use the normalized belief object to derive sharper entropy, divergence, and blindness statements rather than only first nonnegativity and mass-ratio facts.
+Informally, once corridor-capable mass is zero on both sides, the public projection forgets how the remaining mass is split between `unknown` and `unreachable`.
 
-### What Is Proved Now vs Later
+This is intentionally narrow. It does not yet give a full mutual-information or divergence theory for the public corridor projection. But it is now a mathematically meaningful blindness statement over the normalized belief layer.
 
-The current model proves structural properties of this compressed information pipeline:
+## Decision Layer
 
-- the state remains bounded
-- information does not collapse across proof-relevant categories such as `unknown` and `unreachable`
-- the public projection remains subordinate to the local belief state
-- the reduced statistics remain harmonized with the posterior
+`Field/Model/Decision.lean` adds one small finite decision layer:
 
-These are pre-information-theoretic theorems. They establish that the current finite surrogate has the right shape before stronger claims are attempted.
+- a representative evidence alphabet
+- one-step exploration from a root state
+- a decidable question for explicit-path publication in one round
+- soundness and completeness for that bounded decider
 
-Later refinements can legitimately strengthen the model by introducing, for example:
+This is not a planner and not a global routing decision system. It is a small proof-oriented decision procedure over the reduced local round.
 
-- explicit finite distributions over continuation hypotheses
-- a normalized uncertainty functional with a direct Shannon interpretation
-- divergence-style update measures between prior and posterior summaries
-- theorem links to the `ClassicalAnalysisAPI` / `ClassicalAnalysisInstance` pattern already used in Telltale
-- public/private information-flow bounds for the shared corridor envelope
+## Refinement Layer
 
-That later work should refine the current model, not replace its basic observer-controller harmony structure.
+`Field/Model/Refinement.lean` now packages the first small theorem family over the composed round itself.
 
-## Deterministic Round Transition
+The current file proves:
 
-The model is organized around one total deterministic transition
+- `round_projection_support_conservative`
+- `round_mean_field_tracks_posterior_support`
+- `explicit_projection_requires_explicit_round_knowledge`
+- `repeated_explicit_path_rounds_stabilize`
 
-```text
-roundStep : EvidenceInput × LocalState → LocalState.
-```
+These are still reduced local theorems, not end-to-end system theorems. Their role is to show that the fully composed local round step preserves the same honesty/conservativity story promised by the API-level harmony laws.
 
-This transition is defined as the composition
+## Quantitative Layer
 
-```text
-roundStep
-  = projectCorridor
-    ∘ scoreContinuations
-    ∘ choosePosture
-    ∘ inferRegime
-    ∘ updateController
-    ∘ compressMeanField
-    ∘ updatePosterior.
-```
+`Field/Information/Quantitative.lean` adds the first small quantitative objects and lemmas above the normalized belief boundary.
 
-More precisely, if
+The current file defines:
 
-```text
-s  : LocalState
-e  : EvidenceInput
-p' := updatePosterior e s
-m' := compressMeanField e p'
-c' := updateController e m' s.controller
-r' := inferRegime p' m' c'
-t' := choosePosture r' c'
-q' := scoreContinuations p' m' c' t'
-x' := projectCorridor p' m' c' q'
-```
+- `beliefL1Distance`
+- `localUncertaintyPotential`
 
-then
+and proves:
 
-```text
-roundStep(e, s) = (p', m', c', r', t', q', x').
-```
+- `beliefL1Distance_nonneg`
+- `beliefL1Distance_eq_zero_of_equal`
+- `localUncertaintyPotential_nonneg`
+- `equal_beliefs_induce_zero_projection_loss`
 
-This matters because the model is not intended to be a loose federation of submodels. The Lean theorem surface is organized around the composed transition, and the subfunctions are introduced only to name the internal semantics of that single round.
+This is still intentionally small. It is not a full routing-quality theory or a strong information-theoretic comparison framework. It is the first quantitative surface that later strengthening can build on.
 
-## Representation Invariants
+## What Is Proved In The Local Model
 
-The current API isolates the following predicates.
+The local model and its theorem packs currently establish:
 
-### Boundedness
+- boundedness of the local state
+- harmony between posterior, mean-field, controller, regime, posture, scores, and projection
+- honesty of public projection relative to local knowledge
+- small temporal theorems over repeated rounds
+- refinement lemmas over the composed round step
+- first quantitative ranking / distance style results over the reduced local state
 
-```text
-PosteriorBounded
-MeanFieldBounded
-ControllerBounded
-RegimeBounded
-ContinuationScoresBounded
-ProjectionBounded
-StateBounded
-```
+The model should therefore be read as:
 
-Informally:
+- structurally mature as a reduced deterministic local semantic object
+- moderately mature as a finite information object
+- still early as a quantitative decision-theoretic or information-theoretic routing theory
 
-- all scalar state lies in `B`
-- alternate continuation score is no greater than the primary score
-- projected hop bounds satisfy `hopLower ≤ hopUpper`
+## Relationship To System-Level Stabilization
 
-### Harmony
+The new fixed-point and no-spontaneous-promotion theorems do not live in the local model itself. They live in `Field/System/EndToEnd.lean` and `Field/System/Convergence.lean`, where the local projection is composed with:
 
-The `Harmony` predicate captures the intended subordination relations between the layers of the local observer-controller.
+- the reduced async transport layer
+- router lifecycle installation / maintenance
+- a reduced end-to-end step relation
 
-For a state `s`, `Harmony(s)` requires:
+Those results are intentionally narrow. They currently rely on:
 
-```text
-s.meanField.fieldStrength = s.posterior.support
-s.controller.stabilityMargin = s.meanField.fieldStrength
-s.projection.shape = explicitPath  ↔  s.posterior.knowledge = explicitPath
-s.projection.support ≤ s.posterior.support
-s.scored.alternateScore ≤ s.scored.primaryScore
-```
+- `reliableImmediateAssumptions`
+- an empty initial in-flight queue
+- unchanged local/network state across the reduced end-to-end step, captured by `system_step_preserves_network`
 
-This is the formal statement that:
+So the current story is not "the local model proves general convergence." The honest claim is narrower: under a stable-input, reliable-immediate regime, the installed candidate view reaches a reduced fixed point and does not spontaneously promote to explicit-path.
 
-- mean-field state is subordinate to the posterior
-- controller state is subordinate to mean-field state
-- explicit-path projection is subordinate to explicit knowledge
-- shared support is subordinate to local support
+## Relationship To The Quality Layer
 
-### Semantic Non-Collapse
+The new routing-quality work also lives above the local model.
 
-The first model treats the following distinctions as proof-relevant, not merely descriptive:
+`Field/Quality/*` compares exported lifecycle/system route views. It does not change the local observer-controller semantics, and it does not promote the local model into a global route-selection or optimality object.
 
-- stale vs fresh
-- unknown vs unreachable
-- corridor-only vs explicit-path
+That separation matters:
 
-These distinctions are encoded in finite enums and then protected by theorems.
+- the local model still owns local knowledge, support, and public projection
+- the system layer still owns transport/lifecycle composition and stable-step results
+- the quality layer only ranks, compares, and support-refines the reduced route views that those higher layers already expose
 
-## Theorems Established So Far
+The new support-only refinement result is still above the local model:
 
-The first concrete instance proves the following.
+- `Field/Quality/Reference.lean` defines the reference support-best semantics over exported route views
+- `Field/Quality/Refinement.lean` proves `supportDominance` agrees with that reference semantics
+- `Field/Router/Canonical.lean` owns the current canonical support selector
+- `Field/System/Canonical.lean` proves the current system-facing support winner agrees with that router-owned selector
+- `Field/Adequacy/Canonical.lean` proves the low-level runtime artifact bridge under an explicit reduced lifecycle-alignment boundary
+- `Field/Adequacy/Projection.lean` proves a reduced runtime execution projected from `systemStep` refines to that same canonical selector without any extra alignment parameter
+- none of that moves route optimality into `Field/Model`
 
-### 1. Determinism
+## What Is Not Yet Proved
 
-```text
-local_round_deterministic :
-  ∀ e s, roundStep e s = roundStep e s
-```
+The current field local model does not yet prove:
 
-This is a basic sanity theorem: the local round is a pure function with no ambient nondeterminism.
+- global routing optimality
+- end-to-end convergence outside the reduced reliable-immediate stable-input regime
+- strong routing-quality or optimality claims over installed candidates
+- large-network mean-field limits
+- KL-style update inequalities
+- stronger mutual-information bounds for the public projection
+- production-controller correctness
 
-### 2. Boundedness Preservation
+Those belong to later strengthening phases.
 
-Via `round_preserves_bounded`, the concrete instance proves
+## Where To Extend Next
 
-```text
-∀ e s, StateBounded (roundStep e s).
-```
+The most natural next extensions of this document’s model are:
 
-So every stored state component remains inside the declared bounded domain after each round.
+- a richer normalized belief object with stronger probabilistic structure
+- sharper divergence and entropy laws
+- stronger blindness theorems for the corridor projection
+- stronger multi-round stabilization laws beyond the current reliable-immediate fixed-point regime
+- richer reference objectives beyond the current support-only refinement layer
+- stronger router-canonical objectives beyond the current support-only canonical selector
+- tighter connection between local scoring and public projection conservativity
 
-### 3. Harmony Preservation
-
-Via `round_preserves_harmony`, the concrete instance proves
-
-```text
-∀ e s, Harmony (roundStep e s).
-```
-
-This is the main local “unification” theorem for the current model: the subordination relations between posterior, mean field, controller state, continuation scores, and corridor projection are preserved by the full step.
-
-### 4. Freshness Honesty
-
-Via `fresh_requires_refresh` and the concrete theorem `stale_without_refresh`, the model proves:
-
-```text
-e.refresh = unchanged
-  ⇒ (roundStep e s).posterior.freshness = stale.
-```
-
-So freshness cannot be manufactured without an explicit refresh signal.
-
-### 5. Unknown / Unreachable Non-Collapse
-
-Via `unknown_signal_stays_unknown` and the concrete theorem `unknown_signal_not_collapsed`, the model proves:
-
-```text
-e.reachability = unknown
-  ⇒ (roundStep e s).posterior.knowledge = unknown.
-```
-
-So the model does not silently collapse unknown reachability into unreachable reachability.
-
-### 6. Explicit-Path Honesty
-
-Via `explicit_projection_requires_explicit_knowledge` and the concrete theorem `corridor_projection_never_invents_explicit_path`, the model proves:
-
-```text
-(roundStep e s).projection.shape = explicitPath
-  ⇒ (roundStep e s).posterior.knowledge = explicitPath.
-```
-
-This is the core honesty theorem for the current corridor model.
-
-### 7. Multi-Layer Subordination
-
-Via `multi_layer_projection_subordinate` and the concrete theorem `unified_round_subordinate`, the model proves:
-
-```text
-let s' := roundStep e s in
-  s'.meanField.fieldStrength = s'.posterior.support
-  ∧ s'.controller.stabilityMargin = s'.meanField.fieldStrength
-  ∧ s'.projection.support ≤ s'.posterior.support.
-```
-
-This is the clearest current theorem that the field model is one observer-controller pipeline rather than several unrelated update routines.
-
-### 8. Concrete Regime / Posture Examples
-
-The instance also proves specific executable lemmas such as:
-
-- `explicit_path_signal_yields_explicit_projection`
-- `adversarial_corridor_signal_suppresses_posture`
-
-These are not universal theorems over all inputs. They are witness lemmas showing that the composed transition behaves as intended on representative evidence configurations.
-
-### 9. Stronger Local Conservativity And Monotonicity
-
-The reduced instance now also proves a first batch of decision-relevant local theorems:
-
-- `stronger_feedback_cannot_decrease_support`
-  - stronger reverse feedback bonuses cannot reduce posterior support when the other evidence coordinates are fixed
-- `explicit_refresh_does_not_increase_entropy`
-  - explicit refresh does not increase the reduced uncertainty score relative to unchanged refresh
-- `projection_support_le_primary_score`
-  - the shared corridor support remains subordinate to the primary continuation score, not only to posterior support
-- `adversarial_regime_implies_risk_suppressed`
-- `unstable_regime_implies_risk_suppressed`
-  - the simplified controller map is fail-safe under the two most defensive regimes
-- `no_spontaneous_explicit_path_promotion`
-  - one round cannot promote the shared projection to explicit-path unless explicit-path truth is already present in the incoming signal or preserved prior knowledge
-
-The finite-belief refinement sharpens two of these statements:
-
-- `projection_is_conservative_quotient_of_belief`
-  - the public corridor projection cannot advertise more support than the private belief assigns to corridor-capable hypotheses
-- `explicit_path_projection_requires_explicit_path_belief_mass`
-  - explicit-path publication is grounded in the explicit-path component of the belief object, not only in the coarse `knowledge` enum
-
-These are still reduced-model theorems, not global routing guarantees. They do, however, move the proof surface beyond pure shape invariants and into first-order controller conservativity.
-
-### 10. Short Temporal And Stabilization Theorems
-
-The current model now has three temporal layers:
-
-- one-step theorems over `roundStep`
-- short-horizon witness theorems over `roundTwice`
-- repeated-evidence stabilization theorems over `runRepeatedEvidence`
-
-The short-horizon layer includes:
-
-- `roundTwice`
-  - a small helper used to state explicit two-round scenarios over the deterministic local controller
-- `repeated_unknown_evidence_stays_stale_and_opaque`
-  - two consecutive `unknownEvidence` rounds keep the local state stale, preserve `unknown` knowledge, and force an opaque shared projection
-- `repeated_unknown_evidence_never_promotes_explicit_path`
-  - the same two-round scenario cannot drift into explicit-path publication
-- `explicit_path_evidence_recovers_after_unknown_round`
-  - strong explicit-path evidence can restore explicit-path projection after one unknown/stale round in the reduced model
-
-The repeated-evidence stabilization layer includes:
-
-- `runRepeatedEvidence`
-  - iterates one fixed evidence object through the local round function
-- `repeated_unknown_rounds_stabilize_opaque`
-  - after the first unknown round, all later unknown rounds remain stale, unknown, and opaque
-- `repeated_unknown_rounds_never_oscillate`
-  - repeated unknown evidence cannot oscillate between incompatible public projection classes
-- `repeated_explicit_path_rounds_preserve_projection`
-  - repeated strong explicit-path evidence preserves explicit-path publication once it is reached
-- `repeated_corridor_risk_rounds_stay_defensive`
-  - repeated stale corridor-only high-risk evidence remains non-explicit and keeps the simplified controller risk-suppressed
-
-These are still reduced-model theorems. They do not yet prove convergence, optimality, or asymptotic rates. They do show that the proof surface now contains genuine stabilization and no-oscillation statements rather than only one-step algebra.
-
-### 11. Quantitative Ranking Candidate
-
-The current model now names one paper-2-style ranking candidate:
-
-```text
-UncertaintyBurden(s)
-  := s.posterior.entropy
-   + s.controller.congestionPrice
-   + s.regime.residual.
-```
-
-This quantity is intentionally modest. It is not yet called a Lyapunov function, because there is not yet a proved strict-descent theorem. It is an honest bounded proxy for residual uncertainty in the local belief state, control pressure still carried by the node, and unexplained residual misfit in the inferred regime.
-
-The proved theorem `uncertainty_burden_bounded` shows only that this quantity stays finite on bounded local states. The intended next use is as a candidate ranking for recovery, stabilization, or regime-boundary arguments in the style of paper 2.
-
-The model now also proves one first quantitative descent fact over this candidate:
-
-```text
-explicit_path_round_strictly_reduces_uncertainty_burden_from_initial.
-```
-
-This is intentionally narrow. It says that one explicit-path refresh step from the default bounded local state strictly lowers the ranking candidate. It is not yet a global convergence theorem or a general Lyapunov law, but it is stronger than mere boundedness.
-
-### 12. Future Classical And Decision Hooks
-
-The next natural mathematical hooks are `FiniteBelief`, which should eventually be compared against Telltale's `InformationCost.lean` and `ClassicalAnalysisAPI.lean` interfaces. `uncertaintyMass` is the current bounded surrogate that could later be replaced by a true Shannon-style quantity on a normalized finite distribution. `runRepeatedEvidence` gives the first concrete place to ask paper-2-style questions about descent, stabilization, and regime boundaries.
-
-Any future use of `ClassicalAnalysisAPI` should follow the same trust-boundary pattern Telltale uses elsewhere: downstream field proofs should depend on the API surface, and any concrete real-analysis instantiation should live in a separate instance layer rather than leaking into the controller model.
-
-One small decision-style property that now looks plausible is:
-
-```text
-given a bounded initial local state and a fixed bounded evidence alphabet,
-does explicit-path publication occur within N steps?
-```
-
-That is still only a design note, not a completed theorem. It is useful because it can be phrased either as a direct bounded-step theorem or as a tiny quotient-exploration decision problem in the style of paper 2.
-
-The current stack now includes the first such tiny decision layer in `Field/Model/Decision.lean`. It asks:
-
-```text
-can explicit-path publication occur in one round under a finite evidence alphabet?
-```
-
-and proves soundness and completeness for that one-step finite exploration procedure.
-
-## Rust Mapping
-
-The first Lean model intentionally captures only the proof-relevant semantic shape of the Rust field engine.
-
-| Lean concept | Rust module | Mathematical role |
-| --- | --- | --- |
-| `EvidenceInput` | `crates/field/src/observer.rs`, `crates/field/src/summary.rs` | bounded observational input object |
-| `PosteriorState` | `crates/field/src/observer.rs`, `crates/field/src/state.rs` | destination-local belief state |
-| `MeanFieldState` | `crates/field/src/control.rs`, `crates/field/src/state.rs` | low-order compression of local field conditions |
-| `ControllerState` | `crates/field/src/control.rs`, `crates/field/src/state.rs` | slow control variables |
-| `RegimeState` | `crates/field/src/control.rs`, `crates/field/src/state.rs` | inferred explanatory regime |
-| `PostureState` | `crates/field/src/control.rs`, `crates/field/src/state.rs` | control stance induced by the regime |
-| `ScoredContinuationSet` | `crates/field/src/planner.rs`, `crates/field/src/attractor.rs` | bounded ranking of continuation options |
-| `CorridorEnvelopeProjection` | `crates/field/src/observer.rs`, `crates/field/src/planner.rs`, `crates/field/src/route.rs` | conservative shared claim derived from local state |
-
-## Deliberate Omissions
-
-The first Lean model does not encode per-neighbor frontier entries, route backend tokens, route admission or publication semantics, checkpointing, retries, transport-driver queues, full summary provenance classes, or destination cache eviction and active-route maintenance. None of these is required to state the first boundedness, honesty, and harmony theorems for the local model.
-
-## API / Instance Trust Boundary
-
-The trust boundary follows the same `API` / `Instance` pattern used elsewhere in Telltale. `Model/API.lean` defines the state-space vocabulary, abstract operations, abstract law bundles, and stable wrappers used by downstream proofs. `Model/Instance.lean` defines one concrete bounded realization with its executable examples and proofs of the declared laws. Downstream proofs should depend on the API surface unless they explicitly need the first concrete bounded realization. This keeps the first bucketized model from becoming an accidental long-term semantic commitment.
-
-## Assumption Envelope
-
-The current theorem envelope is intentionally narrow. Universal theorems cover determinism, boundedness preservation, harmony preservation, freshness honesty, unknown/unreachable non-collapse, explicit-path honesty, and multi-layer subordination. The more concrete example lemmas are witness theorems for specific evidence cases, not universal behavioral claims.
-
-The current theorem set should be read as structural groundwork for a later information-theoretic strengthening. At this stage the surface contains one-step structural invariants, stronger one-step conservativity and monotonicity lemmas, and a very small two-round temporal envelope. The assumption structure is still small enough to keep explicit in individual theorem statements and design notes rather than using `Distributed` family packaging.
+Until then, this document should be read as the specification of the current reduced local model and information boundary, not of the full Rust field engine.

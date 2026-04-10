@@ -20,8 +20,7 @@ mod runtime;
 
 pub(crate) use runtime::{
     activation_handshake, anti_entropy_exchange, clear_route_protocols, forwarding_hop,
-    handoff_exchange, neighbor_advertisement_exchange, record_tick_ingress,
-    recover_held_payload, repair_exchange, replay_to_next_hop, retain_for_replay,
-    route_export_exchange, PathwayAntiEntropySnapshot,
-    PathwayNeighborAdvertisementSnapshot, PathwayRouteExportSnapshot,
+    handoff_exchange, neighbor_advertisement_exchange, record_tick_ingress, recover_held_payload,
+    repair_exchange, replay_to_next_hop, retain_for_replay, route_export_exchange,
+    PathwayAntiEntropySnapshot, PathwayNeighborAdvertisementSnapshot, PathwayRouteExportSnapshot,
 };

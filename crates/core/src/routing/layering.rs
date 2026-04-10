@@ -19,8 +19,8 @@ use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ByteCount, ConnectivityPosture, DurationMs, IdentityAssuranceClass, Limit,
-    RouteHandle, RouteHealth, RouteLease, RouteProtectionClass, RoutingEngineId,
+    ByteCount, ConnectivityPosture, DurationMs, IdentityAssuranceClass, Limit, RouteHandle,
+    RouteHealth, RouteLease, RouteProtectionClass, RoutingEngineId,
 };
 
 #[public_model]

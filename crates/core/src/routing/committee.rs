@@ -19,17 +19,15 @@ use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClaimStrength, CommitteeId, ControllerId, FactBasis, IdentityAssuranceClass,
-    NodeId, RouteEpoch, Tick, TimeWindow,
+    ClaimStrength, CommitteeId, ControllerId, FactBasis, IdentityAssuranceClass, NodeId,
+    RouteEpoch, Tick, TimeWindow,
 };
 
 #[id_type]
 pub struct QuorumThreshold(pub u8);
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Committee role exposed to the shared control plane.
 ///
 /// No distinguished role is required. Leaderless protocols may assign every

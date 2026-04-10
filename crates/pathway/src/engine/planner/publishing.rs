@@ -18,8 +18,7 @@ use std::cmp::Reverse;
 
 use jacquard_core::{
     Belief, Configuration, ConnectivityPosture, Estimate, Observation, RouteCandidate,
-    RouteEstimate, RouteSummary, RoutingObjective, SelectedRoutingParameters,
-    TimeWindow,
+    RouteEstimate, RouteSummary, RoutingObjective, SelectedRoutingParameters, TimeWindow,
 };
 
 use super::{
@@ -70,8 +69,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         let configuration = &topology.value;
         Estimate {
             value: RouteEstimate {
-                estimated_protection:
-                    jacquard_core::RouteProtectionClass::LinkProtected,
+                estimated_protection: jacquard_core::RouteProtectionClass::LinkProtected,
                 estimated_connectivity: connectivity,
                 topology_epoch: configuration.epoch,
                 degradation: degradation_for_candidate(configuration, route_class),
@@ -92,8 +90,7 @@ where
         objective: &RoutingObjective,
         profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
-    ) -> Result<Option<jacquard_core::CommitteeSelection>, jacquard_core::RouteError>
-    {
+    ) -> Result<Option<jacquard_core::CommitteeSelection>, jacquard_core::RouteError> {
         self.selector.select_committee(objective, profile, topology)
     }
 }
@@ -116,9 +113,7 @@ where
         let configuration = &topology.value;
         self.weighted_paths(objective, topology)
             .into_iter()
-            .filter(|(_, node_path)| {
-                node_path.last().copied() != Some(self.local_node_id)
-            })
+            .filter(|(_, node_path)| node_path.last().copied() != Some(self.local_node_id))
             .filter_map(|(_, node_path)| {
                 let destination_node_id = *node_path.last()?;
                 let destination_node = configuration.nodes.get(&destination_node_id)?;
@@ -131,13 +126,7 @@ where
                 ) {
                     return None;
                 }
-                self.candidate_for_path(
-                    objective,
-                    profile,
-                    topology,
-                    &node_path,
-                    destination_node,
-                )
+                self.candidate_for_path(objective, profile, topology, &node_path, destination_node)
             })
             .collect()
     }

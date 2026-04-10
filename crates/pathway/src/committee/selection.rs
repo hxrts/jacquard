@@ -12,11 +12,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bincode::Options;
 use jacquard_core::{
-    CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection, Configuration,
-    ControllerId, FactBasis, IdentityAssuranceClass, NodeId, Observation,
-    QuorumThreshold, RouteEpoch, RouteError, RoutePartitionClass, RouteRepairClass,
-    RoutingEngineId, RoutingObjective, SelectedRoutingParameters, ServiceScope, Tick,
-    TimeWindow,
+    CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection, Configuration, ControllerId,
+    FactBasis, IdentityAssuranceClass, NodeId, Observation, QuorumThreshold, RouteEpoch,
+    RouteError, RoutePartitionClass, RouteRepairClass, RoutingEngineId, RoutingObjective,
+    SelectedRoutingParameters, ServiceScope, Tick, TimeWindow,
 };
 use jacquard_traits::{Blake3Hashing, CommitteeSelector, HashDigestBytes, Hashing};
 
@@ -24,9 +23,8 @@ use crate::{
     committee::{
         PathwayBehaviorHistory, PATHWAY_COMMITTEE_BEHAVIOR_PENALTY_CEILING,
         PATHWAY_COMMITTEE_BEHAVIOR_RELIABILITY_FLOOR, PATHWAY_COMMITTEE_MEMBERSHIP_CAP,
-        PATHWAY_COMMITTEE_MIN_NEIGHBOR_COUNT,
-        PATHWAY_COMMITTEE_SERVICE_STABILITY_FLOOR, PATHWAY_COMMITTEE_SERVICE_WEIGHT,
-        PATHWAY_COMMITTEE_VALIDITY_TICKS,
+        PATHWAY_COMMITTEE_MIN_NEIGHBOR_COUNT, PATHWAY_COMMITTEE_SERVICE_STABILITY_FLOOR,
+        PATHWAY_COMMITTEE_SERVICE_WEIGHT, PATHWAY_COMMITTEE_VALIDITY_TICKS,
     },
     topology::{
         adjacent_node_ids, optional_health_score_value, route_capable_for_engine,
@@ -80,19 +78,13 @@ pub struct DeterministicCommitteeSelector<
 impl DeterministicCommitteeSelector<DeterministicPathwayTopologyModel, Blake3Hashing> {
     #[must_use]
     pub fn new(local_node_id: NodeId) -> Self {
-        Self::with_topology_model(
-            local_node_id,
-            DeterministicPathwayTopologyModel::new(),
-        )
+        Self::with_topology_model(local_node_id, DeterministicPathwayTopologyModel::new())
     }
 }
 
 impl<Topology> DeterministicCommitteeSelector<Topology, Blake3Hashing> {
     #[must_use]
-    pub fn with_topology_model(
-        local_node_id: NodeId,
-        topology_model: Topology,
-    ) -> Self {
+    pub fn with_topology_model(local_node_id: NodeId, topology_model: Topology) -> Self {
         Self {
             local_node_id,
             engine_id: crate::PATHWAY_ENGINE_ID,
@@ -146,14 +138,16 @@ where
         let scope = node.profile.services.iter().find_map(|service| {
             if service.routing_engines.contains(&self.engine_id) {
                 match service.scope {
-                    | ServiceScope::Discovery(scope) => Some(scope),
-                    | _ => None,
+                    ServiceScope::Discovery(scope) => Some(scope),
+                    _ => None,
                 }
             } else {
                 None
             }
         });
-        Some(CommitteeDiversityKey { discovery_scope: scope })
+        Some(CommitteeDiversityKey {
+            discovery_scope: scope,
+        })
     }
 
     fn committee_eligible(
@@ -182,8 +176,7 @@ where
         self.behavior_history
             .get(peer_node_id)
             .is_none_or(|history| {
-                history.reliability_score.0
-                    >= PATHWAY_COMMITTEE_BEHAVIOR_RELIABILITY_FLOOR
+                history.reliability_score.0 >= PATHWAY_COMMITTEE_BEHAVIOR_RELIABILITY_FLOOR
                     && history.misbehavior_penalty_points.0
                         <= PATHWAY_COMMITTEE_BEHAVIOR_PENALTY_CEILING
             })
@@ -203,8 +196,7 @@ where
             configuration,
         )?;
         let relay_score = optional_health_score_value(estimate.relay_value_score());
-        let retention_score =
-            optional_health_score_value(estimate.retention_value_score());
+        let retention_score = optional_health_score_value(estimate.retention_value_score());
         let stability_score = optional_health_score_value(estimate.stability_score());
         let service_score = optional_health_score_value(estimate.service_score());
         let behavior_entry = self.behavior_history.get(peer_node_id);
@@ -218,9 +210,7 @@ where
             score: relay_score
                 .saturating_add(retention_score)
                 .saturating_add(stability_score)
-                .saturating_add(
-                    service_score.saturating_mul(PATHWAY_COMMITTEE_SERVICE_WEIGHT),
-                )
+                .saturating_add(service_score.saturating_mul(PATHWAY_COMMITTEE_SERVICE_WEIGHT))
                 .saturating_add(behavior_bonus)
                 .saturating_sub(behavior_penalty),
             controller_id: node.controller_id,
@@ -242,18 +232,15 @@ where
             return false;
         };
         let density_score = optional_health_score_value(estimate.density_score());
-        let service_stability =
-            optional_health_score_value(estimate.service_stability_score());
-        let partition_risk =
-            optional_health_score_value(estimate.partition_risk_score());
+        let service_stability = optional_health_score_value(estimate.service_stability_score());
+        let partition_risk = optional_health_score_value(estimate.partition_risk_score());
         density_score > 0
             && service_stability >= PATHWAY_COMMITTEE_SERVICE_STABILITY_FLOOR
             && service_stability >= partition_risk
     }
 }
 
-impl<Topology, Hasher> CommitteeSelector
-    for DeterministicCommitteeSelector<Topology, Hasher>
+impl<Topology, Hasher> CommitteeSelector for DeterministicCommitteeSelector<Topology, Hasher>
 where
     Topology: PathwayTopologyModel,
     Topology::PeerEstimate: PathwayPeerEstimateAccess,
@@ -422,10 +409,10 @@ where
         current_tick: Tick,
         members: Vec<CommitteeMember>,
     ) -> CommitteeSelection {
-        let quorum_threshold =
-            QuorumThreshold(u8::try_from((members.len() / 2) + 1).expect(
-                "committee size is bounded by PATHWAY_COMMITTEE_MEMBERSHIP_CAP",
-            ));
+        let quorum_threshold = QuorumThreshold(
+            u8::try_from((members.len() / 2) + 1)
+                .expect("committee size is bounded by PATHWAY_COMMITTEE_MEMBERSHIP_CAP"),
+        );
         let validity_end = Tick(
             current_tick
                 .0
@@ -451,11 +438,7 @@ where
     Hasher: Hashing,
     Hasher::Digest: HashDigestBytes,
 {
-    fn committee_id_for(
-        &self,
-        objective: &RoutingObjective,
-        epoch: RouteEpoch,
-    ) -> CommitteeId {
+    fn committee_id_for(&self, objective: &RoutingObjective, epoch: RouteEpoch) -> CommitteeId {
         #[derive(serde::Serialize)]
         struct CommitteeSeed<'a> {
             destination: &'a jacquard_core::DestinationId,

@@ -16,20 +16,20 @@
 
 use jacquard_core::{
     Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, NodeId,
-    PublishedRouteRecord, ReachabilityState, RouteCommitment, RouteError, RouteHealth,
-    RouteId, RouteInstallation, RouteLifecycleEvent, RouteMaintenanceFailure,
-    RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
-    RouteMaterializationInput, RouteMaterializationProof, RouteProgressContract,
-    RouteProgressState, RouteRuntimeError, RouteRuntimeState, RouteSelectionError,
-    RoutingTickChange, RoutingTickContext, RoutingTickHint, RoutingTickOutcome, Tick,
+    PublishedRouteRecord, ReachabilityState, RouteCommitment, RouteError, RouteHealth, RouteId,
+    RouteInstallation, RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
+    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+    RouteMaterializationProof, RouteProgressContract, RouteProgressState, RouteRuntimeError,
+    RouteRuntimeState, RouteSelectionError, RoutingTickChange, RoutingTickContext, RoutingTickHint,
+    RoutingTickOutcome, Tick,
 };
 use jacquard_traits::{RouterManagedEngine, RoutingEngine};
 
 use crate::{
     attractor::{derive_local_attractor_view, rank_frontier_by_attractor},
     choreography::{
-        FieldHostWaitStatus, FieldProtocolKind, FieldProtocolSessionKey,
-        QueuedProtocolSend, FIELD_PROTOCOL_SESSION_MAX,
+        FieldHostWaitStatus, FieldProtocolKind, FieldProtocolSessionKey, QueuedProtocolSend,
+        FIELD_PROTOCOL_SESSION_MAX,
     },
     control::{advance_control_plane, ControlMeasurements},
     observer::{update_destination_observer, ObserverInputs},
@@ -89,10 +89,7 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
                 },
             },
             last_lifecycle_event: RouteLifecycleEvent::Activated,
-            health: route_health_for(
-                &corridor_envelope,
-                input.handle.materialized_at_tick(),
-            ),
+            health: route_health_for(&corridor_envelope, input.handle.materialized_at_tick()),
             progress: RouteProgressContract {
                 productive_step_count_max: Limit::Bounded(u32::from(
                     corridor_envelope.expected_hop_band.max_hops.max(1),
@@ -107,32 +104,21 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
         })
     }
 
-    fn route_commitments(
-        &self,
-        _route: &jacquard_core::MaterializedRoute,
-    ) -> Vec<RouteCommitment> {
+    fn route_commitments(&self, _route: &jacquard_core::MaterializedRoute) -> Vec<RouteCommitment> {
         Vec::new()
     }
 
-    fn engine_tick(
-        &mut self,
-        tick: &RoutingTickContext,
-    ) -> Result<RoutingTickOutcome, RouteError> {
+    fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
         let now_tick = tick.topology.observed_at_tick;
-        let topology_seeded =
-            self.seed_destinations_from_topology(&tick.topology.value, now_tick);
-        let measurements = ControlMeasurements::from_topology(
-            &tick.topology.value,
-            self.local_node_id,
-        );
+        let topology_seeded = self.seed_destinations_from_topology(&tick.topology.value, now_tick);
+        let measurements =
+            ControlMeasurements::from_topology(&tick.topology.value, self.local_node_id);
         let slow_path = advance_control_plane(&mut self.state, measurements, now_tick);
-        let observer_changed =
-            self.refresh_destination_observers(&tick.topology.value, now_tick);
-        let protocol_changed =
-            self.advance_protocol_sessions(tick.topology.value.epoch, now_tick);
+        let observer_changed = self.refresh_destination_observers(&tick.topology.value, now_tick);
+        let protocol_changed = self.advance_protocol_sessions(tick.topology.value.epoch, now_tick);
         let attractor_view = derive_local_attractor_view(&self.state);
-        let attractor_active = !attractor_view.entries.is_empty()
-            && attractor_view.coherence_score.value() > 0;
+        let attractor_active =
+            !attractor_view.entries.is_empty() && attractor_view.coherence_score.value() > 0;
         let changed = self.state.last_tick_processed != now_tick
             || topology_seeded
             || slow_path.changed
@@ -167,13 +153,10 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
         let Some(active) = self.active_routes.get_mut(identity.route_id()) else {
             return Err(RouteRuntimeError::Invalidated.into());
         };
-        let Some(destination_state) = self.state.destinations.get(&active.destination)
-        else {
+        let Some(destination_state) = self.state.destinations.get(&active.destination) else {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(
-                    RouteMaintenanceFailure::LostReachability,
-                ),
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
             });
         };
         let ranked = rank_frontier_by_attractor(
@@ -186,9 +169,7 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
         let Some((best, _)) = ranked.first() else {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(
-                    RouteMaintenanceFailure::LostReachability,
-                ),
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
             });
         };
 
@@ -199,8 +180,7 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
         runtime.progress.last_progress_at_tick = self.state.last_tick_processed;
 
         if self.state.controller.congestion_price.value() >= 850
-            && self.state.posture.current
-                == crate::state::RoutingPosture::RetentionBiased
+            && self.state.posture.current == crate::state::RoutingPosture::RetentionBiased
         {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::EnteredPartitionMode,
@@ -214,9 +194,7 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
         if destination_state.corridor_belief.delivery_support.value() < 250 {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(
-                    RouteMaintenanceFailure::CapacityExceeded,
-                ),
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::CapacityExceeded),
             });
         }
 
@@ -282,26 +260,24 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             if *node_id == self.local_node_id {
                 continue;
             }
-            let supports_field = node.profile.services.iter().any(|service| {
-                service.routing_engines.contains(&crate::FIELD_ENGINE_ID)
-            });
+            let supports_field = node
+                .profile
+                .services
+                .iter()
+                .any(|service| service.routing_engines.contains(&crate::FIELD_ENGINE_ID));
             if !supports_field {
                 continue;
             }
             let destination = DestinationId::Node(*node_id);
             let key = crate::state::DestinationKey::from(&destination);
             let existed = self.state.destinations.contains_key(&key);
-            let interest_class =
-                if topology.links.contains_key(&(self.local_node_id, *node_id)) {
-                    crate::state::DestinationInterestClass::Transit
-                } else {
-                    crate::state::DestinationInterestClass::Propagated
-                };
-            self.state.upsert_destination_interest(
-                &destination,
-                interest_class,
-                now_tick,
-            );
+            let interest_class = if topology.links.contains_key(&(self.local_node_id, *node_id)) {
+                crate::state::DestinationInterestClass::Transit
+            } else {
+                crate::state::DestinationInterestClass::Propagated
+            };
+            self.state
+                .upsert_destination_interest(&destination, interest_class, now_tick);
             changed |= !existed;
         }
         changed
@@ -315,8 +291,8 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         now_tick: Tick,
     ) -> bool {
         let attractor_view = derive_local_attractor_view(&self.state);
-        let low_coherence = !attractor_view.entries.is_empty()
-            && attractor_view.coherence_score.value() < 200;
+        let low_coherence =
+            !attractor_view.entries.is_empty() && attractor_view.coherence_score.value() < 200;
         let mut changed = false;
 
         let active_keys = self.state.active_destination_keys();
@@ -325,8 +301,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .take(FIELD_PROTOCOL_SESSION_MAX)
             .enumerate()
         {
-            let Some(destination_state) = self.state.destinations.get(&destination_key)
-            else {
+            let Some(destination_state) = self.state.destinations.get(&destination_key) else {
                 continue;
             };
             let Some(primary) = destination_state.frontier.as_slice().first() else {
@@ -334,17 +309,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             };
             let destination = DestinationId::from(&destination_state.destination);
             let session_destination = SummaryDestinationKey::from(&destination);
-            let summary = summary_for_destination(
-                destination_state,
-                topology_epoch,
-                now_tick,
-                &destination,
-            );
-            let should_publish =
-                should_transmit_summary(destination_state, &summary, now_tick);
+            let summary =
+                summary_for_destination(destination_state, topology_epoch, now_tick, &destination);
+            let should_publish = should_transmit_summary(destination_state, &summary, now_tick);
             let primary_neighbor = primary.neighbor_id;
-            let delivery_support =
-                destination_state.corridor_belief.delivery_support.value();
+            let delivery_support = destination_state.corridor_belief.delivery_support.value();
             let is_stale = now_tick.0.saturating_sub(primary.freshness.0) > 4;
 
             let dissemination_key = FieldProtocolSessionKey {
@@ -377,9 +346,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                         .map(|advance| advance.round.emitted_send_count > 0)
                         .unwrap_or(false);
                     if published {
-                        if let Some(state) =
-                            self.state.destinations.get_mut(&destination_key)
-                        {
+                        if let Some(state) = self.state.destinations.get_mut(&destination_key) {
                             state.publication.record(summary.clone(), now_tick);
                         }
                     }
@@ -410,8 +377,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 }
             }
 
-            if self.state.posture.current
-                == crate::state::RoutingPosture::RetentionBiased
+            if self.state.posture.current == crate::state::RoutingPosture::RetentionBiased
                 && delivery_support < 400
             {
                 let replay_key = FieldProtocolSessionKey {
@@ -420,9 +386,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     topology_epoch,
                     destination: Some(session_destination),
                 };
-                if let Ok(capability) =
-                    self.protocol_runtime.open_session(&replay_key, 0, None)
-                {
+                if let Ok(capability) = self.protocol_runtime.open_session(&replay_key, 0, None) {
                     let _ = self.protocol_runtime.queue_branch_choice(&capability, 1);
                     let _ = self.protocol_runtime.queue_summary_flow(
                         &capability,
@@ -475,11 +439,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
     // long-block-exception: observer refresh is one sparse incremental scan
     // that combines cache gating, evidence fusion, frontier refresh, and
     // endpoint capture.
-    fn refresh_destination_observers(
-        &mut self,
-        topology: &Configuration,
-        now_tick: Tick,
-    ) -> bool {
+    fn refresh_destination_observers(&mut self, topology: &Configuration, now_tick: Tick) -> bool {
         let topology_epoch = topology.epoch;
         let regime = self.state.regime.current;
         let control_state = self.state.controller.clone();
@@ -491,9 +451,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let mut changed = false;
         let active_keys = self.state.active_destination_keys();
         for destination_key in active_keys {
-            let Some(destination_state) =
-                self.state.destinations.get_mut(&destination_key)
-            else {
+            let Some(destination_state) = self.state.destinations.get_mut(&destination_key) else {
                 continue;
             };
             let destination = DestinationId::from(&destination_key);
@@ -603,21 +561,17 @@ fn summary_for_destination(
         retention_support: destination_state.corridor_belief.retention_affinity,
         uncertainty_penalty: destination_state.posterior.usability_entropy,
         evidence_class: match destination_state.posterior.predicted_observation_class {
-            | crate::state::ObservationClass::DirectOnly => {
-                EvidenceContributionClass::Direct
-            },
-            | crate::state::ObservationClass::ForwardPropagated
-            | crate::state::ObservationClass::Mixed => {
-                EvidenceContributionClass::ForwardPropagated
-            },
-            | crate::state::ObservationClass::ReverseValidated => {
+            crate::state::ObservationClass::DirectOnly => EvidenceContributionClass::Direct,
+            crate::state::ObservationClass::ForwardPropagated
+            | crate::state::ObservationClass::Mixed => EvidenceContributionClass::ForwardPropagated,
+            crate::state::ObservationClass::ReverseValidated => {
                 EvidenceContributionClass::ReverseFeedback
-            },
+            }
         },
         uncertainty_class: match destination_state.posterior.usability_entropy.value() {
-            | 0..=249 => SummaryUncertaintyClass::Low,
-            | 250..=599 => SummaryUncertaintyClass::Medium,
-            | _ => SummaryUncertaintyClass::High,
+            0..=249 => SummaryUncertaintyClass::Low,
+            250..=599 => SummaryUncertaintyClass::Medium,
+            _ => SummaryUncertaintyClass::High,
         },
     }
 }
@@ -674,8 +628,7 @@ fn should_transmit_summary(
     summary: &FieldSummary,
     now_tick: Tick,
 ) -> bool {
-    let Some(previous_summary) = destination_state.publication.last_summary.as_ref()
-    else {
+    let Some(previous_summary) = destination_state.publication.last_summary.as_ref() else {
         return true;
     };
     let Some(last_sent_at) = destination_state.publication.last_sent_at else {
@@ -700,9 +653,7 @@ fn direct_evidence_digest(direct_evidence: &[DirectEvidence]) -> u64 {
     digest
 }
 
-fn forward_evidence_digest(
-    forward_evidence: &[crate::summary::ForwardPropagatedEvidence],
-) -> u64 {
+fn forward_evidence_digest(forward_evidence: &[crate::summary::ForwardPropagatedEvidence]) -> u64 {
     let mut digest = 0xcbf2_9ce4_8422_2325_u64;
     for evidence in forward_evidence {
         digest = mix_digest(digest, &evidence.from_neighbor.0);
@@ -711,9 +662,7 @@ fn forward_evidence_digest(
     digest
 }
 
-fn reverse_feedback_digest(
-    reverse_feedback: &[crate::summary::ReverseFeedbackEvidence],
-) -> u64 {
+fn reverse_feedback_digest(reverse_feedback: &[crate::summary::ReverseFeedbackEvidence]) -> u64 {
     let mut digest = 0xcbf2_9ce4_8422_2325_u64;
     for feedback in reverse_feedback {
         digest = mix_digest(digest, &feedback.from_neighbor.0);
@@ -736,9 +685,7 @@ fn route_health_for(
 ) -> RouteHealth {
     RouteHealth {
         reachability_state: ReachabilityState::Reachable,
-        stability_score: HealthScore(u32::from(
-            corridor_envelope.delivery_support.value(),
-        )),
+        stability_score: HealthScore(u32::from(corridor_envelope.delivery_support.value())),
         congestion_penalty_points: jacquard_core::PenaltyPoints(u32::from(
             corridor_envelope.congestion_penalty.value(),
         )),
@@ -753,12 +700,11 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
-        Environment, FactSourceClass, Observation, OriginAuthenticationClass,
-        PublicationId, RatioPermille, RouteEpoch, RouteHandle, RouteLease,
-        RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-        RouteSelectionError, RouteServiceKind, RoutingEvidenceClass, RoutingObjective,
-        SelectedRoutingParameters, Tick, TimeWindow,
+        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, Environment,
+        FactSourceClass, Observation, OriginAuthenticationClass, PublicationId, RatioPermille,
+        RouteEpoch, RouteHandle, RouteLease, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, RouteSelectionError, RouteServiceKind, RoutingEvidenceClass,
+        RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
     };
     use jacquard_mem_link_profile::InMemoryTransport;
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
@@ -785,9 +731,7 @@ mod tests {
                 partition: RoutePartitionClass::ConnectedOnly,
             },
             hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
-            latency_budget_ms: jacquard_core::Limit::Bounded(
-                jacquard_core::DurationMs(100),
-            ),
+            latency_budget_ms: jacquard_core::Limit::Bounded(jacquard_core::DurationMs(100)),
             protection_priority: jacquard_core::PriorityPoints(10),
             connectivity_priority: jacquard_core::PriorityPoints(10),
         }
@@ -802,8 +746,7 @@ mod tests {
             },
             deployment_profile: jacquard_core::OperatingMode::SparseLowPower,
             diversity_floor: jacquard_core::DiversityFloor(1),
-            routing_engine_fallback_policy:
-                jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
             route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
         }
     }
@@ -869,8 +812,7 @@ mod tests {
         );
         state.posterior.top_corridor_mass = SupportBucket::new(850);
         state.posterior.usability_entropy = crate::state::EntropyBucket::new(200);
-        state.posterior.predicted_observation_class =
-            crate::state::ObservationClass::DirectOnly;
+        state.posterior.predicted_observation_class = crate::state::ObservationClass::DirectOnly;
         state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
         state.corridor_belief.delivery_support = SupportBucket::new(800);
         state.corridor_belief.retention_affinity = SupportBucket::new(300);
@@ -901,8 +843,7 @@ mod tests {
         );
         state.posterior.top_corridor_mass = SupportBucket::new(850);
         state.posterior.usability_entropy = crate::state::EntropyBucket::new(200);
-        state.posterior.predicted_observation_class =
-            crate::state::ObservationClass::DirectOnly;
+        state.posterior.predicted_observation_class = crate::state::ObservationClass::DirectOnly;
         state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
         state.corridor_belief.delivery_support = SupportBucket::new(800);
         state.frontier = state.frontier.clone().insert(NeighborContinuation {
@@ -992,8 +933,7 @@ mod tests {
             .admit_route(&objective, &sample_profile(), candidate.clone(), &topology)
             .expect("admission");
         admission.backend_ref.backend_route_id.0 = vec![0xff, 0x00, 0xaa];
-        candidate.backend_ref.backend_route_id =
-            admission.backend_ref.backend_route_id.clone();
+        candidate.backend_ref.backend_route_id = admission.backend_ref.backend_route_id.clone();
         let error = engine
             .materialize_route(materialization_input(route_id, admission))
             .expect_err("invalid backend must fail");
@@ -1126,8 +1066,7 @@ mod tests {
         let topology = supported_topology();
         let mut engine = seeded_engine();
         engine.state.posture.current = crate::state::RoutingPosture::RetentionBiased;
-        engine.state.controller.congestion_price =
-            crate::state::EntropyBucket::new(900);
+        engine.state.controller.congestion_price = crate::state::EntropyBucket::new(900);
         let objective = sample_objective(node(2));
         let candidate = engine
             .candidate_routes(&objective, &sample_profile(), &topology)
@@ -1144,8 +1083,7 @@ mod tests {
         let mut materialized =
             jacquard_core::MaterializedRoute::from_installation(input, installation);
         if let Some(active) = engine.active_routes.get_mut(&route_id) {
-            active.witness_detail.posture =
-                crate::state::RoutingPosture::RetentionBiased;
+            active.witness_detail.posture = crate::state::RoutingPosture::RetentionBiased;
         }
         let result = engine
             .maintain_route(
@@ -1179,8 +1117,7 @@ mod tests {
         let topology = supported_topology();
         let mut engine = FieldEngine::new(node(1), (), ());
         for index in 0..MAX_ACTIVE_DESTINATIONS {
-            let destination =
-                DestinationId::Node(node(u8::try_from(index + 2).unwrap()));
+            let destination = DestinationId::Node(node(u8::try_from(index + 2).unwrap()));
             let state = engine.state.upsert_destination_interest(
                 &destination,
                 DestinationInterestClass::Transit,
@@ -1223,8 +1160,7 @@ where
             .active_routes
             .get_mut(route_id)
             .ok_or(RouteSelectionError::NoCandidate)?;
-        let mut candidates =
-            Vec::with_capacity(active.alternates.len().saturating_add(1));
+        let mut candidates = Vec::with_capacity(active.alternates.len().saturating_add(1));
         candidates.push(active.primary_neighbor);
         candidates.extend(active.alternates.iter().copied());
         for neighbor in candidates {
@@ -1240,10 +1176,7 @@ where
         Err(RouteSelectionError::NoCandidate.into())
     }
 
-    fn restore_route_runtime_for_router(
-        &mut self,
-        route_id: &RouteId,
-    ) -> Result<bool, RouteError> {
+    fn restore_route_runtime_for_router(&mut self, route_id: &RouteId) -> Result<bool, RouteError> {
         Ok(self.active_routes.contains_key(route_id))
     }
 }

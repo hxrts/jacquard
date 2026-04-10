@@ -185,6 +185,10 @@ def FiniteBelief.weight (belief : FiniteBelief) : FieldHypothesis → Nat
   | .corridor => belief.corridorWeight
   | .explicitPath => belief.explicitPathWeight
 
+def FiniteBelief.totalWeight (belief : FiniteBelief) : Nat :=
+  belief.unknownWeight + belief.unreachableWeight + belief.corridorWeight +
+    belief.explicitPathWeight
+
 def FiniteBelief.supportMass (belief : FiniteBelief) : Nat :=
   min (belief.corridorWeight + belief.explicitPathWeight) 1000
 

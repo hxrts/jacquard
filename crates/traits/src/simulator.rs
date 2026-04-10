@@ -9,8 +9,8 @@
 //! - `RoutingReplayView` is a read-only artifact inspection surface.
 
 use jacquard_core::{
-    Configuration, Observation, OperatingMode, RouteEvent, RouteEventStamped,
-    RoutingObjective, SimulationSeed, Tick,
+    Configuration, Observation, OperatingMode, RouteEvent, RouteEventStamped, RoutingObjective,
+    SimulationSeed, Tick,
 };
 use jacquard_macros::purity;
 
@@ -78,8 +78,6 @@ pub trait RoutingReplayView {
 
     fn route_events<'a>(&self, replay: &'a Self::ReplayArtifact) -> &'a [RouteEvent];
 
-    fn stamped_route_events<'a>(
-        &self,
-        replay: &'a Self::ReplayArtifact,
-    ) -> &'a [RouteEventStamped];
+    fn stamped_route_events<'a>(&self, replay: &'a Self::ReplayArtifact)
+        -> &'a [RouteEventStamped];
 }

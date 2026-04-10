@@ -69,7 +69,18 @@ abbrev FragmentTrace := List TelltaleMachineFragment
 /-- Replay-visible semantic trace extracted from a fragment trace. -/
 def fragmentTraceSemanticObjects
     (trace : FragmentTrace) : List ProtocolSemanticObject :=
-  trace.foldr (fun fragment rest => fragmentSemanticObjects fragment ++ rest) []
+  trace.flatMap fragmentSemanticObjects
+
+/-- Erase a list of protocol snapshots into a fragment trace. -/
+def fragmentTraceOfSnapshots
+    (snapshots : List MachineSnapshot) : FragmentTrace :=
+  snapshots.map snapshotToFragment
+
+/-- Replay-visible semantic objects extracted directly from a list of protocol
+snapshots. -/
+def snapshotTraceSemanticObjects
+    (snapshots : List MachineSnapshot) : List ProtocolSemanticObject :=
+  snapshots.flatMap FieldProtocolAPI.exportSemanticObjects
 
 /-- Trace relation between field protocol traces and erased fragment traces. -/
 def TraceRel
@@ -92,6 +103,24 @@ theorem fragment_erasure_preserves_semantic_objects
       FieldProtocolAPI.exportSemanticObjects snapshot := by
   rfl
 
+theorem snapshot_trace_semantic_objects_match_fragment_trace
+    (snapshots : List MachineSnapshot) :
+    snapshotTraceSemanticObjects snapshots =
+      fragmentTraceSemanticObjects (fragmentTraceOfSnapshots snapshots) := by
+  induction snapshots with
+  | nil =>
+      simp [snapshotTraceSemanticObjects, fragmentTraceOfSnapshots, fragmentTraceSemanticObjects]
+  | cons snapshot rest ih =>
+      calc
+        snapshotTraceSemanticObjects (snapshot :: rest)
+            = FieldProtocolAPI.exportSemanticObjects snapshot ++ snapshotTraceSemanticObjects rest := by
+                simp [snapshotTraceSemanticObjects]
+        _ = fragmentSemanticObjects (snapshotToFragment snapshot) ++
+              fragmentTraceSemanticObjects (fragmentTraceOfSnapshots rest) := by
+                rw [fragment_erasure_preserves_semantic_objects, ih]
+        _ = fragmentTraceSemanticObjects (fragmentTraceOfSnapshots (snapshot :: rest)) := by
+                simp [fragmentTraceSemanticObjects, fragmentTraceOfSnapshots]
+
 /-- One reduced field machine step corresponds to one reduced fragment step
 with observationally equivalent semantic export. -/
 theorem advance_machine_simulates_fragment_step
@@ -113,6 +142,13 @@ theorem replay_equivalent_fragment_traces_induce_equal_controller_evidence
       semanticObjectsToEvidence (fragmentTraceSemanticObjects right) := by
   simp [hEqual]
 
+theorem snapshot_trace_observer_projection_matches_fragment_trace
+    (snapshots : List MachineSnapshot) :
+    semanticObjectsToEvidence (snapshotTraceSemanticObjects snapshots) =
+      semanticObjectsToEvidence
+        (fragmentTraceSemanticObjects (fragmentTraceOfSnapshots snapshots)) := by
+  simp [snapshot_trace_semantic_objects_match_fragment_trace]
+
 /-- The current fragment erasure preserves only observational authority. -/
 theorem fragment_semantic_objects_stay_observational
     (trace : FragmentTrace) :
@@ -125,8 +161,9 @@ theorem fragment_semantic_objects_stay_observational
   | cons fragment rest ih =>
       simp [fragmentTraceSemanticObjects, fragmentSemanticObjects] at hObject
       rcases hObject with hHere | hThere
-      · simpa using hHere
+      · rcases hHere with ⟨_hVisible, hEq⟩
+        simp [hEq]
       · rcases hThere with ⟨fragment', _hMem, _hGuard, hEq⟩
-        simpa [hEq]
+        simp [hEq]
 
 end FieldProtocolBridge
