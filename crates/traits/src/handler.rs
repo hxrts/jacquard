@@ -1,44 +1,9 @@
 //! Concrete handler markers for Jacquard effect vocabularies.
 //!
-//! A handler is a concrete runtime implementation of one effect trait. It
-//! performs the requested operation for one abstract effect vocabulary.
-//! Handlers should stay narrow and infrastructure-oriented; they must not
-//! become owners of canonical routing truth or long-lived orchestration state.
-//!
-//! Key type exported from this module:
-//! - [`EffectHandler<E>`] — sealed marker trait satisfied by any type that
-//!   carries an `#[effect_handler]` impl for the effect vocabulary `E`.
-//!
-//! The sealing mechanism relies on `HandlerDefinition<E>` which the
-//! `#[effect_handler]` proc-macro emits automatically. External crates
-//! cannot implement `EffectHandler` without going through the macro, keeping
-//! the effect-handler boundary auditable and explicit.
+//! This module re-exports the generic toolkit support trait so Jacquard keeps a
+//! stable public API while the effect-handler machinery lives in the toolkit.
 
-use jacquard_macros::purity;
-
-use crate::{sealed, Effect};
-
-/// Marker trait for concrete implementations of one effect vocabulary.
-///
-/// The `Sealed` super-trait is intentionally `pub(crate)` — external crates
-/// implement `EffectHandler` only through the `#[effect_handler]` proc
-/// macro, which attaches the required `HandlerDefinition` bound.
-#[allow(private_bounds)]
-#[purity(effectful)]
-pub trait EffectHandler<E>: sealed::Sealed + Send + Sync + 'static
-where
-    E: ?Sized + Effect,
-    Self: crate::__private::HandlerDefinition<E>,
-{
-}
-
-impl<T, E> EffectHandler<E> for T
-where
-    T: ?Sized + Send + Sync + 'static,
-    E: ?Sized + Effect,
-    T: crate::__private::HandlerDefinition<E>,
-{
-}
+pub use rust_toolkit_effects::EffectHandler;
 
 #[cfg(test)]
 mod tests {

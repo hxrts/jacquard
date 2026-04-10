@@ -611,6 +611,7 @@ version = "0.3.1"
 dependencies = [
  "proc-macro2",
  "quote",
+ "rust-toolkit-trait-contracts",
  "serde",
  "syn",
  "trybuild",
@@ -647,6 +648,25 @@ dependencies = [
  "serde",
  "serde_json",
  "telltale",
+]
+
+[[package]]
+name = "jacquard-policy-xtask"
+version = "0.3.1"
+dependencies = [
+ "anyhow",
+ "camino",
+ "cargo_metadata",
+ "ignore",
+ "proc-macro2",
+ "pulldown-cmark",
+ "regex",
+ "serde",
+ "serde_json",
+ "syn",
+ "telltale",
+ "toml 0.8.23",
+ "walkdir",
 ]
 
 [[package]]
@@ -703,24 +723,8 @@ dependencies = [
  "jacquard-core",
  "jacquard-macros",
  "jacquard-mem-link-profile",
+ "rust-toolkit-effects",
  "trybuild",
-]
-
-[[package]]
-name = "jacquard-xtask"
-version = "0.3.1"
-dependencies = [
- "anyhow",
- "camino",
- "cargo_metadata",
- "ignore",
- "proc-macro2",
- "pulldown-cmark",
- "regex",
- "serde_json",
- "syn",
- "telltale",
- "walkdir",
 ]
 
 [[package]]
@@ -1058,6 +1062,21 @@ name = "regex-syntax"
 version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
+
+[[package]]
+name = "rust-toolkit-effects"
+version = "0.1.0"
+source = "git+https://github.com/hxrts/rust-toolkit.git?rev=1fc34613cbc55b0a8ce0421c6fb439931972ff30#1fc34613cbc55b0a8ce0421c6fb439931972ff30"
+
+[[package]]
+name = "rust-toolkit-trait-contracts"
+version = "0.1.0"
+source = "git+https://github.com/hxrts/rust-toolkit.git?rev=1fc34613cbc55b0a8ce0421c6fb439931972ff30#1fc34613cbc55b0a8ce0421c6fb439931972ff30"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "rustversion"

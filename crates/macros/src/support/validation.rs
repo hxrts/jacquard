@@ -15,13 +15,11 @@
 
 use quote::ToTokens;
 use syn::{
-    AngleBracketedGenericArguments, Error, Fields, GenericArgument, ItemEnum,
-    ItemStruct, Path, PathArguments, Type, TypePath,
+    AngleBracketedGenericArguments, Error, Fields, GenericArgument, ItemEnum, ItemStruct, Path,
+    PathArguments, Type, TypePath,
 };
 
-pub(crate) fn validate_public_model_struct(
-    item_struct: &ItemStruct,
-) -> syn::Result<()> {
+pub(crate) fn validate_public_model_struct(item_struct: &ItemStruct) -> syn::Result<()> {
     reject_bad_field_types(&item_struct.fields, "public_model")
 }
 
@@ -35,17 +33,17 @@ pub(crate) fn validate_public_model_enum(item_enum: &ItemEnum) -> syn::Result<()
 
 fn reject_bad_field_types(fields: &Fields, macro_name: &str) -> syn::Result<()> {
     match fields {
-        | Fields::Named(fields) => {
+        Fields::Named(fields) => {
             for field in &fields.named {
                 reject_bad_type(&field.ty, macro_name)?;
             }
-        },
-        | Fields::Unnamed(fields) => {
+        }
+        Fields::Unnamed(fields) => {
             for field in &fields.unnamed {
                 reject_bad_type(&field.ty, macro_name)?;
             }
-        },
-        | Fields::Unit => {},
+        }
+        Fields::Unit => {}
     }
 
     Ok(())
@@ -71,31 +69,23 @@ fn bad_type_reason(ty: &Type) -> Option<&'static str> {
     let leaf = path.segments.last()?.ident.to_string();
 
     match normalized.as_str() {
-        | "std::time::Instant" => {
-            return Some(
-                "`std::time::Instant`; use the typed Jacquard time model instead",
-            )
-        },
-        | "std::time::SystemTime" => {
-            return Some(
-                "`std::time::SystemTime`; use the typed Jacquard time model instead",
-            )
-        },
-        | _ => {},
+        "std::time::Instant" => {
+            return Some("`std::time::Instant`; use the typed Jacquard time model instead")
+        }
+        "std::time::SystemTime" => {
+            return Some("`std::time::SystemTime`; use the typed Jacquard time model instead")
+        }
+        _ => {}
     }
 
     match leaf.as_str() {
-        | "bool" => Some("raw `bool`; model public semantics with an enum instead"),
-        | "f32" => Some(
-            "`f32`; floating-point types are not allowed in deterministic model types",
-        ),
-        | "f64" => Some(
-            "`f64`; floating-point types are not allowed in deterministic model types",
-        ),
-        | "usize" => Some("`usize`; use a fixed-width integer type instead"),
-        | "isize" => Some("`isize`; use a fixed-width integer type instead"),
-        | "Option" => option_inner_reason(path),
-        | _ => None,
+        "bool" => Some("raw `bool`; model public semantics with an enum instead"),
+        "f32" => Some("`f32`; floating-point types are not allowed in deterministic model types"),
+        "f64" => Some("`f64`; floating-point types are not allowed in deterministic model types"),
+        "usize" => Some("`usize`; use a fixed-width integer type instead"),
+        "isize" => Some("`isize`; use a fixed-width integer type instead"),
+        "Option" => option_inner_reason(path),
+        _ => None,
     }
 }
 
@@ -110,8 +100,8 @@ fn option_inner_reason(path: &Path) -> Option<&'static str> {
     };
 
     let inner = args.iter().find_map(|arg| match arg {
-        | GenericArgument::Type(ty) => Some(ty),
-        | _ => None,
+        GenericArgument::Type(ty) => Some(ty),
+        _ => None,
     })?;
 
     bad_type_reason(inner)

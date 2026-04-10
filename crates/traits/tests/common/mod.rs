@@ -14,10 +14,10 @@
 //!   and tick without spelling out the full `Estimate` struct inline.
 
 use jacquard_traits::jacquard_core::{
-    Belief, ByteCount, ControllerId, EndpointLocator, Estimate, FactSourceClass,
-    HoldItemCount, InformationSetSummary, LinkEndpoint, MaintenanceWorkBudget, Node,
-    NodeProfile, NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass,
-    RatioPermille, RelayWorkBudget, RoutingEvidenceClass, Tick, TransportKind,
+    Belief, ByteCount, ControllerId, EndpointLocator, Estimate, FactSourceClass, HoldItemCount,
+    InformationSetSummary, LinkEndpoint, MaintenanceWorkBudget, Node, NodeProfile, NodeRelayBudget,
+    NodeState, Observation, OriginAuthenticationClass, RatioPermille, RelayWorkBudget,
+    RoutingEvidenceClass, Tick, TransportKind,
 };
 
 /// Construct a local, directly-observed, controller-bound `Observation<T>`.

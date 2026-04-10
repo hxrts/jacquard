@@ -32,7 +32,7 @@ pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
     let item = syn::parse_macro_input!(item as Item);
 
     match item {
-        | Item::Struct(mut item_struct) => {
+        Item::Struct(mut item_struct) => {
             let message = LitStr::new(
                 &format!(
                     "dropping `{}` discards a routing handle or lease without making that choice explicit",
@@ -42,8 +42,8 @@ pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
             );
             ensure_must_use(&mut item_struct.attrs, &message.value());
             item_struct.into_token_stream().into()
-        },
-        | Item::Enum(mut item_enum) => {
+        }
+        Item::Enum(mut item_enum) => {
             let message = LitStr::new(
                 &format!(
                     "dropping `{}` discards a routing handle or lease without making that choice explicit",
@@ -53,8 +53,8 @@ pub(crate) fn expand(attr: TokenStream, item: TokenStream) -> TokenStream {
             );
             ensure_must_use(&mut item_enum.attrs, &message.value());
             item_enum.into_token_stream().into()
-        },
-        | other => syn::Error::new_spanned(
+        }
+        other => syn::Error::new_spanned(
             other,
             "#[must_use_handle] can only be applied to structs or enums",
         )

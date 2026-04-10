@@ -21,16 +21,14 @@
 //!   composition.
 
 use jacquard_core::{
-    CommitteeSelection, Configuration, LayerParameters, MaterializedRoute, NodeId,
-    Observation, PublishedRouteRecord, RouteAdmission, RouteAdmissionCheck,
-    RouteCandidate, RouteCommitment, RouteEpoch, RouteError, RouteHandle, RouteHealth,
-    RouteId, RouteIdentityStamp, RouteInstallation, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
-    RouteRuntimeState, RouteSemanticHandoff, RouterMaintenanceOutcome,
+    CommitteeSelection, Configuration, LayerParameters, MaterializedRoute, NodeId, Observation,
+    PublishedRouteRecord, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCommitment,
+    RouteEpoch, RouteError, RouteHandle, RouteHealth, RouteId, RouteIdentityStamp,
+    RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+    RouteMaterializationProof, RouteRuntimeState, RouteSemanticHandoff, RouterMaintenanceOutcome,
     RouterRoundOutcome, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
-    RoutingPolicyInputs, RoutingTickContext, RoutingTickOutcome,
-    SelectedRoutingParameters, SubstrateCandidate, SubstrateLease,
-    SubstrateRequirements, TransportObservation,
+    RoutingPolicyInputs, RoutingTickContext, RoutingTickOutcome, SelectedRoutingParameters,
+    SubstrateCandidate, SubstrateLease, SubstrateRequirements, TransportObservation,
 };
 use jacquard_macros::purity;
 
@@ -383,10 +381,7 @@ pub trait Router {
     ) -> Result<MaterializedRoute, RouteError>;
 
     #[must_use = "unread route commitments silently discard commitment state"]
-    fn route_commitments(
-        &self,
-        route_id: &RouteId,
-    ) -> Result<Vec<RouteCommitment>, RouteError>;
+    fn route_commitments(&self, route_id: &RouteId) -> Result<Vec<RouteCommitment>, RouteError>;
 
     #[must_use = "unused reselected route silently discards a canonical handle"]
     fn reselect_route(
@@ -460,11 +455,7 @@ pub trait RoutingControlPlane {
 /// Effectful runtime boundary with read-only observation methods.
 pub trait RoutingDataPlane {
     #[must_use = "unchecked forward_payload result silently discards forwarding failures"]
-    fn forward_payload(
-        &mut self,
-        route_id: &RouteId,
-        payload: &[u8],
-    ) -> Result<(), RouteError>;
+    fn forward_payload(&mut self, route_id: &RouteId, payload: &[u8]) -> Result<(), RouteError>;
 
     must_use_evidence!("route health observation", "health data";
         /// Health reads are observational. They must not silently become canonical

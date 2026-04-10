@@ -1,0 +1,2 @@
+[toolchain]
+channel = "toolkit-nightly-aarch64-apple-darwin"

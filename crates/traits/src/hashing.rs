@@ -62,8 +62,7 @@ impl Hashing for Blake3Hashing {
         // Only the domain is length-prefixed: input is the final field so its
         // length is implicit from the stream end. Domain tags over u32 are
         // programming errors, not recoverable runtime failures.
-        let domain_len =
-            u32::try_from(domain.len()).expect("domain tag length exceeds u32");
+        let domain_len = u32::try_from(domain.len()).expect("domain tag length exceeds u32");
         hasher.update(&domain_len.to_le_bytes());
         hasher.update(domain);
         hasher.update(input);
@@ -80,7 +79,9 @@ where
     D: Clone + Eq,
     H: Hashing<Digest = D>,
 {
-    ContentId { digest: hasher.hash_bytes(bytes) }
+    ContentId {
+        digest: hasher.hash_bytes(bytes),
+    }
 }
 
 #[purity(pure)]

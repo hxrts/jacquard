@@ -59,7 +59,6 @@ mod effects;
 mod handler;
 mod hashing;
 mod routing;
-mod sealed;
 mod simulator;
 mod world;
 
@@ -69,8 +68,7 @@ pub use handler::*;
 pub use hashing::*;
 pub use jacquard_core;
 pub use jacquard_macros::{
-    bounded_value, effect_handler, effect_trait, id_type, must_use_handle,
-    public_model, purity,
+    bounded_value, effect_handler, effect_trait, id_type, must_use_handle, public_model, purity,
 };
 pub use routing::*;
 pub use simulator::*;
@@ -82,15 +80,5 @@ pub use world::*;
 // exactly the effect vocabulary it claims to handle.
 #[doc(hidden)]
 pub mod __private {
-    use core::marker::PhantomData;
-
-    pub trait EffectDefinition {}
-
-    pub trait HandlerDefinition<E: ?Sized> {}
-
-    // fn() -> (*const T, *const E) makes both T and E invariant without
-    // adding Send/Sync bounds that bare *const pointers would impose.
-    pub struct HandlerToken<T: ?Sized, E: ?Sized>(
-        pub PhantomData<fn() -> (*const T, *const E)>,
-    );
+    pub use rust_toolkit_effects::__private::{EffectDefinition, HandlerDefinition, HandlerToken};
 }

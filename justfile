@@ -1,6 +1,12 @@
 default: book
     @just --list
 
+toolkit_cmd := "./scripts/toolkit-shell.sh toolkit-xtask"
+toolkit_dylint := "./scripts/toolkit-shell.sh toolkit-dylint --repo-root ."
+install_dylint_cmd := "./scripts/toolkit-shell.sh toolkit-install-dylint"
+policy_cmd := "cargo run --manifest-path policy/xtask/Cargo.toml --"
+fmt_cmd := "./scripts/toolkit-shell.sh toolkit-fmt"
+
 # check workspace compiles
 check:
     cargo check --workspace
@@ -17,13 +23,13 @@ test:
 lint:
     cargo clippy --workspace --all-targets -- -D warnings
 
-# format code (uses nightly rustfmt for unstable rustfmt.toml options)
+# format code (uses the toolkit-owned nightly rustfmt policy)
 fmt:
-    nix develop ./nix/nightly --command cargo-fmt-nightly --all
+    {{fmt_cmd}} --all
 
-# check formatting (uses nightly rustfmt for unstable rustfmt.toml options)
+# check formatting (uses the toolkit-owned nightly rustfmt policy)
 fmt-check:
-    nix develop ./nix/nightly --command cargo-fmt-nightly --all -- --check
+    {{fmt_cmd}} --all -- --check
 
 # Generate docs/SUMMARY.md from Markdown files in docs/ and subfolders
 summary:
@@ -144,44 +150,44 @@ ci-dry-run:
     }
 
     add_step "Preflight"                  "./scripts/preflight.sh"
-    add_step "Format Check"               "nix develop ./nix/nightly --command cargo-fmt-nightly --all -- --check"
+    add_step "Format Check"               "{{fmt_cmd}} --all -- --check"
     add_step "Clippy"                     "cargo clippy --workspace --all-targets -- -D warnings"
     add_step "Tests"                      "cargo test --workspace"
-    add_step "Docs Link Check"            "cargo xtask check docs-link-check"
-    add_step "Proc Macro Scope"           "cargo xtask check proc-macro-scope"
-    add_step "Test Boundaries"            "cargo xtask check test-boundaries"
-    add_step "Trait Purity"               "cargo xtask check trait-purity"
-    add_step "Crate Boundary"             "cargo xtask check crate-boundary"
-    add_step "Adapter Boundary"           "cargo xtask check adapter-boundary"
-    add_step "DX Surface"                "cargo xtask check dx-surface"
-    add_step "Transport Authoring Boundary" "cargo xtask check transport-authoring-boundary"
-    add_step "Transport Ownership Boundary" "cargo xtask check transport-ownership-boundary"
-    add_step "Router Round Boundary"     "cargo xtask check router-round-boundary"
-    add_step "Reference Bridge Boundary" "cargo xtask check reference-bridge-boundary"
-    add_step "Simulator Boundary"        "cargo xtask check simulator-boundary"
-    add_step "Ownership Invariants"       "cargo xtask check ownership-invariants"
-    add_step "No usize in Models"         "cargo xtask check no-usize-in-models"
-    add_step "Result Must Use"            "cargo xtask check result-must-use"
-    add_step "Proof Bearing Actions"      "cargo xtask check proof-bearing-actions"
-    add_step "Surface Classification"     "cargo xtask check surface-classification"
-    add_step "Rust Style Guide"           "cargo xtask check rust-style-guide"
-    add_step "Checkpoint Namespacing"     "cargo xtask check checkpoint-namespacing"
-    add_step "Engine Service Boundary"    "cargo xtask check engine-service-boundary"
-    add_step "Invariant Specs"            "cargo xtask check invariant-specs"
-    add_step "Fail-Closed Ordering"       "cargo xtask check fail-closed-ordering"
-    add_step "No Scratch Refs in Rust"    "cargo xtask check no-scratch-refs-in-rust"
-    add_step "Pathway Async Boundary"     "cargo xtask check pathway-async-boundary"
-    add_step "Pathway Choreography"          "cargo xtask check pathway-choreography"
-    add_step "Pathway Choreography Validate" "cargo xtask check pathway-choreography --validate"
-    add_step "Routing Invariants"         "cargo xtask check routing-invariants"
-    add_step "Routing Invariants Validate" "cargo xtask check routing-invariants --validate"
-    add_step "Install cargo-dylint"       "nix develop ./nix/nightly --command install-dylint"
-    add_step "Dylint Trait Purity"        "nix develop ./nix/nightly --command env CARGO_INCREMENTAL=0 cargo dylint --path lints/trait_purity --all -- --all-targets"
-    add_step "Dylint Model Policy"        "nix develop ./nix/nightly --command env CARGO_INCREMENTAL=0 cargo dylint --path lints/model_policy --all -- --all-targets"
-    add_step "Dylint Routing Invariants"  "nix develop ./nix/nightly --command env CARGO_INCREMENTAL=0 cargo dylint --path lints/routing_invariants --all -- --all-targets"
-    add_step "Dylint Trait Must Use"      "nix develop ./nix/nightly --command env CARGO_INCREMENTAL=0 cargo dylint --path lints/trait_must_use --all -- --all-targets"
-    add_step "Dylint Naked Map Err"       "nix develop ./nix/nightly --command env CARGO_INCREMENTAL=0 cargo dylint --path lints/naked_map_err --all -- --all-targets"
-    add_step "Docs Semantic Drift"        "cargo xtask check docs-semantic-drift"
+    add_step "Docs Link Check"            "{{toolkit_cmd}} check docs-link-check --repo-root . --config policy/toolkit.toml"
+    add_step "Proc Macro Scope"           "{{toolkit_cmd}} check proc-macro-scope --repo-root . --config policy/toolkit.toml"
+    add_step "Test Boundaries"            "{{toolkit_cmd}} check test-boundaries --repo-root . --config policy/toolkit.toml"
+    add_step "Trait Purity"               "{{policy_cmd}} check trait-purity"
+    add_step "Crate Boundary"             "{{policy_cmd}} check crate-boundary"
+    add_step "Adapter Boundary"           "{{policy_cmd}} check adapter-boundary"
+    add_step "DX Surface"                "{{policy_cmd}} check dx-surface"
+    add_step "Transport Authoring Boundary" "{{policy_cmd}} check transport-authoring-boundary"
+    add_step "Transport Ownership Boundary" "{{policy_cmd}} check transport-ownership-boundary"
+    add_step "Router Round Boundary"     "{{policy_cmd}} check router-round-boundary"
+    add_step "Reference Bridge Boundary" "{{policy_cmd}} check reference-bridge-boundary"
+    add_step "Simulator Boundary"        "{{policy_cmd}} check simulator-boundary"
+    add_step "Ownership Invariants"       "{{policy_cmd}} check ownership-invariants"
+    add_step "No usize in Models"         "{{policy_cmd}} check no-usize-in-models"
+    add_step "Result Must Use"            "{{toolkit_cmd}} check result-must-use --repo-root . --config policy/toolkit.toml"
+    add_step "Proof Bearing Actions"      "{{policy_cmd}} check proof-bearing-actions"
+    add_step "Surface Classification"     "{{policy_cmd}} check surface-classification"
+    add_step "Rust Style Guide"           "{{policy_cmd}} check rust-style-guide"
+    add_step "Checkpoint Namespacing"     "{{policy_cmd}} check checkpoint-namespacing"
+    add_step "Engine Service Boundary"    "{{policy_cmd}} check engine-service-boundary"
+    add_step "Invariant Specs"            "{{policy_cmd}} check invariant-specs"
+    add_step "Fail-Closed Ordering"       "{{policy_cmd}} check fail-closed-ordering"
+    add_step "No Scratch Refs in Rust"    "{{policy_cmd}} check no-scratch-refs-in-rust"
+    add_step "Pathway Async Boundary"     "{{policy_cmd}} check pathway-async-boundary"
+    add_step "Pathway Choreography"          "{{policy_cmd}} check pathway-choreography"
+    add_step "Pathway Choreography Validate" "{{policy_cmd}} check pathway-choreography --validate"
+    add_step "Routing Invariants"         "{{policy_cmd}} check routing-invariants"
+    add_step "Routing Invariants Validate" "{{policy_cmd}} check routing-invariants --validate"
+    add_step "Install cargo-dylint"       "{{install_dylint_cmd}}"
+    add_step "Dylint Trait Purity"        "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --toolkit-lint trait_purity --all -- --all-targets"
+    add_step "Dylint Model Policy"        "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --lint-path ./policy/lints/model_policy --all -- --all-targets"
+    add_step "Dylint Routing Invariants"  "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --lint-path ./policy/lints/routing_invariants --all -- --all-targets"
+    add_step "Dylint Trait Must Use"      "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --toolkit-lint trait_must_use --all -- --all-targets"
+    add_step "Dylint Naked Map Err"       "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --toolkit-lint naked_map_err --all -- --all-targets"
+    add_step "Docs Semantic Drift"        "{{toolkit_cmd}} check docs-semantic-drift --repo-root . --config policy/toolkit.toml"
     add_step "Docs Build"                 "just book"
 
     total=${#STEPS[@]}
@@ -214,35 +220,38 @@ ci-preflight:
 
 # validate docs link integrity
 docs-link-check:
-    cargo xtask check docs-link-check
+    {{toolkit_cmd}} check docs-link-check --repo-root . --config policy/toolkit.toml
 
 # detect stale backtick references in docs
 docs-semantic-drift:
-    cargo xtask check docs-semantic-drift
+    {{toolkit_cmd}} check docs-semantic-drift --repo-root . --config policy/toolkit.toml
 
 # enforce unit-test / integration-test boundary rules
 test-boundaries:
-    cargo xtask check test-boundaries
+    {{toolkit_cmd}} check test-boundaries --repo-root . --config policy/toolkit.toml
 
 # enforce crate-level ownership documentation requirements
 ownership-invariants:
-    cargo xtask check ownership-invariants
+    {{policy_cmd}} check ownership-invariants
 
 # enforce routing correctness invariants
 routing-invariants:
-    cargo xtask check routing-invariants
+    {{policy_cmd}} check routing-invariants
 
 # enforce mechanized Rust style-guide rules
 rust-style-guide:
-    cargo xtask check rust-style-guide
+    {{policy_cmd}} check rust-style-guide
 
 # validate routing-invariant checks against seeded fixtures
 routing-invariants-validate:
-    cargo xtask check routing-invariants --validate
+    {{policy_cmd}} check routing-invariants --validate
 
 # enter nightly shell for dylint and rustc_private lints (run install-dylint once inside)
 nightly-shell:
-    nix develop ./nix/nightly
+    ./scripts/toolkit-shell.sh bash -lc 'exec "${SHELL:-bash}" -l'
+
+install-dylint:
+    {{install_dylint_cmd}}
 
 # Publish workspace crates to crates.io and cut a release tag.
 # Usage:

@@ -17,8 +17,7 @@
 use jacquard_mem_link_profile::{InMemoryRetentionStore, InMemoryTransport};
 use jacquard_traits::{
     jacquard_core::{
-        Blake3Digest, ByteCount, ContentId, EndpointLocator, LinkEndpoint,
-        TransportKind,
+        Blake3Digest, ByteCount, ContentId, EndpointLocator, LinkEndpoint, TransportKind,
     },
     EffectHandler, RetentionStore, TransportDriver, TransportSenderEffects,
 };
@@ -49,7 +48,9 @@ fn transport_sender_and_driver_split_without_engine_specific_traits() {
 
 #[test]
 fn retention_store_retains_and_releases_opaque_payloads() {
-    let object_id = ContentId { digest: Blake3Digest([7; 32]) };
+    let object_id = ContentId {
+        digest: Blake3Digest([7; 32]),
+    };
     let mut retention = InMemoryRetentionStore::default();
 
     retention

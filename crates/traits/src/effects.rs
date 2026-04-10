@@ -21,35 +21,11 @@
 //!   satisfies.
 
 use jacquard_core::{
-    Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError,
-    RouteEventStamped, StorageError, Tick, TransportError,
+    Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError, RouteEventStamped,
+    StorageError, Tick, TransportError,
 };
 use jacquard_macros::{effect_trait, purity};
-
-// `Sealed` is satisfied only via `EffectDefinition`, which is emitted
-// exclusively by the `#[effect_trait]` proc macro. External crates
-// cannot implement `Effect` directly.
-mod sealed {
-    pub trait Sealed {}
-
-    impl<T> Sealed for T where
-        T: ?Sized + crate::__private::EffectDefinition + Send + Sync + 'static
-    {
-    }
-}
-
-#[purity(read_only)]
-/// Marker trait for the abstract runtime effect vocabulary.
-///
-/// Every effect trait in Jacquard should extend this trait so the effect
-/// surface stays narrow, object-safe, and clearly separated from concrete
-/// handlers.
-pub trait Effect: sealed::Sealed + Send + Sync + 'static {}
-
-impl<T> Effect for T where
-    T: ?Sized + crate::__private::EffectDefinition + Send + Sync + 'static
-{
-}
+pub use rust_toolkit_effects::Effect;
 
 #[effect_trait]
 /// Read-only runtime capability for monotonic logical time.
@@ -91,10 +67,7 @@ pub trait StorageEffects {
 /// Effectful runtime boundary.
 pub trait RouteEventLogEffects {
     #[must_use = "unhandled record_route_event result silently loses a route audit event"]
-    fn record_route_event(
-        &mut self,
-        event: RouteEventStamped,
-    ) -> Result<(), RouteEventLogError>;
+    fn record_route_event(&mut self, event: RouteEventStamped) -> Result<(), RouteEventLogError>;
 }
 
 #[effect_trait]
@@ -143,33 +116,24 @@ pub trait RetentionStore {
 ///
 /// Effectful runtime boundary.
 pub trait RoutingRuntimeEffects:
-    TimeEffects
-    + OrderEffects
-    + StorageEffects
-    + RouteEventLogEffects
-    + TransportSenderEffects
+    TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects + TransportSenderEffects
 {
 }
 
 impl<T> RoutingRuntimeEffects for T where
-    T: TimeEffects
-        + OrderEffects
-        + StorageEffects
-        + RouteEventLogEffects
-        + TransportSenderEffects
+    T: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects + TransportSenderEffects
 {
 }
 
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick,
-        TransportError,
+        OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick, TransportError,
     };
 
     use super::{
-        Effect, OrderEffects, RouteEventLogEffects, RoutingRuntimeEffects,
-        StorageEffects, TimeEffects, TransportSenderEffects,
+        Effect, OrderEffects, RouteEventLogEffects, RoutingRuntimeEffects, StorageEffects,
+        TimeEffects, TransportSenderEffects,
     };
     use crate::effect_handler;
 
@@ -195,11 +159,7 @@ mod tests {
             Ok(None)
         }
 
-        fn store_bytes(
-            &mut self,
-            _key: &[u8],
-            _value: &[u8],
-        ) -> Result<(), StorageError> {
+        fn store_bytes(&mut self, _key: &[u8], _value: &[u8]) -> Result<(), StorageError> {
             Ok(())
         }
 
