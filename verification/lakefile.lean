@@ -71,6 +71,7 @@ lean_lib JacquardVerification where
     `Field.Router.Admission,
     `Field.Router.Installation,
     `Field.Router.Lifecycle,
+    `Field.Router.Canonical,
     `Field.Async,
     `Field.Async.API,
     `Field.Async.Safety,
@@ -80,8 +81,13 @@ lean_lib JacquardVerification where
     `Field.System.Boundary,
     `Field.System.EndToEnd,
     `Field.System.Convergence,
+    `Field.System.Canonical,
     `Field.Quality.API,
+    `Field.Quality.Reference,
+    `Field.Quality.Refinement,
     `Field.Quality.System,
     `Field.Adequacy.API,
+    `Field.Adequacy.Canonical,
+    `Field.Adequacy.Projection,
     `Field.Adequacy.Instance
   ]

@@ -10,6 +10,7 @@ open FieldBoundary
 open FieldModelAPI
 open FieldProtocolAPI
 open FieldProtocolBridge
+open FieldRouterLifecycle
 
 /-- Extract a reduced protocol snapshot from the Rust-facing round artifact. -/
 def extractSnapshotImpl
@@ -150,7 +151,7 @@ instance fieldAdequacyLaws : FieldAdequacyAPI.Laws where
   runtimeEvidence := runtimeEvidenceImpl
   runtime_admitted_implies_bounded_and_coherent := by
     intro artifact hAdmitted
-    rcases hAdmitted with ⟨hBudget, hEmitted, hDone, hBlocked⟩
+    rcases hAdmitted with ⟨hBudget, hEmitted, hDone, hBlocked, _hRouter⟩
     constructor
     · exact ⟨hBudget, hEmitted⟩
     · constructor
@@ -179,6 +180,31 @@ theorem admitted_runtime_artifact_extracts_to_protocol_snapshot
     MachineBounded (FieldAdequacyAPI.extractSnapshot artifact) ∧
       MachineCoherent (FieldAdequacyAPI.extractSnapshot artifact) := by
   exact FieldAdequacyAPI.runtime_admitted_implies_bounded_and_coherent artifact hAdmitted
+
+/-- Any admitted runtime router projection remains lifecycle-honest. -/
+theorem admitted_runtime_artifact_router_projection_honest
+    (artifact : RuntimeRoundArtifact)
+    (hAdmitted : RuntimeArtifactAdmitted artifact) :
+    RuntimeRouterArtifactAdmitted artifact := by
+  exact hAdmitted.2.2.2.2
+
+theorem runtimeLifecycleRoutes_mem_implies_honest
+    (artifacts : List RuntimeRoundArtifact)
+    (hAdmitted : RuntimeExecutionAdmitted artifacts)
+    (route : LifecycleRoute)
+    (hMem : route ∈ FieldAdequacyAPI.runtimeLifecycleRoutes artifacts) :
+    LifecycleHonest route := by
+  unfold FieldAdequacyAPI.runtimeLifecycleRoutes at hMem
+  rcases List.mem_filterMap.1 hMem with ⟨artifact, hArtifactMem, hSome⟩
+  have hRouter :=
+    admitted_runtime_artifact_router_projection_honest artifact (hAdmitted artifact hArtifactMem)
+  cases hProjection : artifact.routerArtifact with
+  | none =>
+      simp [hProjection] at hSome
+  | some projection =>
+      simp [hProjection] at hSome
+      subst hSome
+      simpa [RuntimeRouterArtifactAdmitted, hProjection] using hRouter
 
 /-- The controller evidence batch computed from admitted runtime artifacts
 agrees with the evidence batch induced by the extracted semantic trace. -/

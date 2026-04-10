@@ -1,5 +1,7 @@
 import Field.Model.API
 import Field.Protocol.Bridge
+import Field.Quality.API
+import Field.Router.Canonical
 
 /-!
 Minimal adequacy-facing boundary between Rust-visible runtime artifacts and the
@@ -14,6 +16,15 @@ namespace FieldAdequacyAPI
 open FieldBoundary
 open FieldModelAPI
 open FieldProtocolAPI
+open FieldRouterCanonical
+open FieldRouterLifecycle
+
+/-- Reduced router-facing projection carried by one runtime artifact. This is
+still only an extracted observational/runtime view, not a new owner of router
+truth. -/
+structure RuntimeRouterArtifact where
+  lifecycleRoute : LifecycleRoute
+  deriving Repr, DecidableEq, BEq
 
 /-- Narrowest Rust-facing round artifact currently worth relating to the Lean
 protocol object. This mirrors the controller-relevant fields of
@@ -23,7 +34,15 @@ structure RuntimeRoundArtifact where
   disposition : HostDisposition
   emittedCount : Nat
   stepBudgetRemaining : Nat
+  routerArtifact : Option RuntimeRouterArtifact
   deriving Repr, DecidableEq, BEq
+
+/-- Admitted router-facing runtime projections must stay inside the current
+reduced lifecycle honesty envelope. -/
+def RuntimeRouterArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
+  match artifact.routerArtifact with
+  | none => True
+  | some routerArtifact => LifecycleHonest routerArtifact.lifecycleRoute
 
 /-- Envelope expected from the Rust private runtime before we claim any
 adequacy bridge. -/
@@ -34,7 +53,8 @@ def RuntimeArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
         artifact.disposition = HostDisposition.failedClosed) →
         artifact.blockedReceive = none) ∧
     (artifact.disposition = HostDisposition.blocked →
-      artifact.blockedReceive.isSome)
+      artifact.blockedReceive.isSome) ∧
+    RuntimeRouterArtifactAdmitted artifact
 
 /-- Execution-level admission: every runtime artifact stays inside the reduced
 private protocol envelope. -/
@@ -66,6 +86,20 @@ def extractTrace (artifacts : List RuntimeRoundArtifact) : ProtocolTrace :=
 
 def runtimeEvidence (artifacts : List RuntimeRoundArtifact) : List EvidenceInput :=
   Model.runtimeEvidence artifacts
+
+def runtimeLifecycleRoutes
+    (artifacts : List RuntimeRoundArtifact) : List LifecycleRoute :=
+  artifacts.filterMap (fun artifact => artifact.routerArtifact.map RuntimeRouterArtifact.lifecycleRoute)
+
+def runtimeCanonicalRoute
+    (destination : FieldNetworkAPI.DestinationClass)
+    (artifacts : List RuntimeRoundArtifact) : Option LifecycleRoute :=
+  canonicalBestRoute destination (runtimeLifecycleRoutes artifacts)
+
+def runtimeCanonicalRouteView
+    (destination : FieldNetworkAPI.DestinationClass)
+    (artifacts : List RuntimeRoundArtifact) : Option FieldQualityAPI.RouteComparisonView :=
+  Option.map FieldQualityAPI.routeComparisonView (runtimeCanonicalRoute destination artifacts)
 
 /-- Minimal simulation relation between a Rust runtime execution artifact list
 and a reduced Lean protocol trace. -/

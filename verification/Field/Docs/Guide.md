@@ -29,15 +29,15 @@ These surfaces are intentionally separated. The local controller is not a choreo
 - `Field/Network/*`
   - finite node/destination state, synchronous round buffer, and first network safety theorems
 - `Field/Router/*`
-  - router-facing publication, admission, installation, and lifecycle boundary
+  - router-facing publication, admission, installation, lifecycle boundary, and router-owned canonical route-selection spec
 - `Field/Async/*`
   - reduced async delivery semantics, transport lifecycle lemmas, explicit delay/loss/retry assumptions, and first async safety theorems
 - `Field/System/*`
-  - aggregate system summaries, reduced end-to-end semantics, convergence theorems, and cross-layer boundary statements above the async model
+  - aggregate system summaries, reduced end-to-end semantics, convergence theorems, canonical-router refinement theorems, and cross-layer boundary statements above the async model
 - `Field/Quality/*`
-  - reduced route-comparison views, objective vocabulary, destination-filtered ranking, and system-facing quality theorems above the lifecycle view
+  - reduced route-comparison views, reference-best semantics, destination-filtered ranking, support-only refinement, and system-facing quality theorems above the lifecycle view
 - `Docs/Adequacy.md`
-  - runtime artifact boundary, reduced simulation witness, fragment-trace refinement, packaged assumptions, and parity-sensitive surfaces
+  - runtime artifact boundary, reduced router projection, reduced simulation witness, low-level runtime alignment, stronger projected runtime/system refinement, packaged assumptions, and parity-sensitive surfaces
 - `Docs/Guide.md`
   - contributor guide and current maturity summary
 
@@ -104,6 +104,7 @@ The network/router layers currently give:
 - reduced observed/admitted/rejected admission semantics
 - a minimal installed-route object that only exists above admission
 - a reduced lifecycle object with observed/admitted/installed/withdrawn/expired/refreshed status
+- a router-owned canonical support selector over eligible lifecycle routes, with support-best witness theorems
 - first safety theorems showing:
   - local projection honesty lifts to published candidates
   - explicit-path installation cannot appear without explicit local knowledge
@@ -138,6 +139,7 @@ The quality layer currently gives:
 
 - a reduced `RouteComparisonView` extracted from lifecycle-managed routes
 - admissibility rules that only compare active installed/refreshed routes for one destination
+- a reference admissibility and support-best semantics over the same exported route-view surface
 - a small comparison-object vocabulary:
   - `supportDominance`
   - `hopBandConservativity`
@@ -145,11 +147,32 @@ The quality layer currently gives:
   - `supportThenHopThenStableTieBreak`
 - pairwise comparison objects that return only left/right/tie/inadmissible, never canonical route truth
 - destination-filtered best-view selection over lifecycle/system-facing routes
+- a support-only reference selector `referenceBestRouteView` and refinement theorems:
+  - `bestRouteView_supportDominance_eq_referenceBestRouteView`
+  - `bestRouteView_supportDominance_refines_reference`
+  - `bestSystemRouteView_supportDominance_eq_referenceBestSystemRouteView`
+  - `bestSystemRouteView_supportDominance_refines_reference`
 - system-facing theorems showing:
   - `best_system_route_view_stable_under_reliable_immediate_empty`
   - `best_system_route_view_cannot_manufacture_explicit_path`
   - `best_system_route_view_support_conservative`
   - `best_system_route_view_explicit_path_requires_explicit_sender_knowledge`
+- explicit boundary/counterexample theorems showing the non-support objectives remain reduced:
+  - `stableTieBreak_can_prefer_lower_support_view`
+  - `hopBandConservativity_can_prefer_lower_support_view`
+
+### Router Canonical Truth
+
+The router layer now also gives:
+
+- a router-owned `CanonicalRouteEligible` predicate over lifecycle routes
+- a router-owned support selector `canonicalBestRoute`
+- a canonical support-best witness `CanonicalSupportBest`
+- well-formedness theorems showing the canonical selector only returns eligible destination-local router routes
+- support-best theorems such as:
+  - `canonicalBestRoute_some_is_support_best`
+
+This is the current owner of canonical route truth in the reduced stack. It lives in `Field/Router`, not in `Field/Quality`.
 
 ### System Statistics And Boundary
 
@@ -158,7 +181,11 @@ The system layer also currently gives:
 - aggregate support summaries such as `aggregateSupport` and `averageSupport`
 - ready-message support accounting through `readySupportMass`
 - bounds such as `aggregateSupport_bounded`, `averageSupport_bounded`, and `ready_support_mass_bounded_by_inflight_budget`
-- explicit boundary theorems `default_contract_does_not_claim_global_optimality_ready` and `reduced_quality_contract_still_does_not_claim_global_optimality_ready` stating that neither the default packaged contract nor the reduced-quality contract justifies global optimality claims
+- refinement theorems such as:
+  - `canonicalSystemRoute_eq_router_canonical_under_reliable_immediate_empty`
+  - `canonical_system_route_stable_under_reliable_immediate_empty`
+  - `bestSystemRouteView_supportDominance_eq_canonicalSystemRouteView`
+- explicit boundary theorems `support_optimality_contract_does_not_claim_canonical_router_refinement_ready`, `canonical_router_contract_unlocks_canonical_router_refinement`, and `canonical_router_contract_still_does_not_claim_global_optimality_ready` stating that the stronger canonical-router contract unlocks only the current router-owned support refinement, not full global optimality
 
 ### Adequacy And Assumptions
 
@@ -178,6 +205,17 @@ The adequacy and assumptions layers currently give:
   - `contract_yields_reduced_quality_stability`
   - `contract_yields_reduced_quality_support_conservativity`
   - `contract_yields_explicit_path_quality_observer`
+  - `contract_yields_support_optimality_refinement`
+  - `contract_yields_canonical_router_refinement`
+  - `contract_yields_runtime_canonical_refinement`
+  - `contract_yields_runtime_system_canonical_refinement`
+
+The runtime-canonical path is now explicit:
+
+- Rust/runtime artifacts carry a reduced router-facing lifecycle projection
+- `Field/Adequacy/Canonical.lean` relates that projection to the reduced system lifecycle view through `RuntimeSystemCanonicalAligned`
+- `Field/Adequacy/Projection.lean` proves a reduced runtime artifact stream generated from `systemStep` satisfies that alignment and is admitted by the existing reduced runtime envelope
+- under that stronger projected-runtime path, runtime canonical selection agrees with the same router-owned canonical selector without any extra alignment parameter
 
 ## Convergence Assumptions
 
@@ -194,7 +232,7 @@ They rely on:
 
 Under exactly that regime, the current theorems show a reduced fixed-point story for the installed candidate view. They do not claim convergence under arbitrary delay, retry, or loss behavior.
 
-## Safety, Stability, And Reduced Ranking
+## Safety, Canonical Refinement, And Reduced Ranking
 
 The new end-to-end and convergence results are still safety/stability theorems.
 
@@ -205,17 +243,31 @@ They show that:
 - the candidate view stabilizes under reliable-immediate transport with no queued backlog
 - repeated end-to-end steps do not spontaneously promote to explicit-path when no sender has explicit-path knowledge
 
-The new quality layer adds reduced ranking / comparison theorems.
+The router and quality layers now split the truth story.
 
 They show that:
 
+- router-owned lifecycle objects admit a canonical support selector
+- `bestSystemRouteView .supportDominance` agrees with that router-owned canonical selector
 - pairwise and destination-filtered comparisons depend only on exported lifecycle route fields
 - quality results stay conservative with respect to installed support and sender-local knowledge
 - reliable-immediate stable-input regimes produce stable reduced ranking outcomes
+- `supportDominance` agrees both with a reference support-best semantics and with the current router-owned canonical support selector
+
+The distinction matters:
+
+- safety/conservativity theorems say exported route views do not strengthen shape/support/knowledge claims
+- stabilization/fixed-point theorems say the installed candidate view and its reduced rankings stop changing under the reliable-immediate empty-queue regime
+- canonical-router refinement says the current support-only system winner agrees with the router-owned canonical selector
+- low-level runtime-to-canonical refinement says an admitted runtime artifact stream with explicit reduced lifecycle alignment agrees with that same router-owned canonical selector
+- stronger projected runtime/system refinement says the reduced runtime artifact stream generated from `systemStep` agrees with that same router-owned canonical selector without a free alignment parameter
+- reduced comparison/ranking theorems say exported candidates can be compared or selected without turning them into canonical route truth
+- support-only refinement says `supportDominance` matches a reference support-max view, but only for that objective
+- full routing optimality would require a stronger objective story than the current router-canonical support selector and its refinement provide
 
 They do not show:
 
-- best-route selection
+- best-route selection for the non-support objectives
 - path-quality optimality
 - asymptotic convergence under realistic transport dynamics
 - equivalence to the production Rust router/runtime
@@ -236,8 +288,9 @@ The current system is best read as:
 
 - a strong reduced local-model and protocol-boundary proof stack
 - an early but real information-theoretic layer
-- a reduced ranking/comparison layer above system-facing lifecycle outputs
+- a router-owned canonical selector plus a reduced ranking/comparison layer above system-facing lifecycle outputs
 - a reduced runtime simulation bridge
+- a stronger projected runtime/system canonical-refinement theorem above that lower-level alignment lemma
 - a reduced end-to-end safety/stability model under explicit assumptions
 
 ## Maturity Summary
@@ -251,12 +304,12 @@ The current system is best read as:
 | Information layer | Moderate | finite normalized belief object and first blindness theorem exist |
 | Boundary layer | Moderate | protocol-export-to-controller-evidence boundary is explicit and observational-only |
 | One-step decision layer | Early | useful but intentionally small |
-| Reduced network and router layers | Moderate | explicit publication/admission/installation/lifecycle boundary and first safety theorems exist |
+| Reduced network and router layers | Moderate | explicit publication/admission/installation/lifecycle boundary, router-owned canonical support selector, and first safety theorems exist |
 | Reduced async layer | Moderate | explicit delay/loss/retry assumptions, transport lifecycle lemmas, and first async publication safety theorems exist |
-| System summaries and boundaries | Moderate | aggregate support summaries, reduced end-to-end safety/observer theorems, and reliable-immediate stabilization results exist |
-| Quality layer | Moderate | reduced route-comparison semantics, best-view selection, and first system-facing ranking stability/conservativity theorems exist |
-| Runtime adequacy | Early | reduced simulation witness, not full refinement |
-| Packaged assumptions | Early | structure is in place and exports useful bridge lemmas, but theorem dependence is still selective |
+| System summaries and boundaries | Moderate | aggregate support summaries, reduced end-to-end safety/observer theorems, reliable-immediate stabilization results, and canonical-router refinement exist |
+| Quality layer | Moderate | reduced route-comparison semantics, support-only reference refinement, and first system-facing ranking stability/conservativity theorems exist |
+| Runtime adequacy | Early | reduced simulation witness, low-level runtime-to-canonical alignment theorem, and stronger projected runtime/system refinement exist, but not full extracted-Rust runtime refinement |
+| Packaged assumptions | Early | structure is in place and exports useful bridge lemmas, including projected runtime/system refinement, but theorem dependence is still selective |
 
 ## Ownership Rules
 
@@ -267,10 +320,13 @@ When adding new proofs, keep these boundaries intact.
 - If the statement is about protocol outputs or semantic objects becoming controller-visible evidence, it belongs in `Field/Model/Boundary`.
 - If the statement is about node-indexed local states, reduced message delivery, or network-level safety, it belongs in `Field/Network`.
 - If the statement is about router-facing publication, admission, installation, lifecycle maintenance, or canonical handling eligibility, it belongs in `Field/Router`.
+  Router-owned canonical route truth belongs there too.
 - If the statement is about in-flight envelopes, delay, retry, ready delivery, or async publication safety, it belongs in `Field/Async`.
 - If the statement is about end-to-end sequencing, installed-route observer results, fixed points, or cross-layer proof-boundary summaries above the async model, it belongs in `Field/System`.
 - If the statement is about comparing, ranking, or selecting between exported lifecycle/system route views, it belongs in `Field/Quality`.
+  Support-only reference-best semantics and refinement stay in `Field/Quality` too.
 - If the statement is about Rust-facing runtime artifacts, extracted traces, or runtime simulation, it belongs in `Field/Adequacy`.
+  Runtime-to-canonical alignment and projected runtime/system refinement theorems belong there too.
 - If the statement is about the global assumption contract used across theorem packs, it belongs in `Field/Assumptions`.
 
 ## How To Extend The Stack
@@ -312,7 +368,11 @@ Before landing a meaningful field-proof change:
 - Do not move router-owned canonical truth into the protocol proof object.
 - Do not force the deterministic controller into a choreography encoding.
 - Do not claim full runtime adequacy when the actual theorem is a reduced simulation witness.
+- Do not claim full extracted-Rust runtime correctness when the actual theorem is only a projected reduced runtime/system refinement.
+- Do not forget that the lower-level alignment theorem still needs an explicit hypothesis when used directly.
 - Do not describe the reliable-immediate convergence lemmas as routing-quality or optimality results.
 - Do not let the reduced quality layer smuggle in canonical route truth or production-optimality claims.
+- Do not let canonical-router refinement be restated as full global optimality.
+- Do not describe the support-only refinement theorem as full route optimality for tie-break or hop-band objectives.
 - Do not introduce transport-specific details into the local controller model unless they are genuinely proof-relevant there.
 - Do not bypass the API/instance split just to make one downstream theorem shorter.

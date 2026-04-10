@@ -11,17 +11,17 @@ This map describes the current organization of `verification/Field`.
 - `Field/Boundary.lean`
   - imports the observational controller-boundary theorems
 - `Field/Adequacy.lean`
-  - imports the first Rust-runtime adequacy bridge
+  - imports the Rust-runtime adequacy bridge, low-level runtime-to-canonical alignment theorems, and stronger projected runtime/system refinement theorems
 - `Field/Network.lean`
   - imports the reduced finite network layer and its first safety theorems
 - `Field/Router.lean`
-  - imports the reduced publication, admission, installation, and lifecycle layers
+  - imports the reduced publication, admission, installation, lifecycle, and canonical-selection layers
 - `Field/Async.lean`
   - imports the reduced async delivery semantics, transport lifecycle lemmas, and first async safety theorems
 - `Field/System.lean`
-  - imports system-level summaries, reduced end-to-end semantics, and convergence theorems above the async layer
+  - imports system-level summaries, reduced end-to-end semantics, convergence theorems, and refinement to router-owned canonical selection above the async layer
 - `Field/Quality.lean`
-  - imports the reduced routing-quality / comparison layer above the router and system boundaries
+  - imports the reduced routing-quality / comparison, reference-best, and support-only refinement layer above the router and system boundaries
 - `Field/Field.lean`
   - umbrella import for the whole current field verification stack
 
@@ -65,11 +65,15 @@ This map describes the current organization of `verification/Field`.
 - `Field/Model/Boundary.lean`
   - controller-evidence boundary from protocol exports and traces
 - `Field/Adequacy/API.lean`
-  - abstract Rust-runtime artifact boundary and reduced runtime-to-trace simulation witness
+  - abstract Rust-runtime artifact boundary, reduced router-facing runtime projection, and reduced runtime-to-trace simulation witness
+- `Field/Adequacy/Canonical.lean`
+  - runtime-to-canonical refinement theorems connecting extracted runtime lifecycle routes to the system/router canonical selector under an explicit alignment boundary
+- `Field/Adequacy/Projection.lean`
+  - reduced runtime artifact projection generated from `systemStep`, admission/honesty lemmas for that projection, and stronger runtime/system canonical refinement theorems with no extra alignment hypothesis
 - `Field/Adequacy/Instance.lean`
-  - first concrete runtime extraction, execution-level observational trace theorem, reduced simulation theorem, and evidence-agreement theorems
+  - first concrete runtime extraction, execution-level observational trace theorem, reduced simulation theorem, router-projection honesty facts, and evidence-agreement theorems
 - `Field/Assumptions.lean`
-  - packaged proof-contract assumptions for semantic, protocol-envelope, runtime-envelope, and optional strengthening theorems, including reduced-quality vs non-optimality boundaries
+  - packaged proof-contract assumptions for semantic, protocol-envelope, runtime-envelope, and optional strengthening theorems, including reduced-quality, support-only refinement, canonical-router refinement, runtime-to-canonical refinement, projected runtime/system refinement, and non-optimality boundaries
 
 ## Network And Router
 
@@ -85,6 +89,8 @@ This map describes the current organization of `verification/Field`.
   - minimal canonical installed-route object and installation honesty theorems
 - `Field/Router/Lifecycle.lean`
   - reduced observed/admitted/installed/withdrawn/expired/refreshed lifecycle object plus maintenance and conservativity theorems
+- `Field/Router/Canonical.lean`
+  - router-owned destination-local canonical support selector over lifecycle routes, plus support-best and eligibility theorems for canonical route truth
 
 ## Async And System Layers
 
@@ -102,8 +108,14 @@ This map describes the current organization of `verification/Field`.
   - reduced end-to-end state and step relation combining async transport, router lifecycle installation, and lifecycle maintenance, plus first safety/observer lemmas
 - `Field/System/Convergence.lean`
   - reduced reliable-immediate fixed-point and no-spontaneous-promotion theorems over iterated end-to-end steps
+- `Field/System/Canonical.lean`
+  - system-facing refinement theorems connecting `supportDominance` winners to the router-owned canonical selector, plus reliable-immediate stability for the canonical system route
 - `Field/Quality/API.lean`
   - reduced route-comparison views, admissibility rules, objective vocabulary, pairwise comparison objects, and destination-filtered best-view selection
+- `Field/Quality/Reference.lean`
+  - reference admissibility and support-best semantics over exported route views, plus a destination-filtered support-only reference selector
+- `Field/Quality/Refinement.lean`
+  - support-only refinement theorems connecting `supportDominance` to the reference-best semantics, plus explicit counterexamples showing why tie-break and hop-band objectives are not promoted to global optimality
 - `Field/Quality/System.lean`
   - system-facing quality theorems over `systemStep` lifecycle outputs, including stability, explicit-path non-manufacture, and sender-local support/knowledge observer results
 
@@ -114,9 +126,9 @@ This map describes the current organization of `verification/Field`.
 - `Field/Docs/Protocol.md`
   - protocol, Telltale mapping, and replay/authority notes
 - `Field/Docs/Adequacy.md`
-  - runtime artifact bridge and adequacy note
+  - runtime artifact bridge, reduced runtime router projection, low-level alignment theorem, and stronger projected runtime/system adequacy note
 - `Field/Docs/Guide.md`
-  - contributor guidance, maturity summary, quality/comparison scope, convergence assumptions, and stack-level module map including the network/router/async/system layers
+  - contributor guidance, maturity summary, router-canonical truth versus quality/comparison scope, convergence assumptions, and stack-level module map including the network/router/async/system layers
 
 ## Maturity Snapshot
 
@@ -127,14 +139,16 @@ This map describes the current organization of `verification/Field`.
   - reduced finite network, publication, admission, installation, and lifecycle semantics
   - first network-level safety theorems
   - reduced async semantics, transport lifecycle lemmas, and first async safety theorems
-  - system-level aggregate summaries, reduced end-to-end safety/observer theorems, and reliable-immediate convergence results
-  - reduced route-comparison / ranking semantics above system-facing lifecycle outputs
+  - router-owned canonical selection over lifecycle routes
+  - system-level aggregate summaries, reduced end-to-end safety/observer theorems, reliable-immediate convergence results, and canonical-router refinement
+  - reduced route-comparison / ranking semantics and support-only reference refinement above system-facing lifecycle outputs
+  - projected reduced runtime/system refinement to router-owned canonical truth
   - probability-simplex information layer
   - normalized public-projection blindness bridge
   - one-step decision layer
   - reduced protocol-machine fragment
 - earliest:
-  - stronger runtime correctness theorem beyond the current reduced simulation bridge
+  - stronger extracted-Rust runtime correctness theorem beyond the current reduced simulation bridge and projected runtime/system refinement
   - convergence beyond the reliable-immediate / empty-queue / unchanged-network regime
-  - stronger routing-quality or optimality theorem beyond the current reduced comparison layer
+  - stronger global routing optimality theorem beyond the current router-canonical support selector and its system refinement
   - deeper Telltale-native reuse of conservation and subtype-replacement families

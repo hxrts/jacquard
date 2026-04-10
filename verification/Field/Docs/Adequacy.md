@@ -18,6 +18,7 @@ RuntimeRoundArtifact :=
   disposition : HostDisposition
   emittedCount : Nat
   stepBudgetRemaining : Nat
+  routerArtifact : Option RuntimeRouterArtifact
 ```
 
 This is intentionally much smaller than the real Rust choreography runtime. It mirrors only the controller-relevant fields of the private protocol round result:
@@ -26,6 +27,8 @@ This is intentionally much smaller than the real Rust choreography runtime. It m
 - host disposition
 - emitted summary count
 - remaining step budget
+
+The new `routerArtifact` field is still reduced. It carries at most one reduced lifecycle-route projection for the round artifact. It does not make the adequacy layer the owner of canonical route truth.
 
 It intentionally erases:
 
@@ -50,6 +53,7 @@ The runtime artifact admission condition currently requires:
 - `emittedCount ≤ 8`
 - complete or failed-closed states must not claim a blocked receive
 - blocked states must carry a blocked receive marker
+- any reduced router-facing runtime projection must stay lifecycle-honest
 
 The reduced trace envelope is:
 
@@ -172,6 +176,63 @@ runtime_execution_refinement_preserves_fragment_observer_projection
 
 These theorems say that the semantic objects extracted from the runtime artifact list are exactly the semantic objects seen after erasing the corresponding extracted snapshots into the protocol-machine fragment trace, and therefore induce the same controller-visible evidence.
 
+### Runtime-To-Canonical Refinement
+
+The adequacy layer now also contains a dedicated runtime-to-canonical theorem file:
+
+```text
+Field/Adequacy/Canonical.lean
+```
+
+It defines an explicit reduced alignment predicate:
+
+```text
+RuntimeSystemCanonicalAligned
+```
+
+and proves:
+
+```text
+runtime_canonical_route_eq_canonicalSystemRoute_of_alignment
+runtime_canonical_route_view_eq_bestSystemRouteView_supportDominance_of_alignment
+```
+
+This is the first explicit bridge from Rust-facing runtime artifacts to router-owned canonical truth. The bridge is still narrow: it depends on an explicit reduced lifecycle-alignment hypothesis rather than proving full runtime correctness.
+
+### Projected Runtime-System Refinement
+
+The adequacy layer now also contains a stronger projected-runtime theorem file:
+
+```text
+Field/Adequacy/Projection.lean
+```
+
+It defines:
+
+```text
+runtimeArtifactOfLifecycleRoute
+projectedRuntimeArtifactsOfState
+RuntimeExecutionProjectsSystemState
+```
+
+and proves:
+
+```text
+projectedRuntimeArtifactsOfState_admitted
+runtimeExecutionProjectsSystemState_implies_alignment
+projected_runtime_canonical_route_eq_canonicalSystemRoute
+projected_runtime_canonical_route_view_eq_bestSystemRouteView_supportDominance
+```
+
+This removes the free alignment hypothesis from the stronger top-level story. The current theorem-driven path is:
+
+- reduced system state
+- projected reduced runtime artifacts
+- reduced runtime canonical selector
+- router-owned canonical truth
+
+That is stronger than the earlier alignment-only bridge, but it is still not a full Rust/runtime correctness theorem. The projected artifacts are generated from the reduced Lean `systemStep`, not extracted from arbitrary production Rust executions.
+
 ## Assumptions Packaging
 
 `Field/Assumptions.lean` packages the growing assumption boundary into:
@@ -206,12 +267,20 @@ contract_yields_protocol_trace_admitted
 contract_yields_reduced_quality_stability
 contract_yields_reduced_quality_support_conservativity
 contract_yields_explicit_path_quality_observer
+contract_yields_support_optimality_refinement
+contract_yields_canonical_router_refinement
+contract_yields_runtime_canonical_refinement
+contract_yields_runtime_system_canonical_refinement
 ```
 
 So `Field/Assumptions.lean` is no longer only a container for future assumptions. It already exposes a small usable bridge from the default contract to the current adequacy and controller-boundary results.
 It also now distinguishes:
 
 - reduced quality-comparison readiness
+- support-only optimality-refinement readiness
+- canonical-router refinement readiness
+- runtime-canonical refinement readiness
+- runtime-system refinement readiness
 - still-false global optimality readiness
 
 ## What The Adequacy Layer Does Not Prove
@@ -222,7 +291,7 @@ The current adequacy layer still does not prove:
 - fairness or scheduler properties
 - checkpoint or recovery correctness
 - replay exactness for the full Rust runtime
-- correspondence with router-owned canonical route truth
+- extracted-Rust correspondence with router-owned canonical route truth without going through the reduced projected runtime execution
 - transport correctness
 
 So the correct reading is:
@@ -239,6 +308,8 @@ Those results do not upgrade the adequacy claim. This module family still does n
 - full Rust transport refinement
 - full Rust router/runtime refinement
 - routing-quality or optimality properties
+
+The stronger support-only, canonical-router, runtime-canonical, and runtime-system refinement contracts change only the theorem-pack boundary above `Field/System`, `Field/Router`, `Field/Quality`, and `Field/Adequacy`. They do not strengthen the Rust adequacy statement into full implementation-optimality or full implementation-correctness theorems.
 
 So adequacy remains an artifact-to-trace bridge, not an end-to-end implementation-correctness theorem.
 

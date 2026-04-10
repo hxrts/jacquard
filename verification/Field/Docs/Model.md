@@ -324,7 +324,17 @@ That separation matters:
 
 - the local model still owns local knowledge, support, and public projection
 - the system layer still owns transport/lifecycle composition and stable-step results
-- the quality layer only ranks or compares the reduced route views that those higher layers already expose
+- the quality layer only ranks, compares, and support-refines the reduced route views that those higher layers already expose
+
+The new support-only refinement result is still above the local model:
+
+- `Field/Quality/Reference.lean` defines the reference support-best semantics over exported route views
+- `Field/Quality/Refinement.lean` proves `supportDominance` agrees with that reference semantics
+- `Field/Router/Canonical.lean` owns the current canonical support selector
+- `Field/System/Canonical.lean` proves the current system-facing support winner agrees with that router-owned selector
+- `Field/Adequacy/Canonical.lean` proves the low-level runtime artifact bridge under an explicit reduced lifecycle-alignment boundary
+- `Field/Adequacy/Projection.lean` proves a reduced runtime execution projected from `systemStep` refines to that same canonical selector without any extra alignment parameter
+- none of that moves route optimality into `Field/Model`
 
 ## What Is Not Yet Proved
 
@@ -348,6 +358,8 @@ The most natural next extensions of this document’s model are:
 - sharper divergence and entropy laws
 - stronger blindness theorems for the corridor projection
 - stronger multi-round stabilization laws beyond the current reliable-immediate fixed-point regime
+- richer reference objectives beyond the current support-only refinement layer
+- stronger router-canonical objectives beyond the current support-only canonical selector
 - tighter connection between local scoring and public projection conservativity
 
 Until then, this document should be read as the specification of the current reduced local model and information boundary, not of the full Rust field engine.
