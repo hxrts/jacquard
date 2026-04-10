@@ -42,6 +42,13 @@ def RuntimeExecutionAdmitted
     (artifacts : List RuntimeRoundArtifact) : Prop :=
   ∀ artifact ∈ artifacts, RuntimeArtifactAdmitted artifact
 
+/-- Reduced protocol-trace envelope used by the field adequacy bridge. A trace
+stays inside the reduced envelope when all replay-visible semantic objects
+remain observational-only. -/
+def ProtocolTraceAdmitted (trace : ProtocolTrace) : Prop :=
+  ∀ object ∈ traceSemanticObjects trace,
+    object.authority = OutputAuthority.observationalOnly
+
 class Model where
   extractSnapshot : RuntimeRoundArtifact → MachineSnapshot
   extractTrace : List RuntimeRoundArtifact → ProtocolTrace
@@ -59,6 +66,14 @@ def extractTrace (artifacts : List RuntimeRoundArtifact) : ProtocolTrace :=
 
 def runtimeEvidence (artifacts : List RuntimeRoundArtifact) : List EvidenceInput :=
   Model.runtimeEvidence artifacts
+
+/-- Minimal simulation relation between a Rust runtime execution artifact list
+and a reduced Lean protocol trace. -/
+structure RuntimeTraceSimulation
+    (artifacts : List RuntimeRoundArtifact) where
+  trace : ProtocolTrace
+  trace_eq_extract : trace = extractTrace artifacts
+  trace_admitted : ProtocolTraceAdmitted trace
 
 end Wrappers
 
@@ -79,6 +94,11 @@ abbrev RuntimeExecutionExtractsToObservationalTrace (M : Model) : Prop :=
     RuntimeExecutionAdmitted artifacts →
       ∀ object ∈ traceSemanticObjects (@Model.extractTrace M artifacts),
         object.authority = OutputAuthority.observationalOnly
+
+abbrev RuntimeExecutionSimulatesReducedProtocol (M : Model) : Prop :=
+  ∀ artifacts,
+    RuntimeExecutionAdmitted artifacts →
+      Nonempty (@RuntimeTraceSimulation M artifacts)
 
 class Laws extends Model where
   runtime_admitted_implies_bounded_and_coherent :

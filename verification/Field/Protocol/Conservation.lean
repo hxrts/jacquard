@@ -15,6 +15,7 @@ set_option relaxedAutoImplicit false
 namespace FieldProtocolConservation
 
 open FieldBoundary
+open FieldModelAPI
 open FieldProtocolAPI
 open FieldProtocolBridge
 

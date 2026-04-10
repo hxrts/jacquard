@@ -15,8 +15,7 @@ open scoped BigOperators
 
 /-- Total finite weight carried by a reduced field belief. -/
 def totalWeight (belief : FiniteBelief) : Nat :=
-  belief.unknownWeight + belief.unreachableWeight + belief.corridorWeight +
-    belief.explicitPathWeight
+  belief.totalWeight
 
 /-- Normalized pmf for the reduced field belief object. Zero-total beliefs
 fall back to a point mass on `unknown`. -/
@@ -59,7 +58,7 @@ theorem normalizedPmf_sum_one
         belief.unknownWeight + belief.unreachableWeight +
           belief.corridorWeight + belief.explicitPathWeight =
             totalWeight belief := by
-      simp [totalWeight]
+      rfl
     have hWeightSumReal :
         (belief.unknownWeight : ℝ) + belief.unreachableWeight +
           belief.corridorWeight + belief.explicitPathWeight =
@@ -101,6 +100,12 @@ noncomputable def normalizeBeliefImpl (belief : FiniteBelief) : Distribution Fie
   nonneg := normalizedPmf_nonneg belief
   sum_one := normalizedPmf_sum_one belief
 
+/-- Concrete probability-simplex style belief object for reduced field
+beliefs. -/
+noncomputable def simplexBeliefImpl
+    (belief : FiniteBelief) : ProbabilitySimplexBelief :=
+  { distribution := normalizeBeliefImpl belief }
+
 /-- Concrete Shannon uncertainty on the normalized field belief. -/
 noncomputable def shannonUncertaintyImpl (belief : FiniteBelief) : ℝ :=
   EntropyAPI.shannonEntropy (normalizeBeliefImpl belief).pmf
@@ -115,10 +120,34 @@ noncomputable def corridorCapableMassImpl (belief : FiniteBelief) : ℝ :=
     (normalizeBeliefImpl belief).pmf FieldHypothesis.explicitPath
 
 noncomputable instance fieldInformationLaws : FieldInformationAPI.Laws where
-  normalizeBelief := normalizeBeliefImpl
+  simplexBelief := simplexBeliefImpl
   shannonUncertainty := shannonUncertaintyImpl
   explicitPathMass := explicitPathMassImpl
   corridorCapableMass := corridorCapableMassImpl
+  simplex_matches_finite_belief := by
+    intro belief
+    constructor
+    · intro hZero
+      have hZero' : totalWeight belief = 0 := hZero
+      constructor
+      · simp [simplexBeliefImpl, normalizeBeliefImpl, ProbabilitySimplexBelief.pmf,
+          normalizedPmf, hZero']
+      · constructor
+        · simp [simplexBeliefImpl, normalizeBeliefImpl, ProbabilitySimplexBelief.pmf,
+            normalizedPmf, hZero']
+        · constructor
+          · simp [simplexBeliefImpl, normalizeBeliefImpl, ProbabilitySimplexBelief.pmf,
+              normalizedPmf, hZero']
+          · simp [simplexBeliefImpl, normalizeBeliefImpl, ProbabilitySimplexBelief.pmf,
+              normalizedPmf, hZero']
+    · intro hNonzero hypothesis
+      have hNonzero' : totalWeight belief ≠ 0 := hNonzero
+      change normalizedPmf belief hypothesis =
+        (belief.weight hypothesis : ℝ) / (belief.totalWeight : ℝ)
+      rw [show normalizedPmf belief hypothesis =
+          (belief.weight hypothesis : ℝ) / (totalWeight belief : ℝ) by
+            simp [normalizedPmf, hNonzero']]
+      rfl
   explicit_path_mass_matches := by
     intro belief
     rfl
@@ -173,5 +202,26 @@ theorem shannon_uncertainty_is_entropy
     FieldInformationAPI.shannonUncertainty belief =
       EntropyAPI.shannonEntropy ((FieldInformationAPI.normalizeBelief belief).pmf) := by
   rfl
+
+/-- If all belief mass is concentrated on explicit-path, the normalized
+explicit-path mass is exactly one. -/
+theorem explicit_path_mass_eq_one_of_all_mass_on_explicit_path
+    (belief : FiniteBelief)
+    (hUnknown : belief.unknownWeight = 0)
+    (hUnreachable : belief.unreachableWeight = 0)
+    (hCorridor : belief.corridorWeight = 0)
+    (hExplicit : belief.explicitPathWeight ≠ 0) :
+    FieldInformationAPI.explicitPathMass belief = 1 := by
+  have hTotal : totalWeight belief ≠ 0 := by
+    intro hZero
+    apply hExplicit
+    simpa [FieldInformationInstance.totalWeight, FieldModelAPI.FiniteBelief.totalWeight,
+      hUnknown, hUnreachable, hCorridor] using hZero
+  rw [explicit_path_mass_matches_weight_ratio belief hTotal]
+  have hTotalEq : totalWeight belief = belief.explicitPathWeight := by
+    simp [FieldInformationInstance.totalWeight, FieldModelAPI.FiniteBelief.totalWeight,
+      hUnknown, hUnreachable, hCorridor]
+  rw [hTotalEq]
+  field_simp [show (belief.explicitPathWeight : ℝ) ≠ 0 by exact_mod_cast hExplicit]
 
 end FieldInformationInstance

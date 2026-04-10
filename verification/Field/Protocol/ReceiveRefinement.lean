@@ -48,6 +48,12 @@ theorem refined_receive_respects_existing_projection_surface
       refinedReceiveInput receive = MachineInput.receiveAck := by
   cases receive <;> simp [refinedReceiveInput]
 
+theorem subtype_replacement_style_receive_refinement
+    (receive : RefinedReceive) :
+    refinedReceiveInput receive = MachineInput.receiveSummary ∨
+      refinedReceiveInput receive = MachineInput.receiveAck := by
+  exact refined_receive_respects_existing_projection_surface receive
+
 theorem refined_receive_preserves_observational_boundary
     (receive : RefinedReceive)
     (snapshot : MachineSnapshot) :

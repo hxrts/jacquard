@@ -211,9 +211,10 @@ The right future refinement is:
 - compare public projection to private belief using information loss or erasure arguments
 - connect the finite field model to Telltale's `InformationCost.lean` and `ClassicalAnalysisAPI.lean` boundaries
 
-The first concrete information instance now uses a true weight-normalized finite belief distribution with a zero-mass fallback to `unknown`. It defines:
+The first concrete information instance now uses an explicit probability-simplex style belief object with a true weight-normalized finite belief distribution and a zero-mass fallback to `unknown`. It defines:
 
 ```text
+simplexBelief : FiniteBelief → ProbabilitySimplexBelief
 normalizeBelief : FiniteBelief → Distribution FieldHypothesis
 shannonUncertainty : FiniteBelief → ℝ
 ```
@@ -226,6 +227,17 @@ belief_shannon_entropy_nonnegative :
 ```
 
 That theorem is modest, but it is no longer only a bounded-surrogate statement. It uses the real information-theoretic API boundary instead of only the coarse `uncertaintyMass` proxy. The next refinement should use the normalized belief object to derive sharper entropy, divergence, and blindness statements rather than only first nonnegativity and mass-ratio facts.
+
+The current field-side blindness layer now proves one genuine erasure statement over the public corridor projection:
+
+```text
+opaque_projection_erases_unknown_unreachable_split :
+  corridorCapableMass(left) = 0 →
+  corridorCapableMass(right) = 0 →
+  publicProjectionOfBelief(left) = publicProjectionOfBelief(right).
+```
+
+This is intentionally narrow. It says that once all corridor-capable mass has disappeared, the public projection forgets how the remaining belief mass is split between `unknown` and `unreachable`. That is the first mathematically meaningful field-side blindness theorem over the normalized belief object.
 
 ### What Is Proved Now vs Later
 

@@ -2,7 +2,7 @@
 
 ## What The Adequacy Layer Is
 
-The adequacy layer is the first formal bridge between the Rust private protocol runtime in `crates/field/src/choreography.rs` and the reduced Lean protocol object. Its purpose is narrow: to prove that if a runtime round artifact stays inside the declared reduced envelope, the extracted Lean snapshot and trace satisfy the observational boundary. It is a structural bridge, not a full runtime correctness theorem.
+The adequacy layer is the first formal bridge between the Rust private protocol runtime in `crates/field/src/choreography.rs` and the reduced Lean protocol object. Its purpose is still narrow, but it now contains a reduced simulation witness rather than only an extraction statement: if a runtime round artifact list stays inside the declared reduced envelope, the extracted Lean trace is admitted by the reduced protocol boundary and preserves the same controller-visible evidence batch.
 
 ## Runtime Artifact Shape
 
@@ -10,15 +10,15 @@ The narrowest Rust-facing artifact worth relating honestly today mirrors only th
 
 ## Current Adequacy Claims
 
-The current adequacy layer proves three things. First, if a runtime round artifact stays inside the declared envelope, the extracted Lean `MachineSnapshot` is bounded and coherent. Second, for the reduced artifact list, `runtimeEvidence artifacts = controllerEvidenceFromTrace (extractTrace artifacts)`, meaning the host-visible evidence batch derived from the runtime artifact list matches the batch derived from the corresponding Lean semantic-object trace. Third, for an admitted list of runtime round artifacts, the extracted Lean trace satisfies the reduced observational authority boundary: every semantic object remains observational-only, and the theorem is stated over the whole extracted trace rather than only one artifact.
+The current adequacy layer proves four things. First, if a runtime round artifact stays inside the declared envelope, the extracted Lean `MachineSnapshot` is bounded and coherent. Second, for the reduced artifact list, `runtimeEvidence artifacts = controllerEvidenceFromTrace (extractTrace artifacts)`, meaning the host-visible evidence batch derived from the runtime artifact list matches the batch derived from the corresponding Lean semantic-object trace. Third, for an admitted list of runtime round artifacts, the extracted Lean trace satisfies the reduced observational authority boundary: every semantic object remains observational-only, and the theorem is stated over the whole extracted trace rather than only one artifact. Fourth, an admitted runtime execution now has an explicit reduced simulation witness whose trace is exactly the extracted Lean trace and whose observational envelope is proved, not merely assumed.
 
 ## What This Does Not Prove
 
-The current adequacy layer does not prove that the full Rust choreography runtime adheres to the reduced Lean machine on every execution. It does not prove scheduler correctness, checkpoint or recovery correctness, full replay exactness, or any claim about canonical route publication.
+The current adequacy layer still does not prove that the full Rust choreography runtime adheres to the reduced Lean machine on every execution. It does not prove scheduler correctness, checkpoint or recovery correctness, full replay exactness, or any claim about canonical route publication. The current simulation witness is honest but reduced: it lives at the runtime-artifact and extracted-trace level.
 
 ## Module Organization
 
-`Adequacy/API.lean` declares the runtime-facing artifact boundary and the abstract adequacy obligations. `Adequacy/Instance.lean` gives the first concrete extraction, the execution-level observational trace theorem, and the reduced adequacy theorems. Downstream proofs should depend on the API surface unless they explicitly need the first concrete extraction. `Field/Assumptions.lean` packages the semantic and runtime-envelope assumptions into a `ProofContract` that upstream proofs can depend on without importing the full adequacy instance.
+`Adequacy/API.lean` declares the runtime-facing artifact boundary, the reduced protocol-trace envelope, and the explicit runtime-to-trace simulation witness shape. `Adequacy/Instance.lean` gives the concrete extraction, the execution-level observational trace theorem, the reduced simulation theorem, and the evidence-batch preservation theorem. Downstream proofs should depend on the API surface unless they explicitly need the first concrete extraction. `Field/Assumptions.lean` packages the semantic, protocol-envelope, runtime-envelope, and optional strengthening assumptions into a `ProofContract` that upstream proofs can depend on without importing the full adequacy instance.
 
 ## Rust/Lean Parity
 

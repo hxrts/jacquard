@@ -27,11 +27,11 @@ This map describes the current organization of `verification/Field`.
 ## Information Layer
 
 - `Field/Information/API.lean`
-  - abstract normalization and information-theoretic operations over `FiniteBelief`
+  - abstract probability-simplex style normalization and information-theoretic operations over `FiniteBelief`
 - `Field/Information/Instance.lean`
-  - first concrete weight-normalized distribution and entropy/mass theorems
+  - first concrete probability-simplex belief object, weight-normalized distribution, and entropy/mass theorems
 - `Field/Information/Blindness.lean`
-  - field-side information-cost / blindness bridge over the normalized public projection
+  - field-side information-cost / blindness bridge over the normalized public projection, including a first erasure theorem
 
 ## Private Protocol
 
@@ -42,11 +42,11 @@ This map describes the current organization of `verification/Field`.
 - `Field/Protocol/Bridge.lean`
   - Telltale-shaped reduced protocol-machine fragment and replay/observer bridge
 - `Field/Protocol/Conservation.lean`
-  - field-side conservation pack for evidence, authority, and replay-equivalent fragment traces
+  - field-side conservation pack for evidence, authority, and replay-equivalent fragment traces, with direct-family instantiations kept separate from remaining local glue
 - `Field/Protocol/Coherence.lean`
   - reduced updated-edge / incident-edge / unrelated-edge coherence lemmas
 - `Field/Protocol/ReceiveRefinement.lean`
-  - first typed receive-refinement hook aligned to subtype-replacement shape
+  - first typed receive-refinement hook aligned to `Consume` / subtype-replacement shape
 - `Field/Protocol/Reconfiguration.lean`
   - fixed-participant audit note proving the current reduced protocol has no reconfiguration semantics
 
@@ -55,11 +55,11 @@ This map describes the current organization of `verification/Field`.
 - `Field/Model/Boundary.lean`
   - controller-evidence boundary from protocol exports and traces
 - `Field/Adequacy/API.lean`
-  - abstract Rust-runtime artifact boundary
+  - abstract Rust-runtime artifact boundary and reduced runtime-to-trace simulation witness
 - `Field/Adequacy/Instance.lean`
-  - first concrete runtime extraction, execution-level observational trace theorem, and evidence-agreement theorems
+  - first concrete runtime extraction, execution-level observational trace theorem, reduced simulation theorem, and evidence-agreement theorems
 - `Field/Assumptions.lean`
-  - packaged proof-contract assumptions for semantic and runtime-envelope theorems
+  - packaged proof-contract assumptions for semantic, protocol-envelope, runtime-envelope, and optional strengthening theorems
 
 ## Notes
 
@@ -71,10 +71,8 @@ This map describes the current organization of `verification/Field`.
   - runtime artifact bridge and adequacy note
 - `Field/Docs/TelltaleGap.md`
   - precise gap between current field objects and deeper Telltale proof reuse
-- `Field/Docs/Parity.md`
-  - Rust/Lean proof-relevant artifact boundary
-- `Field/Docs/Extending.md`
-  - contributor guidance
+- `Field/Docs/Guide.md`
+  - contributor guidance and maturity summary
 
 ## Maturity Snapshot
 
@@ -82,10 +80,10 @@ This map describes the current organization of `verification/Field`.
   - local boundedness/harmony/honesty theorems
   - reduced private protocol and observational boundary
 - moderate:
-  - finite-belief information layer
+  - probability-simplex information layer
   - normalized public-projection blindness bridge
   - one-step decision layer
   - reduced protocol-machine fragment
 - earliest:
-  - stronger runtime correctness theorem beyond the current execution-level extraction bridge
+  - stronger runtime correctness theorem beyond the current reduced simulation bridge
   - deeper Telltale-native reuse of conservation and subtype-replacement families

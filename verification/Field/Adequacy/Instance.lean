@@ -196,4 +196,29 @@ theorem admitted_runtime_execution_extracts_to_observational_trace
       object.authority = OutputAuthority.observationalOnly := by
   exact FieldAdequacyAPI.runtime_execution_extracts_to_observational_trace artifacts hAdmitted
 
+/-- Simulation witness for the reduced field adequacy layer: an admitted Rust
+artifact list is simulated by the extracted reduced Lean protocol trace, and
+that trace stays inside the observational-only envelope. -/
+def admitted_runtime_execution_simulates_reduced_protocol
+    (artifacts : List RuntimeRoundArtifact)
+    (hAdmitted : RuntimeExecutionAdmitted artifacts) :
+    RuntimeTraceSimulation artifacts := by
+  refine
+    { trace := FieldAdequacyAPI.extractTrace artifacts
+      trace_eq_extract := rfl
+      trace_admitted := ?_ }
+  exact admitted_runtime_execution_extracts_to_observational_trace artifacts hAdmitted
+
+/-- The reduced simulation witness preserves the same controller-visible
+evidence batch as the Rust-side artifact extraction. -/
+theorem runtime_simulation_preserves_controller_evidence_batch
+    (artifacts : List RuntimeRoundArtifact)
+    (hAdmitted : RuntimeExecutionAdmitted artifacts) :
+    controllerEvidenceFromTrace
+        (admitted_runtime_execution_simulates_reduced_protocol artifacts hAdmitted).trace =
+      FieldAdequacyAPI.runtimeEvidence artifacts := by
+  rw [(admitted_runtime_execution_simulates_reduced_protocol artifacts hAdmitted).trace_eq_extract]
+  symm
+  exact runtime_trace_evidence_matches_protocol_trace artifacts
+
 end FieldAdequacyInstance
