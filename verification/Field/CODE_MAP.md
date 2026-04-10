@@ -20,6 +20,8 @@ This map describes the current organization of `verification/Field`.
   - imports the reduced async delivery semantics, transport lifecycle lemmas, and first async safety theorems
 - `Field/System.lean`
   - imports system-level summaries, reduced end-to-end semantics, and convergence theorems above the async layer
+- `Field/Quality.lean`
+  - imports the reduced routing-quality / comparison layer above the router and system boundaries
 - `Field/Field.lean`
   - umbrella import for the whole current field verification stack
 
@@ -67,7 +69,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Adequacy/Instance.lean`
   - first concrete runtime extraction, execution-level observational trace theorem, reduced simulation theorem, and evidence-agreement theorems
 - `Field/Assumptions.lean`
-  - packaged proof-contract assumptions for semantic, protocol-envelope, runtime-envelope, and optional strengthening theorems
+  - packaged proof-contract assumptions for semantic, protocol-envelope, runtime-envelope, and optional strengthening theorems, including reduced-quality vs non-optimality boundaries
 
 ## Network And Router
 
@@ -100,6 +102,10 @@ This map describes the current organization of `verification/Field`.
   - reduced end-to-end state and step relation combining async transport, router lifecycle installation, and lifecycle maintenance, plus first safety/observer lemmas
 - `Field/System/Convergence.lean`
   - reduced reliable-immediate fixed-point and no-spontaneous-promotion theorems over iterated end-to-end steps
+- `Field/Quality/API.lean`
+  - reduced route-comparison views, admissibility rules, objective vocabulary, pairwise comparison objects, and destination-filtered best-view selection
+- `Field/Quality/System.lean`
+  - system-facing quality theorems over `systemStep` lifecycle outputs, including stability, explicit-path non-manufacture, and sender-local support/knowledge observer results
 
 ## Notes
 
@@ -110,9 +116,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Docs/Adequacy.md`
   - runtime artifact bridge and adequacy note
 - `Field/Docs/Guide.md`
-  - contributor guidance, maturity summary, convergence assumptions, and stack-level module map including the network/router/async/system layers
-- `Field/Docs/TelltaleGap.md`
-  - precise gap between current field objects and deeper Telltale proof reuse
+  - contributor guidance, maturity summary, quality/comparison scope, convergence assumptions, and stack-level module map including the network/router/async/system layers
 
 ## Maturity Snapshot
 
@@ -124,6 +128,7 @@ This map describes the current organization of `verification/Field`.
   - first network-level safety theorems
   - reduced async semantics, transport lifecycle lemmas, and first async safety theorems
   - system-level aggregate summaries, reduced end-to-end safety/observer theorems, and reliable-immediate convergence results
+  - reduced route-comparison / ranking semantics above system-facing lifecycle outputs
   - probability-simplex information layer
   - normalized public-projection blindness bridge
   - one-step decision layer
@@ -131,5 +136,5 @@ This map describes the current organization of `verification/Field`.
 - earliest:
   - stronger runtime correctness theorem beyond the current reduced simulation bridge
   - convergence beyond the reliable-immediate / empty-queue / unchanged-network regime
-  - any routing-quality or optimality theorem
+  - stronger routing-quality or optimality theorem beyond the current reduced comparison layer
   - deeper Telltale-native reuse of conservation and subtype-replacement families

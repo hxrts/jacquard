@@ -1,6 +1,7 @@
 import Field.Adequacy.Instance
 import Field.Information.Blindness
 import Field.Protocol.Conservation
+import Field.Quality.System
 
 /-!
 Reduced packaged assumptions for the growing field proof stack.
@@ -17,6 +18,9 @@ open FieldBoundary
 open FieldInformationBlindness
 open FieldProtocolAPI
 open FieldProtocolConservation
+open FieldQualityAPI
+open FieldQualitySystem
+open FieldSystemEndToEnd
 
 structure SemanticAssumptions where
   normalizedBeliefAvailable : Prop
@@ -34,7 +38,8 @@ structure RuntimeEnvelopeAssumptions where
 structure OptionalStrengtheningAssumptions where
   receiveRefinementEnabled : Prop
   simulationStrengthened : Prop
-  qualityComparisonReady : Prop
+  reducedQualityComparisonReady : Prop
+  globalOptimalityReady : Prop
 
 structure ProofContract where
   semantic : SemanticAssumptions
@@ -59,13 +64,26 @@ def defaultProtocolEnvelopeAssumptions : ProtocolEnvelopeAssumptions :=
 def defaultOptionalStrengtheningAssumptions : OptionalStrengtheningAssumptions :=
   { receiveRefinementEnabled := True
     simulationStrengthened := True
-    qualityComparisonReady := False }
+    reducedQualityComparisonReady := False
+    globalOptimalityReady := False }
+
+def reducedQualityOptionalStrengtheningAssumptions : OptionalStrengtheningAssumptions :=
+  { receiveRefinementEnabled := True
+    simulationStrengthened := True
+    reducedQualityComparisonReady := True
+    globalOptimalityReady := False }
 
 def defaultContract : ProofContract :=
   { semantic := defaultSemanticAssumptions
     protocol := defaultProtocolEnvelopeAssumptions
     runtime := defaultRuntimeEnvelopeAssumptions
     optional := defaultOptionalStrengtheningAssumptions }
+
+def reducedQualityContract : ProofContract :=
+  { semantic := defaultSemanticAssumptions
+    protocol := defaultProtocolEnvelopeAssumptions
+    runtime := defaultRuntimeEnvelopeAssumptions
+    optional := reducedQualityOptionalStrengtheningAssumptions }
 
 theorem contract_yields_runtime_evidence_agreement
     (contract : ProofContract)
@@ -101,5 +119,66 @@ def contract_yields_runtime_trace_simulation
     FieldAdequacyInstance.admitted_runtime_execution_simulates_reduced_protocol
       artifacts
       (contract.runtime.respectsReducedEnvelope artifacts hAdmitted)
+
+theorem contract_yields_reduced_quality_stability
+    (contract : ProofContract)
+    (_hReady : contract.optional.reducedQualityComparisonReady)
+    (objective : ComparisonObjective)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (state : EndToEndState)
+    (hAssumptions : state.async.assumptions = FieldAsyncAPI.reliableImmediateAssumptions)
+    (hEmpty : state.async.inFlight = []) :
+    bestSystemRouteView objective destination (systemStep state) =
+      bestSystemRouteView objective destination state := by
+  exact
+    best_system_route_view_stable_under_reliable_immediate_empty
+      objective destination state hAssumptions hEmpty
+
+theorem contract_yields_reduced_quality_support_conservativity
+    (contract : ProofContract)
+    (_hReady : contract.optional.reducedQualityComparisonReady)
+    (objective : ComparisonObjective)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (state : EndToEndState)
+    (hAssumptions : state.async.assumptions = FieldAsyncAPI.reliableImmediateAssumptions)
+    (hEmpty : state.async.inFlight = [])
+    (hHarmony : FieldNetworkAPI.NetworkLocallyHarmonious state.async.network)
+    (winner : RouteComparisonView)
+    (hWinner : bestSystemRouteView objective destination state = some winner) :
+    winner.support ≤
+      (state.async.network.localStates winner.publisher destination).posterior.support := by
+  exact
+    best_system_route_view_support_conservative
+      objective destination state hAssumptions hEmpty hHarmony winner hWinner
+
+theorem contract_yields_explicit_path_quality_observer
+    (contract : ProofContract)
+    (_hReady : contract.optional.reducedQualityComparisonReady)
+    (objective : ComparisonObjective)
+    (destination : FieldNetworkAPI.DestinationClass)
+    (state : EndToEndState)
+    (hAssumptions : state.async.assumptions = FieldAsyncAPI.reliableImmediateAssumptions)
+    (hEmpty : state.async.inFlight = [])
+    (hHarmony : FieldNetworkAPI.NetworkLocallyHarmonious state.async.network)
+    (winner : RouteComparisonView)
+    (hWinner : bestSystemRouteView objective destination state = some winner)
+    (hShape : winner.shape = FieldModelAPI.CorridorShape.explicitPath) :
+    (state.async.network.localStates winner.publisher destination).posterior.knowledge =
+      FieldModelAPI.ReachabilityKnowledge.explicitPath := by
+  exact
+    best_system_route_view_explicit_path_requires_explicit_sender_knowledge
+      objective destination state hAssumptions hEmpty hHarmony winner hWinner hShape
+
+theorem default_contract_does_not_claim_global_optimality_ready :
+    ¬ defaultContract.optional.globalOptimalityReady := by
+  simp [defaultContract, defaultOptionalStrengtheningAssumptions]
+
+theorem reduced_quality_contract_unlocks_reduced_quality_comparison :
+    reducedQualityContract.optional.reducedQualityComparisonReady := by
+  simp [reducedQualityContract, reducedQualityOptionalStrengtheningAssumptions]
+
+theorem reduced_quality_contract_still_does_not_claim_global_optimality_ready :
+    ¬ reducedQualityContract.optional.globalOptimalityReady := by
+  simp [reducedQualityContract, reducedQualityOptionalStrengtheningAssumptions]
 
 end FieldAssumptions

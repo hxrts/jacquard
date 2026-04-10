@@ -2,16 +2,19 @@
 
 ## What This Stack Covers
 
-The field verification stack currently has eight proof surfaces:
+The field verification stack currently has eleven proof surfaces:
 
 - the deterministic local observer-controller model in `Field/Model`
 - the information layer built on top of the finite belief object in `Field/Information`
 - the private cooperative summary-exchange protocol in `Field/Protocol`
+- the protocol-to-controller observational boundary in `Field/Model/Boundary`
 - the reduced finite network semantics in `Field/Network`
 - the reduced router-facing publication/admission/installation semantics in `Field/Router`
 - the reduced async delivery layer in `Field/Async`
 - the system-level summary and boundary layer in `Field/System`
-- the runtime and assumption boundary in `Field/Adequacy` and `Field/Assumptions`
+- the reduced routing-quality / comparison layer in `Field/Quality`
+- the runtime artifact bridge in `Field/Adequacy`
+- the packaged proof-contract / assumption layer in `Field/Assumptions`
 
 These surfaces are intentionally separated. The local controller is not a choreography. The private protocol does not own canonical route truth. The adequacy layer does not get to claim more than the runtime artifact boundary actually supports.
 
@@ -21,6 +24,8 @@ These surfaces are intentionally separated. The local controller is not a choreo
   - local state space, unified round semantics, information interpretation, decision layer, and blindness story
 - `Docs/Protocol.md`
   - reduced choreography, protocol-machine surface, Telltale alignment, conservation/coherence/refinement story
+- `Field/Boundary.lean`
+  - observational boundary from protocol outputs / semantic objects into controller-visible evidence
 - `Field/Network/*`
   - finite node/destination state, synchronous round buffer, and first network safety theorems
 - `Field/Router/*`
@@ -29,6 +34,8 @@ These surfaces are intentionally separated. The local controller is not a choreo
   - reduced async delivery semantics, transport lifecycle lemmas, explicit delay/loss/retry assumptions, and first async safety theorems
 - `Field/System/*`
   - aggregate system summaries, reduced end-to-end semantics, convergence theorems, and cross-layer boundary statements above the async model
+- `Field/Quality/*`
+  - reduced route-comparison views, objective vocabulary, destination-filtered ranking, and system-facing quality theorems above the lifecycle view
 - `Docs/Adequacy.md`
   - runtime artifact boundary, reduced simulation witness, fragment-trace refinement, packaged assumptions, and parity-sensitive surfaces
 - `Docs/Guide.md`
@@ -46,6 +53,7 @@ The local model currently gives:
 - harmony theorems connecting posterior, mean-field, controller, regime, posture, scores, and public projection
 - honesty theorems preventing public explicit-path claims without the right local knowledge
 - small temporal theorems over repeated rounds
+- refinement lemmas showing the composed round still keeps projection/support/knowledge subordinate to the round-updated posterior state
 - one finite decision procedure over a representative evidence alphabet
 
 ### Information Layer
@@ -58,8 +66,19 @@ The information layer currently gives:
 - a concrete weight-normalized distribution with zero-mass fallback behavior
 - first mass and entropy theorems
 - a first public-projection blindness / erasure theorem
+- first quantitative helpers such as `beliefL1Distance` and `localUncertaintyPotential`
 
 This is no longer only a bounded surrogate story, but it is still an early information layer rather than a full probabilistic routing theory.
+
+### Boundary Layer
+
+The boundary layer currently gives:
+
+- a compact adapter from `ProtocolOutput` into bounded `EvidenceInput`
+- a trace-level adapter from `ProtocolSemanticObject` into controller-visible evidence
+- theorems showing protocol exports stay observational-only at the controller boundary
+- replay-style equal-export / equal-trace lemmas for controller evidence batches
+- a fail-closed result showing failed-closed protocol snapshots produce no controller evidence
 
 ### Private Protocol
 
@@ -113,6 +132,34 @@ The current network object is deliberately synchronous, and it is now paired wit
 - adequacy layer
   - correspondence between Rust-facing runtime artifacts, reduced traces, fragment traces, and controller-visible evidence
 
+### Quality Layer
+
+The quality layer currently gives:
+
+- a reduced `RouteComparisonView` extracted from lifecycle-managed routes
+- admissibility rules that only compare active installed/refreshed routes for one destination
+- a small comparison-object vocabulary:
+  - `supportDominance`
+  - `hopBandConservativity`
+  - `stableTieBreak`
+  - `supportThenHopThenStableTieBreak`
+- pairwise comparison objects that return only left/right/tie/inadmissible, never canonical route truth
+- destination-filtered best-view selection over lifecycle/system-facing routes
+- system-facing theorems showing:
+  - `best_system_route_view_stable_under_reliable_immediate_empty`
+  - `best_system_route_view_cannot_manufacture_explicit_path`
+  - `best_system_route_view_support_conservative`
+  - `best_system_route_view_explicit_path_requires_explicit_sender_knowledge`
+
+### System Statistics And Boundary
+
+The system layer also currently gives:
+
+- aggregate support summaries such as `aggregateSupport` and `averageSupport`
+- ready-message support accounting through `readySupportMass`
+- bounds such as `aggregateSupport_bounded`, `averageSupport_bounded`, and `ready_support_mass_bounded_by_inflight_budget`
+- explicit boundary theorems `default_contract_does_not_claim_global_optimality_ready` and `reduced_quality_contract_still_does_not_claim_global_optimality_ready` stating that neither the default packaged contract nor the reduced-quality contract justifies global optimality claims
+
 ### Adequacy And Assumptions
 
 The adequacy and assumptions layers currently give:
@@ -123,6 +170,14 @@ The adequacy and assumptions layers currently give:
 - an explicit reduced simulation witness
 - a stronger fragment-trace refinement theorem for runtime executions
 - a packaged `ProofContract` for semantic, protocol, runtime, and optional strengthening assumptions
+- contract-level bridge theorems such as:
+  - `contract_yields_runtime_evidence_agreement`
+  - `contract_yields_observational_controller_boundary`
+  - `contract_yields_protocol_trace_admitted`
+  - `contract_yields_runtime_trace_simulation`
+  - `contract_yields_reduced_quality_stability`
+  - `contract_yields_reduced_quality_support_conservativity`
+  - `contract_yields_explicit_path_quality_observer`
 
 ## Convergence Assumptions
 
@@ -139,7 +194,7 @@ They rely on:
 
 Under exactly that regime, the current theorems show a reduced fixed-point story for the installed candidate view. They do not claim convergence under arbitrary delay, retry, or loss behavior.
 
-## Safety And Stability, Not Optimality
+## Safety, Stability, And Reduced Ranking
 
 The new end-to-end and convergence results are still safety/stability theorems.
 
@@ -149,6 +204,14 @@ They show that:
 - installed support remains conservative with respect to sender-local support
 - the candidate view stabilizes under reliable-immediate transport with no queued backlog
 - repeated end-to-end steps do not spontaneously promote to explicit-path when no sender has explicit-path knowledge
+
+The new quality layer adds reduced ranking / comparison theorems.
+
+They show that:
+
+- pairwise and destination-filtered comparisons depend only on exported lifecycle route fields
+- quality results stay conservative with respect to installed support and sender-local knowledge
+- reliable-immediate stable-input regimes produce stable reduced ranking outcomes
 
 They do not show:
 
@@ -173,6 +236,7 @@ The current system is best read as:
 
 - a strong reduced local-model and protocol-boundary proof stack
 - an early but real information-theoretic layer
+- a reduced ranking/comparison layer above system-facing lifecycle outputs
 - a reduced runtime simulation bridge
 - a reduced end-to-end safety/stability model under explicit assumptions
 
@@ -185,12 +249,14 @@ The current system is best read as:
 | Conservation and coherence packs | Moderate | partly direct-family style, partly field-local glue |
 | Receive refinement | Moderate | narrow subtype-replacement shaped result exists |
 | Information layer | Moderate | finite normalized belief object and first blindness theorem exist |
+| Boundary layer | Moderate | protocol-export-to-controller-evidence boundary is explicit and observational-only |
 | One-step decision layer | Early | useful but intentionally small |
 | Reduced network and router layers | Moderate | explicit publication/admission/installation/lifecycle boundary and first safety theorems exist |
 | Reduced async layer | Moderate | explicit delay/loss/retry assumptions, transport lifecycle lemmas, and first async publication safety theorems exist |
 | System summaries and boundaries | Moderate | aggregate support summaries, reduced end-to-end safety/observer theorems, and reliable-immediate stabilization results exist |
+| Quality layer | Moderate | reduced route-comparison semantics, best-view selection, and first system-facing ranking stability/conservativity theorems exist |
 | Runtime adequacy | Early | reduced simulation witness, not full refinement |
-| Packaged assumptions | Early | structure is in place, but theorem dependence is still selective |
+| Packaged assumptions | Early | structure is in place and exports useful bridge lemmas, but theorem dependence is still selective |
 
 ## Ownership Rules
 
@@ -198,11 +264,12 @@ When adding new proofs, keep these boundaries intact.
 
 - If the statement is about posterior, regime, posture, scores, or corridor projection, it belongs in `Field/Model` or `Field/Information`.
 - If the statement is about choreography, projection, blocked receives, semantic objects, or protocol traces, it belongs in `Field/Protocol`.
+- If the statement is about protocol outputs or semantic objects becoming controller-visible evidence, it belongs in `Field/Model/Boundary`.
 - If the statement is about node-indexed local states, reduced message delivery, or network-level safety, it belongs in `Field/Network`.
 - If the statement is about router-facing publication, admission, installation, lifecycle maintenance, or canonical handling eligibility, it belongs in `Field/Router`.
 - If the statement is about in-flight envelopes, delay, retry, ready delivery, or async publication safety, it belongs in `Field/Async`.
 - If the statement is about end-to-end sequencing, installed-route observer results, fixed points, or cross-layer proof-boundary summaries above the async model, it belongs in `Field/System`.
-- If the statement is about protocol exports becoming controller evidence, it belongs in `Field/Model/Boundary`.
+- If the statement is about comparing, ranking, or selecting between exported lifecycle/system route views, it belongs in `Field/Quality`.
 - If the statement is about Rust-facing runtime artifacts, extracted traces, or runtime simulation, it belongs in `Field/Adequacy`.
 - If the statement is about the global assumption contract used across theorem packs, it belongs in `Field/Assumptions`.
 
@@ -246,5 +313,6 @@ Before landing a meaningful field-proof change:
 - Do not force the deterministic controller into a choreography encoding.
 - Do not claim full runtime adequacy when the actual theorem is a reduced simulation witness.
 - Do not describe the reliable-immediate convergence lemmas as routing-quality or optimality results.
+- Do not let the reduced quality layer smuggle in canonical route truth or production-optimality claims.
 - Do not introduce transport-specific details into the local controller model unless they are genuinely proof-relevant there.
 - Do not bypass the API/instance split just to make one downstream theorem shorter.

@@ -7,10 +7,14 @@ namespace FieldSystemBoundary
 
 open FieldAssumptions
 
-/-- The current field proof contract still lacks the comparison structure
-needed for global routing-quality or optimality theorems. -/
-theorem default_contract_does_not_claim_quality_comparison_ready :
-    ¬ defaultContract.optional.qualityComparisonReady := by
-  simp [defaultContract, defaultOptionalStrengtheningAssumptions]
+/-- The default contract does not justify strong global optimality claims. -/
+theorem default_contract_does_not_claim_global_optimality_ready :
+    ¬ defaultContract.optional.globalOptimalityReady :=
+  FieldAssumptions.default_contract_does_not_claim_global_optimality_ready
+
+/-- Even the stronger reduced-quality contract remains explicitly non-optimality. -/
+theorem reduced_quality_contract_still_does_not_claim_global_optimality_ready :
+    ¬ reducedQualityContract.optional.globalOptimalityReady :=
+  FieldAssumptions.reduced_quality_contract_still_does_not_claim_global_optimality_ready
 
 end FieldSystemBoundary

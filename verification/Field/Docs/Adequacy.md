@@ -197,6 +197,23 @@ contract_yields_runtime_trace_simulation
 
 and it is deliberately a `def`, not a theorem returning only `Prop`, because it produces an actual reduced simulation witness object.
 
+The current packaged contract also exports:
+
+```text
+contract_yields_runtime_evidence_agreement
+contract_yields_observational_controller_boundary
+contract_yields_protocol_trace_admitted
+contract_yields_reduced_quality_stability
+contract_yields_reduced_quality_support_conservativity
+contract_yields_explicit_path_quality_observer
+```
+
+So `Field/Assumptions.lean` is no longer only a container for future assumptions. It already exposes a small usable bridge from the default contract to the current adequacy and controller-boundary results.
+It also now distinguishes:
+
+- reduced quality-comparison readiness
+- still-false global optimality readiness
+
 ## What The Adequacy Layer Does Not Prove
 
 The current adequacy layer still does not prove:

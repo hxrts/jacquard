@@ -106,6 +106,7 @@ Provides the first reduced Telltale-shaped bridge:
 - snapshot-trace erasure lemmas connecting reduced machine snapshots to fragment traces
 
 This is the protocol-machine-adjacent layer that later Telltale reuse should grow through.
+It is also the protocol-side object consumed by the runtime adequacy layer's fragment-trace refinement theorems.
 
 ### `Protocol/Conservation.lean`
 
@@ -164,6 +165,17 @@ The current protocol stack proves:
 - a narrow receive-refinement theorem
 - absence of reconfiguration semantics in the current reduced protocol
 
+## Current Integration Points
+
+The current implementation uses the protocol layer in two main downstream places:
+
+- `Field/Model/Boundary.lean`
+  - turns protocol outputs and semantic objects into controller-visible evidence while proving the exports stay observational-only
+- `Field/Adequacy/Instance.lean`
+  - connects reduced runtime artifacts to the protocol layer through extracted traces and the fragment-trace bridge
+
+So the protocol layer is no longer only a standalone reduced choreography note. It is now the shared proof object sitting between the controller-boundary story and the runtime adequacy story.
+
 ## Telltale Alignment
 
 The current field protocol is Telltale-aligned in several concrete ways:
@@ -207,6 +219,7 @@ The current protocol layer does not prove:
 
 - canonical route publication
 - router lifecycle correctness
+- end-to-end stabilization
 - planner correctness
 - transport correctness
 - full Rust choreography correctness

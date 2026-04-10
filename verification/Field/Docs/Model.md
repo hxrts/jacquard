@@ -12,6 +12,7 @@ The current field verification stack is no longer only a destination-local model
 - a reduced finite network and router boundary
 - a reduced async delivery layer
 - a reduced end-to-end system semantics
+- a reduced routing-quality / comparison layer above system-facing route views
 - first fixed-point / stabilization results under strong reduced assumptions
 - a reduced runtime adequacy layer
 - first system-level summary and boundary results
@@ -24,6 +25,8 @@ It does model:
 - one local round transition
 - a finite belief object over reduced reachability hypotheses
 - a reduced information layer built on top of that belief object
+- a small local refinement layer over the composed round step
+- a first quantitative layer over the normalized belief object
 - a public corridor-envelope projection derived from local state
 - a small finite decision layer over a representative evidence alphabet
 
@@ -47,6 +50,9 @@ Those wider concerns are now split as follows:
 - reduced end-to-end sequencing, observer results, and convergence theorems
   - `Field/System/EndToEnd.lean`
   - `Field/System/Convergence.lean`
+- reduced route-comparison and ranking semantics over exported lifecycle/system views
+  - `Field/Quality/API.lean`
+  - `Field/Quality/System.lean`
 - system-level aggregate summaries and assumption-boundary results
   - `Field/System/*`
 - runtime extraction and reduced simulation witness
@@ -244,6 +250,37 @@ This is intentionally narrow. It does not yet give a full mutual-information or 
 
 This is not a planner and not a global routing decision system. It is a small proof-oriented decision procedure over the reduced local round.
 
+## Refinement Layer
+
+`Field/Model/Refinement.lean` now packages the first small theorem family over the composed round itself.
+
+The current file proves:
+
+- `round_projection_support_conservative`
+- `round_mean_field_tracks_posterior_support`
+- `explicit_projection_requires_explicit_round_knowledge`
+- `repeated_explicit_path_rounds_stabilize`
+
+These are still reduced local theorems, not end-to-end system theorems. Their role is to show that the fully composed local round step preserves the same honesty/conservativity story promised by the API-level harmony laws.
+
+## Quantitative Layer
+
+`Field/Information/Quantitative.lean` adds the first small quantitative objects and lemmas above the normalized belief boundary.
+
+The current file defines:
+
+- `beliefL1Distance`
+- `localUncertaintyPotential`
+
+and proves:
+
+- `beliefL1Distance_nonneg`
+- `beliefL1Distance_eq_zero_of_equal`
+- `localUncertaintyPotential_nonneg`
+- `equal_beliefs_induce_zero_projection_loss`
+
+This is still intentionally small. It is not a full routing-quality theory or a strong information-theoretic comparison framework. It is the first quantitative surface that later strengthening can build on.
+
 ## What Is Proved In The Local Model
 
 The local model and its theorem packs currently establish:
@@ -252,7 +289,8 @@ The local model and its theorem packs currently establish:
 - harmony between posterior, mean-field, controller, regime, posture, scores, and projection
 - honesty of public projection relative to local knowledge
 - small temporal theorems over repeated rounds
-- first quantitative ranking-style results over the reduced local state
+- refinement lemmas over the composed round step
+- first quantitative ranking / distance style results over the reduced local state
 
 The model should therefore be read as:
 
@@ -276,13 +314,25 @@ Those results are intentionally narrow. They currently rely on:
 
 So the current story is not "the local model proves general convergence." The honest claim is narrower: under a stable-input, reliable-immediate regime, the installed candidate view reaches a reduced fixed point and does not spontaneously promote to explicit-path.
 
+## Relationship To The Quality Layer
+
+The new routing-quality work also lives above the local model.
+
+`Field/Quality/*` compares exported lifecycle/system route views. It does not change the local observer-controller semantics, and it does not promote the local model into a global route-selection or optimality object.
+
+That separation matters:
+
+- the local model still owns local knowledge, support, and public projection
+- the system layer still owns transport/lifecycle composition and stable-step results
+- the quality layer only ranks or compares the reduced route views that those higher layers already expose
+
 ## What Is Not Yet Proved
 
 The current field local model does not yet prove:
 
 - global routing optimality
 - end-to-end convergence outside the reduced reliable-immediate stable-input regime
-- any routing-quality comparison between installed candidates
+- strong routing-quality or optimality claims over installed candidates
 - large-network mean-field limits
 - KL-style update inequalities
 - stronger mutual-information bounds for the public projection

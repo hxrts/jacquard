@@ -45,6 +45,7 @@ lean_lib JacquardVerification where
     `Field.PrivateProtocol,
     `Field.Network,
     `Field.Router,
+    `Field.Quality,
     `Field.Boundary,
     `Field.Adequacy,
     `Field.Assumptions,
@@ -79,6 +80,8 @@ lean_lib JacquardVerification where
     `Field.System.Boundary,
     `Field.System.EndToEnd,
     `Field.System.Convergence,
+    `Field.Quality.API,
+    `Field.Quality.System,
     `Field.Adequacy.API,
     `Field.Adequacy.Instance
   ]
