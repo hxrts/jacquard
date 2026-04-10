@@ -15,6 +15,15 @@ mod candidates;
 mod pathing;
 mod publishing;
 mod scoring;
+mod search;
+
+pub(crate) use search::PathwaySearchSnapshotState;
+pub use search::{
+    PathwayPlannerSearchRecord, PathwaySearchConfig, PathwaySearchConfigError,
+    PathwaySearchEdgeMeta, PathwaySearchEpoch, PathwaySearchGoalResolution,
+    PathwaySearchHeuristicMode, PathwaySearchReconfiguration, PathwaySearchRun,
+    PathwaySearchSnapshotId, PathwaySearchTransitionClass,
+};
 
 use jacquard_core::{
     AdmissionDecision, Configuration, Observation, RouteAdmission, RouteAdmissionCheck,
@@ -26,9 +35,7 @@ use super::{
     PathwayEngine, PathwayHasherBounds, PathwaySelectorBounds, PATHWAY_CAPABILITIES,
     PATHWAY_ENGINE_ID,
 };
-use crate::{
-    topology::objective_matches_node, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
-};
+use crate::{PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess};
 
 const PATH_METRIC_BASE_HOP_COST: u32 = 1_000;
 const PATH_METRIC_DELIVERY_PENALTY_WEIGHT: u32 = 2;

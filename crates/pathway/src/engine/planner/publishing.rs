@@ -111,21 +111,16 @@ where
         topology: &Observation<Configuration>,
     ) -> Vec<(jacquard_core::BackendRouteId, CachedCandidate)> {
         let configuration = &topology.value;
-        self.weighted_paths(objective, topology)
+        self.search_record_for_objective(objective, topology)
+            .runs
             .into_iter()
-            .filter(|(_, node_path)| node_path.last().copied() != Some(self.local_node_id))
-            .filter_map(|(_, node_path)| {
-                let destination_node_id = *node_path.last()?;
-                let destination_node = configuration.nodes.get(&destination_node_id)?;
-                if !super::objective_matches_node(
-                    &destination_node_id,
-                    destination_node,
-                    objective,
-                    &PATHWAY_ENGINE_ID,
-                    topology.observed_at_tick,
-                ) {
+            .filter_map(|run| {
+                let node_path = run.node_path?;
+                if node_path.last().copied() == Some(self.local_node_id) {
                     return None;
                 }
+                let destination_node_id = *node_path.last()?;
+                let destination_node = configuration.nodes.get(&destination_node_id)?;
                 self.candidate_for_path(objective, profile, topology, &node_path, destination_node)
             })
             .collect()

@@ -13,6 +13,7 @@ workspace = true
 jacquard-core = { path = "../core", version = "0.3.1" }
 jacquard-traits = { path = "../traits", version = "0.3.1" }
 telltale = { workspace = true }
+telltale-search = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 bincode = { workspace = true }

@@ -35,6 +35,12 @@ use jacquard_core::{
     RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId, TransportObservation,
 };
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngine};
+pub use planner::{
+    PathwayPlannerSearchRecord, PathwaySearchConfig, PathwaySearchConfigError,
+    PathwaySearchEdgeMeta, PathwaySearchEpoch, PathwaySearchGoalResolution,
+    PathwaySearchHeuristicMode, PathwaySearchReconfiguration, PathwaySearchRun,
+    PathwaySearchSnapshotId, PathwaySearchTransitionClass,
+};
 pub(crate) use support::{
     current_segment, digest_prefix, MaintenanceResultExt, StorageResultExt, DOMAIN_TAG_COMMITTEE_ID,
 };
@@ -144,6 +150,9 @@ pub struct PathwayEngine<
     control_state: Option<types::PathwayControlState>,
     last_round_progress: Option<types::PathwayRoundProgress>,
     last_checkpointed_topology_epoch: Option<RouteEpoch>,
+    search_config: planner::PathwaySearchConfig,
+    search_snapshot_state: RefCell<Option<planner::PathwaySearchSnapshotState>>,
+    last_search_record: RefCell<Option<planner::PathwayPlannerSearchRecord>>,
     candidate_cache: RefCell<BTreeMap<jacquard_core::BackendRouteId, CachedCandidate>>,
     active_routes: BTreeMap<RouteId, ActivePathwayRoute>,
 }
@@ -221,6 +230,9 @@ impl<Topology, Transport, Retention, Effects, Hasher>
             control_state: None,
             last_round_progress: None,
             last_checkpointed_topology_epoch: None,
+            search_config: planner::PathwaySearchConfig::default(),
+            search_snapshot_state: RefCell::new(None),
+            last_search_record: RefCell::new(None),
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
         }
@@ -257,9 +269,18 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
             control_state: None,
             last_round_progress: None,
             last_checkpointed_topology_epoch: None,
+            search_config: planner::PathwaySearchConfig::default(),
+            search_snapshot_state: RefCell::new(None),
+            last_search_record: RefCell::new(None),
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
         }
+    }
+
+    #[must_use]
+    pub fn with_search_config(mut self, search_config: planner::PathwaySearchConfig) -> Self {
+        self.search_config = search_config;
+        self
     }
 
     #[must_use]
@@ -275,6 +296,16 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     #[must_use]
     pub fn last_round_progress(&self) -> Option<&types::PathwayRoundProgress> {
         self.last_round_progress.as_ref()
+    }
+
+    #[must_use]
+    pub fn search_config(&self) -> &planner::PathwaySearchConfig {
+        &self.search_config
+    }
+
+    #[must_use]
+    pub fn last_search_record(&self) -> Option<planner::PathwayPlannerSearchRecord> {
+        self.last_search_record.borrow().clone()
     }
 
     #[must_use]
