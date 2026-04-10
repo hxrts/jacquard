@@ -21,14 +21,17 @@ package jacquard where
 -- Protocol, Choreography, Semantics, SessionTypes, Distributed.
 -- Mathlib and Paco are transitive dependencies through Telltale.
 -- Revision is pinned; run `lake update` to advance.
-require telltale from git
-  "https://github.com/hxrts/telltale" @ "main" / "lean"
+-- Temporary local override while the GitHub-pinned Lean package is being fixed.
+-- Restore the git dependency after the next working Telltale release is cut.
+-- require telltale from git
+--   "https://github.com/hxrts/telltale" @ "main" / "lean"
+require telltale from "../../telltale/lean"
 
 /-! ## Verification Root
 
 The package is organized by feature, not by placeholder theorem packs.
-Today the only built verification root is `Jacquard.Verification`, which
-re-exports the field model and protocol boundary modules.
+The built roots now include the field theorem-pack modules as well as the
+underlying feature modules they re-export.
 -/
 
 /-- Jacquard verification root: feature-organized Lean modules and notes. -/
@@ -37,9 +40,26 @@ lean_lib JacquardVerification where
   roots := #[
     `Verification,
     `Field.Field,
+    `Field.LocalModel,
+    `Field.Information,
+    `Field.PrivateProtocol,
+    `Field.Boundary,
+    `Field.Adequacy,
+    `Field.Assumptions,
     `Field.Model.API,
     `Field.Model.Instance,
+    `Field.Model.Decision,
     `Field.Model.Boundary,
+    `Field.Information.API,
+    `Field.Information.Instance,
+    `Field.Information.Blindness,
     `Field.Protocol.API,
-    `Field.Protocol.Instance
+    `Field.Protocol.Instance,
+    `Field.Protocol.Bridge,
+    `Field.Protocol.Coherence,
+    `Field.Protocol.Conservation,
+    `Field.Protocol.ReceiveRefinement,
+    `Field.Protocol.Reconfiguration,
+    `Field.Adequacy.API,
+    `Field.Adequacy.Instance
   ]

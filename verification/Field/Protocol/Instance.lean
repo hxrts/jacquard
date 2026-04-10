@@ -34,21 +34,24 @@ open SessionTypes.Core
 /-! ## Protocol Skeleton -/
 
 /-- Local controller role for the reduced summary-exchange protocol. -/
-def controllerRoleImpl : Role := { name := "controller" }
+def controllerRoleImpl : Role := asRole .controller
 
 /-- Local neighbor role for the reduced summary-exchange protocol. -/
-def neighborRoleImpl : Role := { name := "neighbor" }
+def neighborRoleImpl : Role := asRole .neighbor
+
+/-- Reduced global field choreography object. -/
+def globalChoreographyImpl : GlobalChoreography :=
+  { actions :=
+      [ (roleName .controller, roleName .neighbor, labelName .summaryDelta)
+      , (roleName .neighbor, roleName .controller, labelName .antiEntropyAck)
+      ] }
 
 /-- Reduced global summary-exchange action list. -/
-def globalActionsImpl : List Action :=
-  [("controller", "neighbor", "summaryDelta"), ("neighbor", "controller", "antiEntropyAck")]
+def globalActionsImpl : List Action := globalChoreographyImpl.actions
 
 /-- Controller-local projection of the reduced global choreography. -/
 def controllerLocalType : LocalType :=
-  { actions :=
-      [ { kind := .send, partner := "neighbor", label := "summaryDelta" }
-      , { kind := .recv, partner := "neighbor", label := "antiEntropyAck" }
-      ] }
+  projectChoreography globalChoreographyImpl controllerRoleImpl
 
 /-- Neighbor-local projection is the dual of the controller view. -/
 def neighborLocalType : LocalType := LocalType.dual controllerLocalType
@@ -107,19 +110,39 @@ def exportOutputsImpl (snapshot : MachineSnapshot) : List ProtocolOutput :=
     [ { batch := { summaryCount := snapshot.emittedCount }
         authority := OutputAuthority.observationalOnly } ]
 
+/-- Replay-visible semantic objects exported by the reduced protocol instance. -/
+def exportSemanticObjectsImpl
+    (snapshot : MachineSnapshot) : List ProtocolSemanticObject :=
+  if snapshot.disposition = HostDisposition.failedClosed
+      || snapshot.emittedCount = 0 then
+    []
+  else
+    [ { batch := { summaryCount := snapshot.emittedCount }
+        disposition := snapshot.disposition
+        authority := OutputAuthority.observationalOnly } ]
+
 /-! ## API Instance -/
 
 instance fieldProtocolLaws : FieldProtocolAPI.Laws where
+  globalChoreography := globalChoreographyImpl
   controllerRole := controllerRoleImpl
   neighborRole := neighborRoleImpl
   globalActions := globalActionsImpl
   project := projectImpl
   advanceMachine := advanceMachineImpl
   exportOutputs := exportOutputsImpl
+  exportSemanticObjects := exportSemanticObjectsImpl
   projection_harmony := by
-    -- The reduced neighbor projection is defined as the dual of the controller view.
-    simp [ProjectionHarmony, projectImpl, neighborLocalType, controllerLocalType,
-      controllerRoleImpl, neighborRoleImpl]
+    -- The controller role is projected from the global choreography and the neighbor
+    -- role is the dual local view.
+    simp [ProjectionHarmony, projectImpl, controllerRoleImpl, neighborRoleImpl,
+      neighborLocalType, asRole, roleName]
+  controller_projection_from_global := by
+    simp [ControllerProjectionFromGlobal, projectImpl, controllerRoleImpl,
+      controllerLocalType, globalChoreographyImpl, asRole, roleName]
+  neighbor_projection_from_global := by
+    simp [NeighborProjectionFromGlobal, projectImpl, controllerRoleImpl, neighborRoleImpl,
+      neighborLocalType, controllerLocalType, globalChoreographyImpl, asRole, roleName]
   advance_preserves_bounds := by
     intro input snapshot hBounded
     -- Every machine step either preserves the bounded counters or reclamps them.
@@ -135,6 +158,31 @@ instance fieldProtocolLaws : FieldProtocolAPI.Laws where
       · exact Nat.min_le_right (snapshot.stepBudgetRemaining - 1) 8
       · exact hEmitted
     · exact ⟨hBudget, hEmitted⟩
+  advance_preserves_coherence := by
+    intro input snapshot hCoherent
+    cases input
+    · by_cases hComplete : snapshot.disposition = HostDisposition.complete
+      · simpa [advanceMachineImpl, hComplete] using hCoherent
+      · constructor
+        · intro hDone
+          simp [advanceMachineImpl, hComplete] at hDone
+        · intro hBlockedState
+          simp [advanceMachineImpl, hComplete]
+    · constructor
+      · intro hDone
+        simp [advanceMachineImpl] at hDone
+      · intro hBlockedState
+        simp [advanceMachineImpl] at hBlockedState
+    · constructor
+      · intro _hDone
+        simp [advanceMachineImpl]
+      · intro hBlockedState
+        simp [advanceMachineImpl] at hBlockedState
+    · constructor
+      · intro _hDone
+        simp [advanceMachineImpl]
+      · intro hBlockedState
+        simp [advanceMachineImpl] at hBlockedState
   cancel_fails_closed := by
     intro snapshot
     -- Cancellation is the only transition that can force failed-closed termination.
@@ -144,6 +192,11 @@ instance fieldProtocolLaws : FieldProtocolAPI.Laws where
     -- Exported batches carry only observational authority by construction.
     simp [exportOutputsImpl] at hOutput
     simp [hOutput]
+  semantic_exports_remain_observational := by
+    intro snapshot object hObject
+    -- Replay-visible semantic objects stay observational-only by construction.
+    simp [exportSemanticObjectsImpl] at hObject
+    simp [hObject]
 
 /-! ## Representative Machine Lemmas -/
 
@@ -169,6 +222,36 @@ theorem receive_summary_emits_observational_batch :
         [ { batch := { summaryCount := 1 }
             authority := OutputAuthority.observationalOnly } ]
   simp [advanceMachineImpl, exportOutputsImpl, initialSnapshot, clampMachineBudget,
+    clampMachineCount]
+
+/-- The instance projection really is induced from the reduced global
+choreography object. -/
+theorem controller_projection_matches_global_choreography :
+    projectImpl controllerRoleImpl =
+      projectChoreography globalChoreographyImpl controllerRoleImpl := by
+  rfl
+
+/-- The instance projection really is induced from the reduced global
+choreography object. -/
+theorem neighbor_projection_matches_global_choreography :
+    projectImpl neighborRoleImpl = LocalType.dual controllerLocalType := by
+  simp [projectImpl, neighborRoleImpl, controllerRoleImpl, neighborLocalType,
+    asRole, roleName]
+
+/-- Receiving a summary emits one replay-visible semantic object and waits for
+the ack. -/
+theorem receive_summary_emits_semantic_object :
+    let next := FieldProtocolAPI.advanceMachine MachineInput.receiveSummary initialSnapshot
+    FieldProtocolAPI.exportSemanticObjects next =
+      [ { batch := { summaryCount := 1 }
+          disposition := HostDisposition.running
+          authority := OutputAuthority.observationalOnly } ] := by
+  change
+    exportSemanticObjectsImpl (advanceMachineImpl MachineInput.receiveSummary initialSnapshot) =
+      [ { batch := { summaryCount := 1 }
+          disposition := HostDisposition.running
+          authority := OutputAuthority.observationalOnly } ]
+  simp [advanceMachineImpl, exportSemanticObjectsImpl, initialSnapshot, clampMachineBudget,
     clampMachineCount]
 
 /-- Polling a live machine blocks on the next summary input. -/

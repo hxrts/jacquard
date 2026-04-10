@@ -1,4 +1,6 @@
+import Mathlib.Data.Fintype.Basic
 import Mathlib.Data.Nat.Basic
+import Mathlib.Tactic.DeriveFintype
 
 /-
 The Problem. The field engine needs a small formal model for one local
@@ -67,6 +69,13 @@ inductive ReachabilityKnowledge
   | explicitPath
   deriving Inhabited, Repr, DecidableEq, BEq
 
+inductive FieldHypothesis
+  | unknown
+  | unreachable
+  | corridor
+  | explicitPath
+  deriving Inhabited, Repr, DecidableEq, BEq, Fintype
+
 inductive OperatingRegime
   | sparse
   | congested
@@ -100,10 +109,19 @@ structure EvidenceInput where
   feedback : EvidenceFeedback
   deriving Repr, DecidableEq, BEq
 
-/-- Local posterior over corridor viability and knowledge strength. -/
+/-- Finite bounded belief weights over the reduced local hypothesis space. -/
+structure FiniteBelief where
+  unknownWeight : Nat
+  unreachableWeight : Nat
+  corridorWeight : Nat
+  explicitPathWeight : Nat
+  deriving Repr, DecidableEq, BEq
+
+/-- Local posterior over corridor viability and knowledge strength. Support and
+uncertainty are derived from the finite belief object rather than stored as
+independent fields. -/
 structure PosteriorState where
-  support : Nat
-  entropy : Nat
+  belief : FiniteBelief
   freshness : ObservationFreshness
   knowledge : ReachabilityKnowledge
   deriving Repr, DecidableEq, BEq
@@ -161,6 +179,24 @@ structure LocalState where
 
 def BoundedNat (n : Nat) : Prop := n ≤ 1000
 
+def FiniteBelief.weight (belief : FiniteBelief) : FieldHypothesis → Nat
+  | .unknown => belief.unknownWeight
+  | .unreachable => belief.unreachableWeight
+  | .corridor => belief.corridorWeight
+  | .explicitPath => belief.explicitPathWeight
+
+def FiniteBelief.supportMass (belief : FiniteBelief) : Nat :=
+  min (belief.corridorWeight + belief.explicitPathWeight) 1000
+
+def FiniteBelief.uncertaintyMass (belief : FiniteBelief) : Nat :=
+  min (belief.unknownWeight + belief.unreachableWeight) 1000
+
+def PosteriorState.support (state : PosteriorState) : Nat :=
+  state.belief.supportMass
+
+def PosteriorState.entropy (state : PosteriorState) : Nat :=
+  state.belief.uncertaintyMass
+
 def PosteriorBounded (state : PosteriorState) : Prop :=
   BoundedNat state.support ∧ BoundedNat state.entropy
 
@@ -189,6 +225,12 @@ def StateBounded (state : LocalState) : Prop :=
     RegimeBounded state.regime ∧
     ContinuationScoresBounded state.scored ∧
     ProjectionBounded state.projection
+
+/-- Conservative quantitative summary of how much local uncertainty and control
+pressure remain to be worked off. This is only a bounded ranking candidate for
+later paper-2-style analysis, not yet a proved Lyapunov function. -/
+def UncertaintyBurden (state : LocalState) : Nat :=
+  state.posterior.entropy + state.controller.congestionPrice + state.regime.residual
 
 /-- The local model is harmonious when the downstream states remain subordinate
 to the posterior and shared projection. -/
