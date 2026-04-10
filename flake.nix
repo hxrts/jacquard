@@ -38,7 +38,7 @@
           ];
         };
 
-        toolkitPackages = toolkit.packages.${system};
+        toolkitSupport = toolkit.lib.${system}.consumerShellSupport;
 
         nativeBuildInputs = with pkgs; [
           rustToolchain
@@ -49,21 +49,14 @@
           ripgrep
           perl
           elan
-          toolkitPackages.toolkit-xtask
-          toolkitPackages.toolkit-fmt
-          toolkitPackages.toolkit-install-dylint
-          toolkitPackages.toolkit-dylint
-          toolkitPackages.toolkit-dylint-link
-        ];
+        ] ++ toolkitSupport.packages;
 
         buildInputs =
           with pkgs;
           [
             openssl
           ]
-          ++ lib.optionals stdenv.isDarwin [
-            libiconv
-          ];
+          ++ toolkitSupport.buildInputs;
 
       in
       {
@@ -72,7 +65,7 @@
 
           shellHook = ''
             [[ -r "$HOME/.local/state/secrets/cargo-registry-token" ]] && export CARGO_REGISTRY_TOKEN="$(cat "$HOME/.local/state/secrets/cargo-registry-token")"
-            export TOOLKIT_ROOT="${toolkit.outPath}"
+            ${toolkitSupport.shellHook}
 
             echo "Jacquard development environment"
             echo "Rust: $(rustc --version)"
