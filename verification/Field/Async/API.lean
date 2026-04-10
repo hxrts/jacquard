@@ -21,11 +21,13 @@ structure AsyncAssumptions where
   maxDelay : Nat
   retryBound : Nat
   lossPossible : Prop
+  batchBound : Nat
 
 def reliableImmediateAssumptions : AsyncAssumptions :=
   { maxDelay := 0
     retryBound := 0
-    lossPossible := False }
+    lossPossible := False
+    batchBound := allNodes.length * allDestinations.length }
 
 structure AsyncEnvelope where
   sender : NodeId
@@ -65,6 +67,27 @@ def stepEnvelope (envelope : AsyncEnvelope) : AsyncEnvelope :=
   else
     { envelope with delay := envelope.delay - 1 }
 
+def eligibleForRetry
+    (assumptions : AsyncAssumptions)
+    (envelope : AsyncEnvelope) : Bool :=
+  envelope.dropped && envelope.retryCount < assumptions.retryBound
+
+def retryEnvelope
+    (assumptions : AsyncAssumptions)
+    (envelope : AsyncEnvelope) : AsyncEnvelope :=
+  if eligibleForRetry assumptions envelope then
+    { envelope with
+        dropped := False
+        delay := assumptions.maxDelay
+        retryCount := envelope.retryCount + 1 }
+  else
+    envelope
+
+def lifecycleEnvelope
+    (assumptions : AsyncAssumptions)
+    (envelope : AsyncEnvelope) : AsyncEnvelope :=
+  retryEnvelope assumptions (stepEnvelope envelope)
+
 def enqueuePublications
     (network : NetworkState)
     (assumptions : AsyncAssumptions) : List AsyncEnvelope :=
@@ -80,10 +103,20 @@ def enqueuePublications
             []) ++ senderAcc)
       [])
 
+def injectPublications (state : AsyncState) : List AsyncEnvelope :=
+  state.inFlight ++ enqueuePublications state.network state.assumptions
+
 def asyncStep (state : AsyncState) : AsyncState :=
   { network := state.network
     assumptions := state.assumptions
     inFlight := (state.inFlight.map stepEnvelope) ++ enqueuePublications state.network state.assumptions
+    tick := state.tick + 1 }
+
+def transportStep (state : AsyncState) : AsyncState :=
+  { network := state.network
+    assumptions := state.assumptions
+    inFlight := (state.inFlight.map (lifecycleEnvelope state.assumptions)) ++
+      enqueuePublications state.network state.assumptions
     tick := state.tick + 1 }
 
 def readyMessages
@@ -98,6 +131,9 @@ def readyMessages
 def drainReadyMessages (state : AsyncState) : AsyncState :=
   { state with
       inFlight := state.inFlight.filter fun envelope => !(readyForDelivery envelope) }
+
+def droppedMessages (state : AsyncState) : List AsyncEnvelope :=
+  state.inFlight.filter fun envelope => envelope.dropped
 
 /-- Small observer view for the reduced async layer. -/
 structure AsyncObserverView where

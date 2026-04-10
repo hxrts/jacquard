@@ -213,6 +213,18 @@ So the correct reading is:
 - the adequacy layer proves a reduced artifact-to-trace simulation story
 - it does not yet prove full implementation refinement
 
+## Relationship To End-To-End Results
+
+The newer end-to-end and convergence files in `Field/System/*` sit above this adequacy boundary. They compose reduced local state, async transport, and router lifecycle objects and then prove safety/stability facts about that reduced system.
+
+Those results do not upgrade the adequacy claim. This module family still does not prove:
+
+- full Rust transport refinement
+- full Rust router/runtime refinement
+- routing-quality or optimality properties
+
+So adequacy remains an artifact-to-trace bridge, not an end-to-end implementation-correctness theorem.
+
 ## Parity-Sensitive Surfaces
 
 The most important Rust/Lean compatibility surfaces are:

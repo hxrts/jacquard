@@ -15,11 +15,11 @@ This map describes the current organization of `verification/Field`.
 - `Field/Network.lean`
   - imports the reduced finite network layer and its first safety theorems
 - `Field/Router.lean`
-  - imports the reduced publication, admission, and installation layers
+  - imports the reduced publication, admission, installation, and lifecycle layers
 - `Field/Async.lean`
-  - imports the reduced async delivery semantics and first async safety theorems
+  - imports the reduced async delivery semantics, transport lifecycle lemmas, and first async safety theorems
 - `Field/System.lean`
-  - imports system-level summaries and proof-boundary checks above the async layer
+  - imports system-level summaries, reduced end-to-end semantics, and convergence theorems above the async layer
 - `Field/Field.lean`
   - umbrella import for the whole current field verification stack
 
@@ -81,6 +81,8 @@ This map describes the current organization of `verification/Field`.
   - reduced observed/admitted/rejected boundary and first admission conservativity theorems
 - `Field/Router/Installation.lean`
   - minimal canonical installed-route object and installation honesty theorems
+- `Field/Router/Lifecycle.lean`
+  - reduced observed/admitted/installed/withdrawn/expired/refreshed lifecycle object plus maintenance and conservativity theorems
 
 ## Async And System Layers
 
@@ -88,10 +90,16 @@ This map describes the current organization of `verification/Field`.
   - reduced async envelopes, explicit delay/retry/loss assumptions, queue stepping, ready-message view, and observer view
 - `Field/Async/Safety.lean`
   - first async publication-safety theorems and queue-drain facts connecting the async layer back to local honesty
+- `Field/Async/Transport.lean`
+  - transport lifecycle lemmas for retry/delivery/drop behavior, publication injection, and the reliable-immediate refinement to the synchronous publication model
 - `Field/System/Statistics.lean`
   - aggregate local-support summaries and in-flight support-mass bounds over the async layer
 - `Field/System/Boundary.lean`
   - system-level assumption-boundary statements above the async/runtime stack
+- `Field/System/EndToEnd.lean`
+  - reduced end-to-end state and step relation combining async transport, router lifecycle installation, and lifecycle maintenance, plus first safety/observer lemmas
+- `Field/System/Convergence.lean`
+  - reduced reliable-immediate fixed-point and no-spontaneous-promotion theorems over iterated end-to-end steps
 
 ## Notes
 
@@ -102,7 +110,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Docs/Adequacy.md`
   - runtime artifact bridge and adequacy note
 - `Field/Docs/Guide.md`
-  - contributor guidance, maturity summary, and stack-level module map including the network/router/async/system layers
+  - contributor guidance, maturity summary, convergence assumptions, and stack-level module map including the network/router/async/system layers
 - `Field/Docs/TelltaleGap.md`
   - precise gap between current field objects and deeper Telltale proof reuse
 
@@ -112,14 +120,16 @@ This map describes the current organization of `verification/Field`.
   - local boundedness/harmony/honesty theorems
   - reduced private protocol and observational boundary
 - moderate:
-  - reduced finite network, publication, admission, and installation semantics
+  - reduced finite network, publication, admission, installation, and lifecycle semantics
   - first network-level safety theorems
-  - reduced async semantics and first async safety theorems
-  - system-level aggregate summaries and assumption-boundary checks
+  - reduced async semantics, transport lifecycle lemmas, and first async safety theorems
+  - system-level aggregate summaries, reduced end-to-end safety/observer theorems, and reliable-immediate convergence results
   - probability-simplex information layer
   - normalized public-projection blindness bridge
   - one-step decision layer
   - reduced protocol-machine fragment
 - earliest:
   - stronger runtime correctness theorem beyond the current reduced simulation bridge
+  - convergence beyond the reliable-immediate / empty-queue / unchanged-network regime
+  - any routing-quality or optimality theorem
   - deeper Telltale-native reuse of conservation and subtype-replacement families

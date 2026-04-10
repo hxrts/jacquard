@@ -69,12 +69,16 @@ lean_lib JacquardVerification where
     `Field.Router.Publication,
     `Field.Router.Admission,
     `Field.Router.Installation,
+    `Field.Router.Lifecycle,
     `Field.Async,
     `Field.Async.API,
     `Field.Async.Safety,
+    `Field.Async.Transport,
     `Field.System,
     `Field.System.Statistics,
     `Field.System.Boundary,
+    `Field.System.EndToEnd,
+    `Field.System.Convergence,
     `Field.Adequacy.API,
     `Field.Adequacy.Instance
   ]

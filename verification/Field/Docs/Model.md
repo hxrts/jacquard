@@ -4,7 +4,19 @@ This note describes the current formal object for the field engine in mathematic
 
 ## Scope
 
-The current Lean model is a destination-local, deterministic, bounded state machine for one node and one local round. It is intentionally smaller than the full Rust field engine.
+The current field verification stack is no longer only a destination-local model. It now includes:
+
+- a destination-local deterministic observer-controller model
+- a finite normalized information layer over the reduced hypothesis space
+- a reduced private protocol layer
+- a reduced finite network and router boundary
+- a reduced async delivery layer
+- a reduced end-to-end system semantics
+- first fixed-point / stabilization results under strong reduced assumptions
+- a reduced runtime adequacy layer
+- first system-level summary and boundary results
+
+This document still focuses on the local semantic object at the center of that stack. That local object is a destination-local, deterministic, bounded state machine for one node and one local round, and it remains intentionally smaller than the full Rust field engine.
 
 It does model:
 
@@ -15,11 +27,12 @@ It does model:
 - a public corridor-envelope projection derived from local state
 - a small finite decision layer over a representative evidence alphabet
 
-The local model by itself does not yet model:
+The local model by itself still does not model:
 
 - asynchronous transport behavior
-- end-to-end convergence or optimality
-- full production router lifecycle semantics
+- router lifecycle maintenance
+- end-to-end sequencing or stabilization
+- routing-quality or optimality claims
 
 Those wider concerns are now split as follows:
 
@@ -27,8 +40,13 @@ Those wider concerns are now split as follows:
   - `Field/Network/*`
 - reduced publication/admission/installation semantics
   - `Field/Router/*`
-- reduced async delivery semantics and first async publication-safety theorems
+- reduced router lifecycle semantics
+  - `Field/Router/Lifecycle.lean`
+- reduced async delivery semantics, transport lifecycle lemmas, and first async publication-safety theorems
   - `Field/Async/*`
+- reduced end-to-end sequencing, observer results, and convergence theorems
+  - `Field/System/EndToEnd.lean`
+  - `Field/System/Convergence.lean`
 - system-level aggregate summaries and assumption-boundary results
   - `Field/System/*`
 - runtime extraction and reduced simulation witness
@@ -242,12 +260,29 @@ The model should therefore be read as:
 - moderately mature as a finite information object
 - still early as a quantitative decision-theoretic or information-theoretic routing theory
 
+## Relationship To System-Level Stabilization
+
+The new fixed-point and no-spontaneous-promotion theorems do not live in the local model itself. They live in `Field/System/EndToEnd.lean` and `Field/System/Convergence.lean`, where the local projection is composed with:
+
+- the reduced async transport layer
+- router lifecycle installation / maintenance
+- a reduced end-to-end step relation
+
+Those results are intentionally narrow. They currently rely on:
+
+- `reliableImmediateAssumptions`
+- an empty initial in-flight queue
+- unchanged local/network state across the reduced end-to-end step, captured by `system_step_preserves_network`
+
+So the current story is not "the local model proves general convergence." The honest claim is narrower: under a stable-input, reliable-immediate regime, the installed candidate view reaches a reduced fixed point and does not spontaneously promote to explicit-path.
+
 ## What Is Not Yet Proved
 
 The current field local model does not yet prove:
 
 - global routing optimality
-- end-to-end convergence
+- end-to-end convergence outside the reduced reliable-immediate stable-input regime
+- any routing-quality comparison between installed candidates
 - large-network mean-field limits
 - KL-style update inequalities
 - stronger mutual-information bounds for the public projection
@@ -262,7 +297,7 @@ The most natural next extensions of this document’s model are:
 - a richer normalized belief object with stronger probabilistic structure
 - sharper divergence and entropy laws
 - stronger blindness theorems for the corridor projection
-- stronger multi-round stabilization laws
+- stronger multi-round stabilization laws beyond the current reliable-immediate fixed-point regime
 - tighter connection between local scoring and public projection conservativity
 
 Until then, this document should be read as the specification of the current reduced local model and information boundary, not of the full Rust field engine.

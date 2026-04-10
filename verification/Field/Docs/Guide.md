@@ -24,11 +24,11 @@ These surfaces are intentionally separated. The local controller is not a choreo
 - `Field/Network/*`
   - finite node/destination state, synchronous round buffer, and first network safety theorems
 - `Field/Router/*`
-  - router-facing publication, admission, and installation boundary
+  - router-facing publication, admission, installation, and lifecycle boundary
 - `Field/Async/*`
-  - reduced async delivery semantics, explicit delay/loss/retry assumptions, and first async safety theorems
+  - reduced async delivery semantics, transport lifecycle lemmas, explicit delay/loss/retry assumptions, and first async safety theorems
 - `Field/System/*`
-  - aggregate system summaries and cross-layer boundary statements above the async model
+  - aggregate system summaries, reduced end-to-end semantics, convergence theorems, and cross-layer boundary statements above the async model
 - `Docs/Adequacy.md`
   - runtime artifact boundary, reduced simulation witness, fragment-trace refinement, packaged assumptions, and parity-sensitive surfaces
 - `Docs/Guide.md`
@@ -84,10 +84,12 @@ The network/router layers currently give:
 - router-facing publication candidates that are still distinct from canonical route truth
 - reduced observed/admitted/rejected admission semantics
 - a minimal installed-route object that only exists above admission
+- a reduced lifecycle object with observed/admitted/installed/withdrawn/expired/refreshed status
 - first safety theorems showing:
   - local projection honesty lifts to published candidates
   - explicit-path installation cannot appear without explicit local knowledge
   - installed support remains conservative with respect to the supporting node's local evidence
+- lifecycle maintenance theorems showing withdrawal / expiry do not strengthen claims and unchanged refreshes preserve shape/support conservativity
 
 ### Async Layer
 
@@ -98,7 +100,16 @@ The current network object is deliberately synchronous, and it is now paired wit
 - network layer
   - synchronous publication buffer and neighbor-indexed delivered-message view
 - async layer
-  - in-flight envelopes, explicit delay/loss/retry assumptions, ready-message draining, and first publication-safety lemmas over the queue
+  - in-flight envelopes, explicit delay/loss/retry assumptions, ready-message draining, transport lifecycle lemmas, and first publication-safety lemmas over the queue
+- system layer
+  - reduced end-to-end state combining async transport and router lifecycle state
+  - a reduced end-to-end step that sequences transport progression, ready delivery, installation, and lifecycle maintenance
+  - first theorems showing:
+    - `produced_candidate_requires_explicit_sender_knowledge`
+    - `produced_candidate_support_conservative`
+    - `candidate_view_fixed_point_under_reliable_immediate_empty`
+    - `candidate_view_iterate_stable_under_reliable_immediate_empty`
+    - `no_spontaneous_explicit_path_promotion_over_iterated_steps`
 - adequacy layer
   - correspondence between Rust-facing runtime artifacts, reduced traces, fragment traces, and controller-visible evidence
 
@@ -112,6 +123,39 @@ The adequacy and assumptions layers currently give:
 - an explicit reduced simulation witness
 - a stronger fragment-trace refinement theorem for runtime executions
 - a packaged `ProofContract` for semantic, protocol, runtime, and optional strengthening assumptions
+
+## Convergence Assumptions
+
+The current convergence theorems are intentionally strong-hypothesis results, not ambient liveness claims.
+
+They rely on:
+
+- `reliableImmediateAssumptions`
+  - `maxDelay = 0`
+  - `retryBound = 0`
+  - `lossPossible = False`
+- an empty initial in-flight queue
+- unchanged local/network state across the reduced end-to-end step, exposed by `system_step_preserves_network`
+
+Under exactly that regime, the current theorems show a reduced fixed-point story for the installed candidate view. They do not claim convergence under arbitrary delay, retry, or loss behavior.
+
+## Safety And Stability, Not Optimality
+
+The new end-to-end and convergence results are still safety/stability theorems.
+
+They show that:
+
+- explicit-path installation still traces back to explicit local knowledge
+- installed support remains conservative with respect to sender-local support
+- the candidate view stabilizes under reliable-immediate transport with no queued backlog
+- repeated end-to-end steps do not spontaneously promote to explicit-path when no sender has explicit-path knowledge
+
+They do not show:
+
+- best-route selection
+- path-quality optimality
+- asymptotic convergence under realistic transport dynamics
+- equivalence to the production Rust router/runtime
 
 ## What Is Not Proved
 
@@ -130,6 +174,7 @@ The current system is best read as:
 - a strong reduced local-model and protocol-boundary proof stack
 - an early but real information-theoretic layer
 - a reduced runtime simulation bridge
+- a reduced end-to-end safety/stability model under explicit assumptions
 
 ## Maturity Summary
 
@@ -141,9 +186,9 @@ The current system is best read as:
 | Receive refinement | Moderate | narrow subtype-replacement shaped result exists |
 | Information layer | Moderate | finite normalized belief object and first blindness theorem exist |
 | One-step decision layer | Early | useful but intentionally small |
-| Reduced network and router layers | Moderate | explicit publication/admission/installation boundary and first safety theorems exist |
-| Reduced async layer | Moderate | explicit delay/loss/retry assumptions and first async publication safety theorems exist |
-| System summaries and boundaries | Moderate | aggregate support summaries and first system-level boundary theorem exist |
+| Reduced network and router layers | Moderate | explicit publication/admission/installation/lifecycle boundary and first safety theorems exist |
+| Reduced async layer | Moderate | explicit delay/loss/retry assumptions, transport lifecycle lemmas, and first async publication safety theorems exist |
+| System summaries and boundaries | Moderate | aggregate support summaries, reduced end-to-end safety/observer theorems, and reliable-immediate stabilization results exist |
 | Runtime adequacy | Early | reduced simulation witness, not full refinement |
 | Packaged assumptions | Early | structure is in place, but theorem dependence is still selective |
 
@@ -154,9 +199,9 @@ When adding new proofs, keep these boundaries intact.
 - If the statement is about posterior, regime, posture, scores, or corridor projection, it belongs in `Field/Model` or `Field/Information`.
 - If the statement is about choreography, projection, blocked receives, semantic objects, or protocol traces, it belongs in `Field/Protocol`.
 - If the statement is about node-indexed local states, reduced message delivery, or network-level safety, it belongs in `Field/Network`.
-- If the statement is about router-facing publication, admission, installation, or canonical handling eligibility, it belongs in `Field/Router`.
+- If the statement is about router-facing publication, admission, installation, lifecycle maintenance, or canonical handling eligibility, it belongs in `Field/Router`.
 - If the statement is about in-flight envelopes, delay, retry, ready delivery, or async publication safety, it belongs in `Field/Async`.
-- If the statement is about aggregate support summaries or cross-layer proof-boundary summaries above the async model, it belongs in `Field/System`.
+- If the statement is about end-to-end sequencing, installed-route observer results, fixed points, or cross-layer proof-boundary summaries above the async model, it belongs in `Field/System`.
 - If the statement is about protocol exports becoming controller evidence, it belongs in `Field/Model/Boundary`.
 - If the statement is about Rust-facing runtime artifacts, extracted traces, or runtime simulation, it belongs in `Field/Adequacy`.
 - If the statement is about the global assumption contract used across theorem packs, it belongs in `Field/Assumptions`.
@@ -200,5 +245,6 @@ Before landing a meaningful field-proof change:
 - Do not move router-owned canonical truth into the protocol proof object.
 - Do not force the deterministic controller into a choreography encoding.
 - Do not claim full runtime adequacy when the actual theorem is a reduced simulation witness.
+- Do not describe the reliable-immediate convergence lemmas as routing-quality or optimality results.
 - Do not introduce transport-specific details into the local controller model unless they are genuinely proof-relevant there.
 - Do not bypass the API/instance split just to make one downstream theorem shorter.
