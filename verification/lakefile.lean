@@ -43,6 +43,8 @@ lean_lib JacquardVerification where
     `Field.LocalModel,
     `Field.Information,
     `Field.PrivateProtocol,
+    `Field.Network,
+    `Field.Router,
     `Field.Boundary,
     `Field.Adequacy,
     `Field.Assumptions,
@@ -60,6 +62,11 @@ lean_lib JacquardVerification where
     `Field.Protocol.Conservation,
     `Field.Protocol.ReceiveRefinement,
     `Field.Protocol.Reconfiguration,
+    `Field.Network.API,
+    `Field.Network.Safety,
+    `Field.Router.Publication,
+    `Field.Router.Admission,
+    `Field.Router.Installation,
     `Field.Adequacy.API,
     `Field.Adequacy.Instance
   ]

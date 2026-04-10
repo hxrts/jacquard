@@ -12,6 +12,10 @@ This map describes the current organization of `verification/Field`.
   - imports the observational controller-boundary theorems
 - `Field/Adequacy.lean`
   - imports the first Rust-runtime adequacy bridge
+- `Field/Network.lean`
+  - imports the reduced finite network layer and its first safety theorems
+- `Field/Router.lean`
+  - imports the reduced publication, admission, and installation layers
 - `Field/Field.lean`
   - umbrella import for the whole current field verification stack
 
@@ -61,18 +65,31 @@ This map describes the current organization of `verification/Field`.
 - `Field/Assumptions.lean`
   - packaged proof-contract assumptions for semantic, protocol-envelope, runtime-envelope, and optional strengthening theorems
 
+## Network And Router
+
+- `Field/Network/API.lean`
+  - finite node/destination vocabulary, synchronous round buffer, delivered-message view, and local-harmony lift
+- `Field/Network/Safety.lean`
+  - first reduced network safety theorems connecting local honesty to publication, admission, and installation
+- `Field/Router/Publication.lean`
+  - router-facing publication candidates and publication honesty / well-formedness theorems
+- `Field/Router/Admission.lean`
+  - reduced observed/admitted/rejected boundary and first admission conservativity theorems
+- `Field/Router/Installation.lean`
+  - minimal canonical installed-route object and installation honesty theorems
+
 ## Notes
 
 - `Field/Docs/Model.md`
-  - mathematical description of the local field model
+  - mathematical description of the local field model, plus its place in the wider field stack
 - `Field/Docs/Protocol.md`
   - protocol, Telltale mapping, and replay/authority notes
 - `Field/Docs/Adequacy.md`
   - runtime artifact bridge and adequacy note
+- `Field/Docs/Guide.md`
+  - contributor guidance, maturity summary, and stack-level module map including the network/router layers
 - `Field/Docs/TelltaleGap.md`
   - precise gap between current field objects and deeper Telltale proof reuse
-- `Field/Docs/Guide.md`
-  - contributor guidance and maturity summary
 
 ## Maturity Snapshot
 
@@ -80,6 +97,8 @@ This map describes the current organization of `verification/Field`.
   - local boundedness/harmony/honesty theorems
   - reduced private protocol and observational boundary
 - moderate:
+  - reduced finite network, publication, admission, and installation semantics
+  - first network-level safety theorems
   - probability-simplex information layer
   - normalized public-projection blindness bridge
   - one-step decision layer
