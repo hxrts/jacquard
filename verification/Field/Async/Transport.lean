@@ -36,13 +36,13 @@ theorem lifecycle_envelope_preserves_shape
     (assumptions : AsyncAssumptions)
     (envelope : AsyncEnvelope) :
     (lifecycleEnvelope assumptions envelope).projection.shape = envelope.projection.shape := by
-  simpa [lifecycle_envelope_preserves_projection assumptions envelope]
+  simp [lifecycle_envelope_preserves_projection assumptions envelope]
 
 theorem lifecycle_envelope_preserves_support
     (assumptions : AsyncAssumptions)
     (envelope : AsyncEnvelope) :
     (lifecycleEnvelope assumptions envelope).projection.support = envelope.projection.support := by
-  simpa [lifecycle_envelope_preserves_projection assumptions envelope]
+  simp [lifecycle_envelope_preserves_projection assumptions envelope]
 
 theorem transport_step_preserves_network
     (state : AsyncState) :

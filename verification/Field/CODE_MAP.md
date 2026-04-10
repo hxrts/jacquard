@@ -125,6 +125,12 @@ This map describes the current organization of `verification/Field`.
 
 ## Notes
 
+- layering rule:
+  - `Field/Router` owns canonical route truth
+  - `Field/Quality` compares exported route views
+  - `Field/Adequacy` owns reduction and runtime projection
+  - `Field/Assumptions` packages contracts and theorem access
+
 - `Field/Docs/Model.md`
   - mathematical description of the local field model, plus its place in the wider field stack
 - `Field/Docs/Protocol.md`

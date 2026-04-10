@@ -79,12 +79,12 @@ theorem admit_envelope_candidate_preserves_candidate
     (hAdmit : admitEnvelopeCandidate network envelope = some admitted) :
     admitted.candidate = candidateOfEnvelope envelope := by
   let localState := network.localStates envelope.receiver envelope.destination
-  let published := candidateOfEnvelope envelope
-  by_cases hAdm : CandidateAdmissible localState published
-  · simp [admitEnvelopeCandidate, localState, published, hAdm] at hAdmit
-    rcases hAdmit with ⟨_, hEq⟩
-    simpa [published] using congrArg AdmittedCandidate.candidate hEq
-  · simp [admitEnvelopeCandidate, localState, published, hAdm] at hAdmit
+  let candidate := candidateOfEnvelope envelope
+  by_cases hAdm : CandidateAdmissible localState candidate
+  · simp [admitEnvelopeCandidate, localState, candidate, hAdm] at hAdmit
+    cases hAdmit
+    rfl
+  · simp [admitEnvelopeCandidate, localState, candidate, hAdm] at hAdmit
 
 theorem ready_envelope_from_reliable_immediate_empty_matches_local_projection
     (state : AsyncState)
@@ -180,7 +180,7 @@ theorem system_step_candidate_view
     lifecycleCandidateView (systemStep state).lifecycle =
       lifecycleCandidateView (readyInstalledRoutes state.async) := by
   unfold systemStep lifecycleCandidateView
-  simpa [FieldRouterLifecycle.maintain_lifecycle_preserves_candidate_view]
+  simp [FieldRouterLifecycle.maintain_lifecycle_preserves_candidate_view]
 
 theorem system_step_preserves_network
     (state : EndToEndState) :

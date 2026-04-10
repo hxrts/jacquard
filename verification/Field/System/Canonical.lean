@@ -134,7 +134,7 @@ theorem canonicalBestRouteView_eq_bestRouteView_supportDominance
   unfold canonicalBestRoute bestView
   cases hEligible : canonicalEligibleRoutes destination routes with
   | nil =>
-      simp [hEligible]
+      simp
   | cons head tail =>
       have hHead : CanonicalRouteEligible destination head := by
         have hMemHead : head ∈ canonicalEligibleRoutes destination routes := by
@@ -151,7 +151,7 @@ theorem canonicalBestRouteView_eq_bestRouteView_supportDominance
       have hFold :=
         fold_chooseCanonicalRouteBySupport_routeComparison_eq_supportDominance
           destination head tail hHead hTail
-      simp [hEligible, hFold]
+      simp [hFold]
 
 theorem canonicalSystemRoute_eq_router_canonical_under_reliable_immediate_empty
     (destination : DestinationClass)

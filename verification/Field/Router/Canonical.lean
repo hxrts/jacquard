@@ -74,7 +74,7 @@ theorem eligibleCanonicalRoute_some_implies_eligible
   have hEq := eligibleCanonicalRoute_some_implies_route destination route winner hSome
   subst hEq
   by_cases hEligible : CanonicalRouteEligible destination route
-  · simpa [eligibleCanonicalRoute, hEligible] using hEligible
+  · simp [hEligible]
   · simp [eligibleCanonicalRoute, hEligible] at hSome
 
 theorem chooseCanonicalRouteBySupport_eq_current_or_next

@@ -212,6 +212,12 @@ theorem runtime_canonical_contract_does_not_claim_runtime_system_refinement_read
     canonicalRouterOptionalStrengtheningAssumptions, supportOptimalityOptionalStrengtheningAssumptions,
     reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions]
 
+/-- Preferred alias that keeps the theorem name aligned with the canonical
+refinement theorem family unlocked by the stronger runtime-system contract. -/
+theorem runtime_canonical_contract_does_not_claim_runtime_system_canonical_refinement_ready :
+    ¬ runtimeCanonicalContract.optional.runtimeSystemRefinementReady :=
+  runtime_canonical_contract_does_not_claim_runtime_system_refinement_ready
+
 theorem default_contract_does_not_claim_global_optimality_ready :
     ¬ defaultContract.optional.globalOptimalityReady := by
   simp [defaultContract, mkProofContract, defaultOptionalStrengtheningAssumptions,
@@ -245,6 +251,12 @@ theorem runtime_system_contract_unlocks_runtime_system_refinement :
     runtimeCanonicalOptionalStrengtheningAssumptions, canonicalRouterOptionalStrengtheningAssumptions,
     supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
     baseOptionalStrengtheningAssumptions]
+
+/-- Preferred alias that keeps the contract-unlock surface aligned with
+`contract_yields_runtime_system_canonical_refinement`. -/
+theorem runtime_system_contract_unlocks_runtime_system_canonical_refinement :
+    runtimeSystemContract.optional.runtimeSystemRefinementReady :=
+  runtime_system_contract_unlocks_runtime_system_refinement
 
 theorem reduced_quality_contract_still_does_not_claim_global_optimality_ready :
     ¬ reducedQualityContract.optional.globalOptimalityReady := by

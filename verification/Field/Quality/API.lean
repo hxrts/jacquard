@@ -193,7 +193,7 @@ theorem equal_route_views_induce_equal_comparison_outcomes
     (hRight : routeComparisonView right = routeComparisonView right') :
     (compareRoutes objective left right).winner =
       (compareRoutes objective left' right').winner := by
-  simpa [comparison_depends_only_on_exported_fields objective left left' right right' hLeft hRight]
+  simp [comparison_depends_only_on_exported_fields objective left left' right right' hLeft hRight]
 
 theorem comparison_winner_is_left_or_right_or_none
     (objective : ComparisonObjective)
@@ -216,9 +216,9 @@ theorem comparison_preserves_shape_and_support
   rcases comparison_winner_is_left_or_right_or_none objective left right preferred hPreferred with
     hLeft | hRight
   · left
-    simpa [hLeft]
+    simp [hLeft]
   · right
-    simpa [hRight]
+    simp [hRight]
 
 theorem destinationView_some_implies_from_route
     (destination : DestinationClass)
@@ -255,7 +255,7 @@ theorem choosePreferredView_eq_current_or_next
   unfold choosePreferredView
   cases hSome : (compareRouteViews objective current next).preferredView? with
   | none =>
-      simp [hSome]
+      simp
   | some preferred =>
       rcases comparison_winner_is_left_or_right_or_none objective current next preferred hSome with hCur | hNext
       · left

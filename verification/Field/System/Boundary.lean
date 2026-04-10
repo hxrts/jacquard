@@ -46,6 +46,11 @@ theorem runtime_canonical_contract_does_not_claim_runtime_system_refinement_read
     ¬ runtimeCanonicalContract.optional.runtimeSystemRefinementReady :=
   FieldAssumptions.runtime_canonical_contract_does_not_claim_runtime_system_refinement_ready
 
+/-- Preferred alias aligned to the canonical-refinement theorem family. -/
+theorem runtime_canonical_contract_does_not_claim_runtime_system_canonical_refinement_ready :
+    ¬ runtimeCanonicalContract.optional.runtimeSystemRefinementReady :=
+  FieldAssumptions.runtime_canonical_contract_does_not_claim_runtime_system_canonical_refinement_ready
+
 /-- Even the stronger reduced-quality contract remains explicitly non-optimality. -/
 theorem reduced_quality_contract_still_does_not_claim_global_optimality_ready :
     ¬ reducedQualityContract.optional.globalOptimalityReady :=
@@ -72,6 +77,11 @@ theorem runtime_canonical_contract_unlocks_runtime_canonical_refinement :
 theorem runtime_system_contract_unlocks_runtime_system_refinement :
     runtimeSystemContract.optional.runtimeSystemRefinementReady :=
   FieldAssumptions.runtime_system_contract_unlocks_runtime_system_refinement
+
+/-- Preferred alias aligned to `contract_yields_runtime_system_canonical_refinement`. -/
+theorem runtime_system_contract_unlocks_runtime_system_canonical_refinement :
+    runtimeSystemContract.optional.runtimeSystemRefinementReady :=
+  FieldAssumptions.runtime_system_contract_unlocks_runtime_system_canonical_refinement
 
 /-! ## Stronger Contracts Remain Non-Optimality -/
 

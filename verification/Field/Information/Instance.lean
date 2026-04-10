@@ -77,7 +77,7 @@ theorem normalizedPmf_sum_one
              FieldHypothesis.corridor,
              FieldHypothesis.explicitPath } : Finset FieldHypothesis)
           (fun h => normalizedPmf belief h) := by
-                simpa [hUniv]
+                simp [hUniv]
       _ =
         (belief.unknownWeight : ℝ) / (totalWeight belief : ℝ) +
           (belief.unreachableWeight : ℝ) / (totalWeight belief : ℝ) +

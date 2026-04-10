@@ -316,6 +316,13 @@ The current system is best read as:
 
 When adding new proofs, keep these boundaries intact.
 
+Short version:
+
+- router owns canonical truth
+- quality compares exported views
+- adequacy owns reduction and runtime projection
+- assumptions package contracts and theorem access instead of re-owning lower-layer logic
+
 - If the statement is about posterior, regime, posture, scores, or corridor projection, it belongs in `Field/Model` or `Field/Information`.
 - If the statement is about choreography, projection, blocked receives, semantic objects, or protocol traces, it belongs in `Field/Protocol`.
 - If the statement is about protocol outputs or semantic objects becoming controller-visible evidence, it belongs in `Field/Model/Boundary`.

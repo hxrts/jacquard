@@ -111,7 +111,7 @@ theorem maintain_lifecycle_preserves_candidate_view
   | nil =>
       simp [maintainLifecycle]
   | cons route rest ih =>
-      simp [maintainLifecycle, lifecycle_maintenance_preserves_candidate, ih]
+      simp [maintainLifecycle, lifecycle_maintenance_preserves_candidate]
 
 theorem observed_route_is_honest_when_publication_is_well_formed
     (candidate : PublishedCandidate)

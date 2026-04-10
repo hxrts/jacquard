@@ -27,7 +27,7 @@ theorem system_step_lifecycle_eq_canonical_under_reliable_immediate_empty
     (systemStep state).lifecycle =
       maintainLifecycle (canonicalInstalledRoutes state.async.network) := by
   unfold systemStep
-  simpa [ready_installed_routes_eq_canonical_under_reliable_immediate_empty state.async hAssumptions hEmpty]
+  simp [ready_installed_routes_eq_canonical_under_reliable_immediate_empty state.async hAssumptions hEmpty]
 
 theorem system_step_lifecycle_fixed_point_under_reliable_immediate_empty
     (state : EndToEndState)

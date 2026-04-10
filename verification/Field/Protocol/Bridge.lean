@@ -161,8 +161,9 @@ theorem fragment_semantic_objects_stay_observational
   | cons fragment rest ih =>
       simp [fragmentTraceSemanticObjects, fragmentSemanticObjects] at hObject
       rcases hObject with hHere | hThere
-      · simpa using hHere
+      · rcases hHere with ⟨_hVisible, hEq⟩
+        simp [hEq]
       · rcases hThere with ⟨fragment', _hMem, _hGuard, hEq⟩
-        simpa [hEq]
+        simp [hEq]
 
 end FieldProtocolBridge
