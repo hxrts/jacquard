@@ -153,6 +153,7 @@ ci-dry-run:
     add_step "Format Check"               "{{fmt_cmd}} --all -- --check"
     add_step "Clippy"                     "cargo clippy --workspace --all-targets -- -D warnings"
     add_step "Tests"                      "cargo test --workspace"
+    add_step "Docs Links"                 "npx --yes markdown-link-check -q -c .github/config/markdown-link-check.json docs"
     add_step "Docs Link Check"            "{{toolkit_cmd}} check docs-link-check --repo-root . --config policy/toolkit.toml"
     add_step "Proc Macro Scope"           "{{toolkit_cmd}} check proc-macro-scope --repo-root . --config policy/toolkit.toml"
     add_step "Test Boundaries"            "{{toolkit_cmd}} check test-boundaries --repo-root . --config policy/toolkit.toml"
@@ -290,12 +291,12 @@ release \
     if [ "{{no_require_main}}" = "true" ]; then
       args+=(--no-require-main)
     fi
-    ./scripts/ops/release.sh "${args[@]}"
+    ./scripts/release-publish.sh "${args[@]}"
 
 # Hydrate the Mathlib olean cache so lean-build never rebuilds Mathlib from source.
 # Must be run once from inside `nix develop` before lean-build will work.
 lean-setup:
-    ./scripts/bootstrap/ensure-lean-prebuilt.sh
+    ./scripts/lean-prebuilt.sh
 
 # Build the Lean verification package (requires lean-setup to have been run once).
 lean-build:

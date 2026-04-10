@@ -4,10 +4,10 @@
 set -euo pipefail
 
 # ── Setup ──────────────────────────────────────────────────────────────
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-source "${ROOT_DIR}/scripts/lib/release-packages.sh"
+source "${ROOT_DIR}/scripts/release-packages.sh"
 
 # ── Defaults ──────────────────────────────────────────────────────────
 DRY_RUN=0
@@ -24,7 +24,7 @@ TAG_NAME=""
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/ops/release.sh --version <version> [options]
+  ./scripts/release-publish.sh --version <version> [options]
 
 Options:
   --version <version>   Release version (defaults to workspace version if omitted)
