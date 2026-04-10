@@ -80,7 +80,7 @@ fn scan_function_lengths(
             continue;
         }
         if has_nearby_exception_marker(&source_lines, function.start_line, function.end_line)
-            || is_style_exempt(&style_exceptions, &function.symbol)
+            || is_style_exempt(style_exceptions, &function.symbol)
         {
             continue;
         }

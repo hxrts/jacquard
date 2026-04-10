@@ -20,18 +20,14 @@ use serde::{Deserialize, Serialize};
 use crate::{RatioPermille, Tick};
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Limit<T> {
     Unbounded,
     Bounded(T),
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Belief<T> {
     Absent,
     Estimated(Estimate<T>),
@@ -39,11 +35,7 @@ pub enum Belief<T> {
 
 impl<T> Belief<T> {
     #[must_use]
-    pub fn estimated(
-        value: T,
-        confidence_permille: RatioPermille,
-        updated_at_tick: Tick,
-    ) -> Self {
+    pub fn estimated(value: T, confidence_permille: RatioPermille, updated_at_tick: Tick) -> Self {
         Self::Estimated(Estimate::new(value, confidence_permille, updated_at_tick))
     }
 
@@ -57,8 +49,8 @@ impl<T: Clone> Belief<T> {
     /// Returns `None` for `Absent`, `Some(est.value.clone())` for `Estimated`.
     pub fn value(&self) -> Option<T> {
         match self {
-            | Belief::Absent => None,
-            | Belief::Estimated(est) => Some(est.value.clone()),
+            Belief::Absent => None,
+            Belief::Estimated(est) => Some(est.value.clone()),
         }
     }
 
@@ -66,24 +58,22 @@ impl<T: Clone> Belief<T> {
     /// `Estimated`.
     pub fn confidence(&self) -> Option<RatioPermille> {
         match self {
-            | Belief::Absent => None,
-            | Belief::Estimated(est) => Some(est.confidence_permille),
+            Belief::Absent => None,
+            Belief::Estimated(est) => Some(est.confidence_permille),
         }
     }
 
     /// Returns `default` for `Absent`, `est.value.clone()` for `Estimated`.
     pub fn value_or(&self, default: T) -> T {
         match self {
-            | Belief::Absent => default,
-            | Belief::Estimated(est) => est.value.clone(),
+            Belief::Absent => default,
+            Belief::Estimated(est) => est.value.clone(),
         }
     }
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Belief update derived from one or more observations.
 pub struct Estimate<T> {
     pub value: T,
@@ -93,11 +83,7 @@ pub struct Estimate<T> {
 
 impl<T> Estimate<T> {
     #[must_use]
-    pub fn new(
-        value: T,
-        confidence_permille: RatioPermille,
-        updated_at_tick: Tick,
-    ) -> Self {
+    pub fn new(value: T, confidence_permille: RatioPermille, updated_at_tick: Tick) -> Self {
         Self {
             value,
             confidence_permille,
@@ -112,18 +98,14 @@ impl<T> Estimate<T> {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum FactSourceClass {
     Local,
     Remote,
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RoutingEvidenceClass {
     DirectObservation,
     PeerClaim,
@@ -131,9 +113,7 @@ pub enum RoutingEvidenceClass {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum OriginAuthenticationClass {
     Controlled,
     Authenticated,
@@ -141,9 +121,7 @@ pub enum OriginAuthenticationClass {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// How strongly a node identity is grounded for routing-control decisions.
 pub enum IdentityAssuranceClass {
     WeakObserved,
@@ -164,9 +142,7 @@ pub struct Observation<T> {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 /// Stronger basis for a routing fact the system treats as established.
 pub enum FactBasis {
     Observed,

@@ -10,8 +10,8 @@
 mod common;
 
 use common::{
-    build_router_with_opaque_engine, build_router_with_pathway_and_batman, objective,
-    FAR_NODE_ID, LOCAL_NODE_ID,
+    build_router_with_opaque_engine, build_router_with_pathway_and_batman, objective, FAR_NODE_ID,
+    LOCAL_NODE_ID,
 };
 use jacquard_batman::BATMAN_ENGINE_ID;
 use jacquard_core::{
@@ -29,11 +29,8 @@ fn opaque_engine_id() -> RoutingEngineId {
 fn router_activates_route_from_opaque_external_engine() {
     let mut router = build_router_with_opaque_engine(Tick(2), opaque_engine_id());
 
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("opaque external engine activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("opaque external engine activation");
 
     assert_eq!(route.identity.admission.summary.engine, opaque_engine_id());
     assert_eq!(
@@ -57,11 +54,9 @@ fn router_can_host_real_pathway_and_batman_engines_together() {
     assert_eq!(round.engine_change, RoutingTickChange::PrivateStateUpdated);
     assert_eq!(round.next_round_hint, RoutingTickHint::Immediate);
 
-    let batman_route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("batman-backed activation");
+    let batman_route =
+        Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+            .expect("batman-backed activation");
     assert_eq!(
         batman_route.identity.admission.summary.engine,
         BATMAN_ENGINE_ID

@@ -74,7 +74,7 @@ That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `Sub
 
 ## Enforcement
 
-Trait purity and routing invariants are enforced by the lint suite. The stable-toolchain check lane is split between the external toolkit runner and Jacquard's local `policy/xtask`, while nightly compiler-backed coverage lives under `toolkit/lints/`, `policy/lints/model_policy`, and `policy/lints/routing_invariants`. Public trait definitions in `jacquard-traits` also carry `#[purity(...)]` or `#[effect_trait]` annotations that the proc macros validate at compile time.
+Trait purity and routing invariants are enforced by the lint suite. The stable-toolchain check lane is split between the external toolkit runner and Jacquard's local `policy/xtask`, while nightly compiler-backed coverage lives in the external `rust-toolkit` lint suite plus `policy/lints/model_policy` and `policy/lints/routing_invariants`. Public trait definitions in `jacquard-traits` also carry `#[purity(...)]` or `#[effect_trait]` annotations that the proc macros validate at compile time.
 
 ## Runtime Boundary
 

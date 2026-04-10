@@ -9,16 +9,14 @@ mod common;
 
 use common::{
     engine::{
-        activate_route, build_engine_at_tick, lease, materialization_input, objective,
-        profile,
+        activate_route, build_engine_at_tick, lease, materialization_input, objective, profile,
     },
     fixtures::sample_configuration,
 };
 use jacquard_traits::{
     jacquard_core::{
-        DestinationId, NodeId, RouteError, RouteMaintenanceFailure,
-        RouteMaintenanceOutcome, RouteMaintenanceTrigger, RouteRuntimeError,
-        RoutingTickContext, Tick,
+        DestinationId, NodeId, RouteError, RouteMaintenanceFailure, RouteMaintenanceOutcome,
+        RouteMaintenanceTrigger, RouteRuntimeError, RoutingTickContext, Tick,
     },
     RoutingEngine, RoutingEnginePlanner,
 };

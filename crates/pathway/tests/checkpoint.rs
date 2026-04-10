@@ -27,9 +27,11 @@ use jacquard_traits::{
 };
 
 fn has_protocol_checkpoint(engine: &common::engine::TestEngine, prefix: &str) -> bool {
-    engine.effects.storage_keys().iter().any(|key| {
-        std::str::from_utf8(key).is_ok_and(|value| value.starts_with(prefix))
-    })
+    engine
+        .effects
+        .storage_keys()
+        .iter()
+        .any(|key| std::str::from_utf8(key).is_ok_and(|value| value.starts_with(prefix)))
 }
 
 #[test]

@@ -37,22 +37,16 @@ super::bytes_newtype!(PublicationId, 16);
 super::bytes_newtype!(ReceiptId, 16);
 
 /// Opaque application-defined service identifier. Format is host-specific.
-#[derive(
-    Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ServiceId(pub Vec<u8>);
 
 /// Engine-owned opaque route reference. Jacquard core never inspects the
 /// contents.
-#[derive(
-    Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct BackendRouteId(pub Vec<u8>);
 
 #[public_model]
-#[derive(
-    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 /// Neutral identifier for a routing-engine contract.
 pub struct RoutingEngineId {
     pub contract_id: RoutingEngineContractId,
@@ -92,7 +86,10 @@ pub struct NodeBinding {
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeBindingProof {
-    Signature { key_id: KeyId, signature_bytes: Vec<u8> },
+    Signature {
+        key_id: KeyId,
+        signature_bytes: Vec<u8>,
+    },
     Opaque(Vec<u8>),
 }
 

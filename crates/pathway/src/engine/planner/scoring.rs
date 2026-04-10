@@ -22,8 +22,7 @@ use super::{
 };
 use crate::{
     topology::{
-        estimate_hop_link, optional_health_score_value,
-        service_requirements_for_objective,
+        estimate_hop_link, optional_health_score_value, service_requirements_for_objective,
         service_surface_health_score_for_requirements,
     },
     PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess, PathwayRouteClass,
@@ -44,12 +43,8 @@ where
         node_path: &[NodeId],
         route_class: &PathwayRouteClass,
     ) -> u32 {
-        let peer_score = self.first_hop_preference_score(
-            objective,
-            topology,
-            node_path,
-            route_class,
-        );
+        let peer_score =
+            self.first_hop_preference_score(objective, topology, node_path, route_class);
         let (bonus, penalty) = self.neighborhood_preference_adjustments(topology);
         peer_score.saturating_add(bonus).saturating_sub(penalty)
     }
@@ -80,9 +75,7 @@ where
                         .saturating_add(optional_health_score_value(
                             estimate.retention_value_score(),
                         ))
-                        .saturating_add(optional_health_score_value(
-                            estimate.stability_score(),
-                        ))
+                        .saturating_add(optional_health_score_value(estimate.stability_score()))
                         .saturating_add(service_surface_health_score_for_requirements(
                             &node.profile.services,
                             &PATHWAY_ENGINE_ID,
@@ -115,9 +108,7 @@ where
             .as_ref()
             .map(|estimate| {
                 optional_health_score_value(estimate.repair_pressure_score())
-                    .saturating_add(optional_health_score_value(
-                        estimate.partition_risk_score(),
-                    ))
+                    .saturating_add(optional_health_score_value(estimate.partition_risk_score()))
             })
             .unwrap_or(0);
         (bonus, penalty)
@@ -131,33 +122,23 @@ where
         to_node_id: &NodeId,
     ) -> Option<u32> {
         let configuration = &topology.value;
-        let (_, link_state) =
-            estimate_hop_link(from_node_id, to_node_id, configuration)?;
+        let (_, link_state) = estimate_hop_link(from_node_id, to_node_id, configuration)?;
         let penalties = link_quality_penalties(&link_state);
         let (delivery_penalty, symmetry_penalty, loss_penalty) =
             (penalties.delivery, penalties.symmetry, penalties.loss);
-        let peer_bonus = self.peer_bonus_for_edge(
-            objective,
-            topology,
-            from_node_id,
-            to_node_id,
-            configuration,
-        );
+        let peer_bonus =
+            self.peer_bonus_for_edge(objective, topology, from_node_id, to_node_id, configuration);
         let (neighborhood_bonus, neighborhood_penalty) =
             self.neighborhood_adjustments_for_edge(topology, to_node_id, configuration);
 
         Some(
             PATH_METRIC_BASE_HOP_COST
                 .saturating_add(
-                    delivery_penalty
-                        .saturating_mul(PATH_METRIC_DELIVERY_PENALTY_WEIGHT),
+                    delivery_penalty.saturating_mul(PATH_METRIC_DELIVERY_PENALTY_WEIGHT),
                 )
+                .saturating_add(loss_penalty.saturating_mul(PATH_METRIC_LOSS_PENALTY_WEIGHT))
                 .saturating_add(
-                    loss_penalty.saturating_mul(PATH_METRIC_LOSS_PENALTY_WEIGHT),
-                )
-                .saturating_add(
-                    symmetry_penalty
-                        .saturating_mul(PATH_METRIC_SYMMETRY_PENALTY_WEIGHT),
+                    symmetry_penalty.saturating_mul(PATH_METRIC_SYMMETRY_PENALTY_WEIGHT),
                 )
                 .saturating_add(neighborhood_penalty)
                 .saturating_sub(peer_bonus.saturating_add(neighborhood_bonus)),
@@ -227,8 +208,7 @@ where
             .as_ref()
             .map(|estimate| {
                 optional_health_score_value(estimate.density_score()) / 4
-                    + optional_health_score_value(estimate.service_stability_score())
-                        / 2
+                    + optional_health_score_value(estimate.service_stability_score()) / 2
             })
             .unwrap_or(0);
         (bonus, penalty)

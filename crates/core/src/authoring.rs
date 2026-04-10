@@ -19,10 +19,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Belief, ByteCount, CapacityHint, ControllerId, DurationMs, HoldItemCount,
-    InformationSetSummary, Link, LinkEndpoint, LinkProfile, LinkRuntimeState,
-    LinkState, MaintenanceWorkBudget, Node, NodeProfile, NodeRelayBudget, NodeState,
-    RatioPermille, RelayWorkBudget, RepairCapability, RoutingEngineId,
-    ServiceDescriptor, ServiceScope, Tick, TimeWindow,
+    InformationSetSummary, Link, LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState,
+    MaintenanceWorkBudget, Node, NodeProfile, NodeRelayBudget, NodeState, RatioPermille,
+    RelayWorkBudget, RepairCapability, RoutingEngineId, ServiceDescriptor, ServiceScope, Tick,
+    TimeWindow,
 };
 
 #[public_model]
@@ -87,8 +87,7 @@ impl LinkBuilder {
         self.state.median_rtt_ms = Belief::certain(median_rtt_ms, observed_at_tick);
         self.state.transfer_rate_bytes_per_sec =
             Belief::certain(transfer_rate_bytes_per_sec, observed_at_tick);
-        self.state.stability_horizon_ms =
-            Belief::certain(stability_horizon_ms, observed_at_tick);
+        self.state.stability_horizon_ms = Belief::certain(stability_horizon_ms, observed_at_tick);
         self
     }
 
@@ -103,8 +102,7 @@ impl LinkBuilder {
         self.state.loss_permille = loss_permille;
         self.state.delivery_confidence_permille =
             Belief::certain(delivery_confidence_permille, observed_at_tick);
-        self.state.symmetry_permille =
-            Belief::certain(symmetry_permille, observed_at_tick);
+        self.state.symmetry_permille = Belief::certain(symmetry_permille, observed_at_tick);
         self
     }
 
@@ -144,7 +142,9 @@ impl ServiceDescriptorBuilder {
             service_kind,
             endpoints: Vec::new(),
             routing_engines: Vec::new(),
-            scope: ServiceScope::Introduction { scope_token: vec![1] },
+            scope: ServiceScope::Introduction {
+                scope_token: vec![1],
+            },
             valid_for: TimeWindow::new(Tick(0), Tick(1))
                 .expect("shared builder uses a valid default window"),
             capacity: Belief::Absent,
@@ -176,11 +176,7 @@ impl ServiceDescriptorBuilder {
     }
 
     #[must_use]
-    pub fn with_capacity(
-        mut self,
-        capacity: CapacityHint,
-        observed_at_tick: Tick,
-    ) -> Self {
+    pub fn with_capacity(mut self, capacity: CapacityHint, observed_at_tick: Tick) -> Self {
         self.capacity = Belief::certain(capacity, observed_at_tick);
         self
     }
@@ -413,12 +409,12 @@ pub struct NodeBuilder {
 
 impl NodeBuilder {
     #[must_use]
-    pub fn new(
-        controller_id: ControllerId,
-        profile: NodeProfile,
-        state: NodeState,
-    ) -> Self {
-        Self { controller_id, profile, state }
+    pub fn new(controller_id: ControllerId, profile: NodeProfile, state: NodeState) -> Self {
+        Self {
+            controller_id,
+            profile,
+            state,
+        }
     }
 
     #[must_use]
@@ -435,8 +431,7 @@ impl NodeBuilder {
 mod tests {
     use super::*;
     use crate::{
-        EndpointLocator, PartitionRecoveryClass, RouteServiceKind, ServiceScope,
-        TransportKind,
+        EndpointLocator, PartitionRecoveryClass, RouteServiceKind, ServiceScope, TransportKind,
     };
 
     #[test]
@@ -474,16 +469,15 @@ mod tests {
         };
         let node_id = crate::NodeId([2; 32]);
         let controller_id = ControllerId([2; 32]);
-        let service = ServiceDescriptorBuilder::new(
-            node_id,
-            controller_id,
-            RouteServiceKind::Discover,
-        )
-        .with_endpoint(endpoint.clone())
-        .with_scope(ServiceScope::Introduction { scope_token: vec![1] })
-        .with_valid_for(TimeWindow::new(Tick(0), Tick(10)).expect("valid window"))
-        .with_capacity(CapacityHint::new(RatioPermille(0)), Tick(0))
-        .build();
+        let service =
+            ServiceDescriptorBuilder::new(node_id, controller_id, RouteServiceKind::Discover)
+                .with_endpoint(endpoint.clone())
+                .with_scope(ServiceScope::Introduction {
+                    scope_token: vec![1],
+                })
+                .with_valid_for(TimeWindow::new(Tick(0), Tick(10)).expect("valid window"))
+                .with_capacity(CapacityHint::new(RatioPermille(0)), Tick(0))
+                .build();
         let profile = NodeProfileBuilder::new()
             .with_endpoint(endpoint)
             .with_service(service)

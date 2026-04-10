@@ -50,8 +50,8 @@ tell! {
 }
 
 use AntiEntropyExchange::sessions::{
-    CurrentOwner, CurrentOwnerSession, Deferred, Observer, ObserverChoice1,
-    ObserverSession, Peer, PeerSession, Reconcile, Roles, Synced,
+    CurrentOwner, CurrentOwnerSession, Deferred, Observer, ObserverChoice1, ObserverSession, Peer,
+    PeerSession, Reconcile, Roles, Synced,
 };
 
 pub(crate) fn execute<E>(
@@ -124,12 +124,8 @@ async fn peer_role(
 async fn observer_role(role: &mut Observer) -> ProtocolResult<&'static str> {
     try_session(role, |s: ObserverSession<'_, _>| async {
         match s.branch().await? {
-            | ObserverChoice1::Synced(Synced { .. }, end) => {
-                Ok(("anti-entropy-synced", end))
-            },
-            | ObserverChoice1::Deferred(Deferred { .. }, end) => {
-                Ok(("anti-entropy-deferred", end))
-            },
+            ObserverChoice1::Synced(Synced { .. }, end) => Ok(("anti-entropy-synced", end)),
+            ObserverChoice1::Deferred(Deferred { .. }, end) => Ok(("anti-entropy-deferred", end)),
         }
     })
     .await

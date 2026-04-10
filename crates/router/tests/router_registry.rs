@@ -19,18 +19,13 @@
 mod common;
 
 use common::{
-    build_router, objective, NullCandidateEngine, FAR_NODE_ID, LOCAL_NODE_ID,
-    PEER_NODE_ID,
+    build_router, objective, NullCandidateEngine, FAR_NODE_ID, LOCAL_NODE_ID, PEER_NODE_ID,
 };
-use jacquard_core::{
-    CapabilityError, DestinationId, ReceiptId, RouteSemanticHandoff, Tick,
-};
+use jacquard_core::{CapabilityError, DestinationId, ReceiptId, RouteSemanticHandoff, Tick};
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
 };
-use jacquard_pathway::{
-    DeterministicPathwayTopologyModel, PathwayEngine, PATHWAY_ENGINE_ID,
-};
+use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine, PATHWAY_ENGINE_ID};
 use jacquard_traits::{Blake3Hashing, Router};
 
 #[test]
@@ -41,7 +36,10 @@ fn multi_engine_router_rejects_duplicate_pathway_registration() {
         DeterministicPathwayTopologyModel::new(),
         InMemoryTransport::new(),
         InMemoryRetentionStore::default(),
-        InMemoryRuntimeEffects { now: Tick(2), ..Default::default() },
+        InMemoryRuntimeEffects {
+            now: Tick(2),
+            ..Default::default()
+        },
         Blake3Hashing,
     );
 
@@ -55,20 +53,15 @@ fn multi_engine_router_rejects_duplicate_pathway_registration() {
 #[test]
 fn multi_engine_router_registers_multiple_engines_and_selects_pathway_candidate() {
     let mut router = build_router(Tick(2));
-    let auxiliary_engine_id =
-        jacquard_core::RoutingEngineId::from_contract_bytes([6; 16]);
-    let auxiliary =
-        NullCandidateEngine::new(LOCAL_NODE_ID, auxiliary_engine_id.clone());
+    let auxiliary_engine_id = jacquard_core::RoutingEngineId::from_contract_bytes([6; 16]);
+    let auxiliary = NullCandidateEngine::new(LOCAL_NODE_ID, auxiliary_engine_id.clone());
 
     router
         .register_engine(Box::new(auxiliary))
         .expect("register auxiliary engine");
 
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("router activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("router activation");
 
     assert_eq!(
         router.registered_engine_ids(),
@@ -80,11 +73,8 @@ fn multi_engine_router_registers_multiple_engines_and_selects_pathway_candidate(
 #[test]
 fn transfer_route_lease_updates_router_owned_lease() {
     let mut router = build_router(Tick(2));
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation");
 
     let handoff = RouteSemanticHandoff {
         route_id: route.identity.stamp.route_id,

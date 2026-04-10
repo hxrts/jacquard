@@ -79,9 +79,7 @@ pub(crate) fn encode_backend_token(token: &FieldBackendToken) -> BackendRouteId 
 }
 
 #[must_use]
-pub(crate) fn decode_backend_token(
-    backend_route_id: &BackendRouteId,
-) -> Option<FieldBackendToken> {
+pub(crate) fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<FieldBackendToken> {
     let bytes = &backend_route_id.0;
     if bytes.first().copied()? != FIELD_BACKEND_TOKEN_VERSION {
         return None;
@@ -129,88 +127,87 @@ pub(crate) fn route_id_for_backend(backend_route_id: &BackendRouteId) -> RouteId
 
 fn encode_destination(destination: &DestinationKey, out: &mut Vec<u8>) {
     match destination {
-        | DestinationKey::Node(node) => {
+        DestinationKey::Node(node) => {
             out.push(0);
             out.extend_from_slice(&node.0);
-        },
-        | DestinationKey::Gateway(gateway) => {
+        }
+        DestinationKey::Gateway(gateway) => {
             out.push(1);
             out.extend_from_slice(&gateway.0);
-        },
-        | DestinationKey::Service(service) => {
+        }
+        DestinationKey::Service(service) => {
             out.push(2);
             let len = u16::try_from(service.len()).expect("service id length fits u16");
             out.extend_from_slice(&len.to_le_bytes());
             out.extend_from_slice(service);
-        },
+        }
     }
 }
 
 fn decode_destination(bytes: &[u8], cursor: &mut usize) -> Option<DestinationKey> {
     match *bytes.get(*cursor)? {
-        | 0 => {
+        0 => {
             *cursor += 1;
             let node = NodeId(bytes.get(*cursor..*cursor + 32)?.try_into().ok()?);
             *cursor += 32;
             Some(DestinationKey::Node(node))
-        },
-        | 1 => {
+        }
+        1 => {
             *cursor += 1;
             let gateway = GatewayId(bytes.get(*cursor..*cursor + 16)?.try_into().ok()?);
             *cursor += 16;
             Some(DestinationKey::Gateway(gateway))
-        },
-        | 2 => {
+        }
+        2 => {
             *cursor += 1;
-            let len =
-                u16::from_le_bytes(bytes.get(*cursor..*cursor + 2)?.try_into().ok()?);
+            let len = u16::from_le_bytes(bytes.get(*cursor..*cursor + 2)?.try_into().ok()?);
             *cursor += 2;
             let len = usize::from(len);
             let service = bytes.get(*cursor..*cursor + len)?.to_vec();
             *cursor += len;
             Some(DestinationKey::Service(service))
-        },
-        | _ => None,
+        }
+        _ => None,
     }
 }
 
 fn regime_code(regime: OperatingRegime) -> u8 {
     match regime {
-        | OperatingRegime::Sparse => 0,
-        | OperatingRegime::Congested => 1,
-        | OperatingRegime::RetentionFavorable => 2,
-        | OperatingRegime::Unstable => 3,
-        | OperatingRegime::Adversarial => 4,
+        OperatingRegime::Sparse => 0,
+        OperatingRegime::Congested => 1,
+        OperatingRegime::RetentionFavorable => 2,
+        OperatingRegime::Unstable => 3,
+        OperatingRegime::Adversarial => 4,
     }
 }
 
 fn regime_from_code(code: u8) -> Option<OperatingRegime> {
     Some(match code {
-        | 0 => OperatingRegime::Sparse,
-        | 1 => OperatingRegime::Congested,
-        | 2 => OperatingRegime::RetentionFavorable,
-        | 3 => OperatingRegime::Unstable,
-        | 4 => OperatingRegime::Adversarial,
-        | _ => return None,
+        0 => OperatingRegime::Sparse,
+        1 => OperatingRegime::Congested,
+        2 => OperatingRegime::RetentionFavorable,
+        3 => OperatingRegime::Unstable,
+        4 => OperatingRegime::Adversarial,
+        _ => return None,
     })
 }
 
 fn posture_code(posture: RoutingPosture) -> u8 {
     match posture {
-        | RoutingPosture::Opportunistic => 0,
-        | RoutingPosture::Structured => 1,
-        | RoutingPosture::RetentionBiased => 2,
-        | RoutingPosture::RiskSuppressed => 3,
+        RoutingPosture::Opportunistic => 0,
+        RoutingPosture::Structured => 1,
+        RoutingPosture::RetentionBiased => 2,
+        RoutingPosture::RiskSuppressed => 3,
     }
 }
 
 fn posture_from_code(code: u8) -> Option<RoutingPosture> {
     Some(match code {
-        | 0 => RoutingPosture::Opportunistic,
-        | 1 => RoutingPosture::Structured,
-        | 2 => RoutingPosture::RetentionBiased,
-        | 3 => RoutingPosture::RiskSuppressed,
-        | _ => return None,
+        0 => RoutingPosture::Opportunistic,
+        1 => RoutingPosture::Structured,
+        2 => RoutingPosture::RetentionBiased,
+        3 => RoutingPosture::RiskSuppressed,
+        _ => return None,
     })
 }
 

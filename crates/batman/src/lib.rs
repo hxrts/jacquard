@@ -25,13 +25,12 @@ use std::collections::BTreeMap;
 
 use gossip::LearnedAdvertisement;
 use jacquard_core::{
-    Configuration, ConnectivityPosture, NodeId, Observation, RouteId,
-    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteShapeVisibility,
-    RoutingEngineCapabilities, RoutingEngineId,
+    Configuration, ConnectivityPosture, NodeId, Observation, RouteId, RoutePartitionClass,
+    RouteProtectionClass, RouteRepairClass, RouteShapeVisibility, RoutingEngineCapabilities,
+    RoutingEngineId,
 };
 use public_state::{
-    ActiveBatmanRoute, BestNextHop, DecayWindow, NeighborRanking,
-    OriginatorObservationTable,
+    ActiveBatmanRoute, BestNextHop, DecayWindow, NeighborRanking, OriginatorObservationTable,
 };
 
 pub const BATMAN_ENGINE_ID: RoutingEngineId =
@@ -68,12 +67,7 @@ pub struct BatmanEngine<Transport, Effects> {
 impl<Transport, Effects> BatmanEngine<Transport, Effects> {
     #[must_use]
     pub fn new(local_node_id: NodeId, transport: Transport, effects: Effects) -> Self {
-        Self::with_decay_window(
-            local_node_id,
-            transport,
-            effects,
-            DecayWindow::default(),
-        )
+        Self::with_decay_window(local_node_id, transport, effects, DecayWindow::default())
     }
 
     #[must_use]

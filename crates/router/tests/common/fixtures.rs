@@ -23,11 +23,10 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, Environment,
-    FactSourceClass, HealthScore, IdentityAssuranceClass, NodeId, Observation,
-    OriginAuthenticationClass, PriorityPoints, RatioPermille, RouteProtectionClass,
-    RouteRepairClass, RouteReplacementPolicy, RouteServiceKind,
-    RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
+    ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, Environment, FactSourceClass,
+    HealthScore, IdentityAssuranceClass, NodeId, Observation, OriginAuthenticationClass,
+    PriorityPoints, RatioPermille, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+    RouteServiceKind, RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
     RoutingPolicyInputs, SelectedRoutingParameters, Tick,
 };
 use jacquard_reference_client::topology;

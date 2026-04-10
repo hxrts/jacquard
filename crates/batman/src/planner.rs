@@ -49,11 +49,7 @@ where
         let DestinationId::Node(destination) = objective.destination else {
             return Vec::new();
         };
-        if !destination_supports_objective(
-            topology,
-            destination,
-            objective.service_kind,
-        ) {
+        if !destination_supports_objective(topology, destination, objective.service_kind) {
             return Vec::new();
         }
         self.best_next_hops
@@ -83,11 +79,7 @@ where
         let DestinationId::Node(destination) = objective.destination else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
-        if !destination_supports_objective(
-            topology,
-            destination,
-            objective.service_kind,
-        ) {
+        if !destination_supports_objective(topology, destination, objective.service_kind) {
             return Err(RouteSelectionError::Inadmissible(
                 RouteAdmissionRejection::BackendUnavailable,
             )
@@ -132,12 +124,11 @@ mod tests {
 
     use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{
-        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
-        DurationMs, Environment, FactSourceClass, LinkEndpoint, NodeId, Observation,
-        OriginAuthenticationClass, RatioPermille, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteServiceKind, RoutingEngineId,
-        RoutingEvidenceClass, RoutingObjective, RoutingTickContext,
-        SelectedRoutingParameters, Tick, TransportKind,
+        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
+        Environment, FactSourceClass, LinkEndpoint, NodeId, Observation, OriginAuthenticationClass,
+        RatioPermille, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+        RouteServiceKind, RoutingEngineId, RoutingEvidenceClass, RoutingObjective,
+        RoutingTickContext, SelectedRoutingParameters, Tick, TransportKind,
     };
     use jacquard_mem_link_profile::{
         InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions,
@@ -181,8 +172,7 @@ mod tests {
             },
             deployment_profile: jacquard_core::OperatingMode::SparseLowPower,
             diversity_floor: jacquard_core::DiversityFloor(1),
-            routing_engine_fallback_policy:
-                jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
             route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
         }
     }
@@ -219,8 +209,7 @@ mod tests {
                 ]),
                 links: BTreeMap::from([(
                     (node(1), node(2)),
-                    LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1)))
-                        .build(),
+                    LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1))).build(),
                 )]),
                 environment: Environment {
                     reachable_neighbor_count: 1,
@@ -255,17 +244,17 @@ mod tests {
         let mut engine = BatmanEngine::new(
             node(1),
             InMemoryTransport::new(),
-            InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
         );
         engine
             .engine_tick(&RoutingTickContext::new(unsupported.clone()))
             .expect("populate table");
 
-        let candidates = engine.candidate_routes(
-            &sample_objective(node(2)),
-            &sample_profile(),
-            &unsupported,
-        );
+        let candidates =
+            engine.candidate_routes(&sample_objective(node(2)), &sample_profile(), &unsupported);
 
         assert!(candidates.is_empty());
     }

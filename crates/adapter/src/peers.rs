@@ -77,9 +77,7 @@ where
             }
         }
 
-        if let Some(PeerIdentityState::Resolved(previous_node_id)) =
-            self.by_addr.get(&addr)
-        {
+        if let Some(PeerIdentityState::Resolved(previous_node_id)) = self.by_addr.get(&addr) {
             if *previous_node_id != node_id {
                 self.resolved_by_node.remove(previous_node_id);
             }

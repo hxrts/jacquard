@@ -25,8 +25,8 @@ mod common;
 
 use common::{build_router, objective, FAR_NODE_ID};
 use jacquard_core::{
-    DestinationId, RouteMaintenanceTrigger, RouterCanonicalMutation,
-    RoutingEvidenceClass, RoutingTickHint, Tick,
+    DestinationId, RouteMaintenanceTrigger, RouterCanonicalMutation, RoutingEvidenceClass,
+    RoutingTickHint, Tick,
 };
 use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane};
 
@@ -34,11 +34,8 @@ use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane};
 fn activate_route_publishes_router_owned_materialized_route() {
     let mut router = build_router(Tick(2));
 
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("router activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("router activation");
 
     let stored = router
         .active_route(&route.identity.stamp.route_id)
@@ -53,11 +50,8 @@ fn activate_route_publishes_router_owned_materialized_route() {
 #[test]
 fn route_commitments_use_router_published_route_identity() {
     let mut router = build_router(Tick(2));
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("router activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("router activation");
 
     let commitments = router
         .route_commitments(&route.identity.stamp.route_id)
@@ -71,11 +65,8 @@ fn route_commitments_use_router_published_route_identity() {
 #[test]
 fn reselect_route_replaces_router_published_route() {
     let mut router = build_router(Tick(2));
-    let first = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("first activation");
+    let first = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("first activation");
 
     let replacement = router
         .reselect_route(
@@ -96,11 +87,8 @@ fn reselect_route_replaces_router_published_route() {
 #[test]
 fn maintain_route_dispatches_to_engine_via_control_plane() {
     let mut router = build_router(Tick(2));
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation");
 
     let result = router
         .maintain_route(
@@ -147,11 +135,8 @@ fn advance_round_drives_engine_tick_without_exposing_private_state() {
 #[test]
 fn advance_round_drives_pathway_cooperative_choreographies_through_router_cadence() {
     let mut router = build_router(Tick(2));
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation");
     let _ = router
         .maintain_route(
             &route.identity.stamp.route_id,
@@ -181,11 +166,8 @@ fn advance_round_drives_pathway_cooperative_choreographies_through_router_cadenc
 #[test]
 fn observe_route_health_reports_router_owned_observation() {
     let mut router = build_router(Tick(2));
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation");
 
     let observed = router
         .observe_route_health(&route.identity.stamp.route_id)

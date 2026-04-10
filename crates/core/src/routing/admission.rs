@@ -20,9 +20,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    BackendRouteId, Belief, ConnectivityPosture, Estimate, Limit, RouteCost,
-    RouteEpoch, RouteEstimate, RouteId, RouteProtectionClass, RoutingEngineId,
-    RoutingObjective, SelectedRoutingParameters, TimeWindow, TransportKind,
+    BackendRouteId, Belief, ConnectivityPosture, Estimate, Limit, RouteCost, RouteEpoch,
+    RouteEstimate, RouteId, RouteProtectionClass, RoutingEngineId, RoutingObjective,
+    SelectedRoutingParameters, TimeWindow, TransportKind,
 };
 
 /// Generates a binary capability enum with `Unsupported` / `Supported`
@@ -31,9 +31,7 @@ use crate::{
 macro_rules! capability_enum {
     ($name:ident) => {
         #[public_model]
-        #[derive(
-            Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-        )]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
         pub enum $name {
             Unsupported,
             Supported,
@@ -66,9 +64,7 @@ capability_enum!(HoldSupport);
 capability_enum!(DecidableSupport);
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum QuantitativeBoundSupport {
     Unsupported,
     ProductiveOnly,
@@ -76,9 +72,7 @@ pub enum QuantitativeBoundSupport {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ReconfigurationSupport {
     ReplaceOnly,
     LinkAndDelegate,
@@ -86,9 +80,7 @@ pub enum ReconfigurationSupport {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteShapeVisibility {
     ExplicitPath,
     CorridorEnvelope,
@@ -112,9 +104,7 @@ pub struct AdmissionAssumptions {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum MessageFlowAssumptionClass {
     BestEffort,
     PerRouteSequenced,
@@ -122,9 +112,7 @@ pub enum MessageFlowAssumptionClass {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum FailureModelClass {
     Benign,
     CrashStop,
@@ -132,18 +120,14 @@ pub enum FailureModelClass {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RuntimeEnvelopeClass {
     Canonical,
     EnvelopeAdmitted,
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum NodeDensityClass {
     Sparse,
     Moderate,
@@ -151,9 +135,7 @@ pub enum NodeDensityClass {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ConnectivityRegime {
     Stable,
     HighChurn,
@@ -161,9 +143,7 @@ pub enum ConnectivityRegime {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum AdversaryRegime {
     Cooperative,
     BenignUntrusted,
@@ -171,9 +151,7 @@ pub enum AdversaryRegime {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ClaimStrength {
     ExactUnderAssumptions,
     ConservativeUnderProfile,
@@ -219,18 +197,14 @@ pub struct RouteAdmissionCheck {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum AdmissionDecision {
     Admissible,
     Rejected(RouteAdmissionRejection),
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error, Serialize, Deserialize)]
 pub enum RouteAdmissionRejection {
     #[error("protection floor unsatisfied")]
     ProtectionFloorUnsatisfied,
@@ -288,18 +262,14 @@ pub struct RouteWitness {
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteDegradation {
     None,
     Degraded(DegradationReason),
 }
 
 #[public_model]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum DegradationReason {
     SparseTopology,
     LinkInstability,
@@ -350,12 +320,8 @@ mod tests {
 
     #[test]
     fn route_shape_visibility_orders_by_specificity() {
-        assert!(
-            RouteShapeVisibility::ExplicitPath < RouteShapeVisibility::CorridorEnvelope
-        );
-        assert!(
-            RouteShapeVisibility::CorridorEnvelope < RouteShapeVisibility::NextHopOnly
-        );
+        assert!(RouteShapeVisibility::ExplicitPath < RouteShapeVisibility::CorridorEnvelope);
+        assert!(RouteShapeVisibility::CorridorEnvelope < RouteShapeVisibility::NextHopOnly);
         assert!(RouteShapeVisibility::NextHopOnly < RouteShapeVisibility::Opaque);
     }
 

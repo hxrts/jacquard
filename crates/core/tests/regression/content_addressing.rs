@@ -1,6 +1,4 @@
-use jacquard_core::{
-    Blake3Digest, ContentEncodingError, ContentId, RouteCommitmentId, RouteId,
-};
+use jacquard_core::{Blake3Digest, ContentEncodingError, ContentId, RouteCommitmentId, RouteId};
 use jacquard_traits::{
     Blake3Hashing, ContentAddressable, HashDigestBytes, Hashing, TemplateAddressable,
 };

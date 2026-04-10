@@ -9,13 +9,12 @@ use std::collections::BTreeMap;
 
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_traits::jacquard_core::{
-    Belief, ByteCount, Configuration, ControllerId, DiscoveryScopeId, DurationMs,
-    EndpointLocator, Environment, Estimate, FactSourceClass, HoldItemCount,
-    InformationSetSummary, InformationSummaryEncoding, Link, LinkEndpoint,
-    LinkRuntimeState, LinkState, MaintenanceWorkBudget, Node, NodeId, NodeProfile,
-    NodeRelayBudget, NodeState, Observation, OriginAuthenticationClass, RatioPermille,
-    RelayWorkBudget, RepairCapacitySlots, RouteEpoch, RouteServiceKind,
-    RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
+    Belief, ByteCount, Configuration, ControllerId, DiscoveryScopeId, DurationMs, EndpointLocator,
+    Environment, Estimate, FactSourceClass, HoldItemCount, InformationSetSummary,
+    InformationSummaryEncoding, Link, LinkEndpoint, LinkRuntimeState, LinkState,
+    MaintenanceWorkBudget, Node, NodeId, NodeProfile, NodeRelayBudget, NodeState, Observation,
+    OriginAuthenticationClass, RatioPermille, RelayWorkBudget, RepairCapacitySlots, RouteEpoch,
+    RouteServiceKind, RoutingEvidenceClass, ServiceDescriptor, ServiceScope, Tick, TimeWindow,
     TransportKind,
 };
 
@@ -32,35 +31,39 @@ pub fn route_capable_services(
     controller_id: ControllerId,
 ) -> Vec<ServiceDescriptor> {
     let valid_for = TimeWindow::new(Tick(1), Tick(20)).expect("valid service window");
-    [RouteServiceKind::Discover, RouteServiceKind::Move, RouteServiceKind::Hold]
-        .into_iter()
-        .map(|service_kind| ServiceDescriptor {
-            provider_node_id: node_id,
-            controller_id,
-            service_kind,
-            endpoints: vec![endpoint(node_id.0[0])],
-            routing_engines: vec![PATHWAY_ENGINE_ID],
-            scope: ServiceScope::Discovery(DiscoveryScopeId([7; 16])),
-            valid_for,
-            capacity: Belief::Estimated(Estimate {
-                value: jacquard_traits::jacquard_core::CapacityHint {
-                    saturation_permille: RatioPermille(100),
-                    repair_capacity_slots: Belief::Estimated(Estimate {
-                        value: RepairCapacitySlots(4),
-                        confidence_permille: RatioPermille(1000),
-                        updated_at_tick: Tick(1),
-                    }),
-                    hold_capacity_bytes: Belief::Estimated(Estimate {
-                        value: ByteCount(4096),
-                        confidence_permille: RatioPermille(1000),
-                        updated_at_tick: Tick(1),
-                    }),
-                },
-                confidence_permille: RatioPermille(1000),
-                updated_at_tick: Tick(1),
-            }),
-        })
-        .collect()
+    [
+        RouteServiceKind::Discover,
+        RouteServiceKind::Move,
+        RouteServiceKind::Hold,
+    ]
+    .into_iter()
+    .map(|service_kind| ServiceDescriptor {
+        provider_node_id: node_id,
+        controller_id,
+        service_kind,
+        endpoints: vec![endpoint(node_id.0[0])],
+        routing_engines: vec![PATHWAY_ENGINE_ID],
+        scope: ServiceScope::Discovery(DiscoveryScopeId([7; 16])),
+        valid_for,
+        capacity: Belief::Estimated(Estimate {
+            value: jacquard_traits::jacquard_core::CapacityHint {
+                saturation_permille: RatioPermille(100),
+                repair_capacity_slots: Belief::Estimated(Estimate {
+                    value: RepairCapacitySlots(4),
+                    confidence_permille: RatioPermille(1000),
+                    updated_at_tick: Tick(1),
+                }),
+                hold_capacity_bytes: Belief::Estimated(Estimate {
+                    value: ByteCount(4096),
+                    confidence_permille: RatioPermille(1000),
+                    updated_at_tick: Tick(1),
+                }),
+            },
+            confidence_permille: RatioPermille(1000),
+            updated_at_tick: Tick(1),
+        }),
+    })
+    .collect()
 }
 
 // long-block-exception: canonical route-capable node fixture.

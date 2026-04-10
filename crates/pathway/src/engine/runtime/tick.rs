@@ -8,18 +8,17 @@
 
 use jacquard_core::{
     MaterializedRoute, PublishedRouteRecord, RouteBinding, RouteCommitment,
-    RouteCommitmentResolution, RouteError, RouteInvalidationReason,
-    RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
-    RouteMaintenanceResult, RouteOperationId, RouteProgressState, RoutingTickChange,
-    RoutingTickContext, RoutingTickHint, RoutingTickOutcome, Tick, TimeoutPolicy,
+    RouteCommitmentResolution, RouteError, RouteInvalidationReason, RouteLifecycleEvent,
+    RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult, RouteOperationId,
+    RouteProgressState, RoutingTickChange, RoutingTickContext, RoutingTickHint, RoutingTickOutcome,
+    Tick, TimeoutPolicy,
 };
 
 use super::{
     super::{
         support::topology_epoch_storage_key, ActivePathwayRoute, PathwayRouteClass,
-        StorageResultExt, PATHWAY_COMMITMENT_ATTEMPT_COUNT_MAX,
-        PATHWAY_COMMITMENT_BACKOFF_MS_MAX, PATHWAY_COMMITMENT_INITIAL_BACKOFF_MS,
-        PATHWAY_COMMITMENT_OVERALL_TIMEOUT_MS,
+        StorageResultExt, PATHWAY_COMMITMENT_ATTEMPT_COUNT_MAX, PATHWAY_COMMITMENT_BACKOFF_MS_MAX,
+        PATHWAY_COMMITMENT_INITIAL_BACKOFF_MS, PATHWAY_COMMITMENT_OVERALL_TIMEOUT_MS,
     },
     PathwayEffectsBounds, PathwayEngine, PathwayHasherBounds, PathwaySelectorBounds,
     PathwayTransportBounds,
@@ -54,9 +53,7 @@ where
         next_runtime.progress.state = RouteProgressState::Failed;
         let result = RouteMaintenanceResult {
             event: RouteLifecycleEvent::Expired,
-            outcome: RouteMaintenanceOutcome::Failed(
-                RouteMaintenanceFailure::LeaseExpired,
-            ),
+            outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LeaseExpired),
         };
         *runtime = next_runtime;
         Ok(result)
@@ -69,9 +66,7 @@ where
         let resolution = if route.identity.lease.is_valid_at(self.effects.now_tick()) {
             RouteCommitmentResolution::Pending
         } else {
-            RouteCommitmentResolution::Invalidated(
-                RouteInvalidationReason::LeaseExpired,
-            )
+            RouteCommitmentResolution::Invalidated(RouteInvalidationReason::LeaseExpired)
         };
         vec![RouteCommitment {
             commitment_id: self.commitment_id_for_route(&route.identity.stamp.route_id),
@@ -88,9 +83,7 @@ where
                     PATHWAY_COMMITMENT_INITIAL_BACKOFF_MS,
                 ),
                 backoff_multiplier_permille: jacquard_core::RatioPermille(1000),
-                backoff_ms_max: jacquard_core::DurationMs(
-                    PATHWAY_COMMITMENT_BACKOFF_MS_MAX,
-                ),
+                backoff_ms_max: jacquard_core::DurationMs(PATHWAY_COMMITMENT_BACKOFF_MS_MAX),
                 overall_timeout_ms: jacquard_core::DurationMs(
                     PATHWAY_COMMITMENT_OVERALL_TIMEOUT_MS,
                 ),
@@ -104,8 +97,7 @@ where
         tick: &RoutingTickContext,
     ) -> Result<RoutingTickOutcome, RouteError> {
         let topology = &tick.topology;
-        let prior_topology_epoch =
-            self.latest_topology.as_ref().map(|seen| seen.value.epoch);
+        let prior_topology_epoch = self.latest_topology.as_ref().map(|seen| seen.value.epoch);
         let prior_transport_summary = self.last_transport_summary.clone();
         let prior_control_state = self.control_state.clone();
         let prior_checkpointed_epoch = self.last_checkpointed_topology_epoch;
@@ -121,9 +113,8 @@ where
             Self::summarize_transport_observations(&observations),
             topology.observed_at_tick,
         );
-        self.control_state = Some(
-            self.next_control_state(topology, self.last_transport_summary.as_ref()),
-        );
+        self.control_state =
+            Some(self.next_control_state(topology, self.last_transport_summary.as_ref()));
         self.emit_cooperative_tick_protocols(topology)?;
         let change = self.tick_change(
             topology.value.epoch,
@@ -138,15 +129,14 @@ where
             change,
             next_tick_hint: RoutingTickHint::WithinTicks(Tick(1)),
         };
-        self.last_round_progress =
-            Some(crate::PathwayRoundProgress::from_tick_outcome(
-                tick_outcome.clone(),
-                observations.len(),
-                dropped_transport_observation_count,
-                self.pending_transport_ingress.len(),
-                self.last_transport_summary.clone(),
-                self.control_state.clone(),
-            ));
+        self.last_round_progress = Some(crate::PathwayRoundProgress::from_tick_outcome(
+            tick_outcome.clone(),
+            observations.len(),
+            dropped_transport_observation_count,
+            self.pending_transport_ingress.len(),
+            self.last_transport_summary.clone(),
+            self.control_state.clone(),
+        ));
         Ok(tick_outcome)
     }
 
@@ -216,9 +206,7 @@ where
         let route_exports = self
             .active_routes
             .iter()
-            .map(|(route_id, active_route)| {
-                (*route_id, self.route_export_snapshot(active_route))
-            })
+            .map(|(route_id, active_route)| (*route_id, self.route_export_snapshot(active_route)))
             .collect::<Vec<_>>();
         let anti_entropy_snapshots = self
             .active_routes
@@ -286,14 +274,13 @@ where
     ) -> PathwayRouteExportSnapshot {
         PathwayRouteExportSnapshot {
             route_class: match active_route.path.route_class {
-                | PathwayRouteClass::Direct => "direct",
-                | PathwayRouteClass::MultiHop => "multi-hop",
-                | PathwayRouteClass::Gateway => "gateway",
-                | PathwayRouteClass::DeferredDelivery => "deferred-delivery",
+                PathwayRouteClass::Direct => "direct",
+                PathwayRouteClass::MultiHop => "multi-hop",
+                PathwayRouteClass::Gateway => "gateway",
+                PathwayRouteClass::DeferredDelivery => "deferred-delivery",
             }
             .to_owned(),
-            hop_count: u32::try_from(active_route.path.segments.len())
-                .unwrap_or(u32::MAX),
+            hop_count: u32::try_from(active_route.path.segments.len()).unwrap_or(u32::MAX),
             partition_mode: active_route.is_in_partition_mode(),
         }
     }
@@ -309,12 +296,8 @@ where
                 state.anti_entropy.pressure_score
             });
         let retained_count =
-            u32::try_from(active_route.anti_entropy.retained_objects.len())
-                .unwrap_or(u32::MAX);
-        if !active_route.is_in_partition_mode()
-            && retained_count == 0
-            && pressure_score.0 == 0
-        {
+            u32::try_from(active_route.anti_entropy.retained_objects.len()).unwrap_or(u32::MAX);
+        if !active_route.is_in_partition_mode() && retained_count == 0 && pressure_score.0 == 0 {
             return None;
         }
         Some(PathwayAntiEntropySnapshot {

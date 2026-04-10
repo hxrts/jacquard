@@ -22,8 +22,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Belief, ByteCount, ControllerId, DurationMs, HoldItemCount, InformationSetSummary,
     LinkEndpoint, LinkRuntimeState, MaintenanceWorkBudget, NodeId, NodeRelayBudget,
-    PartitionRecoveryClass, RatioPermille, RelayWorkBudget, RepairCapability,
-    RouteEpoch, ServiceDescriptor,
+    PartitionRecoveryClass, RatioPermille, RelayWorkBudget, RepairCapability, RouteEpoch,
+    ServiceDescriptor,
 };
 
 #[public_model]

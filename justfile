@@ -1,10 +1,11 @@
 default: book
     @just --list
 
+toolkit_shell_cmd := "./scripts/toolkit-shell.sh"
 toolkit_cmd := "./scripts/toolkit-shell.sh toolkit-xtask"
 toolkit_dylint := "./scripts/toolkit-shell.sh toolkit-dylint --repo-root ."
 install_dylint_cmd := "./scripts/toolkit-shell.sh toolkit-install-dylint"
-policy_cmd := "cargo run --manifest-path policy/xtask/Cargo.toml --"
+policy_cmd := "cargo xtask"
 fmt_cmd := "./scripts/toolkit-shell.sh toolkit-fmt"
 
 # check workspace compiles
@@ -219,7 +220,11 @@ ci-dry-run:
 ci-preflight:
     ./scripts/preflight.sh
 
-# validate docs link integrity
+# validate external docs links
+docs-links:
+    npx --yes markdown-link-check -q -c .github/config/markdown-link-check.json docs
+
+# validate internal docs link integrity
 docs-link-check:
     {{toolkit_cmd}} check docs-link-check --repo-root . --config policy/toolkit.toml
 
@@ -247,9 +252,12 @@ rust-style-guide:
 routing-invariants-validate:
     {{policy_cmd}} check routing-invariants --validate
 
-# enter nightly shell for dylint and rustc_private lints (run install-dylint once inside)
-nightly-shell:
-    ./scripts/toolkit-shell.sh bash -lc 'exec "${SHELL:-bash}" -l'
+# enter the pinned toolkit shell for nightly formatter and dylint commands
+toolkit-shell:
+    {{toolkit_shell_cmd}} bash -lc 'exec "${SHELL:-bash}" -l'
+
+# backwards-compatible alias for the toolkit shell
+nightly-shell: toolkit-shell
 
 install-dylint:
     {{install_dylint_cmd}}

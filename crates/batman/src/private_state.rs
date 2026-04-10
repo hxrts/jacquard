@@ -25,14 +25,12 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId,
-    BackendRouteRef, Belief, ByteCount, Configuration, ConnectivityRegime,
-    FailureModelClass, Limit, LinkEndpoint, LinkRuntimeState,
-    MessageFlowAssumptionClass, NodeDensityClass, NodeId, ObjectiveVsDelivered,
-    Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost,
-    RouteDegradation, RouteError, RouteEstimate, RouteId, RouteSelectionError,
-    RouteSummary, RouteWitness, RoutingTickChange, RuntimeEnvelopeClass,
-    SelectedRoutingParameters, Tick, TimeWindow,
+    AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId, BackendRouteRef,
+    Belief, ByteCount, Configuration, ConnectivityRegime, FailureModelClass, Limit, LinkEndpoint,
+    LinkRuntimeState, MessageFlowAssumptionClass, NodeDensityClass, NodeId, ObjectiveVsDelivered,
+    Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost, RouteDegradation,
+    RouteError, RouteEstimate, RouteId, RouteSelectionError, RouteSummary, RouteWitness,
+    RoutingTickChange, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick, TimeWindow,
 };
 
 use crate::{
@@ -148,9 +146,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
             .filter(|originator| *originator != self.local_node_id)
             .filter_map(|originator| {
                 let mut per_neighbor = BTreeMap::new();
-                for (neighbor, local_tq, local_degradation, local_protocol) in
-                    &direct_neighbors
-                {
+                for (neighbor, local_tq, local_degradation, local_protocol) in &direct_neighbors {
                     let Some((remote_tq, remote_hops)) =
                         self.best_path_from(*neighbor, originator, topology)
                     else {
@@ -215,8 +211,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
         }
 
         let node_count = topology.value.nodes.len();
-        let mut best =
-            BTreeMap::from([(start, (jacquard_core::RatioPermille(1000), 0_u8))]);
+        let mut best = BTreeMap::from([(start, (jacquard_core::RatioPermille(1000), 0_u8))]);
         for _ in 0..node_count.saturating_sub(1) {
             let mut changed = false;
             for ((from, to), link) in &topology.value.links {
@@ -378,22 +373,20 @@ pub(crate) fn better_path(
     candidate_hops: u8,
 ) -> bool {
     match current {
-        | None => true,
-        | Some((current_tq, current_hops)) => {
+        None => true,
+        Some((current_tq, current_hops)) => {
             candidate_tq > current_tq
                 || (candidate_tq == current_tq && candidate_hops < current_hops)
-        },
+        }
     }
 }
 
-pub(crate) fn max_degradation(
-    left: RouteDegradation,
-    right: RouteDegradation,
-) -> RouteDegradation {
+pub(crate) fn max_degradation(left: RouteDegradation, right: RouteDegradation) -> RouteDegradation {
     match (left, right) {
-        | (RouteDegradation::Degraded(reason), _)
-        | (_, RouteDegradation::Degraded(reason)) => RouteDegradation::Degraded(reason),
-        | (RouteDegradation::None, RouteDegradation::None) => RouteDegradation::None,
+        (RouteDegradation::Degraded(reason), _) | (_, RouteDegradation::Degraded(reason)) => {
+            RouteDegradation::Degraded(reason)
+        }
+        (RouteDegradation::None, RouteDegradation::None) => RouteDegradation::None,
     }
 }
 
@@ -401,9 +394,9 @@ pub(crate) fn max_degradation(
 #[allow(clippy::wildcard_imports)]
 mod tests {
     use jacquard_core::{
-        ControllerId, DurationMs, EndpointLocator, Environment, Link, LinkProfile,
-        LinkState, Node, NodeProfile, NodeState, RatioPermille, RepairCapability,
-        RouteEpoch, RoutingTickContext, RoutingTickHint, Tick, TransportKind,
+        ControllerId, DurationMs, EndpointLocator, Environment, Link, LinkProfile, LinkState, Node,
+        NodeProfile, NodeState, RatioPermille, RepairCapability, RouteEpoch, RoutingTickContext,
+        RoutingTickHint, Tick, TransportKind,
     };
     use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
     use jacquard_traits::RoutingEngine;
@@ -453,8 +446,7 @@ mod tests {
             profile: LinkProfile {
                 latency_floor_ms: DurationMs(5),
                 repair_capability: RepairCapability::TransportRetransmit,
-                partition_recovery:
-                    jacquard_core::PartitionRecoveryClass::LocalReconnect,
+                partition_recovery: jacquard_core::PartitionRecoveryClass::LocalReconnect,
             },
             state: LinkState {
                 state: LinkRuntimeState::Active,
@@ -462,10 +454,7 @@ mod tests {
                 transfer_rate_bytes_per_sec: Belief::certain(128_000, Tick(1)),
                 stability_horizon_ms: Belief::certain(DurationMs(4_000), Tick(1)),
                 loss_permille: RatioPermille(loss),
-                delivery_confidence_permille: Belief::certain(
-                    RatioPermille(delivery),
-                    Tick(1),
-                ),
+                delivery_confidence_permille: Belief::certain(RatioPermille(delivery), Tick(1)),
                 symmetry_permille: Belief::certain(RatioPermille(symmetry), Tick(1)),
             },
         }
@@ -505,7 +494,10 @@ mod tests {
         let mut engine = BatmanEngine::new(
             node(1),
             InMemoryTransport::new(),
-            InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
         );
         let topology = sample_topology();
 
@@ -522,7 +514,10 @@ mod tests {
         let mut engine = BatmanEngine::with_decay_window(
             node(1),
             InMemoryTransport::new(),
-            InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
             DecayWindow {
                 stale_after_ticks: 1,
                 next_refresh_within_ticks: 2,
@@ -551,7 +546,10 @@ mod tests {
         let mut engine = BatmanEngine::new(
             node(1),
             InMemoryTransport::new(),
-            InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
         );
         let topology = sample_topology();
 

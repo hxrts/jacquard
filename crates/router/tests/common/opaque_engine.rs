@@ -9,19 +9,17 @@
 //! It does not get a path, corridor, or next-hop disclosure.
 
 use jacquard_core::{
-    AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId,
-    BackendRouteRef, Belief, ByteCount, ClaimStrength, Configuration,
-    ConnectivityPosture, ConnectivityRegime, Fact, FactBasis, FailureModelClass,
-    HealthScore, Limit, MessageFlowAssumptionClass, NodeDensityClass, Observation,
-    RatioPermille, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost,
-    RouteDegradation, RouteEstimate, RouteHealth, RouteId, RouteInstallation,
-    RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
-    RoutePartitionClass, RouteProgressContract, RouteProgressState,
-    RouteProtectionClass, RouteShapeVisibility, RouteSummary, RouteWitness,
-    RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, RoutingTickChange,
-    RoutingTickContext, RoutingTickHint, RoutingTickOutcome, RuntimeEnvelopeClass,
-    SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
+    AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId, BackendRouteRef,
+    Belief, ByteCount, ClaimStrength, Configuration, ConnectivityPosture, ConnectivityRegime, Fact,
+    FactBasis, FailureModelClass, HealthScore, Limit, MessageFlowAssumptionClass, NodeDensityClass,
+    Observation, RatioPermille, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost,
+    RouteDegradation, RouteEstimate, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
+    RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
+    RouteMaterializationInput, RouteMaterializationProof, RoutePartitionClass,
+    RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteShapeVisibility,
+    RouteSummary, RouteWitness, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective,
+    RoutingTickChange, RoutingTickContext, RoutingTickHint, RoutingTickOutcome,
+    RuntimeEnvelopeClass, SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
 };
 use jacquard_traits::{RouterManagedEngine, RoutingEngine, RoutingEnginePlanner};
 
@@ -37,7 +35,11 @@ impl OpaqueSummaryTestEngine {
         engine_id: RoutingEngineId,
         now: Tick,
     ) -> Self {
-        Self { local_node_id, engine_id, now }
+        Self {
+            local_node_id,
+            engine_id,
+            now,
+        }
     }
 
     fn route_id(&self) -> RouteId {
@@ -76,8 +78,7 @@ impl RoutingEnginePlanner for OpaqueSummaryTestEngine {
             repair_support: jacquard_core::RepairSupport::Unsupported,
             hold_support: jacquard_core::HoldSupport::Unsupported,
             decidable_admission: jacquard_core::DecidableSupport::Supported,
-            quantitative_bounds:
-                jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
+            quantitative_bounds: jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support: jacquard_core::ReconfigurationSupport::ReplaceOnly,
             route_shape_visibility: RouteShapeVisibility::Opaque,
         }

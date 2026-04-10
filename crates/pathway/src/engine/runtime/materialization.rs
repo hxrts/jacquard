@@ -15,8 +15,8 @@ use jacquard_core::{
 use super::{
     super::{
         support::{
-            decode_backend_token, deterministic_order_key, encode_path_bytes,
-            limit_u32, node_path_from_plan_token,
+            decode_backend_token, deterministic_order_key, encode_path_bytes, limit_u32,
+            node_path_from_plan_token,
         },
         types::PathwayCommitteeStatus,
         ActivePathwayRoute, PATHWAY_ACTIVE_ROUTE_COUNT_MAX,
@@ -24,9 +24,7 @@ use super::{
     PathwayEffectsBounds, PathwayEngine, PathwayHasherBounds, PathwaySelectorBounds,
     PathwayTransportBounds,
 };
-use crate::{
-    choreography, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
-};
+use crate::{choreography, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess};
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -71,10 +69,7 @@ where
             last_lifecycle_event: RouteLifecycleEvent::Activated,
             health: self.current_route_health(None, now),
             progress: RouteProgressContract {
-                productive_step_count_max: input
-                    .admission
-                    .admission_check
-                    .productive_step_bound,
+                productive_step_count_max: input.admission.admission_check.productive_step_bound,
                 total_step_count_max: input.admission.admission_check.total_step_bound,
                 last_progress_at_tick: now,
                 state: RouteProgressState::Satisfied,
@@ -103,9 +98,7 @@ where
                 last_ack_at_tick: None,
             },
             repair: super::super::PathwayRepairState {
-                steps_remaining: limit_u32(
-                    input.admission.admission_check.productive_step_bound,
-                ),
+                steps_remaining: limit_u32(input.admission.admission_check.productive_step_bound),
                 last_repaired_at_tick: None,
             },
             handoff: super::super::PathwayHandoffState::default(),
@@ -147,8 +140,7 @@ where
 
         let node_path = node_path_from_plan_token(&plan);
         let path_bytes = encode_path_bytes(&node_path, &plan.segments);
-        let ordering_key =
-            deterministic_order_key(derived_route_id, &self.hashing, &path_bytes);
+        let ordering_key = deterministic_order_key(derived_route_id, &self.hashing, &path_bytes);
         // Use the router-assigned canonical route_id for the path record.
         // The canonical identity lives in the handle stamp; derived_route_id
         // is the engine-internal content-addressed plan identifier.
@@ -162,14 +154,14 @@ where
             route_class: plan.route_class,
         };
         let committee = match plan.committee_status {
-            | PathwayCommitteeStatus::Selected(selection) => Some(selection),
-            | PathwayCommitteeStatus::NotApplicable => None,
+            PathwayCommitteeStatus::Selected(selection) => Some(selection),
+            PathwayCommitteeStatus::NotApplicable => None,
             // SelectorFailed in the plan token means admission should have
             // rejected this candidate. Reaching materialization here is an
             // upstream invariant violation; fail closed.
-            | PathwayCommitteeStatus::SelectorFailed => {
+            PathwayCommitteeStatus::SelectorFailed => {
                 return Err(RouteRuntimeError::Invalidated.into());
-            },
+            }
         };
         Ok((path, committee, ordering_key))
     }
@@ -221,8 +213,7 @@ where
         // when re-materialized.
         let previous_active_route = self.active_routes.get(&route_id).cloned();
         let is_replacement = previous_active_route.is_some();
-        if !is_replacement && self.active_routes.len() >= PATHWAY_ACTIVE_ROUTE_COUNT_MAX
-        {
+        if !is_replacement && self.active_routes.len() >= PATHWAY_ACTIVE_ROUTE_COUNT_MAX {
             return Err(RouteError::Policy(
                 jacquard_core::RoutePolicyError::BudgetExceeded,
             ));

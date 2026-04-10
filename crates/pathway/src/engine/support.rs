@@ -21,10 +21,10 @@ use std::{
 use bincode::Options;
 #[allow(unused_imports)]
 use jacquard_core::{
-    BackendRouteId, Belief, ByteCount, CommitteeSelection, Configuration,
-    DegradationReason, DestinationId, DeterministicOrderKey, DiversityFloor, Limit,
-    NodeId, OrderStamp, QuorumThreshold, RatioPermille, RouteCost, RouteDegradation,
-    RouteEpoch, RouteError, RouteId, RouteRuntimeError, TimeWindow,
+    BackendRouteId, Belief, ByteCount, CommitteeSelection, Configuration, DegradationReason,
+    DestinationId, DeterministicOrderKey, DiversityFloor, Limit, NodeId, OrderStamp,
+    QuorumThreshold, RatioPermille, RouteCost, RouteDegradation, RouteEpoch, RouteError, RouteId,
+    RouteRuntimeError, TimeWindow,
 };
 use jacquard_traits::{HashDigestBytes, Hashing};
 
@@ -37,8 +37,8 @@ pub(crate) trait StorageResultExt<T> {
 impl<T, E> StorageResultExt<T> for Result<T, E> {
     fn storage_invalid(self) -> Result<T, RouteError> {
         match self {
-            | Ok(value) => Ok(value),
-            | Err(_) => Err(RouteError::Runtime(RouteRuntimeError::Invalidated)),
+            Ok(value) => Ok(value),
+            Err(_) => Err(RouteError::Runtime(RouteRuntimeError::Invalidated)),
         }
     }
 }
@@ -52,16 +52,16 @@ pub(crate) trait MaintenanceResultExt<T> {
 impl<T, E> MaintenanceResultExt<T> for Result<T, E> {
     fn maintenance_failed(self) -> Result<T, RouteError> {
         match self {
-            | Ok(value) => Ok(value),
-            | Err(_) => Err(RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)),
+            Ok(value) => Ok(value),
+            Err(_) => Err(RouteError::Runtime(RouteRuntimeError::MaintenanceFailed)),
         }
     }
 }
 use serde::{Deserialize, Serialize};
 
 use super::{
-    types::PathwayCommitteeStatus, ActivePathwayRoute, PathwayRouteClass,
-    PathwayRouteSegment, PATHWAY_HOLD_RESERVED_BYTES, PATHWAY_PER_HOP_BYTE_COST,
+    types::PathwayCommitteeStatus, ActivePathwayRoute, PathwayRouteClass, PathwayRouteSegment,
+    PATHWAY_HOLD_RESERVED_BYTES, PATHWAY_PER_HOP_BYTE_COST,
 };
 use crate::topology::{adjacent_link_between, adjacent_node_ids, belief_into_estimate};
 
@@ -74,9 +74,7 @@ pub(crate) struct LinkPenalties {
 
 /// Compute delivery, symmetry, and loss penalties from a single link's state.
 /// Each penalty is on a 0–1000 scale (higher = worse link quality).
-pub(crate) fn link_quality_penalties(
-    state: &jacquard_core::LinkState,
-) -> LinkPenalties {
+pub(crate) fn link_quality_penalties(state: &jacquard_core::LinkState) -> LinkPenalties {
     let delivery = 1000_u32.saturating_sub(u32::from(
         state
             .delivery_confidence_permille
@@ -90,7 +88,11 @@ pub(crate) fn link_quality_penalties(
             .get(),
     ));
     let loss = u32::from(state.loss_permille.get());
-    LinkPenalties { delivery, symmetry, loss }
+    LinkPenalties {
+        delivery,
+        symmetry,
+        loss,
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -132,9 +134,9 @@ pub(super) fn committee_status(
     result: Result<Option<CommitteeSelection>, jacquard_core::RouteError>,
 ) -> PathwayCommitteeStatus {
     match result {
-        | Ok(Some(selection)) => PathwayCommitteeStatus::Selected(selection),
-        | Ok(None) => PathwayCommitteeStatus::NotApplicable,
-        | Err(_) => PathwayCommitteeStatus::SelectorFailed,
+        Ok(Some(selection)) => PathwayCommitteeStatus::Selected(selection),
+        Ok(None) => PathwayCommitteeStatus::NotApplicable,
+        Err(_) => PathwayCommitteeStatus::SelectorFailed,
     }
 }
 
@@ -158,10 +160,7 @@ fn encode_versioned<T: Serialize>(version: u8, value: &T) -> Vec<u8> {
     bytes
 }
 
-fn decode_versioned<T: for<'de> Deserialize<'de>>(
-    bytes: &[u8],
-    version: u8,
-) -> Option<T> {
+fn decode_versioned<T: for<'de> Deserialize<'de>>(bytes: &[u8], version: u8) -> Option<T> {
     let (encoded_version, rest) = bytes.split_first()?;
     if *encoded_version != version {
         return None;
@@ -213,10 +212,7 @@ pub(super) fn unique_protocol_mix(
     protocols
 }
 
-pub(super) fn encode_path_bytes(
-    path: &[NodeId],
-    segments: &[PathwayRouteSegment],
-) -> Vec<u8> {
+pub(super) fn encode_path_bytes(path: &[NodeId], segments: &[PathwayRouteSegment]) -> Vec<u8> {
     #[derive(Serialize)]
     struct PathEncoding<'a> {
         path: &'a [NodeId],
@@ -268,9 +264,7 @@ pub(super) fn encode_backend_token(plan: &PathwayPlanToken) -> BackendRouteId {
 
 // Inverse of `encode_backend_token`. Invalid or hand-crafted bytes fail
 // closed with None rather than being partially decoded.
-pub(super) fn decode_backend_token(
-    backend_route_id: &BackendRouteId,
-) -> Option<PathwayPlanToken> {
+pub(super) fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<PathwayPlanToken> {
     decode_versioned(&backend_route_id.0, PLAN_TOKEN_ENCODING_VERSION)
 }
 
@@ -291,9 +285,7 @@ pub(super) fn deterministic_order_key<H: Hashing>(
     let digest = hashing.hash_tagged(DOMAIN_TAG_ORDER_KEY, path_bytes);
     DeterministicOrderKey {
         stable_key: route_id,
-        tie_break: OrderStamp(u64::from_le_bytes(digest_prefix::<8>(
-            digest.as_bytes(),
-        ))),
+        tie_break: OrderStamp(u64::from_le_bytes(digest_prefix::<8>(digest.as_bytes()))),
     }
 }
 
@@ -308,14 +300,10 @@ pub(super) fn confidence_for_segments(
     let mut previous = None;
     for segment in segments {
         if let Some(from) = previous {
-            if let Some(link) =
-                adjacent_link_between(&from, &segment.node_id, configuration)
-            {
+            if let Some(link) = adjacent_link_between(&from, &segment.node_id, configuration) {
                 confidence = confidence.min(
                     belief_into_estimate(link.state.delivery_confidence_permille)
-                        .map_or(jacquard_core::RatioPermille(0), |estimate| {
-                            estimate.value
-                        })
+                        .map_or(jacquard_core::RatioPermille(0), |estimate| estimate.value)
                         .get(),
                 );
             }
@@ -351,8 +339,8 @@ pub(super) fn degradation_for_candidate(
 // diversity, and deferred-delivery hold reservation.
 fn hold_reserved_bytes(route_class: &PathwayRouteClass) -> ByteCount {
     match route_class {
-        | PathwayRouteClass::DeferredDelivery => ByteCount(PATHWAY_HOLD_RESERVED_BYTES),
-        | _ => ByteCount(0),
+        PathwayRouteClass::DeferredDelivery => ByteCount(PATHWAY_HOLD_RESERVED_BYTES),
+        _ => ByteCount(0),
     }
 }
 
@@ -366,23 +354,18 @@ fn route_quality_penalties(
     let (symmetry_penalty, congestion_penalty) = segments.iter().enumerate().fold(
         (0_u32, 0_u32),
         |(symmetry_penalty, congestion_penalty), (index, segment)| {
-            let previous_node =
-                node_path.get(index).copied().unwrap_or(segment.node_id);
-            let Some(link) =
-                adjacent_link_between(&previous_node, &segment.node_id, configuration)
+            let previous_node = node_path.get(index).copied().unwrap_or(segment.node_id);
+            let Some(link) = adjacent_link_between(&previous_node, &segment.node_id, configuration)
             else {
                 return (symmetry_penalty, congestion_penalty);
             };
             let symmetry_penalty = symmetry_penalty.saturating_add(
-                belief_into_estimate(link.state.symmetry_permille).map_or(
-                    10,
-                    |estimate| {
-                        (1000_u32.saturating_sub(u32::from(estimate.value.get()))) / 100
-                    },
-                ),
+                belief_into_estimate(link.state.symmetry_permille).map_or(10, |estimate| {
+                    (1000_u32.saturating_sub(u32::from(estimate.value.get()))) / 100
+                }),
             );
-            let congestion_penalty = congestion_penalty
-                .saturating_add(u32::from(link.state.loss_permille.get()) / 100);
+            let congestion_penalty =
+                congestion_penalty.saturating_add(u32::from(link.state.loss_permille.get()) / 100);
             (symmetry_penalty, congestion_penalty)
         },
     );
@@ -391,8 +374,7 @@ fn route_quality_penalties(
 
 pub(crate) fn protocol_diversity_bonus(segments: &[PathwayRouteSegment]) -> u32 {
     let protocol_mix = unique_protocol_mix(segments);
-    let u32_max_as_usize =
-        usize::try_from(u32::MAX).expect("u32::MAX fits on supported targets");
+    let u32_max_as_usize = usize::try_from(u32::MAX).expect("u32::MAX fits on supported targets");
     debug_assert!(protocol_mix.len() <= u32_max_as_usize);
     u32::try_from(protocol_mix.len())
         .expect("protocol diversity is bounded by segment count")
@@ -405,8 +387,8 @@ pub(super) fn route_cost_for_segments(
     route_class: &PathwayRouteClass,
     configuration: &Configuration,
 ) -> RouteCost {
-    let hop_count = u8::try_from(segments.len())
-        .expect("segment count is bounded by ROUTE_HOP_COUNT_MAX");
+    let hop_count =
+        u8::try_from(segments.len()).expect("segment count is bounded by ROUTE_HOP_COUNT_MAX");
     let hold_reserved = hold_reserved_bytes(route_class);
     let (delivery_penalty, symmetry_penalty, congestion_penalty) =
         route_quality_penalties(node_path, segments, configuration);
@@ -420,17 +402,12 @@ pub(super) fn route_cost_for_segments(
         .saturating_add(congestion_penalty)
         .saturating_sub(diversity_bonus);
     RouteCost {
-        message_count_max: Limit::Bounded(
-            u32::from(hop_count).saturating_add(path_penalty),
-        ),
+        message_count_max: Limit::Bounded(u32::from(hop_count).saturating_add(path_penalty)),
         byte_count_max: Limit::Bounded(ByteCount(
-            u64::from(hop_count) * PATHWAY_PER_HOP_BYTE_COST
-                + u64::from(path_penalty) * 128,
+            u64::from(hop_count) * PATHWAY_PER_HOP_BYTE_COST + u64::from(path_penalty) * 128,
         )),
         hop_count,
-        repair_attempt_count_max: Limit::Bounded(
-            u32::from(hop_count).saturating_add(path_penalty),
-        ),
+        repair_attempt_count_max: Limit::Bounded(u32::from(hop_count).saturating_add(path_penalty)),
         hold_bytes_reserved: Limit::Bounded(hold_reserved),
         work_step_count_max: Limit::Bounded(
             u32::from(hop_count)
@@ -442,9 +419,7 @@ pub(super) fn route_cost_for_segments(
 
 /// Returns the segment at the current forwarding cursor position, or `None`
 /// if the route has been fully forwarded.
-pub(crate) fn current_segment(
-    route: &ActivePathwayRoute,
-) -> Option<&PathwayRouteSegment> {
+pub(crate) fn current_segment(route: &ActivePathwayRoute) -> Option<&PathwayRouteSegment> {
     route
         .path
         .segments
@@ -476,22 +451,21 @@ pub(super) fn topology_epoch_storage_key(local_node_id: &NodeId) -> Vec<u8> {
 
 pub(super) fn limit_u32(limit: Limit<u32>) -> u32 {
     match limit {
-        | Limit::Unbounded => u32::MAX,
-        | Limit::Bounded(value) => value,
+        Limit::Unbounded => u32::MAX,
+        Limit::Bounded(value) => value,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        AdmissionAssumptions, AdversaryRegime, Belief, ByteCount, ClaimStrength,
-        CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection,
-        ConnectivityPosture, ConnectivityRegime, ContentId, ControllerId,
-        DestinationId, EndpointLocator, Environment, Estimate, FailureModelClass,
-        HoldFallbackPolicy, Limit, LinkEndpoint, MessageFlowAssumptionClass,
-        NodeDensityClass, RatioPermille, RouteCost, RouteEpoch, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RouteServiceKind, RouteSummary,
-        RoutingObjective, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick,
+        AdmissionAssumptions, AdversaryRegime, Belief, ByteCount, ClaimStrength, CommitteeId,
+        CommitteeMember, CommitteeRole, CommitteeSelection, ConnectivityPosture,
+        ConnectivityRegime, ContentId, ControllerId, DestinationId, EndpointLocator, Environment,
+        Estimate, FailureModelClass, HoldFallbackPolicy, Limit, LinkEndpoint,
+        MessageFlowAssumptionClass, NodeDensityClass, RatioPermille, RouteCost, RouteEpoch,
+        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
+        RouteSummary, RoutingObjective, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick,
         TransportKind,
     };
 
@@ -536,8 +510,7 @@ mod tests {
             selected_connectivity: ConnectivityPosture { repair, partition },
             deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
             diversity_floor: DiversityFloor(1),
-            routing_engine_fallback_policy:
-                jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
             route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
         }
     }
@@ -588,7 +561,10 @@ mod tests {
     ) -> LinkEndpoint {
         LinkEndpoint::new(
             transport_kind,
-            EndpointLocator::ScopedBytes { scope: scope.into(), bytes },
+            EndpointLocator::ScopedBytes {
+                scope: scope.into(),
+                bytes,
+            },
             mtu_bytes,
         )
     }
@@ -601,7 +577,10 @@ mod tests {
     ) -> LinkEndpoint {
         LinkEndpoint::new(
             transport_kind,
-            EndpointLocator::Socket { host: host.into(), port },
+            EndpointLocator::Socket {
+                host: host.into(),
+                port,
+            },
             mtu_bytes,
         )
     }
@@ -646,8 +625,7 @@ mod tests {
             profile: jacquard_core::LinkProfile {
                 latency_floor_ms: jacquard_core::DurationMs(8),
                 repair_capability: jacquard_core::RepairCapability::TransportRetransmit,
-                partition_recovery:
-                    jacquard_core::PartitionRecoveryClass::LocalReconnect,
+                partition_recovery: jacquard_core::PartitionRecoveryClass::LocalReconnect,
             },
             state: jacquard_core::LinkState {
                 state: jacquard_core::LinkRuntimeState::Active,
@@ -750,8 +728,7 @@ mod tests {
                 valid_for: TimeWindow::new(Tick(2), Tick(10)).unwrap(),
                 evidence_basis: jacquard_core::FactBasis::Estimated,
                 claim_strength: jacquard_core::ClaimStrength::ConservativeUnderProfile,
-                identity_assurance:
-                    jacquard_core::IdentityAssuranceClass::ControllerBound,
+                identity_assurance: jacquard_core::IdentityAssuranceClass::ControllerBound,
                 quorum_threshold: QuorumThreshold(1),
                 members: vec![CommitteeMember {
                     node_id: NodeId([2; 32]),
@@ -775,8 +752,8 @@ mod tests {
                 route_class: plan.route_class,
             },
             committee: match plan.committee_status {
-                | CommitteeStatus::Selected(selection) => Some(selection),
-                | _ => None,
+                CommitteeStatus::Selected(selection) => Some(selection),
+                _ => None,
             },
             current_epoch: RouteEpoch(2),
             last_lifecycle_event: jacquard_core::RouteLifecycleEvent::Activated,
@@ -846,8 +823,8 @@ mod tests {
         let plan = sample_plan_token();
         let checkpointed_route = sample_active_route();
         let route_identity = encode_route_identity_bytes(&plan);
-        let route_id_digest = jacquard_traits::Blake3Hashing
-            .hash_tagged(DOMAIN_TAG_ROUTE_ID, &route_identity);
+        let route_id_digest =
+            jacquard_traits::Blake3Hashing.hash_tagged(DOMAIN_TAG_ROUTE_ID, &route_identity);
         let route_id = &route_id_digest.as_bytes()[..16];
         assert_eq!(
             hex(&encode_backend_token(&plan).0),
@@ -904,21 +881,11 @@ mod tests {
         let path = vec![NodeId([1; 32]), NodeId([2; 32])];
         let ble_segments = vec![PathwayRouteSegment {
             node_id: NodeId([2; 32]),
-            endpoint: scoped_endpoint(
-                TransportKind::BleGatt,
-                "ble",
-                vec![2; 17],
-                ByteCount(64),
-            ),
+            endpoint: scoped_endpoint(TransportKind::BleGatt, "ble", vec![2; 17], ByteCount(64)),
         }];
         let wifi_segments = vec![PathwayRouteSegment {
             node_id: NodeId([2; 32]),
-            endpoint: socket_endpoint(
-                TransportKind::WifiLan,
-                "relay-2",
-                4040,
-                ByteCount(1400),
-            ),
+            endpoint: socket_endpoint(TransportKind::WifiLan, "relay-2", 4040, ByteCount(1400)),
         }];
 
         assert_ne!(

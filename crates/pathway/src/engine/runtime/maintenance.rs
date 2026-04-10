@@ -8,10 +8,10 @@
 //! shared maintenance outcome.
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ContentId, LinkEndpoint, PublishedRouteRecord,
-    RouteError, RouteId, RouteLifecycleEvent, RouteMaintenanceFailure,
-    RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
-    RouteProgressState, RouteRuntimeError, RouteSemanticHandoff,
+    Blake3Digest, Configuration, ContentId, LinkEndpoint, PublishedRouteRecord, RouteError,
+    RouteId, RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
+    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteProgressState, RouteRuntimeError,
+    RouteSemanticHandoff,
 };
 
 use super::{
@@ -22,9 +22,7 @@ use super::{
     MaintenanceContext, PathwayEffectsBounds, PathwayEngine, PathwayHasherBounds,
     PathwaySelectorBounds, PathwayTransportBounds,
 };
-use crate::{
-    choreography, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
-};
+use crate::{choreography, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess};
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -45,8 +43,7 @@ where
         runtime: &mut jacquard_core::RouteRuntimeState,
         now: jacquard_core::Tick,
     ) -> Result<RouteMaintenanceResult, RouteError> {
-        active_route.repair.steps_remaining =
-            active_route.repair.steps_remaining.saturating_sub(1);
+        active_route.repair.steps_remaining = active_route.repair.steps_remaining.saturating_sub(1);
         active_route.repair.last_repaired_at_tick = Some(now);
         active_route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
@@ -105,8 +102,7 @@ where
         active_route.forwarding.next_hop_index =
             active_route.forwarding.next_hop_index.saturating_add(1);
         active_route.handoff.last_receipt_id = Some(handoff_receipt_id);
-        active_route.handoff.last_handoff_at_tick =
-            Some(runtime.progress.last_progress_at_tick);
+        active_route.handoff.last_handoff_at_tick = Some(runtime.progress.last_progress_at_tick);
         active_route.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         runtime.last_lifecycle_event = RouteLifecycleEvent::HandedOff;
         choreography::handoff_exchange(
@@ -121,9 +117,7 @@ where
         })
     }
 
-    fn replacement_required(
-        trigger: RouteMaintenanceTrigger,
-    ) -> RouteMaintenanceResult {
+    fn replacement_required(trigger: RouteMaintenanceTrigger) -> RouteMaintenanceResult {
         RouteMaintenanceResult {
             event: RouteLifecycleEvent::Replaced,
             outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
@@ -139,9 +133,7 @@ where
         runtime.progress.state = RouteProgressState::Failed;
         RouteMaintenanceResult {
             event: RouteLifecycleEvent::Expired,
-            outcome: RouteMaintenanceOutcome::Failed(
-                RouteMaintenanceFailure::LeaseExpired,
-            ),
+            outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LeaseExpired),
         }
     }
 
@@ -172,16 +164,14 @@ where
         active_route: &mut ActivePathwayRoute,
         topology: &Configuration,
     ) -> bool {
-        let Some(destination_node_id) = Self::final_destination_node_id(active_route)
-        else {
+        let Some(destination_node_id) = Self::final_destination_node_id(active_route) else {
             return false;
         };
         if active_route.forwarding.current_owner_node_id == destination_node_id {
             return false;
         }
 
-        let shortest =
-            shortest_paths(&active_route.forwarding.current_owner_node_id, topology);
+        let shortest = shortest_paths(&active_route.forwarding.current_owner_node_id, topology);
         let Some(node_path) = shortest.get(&destination_node_id) else {
             return false;
         };
@@ -231,10 +221,7 @@ where
         Ok(())
     }
 
-    fn next_replay_endpoint(
-        &self,
-        active_route: &ActivePathwayRoute,
-    ) -> Option<LinkEndpoint> {
+    fn next_replay_endpoint(&self, active_route: &ActivePathwayRoute) -> Option<LinkEndpoint> {
         current_segment(active_route).map(|segment| segment.endpoint.clone())
     }
 
@@ -258,8 +245,7 @@ where
         object_id: ContentId<Blake3Digest>,
         next_endpoint: LinkEndpoint,
     ) -> Result<(), RouteError> {
-        let Some(payload) =
-            self.recover_retained_payload_for_flush(active_route, object_id)?
+        let Some(payload) = self.recover_retained_payload_for_flush(active_route, object_id)?
         else {
             active_route
                 .anti_entropy
@@ -362,17 +348,14 @@ where
         context: &MaintenanceContext<'_>,
     ) -> Result<RouteMaintenanceResult, RouteError> {
         match trigger {
-            | RouteMaintenanceTrigger::LinkDegraded
-            | RouteMaintenanceTrigger::EpochAdvanced => {
+            RouteMaintenanceTrigger::LinkDegraded | RouteMaintenanceTrigger::EpochAdvanced => {
                 self.handle_repair_trigger(active_route, runtime, trigger, context)
-            },
-            | RouteMaintenanceTrigger::CapacityExceeded => {
-                Ok(Self::replacement_required(trigger))
-            },
-            | RouteMaintenanceTrigger::PartitionDetected => {
+            }
+            RouteMaintenanceTrigger::CapacityExceeded => Ok(Self::replacement_required(trigger)),
+            RouteMaintenanceTrigger::PartitionDetected => {
                 Ok(Self::enter_partition_mode(active_route, runtime, trigger))
-            },
-            | RouteMaintenanceTrigger::PolicyShift => {
+            }
+            RouteMaintenanceTrigger::PolicyShift => {
                 // Flush retained payloads before advancing the owner:
                 // after handoff current_owner_node_id changes, making
                 // the endpoint used by flush_retained_payloads wrong.
@@ -383,25 +366,21 @@ where
                     runtime,
                     context.handoff_receipt_id,
                 )
-            },
-            | RouteMaintenanceTrigger::LeaseExpiring => {
-                Ok(Self::replacement_required(trigger))
-            },
-            | RouteMaintenanceTrigger::RouteExpired => {
+            }
+            RouteMaintenanceTrigger::LeaseExpiring => Ok(Self::replacement_required(trigger)),
+            RouteMaintenanceTrigger::RouteExpired => {
                 Ok(Self::route_expired_result(active_route, runtime))
-            },
-            | RouteMaintenanceTrigger::AntiEntropyRequired => {
+            }
+            RouteMaintenanceTrigger::AntiEntropyRequired => {
                 self.consume_anti_entropy_pressure(context.now);
-                if let Some(recovered) = self.recover_from_partition_if_possible(
-                    active_route,
-                    runtime,
-                    context.now,
-                )? {
+                if let Some(recovered) =
+                    self.recover_from_partition_if_possible(active_route, runtime, context.now)?
+                {
                     Ok(recovered)
                 } else {
                     Ok(Self::continue_result(active_route, runtime, context.now))
                 }
-            },
+            }
         }
     }
 
@@ -415,8 +394,7 @@ where
         if !self.repair_allowed(active_route) {
             return Ok(Self::replacement_required(trigger));
         }
-        let repaired =
-            self.repair_remaining_suffix(active_route, &context.latest_topology.value);
+        let repaired = self.repair_remaining_suffix(active_route, &context.latest_topology.value);
         if !repaired {
             return Ok(Self::replacement_required(trigger));
         }

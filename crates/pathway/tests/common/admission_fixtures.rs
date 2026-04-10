@@ -14,10 +14,10 @@
 use jacquard_core::{
     AdmissionAssumptions, AdversaryRegime, Belief, ClaimStrength, ConnectivityPosture,
     ConnectivityRegime, DestinationId, DiversityFloor, Estimate, FailureModelClass,
-    HoldFallbackPolicy, Limit, MessageFlowAssumptionClass, NodeDensityClass, NodeId,
-    RatioPermille, RouteCost, RoutePartitionClass, RouteProtectionClass,
-    RouteRepairClass, RouteServiceKind, RouteSummary, RoutingObjective,
-    RuntimeEnvelopeClass, SelectedRoutingParameters, Tick, TimeWindow,
+    HoldFallbackPolicy, Limit, MessageFlowAssumptionClass, NodeDensityClass, NodeId, RatioPermille,
+    RouteCost, RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
+    RouteSummary, RoutingObjective, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick,
+    TimeWindow,
 };
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 
@@ -59,8 +59,7 @@ pub fn profile_with(
         selected_connectivity: ConnectivityPosture { repair, partition },
         deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
         diversity_floor: DiversityFloor(1),
-        routing_engine_fallback_policy:
-            jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+        routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
     }
 }

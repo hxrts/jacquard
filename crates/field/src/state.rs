@@ -18,8 +18,8 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    Belief, DestinationId, GatewayId, HealthScore, LinkEndpoint, NodeId, PenaltyPoints,
-    RouteEpoch, ServiceId, Tick, TimeWindow, ROUTE_HOP_COUNT_MAX,
+    Belief, DestinationId, GatewayId, HealthScore, LinkEndpoint, NodeId, PenaltyPoints, RouteEpoch,
+    ServiceId, Tick, TimeWindow, ROUTE_HOP_COUNT_MAX,
 };
 
 use crate::summary::FieldSummary;
@@ -276,9 +276,8 @@ impl ContinuationFrontier {
 
     #[must_use]
     pub(crate) fn prune_stale(mut self, now_tick: Tick, max_age_ticks: u64) -> Self {
-        self.entries.retain(|entry| {
-            now_tick.0.saturating_sub(entry.freshness.0) <= max_age_ticks
-        });
+        self.entries
+            .retain(|entry| now_tick.0.saturating_sub(entry.freshness.0) <= max_age_ticks);
         self
     }
 }
@@ -396,11 +395,7 @@ pub(crate) struct ObserverCacheState {
 
 impl ObserverCacheState {
     #[must_use]
-    pub(crate) fn should_refresh(
-        &self,
-        signature: ObserverInputSignature,
-        now_tick: Tick,
-    ) -> bool {
+    pub(crate) fn should_refresh(&self, signature: ObserverInputSignature, now_tick: Tick) -> bool {
         let Some(previous) = self.last_signature else {
             return true;
         };
@@ -541,9 +536,9 @@ pub(crate) enum DestinationKey {
 impl From<&DestinationId> for DestinationKey {
     fn from(value: &DestinationId) -> Self {
         match value {
-            | DestinationId::Gateway(id) => Self::Gateway(*id),
-            | DestinationId::Node(id) => Self::Node(*id),
-            | DestinationId::Service(id) => Self::Service(id.0.clone()),
+            DestinationId::Gateway(id) => Self::Gateway(*id),
+            DestinationId::Node(id) => Self::Node(*id),
+            DestinationId::Service(id) => Self::Service(id.0.clone()),
         }
     }
 }
@@ -551,9 +546,9 @@ impl From<&DestinationId> for DestinationKey {
 impl From<&DestinationKey> for DestinationId {
     fn from(value: &DestinationKey) -> Self {
         match value {
-            | DestinationKey::Gateway(id) => Self::Gateway(*id),
-            | DestinationKey::Node(id) => Self::Node(*id),
-            | DestinationKey::Service(id) => Self::Service(ServiceId(id.clone())),
+            DestinationKey::Gateway(id) => Self::Gateway(*id),
+            DestinationKey::Node(id) => Self::Node(*id),
+            DestinationKey::Service(id) => Self::Service(ServiceId(id.clone())),
         }
     }
 }
@@ -643,8 +638,7 @@ mod tests {
     fn destination_store_evicts_lowest_interest_then_oldest_tick() {
         let mut state = FieldEngineState::new();
         for index in 0..MAX_TRACKED_DESTINATIONS {
-            let destination =
-                DestinationId::Node(node(u8::try_from(index + 1).unwrap()));
+            let destination = DestinationId::Node(node(u8::try_from(index + 1).unwrap()));
             state.upsert_destination_interest(
                 &destination,
                 DestinationInterestClass::Propagated,
@@ -653,11 +647,7 @@ mod tests {
         }
 
         let pinned = DestinationId::Node(node(1));
-        state.upsert_destination_interest(
-            &pinned,
-            DestinationInterestClass::Pinned,
-            Tick(999),
-        );
+        state.upsert_destination_interest(&pinned, DestinationInterestClass::Pinned, Tick(999));
 
         let new_destination = DestinationId::Node(node(250));
         state.upsert_destination_interest(
@@ -698,8 +688,7 @@ mod tests {
     fn active_destination_selection_is_sparse_and_deterministic() {
         let mut state = FieldEngineState::new();
         for index in 0..(MAX_ACTIVE_DESTINATIONS + 4) {
-            let destination =
-                DestinationId::Node(node(u8::try_from(index + 1).unwrap()));
+            let destination = DestinationId::Node(node(u8::try_from(index + 1).unwrap()));
             let destination_state = state.upsert_destination_interest(
                 &destination,
                 DestinationInterestClass::Transit,

@@ -13,13 +13,13 @@
 //! stays endpoint-agnostic.
 
 use jacquard_core::{
-    DurationMs, Link, LinkEndpoint, LinkRuntimeState, PartitionRecoveryClass,
-    RatioPermille, RepairCapability, Tick,
+    DurationMs, Link, LinkEndpoint, LinkRuntimeState, PartitionRecoveryClass, RatioPermille,
+    RepairCapability, Tick,
 };
 
 use crate::{
-    SimulatedLinkProfile, DEFAULT_DELIVERY_CONFIDENCE_PERMILLE,
-    DEFAULT_STABILITY_HORIZON_MS, REFERENCE_TYPICAL_RTT_MS,
+    SimulatedLinkProfile, DEFAULT_DELIVERY_CONFIDENCE_PERMILLE, DEFAULT_STABILITY_HORIZON_MS,
+    REFERENCE_TYPICAL_RTT_MS,
 };
 
 /// Default transfer rate used by the reference in-memory link presets.
@@ -44,10 +44,7 @@ impl LinkPresetOptions {
     }
 
     #[must_use]
-    pub fn with_confidence(
-        mut self,
-        delivery_confidence_permille: RatioPermille,
-    ) -> Self {
+    pub fn with_confidence(mut self, delivery_confidence_permille: RatioPermille) -> Self {
         self.delivery_confidence_permille = delivery_confidence_permille;
         self
     }
@@ -125,10 +122,7 @@ impl LinkPreset {
     }
 
     #[must_use]
-    pub fn with_confidence(
-        mut self,
-        delivery_confidence_permille: RatioPermille,
-    ) -> Self {
+    pub fn with_confidence(mut self, delivery_confidence_permille: RatioPermille) -> Self {
         self.simulated = self.simulated.with_quality(
             RatioPermille(50),
             delivery_confidence_permille,
@@ -144,19 +138,13 @@ impl LinkPreset {
     }
 
     #[must_use]
-    pub fn with_repair_capability(
-        mut self,
-        repair_capability: RepairCapability,
-    ) -> Self {
+    pub fn with_repair_capability(mut self, repair_capability: RepairCapability) -> Self {
         self.simulated = self.simulated.with_repair_capability(repair_capability);
         self
     }
 
     #[must_use]
-    pub fn with_partition_recovery(
-        mut self,
-        partition_recovery: PartitionRecoveryClass,
-    ) -> Self {
+    pub fn with_partition_recovery(mut self, partition_recovery: PartitionRecoveryClass) -> Self {
         self.simulated = self.simulated.with_partition_recovery(partition_recovery);
         self
     }
@@ -186,8 +174,7 @@ mod tests {
     #[test]
     fn lossy_matches_expected_delivery_confidence() {
         let link = LinkPreset::lossy(
-            LinkPresetOptions::new(endpoint(7), Tick(3))
-                .with_confidence(RatioPermille(650)),
+            LinkPresetOptions::new(endpoint(7), Tick(3)).with_confidence(RatioPermille(650)),
         )
         .build();
 
@@ -202,9 +189,7 @@ mod tests {
 
     #[test]
     fn recoverable_upgrades_repair_defaults() {
-        let link =
-            LinkPreset::recoverable(LinkPresetOptions::new(endpoint(9), Tick(4)))
-                .build();
+        let link = LinkPreset::recoverable(LinkPresetOptions::new(endpoint(9), Tick(4))).build();
 
         assert_eq!(
             link.profile.repair_capability,
@@ -218,11 +203,8 @@ mod tests {
 
     #[test]
     fn endpoint_first_active_constructor_preserves_endpoint_identity() {
-        let endpoint =
-            opaque_endpoint(TransportKind::WifiAware, vec![1, 2, 3], ByteCount(128));
-        let link =
-            LinkPreset::active(LinkPresetOptions::new(endpoint.clone(), Tick(2)))
-                .build();
+        let endpoint = opaque_endpoint(TransportKind::WifiAware, vec![1, 2, 3], ByteCount(128));
+        let link = LinkPreset::active(LinkPresetOptions::new(endpoint.clone(), Tick(2))).build();
 
         assert_eq!(link.endpoint, endpoint);
         assert_eq!(link.state.state, LinkRuntimeState::Active);

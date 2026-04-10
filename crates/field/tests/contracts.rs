@@ -11,11 +11,11 @@
 
 use jacquard_adapter::opaque_endpoint;
 use jacquard_core::{
-    ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
-    DurationMs, Environment, FactSourceClass, Observation, OriginAuthenticationClass,
-    RatioPermille, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
-    RouteRepairClass, RouteShapeVisibility, RoutingEvidenceClass, RoutingObjective,
-    RoutingTickContext, SelectedRoutingParameters, Tick, TransportKind,
+    ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
+    Environment, FactSourceClass, Observation, OriginAuthenticationClass, RatioPermille,
+    RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteShapeVisibility,
+    RoutingEvidenceClass, RoutingObjective, RoutingTickContext, SelectedRoutingParameters, Tick,
+    TransportKind,
 };
 use jacquard_field::{FieldEngine, FIELD_ENGINE_ID};
 use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
@@ -100,8 +100,7 @@ fn profile() -> SelectedRoutingParameters {
         },
         deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
         diversity_floor: jacquard_core::DiversityFloor(1),
-        routing_engine_fallback_policy:
-            jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+        routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
     }
 }
@@ -111,7 +110,10 @@ fn field_engine_advertises_corridor_envelope_visibility() {
     let engine = FieldEngine::new(
         node(1),
         InMemoryTransport::new(),
-        InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
     );
 
     assert_eq!(engine.engine_id(), FIELD_ENGINE_ID);
@@ -126,7 +128,10 @@ fn field_engine_compiles_against_shared_routing_traits() {
     let mut engine = FieldEngine::new(
         node(1),
         InMemoryTransport::new(),
-        InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
     );
     let topology = topology();
 

@@ -16,23 +16,18 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs,
-    LinkEndpoint, MaterializedRoute, NodeId, Observation, OperatingMode,
-    PriorityPoints, PublicationId, RouteError, RouteHandle, RouteId,
-    RouteIdentityStamp, RouteLease, RouteMaintenanceFailure, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RoutePartitionClass,
-    RouteProtectionClass, RouteRepairClass, RouteRuntimeError, RouteSelectionError,
-    RouteServiceKind, RoutingEngineFallbackPolicy, RoutingObjective,
-    RoutingTickContext, RoutingTickOutcome, SelectedRoutingParameters, Tick,
-    TimeWindow, TransportError, TransportIngressEvent,
+    Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, LinkEndpoint,
+    MaterializedRoute, NodeId, Observation, OperatingMode, PriorityPoints, PublicationId,
+    RouteError, RouteHandle, RouteId, RouteIdentityStamp, RouteLease, RouteMaintenanceFailure,
+    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteRuntimeError,
+    RouteSelectionError, RouteServiceKind, RoutingEngineFallbackPolicy, RoutingObjective,
+    RoutingTickContext, RoutingTickOutcome, SelectedRoutingParameters, Tick, TimeWindow,
+    TransportError, TransportIngressEvent,
 };
 use jacquard_field::FieldEngine;
-use jacquard_mem_link_profile::{
-    InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
-};
-use jacquard_traits::{
-    RouterManagedEngine, RoutingEngine, RoutingEnginePlanner, TransportDriver,
-};
+use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork};
+use jacquard_traits::{RouterManagedEngine, RoutingEngine, RoutingEnginePlanner, TransportDriver};
 
 const DEFAULT_ROUTE_LEASE_TICKS: u64 = 32;
 
@@ -71,11 +66,8 @@ impl FieldClientBuilder {
     pub fn build(self) -> FieldClient {
         let mut peer_transports = BTreeMap::new();
         let local_endpoint = local_endpoint(&self.topology, self.local_node_id);
-        let engine_transport = InMemoryTransport::attach(
-            self.local_node_id,
-            [local_endpoint],
-            self.network.clone(),
-        );
+        let engine_transport =
+            InMemoryTransport::attach(self.local_node_id, [local_endpoint], self.network.clone());
         for (node_id, node) in &self.topology.value.nodes {
             if *node_id == self.local_node_id {
                 continue;
@@ -98,7 +90,10 @@ impl FieldClientBuilder {
             engine: FieldEngine::new(
                 self.local_node_id,
                 engine_transport,
-                InMemoryRuntimeEffects { now: self.now, ..Default::default() },
+                InMemoryRuntimeEffects {
+                    now: self.now,
+                    ..Default::default()
+                },
             ),
             network: self.network,
             peer_transports,
@@ -121,9 +116,7 @@ pub struct FieldClient {
 impl FieldClient {
     pub fn ingest_topology(&mut self, topology: Observation<Configuration>) {
         for (node_id, node) in &topology.value.nodes {
-            if *node_id == self.local_node_id
-                || self.peer_transports.contains_key(node_id)
-            {
+            if *node_id == self.local_node_id || self.peer_transports.contains_key(node_id) {
                 continue;
             }
             self.peer_transports.insert(
@@ -164,12 +157,9 @@ impl FieldClient {
             .next()
             .ok_or(RouteSelectionError::NoCandidate)?;
         let route_id = candidate.route_id;
-        let admission = self.engine.admit_route(
-            objective,
-            &self.profile,
-            candidate,
-            &self.topology,
-        )?;
+        let admission =
+            self.engine
+                .admit_route(objective, &self.profile, candidate, &self.topology)?;
         let input = self.materialization_input(route_id, &admission)?;
         let installation = self.engine.materialize_route(input.clone())?;
         let route = MaterializedRoute::from_installation(input, installation);
@@ -192,9 +182,9 @@ impl FieldClient {
             .get_mut(route_id)
             .ok_or(RouteSelectionError::NoCandidate)?;
         let mut runtime = route.runtime.clone();
-        let result =
-            self.engine
-                .maintain_route(&route.identity, &mut runtime, trigger)?;
+        let result = self
+            .engine
+            .maintain_route(&route.identity, &mut runtime, trigger)?;
         route.runtime = runtime;
         if result.event == jacquard_core::RouteLifecycleEvent::Expired
             || matches!(
@@ -261,10 +251,7 @@ impl FieldClient {
     }
 }
 
-fn local_endpoint(
-    topology: &Observation<Configuration>,
-    local_node_id: NodeId,
-) -> LinkEndpoint {
+fn local_endpoint(topology: &Observation<Configuration>, local_node_id: NodeId) -> LinkEndpoint {
     topology.value.nodes[&local_node_id]
         .profile
         .endpoints

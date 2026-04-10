@@ -13,8 +13,7 @@ use common::{
 };
 use jacquard_traits::{
     jacquard_core::{
-        MaterializedRoute, NodeId, RouteCommitmentResolution, RouteMaintenanceTrigger,
-        Tick,
+        MaterializedRoute, NodeId, RouteCommitmentResolution, RouteMaintenanceTrigger, Tick,
     },
     RouterManagedEngine, RoutingEngine,
 };

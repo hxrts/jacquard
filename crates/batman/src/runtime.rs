@@ -19,33 +19,27 @@
 //!   `TransportSenderEffects`), and `restore_route_runtime_for_router`.
 
 use jacquard_core::{
-    Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, LinkEndpoint,
-    NodeId, Observation, PublishedRouteRecord, RatioPermille, ReachabilityState,
-    RouteCommitment, RouteError, RouteHealth, RouteId, RouteInstallation,
-    RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
-    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-    RouteMaterializationProof, RouteProgressContract, RouteProgressState,
-    RouteRuntimeError, RouteRuntimeState, RouteSelectionError, RoutingTickChange,
-    RoutingTickContext, RoutingTickHint, RoutingTickOutcome, Tick,
-    TransportObservation,
+    Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, LinkEndpoint, NodeId,
+    Observation, PublishedRouteRecord, RatioPermille, ReachabilityState, RouteCommitment,
+    RouteError, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
+    RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
+    RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
+    RouteProgressContract, RouteProgressState, RouteRuntimeError, RouteRuntimeState,
+    RouteSelectionError, RoutingTickChange, RoutingTickContext, RoutingTickHint,
+    RoutingTickOutcome, Tick, TransportObservation,
 };
-use jacquard_traits::{
-    RouterManagedEngine, RoutingEngine, TimeEffects, TransportSenderEffects,
-};
+use jacquard_traits::{RouterManagedEngine, RoutingEngine, TimeEffects, TransportSenderEffects};
 
 use crate::{
     gossip::{
-        decode_advertisement, encode_advertisement, local_advertisement,
-        LearnedAdvertisement,
+        decode_advertisement, encode_advertisement, local_advertisement, LearnedAdvertisement,
     },
     private_state::link_is_usable,
     public_state::ActiveBatmanRoute,
     scoring, BatmanEngine, BATMAN_ENGINE_ID,
 };
 
-fn health_scores_from_tq(
-    tq: RatioPermille,
-) -> (HealthScore, jacquard_core::PenaltyPoints) {
+fn health_scores_from_tq(tq: RatioPermille) -> (HealthScore, jacquard_core::PenaltyPoints) {
     let penalty = u16::try_from(scoring::PERMILLE_MAX)
         .expect("permille max fits u16")
         .saturating_sub(tq.0);
@@ -143,8 +137,7 @@ where
         &mut self,
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError> {
-        let DestinationId::Node(destination) = input.admission.objective.destination
-        else {
+        let DestinationId::Node(destination) = input.admission.objective.destination else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
         if input.admission.backend_ref.engine != BATMAN_ENGINE_ID {
@@ -173,8 +166,7 @@ where
             },
             last_lifecycle_event: RouteLifecycleEvent::Activated,
             health: {
-                let (stability_score, congestion_penalty_points) =
-                    health_scores_from_tq(best.tq);
+                let (stability_score, congestion_penalty_points) = health_scores_from_tq(best.tq);
                 RouteHealth {
                     reachability_state: ReachabilityState::Reachable,
                     stability_score,
@@ -191,19 +183,12 @@ where
         })
     }
 
-    fn route_commitments(
-        &self,
-        _route: &jacquard_core::MaterializedRoute,
-    ) -> Vec<RouteCommitment> {
+    fn route_commitments(&self, _route: &jacquard_core::MaterializedRoute) -> Vec<RouteCommitment> {
         Vec::new()
     }
 
-    fn engine_tick(
-        &mut self,
-        tick: &RoutingTickContext,
-    ) -> Result<RoutingTickOutcome, RouteError> {
-        let change =
-            self.refresh_private_state(&tick.topology, tick.topology.observed_at_tick);
+    fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
+        let change = self.refresh_private_state(&tick.topology, tick.topology.observed_at_tick);
         self.flood_gossip(&tick.topology, tick.topology.observed_at_tick)?;
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,
@@ -211,9 +196,7 @@ where
             next_tick_hint: if change == RoutingTickChange::PrivateStateUpdated {
                 RoutingTickHint::Immediate
             } else {
-                RoutingTickHint::WithinTicks(Tick(
-                    self.decay_window.next_refresh_within_ticks,
-                ))
+                RoutingTickHint::WithinTicks(Tick(self.decay_window.next_refresh_within_ticks))
             },
         })
     }
@@ -230,13 +213,10 @@ where
         let Some(best) = self.best_next_hops.get(&active_route.destination) else {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(
-                    RouteMaintenanceFailure::LostReachability,
-                ),
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
             });
         };
-        let (stability_score, congestion_penalty_points) =
-            health_scores_from_tq(best.tq);
+        let (stability_score, congestion_penalty_points) = health_scores_from_tq(best.tq);
         runtime.health.last_validated_at_tick = self.effects.now_tick();
         runtime.health.stability_score = stability_score;
         runtime.health.congestion_penalty_points = congestion_penalty_points;
@@ -273,7 +253,9 @@ where
         observation: &TransportObservation,
     ) -> Result<(), RouteError> {
         if let TransportObservation::PayloadReceived {
-            payload, observed_at_tick, ..
+            payload,
+            observed_at_tick,
+            ..
         } = observation
         {
             self.ingest_advertisement(payload, *observed_at_tick);
@@ -295,10 +277,7 @@ where
         Ok(())
     }
 
-    fn restore_route_runtime_for_router(
-        &mut self,
-        route_id: &RouteId,
-    ) -> Result<bool, RouteError> {
+    fn restore_route_runtime_for_router(&mut self, route_id: &RouteId) -> Result<bool, RouteError> {
         Ok(self.active_routes.contains_key(route_id))
     }
 }
@@ -310,11 +289,10 @@ mod tests {
 
     use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{
-        Belief, ByteCount, Configuration, ConnectivityPosture, ControllerId,
-        DestinationId, DurationMs, Environment, Link, LinkEndpoint, LinkProfile,
-        LinkRuntimeState, LinkState, Node, Observation, RatioPermille,
-        RepairCapability, RouteEpoch, RouteMaintenanceTrigger, RoutePartitionClass,
-        RouteProtectionClass, RouteRepairClass, RoutingTickContext,
+        Belief, ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
+        DurationMs, Environment, Link, LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState,
+        Node, Observation, RatioPermille, RepairCapability, RouteEpoch, RouteMaintenanceTrigger,
+        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RoutingTickContext,
         SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
     };
     use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
@@ -350,8 +328,7 @@ mod tests {
             profile: LinkProfile {
                 latency_floor_ms: DurationMs(5),
                 repair_capability: RepairCapability::TransportRetransmit,
-                partition_recovery:
-                    jacquard_core::PartitionRecoveryClass::LocalReconnect,
+                partition_recovery: jacquard_core::PartitionRecoveryClass::LocalReconnect,
             },
             state: LinkState {
                 state: LinkRuntimeState::Active,
@@ -359,10 +336,7 @@ mod tests {
                 transfer_rate_bytes_per_sec: Belief::certain(128_000, Tick(1)),
                 stability_horizon_ms: Belief::certain(DurationMs(4_000), Tick(1)),
                 loss_permille: RatioPermille(loss),
-                delivery_confidence_permille: Belief::certain(
-                    RatioPermille(delivery),
-                    Tick(1),
-                ),
+                delivery_confidence_permille: Belief::certain(RatioPermille(delivery), Tick(1)),
                 symmetry_permille: Belief::certain(RatioPermille(symmetry), Tick(1)),
             },
         }
@@ -423,8 +397,7 @@ mod tests {
             },
             deployment_profile: jacquard_core::OperatingMode::SparseLowPower,
             diversity_floor: jacquard_core::DiversityFloor(1),
-            routing_engine_fallback_policy:
-                jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
             route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
         }
     }
@@ -453,8 +426,7 @@ mod tests {
     ) -> (PublishedRouteRecord, RouteRuntimeState) {
         let objective = sample_objective();
         let profile = sample_profile();
-        let candidate =
-            engine.candidate_routes(&objective, &profile, topology)[0].clone();
+        let candidate = engine.candidate_routes(&objective, &profile, topology)[0].clone();
         let admission = engine
             .admit_route(&objective, &profile, candidate, topology)
             .expect("admission");
@@ -491,7 +463,10 @@ mod tests {
         let mut engine = BatmanEngine::new(
             node(1),
             InMemoryTransport::new(),
-            InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
         );
         let topology = sample_topology();
         engine
@@ -537,7 +512,10 @@ mod tests {
         let mut engine = BatmanEngine::with_decay_window(
             node(1),
             InMemoryTransport::new(),
-            InMemoryRuntimeEffects { now: Tick(1), ..Default::default() },
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
             DecayWindow {
                 stale_after_ticks: 1,
                 next_refresh_within_ticks: 2,

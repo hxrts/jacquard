@@ -35,11 +35,8 @@ fn middleware_ingests_topology_and_policy_inputs() {
     router.ingest_topology_observation(topology.clone());
     router.ingest_policy_inputs(policy_inputs.clone());
 
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("activation after middleware updates");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation after middleware updates");
 
     assert_eq!(route.identity.stamp.topology_epoch, topology.value.epoch);
 }

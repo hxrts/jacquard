@@ -13,8 +13,7 @@ use std::collections::BTreeMap;
 use common::{
     effects::{TestRetentionStore, TestRuntimeEffects, TestTransport},
     engine::{
-        lease, materialization_input, objective, profile, profile_with_connectivity,
-        LOCAL_NODE_ID,
+        lease, materialization_input, objective, profile, profile_with_connectivity, LOCAL_NODE_ID,
     },
     fixtures::{link, node, sample_configuration},
 };
@@ -24,11 +23,10 @@ use jacquard_pathway::{
 };
 use jacquard_traits::{
     jacquard_core::{
-        AdmissionDecision, Configuration, ControllerId, DestinationId,
-        DiscoveryScopeId, Environment, Node, NodeId, Observation, RatioPermille,
-        RouteAdmissionRejection, RouteEpoch, RouteError, RoutePartitionClass,
-        RouteRepairClass, RouteRuntimeError, RoutingTickContext, ServiceId,
-        ServiceScope, Tick,
+        AdmissionDecision, Configuration, ControllerId, DestinationId, DiscoveryScopeId,
+        Environment, Node, NodeId, Observation, RatioPermille, RouteAdmissionRejection, RouteEpoch,
+        RouteError, RoutePartitionClass, RouteRepairClass, RouteRuntimeError, RoutingTickContext,
+        ServiceId, ServiceScope, Tick,
     },
     Blake3Hashing, CommitteeSelector, RoutingEngine, RoutingEnginePlanner,
 };
@@ -98,15 +96,12 @@ impl PathwayTopologyModel for PreferredCommitteeTopologyModel {
             configuration,
         )?;
         if *peer_node_id == self.preferred_peer {
-            estimate.relay_value_score =
-                Some(jacquard_traits::jacquard_core::HealthScore(1000));
+            estimate.relay_value_score = Some(jacquard_traits::jacquard_core::HealthScore(1000));
             estimate.retention_value_score =
                 Some(jacquard_traits::jacquard_core::HealthScore(1000));
         } else {
-            estimate.relay_value_score =
-                Some(jacquard_traits::jacquard_core::HealthScore(0));
-            estimate.retention_value_score =
-                Some(jacquard_traits::jacquard_core::HealthScore(0));
+            estimate.relay_value_score = Some(jacquard_traits::jacquard_core::HealthScore(0));
+            estimate.retention_value_score = Some(jacquard_traits::jacquard_core::HealthScore(0));
         }
         Some(estimate)
     }
@@ -184,8 +179,7 @@ impl CommitteeSelector for ErroringCommitteeSelector {
         _objective: &jacquard_traits::jacquard_core::RoutingObjective,
         _profile: &jacquard_traits::jacquard_core::SelectedRoutingParameters,
         _topology: &jacquard_traits::jacquard_core::Observation<Self::TopologyView>,
-    ) -> Result<Option<jacquard_traits::jacquard_core::CommitteeSelection>, RouteError>
-    {
+    ) -> Result<Option<jacquard_traits::jacquard_core::CommitteeSelection>, RouteError> {
         Err(RouteError::Runtime(RouteRuntimeError::Invalidated))
     }
 }
@@ -199,9 +193,7 @@ type SelectorEngine<Selector> = PathwayEngine<
     Selector,
 >;
 
-fn build_engine_with_selector<Selector>(
-    selector: Selector,
-) -> SelectorEngine<Selector> {
+fn build_engine_with_selector<Selector>(selector: Selector) -> SelectorEngine<Selector> {
     PathwayEngine::with_committee_selector(
         LOCAL_NODE_ID,
         DeterministicPathwayTopologyModel::new(),
@@ -285,8 +277,7 @@ fn diversity_topology() -> Observation<Configuration> {
             },
         },
         source_class: jacquard_traits::jacquard_core::FactSourceClass::Local,
-        evidence_class:
-            jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
+        evidence_class: jacquard_traits::jacquard_core::RoutingEvidenceClass::DirectObservation,
         origin_authentication:
             jacquard_traits::jacquard_core::OriginAuthenticationClass::Controlled,
         observed_at_tick: Tick(2),
@@ -320,8 +311,7 @@ fn committee_selector_some_is_carried_into_active_route() {
     let topology = sample_configuration();
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
     let policy = profile();
-    let mut engine =
-        build_engine_with_selector(DeterministicCommitteeSelector::new(LOCAL_NODE_ID));
+    let mut engine = build_engine_with_selector(DeterministicCommitteeSelector::new(LOCAL_NODE_ID));
 
     let candidate = engine
         .candidate_routes(&goal, &policy, &topology)

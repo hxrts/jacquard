@@ -23,11 +23,7 @@ pub trait PathwayTopologyModel {
     type NeighborhoodEstimate;
 
     #[must_use]
-    fn local_node(
-        &self,
-        local_node_id: &NodeId,
-        configuration: &Configuration,
-    ) -> Option<Node>;
+    fn local_node(&self, local_node_id: &NodeId, configuration: &Configuration) -> Option<Node>;
 
     #[must_use]
     fn neighboring_nodes(
@@ -44,11 +40,7 @@ pub trait PathwayTopologyModel {
     ) -> Vec<LinkEndpoint>;
 
     #[must_use]
-    fn adjacent_links(
-        &self,
-        local_node_id: &NodeId,
-        configuration: &Configuration,
-    ) -> Vec<Link>;
+    fn adjacent_links(&self, local_node_id: &NodeId, configuration: &Configuration) -> Vec<Link>;
 
     #[must_use]
     fn peer_estimate(

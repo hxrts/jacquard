@@ -26,9 +26,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use jacquard_core::{NodeId, RouteEpoch, RouteId, Tick};
 
-use crate::summary::{
-    FieldSummary, SummaryDestinationKey, FIELD_SUMMARY_ENCODING_BYTES,
-};
+use crate::summary::{FieldSummary, SummaryDestinationKey, FIELD_SUMMARY_ENCODING_BYTES};
 
 pub(crate) const FIELD_PROTOCOL_QUEUE_MAX: usize = 8;
 pub(crate) const FIELD_PROTOCOL_ARTIFACT_LIMIT: usize = 64;
@@ -179,10 +177,7 @@ impl FieldBridgeState {
         self.branch_choices.push_back(branch);
     }
 
-    pub(crate) fn set_blocked_receive(
-        &mut self,
-        blocked_receive: BlockedReceiveMarker,
-    ) {
+    pub(crate) fn set_blocked_receive(&mut self, blocked_receive: BlockedReceiveMarker) {
         self.blocked_receive = Some(blocked_receive);
     }
 
@@ -275,7 +270,11 @@ impl FieldGuestRuntime {
     }
 
     fn restore(protocol: FieldProtocolKind, state: FieldGuestRuntimeState) -> Self {
-        Self { protocol, state, step_count: 0 }
+        Self {
+            protocol,
+            state,
+            step_count: 0,
+        }
     }
 
     // long-block-exception: protocol stepping is a single bounded state-machine
@@ -311,55 +310,47 @@ impl FieldGuestRuntime {
 
         let mut artifacts = Vec::new();
         let disposition = match self.protocol {
-            | FieldProtocolKind::SummaryDissemination => {
+            FieldProtocolKind::SummaryDissemination => {
                 if bridge.outbound_len() > 0 {
                     self.state = FieldGuestRuntimeState::Complete;
                     artifacts.push(FieldProtocolArtifact {
                         protocol: self.protocol,
                         session: session.clone(),
-                        detail: FieldProtocolArtifactDetail::new(
-                            "summary-dissemination",
-                        ),
+                        detail: FieldProtocolArtifactDetail::new("summary-dissemination"),
                         last_updated_at: now_tick,
                     });
                     FieldRoundDisposition::Complete
                 } else {
                     bridge.set_blocked_receive(BlockedReceiveMarker::AnyPeer);
-                    self.state =
-                        FieldGuestRuntimeState::Waiting(BlockedReceiveMarker::AnyPeer);
+                    self.state = FieldGuestRuntimeState::Waiting(BlockedReceiveMarker::AnyPeer);
                     FieldRoundDisposition::Continue
                 }
-            },
-            | FieldProtocolKind::AntiEntropy => {
+            }
+            FieldProtocolKind::AntiEntropy => {
                 if bridge.pop_inbound().is_some() {
                     bridge.clear_blocked_receive();
                     self.state = FieldGuestRuntimeState::Complete;
                     artifacts.push(FieldProtocolArtifact {
                         protocol: self.protocol,
                         session: session.clone(),
-                        detail: FieldProtocolArtifactDetail::new(
-                            "anti-entropy-received",
-                        ),
+                        detail: FieldProtocolArtifactDetail::new("anti-entropy-received"),
                         last_updated_at: now_tick,
                     });
                     FieldRoundDisposition::Complete
                 } else {
                     bridge.set_blocked_receive(BlockedReceiveMarker::AnyPeer);
-                    self.state =
-                        FieldGuestRuntimeState::Waiting(BlockedReceiveMarker::AnyPeer);
+                    self.state = FieldGuestRuntimeState::Waiting(BlockedReceiveMarker::AnyPeer);
                     FieldRoundDisposition::Continue
                 }
-            },
-            | FieldProtocolKind::RetentionReplay => {
+            }
+            FieldProtocolKind::RetentionReplay => {
                 let branch = bridge.pop_branch_choice();
                 if matches!(branch, Some(0)) {
                     self.state = FieldGuestRuntimeState::Complete;
                     artifacts.push(FieldProtocolArtifact {
                         protocol: self.protocol,
                         session: session.clone(),
-                        detail: FieldProtocolArtifactDetail::new(
-                            "retention-replay-deferred",
-                        ),
+                        detail: FieldProtocolArtifactDetail::new("retention-replay-deferred"),
                         last_updated_at: now_tick,
                     });
                     FieldRoundDisposition::Complete
@@ -368,41 +359,33 @@ impl FieldGuestRuntime {
                     artifacts.push(FieldProtocolArtifact {
                         protocol: self.protocol,
                         session: session.clone(),
-                        detail: FieldProtocolArtifactDetail::new(
-                            "retention-replay-flushed",
-                        ),
+                        detail: FieldProtocolArtifactDetail::new("retention-replay-flushed"),
                         last_updated_at: now_tick,
                     });
                     FieldRoundDisposition::Complete
                 } else {
                     bridge.set_blocked_receive(BlockedReceiveMarker::AnyPeer);
-                    self.state =
-                        FieldGuestRuntimeState::Waiting(BlockedReceiveMarker::AnyPeer);
+                    self.state = FieldGuestRuntimeState::Waiting(BlockedReceiveMarker::AnyPeer);
                     FieldRoundDisposition::Continue
                 }
-            },
-            | FieldProtocolKind::ExplicitCoordination => {
-                if bridge.pop_branch_choice().is_some()
-                    || bridge.pop_inbound().is_some()
-                {
+            }
+            FieldProtocolKind::ExplicitCoordination => {
+                if bridge.pop_branch_choice().is_some() || bridge.pop_inbound().is_some() {
                     bridge.clear_blocked_receive();
                     self.state = FieldGuestRuntimeState::Complete;
                     artifacts.push(FieldProtocolArtifact {
                         protocol: self.protocol,
                         session: session.clone(),
-                        detail: FieldProtocolArtifactDetail::new(
-                            "explicit-coordination",
-                        ),
+                        detail: FieldProtocolArtifactDetail::new("explicit-coordination"),
                         last_updated_at: now_tick,
                     });
                     FieldRoundDisposition::Complete
                 } else {
                     bridge.set_blocked_receive(BlockedReceiveMarker::AnyPeer);
-                    self.state =
-                        FieldGuestRuntimeState::Waiting(BlockedReceiveMarker::AnyPeer);
+                    self.state = FieldGuestRuntimeState::Waiting(BlockedReceiveMarker::AnyPeer);
                     FieldRoundDisposition::Continue
                 }
-            },
+            }
         };
 
         (disposition, artifacts)
@@ -421,11 +404,7 @@ struct OwnedFieldProtocolSession {
 }
 
 impl OwnedFieldProtocolSession {
-    fn new(
-        protocol: FieldProtocolKind,
-        owner_tag: u64,
-        bound_task: Option<u64>,
-    ) -> Self {
+    fn new(protocol: FieldProtocolKind, owner_tag: u64, bound_task: Option<u64>) -> Self {
         Self {
             owner_tag,
             generation: 0,
@@ -465,15 +444,15 @@ impl FieldProtocolRuntime {
         owner_tag: u64,
         bound_task: Option<u64>,
     ) -> Result<FieldSessionCapability, FieldSessionError> {
-        if !self.sessions.contains_key(session)
-            && self.sessions.len() >= FIELD_PROTOCOL_SESSION_MAX
+        if !self.sessions.contains_key(session) && self.sessions.len() >= FIELD_PROTOCOL_SESSION_MAX
         {
             return Err(FieldSessionError::TooManySessions);
         }
         let protocol = session.protocol;
-        let owned = self.sessions.entry(session.clone()).or_insert_with(|| {
-            OwnedFieldProtocolSession::new(protocol, owner_tag, bound_task)
-        });
+        let owned = self
+            .sessions
+            .entry(session.clone())
+            .or_insert_with(|| OwnedFieldProtocolSession::new(protocol, owner_tag, bound_task));
         owned.owner_tag = owner_tag;
         owned.bound_task = bound_task;
         Ok(owned.capability(session))
@@ -523,19 +502,9 @@ impl FieldProtocolRuntime {
             bound_task: session.bound_task,
             blocked_receive: session.bridge.blocked_receive(),
             runtime_state: session.runtime.state,
-            pending_outbound: session
-                .bridge
-                .outbound_summaries
-                .iter()
-                .cloned()
-                .collect(),
+            pending_outbound: session.bridge.outbound_summaries.iter().cloned().collect(),
             pending_inbound: session.bridge.inbound_summaries.iter().cloned().collect(),
-            pending_branch_choices: session
-                .bridge
-                .branch_choices
-                .iter()
-                .copied()
-                .collect(),
+            pending_branch_choices: session.bridge.branch_choices.iter().copied().collect(),
             artifacts: session.artifacts.iter().cloned().collect(),
         })
     }
@@ -666,10 +635,8 @@ impl FieldProtocolRuntime {
                     host_wait_status,
                     blocked_receive: None,
                     emitted_send_count: 0,
-                    execution_policy: execution_policy_for(capability.session.protocol)
-                        .class,
-                    step_budget: execution_policy_for(capability.session.protocol)
-                        .step_budget,
+                    execution_policy: execution_policy_for(capability.session.protocol).class,
+                    step_budget: execution_policy_for(capability.session.protocol).step_budget,
                 },
                 flushed_sends: Vec::new(),
                 recorded_artifacts: Vec::new(),
@@ -685,9 +652,7 @@ impl FieldProtocolRuntime {
         }
         let blocked_receive = session.bridge.blocked_receive();
         let flushed_sends = session.bridge.drain_outbound();
-        if matches!(host_wait_status, FieldHostWaitStatus::Delivered)
-            && blocked_receive.is_some()
-        {
+        if matches!(host_wait_status, FieldHostWaitStatus::Delivered) && blocked_receive.is_some() {
             session.bridge.clear_blocked_receive();
         }
         let execution_policy = execution_policy_for(capability.session.protocol);
@@ -736,19 +701,19 @@ impl FieldProtocolRuntime {
 
 fn execution_policy_for(protocol: FieldProtocolKind) -> FieldProtocolExecutionPolicy {
     match protocol {
-        | FieldProtocolKind::SummaryDissemination => FieldProtocolExecutionPolicy {
+        FieldProtocolKind::SummaryDissemination => FieldProtocolExecutionPolicy {
             class: FieldExecutionPolicyClass::Cheap,
             step_budget: 1,
         },
-        | FieldProtocolKind::AntiEntropy => FieldProtocolExecutionPolicy {
+        FieldProtocolKind::AntiEntropy => FieldProtocolExecutionPolicy {
             class: FieldExecutionPolicyClass::Buffered,
             step_budget: 2,
         },
-        | FieldProtocolKind::RetentionReplay => FieldProtocolExecutionPolicy {
+        FieldProtocolKind::RetentionReplay => FieldProtocolExecutionPolicy {
             class: FieldExecutionPolicyClass::Buffered,
             step_budget: 2,
         },
-        | FieldProtocolKind::ExplicitCoordination => FieldProtocolExecutionPolicy {
+        FieldProtocolKind::ExplicitCoordination => FieldProtocolExecutionPolicy {
             class: FieldExecutionPolicyClass::Coordinated,
             step_budget: 4,
         },
@@ -799,9 +764,7 @@ mod tests {
             protocol,
             route_id: None,
             topology_epoch: RouteEpoch(1),
-            destination: Some(SummaryDestinationKey::from(&DestinationId::Node(node(
-                7,
-            )))),
+            destination: Some(SummaryDestinationKey::from(&DestinationId::Node(node(7)))),
         }
     }
 
@@ -857,12 +820,7 @@ mod tests {
             )
             .expect("queue");
         let advance = runtime
-            .advance_host_bridged_round(
-                &capability,
-                Some(21),
-                FieldHostWaitStatus::Idle,
-                Tick(2),
-            )
+            .advance_host_bridged_round(&capability, Some(21), FieldHostWaitStatus::Idle, Tick(2))
             .expect("advance");
         assert_eq!(advance.round.disposition, FieldRoundDisposition::Complete);
         assert_eq!(advance.round.emitted_send_count, 1);
@@ -882,12 +840,7 @@ mod tests {
             .open_session(&session_key(FieldProtocolKind::AntiEntropy), 1, Some(2))
             .expect("session");
         let first = runtime
-            .advance_host_bridged_round(
-                &capability,
-                Some(2),
-                FieldHostWaitStatus::Idle,
-                Tick(3),
-            )
+            .advance_host_bridged_round(&capability, Some(2), FieldHostWaitStatus::Idle, Tick(3))
             .expect("first round");
         assert_eq!(first.round.disposition, FieldRoundDisposition::Continue);
         assert_eq!(
@@ -957,12 +910,7 @@ mod tests {
             .queue_branch_choice(&transferred, 1)
             .expect("branch");
         let round = runtime
-            .advance_host_bridged_round(
-                &transferred,
-                Some(201),
-                FieldHostWaitStatus::Idle,
-                Tick(5),
-            )
+            .advance_host_bridged_round(&transferred, Some(201), FieldHostWaitStatus::Idle, Tick(5))
             .expect("new owner round");
         assert_eq!(round.round.disposition, FieldRoundDisposition::Complete);
     }
@@ -1015,12 +963,7 @@ mod tests {
             )
             .expect("queue");
         let replay_round = runtime
-            .advance_host_bridged_round(
-                &replay,
-                Some(9),
-                FieldHostWaitStatus::Idle,
-                Tick(8),
-            )
+            .advance_host_bridged_round(&replay, Some(9), FieldHostWaitStatus::Idle, Tick(8))
             .expect("replay round");
         assert_eq!(
             replay_round.round.disposition,
@@ -1039,12 +982,7 @@ mod tests {
             .queue_branch_choice(&coordination, 1)
             .expect("branch");
         let coordination_round = runtime
-            .advance_host_bridged_round(
-                &coordination,
-                Some(9),
-                FieldHostWaitStatus::Idle,
-                Tick(9),
-            )
+            .advance_host_bridged_round(&coordination, Some(9), FieldHostWaitStatus::Idle, Tick(9))
             .expect("coordination round");
         assert_eq!(
             coordination_round.round.disposition,

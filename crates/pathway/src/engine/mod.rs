@@ -30,26 +30,24 @@ use std::{
 };
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ConnectivityPosture, ContentId, NodeId, Observation,
-    ReceiptId, RouteCommitmentId, RouteEpoch, RouteError, RouteId, RoutePartitionClass,
-    RouteRuntimeError, RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId,
-    TransportObservation,
+    Blake3Digest, Configuration, ConnectivityPosture, ContentId, NodeId, Observation, ReceiptId,
+    RouteCommitmentId, RouteEpoch, RouteError, RouteId, RoutePartitionClass, RouteRuntimeError,
+    RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId, TransportObservation,
 };
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngine};
 pub(crate) use support::{
-    current_segment, digest_prefix, MaintenanceResultExt, StorageResultExt,
-    DOMAIN_TAG_COMMITTEE_ID,
+    current_segment, digest_prefix, MaintenanceResultExt, StorageResultExt, DOMAIN_TAG_COMMITTEE_ID,
 };
 use trait_bounds::{
-    PathwayEffectsBounds, PathwayHasherBounds, PathwayRetentionBounds,
-    PathwaySelectorBounds, PathwayTopologyBounds, PathwayTransportBounds,
+    PathwayEffectsBounds, PathwayHasherBounds, PathwayRetentionBounds, PathwaySelectorBounds,
+    PathwayTopologyBounds, PathwayTransportBounds,
 };
 use types::{ActivePathwayRoute, CachedCandidate};
 pub use types::{
     PathwayActiveRouteView, PathwayControlState, PathwayForwardingCursor,
-    PathwayObservedRemoteLink, PathwayRoundProgress, PathwayRoundReport,
-    PathwayRoundWaitState, PathwayRouteClass, PathwayRouteRetentionView,
-    PathwayTransportFreshness, PathwayTransportObservationSummary,
+    PathwayObservedRemoteLink, PathwayRoundProgress, PathwayRoundReport, PathwayRoundWaitState,
+    PathwayRouteClass, PathwayRouteRetentionView, PathwayTransportFreshness,
+    PathwayTransportObservationSummary,
 };
 pub(crate) use types::{
     PathwayForwardingState, PathwayHandoffState, PathwayPath, PathwayRepairState,
@@ -111,8 +109,7 @@ pub const PATHWAY_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabil
     repair_support: jacquard_core::RepairSupport::Supported,
     hold_support: jacquard_core::HoldSupport::Supported,
     decidable_admission: jacquard_core::DecidableSupport::Supported,
-    quantitative_bounds:
-        jacquard_core::QuantitativeBoundSupport::ProductiveAndSchedulerLifted,
+    quantitative_bounds: jacquard_core::QuantitativeBoundSupport::ProductiveAndSchedulerLifted,
     reconfiguration_support: jacquard_core::ReconfigurationSupport::LinkAndDelegate,
     route_shape_visibility: jacquard_core::RouteShapeVisibility::ExplicitPath,
 };
@@ -171,9 +168,7 @@ where
         &mut self,
         observation: &TransportObservation,
     ) -> Result<(), RouteError> {
-        if self.pending_transport_ingress.len()
-            >= PATHWAY_PENDING_TRANSPORT_INGRESS_COUNT_MAX
-        {
+        if self.pending_transport_ingress.len() >= PATHWAY_PENDING_TRANSPORT_INGRESS_COUNT_MAX {
             self.dropped_transport_ingress_since_last_tick = self
                 .dropped_transport_ingress_since_last_tick
                 .saturating_add(1);
@@ -192,10 +187,7 @@ where
         self.forward_payload(route_id, payload)
     }
 
-    fn restore_route_runtime_for_router(
-        &mut self,
-        route_id: &RouteId,
-    ) -> Result<bool, RouteError> {
+    fn restore_route_runtime_for_router(&mut self, route_id: &RouteId) -> Result<bool, RouteError> {
         Ok(self.restore_checkpointed_route(route_id)?.is_some())
     }
 }
@@ -298,9 +290,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     }
 
     #[must_use]
-    pub fn transport_observation_summary(
-        &self,
-    ) -> Option<&PathwayTransportObservationSummary> {
+    pub fn transport_observation_summary(&self) -> Option<&PathwayTransportObservationSummary> {
         self.last_transport_summary.as_ref()
     }
 
@@ -484,11 +474,7 @@ where
         ReceiptId(support::digest_prefix::<16>(digest.as_bytes()))
     }
 
-    fn retention_object_id(
-        &self,
-        route_id: &RouteId,
-        payload: &[u8],
-    ) -> ContentId<Blake3Digest> {
+    fn retention_object_id(&self, route_id: &RouteId, payload: &[u8]) -> ContentId<Blake3Digest> {
         let mut tagged = route_id.0.to_vec();
         tagged.extend_from_slice(payload);
         let digest = self
@@ -499,7 +485,9 @@ where
         // type while still binding the result to the retention domain tag.
         let content_digest =
             Blake3Hashing.hash_tagged(support::DOMAIN_TAG_RETENTION, digest.as_bytes());
-        ContentId { digest: content_digest }
+        ContentId {
+            digest: content_digest,
+        }
     }
 }
 
@@ -512,14 +500,8 @@ where
     Retention: PathwayRetentionBounds,
     Effects: PathwayEffectsBounds,
 {
-    fn store_checkpoint(
-        &mut self,
-        active_route: &ActivePathwayRoute,
-    ) -> Result<(), RouteError> {
-        let key = support::route_storage_key(
-            &self.local_node_id,
-            &active_route.path.route_id,
-        );
+    fn store_checkpoint(&mut self, active_route: &ActivePathwayRoute) -> Result<(), RouteError> {
+        let key = support::route_storage_key(&self.local_node_id, &active_route.path.route_id);
         let value = support::checkpoint_bytes(active_route);
         self.effects.store_bytes(&key, &value).storage_invalid()
     }

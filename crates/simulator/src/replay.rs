@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
 
-use jacquard_core::{
-    NodeId, Observation, RouteEvent, RouteEventStamped, RouterRoundOutcome, Tick,
-};
+use jacquard_core::{NodeId, Observation, RouteEvent, RouteEventStamped, RouterRoundOutcome, Tick};
 use jacquard_mem_link_profile::InMemoryRuntimeEffects;
 
 use crate::{
@@ -56,7 +54,10 @@ pub struct IngressBatchBoundary {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TelltaleNativeArtifactRef {
-    PathwayCheckpointRecovery { completed_rounds: u32, host_count: usize },
+    PathwayCheckpointRecovery {
+        completed_rounds: u32,
+        host_count: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

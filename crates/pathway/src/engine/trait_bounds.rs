@@ -13,9 +13,7 @@ use jacquard_traits::{
     RouteEventLogEffects, StorageEffects, TimeEffects, TransportSenderEffects,
 };
 
-use crate::{
-    PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess, PathwayTopologyModel,
-};
+use crate::{PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess, PathwayTopologyModel};
 
 pub(crate) trait PathwayTopologyBounds: PathwayTopologyModel
 where
@@ -37,10 +35,7 @@ pub(crate) trait PathwayTransportBounds:
 {
 }
 
-impl<T> PathwayTransportBounds for T where
-    T: TransportSenderEffects + Send + Sync + 'static
-{
-}
+impl<T> PathwayTransportBounds for T where T: TransportSenderEffects + Send + Sync + 'static {}
 
 pub(crate) trait PathwayRetentionBounds: RetentionStore {}
 
@@ -74,7 +69,4 @@ pub(crate) trait PathwaySelectorBounds:
 {
 }
 
-impl<T> PathwaySelectorBounds for T where
-    T: CommitteeSelector<TopologyView = Configuration>
-{
-}
+impl<T> PathwaySelectorBounds for T where T: CommitteeSelector<TopologyView = Configuration> {}

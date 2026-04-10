@@ -17,30 +17,26 @@
 //! the returned `BackendRouteRef`.
 
 use jacquard_core::{
-    AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief,
-    ByteCount, ClaimStrength, Configuration, ConnectivityPosture, ConnectivityRegime,
-    DestinationId, Estimate, FailureModelClass, Limit, MessageFlowAssumptionClass,
-    NodeDensityClass, ObjectiveVsDelivered, Observation, RouteAdmission,
-    RouteAdmissionCheck, RouteAdmissionRejection, RouteCandidate, RouteCost,
-    RouteDegradation, RouteError, RouteEstimate, RouteProtectionClass,
-    RouteSelectionError, RouteSummary, RouteWitness, RoutingEngineCapabilities,
-    RoutingEngineId, RuntimeEnvelopeClass, SelectedRoutingParameters,
+    AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief, ByteCount,
+    ClaimStrength, Configuration, ConnectivityPosture, ConnectivityRegime, DestinationId, Estimate,
+    FailureModelClass, Limit, MessageFlowAssumptionClass, NodeDensityClass, ObjectiveVsDelivered,
+    Observation, RouteAdmission, RouteAdmissionCheck, RouteAdmissionRejection, RouteCandidate,
+    RouteCost, RouteDegradation, RouteError, RouteEstimate, RouteProtectionClass,
+    RouteSelectionError, RouteSummary, RouteWitness, RoutingEngineCapabilities, RoutingEngineId,
+    RuntimeEnvelopeClass, SelectedRoutingParameters,
 };
 use jacquard_traits::RoutingEnginePlanner;
 
 use crate::{
     attractor::rank_frontier_by_attractor,
-    route::{
-        encode_backend_token, route_id_for_backend, FieldBackendToken,
-        FieldWitnessDetail,
-    },
+    route::{encode_backend_token, route_id_for_backend, FieldBackendToken, FieldWitnessDetail},
     state::{
-        CorridorBeliefEnvelope, DestinationFieldState, DestinationKey,
-        ObservationClass, OperatingRegime, RoutingPosture, MAX_ALTERNATE_COUNT,
+        CorridorBeliefEnvelope, DestinationFieldState, DestinationKey, ObservationClass,
+        OperatingRegime, RoutingPosture, MAX_ALTERNATE_COUNT,
     },
     summary::{
-        derive_degradation_class, EvidenceContributionClass, FieldSummary,
-        SummaryDestinationKey, SummaryUncertaintyClass,
+        derive_degradation_class, EvidenceContributionClass, FieldSummary, SummaryDestinationKey,
+        SummaryUncertaintyClass,
     },
     FieldEngine, FIELD_CAPABILITIES, FIELD_ENGINE_ID,
 };
@@ -89,8 +85,7 @@ impl<Transport, Effects> RoutingEnginePlanner for FieldEngine<Transport, Effects
         candidate: &RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
-        let Ok(artifacts) = self.planning_artifacts(objective, profile, topology)
-        else {
+        let Ok(artifacts) = self.planning_artifacts(objective, profile, topology) else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
         if artifacts.candidate.backend_ref != candidate.backend_ref {
@@ -116,8 +111,7 @@ impl<Transport, Effects> RoutingEnginePlanner for FieldEngine<Transport, Effects
             )
             .into());
         }
-        if let AdmissionDecision::Rejected(reason) = artifacts.admission_check.decision
-        {
+        if let AdmissionDecision::Rejected(reason) = artifacts.admission_check.decision {
             return Err(RouteSelectionError::Inadmissible(reason).into());
         }
         Ok(RouteAdmission {
@@ -155,8 +149,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         }
 
         let destination_key = DestinationKey::from(&objective.destination);
-        let Some(destination_state) = self.state.destinations.get(&destination_key)
-        else {
+        let Some(destination_state) = self.state.destinations.get(&destination_key) else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
         let ranked = rank_frontier_by_attractor(
@@ -188,13 +181,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let route_id = route_id_for_backend(&backend_route_id);
         let route_summary =
             self.route_summary_for(destination_state, primary.neighbor_id, topology);
-        let degradation =
-            self.route_degradation_for(destination_state, topology.value.epoch);
+        let degradation = self.route_degradation_for(destination_state, topology.value.epoch);
         let delivered_protection = delivered_protection(destination_state);
         let delivered_connectivity =
             delivered_connectivity(self.state.posture.current, destination_state);
-        let admission_profile =
-            admission_assumptions(&witness_detail, self.state.regime.current);
+        let admission_profile = admission_assumptions(&witness_detail, self.state.regime.current);
         let route_cost = route_cost_for(
             &destination_state.corridor_belief,
             ranked.len().saturating_sub(1),
@@ -281,9 +272,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     .corridor_belief
                     .expected_hop_band
                     .max_hops
-                    .saturating_sub(
-                        destination_state.corridor_belief.expected_hop_band.min_hops,
-                    )
+                    .saturating_sub(destination_state.corridor_belief.expected_hop_band.min_hops)
                     / 2,
             );
         let protocol_mix = topology
@@ -295,16 +284,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         RouteSummary {
             engine: FIELD_ENGINE_ID,
             protection: delivered_protection(destination_state),
-            connectivity: delivered_connectivity(
-                self.state.posture.current,
-                destination_state,
-            ),
+            connectivity: delivered_connectivity(self.state.posture.current, destination_state),
             protocol_mix,
             hop_count_hint: Belief::estimated(
                 hop_midpoint,
-                jacquard_core::RatioPermille(
-                    destination_state.posterior.top_corridor_mass.value(),
-                ),
+                jacquard_core::RatioPermille(destination_state.posterior.top_corridor_mass.value()),
                 topology.observed_at_tick,
             ),
             valid_for: destination_state.corridor_belief.validity_window,
@@ -335,11 +319,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 destination_state.posterior.usability_entropy.value(),
             ),
         };
-        derive_degradation_class(
-            &summary,
-            self.state.regime.current,
-            &self.state.controller,
-        )
+        derive_degradation_class(&summary, self.state.regime.current, &self.state.controller)
     }
 
     fn destination_supports_objective(
@@ -348,7 +328,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         objective: &jacquard_core::RoutingObjective,
     ) -> bool {
         match objective.destination {
-            | DestinationId::Node(destination) => topology
+            DestinationId::Node(destination) => topology
                 .value
                 .nodes
                 .get(&destination)
@@ -359,7 +339,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     })
                 })
                 .unwrap_or(false),
-            | DestinationId::Gateway(_) | DestinationId::Service(_) => self
+            DestinationId::Gateway(_) | DestinationId::Service(_) => self
                 .state
                 .destinations
                 .contains_key(&DestinationKey::from(&objective.destination)),
@@ -371,13 +351,11 @@ fn evidence_class_from_state(
     destination_state: &DestinationFieldState,
 ) -> EvidenceContributionClass {
     match destination_state.posterior.predicted_observation_class {
-        | ObservationClass::DirectOnly => EvidenceContributionClass::Direct,
-        | ObservationClass::ForwardPropagated | ObservationClass::Mixed => {
+        ObservationClass::DirectOnly => EvidenceContributionClass::Direct,
+        ObservationClass::ForwardPropagated | ObservationClass::Mixed => {
             EvidenceContributionClass::ForwardPropagated
-        },
-        | ObservationClass::ReverseValidated => {
-            EvidenceContributionClass::ReverseFeedback
-        },
+        }
+        ObservationClass::ReverseValidated => EvidenceContributionClass::ReverseFeedback,
     }
 }
 
@@ -401,9 +379,7 @@ fn admission_check_for(inputs: AdmissionInputs<'_>) -> RouteAdmissionCheck {
     {
         AdmissionDecision::Rejected(RouteAdmissionRejection::ProtectionFloorUnsatisfied)
     } else if destination_state.posterior.usability_entropy.value() > 850 {
-        AdmissionDecision::Rejected(
-            RouteAdmissionRejection::DeliveryAssumptionUnsupported,
-        )
+        AdmissionDecision::Rejected(RouteAdmissionRejection::DeliveryAssumptionUnsupported)
     } else if delivered_connectivity.repair < profile.selected_connectivity.repair
         || delivered_connectivity.partition < profile.selected_connectivity.partition
     {
@@ -415,9 +391,7 @@ fn admission_check_for(inputs: AdmissionInputs<'_>) -> RouteAdmissionCheck {
     RouteAdmissionCheck {
         decision,
         profile: assumptions,
-        productive_step_bound: Limit::Bounded(u32::from(
-            summary.hop_count_hint.value_or(1),
-        )),
+        productive_step_bound: Limit::Bounded(u32::from(summary.hop_count_hint.value_or(1))),
         total_step_bound: Limit::Bounded(
             u32::from(summary.hop_count_hint.value_or(1)).saturating_add(2),
         ),
@@ -425,9 +399,7 @@ fn admission_check_for(inputs: AdmissionInputs<'_>) -> RouteAdmissionCheck {
     }
 }
 
-fn delivered_protection(
-    destination_state: &DestinationFieldState,
-) -> RouteProtectionClass {
+fn delivered_protection(destination_state: &DestinationFieldState) -> RouteProtectionClass {
     if destination_state.corridor_belief.delivery_support.value() >= 300 {
         RouteProtectionClass::LinkProtected
     } else {
@@ -463,41 +435,41 @@ fn admission_assumptions(
     AdmissionAssumptions {
         message_flow_assumption: MessageFlowAssumptionClass::BestEffort,
         failure_model: match regime {
-            | OperatingRegime::Adversarial => FailureModelClass::ByzantineInterface,
-            | OperatingRegime::Unstable => FailureModelClass::CrashStop,
-            | _ => FailureModelClass::Benign,
+            OperatingRegime::Adversarial => FailureModelClass::ByzantineInterface,
+            OperatingRegime::Unstable => FailureModelClass::CrashStop,
+            _ => FailureModelClass::Benign,
         },
         runtime_envelope: RuntimeEnvelopeClass::EnvelopeAdmitted,
         node_density_class: match regime {
-            | OperatingRegime::Sparse => NodeDensityClass::Sparse,
-            | OperatingRegime::Congested => NodeDensityClass::Dense,
-            | OperatingRegime::RetentionFavorable
+            OperatingRegime::Sparse => NodeDensityClass::Sparse,
+            OperatingRegime::Congested => NodeDensityClass::Dense,
+            OperatingRegime::RetentionFavorable
             | OperatingRegime::Unstable
             | OperatingRegime::Adversarial => NodeDensityClass::Moderate,
         },
         connectivity_regime: match regime {
-            | OperatingRegime::Sparse => ConnectivityRegime::Stable,
-            | OperatingRegime::Congested | OperatingRegime::RetentionFavorable => {
+            OperatingRegime::Sparse => ConnectivityRegime::Stable,
+            OperatingRegime::Congested | OperatingRegime::RetentionFavorable => {
                 ConnectivityRegime::PartitionProne
-            },
-            | OperatingRegime::Unstable | OperatingRegime::Adversarial => {
+            }
+            OperatingRegime::Unstable | OperatingRegime::Adversarial => {
                 ConnectivityRegime::HighChurn
-            },
+            }
         },
         adversary_regime: match regime {
-            | OperatingRegime::Adversarial => AdversaryRegime::ActiveAdversarial,
-            | OperatingRegime::Unstable => AdversaryRegime::BenignUntrusted,
-            | _ => AdversaryRegime::Cooperative,
+            OperatingRegime::Adversarial => AdversaryRegime::ActiveAdversarial,
+            OperatingRegime::Unstable => AdversaryRegime::BenignUntrusted,
+            _ => AdversaryRegime::Cooperative,
         },
         claim_strength: match (
             witness_detail.evidence_class,
             witness_detail.uncertainty_class,
         ) {
-            | (EvidenceContributionClass::Direct, SummaryUncertaintyClass::Low) => {
+            (EvidenceContributionClass::Direct, SummaryUncertaintyClass::Low) => {
                 ClaimStrength::ConservativeUnderProfile
-            },
-            | (_, SummaryUncertaintyClass::High) => ClaimStrength::InterfaceOnly,
-            | _ => ClaimStrength::ConservativeUnderProfile,
+            }
+            (_, SummaryUncertaintyClass::High) => ClaimStrength::InterfaceOnly,
+            _ => ClaimStrength::ConservativeUnderProfile,
         },
     }
 }
@@ -523,9 +495,7 @@ fn route_cost_for(
         hold_bytes_reserved: Limit::Bounded(hold_bytes_reserved),
         work_step_count_max: Limit::Bounded(
             u32::from(hop_count)
-                .saturating_add(
-                    u32::try_from(alternate_count).expect("alternate count fits u32"),
-                )
+                .saturating_add(u32::try_from(alternate_count).expect("alternate count fits u32"))
                 .saturating_add(1),
         ),
     }
@@ -553,9 +523,9 @@ fn rejected_check(
 
 fn uncertainty_class_for(value: u16) -> SummaryUncertaintyClass {
     match value {
-        | 0..=249 => SummaryUncertaintyClass::Low,
-        | 250..=599 => SummaryUncertaintyClass::Medium,
-        | _ => SummaryUncertaintyClass::High,
+        0..=249 => SummaryUncertaintyClass::Low,
+        250..=599 => SummaryUncertaintyClass::Medium,
+        _ => SummaryUncertaintyClass::High,
     }
 }
 
@@ -565,19 +535,16 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
-        Environment, FactSourceClass, Observation, OriginAuthenticationClass,
-        RatioPermille, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
-        RouteRepairClass, RouteServiceKind, RoutingEvidenceClass, RoutingObjective,
-        SelectedRoutingParameters, Tick,
+        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, Environment,
+        FactSourceClass, Observation, OriginAuthenticationClass, RatioPermille, RouteEpoch,
+        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
+        RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick,
     };
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
     use jacquard_traits::RoutingEnginePlanner;
 
     use super::*;
-    use crate::state::{
-        DestinationInterestClass, HopBand, NeighborContinuation, SupportBucket,
-    };
+    use crate::state::{DestinationInterestClass, HopBand, NeighborContinuation, SupportBucket};
 
     fn node(byte: u8) -> jacquard_core::NodeId {
         jacquard_core::NodeId([byte; 32])
@@ -609,8 +576,7 @@ mod tests {
             },
             deployment_profile: jacquard_core::OperatingMode::SparseLowPower,
             diversity_floor: jacquard_core::DiversityFloor(1),
-            routing_engine_fallback_policy:
-                jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
             route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
         }
     }
@@ -676,8 +642,7 @@ mod tests {
         );
         state.posterior.top_corridor_mass = SupportBucket::new(850);
         state.posterior.usability_entropy = crate::state::EntropyBucket::new(200);
-        state.posterior.predicted_observation_class =
-            crate::state::ObservationClass::DirectOnly;
+        state.posterior.predicted_observation_class = crate::state::ObservationClass::DirectOnly;
         state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
         state.corridor_belief.delivery_support = SupportBucket::new(800);
         state.corridor_belief.retention_affinity = SupportBucket::new(300);
@@ -758,9 +723,7 @@ mod tests {
     fn witness_detail_tracks_regime_posture_and_uncertainty() {
         let engine = seeded_engine();
         let detail = engine
-            .witness_detail_for_destination(&DestinationKey::from(
-                &DestinationId::Node(node(2)),
-            ))
+            .witness_detail_for_destination(&DestinationKey::from(&DestinationId::Node(node(2))))
             .expect("detail");
         assert_eq!(detail.regime, engine.state.regime.current);
         assert_eq!(detail.posture, engine.state.posture.current);

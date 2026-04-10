@@ -18,22 +18,21 @@
 use std::{cmp::Reverse, collections::BTreeMap};
 
 use jacquard_core::{
-    AdmissionDecision, Belief, CapabilityError, Configuration, FactSourceClass,
-    MaterializedRoute, Observation, OrderStamp, OriginAuthenticationClass,
-    PublicationId, RouteCandidate, RouteCommitment, RouteDegradation, RouteError,
-    RouteHandle, RouteHealth, RouteId, RouteIdentityStamp, RouteLease,
-    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteRuntimeError,
-    RouteSelectionError, RouteSemanticHandoff, RouterCanonicalMutation,
-    RouterMaintenanceOutcome, RouterRoundOutcome, RoutingEngineCapabilities,
-    RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RoutingPolicyInputs,
-    RoutingTickChange, RoutingTickContext, RoutingTickHint, SelectedRoutingParameters,
-    Tick, TimeWindow, TransportKind, TransportObservation,
+    AdmissionDecision, Belief, CapabilityError, Configuration, FactSourceClass, MaterializedRoute,
+    Observation, OrderStamp, OriginAuthenticationClass, PublicationId, RouteCandidate,
+    RouteCommitment, RouteDegradation, RouteError, RouteHandle, RouteHealth, RouteId,
+    RouteIdentityStamp, RouteLease, RouteMaintenanceResult, RouteMaintenanceTrigger,
+    RouteMaterializationInput, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+    RouteRuntimeError, RouteSelectionError, RouteSemanticHandoff, RouterCanonicalMutation,
+    RouterMaintenanceOutcome, RouterRoundOutcome, RoutingEngineCapabilities, RoutingEngineId,
+    RoutingEvidenceClass, RoutingObjective, RoutingPolicyInputs, RoutingTickChange,
+    RoutingTickContext, RoutingTickHint, SelectedRoutingParameters, Tick, TimeWindow,
+    TransportKind, TransportObservation,
 };
 use jacquard_traits::{
     OrderEffects, PolicyEngine, RouteEventLogEffects, Router, RouterEngineRegistry,
-    RouterManagedEngine, RoutingControlPlane, RoutingDataPlane, RoutingMiddleware,
-    StorageEffects, TimeEffects,
+    RouterManagedEngine, RoutingControlPlane, RoutingDataPlane, RoutingMiddleware, StorageEffects,
+    TimeEffects,
 };
 
 use crate::runtime::{RouterCheckpointRecord, RouterRuntimeAdapter};
@@ -117,15 +116,15 @@ where
         let capabilities = extension.capabilities();
         self.registered_engines.insert(
             engine_id,
-            RegisteredEngine { capabilities, engine: extension },
+            RegisteredEngine {
+                capabilities,
+                engine: extension,
+            },
         );
         Ok(())
     }
 
-    pub fn ingest_topology_observation(
-        &mut self,
-        topology: Observation<Configuration>,
-    ) {
+    pub fn ingest_topology_observation(&mut self, topology: Observation<Configuration>) {
         self.topology = topology;
     }
 
@@ -146,16 +145,14 @@ where
     }
 
     pub fn recover_checkpointed_routes(&mut self) -> Result<usize, RouteError> {
-        let records = RouterRuntimeAdapter::new(self.local_node_id, &mut self.effects)
-            .load_routes()?;
+        let records =
+            RouterRuntimeAdapter::new(self.local_node_id, &mut self.effects).load_routes()?;
         let mut recovered = 0usize;
         for (route_id, record) in records {
             let engine_id = record.route.identity.admission.summary.engine.clone();
             let restored = match self.registered_engines.get_mut(&engine_id) {
-                | Some(entry) => {
-                    entry.engine.restore_route_runtime_for_router(&route_id)?
-                },
-                | None => false,
+                Some(entry) => entry.engine.restore_route_runtime_for_router(&route_id)?,
+                None => false,
             };
             if !restored {
                 RouterRuntimeAdapter::new(self.local_node_id, &mut self.effects)
@@ -244,10 +241,7 @@ where
         }
     }
 
-    fn route_engine_id(
-        &self,
-        route_id: &RouteId,
-    ) -> Result<RoutingEngineId, RouteError> {
+    fn route_engine_id(&self, route_id: &RouteId) -> Result<RoutingEngineId, RouteError> {
         self.active_routes
             .get(route_id)
             .map(|route| route.identity.admission.summary.engine.clone())
@@ -262,9 +256,7 @@ where
         Ok(self.engine_for_id(&engine_id)?.route_commitments(route))
     }
 
-    fn advance_all_engines(
-        &mut self,
-    ) -> Result<(RoutingTickChange, RoutingTickHint), RouteError> {
+    fn advance_all_engines(&mut self) -> Result<(RoutingTickChange, RoutingTickHint), RouteError> {
         let tick = RoutingTickContext::new(self.topology.clone());
         let mut aggregate = RoutingTickChange::NoChange;
         let mut hint = RoutingTickHint::HostDefault;
@@ -325,8 +317,8 @@ where
         if admission.admission_check.decision != AdmissionDecision::Admissible {
             return Err(RouteSelectionError::Inadmissible(
                 match admission.admission_check.decision {
-                    | AdmissionDecision::Rejected(reason) => reason,
-                    | AdmissionDecision::Admissible => unreachable!(),
+                    AdmissionDecision::Rejected(reason) => reason,
+                    AdmissionDecision::Admissible => unreachable!(),
                 },
             )
             .into());
@@ -343,19 +335,19 @@ where
             route: route.clone(),
             commitments: commitments.clone(),
         };
-        if let Err(error) =
-            self.runtime_adapter()
-                .persist_route(&record)
-                .and_then(|()| {
-                    self.runtime_adapter().record_route_event(
-                        jacquard_core::RouteEvent::RouteMaterialized {
-                            handle: jacquard_core::RouteHandle {
-                                stamp: route.identity.stamp.clone(),
-                            },
-                            proof: route.identity.proof.clone(),
+        if let Err(error) = self
+            .runtime_adapter()
+            .persist_route(&record)
+            .and_then(|()| {
+                self.runtime_adapter().record_route_event(
+                    jacquard_core::RouteEvent::RouteMaterialized {
+                        handle: jacquard_core::RouteHandle {
+                            stamp: route.identity.stamp.clone(),
                         },
-                    )
-                })
+                        proof: route.identity.proof.clone(),
+                    },
+                )
+            })
         {
             self.engine_for_id_mut(&engine_id)?.teardown(&route_id);
             return Err(error);
@@ -375,11 +367,8 @@ where
         let lease = RouteLease {
             owner_node_id: self.local_node_id,
             lease_epoch: self.topology.value.epoch,
-            valid_for: TimeWindow::new(
-                now,
-                Tick(now.0.saturating_add(DEFAULT_ROUTE_LEASE_TICKS)),
-            )
-            .map_err(|_| RouteRuntimeError::Invalidated)?,
+            valid_for: TimeWindow::new(now, Tick(now.0.saturating_add(DEFAULT_ROUTE_LEASE_TICKS)))
+                .map_err(|_| RouteRuntimeError::Invalidated)?,
         };
         Ok(RouteMaterializationInput {
             handle: RouteHandle {
@@ -458,18 +447,19 @@ where
         result: RouteMaintenanceResult,
     ) -> Result<RouterMaintenanceOutcome, RouteError> {
         let canonical_mutation = match &result.outcome {
-            | jacquard_core::RouteMaintenanceOutcome::ReplacementRequired {
-                trigger,
-            } => self.handle_replacement_required(route_id, *trigger)?,
-            | jacquard_core::RouteMaintenanceOutcome::HandedOff(handoff) => self
-                .handle_handoff_maintenance(route_id, next_runtime, handoff, &result)?,
-            | jacquard_core::RouteMaintenanceOutcome::Failed(
+            jacquard_core::RouteMaintenanceOutcome::ReplacementRequired { trigger } => {
+                self.handle_replacement_required(route_id, *trigger)?
+            }
+            jacquard_core::RouteMaintenanceOutcome::HandedOff(handoff) => {
+                self.handle_handoff_maintenance(route_id, next_runtime, handoff, &result)?
+            }
+            jacquard_core::RouteMaintenanceOutcome::Failed(
                 jacquard_core::RouteMaintenanceFailure::LeaseExpired,
             ) => self.handle_expired_route(route_id, &result)?,
-            | _ if result.event == jacquard_core::RouteLifecycleEvent::Expired => {
+            _ if result.event == jacquard_core::RouteLifecycleEvent::Expired => {
                 self.handle_expired_route(route_id, &result)?
-            },
-            | _ => self.handle_continued_route(route_id, next_runtime, &result)?,
+            }
+            _ => self.handle_continued_route(route_id, next_runtime, &result)?,
         };
 
         Ok(RouterMaintenanceOutcome {
@@ -530,7 +520,9 @@ where
         )?;
         self.active_routes.remove(route_id);
         self.published_commitments.remove(route_id);
-        Ok(RouterCanonicalMutation::RouteExpired { route_id: *route_id })
+        Ok(RouterCanonicalMutation::RouteExpired {
+            route_id: *route_id,
+        })
     }
 
     fn handle_continued_route(
@@ -638,10 +630,7 @@ where
         self.activate_with_profile(&objective, &profile)
     }
 
-    fn route_commitments(
-        &self,
-        route_id: &RouteId,
-    ) -> Result<Vec<RouteCommitment>, RouteError> {
+    fn route_commitments(&self, route_id: &RouteId) -> Result<Vec<RouteCommitment>, RouteError> {
         let commitments = self
             .published_commitments
             .get(route_id)
@@ -740,11 +729,7 @@ where
     Policy: PolicyEngine,
     Effects: TimeEffects + OrderEffects + StorageEffects + RouteEventLogEffects,
 {
-    fn forward_payload(
-        &mut self,
-        route_id: &RouteId,
-        payload: &[u8],
-    ) -> Result<(), RouteError> {
+    fn forward_payload(&mut self, route_id: &RouteId, payload: &[u8]) -> Result<(), RouteError> {
         let engine_id = self.route_engine_id(route_id)?;
         self.engine_for_id_mut(&engine_id)?
             .forward_payload_for_router(route_id, payload)

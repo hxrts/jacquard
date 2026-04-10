@@ -2,19 +2,18 @@
 //! state.
 
 use jacquard_core::{
-    AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief,
-    ByteCount, ClaimStrength, ConnectivityPosture, ConnectivityRegime, DiversityFloor,
-    Estimate, Fact, FactBasis, FailureModelClass, HoldFallbackPolicy, Limit,
-    MaterializedRoute, MessageFlowAssumptionClass, NodeDensityClass,
-    ObjectiveVsDelivered, OperatingMode, PublicationId, ReachabilityState,
-    RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost, RouteDegradation,
-    RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId, RouteInstallation,
-    RouteLease, RouteLifecycleEvent, RouteMaterializationInput,
-    RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
-    RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-    RouteRuntimeError, RouteServiceKind, RouteSummary, RouteWitness,
-    RoutingEngineFallbackPolicy, RoutingEngineId, RoutingObjective,
-    RuntimeEnvelopeClass, SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
+    AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief, ByteCount,
+    ClaimStrength, ConnectivityPosture, ConnectivityRegime, DiversityFloor, Estimate, Fact,
+    FactBasis, FailureModelClass, HoldFallbackPolicy, Limit, MaterializedRoute,
+    MessageFlowAssumptionClass, NodeDensityClass, ObjectiveVsDelivered, OperatingMode,
+    PublicationId, ReachabilityState, RouteAdmission, RouteAdmissionCheck, RouteCandidate,
+    RouteCost, RouteDegradation, RouteEpoch, RouteEstimate, RouteHandle, RouteHealth, RouteId,
+    RouteInstallation, RouteLease, RouteLifecycleEvent, RouteMaterializationInput,
+    RouteMaterializationProof, RoutePartitionClass, RouteProgressContract, RouteProgressState,
+    RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy, RouteRuntimeError,
+    RouteServiceKind, RouteSummary, RouteWitness, RoutingEngineFallbackPolicy, RoutingEngineId,
+    RoutingObjective, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick, TimeWindow,
+    TransportKind,
 };
 
 fn repairable_connected() -> ConnectivityPosture {
@@ -65,8 +64,7 @@ fn sample_summary() -> RouteSummary {
             confidence_permille: jacquard_core::RatioPermille(1000),
             updated_at_tick: Tick(100),
         }),
-        valid_for: TimeWindow::new(Tick(100), Tick(500))
-            .expect("valid route summary window"),
+        valid_for: TimeWindow::new(Tick(100), Tick(500)).expect("valid route summary window"),
     }
 }
 
@@ -98,8 +96,7 @@ fn sample_route_cost() -> RouteCost {
 }
 
 // long-block-exception: candidate/input/installation assembled together.
-fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInstallation)
-{
+fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInstallation) {
     let objective = sample_objective();
     let admission_profile = sample_admission_assumptions();
     let summary = sample_summary();
@@ -155,8 +152,7 @@ fn sample_route_parts() -> (RouteCandidate, RouteMaterializationInput, RouteInst
         lease: RouteLease {
             owner_node_id: jacquard_core::NodeId([9; 32]),
             lease_epoch: RouteEpoch(4),
-            valid_for: TimeWindow::new(Tick(100), Tick(500))
-                .expect("valid route lease window"),
+            valid_for: TimeWindow::new(Tick(100), Tick(500)).expect("valid route lease window"),
         },
     };
     let installation = RouteInstallation {
@@ -223,9 +219,7 @@ fn materialized_route_can_be_built_from_shared_lifecycle_types() {
 }
 
 #[test]
-#[should_panic(
-    expected = "route installation proof stamp must match the canonical handle stamp"
-)]
+#[should_panic(expected = "route installation proof stamp must match the canonical handle stamp")]
 fn materialized_route_rejects_mismatched_installation_proof_identity() {
     let (_, input, mut installation) = sample_route_parts();
     installation.materialization_proof.stamp.route_id = RouteId([6; 16]);
@@ -234,26 +228,20 @@ fn materialized_route_rejects_mismatched_installation_proof_identity() {
 }
 
 #[test]
-#[should_panic(
-    expected = "route installation requires an admissible control-plane decision"
-)]
+#[should_panic(expected = "route installation requires an admissible control-plane decision")]
 fn materialized_route_rejects_inadmissible_activation() {
     let (_, mut input, installation) = sample_route_parts();
-    input.admission.admission_check.decision = AdmissionDecision::Rejected(
-        jacquard_core::RouteAdmissionRejection::CapacityExceeded,
-    );
+    input.admission.admission_check.decision =
+        AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::CapacityExceeded);
 
     let _ = MaterializedRoute::from_installation(input, installation);
 }
 
 #[test]
-#[should_panic(
-    expected = "route installation must satisfy the objective protection floor"
-)]
+#[should_panic(expected = "route installation must satisfy the objective protection floor")]
 fn materialized_route_rejects_activation_below_protection_floor() {
     let (_, mut input, installation) = sample_route_parts();
-    input.admission.objective.protection_floor =
-        RouteProtectionClass::TopologyProtected;
+    input.admission.objective.protection_floor = RouteProtectionClass::TopologyProtected;
     input.admission.summary.protection = RouteProtectionClass::LinkProtected;
 
     let _ = MaterializedRoute::from_installation(input, installation);

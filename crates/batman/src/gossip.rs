@@ -14,9 +14,8 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    Belief, ByteCount, Configuration, DurationMs, EndpointLocator, Link, LinkEndpoint,
-    LinkProfile, LinkRuntimeState, LinkState, NodeId, Observation, RatioPermille, Tick,
-    TransportKind,
+    Belief, ByteCount, Configuration, DurationMs, EndpointLocator, Link, LinkEndpoint, LinkProfile,
+    LinkRuntimeState, LinkState, NodeId, Observation, RatioPermille, Tick, TransportKind,
 };
 use serde::{Deserialize, Serialize};
 
@@ -44,11 +43,11 @@ pub(crate) struct LearnedAdvertisement {
 }
 
 impl LearnedAdvertisement {
-    pub(crate) fn new(
-        advertisement: OriginatorAdvertisement,
-        observed_at_tick: Tick,
-    ) -> Self {
-        Self { advertisement, observed_at_tick }
+    pub(crate) fn new(advertisement: OriginatorAdvertisement, observed_at_tick: Tick) -> Self {
+        Self {
+            advertisement,
+            observed_at_tick,
+        }
     }
 }
 
@@ -83,10 +82,9 @@ pub(crate) fn local_advertisement(
             to_node_id: *to_node_id,
             transport_kind: link.endpoint.transport_kind.clone(),
             runtime_state: link.state.state,
-            delivery_confidence_permille: match &link.state.delivery_confidence_permille
-            {
-                | Belief::Absent => None,
-                | Belief::Estimated(estimate) => Some(estimate.value),
+            delivery_confidence_permille: match &link.state.delivery_confidence_permille {
+                Belief::Absent => None,
+                Belief::Estimated(estimate) => Some(estimate.value),
             },
         })
         .collect();
@@ -109,8 +107,7 @@ pub(crate) fn merge_advertisements(
             continue;
         }
         for advertised in &learned.advertisement.links {
-            let Some(destination) = merged.value.nodes.get(&advertised.to_node_id)
-            else {
+            let Some(destination) = merged.value.nodes.get(&advertised.to_node_id) else {
                 continue;
             };
             merged
@@ -123,10 +120,7 @@ pub(crate) fn merge_advertisements(
     merged
 }
 
-fn advertised_link_to_link(
-    destination: &jacquard_core::Node,
-    advertised: &AdvertisedLink,
-) -> Link {
+fn advertised_link_to_link(destination: &jacquard_core::Node, advertised: &AdvertisedLink) -> Link {
     let endpoint = destination
         .profile
         .endpoints

@@ -3,15 +3,13 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    Configuration, Environment, FactSourceClass, Observation,
-    OriginAuthenticationClass, RatioPermille, RouteEpoch, RoutingEvidenceClass, Tick,
+    Configuration, Environment, FactSourceClass, Observation, OriginAuthenticationClass,
+    RatioPermille, RouteEpoch, RoutingEvidenceClass, Tick,
 };
 use jacquard_reference_client::topology;
 
 use crate::{
-    environment::{
-        EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel,
-    },
+    environment::{EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel},
     harness::default_objective,
     scenario::{BoundObjective, HostSpec, JacquardScenario},
 };
@@ -79,7 +77,10 @@ pub fn pathway_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
         ),
         ScheduledEnvironmentHook::new(
             Tick(6),
-            EnvironmentHook::Partition { left: NODE_B, right: NODE_C },
+            EnvironmentHook::Partition {
+                left: NODE_B,
+                right: NODE_C,
+            },
         ),
         ScheduledEnvironmentHook::new(
             Tick(7),
@@ -143,7 +144,10 @@ pub fn batman_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
         ),
         ScheduledEnvironmentHook::new(
             Tick(5),
-            EnvironmentHook::Partition { left: NODE_B, right: NODE_C },
+            EnvironmentHook::Partition {
+                left: NODE_B,
+                right: NODE_C,
+            },
         ),
         ScheduledEnvironmentHook::new(
             Tick(6),
@@ -311,7 +315,10 @@ pub fn partition_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let environment = ScriptedEnvironmentModel::new(vec![
         ScheduledEnvironmentHook::new(
             Tick(4),
-            EnvironmentHook::Partition { left: NODE_B, right: NODE_C },
+            EnvironmentHook::Partition {
+                left: NODE_B,
+                right: NODE_C,
+            },
         ),
         ScheduledEnvironmentHook::new(
             Tick(6),
@@ -350,7 +357,10 @@ pub fn deferred_delivery_regression() -> (JacquardScenario, ScriptedEnvironmentM
     let environment = ScriptedEnvironmentModel::new(vec![
         ScheduledEnvironmentHook::new(
             Tick(4),
-            EnvironmentHook::Partition { left: NODE_B, right: NODE_C },
+            EnvironmentHook::Partition {
+                left: NODE_B,
+                right: NODE_C,
+            },
         ),
         ScheduledEnvironmentHook::new(
             Tick(5),
@@ -501,11 +511,7 @@ fn line_topology(
     Observation {
         value: Configuration {
             epoch: RouteEpoch(1),
-            nodes: BTreeMap::from([
-                (NODE_A, node_a),
-                (NODE_B, node_b),
-                (NODE_C, node_c),
-            ]),
+            nodes: BTreeMap::from([(NODE_A, node_a), (NODE_B, node_b), (NODE_C, node_c)]),
             links: BTreeMap::from([
                 ((NODE_A, NODE_B), topology::link(2).build()),
                 ((NODE_B, NODE_C), topology::link(3).build()),

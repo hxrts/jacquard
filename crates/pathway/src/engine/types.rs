@@ -15,10 +15,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use jacquard_core::{
-    Blake3Digest, CommitteeSelection, ContentId, DestinationId, DeterministicOrderKey,
-    HealthScore, LinkEndpoint, NodeId, PenaltyPoints, ReceiptId, RouteCost, RouteId,
-    RouteLifecycleEvent, RouteSummary, RoutingTickChange, RoutingTickHint,
-    RoutingTickOutcome, Tick, TimeWindow,
+    Blake3Digest, CommitteeSelection, ContentId, DestinationId, DeterministicOrderKey, HealthScore,
+    LinkEndpoint, NodeId, PenaltyPoints, ReceiptId, RouteCost, RouteId, RouteLifecycleEvent,
+    RouteSummary, RoutingTickChange, RoutingTickHint, RoutingTickOutcome, Tick, TimeWindow,
 };
 use serde::{Deserialize, Serialize};
 

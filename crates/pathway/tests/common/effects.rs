@@ -17,9 +17,8 @@ use std::{
 };
 
 use jacquard_core::{
-    Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError,
-    RouteEventStamped, StorageError, Tick, TransportError, TransportIngressEvent,
-    TransportObservation,
+    Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError, RouteEventStamped,
+    StorageError, Tick, TransportError, TransportIngressEvent, TransportObservation,
 };
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport,
@@ -35,7 +34,7 @@ pub struct TestTransport(Arc<Mutex<InMemoryTransport>>);
 impl TestTransport {
     pub fn push_observation(&self, observation: TransportObservation) {
         let event = match observation {
-            | TransportObservation::PayloadReceived {
+            TransportObservation::PayloadReceived {
                 from_node_id,
                 endpoint,
                 payload,
@@ -45,14 +44,15 @@ impl TestTransport {
                 endpoint,
                 payload,
             },
-            | TransportObservation::LinkObserved { remote_node_id, observation } => {
-                TransportIngressEvent::LinkObserved {
-                    remote_node_id,
-                    link: observation.value,
-                    source_class: observation.source_class,
-                    evidence_class: observation.evidence_class,
-                    origin_authentication: observation.origin_authentication,
-                }
+            TransportObservation::LinkObserved {
+                remote_node_id,
+                observation,
+            } => TransportIngressEvent::LinkObserved {
+                remote_node_id,
+                link: observation.value,
+                source_class: observation.source_class,
+                evidence_class: observation.evidence_class,
+                origin_authentication: observation.origin_authentication,
             },
         };
         self.0
@@ -166,10 +166,7 @@ impl StorageEffects for TestRuntimeEffects {
 
 #[effect_handler]
 impl RouteEventLogEffects for TestRuntimeEffects {
-    fn record_route_event(
-        &mut self,
-        event: RouteEventStamped,
-    ) -> Result<(), RouteEventLogError> {
+    fn record_route_event(&mut self, event: RouteEventStamped) -> Result<(), RouteEventLogError> {
         self.0.lock().expect(EFFECTS_LOCK).record_route_event(event)
     }
 }

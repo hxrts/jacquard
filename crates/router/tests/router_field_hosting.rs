@@ -14,10 +14,9 @@ mod common;
 
 use common::{build_router_with_field, objective, LOCAL_NODE_ID, PEER_NODE_ID};
 use jacquard_core::{
-    DestinationId, Environment, FactSourceClass, Observation,
-    OriginAuthenticationClass, RatioPermille, RouteMaintenanceTrigger,
-    RouteShapeVisibility, RouterCanonicalMutation, RoutingEvidenceClass,
-    RoutingTickChange, Tick,
+    DestinationId, Environment, FactSourceClass, Observation, OriginAuthenticationClass,
+    RatioPermille, RouteMaintenanceTrigger, RouteShapeVisibility, RouterCanonicalMutation,
+    RoutingEvidenceClass, RoutingTickChange, Tick,
 };
 use jacquard_reference_client::topology;
 use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane};
@@ -60,11 +59,8 @@ fn topology_without_direct_link(
 fn router_activates_field_route_with_corridor_envelope_visibility() {
     let mut router = build_router_with_field(Tick(2));
 
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(PEER_NODE_ID)),
-    )
-    .expect("field-backed activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(PEER_NODE_ID)))
+        .expect("field-backed activation");
 
     assert_eq!(
         route.identity.admission.summary.engine,
@@ -109,11 +105,8 @@ fn advance_round_hosts_field_private_updates_without_exposing_session_state() {
 #[test]
 fn router_expires_field_route_fail_closed_after_frontier_disappears() {
     let mut router = build_router_with_field(Tick(2));
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(PEER_NODE_ID)),
-    )
-    .expect("field route activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(PEER_NODE_ID)))
+        .expect("field route activation");
 
     router.ingest_topology_observation(topology_without_direct_link(Tick(10)));
     let round = router.advance_round().expect("advance after link removal");

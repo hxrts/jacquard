@@ -13,9 +13,7 @@
 
 use std::collections::BTreeMap;
 
-use jacquard_core::{
-    OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick,
-};
+use jacquard_core::{OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick};
 use jacquard_traits::{
     effect_handler, OrderEffects, RouteEventLogEffects, StorageEffects, TimeEffects,
 };
@@ -69,10 +67,7 @@ impl StorageEffects for InMemoryRuntimeEffects {
 
 #[effect_handler]
 impl RouteEventLogEffects for InMemoryRuntimeEffects {
-    fn record_route_event(
-        &mut self,
-        event: RouteEventStamped,
-    ) -> Result<(), RouteEventLogError> {
+    fn record_route_event(&mut self, event: RouteEventStamped) -> Result<(), RouteEventLogError> {
         if self.fail_record_route_event {
             return Err(RouteEventLogError::Unavailable);
         }

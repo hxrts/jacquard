@@ -1,14 +1,14 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DestinationId, DurationMs, Environment,
-    FactSourceClass, NodeId, Observation, OriginAuthenticationClass, PriorityPoints,
-    RatioPermille, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
-    RouteRepairClass, RouteServiceKind, RoutingEvidenceClass, RoutingObjective, Tick,
+    Configuration, ConnectivityPosture, DestinationId, DurationMs, Environment, FactSourceClass,
+    NodeId, Observation, OriginAuthenticationClass, PriorityPoints, RatioPermille, RouteEpoch,
+    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
+    RoutingEvidenceClass, RoutingObjective, Tick,
 };
 use jacquard_reference_client::{
-    topology, BridgeQueueConfig, BridgeRoundProgress, ClientBuilder,
-    ObservedRouteShape, SharedInMemoryNetwork, TopologyProjector,
+    topology, BridgeQueueConfig, BridgeRoundProgress, ClientBuilder, ObservedRouteShape,
+    SharedInMemoryNetwork, TopologyProjector,
 };
 use jacquard_traits::Router;
 
@@ -16,10 +16,7 @@ fn sample_topology(local_node_id: NodeId) -> Observation<Configuration> {
     Observation {
         value: Configuration {
             epoch: RouteEpoch(1),
-            nodes: BTreeMap::from([(
-                local_node_id,
-                topology::node(1).pathway().build(),
-            )]),
+            nodes: BTreeMap::from([(local_node_id, topology::node(1).pathway().build())]),
             links: BTreeMap::new(),
             environment: Environment {
                 reachable_neighbor_count: 0,
@@ -110,17 +107,16 @@ fn client_builder_constructs_waiting_pathway_bridge() {
     let local_node_id = NodeId([1; 32]);
     let topology = sample_topology(local_node_id);
     let network = SharedInMemoryNetwork::default();
-    let mut client =
-        ClientBuilder::pathway(local_node_id, topology, network, Tick(1)).build();
+    let mut client = ClientBuilder::pathway(local_node_id, topology, network, Tick(1)).build();
     let mut bound = client.bind();
 
     let progress = bound.advance_round().expect("advance initial round");
 
     match progress {
-        | BridgeRoundProgress::Advanced(report) => {
+        BridgeRoundProgress::Advanced(report) => {
             assert_eq!(report.router_outcome.topology_epoch, RouteEpoch(1));
-        },
-        | BridgeRoundProgress::Waiting(_) => {},
+        }
+        BridgeRoundProgress::Waiting(_) => {}
     }
 }
 
@@ -141,10 +137,10 @@ fn client_builder_accepts_explicit_queue_config_and_profile() {
     let progress = bound.advance_round().expect("advance initial round");
 
     match progress {
-        | BridgeRoundProgress::Advanced(report) => {
+        BridgeRoundProgress::Advanced(report) => {
             assert_eq!(report.router_outcome.topology_epoch, RouteEpoch(1));
-        },
-        | BridgeRoundProgress::Waiting(_) => {},
+        }
+        BridgeRoundProgress::Waiting(_) => {}
     }
 }
 
@@ -162,8 +158,7 @@ fn topology_projector_reads_stable_snapshot_from_reference_client_surfaces() {
     );
     let network = SharedInMemoryNetwork::default();
     let mut client =
-        ClientBuilder::pathway(local_node_id, topology.clone(), network, Tick(1))
-            .build();
+        ClientBuilder::pathway(local_node_id, topology.clone(), network, Tick(1)).build();
     let mut bound = client.bind();
     let mut projector = TopologyProjector::new(local_node_id, bound.topology().clone());
 

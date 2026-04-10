@@ -19,8 +19,8 @@ use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Belief, ByteCount, Configuration, DurationMs, Environment, Link, Node,
-    RatioPermille, ServiceDescriptor, Tick, TransportObservation,
+    Belief, ByteCount, Configuration, DurationMs, Environment, Link, Node, RatioPermille,
+    ServiceDescriptor, Tick, TransportObservation,
 };
 
 #[id_type]
@@ -64,10 +64,7 @@ impl InformationSetSummary {
             summary_encoding: InformationSummaryEncoding::BloomFilter,
             item_count: Belief::certain(item_count, updated_at_tick),
             byte_count: Belief::certain(byte_count, updated_at_tick),
-            false_positive_permille: Belief::certain(
-                false_positive_permille,
-                updated_at_tick,
-            ),
+            false_positive_permille: Belief::certain(false_positive_permille, updated_at_tick),
         }
     }
 }
@@ -92,10 +89,7 @@ impl NodeRelayBudget {
         Self {
             relay_work_budget: Belief::certain(relay_work_budget, updated_at_tick),
             utilization_permille,
-            retention_horizon_ms: Belief::certain(
-                retention_horizon_ms,
-                updated_at_tick,
-            ),
+            retention_horizon_ms: Belief::certain(retention_horizon_ms, updated_at_tick),
         }
     }
 }

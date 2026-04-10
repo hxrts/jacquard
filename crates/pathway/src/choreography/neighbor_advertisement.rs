@@ -24,8 +24,7 @@ use super::{
     runtime::{PathwayGuestRuntime, PathwayNeighborAdvertisementSnapshot},
 };
 
-pub(crate) const SOURCE_PATH: &str =
-    "crates/pathway/src/choreography/neighbor_advertisement.rs";
+pub(crate) const SOURCE_PATH: &str = "crates/pathway/src/choreography/neighbor_advertisement.rs";
 pub(crate) const PROTOCOL_NAME: &str = "NeighborAdvertisementExchange";
 pub(crate) const ROLE_NAMES: &[&str] = &["LocalNode", "Neighbor", "Observer"];
 
@@ -49,8 +48,8 @@ tell! {
 }
 
 use NeighborAdvertisementExchange::sessions::{
-    AdvertiseNeighbor, Ignored, LocalNode, LocalNodeSession, Neighbor, NeighborSession,
-    Observer, ObserverChoice1, ObserverSession, Roles, Seen,
+    AdvertiseNeighbor, Ignored, LocalNode, LocalNodeSession, Neighbor, NeighborSession, Observer,
+    ObserverChoice1, ObserverSession, Roles, Seen,
 };
 
 pub(crate) fn execute<E>(
@@ -114,10 +113,8 @@ async fn neighbor_role(role: &mut Neighbor, service_count: i64) -> ProtocolResul
 async fn observer_role(role: &mut Observer) -> ProtocolResult<&'static str> {
     try_session(role, |s: ObserverSession<'_, _>| async {
         match s.branch().await? {
-            | ObserverChoice1::Seen(Seen { .. }, end) => Ok(("advertised", end)),
-            | ObserverChoice1::Ignored(Ignored { .. }, end) => {
-                Ok(("advertisement-ignored", end))
-            },
+            ObserverChoice1::Seen(Seen { .. }, end) => Ok(("advertised", end)),
+            ObserverChoice1::Ignored(Ignored { .. }, end) => Ok(("advertisement-ignored", end)),
         }
     })
     .await

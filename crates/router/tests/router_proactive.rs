@@ -18,12 +18,9 @@
 
 mod common;
 
-use common::{
-    build_router_with_proactive_engine, objective, FAR_NODE_ID, LOCAL_NODE_ID,
-};
+use common::{build_router_with_proactive_engine, objective, FAR_NODE_ID, LOCAL_NODE_ID};
 use jacquard_core::{
-    DestinationId, RouteShapeVisibility, RoutingEngineId, RoutingTickChange,
-    RoutingTickHint, Tick,
+    DestinationId, RouteShapeVisibility, RoutingEngineId, RoutingTickChange, RoutingTickHint, Tick,
 };
 use jacquard_traits::{Router, RoutingControlPlane};
 
@@ -43,11 +40,8 @@ fn router_activates_route_from_corridor_envelope_proactive_engine() {
         RouteShapeVisibility::CorridorEnvelope,
     );
 
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("corridor-envelope activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("corridor-envelope activation");
 
     assert_eq!(
         route.identity.admission.summary.engine,
@@ -70,11 +64,8 @@ fn router_activates_route_from_next_hop_only_proactive_engine() {
         RouteShapeVisibility::NextHopOnly,
     );
 
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("next-hop-only activation");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("next-hop-only activation");
 
     assert_eq!(
         route.identity.admission.summary.engine,
@@ -106,11 +97,8 @@ fn router_tolerates_engine_private_periodic_work_before_activation() {
     );
     assert_eq!(outcome.next_round_hint, RoutingTickHint::Immediate);
 
-    let route = Router::activate_route(
-        &mut router,
-        objective(DestinationId::Node(FAR_NODE_ID)),
-    )
-    .expect("route activation after proactive work");
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("route activation after proactive work");
 
     assert_eq!(route.identity.lease.owner_node_id, LOCAL_NODE_ID);
 }

@@ -21,16 +21,16 @@ use jacquard_core::{DestinationId, RouteEpoch, Tick};
 
 use crate::{
     state::{
-        ControlState, CorridorBeliefEnvelope, DestinationFieldState,
-        DestinationPosterior, DivergenceBucket, EntropyBucket, ObservationClass,
-        OperatingRegime, ProgressBelief, SupportBucket,
+        ControlState, CorridorBeliefEnvelope, DestinationFieldState, DestinationPosterior,
+        DivergenceBucket, EntropyBucket, ObservationClass, OperatingRegime, ProgressBelief,
+        SupportBucket,
     },
     summary::{
         clamp_corridor_envelope, compose_summary_with_link, decay_summary,
         discount_reflected_evidence, evidence_classification, merge_neighbor_summaries,
         project_posterior_to_claim, summary_divergence, DirectEvidence, FieldEvidence,
-        FieldSummary, ForwardPropagatedEvidence, LocalOriginTrace,
-        ReverseFeedbackEvidence, SummaryDestinationKey, SummaryUncertaintyClass,
+        FieldSummary, ForwardPropagatedEvidence, LocalOriginTrace, ReverseFeedbackEvidence,
+        SummaryDestinationKey, SummaryUncertaintyClass,
     },
 };
 
@@ -77,8 +77,7 @@ pub(crate) fn update_destination_observer(
         has_evidence(inputs),
         !inputs.reverse_feedback.is_empty(),
     );
-    let clamped =
-        clamp_corridor_envelope(&fused_summary, inputs.regime, &inputs.control_state);
+    let clamped = clamp_corridor_envelope(&fused_summary, inputs.regime, &inputs.control_state);
     let corridor_envelope = project_posterior_to_claim(&posterior, &clamped);
     let progress_belief = progress_belief_from_envelope(&corridor_envelope, &posterior);
 
@@ -129,11 +128,8 @@ fn predict_summary(
                     congestion_penalty: corridor_belief.congestion_penalty,
                     retention_support: corridor_belief.retention_affinity,
                     uncertainty_penalty: posterior.usability_entropy,
-                    evidence_class:
-                        crate::summary::EvidenceContributionClass::ForwardPropagated,
-                    uncertainty_class: uncertainty_class_for(
-                        posterior.usability_entropy.value(),
-                    ),
+                    evidence_class: crate::summary::EvidenceContributionClass::ForwardPropagated,
+                    uncertainty_class: uncertainty_class_for(posterior.usability_entropy.value()),
                 },
                 observed_at_tick: now_tick,
             },
@@ -142,32 +138,27 @@ fn predict_summary(
     }
 }
 
-fn fuse_evidence(
-    predicted_summary: &FieldSummary,
-    inputs: &ObserverInputs,
-) -> FieldSummary {
+fn fuse_evidence(predicted_summary: &FieldSummary, inputs: &ObserverInputs) -> FieldSummary {
     let mut fused: Option<FieldSummary> = None;
 
     for evidence in &inputs.forward_evidence {
         let decayed = decay_summary(&evidence.summary, inputs.now_tick);
-        let discounted =
-            discount_reflected_evidence(&decayed, inputs.local_origin_trace);
+        let discounted = discount_reflected_evidence(&decayed, inputs.local_origin_trace);
         fused = Some(match fused {
-            | Some(current) => merge_neighbor_summaries(&current, &discounted),
-            | None => discounted,
+            Some(current) => merge_neighbor_summaries(&current, &discounted),
+            None => discounted,
         });
     }
 
     for evidence in &inputs.direct_evidence {
         let direct = compose_summary_with_link(predicted_summary, &evidence.link);
         fused = Some(match fused {
-            | Some(current) => merge_neighbor_summaries(&direct, &current),
-            | None => direct,
+            Some(current) => merge_neighbor_summaries(&direct, &current),
+            None => direct,
         });
     }
 
-    let mut fused =
-        fused.unwrap_or_else(|| decay_summary(predicted_summary, inputs.now_tick));
+    let mut fused = fused.unwrap_or_else(|| decay_summary(predicted_summary, inputs.now_tick));
 
     if let Some(best_reverse) = inputs
         .reverse_feedback
@@ -186,8 +177,7 @@ fn fuse_evidence(
     } else {
         fused.uncertainty_penalty =
             EntropyBucket::new(fused.uncertainty_penalty.value().saturating_add(50));
-        fused.uncertainty_class =
-            uncertainty_class_for(fused.uncertainty_penalty.value());
+        fused.uncertainty_class = uncertainty_class_for(fused.uncertainty_penalty.value());
     }
 
     fused
@@ -218,15 +208,13 @@ fn correct_posterior(
         ObservationClass::DirectOnly
     } else {
         match fused_summary.evidence_class {
-            | crate::summary::EvidenceContributionClass::Direct => {
-                ObservationClass::DirectOnly
-            },
-            | crate::summary::EvidenceContributionClass::ForwardPropagated => {
+            crate::summary::EvidenceContributionClass::Direct => ObservationClass::DirectOnly,
+            crate::summary::EvidenceContributionClass::ForwardPropagated => {
                 ObservationClass::ForwardPropagated
-            },
-            | crate::summary::EvidenceContributionClass::ReverseFeedback => {
+            }
+            crate::summary::EvidenceContributionClass::ReverseFeedback => {
                 ObservationClass::ReverseValidated
-            },
+            }
         }
     };
     DestinationPosterior {
@@ -248,15 +236,11 @@ fn progress_belief_from_envelope(
 ) -> ProgressBelief {
     ProgressBelief {
         progress_score: jacquard_core::Belief::certain(
-            jacquard_core::HealthScore(u32::from(
-                corridor_envelope.delivery_support.value(),
-            )),
+            jacquard_core::HealthScore(u32::from(corridor_envelope.delivery_support.value())),
             corridor_envelope.validity_window.start_tick(),
         ),
         uncertainty_penalty: jacquard_core::Belief::certain(
-            jacquard_core::PenaltyPoints(u32::from(
-                posterior.usability_entropy.value(),
-            )),
+            jacquard_core::PenaltyPoints(u32::from(posterior.usability_entropy.value())),
             corridor_envelope.validity_window.start_tick(),
         ),
         posterior_support: SupportBucket::new(
@@ -274,33 +258,32 @@ fn has_evidence(inputs: &ObserverInputs) -> bool {
 
 fn uncertainty_class_for(value: u16) -> SummaryUncertaintyClass {
     match value {
-        | 0..=249 => SummaryUncertaintyClass::Low,
-        | 250..=599 => SummaryUncertaintyClass::Medium,
-        | _ => SummaryUncertaintyClass::High,
+        0..=249 => SummaryUncertaintyClass::Low,
+        250..=599 => SummaryUncertaintyClass::Medium,
+        _ => SummaryUncertaintyClass::High,
     }
 }
 
 fn inputs_local_node(destination: &DestinationId) -> jacquard_core::NodeId {
     match destination {
-        | DestinationId::Node(node_id) => *node_id,
-        | _ => jacquard_core::NodeId([0; 32]),
+        DestinationId::Node(node_id) => *node_id,
+        _ => jacquard_core::NodeId([0; 32]),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        Belief, ByteCount, DurationMs, EndpointLocator, Link, LinkEndpoint,
-        LinkProfile, LinkRuntimeState, LinkState, PartitionRecoveryClass,
-        RatioPermille, RepairCapability,
+        Belief, ByteCount, DurationMs, EndpointLocator, Link, LinkEndpoint, LinkProfile,
+        LinkRuntimeState, LinkState, PartitionRecoveryClass, RatioPermille, RepairCapability,
     };
 
     use super::*;
     use crate::{
         state::{DestinationFieldState, DestinationKey, HopBand},
         summary::{
-            DirectEvidence, EvidenceContributionClass, FieldSummary,
-            ForwardPropagatedEvidence, ReverseFeedbackEvidence, SummaryDestinationKey,
+            DirectEvidence, EvidenceContributionClass, FieldSummary, ForwardPropagatedEvidence,
+            ReverseFeedbackEvidence, SummaryDestinationKey,
         },
     };
 
@@ -326,10 +309,7 @@ mod tests {
                 transfer_rate_bytes_per_sec: Belief::Absent,
                 stability_horizon_ms: Belief::Absent,
                 loss_permille: RatioPermille(10),
-                delivery_confidence_permille: Belief::certain(
-                    RatioPermille(confidence),
-                    Tick(4),
-                ),
+                delivery_confidence_permille: Belief::certain(RatioPermille(confidence), Tick(4)),
                 symmetry_permille: Belief::Absent,
             },
         }
@@ -374,8 +354,7 @@ mod tests {
     #[test]
     fn low_information_operation_degrades_but_remains_conservative() {
         let mut destination_state = state(Tick(4));
-        let outcome =
-            update_destination_observer(&mut destination_state, &base_inputs(Tick(5)));
+        let outcome = update_destination_observer(&mut destination_state, &base_inputs(Tick(5)));
         assert!(
             outcome.corridor_envelope.delivery_support.value()
                 <= outcome.posterior.top_corridor_mass.value()
@@ -407,8 +386,7 @@ mod tests {
                 summary: forward_summary(500, Tick(4)),
                 observed_at_tick: Tick(5),
             });
-        let sparse =
-            update_destination_observer(&mut destination_state, &sparse_inputs);
+        let sparse = update_destination_observer(&mut destination_state, &sparse_inputs);
 
         let mut richer_state = state(Tick(4));
         let mut richer_inputs = base_inputs(Tick(5));

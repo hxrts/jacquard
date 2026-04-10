@@ -13,10 +13,9 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    Configuration, DestinationId, Link, MaterializedRoute, Node, NodeId, Observation,
-    RouteEvent, RouteEventStamped, RouteHealth, RouteId, RouteLifecycleEvent,
-    RouteShapeVisibility, RouterCanonicalMutation, RouterRoundOutcome,
-    RoutingEngineCapabilities, RoutingEngineId, Tick,
+    Configuration, DestinationId, Link, MaterializedRoute, Node, NodeId, Observation, RouteEvent,
+    RouteEventStamped, RouteHealth, RouteId, RouteLifecycleEvent, RouteShapeVisibility,
+    RouterCanonicalMutation, RouterRoundOutcome, RoutingEngineCapabilities, RoutingEngineId, Tick,
 };
 use serde::{Deserialize, Serialize};
 
@@ -48,10 +47,10 @@ impl ObservedRouteShape {
     #[must_use]
     pub fn from_visibility(visibility: RouteShapeVisibility) -> Self {
         match visibility {
-            | RouteShapeVisibility::ExplicitPath => Self::ExplicitPath,
-            | RouteShapeVisibility::CorridorEnvelope => Self::CorridorEnvelope,
-            | RouteShapeVisibility::NextHopOnly => Self::NextHopOnly,
-            | RouteShapeVisibility::Opaque => Self::Opaque,
+            RouteShapeVisibility::ExplicitPath => Self::ExplicitPath,
+            RouteShapeVisibility::CorridorEnvelope => Self::CorridorEnvelope,
+            RouteShapeVisibility::NextHopOnly => Self::NextHopOnly,
+            RouteShapeVisibility::Opaque => Self::Opaque,
         }
     }
 }
@@ -131,10 +130,7 @@ impl TopologyProjector {
             .collect();
     }
 
-    pub fn ingest_engine_capabilities(
-        &mut self,
-        capabilities: RoutingEngineCapabilities,
-    ) {
+    pub fn ingest_engine_capabilities(&mut self, capabilities: RoutingEngineCapabilities) {
         let visibility = capabilities.route_shape_visibility;
         let engine_id = capabilities.engine.clone();
         self.engine_capabilities
@@ -158,38 +154,38 @@ impl TopologyProjector {
     }
 
     pub fn ingest_route_event(&mut self, event: &RouteEventStamped) {
-        self.snapshot.observed_at_tick =
-            self.snapshot.observed_at_tick.max(event.emitted_at_tick);
+        self.snapshot.observed_at_tick = self.snapshot.observed_at_tick.max(event.emitted_at_tick);
         match &event.event {
-            | RouteEvent::RouteMaterialized { handle, .. } => {
-                if let Some(route) =
-                    self.snapshot.active_routes.get_mut(handle.route_id())
-                {
+            RouteEvent::RouteMaterialized { handle, .. } => {
+                if let Some(route) = self.snapshot.active_routes.get_mut(handle.route_id()) {
                     route.lifecycle_event = RouteLifecycleEvent::Activated;
                     route.lifecycle_updated_at_tick = event.emitted_at_tick;
                 }
-            },
-            | RouteEvent::RouteMaintenanceCompleted { route_id, result } => {
+            }
+            RouteEvent::RouteMaintenanceCompleted { route_id, result } => {
                 if let Some(route) = self.snapshot.active_routes.get_mut(route_id) {
                     route.lifecycle_event = result.event;
                     route.lifecycle_updated_at_tick = event.emitted_at_tick;
                 }
-            },
-            | RouteEvent::RouteCommitmentUpdated { .. } => {},
-            | RouteEvent::RouteHealthObserved { route_id, health } => {
+            }
+            RouteEvent::RouteCommitmentUpdated { .. } => {}
+            RouteEvent::RouteHealthObserved { route_id, health } => {
                 if let Some(route) = self.snapshot.active_routes.get_mut(route_id) {
                     route.health = health.value.clone();
                     route.lifecycle_updated_at_tick =
                         route.lifecycle_updated_at_tick.max(health.observed_at_tick);
                 }
-            },
+            }
         }
     }
 
     pub fn ingest_round_outcome(&mut self, outcome: &RouterRoundOutcome) {
         match &outcome.canonical_mutation {
-            | RouterCanonicalMutation::None => {},
-            | RouterCanonicalMutation::RouteReplaced { previous_route_id, route } => {
+            RouterCanonicalMutation::None => {}
+            RouterCanonicalMutation::RouteReplaced {
+                previous_route_id,
+                route,
+            } => {
                 self.snapshot.active_routes.remove(previous_route_id);
                 self.ingest_materialized_route(route);
                 if let Some(current) = self
@@ -199,8 +195,8 @@ impl TopologyProjector {
                 {
                     current.lifecycle_event = RouteLifecycleEvent::Replaced;
                 }
-            },
-            | RouterCanonicalMutation::LeaseTransferred {
+            }
+            RouterCanonicalMutation::LeaseTransferred {
                 route_id,
                 handoff: _,
                 lease,
@@ -208,10 +204,10 @@ impl TopologyProjector {
                 if let Some(route) = self.snapshot.active_routes.get_mut(route_id) {
                     route.lease = lease.clone();
                 }
-            },
-            | RouterCanonicalMutation::RouteExpired { route_id } => {
+            }
+            RouterCanonicalMutation::RouteExpired { route_id } => {
                 self.snapshot.active_routes.remove(route_id);
-            },
+            }
         }
     }
 
@@ -282,29 +278,26 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId,
-        Belief, ByteCount, CapacityHint, ClaimStrength, Configuration,
-        ConnectivityPosture, ConnectivityRegime, ControllerId, DegradationReason,
-        DestinationId, DurationMs, EndpointLocator, Environment, Estimate, Fact,
-        FactBasis, FactSourceClass, FailureModelClass, HealthScore, HoldItemCount,
-        Limit, Link, LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState,
-        MessageFlowAssumptionClass, NodeBuilder, NodeDensityClass, NodeId,
-        NodeProfileBuilder, NodeStateBuilder, Observation, OperatingMode, OrderStamp,
-        OriginAuthenticationClass, PartitionRecoveryClass, PenaltyPoints,
-        PriorityPoints, PublicationId, QuantitativeBoundSupport, RatioPermille,
-        ReachabilityState, ReconfigurationSupport, RelayWorkBudget, RepairCapability,
-        RepairSupport, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost,
-        RouteDegradation, RouteEpoch, RouteEstimate, RouteEvent, RouteEventStamped,
-        RouteHandle, RouteHealth, RouteId, RouteLease, RouteLifecycleEvent,
-        RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaterializationInput,
-        RouteMaterializationProof, RoutePartitionClass, RouteProgressContract,
-        RouteProgressState, RouteProtectionClass, RouteRepairClass,
-        RouteReplacementPolicy, RouteSemanticHandoff, RouteServiceKind,
-        RouteShapeVisibility, RouteWitness, RouterCanonicalMutation,
-        RouterRoundOutcome, RoutingEngineCapabilities, RoutingEngineFallbackPolicy,
-        RoutingEngineId, RoutingEvidenceClass, RoutingObjective, RuntimeEnvelopeClass,
-        SelectedRoutingParameters, ServiceDescriptorBuilder, Tick, TimeWindow,
-        TransportKind,
+        AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId, Belief,
+        ByteCount, CapacityHint, ClaimStrength, Configuration, ConnectivityPosture,
+        ConnectivityRegime, ControllerId, DegradationReason, DestinationId, DurationMs,
+        EndpointLocator, Environment, Estimate, Fact, FactBasis, FactSourceClass,
+        FailureModelClass, HealthScore, HoldItemCount, Limit, Link, LinkEndpoint, LinkProfile,
+        LinkRuntimeState, LinkState, MessageFlowAssumptionClass, NodeBuilder, NodeDensityClass,
+        NodeId, NodeProfileBuilder, NodeStateBuilder, Observation, OperatingMode, OrderStamp,
+        OriginAuthenticationClass, PartitionRecoveryClass, PenaltyPoints, PriorityPoints,
+        PublicationId, QuantitativeBoundSupport, RatioPermille, ReachabilityState,
+        ReconfigurationSupport, RelayWorkBudget, RepairCapability, RepairSupport, RouteAdmission,
+        RouteAdmissionCheck, RouteCandidate, RouteCost, RouteDegradation, RouteEpoch,
+        RouteEstimate, RouteEvent, RouteEventStamped, RouteHandle, RouteHealth, RouteId,
+        RouteLease, RouteLifecycleEvent, RouteMaintenanceOutcome, RouteMaintenanceResult,
+        RouteMaterializationInput, RouteMaterializationProof, RoutePartitionClass,
+        RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteRepairClass,
+        RouteReplacementPolicy, RouteSemanticHandoff, RouteServiceKind, RouteShapeVisibility,
+        RouteWitness, RouterCanonicalMutation, RouterRoundOutcome, RoutingEngineCapabilities,
+        RoutingEngineFallbackPolicy, RoutingEngineId, RoutingEvidenceClass, RoutingObjective,
+        RuntimeEnvelopeClass, SelectedRoutingParameters, ServiceDescriptorBuilder, Tick,
+        TimeWindow, TransportKind,
     };
 
     use super::*;
@@ -349,20 +342,16 @@ mod tests {
     fn node(node_id: NodeId, controller_byte: u8) -> jacquard_core::Node {
         let controller_id = ControllerId([controller_byte; 32]);
         let endpoint = endpoint(controller_byte);
-        let service = ServiceDescriptorBuilder::new(
-            node_id,
-            controller_id,
-            RouteServiceKind::Move,
-        )
-        .with_endpoint(endpoint.clone())
-        .with_routing_engine(&PATHWAY_ENGINE_ID)
-        .with_valid_for(TimeWindow::new(Tick(1), Tick(10)).expect("window"))
-        .with_capacity(
-            CapacityHint::new(RatioPermille(200))
-                .with_hold_capacity_bytes(ByteCount(128), Tick(5)),
-            Tick(5),
-        )
-        .build();
+        let service = ServiceDescriptorBuilder::new(node_id, controller_id, RouteServiceKind::Move)
+            .with_endpoint(endpoint.clone())
+            .with_routing_engine(&PATHWAY_ENGINE_ID)
+            .with_valid_for(TimeWindow::new(Tick(1), Tick(10)).expect("window"))
+            .with_capacity(
+                CapacityHint::new(RatioPermille(200))
+                    .with_hold_capacity_bytes(ByteCount(128), Tick(5)),
+                Tick(5),
+            )
+            .build();
         let profile = NodeProfileBuilder::new()
             .with_service(service)
             .with_endpoint(endpoint)
@@ -382,12 +371,7 @@ mod tests {
             )
             .with_available_connections(1, Tick(5))
             .with_hold_capacity(ByteCount(256), Tick(5))
-            .with_information_summary(
-                HoldItemCount(2),
-                ByteCount(128),
-                RatioPermille(10),
-                Tick(5),
-            )
+            .with_information_summary(HoldItemCount(2), ByteCount(128), RatioPermille(10), Tick(5))
             .build();
         NodeBuilder::new(controller_id, profile, state).build()
     }
@@ -410,10 +394,7 @@ mod tests {
                 transfer_rate_bytes_per_sec: Belief::certain(4_096, Tick(5)),
                 stability_horizon_ms: Belief::certain(DurationMs(1_000), Tick(5)),
                 loss_permille: RatioPermille(25),
-                delivery_confidence_permille: Belief::certain(
-                    RatioPermille(960),
-                    Tick(5),
-                ),
+                delivery_confidence_permille: Belief::certain(RatioPermille(960), Tick(5)),
                 symmetry_permille: Belief::certain(RatioPermille(990), Tick(5)),
             },
         }
@@ -439,21 +420,14 @@ mod tests {
         }
     }
 
-    fn materialized_route(
-        engine: RoutingEngineId,
-        route_byte: u8,
-    ) -> MaterializedRoute {
+    fn materialized_route(engine: RoutingEngineId, route_byte: u8) -> MaterializedRoute {
         let objective = route_objective();
         let summary = route_summary(engine.clone());
         let candidate = route_candidate(engine, route_byte, &summary);
         let witness = route_witness(summary.connectivity);
-        let input = route_materialization_input(
-            route_byte, objective, summary, &candidate, &witness,
-        );
-        MaterializedRoute::from_installation(
-            input,
-            route_installation(route_byte, witness),
-        )
+        let input =
+            route_materialization_input(route_byte, objective, summary, &candidate, &witness);
+        MaterializedRoute::from_installation(input, route_installation(route_byte, witness))
     }
 
     fn route_objective() -> RoutingObjective {
@@ -483,8 +457,7 @@ mod tests {
             },
             protocol_mix: vec![TransportKind::Custom("reference".to_owned())],
             hop_count_hint: Belief::certain(2, Tick(5)),
-            valid_for: TimeWindow::new(Tick(5), Tick(20))
-                .expect("valid summary window"),
+            valid_for: TimeWindow::new(Tick(5), Tick(20)).expect("valid summary window"),
         }
     }
 
@@ -501,9 +474,7 @@ mod tests {
                     estimated_protection: summary.protection,
                     estimated_connectivity: summary.connectivity,
                     topology_epoch: RouteEpoch(2),
-                    degradation: RouteDegradation::Degraded(
-                        DegradationReason::LinkInstability,
-                    ),
+                    degradation: RouteDegradation::Degraded(DegradationReason::LinkInstability),
                 },
                 confidence_permille: RatioPermille(950),
                 updated_at_tick: Tick(5),
@@ -547,7 +518,9 @@ mod tests {
         witness: &RouteWitness,
     ) -> RouteMaterializationInput {
         RouteMaterializationInput {
-            handle: RouteHandle { stamp: route_identity_stamp(route_byte) },
+            handle: RouteHandle {
+                stamp: route_identity_stamp(route_byte),
+            },
             admission: RouteAdmission {
                 backend_ref: candidate.backend_ref.clone(),
                 objective,
@@ -556,8 +529,7 @@ mod tests {
                     selected_connectivity: summary.connectivity,
                     deployment_profile: OperatingMode::DenseInteractive,
                     diversity_floor: jacquard_core::DiversityFloor(1),
-                    routing_engine_fallback_policy:
-                        RoutingEngineFallbackPolicy::Allowed,
+                    routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
                     route_replacement_policy: RouteReplacementPolicy::Allowed,
                 },
                 admission_check: route_admission_check(),
@@ -848,8 +820,7 @@ mod tests {
                                 },
                             },
                             admission_profile: AdmissionAssumptions {
-                                message_flow_assumption:
-                                    MessageFlowAssumptionClass::BestEffort,
+                                message_flow_assumption: MessageFlowAssumptionClass::BestEffort,
                                 failure_model: FailureModelClass::Benign,
                                 runtime_envelope: RuntimeEnvelopeClass::Canonical,
                                 node_density_class: NodeDensityClass::Moderate,

@@ -17,9 +17,8 @@
 use jacquard_core::NodeId;
 
 use crate::state::{
-    ControlState, DestinationFieldState, DestinationKey, FieldEngineState,
-    MeanFieldState, NeighborContinuation, OperatingRegime, RoutingPosture,
-    SupportBucket,
+    ControlState, DestinationFieldState, DestinationKey, FieldEngineState, MeanFieldState,
+    NeighborContinuation, OperatingRegime, RoutingPosture, SupportBucket,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -73,9 +72,7 @@ pub(crate) fn rank_frontier_by_attractor(
 }
 
 #[must_use]
-pub(crate) fn derive_local_attractor_view(
-    state: &FieldEngineState,
-) -> LocalAttractorView {
+pub(crate) fn derive_local_attractor_view(state: &FieldEngineState) -> LocalAttractorView {
     let mut entries = Vec::new();
     for (destination, destination_state) in &state.destinations {
         let ranked = rank_frontier_by_attractor(
@@ -88,8 +85,7 @@ pub(crate) fn derive_local_attractor_view(
         let Some((primary, primary_score)) = ranked.first() else {
             continue;
         };
-        let secondary_score =
-            ranked.get(1).map(|(_, score)| score.value()).unwrap_or(0);
+        let secondary_score = ranked.get(1).map(|(_, score)| score.value()).unwrap_or(0);
         entries.push(LocalAttractorEntry {
             destination: destination.clone(),
             primary_neighbor: primary.neighbor_id,
@@ -115,7 +111,10 @@ pub(crate) fn derive_local_attractor_view(
             .expect("coherence average fits u16"),
         )
     };
-    LocalAttractorView { entries, coherence_score }
+    LocalAttractorView {
+        entries,
+        coherence_score,
+    }
 }
 
 fn attractor_score_for(
@@ -134,24 +133,22 @@ fn attractor_score_for(
         mean_field.field_strength.value(),
     ]);
     let regime_bonus = match regime {
-        | OperatingRegime::Sparse => mean_field.relay_alignment.value() / 4,
-        | OperatingRegime::Congested => mean_field.congestion_alignment.value() / 3,
-        | OperatingRegime::RetentionFavorable => {
+        OperatingRegime::Sparse => mean_field.relay_alignment.value() / 4,
+        OperatingRegime::Congested => mean_field.congestion_alignment.value() / 3,
+        OperatingRegime::RetentionFavorable => {
             destination_state.corridor_belief.retention_affinity.value() / 2
-        },
-        | OperatingRegime::Unstable | OperatingRegime::Adversarial => {
+        }
+        OperatingRegime::Unstable | OperatingRegime::Adversarial => {
             mean_field.risk_alignment.value() / 3
-        },
+        }
     };
     let posture_bonus = match posture {
-        | RoutingPosture::Opportunistic => {
-            1000_u16.saturating_sub(control.risk_price.value()) / 4
-        },
-        | RoutingPosture::Structured => mean_field.relay_alignment.value() / 4,
-        | RoutingPosture::RetentionBiased => {
+        RoutingPosture::Opportunistic => 1000_u16.saturating_sub(control.risk_price.value()) / 4,
+        RoutingPosture::Structured => mean_field.relay_alignment.value() / 4,
+        RoutingPosture::RetentionBiased => {
             destination_state.corridor_belief.retention_affinity.value() / 3
-        },
-        | RoutingPosture::RiskSuppressed => mean_field.risk_alignment.value() / 3,
+        }
+        RoutingPosture::RiskSuppressed => mean_field.risk_alignment.value() / 3,
     };
     let penalty = average_u16(&[
         control.congestion_price.value(),

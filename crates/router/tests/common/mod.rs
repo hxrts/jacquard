@@ -24,8 +24,8 @@ pub(crate) mod router_builder;
 
 pub(crate) use committee_selector::AdvisoryCommitteeSelector;
 pub(crate) use fixtures::{
-    objective, profile, sample_configuration, sample_policy_inputs, BRIDGE_NODE_ID,
-    FAR_NODE_ID, LOCAL_NODE_ID, PEER_NODE_ID,
+    objective, profile, sample_configuration, sample_policy_inputs, BRIDGE_NODE_ID, FAR_NODE_ID,
+    LOCAL_NODE_ID, PEER_NODE_ID,
 };
 pub(crate) use null_engine::NullCandidateEngine;
 pub(crate) use opaque_engine::OpaqueSummaryTestEngine;

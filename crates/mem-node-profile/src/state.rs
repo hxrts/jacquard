@@ -111,13 +111,11 @@ impl NodeStateSnapshot {
     }
 
     pub fn open_connection(&mut self) {
-        self.available_connection_count =
-            self.available_connection_count.saturating_sub(1);
+        self.available_connection_count = self.available_connection_count.saturating_sub(1);
     }
 
     pub fn close_connection(&mut self) {
-        self.available_connection_count =
-            self.available_connection_count.saturating_add(1);
+        self.available_connection_count = self.available_connection_count.saturating_add(1);
     }
 
     #[must_use]
@@ -129,14 +127,8 @@ impl NodeStateSnapshot {
                 self.retention_horizon_ms,
                 self.observed_at_tick,
             )
-            .with_available_connections(
-                self.available_connection_count,
-                self.observed_at_tick,
-            )
-            .with_hold_capacity(
-                self.hold_capacity_available_bytes,
-                self.observed_at_tick,
-            )
+            .with_available_connections(self.available_connection_count, self.observed_at_tick)
+            .with_hold_capacity(self.hold_capacity_available_bytes, self.observed_at_tick)
             .with_information_summary(
                 HoldItemCount(self.information_item_count),
                 self.information_byte_count,

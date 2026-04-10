@@ -17,10 +17,7 @@ use jacquard_core::{
     RouteRepairClass, RouteShapeVisibility, RoutingEngineCapabilities, RoutingEngineId,
 };
 
-use crate::{
-    choreography::FieldProtocolRuntime, route::ActiveFieldRoute,
-    state::FieldEngineState,
-};
+use crate::{choreography::FieldProtocolRuntime, route::ActiveFieldRoute, state::FieldEngineState};
 
 pub const FIELD_ENGINE_ID: RoutingEngineId =
     RoutingEngineId::from_contract_bytes(*b"jacquard.field..");

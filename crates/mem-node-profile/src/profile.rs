@@ -1,9 +1,9 @@
 //! Stable node-capability builder for tests and presets.
 
 use jacquard_core::{
-    ByteCount, ControllerId, HoldItemCount, LinkEndpoint, MaintenanceWorkBudget, Node,
-    NodeBuilder, NodeId, NodeProfile, NodeProfileBuilder, RelayWorkBudget,
-    RoutingEngineId, ServiceScope, Tick, TimeWindow,
+    ByteCount, ControllerId, HoldItemCount, LinkEndpoint, MaintenanceWorkBudget, Node, NodeBuilder,
+    NodeId, NodeProfile, NodeProfileBuilder, RelayWorkBudget, RoutingEngineId, ServiceScope, Tick,
+    TimeWindow,
 };
 
 use crate::{
@@ -53,10 +53,7 @@ impl SimulatedNodeProfile {
     }
 
     #[must_use]
-    pub fn with_route_service_bundle(
-        mut self,
-        bundle: Vec<SimulatedServiceDescriptor>,
-    ) -> Self {
+    pub fn with_route_service_bundle(mut self, bundle: Vec<SimulatedServiceDescriptor>) -> Self {
         self.services.extend(bundle);
         self
     }

@@ -18,9 +18,9 @@ use std::{
 };
 
 use jacquard_core::{
-    Belief, Configuration, ConnectivityPosture, DestinationId, Estimate, NodeId,
-    Observation, RoutePartitionClass, RouteRepairClass, RouteServiceKind,
-    RoutingObjective, Tick, ROUTE_HOP_COUNT_MAX,
+    Belief, Configuration, ConnectivityPosture, DestinationId, Estimate, NodeId, Observation,
+    RoutePartitionClass, RouteRepairClass, RouteServiceKind, RoutingObjective, Tick,
+    ROUTE_HOP_COUNT_MAX,
 };
 
 use super::{
@@ -29,9 +29,8 @@ use super::{
     PATH_METRIC_PROTOCOL_REPEAT_PENALTY,
 };
 use crate::{
-    topology::estimate_hop_link, PathwayNeighborhoodEstimateAccess,
-    PathwayPeerEstimateAccess, PathwayRouteClass, PathwayRouteSegment,
-    PATHWAY_ENGINE_ID,
+    topology::estimate_hop_link, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
+    PathwayRouteClass, PathwayRouteSegment, PATHWAY_ENGINE_ID,
 };
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -53,16 +52,10 @@ where
         let mut score = 0_u32;
 
         for (index, segment) in segments.iter().enumerate() {
-            let from_node_id =
-                node_path.get(index).copied().unwrap_or(self.local_node_id);
+            let from_node_id = node_path.get(index).copied().unwrap_or(self.local_node_id);
             score = score.saturating_add(
-                self.edge_metric_score(
-                    objective,
-                    topology,
-                    &from_node_id,
-                    &segment.node_id,
-                )
-                .unwrap_or(PATH_METRIC_BASE_HOP_COST.saturating_mul(4)),
+                self.edge_metric_score(objective, topology, &from_node_id, &segment.node_id)
+                    .unwrap_or(PATH_METRIC_BASE_HOP_COST.saturating_mul(4)),
             );
             if protocol_mix.contains(&segment.endpoint.transport_kind) {
                 score = score.saturating_add(PATH_METRIC_PROTOCOL_REPEAT_PENALTY);
@@ -71,8 +64,8 @@ where
             }
         }
 
-        let diversity_bonus = protocol_diversity_bonus(segments)
-            .saturating_mul(PATH_METRIC_DIVERSITY_BONUS);
+        let diversity_bonus =
+            protocol_diversity_bonus(segments).saturating_mul(PATH_METRIC_DIVERSITY_BONUS);
         score = score.saturating_sub(diversity_bonus);
 
         if matches!(route_class, PathwayRouteClass::DeferredDelivery) {
@@ -87,12 +80,7 @@ where
     /// best entry. Equal scores tie-break lexicographically on path so
     /// equal-cost routes collapse deterministically regardless of frontier
     /// visit order.
-    fn is_dominated(
-        score: u32,
-        path: &[NodeId],
-        best_score: u32,
-        best_path: &[NodeId],
-    ) -> bool {
+    fn is_dominated(score: u32, path: &[NodeId], best_score: u32, best_path: &[NodeId]) -> bool {
         score > best_score || (score == best_score && path > best_path)
     }
 
@@ -119,8 +107,7 @@ where
                 continue;
             }
 
-            for neighbor in crate::topology::adjacent_node_ids(&current, configuration)
-            {
+            for neighbor in crate::topology::adjacent_node_ids(&current, configuration) {
                 if path.contains(&neighbor) {
                     continue;
                 }
@@ -133,12 +120,7 @@ where
                 next_path.push(neighbor);
                 let next_score = score.saturating_add(edge_score);
                 if let Some((best_score, best_path)) = best_paths.get(&neighbor) {
-                    if Self::is_dominated(
-                        next_score,
-                        &next_path,
-                        *best_score,
-                        best_path,
-                    ) {
+                    if Self::is_dominated(next_score, &next_path, *best_score, best_path) {
                         continue;
                     }
                 }
@@ -158,8 +140,7 @@ where
         if matches!(objective.destination, DestinationId::Gateway(_)) {
             PathwayRouteClass::Gateway
         } else if hold_capable
-            && objective.hold_fallback_policy
-                == jacquard_core::HoldFallbackPolicy::Allowed
+            && objective.hold_fallback_policy == jacquard_core::HoldFallbackPolicy::Allowed
             && hop_count > 1
         {
             PathwayRouteClass::DeferredDelivery
@@ -182,22 +163,14 @@ where
             let Some(destination_node_id) = node_path.last().copied() else {
                 return false;
             };
-            return crate::topology::adjacent_node_ids(
-                &self.local_node_id,
-                configuration,
-            )
-            .into_iter()
-            .filter(|candidate| *candidate != destination_node_id)
-            .any(|candidate| {
-                estimate_hop_link(&self.local_node_id, &candidate, configuration)
-                    .is_some()
-                    && estimate_hop_link(
-                        &candidate,
-                        &destination_node_id,
-                        configuration,
-                    )
-                    .is_some()
-            });
+            return crate::topology::adjacent_node_ids(&self.local_node_id, configuration)
+                .into_iter()
+                .filter(|candidate| *candidate != destination_node_id)
+                .any(|candidate| {
+                    estimate_hop_link(&self.local_node_id, &candidate, configuration).is_some()
+                        && estimate_hop_link(&candidate, &destination_node_id, configuration)
+                            .is_some()
+                });
         }
 
         let next_hop = node_path.get(1).copied();
@@ -213,16 +186,13 @@ where
             let from_node_id = pair[0];
             let to_node_id = pair[1];
             let path_nodes = node_path.iter().copied().collect::<BTreeSet<_>>();
-            let has_bypass =
-                crate::topology::adjacent_node_ids(&from_node_id, configuration)
-                    .into_iter()
-                    .filter(|candidate| !path_nodes.contains(candidate))
-                    .any(|candidate| {
-                        estimate_hop_link(&from_node_id, &candidate, configuration)
-                            .is_some()
-                            && estimate_hop_link(&candidate, &to_node_id, configuration)
-                                .is_some()
-                    });
+            let has_bypass = crate::topology::adjacent_node_ids(&from_node_id, configuration)
+                .into_iter()
+                .filter(|candidate| !path_nodes.contains(candidate))
+                .any(|candidate| {
+                    estimate_hop_link(&from_node_id, &candidate, configuration).is_some()
+                        && estimate_hop_link(&candidate, &to_node_id, configuration).is_some()
+                });
             if has_bypass {
                 return true;
             }
@@ -243,7 +213,7 @@ where
             RouteRepairClass::BestEffort
         };
         match route_class {
-            | PathwayRouteClass::DeferredDelivery => ConnectivityPosture {
+            PathwayRouteClass::DeferredDelivery => ConnectivityPosture {
                 repair,
                 partition: if objective.hold_fallback_policy
                     == jacquard_core::HoldFallbackPolicy::Allowed
@@ -253,7 +223,7 @@ where
                     RoutePartitionClass::ConnectedOnly
                 },
             },
-            | _ => ConnectivityPosture {
+            _ => ConnectivityPosture {
                 repair,
                 partition: RoutePartitionClass::ConnectedOnly,
             },
@@ -268,7 +238,10 @@ where
         let mut segments = Vec::with_capacity(node_path.len().saturating_sub(1));
         for pair in node_path.windows(2) {
             let (endpoint, _) = estimate_hop_link(&pair[0], &pair[1], configuration)?;
-            segments.push(PathwayRouteSegment { node_id: pair[1], endpoint });
+            segments.push(PathwayRouteSegment {
+                node_id: pair[1],
+                endpoint,
+            });
         }
         // Empty segments means node_path had one entry (local node is the
         // destination) — not a valid route. Also reject paths past the cap.

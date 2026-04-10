@@ -11,20 +11,18 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId,
-    BackendRouteRef, Belief, ByteCount, ClaimStrength, Configuration,
-    ConnectivityPosture, ConnectivityRegime, DegradationReason, Estimate, Fact,
-    FactBasis, FailureModelClass, HealthScore, Limit, LinkRuntimeState,
-    MessageFlowAssumptionClass, NodeDensityClass, NodeId, ObjectiveVsDelivered,
+    AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId, BackendRouteRef,
+    Belief, ByteCount, ClaimStrength, Configuration, ConnectivityPosture, ConnectivityRegime,
+    DegradationReason, Estimate, Fact, FactBasis, FailureModelClass, HealthScore, Limit,
+    LinkRuntimeState, MessageFlowAssumptionClass, NodeDensityClass, NodeId, ObjectiveVsDelivered,
     Observation, RatioPermille, ReachabilityState, RouteAdmission, RouteAdmissionCheck,
     RouteAdmissionRejection, RouteCandidate, RouteCost, RouteDegradation, RouteEpoch,
-    RouteEstimate, RouteHealth, RouteInstallation, RouteLifecycleEvent,
-    RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
-    RoutePartitionClass, RouteProgressContract, RouteProgressState,
-    RouteProtectionClass, RouteRepairClass, RouteRuntimeError, RouteRuntimeState,
-    RouteSelectionError, RouteShapeVisibility, RouteSummary, RouteWitness,
-    RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, RoutingTickChange,
+    RouteEstimate, RouteHealth, RouteInstallation, RouteLifecycleEvent, RouteMaintenanceFailure,
+    RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
+    RouteMaterializationInput, RouteMaterializationProof, RoutePartitionClass,
+    RouteProgressContract, RouteProgressState, RouteProtectionClass, RouteRepairClass,
+    RouteRuntimeError, RouteRuntimeState, RouteSelectionError, RouteShapeVisibility, RouteSummary,
+    RouteWitness, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, RoutingTickChange,
     RoutingTickContext, RoutingTickHint, RoutingTickOutcome, RuntimeEnvelopeClass,
     SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
 };
@@ -74,11 +72,7 @@ impl ProactiveTableTestEngine {
         jacquard_core::RouteId(bytes)
     }
 
-    fn backend_route_id_for(
-        &self,
-        destination: NodeId,
-        next_hop: NodeId,
-    ) -> BackendRouteId {
+    fn backend_route_id_for(&self, destination: NodeId, next_hop: NodeId) -> BackendRouteId {
         let mut bytes = Vec::with_capacity(64);
         bytes.extend_from_slice(&destination.0);
         bytes.extend_from_slice(&next_hop.0);
@@ -166,8 +160,7 @@ impl ProactiveTableTestEngine {
         ) {
             return None;
         }
-        let delivery =
-            ratio_belief_or_default(&link.state.delivery_confidence_permille, 850);
+        let delivery = ratio_belief_or_default(&link.state.delivery_confidence_permille, 850);
         let symmetry = ratio_belief_or_default(&link.state.symmetry_permille, 850);
         let loss = u32::from(link.state.loss_permille.0);
         let weighted = (u32::from(delivery.0) * 5
@@ -213,8 +206,7 @@ impl ProactiveTableTestEngine {
             ),
             backend_ref: BackendRouteRef {
                 engine: self.engine_id.clone(),
-                backend_route_id: self
-                    .backend_route_id_for(entry.destination, entry.next_hop),
+                backend_route_id: self.backend_route_id_for(entry.destination, entry.next_hop),
             },
         }
     }
@@ -276,15 +268,10 @@ impl ProactiveTableTestEngine {
         }
     }
 
-    fn entry_for_objective(
-        &self,
-        objective: &RoutingObjective,
-    ) -> Option<&ProactiveTableEntry> {
+    fn entry_for_objective(&self, objective: &RoutingObjective) -> Option<&ProactiveTableEntry> {
         match objective.destination {
-            | jacquard_core::DestinationId::Node(destination) => {
-                self.table.get(&destination)
-            },
-            | _ => None,
+            jacquard_core::DestinationId::Node(destination) => self.table.get(&destination),
+            _ => None,
         }
     }
 }
@@ -305,8 +292,7 @@ impl jacquard_traits::RoutingEnginePlanner for ProactiveTableTestEngine {
             repair_support: jacquard_core::RepairSupport::Unsupported,
             hold_support: jacquard_core::HoldSupport::Unsupported,
             decidable_admission: jacquard_core::DecidableSupport::Supported,
-            quantitative_bounds:
-                jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
+            quantitative_bounds: jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support: jacquard_core::ReconfigurationSupport::ReplaceOnly,
             route_shape_visibility: self.visibility,
         }
@@ -336,9 +322,7 @@ impl jacquard_traits::RoutingEnginePlanner for ProactiveTableTestEngine {
         let expected = self.candidate_for(objective, entry);
         if expected.backend_ref != candidate.backend_ref {
             return Ok(RouteAdmissionCheck {
-                decision: AdmissionDecision::Rejected(
-                    RouteAdmissionRejection::BackendUnavailable,
-                ),
+                decision: AdmissionDecision::Rejected(RouteAdmissionRejection::BackendUnavailable),
                 profile: self
                     .admission_for(objective, profile, expected)
                     .admission_check
@@ -387,8 +371,8 @@ impl jacquard_traits::RoutingEngine for ProactiveTableTestEngine {
         input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, jacquard_core::RouteError> {
         let destination = match input.admission.objective.destination {
-            | jacquard_core::DestinationId::Node(destination) => destination,
-            | _ => return Err(RouteSelectionError::NoCandidate.into()),
+            jacquard_core::DestinationId::Node(destination) => destination,
+            _ => return Err(RouteSelectionError::NoCandidate.into()),
         };
         let entry = self
             .table
@@ -458,22 +442,20 @@ impl jacquard_traits::RoutingEngine for ProactiveTableTestEngine {
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, jacquard_core::RouteError> {
         let destination = match identity.admission.objective.destination {
-            | jacquard_core::DestinationId::Node(destination) => destination,
-            | _ => {
+            jacquard_core::DestinationId::Node(destination) => destination,
+            _ => {
                 return Ok(RouteMaintenanceResult {
                     event: RouteLifecycleEvent::Expired,
                     outcome: RouteMaintenanceOutcome::Failed(
                         RouteMaintenanceFailure::InvalidEvidence,
                     ),
                 })
-            },
+            }
         };
         let Some(entry) = self.table.get(&destination) else {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(
-                    RouteMaintenanceFailure::LostReachability,
-                ),
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
             });
         };
         let Some(active_next_hop) = self.active_routes.get(identity.route_id()) else {
@@ -526,13 +508,10 @@ impl jacquard_traits::RouterManagedEngine for ProactiveTableTestEngine {
     }
 }
 
-fn ratio_belief_or_default(
-    value: &Belief<RatioPermille>,
-    default: u16,
-) -> RatioPermille {
+fn ratio_belief_or_default(value: &Belief<RatioPermille>, default: u16) -> RatioPermille {
     match value {
-        | Belief::Estimated(estimate) => estimate.value,
-        | Belief::Absent => RatioPermille(default),
+        Belief::Estimated(estimate) => estimate.value,
+        Belief::Absent => RatioPermille(default),
     }
 }
 
@@ -541,13 +520,11 @@ fn tq_product(left: RatioPermille, right: RatioPermille) -> RatioPermille {
     RatioPermille(u16::try_from(value).expect("permille product"))
 }
 
-fn max_degradation(
-    left: RouteDegradation,
-    right: RouteDegradation,
-) -> RouteDegradation {
+fn max_degradation(left: RouteDegradation, right: RouteDegradation) -> RouteDegradation {
     match (left, right) {
-        | (RouteDegradation::Degraded(reason), _)
-        | (_, RouteDegradation::Degraded(reason)) => RouteDegradation::Degraded(reason),
-        | (RouteDegradation::None, RouteDegradation::None) => RouteDegradation::None,
+        (RouteDegradation::Degraded(reason), _) | (_, RouteDegradation::Degraded(reason)) => {
+            RouteDegradation::Degraded(reason)
+        }
+        (RouteDegradation::None, RouteDegradation::None) => RouteDegradation::None,
     }
 }

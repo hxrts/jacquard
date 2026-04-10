@@ -10,10 +10,7 @@
 mod common;
 
 use common::{
-    engine::{
-        build_engine, objective, objective_with_floor, profile,
-        profile_with_connectivity,
-    },
+    engine::{build_engine, objective, objective_with_floor, profile, profile_with_connectivity},
     fixtures::sample_configuration,
 };
 use jacquard_pathway::PATHWAY_ENGINE_ID;
@@ -69,16 +66,12 @@ fn admit_route_rejects_when_summary_protection_is_below_floor() {
         .expect("check_candidate should succeed even when the decision is rejection");
     assert!(matches!(
         check.decision,
-        AdmissionDecision::Rejected(
-            RouteAdmissionRejection::ProtectionFloorUnsatisfied
-        )
+        AdmissionDecision::Rejected(RouteAdmissionRejection::ProtectionFloorUnsatisfied)
     ));
 
     let admission_error = engine
         .admit_route(&goal, &policy, candidate, &topology)
-        .expect_err(
-            "admit_route must return Inadmissible for protection floor regression",
-        );
+        .expect_err("admit_route must return Inadmissible for protection floor regression");
     assert!(matches!(
         admission_error,
         RouteError::Selection(RouteSelectionError::Inadmissible(
@@ -168,8 +161,7 @@ fn admit_route_accepts_best_effort_candidate_when_profile_matches() {
 // the partition mismatch path independently of the new repair
 // classification.
 #[test]
-fn admit_route_rejects_when_profile_requires_partition_tolerance_and_summary_does_not()
-{
+fn admit_route_rejects_when_profile_requires_partition_tolerance_and_summary_does_not() {
     let engine = build_engine();
     let topology = sample_configuration();
     let goal = objective_with_floor(
@@ -213,8 +205,7 @@ fn move_only_destination_is_still_reachable_when_hold_fallback_is_forbidden() {
     keep_only_move_service(&mut topology, NodeId([4; 32]));
 
     let mut goal = objective(DestinationId::Node(NodeId([4; 32])));
-    goal.hold_fallback_policy =
-        jacquard_traits::jacquard_core::HoldFallbackPolicy::Forbidden;
+    goal.hold_fallback_policy = jacquard_traits::jacquard_core::HoldFallbackPolicy::Forbidden;
     let policy = profile_with_connectivity(
         RouteRepairClass::BestEffort,
         RoutePartitionClass::ConnectedOnly,

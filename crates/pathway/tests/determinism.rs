@@ -19,9 +19,9 @@ use common::{
 use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
 use jacquard_traits::{
     jacquard_core::{
-        Configuration, DestinationId, Environment, FactSourceClass, NodeId,
-        Observation, OriginAuthenticationClass, RatioPermille, RouteEpoch,
-        RoutingEvidenceClass, ServiceId, Tick,
+        Configuration, DestinationId, Environment, FactSourceClass, NodeId, Observation,
+        OriginAuthenticationClass, RatioPermille, RouteEpoch, RoutingEvidenceClass, ServiceId,
+        Tick,
     },
     HashDigestBytes, Hashing, RoutingEnginePlanner,
 };

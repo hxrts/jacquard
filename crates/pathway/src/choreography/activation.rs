@@ -22,8 +22,7 @@ use telltale::{
 
 pub(crate) const SOURCE_PATH: &str = "crates/pathway/src/choreography/activation.rs";
 pub(crate) const PROTOCOL_NAME: &str = "ActivationHandshake";
-pub(crate) const ROLE_NAMES: &[&str] =
-    &["Router", "CurrentOwner", "NextHop", "Destination"];
+pub(crate) const ROLE_NAMES: &[&str] = &["Router", "CurrentOwner", "NextHop", "Destination"];
 
 type ProtocolResult<T> = result::Result<T, Box<dyn Error + marker::Send + Sync>>;
 
@@ -48,9 +47,9 @@ tell! {
 }
 
 use ActivationHandshake::sessions::{
-    Activate, Activated, CurrentOwner, CurrentOwnerSession, Destination,
-    DestinationSession, NextHop, NextHopChoice1, NextHopSession, Offer, Prepare,
-    Rejected, Roles, Router, RouterSession,
+    Activate, Activated, CurrentOwner, CurrentOwnerSession, Destination, DestinationSession,
+    NextHop, NextHopChoice1, NextHopSession, Offer, Prepare, Rejected, Roles, Router,
+    RouterSession,
 };
 
 use super::{
@@ -68,8 +67,7 @@ where
 {
     let epoch = i64::try_from(epoch.0).invalidated()?;
     let route_id = hex_bytes(&route_id.0);
-    let Roles(mut router, mut current_owner, mut next_hop, mut destination) =
-        Roles::default();
+    let Roles(mut router, mut current_owner, mut next_hop, mut destination) = Roles::default();
 
     executor::block_on(async {
         try_join!(
@@ -83,11 +81,7 @@ where
     .choreography_failed()
 }
 
-async fn router_role(
-    role: &mut Router,
-    route_id: String,
-    epoch: i64,
-) -> ProtocolResult<()> {
+async fn router_role(role: &mut Router, route_id: String, epoch: i64) -> ProtocolResult<()> {
     try_session(role, |s: RouterSession<'_, _>| async move {
         let end = s.send(Activate { route_id, epoch }).await?;
         Ok(((), end))
@@ -98,7 +92,11 @@ async fn router_role(
 async fn current_owner_role(role: &mut CurrentOwner) -> ProtocolResult<()> {
     try_session(role, |s: CurrentOwnerSession<'_, _>| async {
         let (Activate { route_id, .. }, s) = s.receive().await?;
-        let end = s.send(Prepare { route_id: route_id.clone() }).await?;
+        let end = s
+            .send(Prepare {
+                route_id: route_id.clone(),
+            })
+            .await?;
         Ok(((), end))
     })
     .await
@@ -109,10 +107,8 @@ async fn next_hop_role(role: &mut NextHop) -> ProtocolResult<()> {
         let (Prepare { route_id }, s) = s.receive().await?;
         let s = s.send(Offer { route_id }).await?;
         match s.branch().await? {
-            | NextHopChoice1::Activated(Activated { route_id: _ }, end) => {
-                Ok(((), end))
-            },
-            | NextHopChoice1::Rejected(Rejected { route_id: _ }, s) => Ok(((), s)),
+            NextHopChoice1::Activated(Activated { route_id: _ }, end) => Ok(((), end)),
+            NextHopChoice1::Rejected(Rejected { route_id: _ }, s) => Ok(((), s)),
         }
     })
     .await

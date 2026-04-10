@@ -2,23 +2,19 @@ use std::collections::BTreeMap;
 
 use jacquard_batman::BatmanEngine;
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs,
-    HealthScore, IdentityAssuranceClass, NodeId, Observation, OperatingMode,
-    PriorityPoints, RatioPermille, RoutePartitionClass, RouteProtectionClass,
-    RouteRepairClass, RouteReplacementPolicy, RoutingEngineFallbackPolicy,
-    RoutingObjective, RoutingPolicyInputs, SelectedRoutingParameters, Tick,
+    Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, HealthScore,
+    IdentityAssuranceClass, NodeId, Observation, OperatingMode, PriorityPoints, RatioPermille,
+    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
+    RoutingEngineFallbackPolicy, RoutingObjective, RoutingPolicyInputs, SelectedRoutingParameters,
+    Tick,
 };
-use jacquard_mem_link_profile::{
-    InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
-};
+use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork};
 use jacquard_reference_client::{
-    BridgeRoundProgress, BridgeRoundReport, ClientBuilder, HostBridge, PathwayClient,
-    PathwayRouter,
+    BridgeRoundProgress, BridgeRoundReport, ClientBuilder, HostBridge, PathwayClient, PathwayRouter,
 };
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::{
-    purity, Router, RoutingEnvironmentModel, RoutingReplayView, RoutingScenario,
-    RoutingSimulator,
+    purity, Router, RoutingEnvironmentModel, RoutingReplayView, RoutingScenario, RoutingSimulator,
 };
 use telltale_simulator::{BatchConfig, SimRng};
 use thiserror::Error;
@@ -77,25 +73,23 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
 
         for host in scenario.hosts() {
             let client = match host.lane {
-                | EngineLane::Pathway => ClientBuilder::pathway(
+                EngineLane::Pathway => ClientBuilder::pathway(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
                     topology.observed_at_tick,
                 )
                 .build(),
-                | EngineLane::PathwayAndBatman => ClientBuilder::pathway_and_batman(
+                EngineLane::PathwayAndBatman => ClientBuilder::pathway_and_batman(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
                     topology.observed_at_tick,
                 )
                 .build(),
-                | EngineLane::Batman => batman_only_host(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                )?,
+                EngineLane::Batman => {
+                    batman_only_host(host.local_node_id, topology.clone(), network.clone())?
+                }
             };
             hosts.insert(host.local_node_id, client);
         }
@@ -131,16 +125,14 @@ where
         &self,
         scenario: &JacquardScenario,
         environment: &ScriptedEnvironmentModel,
-    ) -> Result<(JacquardReplayArtifact, JacquardSimulationStats), SimulationError>
-    {
+    ) -> Result<(JacquardReplayArtifact, JacquardSimulationStats), SimulationError> {
         self.run_from_state(scenario, environment, None)
     }
 
     pub fn resume_from_checkpoint(
         &self,
         replay: &JacquardReplayArtifact,
-    ) -> Result<(JacquardReplayArtifact, JacquardSimulationStats), SimulationError>
-    {
+    ) -> Result<(JacquardReplayArtifact, JacquardSimulationStats), SimulationError> {
         let Some(checkpoint) = replay.checkpoints.last() else {
             return self.run(&replay.scenario, &replay.environment_model);
         };
@@ -177,26 +169,23 @@ where
         scenario: &JacquardScenario,
         environment: &ScriptedEnvironmentModel,
         resume_from: Option<&JacquardCheckpointArtifact>,
-    ) -> Result<(JacquardReplayArtifact, JacquardSimulationStats), SimulationError>
-    {
+    ) -> Result<(JacquardReplayArtifact, JacquardSimulationStats), SimulationError> {
         let mut _rng = SimRng::new(scenario.seed().0);
         let mut topology = match resume_from {
-            | Some(checkpoint) => checkpoint.topology.clone(),
-            | None => scenario.initial_configuration().clone(),
+            Some(checkpoint) => checkpoint.topology.clone(),
+            None => scenario.initial_configuration().clone(),
         };
         let mut hosts = self.adapter.build_hosts(scenario)?;
         if let Some(checkpoint) = resume_from {
             restore_pathway_hosts(&mut hosts, checkpoint)?;
         }
         let mut route_event_cursors = match resume_from {
-            | Some(checkpoint) => checkpoint
+            Some(checkpoint) => checkpoint
                 .host_snapshots
                 .iter()
-                .map(|(node_id, snapshot)| {
-                    (*node_id, snapshot.runtime_effects.events.len())
-                })
+                .map(|(node_id, snapshot)| (*node_id, snapshot.runtime_effects.events.len()))
                 .collect(),
-            | None => hosts
+            None => hosts
                 .keys()
                 .copied()
                 .map(|node_id| (node_id, 0usize))
@@ -278,9 +267,7 @@ where
                         host_snapshots: capture_host_snapshots(&mut hosts),
                         telltale_native: scenario.all_hosts_pathway().then_some(
                             TelltaleNativeArtifactRef::PathwayCheckpointRecovery {
-                                completed_rounds: checkpoint_round_offset
-                                    + round_index
-                                    + 1,
+                                completed_rounds: checkpoint_round_offset + round_index + 1,
                                 host_count: hosts.len(),
                             },
                         ),
@@ -300,13 +287,10 @@ where
             }
         }
 
-        let total_completed_rounds = checkpoint_round_offset
-            .saturating_add(u32::try_from(rounds.len()).unwrap_or(u32::MAX));
-        let failure_summaries = failure_summaries_for(
-            &checkpoints,
-            &route_event_cursors,
-            &driver_status_events,
-        );
+        let total_completed_rounds =
+            checkpoint_round_offset.saturating_add(u32::try_from(rounds.len()).unwrap_or(u32::MAX));
+        let failure_summaries =
+            failure_summaries_for(&checkpoints, &route_event_cursors, &driver_status_events);
         let replay = JacquardReplayArtifact {
             scenario: scenario.clone(),
             environment_model: environment.clone(),
@@ -407,15 +391,13 @@ fn host_artifact(
     let ingress_batch_boundary = IngressBatchBoundary {
         observed_at_tick: at_tick,
         ingested_transport_observation_count: match progress {
-            | BridgeRoundProgress::Advanced(report) => {
-                report.ingested_transport_observations.len()
-            },
-            | BridgeRoundProgress::Waiting(_) => 0,
+            BridgeRoundProgress::Advanced(report) => report.ingested_transport_observations.len(),
+            BridgeRoundProgress::Waiting(_) => 0,
         },
     };
     let status = match progress {
-        | BridgeRoundProgress::Advanced(report) => advanced_status(report),
-        | BridgeRoundProgress::Waiting(waiting) => HostRoundStatus::Waiting {
+        BridgeRoundProgress::Advanced(report) => advanced_status(report),
+        BridgeRoundProgress::Waiting(waiting) => HostRoundStatus::Waiting {
             next_round_hint: waiting.next_round_hint,
             pending_transport_observations: waiting.pending_transport_observations,
             pending_transport_commands: waiting.pending_transport_commands,
@@ -432,9 +414,7 @@ fn host_artifact(
 fn advanced_status(report: &BridgeRoundReport) -> HostRoundStatus {
     HostRoundStatus::Advanced {
         router_outcome: report.router_outcome.clone(),
-        ingested_transport_observation_count: report
-            .ingested_transport_observations
-            .len(),
+        ingested_transport_observation_count: report.ingested_transport_observations.len(),
         flushed_transport_commands: report.flushed_transport_commands,
         dropped_transport_observations: report.dropped_transport_observations,
     }
@@ -503,8 +483,7 @@ fn failure_summaries_for(
     if checkpoints.is_empty() {
         summaries.push(SimulationFailureSummary {
             round_index: None,
-            detail: "no deterministic checkpoints were emitted during the run"
-                .to_string(),
+            detail: "no deterministic checkpoints were emitted during the run".to_string(),
         });
     }
     if route_event_cursors.values().all(|count| *count == 0) {
@@ -534,8 +513,7 @@ fn stitch_replay_from_checkpoint(
     _suffix_stats: JacquardSimulationStats,
 ) -> (JacquardReplayArtifact, JacquardSimulationStats) {
     let prefix_len = usize::try_from(completed_rounds).unwrap_or(usize::MAX);
-    let mut rounds =
-        replay.rounds[..std::cmp::min(prefix_len, replay.rounds.len())].to_vec();
+    let mut rounds = replay.rounds[..std::cmp::min(prefix_len, replay.rounds.len())].to_vec();
     rounds.extend(suffix_replay.rounds);
 
     let mut route_events = replay.route_events.clone();
@@ -621,25 +599,27 @@ fn batman_only_host(
         .first()
         .cloned()
         .ok_or(SimulationError::MissingEndpoint(local_node_id))?;
-    let bridge_transport = InMemoryTransport::attach(
-        local_node_id,
-        [local_endpoint.clone()],
-        network.clone(),
-    );
-    let engine_transport =
-        InMemoryTransport::attach(local_node_id, [local_endpoint], network);
+    let bridge_transport =
+        InMemoryTransport::attach(local_node_id, [local_endpoint.clone()], network.clone());
+    let engine_transport = InMemoryTransport::attach(local_node_id, [local_endpoint], network);
     let now = topology.observed_at_tick;
     let mut router: PathwayRouter = MultiEngineRouter::new(
         local_node_id,
         FixedPolicyEngine::new(default_profile()),
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
         topology.clone(),
         policy_inputs_for(&topology, local_node_id),
     );
     router.register_engine(Box::new(BatmanEngine::new(
         local_node_id,
         engine_transport,
-        InMemoryRuntimeEffects { now, ..Default::default() },
+        InMemoryRuntimeEffects {
+            now,
+            ..Default::default()
+        },
     )))?;
     Ok(HostBridge::new(topology, router, bridge_transport))
 }

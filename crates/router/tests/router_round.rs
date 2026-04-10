@@ -22,11 +22,11 @@ use std::sync::{Arc, Mutex};
 
 use common::{profile, sample_configuration, sample_policy_inputs, LOCAL_NODE_ID};
 use jacquard_core::{
-    Configuration, ConnectivityPosture, EndpointLocator, LinkEndpoint, Observation,
-    RouteError, RouteMaintenanceResult, RouteMaintenanceTrigger, RouteProtectionClass,
-    RouteRuntimeState, RoutingEngineCapabilities, RoutingEngineId, RoutingTickChange,
-    RoutingTickContext, RoutingTickHint, RoutingTickOutcome, SelectedRoutingParameters,
-    Tick, TransportKind, TransportObservation,
+    Configuration, ConnectivityPosture, EndpointLocator, LinkEndpoint, Observation, RouteError,
+    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteProtectionClass, RouteRuntimeState,
+    RoutingEngineCapabilities, RoutingEngineId, RoutingTickChange, RoutingTickContext,
+    RoutingTickHint, RoutingTickOutcome, SelectedRoutingParameters, Tick, TransportKind,
+    TransportObservation,
 };
 use jacquard_mem_link_profile::InMemoryRuntimeEffects;
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
@@ -75,8 +75,7 @@ impl RoutingEnginePlanner for RecordingIngressEngine {
             repair_support: jacquard_core::RepairSupport::Unsupported,
             hold_support: jacquard_core::HoldSupport::Unsupported,
             decidable_admission: jacquard_core::DecidableSupport::Supported,
-            quantitative_bounds:
-                jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
+            quantitative_bounds: jacquard_core::QuantitativeBoundSupport::ProductiveOnly,
             reconfiguration_support: jacquard_core::ReconfigurationSupport::ReplaceOnly,
             route_shape_visibility: jacquard_core::RouteShapeVisibility::NextHopOnly,
         }
@@ -127,10 +126,7 @@ impl RoutingEngine for RecordingIngressEngine {
         Vec::new()
     }
 
-    fn engine_tick(
-        &mut self,
-        tick: &RoutingTickContext,
-    ) -> Result<RoutingTickOutcome, RouteError> {
+    fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
         let change = if self.pending.is_empty() {
             RoutingTickChange::NoChange
         } else {
@@ -215,7 +211,10 @@ fn build_round_router(
     let mut router = MultiEngineRouter::new(
         LOCAL_NODE_ID,
         FixedPolicyEngine::new(profile()),
-        InMemoryRuntimeEffects { now: Tick(2), ..Default::default() },
+        InMemoryRuntimeEffects {
+            now: Tick(2),
+            ..Default::default()
+        },
         topology.clone(),
         sample_policy_inputs(&topology),
     );

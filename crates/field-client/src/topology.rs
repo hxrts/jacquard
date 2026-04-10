@@ -18,8 +18,7 @@ use jacquard_core::{
 use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 use jacquard_mem_node_profile::{
-    NodeIdentity, NodePreset, NodePresetOptions, NodeStateSnapshot,
-    SimulatedNodeProfile,
+    NodeIdentity, NodePreset, NodePresetOptions, NodeStateSnapshot, SimulatedNodeProfile,
 };
 
 fn field_endpoint(byte: u8) -> jacquard_core::LinkEndpoint {
@@ -118,11 +117,8 @@ impl FieldTopologyLinkPreset {
     #[must_use]
     pub fn build(self) -> Link {
         LinkPreset::lossy(
-            LinkPresetOptions::new(
-                field_endpoint(self.endpoint_byte),
-                self.observed_at_tick,
-            )
-            .with_confidence(self.confidence),
+            LinkPresetOptions::new(field_endpoint(self.endpoint_byte), self.observed_at_tick)
+                .with_confidence(self.confidence),
         )
         .build()
     }
