@@ -104,11 +104,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1775843425,
-        "narHash": "sha256-9Nz6CePr9v86O72HyiQilIeluUPUclJCwhY935tGMPs=",
+        "lastModified": 1775846498,
+        "narHash": "sha256-/rtA0BB1lH1VwQkyb6gaVh2YidhIoxdiC5rm4Wrg/Ys=",
         "owner": "hxrts",
         "repo": "rust-toolkit",
-        "rev": "33bab6bb222d940ff45d0adc29f08be7bd10e514",
+        "rev": "31abe01adb207967be73abc154920b12dafa5e8d",
         "type": "github"
       },
       "original": {
