@@ -27,6 +27,10 @@ Those wider concerns are now split as follows:
   - `Field/Network/*`
 - reduced publication/admission/installation semantics
   - `Field/Router/*`
+- reduced async delivery semantics and first async publication-safety theorems
+  - `Field/Async/*`
+- system-level aggregate summaries and assumption-boundary results
+  - `Field/System/*`
 - runtime extraction and reduced simulation witness
   - `Field/Adequacy/*`
 

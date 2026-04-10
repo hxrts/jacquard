@@ -103,6 +103,7 @@ Provides the first reduced Telltale-shaped bridge:
 - fragment traces
 - fragment semantic objects
 - replay-equivalence and observer-style bridge lemmas
+- snapshot-trace erasure lemmas connecting reduced machine snapshots to fragment traces
 
 This is the protocol-machine-adjacent layer that later Telltale reuse should grow through.
 

@@ -60,4 +60,11 @@ theorem replay_equivalent_fragment_traces_preserve_field_evidence
       semanticObjectsToEvidence (fragmentTraceSemanticObjects right) :=
   FieldProtocolBridge.replay_equivalent_fragment_traces_induce_equal_controller_evidence hEq
 
+theorem snapshot_lists_preserve_observer_projection_under_fragment_erasure
+    (snapshots : List MachineSnapshot) :
+    semanticObjectsToEvidence (FieldProtocolBridge.snapshotTraceSemanticObjects snapshots) =
+      semanticObjectsToEvidence
+        (fragmentTraceSemanticObjects (FieldProtocolBridge.fragmentTraceOfSnapshots snapshots)) :=
+  FieldProtocolBridge.snapshot_trace_observer_projection_matches_fragment_trace snapshots
+
 end FieldProtocolConservation

@@ -159,6 +159,19 @@ runtime_simulation_preserves_controller_evidence_batch
 
 which ties that witness back to the same controller-visible evidence batch seen by the Rust-facing artifact list.
 
+### Fragment-Trace Refinement
+
+The adequacy layer now also connects extracted runtime traces to the reduced Telltale-shaped fragment trace used by `Field/Protocol/Bridge.lean`.
+
+Concretely, the instance proves:
+
+```text
+runtime_execution_refines_fragment_trace
+runtime_execution_refinement_preserves_fragment_observer_projection
+```
+
+These theorems say that the semantic objects extracted from the runtime artifact list are exactly the semantic objects seen after erasing the corresponding extracted snapshots into the protocol-machine fragment trace, and therefore induce the same controller-visible evidence.
+
 ## Assumptions Packaging
 
 `Field/Assumptions.lean` packages the growing assumption boundary into:

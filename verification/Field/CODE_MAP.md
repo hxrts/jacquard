@@ -16,6 +16,10 @@ This map describes the current organization of `verification/Field`.
   - imports the reduced finite network layer and its first safety theorems
 - `Field/Router.lean`
   - imports the reduced publication, admission, and installation layers
+- `Field/Async.lean`
+  - imports the reduced async delivery semantics and first async safety theorems
+- `Field/System.lean`
+  - imports system-level summaries and proof-boundary checks above the async layer
 - `Field/Field.lean`
   - umbrella import for the whole current field verification stack
 
@@ -78,6 +82,17 @@ This map describes the current organization of `verification/Field`.
 - `Field/Router/Installation.lean`
   - minimal canonical installed-route object and installation honesty theorems
 
+## Async And System Layers
+
+- `Field/Async/API.lean`
+  - reduced async envelopes, explicit delay/retry/loss assumptions, queue stepping, ready-message view, and observer view
+- `Field/Async/Safety.lean`
+  - first async publication-safety theorems and queue-drain facts connecting the async layer back to local honesty
+- `Field/System/Statistics.lean`
+  - aggregate local-support summaries and in-flight support-mass bounds over the async layer
+- `Field/System/Boundary.lean`
+  - system-level assumption-boundary statements above the async/runtime stack
+
 ## Notes
 
 - `Field/Docs/Model.md`
@@ -87,7 +102,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Docs/Adequacy.md`
   - runtime artifact bridge and adequacy note
 - `Field/Docs/Guide.md`
-  - contributor guidance, maturity summary, and stack-level module map including the network/router layers
+  - contributor guidance, maturity summary, and stack-level module map including the network/router/async/system layers
 - `Field/Docs/TelltaleGap.md`
   - precise gap between current field objects and deeper Telltale proof reuse
 
@@ -99,6 +114,8 @@ This map describes the current organization of `verification/Field`.
 - moderate:
   - reduced finite network, publication, admission, and installation semantics
   - first network-level safety theorems
+  - reduced async semantics and first async safety theorems
+  - system-level aggregate summaries and assumption-boundary checks
   - probability-simplex information layer
   - normalized public-projection blindness bridge
   - one-step decision layer

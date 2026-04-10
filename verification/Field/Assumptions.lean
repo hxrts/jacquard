@@ -34,6 +34,7 @@ structure RuntimeEnvelopeAssumptions where
 structure OptionalStrengtheningAssumptions where
   receiveRefinementEnabled : Prop
   simulationStrengthened : Prop
+  qualityComparisonReady : Prop
 
 structure ProofContract where
   semantic : SemanticAssumptions
@@ -57,7 +58,8 @@ def defaultProtocolEnvelopeAssumptions : ProtocolEnvelopeAssumptions :=
 
 def defaultOptionalStrengtheningAssumptions : OptionalStrengtheningAssumptions :=
   { receiveRefinementEnabled := True
-    simulationStrengthened := True }
+    simulationStrengthened := True
+    qualityComparisonReady := False }
 
 def defaultContract : ProofContract :=
   { semantic := defaultSemanticAssumptions

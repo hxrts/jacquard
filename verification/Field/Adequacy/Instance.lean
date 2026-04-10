@@ -9,6 +9,7 @@ open FieldAdequacyAPI
 open FieldBoundary
 open FieldModelAPI
 open FieldProtocolAPI
+open FieldProtocolBridge
 
 /-- Extract a reduced protocol snapshot from the Rust-facing round artifact. -/
 def extractSnapshotImpl
@@ -220,5 +221,40 @@ theorem runtime_simulation_preserves_controller_evidence_batch
   rw [(admitted_runtime_execution_simulates_reduced_protocol artifacts hAdmitted).trace_eq_extract]
   symm
   exact runtime_trace_evidence_matches_protocol_trace artifacts
+
+theorem artifact_semantic_objects_match_extracted_snapshot
+    (artifact : RuntimeRoundArtifact) :
+    artifactSemanticObjects artifact =
+      FieldProtocolAPI.exportSemanticObjects (extractSnapshotImpl artifact) := by
+  rfl
+
+/-- Stronger refinement witness: runtime artifacts refine not only to the
+reduced protocol trace but also to the corresponding erased fragment trace. -/
+theorem runtime_execution_refines_fragment_trace
+    (artifacts : List RuntimeRoundArtifact) :
+    traceSemanticObjects (FieldAdequacyAPI.extractTrace artifacts) =
+      fragmentTraceSemanticObjects
+        (fragmentTraceOfSnapshots (artifacts.map FieldAdequacyAPI.extractSnapshot)) := by
+  change traceSemanticObjects (extractTraceImpl artifacts) =
+    fragmentTraceSemanticObjects (fragmentTraceOfSnapshots (artifacts.map extractSnapshotImpl))
+  rw [trace_semantic_objects_extractTraceImpl]
+  have hSnapshot :
+      artifacts.flatMap artifactSemanticObjects =
+        snapshotTraceSemanticObjects (artifacts.map extractSnapshotImpl) := by
+    induction artifacts with
+    | nil =>
+        simp [snapshotTraceSemanticObjects]
+    | cons artifact rest ih =>
+        simp [snapshotTraceSemanticObjects, artifact_semantic_objects_match_extracted_snapshot, ih]
+  rw [hSnapshot]
+  rw [← snapshot_trace_semantic_objects_match_fragment_trace]
+theorem runtime_execution_refinement_preserves_fragment_observer_projection
+    (artifacts : List RuntimeRoundArtifact) :
+    controllerEvidenceFromTrace (FieldAdequacyAPI.extractTrace artifacts) =
+      semanticObjectsToEvidence
+        (fragmentTraceSemanticObjects
+          (fragmentTraceOfSnapshots (artifacts.map FieldAdequacyAPI.extractSnapshot))) := by
+  unfold controllerEvidenceFromTrace
+  simpa [runtime_execution_refines_fragment_trace artifacts]
 
 end FieldAdequacyInstance

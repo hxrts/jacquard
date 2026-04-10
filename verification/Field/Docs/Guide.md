@@ -2,13 +2,15 @@
 
 ## What This Stack Covers
 
-The field verification stack currently has six proof surfaces:
+The field verification stack currently has eight proof surfaces:
 
 - the deterministic local observer-controller model in `Field/Model`
 - the information layer built on top of the finite belief object in `Field/Information`
 - the private cooperative summary-exchange protocol in `Field/Protocol`
 - the reduced finite network semantics in `Field/Network`
 - the reduced router-facing publication/admission/installation semantics in `Field/Router`
+- the reduced async delivery layer in `Field/Async`
+- the system-level summary and boundary layer in `Field/System`
 - the runtime and assumption boundary in `Field/Adequacy` and `Field/Assumptions`
 
 These surfaces are intentionally separated. The local controller is not a choreography. The private protocol does not own canonical route truth. The adequacy layer does not get to claim more than the runtime artifact boundary actually supports.
@@ -23,8 +25,12 @@ These surfaces are intentionally separated. The local controller is not a choreo
   - finite node/destination state, synchronous round buffer, and first network safety theorems
 - `Field/Router/*`
   - router-facing publication, admission, and installation boundary
+- `Field/Async/*`
+  - reduced async delivery semantics, explicit delay/loss/retry assumptions, and first async safety theorems
+- `Field/System/*`
+  - aggregate system summaries and cross-layer boundary statements above the async model
 - `Docs/Adequacy.md`
-  - runtime artifact boundary, reduced simulation witness, packaged assumptions, and parity-sensitive surfaces
+  - runtime artifact boundary, reduced simulation witness, fragment-trace refinement, packaged assumptions, and parity-sensitive surfaces
 - `Docs/Guide.md`
   - contributor guide and current maturity summary
 
@@ -83,16 +89,18 @@ The network/router layers currently give:
   - explicit-path installation cannot appear without explicit local knowledge
   - installed support remains conservative with respect to the supporting node's local evidence
 
-### Async-Readiness Split
+### Async Layer
 
-The current network object is deliberately synchronous, but the future async split is already fixed:
+The current network object is deliberately synchronous, and it is now paired with a first reduced async refinement:
 
 - protocol layer
   - private summary exchange, blocked receives, replay-visible protocol traces, and protocol-machine side conditions
 - network layer
-  - message delivery, delay, loss, retry, and neighbor-indexed transport assumptions over public publications
+  - synchronous publication buffer and neighbor-indexed delivered-message view
+- async layer
+  - in-flight envelopes, explicit delay/loss/retry assumptions, ready-message draining, and first publication-safety lemmas over the queue
 - adequacy layer
-  - correspondence between Rust-facing runtime artifacts and the richer async protocol/network semantics
+  - correspondence between Rust-facing runtime artifacts, reduced traces, fragment traces, and controller-visible evidence
 
 ### Adequacy And Assumptions
 
@@ -102,6 +110,7 @@ The adequacy and assumptions layers currently give:
 - extraction to reduced machine snapshots and traces
 - evidence agreement between Rust-facing artifacts and Lean traces
 - an explicit reduced simulation witness
+- a stronger fragment-trace refinement theorem for runtime executions
 - a packaged `ProofContract` for semantic, protocol, runtime, and optional strengthening assumptions
 
 ## What Is Not Proved
@@ -113,7 +122,7 @@ The current stack does not prove:
 - full Rust controller correctness
 - full Rust choreography runtime correctness
 - transport correctness
-- asynchronous transport semantics
+- full asynchronous transport correctness
 - large asymptotic mean-field or fluid-limit theorems
 
 The current system is best read as:
@@ -133,6 +142,8 @@ The current system is best read as:
 | Information layer | Moderate | finite normalized belief object and first blindness theorem exist |
 | One-step decision layer | Early | useful but intentionally small |
 | Reduced network and router layers | Moderate | explicit publication/admission/installation boundary and first safety theorems exist |
+| Reduced async layer | Moderate | explicit delay/loss/retry assumptions and first async publication safety theorems exist |
+| System summaries and boundaries | Moderate | aggregate support summaries and first system-level boundary theorem exist |
 | Runtime adequacy | Early | reduced simulation witness, not full refinement |
 | Packaged assumptions | Early | structure is in place, but theorem dependence is still selective |
 
@@ -144,6 +155,8 @@ When adding new proofs, keep these boundaries intact.
 - If the statement is about choreography, projection, blocked receives, semantic objects, or protocol traces, it belongs in `Field/Protocol`.
 - If the statement is about node-indexed local states, reduced message delivery, or network-level safety, it belongs in `Field/Network`.
 - If the statement is about router-facing publication, admission, installation, or canonical handling eligibility, it belongs in `Field/Router`.
+- If the statement is about in-flight envelopes, delay, retry, ready delivery, or async publication safety, it belongs in `Field/Async`.
+- If the statement is about aggregate support summaries or cross-layer proof-boundary summaries above the async model, it belongs in `Field/System`.
 - If the statement is about protocol exports becoming controller evidence, it belongs in `Field/Model/Boundary`.
 - If the statement is about Rust-facing runtime artifacts, extracted traces, or runtime simulation, it belongs in `Field/Adequacy`.
 - If the statement is about the global assumption contract used across theorem packs, it belongs in `Field/Assumptions`.
