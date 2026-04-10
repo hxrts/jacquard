@@ -83,6 +83,12 @@ An engine may still use a richer internal runtime model behind that hook. First-
 
 That private choreography runtime does not replace the shared Jacquard effect traits. Generated Telltale effect interfaces remain engine-private implementation details, and the pathway interpreter adapts them onto the stable `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `TransportSenderEffects` surfaces exposed by `jacquard-traits`. Host-owned `TransportDriver` implementations now stop at the router or bridge layer, which delivers explicit ingress before each synchronous router round.
 
+First-party field follows the same ownership rule, but with a narrower proof
+boundary: the deterministic local observer-controller remains the semantic
+owner of corridor belief and posture choice, while any field-private
+choreography layer may provide only observational summary inputs. Canonical
+route publication remains router-owned.
+
 ## Runtime Effect Boundary
 
 The host capability surface stays narrow on purpose.

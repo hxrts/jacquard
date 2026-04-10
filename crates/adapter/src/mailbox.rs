@@ -9,7 +9,8 @@
 //!   bridge to collect and stamp events before routing.
 //! - `TransportIngressNotifier` — cloneable generation-stamp handle that lets a
 //!   bridge or scheduler observe whether the mailbox has changed since the last
-//!   drain, enabling efficient blocking waits without polling.
+//!   drain, enabling efficient blocking waits without polling and
+//!   runtime-agnostic async waiting via [`TransportIngressNotifier::changed`].
 //!
 //! `TransportIngressClass` distinguishes payload frames from control frames.
 //! Payload overflow is fail-open: excess frames are counted in
@@ -20,10 +21,13 @@
 use std::{
     collections::VecDeque,
     fmt,
+    future::Future,
+    pin::Pin,
     sync::{Arc, Condvar, Mutex},
+    task::{Context, Poll, Waker},
 };
 
-use jacquard_core::TransportIngressEvent;
+use jacquard_core::{DurationMs, TransportIngressEvent};
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
@@ -65,6 +69,7 @@ struct MailboxState {
     events: VecDeque<TransportIngressEvent>,
     dropped_payload_count: u64,
     generation: u64,
+    waiters: Vec<Waker>,
 }
 
 struct SharedMailbox {
@@ -76,6 +81,24 @@ struct SharedMailbox {
 impl SharedMailbox {
     fn bump_generation(state: &mut MailboxState) {
         state.generation = state.generation.saturating_add(1);
+    }
+
+    fn take_waiters(state: &mut MailboxState) -> Vec<Waker> {
+        std::mem::take(&mut state.waiters)
+    }
+
+    fn wake_waiters(waiters: Vec<Waker>) {
+        for waiter in waiters {
+            waiter.wake();
+        }
+    }
+
+    #[expect(
+        clippy::disallowed_types,
+        reason = "Condvar and thread-parking APIs require std::time::Duration internally"
+    )]
+    fn std_duration(timeout: DurationMs) -> std::time::Duration {
+        std::time::Duration::from_millis(u64::from(timeout.0))
     }
 }
 
@@ -91,6 +114,11 @@ pub struct TransportIngressReceiver {
 #[derive(Clone)]
 pub struct TransportIngressNotifier {
     shared: Arc<SharedMailbox>,
+}
+
+pub struct TransportIngressChanged<'a> {
+    notifier: &'a TransportIngressNotifier,
+    snapshot: u64,
 }
 
 #[must_use]
@@ -129,7 +157,10 @@ impl TransportIngressSender {
                 guard.dropped_payload_count =
                     guard.dropped_payload_count.saturating_add(1);
                 SharedMailbox::bump_generation(&mut guard);
+                let waiters = SharedMailbox::take_waiters(&mut guard);
+                drop(guard);
                 self.shared.changed.notify_all();
+                SharedMailbox::wake_waiters(waiters);
                 return Ok(TransportIngressSendOutcome::DroppedPayload);
             }
             return Err(ControlIngressOverflow);
@@ -137,7 +168,10 @@ impl TransportIngressSender {
 
         guard.events.push_back(event);
         SharedMailbox::bump_generation(&mut guard);
+        let waiters = SharedMailbox::take_waiters(&mut guard);
+        drop(guard);
         self.shared.changed.notify_all();
+        SharedMailbox::wake_waiters(waiters);
         Ok(TransportIngressSendOutcome::Enqueued)
     }
 }
@@ -177,16 +211,65 @@ impl TransportIngressNotifier {
                 .expect("transport ingress condvar");
         }
     }
+
+    #[must_use]
+    pub fn wait_for_change_timeout(&self, snapshot: u64, timeout: DurationMs) -> bool {
+        let guard = self.shared.state.lock().expect("transport ingress lock");
+        let timeout = SharedMailbox::std_duration(timeout);
+        let (guard, _) = self
+            .shared
+            .changed
+            .wait_timeout_while(guard, timeout, |state| state.generation == snapshot)
+            .expect("transport ingress condvar");
+        guard.generation != snapshot
+    }
+
+    #[must_use]
+    pub fn changed(&self, snapshot: u64) -> TransportIngressChanged<'_> {
+        TransportIngressChanged { notifier: self, snapshot }
+    }
+}
+
+impl Future for TransportIngressChanged<'_> {
+    type Output = u64;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut guard = self
+            .notifier
+            .shared
+            .state
+            .lock()
+            .expect("transport ingress lock");
+        if guard.generation != self.snapshot {
+            return Poll::Ready(guard.generation);
+        }
+
+        if !guard
+            .waiters
+            .iter()
+            .any(|waiter| waiter.will_wake(cx.waker()))
+        {
+            guard.waiters.push(cx.waker().clone());
+        }
+        Poll::Pending
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::{
-        sync::{Arc, Barrier},
+        future::Future,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc, Barrier,
+        },
+        task::{Context, Poll, Wake, Waker},
         thread,
     };
 
-    use jacquard_core::{ByteCount, EndpointLocator, NodeId, TransportKind};
+    use jacquard_core::{
+        ByteCount, DurationMs, EndpointLocator, NodeId, TransportKind,
+    };
 
     use super::{
         transport_ingress_mailbox, TransportIngressClass, TransportIngressSendOutcome,
@@ -202,6 +285,14 @@ mod tests {
             ),
             payload: vec![byte],
         }
+    }
+
+    #[expect(
+        clippy::disallowed_types,
+        reason = "std thread sleep and park APIs require std::time::Duration in tests"
+    )]
+    fn std_duration(timeout: DurationMs) -> std::time::Duration {
+        std::time::Duration::from_millis(u64::from(timeout.0))
     }
 
     #[test]
@@ -238,6 +329,29 @@ mod tests {
             .expect_err("control overflow must fail closed");
 
         assert_eq!(error.to_string(), "control ingress queue is full");
+    }
+
+    #[test]
+    fn notifier_timeout_reports_when_no_change_arrives() {
+        let (_, _, notifier) = transport_ingress_mailbox(1);
+        let snapshot = notifier.snapshot();
+
+        assert!(!notifier.wait_for_change_timeout(snapshot, DurationMs(5)));
+    }
+
+    #[test]
+    fn notifier_timeout_reports_when_change_arrives() {
+        let (sender, _, notifier) = transport_ingress_mailbox(1);
+        let snapshot = notifier.snapshot();
+
+        thread::spawn(move || {
+            thread::sleep(std_duration(DurationMs(5)));
+            sender
+                .emit(TransportIngressClass::Payload, payload(7))
+                .expect("enqueue payload");
+        });
+
+        assert!(notifier.wait_for_change_timeout(snapshot, DurationMs(50)));
     }
 
     #[test]
@@ -279,5 +393,54 @@ mod tests {
 
         handle.join().expect("notifier waiter");
         assert!(notifier.has_changed_since(snapshot));
+    }
+
+    #[test]
+    fn changed_future_wakes_after_ingress_change() {
+        #[derive(Debug)]
+        struct FlagWaker {
+            woke: Arc<AtomicBool>,
+            thread: thread::Thread,
+        }
+
+        impl Wake for FlagWaker {
+            fn wake(self: Arc<Self>) {
+                self.woke.store(true, Ordering::SeqCst);
+                self.thread.unpark();
+            }
+
+            fn wake_by_ref(self: &Arc<Self>) {
+                self.woke.store(true, Ordering::SeqCst);
+                self.thread.unpark();
+            }
+        }
+
+        let (sender, _, notifier) = transport_ingress_mailbox(1);
+        let snapshot = notifier.snapshot();
+        let woke = Arc::new(AtomicBool::new(false));
+        let waker = Waker::from(Arc::new(FlagWaker {
+            woke: Arc::clone(&woke),
+            thread: thread::current(),
+        }));
+        let mut context = Context::from_waker(&waker);
+        let mut changed = Box::pin(notifier.changed(snapshot));
+
+        assert!(matches!(changed.as_mut().poll(&mut context), Poll::Pending));
+
+        thread::spawn(move || {
+            thread::sleep(std_duration(DurationMs(5)));
+            sender
+                .emit(TransportIngressClass::Payload, payload(8))
+                .expect("enqueue payload");
+        });
+
+        while !woke.load(Ordering::SeqCst) {
+            thread::park_timeout(std_duration(DurationMs(50)));
+        }
+
+        assert!(matches!(
+            changed.as_mut().poll(&mut context),
+            Poll::Ready(_)
+        ));
     }
 }
