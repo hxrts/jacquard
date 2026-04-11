@@ -43,6 +43,8 @@
 
         toolkitSupport = toolkit.lib.${system}.consumerShellSupport;
 
+        toolkitPackages = toolkit.packages.${system};
+
         nativeBuildInputs = with pkgs; [
           rustToolchain
           pkg-config
@@ -53,7 +55,14 @@
           perl
           elan
           nodejs
-        ] ++ toolkitSupport.packages;
+        ]
+        ++ toolkitSupport.packages
+        ++ [
+          toolkitPackages.toolkit-clippy
+          toolkitPackages.toolkit-dylint
+          toolkitPackages.toolkit-dylint-link
+          toolkitPackages.toolkit-install-dylint
+        ];
 
         buildInputs =
           with pkgs;
