@@ -136,8 +136,15 @@ max_decl_lines_target = 30
 max_decl_lines_hard_limit = 50
 enforce_target_decl_lines = false
 require_problem_statement = true
+enforce_top_of_file_structure = true
 require_section_headers = true
 require_over_limit_comment = true
+require_explanatory_comment_for_long_blocks = true
+require_public_theorem_lemma_docstrings = false
+banned_imports = ["Field.Assumptions"]
+banned_import_exemptions = ["verification/Field/Field.lean"]
+require_todo_for_sorry = true
+todo_comment_markers = ["TODO:"]
 over_limit_comment_markers = ["long-block-exception:"]
 
 [[checks.lean_style.file_exemptions]]

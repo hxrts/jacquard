@@ -192,6 +192,7 @@ ci-dry-run:
     add_step "Crate Boundary"             "{{policy_cmd}} check crate-boundary"
     add_step "Adapter Boundary"           "{{policy_cmd}} check adapter-boundary"
     add_step "DX Surface"                "{{policy_cmd}} check dx-surface"
+    add_step "DRY Code"                  "{{policy_cmd}} check dry-code"
     add_step "Transport Authoring Boundary" "{{policy_cmd}} check transport-authoring-boundary"
     add_step "Transport Ownership Boundary" "{{policy_cmd}} check transport-ownership-boundary"
     add_step "Router Round Boundary"     "{{policy_cmd}} check router-round-boundary"
@@ -203,6 +204,7 @@ ci-dry-run:
     add_step "Proof Bearing Actions"      "{{policy_cmd}} check proof-bearing-actions"
     add_step "Surface Classification"     "{{policy_cmd}} check surface-classification"
     add_step "Rust Style Guide"           "{{policy_cmd}} check rust-style-guide"
+    add_step "Field Code Map"             "{{policy_cmd}} check field-code-map"
     add_step "Checkpoint Namespacing"     "{{policy_cmd}} check checkpoint-namespacing"
     add_step "Engine Service Boundary"    "{{policy_cmd}} check engine-service-boundary"
     add_step "Invariant Specs"            "{{policy_cmd}} check invariant-specs"
@@ -277,6 +279,12 @@ routing-invariants:
 # enforce mechanized Rust style-guide rules
 rust-style-guide:
     {{policy_cmd}} check rust-style-guide
+
+dry-code:
+    {{policy_cmd}} check dry-code
+
+field-code-map:
+    {{policy_cmd}} check field-code-map
 
 # validate routing-invariant checks against seeded fixtures
 routing-invariants-validate:

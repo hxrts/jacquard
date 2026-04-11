@@ -4,12 +4,16 @@ pub mod adapter_boundary;
 pub mod checkpoint_namespacing;
 #[path = "../../../checks/crate_boundary.rs"]
 pub mod crate_boundary;
+#[path = "../../../checks/dry_code.rs"]
+pub mod dry_code;
 #[path = "../../../checks/dx_surface.rs"]
 pub mod dx_surface;
 #[path = "../../../checks/engine_service_boundary.rs"]
 pub mod engine_service_boundary;
 #[path = "../../../checks/fail_closed_ordering.rs"]
 pub mod fail_closed_ordering;
+#[path = "../../../checks/field_code_map.rs"]
+pub mod field_code_map;
 #[path = "../../../checks/invariant_specs.rs"]
 pub mod invariant_specs;
 #[path = "../../../checks/no_scratch_refs_in_rust.rs"]
@@ -57,7 +61,9 @@ pub fn run(args: Vec<String>) -> Result<()> {
         "checkpoint-namespacing" => checkpoint_namespacing::run(),
         "crate-boundary" => crate_boundary::run(),
         "dx-surface" => dx_surface::run(),
+        "dry-code" => dry_code::run(),
         "engine-service-boundary" => engine_service_boundary::run(),
+        "field-code-map" => field_code_map::run(),
         "fail-closed-ordering" => fail_closed_ordering::run(),
         "invariant-specs" => invariant_specs::run(),
         "no-scratch-refs-in-rust" => no_scratch_refs_in_rust::run(),

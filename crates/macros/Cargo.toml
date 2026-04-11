@@ -13,7 +13,7 @@ proc-macro = true
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["full"] }
-rust-toolkit-trait-contracts = { git = "https://github.com/hxrts/rust-toolkit.git", rev = "1fc34613cbc55b0a8ce0421c6fb439931972ff30" }
+rust-toolkit-trait-contracts = { git = "https://github.com/hxrts/toolkit.git", rev = "1fc34613cbc55b0a8ce0421c6fb439931972ff30" }
 
 [dev-dependencies]
 serde = { workspace = true }

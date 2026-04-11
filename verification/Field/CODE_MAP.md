@@ -11,6 +11,8 @@ This map describes the current organization of `verification/Field`.
 
 - `Field/LocalModel.lean`
   - imports the local observer-controller model, the probabilistic information layer, the local refinement theorems, and the first decision procedure
+- `Field/Information.lean`
+  - imports the information API, concrete probabilistic realization, Bayesian update layer, calibration/blindness packs, and quantitative difference lemmas
 - `Field/PrivateProtocol.lean`
   - imports the reduced private choreography/runtime layer, conservation/coherence packs, and the Telltale-shaped protocol bridge
 - `Field/Boundary.lean`
@@ -111,8 +113,6 @@ This map describes the current organization of `verification/Field`.
   - proof-contract vocabulary, default/strengthened contract builders, and explicit convergence/resilience/search profile-family accessors over semantic, protocol-envelope, runtime-envelope, transport, participation, refinement, budget, and regime-profile assumption families
 - `Field/AssumptionTheorems.lean`
   - theorem packaging layer deriving adequacy, quality, canonical-router, runtime-canonical, runtime-state execution refinement, and resilience-boundary consequences from the shared proof-contract vocabulary
-- `Field/Assumptions.lean`
-  - thin umbrella importing the proof-contract vocabulary and theorem-packaging layers
 
 ## Network And Router
 

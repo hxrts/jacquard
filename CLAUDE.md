@@ -61,7 +61,7 @@ Transport ownership is split deliberately:
 - Host bridges own ingress draining, batching, and time attachment.
 - Transport-specific endpoint authoring belongs in transport-owned profile crates, not in `core`, `adapter`, or the mem profile crates.
 
-`macros` owns syntax-local code generation and annotation-site validation. The flake-input `rust-toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `policy/lints/` and `policy/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
+`macros` owns syntax-local code generation and annotation-site validation. The flake-input `toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `policy/lints/` and `policy/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
 `jacquard-field` owns field-private posterior state, mean-field compression, regime/posture control state, and continuation scoring. Like pathway and batman, field-private choreography may supply only observational evidence into the deterministic local controller — canonical route publication remains router-owned.
 

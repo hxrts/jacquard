@@ -1,4 +1,4 @@
-import Field.Assumptions
+import Field.AssumptionTheorems
 
 /-
 The Problem. Higher layers need a small system-facing summary of the packaged

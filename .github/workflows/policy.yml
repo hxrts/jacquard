@@ -40,6 +40,8 @@ jobs:
         run: cargo run --manifest-path policy/xtask/Cargo.toml -- check adapter-boundary
       - name: DX Surface
         run: cargo run --manifest-path policy/xtask/Cargo.toml -- check dx-surface
+      - name: DRY Code
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check dry-code
       - name: Transport Authoring Boundary
         run: cargo run --manifest-path policy/xtask/Cargo.toml -- check transport-authoring-boundary
       - name: Transport Ownership Boundary
@@ -62,6 +64,8 @@ jobs:
         run: cargo run --manifest-path policy/xtask/Cargo.toml -- check surface-classification
       - name: Rust Style Guide
         run: cargo run --manifest-path policy/xtask/Cargo.toml -- check rust-style-guide
+      - name: Field Code Map
+        run: cargo run --manifest-path policy/xtask/Cargo.toml -- check field-code-map
       - name: Checkpoint Namespacing
         run: cargo run --manifest-path policy/xtask/Cargo.toml -- check checkpoint-namespacing
       - name: Engine Service Boundary

@@ -13,7 +13,7 @@ workspace = true
 jacquard-core = { path = "../core", version = "0.3.1" }
 jacquard-macros = { path = "../macros", version = "0.3.1" }
 blake3 = "1"
-rust-toolkit-effects = { git = "https://github.com/hxrts/rust-toolkit.git", rev = "1fc34613cbc55b0a8ce0421c6fb439931972ff30" }
+rust-toolkit-effects = { git = "https://github.com/hxrts/toolkit.git", rev = "1fc34613cbc55b0a8ce0421c6fb439931972ff30" }
 
 [dev-dependencies]
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
