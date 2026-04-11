@@ -17,7 +17,7 @@ use jacquard_traits::{
 use telltale_search::{
     compare_observations, replay_observation, theorem_backed_observables, ObservationRelation,
     ReplayExpectation, SearchDeterminismMode, SearchQuery, SearchReseedingPolicy,
-    SearchSchedulerProfile,
+    SearchSchedulerProfile, SearchSelectedResultSemanticsClass,
 };
 
 fn same_epoch_updated_topology() -> Observation<jacquard_traits::jacquard_core::Configuration> {
@@ -153,7 +153,7 @@ fn topology_transition_classification_and_reconfiguration_are_explicit() {
 }
 
 #[test]
-fn multi_goal_query_runs_once_and_still_publishes_all_service_candidates() {
+fn candidate_set_query_runs_once_and_still_publishes_all_service_candidates() {
     let mut serial_engine = build_engine_with_config(PathwaySearchConfig::canonical_serial());
     let mut threaded_engine =
         build_engine_with_config(PathwaySearchConfig::threaded_exact_single_lane());
@@ -167,11 +167,12 @@ fn multi_goal_query_runs_once_and_still_publishes_all_service_candidates() {
     assert_eq!(serial_candidates, threaded_candidates);
     assert_eq!(serial_candidates.len(), 3);
 
-    let expected_query = SearchQuery::try_multi_goal(
+    let expected_query = SearchQuery::try_candidate_set(
         LOCAL_NODE_ID,
         vec![NodeId([2; 32]), NodeId([3; 32]), NodeId([4; 32])],
+        None,
     )
-    .expect("non-empty multi-goal query");
+    .expect("non-empty candidate-set query");
 
     let serial_record = serial_engine.last_search_record().expect("serial record");
     let threaded_record = threaded_engine
@@ -183,6 +184,47 @@ fn multi_goal_query_runs_once_and_still_publishes_all_service_candidates() {
     assert!(threaded_record.run.is_some());
     assert_eq!(serial_record.candidate_node_paths().len(), 3);
     assert_eq!(threaded_record.candidate_node_paths().len(), 3);
+}
+
+#[test]
+fn selected_result_artifacts_match_query_kind() {
+    let engine = build_engine();
+    let topology = sample_configuration();
+    let policy = profile();
+
+    let exact_goal = objective(DestinationId::Node(NodeId([3; 32])));
+    std::mem::drop(engine.candidate_routes(&exact_goal, &policy, &topology));
+    let exact_record = engine.last_search_record().expect("exact search record");
+    let exact_run = exact_record.run.as_ref().expect("exact search run");
+    assert_eq!(
+        exact_run.replay.selected_result_semantics_class,
+        SearchSelectedResultSemanticsClass::QueryDerived,
+    );
+    assert!(exact_run.replay.path_problem.is_some());
+    assert!(exact_run
+        .report
+        .selected_result_bounds()
+        .path_problem()
+        .is_some());
+
+    let service_goal = objective(DestinationId::Service(ServiceId(vec![1, 2, 3])));
+    std::mem::drop(engine.candidate_routes(&service_goal, &policy, &topology));
+    let service_record = engine.last_search_record().expect("service search record");
+    assert!(matches!(
+        service_record.query,
+        Some(SearchQuery::CandidateSet { .. }),
+    ));
+    let service_run = service_record.run.as_ref().expect("service search run");
+    assert_eq!(
+        service_run.replay.selected_result_semantics_class,
+        SearchSelectedResultSemanticsClass::QueryDerived,
+    );
+    assert!(service_run.replay.path_problem.is_none());
+    assert!(service_run
+        .report
+        .selected_result_bounds()
+        .path_problem()
+        .is_none());
 }
 
 #[test]

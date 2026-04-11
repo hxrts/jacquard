@@ -22,7 +22,7 @@ The pathway engine implements the shared `RoutingEnginePlanner` contract, which 
 
 1. read the current topology snapshot
 2. freeze a `PathwaySearchDomain` over deterministic `NodeId` graph state for that snapshot
-3. resolve the routing objective into one v13 `SearchQuery`: `SearchQuery::SingleGoal` for one exact destination, or `SearchQuery::MultiGoal` for a deterministic acceptable-destination set
+3. resolve the routing objective into one v13 `SearchQuery`: `SearchQuery::SingleGoal` for one exact destination, or `SearchQuery::CandidateSet` for selector-style service and gateway objectives over a deterministic acceptable-destination set
 4. run Telltale's canonical search machine once for that query under an explicit `SearchExecutionPolicy` plus declared fairness bundle
 5. derive deterministic backend references, route ids, costs, and estimates from the selected-result witness and the final authoritative search state, then sort by path metric, pathway-private topology-model preference, and deterministic route key
 
@@ -63,11 +63,18 @@ This split is intentional. Pathway uses the generic search machine as a determin
 The Pathway engine inherits several capabilities directly from the v13 Telltale search system:
 
 - canonical batch extraction instead of planner-local frontier bookkeeping
-- one objective-scoped `SearchQuery` execution rather than a planner-local loop that rebuilds multi-goal behavior out of repeated single-goal runs
+- one objective-scoped `SearchQuery` execution rather than a planner-local loop that rebuilds selector semantics out of repeated single-goal runs
 - selected-result and witness semantics exported directly by the search runtime
 - explicit execution-policy control through `SearchExecutionPolicy` and `SearchRunConfig`
 - replay artifacts that preserve epoch trace, batch schedule, fairness bundle, and final authoritative state
 - explicit epoch reconfiguration with a real reseeding policy; Pathway currently uses `PreserveOpenAndIncons`
+
+Pathway currently uses `SearchQuery::SingleGoal` for exact node destinations and
+`SearchQuery::CandidateSet` for service/gateway objectives that select among
+multiple acceptable destinations. For exact queries, the runtime can also emit
+the optional path-problem helper surfaces. Candidate-set queries stay on the
+generic selected-result surface and intentionally do not rely on a
+distinguished goal anchor.
 
 Pathway currently exposes only exact run-to-completion profiles to the router. The supported public modes are canonical serial and threaded exact single-lane, both with `batch_width = 1`, `SearchCachingProfile::EphemeralPerStep`, and `SearchEffortProfile::RunToCompletion`. Budgeted or bounded execution contracts remain part of the generic Telltale runtime surface, but Pathway rejects them fail-closed for router-visible planning until it has a Pathway-owned policy for exposing them.
 

@@ -144,7 +144,15 @@ where
         match accepted_nodes.as_slice() {
             [] => None,
             [goal_node_id] => Some(SearchQuery::single_goal(self.local_node_id, *goal_node_id)),
-            _ => SearchQuery::try_multi_goal(self.local_node_id, accepted_nodes).ok(),
+            _ => match objective.destination {
+                jacquard_core::DestinationId::Node(_) => {
+                    SearchQuery::try_multi_goal(self.local_node_id, accepted_nodes).ok()
+                }
+                jacquard_core::DestinationId::Service(_)
+                | jacquard_core::DestinationId::Gateway(_) => {
+                    SearchQuery::try_candidate_set(self.local_node_id, accepted_nodes, None).ok()
+                }
+            },
         }
     }
 
