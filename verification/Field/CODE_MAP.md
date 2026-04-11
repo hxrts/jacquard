@@ -5,14 +5,14 @@ This map describes the current organization of `verification/Field`.
 ## Top-Level Theorem Packs
 
 - `Field/Architecture.lean`
-  - shared taxonomy for projection kinds, refinement-ladder stages, route/evidence/selector lineage, and semantic-versus-proof-artifact roles
+  - shared enum vocabulary for projection kinds, refinement-ladder stages, lineage stages, and semantic-versus-proof-artifact roles
 - `Field/CostAPI.lean`
   - shared work-unit and budget vocabulary reused by router, system, and adequacy cost packs
 
 - `Field/LocalModel.lean`
-  - imports the local observer-controller model, the finite-belief information layer, and the first decision procedure
+  - imports the local observer-controller model, the probabilistic information layer, the local refinement theorems, and the first decision procedure
 - `Field/PrivateProtocol.lean`
-  - imports the reduced private choreography/runtime layer and the Telltale-shaped protocol bridge
+  - imports the reduced private choreography/runtime layer, conservation/coherence packs, and the Telltale-shaped protocol bridge
 - `Field/Boundary.lean`
   - imports the observational controller-boundary theorems
 - `Field/Adequacy.lean`
@@ -27,6 +27,8 @@ This map describes the current organization of `verification/Field`.
   - imports system-level summaries, reduced end-to-end semantics, probabilistic evidence-flow theorems, refinement to router-owned canonical selection above the async layer, and the first budgeted/reduced-context optimality theorems
 - `Field/Quality.lean`
   - imports the reduced routing-quality / comparison, reference-best, and support-only refinement layer above the router and system boundaries
+- `Field/Assumptions.lean`
+  - imports the proof-contract vocabulary and theorem-packaging surface used across the field stack
 - `Field/Field.lean`
   - umbrella import for the whole current field verification stack
 
@@ -80,7 +82,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Model/Boundary.lean`
   - controller-evidence boundary from protocol exports and traces
 - `Field/Adequacy/API.lean`
-  - abstract Rust-runtime artifact boundary, reduced router-facing runtime projection, reduced probabilistic slice, reduced runtime-to-trace simulation witness, and adequacy-side projection/lineage taxonomy hooks
+  - abstract Rust-runtime artifact boundary, reduced router-facing runtime projection, reduced probabilistic slice, and reduced runtime-to-trace simulation witness
 - `Field/Adequacy/Runtime.lean`
   - reduced runtime state, one-step runtime execution semantics, artifact extraction from runtime states/steps, and state-level adequacy/admission preservation lemmas
 - `Field/Adequacy/Canonical.lean`
@@ -117,7 +119,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Network/Safety.lean`
   - first reduced network safety theorems connecting local honesty to publication, admission, and installation
 - `Field/Router/Publication.lean`
-  - router-facing publication candidates, publication-lineage vocabulary, and publication honesty / well-formedness theorems
+  - router-facing publication candidates and publication honesty / well-formedness theorems
 - `Field/Router/Selector.lean`
   - shared selector-family abstraction for lifecycle-route selection, covering candidate domain, eligibility filtering, and fold-based best-route extraction
 - `Field/Router/Admission.lean`
@@ -198,7 +200,7 @@ This map describes the current organization of `verification/Field`.
   - `compressMeanFieldImpl` now owns only control fusion from `ReducedBeliefSummary` plus exogenous `controllerPressure`, instead of hiding posterior reduction internally
   - `Field/Model/Refinement.lean` now makes the intended theorem boundary explicit: the reduced summary is sufficient for the mean-field/controller surfaces only under fixed exogenous control inputs, and the theorem pack also records that the reduction alone does not determine the whole downstream control path
   - `LocalOrderParameter` is now the explicit local phase/order-parameter surface between posterior reduction and control fusion
-  - `projection` is still overloaded across protocol projection, local public projection, and runtime/adequacy projection; file ownership is clean, but the shared taxonomy is still documentation-level rather than API-level
+  - `projection` is still overloaded across protocol projection, local public projection, and runtime/adequacy projection; `Field/Architecture.lean` now gives the shared category vocabulary, but many function/theorem names still use plain `projection`
   - the corridor/coarse-graining story is present across `Field/Information/*` and `Field/Model/*`, but retained aggregates, public macrostates, and controller-facing reduction are still not one explicit end-to-end interface
 
 - state taxonomy:
@@ -233,6 +235,16 @@ This map describes the current organization of `verification/Field`.
   - theorem packaging: contract unlock theorems, boundary forwarding theorems, refinement wrappers
   - synthetic fixtures: adequacy fixture files and probabilistic fixture files
 
+- docs:
+  - `Field/Docs/Model.md`
+    - local-model specification, posterior-to-reduction boundary, order-parameter interpretation, and corridor coarse-graining story
+  - `Field/Docs/Protocol.md`
+    - protocol, Telltale mapping, and replay/authority notes
+  - `Field/Docs/Adequacy.md`
+    - runtime artifact bridge, reduced runtime state/step layer, refinement ladder, and semantic-versus-fixture split in the adequacy stack
+  - `Field/Docs/Guide.md`
+    - contributor guidance, maturity summary, ownership rules, convergence assumptions, and stack-wide harmonization notes
+
 - probabilistic scope:
   - modeled: route existence, route quality, transport reliability, and observation noise
   - explicitly separate from that scope: support ranking, exported quality views, and runtime extraction convenience layers
@@ -241,15 +253,6 @@ This map describes the current organization of `verification/Field`.
   - current calibration/soundness results are confidence-threshold validity, posterior-probability equalities for the normalized update, expected-utility bounds, regret interpretation, explicit-evidence posterior support, produced-candidate latent-mass soundness, and a bounded public-projection weakening theorem; broad correlated calibration still remains out of scope
   - current GF1-style non-claims remain explicit: stronger divergence/update inequalities over the reduction, sharper mutual-information bounds for public observables, and information-theoretic optimality claims for the controller-facing summary are still open
   - explicit non-goals for the current probabilistic roadmap: arbitrary continuous distributions, unproved calibration claims, and full production-runtime probabilistic fidelity
-
-- `Field/Docs/Model.md`
-  - mathematical description of the local field model, plus its place in the wider field stack
-- `Field/Docs/Protocol.md`
-  - protocol, Telltale mapping, and replay/authority notes
-- `Field/Docs/Adequacy.md`
-  - runtime artifact bridge, reduced runtime state/step layer, reduced runtime router projection, low-level alignment theorem, stronger projected runtime/system adequacy note, and the split assumptions-layer packaging note
-- `Field/Docs/Guide.md`
-  - contributor guidance, maturity summary, router-canonical truth versus quality/comparison scope, convergence assumptions, stack-level module map including the network/router/async/system layers, and the cleaned-up assumptions ownership split
 
 ## Maturity Snapshot
 
