@@ -74,5 +74,5 @@ cfg-if = "1"
 wasm-bindgen-test = "0.3"
 
 # toolkit
-rust-toolkit-effects = { git = "https://github.com/hxrts/toolkit.git", rev = "17bd53a62a93364d1968afd670b82155db190176" }
-rust-toolkit-trait-contracts = { git = "https://github.com/hxrts/toolkit.git", rev = "17bd53a62a93364d1968afd670b82155db190176" }
+rust-toolkit-effects = { version = "0.1.0", git = "https://github.com/hxrts/toolkit.git", rev = "17bd53a62a93364d1968afd670b82155db190176" }
+rust-toolkit-trait-contracts = { version = "0.1.0", git = "https://github.com/hxrts/toolkit.git", rev = "17bd53a62a93364d1968afd670b82155db190176" }
