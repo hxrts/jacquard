@@ -27,6 +27,13 @@ open FieldRouterLifecycle
 open FieldSystemCanonical
 open FieldSystemEndToEnd
 
+/- Mechanical lift note:
+
+The budgeted selectors in this file are mostly router optimality objects run on
+`(systemStep state).lifecycle`. The genuinely new content is where those lifts
+are tied back to system/reference views or budget coverage on the stepped
+system state. -/
+
 /-! ## Budgeted System Selection -/
 
 def budgetedCanonicalSystemRoute

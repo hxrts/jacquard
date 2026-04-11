@@ -4,6 +4,11 @@
 
 The adequacy layer is the first formal bridge between the Rust private field runtime and the reduced Lean protocol object. Its job is narrow and explicit: relate a small Rust-facing artifact shape to a reduced Lean machine snapshot and a reduced Lean protocol trace, then show that the host-visible controller evidence extracted from those artifacts agrees with the controller evidence extracted from the Lean trace.
 
+That ownership is intentionally separate from `Field/Model/Boundary.lean`:
+the model boundary owns protocol/controller extraction from protocol exports and
+semantic traces, while adequacy owns runtime-artifact/runtime-state reduction
+before those controller-boundary theorems are applied.
+
 This layer does not prove full Rust runtime correctness. It does not prove scheduler correctness, checkpoint correctness, transport correctness, or router correctness. It proves a reduced artifact-to-trace story that is honest about what information is preserved and what information is erased.
 
 It now also proves a small runtime/system safety story on top of the stuttering refinement layer, and it includes proof-facing fixture cases so the canonical theorems are pinned to concrete reduced runtime examples rather than only prose descriptions.

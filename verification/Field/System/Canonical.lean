@@ -20,6 +20,18 @@ open FieldNetworkAPI
 open FieldQualityAPI
 open FieldQualityReference
 open FieldQualityRefinement
+/- Mechanical lift note:
+
+Most definitions in this file are direct router-to-system lifts of the form
+`routerThing ... (systemStep state).lifecycle`. The original system reasoning
+starts only where a theorem uses queue/network preservation or quality-view
+bridges in addition to that lift. -/
+/-
+`System.Canonical` uses quality-view lemmas only as a bridge from canonical
+lifecycle winners to exported route views. Router truth still lives in
+`Field/Router`; the quality round-trip here is an observer argument, not a
+transfer of truth ownership.
+-/
 open FieldQualitySystem
 open FieldRouterCanonical
 open FieldRouterLifecycle
@@ -220,16 +232,6 @@ theorem canonicalSystemRoute_some_is_support_best
     CanonicalSupportBest destination (systemStep state).lifecycle winner := by
   exact canonicalBestRoute_some_is_support_best destination (systemStep state).lifecycle winner hWinner
 
-/-- The current support-only router-owned selector is an exact global optimum
-over the full reduced lifecycle surface for that router objective. -/
-theorem canonicalSystemRoute_some_is_global_support_optimum_under_full_information
-    (destination : DestinationClass)
-    (state : EndToEndState)
-    (winner : LifecycleRoute)
-    (hWinner : canonicalSystemRoute destination state = some winner) :
-    CanonicalSupportBest destination (systemStep state).lifecycle winner := by
-  exact canonicalSystemRoute_some_is_support_best destination state winner hWinner
-
 theorem canonicalSystemRoute_eq_none_of_no_active_destination_match
     (destination : DestinationClass)
     (state : EndToEndState)
@@ -399,29 +401,15 @@ theorem canonical_system_route_no_oscillation_under_reliable_immediate_empty
       canonicalSystemRoute destination (iterateSystemStep (m + 1) state) := by
   calc
     canonicalSystemRoute destination (iterateSystemStep (n + 1) state) =
-      canonicalSystemRoute destination state :=
-        canonical_system_route_recovers_within_one_step_under_reliable_immediate_empty
-          n destination state hAssumptions hEmpty
-    _ = canonicalSystemRoute destination (iterateSystemStep (m + 1) state) := by
-          symm
-          exact
-            canonical_system_route_recovers_within_one_step_under_reliable_immediate_empty
-              m destination state hAssumptions hEmpty
-
-/-- Current bounded convergence-time statement for canonical selection: in the
-reliable-immediate / empty-queue regime, one reduced end-to-end step is enough
-to reach the stable canonical winner and later iterates keep that winner. -/
-theorem canonical_system_route_converges_within_one_step_under_reliable_immediate_empty
-    (n : Nat)
-    (destination : DestinationClass)
-    (state : EndToEndState)
-    (hAssumptions : state.async.assumptions = reliableImmediateAssumptions)
-    (hEmpty : state.async.inFlight = []) :
-    canonicalSystemRoute destination (iterateSystemStep (n + 1) state) =
       canonicalSystemRoute destination state := by
-  exact
-    canonical_system_route_recovers_within_one_step_under_reliable_immediate_empty
-      n destination state hAssumptions hEmpty
+        exact
+          canonical_system_route_recovers_within_one_step_under_reliable_immediate_empty
+            n destination state hAssumptions hEmpty
+    _ = canonicalSystemRoute destination (iterateSystemStep (m + 1) state) := by
+        symm
+        exact
+          canonical_system_route_recovers_within_one_step_under_reliable_immediate_empty
+            m destination state hAssumptions hEmpty
 
 theorem canonicalSystemSupportAtLeast_stable_under_reliable_immediate_empty
     (threshold : Nat)
@@ -452,19 +440,6 @@ theorem canonicalSystemSupportAtLeast_stable_under_reliable_immediate_empty
           canonical_system_route_recovers_within_one_step_under_reliable_immediate_empty
             n destination state hAssumptions hEmpty
       _ = some winner := hWinner
-
-theorem vanishing_support_limit_blocks_positive_canonical_support
-    (destination : DestinationClass)
-    (state : EndToEndState)
-    (hBelow :
-      ∀ route,
-        route ∈ (systemStep state).lifecycle →
-          CanonicalRouteEligible destination route →
-            route.candidate.support < 1) :
-    ¬ CanonicalSystemSupportAtLeast 1 destination state := by
-  exact
-    not_canonicalSystemSupportAtLeast_of_all_eligible_below_threshold
-      1 destination state hBelow
 
 theorem canonicalSystemSupport_threshold_boundary
     (threshold : Nat)

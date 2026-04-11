@@ -12,12 +12,26 @@ set_option relaxedAutoImplicit false
 
 namespace FieldRouterOptimality
 
+open FieldCostAPI
 open FieldNetworkAPI
 open FieldRouterCanonical
 open FieldRouterCost
 open FieldRouterLifecycle
+open FieldRouterSelector
 
 /-! ## Budgeted Selection -/
+
+def canonicalSupportSelectorSemantics : LifecycleSelectorSemantics :=
+  { selector := canonicalSupportSelector
+    objective := .supportDominance
+    tieBreak := .keepCurrent }
+
+def budgetedCanonicalSearchPolicy
+    (budget : Nat) : SearchExecutionPolicy :=
+  { budget := some (WorkBudget.ofNat budget)
+    traversal := .budgetedPrefix
+    realization := .serial
+    incremental := false }
 
 def budgetedCanonicalEligibleRoutes
     (destination : DestinationClass)
@@ -97,6 +111,33 @@ theorem budgetedCanonicalEligibleRoutes_eq_all_of_budget_covers
       canonicalEligibleRoutes destination routes := by
   unfold budgetedCanonicalEligibleRoutes
   exact List.take_of_length_le hBudget
+
+theorem budgetedCanonicalEligibleRoutes_eq_search_interface
+    (destination : DestinationClass)
+    (budget : Nat)
+    (routes : List LifecycleRoute) :
+    budgetedCanonicalEligibleRoutes destination budget routes =
+      searchedEligibleRoutes
+        canonicalSupportSelectorSemantics
+        (budgetedCanonicalSearchPolicy budget)
+        destination routes := by
+  have hEligible :
+      eligibleRoutes canonicalSupportSelector destination routes =
+        canonicalEligibleRoutes destination routes := by
+    induction routes with
+    | nil =>
+        simp [canonicalEligibleRoutes, eligibleRoutes]
+    | cons route rest ih =>
+        by_cases hRoute : CanonicalRouteEligible destination route
+        · simp [canonicalEligibleRoutes, eligibleRoutes, eligibleCanonicalRoute,
+            canonicalSupportSelector, eligibleRoute, hRoute]
+          exact ih
+        · simp [canonicalEligibleRoutes, eligibleRoutes, eligibleCanonicalRoute,
+            canonicalSupportSelector, eligibleRoute, hRoute]
+          exact ih
+  unfold budgetedCanonicalEligibleRoutes searchedEligibleRoutes
+  simp [budgetedCanonicalSearchPolicy, canonicalSupportSelectorSemantics,
+    WorkBudget.ofNat, WorkUnits.ofNat, hEligible]
 
 theorem budgetedCanonicalBestRoute_eq_canonicalBestRoute_of_budget_covers
     (destination : DestinationClass)

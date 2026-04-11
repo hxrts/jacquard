@@ -200,16 +200,6 @@ theorem transport_volume_work_budget_allows_system_step_work
       (WorkUnits.ofNat (systemStepWorkUnits state)) := by
   exact transport_volume_budget_dominates_system_step_work state
 
-theorem system_step_work_is_local_to_transport_volume
-    (state : EndToEndState) :
-    systemStepWorkUnits state ≤ 4 * transportVolumeBudget state := by
-  exact transport_volume_budget_dominates_system_step_work state
-
-theorem system_step_work_scales_linearly_with_transport_volume
-    (state : EndToEndState) :
-    systemStepWorkUnits state ≤ 4 * transportVolumeBudget state := by
-  exact system_step_work_is_local_to_transport_volume state
-
 /-! ## Bottleneck Analysis -/
 
 theorem transport_volume_budget_bounded_by_bottleneck
@@ -223,7 +213,7 @@ theorem system_step_work_bottlenecked_by_max_queue_or_communication
     systemStepWorkUnits state ≤ 8 * transportWorkBottleneck state := by
   have hWork :
       systemStepWorkUnits state ≤ 4 * transportVolumeBudget state :=
-    system_step_work_is_local_to_transport_volume state
+    transport_volume_budget_dominates_system_step_work state
   have hBudget :
       transportVolumeBudget state ≤ 2 * transportWorkBottleneck state :=
     transport_volume_budget_bounded_by_bottleneck state
@@ -242,15 +232,5 @@ theorem resource_pressure_does_not_strengthen_claims
         route.candidate.shape = envelope.projection.shape ∧
         route.candidate.support = envelope.projection.support := by
   exact system_step_overload_monotone_degradation state route hMem
-
-theorem resource_pressure_gracefully_degrades_to_transport_derived_claims
-    (state : EndToEndState)
-    (route : LifecycleRoute)
-    (hMem : route ∈ (systemStep state).lifecycle) :
-    ∃ envelope,
-      envelope ∈ (transportStep state.async).inFlight.filter readyForDelivery ∧
-        route.candidate.shape = envelope.projection.shape ∧
-        route.candidate.support = envelope.projection.support := by
-  exact resource_pressure_does_not_strengthen_claims state route hMem
 
 end FieldSystemCost

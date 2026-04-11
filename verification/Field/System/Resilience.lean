@@ -21,6 +21,12 @@ open FieldRouterResilience
 open FieldSystemCanonical
 open FieldSystemEndToEnd
 
+/- Mechanical lift note:
+
+The support-value definitions below are router resilience selectors applied to
+`(systemStep state).lifecycle`. The substantive system work in this file is the
+interaction with async assumptions and survival/dropout envelopes. -/
+
 /-- System resilience talks about composing router truth with delivery and
 participation envelopes. It does not claim full transport correctness or
 scheduler fairness beyond the stated assumptions. -/

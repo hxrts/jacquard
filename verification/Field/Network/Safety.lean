@@ -43,7 +43,7 @@ theorem network_round_buffer_support_conservative
     ((networkRound state).roundBuffer node destination).projection.support ≤
       (state.localStates node destination).posterior.support := by
   have hLocal := hHarmony node destination
-  rcases hLocal with ⟨_, _, _, hSupport, _⟩
+  rcases hLocal with ⟨_, _, _, hSupport, _, _, _, _, _, _⟩
   simpa [networkRound, initializeRoundBuffer, publishMessage] using hSupport
 
 /-! ## Explicit-Path Honesty -/

@@ -40,6 +40,14 @@ open FieldRouterLifecycle
 
 This module owns only the runtime projection / adequacy-reduction side. -/
 
+/- Boundary ownership note:
+
+- `Field/Model/Boundary.lean` owns protocol/controller-visible evidence
+  extraction from protocol exports and semantic traces
+- `Field/Adequacy/*` owns runtime-artifact and runtime-state reduction
+- the two boundaries compose only after runtime artifacts have been reduced to
+  traces or controller evidence through this adequacy layer -/
+
 /-! ## Runtime Artifact Vocabulary -/
 
 /-- Reduced router-facing runtime projection carried by one runtime artifact.

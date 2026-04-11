@@ -287,26 +287,6 @@ theorem ready_installed_route_appears_in_system_step_lifecycle
   unfold systemStep maintainLifecycle
   exact List.mem_map.2 ⟨route, hMem, rfl⟩
 
-/-- In the current reduced scheduler model, a ready installed route is
-processed in the same end-to-end step rather than being postponed behind
-unrelated traffic. -/
-theorem ready_installed_route_not_starved_in_system_step
-    (state : EndToEndState)
-    (route : LifecycleRoute)
-    (hMem : route ∈ readyInstalledRoutes state.async) :
-    lifecycleMaintenance route ∈ (systemStep state).lifecycle := by
-  exact ready_installed_route_appears_in_system_step_lifecycle state route hMem
-
-/-- The current reduced scheduler also avoids priority inversion at the
-ready-installed boundary: once a route is ready, it is processed immediately in
-the same system step. -/
-theorem ready_installed_route_avoids_priority_inversion_in_system_step
-    (state : EndToEndState)
-    (route : LifecycleRoute)
-    (hMem : route ∈ readyInstalledRoutes state.async) :
-    lifecycleMaintenance route ∈ (systemStep state).lifecycle := by
-  exact ready_installed_route_appears_in_system_step_lifecycle state route hMem
-
 theorem ready_installed_route_candidate_appears_in_system_step_candidate_view
     (state : EndToEndState)
     (route : LifecycleRoute)

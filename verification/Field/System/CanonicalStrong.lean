@@ -25,6 +25,12 @@ open FieldRouterSelector
 open FieldSystemCanonical
 open FieldSystemEndToEnd
 
+/- Mechanical lift note:
+
+The selector definitions here are router-level selectors evaluated on
+`(systemStep state).lifecycle`. Only the stability theorems below add genuine
+system reasoning beyond that lift. -/
+
 /-! ## Multi-Criteria Selection -/
 
 def canonicalSystemRouteSupportThenHopThenStableTieBreak

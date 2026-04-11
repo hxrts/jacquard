@@ -288,6 +288,8 @@ structure CorridorEnvelopeProjection where
 /-- One destination-local round state for the unified observer-controller. -/
 structure LocalState where
   posterior : PosteriorState
+  summary : ReducedBeliefSummary
+  orderParameter : LocalOrderParameter
   meanField : MeanFieldState
   controller : ControllerState
   regime : RegimeState
@@ -352,6 +354,8 @@ def ProjectionBounded (state : CorridorEnvelopeProjection) : Prop :=
 
 def StateBounded (state : LocalState) : Prop :=
   PosteriorBounded state.posterior ∧
+    ReducedBeliefSummaryBounded state.summary ∧
+    LocalOrderParameterBounded state.orderParameter ∧
     MeanFieldBounded state.meanField ∧
     ControllerBounded state.controller ∧
     RegimeBounded state.regime ∧
@@ -378,7 +382,12 @@ def Harmony (state : LocalState) : Prop :=
     (state.projection.shape = CorridorShape.explicitPath ↔
       state.posterior.knowledge = ReachabilityKnowledge.explicitPath) ∧
     state.projection.support ≤ state.posterior.support ∧
-    state.scored.alternateScore ≤ state.scored.primaryScore
+    state.scored.alternateScore ≤ state.scored.primaryScore ∧
+    state.summary.supportMass = state.posterior.support ∧
+    state.summary.uncertaintyMass = state.posterior.entropy ∧
+    state.orderParameter.supportCoordinate = state.summary.supportMass ∧
+    state.orderParameter.uncertaintyCoordinate = state.summary.uncertaintyMass ∧
+    state.orderParameter.macrostate = state.summary.publicMacrostate
 
 /-! ## Abstract Operations -/
 
@@ -391,7 +400,7 @@ class Model where
   compressMeanField : EvidenceInput → ReducedBeliefSummary → MeanFieldState
   updateController : EvidenceInput → MeanFieldState → ControllerState → ControllerState
   inferRegime :
-    PosteriorState → MeanFieldState → ControllerState → RegimeState
+    LocalOrderParameter → MeanFieldState → ControllerState → RegimeState
   choosePosture : RegimeState → ControllerState → PostureState
   scoreContinuations :
     PosteriorState →
@@ -440,10 +449,10 @@ def updateController
   Model.updateController evidence meanField controller
 
 def inferRegime
-    (posterior : PosteriorState)
+    (orderParameter : LocalOrderParameter)
     (meanField : MeanFieldState)
     (controller : ControllerState) : RegimeState :=
-  Model.inferRegime posterior meanField controller
+  Model.inferRegime orderParameter meanField controller
 
 def choosePosture
     (regime : RegimeState)

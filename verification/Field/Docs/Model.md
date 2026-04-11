@@ -97,6 +97,8 @@ The destination-local semantic state is:
 ```text
 LocalState :=
   PosteriorState
+  × ReducedBeliefSummary
+  × LocalOrderParameter
   × MeanFieldState
   × ControllerState
   × RegimeState
@@ -185,6 +187,14 @@ ReducedBeliefSummary
 reduced model. It is not a second posterior object and it is not the controller
 state. It is the local phase/regime surface derived from the reduced summary.
 
+The implementation now stores both boundary objects directly in `LocalState`,
+and `Field/Model/Refinement.lean` exposes the corresponding storage theorems:
+
+- `round_state_stores_reduced_summary`
+- `round_state_stores_order_parameter`
+- `round_state_mean_field_uses_stored_summary`
+- `round_state_regime_uses_stored_order_parameter`
+
 The current coordinates are deliberately simple:
 
 - support-like field strength
@@ -226,6 +236,8 @@ proof surface now makes both of those facts explicit:
 - the reduction alone does not determine the whole downstream control path
 - `UncertaintyBurden` is currently treated as an order-parameter-adjacent
   control quantity, not as proved Lyapunov data
+- the stored `LocalState.summary` and `LocalState.orderParameter` fields are the
+  concrete implementation boundary for that reduced controller-facing path
 
 The current `GF2` / `GF7` boundary is therefore explicit in the local API:
 

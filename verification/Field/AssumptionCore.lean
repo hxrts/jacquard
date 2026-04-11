@@ -83,6 +83,61 @@ structure ProofContract where
   regimeProfile : RegimeProfileAssumptions
   optional : OptionalStrengtheningAssumptions
 
+structure ConvergenceProfileFamily where
+  transport : TransportAssumptions
+  regime : RegimeProfileAssumptions
+
+structure ResilienceProfileFamily where
+  transport : TransportAssumptions
+  participation : ParticipationAssumptions
+  regime : RegimeProfileAssumptions
+
+structure SearchProfileFamily where
+  budget : BudgetAssumptions
+  regime : RegimeProfileAssumptions
+  refinement : RefinementAssumptions
+
+def semanticProfileOfContract
+    (contract : ProofContract) : SemanticAssumptions :=
+  contract.semantic
+
+def transportProfileOfContract
+    (contract : ProofContract) : TransportAssumptions :=
+  contract.transport
+
+def participationProfileOfContract
+    (contract : ProofContract) : ParticipationAssumptions :=
+  contract.participation
+
+def refinementProfileOfContract
+    (contract : ProofContract) : RefinementAssumptions :=
+  contract.refinement
+
+def budgetProfileOfContract
+    (contract : ProofContract) : BudgetAssumptions :=
+  contract.budget
+
+def regimeProfileOfContract
+    (contract : ProofContract) : RegimeProfileAssumptions :=
+  contract.regimeProfile
+
+def convergenceProfilesOfContract
+    (contract : ProofContract) : ConvergenceProfileFamily :=
+  { transport := contract.transport
+    regime := contract.regimeProfile }
+
+def resilienceProfilesOfContract
+    (contract : ProofContract) : ResilienceProfileFamily :=
+  { transport := contract.transport
+    participation := contract.participation
+    regime := contract.regimeProfile }
+
+def searchProfilesOfContract
+    (contract : ProofContract) : SearchProfileFamily :=
+  { budget := contract.budget
+    regime := contract.regimeProfile
+    refinement := contract.refinement }
+
 /-! ## Explicit Non-Claims -/
 
 /-- Global marker used by the assumptions layer to say explicitly that the

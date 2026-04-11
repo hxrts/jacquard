@@ -66,6 +66,7 @@ lean_lib JacquardVerification where
     `Field.Information.Blindness,
     `Field.Information.Quantitative,
     `Field.Protocol.API,
+    `Field.Protocol.Boundary,
     `Field.Protocol.Instance,
     `Field.Protocol.Bridge,
     `Field.Protocol.Coherence,

@@ -1,5 +1,5 @@
 import Field.Model.Instance
-import Field.Protocol.Instance
+import Field.Protocol.Boundary
 
 /-
 The Problem. The proof story needs one narrow theorem linking private protocol
@@ -25,9 +25,14 @@ to prove controller optimality or router-level correctness.
 Projection taxonomy note:
 
 - this module sits on the local public projection boundary
+- it owns only protocol-export / semantic-object to controller-evidence
+  extraction
 - it does not own protocol projection from choreography to local types
 - it does not own runtime/adequacy projection from artifacts to reduced Lean
   objects
+- that runtime-facing composition lives in `Field/Adequacy/*`, which composes
+  with this module only after runtime artifacts have already been reduced to
+  protocol traces or controller evidence
 -/
 
 set_option autoImplicit false
@@ -37,6 +42,7 @@ namespace FieldBoundary
 
 open FieldModelAPI
 open FieldProtocolAPI
+open FieldProtocolBoundary
 
 /-- Translate one observational protocol output into bounded local evidence at
 the local public projection boundary. -/
@@ -137,8 +143,8 @@ theorem failed_closed_snapshot_produces_no_controller_evidence
     (snapshot : MachineSnapshot)
     (hFailed : snapshot.disposition = HostDisposition.failedClosed) :
     controllerEvidenceFromSnapshot snapshot = [] := by
-  change protocolOutputsToEvidence (FieldProtocolInstance.exportOutputsImpl snapshot) = []
-  simp [protocolOutputsToEvidence, FieldProtocolInstance.exportOutputsImpl, hFailed]
+  simp [controllerEvidenceFromSnapshot, protocolOutputsToEvidence,
+    FieldProtocolBoundary.failed_closed_exports_nothing snapshot hFailed]
 
 /-- Every controller evidence item produced from exported protocol batches stays
 on the observational side of the boundary. -/

@@ -76,11 +76,11 @@ theorem publishCandidate_well_formed
 theorem explicit_path_publication_requires_explicit_knowledge
     (localState : LocalState)
     (hHarmony : Harmony localState)
-    (hShape :
+  (hShape :
       (publishCandidate NodeId.alpha DestinationClass.corridorA localState).shape =
         CorridorShape.explicitPath) :
     localState.posterior.knowledge = ReachabilityKnowledge.explicitPath := by
-  rcases hHarmony with ⟨_, _, hShapeIff, _, _⟩
+  rcases hHarmony with ⟨_, _, hShapeIff, _, _, _, _, _, _, _⟩
   exact hShapeIff.mp (by simpa [publishCandidate] using hShape)
 
 theorem publication_support_le_local_support
@@ -88,7 +88,7 @@ theorem publication_support_le_local_support
     (hHarmony : Harmony localState) :
     (publishCandidate NodeId.alpha DestinationClass.corridorA localState).support ≤
       localState.posterior.support := by
-  rcases hHarmony with ⟨_, _, _, hSupport, _⟩
+  rcases hHarmony with ⟨_, _, _, hSupport, _, _, _, _, _, _⟩
   simpa [publishCandidate] using hSupport
 
 theorem publication_hops_match_local_projection

@@ -266,22 +266,13 @@ def inferRegimeFromOrderParameterImpl
           OperatingRegime.retentionFavorable
   { current := current, residual := residual }
 
-/-- Infer the current operating regime from bounded posterior and control state
-by first exposing the local order parameter and then classifying over it. -/
+/-- Infer the current operating regime from the explicit local order parameter
+and bounded control state. -/
 def inferRegimeImpl
-    (posterior : PosteriorState)
+    (parameter : LocalOrderParameter)
     (meanField : MeanFieldState)
     (controller : ControllerState) : RegimeState :=
-  inferRegimeFromOrderParameterImpl
-    { supportCoordinate := meanField.fieldStrength
-      uncertaintyCoordinate := posterior.entropy
-      macrostate :=
-        match posterior.knowledge with
-        | .explicitPath => CorridorShape.explicitPath
-        | .corridor => CorridorShape.corridorEnvelope
-        | .unknown => CorridorShape.opaque
-        | .unreachable => CorridorShape.opaque }
-    meanField controller
+  inferRegimeFromOrderParameterImpl parameter meanField controller
 
 /-- Choose the routing posture implied by the inferred regime. -/
 def choosePostureImpl
@@ -350,15 +341,17 @@ noncomputable def bayesianPosteriorCoreImpl
 def roundStepImpl (evidence : EvidenceInput) (state : LocalState) : LocalState :=
   let posterior := updatePosteriorImpl evidence state
   let posteriorBelief := bayesianPosteriorCoreImpl evidence state
-  let reduced := reducePosteriorImpl posterior posteriorBelief
-  let _orderParameter := extractOrderParameterImpl reduced
-  let meanField := compressMeanFieldImpl evidence reduced
+  let summary := reducePosteriorImpl posterior posteriorBelief
+  let orderParameter := extractOrderParameterImpl summary
+  let meanField := compressMeanFieldImpl evidence summary
   let controller := updateControllerImpl evidence meanField state.controller
-  let regime := inferRegimeImpl posterior meanField controller
+  let regime := inferRegimeImpl orderParameter meanField controller
   let posture := choosePostureImpl regime controller
   let scored := scoreContinuationsImpl posterior meanField controller posture
   let projection := projectCorridorImpl posterior meanField controller scored
   { posterior := posterior
+    summary := summary
+    orderParameter := orderParameter
     meanField := meanField
     controller := controller
     regime := regime
@@ -470,15 +463,15 @@ theorem updateControllerImpl_bounded
 
 /-- Regime inference preserves the bounded residual budget. -/
 theorem inferRegimeImpl_bounded
-    (posterior : PosteriorState)
+    (parameter : LocalOrderParameter)
     (meanField : MeanFieldState)
     (controller : ControllerState) :
-    RegimeBounded (inferRegimeImpl posterior meanField controller) := by
+    RegimeBounded (inferRegimeImpl parameter meanField controller) := by
   -- The residual is explicitly clamped before the regime branch is chosen.
   simpa [RegimeBounded, BoundedNat, inferRegimeImpl,
     inferRegimeFromOrderParameterImpl, LocalOrderParameter.thresholdProximity] using
     clampPermille_bounded
-      (posterior.entropy + controller.congestionPrice - meanField.fieldStrength)
+      (parameter.uncertaintyCoordinate + controller.congestionPrice - meanField.fieldStrength)
 
 /-- Continuation scoring stays bounded and preserves the primary/alternate
 ordering relation. -/
@@ -563,30 +556,33 @@ noncomputable instance instLaws : FieldModelAPI.Laws where
     -- The round is bounded because each substep is bounded independently.
     let posterior := updatePosteriorImpl evidence state
     let posteriorBelief := bayesianPosteriorImpl evidence state
-    let reduced := reducePosteriorImpl posterior posteriorBelief
-    let meanField := compressMeanFieldImpl evidence reduced
+    let summary := reducePosteriorImpl posterior posteriorBelief
+    let orderParameter := extractOrderParameterImpl summary
+    let meanField := compressMeanFieldImpl evidence summary
     let controller := updateControllerImpl evidence meanField state.controller
-    let regime := inferRegimeImpl posterior meanField controller
+    let regime := inferRegimeImpl orderParameter meanField controller
     let posture := choosePostureImpl regime controller
     let scored := scoreContinuationsImpl posterior meanField controller posture
     let projection := projectCorridorImpl posterior meanField controller scored
     have hPosterior : PosteriorBounded posterior := by
       simpa [posterior] using updatePosteriorImpl_bounded evidence state
-    have hReduced : ReducedBeliefSummaryBounded reduced := by
-      simpa [reduced] using reducePosteriorImpl_bounded posterior posteriorBelief hPosterior
+    have hSummary : ReducedBeliefSummaryBounded summary := by
+      simpa [summary] using reducePosteriorImpl_bounded posterior posteriorBelief hPosterior
+    have hOrder : LocalOrderParameterBounded orderParameter := by
+      simpa [orderParameter] using extractOrderParameterImpl_bounded summary hSummary
     have hMeanField : MeanFieldBounded meanField := by
-      simpa [meanField] using compressMeanFieldImpl_bounded evidence reduced hReduced
+      simpa [meanField] using compressMeanFieldImpl_bounded evidence summary hSummary
     have hController : ControllerBounded controller := by
       simpa [controller] using
         updateControllerImpl_bounded evidence meanField state.controller hMeanField
     have hRegime : RegimeBounded regime := by
-      simpa [regime] using inferRegimeImpl_bounded posterior meanField controller
+      simpa [regime] using inferRegimeImpl_bounded orderParameter meanField controller
     have hScores : ContinuationScoresBounded scored := by
       simpa [scored] using scoreContinuationsImpl_bounded posterior meanField controller posture
     have hProjection : ProjectionBounded projection := by
       simpa [projection] using
         projectCorridorImpl_bounded posterior meanField controller scored hPosterior hMeanField hScores
-    exact ⟨hPosterior, hMeanField, hController, hRegime, hScores, hProjection⟩
+    exact ⟨hPosterior, hSummary, hOrder, hMeanField, hController, hRegime, hScores, hProjection⟩
   bayesian_posterior_normalized := by
     intro evidence state
     simpa [bayesianPosteriorImpl] using
@@ -605,7 +601,17 @@ noncomputable instance instLaws : FieldModelAPI.Laws where
         projection_shape_explicit_iff (updatePosteriorImpl evidence state).knowledge
     constructor
     · exact Nat.min_le_left _ _
+    constructor
     · exact Nat.div_le_self _ 2
+    constructor
+    · simp [roundStepImpl, reducePosteriorImpl]
+    constructor
+    · simp [roundStepImpl, reducePosteriorImpl]
+    constructor
+    · simp [roundStepImpl, reducePosteriorImpl, extractOrderParameterImpl]
+    constructor
+    · simp [roundStepImpl, reducePosteriorImpl, extractOrderParameterImpl]
+    · simp [roundStepImpl, reducePosteriorImpl, extractOrderParameterImpl]
   fresh_requires_refresh := by
     intro evidence state hRefresh
     -- Freshness is controlled only by the refresh signal.
@@ -646,6 +652,14 @@ def initialState : LocalState :=
       { belief := beliefFromKnowledge .corridor 400 200
         freshness := .stale
         knowledge := .corridor }
+    summary :=
+      { supportMass := 400
+        uncertaintyMass := 200
+        publicMacrostate := .corridorEnvelope }
+    orderParameter :=
+      { supportCoordinate := 400
+        uncertaintyCoordinate := 200
+        macrostate := .corridorEnvelope }
     meanField :=
       { fieldStrength := 400, relayAlignment := 300, riskAlignment := 250 }
     controller :=
@@ -867,7 +881,8 @@ theorem uncertainty_burden_bounded
     (state : LocalState)
     (hState : StateBounded state) :
     FieldModelAPI.UncertaintyBurden state ≤ 3000 := by
-  rcases hState with ⟨hPosterior, _hMeanField, hController, hRegime, _hScores, _hProjection⟩
+  rcases hState with
+    ⟨hPosterior, _hSummary, _hOrder, _hMeanField, hController, hRegime, _hScores, _hProjection⟩
   rcases hPosterior with ⟨_hSupport, hEntropy⟩
   rcases hController with ⟨hCongestion, _hMargin⟩
   have hResidual := hRegime

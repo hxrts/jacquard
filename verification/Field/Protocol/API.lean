@@ -225,6 +225,11 @@ abbrev ExportsRemainObservational (M : Model) : Prop :=
 abbrev SemanticExportsRemainObservational (M : Model) : Prop :=
   ∀ snapshot, SemanticObjectsObservationalOnly (@Model.exportSemanticObjects M snapshot)
 
+abbrev FailedClosedExportsNothing (M : Model) : Prop :=
+  ∀ snapshot,
+    snapshot.disposition = HostDisposition.failedClosed →
+      @Model.exportOutputs M snapshot = []
+
 abbrev AdvancePreservesCoherence (M : Model) : Prop :=
   ∀ input snapshot,
     MachineCoherent snapshot →
@@ -240,6 +245,8 @@ class Laws extends Model where
   exports_remain_observational : ExportsRemainObservational toModel
   semantic_exports_remain_observational :
     SemanticExportsRemainObservational toModel
+  failed_closed_exports_nothing :
+    FailedClosedExportsNothing toModel
 
 instance (priority := 100) lawsToModel [Laws] : Model := Laws.toModel
 
@@ -289,6 +296,12 @@ theorem semantic_exports_remain_observational
     (snapshot : MachineSnapshot) :
     SemanticObjectsObservationalOnly (exportSemanticObjects snapshot) :=
   Laws.semantic_exports_remain_observational snapshot
+
+theorem failed_closed_exports_nothing
+    (snapshot : MachineSnapshot)
+    (hFailed : snapshot.disposition = HostDisposition.failedClosed) :
+    exportOutputs snapshot = [] :=
+  Laws.failed_closed_exports_nothing snapshot hFailed
 
 end LawWrappers
 

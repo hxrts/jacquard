@@ -89,7 +89,7 @@ theorem publication_envelope_explicit_path_requires_explicit_local_knowledge
   have hProjected :
       (network.localStates sender destination).projection.shape = CorridorShape.explicitPath := by
     simpa [publicationEnvelope, publishMessage] using hShape
-  rcases hHarmony sender destination with ⟨_, _, hExplicit, _, _⟩
+  rcases hHarmony sender destination with ⟨_, _, hExplicit, _, _, _, _, _, _, _⟩
   exact hExplicit.mp hProjected
 
 theorem drain_ready_messages_never_increases_queue

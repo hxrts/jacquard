@@ -61,6 +61,35 @@ private theorem runtime_contract_respects_envelope
     RuntimeExecutionAdmitted artifacts :=
   contract.runtime.respectsReducedEnvelope artifacts hAdmitted
 
+private theorem claim_disabled
+    (claim : Prop)
+    (hDisabled : claim = False) :
+    ¬ claim := by
+  intro hClaim
+  have : False := by
+    simp [hDisabled] at hClaim
+  exact this
+
+private theorem claim_enabled
+    (claim : Prop)
+    (hEnabled : claim = True) :
+    claim := by
+  simp [hEnabled]
+
+private theorem contract_flag_disabled
+    (contract : ProofContract)
+    (flag : OptionalStrengtheningAssumptions → Prop)
+    (hDisabled : flag contract.optional = False) :
+    ¬ flag contract.optional :=
+  claim_disabled _ hDisabled
+
+private theorem contract_flag_enabled
+    (contract : ProofContract)
+    (flag : OptionalStrengtheningAssumptions → Prop)
+    (hEnabled : flag contract.optional = True) :
+    flag contract.optional :=
+  claim_enabled _ hEnabled
+
 theorem contract_yields_runtime_evidence_agreement
     (contract : ProofContract)
     (artifacts : List RuntimeRoundArtifact)
@@ -70,7 +99,6 @@ theorem contract_yields_runtime_evidence_agreement
   exact FieldAdequacyInstance.runtime_trace_evidence_matches_protocol_trace artifacts
 
 theorem contract_yields_observational_controller_boundary
-    (contract : ProofContract)
     (trace : ProtocolTrace) :
     FieldEvidenceConservation trace := by
   exact FieldProtocolConservation.protocol_trace_evidence_conserved trace
@@ -341,98 +369,132 @@ theorem contract_yields_canonical_route_view_order_insensitivity
 
 theorem default_contract_does_not_claim_support_optimality_refinement_ready :
     ¬ defaultContract.optional.supportOptimalityRefinementReady := by
-  simp [defaultContract, mkProofContract, defaultOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled defaultContract
+    (fun optional => optional.supportOptimalityRefinementReady) (by
+    simp [defaultContract, mkProofContract, defaultOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem reduced_quality_contract_does_not_claim_support_optimality_refinement_ready :
     ¬ reducedQualityContract.optional.supportOptimalityRefinementReady := by
-  simp [reducedQualityContract, mkProofContract, reducedQualityOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled reducedQualityContract
+    (fun optional => optional.supportOptimalityRefinementReady) (by
+    simp [reducedQualityContract, mkProofContract, reducedQualityOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem default_contract_does_not_claim_canonical_router_refinement_ready :
     ¬ defaultContract.optional.canonicalRouterRefinementReady := by
-  simp [defaultContract, mkProofContract, defaultOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled defaultContract
+    (fun optional => optional.canonicalRouterRefinementReady) (by
+    simp [defaultContract, mkProofContract, defaultOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem support_optimality_contract_does_not_claim_canonical_router_refinement_ready :
     ¬ supportOptimalityContract.optional.canonicalRouterRefinementReady := by
-  simp [supportOptimalityContract, mkProofContract, supportOptimalityOptionalStrengtheningAssumptions,
-    reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled supportOptimalityContract
+    (fun optional => optional.canonicalRouterRefinementReady) (by
+    simp [supportOptimalityContract, mkProofContract, supportOptimalityOptionalStrengtheningAssumptions,
+      reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions])
 
 theorem canonical_router_contract_does_not_claim_runtime_canonical_refinement_ready :
     ¬ canonicalRouterContract.optional.runtimeCanonicalRefinementReady := by
-  simp [canonicalRouterContract, mkProofContract, canonicalRouterOptionalStrengtheningAssumptions,
-    supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled canonicalRouterContract
+    (fun optional => optional.runtimeCanonicalRefinementReady) (by
+    simp [canonicalRouterContract, mkProofContract, canonicalRouterOptionalStrengtheningAssumptions,
+      supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem runtime_canonical_contract_does_not_claim_runtime_system_refinement_ready :
     ¬ runtimeCanonicalContract.optional.runtimeSystemRefinementReady := by
-  simp [runtimeCanonicalContract, mkProofContract, runtimeCanonicalOptionalStrengtheningAssumptions,
-    canonicalRouterOptionalStrengtheningAssumptions, supportOptimalityOptionalStrengtheningAssumptions,
-    reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled runtimeCanonicalContract
+    (fun optional => optional.runtimeSystemRefinementReady) (by
+    simp [runtimeCanonicalContract, mkProofContract, runtimeCanonicalOptionalStrengtheningAssumptions,
+      canonicalRouterOptionalStrengtheningAssumptions, supportOptimalityOptionalStrengtheningAssumptions,
+      reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions])
 
 theorem default_contract_does_not_claim_global_optimality_ready :
     ¬ defaultContract.optional.globalOptimalityReady := by
-  simp [defaultContract, mkProofContract, defaultOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled defaultContract
+    (fun optional => optional.globalOptimalityReady) (by
+    simp [defaultContract, mkProofContract, defaultOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem reduced_quality_contract_unlocks_reduced_quality_comparison :
     reducedQualityContract.optional.reducedQualityComparisonReady := by
-  simp [reducedQualityContract, mkProofContract, reducedQualityOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_enabled reducedQualityContract
+    (fun optional => optional.reducedQualityComparisonReady) (by
+    simp [reducedQualityContract, mkProofContract, reducedQualityOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem support_optimality_contract_unlocks_support_optimality_refinement :
     supportOptimalityContract.optional.supportOptimalityRefinementReady := by
-  simp [supportOptimalityContract, mkProofContract, supportOptimalityOptionalStrengtheningAssumptions,
-    reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions]
+  exact contract_flag_enabled supportOptimalityContract
+    (fun optional => optional.supportOptimalityRefinementReady) (by
+    simp [supportOptimalityContract, mkProofContract, supportOptimalityOptionalStrengtheningAssumptions,
+      reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions])
 
 theorem canonical_router_contract_unlocks_canonical_router_refinement :
     canonicalRouterContract.optional.canonicalRouterRefinementReady := by
-  simp [canonicalRouterContract, mkProofContract, canonicalRouterOptionalStrengtheningAssumptions,
-    supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_enabled canonicalRouterContract
+    (fun optional => optional.canonicalRouterRefinementReady) (by
+    simp [canonicalRouterContract, mkProofContract, canonicalRouterOptionalStrengtheningAssumptions,
+      supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem runtime_canonical_contract_unlocks_runtime_canonical_refinement :
     runtimeCanonicalContract.optional.runtimeCanonicalRefinementReady := by
-  simp [runtimeCanonicalContract, mkProofContract, runtimeCanonicalOptionalStrengtheningAssumptions,
-    canonicalRouterOptionalStrengtheningAssumptions, supportOptimalityOptionalStrengtheningAssumptions,
-    reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions]
+  exact contract_flag_enabled runtimeCanonicalContract
+    (fun optional => optional.runtimeCanonicalRefinementReady) (by
+    simp [runtimeCanonicalContract, mkProofContract, runtimeCanonicalOptionalStrengtheningAssumptions,
+      canonicalRouterOptionalStrengtheningAssumptions, supportOptimalityOptionalStrengtheningAssumptions,
+      reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions])
 
 theorem runtime_system_contract_unlocks_runtime_system_refinement :
     runtimeSystemContract.optional.runtimeSystemRefinementReady := by
-  simp [runtimeSystemContract, mkProofContract, runtimeSystemOptionalStrengtheningAssumptions,
-    runtimeCanonicalOptionalStrengtheningAssumptions, canonicalRouterOptionalStrengtheningAssumptions,
-    supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_enabled runtimeSystemContract
+    (fun optional => optional.runtimeSystemRefinementReady) (by
+    simp [runtimeSystemContract, mkProofContract, runtimeSystemOptionalStrengtheningAssumptions,
+      runtimeCanonicalOptionalStrengtheningAssumptions, canonicalRouterOptionalStrengtheningAssumptions,
+      supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem reduced_quality_contract_still_does_not_claim_global_optimality_ready :
     ¬ reducedQualityContract.optional.globalOptimalityReady := by
-  simp [reducedQualityContract, mkProofContract, reducedQualityOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled reducedQualityContract
+    (fun optional => optional.globalOptimalityReady) (by
+    simp [reducedQualityContract, mkProofContract, reducedQualityOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem support_optimality_contract_still_does_not_claim_global_optimality_ready :
     ¬ supportOptimalityContract.optional.globalOptimalityReady := by
-  simp [supportOptimalityContract, mkProofContract, supportOptimalityOptionalStrengtheningAssumptions,
-    reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled supportOptimalityContract
+    (fun optional => optional.globalOptimalityReady) (by
+    simp [supportOptimalityContract, mkProofContract, supportOptimalityOptionalStrengtheningAssumptions,
+      reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions])
 
 theorem canonical_router_contract_still_does_not_claim_global_optimality_ready :
     ¬ canonicalRouterContract.optional.globalOptimalityReady := by
-  simp [canonicalRouterContract, mkProofContract, canonicalRouterOptionalStrengtheningAssumptions,
-    supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled canonicalRouterContract
+    (fun optional => optional.globalOptimalityReady) (by
+    simp [canonicalRouterContract, mkProofContract, canonicalRouterOptionalStrengtheningAssumptions,
+      supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem runtime_canonical_contract_still_does_not_claim_global_optimality_ready :
     ¬ runtimeCanonicalContract.optional.globalOptimalityReady := by
-  simp [runtimeCanonicalContract, mkProofContract, runtimeCanonicalOptionalStrengtheningAssumptions,
-    canonicalRouterOptionalStrengtheningAssumptions, supportOptimalityOptionalStrengtheningAssumptions,
-    reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled runtimeCanonicalContract
+    (fun optional => optional.globalOptimalityReady) (by
+    simp [runtimeCanonicalContract, mkProofContract, runtimeCanonicalOptionalStrengtheningAssumptions,
+      canonicalRouterOptionalStrengtheningAssumptions, supportOptimalityOptionalStrengtheningAssumptions,
+      reducedQualityOptionalStrengtheningAssumptions, baseOptionalStrengtheningAssumptions])
 
 theorem runtime_system_contract_still_does_not_claim_global_optimality_ready :
     ¬ runtimeSystemContract.optional.globalOptimalityReady := by
-  simp [runtimeSystemContract, mkProofContract, runtimeSystemOptionalStrengtheningAssumptions,
-    runtimeCanonicalOptionalStrengtheningAssumptions, canonicalRouterOptionalStrengtheningAssumptions,
-    supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
-    baseOptionalStrengtheningAssumptions]
+  exact contract_flag_disabled runtimeSystemContract
+    (fun optional => optional.globalOptimalityReady) (by
+    simp [runtimeSystemContract, mkProofContract, runtimeSystemOptionalStrengtheningAssumptions,
+      runtimeCanonicalOptionalStrengtheningAssumptions, canonicalRouterOptionalStrengtheningAssumptions,
+      supportOptimalityOptionalStrengtheningAssumptions, reducedQualityOptionalStrengtheningAssumptions,
+      baseOptionalStrengtheningAssumptions])
 
 theorem runtime_system_contract_still_does_not_claim_full_rust_runtime_correctness_ready :
     ¬ FullRustRuntimeCorrectnessReady := by

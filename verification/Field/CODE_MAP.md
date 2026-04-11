@@ -37,9 +37,9 @@ This map describes the current organization of `verification/Field`.
 - `Field/Model/API.lean`
   - semantic state vocabulary, explicit `ReducedBeliefSummary` reduction boundary, explicit `LocalOrderParameter` vocabulary, abstract round-step operations, and boundedness/harmony laws
 - `Field/Model/Instance.lean`
-  - first bounded concrete realization, structural theorems, temporal theorems, the Bayesian posterior companion view, the executable posterior-reduction boundary, explicit order-parameter extraction, explicit control-fusion step from reduced summary into mean-field state, and regime classification over that order-parameter surface
+  - first bounded concrete realization, structural theorems, temporal theorems, the Bayesian posterior companion view, a `LocalState` that stores `ReducedBeliefSummary` and `LocalOrderParameter` explicitly, explicit control-fusion from the stored summary into mean-field state, and regime classification over the stored order-parameter surface
 - `Field/Model/Refinement.lean`
-  - reduction-preservation, order-parameter preservation, sufficiency, conservativity, boundedness/monotonicity, and exogenous-control-dependence theorems for the controller-facing summary, plus the composed-round honesty/refinement pack
+  - reduction-preservation, order-parameter preservation, stored-summary / stored-order-parameter chain theorems, sufficiency, conservativity, boundedness/monotonicity, and exogenous-control-dependence theorems for the controller-facing summary, plus the composed-round honesty/refinement pack
 - `Field/Model/Decision.lean`
   - one-step finite exploration / decision procedure over a small evidence alphabet
 
@@ -64,6 +64,8 @@ This map describes the current organization of `verification/Field`.
 
 - `Field/Protocol/API.lean`
   - reduced protocol roles, labels, machine state, global choreography, abstract projection/step/export laws
+- `Field/Protocol/Boundary.lean`
+  - thin boundary-facing import surface exposing the protocol API plus the current reduced instance for higher-layer boundary modules
 - `Field/Protocol/Instance.lean`
   - first reduced summary-exchange instance
 - `Field/Protocol/Bridge.lean`
@@ -80,7 +82,7 @@ This map describes the current organization of `verification/Field`.
 ## Boundary And Adequacy
 
 - `Field/Model/Boundary.lean`
-  - controller-evidence boundary from protocol exports and traces
+  - protocol/controller boundary from protocol exports and traces, with no runtime-artifact ownership
 - `Field/Adequacy/API.lean`
   - abstract Rust-runtime artifact boundary, reduced router-facing runtime projection, reduced probabilistic slice, and reduced runtime-to-trace simulation witness
 - `Field/Adequacy/Runtime.lean`
@@ -106,7 +108,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Adequacy/Instance.lean`
   - first concrete runtime extraction, execution-level observational trace theorem, reduced simulation theorem, router-projection honesty facts, and evidence-agreement theorems
 - `Field/AssumptionCore.lean`
-  - proof-contract vocabulary and default/strengthened contract builders for semantic, protocol-envelope, runtime-envelope, transport, participation, refinement, budget, and regime-profile assumption families
+  - proof-contract vocabulary, default/strengthened contract builders, and explicit convergence/resilience/search profile-family accessors over semantic, protocol-envelope, runtime-envelope, transport, participation, refinement, budget, and regime-profile assumption families
 - `Field/AssumptionTheorems.lean`
   - theorem packaging layer deriving adequacy, quality, canonical-router, runtime-canonical, runtime-state execution refinement, and resilience-boundary consequences from the shared proof-contract vocabulary
 - `Field/Assumptions.lean`
@@ -121,7 +123,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Router/Publication.lean`
   - router-facing publication candidates and publication honesty / well-formedness theorems
 - `Field/Router/Selector.lean`
-  - shared selector-family abstraction for lifecycle-route selection, covering candidate domain, eligibility filtering, and fold-based best-route extraction
+  - shared selector-family abstraction for lifecycle-route selection, covering candidate domain, eligibility filtering, fold-based best-route extraction, explicit selector-semantics metadata, explicit search execution-policy vocabulary, and a posture-to-execution-policy mapping that preserves selector semantics
 - `Field/Router/Admission.lean`
   - reduced observed/admitted/rejected boundary and first admission conservativity theorems
 - `Field/Router/Installation.lean`
@@ -195,27 +197,24 @@ This map describes the current organization of `verification/Field`.
   - `Field/Information` and `Field/Model` own probabilistic local state, priors, likelihoods, and Bayesian posterior-update semantics
   - only explicit support/canonical refinement theorems connect `Field/Quality` objectives back to router-owned truth; all other ranking objectives remain observational unless a theorem says otherwise
 
-- current seam notes:
-  - `PosteriorState`, `ReducedBeliefSummary`, and the Bayesian belief bridge are now explicit; the remaining local-model seam is that the reduced summary is still an intermediate object rather than a stored component of `LocalState`
+- stable architecture notes:
+  - `PosteriorState`, `ReducedBeliefSummary`, `LocalOrderParameter`, and the Bayesian belief bridge are all explicit, and the reduced summary/order-parameter boundary is now stored directly in `LocalState`
   - `compressMeanFieldImpl` now owns only control fusion from `ReducedBeliefSummary` plus exogenous `controllerPressure`, instead of hiding posterior reduction internally
   - `Field/Model/Refinement.lean` now makes the intended theorem boundary explicit: the reduced summary is sufficient for the mean-field/controller surfaces only under fixed exogenous control inputs, and the theorem pack also records that the reduction alone does not determine the whole downstream control path
-  - `LocalOrderParameter` is now the explicit local phase/order-parameter surface between posterior reduction and control fusion
-  - `projection` is still overloaded across protocol projection, local public projection, and runtime/adequacy projection; `Field/Architecture.lean` now gives the shared category vocabulary, but many function/theorem names still use plain `projection`
-  - the corridor/coarse-graining story is present across `Field/Information/*` and `Field/Model/*`, but retained aggregates, public macrostates, and controller-facing reduction are still not one explicit end-to-end interface
+  - `LocalOrderParameter` is the explicit local phase/order-parameter surface between posterior reduction and control fusion
+  - the corridor/coarse-graining story is now explicit end-to-end across `Field/Information/*` and `Field/Model/*`: retained aggregates feed the stored reduced summary, then the stored order parameter, then controller-facing fusion and public macrostate reasoning
 
 - state taxonomy:
   - epistemic state: `FiniteBelief`, `PosteriorState`, `ProbabilisticRouteBelief`
-  - control state: `ReducedBeliefSummary`, `MeanFieldState`, `ControllerState`, `RegimeState`, `PostureState`, `ScoredContinuationSet`
+  - control state: `ReducedBeliefSummary`, `LocalOrderParameter`, `MeanFieldState`, `ControllerState`, `RegimeState`, `PostureState`, `ScoredContinuationSet`
   - publication/public-observable state: `CorridorEnvelopeProjection`, `PublishedCandidate`, `AdmittedCandidate`
   - lifecycle state: `LifecycleRoute`
   - execution state: `AsyncState`, `EndToEndState`, `RuntimeState`
-  - current caveat: `ReducedBeliefSummary` is the posterior-derived summary object, but it is not yet stored as a first-class component of `LocalState`
 
 - projection taxonomy:
   - protocol projection: choreography/session structure -> local protocol surface (`Field/Protocol/*`)
   - local public projection: local field semantics -> corridor/public observable surface (`Field/Model/*`, `Field/Information/*`, `Field/Model/Boundary.lean`)
   - runtime projection / adequacy reduction: runtime artifacts or runtime state -> reduced Lean protocol/router/system surface (`Field/Adequacy/*`)
-  - current caveat: the code now documents these as distinct kinds, but several function/theorem names still use plain `projection` without the kind encoded directly in the identifier
 
 - truth ladder:
   - posterior confidence is local/private semantics
@@ -237,7 +236,7 @@ This map describes the current organization of `verification/Field`.
 
 - docs:
   - `Field/Docs/Model.md`
-    - local-model specification, posterior-to-reduction boundary, order-parameter interpretation, and corridor coarse-graining story
+    - local-model specification, stored posterior-to-reduction boundary, order-parameter interpretation, and corridor coarse-graining story
   - `Field/Docs/Protocol.md`
     - protocol, Telltale mapping, and replay/authority notes
   - `Field/Docs/Adequacy.md`

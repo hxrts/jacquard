@@ -119,6 +119,53 @@ theorem equal_reduced_summaries_yield_equal_order_parameters
   subst hSummary
   rfl
 
+theorem round_state_stores_reduced_summary
+    (evidence : EvidenceInput)
+    (state : LocalState) :
+    (FieldModelAPI.roundStep evidence state).summary =
+      FieldModelAPI.reducePosterior
+        (FieldModelAPI.updatePosterior evidence state)
+        (FieldModelAPI.bayesianPosterior evidence state) := by
+  rfl
+
+theorem round_state_stores_order_parameter
+    (evidence : EvidenceInput)
+    (state : LocalState) :
+    (FieldModelAPI.roundStep evidence state).orderParameter =
+      FieldModelAPI.extractOrderParameter
+        (FieldModelAPI.roundStep evidence state).summary := by
+  rfl
+
+theorem round_state_mean_field_uses_stored_summary
+    (evidence : EvidenceInput)
+    (state : LocalState) :
+    (FieldModelAPI.roundStep evidence state).meanField =
+      FieldModelAPI.compressMeanField
+        evidence
+        (FieldModelAPI.roundStep evidence state).summary := by
+  rfl
+
+theorem round_state_regime_uses_stored_order_parameter
+    (evidence : EvidenceInput)
+    (state : LocalState) :
+    (FieldModelAPI.roundStep evidence state).regime =
+      FieldModelAPI.inferRegime
+        (FieldModelAPI.roundStep evidence state).orderParameter
+        (FieldModelAPI.roundStep evidence state).meanField
+        (FieldModelAPI.roundStep evidence state).controller := by
+  rfl
+
+theorem round_state_stored_macrostate_chain
+    (evidence : EvidenceInput)
+    (state : LocalState) :
+    (FieldModelAPI.roundStep evidence state).orderParameter.macrostate =
+      (FieldModelAPI.roundStep evidence state).summary.publicMacrostate := by
+  change
+    (FieldModelInstance.extractOrderParameterImpl
+      (FieldModelAPI.roundStep evidence state).summary).macrostate =
+      (FieldModelAPI.roundStep evidence state).summary.publicMacrostate
+  rfl
+
 theorem reduced_summary_support_conservative
     (posterior : PosteriorState)
     (belief : ProbabilisticRouteBelief) :

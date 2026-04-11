@@ -24,6 +24,8 @@ These surfaces are intentionally separated. The local controller is not a choreo
   - local state space, unified round semantics, information interpretation, decision layer, and blindness story
 - `Docs/Protocol.md`
   - reduced choreography, protocol-machine surface, Telltale alignment, conservation/coherence/refinement story
+- `Field/Protocol/Boundary.lean`
+  - thin protocol-boundary import surface for higher-layer boundary files
 - `Field/Boundary.lean`
   - observational boundary from protocol outputs / semantic objects into controller-visible evidence
 - `Field/Network/*`
@@ -50,10 +52,11 @@ The code map for the whole feature tree lives in `verification/Field/CODE_MAP.md
 The local model currently gives:
 
 - boundedness theorems for the destination-local state
-- harmony theorems connecting posterior, mean-field, controller, regime, posture, scores, and public projection
+- harmony theorems connecting posterior, stored reduced summary, stored order parameter, mean-field, controller, regime, posture, scores, and public projection
 - honesty theorems preventing public explicit-path claims without the right local knowledge
 - small temporal theorems over repeated rounds
 - exact reduction-preservation and compression-boundary theorems for the controller-facing `ReducedBeliefSummary`
+- explicit round-state storage theorems showing `LocalState` now stores the reduced summary and order parameter directly, and that mean-field and regime updates consume those stored boundary objects
 - sufficient-statistic style theorems showing which downstream control surfaces are determined by the reduced summary once exogenous controller pressure is fixed
 - explicit non-sufficiency theorems showing the control path is not determined by the posterior reduction alone
 - refinement lemmas showing the composed round still keeps projection/support/knowledge subordinate to the round-updated posterior state
@@ -119,6 +122,7 @@ The boundary layer currently gives:
 - theorems showing protocol exports stay observational-only at the controller boundary
 - replay-style equal-export / equal-trace lemmas for controller evidence batches
 - a fail-closed result showing failed-closed protocol snapshots produce no controller evidence
+- an explicit ownership split: `Field/Model/Boundary.lean` owns only protocol/controller extraction, while `Field/Adequacy/*` owns runtime-artifact/runtime-state extraction and composes with the controller boundary only after runtime reduction
 
 ### Private Protocol
 
@@ -250,7 +254,7 @@ The system layer also currently gives:
   - `canonicalSystemRoute_eq_some_of_unique_eligible`
   - `canonical_system_route_stable_under_reliable_immediate_empty`
   - `canonical_system_route_no_oscillation_under_reliable_immediate_empty`
-  - `canonical_system_route_converges_within_one_step_under_reliable_immediate_empty`
+  - `canonical_system_route_recovers_within_one_step_under_reliable_immediate_empty`
   - `canonicalSystemSupportAtLeast_of_dominating_route`
   - `not_canonicalSystemSupportAtLeast_of_all_eligible_below_threshold`
   - `canonicalSystemSupportAtLeast_stable_under_reliable_immediate_empty`
@@ -271,6 +275,7 @@ The adequacy and assumptions layers currently give:
 - a runtime/system safety-preservation layer above the stuttering refinement theorem
 - proof-facing runtime fixture cases for canonical outcomes and one explicit non-claim
 - a packaged `ProofContract` for semantic, protocol, runtime, and optional strengthening assumptions
+- explicit convergence, resilience, and search profile-family accessors over transport, participation, budget, refinement, and regime/profile assumptions
 - a split assumptions layer where `Field/AssumptionCore.lean` owns the contract vocabulary, `Field/AssumptionTheorems.lean` owns the theorem packaging, and `Field/Assumptions.lean` stays a thin umbrella
 - contract-level bridge theorems such as:
   - `contract_yields_runtime_evidence_agreement`
@@ -326,6 +331,7 @@ The router selector story now has one shared family boundary:
 
 - base support selector
 - stronger support-then-hop-then-stable selector
+- explicit selector semantics and execution-policy vocabulary in `Field/Router/Selector.lean`
 - system refinements of those selectors
 - runtime/adequacy refinements of those selectors
 
@@ -457,10 +463,10 @@ The first explicit resource/complexity layer is now in place too:
 - `explicit_transport_volume_budget_preserves_next_state` packages the current budget-preservation result for the next reduced system state
 - `maintenance_work_units_amortized_under_reliable_immediate_empty` packages the first amortized maintenance statement: repeated maintenance passes do not grow work after the first pass on the current stabilized lifecycle surface
 - `communication_work_units_stable_under_reliable_immediate_empty` and `transport_volume_budget_stable_under_reliable_immediate_empty` package the current stable-input communication-volume bound
-- `system_step_work_is_local_to_transport_volume` and `system_step_work_scales_linearly_with_transport_volume` package the current local computability and scalability law: one reduced `systemStep` is bounded by a constant multiple of local queue plus publication volume
+- `transport_volume_budget_dominates_system_step_work` packages the current local computability and scalability law: one reduced `systemStep` is bounded by a constant multiple of local queue plus publication volume
 - `system_step_work_bottlenecked_by_max_queue_or_communication` makes the current bottleneck story explicit: the worst-case work is dominated by the larger of queue backlog and fresh publication volume
 - `per_destination_storage_bounded_by_system_lifecycle` packages the current per-destination storage bound over the canonical-search surface
-- `resource_pressure_gracefully_degrades_to_transport_derived_claims` packages the current graceful-resource-degradation claim: tight budgets may suppress or delay information, but the lifecycle output remains transport-derived rather than stronger than its ready-envelope source
+- `resource_pressure_does_not_strengthen_claims` packages the current graceful-resource-degradation claim: tight budgets may suppress or delay information, but the lifecycle output remains transport-derived rather than stronger than its ready-envelope source
 - `Field/Router/Cost.lean` defines the current canonical-search cost model and proves it is linear in the lifecycle input size, with explicit worst-case, incremental, stable-input, search-space, and maintenance-invariance bounds
 - `Field/Adequacy/Cost.lean` ties that back to the runtime-facing projection by proving the projected artifact list preserves the canonical-search input, input size, search space, and work units exactly
 
@@ -488,7 +494,7 @@ The first resilience layer is now explicit too:
   - threshold emergence, threshold disappearance, and near-threshold stability via `canonicalSystemSupportAtLeast_of_dominating_route`, `not_canonicalSystemSupportAtLeast_of_all_eligible_below_threshold`, and `canonicalSystemSupportAtLeast_stable_under_reliable_immediate_empty`
   - delayed sparse visibility via `ready_installed_route_eventually_appears_in_system_destination_views`: one positive non-opaque ready route appears in the next system destination view even when participation is minimal
   - no amplification / partial-observation robustness via `canonicalSystemRoute_support_conservative` and `canonicalSystemRoute_explicit_path_requires_explicit_sender_knowledge`: canonical winners stay bounded by the sender-local support/knowledge that justified them
-  - the first vanishing-support limit via `vanishing_support_limit_blocks_positive_canonical_support`: if every eligible destination-local support is below `1`, there is no positive-support canonical outcome
+  - the first vanishing-support limit via `not_canonicalSystemSupportAtLeast_of_all_eligible_below_threshold 1`: if every eligible destination-local support is below `1`, there is no positive-support canonical outcome
   - the current sparse-network scaling law is destination-local rather than asymptotic: `canonicalBestRoute_front_off_destination_routes_irrelevant` says unrelated-destination route growth or sparsity does not change canonical selection for the destination being analyzed
   - `canonicalSystemSupport_threshold_boundary` packages the current critical-threshold story explicitly as the threshold-emergence / threshold-disappearance boundary
   - `threshold_one_discontinuity_example` makes the first discontinuity result explicit: crossing the support threshold from `0` to `1` can flip the thresholded canonical-support predicate

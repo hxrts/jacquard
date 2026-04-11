@@ -12,6 +12,9 @@ Ownership note:
 - it does not own canonical route truth
 - it does not own posterior confidence truth
 - it does not own runtime adequacy
+- it is intentionally coupled to `LifecycleRoute` today because the comparison
+  layer is defined over router-exported lifecycle objects rather than over a
+  fully abstract route carrier
 - any bridge from a quality objective back to router-owned truth must be stated
   by an explicit refinement theorem
 -/
