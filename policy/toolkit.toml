@@ -199,7 +199,7 @@ include_paths = ["crates"]
 allowed_comment_markers = ["allow-ignored-result:", "intentionally ignore result"]
 
 [checks.unsafe_boundary]
-enabled = false
+enabled = true
 include_paths = ["crates"]
 allowed_path_parts = ["/raw/", "/ffi/", "/sys/"]
 required_comment_markers = ["Safety:"]
@@ -209,8 +209,15 @@ enabled = true
 include_paths = ["crates"]
 
 [checks.must_use_public_return]
-enabled = false
+enabled = true
 include_paths = ["crates"]
+exclude_path_parts = [
+  "crates/core/src/authoring.rs",
+  "crates/mem-link-profile/src/",
+  "crates/mem-node-profile/src/",
+  "crates/simulator/src/presets.rs",
+]
+allowed_return_type_prefixes = ["Result", "Option"]
 
 [checks.assert_shape]
 enabled = true
@@ -222,7 +229,7 @@ include_paths = ["crates"]
 allow_comment_marker = "drop-side-effects-exception:"
 
 [checks.recursion_guard]
-enabled = false
+enabled = true
 include_paths = ["crates"]
 allow_comment_marker = "recursion-exception:"
 
@@ -236,9 +243,13 @@ include_paths = ["crates"]
 allow_comment_marker = "limit-constant-exception:"
 
 [checks.public_type_width]
-enabled = false
+enabled = true
 include_paths = ["crates"]
-banned_types = ["usize", "isize", "f32", "f64"]
+exclude_path_parts = [
+  "crates/reference-client/src/bridge.rs",
+  "crates/simulator/src/replay.rs",
+]
+banned_types = ["isize", "f32", "f64"]
 
 [checks.dependency_policy]
 enabled = true

@@ -260,6 +260,7 @@ fn local_endpoint(topology: &Observation<Configuration>, local_node_id: NodeId) 
         .expect("field topology must provide a local endpoint")
 }
 
+#[must_use]
 pub fn default_objective(destination: DestinationId) -> RoutingObjective {
     RoutingObjective {
         destination,
@@ -277,6 +278,7 @@ pub fn default_objective(destination: DestinationId) -> RoutingObjective {
     }
 }
 
+#[must_use]
 pub fn default_profile() -> SelectedRoutingParameters {
     SelectedRoutingParameters {
         selected_protection: RouteProtectionClass::LinkProtected,

@@ -34,16 +34,24 @@ jobs:
         run: ./scripts/toolkit-shell.sh toolkit-xtask check crate-root-policy --repo-root . --config policy/toolkit.toml
       - name: Ignored Result
         run: ./scripts/toolkit-shell.sh toolkit-xtask check ignored-result --repo-root . --config policy/toolkit.toml
+      - name: Unsafe Boundary
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check unsafe-boundary --repo-root . --config policy/toolkit.toml
       - name: Bool Param
         run: ./scripts/toolkit-shell.sh toolkit-xtask check bool-param --repo-root . --config policy/toolkit.toml
+      - name: Must Use Public Return
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check must-use-public-return --repo-root . --config policy/toolkit.toml
       - name: Assert Shape
         run: ./scripts/toolkit-shell.sh toolkit-xtask check assert-shape --repo-root . --config policy/toolkit.toml
       - name: Drop Side Effects
         run: ./scripts/toolkit-shell.sh toolkit-xtask check drop-side-effects --repo-root . --config policy/toolkit.toml
+      - name: Recursion Guard
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check recursion-guard --repo-root . --config policy/toolkit.toml
       - name: Naming Units
         run: ./scripts/toolkit-shell.sh toolkit-xtask check naming-units --repo-root . --config policy/toolkit.toml
       - name: Limit Constant
         run: ./scripts/toolkit-shell.sh toolkit-xtask check limit-constant --repo-root . --config policy/toolkit.toml
+      - name: Public Type Width
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check public-type-width --repo-root . --config policy/toolkit.toml
       - name: Dependency Policy
         run: ./scripts/toolkit-shell.sh toolkit-xtask check dependency-policy --repo-root . --config policy/toolkit.toml
       - name: Test Boundaries
