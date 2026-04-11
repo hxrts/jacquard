@@ -46,11 +46,6 @@ theorem runtime_canonical_contract_does_not_claim_runtime_system_refinement_read
     ¬ runtimeCanonicalContract.optional.runtimeSystemRefinementReady :=
   FieldAssumptions.runtime_canonical_contract_does_not_claim_runtime_system_refinement_ready
 
-/-- Preferred alias aligned to the canonical-refinement theorem family. -/
-theorem runtime_canonical_contract_does_not_claim_runtime_system_canonical_refinement_ready :
-    ¬ runtimeCanonicalContract.optional.runtimeSystemRefinementReady :=
-  FieldAssumptions.runtime_canonical_contract_does_not_claim_runtime_system_canonical_refinement_ready
-
 /-- Even the stronger reduced-quality contract remains explicitly non-optimality. -/
 theorem reduced_quality_contract_still_does_not_claim_global_optimality_ready :
     ¬ reducedQualityContract.optional.globalOptimalityReady :=
@@ -78,34 +73,23 @@ theorem runtime_system_contract_unlocks_runtime_system_refinement :
     runtimeSystemContract.optional.runtimeSystemRefinementReady :=
   FieldAssumptions.runtime_system_contract_unlocks_runtime_system_refinement
 
-/-- Preferred alias aligned to `contract_yields_runtime_system_canonical_refinement`. -/
-theorem runtime_system_contract_unlocks_runtime_system_canonical_refinement :
-    runtimeSystemContract.optional.runtimeSystemRefinementReady :=
-  FieldAssumptions.runtime_system_contract_unlocks_runtime_system_canonical_refinement
-
 /-- The same runtime-system contract also unlocks the runtime-state refinement
 surface layered above the older projected-artifact theorems. -/
 theorem runtime_system_contract_unlocks_runtime_state_system_canonical_refinement :
     runtimeSystemContract.optional.runtimeSystemRefinementReady :=
-  FieldAssumptions.runtime_system_contract_unlocks_runtime_system_canonical_refinement
-
-/-- Preferred alias aligned to the runtime-state execution refinement theorem
-family. -/
-theorem runtime_system_contract_unlocks_runtime_execution_canonical_refinement :
-    runtimeSystemContract.optional.runtimeSystemRefinementReady :=
-  FieldAssumptions.runtime_system_contract_unlocks_runtime_execution_canonical_refinement
+  FieldAssumptions.runtime_system_contract_unlocks_runtime_system_refinement
 
 /-- The runtime-system contract also unlocks support-conservativity on the
 runtime-state refinement surface. -/
 theorem runtime_system_contract_unlocks_runtime_state_support_safety :
     runtimeSystemContract.optional.runtimeSystemRefinementReady :=
-  FieldAssumptions.runtime_system_contract_unlocks_runtime_system_canonical_refinement
+  FieldAssumptions.runtime_system_contract_unlocks_runtime_system_refinement
 
 /-- The runtime-system contract also unlocks no-route-from-silence statements
 for quiescent runtime states projecting one system state. -/
 theorem runtime_system_contract_unlocks_runtime_state_no_route_creation_from_silence :
     runtimeSystemContract.optional.runtimeSystemRefinementReady :=
-  FieldAssumptions.runtime_system_contract_unlocks_runtime_system_canonical_refinement
+  FieldAssumptions.runtime_system_contract_unlocks_runtime_system_refinement
 
 /-- The canonical-router contract also unlocks stability of the stronger
 router-owned support-then-hop selector. -/
@@ -117,7 +101,7 @@ theorem canonical_router_contract_unlocks_stronger_router_selector_stability :
 system states induce the same effective projected runtime information. -/
 theorem runtime_system_contract_unlocks_canonical_route_order_insensitivity :
     runtimeSystemContract.optional.runtimeSystemRefinementReady :=
-  FieldAssumptions.runtime_system_contract_unlocks_runtime_system_canonical_refinement
+  FieldAssumptions.runtime_system_contract_unlocks_runtime_system_refinement
 
 /-- Broader async theorems do not silently replace the existing reliable-
 immediate boundary used by the fixed-point and stronger canonical theorems. -/

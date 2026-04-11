@@ -2,7 +2,6 @@ import Field.Adequacy.Projection
 import Field.Adequacy.Optimality
 import Field.Adequacy.Refinement
 import Field.Adequacy.Runtime
-import Field.Architecture
 import Field.Quality.Refinement
 import Field.Router.CanonicalStrong
 
@@ -17,8 +16,6 @@ set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
 namespace FieldAdequacyFixtures
-
-open FieldArchitecture
 open FieldAdequacyAPI
 open FieldAdequacyOptimality
 open FieldAdequacyProjection
@@ -31,9 +28,6 @@ open FieldRouterOptimality
 open FieldRouterLifecycle
 open FieldSystemCanonical
 open FieldSystemEndToEnd
-
-def adequacyFixtureObjectRole : ObjectRole :=
-  .syntheticFixture
 
 /-! ## Fixture Definitions -/
 

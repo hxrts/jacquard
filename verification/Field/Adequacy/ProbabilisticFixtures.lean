@@ -1,21 +1,15 @@
 import Field.Adequacy.Probabilistic
-import Field.Architecture
 
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
 namespace FieldAdequacyProbabilisticFixtures
-
-open FieldArchitecture
 open FieldInformationBayesian
 open FieldInformationCalibration
 open FieldInformationProbabilistic
 open FieldModelAPI
 open FieldModelInstance
 open FieldRouterProbabilistic
-
-def probabilisticFixtureObjectRole : ObjectRole :=
-  .syntheticFixture
 
 def fixtureExplicitHypothesis : ProbabilisticRouteHypothesis :=
   defaultHypothesisOfKnowledge ReachabilityKnowledge.explicitPath

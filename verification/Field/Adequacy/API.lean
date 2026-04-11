@@ -1,4 +1,3 @@
-import Field.Architecture
 import Field.Model.API
 import Field.Protocol.Bridge
 import Field.Quality.API
@@ -24,7 +23,6 @@ set_option relaxedAutoImplicit false
 namespace FieldAdequacyAPI
 
 open FieldBoundary
-open FieldArchitecture
 open FieldModelAPI
 open FieldProtocolAPI
 open FieldRouterCanonical
@@ -41,18 +39,6 @@ open FieldRouterLifecycle
   surface
 
 This module owns only the runtime projection / adequacy-reduction side. -/
-
-def adequacyProjectionKind : ProjectionKind :=
-  .runtimeAdequacy
-
-def adequacyRefinementLadderStage : RefinementLadderStage :=
-  .runtimeAdequacyArtifacts
-
-def runtimeArtifactEvidenceLineageStage : EvidenceLineageStage :=
-  .runtimeArtifact
-
-def runtimeArtifactObjectRole : ObjectRole :=
-  .semanticCore
 
 /-! ## Runtime Artifact Vocabulary -/
 

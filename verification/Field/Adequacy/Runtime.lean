@@ -22,9 +22,6 @@ open FieldAdequacyAPI
 open FieldBoundary
 open FieldModelAPI
 
-def runtimeStateObjectRole : FieldArchitecture.ObjectRole :=
-  .semanticCore
-
 /-! ## Runtime State Vocabulary -/
 
 /-- Reduced runtime execution state used by the adequacy layer. It keeps only

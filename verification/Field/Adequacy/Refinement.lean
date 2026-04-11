@@ -37,9 +37,6 @@ open FieldQualitySystem
 open FieldSystemCanonical
 open FieldSystemEndToEnd
 
-def runtimeSystemRefinementObjectRole : FieldArchitecture.ObjectRole :=
-  .theoremPackaging
-
 /-! ## Runtime/System Relation -/
 
 /-- Reduced runtime state projected from one end-to-end system state before any

@@ -224,7 +224,8 @@ def fuseOrderParameterImpl
     riskAlignment :=
       clampPermille ((parameter.uncertaintyCoordinate + evidence.controllerPressure) / 2) }
 
-/-- Backward-compatible controller-fusion wrapper from the reduced summary. -/
+/-- Controller-facing fusion from the reduced summary into the current
+mean-field state. -/
 def compressMeanFieldImpl
     (evidence : EvidenceInput)
     (summary : ReducedBeliefSummary) : MeanFieldState :=

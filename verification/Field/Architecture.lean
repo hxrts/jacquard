@@ -1,4 +1,4 @@
-/-! # Field.Architecture — shared taxonomy for lineage, projection, and refinement -/
+/-! # Field.Architecture — shared taxonomy for projection, lineage, and roles -/
 
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
@@ -54,59 +54,5 @@ inductive ObjectRole
   | theoremPackaging
   | syntheticFixture
   deriving Inhabited, Repr, DecidableEq, BEq
-
-def routeLineageMonotone
-    (earlier later : RouteLineageStage) : Prop :=
-  match earlier, later with
-  | .localProjection, _ => True
-  | .asyncEnvelope, .asyncEnvelope
-  | .asyncEnvelope, .publicationCandidate
-  | .asyncEnvelope, .admittedRoute
-  | .asyncEnvelope, .installedRoute
-  | .asyncEnvelope, .canonicalRoute => True
-  | .publicationCandidate, .publicationCandidate
-  | .publicationCandidate, .admittedRoute
-  | .publicationCandidate, .installedRoute
-  | .publicationCandidate, .canonicalRoute => True
-  | .admittedRoute, .admittedRoute
-  | .admittedRoute, .installedRoute
-  | .admittedRoute, .canonicalRoute => True
-  | .installedRoute, .installedRoute
-  | .installedRoute, .canonicalRoute => True
-  | .canonicalRoute, .canonicalRoute => True
-  | _, _ => False
-
-def evidenceLineageMonotone
-    (earlier later : EvidenceLineageStage) : Prop :=
-  match earlier, later with
-  | .protocolTrace, _ => True
-  | .controllerEvidence, .controllerEvidence
-  | .controllerEvidence, .runtimeArtifact => True
-  | .runtimeArtifact, .runtimeArtifact => True
-  | _, _ => False
-
-def selectorLineageMonotone
-    (earlier later : SelectorLineageStage) : Prop :=
-  match earlier, later with
-  | .baseSelector, _ => True
-  | .strongerSelector, .strongerSelector
-  | .strongerSelector, .systemRefinement
-  | .strongerSelector, .runtimeAdequacyRefinement => True
-  | .systemRefinement, .systemRefinement
-  | .systemRefinement, .runtimeAdequacyRefinement => True
-  | .runtimeAdequacyRefinement, .runtimeAdequacyRefinement => True
-  | _, _ => False
-
-theorem canonical_route_is_terminal_route_lineage :
-    routeLineageMonotone .localProjection .canonicalRoute := by
-  trivial
-
-theorem runtime_artifact_is_latest_evidence_lineage :
-    evidenceLineageMonotone .protocolTrace .runtimeArtifact := by
-  trivial
-
-theorem runtime_refinement_is_latest_selector_lineage :
-    selectorLineageMonotone .baseSelector .runtimeAdequacyRefinement := by
-  trivial
 
 end FieldArchitecture

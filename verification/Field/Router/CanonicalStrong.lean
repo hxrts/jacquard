@@ -14,15 +14,11 @@ set_option relaxedAutoImplicit false
 namespace FieldRouterCanonicalStrong
 
 open FieldNetworkAPI
-open FieldArchitecture
 open FieldRouterCanonical
 open FieldRouterLifecycle
 open FieldRouterSelector
 
 /-! ## Selection Criteria -/
-
-def canonicalStrongSelectorLineageStage : SelectorLineageStage :=
-  .strongerSelector
 
 def canonicalPublisherRank : NodeId → Nat
   | .alpha => 0

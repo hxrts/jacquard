@@ -1,4 +1,3 @@
-import Field.Architecture
 import Field.Quality.System
 import Field.Router.CanonicalStrong
 import Field.Router.Selector
@@ -17,7 +16,6 @@ set_option relaxedAutoImplicit false
 namespace FieldSystemCanonicalStrong
 
 open FieldAsyncAPI
-open FieldArchitecture
 open FieldNetworkAPI
 open FieldQualitySystem
 open FieldRouterCanonical
@@ -29,12 +27,6 @@ open FieldSystemEndToEnd
 
 /-! ## Multi-Criteria Selection -/
 
-def canonicalStrongSystemSelectorLineageStage : SelectorLineageStage :=
-  .systemRefinement
-
-def canonicalStrongSystemSelector : LifecycleRouteSelector :=
-  canonicalStrongSelector
-
 def canonicalSystemRouteSupportThenHopThenStableTieBreak
     (destination : DestinationClass)
     (state : EndToEndState) : Option LifecycleRoute :=
@@ -44,8 +36,8 @@ theorem canonicalSystemRouteSupportThenHopThenStableTieBreak_eq_selector_bestRou
     (destination : DestinationClass)
     (state : EndToEndState) :
     canonicalSystemRouteSupportThenHopThenStableTieBreak destination state =
-      bestRoute canonicalStrongSystemSelector destination (systemStep state).lifecycle := by
-  simpa [canonicalSystemRouteSupportThenHopThenStableTieBreak, canonicalStrongSystemSelector] using
+      bestRoute canonicalStrongSelector destination (systemStep state).lifecycle := by
+  simpa [canonicalSystemRouteSupportThenHopThenStableTieBreak] using
     canonicalBestRouteSupportThenHopThenStableTieBreak_eq_selector_bestRoute
       destination (systemStep state).lifecycle
 

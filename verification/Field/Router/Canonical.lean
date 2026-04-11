@@ -16,17 +16,10 @@ namespace FieldRouterCanonical
 
 open FieldModelAPI
 open FieldNetworkAPI
-open FieldArchitecture
 open FieldRouterLifecycle
 open FieldRouterSelector
 
 /-! ## Eligibility -/
-
-def canonicalRouteLineageStage : RouteLineageStage :=
-  .canonicalRoute
-
-def canonicalSelectorLineageStage : SelectorLineageStage :=
-  .baseSelector
 
 def CanonicalRouteEligible
     (destination : DestinationClass)
