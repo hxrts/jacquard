@@ -137,12 +137,14 @@ fn advance_round_drives_pathway_cooperative_choreographies_through_router_cadenc
     let mut router = build_router(Tick(2));
     let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
         .expect("activation");
-    let _ = router
-        .maintain_route(
-            &route.identity.stamp.route_id,
-            RouteMaintenanceTrigger::PartitionDetected,
-        )
-        .expect("enter partition mode");
+    std::mem::drop(
+        router
+            .maintain_route(
+                &route.identity.stamp.route_id,
+                RouteMaintenanceTrigger::PartitionDetected,
+            )
+            .expect("enter partition mode"),
+    );
 
     let outcome = router.advance_round().expect("advance round");
 

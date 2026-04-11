@@ -24,6 +24,12 @@ use crate::{
     PathwayRouteClass, PathwayRouteSegment, PATHWAY_ENGINE_ID,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum HoldCapability {
+    Available,
+    Unavailable,
+}
+
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
 where
@@ -69,11 +75,11 @@ where
         &self,
         objective: &RoutingObjective,
         hop_count: usize,
-        hold_capable: bool,
+        hold_capability: HoldCapability,
     ) -> PathwayRouteClass {
         if matches!(objective.destination, DestinationId::Gateway(_)) {
             PathwayRouteClass::Gateway
-        } else if hold_capable
+        } else if matches!(hold_capability, HoldCapability::Available)
             && objective.hold_fallback_policy == jacquard_core::HoldFallbackPolicy::Allowed
             && hop_count > 1
         {

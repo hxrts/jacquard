@@ -26,8 +26,8 @@ use crate::summary::FieldSummary;
 
 pub(crate) const MAX_TRACKED_DESTINATIONS: usize = 32;
 pub(crate) const MAX_ACTIVE_DESTINATIONS: usize = 8;
-pub(crate) const MAX_FRONTIER_SIZE: usize = 4;
-pub(crate) const MAX_ALTERNATE_COUNT: usize = MAX_FRONTIER_SIZE.saturating_sub(1);
+pub(crate) const MAX_FRONTIER_SLOTS: usize = 4;
+pub(crate) const MAX_ALTERNATE_COUNT: usize = MAX_FRONTIER_SLOTS.saturating_sub(1);
 pub(crate) const OBSERVER_CACHE_REFRESH_TICKS: u64 = 2;
 pub(crate) const SUMMARY_HEARTBEAT_TICKS: u64 = 4;
 const BUCKET_MAX: u16 = 1000;
@@ -260,7 +260,7 @@ impl ContinuationFrontier {
                 .cmp(&left.ordering_key())
                 .then_with(|| left.neighbor_id.cmp(&right.neighbor_id))
         });
-        self.entries.truncate(MAX_FRONTIER_SIZE);
+        self.entries.truncate(MAX_FRONTIER_SLOTS);
         self
     }
 
@@ -598,7 +598,7 @@ mod tests {
             });
         }
 
-        assert_eq!(frontier.len(), MAX_FRONTIER_SIZE);
+        assert_eq!(frontier.len(), MAX_FRONTIER_SLOTS);
         let ordered = frontier
             .as_slice()
             .iter()
@@ -671,7 +671,7 @@ mod tests {
     #[test]
     fn destination_record_stays_tightly_bounded() {
         let state = DestinationFieldState::new(DestinationKey::Node(node(9)), Tick(10));
-        assert!(state.frontier.len() <= MAX_FRONTIER_SIZE);
+        assert!(state.frontier.len() <= MAX_FRONTIER_SLOTS);
         assert_eq!(
             state.corridor_belief.expected_hop_band.max_hops,
             ROUTE_HOP_COUNT_MAX

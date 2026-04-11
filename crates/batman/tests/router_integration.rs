@@ -302,7 +302,7 @@ impl BatmanHost {
                 .ingest_transport_observation(&event.observe_at(tick))
                 .expect("ingest transport observation");
         }
-        let _ = self.router.advance_round().expect("advance router round");
+        self.router.advance_round().expect("advance router round");
         for frame in self.outbound.drain() {
             self.driver
                 .send_transport(&frame.endpoint, &frame.payload)

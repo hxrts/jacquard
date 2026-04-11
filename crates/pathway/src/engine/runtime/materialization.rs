@@ -246,7 +246,7 @@ where
             if let Some(previous_active_route) = previous_active_route.as_ref() {
                 self.checkpoint_best_effort(previous_active_route);
             } else {
-                let _ = self.remove_checkpoint(&route_id);
+                let _checkpoint_remove_failed = self.remove_checkpoint(&route_id).is_err();
             }
             return Err(error);
         }

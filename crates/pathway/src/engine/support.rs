@@ -896,17 +896,17 @@ mod tests {
 
     #[test]
     fn support_smoke_values_exist() {
-        let _ = neutral_assumptions();
-        let _ = objective_with_floor(RouteProtectionClass::LinkProtected);
-        let _ = profile_with(
+        let _assumptions = neutral_assumptions();
+        let _objective = objective_with_floor(RouteProtectionClass::LinkProtected);
+        let _profile = profile_with(
             RouteRepairClass::Repairable,
             RoutePartitionClass::ConnectedOnly,
         );
-        let _ = summary_with(
+        let _summary = summary_with(
             RouteProtectionClass::LinkProtected,
             RouteRepairClass::Repairable,
             RoutePartitionClass::ConnectedOnly,
         );
-        let _ = unit_route_cost();
+        let _route_cost = unit_route_cost();
     }
 }

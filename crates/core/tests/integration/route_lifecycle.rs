@@ -224,7 +224,7 @@ fn materialized_route_rejects_mismatched_installation_proof_identity() {
     let (_, input, mut installation) = sample_route_parts();
     installation.materialization_proof.stamp.route_id = RouteId([6; 16]);
 
-    let _ = MaterializedRoute::from_installation(input, installation);
+    std::mem::drop(MaterializedRoute::from_installation(input, installation));
 }
 
 #[test]
@@ -234,7 +234,7 @@ fn materialized_route_rejects_inadmissible_activation() {
     input.admission.admission_check.decision =
         AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::CapacityExceeded);
 
-    let _ = MaterializedRoute::from_installation(input, installation);
+    std::mem::drop(MaterializedRoute::from_installation(input, installation));
 }
 
 #[test]
@@ -244,7 +244,7 @@ fn materialized_route_rejects_activation_below_protection_floor() {
     input.admission.objective.protection_floor = RouteProtectionClass::TopologyProtected;
     input.admission.summary.protection = RouteProtectionClass::LinkProtected;
 
-    let _ = MaterializedRoute::from_installation(input, installation);
+    std::mem::drop(MaterializedRoute::from_installation(input, installation));
 }
 
 #[test]

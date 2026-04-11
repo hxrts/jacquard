@@ -318,7 +318,6 @@ where
             failure_summary_count: replay.failure_summaries.len(),
         };
         self.adapter.validate_result(scenario, &replay, &stats)?;
-        let _ = self.telltale_batch;
         Ok((replay, stats))
     }
 }
@@ -469,7 +468,7 @@ fn restore_pathway_hosts(
             .ok_or(SimulationError::MissingBridge(*node_id))?;
         let mut bound = host.bind();
         *bound.router_mut().effects_mut() = snapshot.runtime_effects.clone();
-        let _ = bound.router_mut().recover_checkpointed_routes()?;
+        let _recovered_route_count = bound.router_mut().recover_checkpointed_routes()?;
     }
     Ok(())
 }

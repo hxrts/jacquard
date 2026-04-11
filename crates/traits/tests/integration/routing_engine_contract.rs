@@ -209,7 +209,7 @@ impl RoutingEngine for StubEngine {
             retry_policy: jacquard_traits::jacquard_core::TimeoutPolicy {
                 attempt_count_max: 1,
                 initial_backoff_ms: jacquard_traits::jacquard_core::DurationMs(5),
-                backoff_multiplier_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
+                retry_multiplier_permille: jacquard_traits::jacquard_core::RatioPermille(1000),
                 backoff_ms_max: jacquard_traits::jacquard_core::DurationMs(5),
                 overall_timeout_ms: jacquard_traits::jacquard_core::DurationMs(5),
             },

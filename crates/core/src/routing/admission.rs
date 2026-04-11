@@ -303,7 +303,7 @@ mod tests {
         assert!(RepairSupport::Unsupported < RepairSupport::Supported);
         // Explicit `.clone()` on a Copy type verifies Clone is still derived
         // by the `capability_enum!` macro expansion.
-        let _ = RepairSupport::Supported.clone();
+        assert_eq!(RepairSupport::Supported.clone(), RepairSupport::Supported);
     }
 
     #[test]

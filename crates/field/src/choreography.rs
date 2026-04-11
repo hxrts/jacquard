@@ -1016,14 +1016,16 @@ mod tests {
                     }],
                 )
                 .expect("queue");
-            let _ = runtime
-                .advance_host_bridged_round(
-                    &capability,
-                    Some(66),
-                    FieldHostWaitStatus::Idle,
-                    Tick(u64::try_from(index + 10).unwrap()),
-                )
-                .expect("advance");
+            std::mem::drop(
+                runtime
+                    .advance_host_bridged_round(
+                        &capability,
+                        Some(66),
+                        FieldHostWaitStatus::Idle,
+                        Tick(u64::try_from(index + 10).unwrap()),
+                    )
+                    .expect("advance"),
+            );
         }
 
         let checkpoint = runtime.checkpoint_session(&capability).expect("checkpoint");

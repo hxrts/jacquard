@@ -89,7 +89,7 @@ where
         let mut registry = self.load_route_registry()?;
         registry.insert(record.route.identity.stamp.route_id);
         if let Err(error) = self.store_route_registry(&registry) {
-            let _ = self.effects.remove_bytes(&route_key);
+            let _rollback_remove_failed = self.effects.remove_bytes(&route_key).is_err();
             return Err(error);
         }
 

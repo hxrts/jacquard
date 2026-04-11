@@ -108,8 +108,8 @@ impl SharedMailbox {
                 clippy::disallowed_types,
                 reason = "Condvar and thread-parking APIs require std::time::Duration internally"
             )]
-            fn std_duration(timeout: DurationMs) -> std::time::Duration {
-                std::time::Duration::from_millis(u64::from(timeout.0))
+            fn std_duration(duration_ms: DurationMs) -> std::time::Duration {
+                std::time::Duration::from_millis(u64::from(duration_ms.0))
             }
 
             fn notify_changed(shared: &Arc<Self>) {
@@ -249,13 +249,17 @@ impl TransportIngressNotifier {
             }
 
             #[must_use]
-            pub fn wait_for_change_timeout(&self, snapshot: u64, timeout: DurationMs) -> bool {
+            pub fn wait_for_change_within_ms(
+                &self,
+                snapshot: u64,
+                wait_ms: DurationMs,
+            ) -> bool {
                 let guard = self.shared.state.lock().expect("transport ingress lock");
-                let timeout = SharedMailbox::std_duration(timeout);
+                let std_wait = SharedMailbox::std_duration(wait_ms);
                 let (guard, _) = self
                     .shared
                     .changed
-                    .wait_timeout_while(guard, timeout, |state| state.generation == snapshot)
+                    .wait_timeout_while(guard, std_wait, |state| state.generation == snapshot)
                     .expect("transport ingress condvar");
                 guard.generation != snapshot
             }
@@ -334,8 +338,8 @@ mod tests {
         clippy::disallowed_types,
         reason = "std thread sleep and park APIs require std::time::Duration in tests"
     )]
-    fn std_duration(timeout: DurationMs) -> std::time::Duration {
-        std::time::Duration::from_millis(u64::from(timeout.0))
+    fn std_duration(duration_ms: DurationMs) -> std::time::Duration {
+        std::time::Duration::from_millis(u64::from(duration_ms.0))
     }
 
     #[test]
@@ -380,7 +384,7 @@ mod tests {
         let (_, _, notifier) = transport_ingress_mailbox(1);
         let snapshot = notifier.snapshot();
 
-        assert!(!notifier.wait_for_change_timeout(snapshot, DurationMs(5)));
+        assert!(!notifier.wait_for_change_within_ms(snapshot, DurationMs(5)));
     }
 
     #[test]
@@ -396,7 +400,7 @@ mod tests {
                 .expect("enqueue payload");
         });
 
-        assert!(notifier.wait_for_change_timeout(snapshot, DurationMs(50)));
+        assert!(notifier.wait_for_change_within_ms(snapshot, DurationMs(50)));
     }
 
     #[test]

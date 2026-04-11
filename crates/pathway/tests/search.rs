@@ -92,7 +92,7 @@ fn topology_transition_classification_and_reconfiguration_are_explicit() {
     let second_topology = same_epoch_updated_topology();
     let third_topology = new_epoch_updated_topology();
 
-    let _ = engine.candidate_routes(&goal, &policy, &first_topology);
+    std::mem::drop(engine.candidate_routes(&goal, &policy, &first_topology));
     let first = engine.last_search_record().expect("first search record");
     assert_eq!(
         first.runs[0].topology_transition,
@@ -100,7 +100,7 @@ fn topology_transition_classification_and_reconfiguration_are_explicit() {
     );
     assert!(first.runs[0].reconfiguration.is_none());
 
-    let _ = engine.candidate_routes(&goal, &policy, &second_topology);
+    std::mem::drop(engine.candidate_routes(&goal, &policy, &second_topology));
     let second = engine.last_search_record().expect("second search record");
     assert_eq!(
         second.runs[0].topology_transition,
@@ -119,7 +119,7 @@ fn topology_transition_classification_and_reconfiguration_are_explicit() {
         "reconfigured runs should carry the prior and current snapshot epochs",
     );
 
-    let _ = engine.candidate_routes(&goal, &policy, &second_topology);
+    std::mem::drop(engine.candidate_routes(&goal, &policy, &second_topology));
     let stable = engine.last_search_record().expect("stable search record");
     assert_eq!(
         stable.runs[0].topology_transition,
@@ -127,7 +127,7 @@ fn topology_transition_classification_and_reconfiguration_are_explicit() {
     );
     assert!(stable.runs[0].reconfiguration.is_none());
 
-    let _ = engine.candidate_routes(&goal, &policy, &third_topology);
+    std::mem::drop(engine.candidate_routes(&goal, &policy, &third_topology));
     let third = engine.last_search_record().expect("third search record");
     assert_eq!(
         third.runs[0].topology_transition,

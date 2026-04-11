@@ -72,6 +72,12 @@ pub(crate) const HEALTH_SCORE_MAX: u32 = 1000;
 /// into the HealthScore range in `neighborhood_estimate`.
 pub(crate) const DENSITY_SCORE_SCALE: u32 = 100;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum HoldRequirement {
+    Include,
+    Exclude,
+}
+
 /// Compact bitset of required `RouteServiceKind` values for pathway capability
 /// gating. Replaces five individual bool fields with a single `u8`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -342,11 +348,11 @@ pub(crate) fn route_capable_for_engine(
 
 pub(crate) fn service_requirements_for_objective(
     objective: &RoutingObjective,
-    require_hold: bool,
+    hold_requirement: HoldRequirement,
 ) -> PathwayServiceRequirements {
     let mut requirements = PathwayServiceRequirements::default();
     requirements.insert(objective.service_kind);
-    if require_hold {
+    if matches!(hold_requirement, HoldRequirement::Include) {
         requirements.insert(RouteServiceKind::Hold);
     }
     requirements
@@ -363,7 +369,7 @@ pub(crate) fn objective_matches_node(
     engine_id: &RoutingEngineId,
     current_tick: jacquard_core::Tick,
 ) -> bool {
-    let requirements = service_requirements_for_objective(objective, false);
+    let requirements = service_requirements_for_objective(objective, HoldRequirement::Exclude);
     if !services_meet_requirements(
         &node.profile.services,
         engine_id,

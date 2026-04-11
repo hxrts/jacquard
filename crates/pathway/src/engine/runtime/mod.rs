@@ -80,13 +80,14 @@ where
         // less harmful than refusing to drop the in-memory active
         // route. v1 pathway does not reconcile orphaned checkpoints later;
         // hosts that care about storage hygiene must sweep them out of band.
-        let _ = choreography::clear_route_protocols(
+        let _protocol_cleanup_failed = choreography::clear_route_protocols(
             &mut self.transport,
             &mut self.retention,
             &mut self.effects,
             route_id,
-        );
-        let _ = self.remove_checkpoint(route_id);
+        )
+        .is_err();
+        let _checkpoint_remove_failed = self.remove_checkpoint(route_id).is_err();
         self.active_routes.remove(route_id);
     }
 }

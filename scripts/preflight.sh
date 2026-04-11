@@ -61,9 +61,18 @@ checks=(
   "Docs Link Check"
   "Docs Semantic Drift"
   "Proc Macro Scope"
+  "Crate Root Policy"
+  "Ignored Result"
+  "Bool Param"
+  "Assert Shape"
+  "Drop Side Effects"
+  "Naming Units"
+  "Limit Constant"
+  "Dependency Policy"
   "Trait Purity"
   "Crate Boundary"
   "No usize in Models"
+  "Field Code Map"
   "Docs Build"
 )
 

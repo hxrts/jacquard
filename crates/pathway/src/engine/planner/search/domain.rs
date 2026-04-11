@@ -70,9 +70,8 @@ impl SearchDomain for PathwaySearchDomain {
         &self,
         epoch: &Self::GraphEpoch,
         node: &Self::Node,
-        goal: &Self::Node,
+        _goal: &Self::Node,
     ) -> Self::Cost {
-        let _ = goal;
         self.snapshots
             .get(epoch)
             .and_then(|snapshot| snapshot.heuristic_lower_bounds.get(node).copied())

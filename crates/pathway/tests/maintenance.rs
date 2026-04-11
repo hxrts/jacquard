@@ -261,7 +261,7 @@ fn maintenance_checkpoint_failure_leaves_runtime_and_active_route_unchanged() {
         .expect("active route present");
     let original_event_count = engine.effects.events().len();
 
-    engine.effects.set_fail_store_bytes(true);
+    engine.effects.fail_store_bytes();
     let error = engine
         .maintain_route(
             &identity,

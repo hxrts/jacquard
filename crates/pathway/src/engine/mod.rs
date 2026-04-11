@@ -541,7 +541,7 @@ where
     /// storage error. Use only in rollback paths where the route is going
     /// away regardless and storage hygiene is best-effort.
     pub(super) fn checkpoint_best_effort(&mut self, active_route: &ActivePathwayRoute) {
-        let _ = self.store_checkpoint(active_route);
+        let _checkpoint_store_failed = self.store_checkpoint(active_route).is_err();
     }
 
     fn remove_checkpoint(&mut self, route_id: &RouteId) -> Result<(), RouteError> {

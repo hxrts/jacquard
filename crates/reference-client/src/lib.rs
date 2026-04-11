@@ -72,7 +72,7 @@
 //! )
 //! .build();
 //! let mut bound = client.bind();
-//! let _ = bound.advance_round();
+//! bound.advance_round().expect("advance round");
 //! ```
 //!
 //! Ownership:

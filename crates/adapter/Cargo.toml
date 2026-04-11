@@ -13,4 +13,4 @@ workspace = true
 jacquard-core = { path = "../core", version = "0.3.1" }
 jacquard-macros = { path = "../macros", version = "0.3.1" }
 cfg-if = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, default-features = false }

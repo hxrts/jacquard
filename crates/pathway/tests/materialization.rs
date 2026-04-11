@@ -175,7 +175,7 @@ fn materialize_route_does_not_depend_on_router_event_logging() {
         .expect("admission");
     let input = materialization_input(route_id, admission, lease(Tick(2), Tick(20)));
 
-    engine.effects.set_fail_record_route_event(true);
+    engine.effects.fail_record_route_event();
     let installation = engine
         .materialize_route(input.clone())
         .expect("engine materialization stays independent of router event logging");

@@ -25,6 +25,9 @@ policy/
   README.md
   toolkit.toml
   checks/
+    lean/
+    rust/
+    pre_commit.rs
   lints/
   fixtures/
   docs/
@@ -52,9 +55,9 @@ Current rollout:
 - `just lean-style` runs the generic Lean source-style checker only
 - `just lean-check` runs `just lean-style`, then `just lean-setup`, then
   `lake build`
-- CI currently enforces the style checker, not the full Lean build, because
-  the verification package still relies on local path dependencies for some
-  Lean packages
+- CI currently enforces the style checker, not the full Lean build, so the
+  policy lane stays fast while the verification build remains a separate
+  developer workflow
 
 That keeps the Lean style policy blocking in the normal repo workflow without
 pretending the full Lean build is already CI-portable.

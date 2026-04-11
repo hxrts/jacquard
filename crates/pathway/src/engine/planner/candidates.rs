@@ -68,7 +68,12 @@ where
         let segments = self.derive_segments(&topology.value, node_path)?;
         let hold_capable =
             self.hold_capable_for_destination(destination_node, topology.observed_at_tick);
-        let route_class = self.determine_route_class(objective, segments.len(), hold_capable);
+        let hold_capability = if hold_capable {
+            super::pathing::HoldCapability::Available
+        } else {
+            super::pathing::HoldCapability::Unavailable
+        };
+        let route_class = self.determine_route_class(objective, segments.len(), hold_capability);
         let valid_for = TimeWindow::new(
             topology.observed_at_tick,
             Tick(
@@ -213,7 +218,13 @@ where
             .ok_or(RouteSelectionError::NoCandidate)?;
         let hold_capable =
             self.hold_capable_for_destination(destination_node, topology.observed_at_tick);
-        let route_class = self.determine_route_class(objective, plan.segments.len(), hold_capable);
+        let hold_capability = if hold_capable {
+            super::pathing::HoldCapability::Available
+        } else {
+            super::pathing::HoldCapability::Unavailable
+        };
+        let route_class =
+            self.determine_route_class(objective, plan.segments.len(), hold_capability);
         if route_class != plan.route_class {
             return Err(RouteSelectionError::NoCandidate.into());
         }

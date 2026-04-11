@@ -150,7 +150,7 @@ impl FieldClient {
         &mut self,
         objective: &RoutingObjective,
     ) -> Result<MaterializedRoute, RouteError> {
-        let _ = self.advance_round()?;
+        self.advance_round()?;
         let candidate = self
             .candidate_routes(objective)
             .into_iter()

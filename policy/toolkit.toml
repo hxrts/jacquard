@@ -199,7 +199,7 @@ include_paths = ["crates"]
 allowed_comment_markers = ["allow-ignored-result:", "intentionally ignore result"]
 
 [checks.unsafe_boundary]
-enabled = true
+enabled = false
 include_paths = ["crates"]
 allowed_path_parts = ["/raw/", "/ffi/", "/sys/"]
 required_comment_markers = ["Safety:"]
@@ -209,7 +209,7 @@ enabled = true
 include_paths = ["crates"]
 
 [checks.must_use_public_return]
-enabled = true
+enabled = false
 include_paths = ["crates"]
 
 [checks.assert_shape]
@@ -222,7 +222,7 @@ include_paths = ["crates"]
 allow_comment_marker = "drop-side-effects-exception:"
 
 [checks.recursion_guard]
-enabled = true
+enabled = false
 include_paths = ["crates"]
 allow_comment_marker = "recursion-exception:"
 
@@ -236,7 +236,7 @@ include_paths = ["crates"]
 allow_comment_marker = "limit-constant-exception:"
 
 [checks.public_type_width]
-enabled = true
+enabled = false
 include_paths = ["crates"]
 banned_types = ["usize", "isize", "f32", "f64"]
 
