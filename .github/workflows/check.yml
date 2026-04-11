@@ -37,6 +37,6 @@ jobs:
       - name: Lean Style
         run: nix develop --command just lean-style
       - name: Wasm Check
-        run: just wasm-check
+        run: nix develop --command just wasm-check
       - name: Wasm Reference Client Test
-        run: just wasm-test-reference-client
+        run: nix develop --command just wasm-test-reference-client
