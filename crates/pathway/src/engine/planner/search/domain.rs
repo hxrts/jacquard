@@ -8,11 +8,11 @@
 // `freeze_snapshot_for_search` and `snapshot_id_for_configuration` build and
 // content-address those snapshots from an `Observation<Configuration>`.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use jacquard_core::{Configuration, NodeId, Observation};
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing};
-use telltale_search::SearchDomain;
+use telltale_search::{SearchDomain, SearchQuery, SearchSelectedResultSemanticsClass};
 
 use super::{
     PathwaySearchEdgeMeta, PathwaySearchEpoch, PathwaySearchHeuristicMode, PathwaySearchSnapshotId,
@@ -25,7 +25,7 @@ type SearchSuccessor = (NodeId, PathwaySearchEdgeMeta, u32);
 #[derive(Clone, Debug, Default)]
 pub(super) struct FrozenPathwaySearchSnapshot {
     successors: BTreeMap<NodeId, Vec<SearchSuccessor>>,
-    heuristic_lower_bounds: BTreeMap<NodeId, u32>,
+    heuristic_lower_bounds: BTreeMap<NodeId, BTreeMap<NodeId, u32>>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -70,12 +70,20 @@ impl SearchDomain for PathwaySearchDomain {
         &self,
         epoch: &Self::GraphEpoch,
         node: &Self::Node,
-        _goal: &Self::Node,
+        goal: &Self::Node,
     ) -> Self::Cost {
         self.snapshots
             .get(epoch)
-            .and_then(|snapshot| snapshot.heuristic_lower_bounds.get(node).copied())
+            .and_then(|snapshot| snapshot.heuristic_lower_bounds.get(goal))
+            .and_then(|goal_bounds| goal_bounds.get(node).copied())
             .unwrap_or(0)
+    }
+
+    fn selected_result_semantics_class(
+        &self,
+        _query: &SearchQuery<Self::Node>,
+    ) -> SearchSelectedResultSemanticsClass {
+        SearchSelectedResultSemanticsClass::QueryDerived
     }
 
     fn snapshot_id(&self, epoch: &Self::GraphEpoch) -> Self::SnapshotId {
@@ -98,13 +106,19 @@ pub(super) fn snapshot_id_for_configuration(
 pub(super) fn freeze_snapshot_for_search(
     observation: &Observation<Configuration>,
     successors: BTreeMap<NodeId, Vec<SearchSuccessor>>,
-    goal_node_id: NodeId,
+    accepted_node_ids: &[NodeId],
     heuristic_mode: PathwaySearchHeuristicMode,
 ) -> (PathwaySearchEpoch, FrozenPathwaySearchSnapshot) {
     let snapshot_id = snapshot_id_for_configuration(&observation.value);
     let heuristic_lower_bounds = match heuristic_mode {
         PathwaySearchHeuristicMode::Zero => BTreeMap::new(),
-        PathwaySearchHeuristicMode::HopLowerBound => hop_lower_bounds(&successors, goal_node_id),
+        PathwaySearchHeuristicMode::HopLowerBound => accepted_node_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(|goal_node_id| (goal_node_id, hop_lower_bounds(&successors, goal_node_id)))
+            .collect(),
     };
     (
         PathwaySearchEpoch {
@@ -208,13 +222,31 @@ mod tests {
         let (_, frozen) = freeze_snapshot_for_search(
             &empty_observation(),
             successors,
-            c,
+            &[c],
             PathwaySearchHeuristicMode::HopLowerBound,
         );
 
-        assert_eq!(frozen.heuristic_lower_bounds.get(&c), Some(&0));
-        assert_eq!(frozen.heuristic_lower_bounds.get(&b), Some(&5));
-        assert_eq!(frozen.heuristic_lower_bounds.get(&a), Some(&10));
+        assert_eq!(
+            frozen
+                .heuristic_lower_bounds
+                .get(&c)
+                .and_then(|goal| goal.get(&c)),
+            Some(&0),
+        );
+        assert_eq!(
+            frozen
+                .heuristic_lower_bounds
+                .get(&c)
+                .and_then(|goal| goal.get(&b)),
+            Some(&5),
+        );
+        assert_eq!(
+            frozen
+                .heuristic_lower_bounds
+                .get(&c)
+                .and_then(|goal| goal.get(&a)),
+            Some(&10),
+        );
     }
 
     fn stub_edge(from_node_id: NodeId, to_node_id: NodeId) -> PathwaySearchEdgeMeta {

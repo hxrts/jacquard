@@ -18,13 +18,13 @@ Peer and neighborhood estimates expose optional score components, so unknown and
 
 ## Planning and Admission
 
-The pathway engine implements the shared `RoutingEnginePlanner` contract, which produces a candidate in five deterministic steps:
+The pathway engine implements the shared `RoutingEnginePlanner` contract, which produces candidates in five deterministic steps:
 
 1. read the current topology snapshot
 2. freeze a `PathwaySearchDomain` over deterministic `NodeId` graph state for that snapshot
-3. resolve the routing objective into one exact destination or a deterministic acceptable-goal set
-4. run Telltale's canonical search machine for each goal under an explicit scheduler profile and fairness bundle
-5. derive deterministic backend references, route ids, costs, and estimates from the resulting incumbent node paths, then sort by path metric, pathway-private topology-model preference, and deterministic route key
+3. resolve the routing objective into one v13 `SearchQuery`: `SearchQuery::SingleGoal` for one exact destination, or `SearchQuery::MultiGoal` for a deterministic acceptable-destination set
+4. run Telltale's canonical search machine once for that query under an explicit `SearchExecutionPolicy` plus declared fairness bundle
+5. derive deterministic backend references, route ids, costs, and estimates from the selected-result witness and the final authoritative search state, then sort by path metric, pathway-private topology-model preference, and deterministic route key
 
 This algorithm produces a stable candidate ordering across replays. The search metric is integer-only and combines hop count, delivery confidence, loss-derived congestion, symmetry, pathway-private peer and neighborhood estimates, protocol-repeat penalties, protocol-diversity bonuses, and a deferred-delivery bonus when the destination is honestly hold-capable. The shared `RouteCost` surface then reflects the chosen path's hop count, confidence, symmetry, congestion, protocol diversity, and deferred-delivery hold reservation without exposing the pathway-private estimate internals that shaped the search.
 
@@ -40,33 +40,50 @@ The generic search core lives in `telltale-search`, and Pathway supplies a domai
 
 `telltale-search` owns:
 
-- canonical search-machine semantics over weighted graph state
-- scheduler-profile selection and validation
-- fairness-assumption vocabulary
-- replay artifacts and canonical observation reconstruction
-- epoch reconfiguration through `EpochReconfigurationRequest`
-- observation comparison for theorem-backed exact-profile checks
+- canonical batch extraction and search-machine semantics over weighted graph state
+- generalized `SearchQuery` handling, selected-result semantics, and witness publication
+- `SearchExecutionPolicy` / `SearchRunConfig` validation with explicit fairness assumptions
+- replay artifacts, canonical observation reconstruction, and observation comparison
+- epoch reconfiguration through `EpochReconfigurationRequest` with explicit reseeding policy
+- theorem-backed exactness and fairness claims for the exposed runtime profiles
 
 Pathway owns:
 
 - topology interpretation and edge-cost policy
 - heuristic policy (`Zero` or the current hop-lower-bound heuristic)
-- exact objective-to-goal mapping for `Node`, `Service`, and `Gateway` destinations
-- route-shape derivation, route class, connectivity posture, and route summary
+- objective-to-`SearchQuery` mapping for `Node`, `Service`, and `Gateway` destinations
+- candidate-path derivation from the final search state, route class, connectivity posture, and route summary
 - admission policy, witness generation, and committee handling
 - opaque backend-token encoding and cache-miss re-derivation
 
 This split is intentional. Pathway uses the generic search machine as a deterministic planning substrate, while the published route semantics remain Pathway-owned.
 
-The distinctive properties of the current implementation are:
+### Inherited Search Features
 
-- canonical search-machine semantics instead of planner-local frontier bookkeeping
-- deterministic replay artifacts that can reconstruct the final observation fail-closed
-- explicit scheduler profiles with declared fairness assumptions instead of hidden host-loop assumptions
-- fail-closed topology reconfiguration that distinguishes same-snapshot reuse, same-route-epoch new snapshots, and true route-epoch changes
-- exact theorem-backed observable equivalence between canonical serial and threaded exact single-lane mode for the current Pathway domain
+The Pathway engine inherits several capabilities directly from the v13 Telltale search system:
 
-Pathway defaults to canonical serial search with `batch_width = 1`, `epsilon = 1.0`, and the minimum exact fairness bundle required by the generic runtime. `ThreadedExactSingleLane` is available as an explicit opt-in planner mode. Batched parallel profiles are not exposed because the weaker fairness and theorem story is not acceptable for default routing behavior.
+- canonical batch extraction instead of planner-local frontier bookkeeping
+- one objective-scoped `SearchQuery` execution rather than a planner-local loop that rebuilds multi-goal behavior out of repeated single-goal runs
+- selected-result and witness semantics exported directly by the search runtime
+- explicit execution-policy control through `SearchExecutionPolicy` and `SearchRunConfig`
+- replay artifacts that preserve epoch trace, batch schedule, fairness bundle, and final authoritative state
+- explicit epoch reconfiguration with a real reseeding policy; Pathway currently uses `PreserveOpenAndIncons`
+
+Pathway currently exposes only exact run-to-completion profiles to the router. The supported public modes are canonical serial and threaded exact single-lane, both with `batch_width = 1`, `SearchCachingProfile::EphemeralPerStep`, and `SearchEffortProfile::RunToCompletion`. Budgeted or bounded execution contracts remain part of the generic Telltale runtime surface, but Pathway rejects them fail-closed for router-visible planning until it has a Pathway-owned policy for exposing them.
+
+### Proof and Assurance Surface
+
+Pathway also inherits proof-oriented guarantees and trace surfaces from the Telltale runtime:
+
+- fail-closed configuration validation before execution, including scheduler profile, batch width, executor compatibility, caching profile, effort profile, and fairness bundle
+- explicit determinism and fairness claims tied to the selected scheduler profile rather than hidden host-runtime assumptions
+- replay and observation-comparison surfaces that can reconstruct and compare the final observed selected result
+- state and artifact traces that expose canonical batches, normalized commits, fairness certificates, epoch transitions, and final authoritative machine state
+- theorem-backed exact observable equivalence between canonical serial and threaded exact single-lane execution for the current Pathway domain
+
+These guarantees belong to the Telltale search substrate, not to Pathway's route policy layer. Pathway relies on them to justify exactness, replayability, and debug visibility at the search boundary while still owning topology freezing, route-objective mapping, candidate derivation, and router publication semantics.
+
+Pathway defaults to canonical serial search with `batch_width = 1`, `epsilon = 1.0`, `SearchCachingProfile::EphemeralPerStep`, `SearchEffortProfile::RunToCompletion`, and the minimum exact fairness bundle required by the generic runtime. `ThreadedExactSingleLane` is available as an explicit opt-in planner mode. Batched parallel, budgeted, and bounded profiles are not exposed because the weaker fairness or approximation story is not acceptable for default routing behavior.
 
 ### Admission Contract
 

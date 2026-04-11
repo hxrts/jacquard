@@ -1,14 +1,14 @@
 //! `RoutingEnginePlanner` implementation for `PathwayEngine`.
 //!
 //! Candidate production runs a five-step deterministic pipeline: metric-aware
-//! path search from the local node, filter by engine capability and objective
-//! match, derive a self-contained `BackendRouteId` plan token plus admission
-//! check, sort by path metric, pathway-private topology-model preference, and
-//! deterministic order key, then truncate to
+//! v13 search from the local node, derive candidate paths from the final
+//! objective-scoped search state, derive a self-contained `BackendRouteId`
+//! plan token plus admission check, sort by path metric, pathway-private
+//! topology-model preference, and deterministic order key, then truncate to
 //! `PATHWAY_CANDIDATE_COUNT_MAX`. `check_candidate` and `admit_route` take
-//! topology explicitly and re-derive from the plan token on cache miss,
-//! so the candidate cache is an optimization rather than a required
-//! piece of engine state.
+//! topology explicitly and re-derive from the plan token on cache miss, so the
+//! candidate cache is an optimization rather than a required piece of engine
+//! state.
 
 mod admission;
 mod candidates;
@@ -20,9 +20,9 @@ mod search;
 pub(crate) use search::PathwaySearchSnapshotState;
 pub use search::{
     PathwayPlannerSearchRecord, PathwaySearchConfig, PathwaySearchConfigError,
-    PathwaySearchEdgeMeta, PathwaySearchEpoch, PathwaySearchGoalResolution,
-    PathwaySearchHeuristicMode, PathwaySearchReconfiguration, PathwaySearchRun,
-    PathwaySearchSnapshotId, PathwaySearchTransitionClass,
+    PathwaySearchEdgeMeta, PathwaySearchEpoch, PathwaySearchHeuristicMode,
+    PathwaySearchReconfiguration, PathwaySearchRun, PathwaySearchSnapshotId,
+    PathwaySearchTransitionClass,
 };
 
 use jacquard_core::{

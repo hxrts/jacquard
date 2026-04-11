@@ -37,9 +37,9 @@ use jacquard_core::{
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngine};
 pub use planner::{
     PathwayPlannerSearchRecord, PathwaySearchConfig, PathwaySearchConfigError,
-    PathwaySearchEdgeMeta, PathwaySearchEpoch, PathwaySearchGoalResolution,
-    PathwaySearchHeuristicMode, PathwaySearchReconfiguration, PathwaySearchRun,
-    PathwaySearchSnapshotId, PathwaySearchTransitionClass,
+    PathwaySearchEdgeMeta, PathwaySearchEpoch, PathwaySearchHeuristicMode,
+    PathwaySearchReconfiguration, PathwaySearchRun, PathwaySearchSnapshotId,
+    PathwaySearchTransitionClass,
 };
 pub(crate) use support::{
     current_segment, digest_prefix, MaintenanceResultExt, StorageResultExt, DOMAIN_TAG_COMMITTEE_ID,
