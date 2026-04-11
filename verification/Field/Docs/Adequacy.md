@@ -8,6 +8,49 @@ This layer does not prove full Rust runtime correctness. It does not prove sched
 
 It now also proves a small runtime/system safety story on top of the stuttering refinement layer, and it includes proof-facing fixture cases so the canonical theorems are pinned to concrete reduced runtime examples rather than only prose descriptions.
 
+## Refinement Ladder
+
+The adequacy layer now sits inside one explicit refinement ladder:
+
+- local/private semantics
+- public/system semantics
+- router-owned truth
+- runtime artifacts and reduced runtime states
+
+This does not make adequacy the owner of the lower layers. The adequacy files
+only bridge into them.
+
+In particular:
+
+- `Field/Protocol/*` still owns reduced protocol semantics
+- `Field/System/*` still owns reduced end-to-end system semantics
+- `Field/Router/*` still owns canonical route truth
+- `Field/Adequacy/*` only packages reduced runtime projection, refinement, and
+  preservation theorems over those semantic layers
+
+## Semantic Objects Versus Proof Artifacts
+
+The adequacy stack now keeps a sharper split between semantic objects and
+proof-facing artifacts.
+
+Semantic reduced execution objects:
+
+- `RuntimeRoundArtifact`
+- `RuntimeState`
+- `RuntimeStep`
+- runtime/system refinement relations and projected runtime views
+
+Proof-packaging or fixture objects:
+
+- `RuntimeTraceSimulation`
+- theorem-pack wrappers in `Field/Adequacy/Refinement.lean`
+- concrete fixture families in `Field/Adequacy/Fixtures.lean`
+- concrete probabilistic boundary cases in
+  `Field/Adequacy/ProbabilisticFixtures.lean`
+
+The fixture files are intentionally proof-facing synthetic witnesses. They are
+not additional runtime semantics.
+
 ## Runtime Artifact Boundary
 
 The adequacy boundary is defined in `Field/Adequacy/API.lean`.
@@ -133,6 +176,14 @@ So the current adequacy bridge can be read in two compatible ways:
 
 - as an artifact-list bridge
 - as a reduced runtime-state execution-prefix bridge
+
+That split is deliberate:
+
+- flat artifact lists are the reduced runtime projection surface
+- reduced runtime states are the semantic execution object used by the next
+  refinement layer
+- projected fixtures are only proof aids for pinning theorem surfaces to
+  concrete examples
 
 ## What Is Proved
 

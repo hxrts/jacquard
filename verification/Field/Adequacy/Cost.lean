@@ -1,4 +1,5 @@
 import Field.Adequacy.Projection
+import Field.CostAPI
 import Field.Router.Cost
 
 /-! # Adequacy.Cost — projection preserves canonical search cost metrics -/
@@ -15,6 +16,7 @@ namespace FieldAdequacyCost
 
 open FieldAdequacyAPI
 open FieldAdequacyProjection
+open FieldCostAPI
 open FieldRouterCanonical
 open FieldRouterCost
 open FieldSystemEndToEnd
@@ -49,6 +51,13 @@ theorem projected_runtime_canonical_search_inputs_complete
     runtimeLifecycleRoutes (projectedRuntimeArtifactsOfState state) =
       (systemStep state).lifecycle := by
   exact runtimeLifecycleRoutes_projectedRuntimeArtifactsOfState state
+
+theorem projected_runtime_canonical_search_budget_preserved
+    (state : EndToEndState) :
+    canonicalSearchBudget
+        (runtimeLifecycleRoutes (projectedRuntimeArtifactsOfState state)) =
+      canonicalSearchBudget (systemStep state).lifecycle := by
+  simp [canonicalSearchBudget, projected_runtime_canonical_search_work_units_preserved]
 
 /-! ## Bound Preservation -/
 

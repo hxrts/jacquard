@@ -1,5 +1,7 @@
+import Field.Architecture
 import Field.Quality.System
 import Field.Router.CanonicalStrong
+import Field.Router.Selector
 import Field.System.Canonical
 
 /-! # System.CanonicalStrong — system-level multi-criteria selection stability -/
@@ -15,20 +17,37 @@ set_option relaxedAutoImplicit false
 namespace FieldSystemCanonicalStrong
 
 open FieldAsyncAPI
+open FieldArchitecture
 open FieldNetworkAPI
 open FieldQualitySystem
 open FieldRouterCanonical
 open FieldRouterCanonicalStrong
 open FieldRouterLifecycle
+open FieldRouterSelector
 open FieldSystemCanonical
 open FieldSystemEndToEnd
 
 /-! ## Multi-Criteria Selection -/
 
+def canonicalStrongSystemSelectorLineageStage : SelectorLineageStage :=
+  .systemRefinement
+
+def canonicalStrongSystemSelector : LifecycleRouteSelector :=
+  canonicalStrongSelector
+
 def canonicalSystemRouteSupportThenHopThenStableTieBreak
     (destination : DestinationClass)
     (state : EndToEndState) : Option LifecycleRoute :=
   canonicalBestRouteSupportThenHopThenStableTieBreak destination (systemStep state).lifecycle
+
+theorem canonicalSystemRouteSupportThenHopThenStableTieBreak_eq_selector_bestRoute
+    (destination : DestinationClass)
+    (state : EndToEndState) :
+    canonicalSystemRouteSupportThenHopThenStableTieBreak destination state =
+      bestRoute canonicalStrongSystemSelector destination (systemStep state).lifecycle := by
+  simpa [canonicalSystemRouteSupportThenHopThenStableTieBreak, canonicalStrongSystemSelector] using
+    canonicalBestRouteSupportThenHopThenStableTieBreak_eq_selector_bestRoute
+      destination (systemStep state).lifecycle
 
 /-! ## Stability -/
 

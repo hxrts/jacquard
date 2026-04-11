@@ -1,3 +1,4 @@
+import Field.Architecture
 import Field.Model.API
 import Field.Network.API
 
@@ -16,8 +17,16 @@ namespace FieldRouterPublication
 
 open FieldModelAPI
 open FieldNetworkAPI
+open FieldArchitecture
 
 /-! ## Published Candidate -/
+
+/-- Publication-lineage ownership note for route-shaped objects:
+local projection -> async envelope -> publication candidate -> admitted route
+-> installed route -> canonical route. This file owns the publication-candidate
+surface only. -/
+def publishedCandidateLineageStage : RouteLineageStage :=
+  .publicationCandidate
 
 /-- Router-facing field publication candidate. This is the first point where a
 local observational projection becomes eligible for canonical control-plane

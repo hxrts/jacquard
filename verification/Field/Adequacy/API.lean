@@ -1,3 +1,4 @@
+import Field.Architecture
 import Field.Model.API
 import Field.Protocol.Bridge
 import Field.Quality.API
@@ -23,16 +24,41 @@ set_option relaxedAutoImplicit false
 namespace FieldAdequacyAPI
 
 open FieldBoundary
+open FieldArchitecture
 open FieldModelAPI
 open FieldProtocolAPI
 open FieldRouterCanonical
 open FieldRouterLifecycle
 
+/- Projection taxonomy note:
+
+- protocol projection:
+  choreography/session structure -> local protocol surface
+- local public projection:
+  local field semantics -> corridor/public observable surface
+- runtime projection / adequacy reduction:
+  runtime artifacts or runtime state -> reduced Lean protocol/router/system
+  surface
+
+This module owns only the runtime projection / adequacy-reduction side. -/
+
+def adequacyProjectionKind : ProjectionKind :=
+  .runtimeAdequacy
+
+def adequacyRefinementLadderStage : RefinementLadderStage :=
+  .runtimeAdequacyArtifacts
+
+def runtimeArtifactEvidenceLineageStage : EvidenceLineageStage :=
+  .runtimeArtifact
+
+def runtimeArtifactObjectRole : ObjectRole :=
+  .semanticCore
+
 /-! ## Runtime Artifact Vocabulary -/
 
-/-- Reduced router-facing projection carried by one runtime artifact. This is
-still only an extracted observational/runtime view, not a new owner of router
-truth. -/
+/-- Reduced router-facing runtime projection carried by one runtime artifact.
+This is still only an extracted observational/runtime view, not a new owner of
+router truth. -/
 structure RuntimeRouterArtifact where
   lifecycleRoute : LifecycleRoute
   deriving Repr, DecidableEq, BEq
@@ -52,10 +78,14 @@ def runtimeLifecycleRouteOfArtifact
     (artifact : RuntimeRoundArtifact) : Option LifecycleRoute :=
   artifact.routerArtifact.map RuntimeRouterArtifact.lifecycleRoute
 
+/-- Runtime projection to the public route-shape coordinate carried by one
+artifact. -/
 def runtimeProjectionShapeOfArtifact
     (artifact : RuntimeRoundArtifact) : Option CorridorShape :=
   (runtimeLifecycleRouteOfArtifact artifact).map fun route => route.candidate.shape
 
+/-- Runtime projection to the public route-support coordinate carried by one
+artifact. -/
 def runtimeProjectionSupportOfArtifact
     (artifact : RuntimeRoundArtifact) : Option Nat :=
   (runtimeLifecycleRouteOfArtifact artifact).map fun route => route.candidate.support

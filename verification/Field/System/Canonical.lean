@@ -1,5 +1,7 @@
+import Field.Architecture
 import Field.Quality.Refinement
 import Field.Router.Canonical
+import Field.Router.Selector
 
 /-! # System.Canonical — system-level canonical selection and equivalence with reference -/
 
@@ -14,6 +16,7 @@ set_option relaxedAutoImplicit false
 namespace FieldSystemCanonical
 
 open FieldAsyncAPI
+open FieldArchitecture
 open FieldModelAPI
 open FieldNetworkAPI
 open FieldQualityAPI
@@ -22,10 +25,17 @@ open FieldQualityRefinement
 open FieldQualitySystem
 open FieldRouterCanonical
 open FieldRouterLifecycle
+open FieldRouterSelector
 open FieldSystemConvergence
 open FieldSystemEndToEnd
 
 /-! ## System Canonical Selection -/
+
+def canonicalSystemSelectorLineageStage : SelectorLineageStage :=
+  .systemRefinement
+
+def canonicalSystemSelector : LifecycleRouteSelector :=
+  canonicalSupportSelector
 
 def canonicalSystemRoute
     (destination : DestinationClass)
@@ -42,6 +52,14 @@ def CanonicalSystemSupportAtLeast
     (destination : DestinationClass)
     (state : EndToEndState) : Prop :=
   CanonicalSupportAtLeast threshold destination (systemStep state).lifecycle
+
+theorem canonicalSystemRoute_eq_selector_bestRoute
+    (destination : DestinationClass)
+    (state : EndToEndState) :
+    canonicalSystemRoute destination state =
+      bestRoute canonicalSystemSelector destination (systemStep state).lifecycle := by
+  simpa [canonicalSystemRoute, canonicalSystemSelector] using
+    canonicalBestRoute_eq_selector_bestRoute destination (systemStep state).lifecycle
 
 theorem canonicalRouteEligible_iff_routeComparisonView_eligible
     (destination : DestinationClass)

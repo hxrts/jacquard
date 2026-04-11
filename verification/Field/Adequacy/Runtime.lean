@@ -22,11 +22,15 @@ open FieldAdequacyAPI
 open FieldBoundary
 open FieldModelAPI
 
+def runtimeStateObjectRole : FieldArchitecture.ObjectRole :=
+  .semanticCore
+
 /-! ## Runtime State Vocabulary -/
 
-/-- Reduced runtime state used by the adequacy layer. It keeps only the
-proof-relevant pending and completed runtime artifacts and intentionally omits
-all richer host/runtime internals. -/
+/-- Reduced runtime execution state used by the adequacy layer. It keeps only
+the proof-relevant pending and completed runtime artifacts and intentionally
+omits all richer host/runtime internals. This is an execution object, not a
+publication object or a router-truth object. -/
 structure RuntimeState where
   pendingArtifacts : List RuntimeRoundArtifact
   completedArtifacts : List RuntimeRoundArtifact

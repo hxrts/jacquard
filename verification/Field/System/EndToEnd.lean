@@ -25,6 +25,10 @@ open FieldRouterPublication
 
 /-! ## Composite System Step -/
 
+/-- Execution-state family note: `EndToEndState` is the composite execution
+object that sequences async transport with router-owned lifecycle state. It is
+not itself canonical truth; it is the execution layer from which truth is
+selected. -/
 structure EndToEndState where
   async : AsyncState
   lifecycle : List LifecycleRoute

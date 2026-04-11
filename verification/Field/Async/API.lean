@@ -39,6 +39,9 @@ structure AsyncEnvelope where
   dropped : Bool
   deriving Repr, DecidableEq, BEq
 
+/-- Execution-state family note: `AsyncState` is an execution object, not a
+publication or lifecycle object. It owns in-flight transport state above the
+synchronous network but below end-to-end lifecycle composition. -/
 structure AsyncState where
   network : NetworkState
   assumptions : AsyncAssumptions

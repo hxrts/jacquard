@@ -53,6 +53,9 @@ The local model currently gives:
 - harmony theorems connecting posterior, mean-field, controller, regime, posture, scores, and public projection
 - honesty theorems preventing public explicit-path claims without the right local knowledge
 - small temporal theorems over repeated rounds
+- exact reduction-preservation and compression-boundary theorems for the controller-facing `ReducedBeliefSummary`
+- sufficient-statistic style theorems showing which downstream control surfaces are determined by the reduced summary once exogenous controller pressure is fixed
+- explicit non-sufficiency theorems showing the control path is not determined by the posterior reduction alone
 - refinement lemmas showing the composed round still keeps projection/support/knowledge subordinate to the round-updated posterior state
 - one finite decision procedure over a representative evidence alphabet
 
@@ -69,8 +72,9 @@ The information layer currently gives:
 - a calibration/soundness layer centered on confidence-threshold validity, explicit-evidence support, and explicit correlated-regime non-claims
 - a factorized likelihood theorem surface that states the current Bayesian model is the product of existence, knowledge, delivery, and witness terms
 - first mass and entropy theorems
-- a first public-projection blindness / erasure theorem
-- first quantitative helpers such as `beliefL1Distance` and `localUncertaintyPotential`
+- a reduction-level blindness / erasure story from posterior state to `ReducedBeliefSummary`
+- a public-projection blindness / erasure story from reduced summary and normalized belief to corridor macrostates
+- first quantitative helpers such as `beliefL1Distance`, `natGap`, `reducedSupportGap`, `reducedUncertaintyGap`, and `localUncertaintyPotential`
 
 This is no longer only a bounded surrogate story, but it is still an early information layer rather than a full probabilistic routing theory.
 
@@ -103,6 +107,8 @@ The current probabilistic theorem surface is also more specific than the generic
   - correlated-evidence calibration beyond the explicit boundary marker
   - full probabilistic convergence under broad async regimes
   - full production-runtime probabilistic fidelity
+  - KL-style update inequalities and stronger divergence theory over the reduction
+  - information-theoretic optimality claims for the local reduction boundary
 
 ### Boundary Layer
 
@@ -298,6 +304,108 @@ The runtime-canonical path is now explicit:
 - `Field/AssumptionTheorems.lean` now packages `contract_yields_runtime_execution_canonical_refinement` as the preferred execution-state theorem above the older projected-artifact surface
 - under that stronger runtime-state path, runtime canonical selection agrees with the same router-owned canonical selector without talking only about one synthetic artifact list
 
+## Structural Harmonization
+
+The stack now has a more explicit internal taxonomy than the older reduced
+model did.
+
+### Unique Feature
+
+The distinctive feature of the current implementation is that it has one
+theorem-backed compact reduction from Bayesian posterior state to a controller-
+facing summary that is intentionally lossy but still sufficient for the current
+deterministic control path under fixed exogenous inputs.
+
+That is stronger than a heuristic compression story and weaker than a full
+information-theoretic optimality claim. The docs and theorem surfaces now keep
+that distinction explicit.
+
+### Selector Family And Search Boundary
+
+The router selector story now has one shared family boundary:
+
+- base support selector
+- stronger support-then-hop-then-stable selector
+- system refinements of those selectors
+- runtime/adequacy refinements of those selectors
+
+The important rule is:
+
+- selector semantics own candidate domain, eligibility, objective, and tie-break
+- search/execution policy may vary budget, traversal profile, or caching policy
+- posture or regime may influence execution policy, but not router-owned truth
+
+So posture can affect how a search is executed in a richer runtime story, but
+it does not get to redefine canonical selector semantics in the reduced stack.
+
+### Stat-Mech-Like Story
+
+The local stack now has an explicit order-parameter layer:
+
+- posterior semantics
+- reduced summary semantics
+- order-parameter / local phase semantics
+- exogenous controller fusion
+- regime classification
+
+This is intentionally only a local reduced phase/regime interface. It is not
+yet a large-network mean-field limit or a fluid-limit theorem pack.
+
+### Classical Versus Distributed Surfaces
+
+The theorem organization now distinguishes:
+
+- local quantitative/classical theorem surfaces
+- distributed/profile-envelope theorem surfaces
+- bridge theorems connecting them
+
+Convergence and threshold claims should now be read through that split. Local
+order-parameter interpretation is not the same thing as a distributed
+convergence claim.
+
+### Corridor And Coarse Graining
+
+The corridor/public story is now described as:
+
+- private probabilistic microstate
+- retained aggregate masses
+- public macrostate / corridor observable
+
+That makes the erasure story explicit: corridor publication is a coarse-grained
+macro-observable, not a direct exposure of the latent belief state.
+
+### Negative Boundaries
+
+Several negative boundaries remain deliberate and important:
+
+- posterior confidence is not router truth
+- quality comparison is not router truth
+- projection is not installation
+- adequacy is not semantic ownership
+- broader async envelopes do not silently replace clean-regime convergence
+- current reduced runtime refinement is not full extracted-Rust forward
+  simulation
+
+### Gap-Family Status
+
+The harmonization work structurally addresses:
+
+- local reduction / blindness / macrostate clarity
+- assumption-surface modularity
+- selector-family factoring
+- publication/refinement lineage clarity
+- shared cost vocabulary
+
+The harmonization work still leaves explicit open gaps for:
+
+- stronger divergence and information-theoretic reduction results
+- broader async convergence and transport correctness
+- deeper direct Telltale instantiation
+- stronger extracted-Rust runtime correctness
+- richer canonical objectives and global optimality
+- large-network asymptotic theory
+- production-controller correctness
+
 ## Convergence Assumptions
 
 The current convergence theorems are intentionally strong-hypothesis results, not ambient liveness claims.
@@ -478,6 +586,20 @@ Short version:
 - quality compares exported views
 - adequacy owns reduction and runtime projection
 - assumptions package contracts and theorem access instead of re-owning lower-layer logic
+
+Truth ladder:
+
+- posterior confidence is local/private semantics
+- canonical route is router truth
+- quality is exported-view comparison
+- adequacy is a semantic bridge into reduced system/router layers, not a truth owner
+
+Negative boundaries:
+
+- quality is not truth
+- posterior confidence is not truth
+- projection is not installation
+- adequacy is not semantic ownership
 
 - If the statement is about posterior, regime, posture, scores, or corridor projection, it belongs in `Field/Model` or `Field/Information`.
 - If the statement is about choreography, projection, blocked receives, semantic objects, or protocol traces, it belongs in `Field/Protocol`.

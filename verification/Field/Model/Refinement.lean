@@ -19,6 +19,271 @@ open FieldInformationBayesian
 open FieldInformationProbabilistic
 open FieldModelInstance
 
+/-! ## Reduction Preservation And Sufficiency -/
+
+theorem reduced_summary_preserves_support_mass
+    (posterior : PosteriorState)
+    (belief : ProbabilisticRouteBelief) :
+    (FieldModelAPI.reducePosterior posterior belief).supportMass =
+      posterior.support := by
+  rfl
+
+theorem reduced_summary_preserves_uncertainty_mass
+    (posterior : PosteriorState)
+    (belief : ProbabilisticRouteBelief) :
+    (FieldModelAPI.reducePosterior posterior belief).uncertaintyMass =
+      posterior.entropy := by
+  rfl
+
+theorem reduced_summary_preserves_public_macrostate
+    (posterior : PosteriorState)
+    (belief : ProbabilisticRouteBelief) :
+    (FieldModelAPI.reducePosterior posterior belief).publicMacrostate =
+      match posterior.knowledge with
+      | .explicitPath => CorridorShape.explicitPath
+      | .corridor => CorridorShape.corridorEnvelope
+      | .unknown => CorridorShape.opaque
+      | .unreachable => CorridorShape.opaque := by
+  change (FieldModelInstance.reducePosteriorImpl posterior belief).publicMacrostate =
+    match posterior.knowledge with
+    | .explicitPath => CorridorShape.explicitPath
+    | .corridor => CorridorShape.corridorEnvelope
+    | .unknown => CorridorShape.opaque
+    | .unreachable => CorridorShape.opaque
+  rfl
+
+theorem extractOrderParameter_preserves_support_coordinate
+    (posterior : PosteriorState)
+    (belief : ProbabilisticRouteBelief) :
+    (FieldModelAPI.extractOrderParameter (FieldModelAPI.reducePosterior posterior belief)).supportCoordinate =
+      posterior.support := by
+  change (FieldModelInstance.extractOrderParameterImpl
+      (FieldModelInstance.reducePosteriorImpl posterior belief)).supportCoordinate =
+    posterior.support
+  rfl
+
+theorem extractOrderParameter_preserves_uncertainty_coordinate
+    (posterior : PosteriorState)
+    (belief : ProbabilisticRouteBelief) :
+    (FieldModelAPI.extractOrderParameter (FieldModelAPI.reducePosterior posterior belief)).uncertaintyCoordinate =
+      posterior.entropy := by
+  change (FieldModelInstance.extractOrderParameterImpl
+      (FieldModelInstance.reducePosteriorImpl posterior belief)).uncertaintyCoordinate =
+    posterior.entropy
+  rfl
+
+theorem extractOrderParameter_preserves_macrostate
+    (posterior : PosteriorState)
+    (belief : ProbabilisticRouteBelief) :
+    (FieldModelAPI.extractOrderParameter (FieldModelAPI.reducePosterior posterior belief)).macrostate =
+      (FieldModelAPI.reducePosterior posterior belief).publicMacrostate := by
+  change (FieldModelInstance.extractOrderParameterImpl
+      (FieldModelInstance.reducePosteriorImpl posterior belief)).macrostate =
+    (FieldModelInstance.reducePosteriorImpl posterior belief).publicMacrostate
+  rfl
+
+theorem equal_reduced_summaries_yield_equal_mean_field_under_equal_pressure
+    (left right : ReducedBeliefSummary)
+    (leftEvidence rightEvidence : EvidenceInput)
+    (hSummary : left = right)
+    (hPressure : leftEvidence.controllerPressure = rightEvidence.controllerPressure) :
+    FieldModelInstance.compressMeanFieldImpl leftEvidence left =
+      FieldModelInstance.compressMeanFieldImpl rightEvidence right := by
+  subst hSummary
+  cases leftEvidence
+  cases rightEvidence
+  cases hPressure
+  rfl
+
+theorem equal_reduced_summaries_yield_equal_controller_updates_under_equal_pressure
+    (left right : ReducedBeliefSummary)
+    (leftEvidence rightEvidence : EvidenceInput)
+    (controller : ControllerState)
+    (hSummary : left = right)
+    (hPressure : leftEvidence.controllerPressure = rightEvidence.controllerPressure) :
+    FieldModelInstance.updateControllerImpl leftEvidence
+        (FieldModelInstance.compressMeanFieldImpl leftEvidence left) controller =
+      FieldModelInstance.updateControllerImpl rightEvidence
+        (FieldModelInstance.compressMeanFieldImpl rightEvidence right) controller := by
+  subst hSummary
+  cases leftEvidence
+  cases rightEvidence
+  cases hPressure
+  rfl
+
+theorem equal_reduced_summaries_yield_equal_order_parameters
+    (left right : ReducedBeliefSummary)
+    (hSummary : left = right) :
+    FieldModelAPI.extractOrderParameter left =
+      FieldModelAPI.extractOrderParameter right := by
+  subst hSummary
+  rfl
+
+theorem reduced_summary_support_conservative
+    (posterior : PosteriorState)
+    (belief : ProbabilisticRouteBelief) :
+    (FieldModelAPI.reducePosterior posterior belief).supportMass ≤ posterior.support := by
+  simp [reduced_summary_preserves_support_mass]
+
+theorem reduced_summary_uncertainty_conservative
+    (posterior : PosteriorState)
+    (belief : ProbabilisticRouteBelief) :
+    (FieldModelAPI.reducePosterior posterior belief).uncertaintyMass ≤ posterior.entropy := by
+  simp [reduced_summary_preserves_uncertainty_mass]
+
+theorem reduced_summary_bounded
+    (posterior : PosteriorState)
+    (belief : ProbabilisticRouteBelief)
+    (hPosterior : PosteriorBounded posterior) :
+    ReducedBeliefSummaryBounded (FieldModelAPI.reducePosterior posterior belief) := by
+  simpa [FieldModelAPI.reducePosterior] using
+    FieldModelInstance.reducePosteriorImpl_bounded posterior belief hPosterior
+
+theorem reduced_summary_support_monotone_of_posterior_support_monotone
+    (left right : PosteriorState)
+    (leftBelief rightBelief : ProbabilisticRouteBelief)
+    (hSupport : left.support ≤ right.support) :
+    (FieldModelAPI.reducePosterior left leftBelief).supportMass ≤
+      (FieldModelAPI.reducePosterior right rightBelief).supportMass := by
+  simpa [reduced_summary_preserves_support_mass, reduced_summary_preserves_support_mass] using hSupport
+
+theorem reduced_summary_uncertainty_monotone_of_posterior_uncertainty_monotone
+    (left right : PosteriorState)
+    (leftBelief rightBelief : ProbabilisticRouteBelief)
+    (hEntropy : left.entropy ≤ right.entropy) :
+    (FieldModelAPI.reducePosterior left leftBelief).uncertaintyMass ≤
+      (FieldModelAPI.reducePosterior right rightBelief).uncertaintyMass := by
+  simpa [reduced_summary_preserves_uncertainty_mass, reduced_summary_preserves_uncertainty_mass] using hEntropy
+
+theorem reducePosterior_preserves_support_mass_compression_boundary :
+    CompressionPreserves
+      (fun value : PosteriorState × ProbabilisticRouteBelief =>
+        FieldModelAPI.reducePosterior value.1 value.2)
+      (fun value => value.1.support)
+      (fun summary => summary.supportMass) := by
+  intro value
+  simpa using reduced_summary_preserves_support_mass value.1 value.2
+
+theorem reducePosterior_preserves_uncertainty_mass_compression_boundary :
+    CompressionPreserves
+      (fun value : PosteriorState × ProbabilisticRouteBelief =>
+        FieldModelAPI.reducePosterior value.1 value.2)
+      (fun value => value.1.entropy)
+      (fun summary => summary.uncertaintyMass) := by
+  intro value
+  simpa using reduced_summary_preserves_uncertainty_mass value.1 value.2
+
+theorem reducePosterior_preserves_public_macrostate_compression_boundary :
+    CompressionPreserves
+      (fun value : PosteriorState × ProbabilisticRouteBelief =>
+        FieldModelAPI.reducePosterior value.1 value.2)
+      (fun value =>
+        match value.1.knowledge with
+        | .explicitPath => CorridorShape.explicitPath
+        | .corridor => CorridorShape.corridorEnvelope
+        | .unknown => CorridorShape.opaque
+        | .unreachable => CorridorShape.opaque)
+      (fun summary => summary.publicMacrostate) := by
+  intro value
+  simpa using reduced_summary_preserves_public_macrostate value.1 value.2
+
+theorem reduced_summary_is_sufficient_for_mean_field_given_evidence
+    (evidence : EvidenceInput) :
+    CompressionSufficientFor
+      (fun value : PosteriorState × ProbabilisticRouteBelief =>
+        FieldModelAPI.reducePosterior value.1 value.2)
+      (fun summary => FieldModelInstance.compressMeanFieldImpl evidence summary)
+      (fun value =>
+        FieldModelInstance.compressMeanFieldImpl evidence
+          (FieldModelAPI.reducePosterior value.1 value.2)) := by
+  intro value
+  rfl
+
+theorem reduced_summary_is_sufficient_for_controller_update_given_evidence
+    (evidence : EvidenceInput)
+    (controller : ControllerState) :
+    CompressionSufficientFor
+      (fun value : PosteriorState × ProbabilisticRouteBelief =>
+        FieldModelAPI.reducePosterior value.1 value.2)
+      (fun summary =>
+        FieldModelInstance.updateControllerImpl evidence
+          (FieldModelInstance.compressMeanFieldImpl evidence summary) controller)
+      (fun value =>
+        FieldModelInstance.updateControllerImpl evidence
+          (FieldModelInstance.compressMeanFieldImpl evidence
+            (FieldModelAPI.reducePosterior value.1 value.2)) controller) := by
+  intro value
+  rfl
+
+theorem reducePosterior_support_is_conservative_compression_boundary :
+    CompressionConservative
+      (fun value : PosteriorState × ProbabilisticRouteBelief =>
+        FieldModelAPI.reducePosterior value.1 value.2)
+      (fun summary => summary.supportMass)
+      (fun value => value.1.support)
+      Nat.le := by
+  intro value
+  exact reduced_summary_support_conservative value.1 value.2
+
+theorem reducePosterior_uncertainty_is_conservative_compression_boundary :
+    CompressionConservative
+      (fun value : PosteriorState × ProbabilisticRouteBelief =>
+        FieldModelAPI.reducePosterior value.1 value.2)
+      (fun summary => summary.uncertaintyMass)
+      (fun value => value.1.entropy)
+      Nat.le := by
+  intro value
+  exact reduced_summary_uncertainty_conservative value.1 value.2
+
+theorem current_model_support_reduction_comparison_hook :
+    ReductionComparisonHook FieldModelInstance.instLaws.toModel
+      (fun summary => summary.supportMass)
+      PosteriorState.support := by
+  intro posterior belief
+  simpa using reduced_summary_support_conservative posterior belief
+
+theorem current_model_uncertainty_reduction_comparison_hook :
+    ReductionComparisonHook FieldModelInstance.instLaws.toModel
+      (fun summary => summary.uncertaintyMass)
+      PosteriorState.entropy := by
+  intro posterior belief
+  simpa using reduced_summary_uncertainty_conservative posterior belief
+
+theorem uncertainty_burden_is_order_parameter_adjacent :
+    FieldModelAPI.uncertaintyBurdenRole = .orderParameterAdjacent := by
+  rfl
+
+theorem exogenous_controller_pressure_can_change_mean_field_after_same_reduction :
+    ∃ summary leftEvidence rightEvidence,
+      leftEvidence.controllerPressure ≠ rightEvidence.controllerPressure ∧
+        FieldModelInstance.compressMeanFieldImpl leftEvidence summary ≠
+          FieldModelInstance.compressMeanFieldImpl rightEvidence summary := by
+  let summary : ReducedBeliefSummary :=
+    { supportMass := 400, uncertaintyMass := 200, publicMacrostate := .corridorEnvelope }
+  let leftEvidence : EvidenceInput :=
+    { refresh := .unchanged
+      reachability := .corridorOnly
+      supportSignal := 400
+      entropySignal := 200
+      controllerPressure := 0
+      feedback := .none }
+  let rightEvidence : EvidenceInput :=
+    { refresh := .unchanged
+      reachability := .corridorOnly
+      supportSignal := 400
+      entropySignal := 200
+      controllerPressure := 1000
+      feedback := .none }
+  refine ⟨summary, leftEvidence, rightEvidence, by decide, ?_⟩
+  intro hEq
+  have hRelay :
+      (FieldModelInstance.compressMeanFieldImpl leftEvidence summary).relayAlignment =
+        (FieldModelInstance.compressMeanFieldImpl rightEvidence summary).relayAlignment := by
+    exact congrArg MeanFieldState.relayAlignment hEq
+  simp [FieldModelInstance.compressMeanFieldImpl, FieldModelInstance.fuseOrderParameterImpl,
+    FieldModelInstance.extractOrderParameterImpl, summary, leftEvidence, rightEvidence] at hRelay
+  exact (by decide : (200 : Nat) ≠ 700) hRelay
+
 /-! ## Support Conservation -/
 
 /-- The composed round still publishes a corridor projection whose support is

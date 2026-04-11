@@ -1,3 +1,4 @@
+import Field.Architecture
 import Field.Router.Canonical
 
 /-! # Router.CanonicalStrong — multi-criteria canonical selection with tie-breaking -/
@@ -13,10 +14,15 @@ set_option relaxedAutoImplicit false
 namespace FieldRouterCanonicalStrong
 
 open FieldNetworkAPI
+open FieldArchitecture
 open FieldRouterCanonical
 open FieldRouterLifecycle
+open FieldRouterSelector
 
 /-! ## Selection Criteria -/
+
+def canonicalStrongSelectorLineageStage : SelectorLineageStage :=
+  .strongerSelector
 
 def canonicalPublisherRank : NodeId → Nat
   | .alpha => 0
@@ -43,6 +49,10 @@ def chooseCanonicalRouteSupportThenHopThenStableTieBreak
   else
     next
 
+def canonicalStrongSelector : LifecycleRouteSelector :=
+  { eligible := CanonicalRouteEligible
+    choose := chooseCanonicalRouteSupportThenHopThenStableTieBreak }
+
 def canonicalBestRouteSupportThenHopThenStableTieBreak
     (destination : DestinationClass)
     (routes : List LifecycleRoute) : Option LifecycleRoute :=
@@ -50,6 +60,29 @@ def canonicalBestRouteSupportThenHopThenStableTieBreak
   | [] => none
   | head :: tail =>
       some (tail.foldl chooseCanonicalRouteSupportThenHopThenStableTieBreak head)
+
+theorem canonicalBestRouteSupportThenHopThenStableTieBreak_eq_selector_bestRoute
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute) :
+    canonicalBestRouteSupportThenHopThenStableTieBreak destination routes =
+      bestRoute canonicalStrongSelector destination routes := by
+  have hEligible :
+      canonicalEligibleRoutes destination routes =
+        eligibleRoutes canonicalStrongSelector destination routes := by
+    induction routes with
+    | nil =>
+        simp [canonicalEligibleRoutes, eligibleRoutes]
+    | cons route rest ih =>
+        by_cases hRoute : CanonicalRouteEligible destination route
+        · simp [canonicalEligibleRoutes, eligibleRoutes, eligibleCanonicalRoute,
+            eligibleRoute, canonicalStrongSelector, hRoute]
+          exact ih
+        · simp [canonicalEligibleRoutes, eligibleRoutes, eligibleCanonicalRoute,
+            eligibleRoute, canonicalStrongSelector, hRoute]
+          exact ih
+  unfold canonicalBestRouteSupportThenHopThenStableTieBreak bestRoute
+  rw [hEligible]
+  rfl
 
 /-! ## Tie-Break -/
 

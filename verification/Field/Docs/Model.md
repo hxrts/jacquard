@@ -149,6 +149,7 @@ At the semantic level, the one-round flow is:
 ```text
 evidence
   → posterior update
+  → posterior-derived reduced summary
   → mean-field summary
   → controller update
   → regime classification
@@ -158,6 +159,80 @@ evidence
 ```
 
 This is why `LocalState` carries all of these components together and why the harmony laws matter: they prevent later stages from inventing stronger support or stronger public claims than earlier stages justify.
+
+The current implementation now makes one additional quotient boundary explicit:
+
+```text
+posterior + Bayesian companion belief
+  → ReducedBeliefSummary
+  → mean-field / controller-facing control fusion
+```
+
+`ReducedBeliefSummary` keeps only support mass, uncertainty mass, and one
+public macrostate label. It deliberately does not retain full freshness, the
+full finite belief vector, or the Bayesian posterior object.
+
+The local pipeline now makes a second boundary explicit as well:
+
+```text
+ReducedBeliefSummary
+  → LocalOrderParameter
+  → mean-field / controller-facing control fusion
+  → regime classification
+```
+
+`LocalOrderParameter` is the intended stat-mech-like interface for the current
+reduced model. It is not a second posterior object and it is not the controller
+state. It is the local phase/regime surface derived from the reduced summary.
+
+The current coordinates are deliberately simple:
+
+- support-like field strength
+- uncertainty-adjacent burden
+- retained public macrostate
+- threshold proximity / instability indicators carried as reduced scalar views
+
+That gives the code a principled order-parameter layer without claiming a full
+thermodynamic or asymptotic mean-field theory.
+
+## Order Parameter And Regime Story
+
+`Field/Model/API.lean` now names the reduced mean-field interface directly:
+
+- `ReducedBeliefSummary`
+  - posterior quotient used for controller-facing reduction
+- `LocalOrderParameter`
+  - local phase/order-parameter surface extracted from that quotient
+- `MeanFieldState`
+  - control-fused reduced state after exogenous controller inputs are applied
+
+The intended interpretation is:
+
+```text
+posterior belief
+  -> reduced summary
+  -> local order parameter
+  -> exogenous control fusion
+  -> mean field / controller state
+  -> regime classification
+```
+
+This matters because the reduced summary is intentionally lossy, while the
+controller-facing mean field still depends on exogenous control pressure. The
+proof surface now makes both of those facts explicit:
+
+- the reduced summary is sufficient for the current mean-field/controller path
+  only under fixed exogenous control inputs
+- the reduction alone does not determine the whole downstream control path
+- `UncertaintyBurden` is currently treated as an order-parameter-adjacent
+  control quantity, not as proved Lyapunov data
+
+The current `GF2` / `GF7` boundary is therefore explicit in the local API:
+
+- stronger convergence claims remain profile-indexed system work
+- large-network / fluid-limit claims remain future work
+- the order-parameter interface is designed so those later theorems can land
+  on a named surface instead of introducing a second local vocabulary
 
 ## Finite Belief And Information Layer
 
@@ -225,11 +300,95 @@ The current concrete instance proves:
 
 This is still an early information layer, but it is a real one.
 
+## Coarse-Grained Corridor Macrostate
+
+The current public corridor story is now organized as a three-level coarse
+graining:
+
+```text
+private probabilistic microstate
+  -> retained aggregate masses
+  -> public corridor macrostate
+```
+
+The microstate is the full probabilistic belief over route existence, quality,
+transport reliability, witness reliability, and local knowledge.
+
+The retained aggregate layer keeps only the aggregates that the current reduced
+stack needs as one explicit semantic boundary:
+
+- explicit-path mass
+- corridor-capable mass
+- quality-band masses
+- transport-reliability masses
+- observation-reliability masses
+
+The public corridor macrostate is then a further coarse-grained observable. It
+forgets latent distinctions on purpose. The main erased axes are:
+
+- quality split inside corridor-capable mass
+- transport-reliability split
+- observation-reliability split
+- some unknown versus unreachable distinctions once corridor-capable mass
+  collapses
+
+This is why the corridor projection should be read as a macro-observable map,
+not just as a weaker route-shape heuristic.
+
 ## Blindness And Erasure
 
-`Field/Information/Blindness.lean` now treats the public corridor projection as a lossy observer over the normalized private belief object.
+`Field/Information/Blindness.lean` now treats the local field story as a chain
+of lossy observers:
 
-The key current result is the first genuine erasure theorem:
+```text
+posterior / Bayesian belief
+  → ReducedBeliefSummary
+  → public macrostate observer
+  → public corridor projection
+```
+
+The key current results are now split by boundary.
+
+### Posterior To Reduced Summary
+
+The reduction itself is intentionally lossy. The current theorem surface makes
+that explicit:
+
+- `reduction_erases_probabilistic_belief_choice`
+- `reduction_erases_freshness_under_fixed_belief_and_knowledge`
+- `reduction_erases_unknown_unreachable_distinction_under_equal_uncertainty`
+
+So the reduced summary is not "the posterior with fewer fields". It is a
+controller-facing quotient that forgets:
+
+- the full Bayesian posterior distribution
+- freshness once support / uncertainty / macrostate are fixed
+- the unknown-versus-unreachable split once the reduced summary is opaque and
+  carries the same uncertainty mass
+
+### Reduced Summary To Public Macrostate
+
+The public observer over the reduced summary is coarser still:
+
+- `publicProjectionOfReducedSummary`
+- `public_projection_of_reduced_summary_forgets_support_and_uncertainty`
+
+Once the public macrostate label is fixed, public observation no longer sees
+the reduced support or uncertainty coordinates.
+
+### Public Projection Of The Normalized Belief Object
+
+The normalized-belief public observer now has aggregate-mass stability theorems:
+
+- `explicit_projection_of_positive_explicit_mass`
+- `corridor_projection_of_zero_explicit_and_positive_corridor_mass`
+- `opaque_projection_of_zero_corridor_mass`
+
+Those say exactly which aggregate mass differences matter for macrostate
+changes and which belief differences are invisible at the corridor-macrostate
+level.
+
+The older first genuine erasure theorem remains:
 
 ```text
 opaque_projection_erases_unknown_unreachable_split
@@ -237,7 +396,15 @@ opaque_projection_erases_unknown_unreachable_split
 
 Informally, once corridor-capable mass is zero on both sides, the public projection forgets how the remaining mass is split between `unknown` and `unreachable`.
 
-This is intentionally narrow. It does not yet give a full mutual-information or divergence theory for the public corridor projection. But it is now a mathematically meaningful blindness statement over the normalized belief layer.
+This is intentionally still narrow. It does not yet give:
+
+- full mutual-information bounds for the public corridor projection
+- KL-style update inequalities
+- a full divergence theory over the reduction itself
+- information-theoretic optimality claims for the controller or router
+
+But it is now a mathematically meaningful blindness chain over the reduced
+local model, from posterior belief to reduction to public projection.
 
 ## Decision Layer
 
@@ -256,6 +423,23 @@ This is not a planner and not a global routing decision system. It is a small pr
 
 The current file proves:
 
+- exact reduction-preservation results:
+  - `reduced_summary_preserves_support_mass`
+  - `reduced_summary_preserves_uncertainty_mass`
+  - `reduced_summary_preserves_public_macrostate`
+- sufficiency / compression-boundary results:
+  - `equal_reduced_summaries_yield_equal_mean_field_under_equal_pressure`
+  - `equal_reduced_summaries_yield_equal_controller_updates_under_equal_pressure`
+  - `reduced_summary_is_sufficient_for_mean_field_given_evidence`
+  - `reduced_summary_is_sufficient_for_controller_update_given_evidence`
+- conservative / bounded / monotone reduction results:
+  - `reduced_summary_support_conservative`
+  - `reduced_summary_uncertainty_conservative`
+  - `reduced_summary_bounded`
+  - `reduced_summary_support_monotone_of_posterior_support_monotone`
+  - `reduced_summary_uncertainty_monotone_of_posterior_uncertainty_monotone`
+- explicit non-sufficiency of the reduction alone for the control path:
+  - `exogenous_controller_pressure_can_change_mean_field_after_same_reduction`
 - `round_projection_support_conservative`
 - `round_mean_field_tracks_posterior_support`
 - `explicit_projection_requires_explicit_round_knowledge`
@@ -270,16 +454,29 @@ These are still reduced local theorems, not end-to-end system theorems. Their ro
 The current file defines:
 
 - `beliefL1Distance`
+- `natGap`
+- `reducedSupportGap`
+- `reducedUncertaintyGap`
+- `reducedSummaryAggregateGap`
 - `localUncertaintyPotential`
 
 and proves:
 
 - `beliefL1Distance_nonneg`
 - `beliefL1Distance_eq_zero_of_equal`
+- `reducedSupportGap_matches_posterior_support_gap`
+- `reducedUncertaintyGap_matches_posterior_uncertainty_gap`
+- `equal_reduced_summaries_induce_zero_aggregate_gap`
 - `localUncertaintyPotential_nonneg`
 - `equal_beliefs_induce_zero_projection_loss`
 
-This is still intentionally small. It is not a full routing-quality theory or a strong information-theoretic comparison framework. It is the first quantitative surface that later strengthening can build on.
+This is still intentionally small. It is not:
+
+- a full routing-quality theory
+- a strong information-theoretic comparison framework
+- a proof of information-theoretic optimality for the reduced summary
+
+It is the first quantitative surface that later strengthening can build on.
 
 ## What Is Proved In The Local Model
 
@@ -290,6 +487,10 @@ The local model and its theorem packs currently establish:
 - honesty of public projection relative to local knowledge
 - small temporal theorems over repeated rounds
 - refinement lemmas over the composed round step
+- reduction-preservation and compression-discipline theorems for the
+  controller-facing summary
+- explicit blindness / erasure statements for the reduction itself and for the
+  public corridor macrostate
 - first quantitative ranking / distance style results over the reduced local state
 
 The model should therefore be read as:
@@ -345,7 +546,9 @@ The current field local model does not yet prove:
 - strong routing-quality or optimality claims over installed candidates
 - large-network mean-field limits
 - KL-style update inequalities
+- stronger divergence bounds over the reduction itself
 - stronger mutual-information bounds for the public projection
+- theorem-backed information-theoretic optimality claims for the reduced summary
 - production-controller correctness
 
 Those belong to later strengthening phases.

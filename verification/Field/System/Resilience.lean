@@ -21,6 +21,11 @@ open FieldRouterResilience
 open FieldSystemCanonical
 open FieldSystemEndToEnd
 
+/-- System resilience talks about composing router truth with delivery and
+participation envelopes. It does not claim full transport correctness or
+scheduler fairness beyond the stated assumptions. -/
+def SystemTransportResilienceScope : Prop := True
+
 /-! ## Stabilisation Under Faults -/
 
 def dropoutCanonicalSystemSupportValue

@@ -37,6 +37,31 @@ structure RuntimeEnvelopeAssumptions where
   respectsReducedEnvelope :
     ∀ artifacts, admitted artifacts → RuntimeExecutionAdmitted artifacts
 
+structure TransportAssumptions where
+  reliableImmediateProfileNamed : Prop
+  boundedDelayEnvelopeNamed : Prop
+  boundedRetryEnvelopeNamed : Prop
+
+structure ParticipationAssumptions where
+  silenceDropoutEnvelopeNamed : Prop
+  nonParticipationEnvelopeNamed : Prop
+  dishonestPublicationExcluded : Prop
+
+structure RefinementAssumptions where
+  reducedProtocolAdequacyNamed : Prop
+  reducedRuntimeProjectionNamed : Prop
+  extractedRustForwardSimulationNamed : Prop
+
+structure BudgetAssumptions where
+  routerSearchBudgetNamed : Prop
+  transportWorkBudgetNamed : Prop
+  runtimeProjectionBudgetNamed : Prop
+
+structure RegimeProfileAssumptions where
+  localQuantitativeSurfaceNamed : Prop
+  distributedProfileSurfaceNamed : Prop
+  bridgeSurfaceNamed : Prop
+
 structure OptionalStrengtheningAssumptions where
   receiveRefinementEnabled : Prop
   simulationStrengthened : Prop
@@ -51,6 +76,11 @@ structure ProofContract where
   semantic : SemanticAssumptions
   protocol : ProtocolEnvelopeAssumptions
   runtime : RuntimeEnvelopeAssumptions
+  transport : TransportAssumptions
+  participation : ParticipationAssumptions
+  refinement : RefinementAssumptions
+  budget : BudgetAssumptions
+  regimeProfile : RegimeProfileAssumptions
   optional : OptionalStrengtheningAssumptions
 
 /-! ## Explicit Non-Claims -/
@@ -77,6 +107,31 @@ def defaultRuntimeEnvelopeAssumptions : RuntimeEnvelopeAssumptions :=
 def defaultProtocolEnvelopeAssumptions : ProtocolEnvelopeAssumptions :=
   { reducedMachineCoherent := MachineCoherent
     semanticObjectsObservational := fun trace => FieldEvidenceConservation trace }
+
+def defaultTransportAssumptions : TransportAssumptions :=
+  { reliableImmediateProfileNamed := True
+    boundedDelayEnvelopeNamed := True
+    boundedRetryEnvelopeNamed := True }
+
+def defaultParticipationAssumptions : ParticipationAssumptions :=
+  { silenceDropoutEnvelopeNamed := True
+    nonParticipationEnvelopeNamed := True
+    dishonestPublicationExcluded := True }
+
+def defaultRefinementAssumptions : RefinementAssumptions :=
+  { reducedProtocolAdequacyNamed := True
+    reducedRuntimeProjectionNamed := True
+    extractedRustForwardSimulationNamed := False }
+
+def defaultBudgetAssumptions : BudgetAssumptions :=
+  { routerSearchBudgetNamed := True
+    transportWorkBudgetNamed := True
+    runtimeProjectionBudgetNamed := True }
+
+def defaultRegimeProfileAssumptions : RegimeProfileAssumptions :=
+  { localQuantitativeSurfaceNamed := True
+    distributedProfileSurfaceNamed := True
+    bridgeSurfaceNamed := True }
 
 /-! ## Optional Strengthening Presets -/
 
@@ -120,6 +175,11 @@ def mkProofContract
   { semantic := defaultSemanticAssumptions
     protocol := defaultProtocolEnvelopeAssumptions
     runtime := defaultRuntimeEnvelopeAssumptions
+    transport := defaultTransportAssumptions
+    participation := defaultParticipationAssumptions
+    refinement := defaultRefinementAssumptions
+    budget := defaultBudgetAssumptions
+    regimeProfile := defaultRegimeProfileAssumptions
     optional := optional }
 
 def defaultContract : ProofContract :=

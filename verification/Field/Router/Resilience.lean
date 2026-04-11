@@ -16,6 +16,11 @@ open FieldNetworkAPI
 open FieldRouterCanonical
 open FieldRouterLifecycle
 
+/-- Router resilience talks about stability of router-owned lifecycle truth
+under bounded participation faults. It does not own transport or scheduler
+composition. -/
+def RouterTruthResilienceScope : Prop := True
+
 /-! ## Fault Budgets -/
 
 inductive ParticipationFaultClass

@@ -1,3 +1,4 @@
+import Field.CostAPI
 import Field.Router.Cost
 import Field.System.Bounded
 import Field.System.Canonical
@@ -16,6 +17,7 @@ namespace FieldSystemCost
 
 open FieldAsyncAPI
 open FieldAsyncBounded
+open FieldCostAPI
 open FieldRouterCanonical
 open FieldRouterCost
 open FieldRouterLifecycle
@@ -46,6 +48,14 @@ def nextStorageWorkUnits
 def transportVolumeBudget
     (state : EndToEndState) : Nat :=
   queueWorkUnits state + communicationWorkUnits state
+
+def transportVolumeWorkBudget
+    (state : EndToEndState) : WorkBudget :=
+  WorkBudget.ofNat (transportVolumeBudget state)
+
+def systemStepComputeBudget
+    (state : EndToEndState) : WorkBudget :=
+  WorkBudget.ofNat (systemStepWorkUnits state)
 
 def transportWorkBottleneck
     (state : EndToEndState) : Nat :=
@@ -183,6 +193,12 @@ theorem transport_volume_budget_dominates_system_step_work
     (state : EndToEndState) :
     systemStepWorkUnits state ≤ 4 * transportVolumeBudget state := by
   exact compute_work_units_bounded_by_transport_volume state
+
+theorem transport_volume_work_budget_allows_system_step_work
+    (state : EndToEndState) :
+    (WorkBudget.ofNat (4 * transportVolumeBudget state)).allows
+      (WorkUnits.ofNat (systemStepWorkUnits state)) := by
+  exact transport_volume_budget_dominates_system_step_work state
 
 theorem system_step_work_is_local_to_transport_volume
     (state : EndToEndState) :

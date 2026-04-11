@@ -1,3 +1,4 @@
+import Field.CostAPI
 import Field.Router.Canonical
 
 /-! # Router.Cost — maintenance and search work unit metrics -/
@@ -14,6 +15,7 @@ set_option relaxedAutoImplicit false
 namespace FieldRouterCost
 
 open FieldModelAPI
+open FieldCostAPI
 open FieldNetworkAPI
 open FieldRouterCanonical
 open FieldRouterLifecycle
@@ -27,6 +29,14 @@ def maintenanceWorkUnits
 def canonicalSearchWorkUnits
     (routes : List LifecycleRoute) : Nat :=
   routes.length
+
+def canonicalSearchBudget
+    (routes : List LifecycleRoute) : WorkBudget :=
+  WorkBudget.ofNat (canonicalSearchWorkUnits routes)
+
+def maintenanceBudget
+    (routes : List LifecycleRoute) : WorkBudget :=
+  WorkBudget.ofNat (maintenanceWorkUnits routes)
 
 def iterateLifecycleMaintenance : Nat → List LifecycleRoute → List LifecycleRoute
   | 0, routes => routes
@@ -44,6 +54,11 @@ theorem canonicalEligibleRoutes_search_space_bounded
 theorem canonical_search_worst_case_cost
     (routes : List LifecycleRoute) :
     canonicalSearchWorkUnits routes = routes.length := by
+  rfl
+
+theorem canonical_search_budget_exact
+    (routes : List LifecycleRoute) :
+    canonicalSearchBudget routes = WorkBudget.ofNat routes.length := by
   rfl
 
 theorem canonical_search_incremental_update_cost

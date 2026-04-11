@@ -21,6 +21,13 @@ Narrow Lean boundary between field protocol outputs and local observer inputs.
 
 This module intentionally proves only the input-contract story. It does not try
 to prove controller optimality or router-level correctness.
+
+Projection taxonomy note:
+
+- this module sits on the local public projection boundary
+- it does not own protocol projection from choreography to local types
+- it does not own runtime/adequacy projection from artifacts to reduced Lean
+  objects
 -/
 
 set_option autoImplicit false
@@ -31,7 +38,8 @@ namespace FieldBoundary
 open FieldModelAPI
 open FieldProtocolAPI
 
-/-- Translate one observational protocol output into bounded local evidence. -/
+/-- Translate one observational protocol output into bounded local evidence at
+the local public projection boundary. -/
 def protocolOutputToEvidence (output : ProtocolOutput) : EvidenceInput :=
   { refresh := .explicitRefresh
     reachability :=
@@ -49,7 +57,8 @@ def protocolOutputToEvidence (output : ProtocolOutput) : EvidenceInput :=
     feedback := .none }
 
 /-- Translate the full exported protocol output list into controller-visible
-evidence batches. -/
+evidence batches. This is boundary adaptation into local public semantics, not
+protocol projection itself. -/
 def protocolOutputsToEvidence
     (outputs : List ProtocolOutput) : List EvidenceInput :=
   outputs.map protocolOutputToEvidence

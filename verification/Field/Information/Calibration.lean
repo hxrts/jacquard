@@ -85,8 +85,9 @@ theorem positive_confidence_threshold_decision_public_projection_bound
       exact_mod_cast (lt_of_lt_of_le hPositive hAdm.2)
     have hMassPos : 0 < probabilisticExplicitPathMass belief := by
       linarith
-    unfold probabilisticPublicProjection
-    rw [if_pos hMassPos]
+    rw [probabilisticPublicProjection_eq_publicMacrostateOfRetainedAggregates]
+    unfold publicMacrostateOfRetainedAggregates
+    simp [hMassPos]
   · intro hDecision
     rcases posteriorConfidenceDecision_corridor_implies_threshold
       thresholds hAdm belief hDecision with ⟨_hExplicit, hCorridor⟩
@@ -94,13 +95,13 @@ theorem positive_confidence_threshold_decision_public_projection_bound
       exact_mod_cast hPositive
     have hMassPos : 0 < probabilisticCorridorCapableMass belief := by
       linarith
-    unfold probabilisticPublicProjection
+    rw [probabilisticPublicProjection_eq_publicMacrostateOfRetainedAggregates]
+    unfold publicMacrostateOfRetainedAggregates
     by_cases hExplicitMass : 0 < probabilisticExplicitPathMass belief
     · right
-      rw [if_pos hExplicitMass]
+      simp [hExplicitMass]
     · left
-      rw [if_neg hExplicitMass]
-      rw [if_pos hMassPos]
+      simp [hExplicitMass, hMassPos]
 
 noncomputable def correlatedLikelihoodPerturbation
     (observation : ProbabilisticRouteObservation)

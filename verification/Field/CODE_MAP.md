@@ -4,6 +4,11 @@ This map describes the current organization of `verification/Field`.
 
 ## Top-Level Theorem Packs
 
+- `Field/Architecture.lean`
+  - shared taxonomy for projection kinds, refinement-ladder stages, route/evidence/selector lineage, and semantic-versus-proof-artifact roles
+- `Field/CostAPI.lean`
+  - shared work-unit and budget vocabulary reused by router, system, and adequacy cost packs
+
 - `Field/LocalModel.lean`
   - imports the local observer-controller model, the finite-belief information layer, and the first decision procedure
 - `Field/PrivateProtocol.lean`
@@ -28,9 +33,11 @@ This map describes the current organization of `verification/Field`.
 ## Local Model
 
 - `Field/Model/API.lean`
-  - semantic state vocabulary, abstract round-step operations, boundedness/harmony laws
+  - semantic state vocabulary, explicit `ReducedBeliefSummary` reduction boundary, explicit `LocalOrderParameter` vocabulary, abstract round-step operations, and boundedness/harmony laws
 - `Field/Model/Instance.lean`
-  - first bounded concrete realization, structural theorems, temporal theorems, and first quantitative ranking law
+  - first bounded concrete realization, structural theorems, temporal theorems, the Bayesian posterior companion view, the executable posterior-reduction boundary, explicit order-parameter extraction, explicit control-fusion step from reduced summary into mean-field state, and regime classification over that order-parameter surface
+- `Field/Model/Refinement.lean`
+  - reduction-preservation, order-parameter preservation, sufficiency, conservativity, boundedness/monotonicity, and exogenous-control-dependence theorems for the controller-facing summary, plus the composed-round honesty/refinement pack
 - `Field/Model/Decision.lean`
   - one-step finite exploration / decision procedure over a small evidence alphabet
 
@@ -41,13 +48,15 @@ This map describes the current organization of `verification/Field`.
 - `Field/Information/Instance.lean`
   - first concrete probability-simplex belief object, weight-normalized distribution, and entropy/mass theorems
 - `Field/Information/Probabilistic.lean`
-  - finite probabilistic route-hypothesis space, latent-mass helpers, and blindness lemmas showing the old public projection forgets latent quality/reliability structure
+  - finite probabilistic route-hypothesis space, retained aggregate-mass helpers, and public-macrostate/blindness lemmas showing how the current public projection forgets latent quality/reliability structure; the controller-facing reduced summary still lives separately in `Field/Model/*`
 - `Field/Information/Bayesian.lean`
   - Bayesian priors, factorized likelihoods, normalized posterior update, support/fallback theorems, and explicit boundary markers for correlated regimes outside the current factorized model
 - `Field/Information/Calibration.lean`
   - confidence-threshold, posterior-probability, expected-utility, and regret-interpretation targets, plus decision-validity theorems, trusted explicit-observation soundness, public-projection distortion bounds, and an explicit correlated-regime calibration non-claim
 - `Field/Information/Blindness.lean`
-  - field-side information-cost / blindness bridge over the normalized public projection, including a first erasure theorem
+  - field-side information-cost / blindness bridge over the reduction-to-public-observer chain, including reduction-level erasure theorems, public-macrostate erasure, and aggregate-mass macrostate stability facts
+- `Field/Information/Quantitative.lean`
+  - L1 belief distance, small reduced-summary aggregate-gap objects, and first quantitative lemmas connecting posterior aggregate differences to reduction-level differences
 
 ## Private Protocol
 
@@ -71,7 +80,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Model/Boundary.lean`
   - controller-evidence boundary from protocol exports and traces
 - `Field/Adequacy/API.lean`
-  - abstract Rust-runtime artifact boundary, reduced router-facing runtime projection, reduced probabilistic slice, and reduced runtime-to-trace simulation witness
+  - abstract Rust-runtime artifact boundary, reduced router-facing runtime projection, reduced probabilistic slice, reduced runtime-to-trace simulation witness, and adequacy-side projection/lineage taxonomy hooks
 - `Field/Adequacy/Runtime.lean`
   - reduced runtime state, one-step runtime execution semantics, artifact extraction from runtime states/steps, and state-level adequacy/admission preservation lemmas
 - `Field/Adequacy/Canonical.lean`
@@ -85,7 +94,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Adequacy/Probabilistic.lean`
   - leading-evidence posterior extraction from runtime artifacts, runtime/trace confidence-threshold preservation, min-regret decision preservation, expected-utility order preservation, decision-relevant completeness for the reduced probabilistic projection, and an explicit erased-tail non-claim for the current reduced runtime view
 - `Field/Adequacy/Refinement.lean`
-  - runtime-state / system-state refinement relation, stuttering preservation of that relation under reduced runtime steps, and quiescent runtime-state consequences for canonical outcomes and first safety-preservation theorems
+  - runtime-state / system-state refinement relation, stuttering preservation of that relation under reduced runtime steps, and quiescent runtime-state consequences for canonical outcomes and first safety-preservation theorems; the semantic runtime-state object stays distinct from theorem-pack packaging and fixtures
 - `Field/Adequacy/Safety.lean`
   - runtime/system reduction-soundness results for support conservativity, no false explicit-path promotion, no route creation from silence, admissible lifecycle origin, and quiescent observational equivalence
 - `Field/Adequacy/Fixtures.lean`
@@ -95,7 +104,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Adequacy/Instance.lean`
   - first concrete runtime extraction, execution-level observational trace theorem, reduced simulation theorem, router-projection honesty facts, and evidence-agreement theorems
 - `Field/AssumptionCore.lean`
-  - proof-contract vocabulary and default/strengthened contract builders for semantic, protocol-envelope, runtime-envelope, and optional refinement assumptions
+  - proof-contract vocabulary and default/strengthened contract builders for semantic, protocol-envelope, runtime-envelope, transport, participation, refinement, budget, and regime-profile assumption families
 - `Field/AssumptionTheorems.lean`
   - theorem packaging layer deriving adequacy, quality, canonical-router, runtime-canonical, runtime-state execution refinement, and resilience-boundary consequences from the shared proof-contract vocabulary
 - `Field/Assumptions.lean`
@@ -108,7 +117,9 @@ This map describes the current organization of `verification/Field`.
 - `Field/Network/Safety.lean`
   - first reduced network safety theorems connecting local honesty to publication, admission, and installation
 - `Field/Router/Publication.lean`
-  - router-facing publication candidates and publication honesty / well-formedness theorems
+  - router-facing publication candidates, publication-lineage vocabulary, and publication honesty / well-formedness theorems
+- `Field/Router/Selector.lean`
+  - shared selector-family abstraction for lifecycle-route selection, covering candidate domain, eligibility filtering, and fold-based best-route extraction
 - `Field/Router/Admission.lean`
   - reduced observed/admitted/rejected boundary and first admission conservativity theorems
 - `Field/Router/Installation.lean`
@@ -116,9 +127,9 @@ This map describes the current organization of `verification/Field`.
 - `Field/Router/Lifecycle.lean`
   - reduced observed/admitted/installed/withdrawn/expired/refreshed lifecycle object plus maintenance and conservativity theorems
 - `Field/Router/Canonical.lean`
-  - router-owned destination-local canonical support selector over lifecycle routes, plus support-best, eligibility, destination-scope containment, unique-eligible selection, a destination-local sparse-scaling theorem for off-destination route growth, a threshold discontinuity example, and threshold-emergence/disappearance theorems for canonical route truth
+  - router-owned destination-local canonical support selector over lifecycle routes, shared selector-family wrappers, support-best, eligibility, destination-scope containment, unique-eligible selection, a destination-local sparse-scaling theorem for off-destination route growth, a threshold discontinuity example, and threshold-emergence/disappearance theorems for canonical route truth
 - `Field/Router/CanonicalStrong.lean`
-  - stronger router-owned support-then-hop-then-stable selector over eligible lifecycle routes, plus membership and eligibility theorems for the stronger canonical surface
+  - stronger router-owned support-then-hop-then-stable selector over eligible lifecycle routes, plus shared selector-family wrappers and membership/eligibility theorems for the stronger canonical surface
 - `Field/Router/Cost.lean`
   - proof-facing linear search-cost model for the canonical selector, including worst-case, incremental, stable-input, search-space, and maintenance-invariance bounds
 - `Field/Router/Optimality.lean`
@@ -151,9 +162,9 @@ This map describes the current organization of `verification/Field`.
 - `Field/System/EndToEnd.lean`
   - reduced end-to-end state and step relation combining async transport, router lifecycle installation, and lifecycle maintenance, plus first safety/observer lemmas
 - `Field/System/Convergence.lean`
-  - reduced reliable-immediate fixed-point and no-spontaneous-promotion theorems over iterated end-to-end steps
+  - reduced reliable-immediate fixed-point and no-spontaneous-promotion theorems over iterated end-to-end steps, plus a profile-indexed convergence interface separating local quantitative versus distributed/profile claims
 - `Field/System/Canonical.lean`
-  - system-facing refinement theorems connecting `supportDominance` winners to the router-owned canonical selector, plus underconnected and unique-eligible sparse cases, thresholded canonical-support theorems, an explicit critical-threshold boundary, canonical support/knowledge conservativity for winners, a threshold-1 vanishing-support limit, reliable-immediate stability, global support-optimum packaging, one-step recovery and bounded-convergence theorems, and a no-oscillation theorem for the canonical system route in the current reliable-immediate bounded-delay corner
+  - system-facing refinement theorems connecting `supportDominance` winners to the router-owned canonical selector, plus shared selector-family wrappers, underconnected and unique-eligible sparse cases, thresholded canonical-support theorems, an explicit critical-threshold boundary, canonical support/knowledge conservativity for winners, a threshold-1 vanishing-support limit, reliable-immediate stability, global support-optimum packaging, one-step recovery and bounded-convergence theorems, and a no-oscillation theorem for the canonical system route in the current reliable-immediate bounded-delay corner
 - `Field/System/Probabilistic.lean`
   - reduced probabilistic evidence-flow semantics over async envelopes and lifecycle routes, delayed/lossy/repeated/correlated observation vocabulary, message-to-observation update lemmas, stable-evidence posterior-choice preservation, bounded dropout-degradation and sparse-evidence guardrail theorems, and a system theorem connecting produced explicit candidates back to positive Bayesian explicit-path mass under the clean async regime
 - `Field/System/Calibration.lean`
@@ -182,12 +193,53 @@ This map describes the current organization of `verification/Field`.
   - `Field/Information` and `Field/Model` own probabilistic local state, priors, likelihoods, and Bayesian posterior-update semantics
   - only explicit support/canonical refinement theorems connect `Field/Quality` objectives back to router-owned truth; all other ranking objectives remain observational unless a theorem says otherwise
 
+- current seam notes:
+  - `PosteriorState`, `ReducedBeliefSummary`, and the Bayesian belief bridge are now explicit; the remaining local-model seam is that the reduced summary is still an intermediate object rather than a stored component of `LocalState`
+  - `compressMeanFieldImpl` now owns only control fusion from `ReducedBeliefSummary` plus exogenous `controllerPressure`, instead of hiding posterior reduction internally
+  - `Field/Model/Refinement.lean` now makes the intended theorem boundary explicit: the reduced summary is sufficient for the mean-field/controller surfaces only under fixed exogenous control inputs, and the theorem pack also records that the reduction alone does not determine the whole downstream control path
+  - `LocalOrderParameter` is now the explicit local phase/order-parameter surface between posterior reduction and control fusion
+  - `projection` is still overloaded across protocol projection, local public projection, and runtime/adequacy projection; file ownership is clean, but the shared taxonomy is still documentation-level rather than API-level
+  - the corridor/coarse-graining story is present across `Field/Information/*` and `Field/Model/*`, but retained aggregates, public macrostates, and controller-facing reduction are still not one explicit end-to-end interface
+
+- state taxonomy:
+  - epistemic state: `FiniteBelief`, `PosteriorState`, `ProbabilisticRouteBelief`
+  - control state: `ReducedBeliefSummary`, `MeanFieldState`, `ControllerState`, `RegimeState`, `PostureState`, `ScoredContinuationSet`
+  - publication/public-observable state: `CorridorEnvelopeProjection`, `PublishedCandidate`, `AdmittedCandidate`
+  - lifecycle state: `LifecycleRoute`
+  - execution state: `AsyncState`, `EndToEndState`, `RuntimeState`
+  - current caveat: `ReducedBeliefSummary` is the posterior-derived summary object, but it is not yet stored as a first-class component of `LocalState`
+
+- projection taxonomy:
+  - protocol projection: choreography/session structure -> local protocol surface (`Field/Protocol/*`)
+  - local public projection: local field semantics -> corridor/public observable surface (`Field/Model/*`, `Field/Information/*`, `Field/Model/Boundary.lean`)
+  - runtime projection / adequacy reduction: runtime artifacts or runtime state -> reduced Lean protocol/router/system surface (`Field/Adequacy/*`)
+  - current caveat: the code now documents these as distinct kinds, but several function/theorem names still use plain `projection` without the kind encoded directly in the identifier
+
+- truth ladder:
+  - posterior confidence is local/private semantics
+  - reduced summary and local order parameter are controller-facing reduced semantics, not public truth
+  - canonical route is router-owned truth
+  - quality is exported-view comparison
+  - adequacy is a semantic bridge into reduced system/router layers, not a truth owner
+  - negative boundaries kept explicit: quality is not truth, posterior confidence is not truth, projection is not installation, adequacy is not semantic ownership
+
+- classical versus distributed split:
+  - local quantitative/classical surfaces live primarily in `Field/Model/*` and `Field/Information/*`
+  - distributed/profile-envelope surfaces live primarily in `Field/Async/*`, `Field/System/*`, and packaged assumption families
+  - bridge theorems connecting local order-parameter interpretation to system convergence should state that boundary explicitly
+
+- semantic versus proof-artifact split:
+  - semantic core objects: runtime artifacts, runtime states, lifecycle routes, canonical selectors, probabilistic beliefs
+  - theorem packaging: contract unlock theorems, boundary forwarding theorems, refinement wrappers
+  - synthetic fixtures: adequacy fixture files and probabilistic fixture files
+
 - probabilistic scope:
   - modeled: route existence, route quality, transport reliability, and observation noise
   - explicitly separate from that scope: support ranking, exported quality views, and runtime extraction convenience layers
   - the current posterior-based router objectives are confidence-threshold routing plus reduced expectation / cost / risk / regret objects in `Field/Router/Probabilistic.lean`; they coexist with the older support-owned canonical selectors and are not implied by exported route views or support ranking unless a theorem says so
   - current Bayesian theorems are for the factorized likelihood model in `Field/Information/Bayesian.lean`; correlated evidence remains boundary-marked unless a replacement theorem says otherwise
   - current calibration/soundness results are confidence-threshold validity, posterior-probability equalities for the normalized update, expected-utility bounds, regret interpretation, explicit-evidence posterior support, produced-candidate latent-mass soundness, and a bounded public-projection weakening theorem; broad correlated calibration still remains out of scope
+  - current GF1-style non-claims remain explicit: stronger divergence/update inequalities over the reduction, sharper mutual-information bounds for public observables, and information-theoretic optimality claims for the controller-facing summary are still open
   - explicit non-goals for the current probabilistic roadmap: arbitrary continuous distributions, unproved calibration claims, and full production-runtime probabilistic fidelity
 
 - `Field/Docs/Model.md`

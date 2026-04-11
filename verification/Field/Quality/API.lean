@@ -6,6 +6,14 @@ import Field.Router.Lifecycle
 Define the vocabulary for comparing routes: support dominance, hop-band conservativity,
 tie-break criteria, winner selection types, and the route-view snapshot that quality
 objectives operate over.
+
+Ownership note:
+- this module owns exported-view comparison only
+- it does not own canonical route truth
+- it does not own posterior confidence truth
+- it does not own runtime adequacy
+- any bridge from a quality objective back to router-owned truth must be stated
+  by an explicit refinement theorem
 -/
 
 set_option autoImplicit false

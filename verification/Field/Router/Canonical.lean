@@ -1,4 +1,6 @@
+import Field.Architecture
 import Field.Router.Lifecycle
+import Field.Router.Selector
 
 /-! # Router.Canonical — canonical route eligibility and highest-support selection -/
 
@@ -14,9 +16,17 @@ namespace FieldRouterCanonical
 
 open FieldModelAPI
 open FieldNetworkAPI
+open FieldArchitecture
 open FieldRouterLifecycle
+open FieldRouterSelector
 
 /-! ## Eligibility -/
+
+def canonicalRouteLineageStage : RouteLineageStage :=
+  .canonicalRoute
+
+def canonicalSelectorLineageStage : SelectorLineageStage :=
+  .baseSelector
 
 def CanonicalRouteEligible
     (destination : DestinationClass)
@@ -50,12 +60,39 @@ def chooseCanonicalRouteBySupport
     (current next : LifecycleRoute) : LifecycleRoute :=
   if current.candidate.support < next.candidate.support then next else current
 
+def canonicalSupportSelector : LifecycleRouteSelector :=
+  { eligible := CanonicalRouteEligible
+    choose := chooseCanonicalRouteBySupport }
+
 def canonicalBestRoute
     (destination : DestinationClass)
     (routes : List LifecycleRoute) : Option LifecycleRoute :=
   match canonicalEligibleRoutes destination routes with
   | [] => none
   | head :: tail => some (tail.foldl chooseCanonicalRouteBySupport head)
+
+theorem canonicalBestRoute_eq_selector_bestRoute
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute) :
+    canonicalBestRoute destination routes =
+      bestRoute canonicalSupportSelector destination routes := by
+  have hEligible :
+      canonicalEligibleRoutes destination routes =
+        eligibleRoutes canonicalSupportSelector destination routes := by
+    induction routes with
+    | nil =>
+        simp [canonicalEligibleRoutes, eligibleRoutes]
+    | cons route rest ih =>
+        by_cases hRoute : CanonicalRouteEligible destination route
+        · simp [canonicalEligibleRoutes, eligibleRoutes, eligibleCanonicalRoute,
+            eligibleRoute, canonicalSupportSelector, hRoute]
+          exact ih
+        · simp [canonicalEligibleRoutes, eligibleRoutes, eligibleCanonicalRoute,
+            eligibleRoute, canonicalSupportSelector, hRoute]
+          exact ih
+  unfold canonicalBestRoute bestRoute
+  rw [hEligible]
+  rfl
 
 def CanonicalSupportBest
     (destination : DestinationClass)

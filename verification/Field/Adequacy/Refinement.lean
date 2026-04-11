@@ -8,7 +8,9 @@ The Problem. `Field/Adequacy/Projection` proves strong theorems for synthetic
 projected runtime artifact lists, but the next refinement layer should talk
 about reduced runtime states and runtime steps rather than bare lists. This
 file should define that runtime/system relation and package the first stuttering
-refinement theorems it unlocks.
+refinement theorems it unlocks. The runtime states here are still semantic
+reduced execution objects; the theorem consequences are packaging layered above
+those objects, not a second execution semantics.
 
 Solution Structure.
 1. Define a runtime/system relation that decomposes projected runtime artifacts
@@ -34,6 +36,9 @@ open FieldQualityAPI
 open FieldQualitySystem
 open FieldSystemCanonical
 open FieldSystemEndToEnd
+
+def runtimeSystemRefinementObjectRole : FieldArchitecture.ObjectRole :=
+  .theoremPackaging
 
 /-! ## Runtime/System Relation -/
 

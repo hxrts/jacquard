@@ -1,6 +1,17 @@
 import Field.Information.Bayesian
 import Field.Quality.API
 
+/-!
+Posterior-confidence routing layer.
+
+Ownership note:
+- this module owns posterior-based router decision semantics
+- posterior confidence is not canonical route truth
+- posterior confidence is not exported-view quality truth
+- exported route views and support ranking do not determine posterior truth
+  unless an explicit theorem says so
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 

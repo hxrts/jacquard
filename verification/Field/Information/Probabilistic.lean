@@ -21,6 +21,26 @@ open scoped BigOperators
 
 /-! ## Hypothesis Aggregation -/
 
+/- `ProbabilisticRouteBelief` is the latent belief microstate. The aggregate
+mass functions below are the retained aggregate interface currently exposed to
+later layers. -/
+
+/-- Explicit retained-aggregate interface over the latent probabilistic
+microstate. These aggregates are the semantic boundary between the full belief
+distribution and the public corridor macrostate. -/
+structure RetainedAggregateMasses where
+  explicitPathMass : ℝ
+  corridorCapableMass : ℝ
+  lowQualityMass : ℝ
+  mediumQualityMass : ℝ
+  highQualityMass : ℝ
+  lossyTransportMass : ℝ
+  delayedTransportMass : ℝ
+  reliableTransportMass : ℝ
+  noisyObservationMass : ℝ
+  corroboratedObservationMass : ℝ
+  trustedObservationMass : ℝ
+
 def hypothesisKnowledgeMass
     (belief : ProbabilisticRouteBelief)
     (knowledge : FieldHypothesis) : ℝ :=
@@ -110,16 +130,54 @@ def probabilisticCorridorCapableMass
   hypothesisKnowledgeMass belief FieldHypothesis.corridor +
     hypothesisKnowledgeMass belief FieldHypothesis.explicitPath
 
+def retainedAggregateMassesOfBelief
+    (belief : ProbabilisticRouteBelief) : RetainedAggregateMasses :=
+  { explicitPathMass := probabilisticExplicitPathMass belief
+    corridorCapableMass := probabilisticCorridorCapableMass belief
+    lowQualityMass := hypothesisQualityMass belief .low
+    mediumQualityMass := hypothesisQualityMass belief .medium
+    highQualityMass := hypothesisQualityMass belief .high
+    lossyTransportMass := hypothesisTransportReliabilityMass belief .lossy
+    delayedTransportMass := hypothesisTransportReliabilityMass belief .delayed
+    reliableTransportMass := hypothesisTransportReliabilityMass belief .reliable
+    noisyObservationMass := hypothesisObservationReliabilityMass belief .noisy
+    corroboratedObservationMass := hypothesisObservationReliabilityMass belief .corroborated
+    trustedObservationMass := hypothesisObservationReliabilityMass belief .trusted }
+
+@[simp] theorem retainedAggregateMassesOfBelief_explicitPathMass
+    (belief : ProbabilisticRouteBelief) :
+    (retainedAggregateMassesOfBelief belief).explicitPathMass =
+      probabilisticExplicitPathMass belief := rfl
+
+@[simp] theorem retainedAggregateMassesOfBelief_corridorCapableMass
+    (belief : ProbabilisticRouteBelief) :
+    (retainedAggregateMassesOfBelief belief).corridorCapableMass =
+      probabilisticCorridorCapableMass belief := rfl
+
 /-! ## Public Projection -/
 
-noncomputable def probabilisticPublicProjection
-    (belief : ProbabilisticRouteBelief) : CorridorShape :=
-  if probabilisticExplicitPathMass belief > 0 then
+/- `probabilisticPublicProjection` is the current public macrostate map over
+the latent belief microstate. It is intentionally coarser than both the full
+belief object and the retained aggregate masses. -/
+
+noncomputable def publicMacrostateOfRetainedAggregates
+    (aggregates : RetainedAggregateMasses) : CorridorShape :=
+  if aggregates.explicitPathMass > 0 then
     CorridorShape.explicitPath
-  else if probabilisticCorridorCapableMass belief > 0 then
+  else if aggregates.corridorCapableMass > 0 then
     CorridorShape.corridorEnvelope
   else
     CorridorShape.opaque
+
+noncomputable def probabilisticPublicProjection
+    (belief : ProbabilisticRouteBelief) : CorridorShape :=
+  publicMacrostateOfRetainedAggregates (retainedAggregateMassesOfBelief belief)
+
+theorem probabilisticPublicProjection_eq_publicMacrostateOfRetainedAggregates
+    (belief : ProbabilisticRouteBelief) :
+    probabilisticPublicProjection belief =
+      publicMacrostateOfRetainedAggregates (retainedAggregateMassesOfBelief belief) := by
+  rfl
 
 noncomputable def pointHypothesisBelief
     (hypothesis : ProbabilisticRouteHypothesis) : ProbabilisticRouteBelief :=
@@ -279,7 +337,8 @@ theorem probabilisticPublicProjection_pointHypothesisBelief
       | .unknown => CorridorShape.opaque
       | .unreachable => CorridorShape.opaque := by
   cases hKnowledge : hypothesis.knowledge <;>
-    simp [probabilisticPublicProjection, probabilisticExplicitPathMass,
+    simp [probabilisticPublicProjection, publicMacrostateOfRetainedAggregates,
+      retainedAggregateMassesOfBelief, probabilisticExplicitPathMass,
       probabilisticCorridorCapableMass, hypothesisKnowledgeMass_pointHypothesisBelief,
       hKnowledge]
 

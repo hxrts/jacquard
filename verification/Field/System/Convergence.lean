@@ -18,6 +18,31 @@ open FieldNetworkAPI
 open FieldRouterPublication
 open FieldSystemEndToEnd
 
+/-! ## Profile-Indexed Convergence Vocabulary -/
+
+inductive ConvergenceSurfaceKind
+  | localQuantitative
+  | distributedProfile
+  | bridge
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+structure DistributedConvergenceProfile where
+  assumptions : AsyncAssumptions
+  emptyQueueRequired : Prop
+  networkStableAcrossStep : EndToEndState → Prop
+
+def reliableImmediateEmptyProfile : DistributedConvergenceProfile :=
+  { assumptions := reliableImmediateAssumptions
+    emptyQueueRequired := True
+    networkStableAcrossStep := fun _ => True }
+
+def profileAdmitsState
+    (profile : DistributedConvergenceProfile)
+    (state : EndToEndState) : Prop :=
+  state.async.assumptions = profile.assumptions ∧
+    (profile.emptyQueueRequired → state.async.inFlight = []) ∧
+    profile.networkStableAcrossStep state
+
 /-! ## Queue Preservation -/
 
 def iterateSystemStep : Nat → EndToEndState → EndToEndState
@@ -59,6 +84,18 @@ theorem candidate_view_fixed_point_under_reliable_immediate_empty
   rw [system_step_candidate_view_eq_canonical_under_reliable_immediate_empty (systemStep state) hPres.1 hPres.2]
   rw [system_step_candidate_view_eq_canonical_under_reliable_immediate_empty state hAssumptions hEmpty]
   simp [system_step_preserves_network]
+
+theorem candidate_view_fixed_point_under_profile
+    (profile : DistributedConvergenceProfile)
+    (state : EndToEndState)
+    (hProfile : profile = reliableImmediateEmptyProfile)
+    (hState : profileAdmitsState profile state) :
+    lifecycleCandidateView (systemStep (systemStep state)).lifecycle =
+      lifecycleCandidateView (systemStep state).lifecycle := by
+  subst hProfile
+  rcases hState with ⟨hAssumptions, hEmptyReq, _⟩
+  have hEmpty : state.async.inFlight = [] := hEmptyReq trivial
+  exact candidate_view_fixed_point_under_reliable_immediate_empty state hAssumptions hEmpty
 
 theorem candidate_view_iterate_stable_under_reliable_immediate_empty
     (n : Nat)
@@ -107,6 +144,21 @@ theorem candidate_view_recovers_within_one_step_under_reliable_immediate_empty
     lifecycleCandidateView (iterateSystemStep (n + 1) state).lifecycle =
       lifecycleCandidateView (systemStep state).lifecycle := by
   exact candidate_view_iterate_stable_under_reliable_immediate_empty n state hAssumptions hEmpty
+
+theorem candidate_view_recovers_within_one_step_under_profile
+    (profile : DistributedConvergenceProfile)
+    (n : Nat)
+    (state : EndToEndState)
+    (hProfile : profile = reliableImmediateEmptyProfile)
+    (hState : profileAdmitsState profile state) :
+    lifecycleCandidateView (iterateSystemStep (n + 1) state).lifecycle =
+      lifecycleCandidateView (systemStep state).lifecycle := by
+  subst hProfile
+  rcases hState with ⟨hAssumptions, hEmptyReq, _⟩
+  have hEmpty : state.async.inFlight = [] := hEmptyReq trivial
+  exact
+    candidate_view_recovers_within_one_step_under_reliable_immediate_empty
+      n state hAssumptions hEmpty
 
 theorem candidate_mem_system_step_view_implies_produced
     (state : EndToEndState)

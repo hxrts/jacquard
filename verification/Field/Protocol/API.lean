@@ -23,6 +23,17 @@ Abstract API for the private field summary-exchange protocol layer.
 This protocol surface is intentionally narrower than the full field engine. It
 models only the private cooperative layer that may later be connected to richer
 Telltale choreography and protocol-machine proofs.
+
+Projection taxonomy note:
+
+- protocol projection:
+  choreography/session structure -> local protocol surface
+- local public projection:
+  local field semantics -> corridor/public observable surface
+- runtime projection:
+  runtime artifacts/state -> reduced Lean adequacy surface
+
+This module owns only the first kind.
 -/
 
 set_option autoImplicit false
