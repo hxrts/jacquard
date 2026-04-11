@@ -15,7 +15,6 @@
 //! - `world_extension_contract` — typed observation contribution without owning
 //!   canonical route state.
 
-#[path = "common/mod.rs"]
 pub mod common;
 #[path = "integration/effects_component_contract.rs"]
 mod effects_component_contract;

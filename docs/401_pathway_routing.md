@@ -94,7 +94,7 @@ Pathway defaults to canonical serial search with `batch_width = 1`, `epsilon = 1
 
 ### Admission Contract
 
-Admission and witness generation operate on shared result objects. The pathway engine returns `RouteCandidate`, `RouteAdmissionCheck`, `RouteAdmission`, and `RouteWitness` values. This keeps pathway interoperable with the common router and layering surfaces. The routing-invariants check in `policy/checks/routing_invariants.rs` enforces the planning rules below.
+Admission and witness generation operate on shared result objects. The pathway engine returns `RouteCandidate`, `RouteAdmissionCheck`, `RouteAdmission`, and `RouteWitness` values. This keeps pathway interoperable with the common router and layering surfaces. The routing-invariants check in `policy/checks/rust/routing_invariants.rs` enforces the planning rules below.
 
 - if a planning judgment depends on observations, the current topology must be passed explicitly to the planner method that makes that judgment
 - `BackendRouteRef` stays opaque at the shared boundary, but in pathway it is a self-contained plan token rather than a cache key

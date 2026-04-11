@@ -81,7 +81,7 @@ load_enabled_toolkit_checks() {
       enabled = ""
     }
 
-    /^\[checks\.[^]]+\]/ {
+    /^\[checks\.[^.][^.]*\]$/ {
       flush_section()
       section = $0
       sub(/^\[checks\./, "", section)
