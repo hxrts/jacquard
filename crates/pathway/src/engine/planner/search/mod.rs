@@ -3,18 +3,19 @@
 //! Pathway keeps route-shape derivation, admission, and backend-token
 //! semantics locally. This module owns only the search substrate boundary:
 //! frozen snapshot identity, search configuration, and replay-ready run
-//! records for one objective's goal set.
+//! records for one objective-scoped v13 query.
 
 mod domain;
 mod runner;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use jacquard_core::{Blake3Digest, LinkEndpoint, NodeId, RouteEpoch, RoutingObjective};
 use serde::{Deserialize, Serialize};
 use telltale_search::{
-    EpsilonMilli, SearchExecutionReport, SearchFairnessAssumption, SearchReplayArtifact,
-    SearchSchedulerProfile,
+    EpsilonMilli, SearchCachingProfile, SearchEffortProfile, SearchExecutionPolicy,
+    SearchExecutionReport, SearchFairnessAssumption, SearchQuery, SearchReplayArtifact,
+    SearchReseedingPolicy, SearchSchedulerProfile,
 };
 
 use domain::{freeze_snapshot_for_search, snapshot_id_for_configuration, PathwaySearchDomain};
@@ -68,10 +69,14 @@ pub enum PathwaySearchConfigError {
     ZeroBatchWidth,
     /// Exact Pathway profiles require batch width one.
     RequiresBatchWidthOne(SearchSchedulerProfile),
+    /// Pathway does not expose cached execution modes.
+    UnsupportedCachingProfile(SearchCachingProfile),
+    /// Pathway currently requires exact run-to-completion execution.
+    UnsupportedEffortProfile(SearchEffortProfile),
     /// Search epsilon must be non-zero.
     ZeroEpsilon,
-    /// Goal-set budget must be non-zero.
-    ZeroPerObjectiveSearchBudget,
+    /// Objective-query budget must be non-zero.
+    ZeroPerObjectiveQueryBudget,
     /// The scheduler profile requires one fairness assumption.
     MissingFairnessAssumption {
         /// Profile being validated.
@@ -84,39 +89,33 @@ pub enum PathwaySearchConfigError {
 /// Pathway-owned planner search configuration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PathwaySearchConfig {
-    scheduler_profile: SearchSchedulerProfile,
-    batch_width: u64,
+    execution_policy: SearchExecutionPolicy,
     fairness_assumptions: BTreeSet<SearchFairnessAssumption>,
     epsilon: EpsilonMilli,
-    per_objective_search_budget: usize,
+    per_objective_query_budget: usize,
     heuristic_mode: PathwaySearchHeuristicMode,
+    reseeding_policy: SearchReseedingPolicy,
 }
 
 impl PathwaySearchConfig {
     /// Construct one validated Pathway search config.
     pub fn try_new(
-        scheduler_profile: SearchSchedulerProfile,
-        batch_width: u64,
+        execution_policy: SearchExecutionPolicy,
         fairness_assumptions: BTreeSet<SearchFairnessAssumption>,
         epsilon: EpsilonMilli,
-        per_objective_search_budget: usize,
+        per_objective_query_budget: usize,
         heuristic_mode: PathwaySearchHeuristicMode,
+        reseeding_policy: SearchReseedingPolicy,
     ) -> Result<Self, PathwaySearchConfigError> {
-        Self::validate_scheduler_profile(scheduler_profile)?;
-        if batch_width == 0 {
-            return Err(PathwaySearchConfigError::ZeroBatchWidth);
-        }
-        if batch_width != 1 {
-            return Err(PathwaySearchConfigError::RequiresBatchWidthOne(
-                scheduler_profile,
-            ));
-        }
+        Self::validate_execution_policy(execution_policy)?;
         if epsilon.0 == 0 {
             return Err(PathwaySearchConfigError::ZeroEpsilon);
         }
-        if per_objective_search_budget == 0 {
-            return Err(PathwaySearchConfigError::ZeroPerObjectiveSearchBudget);
+        if per_objective_query_budget == 0 {
+            return Err(PathwaySearchConfigError::ZeroPerObjectiveQueryBudget);
         }
+
+        let scheduler_profile = execution_policy.scheduler_profile;
         let required = BTreeSet::from([SearchFairnessAssumption::DeterministicSchedulerConfluence]);
         for assumption in required {
             if !fairness_assumptions.contains(&assumption) {
@@ -126,14 +125,40 @@ impl PathwaySearchConfig {
                 });
             }
         }
+
         Ok(Self {
-            scheduler_profile,
-            batch_width,
+            execution_policy,
             fairness_assumptions,
             epsilon,
-            per_objective_search_budget,
+            per_objective_query_budget,
             heuristic_mode,
+            reseeding_policy,
         })
+    }
+
+    fn validate_execution_policy(
+        execution_policy: SearchExecutionPolicy,
+    ) -> Result<(), PathwaySearchConfigError> {
+        Self::validate_scheduler_profile(execution_policy.scheduler_profile)?;
+        if execution_policy.batch_width == 0 {
+            return Err(PathwaySearchConfigError::ZeroBatchWidth);
+        }
+        if execution_policy.batch_width != 1 {
+            return Err(PathwaySearchConfigError::RequiresBatchWidthOne(
+                execution_policy.scheduler_profile,
+            ));
+        }
+        if execution_policy.caching_profile != SearchCachingProfile::EphemeralPerStep {
+            return Err(PathwaySearchConfigError::UnsupportedCachingProfile(
+                execution_policy.caching_profile,
+            ));
+        }
+        if execution_policy.effort_profile != SearchEffortProfile::RunToCompletion {
+            return Err(PathwaySearchConfigError::UnsupportedEffortProfile(
+                execution_policy.effort_profile,
+            ));
+        }
+        Ok(())
     }
 
     fn validate_scheduler_profile(
@@ -159,12 +184,12 @@ impl PathwaySearchConfig {
     #[must_use]
     pub fn canonical_serial() -> Self {
         Self::try_new(
-            SearchSchedulerProfile::CanonicalSerial,
-            1,
+            SearchExecutionPolicy::new(SearchSchedulerProfile::CanonicalSerial, 1),
             BTreeSet::from([SearchFairnessAssumption::DeterministicSchedulerConfluence]),
             EpsilonMilli::one(),
             super::super::PATHWAY_CANDIDATE_COUNT_MAX,
             PathwaySearchHeuristicMode::Zero,
+            SearchReseedingPolicy::PreserveOpenAndIncons,
         )
         .expect("canonical serial config is valid")
     }
@@ -172,24 +197,39 @@ impl PathwaySearchConfig {
     #[must_use]
     pub fn threaded_exact_single_lane() -> Self {
         Self::try_new(
-            SearchSchedulerProfile::ThreadedExactSingleLane,
-            1,
+            SearchExecutionPolicy::new(SearchSchedulerProfile::ThreadedExactSingleLane, 1),
             BTreeSet::from([SearchFairnessAssumption::DeterministicSchedulerConfluence]),
             EpsilonMilli::one(),
             super::super::PATHWAY_CANDIDATE_COUNT_MAX,
             PathwaySearchHeuristicMode::Zero,
+            SearchReseedingPolicy::PreserveOpenAndIncons,
         )
         .expect("threaded exact config is valid")
     }
 
     #[must_use]
+    pub fn execution_policy(&self) -> SearchExecutionPolicy {
+        self.execution_policy
+    }
+
+    #[must_use]
     pub fn scheduler_profile(&self) -> SearchSchedulerProfile {
-        self.scheduler_profile
+        self.execution_policy.scheduler_profile
     }
 
     #[must_use]
     pub fn batch_width(&self) -> u64 {
-        self.batch_width
+        self.execution_policy.batch_width
+    }
+
+    #[must_use]
+    pub fn caching_profile(&self) -> SearchCachingProfile {
+        self.execution_policy.caching_profile
+    }
+
+    #[must_use]
+    pub fn effort_profile(&self) -> SearchEffortProfile {
+        self.execution_policy.effort_profile
     }
 
     #[must_use]
@@ -203,8 +243,8 @@ impl PathwaySearchConfig {
     }
 
     #[must_use]
-    pub fn per_objective_search_budget(&self) -> usize {
-        self.per_objective_search_budget
+    pub fn per_objective_query_budget(&self) -> usize {
+        self.per_objective_query_budget
     }
 
     #[must_use]
@@ -213,12 +253,16 @@ impl PathwaySearchConfig {
     }
 
     #[must_use]
+    pub fn reseeding_policy(&self) -> SearchReseedingPolicy {
+        self.reseeding_policy
+    }
+
+    #[must_use]
     pub(super) fn run_config(&self) -> telltale_search::SearchRunConfig {
-        telltale_search::SearchRunConfig {
-            scheduler_profile: self.scheduler_profile,
-            batch_width: self.batch_width,
-            fairness_assumptions: self.fairness_assumptions.clone(),
-        }
+        telltale_search::SearchRunConfig::new(
+            self.execution_policy,
+            self.fairness_assumptions.clone(),
+        )
     }
 
     #[must_use]
@@ -235,9 +279,15 @@ impl PathwaySearchConfig {
     }
 
     #[must_use]
-    pub fn with_per_objective_search_budget(mut self, budget: usize) -> Self {
+    pub fn with_per_objective_query_budget(mut self, budget: usize) -> Self {
         assert!(budget != 0, "Pathway search budget must be non-zero");
-        self.per_objective_search_budget = budget;
+        self.per_objective_query_budget = budget;
+        self
+    }
+
+    #[must_use]
+    pub fn with_reseeding_policy(mut self, reseeding_policy: SearchReseedingPolicy) -> Self {
+        self.reseeding_policy = reseeding_policy;
         self
     }
 }
@@ -245,25 +295,6 @@ impl PathwaySearchConfig {
 impl Default for PathwaySearchConfig {
     fn default() -> Self {
         Self::canonical_serial()
-    }
-}
-
-/// Deterministic search-goal mapping for one Pathway routing objective.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PathwaySearchGoalResolution {
-    /// One exact destination node.
-    ExactDestination(NodeId),
-    /// A finite acceptable set of destination nodes.
-    AcceptableGoalSet(Vec<NodeId>),
-}
-
-impl PathwaySearchGoalResolution {
-    #[must_use]
-    pub fn goal_nodes(&self) -> &[NodeId] {
-        match self {
-            Self::ExactDestination(node_id) => std::slice::from_ref(node_id),
-            Self::AcceptableGoalSet(node_ids) => node_ids.as_slice(),
-        }
     }
 }
 
@@ -287,19 +318,19 @@ pub struct PathwaySearchReconfiguration {
     pub from: PathwaySearchEpoch,
     /// Next search epoch.
     pub to: PathwaySearchEpoch,
+    /// Explicit reseeding policy committed for the new epoch.
+    pub reseeding_policy: SearchReseedingPolicy,
     /// Classified transition relation.
     pub transition_class: PathwaySearchTransitionClass,
 }
 
-/// One completed search-machine run for one concrete destination node.
+/// One completed v13 search execution for one objective-scoped query.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PathwaySearchRun {
-    /// Concrete goal node used for this run.
-    pub goal_node_id: NodeId,
     /// Classified topology transition observed before this run.
     pub topology_transition: PathwaySearchTransitionClass,
-    /// Incumbent node path when the goal is reachable.
-    pub node_path: Option<Vec<NodeId>>,
+    /// Pathway-owned path witness for the selected result when one exists.
+    pub selected_node_path: Option<Vec<NodeId>>,
     /// Pathway-owned reconfiguration summary, when one was applied.
     pub reconfiguration: Option<PathwaySearchReconfiguration>,
     /// Final execution report.
@@ -311,12 +342,64 @@ pub struct PathwaySearchRun {
 /// One objective-scoped search record persisted by Pathway for diagnostics.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PathwayPlannerSearchRecord {
-    /// Objective that was translated into one or more exact-node searches.
+    /// Objective that was translated into one v13-native search query.
     pub objective: RoutingObjective,
-    /// Deterministic goal-resolution strategy used for the objective.
-    pub goal_resolution: PathwaySearchGoalResolution,
-    /// Completed concrete goal-node runs in deterministic order.
-    pub runs: Vec<PathwaySearchRun>,
+    /// Resolved query, when the objective admitted at least one destination.
+    pub query: Option<SearchQuery<NodeId>>,
+    /// Completed objective-scoped search execution, when a query was resolved.
+    pub run: Option<PathwaySearchRun>,
+}
+
+impl PathwayPlannerSearchRecord {
+    /// Reconstruct deterministic candidate node paths discovered by the final
+    /// v13 run state for this objective.
+    #[must_use]
+    pub fn candidate_node_paths(&self) -> Vec<Vec<NodeId>> {
+        let Some(query) = self.query.as_ref() else {
+            return Vec::new();
+        };
+        let Some(run) = self.run.as_ref() else {
+            return Vec::new();
+        };
+
+        let start = query.start();
+        let parent_of = run
+            .report
+            .final_state
+            .parent_map
+            .iter()
+            .map(|(child, parent)| (*child, *parent))
+            .collect::<BTreeMap<_, _>>();
+        let discovered = run
+            .report
+            .final_state
+            .g_scores
+            .iter()
+            .map(|(node_id, _)| *node_id)
+            .collect::<BTreeSet<_>>();
+
+        query
+            .accepted_nodes()
+            .iter()
+            .filter(|node_id| discovered.contains(node_id))
+            .filter_map(|node_id| reconstruct_node_path(start, node_id, &parent_of))
+            .collect()
+    }
+}
+
+fn reconstruct_node_path(
+    start: &NodeId,
+    target: &NodeId,
+    parent_of: &BTreeMap<NodeId, NodeId>,
+) -> Option<Vec<NodeId>> {
+    let mut node_path = vec![*target];
+    let mut cursor = *target;
+    while &cursor != start {
+        cursor = *parent_of.get(&cursor)?;
+        node_path.push(cursor);
+    }
+    node_path.reverse();
+    Some(node_path)
 }
 
 #[cfg(test)]
@@ -326,8 +409,7 @@ mod tests {
     #[test]
     fn config_rejects_unsupported_profiles() {
         let config = PathwaySearchConfig::try_new(
-            SearchSchedulerProfile::BatchedParallelExact,
-            2,
+            SearchExecutionPolicy::new(SearchSchedulerProfile::BatchedParallelExact, 2),
             BTreeSet::from([
                 SearchFairnessAssumption::DeterministicSchedulerConfluence,
                 SearchFairnessAssumption::EventualLiveBatchService,
@@ -336,6 +418,7 @@ mod tests {
             EpsilonMilli::one(),
             4,
             PathwaySearchHeuristicMode::Zero,
+            SearchReseedingPolicy::PreserveOpenAndIncons,
         );
         assert_eq!(
             config,
@@ -348,12 +431,12 @@ mod tests {
     #[test]
     fn config_rejects_missing_fairness() {
         let config = PathwaySearchConfig::try_new(
-            SearchSchedulerProfile::CanonicalSerial,
-            1,
+            SearchExecutionPolicy::new(SearchSchedulerProfile::CanonicalSerial, 1),
             BTreeSet::new(),
             EpsilonMilli::one(),
             4,
             PathwaySearchHeuristicMode::Zero,
+            SearchReseedingPolicy::PreserveOpenAndIncons,
         );
         assert_eq!(
             config,
@@ -367,12 +450,12 @@ mod tests {
     #[test]
     fn threaded_exact_support_matches_target_capability() {
         let config = PathwaySearchConfig::try_new(
-            SearchSchedulerProfile::ThreadedExactSingleLane,
-            1,
+            SearchExecutionPolicy::new(SearchSchedulerProfile::ThreadedExactSingleLane, 1),
             BTreeSet::from([SearchFairnessAssumption::DeterministicSchedulerConfluence]),
             EpsilonMilli::one(),
             4,
             PathwaySearchHeuristicMode::Zero,
+            SearchReseedingPolicy::PreserveOpenAndIncons,
         );
 
         if cfg!(target_arch = "wasm32") {
@@ -385,5 +468,24 @@ mod tests {
         } else {
             assert!(config.is_ok());
         }
+    }
+
+    #[test]
+    fn config_rejects_budgeted_execution() {
+        let config = PathwaySearchConfig::try_new(
+            SearchExecutionPolicy::new(SearchSchedulerProfile::CanonicalSerial, 1)
+                .with_effort_profile(SearchEffortProfile::SchedulerStepBudget(4)),
+            BTreeSet::from([SearchFairnessAssumption::DeterministicSchedulerConfluence]),
+            EpsilonMilli::one(),
+            4,
+            PathwaySearchHeuristicMode::Zero,
+            SearchReseedingPolicy::PreserveOpenAndIncons,
+        );
+        assert_eq!(
+            config,
+            Err(PathwaySearchConfigError::UnsupportedEffortProfile(
+                SearchEffortProfile::SchedulerStepBudget(4),
+            )),
+        );
     }
 }

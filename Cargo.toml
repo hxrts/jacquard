@@ -42,12 +42,12 @@ wildcard_imports = "warn"
 
 [workspace.dependencies]
 # choreography/runtime
-telltale = "12.0.0"
-telltale-search = "12.0.0"
-telltale-types = "12.0.0"
-telltale-macros = "12.0.0"
-telltale-runtime = "12.0.0"
-telltale-simulator = "12.0.0"
+telltale = "13.0.0"
+telltale-search = "13.0.0"
+telltale-types = "13.0.0"
+telltale-macros = "13.0.0"
+telltale-runtime = "13.0.0"
+telltale-simulator = "13.0.0"
 
 # async
 futures     = "0.3"
@@ -74,5 +74,5 @@ cfg-if = "1"
 wasm-bindgen-test = "0.3"
 
 # toolkit
-rust-toolkit-effects = { git = "https://github.com/hxrts/toolkit.git", rev = "49e86a7425d0f790073cd7be8eb94ca60dcba893" }
-rust-toolkit-trait-contracts = { git = "https://github.com/hxrts/toolkit.git", rev = "49e86a7425d0f790073cd7be8eb94ca60dcba893" }
+rust-toolkit-effects = { git = "https://github.com/hxrts/toolkit.git", rev = "17bd53a62a93364d1968afd670b82155db190176" }
+rust-toolkit-trait-contracts = { git = "https://github.com/hxrts/toolkit.git", rev = "17bd53a62a93364d1968afd670b82155db190176" }

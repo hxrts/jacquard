@@ -7,12 +7,12 @@
 //! `build_candidate_summary` assembles the shared `RouteSummary` including
 //! protocol mix and hop count belief; `build_candidate_estimate` produces the
 //! `RouteEstimate` with confidence derived from segment count and topology;
-//! `collect_candidates` drives weighted path search and filters to
-//! objective-matching destinations; `sort_candidates` applies the three-key
-//! sort (path metric, preference score descending, deterministic order key) and
-//! truncates to `PATHWAY_CANDIDATE_COUNT_MAX`; `cache_and_publish_candidates`
-//! populates the planner cache and converts entries to the router-visible
-//! `RouteCandidate`.
+//! `collect_candidates` drives weighted path search and derives deterministic
+//! candidate paths from the final v13 search state; `sort_candidates` applies
+//! the three-key sort (path metric, preference score descending, deterministic
+//! order key) and truncates to `PATHWAY_CANDIDATE_COUNT_MAX`;
+//! `cache_and_publish_candidates` populates the planner cache and converts
+//! entries to the router-visible `RouteCandidate`.
 
 use std::cmp::Reverse;
 
@@ -112,10 +112,9 @@ where
     ) -> Vec<(jacquard_core::BackendRouteId, CachedCandidate)> {
         let configuration = &topology.value;
         self.search_record_for_objective(objective, topology)
-            .runs
+            .candidate_node_paths()
             .into_iter()
-            .filter_map(|run| {
-                let node_path = run.node_path?;
+            .filter_map(|node_path| {
                 if node_path.last().copied() == Some(self.local_node_id) {
                     return None;
                 }

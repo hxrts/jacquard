@@ -40,7 +40,7 @@ graph LR
   Router -- registers --> Pathway
 ```
 
-The reference end-to-end example is [`e2e_multi_layer_routing.rs`](../crates/reference-client/tests/e2e_multi_layer_routing.rs). It shows how to add a new client runtime to the same in-memory network without bypassing the bridge-owned ingress path or the router-owned canonical path.
+The reference end-to-end example is the `reference-client` multi-layer routing test at [`crates/reference-client/tests/e2e_multi_layer_routing.rs`](../crates/reference-client/tests/e2e_multi_layer_routing.rs). It shows how to add a new client runtime to the same in-memory network without bypassing the bridge-owned ingress path or the router-owned canonical path.
 
 ## Extension Guidance
 

@@ -56,6 +56,14 @@ jobs:
         run: ./scripts/toolkit-shell.sh toolkit-xtask check dependency-policy --repo-root . --config policy/toolkit.toml
       - name: Test Boundaries
         run: ./scripts/toolkit-shell.sh toolkit-xtask check test-boundaries --repo-root . --config policy/toolkit.toml
+      - name: Lean Escape Hatches
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check lean-escape-hatches --repo-root . --config policy/toolkit.toml
+      - name: Text Formatting
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check text-formatting --repo-root . --config policy/toolkit.toml
+      - name: Workspace Hygiene
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check workspace-hygiene --repo-root . --config policy/toolkit.toml
+      - name: Workflow Actions
+        run: ./scripts/toolkit-shell.sh toolkit-xtask check workflow-actions --repo-root . --config policy/toolkit.toml
       - name: Trait Purity
         run: cargo run --manifest-path policy/xtask/Cargo.toml -- check trait-purity
       - name: Crate Boundary

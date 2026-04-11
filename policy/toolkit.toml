@@ -143,6 +143,7 @@ require_explanatory_comment_for_long_blocks = true
 require_public_theorem_lemma_docstrings = false
 banned_imports = ["Field.Assumptions"]
 banned_import_exemptions = ["verification/Field/Field.lean"]
+forbid_sorry = false
 require_todo_for_sorry = true
 todo_comment_markers = ["TODO:"]
 over_limit_comment_markers = ["long-block-exception:"]
@@ -256,6 +257,32 @@ enabled = true
 manifest_roots = ["crates"]
 require_default_features_false = ["serde", "tokio", "futures"]
 banned_dependencies = []
+
+[checks.lean_escape_hatches]
+enabled = true
+include_paths = ["verification/Field"]
+exclude_path_parts = ["/.lake/", "/build/", "/lake-packages/"]
+
+[checks.lean_escape_hatches.kind_thresholds]
+noncomputable = 500
+native_decide = 10
+opaque = 61
+empty_theorem_shell = 2
+
+[checks.text_formatting]
+enabled = true
+include_paths = ["crates", "docs", "verification", "policy"]
+exclude_path_parts = ["/.lake/", "/build/", "/target/", "/lake-packages/"]
+
+[checks.workspace_hygiene]
+enabled = true
+include_paths = ["crates"]
+exclude_path_parts = ["/target/"]
+
+[checks.workflow_actions]
+enabled = true
+workflow_roots = [".github/workflows"]
+pin_comment_markers = ["pin"]
 
 [policy.exemptions]
 bare_primitives_exempt_paths = [
