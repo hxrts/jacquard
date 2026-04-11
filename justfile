@@ -103,7 +103,9 @@ summary:
 _gen-assets:
     #!/usr/bin/env bash
     set -euo pipefail
-    mdbook-mermaid install . > /dev/null 2>&1 || true
+    mdbook-mermaid install . > /dev/null
+    test -f mermaid-init.js
+    test -f mermaid.min.js
     # Patch mermaid-init.js with null guards for mdbook 0.5.x theme buttons
     sed -i.bak 's/document\.getElementById(\(.*\))\.addEventListener/const el = document.getElementById(\1); if (el) el.addEventListener/' mermaid-init.js && rm -f mermaid-init.js.bak
     # Generate theme/index.hbs with MathJax v2 inline $ config injected before MathJax loads

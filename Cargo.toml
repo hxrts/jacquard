@@ -72,3 +72,7 @@ rand = "0.8"
 uuid = { version = "1", features = ["v4", "serde"] }
 cfg-if = "1"
 wasm-bindgen-test = "0.3"
+
+# toolkit
+rust-toolkit-effects = { git = "https://github.com/hxrts/toolkit.git", rev = "49e86a7425d0f790073cd7be8eb94ca60dcba893" }
+rust-toolkit-trait-contracts = { git = "https://github.com/hxrts/toolkit.git", rev = "49e86a7425d0f790073cd7be8eb94ca60dcba893" }
