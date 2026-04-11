@@ -1,15 +1,17 @@
 import Field.Information.Bayesian
 import Field.Quality.API
 
-/-!
-Posterior-confidence routing layer.
+/-
+The Problem. The field router needs a probabilistic decision surface driven by
+posterior confidence and posterior utility, but that surface must remain
+explicitly separate from canonical route truth and exported-view quality.
 
-Ownership note:
-- this module owns posterior-based router decision semantics
-- posterior confidence is not canonical route truth
-- posterior confidence is not exported-view quality truth
-- exported route views and support ranking do not determine posterior truth
-  unless an explicit theorem says so
+Solution Structure.
+1. Define posterior confidence thresholds and posterior-driven routing
+   decisions.
+2. Define posterior expected utility, best utility, and regret.
+3. Prove the core monotonicity and threshold theorems without conflating this
+   layer with canonical selector truth.
 -/
 
 set_option autoImplicit false
@@ -23,6 +25,8 @@ open FieldModelAPI
 open FieldNetworkAPI
 open FieldQualityAPI
 open FieldRouterLifecycle
+
+/-! ## Posterior Decisions And Utilities -/
 
 structure PosteriorConfidenceThresholds where
   corridorMin : Rat

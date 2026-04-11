@@ -44,6 +44,8 @@ open FieldModelAPI
 open FieldProtocolAPI
 open FieldProtocolBoundary
 
+/-! ## Evidence Boundary Adapter -/
+
 /-- Translate one observational protocol output into bounded local evidence at
 the local public projection boundary. -/
 def protocolOutputToEvidence (output : ProtocolOutput) : EvidenceInput :=

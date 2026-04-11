@@ -130,6 +130,9 @@ noncomputable def corridorCapableMassImpl (belief : FiniteBelief) : ℝ :=
   (normalizeBeliefImpl belief).pmf FieldHypothesis.corridor +
     (normalizeBeliefImpl belief).pmf FieldHypothesis.explicitPath
 
+-- long-block-exception: this instance threads one tightly coupled law bundle
+-- through the normalized pmf realization; splitting it would mostly duplicate
+-- the same concrete arithmetic hypotheses across helper instances.
 noncomputable instance fieldInformationLaws : FieldInformationAPI.Laws where
   simplexBelief := simplexBeliefImpl
   shannonUncertainty := shannonUncertaintyImpl

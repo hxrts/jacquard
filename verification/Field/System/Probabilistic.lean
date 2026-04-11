@@ -3,6 +3,19 @@ import Field.Model.Refinement
 import Field.Router.Probabilistic
 import Field.System.EndToEnd
 
+/-
+The Problem. The field system layer already composes async transport,
+publication, and local posterior semantics, but it still needs one explicit
+probabilistic system layer that explains how envelopes, routes, and published
+candidates induce probabilistic observations and posterior decisions.
+
+Solution Structure.
+1. Translate async envelopes and lifecycle routes into reduced evidence.
+2. Define the induced probabilistic observations and posterior beliefs.
+3. Prove representative observation-strength and repeated-observation lemmas
+   over that system-facing probabilistic surface.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -17,6 +30,8 @@ open FieldNetworkAPI
 open FieldRouterProbabilistic
 open FieldRouterPublication
 open FieldSystemEndToEnd
+
+/-! ## Envelope Evidence And Posterior Surface -/
 
 def reachabilitySignalOfShape : CorridorShape → ReachabilitySignal
   | .opaque => .unknown

@@ -17,6 +17,8 @@ just test           # cargo test --workspace
 just lint           # cargo clippy --workspace --all-targets -- -D warnings
 just fmt            # toolkit-owned nightly rustfmt policy
 just fmt-check      # toolkit-owned nightly rustfmt policy with --check
+just lean-style     # toolkit-owned Lean source-style policy over verification/Field
+just lean-check     # lean-style, lean setup, then lake build
 just wasm-check     # build jacquard-pathway and jacquard-reference-client for wasm32-unknown-unknown
 just wasm-test-reference-client # run the reference-client wasm integration test under wasm-bindgen-test
 just book           # build mdbook docs (default recipe when running bare `just`)
@@ -87,6 +89,12 @@ For nightly compiler-backed lint parity, use the toolkit wrappers for portable l
 ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint trait_must_use --all -- --all-targets
 ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint naked_map_err --all -- --all-targets
 ```
+
+For Lean verification work, use `just lean-style` for targeted source-policy
+checking and `nix develop --command just lean-check` for the full local style +
+build path. The CI lane currently blocks on Lean style only; full Lean build is
+still local-only while the verification package depends on sibling path
+checkouts.
 
 ## Test layout
 

@@ -2,8 +2,17 @@ import ClassicalAnalysisAPI
 import Field.Information.Instance
 import Field.Model.Instance
 
-/-!
-Field-side information-cost / blindness bridge for the normalized belief model.
+/-
+The Problem. The information layer defines a richer probabilistic belief
+surface, but downstream public observers do not see that full microstate. We
+need one explicit blindness/coarse-graining layer that states what public
+projection preserves and what it erases.
+
+Solution Structure.
+1. Define the public projection over finite beliefs and reduced summaries.
+2. Prove the projection is lossy and coarse-grained by construction.
+3. Prove representative erasure lemmas for support, freshness, and unknown vs
+   unreachable distinctions.
 -/
 
 set_option autoImplicit false
@@ -16,6 +25,8 @@ open FieldInformationInstance
 open FieldModelAPI
 open FieldModelInstance
 open EntropyAPI
+
+/-! ## Public Projection And Erasure -/
 
 /-- Conservative public observer over the normalized belief object. -/
 noncomputable def publicProjectionOfBelief

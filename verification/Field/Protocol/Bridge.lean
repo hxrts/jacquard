@@ -2,9 +2,17 @@ import Field.Model.Boundary
 import Field.Protocol.Instance
 import SessionTypes.Core
 
-/-!
-Bridge module connecting the reduced field protocol object to a
-Telltale-shaped protocol-machine fragment.
+/-
+The Problem. The reduced field protocol instance needs a bridge to a
+Telltale-shaped machine fragment so the proof stack can talk about replay,
+fragment traces, and controller-facing evidence without collapsing protocol
+semantics into one Jacquard-specific machine state.
+
+Solution Structure.
+1. Define one reduced machine fragment that preserves only controller-relevant
+   fields.
+2. Erase snapshots and traces into that fragment vocabulary.
+3. Prove the fragment preserves the same observational semantic objects.
 -/
 
 set_option autoImplicit false
@@ -15,6 +23,8 @@ namespace FieldProtocolBridge
 open FieldBoundary
 open FieldProtocolAPI
 open SessionTypes.Core
+
+/-! ## Fragment Vocabulary -/
 
 /-- Reduced fragment of a Telltale protocol-machine state carrying only the
 controller-relevant fields preserved by the current field proof boundary. -/

@@ -125,6 +125,45 @@ exclude_path_parts = [
   "/examples/",
 ]
 
+[checks.lean_style]
+enabled = true
+include_paths = ["verification/Field"]
+exclude_path_parts = ["/.lake/", "/build/", "/lake-packages/"]
+non_trivial_file_lines = 120
+section_header_min_lines = 80
+max_file_lines = 500
+max_decl_lines_target = 30
+max_decl_lines_hard_limit = 50
+enforce_target_decl_lines = false
+require_problem_statement = true
+require_section_headers = true
+require_over_limit_comment = true
+over_limit_comment_markers = ["long-block-exception:"]
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/Model/Instance.lean"
+reason = "unified local-model realization still exceeds the file-size target while the remaining harmonization plan is open"
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/Model/API.lean"
+reason = "the central local semantic API remains oversized until the shared model surface is split more aggressively"
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/Router/Canonical.lean"
+reason = "canonical selector semantics still live in one large proof surface pending the remaining selector-family refactor"
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/Model/Refinement.lean"
+reason = "reduction-preservation theorems are still concentrated in one module while the refinement ladder is being factored"
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/System/Bounded.lean"
+reason = "bounded system execution and accounting theorems remain co-located until the remaining cleanup plan is finished"
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/AssumptionTheorems.lean"
+reason = "assumption packaging and theorem exports remain consolidated while the assumption-surface split is still in progress"
+
 [checks.docs_link_check]
 enabled = true
 docs_roots = ["docs"]

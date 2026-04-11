@@ -1,7 +1,17 @@
 import Field.CostAPI
 import Field.Router.Lifecycle
 
-/-! # Router.Selector — shared selector-family abstraction for lifecycle routes -/
+/-
+The Problem. The router stack has several selector-style theorem packs, and we
+need one shared abstraction that separates selector semantics from search
+execution policy without collapsing posture into truth ownership.
+
+Solution Structure.
+1. Define selector semantics, objective surface, and tie-break surface.
+2. Define search traversal and execution-policy vocabulary separately.
+3. Prove the small bridge lemmas that relate posture-chosen execution policy
+   back to fixed selector semantics.
+-/
 
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
@@ -12,6 +22,8 @@ open FieldCostAPI
 open FieldModelAPI
 open FieldNetworkAPI
 open FieldRouterLifecycle
+
+/-! ## Selector And Search Surface -/
 
 structure LifecycleRouteSelector where
   eligible : DestinationClass → LifecycleRoute → Prop

@@ -181,6 +181,7 @@ ci-dry-run:
     add_step "Format Check"               "{{fmt_cmd}} --all -- --check"
     add_step "Clippy"                     "cargo clippy --workspace --all-targets -- -D warnings"
     add_step "Tests"                      "cargo test --workspace"
+    add_step "Lean Style"                 "just lean-style"
     add_step "Wasm Check"                 "just wasm-check"
     add_step "Wasm Reference Client Test" "just wasm-test-reference-client"
     add_step "Docs Links"                 "npx --yes markdown-link-check -q -c .github/config/markdown-link-check.json docs"
@@ -335,8 +336,18 @@ release \
 lean-setup:
     ./scripts/lean-prebuilt.sh
 
+# Run the generic Lean source-style policy over the verification tree.
+lean-style:
+    {{toolkit_cmd}} check lean-style --repo-root . --config policy/toolkit.toml
+
 # Build the Lean verification package (requires lean-setup to have been run once).
 lean-build:
+    cd verification && lake build
+
+# Run Lean source-style policy, hydrate the cache if needed, then build.
+lean-check:
+    just lean-style
+    just lean-setup
     cd verification && lake build
 
 # install git hooks

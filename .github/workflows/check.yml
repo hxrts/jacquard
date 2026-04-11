@@ -34,6 +34,8 @@ jobs:
         run: nix develop --command cargo clippy --workspace --all-targets -- -D warnings
       - name: Tests
         run: nix develop --command cargo test --workspace
+      - name: Lean Style
+        run: nix develop --command just lean-style
       - name: Wasm Check
         run: just wasm-check
       - name: Wasm Reference Client Test

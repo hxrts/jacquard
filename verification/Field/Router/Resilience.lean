@@ -196,6 +196,9 @@ theorem dropoutCanonicalSupportValue_some_of_surviving_support_best
     (hWinner : canonicalBestRoute destination routes = some winner)
     (hSurvives : routeSurvivesSilenceDropout budget winner) :
     dropoutCanonicalSupportValue budget destination routes = some winner.candidate.support := by
+  -- long-block-exception: this proof keeps the survivor-witness construction
+  -- and the canonical-support equality in one place to avoid obscuring the
+  -- dropout argument across several nearly mechanical helper lemmas.
   have hWinnerMem :
       winner ∈ routes :=
     canonicalBestRoute_some_mem destination routes winner hWinner

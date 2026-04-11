@@ -123,6 +123,9 @@ def exportSemanticObjectsImpl
 
 /-! ## API Instance -/
 
+-- long-block-exception: the reduced protocol laws are intentionally presented
+-- as one executable law bundle so the whole boundary contract is reviewable in
+-- one place against the concrete machine step.
 instance fieldProtocolLaws : FieldProtocolAPI.Laws where
   globalChoreography := globalChoreographyImpl
   controllerRole := controllerRoleImpl

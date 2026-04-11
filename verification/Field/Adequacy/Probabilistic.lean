@@ -1,6 +1,19 @@
 import Field.Adequacy.Instance
 import Field.Information.Calibration
 
+/-
+The Problem. The adequacy layer already extracts reduced runtime artifacts and
+the probabilistic layer already defines posterior-based routing decisions, but
+we still need one narrow bridge that says how runtime-visible artifacts induce
+posterior decisions and expected-utility comparisons.
+
+Solution Structure.
+1. Extract the leading runtime evidence and corresponding trace evidence.
+2. Define the posterior decisions induced by runtime artifacts.
+3. Prove that adequacy-preserved runtime evidence yields the same posterior
+   decisions and expected-utility ordering.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -11,6 +24,8 @@ open FieldInformationCalibration
 open FieldModelAPI
 open FieldModelInstance
 open FieldRouterProbabilistic
+
+/-! ## Leading Evidence And Posterior Decisions -/
 
 def runtimeLeadingEvidence
     (artifacts : List RuntimeRoundArtifact) : EvidenceInput :=

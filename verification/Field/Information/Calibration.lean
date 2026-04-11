@@ -1,6 +1,19 @@
 import Field.Model.Refinement
 import Field.Router.Probabilistic
 
+/-
+The Problem. The probabilistic router layer introduces threshold-based
+decisions, expected utility, and regret, but those surfaces need one explicit
+calibration layer that states which interpretations are justified by the
+posterior model and which stronger correlation claims remain out of scope.
+
+Solution Structure.
+1. Define the calibration targets and their corresponding propositions.
+2. Prove the reduced posterior decision rules satisfy those calibration
+   propositions.
+3. Keep stronger correlated-observation regimes explicit as out of scope.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -12,6 +25,8 @@ open FieldModelAPI
 open FieldModelInstance
 open FieldModelRefinement
 open FieldRouterProbabilistic
+
+/-! ## Calibration Targets -/
 
 inductive ProbabilisticCalibrationTarget
   | confidenceThresholdValidity

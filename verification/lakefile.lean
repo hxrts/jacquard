@@ -21,11 +21,8 @@ package jacquard where
 -- Protocol, Choreography, Semantics, SessionTypes, Distributed.
 -- Mathlib and Paco are transitive dependencies through Telltale.
 -- Revision is pinned; run `lake update` to advance.
--- Temporary local override while the GitHub-pinned Lean package is being fixed.
--- Restore the git dependency after the next working Telltale release is cut.
--- require telltale from git
---   "https://github.com/hxrts/telltale" @ "main" / "lean"
-require telltale from "../../telltale/lean"
+require telltale from git
+  "https://github.com/hxrts/telltale" @ "026fbdd645895a84a2215f81c857094a479dff77" / "lean"
 
 /-! ## Verification Root
 

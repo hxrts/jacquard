@@ -54,6 +54,7 @@ checks=(
   "Format Check"
   "Clippy"
   "Tests"
+  "Lean Style"
   "Wasm Check"
   "Wasm Reference Client Test"
   "Docs Links"
