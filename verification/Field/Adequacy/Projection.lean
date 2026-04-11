@@ -173,6 +173,19 @@ theorem runtimeLifecycleRoutes_projectedRuntimeArtifactsOfState
   unfold projectedRuntimeArtifactsOfState
   exact runtimeLifecycleRoutes_map_runtimeArtifactOfLifecycleRoute ((systemStep state).lifecycle)
 
+theorem projectedRuntimeArtifactsOfState_length
+    (state : EndToEndState) :
+    (projectedRuntimeArtifactsOfState state).length =
+      (systemStep state).lifecycle.length := by
+  unfold projectedRuntimeArtifactsOfState runtimeArtifactsOfRoutes
+  simp
+
+theorem projectedRuntimeArtifactsOfState_router_artifact_count_preserved
+    (state : EndToEndState) :
+    (runtimeLifecycleRoutes (projectedRuntimeArtifactsOfState state)).length =
+      (systemStep state).lifecycle.length := by
+  rw [runtimeLifecycleRoutes_projectedRuntimeArtifactsOfState]
+
 theorem projectedRuntimeArtifactsOfState_projects_system
     (state : EndToEndState) :
     RuntimeExecutionProjectsSystemState (projectedRuntimeArtifactsOfState state) state := by

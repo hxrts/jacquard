@@ -93,8 +93,7 @@ impl InMemoryTransport {
     /// Used by test harnesses that need to simulate incoming transport
     /// observations without going through the network layer.
     pub fn push_ingress_event(&mut self, event: TransportIngressEvent) {
-        let _ = self
-            .ingress_sender
+        self.ingress_sender
             .emit(TransportIngressClass::Payload, event)
             .expect("push ingress event to in-memory transport mailbox");
     }
@@ -119,8 +118,7 @@ impl TransportDriver for InMemoryTransport {
     fn drain_transport_ingress(&mut self) -> Result<Vec<TransportIngressEvent>, TransportError> {
         if let (Some(network), Some(local_node_id)) = (&self.network, self.local_node_id) {
             for event in network.take_for(local_node_id) {
-                let _ = self
-                    .ingress_sender
+                self.ingress_sender
                     .emit(TransportIngressClass::Payload, event)
                     .expect("in-memory transport payload ingress mailbox");
             }

@@ -10,7 +10,7 @@
 
 use std::ops::{Deref, DerefMut};
 
-use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
+use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine, PathwaySearchConfig};
 use jacquard_traits::{
     jacquard_core::{
         Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs,
@@ -88,6 +88,18 @@ pub fn build_engine_at_tick(now: Tick) -> TestEngine {
 }
 
 pub fn build_engine_for_node_at_tick(local_node_id: NodeId, now: Tick) -> TestEngine {
+    build_engine_with_search_config(local_node_id, now, PathwaySearchConfig::default())
+}
+
+pub fn build_engine_with_config(search_config: PathwaySearchConfig) -> TestEngine {
+    build_engine_with_search_config(LOCAL_NODE_ID, Tick(2), search_config)
+}
+
+pub fn build_engine_with_search_config(
+    local_node_id: NodeId,
+    now: Tick,
+    search_config: PathwaySearchConfig,
+) -> TestEngine {
     let transport = TestTransport::default();
     let retention = TestRetentionStore::default();
     let effects = TestRuntimeEffects::default();
@@ -99,7 +111,8 @@ pub fn build_engine_for_node_at_tick(local_node_id: NodeId, now: Tick) -> TestEn
         retention.clone(),
         effects.clone(),
         Blake3Hashing,
-    );
+    )
+    .with_search_config(search_config);
     TestEngine {
         engine,
         transport,

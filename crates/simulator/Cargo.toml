@@ -14,7 +14,7 @@ jacquard-reference-client = { path = "../reference-client" }
 jacquard-router = { path = "../router" }
 jacquard-traits = { path = "../traits" }
 
-serde.workspace = true
+serde = { workspace = true, default-features = false }
 telltale-simulator.workspace = true
 thiserror.workspace = true
 

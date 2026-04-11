@@ -1,5 +1,12 @@
 import Field.Router.Admission
 
+/-! # Router.Installation — installed route structure and honesty on candidate conversion -/
+
+/-
+Define the installed route record shape and prove that converting an admitted candidate to a
+control-plane installed object preserves the honesty invariant.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -7,6 +14,8 @@ namespace FieldRouterInstallation
 
 open FieldNetworkAPI
 open FieldRouterAdmission
+
+/-! ## Installed Route -/
 
 /-- Minimal canonical installed-route object for the reduced router-facing
 control-plane semantics. -/
@@ -31,6 +40,8 @@ def installCandidate
 def CanonicalInstallation
     (installed : InstalledRoute) : Prop :=
   ∃ admitted, installCandidate admitted = installed
+
+/-! ## Honesty Preservation -/
 
 theorem installation_preserves_admitted_honesty
     (admitted : AdmittedCandidate) :

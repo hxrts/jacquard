@@ -1,5 +1,13 @@
 import Field.Async.Safety
 
+/-! # System.Statistics — aggregate and average support statistics across the network -/
+
+/-
+Define aggregate and per-node average support statistics over the full network state and prove
+that total support mass accumulation stays within the product of node count and max per-node
+support.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -8,6 +16,8 @@ namespace FieldSystemStatistics
 open FieldAsyncAPI
 open FieldModelAPI
 open FieldNetworkAPI
+
+/-! ## Aggregate Statistics -/
 
 def aggregateSupport
     (network : NetworkState)
@@ -28,6 +38,8 @@ def readySupportMass
   (readyMessages state receiver destination).foldl
     (fun acc envelope => acc + envelope.projection.support)
     0
+
+/-! ## Mass Bounds -/
 
 theorem aggregateSupport_bounded
     (network : NetworkState)

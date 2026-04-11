@@ -300,7 +300,7 @@ where
         objective: &RoutingObjective,
         profile: &SelectedRoutingParameters,
     ) -> Result<MaterializedRoute, RouteError> {
-        let _ = self.advance_all_engines()?;
+        self.advance_all_engines()?;
         let candidate = self
             .ordered_candidates(objective, profile)
             .into_iter()

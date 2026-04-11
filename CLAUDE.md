@@ -17,6 +17,10 @@ just test           # cargo test --workspace
 just lint           # cargo clippy --workspace --all-targets -- -D warnings
 just fmt            # toolkit-owned nightly rustfmt policy
 just fmt-check      # toolkit-owned nightly rustfmt policy with --check
+just lean-style     # toolkit-owned Lean source-style policy over verification/Field
+just lean-check     # lean-style, lean setup, then lake build
+just wasm-check     # build jacquard-pathway and jacquard-reference-client for wasm32-unknown-unknown
+just wasm-test-reference-client # run the reference-client wasm integration test under wasm-bindgen-test
 just book           # build mdbook docs (default recipe when running bare `just`)
 just ci-dry-run     # run all CI checks locally (format, clippy, tests, toolkit/policy, dylint)
 just install-hooks  # enable .githooks/pre-commit
@@ -57,7 +61,7 @@ Transport ownership is split deliberately:
 - Host bridges own ingress draining, batching, and time attachment.
 - Transport-specific endpoint authoring belongs in transport-owned profile crates, not in `core`, `adapter`, or the mem profile crates.
 
-`macros` owns syntax-local code generation and annotation-site validation. The flake-input `rust-toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `policy/lints/` and `policy/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
+`macros` owns syntax-local code generation and annotation-site validation. The flake-input `toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `policy/lints/` and `policy/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
 `jacquard-field` owns field-private posterior state, mean-field compression, regime/posture control state, and continuation scoring. Like pathway and batman, field-private choreography may supply only observational evidence into the deterministic local controller — canonical route publication remains router-owned.
 
@@ -86,6 +90,12 @@ For nightly compiler-backed lint parity, use the toolkit wrappers for portable l
 ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint naked_map_err --all -- --all-targets
 ```
 
+For Lean verification work, use `just lean-style` for targeted source-policy
+checking and `nix develop --command just lean-check` for the full local style +
+build path. The CI lane currently blocks on Lean style only; full Lean build is
+still local-only while the verification package depends on sibling path
+checkouts.
+
 ## Test layout
 
 Unit tests co-locate with the module they cover. Higher-level tests go in `tests/` subdirectories by type (`integration/`, `regression/`, `property/`).
@@ -99,7 +109,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 
 ## Telltale dependency
 
-Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, currently `11.3.0`). Individual crates import them via `{ workspace = true }`.
+Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, currently `12.0.0`). Individual crates import them via `{ workspace = true }`.
 
 ## long-block-exception
 

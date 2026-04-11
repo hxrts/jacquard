@@ -158,7 +158,7 @@ where
             .retention
             .contains_retained_payload(&payload.object_id)?
         {
-            let _ = self.retention.take_retained_payload(&payload.object_id)?;
+            self.retention.take_retained_payload(&payload.object_id)?;
         }
         Ok(())
     }

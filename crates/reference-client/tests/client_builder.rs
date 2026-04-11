@@ -1,3 +1,8 @@
+//! Reference-client builder and projector smoke tests.
+//!
+//! These cover the minimal host-facing builder flow without crossing the full
+//! shared-network forwarding path.
+
 use std::collections::BTreeMap;
 
 use jacquard_core::{

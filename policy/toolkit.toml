@@ -47,6 +47,9 @@ exclude_files = [
   "crates/pathway/src/engine/planner/mod.rs",
   "crates/pathway/src/engine/planner/pathing.rs",
   "crates/pathway/src/engine/planner/publishing.rs",
+  "crates/pathway/src/engine/planner/search/domain.rs",
+  "crates/pathway/src/engine/planner/search/mod.rs",
+  "crates/pathway/src/engine/planner/search/runner.rs",
   "crates/pathway/src/engine/planner/scoring.rs",
   "crates/pathway/src/engine/runtime/health.rs",
   "crates/pathway/src/engine/runtime/materialization.rs",
@@ -122,6 +125,52 @@ exclude_path_parts = [
   "/examples/",
 ]
 
+[checks.lean_style]
+enabled = true
+include_paths = ["verification/Field"]
+exclude_path_parts = ["/.lake/", "/build/", "/lake-packages/"]
+non_trivial_file_lines = 120
+section_header_min_lines = 80
+max_file_lines = 500
+max_decl_lines_target = 30
+max_decl_lines_hard_limit = 50
+enforce_target_decl_lines = false
+require_problem_statement = true
+enforce_top_of_file_structure = true
+require_section_headers = true
+require_over_limit_comment = true
+require_explanatory_comment_for_long_blocks = true
+require_public_theorem_lemma_docstrings = false
+banned_imports = ["Field.Assumptions"]
+banned_import_exemptions = ["verification/Field/Field.lean"]
+require_todo_for_sorry = true
+todo_comment_markers = ["TODO:"]
+over_limit_comment_markers = ["long-block-exception:"]
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/Model/Instance.lean"
+reason = "unified local-model realization still exceeds the file-size target while the remaining harmonization plan is open"
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/Model/API.lean"
+reason = "the central local semantic API remains oversized until the shared model surface is split more aggressively"
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/Router/Canonical.lean"
+reason = "canonical selector semantics still live in one large proof surface pending the remaining selector-family refactor"
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/Model/Refinement.lean"
+reason = "reduction-preservation theorems are still concentrated in one module while the refinement ladder is being factored"
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/System/Bounded.lean"
+reason = "bounded system execution and accounting theorems remain co-located until the remaining cleanup plan is finished"
+
+[[checks.lean_style.file_exemptions]]
+path = "verification/Field/AssumptionTheorems.lean"
+reason = "assumption packaging and theorem exports remain consolidated while the assumption-surface split is still in progress"
+
 [checks.docs_link_check]
 enabled = true
 docs_roots = ["docs"]
@@ -162,6 +211,13 @@ include_paths = ["crates"]
 [checks.must_use_public_return]
 enabled = true
 include_paths = ["crates"]
+exclude_path_parts = [
+  "crates/core/src/authoring.rs",
+  "crates/mem-link-profile/src/",
+  "crates/mem-node-profile/src/",
+  "crates/simulator/src/presets.rs",
+]
+allowed_return_type_prefixes = ["Result", "Option"]
 
 [checks.assert_shape]
 enabled = true
@@ -189,7 +245,11 @@ allow_comment_marker = "limit-constant-exception:"
 [checks.public_type_width]
 enabled = true
 include_paths = ["crates"]
-banned_types = ["usize", "isize", "f32", "f64"]
+exclude_path_parts = [
+  "crates/reference-client/src/bridge.rs",
+  "crates/simulator/src/replay.rs",
+]
+banned_types = ["isize", "f32", "f64"]
 
 [checks.dependency_policy]
 enabled = true

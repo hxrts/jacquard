@@ -1,6 +1,13 @@
 import Field.Quality.Reference
 import Field.Quality.System
 
+/-! # Quality.Refinement — support-dominance folding and system-level route view equivalences -/
+
+/-
+Prove that folding support-dominance comparison across a route set produces the same winner
+as reference selection, and lift the equivalence to system-level route views.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -12,6 +19,8 @@ open FieldQualityReference
 open FieldQualitySystem
 open FieldRouterLifecycle
 open FieldSystemEndToEnd
+
+/-! ## Folding Equivalence -/
 
 def referenceBestSystemRouteView
     (destination : DestinationClass)
@@ -110,6 +119,8 @@ theorem bestRouteView_supportDominance_refines_reference
       referenceBestRouteView destination routes = some winner := by
     simpa [bestRouteView_supportDominance_eq_referenceBestRouteView destination routes] using hWinner
   exact referenceBestRouteView_some_is_reference_best destination routes winner hReference
+
+/-! ## System-Level Equivalences -/
 
 theorem bestSystemRouteView_supportDominance_eq_referenceBestSystemRouteView
     (destination : DestinationClass)

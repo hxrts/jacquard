@@ -22,9 +22,21 @@ jobs:
       - uses: cachix/install-nix-action@v24
         with:
           nix_path: nixpkgs=channel:nixos-unstable
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
       - name: Format Check
         run: ./scripts/toolkit-shell.sh toolkit-fmt --all -- --check
       - name: Clippy
         run: nix develop --command cargo clippy --workspace --all-targets -- -D warnings
       - name: Tests
         run: nix develop --command cargo test --workspace
+      - name: Lean Style
+        run: nix develop --command just lean-style
+      - name: Wasm Check
+        run: just wasm-check
+      - name: Wasm Reference Client Test
+        run: just wasm-test-reference-client

@@ -3,6 +3,13 @@ import Field.Information.API
 import Mathlib.Data.Real.Basic
 import Mathlib.Tactic
 
+/-! # Information.Instance — normalised pmf and weight calculations for finite belief distributions -/
+
+/-
+Implement and verify the arithmetic for finite probability mass functions over route hypothesis
+sets, proving normalisation and non-negativity.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -12,6 +19,8 @@ open FieldInformationAPI
 open FieldModelAPI
 open EntropyAPI
 open scoped BigOperators
+
+/-! ## PMF Arithmetic -/
 
 /-- Total finite weight carried by a reduced field belief. -/
 def totalWeight (belief : FiniteBelief) : Nat :=
@@ -29,6 +38,8 @@ noncomputable def normalizedPmf
       0
   else
     (belief.weight hypothesis : ℝ) / (totalWeight belief : ℝ)
+
+/-! ## Normalisation Proofs -/
 
 theorem normalizedPmf_nonneg
     (belief : FiniteBelief)
@@ -119,6 +130,9 @@ noncomputable def corridorCapableMassImpl (belief : FiniteBelief) : ℝ :=
   (normalizeBeliefImpl belief).pmf FieldHypothesis.corridor +
     (normalizeBeliefImpl belief).pmf FieldHypothesis.explicitPath
 
+-- long-block-exception: this instance threads one tightly coupled law bundle
+-- through the normalized pmf realization; splitting it would mostly duplicate
+-- the same concrete arithmetic hypotheses across helper instances.
 noncomputable instance fieldInformationLaws : FieldInformationAPI.Laws where
   simplexBelief := simplexBeliefImpl
   shannonUncertainty := shannonUncertaintyImpl

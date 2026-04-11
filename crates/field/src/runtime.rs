@@ -327,14 +327,17 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     self.protocol_runtime
                         .open_session(&dissemination_key, 0, None)
                 {
-                    let _ = self.protocol_runtime.queue_summary_flow(
-                        &capability,
-                        [QueuedProtocolSend {
-                            protocol: FieldProtocolKind::SummaryDissemination,
-                            to_neighbor: primary_neighbor,
-                            payload: summary.encode(),
-                        }],
-                    );
+                    let _summary_queue_failed = self
+                        .protocol_runtime
+                        .queue_summary_flow(
+                            &capability,
+                            [QueuedProtocolSend {
+                                protocol: FieldProtocolKind::SummaryDissemination,
+                                to_neighbor: primary_neighbor,
+                                payload: summary.encode(),
+                            }],
+                        )
+                        .is_err();
                     let published = self
                         .protocol_runtime
                         .advance_host_bridged_round(
@@ -387,15 +390,21 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     destination: Some(session_destination),
                 };
                 if let Ok(capability) = self.protocol_runtime.open_session(&replay_key, 0, None) {
-                    let _ = self.protocol_runtime.queue_branch_choice(&capability, 1);
-                    let _ = self.protocol_runtime.queue_summary_flow(
-                        &capability,
-                        [QueuedProtocolSend {
-                            protocol: FieldProtocolKind::RetentionReplay,
-                            to_neighbor: primary_neighbor,
-                            payload: summary.encode(),
-                        }],
-                    );
+                    let _branch_choice_failed = self
+                        .protocol_runtime
+                        .queue_branch_choice(&capability, 1)
+                        .is_err();
+                    let _summary_queue_failed = self
+                        .protocol_runtime
+                        .queue_summary_flow(
+                            &capability,
+                            [QueuedProtocolSend {
+                                protocol: FieldProtocolKind::RetentionReplay,
+                                to_neighbor: primary_neighbor,
+                                payload: summary.encode(),
+                            }],
+                        )
+                        .is_err();
                     changed |= self
                         .protocol_runtime
                         .advance_host_bridged_round(

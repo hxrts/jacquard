@@ -58,7 +58,11 @@ where
     ) -> u32 {
         let requirements = service_requirements_for_objective(
             objective,
-            matches!(route_class, PathwayRouteClass::DeferredDelivery),
+            if matches!(route_class, PathwayRouteClass::DeferredDelivery) {
+                crate::topology::HoldRequirement::Include
+            } else {
+                crate::topology::HoldRequirement::Exclude
+            },
         );
         let first_hop = node_path.get(1).copied();
         first_hop
@@ -176,7 +180,10 @@ where
                                 &node.profile.services,
                                 &PATHWAY_ENGINE_ID,
                                 topology.observed_at_tick,
-                                service_requirements_for_objective(objective, false),
+                                service_requirements_for_objective(
+                                    objective,
+                                    crate::topology::HoldRequirement::Exclude,
+                                ),
                             ) / 2
                         })
                         .unwrap_or_else(|| {

@@ -1,12 +1,14 @@
 import Field.Network.API
 
-/-!
-Reduced asynchronous network layer above the synchronous publication model.
+/-
+The Problem. The field model needs one reduced asynchronous transport layer
+above synchronous publication so later proofs can talk about delay, retry, and
+loss without jumping directly to the full production transport stack.
 
-This layer keeps timing, loss, and retry assumptions explicit while remaining
-small enough to connect back to the synchronous round buffer. It is still a
-reduced semantics: delivery is represented by in-flight envelopes and a single
-step relation over delays rather than by the full production transport stack.
+Solution Structure.
+1. Define bounded async transport assumptions and envelope/state vocabulary.
+2. Define one reduced step relation over in-flight envelopes.
+3. Expose a small observer view that later system proofs can consume.
 -/
 
 set_option autoImplicit false
@@ -16,6 +18,8 @@ namespace FieldAsyncAPI
 
 open FieldModelAPI
 open FieldNetworkAPI
+
+/-! ## Async Envelope Surface -/
 
 structure AsyncAssumptions where
   maxDelay : Nat
@@ -39,6 +43,9 @@ structure AsyncEnvelope where
   dropped : Bool
   deriving Repr, DecidableEq, BEq
 
+/-- Execution-state family note: `AsyncState` is an execution object, not a
+publication or lifecycle object. It owns in-flight transport state above the
+synchronous network but below end-to-end lifecycle composition. -/
 structure AsyncState where
   network : NetworkState
   assumptions : AsyncAssumptions

@@ -1,5 +1,14 @@
+import Field.Architecture
 import Field.Model.API
 import Field.Network.API
+
+/-! # Router.Publication — published candidate structure and explicit-path honesty -/
+
+/-
+Define the published route candidate record, its honesty and well-formedness constraints,
+and prove that explicit-path publication requires the publishing node to hold explicit local
+knowledge of the path.
+-/
 
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
@@ -8,6 +17,7 @@ namespace FieldRouterPublication
 
 open FieldModelAPI
 open FieldNetworkAPI
+/-! ## Published Candidate -/
 
 /-- Router-facing field publication candidate. This is the first point where a
 local observational projection becomes eligible for canonical control-plane
@@ -44,6 +54,8 @@ def PublicationWellFormed
     (candidate : PublishedCandidate) : Prop :=
   candidate.support ≤ 1000 ∧ candidate.hopLower ≤ candidate.hopUpper
 
+/-! ## Honesty Constraints -/
+
 theorem publishCandidate_honest
     (publisher : NodeId)
     (destination : DestinationClass)
@@ -64,11 +76,11 @@ theorem publishCandidate_well_formed
 theorem explicit_path_publication_requires_explicit_knowledge
     (localState : LocalState)
     (hHarmony : Harmony localState)
-    (hShape :
+  (hShape :
       (publishCandidate NodeId.alpha DestinationClass.corridorA localState).shape =
         CorridorShape.explicitPath) :
     localState.posterior.knowledge = ReachabilityKnowledge.explicitPath := by
-  rcases hHarmony with ⟨_, _, hShapeIff, _, _⟩
+  rcases hHarmony with ⟨_, _, hShapeIff, _, _, _, _, _, _, _⟩
   exact hShapeIff.mp (by simpa [publishCandidate] using hShape)
 
 theorem publication_support_le_local_support
@@ -76,7 +88,7 @@ theorem publication_support_le_local_support
     (hHarmony : Harmony localState) :
     (publishCandidate NodeId.alpha DestinationClass.corridorA localState).support ≤
       localState.posterior.support := by
-  rcases hHarmony with ⟨_, _, _, hSupport, _⟩
+  rcases hHarmony with ⟨_, _, _, hSupport, _, _, _, _, _, _⟩
   simpa [publishCandidate] using hSupport
 
 theorem publication_hops_match_local_projection

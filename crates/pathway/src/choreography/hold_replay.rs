@@ -315,11 +315,8 @@ where
             route_id: route_id.clone(),
             payload_digest: payload_digest.clone(),
         };
-        // Intentionally ignored: store_held_payload is a best-effort side effect.
-        // The session type enforces protocol continuation regardless; if retention
-        // fails here the payload will not be replayed but the hold exchange still
-        // completes correctly.
-        let _ = effects::PathwayRuntime::store_held_payload(host, held_payload.clone());
+        let _held_payload_store_failed =
+            effects::PathwayRuntime::store_held_payload(host, held_payload.clone()).is_err();
         let s = s
             .send(Stored {
                 route_id: route_id.clone(),
@@ -334,21 +331,23 @@ where
         match s.branch().await? {
             HolderChoice1::Replayed(Replayed, s) => {
                 let (ReplayAccepted { route_id }, s) = s.receive().await?;
-                // Intentionally ignored: replay_held_payload is best-effort. The
-                // session already advanced to the Replayed branch;
-                // retention cleanup is advisory.
-                let _ = effects::PathwayRuntime::replay_held_payload(
+                let _held_payload_replay_failed = effects::PathwayRuntime::replay_held_payload(
                     host,
                     effects::HeldPayload {
                         route_id: route_id.clone(),
                         payload_digest: String::new(),
                     },
-                );
+                )
+                .is_err();
                 Ok(((), s))
             }
             HolderChoice1::Deferred(Deferred, s) => {
-                let (ReplayDeferred { route_id }, s) = s.receive().await?;
-                let _ = route_id;
+                let (
+                    ReplayDeferred {
+                        route_id: _route_id,
+                    },
+                    s,
+                ) = s.receive().await?;
                 Ok(((), s))
             }
         }

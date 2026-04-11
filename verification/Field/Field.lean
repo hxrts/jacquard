@@ -8,3 +8,5 @@ import Field.Router
 import Field.Async
 import Field.System
 import Field.Quality
+
+/-! # Field — master composition of all Field subsystems -/

@@ -38,12 +38,12 @@ fn materialization_records_activation_protocol_checkpoint() {
     let mut engine = build_engine();
     let topology = sample_configuration();
 
-    let _ = activate_route(
+    std::mem::drop(activate_route(
         &mut engine,
         &topology,
         NodeId([3; 32]),
         lease(Tick(2), Tick(20)),
-    );
+    ));
 
     assert!(has_protocol_checkpoint(
         &engine,

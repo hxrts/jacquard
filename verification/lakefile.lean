@@ -21,11 +21,8 @@ package jacquard where
 -- Protocol, Choreography, Semantics, SessionTypes, Distributed.
 -- Mathlib and Paco are transitive dependencies through Telltale.
 -- Revision is pinned; run `lake update` to advance.
--- Temporary local override while the GitHub-pinned Lean package is being fixed.
--- Restore the git dependency after the next working Telltale release is cut.
--- require telltale from git
---   "https://github.com/hxrts/telltale" @ "main" / "lean"
-require telltale from "../../telltale/lean"
+require telltale from git
+  "https://github.com/hxrts/telltale" @ "026fbdd645895a84a2215f81c857094a479dff77" / "lean"
 
 /-! ## Verification Root
 
@@ -39,6 +36,8 @@ underlying feature modules they re-export.
 lean_lib JacquardVerification where
   roots := #[
     `Verification,
+    `Field.Architecture,
+    `Field.CostAPI,
     `Field.Field,
     `Field.LocalModel,
     `Field.Information,
@@ -58,9 +57,13 @@ lean_lib JacquardVerification where
     `Field.Model.Boundary,
     `Field.Information.API,
     `Field.Information.Instance,
+    `Field.Information.Probabilistic,
+    `Field.Information.Bayesian,
+    `Field.Information.Calibration,
     `Field.Information.Blindness,
     `Field.Information.Quantitative,
     `Field.Protocol.API,
+    `Field.Protocol.Boundary,
     `Field.Protocol.Instance,
     `Field.Protocol.Bridge,
     `Field.Protocol.Coherence,
@@ -73,7 +76,13 @@ lean_lib JacquardVerification where
     `Field.Router.Admission,
     `Field.Router.Installation,
     `Field.Router.Lifecycle,
+    `Field.Router.Selector,
     `Field.Router.Canonical,
+    `Field.Router.CanonicalStrong,
+    `Field.Router.Cost,
+    `Field.Router.Optimality,
+    `Field.Router.Probabilistic,
+    `Field.Router.Resilience,
     `Field.Async,
     `Field.Async.API,
     `Field.Async.Safety,
@@ -84,12 +93,21 @@ lean_lib JacquardVerification where
     `Field.System.EndToEnd,
     `Field.System.Convergence,
     `Field.System.Canonical,
+    `Field.System.CanonicalStrong,
+    `Field.System.Cost,
+    `Field.System.Probabilistic,
+    `Field.System.Calibration,
+    `Field.System.Optimality,
+    `Field.System.Resilience,
     `Field.Quality.API,
     `Field.Quality.Reference,
     `Field.Quality.Refinement,
     `Field.Quality.System,
     `Field.Adequacy.API,
     `Field.Adequacy.Canonical,
+    `Field.Adequacy.Cost,
     `Field.Adequacy.Projection,
+    `Field.Adequacy.Probabilistic,
+    `Field.Adequacy.ProbabilisticFixtures,
     `Field.Adequacy.Instance
   ]

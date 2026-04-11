@@ -1,6 +1,13 @@
 import Field.Async.API
 import Field.Network.Safety
 
+/-! # Async.Safety — publication envelope consistency and explicit-path honesty under async delivery -/
+
+/-
+Prove that publication envelopes match local route projections on delivery and that explicit-path
+claims cannot arise without explicit local knowledge, even under asynchronous message reordering.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -9,6 +16,8 @@ namespace FieldAsyncSafety
 open FieldAsyncAPI
 open FieldModelAPI
 open FieldNetworkAPI
+
+/-! ## Envelope Consistency -/
 
 theorem publication_envelope_matches_local_projection
     (network : NetworkState)
@@ -64,6 +73,8 @@ theorem immediate_reliable_step_contains_synchronous_publications
     · rfl
     · rfl
 
+/-! ## Explicit-Path Honesty -/
+
 theorem publication_envelope_explicit_path_requires_explicit_local_knowledge
     (network : NetworkState)
     (assumptions : AsyncAssumptions)
@@ -78,7 +89,7 @@ theorem publication_envelope_explicit_path_requires_explicit_local_knowledge
   have hProjected :
       (network.localStates sender destination).projection.shape = CorridorShape.explicitPath := by
     simpa [publicationEnvelope, publishMessage] using hShape
-  rcases hHarmony sender destination with ⟨_, _, hExplicit, _, _⟩
+  rcases hHarmony sender destination with ⟨_, _, hExplicit, _, _, _, _, _, _, _⟩
   exact hExplicit.mp hProjected
 
 theorem drain_ready_messages_never_increases_queue

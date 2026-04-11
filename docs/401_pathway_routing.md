@@ -21,18 +21,52 @@ Peer and neighborhood estimates expose optional score components, so unknown and
 The pathway engine implements the shared `RoutingEnginePlanner` contract, which produces a candidate in five deterministic steps:
 
 1. read the current topology snapshot
-2. run bounded deterministic weighted path search from the local node
-3. filter to route-capable destinations that match the routing objective
-4. derive a deterministic backend reference, route id, cost, and estimate
-5. sort candidates by path metric, pathway-private topology-model preference, and deterministic route key
+2. freeze a `PathwaySearchDomain` over deterministic `NodeId` graph state for that snapshot
+3. resolve the routing objective into one exact destination or a deterministic acceptable-goal set
+4. run Telltale's canonical search machine for each goal under an explicit scheduler profile and fairness bundle
+5. derive deterministic backend references, route ids, costs, and estimates from the resulting incumbent node paths, then sort by path metric, pathway-private topology-model preference, and deterministic route key
 
-This algorithm produces a stable candidate ordering across replays. In v1, the search metric is integer-only and combines hop count, delivery confidence, loss-derived congestion, symmetry, pathway-private peer and neighborhood estimates, protocol-repeat penalties, protocol-diversity bonuses, and a deferred-delivery bonus when the destination is honestly hold-capable. The shared `RouteCost` surface then reflects the chosen path's hop count, confidence, symmetry, congestion, protocol diversity, and deferred-delivery hold reservation without exposing the pathway-private estimate internals that shaped the search.
+This algorithm produces a stable candidate ordering across replays. The search metric is integer-only and combines hop count, delivery confidence, loss-derived congestion, symmetry, pathway-private peer and neighborhood estimates, protocol-repeat penalties, protocol-diversity bonuses, and a deferred-delivery bonus when the destination is honestly hold-capable. The shared `RouteCost` surface then reflects the chosen path's hop count, confidence, symmetry, congestion, protocol diversity, and deferred-delivery hold reservation without exposing the pathway-private estimate internals that shaped the search.
 
 Concretely, the direct per-link reliability inputs are: `delivery_confidence_permille`, `symmetry_permille`, and `loss_permille`. Pathway turns these into weighted edge penalties during path search. Higher delivery confidence and better symmetry reduce path cost; higher loss increases it. These signals are then combined with pathway-private peer and neighborhood bonuses and penalties rather than collapsed into one shared "reliability" field.
 
 `median_rtt_ms` is part of the shared link observation surface, but pathway does not currently use it in path scoring.
 
 Deferred-delivery classification is deliberately stricter than capability advertisement alone. A destination only qualifies for retention-biased routing when its `Hold` service advertisement is currently valid for pathway, the advertised capacity hint reports positive `hold_capacity_bytes`, and the node state separately reports positive `hold_capacity_available_bytes`. A stale advertisement, an empty capacity hint, or unknown live capacity is not enough.
+
+### Telltale Search Core
+
+The generic search core lives in `telltale-search`, and Pathway supplies a domain adapter plus route-specific policy on top of it.
+
+`telltale-search` owns:
+
+- canonical search-machine semantics over weighted graph state
+- scheduler-profile selection and validation
+- fairness-assumption vocabulary
+- replay artifacts and canonical observation reconstruction
+- epoch reconfiguration through `EpochReconfigurationRequest`
+- observation comparison for theorem-backed exact-profile checks
+
+Pathway owns:
+
+- topology interpretation and edge-cost policy
+- heuristic policy (`Zero` or the current hop-lower-bound heuristic)
+- exact objective-to-goal mapping for `Node`, `Service`, and `Gateway` destinations
+- route-shape derivation, route class, connectivity posture, and route summary
+- admission policy, witness generation, and committee handling
+- opaque backend-token encoding and cache-miss re-derivation
+
+This split is intentional. Pathway uses the generic search machine as a deterministic planning substrate, while the published route semantics remain Pathway-owned.
+
+The distinctive properties of the current implementation are:
+
+- canonical search-machine semantics instead of planner-local frontier bookkeeping
+- deterministic replay artifacts that can reconstruct the final observation fail-closed
+- explicit scheduler profiles with declared fairness assumptions instead of hidden host-loop assumptions
+- fail-closed topology reconfiguration that distinguishes same-snapshot reuse, same-route-epoch new snapshots, and true route-epoch changes
+- exact theorem-backed observable equivalence between canonical serial and threaded exact single-lane mode for the current Pathway domain
+
+Pathway defaults to canonical serial search with `batch_width = 1`, `epsilon = 1.0`, and the minimum exact fairness bundle required by the generic runtime. `ThreadedExactSingleLane` is available as an explicit opt-in planner mode. Batched parallel profiles are not exposed because the weaker fairness and theorem story is not acceptable for default routing behavior.
 
 ### Admission Contract
 
@@ -44,7 +78,7 @@ Admission and witness generation operate on shared result objects. The pathway e
 - admitted routes carry that opaque backend ref forward so `materialize_route` can decode the selected pathway plan without searching planner cache state
 - materialization still revalidates that decoded plan against the latest observed topology, the shared topology epoch, and the plan validity window before issuing a proof
 
-Pathway route ids are path identities in v1. The stable route id is derived from source, destination, route class, and concrete segment path. Epoch stays in the plan token and proof instead of becoming part of the stable route identity. Pathway-private plan tokens, route-identity bytes, ordering keys, and runtime checkpoints all use the same versioned canonical binary encoding policy so replay, hashing, and checkpoint recovery stay aligned.
+Pathway route ids are path identities. The stable route id is derived from source, destination, route class, and concrete segment path. Epoch stays in the plan token and proof instead of becoming part of the stable route identity. Pathway-private plan tokens, route-identity bytes, ordering keys, and runtime checkpoints all use the same versioned canonical binary encoding policy so replay, hashing, and checkpoint recovery stay aligned.
 
 ## Engine Middleware
 
@@ -59,13 +93,13 @@ topology observation
   -> checkpoint current pathway runtime state
 ```
 
-Each tick ingests the latest topology observation, refreshes the pathway-private estimate caches, summarizes the latest bounded transport observations, and folds that evidence into a bounded control state. In v1 that control state carries transport stability, repair pressure, and anti-entropy pressure with deterministic decay. Pathway uses it to tighten route health, escalate repair posture under sustained pressure, make `AntiEntropyRequired` consume real anti-entropy debt rather than acting as pure bookkeeping, and drive the cooperative route-export, neighbor-advertisement, and anti-entropy protocol exchanges described below. The hook then evicts stale candidate entries and writes the scoped topology-epoch checkpoint.
+Each tick ingests the latest topology observation, refreshes the pathway-private estimate caches, summarizes the latest bounded transport observations, and folds that evidence into a bounded control state. That control state carries transport stability, repair pressure, and anti-entropy pressure with deterministic decay. Pathway uses it to tighten route health, escalate repair posture under sustained pressure, make `AntiEntropyRequired` consume real anti-entropy debt rather than acting as pure bookkeeping, and drive the cooperative route-export, neighbor-advertisement, and anti-entropy protocol exchanges described below. The hook then evicts stale candidate entries and writes the scoped topology-epoch checkpoint.
 
 Discovery enters the pathway engine through the shared world picture: nodes, links, environment, and service advertisements are already merged into `Observation<Configuration>` before the engine plans. Pathway then derives its route-export, neighbor-advertisement, and anti-entropy choreography payloads from those shared observations plus active shared route objects rather than maintaining a second hidden advertisement schema.
 
 ## Internal Choreography Surface
 
-Pathway now carries a private Telltale choreography layer inside `jacquard-pathway`. This does not change the shared Jacquard routing contract. Router-facing planning, admission, materialization, maintenance, and tick flow still use the shared `RoutingEngine` trait plus the pathway-owned `PathwayRoutingEngine` extension seam.
+Pathway carries a private Telltale choreography layer inside `jacquard-pathway`. This does not change the shared Jacquard routing contract. Router-facing planning, admission, materialization, maintenance, and tick flow use the shared `RoutingEngine` trait plus the pathway-owned `PathwayRoutingEngine` extension seam.
 
 The internal split is:
 
@@ -84,7 +118,7 @@ The internal split is:
   - neighbor advertisement exchange
   - anti-entropy exchange
 
-Pathway protocols now live inline in the pathway crate as `tell!` definitions. That keeps the generated protocol/session code adjacent to the Rust host logic that enters those protocols and avoids a second file-based choreography source of truth.
+Pathway protocols live inline in the pathway crate as `tell!` definitions. That keeps the generated protocol/session code adjacent to the Rust host logic that enters those protocols and avoids a second file-based choreography source of truth.
 
 Pathway also keeps one pathway-owned choreography interpreter surface above the shared runtime traits. That interpreter maps protocol-local requests onto the existing Jacquard boundaries:
 
@@ -93,17 +127,17 @@ Pathway also keeps one pathway-owned choreography interpreter surface above the 
 - `RouteEventLogEffects` for replay-visible route events
 - router-owned checkpoint orchestration for persisted pathway-private state
 
-Host-owned ingress draining now stops outside pathway itself. The router or bridge drains `TransportDriver`, converts raw ingress into shared observations, and feeds those observations into pathway through explicit router ingestion before a synchronous round. Inside pathway, those observations now enter a bounded pending-ingress queue. A round consumes that queue deterministically and records a host-facing pathway round-progress snapshot that reports whether the round advanced state, waited quietly, or dropped excess ingress fail-closed.
+Host-owned ingress draining stops outside pathway itself. The router or bridge drains `TransportDriver`, converts raw ingress into shared observations, and feeds those observations into pathway through explicit router ingestion before a synchronous round. Inside pathway, those observations enter a bounded pending-ingress queue. A round consumes that queue deterministically and records a host-facing pathway round-progress snapshot that reports whether the round advanced state, waited quietly, or dropped excess ingress fail-closed.
 
 This is intentionally still pathway-private. The router should only observe shared route objects, shared tick context, shared round outcome, and shared checkpoint orchestration. It should not depend on pathway-private choreography payloads or generated effect interfaces.
 
 The generated or protocol-local Telltale effect interfaces are not the shared Jacquard effect contract. They stay inside `jacquard-pathway` as implementation-facing protocol surfaces. Concrete host adapters still implement the shared traits from `jacquard-traits`, and the pathway choreography interpreter translates protocol-local requests onto those stable cross-engine traits instead of replacing them.
 
-At runtime, pathway entry points now cross one private guest-runtime layer before touching transport send capability, retention, or route-event logging directly. `forward_payload`, materialization-side activation, maintenance-side repair and handoff, retained-payload replay, round-side ingress recording, route export, neighbor advertisement, and anti-entropy exchange all enter that pathway-local choreography boundary first. The guest runtime resolves stable inline protocol metadata for the protocol being entered, fails closed if that metadata is unavailable, and then records small protocol checkpoints keyed by protocol kind plus route or tick session so recovery does not depend on hidden in-memory sequencing state. Telltale session futures remain confined to choreography modules; the engine/runtime layer itself stays synchronous and driver-free.
+At runtime, pathway entry points cross one private guest-runtime layer before touching transport send capability, retention, or route-event logging directly. `forward_payload`, materialization-side activation, maintenance-side repair and handoff, retained-payload replay, round-side ingress recording, route export, neighbor advertisement, and anti-entropy exchange all enter that pathway-local choreography boundary first. The guest runtime resolves stable inline protocol metadata for the protocol being entered, fails closed if that metadata is unavailable, and then records small protocol checkpoints keyed by protocol kind plus route or tick session so recovery does not depend on hidden in-memory sequencing state. Telltale session futures remain confined to choreography modules; the engine/runtime layer itself stays synchronous and driver-free.
 
 ## Runtime and Repair
 
-Materialization stores a pathway-private active-route object under the router-owned canonical identity. In v1 that object contains the explicit `PathwayPath`, optional `CommitteeSelection`, and a deterministic ordering key plus four route-private substates:
+Materialization stores a pathway-private active-route object under the router-owned canonical identity. That object contains the explicit `PathwayPath`, optional `CommitteeSelection`, and a deterministic ordering key plus four route-private substates:
 
 - `PathwayForwardingState` for current owner, owner-relative next-hop cursor, in-flight frames, and last ack
 - `PathwayRepairState` for bounded repair budget and last repair tick
@@ -112,7 +146,7 @@ Materialization stores a pathway-private active-route object under the router-ow
 
 Canonical route identity, admission, and lease ownership remain outside this pathway-private runtime object.
 
-Pathway decodes the admitted opaque backend ref during materialization instead of recovering route shape from planner cache state. Token decode alone is not enough. The runtime re-derives the candidate against the latest observed topology and fails closed if the plan epoch, handle epoch, witness epoch, latest topology epoch, or plan validity window do not still agree. Materialization itself fails closed until the engine has observed topology through `engine_tick`, so pathway no longer synthesizes a pre-observation route health or an empty-world fallback.
+Pathway decodes the admitted opaque backend ref during materialization instead of recovering route shape from planner cache state. Token decode alone is not enough. The runtime re-derives the candidate against the latest observed topology and fails closed if the plan epoch, handle epoch, witness epoch, latest topology epoch, or plan validity window do not still agree. Materialization itself fails closed until the engine has observed topology through `engine_tick`, so pathway does not synthesize a pre-observation route health or an empty-world fallback.
 
 ### Route Health
 
@@ -132,11 +166,11 @@ As in planning, `median_rtt_ms` is not currently part of the published route-hea
 
 Lifecycle sequencing is explicit and fail-closed. Pathway validates first, builds the next active-route state off to the side, persists the checkpoint, records the route event, and only then publishes the in-memory runtime mutation. If checkpoint or route-event logging fails, the new state is not committed.
 
-Protocol checkpoints follow the same fail-closed rule. Pathway writes or updates the protocol checkpoint through the choreography guest runtime before treating that step as complete, and rollback paths remove route-scoped protocol checkpoints when materialization or teardown does not commit. Those checkpoints now carry protocol metadata derived from the live inline protocol modules themselves, including the protocol name, declared roles, and source-path identity, so replay and recovery stay aligned with the live generated protocol surface rather than with a handwritten local label only.
+Protocol checkpoints follow the same fail-closed rule. Pathway writes or updates the protocol checkpoint through the choreography guest runtime before treating that step as complete, and rollback paths remove route-scoped protocol checkpoints when materialization or teardown does not commit. Those checkpoints carry protocol metadata derived from the live inline protocol modules themselves, including the protocol name, declared roles, and source-path identity, so replay and recovery stay aligned with the live generated protocol surface rather than with a handwritten local label only.
 
-Maintenance is expressed through the shared `RouteMaintenanceResult` surface. In v1 pathway, repair means a bounded local suffix-repair algorithm over the latest observed topology. `LinkDegraded` and `EpochAdvanced` attempt to recompute the remaining suffix from the current owner to the final destination, consume one repair step on success, and escalate to typed replacement when no bounded patch is available or the repair budget is exhausted.
+Maintenance is expressed through the shared `RouteMaintenanceResult` surface. Repair means a bounded local suffix-repair algorithm over the latest observed topology. `LinkDegraded` and `EpochAdvanced` attempt to recompute the remaining suffix from the current owner to the final destination, consume one repair step on success, and escalate to typed replacement when no bounded patch is available or the repair budget is exhausted.
 
-`CapacityExceeded` returns `ReplacementRequired` without flipping partition mode, since it indicates replacement pressure rather than partition evidence. `PartitionDetected` enters partition mode and reports the current retained-object count through `HoldFallback`. `PolicyShift` performs handoff and `AntiEntropyRequired` flushes retained payloads to recover. V1 pathway exposes one current commitment per route, so repair, handoff, and deferred-delivery posture stay inside the route runtime state rather than becoming separate concurrent commitments.
+`CapacityExceeded` returns `ReplacementRequired` without flipping partition mode, since it indicates replacement pressure rather than partition evidence. `PartitionDetected` enters partition mode and reports the current retained-object count through `HoldFallback`. `PolicyShift` performs handoff and `AntiEntropyRequired` flushes retained payloads to recover. Pathway exposes one current commitment per route, so repair, handoff, and deferred-delivery posture stay inside the route runtime state rather than becoming separate concurrent commitments.
 
 ### Forwarding
 
@@ -164,7 +198,7 @@ The choreography layer adds a second scoped recovery surface: protocol checkpoin
 
 ## Swappable Trait Surface
 
-The pathway engine exposes its narrow read-only pathway seams as two traits in `jacquard-pathway`: `PathwayTopologyModel` and `PathwayRoutingEngine`. Substituting either one replaces a pathway subcomponent without forking the engine, but the coupling is now honestly pathway-specific instead of leaking into `jacquard-traits`. `RetentionStore` remains a shared runtime boundary on the neutral effect surface. For host runtime effects beyond these seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
+The pathway engine exposes its narrow read-only pathway seams as two traits in `jacquard-pathway`: `PathwayTopologyModel` and `PathwayRoutingEngine`. Substituting either one replaces a pathway subcomponent without forking the engine, and the coupling is pathway-specific rather than leaking into `jacquard-traits`. `RetentionStore` remains a shared runtime boundary on the neutral effect surface. For host runtime effects beyond these seams, the engine uses the shared `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `Hashing` surfaces from `jacquard-traits`.
 
 ### Topology Model
 
@@ -251,4 +285,4 @@ pub trait RetentionStore {
 }
 ```
 
-`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. It stays intentionally narrow so platform-specific persistence can substitute without forcing the rest of the pathway engine to know about it, but it is no longer treated as a pathway-specific trait surface.
+`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. It stays intentionally narrow so platform-specific persistence can substitute without forcing the rest of the pathway engine to know about it, and it is not treated as a pathway-specific trait surface.

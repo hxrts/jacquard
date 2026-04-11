@@ -1,21 +1,12 @@
-//! Deterministic path search and route-shape derivation for pathway planning.
+//! Route-shape derivation and connectivity classification for Pathway planning.
 //!
-//! Control flow: starting from the explicit topology observation, this module
-//! searches outward from the local node, scores feasible next hops, and
-//! chooses weighted paths. It then converts the winning node path into pathway
-//! segments, route class, and connectivity posture that later planner stages
-//! can publish and admit. Key methods on `PathwayEngine`: `weighted_paths`
-//! runs a Dijkstra-style BFS with a lexicographic tie-break to produce the
-//! set of best paths per destination; `determine_route_class` maps hop count
-//! and hold-capability into `PathwayRouteClass`; `local_repair_slack` checks
-//! whether the current topology offers a bypass node for each segment pair,
-//! informing the `RouteRepairClass`; `derive_segments` translates a node path
-//! into typed `PathwayRouteSegment` values via the topology link model.
+//! The search frontier itself now lives in the Telltale-backed `search`
+//! submodule. This file keeps the path-to-route logic that remains
+//! Pathway-specific after that extraction: route-class derivation, repair
+//! slack detection, connectivity posture, candidate path scoring, and segment
+//! derivation from one chosen node path.
 
-use std::{
-    cmp::Reverse,
-    collections::{BTreeMap, BTreeSet, BinaryHeap},
-};
+use std::collections::BTreeSet;
 
 use jacquard_core::{
     Belief, Configuration, ConnectivityPosture, DestinationId, Estimate, NodeId, Observation,
@@ -32,6 +23,12 @@ use crate::{
     topology::estimate_hop_link, PathwayNeighborhoodEstimateAccess, PathwayPeerEstimateAccess,
     PathwayRouteClass, PathwayRouteSegment, PATHWAY_ENGINE_ID,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum HoldCapability {
+    Available,
+    Unavailable,
+}
 
 impl<Topology, Transport, Retention, Effects, Hasher, Selector>
     PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -74,72 +71,15 @@ where
 
         score
     }
-
-    /// Returns true if `(score, path)` is dominated by `(best_score,
-    /// best_path)`, meaning the candidate should not replace the current
-    /// best entry. Equal scores tie-break lexicographically on path so
-    /// equal-cost routes collapse deterministically regardless of frontier
-    /// visit order.
-    fn is_dominated(score: u32, path: &[NodeId], best_score: u32, best_path: &[NodeId]) -> bool {
-        score > best_score || (score == best_score && path > best_path)
-    }
-
-    pub(super) fn weighted_paths(
-        &self,
-        objective: &RoutingObjective,
-        topology: &Observation<Configuration>,
-    ) -> Vec<(u32, Vec<NodeId>)> {
-        let configuration = &topology.value;
-        let mut best_paths = BTreeMap::<NodeId, (u32, Vec<NodeId>)>::new();
-        let mut frontier = BinaryHeap::new();
-        frontier.push(Reverse((0_u32, vec![self.local_node_id])));
-
-        while let Some(Reverse((score, path))) = frontier.pop() {
-            let current = *path.last().expect("weighted path frontier is never empty");
-            if let Some((best_score, best_path)) = best_paths.get(&current) {
-                if Self::is_dominated(score, &path, *best_score, best_path) {
-                    continue;
-                }
-            }
-            best_paths.insert(current, (score, path.clone()));
-
-            if path.len().saturating_sub(1) >= usize::from(ROUTE_HOP_COUNT_MAX) {
-                continue;
-            }
-
-            for neighbor in crate::topology::adjacent_node_ids(&current, configuration) {
-                if path.contains(&neighbor) {
-                    continue;
-                }
-                let Some(edge_score) =
-                    self.edge_metric_score(objective, topology, &current, &neighbor)
-                else {
-                    continue;
-                };
-                let mut next_path = path.clone();
-                next_path.push(neighbor);
-                let next_score = score.saturating_add(edge_score);
-                if let Some((best_score, best_path)) = best_paths.get(&neighbor) {
-                    if Self::is_dominated(next_score, &next_path, *best_score, best_path) {
-                        continue;
-                    }
-                }
-                frontier.push(Reverse((next_score, next_path)));
-            }
-        }
-
-        best_paths.into_values().collect()
-    }
-
     pub(super) fn determine_route_class(
         &self,
         objective: &RoutingObjective,
         hop_count: usize,
-        hold_capable: bool,
+        hold_capability: HoldCapability,
     ) -> PathwayRouteClass {
         if matches!(objective.destination, DestinationId::Gateway(_)) {
             PathwayRouteClass::Gateway
-        } else if hold_capable
+        } else if matches!(hold_capability, HoldCapability::Available)
             && objective.hold_fallback_policy == jacquard_core::HoldFallbackPolicy::Allowed
             && hop_count > 1
         {

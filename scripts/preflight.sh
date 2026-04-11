@@ -46,23 +46,107 @@ echo "ci-preflight: required toolchain commands present"
 
 # ── CI / dry-run parity check ──────────────────────────────────────────
 #
-# Every check name listed here must appear as a step name in both the
-# justfile ci-dry-run (add_step) and at least one .github/workflows/*.yml
-# file. Case-insensitive substring match.
+# Every enabled toolkit policy in policy/toolkit.toml must appear as a step
+# name in both the justfile ci-dry-run (add_step) and at least one
+# .github/workflows/*.yml file. Case-insensitive substring match.
+
+humanize_check_name() {
+  local raw="$1"
+  local result="" part
+  IFS='_' read -r -a parts <<<"$raw"
+  for part in "${parts[@]}"; do
+    if [[ -n "$part" ]]; then
+      result+="$(printf '%s' "$part" | awk '{print toupper(substr($0, 1, 1)) substr($0, 2)}') "
+    fi
+  done
+  printf '%s' "${result% }"
+}
+
+load_enabled_toolkit_checks() {
+  local config_path="$1"
+  awk '
+    function flush_section() {
+      if (section == "") {
+        return
+      }
+      if (seen_enabled != 1) {
+        printf "missing-enabled:%s\n", section
+      } else if (enabled == "true") {
+        print section
+      } else {
+        printf "disabled:%s\n", section
+      }
+      section = ""
+      seen_enabled = 0
+      enabled = ""
+    }
+
+    /^\[checks\.[^]]+\]/ {
+      flush_section()
+      section = $0
+      sub(/^\[checks\./, "", section)
+      sub(/\]$/, "", section)
+      next
+    }
+
+    /^\[/ {
+      flush_section()
+      next
+    }
+
+    section != "" && /^[[:space:]]*enabled[[:space:]]*=/ {
+      seen_enabled = 1
+      enabled = ($0 ~ /=[[:space:]]*true([[:space:]]|$)/) ? "true" : "false"
+      next
+    }
+
+    END {
+      flush_section()
+    }
+  ' "$config_path"
+}
+
+toolkit_config_ok=true
+enabled_toolkit_checks=()
+while IFS= read -r item; do
+  case "$item" in
+    missing-enabled:*)
+      echo "ci-preflight: toolkit check missing explicit enabled=true: ${item#*:}" >&2
+      toolkit_config_ok=false
+      ;;
+    disabled:*)
+      echo "ci-preflight: toolkit check disabled in policy/toolkit.toml: ${item#*:}" >&2
+      toolkit_config_ok=false
+      ;;
+    "")
+      ;;
+    *)
+      enabled_toolkit_checks+=("$item")
+      ;;
+  esac
+done < <(load_enabled_toolkit_checks "$repo_root/policy/toolkit.toml")
+
+if [ "$toolkit_config_ok" = false ]; then
+  fail "all Jacquard toolkit checks must be enabled by default"
+fi
 
 checks=(
   "Format Check"
   "Clippy"
   "Tests"
+  "Wasm Check"
+  "Wasm Reference Client Test"
   "Docs Links"
-  "Docs Link Check"
-  "Docs Semantic Drift"
-  "Proc Macro Scope"
   "Trait Purity"
   "Crate Boundary"
   "No usize in Models"
+  "Field Code Map"
   "Docs Build"
 )
+
+for check in "${enabled_toolkit_checks[@]}"; do
+  checks+=("$(humanize_check_name "$check")")
+done
 
 justfile="$repo_root/justfile"
 ci_yml_dir="$repo_root/.github/workflows"

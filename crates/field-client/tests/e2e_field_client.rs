@@ -158,7 +158,7 @@ fn field_client_surfaces_regime_or_posture_adaptation_under_sustained_stress() {
 
     for tick in 10..=18 {
         client.ingest_topology(stressed_topology(Tick(tick)));
-        let _ = client.advance_round().expect("stressed round");
+        client.advance_round().expect("stressed round");
     }
 
     let maintenance = client

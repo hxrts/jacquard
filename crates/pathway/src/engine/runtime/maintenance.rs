@@ -304,14 +304,15 @@ where
             // Best-effort re-retain: the replay send failed; try to keep the
             // payload for the next flush. The primary RouteError is
             // returned below regardless.
-            let _ = choreography::retain_for_replay(
+            let _re_retain_failed = choreography::retain_for_replay(
                 &mut self.transport,
                 &mut self.retention,
                 &mut self.effects,
                 route_id,
                 object_id,
                 payload,
-            );
+            )
+            .is_err();
             return Err(error);
         }
         Ok(())

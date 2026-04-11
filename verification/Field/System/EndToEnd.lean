@@ -2,6 +2,13 @@ import Field.Async.Transport
 import Field.Router.Lifecycle
 import Field.Network.Safety
 
+/-! # System.EndToEnd — end-to-end system composition of async transport and lifecycle -/
+
+/-
+Define the composite end-to-end system step that sequences asynchronous message delivery with
+route lifecycle updates, mapping received envelopes to installed route objects.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -16,6 +23,12 @@ open FieldRouterAdmission
 open FieldRouterLifecycle
 open FieldRouterPublication
 
+/-! ## Composite System Step -/
+
+/-- Execution-state family note: `EndToEndState` is the composite execution
+object that sequences async transport with router-owned lifecycle state. It is
+not itself canonical truth; it is the execution layer from which truth is
+selected. -/
 structure EndToEndState where
   async : AsyncState
   lifecycle : List LifecycleRoute
@@ -71,6 +84,8 @@ def ProducedInstalledCandidate
     envelope ∈ (transportStep state).inFlight.filter readyForDelivery ∧
       admitEnvelopeCandidate (transportStep state).network envelope = some admitted ∧
       admitted.candidate = candidate
+
+/-! ## Envelope-to-Route Mapping -/
 
 theorem admit_envelope_candidate_preserves_candidate
     (network : NetworkState)
@@ -221,5 +236,65 @@ theorem system_step_candidate_view_eq_canonical_under_reliable_immediate_empty
       lifecycleCandidateView (canonicalInstalledRoutes state.async.network) := by
   rw [system_step_candidate_view]
   rw [ready_installed_routes_eq_canonical_under_reliable_immediate_empty state.async hAssumptions hEmpty]
+
+theorem system_step_route_has_ready_installed_origin
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ (systemStep state).lifecycle) :
+    ∃ source,
+      source ∈ readyInstalledRoutes state.async ∧
+        lifecycleMaintenance source = route := by
+  unfold systemStep at hMem
+  unfold maintainLifecycle at hMem
+  rcases List.mem_map.1 hMem with ⟨source, hSourceMem, hEq⟩
+  exact ⟨source, hSourceMem, hEq⟩
+
+theorem system_step_route_origin_is_installed
+    (state : EndToEndState)
+    (route source : LifecycleRoute)
+    (hOrigin : source ∈ readyInstalledRoutes state.async)
+    (_hMaintained : lifecycleMaintenance source = route) :
+    source.status = .installed := by
+  unfold readyInstalledRoutes at hOrigin
+  rcases List.mem_filterMap.1 hOrigin with ⟨envelope, _, hSome⟩
+  unfold installLifecycleOfEnvelope at hSome
+  cases hAdmit : admitEnvelopeCandidate (transportStep state.async).network envelope with
+  | none =>
+      simp [hAdmit] at hSome
+  | some admitted =>
+      simp [hAdmit] at hSome
+      subst hSome
+      simp [installCandidateLifecycle]
+
+theorem system_step_route_has_admissible_lifecycle_origin
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ (systemStep state).lifecycle) :
+    ∃ source,
+      source ∈ readyInstalledRoutes state.async ∧
+        source.status = .installed ∧
+        lifecycleMaintenance source = route := by
+  rcases system_step_route_has_ready_installed_origin state route hMem with
+    ⟨source, hSourceMem, hMaintained⟩
+  refine ⟨source, hSourceMem, ?_, hMaintained⟩
+  exact system_step_route_origin_is_installed state route source hSourceMem hMaintained
+
+theorem ready_installed_route_appears_in_system_step_lifecycle
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ readyInstalledRoutes state.async) :
+    lifecycleMaintenance route ∈ (systemStep state).lifecycle := by
+  unfold systemStep maintainLifecycle
+  exact List.mem_map.2 ⟨route, hMem, rfl⟩
+
+theorem ready_installed_route_candidate_appears_in_system_step_candidate_view
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ readyInstalledRoutes state.async) :
+    (lifecycleMaintenance route).candidate ∈
+      lifecycleCandidateView (systemStep state).lifecycle := by
+  unfold lifecycleCandidateView
+  exact List.mem_map.2 ⟨lifecycleMaintenance route,
+    ready_installed_route_appears_in_system_step_lifecycle state route hMem, rfl⟩
 
 end FieldSystemEndToEnd

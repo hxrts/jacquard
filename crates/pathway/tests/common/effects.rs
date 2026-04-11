@@ -96,12 +96,12 @@ impl TestRuntimeEffects {
         self.0.lock().expect(EFFECTS_LOCK).now = now;
     }
 
-    pub fn set_fail_store_bytes(&self, fail: bool) {
-        self.0.lock().expect(EFFECTS_LOCK).fail_store_bytes = fail;
+    pub fn fail_store_bytes(&self) {
+        self.0.lock().expect(EFFECTS_LOCK).fail_store_bytes = true;
     }
 
-    pub fn set_fail_record_route_event(&self, fail: bool) {
-        self.0.lock().expect(EFFECTS_LOCK).fail_record_route_event = fail;
+    pub fn fail_record_route_event(&self) {
+        self.0.lock().expect(EFFECTS_LOCK).fail_record_route_event = true;
     }
 
     #[must_use]

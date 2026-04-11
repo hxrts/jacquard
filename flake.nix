@@ -6,7 +6,7 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
     toolkit = {
-      url = "github:hxrts/rust-toolkit";
+      url = "github:hxrts/toolkit";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.rust-overlay.follows = "rust-overlay";
       inputs.flake-utils.follows = "flake-utils";
@@ -36,9 +36,12 @@
             "rust-src"
             "rust-analyzer"
           ];
+          targets = [
+            "wasm32-unknown-unknown"
+          ];
         };
 
-        toolkitPackages = toolkit.packages.${system};
+        toolkitSupport = toolkit.lib.${system}.consumerShellSupport;
 
         nativeBuildInputs = with pkgs; [
           rustToolchain
@@ -49,21 +52,15 @@
           ripgrep
           perl
           elan
-          toolkitPackages.toolkit-xtask
-          toolkitPackages.toolkit-fmt
-          toolkitPackages.toolkit-install-dylint
-          toolkitPackages.toolkit-dylint
-          toolkitPackages.toolkit-dylint-link
-        ];
+          nodejs
+        ] ++ toolkitSupport.packages;
 
         buildInputs =
           with pkgs;
           [
             openssl
           ]
-          ++ lib.optionals stdenv.isDarwin [
-            libiconv
-          ];
+          ++ toolkitSupport.buildInputs;
 
       in
       {
@@ -72,7 +69,7 @@
 
           shellHook = ''
             [[ -r "$HOME/.local/state/secrets/cargo-registry-token" ]] && export CARGO_REGISTRY_TOKEN="$(cat "$HOME/.local/state/secrets/cargo-registry-token")"
-            export TOOLKIT_ROOT="${toolkit.outPath}"
+            ${toolkitSupport.shellHook}
 
             echo "Jacquard development environment"
             echo "Rust: $(rustc --version)"

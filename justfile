@@ -32,6 +32,33 @@ fmt:
 fmt-check:
     {{fmt_cmd}} --all -- --check
 
+# verify Pathway and the reference client compile for wasm32
+wasm-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v rustup >/dev/null 2>&1; then
+      ./scripts/wasm-host-toolchain.sh cargo build --lib --target wasm32-unknown-unknown -p jacquard-pathway
+      ./scripts/wasm-host-toolchain.sh cargo build --lib --target wasm32-unknown-unknown -p jacquard-reference-client
+    elif command -v nix >/dev/null 2>&1; then
+      nix develop --command just wasm-check
+    else
+      echo "wasm-check requires either rustup or nix" >&2
+      exit 1
+    fi
+
+# execute the wasm reference-client integration test under wasm-bindgen-test
+wasm-test-reference-client:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v rustup >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+      ./scripts/wasm-host-toolchain.sh cargo test --target wasm32-unknown-unknown -p jacquard-reference-client --test wasm_smoke
+    elif command -v nix >/dev/null 2>&1; then
+      nix develop --command just wasm-test-reference-client
+    else
+      echo "wasm-test-reference-client requires rustup + node or nix" >&2
+      exit 1
+    fi
+
 # Generate docs/SUMMARY.md from Markdown files in docs/ and subfolders
 summary:
     #!/usr/bin/env bash
@@ -76,7 +103,9 @@ summary:
 _gen-assets:
     #!/usr/bin/env bash
     set -euo pipefail
-    mdbook-mermaid install . > /dev/null 2>&1 || true
+    mdbook-mermaid install . > /dev/null
+    test -f mermaid-init.js
+    test -f mermaid.min.js
     # Patch mermaid-init.js with null guards for mdbook 0.5.x theme buttons
     sed -i.bak 's/document\.getElementById(\(.*\))\.addEventListener/const el = document.getElementById(\1); if (el) el.addEventListener/' mermaid-init.js && rm -f mermaid-init.js.bak
     # Generate theme/index.hbs with MathJax v2 inline $ config injected before MathJax loads
@@ -154,14 +183,30 @@ ci-dry-run:
     add_step "Format Check"               "{{fmt_cmd}} --all -- --check"
     add_step "Clippy"                     "cargo clippy --workspace --all-targets -- -D warnings"
     add_step "Tests"                      "cargo test --workspace"
+    add_step "Lean Style"                 "just lean-style"
+    add_step "Wasm Check"                 "just wasm-check"
+    add_step "Wasm Reference Client Test" "just wasm-test-reference-client"
     add_step "Docs Links"                 "npx --yes markdown-link-check -q -c .github/config/markdown-link-check.json docs"
     add_step "Docs Link Check"            "{{toolkit_cmd}} check docs-link-check --repo-root . --config policy/toolkit.toml"
     add_step "Proc Macro Scope"           "{{toolkit_cmd}} check proc-macro-scope --repo-root . --config policy/toolkit.toml"
+    add_step "Crate Root Policy"          "{{toolkit_cmd}} check crate-root-policy --repo-root . --config policy/toolkit.toml"
+    add_step "Ignored Result"             "{{toolkit_cmd}} check ignored-result --repo-root . --config policy/toolkit.toml"
+    add_step "Unsafe Boundary"            "{{toolkit_cmd}} check unsafe-boundary --repo-root . --config policy/toolkit.toml"
+    add_step "Bool Param"                 "{{toolkit_cmd}} check bool-param --repo-root . --config policy/toolkit.toml"
+    add_step "Must Use Public Return"     "{{toolkit_cmd}} check must-use-public-return --repo-root . --config policy/toolkit.toml"
+    add_step "Assert Shape"               "{{toolkit_cmd}} check assert-shape --repo-root . --config policy/toolkit.toml"
+    add_step "Drop Side Effects"          "{{toolkit_cmd}} check drop-side-effects --repo-root . --config policy/toolkit.toml"
+    add_step "Recursion Guard"            "{{toolkit_cmd}} check recursion-guard --repo-root . --config policy/toolkit.toml"
+    add_step "Naming Units"               "{{toolkit_cmd}} check naming-units --repo-root . --config policy/toolkit.toml"
+    add_step "Limit Constant"             "{{toolkit_cmd}} check limit-constant --repo-root . --config policy/toolkit.toml"
+    add_step "Public Type Width"          "{{toolkit_cmd}} check public-type-width --repo-root . --config policy/toolkit.toml"
+    add_step "Dependency Policy"          "{{toolkit_cmd}} check dependency-policy --repo-root . --config policy/toolkit.toml"
     add_step "Test Boundaries"            "{{toolkit_cmd}} check test-boundaries --repo-root . --config policy/toolkit.toml"
     add_step "Trait Purity"               "{{policy_cmd}} check trait-purity"
     add_step "Crate Boundary"             "{{policy_cmd}} check crate-boundary"
     add_step "Adapter Boundary"           "{{policy_cmd}} check adapter-boundary"
     add_step "DX Surface"                "{{policy_cmd}} check dx-surface"
+    add_step "DRY Code"                  "{{policy_cmd}} check dry-code"
     add_step "Transport Authoring Boundary" "{{policy_cmd}} check transport-authoring-boundary"
     add_step "Transport Ownership Boundary" "{{policy_cmd}} check transport-ownership-boundary"
     add_step "Router Round Boundary"     "{{policy_cmd}} check router-round-boundary"
@@ -173,6 +218,7 @@ ci-dry-run:
     add_step "Proof Bearing Actions"      "{{policy_cmd}} check proof-bearing-actions"
     add_step "Surface Classification"     "{{policy_cmd}} check surface-classification"
     add_step "Rust Style Guide"           "{{policy_cmd}} check rust-style-guide"
+    add_step "Field Code Map"             "{{policy_cmd}} check field-code-map"
     add_step "Checkpoint Namespacing"     "{{policy_cmd}} check checkpoint-namespacing"
     add_step "Engine Service Boundary"    "{{policy_cmd}} check engine-service-boundary"
     add_step "Invariant Specs"            "{{policy_cmd}} check invariant-specs"
@@ -248,6 +294,12 @@ routing-invariants:
 rust-style-guide:
     {{policy_cmd}} check rust-style-guide
 
+dry-code:
+    {{policy_cmd}} check dry-code
+
+field-code-map:
+    {{policy_cmd}} check field-code-map
+
 # validate routing-invariant checks against seeded fixtures
 routing-invariants-validate:
     {{policy_cmd}} check routing-invariants --validate
@@ -306,8 +358,18 @@ release \
 lean-setup:
     ./scripts/lean-prebuilt.sh
 
+# Run the generic Lean source-style policy over the verification tree.
+lean-style:
+    {{toolkit_cmd}} check lean-style --repo-root . --config policy/toolkit.toml
+
 # Build the Lean verification package (requires lean-setup to have been run once).
 lean-build:
+    cd verification && lake build
+
+# Run Lean source-style policy, hydrate the cache if needed, then build.
+lean-check:
+    just lean-style
+    just lean-setup
     cd verification && lake build
 
 # install git hooks

@@ -28,11 +28,31 @@ open FieldProtocolAPI
 open FieldRouterCanonical
 open FieldRouterLifecycle
 
+/- Projection taxonomy note:
+
+- protocol projection:
+  choreography/session structure -> local protocol surface
+- local public projection:
+  local field semantics -> corridor/public observable surface
+- runtime projection / adequacy reduction:
+  runtime artifacts or runtime state -> reduced Lean protocol/router/system
+  surface
+
+This module owns only the runtime projection / adequacy-reduction side. -/
+
+/- Boundary ownership note:
+
+- `Field/Model/Boundary.lean` owns protocol/controller-visible evidence
+  extraction from protocol exports and semantic traces
+- `Field/Adequacy/*` owns runtime-artifact and runtime-state reduction
+- the two boundaries compose only after runtime artifacts have been reduced to
+  traces or controller evidence through this adequacy layer -/
+
 /-! ## Runtime Artifact Vocabulary -/
 
-/-- Reduced router-facing projection carried by one runtime artifact. This is
-still only an extracted observational/runtime view, not a new owner of router
-truth. -/
+/-- Reduced router-facing runtime projection carried by one runtime artifact.
+This is still only an extracted observational/runtime view, not a new owner of
+router truth. -/
 structure RuntimeRouterArtifact where
   lifecycleRoute : LifecycleRoute
   deriving Repr, DecidableEq, BEq
@@ -51,6 +71,34 @@ structure RuntimeRoundArtifact where
 def runtimeLifecycleRouteOfArtifact
     (artifact : RuntimeRoundArtifact) : Option LifecycleRoute :=
   artifact.routerArtifact.map RuntimeRouterArtifact.lifecycleRoute
+
+/-- Runtime projection to the public route-shape coordinate carried by one
+artifact. -/
+def runtimeProjectionShapeOfArtifact
+    (artifact : RuntimeRoundArtifact) : Option CorridorShape :=
+  (runtimeLifecycleRouteOfArtifact artifact).map fun route => route.candidate.shape
+
+/-- Runtime projection to the public route-support coordinate carried by one
+artifact. -/
+def runtimeProjectionSupportOfArtifact
+    (artifact : RuntimeRoundArtifact) : Option Nat :=
+  (runtimeLifecycleRouteOfArtifact artifact).map fun route => route.candidate.support
+
+structure RuntimeProbabilisticSlice where
+  disposition : HostDisposition
+  blockedReceive : Option SummaryLabel
+  emittedCount : Nat
+  routeShape : Option CorridorShape
+  routeSupport : Option Nat
+  deriving Repr, DecidableEq, BEq
+
+def runtimeProbabilisticSliceOfArtifact
+    (artifact : RuntimeRoundArtifact) : RuntimeProbabilisticSlice :=
+  { disposition := artifact.disposition
+    blockedReceive := artifact.blockedReceive
+    emittedCount := artifact.emittedCount
+    routeShape := runtimeProjectionShapeOfArtifact artifact
+    routeSupport := runtimeProjectionSupportOfArtifact artifact }
 
 /-- Admitted router-facing runtime projections must stay inside the current
 reduced lifecycle honesty envelope. -/

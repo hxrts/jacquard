@@ -372,41 +372,19 @@ where
     }
 }
 
-fn with_guest_runtime<T, R, E, F, Out>(
+fn with_guest_runtime<T, R, E, F, Out, Err>(
     transport: &mut T,
     retention: &mut R,
     effects: &mut E,
     step: F,
-) -> Result<Out, RouteError>
+) -> Result<Out, Err>
 where
     T: TransportSenderEffects,
     R: RetentionStore,
     E: StorageEffects + TimeEffects,
     F: FnOnce(
         &mut PathwayGuestRuntime<super::effects::PathwayProtocolRuntimeAdapter<'_, T, R, E>>,
-    ) -> Result<Out, RouteError>,
-{
-    let mut runtime = PathwayGuestRuntime::new(super::effects::PathwayProtocolRuntimeAdapter {
-        transport,
-        retention,
-        effects,
-    });
-    step(&mut runtime)
-}
-
-fn with_guest_runtime_retention<T, R, E, F, Out>(
-    transport: &mut T,
-    retention: &mut R,
-    effects: &mut E,
-    step: F,
-) -> Result<Out, jacquard_core::RetentionError>
-where
-    T: TransportSenderEffects,
-    R: RetentionStore,
-    E: StorageEffects + TimeEffects,
-    F: FnOnce(
-        &mut PathwayGuestRuntime<super::effects::PathwayProtocolRuntimeAdapter<'_, T, R, E>>,
-    ) -> Result<Out, jacquard_core::RetentionError>,
+    ) -> Result<Out, Err>,
 {
     let mut runtime = PathwayGuestRuntime::new(super::effects::PathwayProtocolRuntimeAdapter {
         transport,
@@ -563,7 +541,7 @@ where
     R: RetentionStore,
     E: StorageEffects + TimeEffects,
 {
-    with_guest_runtime_retention(transport, retention, effects, |runtime| {
+    with_guest_runtime(transport, retention, effects, |runtime| {
         runtime.retain_for_replay(route_id, object_id, payload)
     })
 }
@@ -599,7 +577,7 @@ where
     R: RetentionStore,
     E: StorageEffects + TimeEffects,
 {
-    with_guest_runtime_retention(transport, retention, effects, |runtime| {
+    with_guest_runtime(transport, retention, effects, |runtime| {
         runtime.recover_held_payload(route_id, object_id)
     })
 }

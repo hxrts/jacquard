@@ -1,5 +1,24 @@
 import Field.Router.Lifecycle
 
+/-! # Quality.API — route comparison objectives, winner types, and route view structures -/
+
+/-
+Define the vocabulary for comparing routes: support dominance, hop-band conservativity,
+tie-break criteria, winner selection types, and the route-view snapshot that quality
+objectives operate over.
+
+Ownership note:
+- this module owns exported-view comparison only
+- it does not own canonical route truth
+- it does not own posterior confidence truth
+- it does not own runtime adequacy
+- it is intentionally coupled to `LifecycleRoute` today because the comparison
+  layer is defined over router-exported lifecycle objects rather than over a
+  fully abstract route carrier
+- any bridge from a quality objective back to router-owned truth must be stated
+  by an explicit refinement theorem
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -9,6 +28,8 @@ open FieldModelAPI
 open FieldNetworkAPI
 open FieldRouterLifecycle
 
+/-! ## Comparison Objectives -/
+
 inductive ComparisonObjective
   | supportDominance
   | hopBandConservativity
@@ -16,12 +37,16 @@ inductive ComparisonObjective
   | supportThenHopThenStableTieBreak
   deriving Inhabited, Repr, DecidableEq, BEq
 
+/-! ## Winner Types -/
+
 inductive ComparisonWinner
   | left
   | right
   | tie
   | inadmissible
   deriving Inhabited, Repr, DecidableEq, BEq
+
+/-! ## Route Views -/
 
 structure RouteComparisonView where
   destination : DestinationClass
@@ -246,6 +271,21 @@ theorem destinationView_some_implies_admissible
     subst hSome
     simpa using hAdm
   · simp [destinationView, hAdm] at hSome
+
+theorem destinationView_of_refreshed_destination_route
+    (route : LifecycleRoute) :
+    destinationView route.candidate.destination
+      { route with status := .refreshed } =
+        some (routeComparisonView { route with status := .refreshed }) := by
+  simp [destinationView, routeComparisonView, RouteViewAdmissible, routeViewIsActive]
+
+theorem bestRouteView_maintainLifecycle_idempotent
+    (objective : ComparisonObjective)
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute) :
+    bestRouteView objective destination (maintainLifecycle (maintainLifecycle routes)) =
+      bestRouteView objective destination (maintainLifecycle routes) := by
+  simp [FieldRouterLifecycle.maintainLifecycle_idempotent]
 
 theorem choosePreferredView_eq_current_or_next
     (objective : ComparisonObjective)

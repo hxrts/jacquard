@@ -1,7 +1,7 @@
 import ClassicalAnalysisAPI
 import Field.Model.API
 
-/-!
+/-
 The Problem. The local field model now has a finite belief object, but the
 proof surface still needs an explicit information-theoretic boundary so
 downstream work can depend on abstract distribution/entropy operations rather
@@ -24,6 +24,8 @@ namespace FieldInformationAPI
 
 open FieldModelAPI
 open EntropyAPI
+
+/-! ## Normalized Belief Surface -/
 
 /-- Explicit probability-simplex style belief object over the reduced field
 hypothesis space. This keeps the richer probabilistic semantics visible at the

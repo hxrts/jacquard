@@ -82,7 +82,7 @@ where
                 initial_backoff_ms: jacquard_core::DurationMs(
                     PATHWAY_COMMITMENT_INITIAL_BACKOFF_MS,
                 ),
-                backoff_multiplier_permille: jacquard_core::RatioPermille(1000),
+                retry_multiplier_permille: jacquard_core::RatioPermille(1000),
                 backoff_ms_max: jacquard_core::DurationMs(PATHWAY_COMMITMENT_BACKOFF_MS_MAX),
                 overall_timeout_ms: jacquard_core::DurationMs(
                     PATHWAY_COMMITMENT_OVERALL_TIMEOUT_MS,

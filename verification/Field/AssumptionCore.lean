@@ -37,6 +37,31 @@ structure RuntimeEnvelopeAssumptions where
   respectsReducedEnvelope :
     ∀ artifacts, admitted artifacts → RuntimeExecutionAdmitted artifacts
 
+structure TransportAssumptions where
+  reliableImmediateProfileNamed : Prop
+  boundedDelayEnvelopeNamed : Prop
+  boundedRetryEnvelopeNamed : Prop
+
+structure ParticipationAssumptions where
+  silenceDropoutEnvelopeNamed : Prop
+  nonParticipationEnvelopeNamed : Prop
+  dishonestPublicationExcluded : Prop
+
+structure RefinementAssumptions where
+  reducedProtocolAdequacyNamed : Prop
+  reducedRuntimeProjectionNamed : Prop
+  extractedRustForwardSimulationNamed : Prop
+
+structure BudgetAssumptions where
+  routerSearchBudgetNamed : Prop
+  transportWorkBudgetNamed : Prop
+  runtimeProjectionBudgetNamed : Prop
+
+structure RegimeProfileAssumptions where
+  localQuantitativeSurfaceNamed : Prop
+  distributedProfileSurfaceNamed : Prop
+  bridgeSurfaceNamed : Prop
+
 structure OptionalStrengtheningAssumptions where
   receiveRefinementEnabled : Prop
   simulationStrengthened : Prop
@@ -51,7 +76,74 @@ structure ProofContract where
   semantic : SemanticAssumptions
   protocol : ProtocolEnvelopeAssumptions
   runtime : RuntimeEnvelopeAssumptions
+  transport : TransportAssumptions
+  participation : ParticipationAssumptions
+  refinement : RefinementAssumptions
+  budget : BudgetAssumptions
+  regimeProfile : RegimeProfileAssumptions
   optional : OptionalStrengtheningAssumptions
+
+structure ConvergenceProfileFamily where
+  transport : TransportAssumptions
+  regime : RegimeProfileAssumptions
+
+structure ResilienceProfileFamily where
+  transport : TransportAssumptions
+  participation : ParticipationAssumptions
+  regime : RegimeProfileAssumptions
+
+structure SearchProfileFamily where
+  budget : BudgetAssumptions
+  regime : RegimeProfileAssumptions
+  refinement : RefinementAssumptions
+
+def semanticProfileOfContract
+    (contract : ProofContract) : SemanticAssumptions :=
+  contract.semantic
+
+def transportProfileOfContract
+    (contract : ProofContract) : TransportAssumptions :=
+  contract.transport
+
+def participationProfileOfContract
+    (contract : ProofContract) : ParticipationAssumptions :=
+  contract.participation
+
+def refinementProfileOfContract
+    (contract : ProofContract) : RefinementAssumptions :=
+  contract.refinement
+
+def budgetProfileOfContract
+    (contract : ProofContract) : BudgetAssumptions :=
+  contract.budget
+
+def regimeProfileOfContract
+    (contract : ProofContract) : RegimeProfileAssumptions :=
+  contract.regimeProfile
+
+def convergenceProfilesOfContract
+    (contract : ProofContract) : ConvergenceProfileFamily :=
+  { transport := contract.transport
+    regime := contract.regimeProfile }
+
+def resilienceProfilesOfContract
+    (contract : ProofContract) : ResilienceProfileFamily :=
+  { transport := contract.transport
+    participation := contract.participation
+    regime := contract.regimeProfile }
+
+def searchProfilesOfContract
+    (contract : ProofContract) : SearchProfileFamily :=
+  { budget := contract.budget
+    regime := contract.regimeProfile
+    refinement := contract.refinement }
+
+/-! ## Explicit Non-Claims -/
+
+/-- Global marker used by the assumptions layer to say explicitly that the
+current reduced theorem packs still do not justify full Rust/runtime
+implementation-correctness claims. -/
+def FullRustRuntimeCorrectnessReady : Prop := False
 
 /-! ## Default Envelopes -/
 
@@ -70,6 +162,31 @@ def defaultRuntimeEnvelopeAssumptions : RuntimeEnvelopeAssumptions :=
 def defaultProtocolEnvelopeAssumptions : ProtocolEnvelopeAssumptions :=
   { reducedMachineCoherent := MachineCoherent
     semanticObjectsObservational := fun trace => FieldEvidenceConservation trace }
+
+def defaultTransportAssumptions : TransportAssumptions :=
+  { reliableImmediateProfileNamed := True
+    boundedDelayEnvelopeNamed := True
+    boundedRetryEnvelopeNamed := True }
+
+def defaultParticipationAssumptions : ParticipationAssumptions :=
+  { silenceDropoutEnvelopeNamed := True
+    nonParticipationEnvelopeNamed := True
+    dishonestPublicationExcluded := True }
+
+def defaultRefinementAssumptions : RefinementAssumptions :=
+  { reducedProtocolAdequacyNamed := True
+    reducedRuntimeProjectionNamed := True
+    extractedRustForwardSimulationNamed := False }
+
+def defaultBudgetAssumptions : BudgetAssumptions :=
+  { routerSearchBudgetNamed := True
+    transportWorkBudgetNamed := True
+    runtimeProjectionBudgetNamed := True }
+
+def defaultRegimeProfileAssumptions : RegimeProfileAssumptions :=
+  { localQuantitativeSurfaceNamed := True
+    distributedProfileSurfaceNamed := True
+    bridgeSurfaceNamed := True }
 
 /-! ## Optional Strengthening Presets -/
 
@@ -113,6 +230,11 @@ def mkProofContract
   { semantic := defaultSemanticAssumptions
     protocol := defaultProtocolEnvelopeAssumptions
     runtime := defaultRuntimeEnvelopeAssumptions
+    transport := defaultTransportAssumptions
+    participation := defaultParticipationAssumptions
+    refinement := defaultRefinementAssumptions
+    budget := defaultBudgetAssumptions
+    regimeProfile := defaultRegimeProfileAssumptions
     optional := optional }
 
 def defaultContract : ProofContract :=

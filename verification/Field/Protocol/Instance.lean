@@ -123,6 +123,9 @@ def exportSemanticObjectsImpl
 
 /-! ## API Instance -/
 
+-- long-block-exception: the reduced protocol laws are intentionally presented
+-- as one executable law bundle so the whole boundary contract is reviewable in
+-- one place against the concrete machine step.
 instance fieldProtocolLaws : FieldProtocolAPI.Laws where
   globalChoreography := globalChoreographyImpl
   controllerRole := controllerRoleImpl
@@ -197,6 +200,9 @@ instance fieldProtocolLaws : FieldProtocolAPI.Laws where
     -- Replay-visible semantic objects stay observational-only by construction.
     simp [exportSemanticObjectsImpl] at hObject
     simp [hObject]
+  failed_closed_exports_nothing := by
+    intro snapshot hFailed
+    simp [exportOutputsImpl, hFailed]
 
 /-! ## Representative Machine Lemmas -/
 

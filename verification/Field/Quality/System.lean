@@ -1,6 +1,13 @@
 import Field.Quality.API
 import Field.System.Convergence
 
+/-! # Quality.System — lifecycle fixpoints and explicit-path honesty at system level -/
+
+/-
+Prove that the system lifecycle reaches a fixpoint under reliable/immediate assumptions and
+that the system cannot manufacture false explicit-path route claims.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -13,6 +20,8 @@ open FieldQualityAPI
 open FieldRouterLifecycle
 open FieldSystemConvergence
 open FieldSystemEndToEnd
+
+/-! ## Lifecycle Fixpoint -/
 
 def bestSystemRouteView
     (objective : ComparisonObjective)
@@ -50,6 +59,8 @@ theorem best_system_route_view_stable_under_reliable_immediate_empty
       bestSystemRouteView objective destination state := by
   unfold bestSystemRouteView
   rw [system_step_lifecycle_fixed_point_under_reliable_immediate_empty state hAssumptions hEmpty]
+
+/-! ## Explicit-Path Honesty -/
 
 theorem best_system_route_view_cannot_manufacture_explicit_path
     (objective : ComparisonObjective)
@@ -164,5 +175,34 @@ theorem best_system_route_view_explicit_path_requires_explicit_sender_knowledge
           (state.async.network.localStates route.candidate.publisher route.candidate.destination).posterior.knowledge := by
             simp [hWinnerPublisher, hRouteDestination]
     _ = ReachabilityKnowledge.explicitPath := hKnowledge
+
+theorem ready_installed_route_eventually_appears_in_system_destination_views
+    (state : EndToEndState)
+    (route : LifecycleRoute)
+    (hMem : route ∈ readyInstalledRoutes state.async)
+    (hSupport : route.candidate.support ≠ 0)
+    (hShape : route.candidate.shape ≠ CorridorShape.opaque) :
+    routeComparisonView (lifecycleMaintenance route) ∈
+      destinationViews route.candidate.destination (systemStep state).lifecycle := by
+  unfold destinationViews
+  apply List.mem_filterMap.2
+  refine ⟨lifecycleMaintenance route,
+    ready_installed_route_appears_in_system_step_lifecycle state route hMem, ?_⟩
+  have hMaintained :
+      lifecycleMaintenance route =
+        { route with status := .refreshed } := by
+    cases route with
+    | mk candidate status =>
+        simp [lifecycleMaintenance, hSupport, hShape, refreshLifecycleRoute]
+  rw [hMaintained]
+  simp [destinationView, routeComparisonView, RouteViewAdmissible, routeViewIsActive]
+
+theorem best_system_route_view_idempotent_under_lifecycle_maintenance
+    (objective : ComparisonObjective)
+    (destination : DestinationClass)
+    (routes : List LifecycleRoute) :
+    bestRouteView objective destination (maintainLifecycle (maintainLifecycle routes)) =
+      bestRouteView objective destination (maintainLifecycle routes) := by
+  exact bestRouteView_maintainLifecycle_idempotent objective destination routes
 
 end FieldQualitySystem

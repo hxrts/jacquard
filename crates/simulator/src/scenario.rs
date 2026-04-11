@@ -68,7 +68,7 @@ pub struct JacquardScenario {
     objectives: Vec<RoutingObjective>,
     bound_objectives: Vec<BoundObjective>,
     round_limit: u32,
-    checkpoint_interval: Option<u32>,
+    checkpoint_period_rounds: Option<u32>,
 }
 
 impl JacquardScenario {
@@ -95,13 +95,13 @@ impl JacquardScenario {
             objectives,
             bound_objectives,
             round_limit,
-            checkpoint_interval: None,
+            checkpoint_period_rounds: None,
         }
     }
 
     #[must_use]
-    pub fn with_checkpoint_interval(mut self, checkpoint_interval: u32) -> Self {
-        self.checkpoint_interval = Some(checkpoint_interval);
+    pub fn with_checkpoint_interval(mut self, checkpoint_period_rounds: u32) -> Self {
+        self.checkpoint_period_rounds = Some(checkpoint_period_rounds);
         self
     }
 
@@ -122,7 +122,7 @@ impl JacquardScenario {
 
     #[must_use]
     pub fn checkpoint_interval(&self) -> Option<u32> {
-        self.checkpoint_interval
+        self.checkpoint_period_rounds
     }
 
     #[must_use]
