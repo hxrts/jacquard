@@ -3,6 +3,13 @@ import Field.System.Canonical
 import Field.System.Convergence
 import Field.System.EndToEnd
 
+/-! # System.Bounded — reliable-immediate recovery state and system work accounting -/
+
+/-
+Define the reliable-immediate recovery state class and system-level work unit accounting,
+proving that route view projections are preserved under transport in the bounded regime.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -18,6 +25,8 @@ open FieldSystemCanonical
 open FieldSystemConvergence
 open FieldSystemEndToEnd
 
+/-! ## Recovery State -/
+
 def reliableImmediateRecoveryState
     (state : EndToEndState) : EndToEndState :=
   { async :=
@@ -27,12 +36,16 @@ def reliableImmediateRecoveryState
         tick := state.async.tick }
     lifecycle := state.lifecycle }
 
+/-! ## Work Accounting -/
+
 def systemStepWorkUnits
     (state : EndToEndState) : Nat :=
   state.async.inFlight.length +
     (enqueuePublications state.async.network state.async.assumptions).length +
     (readyInstalledRoutes state.async).length +
     (systemStep state).lifecycle.length
+
+/-! ## Projection Preservation -/
 
 theorem installLifecycleOfEnvelope_some_preserves_projection_shape_support
     (network : FieldNetworkAPI.NetworkState)

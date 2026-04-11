@@ -1,5 +1,13 @@
 import Field.Router.Canonical
 
+/-! # Router.Cost — maintenance and search work unit metrics -/
+
+/-
+Define work unit measures for route maintenance and search space traversal, proving search
+space is bounded by route count and that repeated identical searches are amortised to zero
+net cost.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -9,6 +17,8 @@ open FieldModelAPI
 open FieldNetworkAPI
 open FieldRouterCanonical
 open FieldRouterLifecycle
+
+/-! ## Work Units -/
 
 def maintenanceWorkUnits
     (routes : List LifecycleRoute) : Nat :=
@@ -21,6 +31,8 @@ def canonicalSearchWorkUnits
 def iterateLifecycleMaintenance : Nat → List LifecycleRoute → List LifecycleRoute
   | 0, routes => routes
   | n + 1, routes => iterateLifecycleMaintenance n (maintainLifecycle routes)
+
+/-! ## Bounds -/
 
 theorem canonicalEligibleRoutes_search_space_bounded
     (destination : DestinationClass)

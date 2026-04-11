@@ -1,6 +1,14 @@
 import Field.Model.API
 import Field.Network.API
 
+/-! # Router.Publication — published candidate structure and explicit-path honesty -/
+
+/-
+Define the published route candidate record, its honesty and well-formedness constraints,
+and prove that explicit-path publication requires the publishing node to hold explicit local
+knowledge of the path.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -8,6 +16,8 @@ namespace FieldRouterPublication
 
 open FieldModelAPI
 open FieldNetworkAPI
+
+/-! ## Published Candidate -/
 
 /-- Router-facing field publication candidate. This is the first point where a
 local observational projection becomes eligible for canonical control-plane
@@ -43,6 +53,8 @@ def PublicationHonest
 def PublicationWellFormed
     (candidate : PublishedCandidate) : Prop :=
   candidate.support ≤ 1000 ∧ candidate.hopLower ≤ candidate.hopUpper
+
+/-! ## Honesty Constraints -/
 
 theorem publishCandidate_honest
     (publisher : NodeId)

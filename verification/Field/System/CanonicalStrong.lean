@@ -2,6 +2,13 @@ import Field.Quality.System
 import Field.Router.CanonicalStrong
 import Field.System.Canonical
 
+/-! # System.CanonicalStrong — system-level multi-criteria selection stability -/
+
+/-
+Define the system-level multi-criteria canonical selector and prove it is stable (produces
+the same winner across repeated calls) under reliable-immediate assumptions.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -16,10 +23,14 @@ open FieldRouterLifecycle
 open FieldSystemCanonical
 open FieldSystemEndToEnd
 
+/-! ## Multi-Criteria Selection -/
+
 def canonicalSystemRouteSupportThenHopThenStableTieBreak
     (destination : DestinationClass)
     (state : EndToEndState) : Option LifecycleRoute :=
   canonicalBestRouteSupportThenHopThenStableTieBreak destination (systemStep state).lifecycle
+
+/-! ## Stability -/
 
 theorem canonical_system_route_supportThenHopThenStableTieBreak_stable_under_reliable_immediate_empty
     (destination : DestinationClass)

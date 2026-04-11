@@ -1,5 +1,12 @@
 import Field.Router.Cost
 
+/-! # Router.Optimality — budgeted canonical selection with regret bounds -/
+
+/-
+Define a budgeted canonical selector that terminates within a fixed work budget and prove it
+achieves zero regret when the budget covers the eligible candidate set.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -9,6 +16,8 @@ open FieldNetworkAPI
 open FieldRouterCanonical
 open FieldRouterCost
 open FieldRouterLifecycle
+
+/-! ## Budgeted Selection -/
 
 def budgetedCanonicalEligibleRoutes
     (destination : DestinationClass)
@@ -188,6 +197,8 @@ theorem budgetedCanonicalBestRoute_anytime_monotone
     budgetedCanonicalBestRoute_some_is_support_best_within_budget
       destination budget₂ routes winner₂ hLarge
   exact hLargeBest.2.2 winner₁ hSmallMemLarge hSmallEligible
+
+/-! ## Regret Bounds -/
 
 theorem budgetedCanonicalSupportRegret_bounded
     (destination : DestinationClass)

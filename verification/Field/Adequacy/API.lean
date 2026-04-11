@@ -52,6 +52,30 @@ def runtimeLifecycleRouteOfArtifact
     (artifact : RuntimeRoundArtifact) : Option LifecycleRoute :=
   artifact.routerArtifact.map RuntimeRouterArtifact.lifecycleRoute
 
+def runtimeProjectionShapeOfArtifact
+    (artifact : RuntimeRoundArtifact) : Option CorridorShape :=
+  (runtimeLifecycleRouteOfArtifact artifact).map fun route => route.candidate.shape
+
+def runtimeProjectionSupportOfArtifact
+    (artifact : RuntimeRoundArtifact) : Option Nat :=
+  (runtimeLifecycleRouteOfArtifact artifact).map fun route => route.candidate.support
+
+structure RuntimeProbabilisticSlice where
+  disposition : HostDisposition
+  blockedReceive : Option SummaryLabel
+  emittedCount : Nat
+  routeShape : Option CorridorShape
+  routeSupport : Option Nat
+  deriving Repr, DecidableEq, BEq
+
+def runtimeProbabilisticSliceOfArtifact
+    (artifact : RuntimeRoundArtifact) : RuntimeProbabilisticSlice :=
+  { disposition := artifact.disposition
+    blockedReceive := artifact.blockedReceive
+    emittedCount := artifact.emittedCount
+    routeShape := runtimeProjectionShapeOfArtifact artifact
+    routeSupport := runtimeProjectionSupportOfArtifact artifact }
+
 /-- Admitted router-facing runtime projections must stay inside the current
 reduced lifecycle honesty envelope. -/
 def RuntimeRouterArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=

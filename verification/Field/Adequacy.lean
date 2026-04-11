@@ -8,3 +8,7 @@ import Field.Adequacy.Instance
 import Field.Adequacy.Projection
 import Field.Adequacy.Refinement
 import Field.Adequacy.Runtime
+import Field.Adequacy.Probabilistic
+import Field.Adequacy.ProbabilisticFixtures
+
+/-! # Adequacy — runtime projection and artifact adequacy theorems -/

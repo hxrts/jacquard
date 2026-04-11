@@ -2,6 +2,13 @@ import Field.Async.Transport
 import Field.Router.Lifecycle
 import Field.Network.Safety
 
+/-! # System.EndToEnd — end-to-end system composition of async transport and lifecycle -/
+
+/-
+Define the composite end-to-end system step that sequences asynchronous message delivery with
+route lifecycle updates, mapping received envelopes to installed route objects.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -15,6 +22,8 @@ open FieldNetworkSafety
 open FieldRouterAdmission
 open FieldRouterLifecycle
 open FieldRouterPublication
+
+/-! ## Composite System Step -/
 
 structure EndToEndState where
   async : AsyncState
@@ -71,6 +80,8 @@ def ProducedInstalledCandidate
     envelope ∈ (transportStep state).inFlight.filter readyForDelivery ∧
       admitEnvelopeCandidate (transportStep state).network envelope = some admitted ∧
       admitted.candidate = candidate
+
+/-! ## Envelope-to-Route Mapping -/
 
 theorem admit_envelope_candidate_preserves_candidate
     (network : NetworkState)

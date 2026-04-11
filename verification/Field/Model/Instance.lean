@@ -1,6 +1,7 @@
 import Mathlib.Order.Basic
 import Mathlib.Order.MinMax
 import Mathlib.Tactic
+import Field.Information.Bayesian
 import Field.Model.API
 
 /-
@@ -30,6 +31,7 @@ set_option relaxedAutoImplicit false
 
 namespace FieldModelInstance
 
+open FieldInformationBayesian
 open FieldModelAPI
 
 /-! ## Bounded Helpers -/
@@ -403,8 +405,27 @@ theorem projectCorridorImpl_bounded
 
 /-! ## API Instance -/
 
-instance : FieldModelAPI.Laws where
+/-- The concrete local model exposes a Bayesian-style posterior by interpreting
+the current reduced posterior as a prior and then weighting it by the incoming
+evidence observation. -/
+noncomputable def bayesianPosteriorImpl
+    (evidence : EvidenceInput)
+    (state : LocalState) : ProbabilisticRouteBelief :=
+  bayesianPosteriorBelief
+    (priorBeliefOfPosteriorState state.posterior)
+    (observationOfEvidence evidence state)
+
+theorem bayesianPosteriorImpl_normalized
+    (evidence : EvidenceInput)
+    (state : LocalState) :
+    ∑ h, (bayesianPosteriorImpl evidence state).pmf h = 1 := by
+  exact bayesianPosteriorBelief_sum_one
+    (priorBeliefOfPosteriorState state.posterior)
+    (observationOfEvidence evidence state)
+
+noncomputable instance instLaws : FieldModelAPI.Laws where
   updatePosterior := updatePosteriorImpl
+  bayesianPosterior := bayesianPosteriorImpl
   compressMeanField := compressMeanFieldImpl
   updateController := updateControllerImpl
   inferRegime := inferRegimeImpl
@@ -437,6 +458,10 @@ instance : FieldModelAPI.Laws where
       simpa [projection] using
         projectCorridorImpl_bounded posterior meanField controller scored hPosterior hScores
     exact ⟨hPosterior, hMeanField, hController, hRegime, hScores, hProjection⟩
+  bayesian_posterior_normalized := by
+    intro evidence state
+    simpa [bayesianPosteriorImpl] using
+      bayesianPosteriorImpl_normalized evidence state
   round_preserves_harmony := by
     intro evidence state
     -- The composed round wires subordinate state directly from the posterior.
@@ -565,6 +590,8 @@ theorem explicit_path_signal_yields_explicit_projection :
     (FieldModelAPI.roundStep explicitPathEvidence initialState).projection.shape =
       CorridorShape.explicitPath := by
   -- The signal flows from posterior knowledge to the shared projection.
+  change (roundStepImpl explicitPathEvidence initialState).projection.shape =
+    CorridorShape.explicitPath
   native_decide
 
 /-- Strong corridor risk pushes the local controller into a risk-suppressed
@@ -574,6 +601,8 @@ theorem adversarial_corridor_signal_suppresses_posture :
       RoutingPosture.riskSuppressed := by
   -- The evidence first induces the adversarial regime and then the posture map
   -- sends that regime to `riskSuppressed`.
+  change (roundStepImpl adversarialEvidence initialState).posture.current =
+    RoutingPosture.riskSuppressed
   native_decide
 
 /-- Corridor projection never manufactures explicit-path truth. -/
@@ -790,14 +819,14 @@ def roundTwice
     (first : EvidenceInput)
     (second : EvidenceInput)
     (state : LocalState) : LocalState :=
-  FieldModelAPI.roundStep second (FieldModelAPI.roundStep first state)
+  roundStepImpl second (roundStepImpl first state)
 
 /-- Run one fixed evidence object for `steps` consecutive local rounds. -/
 def runRepeatedEvidence
     (steps : Nat)
     (evidence : EvidenceInput)
     (state : LocalState) : LocalState :=
-  Nat.iterate (FieldModelAPI.roundStep evidence) steps state
+  Nat.iterate (roundStepImpl evidence) steps state
 
 /-- Repeated unknown evidence keeps the local projection stale and opaque after
 two rounds. -/
@@ -936,6 +965,8 @@ theorem explicit_path_round_strictly_reduces_uncertainty_burden_from_initial :
     FieldModelAPI.UncertaintyBurden
         (FieldModelAPI.roundStep explicitPathEvidence initialState) <
       FieldModelAPI.UncertaintyBurden initialState := by
+  change FieldModelAPI.UncertaintyBurden (roundStepImpl explicitPathEvidence initialState) <
+    FieldModelAPI.UncertaintyBurden initialState
   native_decide
 
 end FieldModelInstance

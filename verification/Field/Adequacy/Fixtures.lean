@@ -5,6 +5,13 @@ import Field.Adequacy.Runtime
 import Field.Quality.Refinement
 import Field.Router.CanonicalStrong
 
+/-! # Adequacy.Fixtures — concrete route test fixtures for adequacy validation -/
+
+/-
+Define concrete route instances with varying support levels and hop bands for use in adequacy
+theorem tests and regression scenarios.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -22,6 +29,8 @@ open FieldRouterOptimality
 open FieldRouterLifecycle
 open FieldSystemCanonical
 open FieldSystemEndToEnd
+
+/-! ## Fixture Definitions -/
 
 def fixtureLowSupportRoute : LifecycleRoute :=
   { candidate :=

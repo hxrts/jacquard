@@ -1,5 +1,12 @@
 import Field.Async.Safety
 
+/-! # Async.Transport — envelope transformation and monotonicity under delayed delivery -/
+
+/-
+Prove that lifecycle envelope transformations preserve message projections and that delayed
+messages never strengthen claims beyond what was published.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -9,6 +16,8 @@ open FieldAsyncAPI
 open FieldAsyncSafety
 open FieldModelAPI
 open FieldNetworkAPI
+
+/-! ## Envelope Transformation -/
 
 theorem retry_envelope_preserves_projection
     (assumptions : AsyncAssumptions)
@@ -53,6 +62,8 @@ theorem transport_step_preserves_assumptions
     (state : AsyncState) :
     (transportStep state).assumptions = state.assumptions := by
   rfl
+
+/-! ## Monotonicity -/
 
 theorem injected_publication_mem_transport_step
     (state : AsyncState)

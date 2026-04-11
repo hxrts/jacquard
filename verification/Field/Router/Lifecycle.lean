@@ -1,5 +1,13 @@
 import Field.Router.Installation
 
+/-! # Router.Lifecycle — route lifecycle statuses and maintenance transition rules -/
+
+/-
+Define the route lifecycle state machine (observed → admitted → installed → withdrawn /
+expired / refreshed) and the maintenance rules that govern transitions based on support
+level and route shape.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -10,6 +18,8 @@ open FieldNetworkAPI
 open FieldRouterAdmission
 open FieldRouterInstallation
 open FieldRouterPublication
+
+/-! ## Lifecycle States -/
 
 inductive LifecycleStatus
   | observed
@@ -49,6 +59,8 @@ def refreshLifecycleRoute
     (candidate : PublishedCandidate)
     (_installed : LifecycleRoute) : LifecycleRoute :=
   { candidate := candidate, status := .refreshed }
+
+/-! ## Maintenance Rules -/
 
 def lifecycleMaintenance
     (route : LifecycleRoute) : LifecycleRoute :=

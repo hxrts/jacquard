@@ -4,6 +4,14 @@ import Field.Router.Admission
 import Field.Router.Installation
 import Field.Router.Publication
 
+/-! # Network.Safety — network round buffer matches local projections and explicit-path honesty -/
+
+/-
+Prove that the synchronous network round buffer is consistent with each node's local projection,
+that support mass is conserved across a network step, and that explicit-path route claims require
+explicit local knowledge.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -15,6 +23,8 @@ open FieldRouterAdmission
 open FieldRouterInstallation
 open FieldRouterPublication
 
+/-! ## Projection Consistency -/
+
 theorem network_round_buffer_matches_local_projection
     (state : NetworkState)
     (node : NodeId)
@@ -22,6 +32,8 @@ theorem network_round_buffer_matches_local_projection
     (networkRound state).roundBuffer node destination =
       publishMessage node destination (state.localStates node destination) := by
   rfl
+
+/-! ## Support Conservation -/
 
 theorem network_round_buffer_support_conservative
     (state : NetworkState)
@@ -33,6 +45,8 @@ theorem network_round_buffer_support_conservative
   have hLocal := hHarmony node destination
   rcases hLocal with ⟨_, _, _, hSupport, _⟩
   simpa [networkRound, initializeRoundBuffer, publishMessage] using hSupport
+
+/-! ## Explicit-Path Honesty -/
 
 theorem explicit_path_installation_requires_explicit_local_knowledge
     (state : NetworkState)

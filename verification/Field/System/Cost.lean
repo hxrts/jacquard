@@ -2,6 +2,13 @@ import Field.Router.Cost
 import Field.System.Bounded
 import Field.System.Canonical
 
+/-! # System.Cost — communication, queue, and storage work accounting with bottleneck analysis -/
+
+/-
+Define system-level work unit accounting across communication, queue, and storage dimensions
+and prove bounded growth and bottleneck localisation theorems.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -17,6 +24,8 @@ open FieldSystemBounded
 open FieldSystemCanonical
 open FieldSystemConvergence
 open FieldSystemEndToEnd
+
+/-! ## Work Unit Accounting -/
 
 def communicationWorkUnits
     (state : EndToEndState) : Nat :=
@@ -184,6 +193,8 @@ theorem system_step_work_scales_linearly_with_transport_volume
     (state : EndToEndState) :
     systemStepWorkUnits state ≤ 4 * transportVolumeBudget state := by
   exact system_step_work_is_local_to_transport_volume state
+
+/-! ## Bottleneck Analysis -/
 
 theorem transport_volume_budget_bounded_by_bottleneck
     (state : EndToEndState) :

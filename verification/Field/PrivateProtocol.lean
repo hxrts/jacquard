@@ -5,3 +5,5 @@ import Field.Protocol.Instance
 import Field.Protocol.Bridge
 import Field.Protocol.ReceiveRefinement
 import Field.Protocol.Reconfiguration
+
+/-! # PrivateProtocol — node-local message handling and protocol coherence -/

@@ -1,5 +1,12 @@
 import Field.Router.Canonical
 
+/-! # Router.Resilience — fault budgets and route survival under bounded dropout -/
+
+/-
+Define silence-dropout and non-participation fault budgets and prove that canonical support
+values survive bounded faults when the best route persists.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -8,6 +15,8 @@ namespace FieldRouterResilience
 open FieldNetworkAPI
 open FieldRouterCanonical
 open FieldRouterLifecycle
+
+/-! ## Fault Budgets -/
 
 inductive ParticipationFaultClass
   | silenceDropout
@@ -68,6 +77,8 @@ def routeSurvivesNonParticipation
     (budget : NonParticipationBudget)
     (route : LifecycleRoute) : Prop :=
   routeBlockedByNonParticipation budget route = false
+
+/-! ## Survival Theorems -/
 
 theorem publisherDroppedBySilence_eq_true_of_mem
     (publisher : NodeId)

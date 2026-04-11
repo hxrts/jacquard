@@ -1,5 +1,12 @@
 import Field.Router.Lifecycle
 
+/-! # Router.Canonical — canonical route eligibility and highest-support selection -/
+
+/-
+Define which installed routes are eligible for canonical publication (installed/refreshed,
+matching destination) and implement the highest-support selection algorithm over eligible sets.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -8,6 +15,8 @@ namespace FieldRouterCanonical
 open FieldModelAPI
 open FieldNetworkAPI
 open FieldRouterLifecycle
+
+/-! ## Eligibility -/
 
 def CanonicalRouteEligible
     (destination : DestinationClass)
@@ -34,6 +43,8 @@ def canonicalEligibleRoutes
     (destination : DestinationClass)
     (routes : List LifecycleRoute) : List LifecycleRoute :=
   routes.filterMap (eligibleCanonicalRoute destination)
+
+/-! ## Selection Algorithm -/
 
 def chooseCanonicalRouteBySupport
     (current next : LifecycleRoute) : LifecycleRoute :=

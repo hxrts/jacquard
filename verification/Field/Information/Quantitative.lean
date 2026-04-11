@@ -2,6 +2,13 @@ import ClassicalAnalysisAPI
 import Field.Information.Blindness
 import Field.Model.Instance
 
+/-! # Information.Quantitative — L1 belief distance and local uncertainty potential -/
+
+/-
+Define a quantitative measure of belief change (L1 simplex distance) and a scalar uncertainty
+potential that combines belief entropy with congestion and residual pressure.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -13,10 +20,14 @@ open FieldModelAPI
 open EntropyAPI
 open scoped BigOperators
 
+/-! ## Belief Distance -/
+
 /-- Simple `L1` distance on the normalized reduced belief simplex. -/
 noncomputable def beliefL1Distance
     (left right : FiniteBelief) : ℝ :=
   ∑ hypothesis, |(normalizeBelief left).pmf hypothesis - (normalizeBelief right).pmf hypothesis|
+
+/-! ## Uncertainty Potential -/
 
 /-- Local uncertainty potential following the same API/instance discipline as
 Telltale's classical-analysis split: the API-level pieces come from the local

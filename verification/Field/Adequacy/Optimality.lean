@@ -1,6 +1,13 @@
 import Field.Adequacy.Cost
 import Field.System.Optimality
 
+/-! # Adequacy.Optimality — projected runtime budgeted selection achieves zero regret -/
+
+/-
+Prove that the budgeted canonical selector applied to the projected runtime artifact achieves
+zero regret when the budget covers all eligible candidates.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -14,6 +21,8 @@ open FieldRouterOptimality
 open FieldSystemCanonical
 open FieldSystemEndToEnd
 open FieldSystemOptimality
+
+/-! ## Optimality Under Projection -/
 
 theorem projected_runtime_budgeted_canonical_route_eq_canonicalSystemRoute_of_budget_covers
     (destination : DestinationClass)

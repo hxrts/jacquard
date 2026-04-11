@@ -1,5 +1,12 @@
 import Field.Async.Transport
 
+/-! # Async.Bounded — bounded delay and retry transport assumptions -/
+
+/-
+Define the bounded-delay / bounded-retry transport regime and prove that message delivery is
+preserved under those controlled congestion bounds.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -9,6 +16,8 @@ open FieldAsyncAPI
 open FieldAsyncSafety
 open FieldAsyncTransport
 open FieldNetworkAPI
+
+/-! ## Bounded Transport Assumptions -/
 
 def boundedDelayRetryAssumptions : AsyncAssumptions :=
   { maxDelay := 1
@@ -25,6 +34,8 @@ def congestionLossBudget
     (state : AsyncState) : Nat :=
   state.inFlight.length +
     (state.inFlight.filter (eligibleForRetry state.assumptions)).length
+
+/-! ## Preservation Theorems -/
 
 theorem boundedDelayRetry_regime_has_explicit_budget :
     boundedDelayRetryAssumptions.maxDelay = 1 ∧

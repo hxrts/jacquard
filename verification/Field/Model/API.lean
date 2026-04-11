@@ -1,3 +1,4 @@
+import ClassicalAnalysisAPI
 import Mathlib.Data.Fintype.Basic
 import Mathlib.Data.Nat.Basic
 import Mathlib.Tactic.DeriveFintype
@@ -35,6 +36,8 @@ set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
 namespace FieldModelAPI
+
+open EntropyAPI
 
 /-! ## Core Enumerations -/
 
@@ -75,6 +78,57 @@ inductive FieldHypothesis
   | corridor
   | explicitPath
   deriving Inhabited, Repr, DecidableEq, BEq, Fintype
+
+inductive ProbabilisticRouteExistence
+  | absent
+  | present
+  deriving Inhabited, Repr, DecidableEq, BEq, Fintype
+
+inductive RouteQualityBand
+  | low
+  | medium
+  | high
+  deriving Inhabited, Repr, DecidableEq, BEq, Fintype
+
+inductive TransportReliabilityBand
+  | lossy
+  | delayed
+  | reliable
+  deriving Inhabited, Repr, DecidableEq, BEq, Fintype
+
+inductive ObservationReliabilityBand
+  | noisy
+  | corroborated
+  | trusted
+  deriving Inhabited, Repr, DecidableEq, BEq, Fintype
+
+structure ProbabilisticRouteHypothesis where
+  existence : ProbabilisticRouteExistence
+  quality : RouteQualityBand
+  transportReliability : TransportReliabilityBand
+  observationReliability : ObservationReliabilityBand
+  knowledge : FieldHypothesis
+  deriving Inhabited, Repr, DecidableEq, BEq, Fintype
+
+structure ProbabilisticRouteBelief where
+  distribution : Distribution ProbabilisticRouteHypothesis
+
+namespace ProbabilisticRouteBelief
+
+def pmf (belief : ProbabilisticRouteBelief) : ProbabilisticRouteHypothesis → ℝ :=
+  belief.distribution.pmf
+
+theorem nonneg
+    (belief : ProbabilisticRouteBelief)
+    (hypothesis : ProbabilisticRouteHypothesis) :
+    0 ≤ belief.pmf hypothesis :=
+  belief.distribution.nonneg hypothesis
+
+theorem sum_one (belief : ProbabilisticRouteBelief) :
+    ∑ h, belief.pmf h = 1 :=
+  belief.distribution.sum_one
+
+end ProbabilisticRouteBelief
 
 inductive OperatingRegime
   | sparse
@@ -250,6 +304,7 @@ def Harmony (state : LocalState) : Prop :=
 
 class Model where
   updatePosterior : EvidenceInput → LocalState → PosteriorState
+  bayesianPosterior : EvidenceInput → LocalState → ProbabilisticRouteBelief
   compressMeanField : EvidenceInput → PosteriorState → MeanFieldState
   updateController : EvidenceInput → MeanFieldState → ControllerState → ControllerState
   inferRegime :
@@ -275,6 +330,11 @@ variable [Model]
 
 def updatePosterior (evidence : EvidenceInput) (state : LocalState) : PosteriorState :=
   Model.updatePosterior evidence state
+
+def bayesianPosterior
+    (evidence : EvidenceInput)
+    (state : LocalState) : ProbabilisticRouteBelief :=
+  Model.bayesianPosterior evidence state
 
 def compressMeanField
     (evidence : EvidenceInput)
@@ -319,8 +379,27 @@ end Wrappers
 
 /-! ## Law Interfaces -/
 
+structure BayesianRoundView where
+  posteriorBelief : ProbabilisticRouteBelief
+  nextState : LocalState
+
+section BayesianRoundView
+
+variable [Model]
+
+def bayesianRoundView
+    (evidence : EvidenceInput)
+    (state : LocalState) : BayesianRoundView :=
+  { posteriorBelief := bayesianPosterior evidence state
+    nextState := roundStep evidence state }
+
+end BayesianRoundView
+
 abbrev RoundPreservesBounded (M : Model) : Prop :=
   ∀ evidence state, StateBounded (@Model.roundStep M evidence state)
+
+abbrev BayesianPosteriorNormalized (M : Model) : Prop :=
+  ∀ evidence state, ∑ h, (@Model.bayesianPosterior M evidence state).pmf h = 1
 
 abbrev RoundPreservesHarmony (M : Model) : Prop :=
   ∀ evidence state, Harmony (@Model.roundStep M evidence state)
@@ -353,6 +432,7 @@ abbrev MultiLayerProjectionSubordinate (M : Model) : Prop :=
 
 class Laws extends Model where
   round_preserves_bounded : RoundPreservesBounded toModel
+  bayesian_posterior_normalized : BayesianPosteriorNormalized toModel
   round_preserves_harmony : RoundPreservesHarmony toModel
   fresh_requires_refresh : FreshRequiresRefresh toModel
   unknown_signal_stays_unknown : UnknownSignalStaysUnknown toModel
@@ -370,6 +450,12 @@ theorem round_preserves_bounded
     (evidence : EvidenceInput)
     (state : LocalState) : StateBounded (roundStep evidence state) :=
   Laws.round_preserves_bounded evidence state
+
+theorem bayesian_posterior_normalized
+    (evidence : EvidenceInput)
+    (state : LocalState) :
+    ∑ h, (bayesianPosterior evidence state).pmf h = 1 :=
+  Laws.bayesian_posterior_normalized evidence state
 
 theorem round_preserves_harmony
     (evidence : EvidenceInput)

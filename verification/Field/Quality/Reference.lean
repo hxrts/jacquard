@@ -1,5 +1,12 @@
 import Field.Quality.API
 
+/-! # Quality.Reference — reference highest-support route selection -/
+
+/-
+Implement the reference best-route selector that picks the highest-support admissible route
+and prove its consistency with support-dominance ordering.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -7,6 +14,8 @@ namespace FieldQualityReference
 
 open FieldNetworkAPI
 open FieldQualityAPI
+
+/-! ## Reference Selector -/
 
 def ReferenceViewAdmissible
     (destination : DestinationClass)
@@ -51,6 +60,8 @@ def ReferenceSupportBestRouteView
     (routes : List FieldRouterLifecycle.LifecycleRoute)
     (candidate : RouteComparisonView) : Prop :=
   ReferenceSupportBest destination (destinationViews destination routes) candidate
+
+/-! ## Consistency Proofs -/
 
 theorem chooseHigherSupport_eq_current_or_next
     (current next : RouteComparisonView) :

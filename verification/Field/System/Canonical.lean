@@ -1,6 +1,13 @@
 import Field.Quality.Refinement
 import Field.Router.Canonical
 
+/-! # System.Canonical — system-level canonical selection and equivalence with reference -/
+
+/-
+Lift the canonical route selection algorithm to system level and prove that system canonical
+selection is equivalent to the reference best-view selection objective.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -17,6 +24,8 @@ open FieldRouterCanonical
 open FieldRouterLifecycle
 open FieldSystemConvergence
 open FieldSystemEndToEnd
+
+/-! ## System Canonical Selection -/
 
 def canonicalSystemRoute
     (destination : DestinationClass)
@@ -130,6 +139,8 @@ theorem fold_chooseCanonicalRouteBySupport_routeComparison_eq_supportDominance
         exact hTail route (by simp [hMem])
       simpa [List.foldl, hStep] using
         ih (chooseCanonicalRouteBySupport current head) hChosen hRest
+
+/-! ## Reference Equivalence -/
 
 theorem canonicalBestRouteView_eq_bestRouteView_supportDominance
     (destination : DestinationClass)

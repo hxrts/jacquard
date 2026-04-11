@@ -5,6 +5,10 @@ import Field.System.Boundary
 import Field.System.EndToEnd
 import Field.System.Convergence
 import Field.System.Canonical
+import Field.System.Probabilistic
+import Field.System.Calibration
 import Field.System.Optimality
 import Field.System.CanonicalStrong
 import Field.System.Resilience
+
+/-! # System — end-to-end system composition and convergence -/

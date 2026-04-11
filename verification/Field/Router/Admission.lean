@@ -1,6 +1,13 @@
 import Field.Network.API
 import Field.Router.Publication
 
+/-! # Router.Admission — candidate admission statuses and decision logic -/
+
+/-
+Define admission status kinds and the decision function that maps a route candidate to an
+admission outcome, ensuring admitted candidates satisfy honesty and well-formedness.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -9,6 +16,8 @@ namespace FieldRouterAdmission
 open FieldModelAPI
 open FieldNetworkAPI
 open FieldRouterPublication
+
+/-! ## Admission Statuses -/
 
 inductive AdmissionStatus
   | observed
@@ -34,6 +43,8 @@ instance instDecidableCandidateAdmissible
   unfold CandidateAdmissible PublicationHonest PublicationWellFormed
   infer_instance
 
+/-! ## Decision Logic -/
+
 def decideAdmission
     (localState : LocalState)
     (candidate : PublishedCandidate) : AdmissionStatus :=
@@ -56,6 +67,8 @@ def admitPublishedCandidate
     some { localState := localState, candidate := candidate, admissible := h }
   else
     none
+
+/-! ## Honesty Constraints -/
 
 theorem admitted_candidates_satisfy_publication_honesty
     (admitted : AdmittedCandidate) :

@@ -1,5 +1,12 @@
 import Field.System.EndToEnd
 
+/-! # System.Convergence — system step preserves queue properties and route views converge -/
+
+/-
+Prove that one system step preserves the reliable/immediate queue properties and that
+iterated system steps cause route view selections to converge to a fixpoint.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -10,6 +17,8 @@ open FieldModelAPI
 open FieldNetworkAPI
 open FieldRouterPublication
 open FieldSystemEndToEnd
+
+/-! ## Queue Preservation -/
 
 def iterateSystemStep : Nat → EndToEndState → EndToEndState
   | 0, state => state
@@ -37,6 +46,8 @@ theorem system_step_preserves_reliable_immediate_empty_queue
       exact hMem
     have hReady : readyForDelivery envelope = true := (List.mem_filter.1 hMemReady).2
     simp [hReady]
+
+/-! ## View Convergence -/
 
 theorem candidate_view_fixed_point_under_reliable_immediate_empty
     (state : EndToEndState)

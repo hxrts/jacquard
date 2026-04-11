@@ -2,6 +2,13 @@ import Field.Quality.Refinement
 import Field.Router.Optimality
 import Field.System.Canonical
 
+/-! # System.Optimality — system budgeted selection with deadline safety and anytime monotonicity -/
+
+/-
+Lift budgeted canonical selection to system level and prove deadline-safety (budget is never
+exceeded) and anytime monotonicity (better candidates are never discarded within budget).
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -19,6 +26,8 @@ open FieldRouterOptimality
 open FieldRouterLifecycle
 open FieldSystemCanonical
 open FieldSystemEndToEnd
+
+/-! ## Budgeted System Selection -/
 
 def budgetedCanonicalSystemRoute
     (destination : DestinationClass)
@@ -55,6 +64,8 @@ theorem budgetedCanonicalSystemRoute_eq_canonicalSystemRoute_of_budget_covers
     budgetedCanonicalBestRoute_eq_canonicalBestRoute_of_budget_covers
       destination budget (systemStep state).lifecycle hBudget
 
+/-! ## Anytime Monotonicity -/
+
 theorem budgetedCanonicalSystemRoute_anytime_monotone
     (destination : DestinationClass)
     (budget₁ budget₂ : Nat)
@@ -68,6 +79,8 @@ theorem budgetedCanonicalSystemRoute_anytime_monotone
     budgetedCanonicalBestRoute_anytime_monotone
       destination budget₁ budget₂ (systemStep state).lifecycle
       winner₁ winner₂ hBudget hSmall hLarge
+
+/-! ## Deadline Safety -/
 
 theorem budgetedCanonicalSystemRoute_deadline_safe_against_full_optimum
     (destination : DestinationClass)

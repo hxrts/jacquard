@@ -1,5 +1,13 @@
 import Field.Router.Lifecycle
 
+/-! # Quality.API — route comparison objectives, winner types, and route view structures -/
+
+/-
+Define the vocabulary for comparing routes: support dominance, hop-band conservativity,
+tie-break criteria, winner selection types, and the route-view snapshot that quality
+objectives operate over.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -9,6 +17,8 @@ open FieldModelAPI
 open FieldNetworkAPI
 open FieldRouterLifecycle
 
+/-! ## Comparison Objectives -/
+
 inductive ComparisonObjective
   | supportDominance
   | hopBandConservativity
@@ -16,12 +26,16 @@ inductive ComparisonObjective
   | supportThenHopThenStableTieBreak
   deriving Inhabited, Repr, DecidableEq, BEq
 
+/-! ## Winner Types -/
+
 inductive ComparisonWinner
   | left
   | right
   | tie
   | inadmissible
   deriving Inhabited, Repr, DecidableEq, BEq
+
+/-! ## Route Views -/
 
 structure RouteComparisonView where
   destination : DestinationClass

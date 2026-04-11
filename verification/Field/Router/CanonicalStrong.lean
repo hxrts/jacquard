@@ -1,5 +1,12 @@
 import Field.Router.Canonical
 
+/-! # Router.CanonicalStrong — multi-criteria canonical selection with tie-breaking -/
+
+/-
+Extend canonical selection with secondary and tertiary criteria: support dominance first,
+then hop-band tightness, then stable publisher-rank tie-break.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -8,6 +15,8 @@ namespace FieldRouterCanonicalStrong
 open FieldNetworkAPI
 open FieldRouterCanonical
 open FieldRouterLifecycle
+
+/-! ## Selection Criteria -/
 
 def canonicalPublisherRank : NodeId → Nat
   | .alpha => 0
@@ -41,6 +50,8 @@ def canonicalBestRouteSupportThenHopThenStableTieBreak
   | [] => none
   | head :: tail =>
       some (tail.foldl chooseCanonicalRouteSupportThenHopThenStableTieBreak head)
+
+/-! ## Tie-Break -/
 
 theorem chooseCanonicalRouteSupportThenHopThenStableTieBreak_eq_current_or_next
     (current next : LifecycleRoute) :

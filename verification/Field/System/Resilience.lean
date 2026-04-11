@@ -1,6 +1,13 @@
 import Field.Router.Resilience
 import Field.System.Canonical
 
+/-! # System.Resilience — canonical support stabilises under bounded dropout -/
+
+/-
+Prove that system-level canonical support values stabilise when the fault count stays within
+the dropout budget and the best-support route survives all faults in the budget.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -13,6 +20,8 @@ open FieldRouterLifecycle
 open FieldRouterResilience
 open FieldSystemCanonical
 open FieldSystemEndToEnd
+
+/-! ## Stabilisation Under Faults -/
 
 def dropoutCanonicalSystemSupportValue
     (budget : SilenceDropoutBudget)

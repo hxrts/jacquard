@@ -30,7 +30,7 @@ def exploreOneStepGraph
     (alphabet : List EvidenceInput) : OneStepDecisionGraph :=
   { root := root
     alphabet := alphabet
-    successors := alphabet.map (FieldModelAPI.roundStep · root) }
+    successors := alphabet.map (roundStepImpl · root) }
 
 /-- Semantic one-round reachability question decided by the bounded explorer. -/
 def ExplicitPathReachableInOneRound
@@ -53,7 +53,7 @@ theorem explore_one_step_graph_exact
     (root : LocalState)
     (alphabet : List EvidenceInput) :
     (exploreOneStepGraph root alphabet).successors =
-      alphabet.map (FieldModelAPI.roundStep · root) := by
+      alphabet.map (roundStepImpl · root) := by
   rfl
 
 theorem explicit_path_decider_sound

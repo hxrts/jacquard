@@ -3,6 +3,13 @@ import Field.Quality.System
 import Field.Router.Canonical
 import Field.System.Canonical
 
+/-! # Adequacy.Safety — quiescent runtime safety and admissibility of canonical winners -/
+
+/-
+Prove that a quiescent runtime state cannot create false explicit-path routes and that
+canonical winners are admissible from the perspective of the full system state.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -21,6 +28,8 @@ open FieldRouterCanonical
 open FieldRouterLifecycle
 open FieldSystemCanonical
 open FieldSystemEndToEnd
+
+/-! ## Quiescence Safety -/
 
 theorem canonicalSystemRoute_eq_none_of_no_destination_lifecycle_match
     (destination : DestinationClass)
@@ -73,6 +82,8 @@ theorem quiescent_runtime_state_no_false_explicit_path_promotion
       destination runtimeState state hRefinement hQuiescent
       hAssumptions hEmpty hHarmony winner hWinner hShape
   exact hNoExplicit winner.publisher hKnowledge
+
+/-! ## Winner Admissibility -/
 
 theorem quiescent_runtime_state_canonical_winner_has_admissible_system_origin
     (destination : DestinationClass)

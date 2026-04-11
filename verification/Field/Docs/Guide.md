@@ -29,11 +29,11 @@ These surfaces are intentionally separated. The local controller is not a choreo
 - `Field/Network/*`
   - finite node/destination state, synchronous round buffer, and first network safety theorems
 - `Field/Router/*`
-  - router-facing publication, admission, installation, lifecycle boundary, support-owned canonical route-selection spec, and a stronger support-then-hop canonical selector
+  - router-facing publication, admission, installation, lifecycle boundary, support-owned canonical route-selection spec, a posterior-owned confidence-threshold decision layer, and a stronger support-then-hop canonical selector
 - `Field/Async/*`
   - reduced async delivery semantics, transport lifecycle lemmas, explicit delay/loss/retry assumptions, first async safety theorems, and a bounded-delay/bounded-retry theorem pack
 - `Field/System/*`
-  - aggregate system summaries, reduced end-to-end semantics, convergence theorems, canonical-router refinement theorems, and cross-layer boundary statements above the async model
+  - aggregate system summaries, reduced end-to-end semantics, probabilistic evidence-flow theorems, canonical-router refinement theorems, and cross-layer boundary statements above the async model
 - `Field/Quality/*`
   - reduced route-comparison views, reference-best semantics, destination-filtered ranking, support-only refinement, and system-facing quality theorems above the lifecycle view
 - `Docs/Adequacy.md`
@@ -64,11 +64,45 @@ The information layer currently gives:
 - a finite belief object `FiniteBelief`
 - a probability-simplex style wrapper `ProbabilitySimplexBelief`
 - a concrete weight-normalized distribution with zero-mass fallback behavior
+- a richer probabilistic route-hypothesis space over route existence, quality, transport reliability, witness reliability, and local knowledge
+- a Bayesian observation layer with explicit priors, likelihood factors, posterior normalization, and impossible-observation fallback
+- a calibration/soundness layer centered on confidence-threshold validity, explicit-evidence support, and explicit correlated-regime non-claims
+- a factorized likelihood theorem surface that states the current Bayesian model is the product of existence, knowledge, delivery, and witness terms
 - first mass and entropy theorems
 - a first public-projection blindness / erasure theorem
 - first quantitative helpers such as `beliefL1Distance` and `localUncertaintyPotential`
 
 This is no longer only a bounded surrogate story, but it is still an early information layer rather than a full probabilistic routing theory.
+
+The intended probabilistic scope is now explicit:
+
+- modeled probabilistic objects should include route existence, route quality, transport reliability, and observation noise
+- Bayesian prior / likelihood / posterior assumptions should be named directly rather than hidden inside a score update
+- posterior belief, confidence, expected utility, and exported quality/ranking views are distinct objects and should not be conflated
+- support-style ranking remains non-probabilistic unless one theorem explicitly bridges it to posterior-based router truth
+- the current Bayesian update is genuinely Bayesian only for the stated factorized prior / likelihood model; smoothed priors and evidence encoding remain reduced approximations of a richer runtime story
+- correlated observation regimes are still boundary-marked as out of scope unless a theorem explicitly replaces the factorized likelihood model
+- non-goals for the current probabilistic roadmap include arbitrary continuous distributions, unproved calibration claims, and full production-runtime probabilistic fidelity
+
+The current probabilistic theorem surface is also more specific than the generic phrase
+"probabilistic routing theory" suggests:
+
+- decision objective:
+  - the router-owned probabilistic objectives currently implemented are confidence-threshold routing plus secondary posterior expectation / cost / risk / regret objects in `Field/Router/Probabilistic.lean`
+- Bayesian assumptions:
+  - the active posterior semantics uses the factorized likelihood model from `Field/Information/Bayesian.lean`
+  - the current local/runtime story still uses reduced evidence encoding and smoothed priors
+- calibrated / sound today:
+  - confidence-threshold decisions satisfy their stated threshold conditions
+  - posterior probability equalities are exposed for the current normalized Bayesian update
+  - expected-utility bounds and regret interpretation are exposed for the reduced posterior decision objects
+  - trusted explicit evidence gives positive posterior mass to the explicit-path hypothesis
+  - explicit posterior decisions on produced candidates imply positive latent explicit-path mass
+  - the public corridor projection is a bounded weakening of positive-threshold posterior decisions
+- still reduced / out of scope:
+  - correlated-evidence calibration beyond the explicit boundary marker
+  - full probabilistic convergence under broad async regimes
+  - full production-runtime probabilistic fidelity
 
 ### Boundary Layer
 
@@ -105,6 +139,8 @@ The network/router layers currently give:
 - a minimal installed-route object that only exists above admission
 - a reduced lifecycle object with observed/admitted/installed/withdrawn/expired/refreshed status
 - a router-owned canonical support selector over eligible lifecycle routes, with support-best witness theorems
+- a router-owned posterior confidence-threshold selector over probabilistic belief, with admissibility, determinism, dominance-monotonicity, and non-claim theorems separating posterior truth from exported route views
+- secondary posterior expectation / cost / risk / regret objects over the same probabilistic belief state for reduced expected-utility and min-regret reasoning
 - a stronger router-owned support-then-hop-then-stable selector over eligible lifecycle routes
 - first safety theorems showing:
   - local projection honesty lifts to published candidates
@@ -126,9 +162,12 @@ The current network object is deliberately synchronous, and it is now paired wit
 - system layer
   - reduced end-to-end state combining async transport and router lifecycle state
   - a reduced end-to-end step that sequences transport progression, ready delivery, installation, and lifecycle maintenance
+  - a reduced probabilistic evidence-flow layer that maps async envelopes and lifecycle routes into Bayesian observations, with explicit delayed/lossy/repeated/correlated vocabulary
+  - a probabilistic soundness layer showing explicit posterior decisions on produced candidates imply positive latent explicit-path mass, stable repeated evidence preserves posterior-supported choice, dropout degradation stays bounded in the reduced observation-strength model, and sparse evidence must remain explicitly marked as sparse
   - first theorems showing:
     - `produced_candidate_requires_explicit_sender_knowledge`
     - `produced_candidate_support_conservative`
+    - `produced_explicit_candidate_requires_positive_explicit_bayesian_mass`
     - `candidate_view_fixed_point_under_reliable_immediate_empty`
     - `candidate_view_iterate_stable_under_reliable_immediate_empty`
     - `no_spontaneous_explicit_path_promotion_over_iterated_steps`
@@ -136,7 +175,8 @@ The current network object is deliberately synchronous, and it is now paired wit
     - `systemStep_lifecycle_length_bounded_by_transport_ready_queue`
     - `system_step_route_never_amplifies_source_projection`
 - adequacy layer
-  - correspondence between Rust-facing runtime artifacts, reduced traces, fragment traces, and controller-visible evidence
+  - correspondence between Rust-facing runtime artifacts, reduced traces, fragment traces, controller-visible evidence, and a reduced probabilistic leading-evidence view used for confidence-threshold preservation, min-regret decision preservation, and expected-utility order preservation
+  - proof-facing probabilistic fixtures for explicit-evidence posterior support, correlated-evidence boundaries, miscalibrated-likelihood boundaries, and sparse-evidence confidence guardrails
 
 ### Quality Layer
 
@@ -183,6 +223,13 @@ The router layer now also gives:
   - `canonicalBestRoute_some_is_support_best`
 
 This is the current owner of canonical route truth in the reduced stack. It lives in `Field/Router`, not in `Field/Quality`. The stronger selector exists now, but the project still does not claim that every observational quality objective has been promoted to router-owned truth.
+
+During the probabilistic migration there are now two distinct router-owned truths:
+
+- support-owned canonical lifecycle selection
+- posterior-owned confidence-threshold routing over probabilistic belief
+
+Those are intentionally different objects. The support-owned selector is still about reduced lifecycle support truth. The posterior-owned selector is about a routing decision justified by Bayesian posterior mass. Neither one should be read off exported `Field/Quality` views unless a theorem bridges them.
 
 ### System Statistics And Boundary
 

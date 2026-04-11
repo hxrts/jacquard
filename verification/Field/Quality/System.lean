@@ -1,6 +1,13 @@
 import Field.Quality.API
 import Field.System.Convergence
 
+/-! # Quality.System — lifecycle fixpoints and explicit-path honesty at system level -/
+
+/-
+Prove that the system lifecycle reaches a fixpoint under reliable/immediate assumptions and
+that the system cannot manufacture false explicit-path route claims.
+-/
+
 set_option autoImplicit false
 set_option relaxedAutoImplicit false
 
@@ -13,6 +20,8 @@ open FieldQualityAPI
 open FieldRouterLifecycle
 open FieldSystemConvergence
 open FieldSystemEndToEnd
+
+/-! ## Lifecycle Fixpoint -/
 
 def bestSystemRouteView
     (objective : ComparisonObjective)
@@ -50,6 +59,8 @@ theorem best_system_route_view_stable_under_reliable_immediate_empty
       bestSystemRouteView objective destination state := by
   unfold bestSystemRouteView
   rw [system_step_lifecycle_fixed_point_under_reliable_immediate_empty state hAssumptions hEmpty]
+
+/-! ## Explicit-Path Honesty -/
 
 theorem best_system_route_view_cannot_manufacture_explicit_path
     (objective : ComparisonObjective)
