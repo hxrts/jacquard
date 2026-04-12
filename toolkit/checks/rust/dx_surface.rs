@@ -236,7 +236,7 @@ fn scan_zero_legacy_surface(root: &Path) -> Result<Vec<Violation>> {
 
 fn should_skip_zero_legacy_scan(rel: &str) -> bool {
     rel.starts_with("docs/book/")
-        || rel.starts_with("policy/checks/")
+        || rel.starts_with("toolkit/checks/")
         || rel == "crates/pathway/src/engine/mod.rs"
         || rel == "crates/macros/src/support/attrs.rs"
 }

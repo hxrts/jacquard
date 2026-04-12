@@ -25,12 +25,12 @@ just book           # build mdbook docs (default recipe when running bare `just`
 just ci-dry-run     # run all CI checks locally (format, clippy, tests, toolkit/policy, dylint)
 just install-hooks  # enable .githooks/pre-commit
 ./scripts/toolkit-shell.sh <command> [args...]
-./scripts/toolkit-shell.sh toolkit-xtask check <name> --repo-root . --config policy/toolkit.toml
+./scripts/toolkit-shell.sh toolkit-xtask check <name> --repo-root . --config toolkit/toolkit.toml
 ./scripts/toolkit-shell.sh toolkit-install-dylint
 ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint <lint-name> <cargo-dylint args...>
-./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./policy/lints/<lint-name> <cargo-dylint args...>
-cargo run --manifest-path policy/xtask/Cargo.toml -- check <name>
-cargo run --manifest-path policy/xtask/Cargo.toml -- pre-commit
+./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./toolkit/lints/<lint-name> <cargo-dylint args...>
+cargo xtask check <name>
+cargo xtask pre-commit
 ```
 
 Run a single test: `cargo test -p <crate> <test_name>`
@@ -61,7 +61,7 @@ Transport ownership is split deliberately:
 - Host bridges own ingress draining, batching, and time attachment.
 - Transport-specific endpoint authoring belongs in transport-owned profile crates, not in `core`, `adapter`, or the mem profile crates.
 
-`macros` owns syntax-local code generation and annotation-site validation. The flake-input `toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `policy/lints/` and `policy/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
+`macros` owns syntax-local code generation and annotation-site validation. The flake-input `toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `toolkit/lints/` and `toolkit/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
 `jacquard-field` owns field-private posterior state, mean-field compression, regime/posture control state, and continuation scoring. Like pathway and batman, field-private choreography may supply only observational evidence into the deterministic local controller — canonical route publication remains router-owned.
 
@@ -71,7 +71,7 @@ The canonical host wiring reference is `crates/reference-client/tests/e2e_multi_
 
 ## Policy checks
 
-Run generic policy checks with `./scripts/toolkit-shell.sh toolkit-xtask check <name> --repo-root . --config policy/toolkit.toml` and Jacquard-specific checks with `cargo run --manifest-path policy/xtask/Cargo.toml -- check <name>`. Key categories:
+Run generic policy checks with `./scripts/toolkit-shell.sh toolkit-xtask check <name> --repo-root . --config toolkit/toolkit.toml` and Jacquard-specific checks with `cargo xtask check <name>`. Key categories:
 
 - **Boundary**: `adapter-boundary`, `crate-boundary`, `engine-service-boundary`, `pathway-async-boundary`, `transport-authoring-boundary`, `transport-ownership-boundary`, `reference-bridge-boundary`
 - **Routing invariants**: `routing-invariants`, `fail-closed-ordering`, `router-round-boundary`, `pathway-choreography` (pass `--validate` to run fixtures)
@@ -84,8 +84,8 @@ For nightly compiler-backed lint parity, use the toolkit wrappers for portable l
 ```bash
 ./scripts/toolkit-shell.sh toolkit-install-dylint
 ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint trait_purity --all -- --all-targets
-./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./policy/lints/model_policy --all -- --all-targets
-./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./policy/lints/routing_invariants --all -- --all-targets
+./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./toolkit/lints/model_policy --all -- --all-targets
+./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./toolkit/lints/routing_invariants --all -- --all-targets
 ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint trait_must_use --all -- --all-targets
 ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --toolkit-lint naked_map_err --all -- --all-targets
 ```

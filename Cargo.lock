@@ -670,25 +670,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jacquard-policy-xtask"
-version = "0.4.0"
-dependencies = [
- "anyhow",
- "camino",
- "cargo_metadata",
- "ignore",
- "proc-macro2",
- "pulldown-cmark",
- "regex",
- "serde",
- "serde_json",
- "syn",
- "telltale",
- "toml 0.8.23",
- "walkdir",
-]
-
-[[package]]
 name = "jacquard-reference-client"
 version = "0.4.0"
 dependencies = [
@@ -733,6 +714,25 @@ dependencies = [
  "serde",
  "telltale-simulator",
  "thiserror",
+]
+
+[[package]]
+name = "jacquard-toolkit-xtask"
+version = "0.4.0"
+dependencies = [
+ "anyhow",
+ "camino",
+ "cargo_metadata",
+ "ignore",
+ "proc-macro2",
+ "pulldown-cmark",
+ "regex",
+ "serde",
+ "serde_json",
+ "syn",
+ "telltale",
+ "toml 0.8.23",
+ "walkdir",
 ]
 
 [[package]]
@@ -1126,15 +1126,15 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
 name = "rust-toolkit-effects"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82e02ede9aa22165c27ba393355629cc1454f7b305c11fb158bc262c86965ef7"
+checksum = "129d9de63516aff0512a2aeb80e61bf864b101e8cfa02912c5fa3380a344ab71"
 
 [[package]]
 name = "rust-toolkit-trait-contracts"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90616f841efae8131ba2999497fe04dee0edde237635a78e845f3718abce0a49"
+checksum = "3c1a145bef5597eba09b5b084548b1ffee2b9d81cbb625e9ce4c2a0636e4a4d7"
 dependencies = [
  "proc-macro2",
  "quote",

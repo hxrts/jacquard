@@ -131,7 +131,7 @@ pub fn workspace_root() -> Result<PathBuf> {
             }
         }
     }
-    bail!("policy-xtask: could not find workspace root")
+    bail!("jacquard-toolkit-xtask: could not find workspace root")
 }
 
 pub fn workspace_metadata() -> Result<Metadata> {
@@ -216,7 +216,7 @@ pub fn just_recipes(root: &Path) -> Result<BTreeSet<String>> {
         .output()
         .context("running just --summary")?;
     if !output.status.success() {
-        bail!("policy-xtask: just --summary failed");
+        bail!("jacquard-toolkit-xtask: just --summary failed");
     }
     let stdout = String::from_utf8(output.stdout).context("just summary utf8")?;
     Ok(stdout

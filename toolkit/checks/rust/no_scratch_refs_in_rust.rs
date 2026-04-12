@@ -23,7 +23,7 @@ use crate::util::{collect_rust_files, normalize_rel_path, workspace_root, Violat
 /// The prefix that must not appear in committed rust sources or comments.
 const FORBIDDEN_PREFIX: &[u8] = b"work/";
 
-const EXEMPT_FILES: &[&str] = &["policy/checks/no_scratch_refs_in_rust.rs"];
+const EXEMPT_FILES: &[&str] = &["toolkit/checks/no_scratch_refs_in_rust.rs"];
 
 pub fn run() -> Result<()> {
     let root = workspace_root()?;

@@ -46,7 +46,7 @@ echo "ci-preflight: required toolchain commands present"
 
 # ── CI / dry-run parity check ──────────────────────────────────────────
 #
-# Every enabled toolkit policy in policy/toolkit.toml must appear as a step
+# Every enabled toolkit policy in toolkit/toolkit.toml must appear as a step
 # name in both the justfile ci-dry-run (add_step) and at least one
 # .github/workflows/*.yml file. Case-insensitive substring match.
 
@@ -168,7 +168,7 @@ while IFS= read -r item; do
       toolkit_config_ok=false
       ;;
     disabled:*)
-      echo "ci-preflight: toolkit check disabled in policy/toolkit.toml: ${item#*:}" >&2
+      echo "ci-preflight: toolkit check disabled in toolkit/toolkit.toml: ${item#*:}" >&2
       toolkit_config_ok=false
       ;;
     "")
@@ -177,7 +177,7 @@ while IFS= read -r item; do
       enabled_toolkit_checks+=("$item")
       ;;
   esac
-done < <(load_enabled_toolkit_checks "$repo_root/policy/toolkit.toml")
+done < <(load_enabled_toolkit_checks "$repo_root/toolkit/toolkit.toml")
 
 if [ "$toolkit_config_ok" = false ]; then
   fail "all Jacquard toolkit checks must be enabled by default"

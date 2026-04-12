@@ -1,6 +1,6 @@
-# Policy
+# Toolkit
 
-Jacquard-owned policy layer for rules that should not live inside the reusable
+Jacquard-owned toolkit layer for rules that should not live inside the reusable
 toolkit.
 
 Use this directory for:
@@ -10,7 +10,7 @@ Use this directory for:
 - Jacquard-only lints
 - Jacquard-specific fixtures
 - explicit exemption data declared in `toolkit.toml`
-- policy docs that depend on Jacquard architecture terms
+- docs that depend on Jacquard architecture terms
 
 Jacquard consumes the reusable toolkit as a flake input. The default repo dev
 shell exports toolkit-owned commands such as `toolkit-xtask`,
@@ -21,7 +21,7 @@ is only a thin bootstrap for running those commands outside an active
 ## Layout
 
 ```text
-policy/
+toolkit/
   README.md
   toolkit.toml
   checks/
@@ -43,7 +43,7 @@ If a rule is generic and only needs Jacquard-specific scope, configure it in
 
 If a rule depends on Jacquard crate topology, routing semantics, transport
 ownership, or other Jacquard architecture concepts, implement it under
-`policy/`.
+`toolkit/`.
 
 ## Lean Style
 
@@ -56,8 +56,8 @@ Current rollout:
 - `just lean-check` runs `just lean-style`, then `just lean-setup`, then
   `lake build`
 - CI currently enforces the style checker, not the full Lean build, so the
-  policy lane stays fast while the verification build remains a separate
+  toolkit lane stays fast while the verification build remains a separate
   developer workflow
 
-That keeps the Lean style policy blocking in the normal repo workflow without
+That keeps the Lean style check blocking in the normal repo workflow without
 pretending the full Lean build is already CI-portable.

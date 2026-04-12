@@ -229,7 +229,7 @@ fn scan_core_and_traits_for_adapter_helpers(root: &Path) -> Result<Vec<Violation
             let contents = std::fs::read_to_string(entry.path())
                 .with_context(|| format!("reading {}", entry.path().display()))?;
             let rel = normalize_rel_path(root, entry.path());
-            if rel == "policy/checks/adapter_boundary.rs" {
+            if rel == "toolkit/checks/adapter_boundary.rs" {
                 continue;
             }
             for (index, line) in contents.lines().enumerate() {

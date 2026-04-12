@@ -109,7 +109,7 @@ pub fn run(args: &[String]) -> Result<()> {
     }
 
     let root = if validate {
-        workspace_root()?.join("policy/fixtures/routing_invariants")
+        workspace_root()?.join("toolkit/fixtures/routing_invariants")
     } else {
         workspace_root()?
     };
@@ -159,7 +159,7 @@ fn explicit_topology(root: &Path) -> Result<Vec<Violation>> {
 
     for path in rust_files(root.join("crates"))? {
         let rel_path = normalize_rel_path(root, &path);
-        if rel_path.starts_with("policy/fixtures/")
+        if rel_path.starts_with("toolkit/fixtures/")
             || rel_path.contains("/tests/")
             || rel_path.contains("/benches/")
             || rel_path.contains("/examples/")
@@ -232,7 +232,7 @@ fn shared_private_boundary(root: &Path) -> Result<Vec<Violation>> {
     for dir in ["crates/core/src", "crates/traits/src"] {
         for path in rust_files(root.join(dir))? {
             let rel = normalize_rel_path(root, &path);
-            if rel.starts_with("policy/fixtures/") {
+            if rel.starts_with("toolkit/fixtures/") {
                 continue;
             }
             let contents =
@@ -431,7 +431,7 @@ fn rust_files(dir: PathBuf) -> Result<Vec<PathBuf>> {
 fn is_validation_root(root: &Path) -> bool {
     root.to_string_lossy()
         .replace('\\', "/")
-        .ends_with("policy/fixtures/routing_invariants")
+        .ends_with("toolkit/fixtures/routing_invariants")
 }
 
 fn grep_rule(root: &Path, dirs: &[&str], pattern: &str, message: &str) -> Result<Vec<Violation>> {
@@ -443,7 +443,7 @@ fn grep_rule(root: &Path, dirs: &[&str], pattern: &str, message: &str) -> Result
             // Skip fixture files in normal runs but include them under
             // --validate, where root IS the fixture tree and rules must
             // fire against its synthetic violations.
-            if !is_validation_root(root) && path_str.contains("/policy/fixtures/") {
+            if !is_validation_root(root) && path_str.contains("/toolkit/fixtures/") {
                 continue;
             }
             let rel = normalize_rel_path(root, &path);

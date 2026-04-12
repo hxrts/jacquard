@@ -1,5 +1,5 @@
 # Dylint lint library — requires the toolkit nightly shell and cargo-dylint.
-# Run: ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./policy/lints/model_policy --all -- --all-targets
+# Run: ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./toolkit/lints/model_policy --all -- --all-targets
 #
 # Current lints:
 #   handle-like public model types must carry #[must_use_handle]

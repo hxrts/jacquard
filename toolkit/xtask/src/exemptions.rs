@@ -8,11 +8,11 @@ use crate::util::workspace_root;
 #[derive(Clone, Debug, Default, Deserialize)]
 struct ToolkitConfig {
     #[serde(default)]
-    policy: PolicyConfig,
+    toolkit: ToolkitSectionConfig,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
-struct PolicyConfig {
+struct ToolkitSectionConfig {
     #[serde(default)]
     exemptions: ExemptionsConfig,
 }
@@ -46,7 +46,7 @@ fn config() -> Result<&'static ToolkitConfig> {
     }
 
     let root = workspace_root()?;
-    let path = root.join("policy/toolkit.toml");
+    let path = root.join("toolkit/toolkit.toml");
     let contents =
         fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     let parsed: ToolkitConfig =
@@ -57,7 +57,7 @@ fn config() -> Result<&'static ToolkitConfig> {
 #[allow(dead_code)]
 pub fn bare_primitives_exempt_paths() -> Result<Vec<String>> {
     Ok(config()?
-        .policy
+        .toolkit
         .exemptions
         .bare_primitives_exempt_paths
         .clone())
@@ -65,7 +65,7 @@ pub fn bare_primitives_exempt_paths() -> Result<Vec<String>> {
 
 pub fn style_guide_exceptions() -> Result<Vec<(String, String)>> {
     Ok(config()?
-        .policy
+        .toolkit
         .exemptions
         .style_guide
         .iter()
@@ -76,7 +76,7 @@ pub fn style_guide_exceptions() -> Result<Vec<(String, String)>> {
 #[allow(dead_code)]
 pub fn ownership_permits() -> Result<Vec<(String, String)>> {
     Ok(config()?
-        .policy
+        .toolkit
         .exemptions
         .ownership_permits
         .iter()

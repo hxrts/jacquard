@@ -237,15 +237,10 @@ empty_theorem_shell = 2
 
 [checks.text_formatting]
 enabled = true
-include_paths = ["crates", "docs", "verification", "policy"]
+include_paths = ["crates", "docs", "verification", "toolkit"]
 exclude_path_parts = ["/.lake/", "/build/", "/target/", "/lake-packages/"]
 
-[checks.workspace_hygiene]
-enabled = true
-include_paths = ["crates"]
-exclude_path_parts = ["/target/"]
-
-[policy.exemptions]
+[toolkit.exemptions]
 bare_primitives_exempt_paths = [
   "crates/mem-link-profile/src/",
   "crates/reference-client/src/",
@@ -253,10 +248,10 @@ bare_primitives_exempt_paths = [
   "/benches/",
 ]
 
-[[policy.exemptions.style_guide]]
+[[toolkit.exemptions.style_guide]]
 symbol = "jacquard_pathway::routing_invariants::run"
 reason = "long-block-exception: rule coordination workflow"
 
-[[policy.exemptions.ownership_permits]]
+[[toolkit.exemptions.ownership_permits]]
 name = "mem-link-profile-test-only"
 reason = "test infrastructure crate; mirrors reference-client"

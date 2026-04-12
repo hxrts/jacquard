@@ -187,25 +187,25 @@ ci-dry-run:
     add_step "Wasm Check"                 "just wasm-check"
     add_step "Wasm Reference Client Test" "just wasm-test-reference-client"
     add_step "Docs Links"                 "npx --yes markdown-link-check -q -c .github/config/markdown-link-check.json docs"
-    add_step "Docs Link Check"            "{{toolkit_cmd}} check docs-link-check --repo-root . --config policy/toolkit.toml"
-    add_step "Proc Macro Scope"           "{{toolkit_cmd}} check proc-macro-scope --repo-root . --config policy/toolkit.toml"
-    add_step "Crate Root Policy"          "{{toolkit_cmd}} check crate-root-policy --repo-root . --config policy/toolkit.toml"
-    add_step "Ignored Result"             "{{toolkit_cmd}} check ignored-result --repo-root . --config policy/toolkit.toml"
-    add_step "Unsafe Boundary"            "{{toolkit_cmd}} check unsafe-boundary --repo-root . --config policy/toolkit.toml"
-    add_step "Bool Param"                 "{{toolkit_cmd}} check bool-param --repo-root . --config policy/toolkit.toml"
-    add_step "Must Use Public Return"     "{{toolkit_cmd}} check must-use-public-return --repo-root . --config policy/toolkit.toml"
-    add_step "Assert Shape"               "{{toolkit_cmd}} check assert-shape --repo-root . --config policy/toolkit.toml"
-    add_step "Drop Side Effects"          "{{toolkit_cmd}} check drop-side-effects --repo-root . --config policy/toolkit.toml"
-    add_step "Recursion Guard"            "{{toolkit_cmd}} check recursion-guard --repo-root . --config policy/toolkit.toml"
-    add_step "Naming Units"               "{{toolkit_cmd}} check naming-units --repo-root . --config policy/toolkit.toml"
-    add_step "Limit Constant"             "{{toolkit_cmd}} check limit-constant --repo-root . --config policy/toolkit.toml"
-    add_step "Public Type Width"          "{{toolkit_cmd}} check public-type-width --repo-root . --config policy/toolkit.toml"
-    add_step "Dependency Policy"          "{{toolkit_cmd}} check dependency-policy --repo-root . --config policy/toolkit.toml"
-    add_step "Test Boundaries"            "{{toolkit_cmd}} check test-boundaries --repo-root . --config policy/toolkit.toml"
-    add_step "Lean Escape Hatches"        "{{toolkit_cmd}} check lean-escape-hatches --repo-root . --config policy/toolkit.toml"
-    add_step "Text Formatting"            "{{toolkit_cmd}} check text-formatting --repo-root . --config policy/toolkit.toml"
-    add_step "Workspace Hygiene"          "{{toolkit_cmd}} check workspace-hygiene --repo-root . --config policy/toolkit.toml"
-    add_step "Workflow Actions"           "{{toolkit_cmd}} check workflow-actions --repo-root . --config policy/toolkit.toml"
+    add_step "Docs Link Check"            "{{toolkit_cmd}} check docs-link-check --repo-root . --config toolkit/toolkit.toml"
+    add_step "Proc Macro Scope"           "{{toolkit_cmd}} check proc-macro-scope --repo-root . --config toolkit/toolkit.toml"
+    add_step "Crate Root Policy"          "{{toolkit_cmd}} check crate-root-policy --repo-root . --config toolkit/toolkit.toml"
+    add_step "Ignored Result"             "{{toolkit_cmd}} check ignored-result --repo-root . --config toolkit/toolkit.toml"
+    add_step "Unsafe Boundary"            "{{toolkit_cmd}} check unsafe-boundary --repo-root . --config toolkit/toolkit.toml"
+    add_step "Bool Param"                 "{{toolkit_cmd}} check bool-param --repo-root . --config toolkit/toolkit.toml"
+    add_step "Must Use Public Return"     "{{toolkit_cmd}} check must-use-public-return --repo-root . --config toolkit/toolkit.toml"
+    add_step "Assert Shape"               "{{toolkit_cmd}} check assert-shape --repo-root . --config toolkit/toolkit.toml"
+    add_step "Drop Side Effects"          "{{toolkit_cmd}} check drop-side-effects --repo-root . --config toolkit/toolkit.toml"
+    add_step "Recursion Guard"            "{{toolkit_cmd}} check recursion-guard --repo-root . --config toolkit/toolkit.toml"
+    add_step "Naming Units"               "{{toolkit_cmd}} check naming-units --repo-root . --config toolkit/toolkit.toml"
+    add_step "Limit Constant"             "{{toolkit_cmd}} check limit-constant --repo-root . --config toolkit/toolkit.toml"
+    add_step "Public Type Width"          "{{toolkit_cmd}} check public-type-width --repo-root . --config toolkit/toolkit.toml"
+    add_step "Dependency Policy"          "{{toolkit_cmd}} check dependency-policy --repo-root . --config toolkit/toolkit.toml"
+    add_step "Test Boundaries"            "{{toolkit_cmd}} check test-boundaries --repo-root . --config toolkit/toolkit.toml"
+    add_step "Lean Escape Hatches"        "{{toolkit_cmd}} check lean-escape-hatches --repo-root . --config toolkit/toolkit.toml"
+    add_step "Text Formatting"            "{{toolkit_cmd}} check text-formatting --repo-root . --config toolkit/toolkit.toml"
+    add_step "Workspace Hygiene"          "{{toolkit_cmd}} check workspace-hygiene --repo-root . --config toolkit/toolkit.toml"
+    add_step "Workflow Actions"           "{{toolkit_cmd}} check workflow-actions --repo-root . --config toolkit/toolkit.toml"
     add_step "Trait Purity"               "{{policy_cmd}} check trait-purity"
     add_step "Crate Boundary"             "{{policy_cmd}} check crate-boundary"
     add_step "Adapter Boundary"           "{{policy_cmd}} check adapter-boundary"
@@ -218,7 +218,7 @@ ci-dry-run:
     add_step "Simulator Boundary"        "{{policy_cmd}} check simulator-boundary"
     add_step "Ownership Invariants"       "{{policy_cmd}} check ownership-invariants"
     add_step "No usize in Models"         "{{policy_cmd}} check no-usize-in-models"
-    add_step "Result Must Use"            "{{toolkit_cmd}} check result-must-use --repo-root . --config policy/toolkit.toml"
+    add_step "Result Must Use"            "{{toolkit_cmd}} check result-must-use --repo-root . --config toolkit/toolkit.toml"
     add_step "Proof Bearing Actions"      "{{policy_cmd}} check proof-bearing-actions"
     add_step "Surface Classification"     "{{policy_cmd}} check surface-classification"
     add_step "Rust Style Guide"           "{{policy_cmd}} check rust-style-guide"
@@ -235,11 +235,11 @@ ci-dry-run:
     add_step "Routing Invariants Validate" "{{policy_cmd}} check routing-invariants --validate"
     add_step "Install cargo-dylint"       "{{install_dylint_cmd}}"
     add_step "Dylint Trait Purity"        "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --toolkit-lint trait_purity --all -- --all-targets"
-    add_step "Dylint Model Policy"        "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --lint-path ./policy/lints/model_policy --all -- --all-targets"
-    add_step "Dylint Routing Invariants"  "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --lint-path ./policy/lints/routing_invariants --all -- --all-targets"
+    add_step "Dylint Model Policy"        "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --lint-path ./toolkit/lints/model_policy --all -- --all-targets"
+    add_step "Dylint Routing Invariants"  "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --lint-path ./toolkit/lints/routing_invariants --all -- --all-targets"
     add_step "Dylint Trait Must Use"      "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --toolkit-lint trait_must_use --all -- --all-targets"
     add_step "Dylint Naked Map Err"       "env CARGO_INCREMENTAL=0 {{toolkit_dylint}} --toolkit-lint naked_map_err --all -- --all-targets"
-    add_step "Docs Semantic Drift"        "{{toolkit_cmd}} check docs-semantic-drift --repo-root . --config policy/toolkit.toml"
+    add_step "Docs Semantic Drift"        "{{toolkit_cmd}} check docs-semantic-drift --repo-root . --config toolkit/toolkit.toml"
     add_step "Docs Build"                 "just book"
 
     total=${#STEPS[@]}
@@ -276,15 +276,15 @@ docs-links:
 
 # validate internal docs link integrity
 docs-link-check:
-    {{toolkit_cmd}} check docs-link-check --repo-root . --config policy/toolkit.toml
+    {{toolkit_cmd}} check docs-link-check --repo-root . --config toolkit/toolkit.toml
 
 # detect stale backtick references in docs
 docs-semantic-drift:
-    {{toolkit_cmd}} check docs-semantic-drift --repo-root . --config policy/toolkit.toml
+    {{toolkit_cmd}} check docs-semantic-drift --repo-root . --config toolkit/toolkit.toml
 
 # enforce unit-test / integration-test boundary rules
 test-boundaries:
-    {{toolkit_cmd}} check test-boundaries --repo-root . --config policy/toolkit.toml
+    {{toolkit_cmd}} check test-boundaries --repo-root . --config toolkit/toolkit.toml
 
 # enforce crate-level ownership documentation requirements
 ownership-invariants:
@@ -364,7 +364,7 @@ lean-setup:
 
 # Run the generic Lean source-style policy over the verification tree.
 lean-style:
-    {{toolkit_cmd}} check lean-style --repo-root . --config policy/toolkit.toml
+    {{toolkit_cmd}} check lean-style --repo-root . --config toolkit/toolkit.toml
 
 # Build the Lean verification package (requires lean-setup to have been run once).
 lean-build:

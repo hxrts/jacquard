@@ -12,9 +12,9 @@ fn main() -> Result<()> {
     match args.next().as_deref() {
         | Some("check") => checks::run(args.collect()),
         | Some("pre-commit") => checks::pre_commit::run(),
-        | Some(other) => bail!("policy-xtask: unknown command: {other}"),
+        | Some(other) => bail!("jacquard-toolkit-xtask: unknown command: {other}"),
         | None => bail!(
-            "policy-xtask: usage: cargo run --manifest-path policy/xtask/Cargo.toml -- <check|pre-commit> ..."
+            "jacquard-toolkit-xtask: usage: cargo run --manifest-path toolkit/xtask/Cargo.toml -- <check|pre-commit> ..."
         ),
     }
 }

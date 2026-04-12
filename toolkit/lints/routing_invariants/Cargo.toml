@@ -1,5 +1,5 @@
 # Dylint lint library — requires the toolkit nightly shell and cargo-dylint.
-# Run: ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./policy/lints/routing_invariants --all -- --all-targets
+# Run: ./scripts/toolkit-shell.sh toolkit-dylint --repo-root . --lint-path ./toolkit/lints/routing_invariants --all -- --all-targets
 
 [package]
 name = "jacquard-routing-invariants"

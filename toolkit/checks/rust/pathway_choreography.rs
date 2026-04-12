@@ -7,7 +7,7 @@
 //! Supports two modes:
 //! - Default (no flags): validates the live workspace under `crates/pathway/`.
 //! - `--validate`: runs against synthetic fixtures in
-//!   `policy/fixtures/pathway_choreography/` and expects at least one violation
+//!   `toolkit/fixtures/pathway_choreography/` and expects at least one violation
 //!   to be triggered, confirming the rules fire correctly.
 //!
 //! Scans: `.rs` files under the chosen root, filtered to pathway choreography
@@ -33,7 +33,7 @@ pub fn run(args: &[String]) -> Result<()> {
     }
 
     let root = if validate {
-        workspace_root()?.join("policy/fixtures/pathway_choreography")
+        workspace_root()?.join("toolkit/fixtures/pathway_choreography")
     } else {
         workspace_root()?
     };

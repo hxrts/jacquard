@@ -53,7 +53,7 @@ use anyhow::{bail, Result};
 
 pub fn run(args: Vec<String>) -> Result<()> {
     let Some(name) = args.first().map(String::as_str) else {
-        bail!("policy-xtask: usage: cargo run --manifest-path policy/xtask/Cargo.toml -- check <name> [args]");
+        bail!("jacquard-toolkit-xtask: usage: cargo run --manifest-path toolkit/xtask/Cargo.toml -- check <name> [args]");
     };
     let rest = &args[1..];
     match name {
@@ -81,6 +81,6 @@ pub fn run(args: Vec<String>) -> Result<()> {
         "trait-purity" => trait_purity::run(),
         "transport-authoring-boundary" => transport_authoring_boundary::run(),
         "transport-ownership-boundary" => transport_ownership_boundary::run(),
-        other => bail!("policy-xtask: unknown check: {other}"),
+        other => bail!("jacquard-toolkit-xtask: unknown check: {other}"),
     }
 }

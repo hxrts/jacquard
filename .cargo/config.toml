@@ -1,5 +1,5 @@
 [alias]
-xtask = "run -p jacquard-policy-xtask --"
+xtask = "run -p jacquard-toolkit-xtask --"
 
 [target.wasm32-unknown-unknown]
 runner = "./scripts/wasm-bindgen-test-runner.sh"

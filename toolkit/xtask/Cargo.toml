@@ -1,5 +1,5 @@
 [package]
-name = "jacquard-policy-xtask"
+name = "jacquard-toolkit-xtask"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -31,7 +31,7 @@ in `core` or the transport-neutral mem profile crates.
 
 ## Dependency Graph
 
-The workspace today contains repo-local policy tooling in `jacquard-policy-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-batman`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-field-client`, `jacquard-reference-client`, and `jacquard-simulator`.
+The workspace today contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-batman`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-field-client`, `jacquard-reference-client`, and `jacquard-simulator`.
 
 ```
 jacquard-core
@@ -49,7 +49,7 @@ jacquard-batman  ─┘         │                ↑
       └────────────────────→ jacquard-simulator
                              └── composes mem-* + router + in-tree engines
 
-jacquard-policy-xtask
+jacquard-toolkit-xtask
 ```
 
 Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits` only when they need behavioral boundaries. `jacquard-adapter` depends only on `jacquard-core` plus proc-macro/serialization support because it owns reusable mailbox, ownership, endpoint-convenience, and host-side observational projector helpers, not runtime traits or router semantics. `jacquard-router` depends on registered engines only through shared traits, not through pathway or BATMAN internals. `jacquard-mem-node-profile` depends on `jacquard-core` and `jacquard-adapter` plus serialization support. `jacquard-mem-link-profile` depends on `jacquard-core`, `jacquard-traits`, and `jacquard-adapter` because it implements shared transport, retention, and effect traits while reusing the canonical raw-ingress mailbox. `jacquard-core` and `jacquard-traits` remain runtime-free.
@@ -74,7 +74,7 @@ That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `Sub
 
 ## Enforcement
 
-Trait purity and routing invariants are enforced by the lint suite. The stable-toolchain check lane is split between the external toolkit runner and Jacquard's local `policy/xtask`, while nightly compiler-backed coverage lives in the external `toolkit` lint suite plus `policy/lints/model_policy` and `policy/lints/routing_invariants`. Public trait definitions in `jacquard-traits` also carry `#[purity(...)]` or `#[effect_trait]` annotations that the proc macros validate at compile time.
+Trait purity and routing invariants are enforced by the lint suite. The stable-toolchain check lane is split between the external toolkit runner and Jacquard's local `toolkit/xtask`, while nightly compiler-backed coverage lives in the external `toolkit` lint suite plus `toolkit/lints/model_policy` and `toolkit/lints/routing_invariants`. Public trait definitions in `jacquard-traits` also carry `#[purity(...)]` or `#[effect_trait]` annotations that the proc macros validate at compile time.
 
 ## Runtime Boundary
 

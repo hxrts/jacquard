@@ -146,7 +146,7 @@ fn scan_driver_impls(root: &std::path::Path) -> Result<Vec<Violation>> {
 
     for path in collect_rust_files(root)? {
         let rel = normalize_rel_path(root, &path);
-        if rel == "policy/checks/transport_ownership_boundary.rs" {
+        if rel == "toolkit/checks/transport_ownership_boundary.rs" {
             continue;
         }
         let contents = std::fs::read_to_string(&path)
