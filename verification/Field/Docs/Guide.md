@@ -138,7 +138,8 @@ The protocol layer currently gives:
 - observational-only export
 - field-side conservation and coherence theorem packs
 - a narrow receive-refinement hook aligned to Telltale subtype-replacement style
-- an explicit statement that the current reduced protocol has no reconfiguration semantics
+- an explicit reduced protocol reconfiguration surface that remains
+  observational-only and fixed-participant
 
 ### Network And Router Layers
 
@@ -161,6 +162,9 @@ The network/router layers currently give:
   - installed support remains conservative with respect to the supporting node's local evidence
 - lifecycle maintenance theorems showing withdrawal / expiry do not strengthen claims and unchanged refreshes preserve shape/support conservativity
 - stronger-selector theorems showing the support-then-hop canonical winner still stays inside the eligible lifecycle surface and remains stable under the reliable-immediate fixed-point regime
+- bounded-dropout and bounded-non-participation resilience packs that keep the
+  canonical-support story router/system-owned even under reduced participation
+  faults
 
 ### Async Layer
 
@@ -309,10 +313,13 @@ The adequacy and assumptions layers currently give:
 
 The runtime-canonical path is now explicit:
 
-- Rust/runtime artifacts carry a reduced router-facing lifecycle projection
+- Rust/runtime artifacts carry a reduced router-facing lifecycle projection plus
+  reduced search-linkage metadata
 - `Field/Adequacy/Canonical.lean` relates that projection to the reduced system lifecycle view through `RuntimeSystemCanonicalAligned`
 - `Field/Adequacy/Projection.lean` proves a reduced runtime artifact stream generated from `systemStep` satisfies that alignment and is admitted by the existing reduced runtime envelope
 - `Field/Adequacy/Runtime.lean` lifts the artifact story to reduced runtime states and runtime steps
+- `Field/Adequacy/Search.lean` carries the combined runtime/search bundle plus
+  optional reduced protocol reconfiguration
 - `Field/Adequacy/Refinement.lean` defines a runtime-state / system-state stuttering refinement relation and proves quiescent runtime-state agreement with router-owned canonical truth
 - `Field/Adequacy/Safety.lean` packages reduction-soundness, safety-preservation, observational-equivalence, and projected-information order-insensitivity theorems on top of that runtime/system relation
 - `Field/Adequacy/Cost.lean` now packages the first cost-preservation results too: projected runtime artifacts preserve the canonical-search input, input size, search space, and linear search-work class exactly

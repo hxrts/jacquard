@@ -22,6 +22,7 @@ quietly drifting.
 | observer refresh / cache gating | `runtime.rs`, `observer.rs` | `Docs/403_field_routing.md` | active parity surface |
 | continuation-envelope route state | `route.rs`, `runtime.rs` | `Docs/403_field_routing.md`, `Docs/Closure.md` | active parity surface |
 | route maintenance / commitment invalidation | `runtime.rs` | `Docs/403_field_routing.md`, `Docs/Adequacy.md` | active parity surface |
+| runtime/search linkage metadata | `FieldRuntimeRoundArtifact` | `Field/Adequacy/API.lean`, `Docs/Adequacy.md` | active parity surface |
 
 ## Replay / Inspection Boundary
 
@@ -29,7 +30,8 @@ quietly drifting.
 |---|---|---|---|
 | versioned replay snapshot | `FieldReplaySnapshot` | `Docs/403_field_routing.md`, `Docs/Adequacy.md` | active parity surface |
 | search replay view | `FieldSearchReplaySurface` | `Docs/Closure.md` | observational |
-| protocol replay view | `FieldProtocolReplaySurface` | `Docs/Protocol.md`, `Docs/Adequacy.md` | observational |
+| protocol replay packaging | `FieldProtocolReplaySurface` | `Docs/Protocol.md`, `Docs/Adequacy.md` | observational |
+| reduced protocol replay extraction | `FieldReplaySnapshot::reduced_protocol_replay()` | `Field/Protocol/Reconfiguration.lean`, `Field/Adequacy/Search.lean`, `Docs/Protocol.md`, `Docs/Adequacy.md` | reduced |
 | runtime replay view | `FieldRuntimeReplaySurface` | `Docs/Adequacy.md` | reduced |
 | commitment replay view | `FieldCommitmentReplaySurface` | `Docs/403_field_routing.md`, `Docs/Adequacy.md` | observational |
 
@@ -41,7 +43,7 @@ explicitly replaces them:
 - field is a single private-selector engine
 - one routing objective yields one planner-visible corridor candidate
 - field-internal plurality stays private
-- protocol artifacts are observational
+- protocol artifacts and protocol reconfiguration are observational-only
 - runtime round artifacts are reduced
 - canonical route truth remains router-owned
 

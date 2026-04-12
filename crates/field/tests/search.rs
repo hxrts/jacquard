@@ -12,8 +12,9 @@ use jacquard_core::{
     ServiceId, Tick, TimeWindow, TransportKind,
 };
 use jacquard_field::{
-    FieldEngine, FieldForwardSummaryObservation, FieldSearchPlanningFailure,
-    FieldSearchTransitionClass, FIELD_ENGINE_ID,
+    FieldEngine, FieldForwardSummaryObservation, FieldReducedObjectiveClass, FieldReducedQueryKind,
+    FieldRuntimeRoundArtifact, FieldSearchPlanningFailure, FieldSearchTransitionClass,
+    FIELD_ENGINE_ID,
 };
 use jacquard_mem_link_profile::{
     InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions,
@@ -350,6 +351,144 @@ fn changing_field_evidence_reconfigures_search_snapshot() {
             .topology_transition,
         FieldSearchTransitionClass::SameEpochNewSnapshot,
     );
+}
+
+#[test]
+fn replay_snapshot_extracts_reduced_exact_runtime_search_bundle() {
+    let mut engine = FieldEngine::new(
+        node(1),
+        InMemoryTransport::new(),
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
+    );
+    let first = topology(Tick(1));
+    engine
+        .engine_tick(&RoutingTickContext::new(first.clone()))
+        .expect("initial tick");
+
+    engine.record_forward_summary(
+        &DestinationId::Node(node(3)),
+        node(2),
+        FieldForwardSummaryObservation::new(first.value.epoch, Tick(2), 900, 1, 1),
+    );
+    engine.record_reverse_feedback(&DestinationId::Node(node(3)), node(2), 850, Tick(2));
+
+    let second = topology(Tick(2));
+    engine
+        .engine_tick(&RoutingTickContext::new(second.clone()))
+        .expect("refresh tick");
+    // allow-ignored-result: this call refreshes the retained search record used by the reduced replay assertions below.
+    let _ = engine.candidate_routes(&objective(), &profile(), &second);
+
+    let replay = engine.replay_snapshot(&[]).reduced_runtime_search_replay();
+    let search = replay.search.expect("reduced search projection");
+    assert_eq!(search.objective_class, FieldReducedObjectiveClass::Node);
+    assert_eq!(
+        search.query.expect("reduced query").kind,
+        FieldReducedQueryKind::SingleGoal,
+    );
+    let selected = search.selected_result.expect("selected result");
+    assert_eq!(selected.selected_neighbor, Some(node(2)));
+    assert_eq!(selected.witness, vec![node(1), node(2), node(3)]);
+    assert_eq!(
+        search.snapshot_epoch.expect("snapshot epoch").route_epoch,
+        first.value.epoch,
+    );
+}
+
+#[test]
+fn replay_snapshot_extracts_reconfiguration_into_reduced_bundle() {
+    let mut engine = FieldEngine::new(
+        node(1),
+        InMemoryTransport::new(),
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
+    );
+    let first = topology(Tick(1));
+    engine
+        .engine_tick(&RoutingTickContext::new(first.clone()))
+        .expect("initial tick");
+
+    engine.record_forward_summary(
+        &DestinationId::Node(node(3)),
+        node(2),
+        FieldForwardSummaryObservation::new(first.value.epoch, Tick(2), 700, 1, 1),
+    );
+    let second = topology(Tick(2));
+    engine
+        .engine_tick(&RoutingTickContext::new(second.clone()))
+        .expect("second tick");
+    // allow-ignored-result: this call refreshes the retained search record used by the reduced replay assertions below.
+    let _ = engine.candidate_routes(&objective(), &profile(), &second);
+
+    engine.record_forward_summary(
+        &DestinationId::Node(node(3)),
+        node(2),
+        FieldForwardSummaryObservation::new(first.value.epoch, Tick(3), 950, 1, 1),
+    );
+    let third = topology(Tick(3));
+    engine
+        .engine_tick(&RoutingTickContext::new(third.clone()))
+        .expect("third tick");
+    // allow-ignored-result: this call refreshes the retained search record used by the reduced replay assertions below.
+    let _ = engine.candidate_routes(&objective(), &profile(), &third);
+
+    let replay = engine.replay_snapshot(&[]).reduced_runtime_search_replay();
+    let search = replay.search.expect("reduced search projection");
+    let reconfiguration = search.reconfiguration.expect("reconfiguration");
+    assert_eq!(
+        reconfiguration.transition_class,
+        FieldSearchTransitionClass::SameEpochNewSnapshot,
+    );
+    assert_eq!(
+        search.snapshot_epoch.expect("snapshot epoch"),
+        reconfiguration.to,
+    );
+}
+
+#[test]
+fn runtime_artifacts_link_back_to_latest_search_snapshot_boundary() {
+    let mut engine = FieldEngine::new(
+        node(1),
+        InMemoryTransport::new(),
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
+    );
+    let first = topology(Tick(1));
+    engine
+        .engine_tick(&RoutingTickContext::new(first.clone()))
+        .expect("initial tick");
+
+    engine.record_forward_summary(
+        &DestinationId::Node(node(3)),
+        node(2),
+        FieldForwardSummaryObservation::new(first.value.epoch, Tick(2), 900, 1, 1),
+    );
+    engine.record_reverse_feedback(&DestinationId::Node(node(3)), node(2), 850, Tick(2));
+    let second = topology(Tick(2));
+    engine
+        .engine_tick(&RoutingTickContext::new(second.clone()))
+        .expect("refresh tick");
+    // allow-ignored-result: this call refreshes the retained search record so the next tick emits runtime artifacts linked to that search snapshot.
+    let _ = engine.candidate_routes(&objective(), &profile(), &second);
+
+    let third = topology(Tick(3));
+    engine
+        .engine_tick(&RoutingTickContext::new(third))
+        .expect("protocol tick");
+    let artifacts: Vec<FieldRuntimeRoundArtifact> = engine.runtime_round_artifacts();
+    assert!(artifacts.iter().any(|artifact| {
+        artifact.destination == Some(DestinationId::Node(node(3)))
+            && artifact.destination_class == Some(FieldReducedObjectiveClass::Node)
+            && artifact.search_snapshot_epoch.is_some()
+            && artifact.search_selected_result_present
+    }));
 }
 
 #[test]

@@ -30,8 +30,9 @@ use jacquard_traits::{Blake3Hashing, Hashing, RouterManagedEngine, RoutingEngine
 use crate::{
     attractor::{derive_local_attractor_view, rank_frontier_by_attractor},
     choreography::{
-        FieldChoreographyAdvance, FieldHostWaitStatus, FieldProtocolKind, FieldProtocolSessionKey,
-        QueuedProtocolSend, FIELD_PROTOCOL_SESSION_MAX,
+        FieldChoreographyAdvance, FieldHostWaitStatus, FieldProtocolKind,
+        FieldProtocolReconfigurationCause, FieldProtocolSessionKey, QueuedProtocolSend,
+        FIELD_PROTOCOL_SESSION_MAX,
     },
     control::{advance_control_plane, ControlMeasurements},
     engine::FieldRuntimeRoundArtifact,
@@ -55,6 +56,9 @@ const FIELD_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 const FIELD_COMMITMENT_ID_DOMAIN: &[u8] = b"field-route-commitment";
 
 impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
+    // long-block-exception: route materialization intentionally keeps backend
+    // decoding, witness validation, active-route installation, and
+    // route-scoped protocol session startup in one fail-closed path.
     fn materialize_route(
         &mut self,
         input: RouteMaterializationInput,
@@ -85,8 +89,14 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
                 backend_route_id: input.admission.backend_ref.backend_route_id.clone(),
                 topology_epoch: input.handle.topology_epoch(),
                 installed_at_tick: input.handle.materialized_at_tick(),
+                coordination_capability: None,
             },
         );
+        self.install_route_protocol_session(
+            input.handle.route_id(),
+            input.handle.topology_epoch(),
+            input.handle.materialized_at_tick(),
+        )?;
 
         Ok(RouteInstallation {
             materialization_proof: RouteMaterializationProof {
@@ -252,22 +262,28 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
             });
         }
 
-        let active = self
-            .active_routes
-            .get_mut(identity.route_id())
-            .expect("active route remains present during maintenance");
-        active.corridor_envelope = current_corridor_envelope;
-        active.witness_detail = current_witness_detail;
+        let mut pending_coordination_shift = None;
+        let previous_posture;
+        {
+            let active = self
+                .active_routes
+                .get_mut(identity.route_id())
+                .expect("active route remains present during maintenance");
+            previous_posture = active.witness_detail.posture;
+            active.corridor_envelope = current_corridor_envelope;
+            active.witness_detail = current_witness_detail;
 
-        if !active.continuation_neighbors.contains(&best.neighbor_id) {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Replaced,
-                outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
-            });
-        }
+            if !active.continuation_neighbors.contains(&best.neighbor_id) {
+                return Ok(RouteMaintenanceResult {
+                    event: RouteLifecycleEvent::Replaced,
+                    outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
+                });
+            }
 
-        if active.selected_neighbor != best.neighbor_id {
-            active.selected_neighbor = best.neighbor_id;
+            if active.selected_neighbor != best.neighbor_id {
+                active.selected_neighbor = best.neighbor_id;
+                pending_coordination_shift = Some(best.neighbor_id);
+            }
         }
 
         if self.state.controller.congestion_price.value() >= 850 {
@@ -279,13 +295,22 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
             });
         }
 
-        if self.state.posture.current != active.witness_detail.posture {
+        if self.state.posture.current != previous_posture {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Replaced,
                 outcome: RouteMaintenanceOutcome::ReplacementRequired {
                     trigger: RouteMaintenanceTrigger::PolicyShift,
                 },
             });
+        }
+
+        if let Some(new_neighbor) = pending_coordination_shift {
+            self.reconfigure_route_protocol_session(
+                identity.route_id(),
+                new_neighbor,
+                FieldProtocolReconfigurationCause::ContinuationShift,
+                self.state.last_tick_processed,
+            )?;
         }
 
         let is_stale = self
@@ -310,6 +335,8 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
     }
 
     fn teardown(&mut self, route_id: &RouteId) {
+        // allow-ignored-result: route teardown must continue even if the private coordination session has already been invalidated or removed.
+        let _ = self.close_route_protocol_session(route_id);
         self.active_routes.remove(route_id);
     }
 }
@@ -575,15 +602,35 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         router_artifact: Option<crate::engine::FieldRuntimeRouteArtifact>,
         now_tick: Tick,
     ) {
+        let search_snapshot_epoch = self
+            .search_snapshot_state
+            .borrow()
+            .as_ref()
+            .map(|state| state.epoch.clone());
+        let last_search_record = self.last_search_record.borrow();
         self.record_runtime_round_artifact(FieldRuntimeRoundArtifact {
             protocol: session_key.protocol(),
             destination: session_key.destination(),
+            destination_class: session_key
+                .destination()
+                .as_ref()
+                .map(destination_objective_class),
             blocked_receive: advance.round.blocked_receive,
             disposition: advance.round.disposition,
             host_wait_status: advance.round.host_wait_status,
             emitted_count: advance.round.emitted_send_count,
             step_budget_remaining: advance.round.step_budget_remaining,
             execution_policy: advance.round.execution_policy,
+            search_snapshot_epoch,
+            search_selected_result_present: last_search_record
+                .as_ref()
+                .is_some_and(|record| record.selected_continuation.is_some()),
+            search_reconfiguration_present: last_search_record.as_ref().is_some_and(|record| {
+                record
+                    .run
+                    .as_ref()
+                    .is_some_and(|run| run.reconfiguration.is_some())
+            }),
             router_artifact,
             observed_at_tick: now_tick,
         });
@@ -1245,6 +1292,9 @@ mod tests {
         );
     }
 
+    // long-block-exception: this test keeps materialization, frontier shift,
+    // maintenance, and reduced protocol replay assertions together so the
+    // continuation-shift reconfiguration path stays readable as one scenario.
     #[test]
     fn maintenance_switches_realization_inside_corridor_envelope() {
         let topology = supported_topology();
@@ -1300,6 +1350,19 @@ mod tests {
                 .selected_neighbor,
             node(3)
         );
+        let protocol_replay = engine
+            .replay_snapshot(std::slice::from_ref(&materialized))
+            .reduced_protocol_replay();
+        assert!(protocol_replay
+            .reconfigurations
+            .iter()
+            .any(|reconfiguration| {
+                reconfiguration.prior_session.route_id == Some(route_id)
+                    && reconfiguration.next_session.route_id == Some(route_id)
+                    && reconfiguration.cause
+                        == crate::choreography::FieldProtocolReconfigurationCause::ContinuationShift
+                    && reconfiguration.prior_owner_tag != reconfiguration.next_owner_tag
+            }));
     }
 
     #[test]
@@ -1581,6 +1644,13 @@ where
             self.transport.send_transport(endpoint, payload)?;
             if neighbor != active.selected_neighbor {
                 active.selected_neighbor = neighbor;
+                // allow-ignored-result: forwarding stays productive even if the observational protocol reconfiguration marker cannot be retained.
+                let _ = self.reconfigure_route_protocol_session(
+                    route_id,
+                    neighbor,
+                    FieldProtocolReconfigurationCause::ContinuationShift,
+                    self.state.last_tick_processed,
+                );
             }
             return Ok(());
         }
@@ -1588,6 +1658,130 @@ where
     }
 
     fn restore_route_runtime_for_router(&mut self, route_id: &RouteId) -> Result<bool, RouteError> {
-        Ok(self.active_routes.contains_key(route_id))
+        if !self.active_routes.contains_key(route_id) {
+            return Ok(false);
+        }
+        let needs_restore = self
+            .active_routes
+            .get(route_id)
+            .is_some_and(|active| active.coordination_capability.is_none());
+        if needs_restore {
+            let topology_epoch = self
+                .active_routes
+                .get(route_id)
+                .expect("route presence checked")
+                .topology_epoch;
+            self.install_route_protocol_session(
+                route_id,
+                topology_epoch,
+                self.state.last_tick_processed,
+            )?;
+        }
+        Ok(true)
+    }
+}
+
+fn destination_objective_class(
+    destination: &DestinationId,
+) -> crate::engine::FieldReducedObjectiveClass {
+    match destination {
+        DestinationId::Node(_) => crate::engine::FieldReducedObjectiveClass::Node,
+        DestinationId::Gateway(_) => crate::engine::FieldReducedObjectiveClass::Gateway,
+        DestinationId::Service(_) => crate::engine::FieldReducedObjectiveClass::Service,
+    }
+}
+
+fn owner_tag_for_neighbor(neighbor: NodeId) -> u64 {
+    u64::from_le_bytes(
+        neighbor.0[..8]
+            .try_into()
+            .expect("node id prefix is 8 bytes"),
+    )
+}
+
+fn bound_task_for_route(route_id: &RouteId) -> u64 {
+    u64::from_le_bytes(
+        route_id.0[..8]
+            .try_into()
+            .expect("route id prefix is 8 bytes"),
+    )
+}
+
+impl<Transport, Effects> FieldEngine<Transport, Effects> {
+    fn install_route_protocol_session(
+        &mut self,
+        route_id: &RouteId,
+        topology_epoch: jacquard_core::RouteEpoch,
+        _now_tick: Tick,
+    ) -> Result<(), RouteError> {
+        let Some(active) = self.active_routes.get(route_id) else {
+            return Err(RouteSelectionError::NoCandidate.into());
+        };
+        let destination = DestinationId::from(&active.destination);
+        let session_key = FieldProtocolSessionKey {
+            protocol: FieldProtocolKind::ExplicitCoordination,
+            route_id: Some(*route_id),
+            topology_epoch,
+            destination: Some(SummaryDestinationKey::from(&destination)),
+        };
+        let capability = self
+            .protocol_runtime
+            .open_session(
+                &session_key,
+                owner_tag_for_neighbor(active.selected_neighbor),
+                Some(bound_task_for_route(route_id)),
+            )
+            .map_err(|_| RouteRuntimeError::Invalidated)?;
+        let active = self
+            .active_routes
+            .get_mut(route_id)
+            .expect("route remains present during session install");
+        active.coordination_capability = Some(capability);
+        Ok(())
+    }
+
+    fn reconfigure_route_protocol_session(
+        &mut self,
+        route_id: &RouteId,
+        new_neighbor: NodeId,
+        cause: FieldProtocolReconfigurationCause,
+        now_tick: Tick,
+    ) -> Result<(), RouteError> {
+        let capability = self
+            .active_routes
+            .get(route_id)
+            .and_then(|active| active.coordination_capability.clone())
+            .ok_or(RouteRuntimeError::Invalidated)?;
+        let updated = self
+            .protocol_runtime
+            .transfer_owner_with_cause(
+                &capability,
+                owner_tag_for_neighbor(new_neighbor),
+                Some(bound_task_for_route(route_id)),
+                cause,
+                now_tick,
+            )
+            .map_err(|_| RouteRuntimeError::Invalidated)?;
+        let active = self
+            .active_routes
+            .get_mut(route_id)
+            .expect("route remains present during session reconfiguration");
+        active.coordination_capability = Some(updated);
+        Ok(())
+    }
+
+    fn close_route_protocol_session(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
+        let Some(capability) = self
+            .active_routes
+            .get(route_id)
+            .and_then(|active| active.coordination_capability.clone())
+        else {
+            return Ok(());
+        };
+        let _closed = self
+            .protocol_runtime
+            .close_session(&capability)
+            .map_err(|_| RouteRuntimeError::Invalidated)?;
+        Ok(())
     }
 }

@@ -24,10 +24,14 @@ use jacquard_traits::RoutingEngine;
 use crate::{
     choreography::{
         BlockedReceiveMarker, FieldExecutionPolicyClass, FieldHostWaitStatus, FieldProtocolKind,
-        FieldProtocolRuntime, FieldRoundDisposition,
+        FieldProtocolReconfiguration, FieldProtocolReconfigurationCause, FieldProtocolRuntime,
+        FieldRoundDisposition,
     },
     route::ActiveFieldRoute,
-    search::{FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchSnapshotState},
+    search::{
+        FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchEpoch, FieldSearchPlanningFailure,
+        FieldSearchReconfiguration, FieldSearchSnapshotState,
+    },
     state::{
         DestinationFieldState, DestinationInterestClass, DestinationKey, EntropyBucket,
         FieldEngineState, HopBand, OperatingRegime, RoutingPosture, SupportBucket,
@@ -38,6 +42,7 @@ use crate::{
         FIELD_SUMMARY_ENCODING_BYTES,
     },
 };
+use telltale_search::{SearchEffortProfile, SearchQuery, SearchSchedulerProfile};
 
 pub const FIELD_ENGINE_ID: RoutingEngineId =
     RoutingEngineId::from_contract_bytes(*b"jacquard.field..");
@@ -79,6 +84,7 @@ pub struct FieldProtocolReplaySurface {
     pub schema_version: u16,
     pub surface_class: FieldReplaySurfaceClass,
     pub artifacts: Vec<crate::choreography::FieldProtocolArtifact>,
+    pub reconfigurations: Vec<crate::choreography::FieldProtocolReconfiguration>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -110,6 +116,93 @@ pub struct FieldReplaySnapshot {
     pub commitments: FieldCommitmentReplaySurface,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldReducedObjectiveClass {
+    Node,
+    Gateway,
+    Service,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldReducedQueryKind {
+    SingleGoal,
+    MultiGoal,
+    CandidateSet,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReducedSearchQuery {
+    pub start: NodeId,
+    pub kind: FieldReducedQueryKind,
+    pub accepted_goals: Vec<NodeId>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FieldReducedSearchExecutionPolicy {
+    pub scheduler_profile: SearchSchedulerProfile,
+    pub batch_width: u64,
+    pub exact: bool,
+    pub run_to_completion: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReducedSelectedResult {
+    pub witness: Vec<NodeId>,
+    pub selected_neighbor: Option<NodeId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReducedSearchProjection {
+    pub objective_class: FieldReducedObjectiveClass,
+    pub query: Option<FieldReducedSearchQuery>,
+    pub execution_policy: FieldReducedSearchExecutionPolicy,
+    pub selected_result: Option<FieldReducedSelectedResult>,
+    pub snapshot_epoch: Option<FieldSearchEpoch>,
+    pub reconfiguration: Option<FieldSearchReconfiguration>,
+    pub planning_failure: Option<FieldSearchPlanningFailure>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReducedRuntimeSearchReplay {
+    pub schema_version: u16,
+    pub search: Option<FieldReducedSearchProjection>,
+    pub runtime_artifacts: Vec<FieldRuntimeRoundArtifact>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReducedProtocolSession {
+    pub protocol: FieldProtocolKind,
+    pub route_id: Option<RouteId>,
+    pub topology_epoch: RouteEpoch,
+    pub destination: Option<DestinationId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReducedProtocolArtifact {
+    pub session: FieldReducedProtocolSession,
+    pub detail: String,
+    pub last_updated_at: Tick,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReducedProtocolReconfiguration {
+    pub prior_session: FieldReducedProtocolSession,
+    pub next_session: FieldReducedProtocolSession,
+    pub prior_owner_tag: u64,
+    pub next_owner_tag: u64,
+    pub prior_generation: u32,
+    pub next_generation: u32,
+    pub cause: FieldProtocolReconfigurationCause,
+    pub recorded_at: Tick,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReducedProtocolReplay {
+    pub schema_version: u16,
+    pub artifacts: Vec<FieldReducedProtocolArtifact>,
+    pub reconfigurations: Vec<FieldReducedProtocolReconfiguration>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldRuntimeRouteArtifact {
     pub destination: DestinationId,
@@ -122,12 +215,16 @@ pub struct FieldRuntimeRouteArtifact {
 pub struct FieldRuntimeRoundArtifact {
     pub protocol: FieldProtocolKind,
     pub destination: Option<DestinationId>,
+    pub destination_class: Option<FieldReducedObjectiveClass>,
     pub blocked_receive: Option<BlockedReceiveMarker>,
     pub disposition: FieldRoundDisposition,
     pub host_wait_status: FieldHostWaitStatus,
     pub emitted_count: usize,
     pub step_budget_remaining: u8,
     pub execution_policy: FieldExecutionPolicyClass,
+    pub search_snapshot_epoch: Option<FieldSearchEpoch>,
+    pub search_selected_result_present: bool,
+    pub search_reconfiguration_present: bool,
     pub router_artifact: Option<FieldRuntimeRouteArtifact>,
     pub observed_at_tick: Tick,
 }
@@ -332,6 +429,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 schema_version: FIELD_REPLAY_SURFACE_VERSION,
                 surface_class: FieldReplaySurfaceClass::Observational,
                 artifacts: self.protocol_artifacts(),
+                reconfigurations: self.protocol_runtime.reconfigurations(),
             },
             runtime: FieldRuntimeReplaySurface {
                 schema_version: FIELD_REPLAY_SURFACE_VERSION,
@@ -379,6 +477,176 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             retained.pop_front();
         }
         retained.push_back(artifact);
+    }
+}
+
+fn reduced_objective_class(
+    objective: &jacquard_core::RoutingObjective,
+) -> FieldReducedObjectiveClass {
+    reduced_objective_class_for_destination(&objective.destination)
+}
+
+fn reduced_objective_class_for_destination(
+    destination: &DestinationId,
+) -> FieldReducedObjectiveClass {
+    match destination {
+        DestinationId::Node(_) => FieldReducedObjectiveClass::Node,
+        DestinationId::Gateway(_) => FieldReducedObjectiveClass::Gateway,
+        DestinationId::Service(_) => FieldReducedObjectiveClass::Service,
+    }
+}
+
+fn reduced_query(query: &SearchQuery<NodeId>) -> FieldReducedSearchQuery {
+    match query {
+        SearchQuery::SingleGoal { start, goal } => FieldReducedSearchQuery {
+            start: *start,
+            kind: FieldReducedQueryKind::SingleGoal,
+            accepted_goals: vec![*goal],
+        },
+        SearchQuery::MultiGoal { start, goals } => FieldReducedSearchQuery {
+            start: *start,
+            kind: FieldReducedQueryKind::MultiGoal,
+            accepted_goals: goals.clone(),
+        },
+        SearchQuery::CandidateSet {
+            start, candidates, ..
+        } => FieldReducedSearchQuery {
+            start: *start,
+            kind: FieldReducedQueryKind::CandidateSet,
+            accepted_goals: candidates.clone(),
+        },
+    }
+}
+
+fn reduced_execution_policy(config: &FieldSearchConfig) -> FieldReducedSearchExecutionPolicy {
+    let policy = config.execution_policy();
+    FieldReducedSearchExecutionPolicy {
+        scheduler_profile: policy.scheduler_profile,
+        batch_width: policy.batch_width,
+        exact: matches!(
+            (policy.scheduler_profile, policy.effort_profile),
+            (
+                SearchSchedulerProfile::CanonicalSerial
+                    | SearchSchedulerProfile::ThreadedExactSingleLane
+                    | SearchSchedulerProfile::BatchedParallelExact,
+                SearchEffortProfile::RunToCompletion
+            )
+        ),
+        run_to_completion: matches!(policy.effort_profile, SearchEffortProfile::RunToCompletion),
+    }
+}
+
+fn reduced_selected_result(
+    record: &FieldPlannerSearchRecord,
+) -> Option<FieldReducedSelectedResult> {
+    let witness = record
+        .selected_continuation
+        .as_ref()
+        .map(|continuation| continuation.selected_private_witness.clone())
+        .or_else(|| {
+            record
+                .run
+                .as_ref()
+                .and_then(|run| run.selected_node_path.clone())
+        })
+        .or_else(|| {
+            record
+                .run
+                .as_ref()
+                .and_then(|run| run.report.observation.selected_result_witness.clone())
+        })?;
+    let selected_neighbor = record
+        .selected_continuation
+        .as_ref()
+        .map(|continuation| continuation.chosen_neighbor)
+        .or_else(|| witness.get(1).copied());
+    Some(FieldReducedSelectedResult {
+        witness,
+        selected_neighbor,
+    })
+}
+
+fn reduced_search_projection(record: &FieldPlannerSearchRecord) -> FieldReducedSearchProjection {
+    FieldReducedSearchProjection {
+        objective_class: reduced_objective_class(&record.objective),
+        query: record.query.as_ref().map(reduced_query),
+        execution_policy: reduced_execution_policy(&record.effective_config),
+        selected_result: reduced_selected_result(record),
+        snapshot_epoch: record
+            .run
+            .as_ref()
+            .map(|run| run.report.final_state.epoch.clone()),
+        reconfiguration: record
+            .run
+            .as_ref()
+            .and_then(|run| run.reconfiguration.clone()),
+        planning_failure: record.planning_failure,
+    }
+}
+
+fn reduced_protocol_session(
+    session: &crate::choreography::FieldProtocolSessionKey,
+) -> FieldReducedProtocolSession {
+    FieldReducedProtocolSession {
+        protocol: session.protocol(),
+        route_id: session.route_id(),
+        topology_epoch: session.topology_epoch(),
+        destination: session.destination(),
+    }
+}
+
+fn reduced_protocol_artifact(
+    artifact: &crate::choreography::FieldProtocolArtifact,
+) -> FieldReducedProtocolArtifact {
+    FieldReducedProtocolArtifact {
+        session: reduced_protocol_session(artifact.session()),
+        detail: artifact.detail.as_str().to_owned(),
+        last_updated_at: artifact.last_updated_at,
+    }
+}
+
+fn reduced_protocol_reconfiguration(
+    reconfiguration: &FieldProtocolReconfiguration,
+) -> FieldReducedProtocolReconfiguration {
+    FieldReducedProtocolReconfiguration {
+        prior_session: reduced_protocol_session(&reconfiguration.prior_session),
+        next_session: reduced_protocol_session(&reconfiguration.next_session),
+        prior_owner_tag: reconfiguration.prior_owner_tag,
+        next_owner_tag: reconfiguration.next_owner_tag,
+        prior_generation: reconfiguration.prior_generation,
+        next_generation: reconfiguration.next_generation,
+        cause: reconfiguration.cause,
+        recorded_at: reconfiguration.recorded_at,
+    }
+}
+
+impl FieldReplaySnapshot {
+    #[must_use]
+    pub fn reduced_runtime_search_replay(&self) -> FieldReducedRuntimeSearchReplay {
+        FieldReducedRuntimeSearchReplay {
+            schema_version: self.schema_version,
+            search: self.search.record.as_ref().map(reduced_search_projection),
+            runtime_artifacts: self.runtime.artifacts.clone(),
+        }
+    }
+
+    #[must_use]
+    pub fn reduced_protocol_replay(&self) -> FieldReducedProtocolReplay {
+        FieldReducedProtocolReplay {
+            schema_version: self.schema_version,
+            artifacts: self
+                .protocol
+                .artifacts
+                .iter()
+                .map(reduced_protocol_artifact)
+                .collect(),
+            reconfigurations: self
+                .protocol
+                .reconfigurations
+                .iter()
+                .map(reduced_protocol_reconfiguration)
+                .collect(),
+        }
     }
 }
 
@@ -447,6 +715,10 @@ mod tests {
         let snapshot = engine.replay_snapshot(&[]);
         assert_eq!(snapshot.search.record, engine.last_search_record());
         assert_eq!(snapshot.protocol.artifacts, engine.protocol_artifacts());
+        assert_eq!(
+            snapshot.protocol.reconfigurations,
+            engine.protocol_runtime.reconfigurations()
+        );
         assert_eq!(snapshot.runtime.artifacts, engine.runtime_round_artifacts());
         assert!(snapshot.commitments.entries.is_empty());
     }
@@ -458,12 +730,16 @@ mod tests {
             engine.record_runtime_round_artifact(FieldRuntimeRoundArtifact {
                 protocol: crate::choreography::FieldProtocolKind::SummaryDissemination,
                 destination: None,
+                destination_class: None,
                 blocked_receive: None,
                 disposition: crate::choreography::FieldRoundDisposition::Continue,
                 host_wait_status: crate::choreography::FieldHostWaitStatus::Idle,
                 emitted_count: index,
                 step_budget_remaining: 1,
                 execution_policy: crate::choreography::FieldExecutionPolicyClass::Cheap,
+                search_snapshot_epoch: None,
+                search_selected_result_present: false,
+                search_reconfiguration_present: false,
                 router_artifact: None,
                 observed_at_tick: Tick(u64::try_from(index).expect("test index fits")),
             });

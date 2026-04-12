@@ -42,6 +42,11 @@ def runtimeArtifactOfLifecycleRoute
     disposition := HostDisposition.complete
     emittedCount := 0
     stepBudgetRemaining := 0
+    searchLinkage :=
+      { destinationClass := none
+        snapshotEpoch := none
+        selectedResultPresent := false
+        reconfigurationPresent := false }
     routerArtifact := some { lifecycleRoute := route } }
 
 def runtimeArtifactsOfRoutes
@@ -121,9 +126,13 @@ theorem runtimeArtifactOfLifecycleRoute_admitted
     (route : LifecycleRoute)
     (hHonest : LifecycleHonest route) :
     RuntimeArtifactAdmitted (runtimeArtifactOfLifecycleRoute route) := by
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [runtimeArtifactOfLifecycleRoute]
   · simp [runtimeArtifactOfLifecycleRoute]
+  · intro hReconfigured
+    simp [runtimeArtifactOfLifecycleRoute] at hReconfigured
+  · intro hSelected
+    simp [runtimeArtifactOfLifecycleRoute] at hSelected
   · intro _hTerminal
     rfl
   · intro hBlocked

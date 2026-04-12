@@ -13,9 +13,9 @@ The private protocol may contribute only observational summary facts. It may not
 The current design decision is explicit: this protocol remains deliberately
 reduced. The field search substrate now has its own proof-facing object in
 `Field/Search/API.lean`, so the protocol is not being expanded into a second
-owner of search semantics or route truth. Reconfiguration/delegation remains
-absent by design in this reduced protocol object unless a later proof plan
-changes that boundary explicitly.
+owner of search semantics or route truth. Reconfiguration is now modeled
+explicitly, but only as an observational reduced object over owner transfer,
+checkpoint/restore, and continuation shift with a fixed participant set.
 
 ## Reduced Protocol Surface
 
@@ -180,7 +180,7 @@ Provides proof-facing concrete protocol examples:
 - one representative summary/ack exchange snapshot list
 - fragment-trace / observer-projection agreement on that exchange
 - concrete receive-refinement witnesses
-- fixed-participant / no-reconfiguration fixtures
+- fixed-participant and supported-reconfiguration fixtures
 
 ### `Protocol/Closure.lean`
 
@@ -189,14 +189,15 @@ Packages the final reduced protocol-boundary statement:
 - reduced Telltale-family alignment
 - closed receive-refinement witness coverage
 - fixed-participant choreography
-- no reconfiguration semantics
+- observational-only reconfiguration semantics
 
 ### `Protocol/Reconfiguration.lean`
 
 Makes the final protocol boundary explicit:
 
 - the reduced protocol is fixed-participant
-- reconfiguration is not part of the current semantics
+- reconfiguration is explicit and observational-only
+- supported reconfiguration does not own route truth
 
 ## What Is Proved Today
 
@@ -209,7 +210,7 @@ The current protocol stack proves:
 - field-side conservation over exports and replay-visible semantic objects
 - reduced coherence cases
 - a narrow receive-refinement theorem
-- absence of reconfiguration semantics in the reduced protocol
+- explicit observational-only reconfiguration semantics in the reduced protocol
 - closed receive-refinement witnesses for the two receive forms
 - a final reduced protocol-boundary theorem pack in `Protocol/Closure.lean`
 
@@ -244,14 +245,15 @@ The right characterization is:
   imports today
 - intentionally reduced relative to the richer Rust choreography runtime
 - intentionally fixed-participant
-- intentionally non-reconfiguring
+- intentionally reconfiguring only through observational owner-transfer,
+  checkpoint/restore, and continuation-shift surfaces
 
 What is out of scope for this protocol object is therefore explicit rather than
 transitional:
 
 - full Rust choreography correctness
 - richer multi-kind runtime retention semantics
-- delegation or participant reconfiguration
+- delegation or participant-set reconfiguration
 - any attempt to turn the protocol layer into a second owner of route truth
 
 ## Rust Mapping

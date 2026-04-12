@@ -200,10 +200,17 @@ tooling:
 - a versioned `FieldReplaySnapshot` surface that packages search, protocol,
   runtime, and commitment views without requiring access to hidden engine
   internals
+- a reduced `reduced_runtime_search_replay()` extraction from
+  `FieldReplaySnapshot` that exposes the proof-facing search/runtime bundle
+  without re-reading private engine state
+- a reduced `reduced_protocol_replay()` extraction from `FieldReplaySnapshot`
+  that exposes the proof-facing protocol artifact and protocol-reconfiguration
+  bundle without re-reading private engine state
 - bounded protocol artifacts from the private choreography runtime
 - bounded runtime round artifacts carrying blocked-receive state, host
   disposition, emitted-summary count, remaining step budget, execution-policy
-  class, and one reduced observational route projection
+  class, destination class, search-snapshot linkage metadata, and one reduced
+  observational route projection
 - one route-commitment view per materialized route, with pending, lease-expiry,
   topology-supersession, evidence-withdrawal, and backend-unavailable outcomes
 
@@ -213,14 +220,25 @@ affect field semantics only when they yield engine-owned evidence that is later
 ingested through the forward-summary or reverse-feedback paths. Otherwise they
 remain observational runtime behavior rather than semantic route truth.
 
+Route-scoped explicit-coordination sessions are also the current field
+reconfiguration surface. When a live route shifts its concrete realization
+inside the already-admitted continuation envelope, field reconfigures the
+route-scoped protocol session instead of forcing full route replacement.
+Owner-transfer, checkpoint/restore, and continuation-shift steps are retained
+as replay-visible protocol reconfiguration markers.
+
 Those runtime round artifacts are intentionally observational. They expose only
-reduced route shape and support hints. They do not promote the field runtime
-into a second canonical route owner.
+reduced route shape, reduced search linkage, and support hints. They do not
+expose the selected witness, the full continuation envelope, or hidden protocol
+session state. They do not promote the field runtime into a second canonical
+route owner.
 
 The replay surfaces also carry an explicit surface-class split:
 
 - search replay is observational
-- protocol replay is observational
+- protocol replay packaging is observational, while
+  `reduced_protocol_replay()` is the maintained proof-facing protocol replay
+  reduction
 - runtime replay is reduced
 - commitment replay is observational
 
@@ -234,13 +252,14 @@ Lean covers:
 - the reduced local observer-controller model
 - the reduced private protocol boundary, including fixed-participant closure,
   fragment-trace alignment, receive-refinement witnesses, and explicit
-  no-reconfiguration semantics
+  observational-only reconfiguration semantics
 - the reduced field search boundary, including query-family mapping, snapshot
   identity, selected-result shape, execution-policy vocabulary, and
   reconfiguration metadata
 - the reduced runtime and runtime-search adequacy boundary, including
-  trace/evidence extraction, runtime-state refinement, search projection, and
-  reduced canonical-route refinement
+  trace/evidence extraction, runtime-state refinement, runtime-artifact search
+  linkage, search projection, reduced protocol replay projection, and reduced
+  canonical-route refinement
 
 Lean does not own router truth, private choreography internals, or full replay
 packaging semantics. Those richer Rust surfaces remain observational or
@@ -252,6 +271,21 @@ The most important assurance is ownership discipline:
 - private protocol exports are observational-only
 - runtime artifact reduction is observational-only
 - canonical route truth remains router-owned
+
+Router-owned truth can still be richer than support-only ranking. The current
+verification tree also carries a stronger support-then-hop-then-stable router
+selector and the matching system-level selector lift. Field does not publish
+extra planner-visible candidates to satisfy that richer objective. It still
+publishes one corridor candidate per objective and leaves richer canonical
+choice to the router/system layer.
+
+The current broader resilience story is likewise router/system-owned rather
+than field-private-search-owned. The maintained proof stack includes bounded
+dropout and bounded non-participation stability packs under the reduced
+reliable-immediate regime. Those results say how router-owned canonical support
+stabilizes once the selected winner survives the stated fault budget; they do
+not turn field-private replay or protocol reconfiguration into new owners of
+canonical route truth.
 
 See:
 

@@ -50,14 +50,19 @@ mod summary;
 pub use choreography::{
     BlockedReceiveMarker, FieldChoreographyRoundResult, FieldExecutionPolicyClass,
     FieldHostWaitStatus, FieldProtocolArtifact, FieldProtocolArtifactDetail, FieldProtocolKind,
-    FieldProtocolSessionKey, FieldRoundDisposition,
+    FieldProtocolReconfiguration, FieldProtocolReconfigurationCause, FieldProtocolSessionKey,
+    FieldRoundDisposition,
 };
 pub use engine::{
     FieldCommitmentReplayEntry, FieldCommitmentReplaySurface, FieldEngine,
-    FieldForwardSummaryObservation, FieldProtocolReplaySurface, FieldReplaySnapshot,
-    FieldReplaySurfaceClass, FieldRuntimeReplaySurface, FieldRuntimeRoundArtifact,
-    FieldRuntimeRouteArtifact, FieldSearchReplaySurface, FIELD_CAPABILITIES, FIELD_ENGINE_ID,
-    FIELD_REPLAY_SURFACE_VERSION, FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
+    FieldForwardSummaryObservation, FieldProtocolReplaySurface, FieldReducedObjectiveClass,
+    FieldReducedProtocolArtifact, FieldReducedProtocolReconfiguration, FieldReducedProtocolReplay,
+    FieldReducedProtocolSession, FieldReducedQueryKind, FieldReducedRuntimeSearchReplay,
+    FieldReducedSearchExecutionPolicy, FieldReducedSearchProjection, FieldReducedSearchQuery,
+    FieldReducedSelectedResult, FieldReplaySnapshot, FieldReplaySurfaceClass,
+    FieldRuntimeReplaySurface, FieldRuntimeRoundArtifact, FieldRuntimeRouteArtifact,
+    FieldSearchReplaySurface, FIELD_CAPABILITIES, FIELD_ENGINE_ID, FIELD_REPLAY_SURFACE_VERSION,
+    FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
 };
 pub use search::{
     FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchConfigError, FieldSearchEdgeMeta,

@@ -31,6 +31,7 @@ use crate::summary::{FieldSummary, SummaryDestinationKey, FIELD_SUMMARY_ENCODING
 pub(crate) const FIELD_PROTOCOL_QUEUE_MAX: usize = 8;
 pub(crate) const FIELD_PROTOCOL_ARTIFACT_LIMIT: usize = 64;
 pub(crate) const FIELD_PROTOCOL_ARTIFACT_RETENTION_MAX: usize = 8;
+pub(crate) const FIELD_PROTOCOL_RECONFIGURATION_RETENTION_MAX: usize = 8;
 pub(crate) const FIELD_PROTOCOL_SESSION_MAX: usize = 8;
 pub(crate) const FIELD_PROTOCOL_STEP_BUDGET: u8 = 8;
 
@@ -93,6 +94,28 @@ pub struct FieldProtocolArtifact {
     session: FieldProtocolSessionKey,
     pub detail: FieldProtocolArtifactDetail,
     pub last_updated_at: Tick,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldProtocolReconfigurationCause {
+    OwnerTransfer,
+    CheckpointRestore,
+    ContinuationShift,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldProtocolReconfiguration {
+    pub prior_session: FieldProtocolSessionKey,
+    pub next_session: FieldProtocolSessionKey,
+    pub protocol: FieldProtocolKind,
+    pub route_id: Option<RouteId>,
+    pub destination: Option<DestinationId>,
+    pub prior_owner_tag: u64,
+    pub next_owner_tag: u64,
+    pub prior_generation: u32,
+    pub next_generation: u32,
+    pub cause: FieldProtocolReconfigurationCause,
+    pub recorded_at: Tick,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -466,6 +489,7 @@ impl OwnedFieldProtocolSession {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct FieldProtocolRuntime {
     sessions: BTreeMap<FieldProtocolSessionKey, OwnedFieldProtocolSession>,
+    reconfigurations: VecDeque<FieldProtocolReconfiguration>,
 }
 
 impl FieldProtocolRuntime {
@@ -483,6 +507,11 @@ impl FieldProtocolRuntime {
                 .then_with(|| left.protocol.cmp(&right.protocol))
         });
         artifacts
+    }
+
+    #[must_use]
+    pub(crate) fn reconfigurations(&self) -> Vec<FieldProtocolReconfiguration> {
+        self.reconfigurations.iter().cloned().collect()
     }
 
     pub(crate) fn open_session(
@@ -522,15 +551,51 @@ impl FieldProtocolRuntime {
         owner_tag: u64,
         bound_task: Option<u64>,
     ) -> Result<FieldSessionCapability, FieldSessionError> {
+        self.transfer_owner_with_cause(
+            capability,
+            owner_tag,
+            bound_task,
+            FieldProtocolReconfigurationCause::OwnerTransfer,
+            Tick(0),
+        )
+    }
+
+    pub(crate) fn transfer_owner_with_cause(
+        &mut self,
+        capability: &FieldSessionCapability,
+        owner_tag: u64,
+        bound_task: Option<u64>,
+        cause: FieldProtocolReconfigurationCause,
+        recorded_at: Tick,
+    ) -> Result<FieldSessionCapability, FieldSessionError> {
         self.assert_owned(capability, None)?;
         let session = self
             .sessions
             .get_mut(&capability.session)
             .ok_or(FieldSessionError::NotFound)?;
+        let prior_owner_tag = session.owner_tag;
+        let prior_generation = session.generation;
         session.owner_tag = owner_tag;
         session.generation = session.generation.saturating_add(1);
         session.bound_task = bound_task;
-        Ok(session.capability(&capability.session))
+        let updated = session.capability(&capability.session);
+        push_bounded_reconfiguration(
+            &mut self.reconfigurations,
+            FieldProtocolReconfiguration {
+                prior_session: capability.session.clone(),
+                next_session: updated.session.clone(),
+                protocol: capability.session.protocol,
+                route_id: capability.session.route_id(),
+                destination: capability.session.destination(),
+                prior_owner_tag,
+                next_owner_tag: updated.owner_tag,
+                prior_generation,
+                next_generation: updated.generation,
+                cause,
+                recorded_at,
+            },
+        );
+        Ok(updated)
     }
 
     pub(crate) fn checkpoint_session(
@@ -556,6 +621,9 @@ impl FieldProtocolRuntime {
         })
     }
 
+    // long-block-exception: checkpoint restore intentionally rebuilds bridge
+    // state, retained artifacts, and the replay-visible reconfiguration marker
+    // in one place so the fail-closed restore boundary can be audited end to end.
     pub(crate) fn restore_session(
         &mut self,
         checkpoint: FieldProtocolCheckpoint,
@@ -607,7 +675,24 @@ impl FieldProtocolRuntime {
             .sessions
             .get(&checkpoint.session)
             .expect("restored session");
-        Ok(session.capability(&checkpoint.session))
+        let restored = session.capability(&checkpoint.session);
+        push_bounded_reconfiguration(
+            &mut self.reconfigurations,
+            FieldProtocolReconfiguration {
+                prior_session: checkpoint.session.clone(),
+                next_session: restored.session.clone(),
+                protocol: checkpoint.session.protocol,
+                route_id: checkpoint.session.route_id(),
+                destination: checkpoint.session.destination(),
+                prior_owner_tag: checkpoint.owner_tag,
+                next_owner_tag: restored.owner_tag,
+                prior_generation: checkpoint.generation,
+                next_generation: restored.generation,
+                cause: FieldProtocolReconfigurationCause::CheckpointRestore,
+                recorded_at: Tick(0),
+            },
+        );
+        Ok(restored)
     }
 
     pub(crate) fn queue_summary_flow(
@@ -782,6 +867,16 @@ fn push_bounded_artifact(
     artifacts.push_back(artifact);
 }
 
+fn push_bounded_reconfiguration(
+    reconfigurations: &mut VecDeque<FieldProtocolReconfiguration>,
+    reconfiguration: FieldProtocolReconfiguration,
+) {
+    if reconfigurations.len() >= FIELD_PROTOCOL_RECONFIGURATION_RETENTION_MAX {
+        reconfigurations.pop_front();
+    }
+    reconfigurations.push_back(reconfiguration);
+}
+
 #[cfg(test)]
 mod tests {
     use jacquard_core::{DestinationId, RouteEpoch};
@@ -932,6 +1027,13 @@ mod tests {
             .recorded_artifacts
             .iter()
             .any(|artifact| { artifact.detail.as_str() == "anti-entropy-received" }));
+        assert!(recovered_runtime
+            .reconfigurations()
+            .iter()
+            .any(|reconfiguration| {
+                reconfiguration.cause == FieldProtocolReconfigurationCause::CheckpointRestore
+                    && reconfiguration.prior_session == reconfiguration.next_session
+            }));
     }
 
     #[test]
@@ -965,6 +1067,13 @@ mod tests {
             .advance_host_bridged_round(&transferred, Some(201), FieldHostWaitStatus::Idle, Tick(5))
             .expect("new owner round");
         assert_eq!(round.round.disposition, FieldRoundDisposition::Complete);
+        assert!(runtime.reconfigurations().iter().any(|reconfiguration| {
+            reconfiguration.cause == FieldProtocolReconfigurationCause::OwnerTransfer
+                && reconfiguration.prior_owner_tag == 100
+                && reconfiguration.next_owner_tag == 101
+                && reconfiguration.prior_generation == 0
+                && reconfiguration.next_generation == 1
+        }));
     }
 
     #[test]

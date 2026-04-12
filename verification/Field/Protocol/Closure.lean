@@ -18,7 +18,7 @@ Solution Structure.
 1. Bundle the reduced family-alignment facts already proved in the protocol
    API, bridge, and fixtures.
 2. Bundle the closed receive-refinement witness surface.
-3. Package the fixed-participant and no-reconfiguration decision as the final
+3. Package the fixed-participant and supported-reconfiguration decision as the final
    protocol-boundary statement.
 -/
 
@@ -59,7 +59,7 @@ def ReceiveRefinementClosed : Prop :=
 
 def FinalProtocolBoundary : Prop :=
   FixedParticipantChoreography ∧
-    ¬ ReconfigurationRequired ∧
+    ReconfiguringProtocolBoundary ∧
     ReducedTelltaleFamilyAlignment ∧
     ReceiveRefinementClosed
 
@@ -82,7 +82,7 @@ theorem receive_refinement_closed :
 theorem final_protocol_boundary_closed :
     FinalProtocolBoundary := by
   refine ⟨reduced_protocol_is_fixed_participant,
-    current_reduced_protocol_requires_no_reconfiguration,
+    reduced_protocol_boundary_is_reconfiguring_by_design,
     reduced_telltale_family_alignment_closed,
     receive_refinement_closed⟩
 

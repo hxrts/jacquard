@@ -1,4 +1,5 @@
 import Field.Adequacy.Refinement
+import Field.Protocol.Reconfiguration
 import Field.Quality.System
 import Field.Search.API
 import Field.Model.Boundary
@@ -36,6 +37,7 @@ open FieldAdequacyRuntime
 open FieldModelAPI
 open FieldNetworkAPI
 open FieldProtocolAPI
+open FieldProtocolReconfiguration
 open FieldQualityAPI
 open FieldQualitySystem
 open FieldRouterSelector
@@ -83,15 +85,46 @@ def reconfigurationProjection
 
 /-! ## Search-Aware Runtime Adequacy Object -/
 
+structure RustReplayExtraction where
+  runtimeArtifacts : List RuntimeRoundArtifact
+  search : Option SearchProjection
+  protocolReconfiguration : Option ReducedReconfiguration
+  deriving Repr, DecidableEq, BEq
+
 structure RuntimeSearchState where
   runtimeState : RuntimeState
   search : SearchProjection
+  protocolReconfiguration : Option ReducedReconfiguration
   deriving Repr, DecidableEq, BEq
+
+def RustReplayExtractionAdmitted
+    (replay : RustReplayExtraction) : Prop :=
+  RuntimeExecutionAdmitted replay.runtimeArtifacts ∧
+    match replay.search with
+    | none => True
+    | some projection => SearchProjectionAdmitted projection
+  ∧ match replay.protocolReconfiguration with
+    | none => True
+    | some step => ReconfigurationAdmitted step
+
+def runtimeSearchStateOfReplay
+    (replay : RustReplayExtraction) : Option RuntimeSearchState :=
+  replay.search.map fun search =>
+    { runtimeState := initialRuntimeState replay.runtimeArtifacts
+      search := search
+      protocolReconfiguration := replay.protocolReconfiguration }
+
+def protocolReconfigurationProjection
+    (bundle : RuntimeSearchState) : Option ReducedReconfiguration :=
+  bundle.protocolReconfiguration
 
 def RuntimeSearchStateAdmitted
     (bundle : RuntimeSearchState) : Prop :=
   RuntimeStateAdmitted bundle.runtimeState ∧
-    SearchProjectionAdmitted bundle.search
+    SearchProjectionAdmitted bundle.search ∧
+      match bundle.protocolReconfiguration with
+      | none => True
+      | some step => ReconfigurationAdmitted step
 
 def ReducedRuntimeSearchAdequacy
     (bundle : RuntimeSearchState)
@@ -168,6 +201,19 @@ theorem candidate_set_search_projection_admitted :
   simp [SearchProjectionAdmitted, candidateSetSearchProjection, objectiveMeaning,
     queryKindOfObjective]
 
+theorem admitted_replay_extraction_with_search_yields_admitted_bundle
+    (replay : RustReplayExtraction)
+    (projection : SearchProjection)
+    (hAdmitted : RustReplayExtractionAdmitted replay)
+    (hSearch : replay.search = some projection) :
+    RuntimeSearchStateAdmitted
+      { runtimeState := initialRuntimeState replay.runtimeArtifacts
+        search := projection
+        protocolReconfiguration := replay.protocolReconfiguration } := by
+  simp [RustReplayExtractionAdmitted, RuntimeSearchStateAdmitted, hSearch] at hAdmitted ⊢
+  exact ⟨initialRuntimeState_admitted replay.runtimeArtifacts hAdmitted.1,
+    hAdmitted.2.1, hAdmitted.2.2⟩
+
 /-! ## Projection And Preservation Theorems -/
 
 theorem selected_result_projection_eq_surface
@@ -239,6 +285,34 @@ theorem runtime_search_state_evidence_agrees_with_semantic_trace
     runtimeEvidenceOfBundle bundle =
       controllerEvidenceFromTrace (extractTraceOfBundle bundle) := by
   exact runtime_state_evidence_agrees_with_semantic_trace bundle.runtimeState
+
+theorem admitted_protocol_reconfiguration_of_bundle_is_observational_only
+    (bundle : RuntimeSearchState)
+    (step : ReducedReconfiguration)
+    (hAdmitted : RuntimeSearchStateAdmitted bundle)
+    (hStep : protocolReconfigurationProjection bundle = some step) :
+    ReconfigurationObservationalOnly step := by
+  cases hReconf : bundle.protocolReconfiguration with
+  | none =>
+      simp [protocolReconfigurationProjection, hReconf] at hStep
+  | some actualStep =>
+      simp [RuntimeSearchStateAdmitted, protocolReconfigurationProjection, hReconf] at hAdmitted hStep
+      subst step
+      exact admitted_reconfiguration_is_observational_only actualStep hAdmitted.2.2
+
+theorem admitted_protocol_reconfiguration_of_bundle_does_not_own_route_truth
+    (bundle : RuntimeSearchState)
+    (step : ReducedReconfiguration)
+    (hAdmitted : RuntimeSearchStateAdmitted bundle)
+    (hStep : protocolReconfigurationProjection bundle = some step) :
+    ReconfigurationDoesNotOwnRouteTruth step := by
+  cases hReconf : bundle.protocolReconfiguration with
+  | none =>
+      simp [protocolReconfigurationProjection, hReconf] at hStep
+  | some actualStep =>
+      simp [RuntimeSearchStateAdmitted, protocolReconfigurationProjection, hReconf] at hAdmitted hStep
+      subst step
+      exact admitted_reconfiguration_does_not_own_route_truth actualStep hAdmitted.2.2
 
 theorem reduced_runtime_search_adequacy_projects_canonical_route
     (destination : DestinationClass)

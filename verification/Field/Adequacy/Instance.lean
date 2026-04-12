@@ -155,7 +155,8 @@ private theorem runtime_admitted_snapshot_coherent
     (artifact : RuntimeRoundArtifact)
     (hAdmitted : RuntimeArtifactAdmitted artifact) :
     MachineCoherent (extractSnapshotImpl artifact) := by
-  rcases hAdmitted with ⟨_hBudget, _hEmitted, hDone, hBlocked, _hRouter⟩
+  rcases hAdmitted with
+    ⟨_hBudget, _hEmitted, _hReconf, _hSelected, hDone, hBlocked, _hRouter⟩
   constructor
   · intro hTerminal
     exact hDone hTerminal
@@ -210,7 +211,9 @@ theorem admitted_runtime_artifact_router_projection_honest
     (artifact : RuntimeRoundArtifact)
     (hAdmitted : RuntimeArtifactAdmitted artifact) :
     RuntimeRouterArtifactAdmitted artifact := by
-  exact hAdmitted.2.2.2.2
+  rcases hAdmitted with
+    ⟨_hBudget, _hEmitted, _hReconf, _hSelected, _hDone, _hBlocked, hRouter⟩
+  exact hRouter
 
 theorem runtimeLifecycleRoutes_mem_implies_honest
     (artifacts : List RuntimeRoundArtifact)

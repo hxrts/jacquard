@@ -20,11 +20,15 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
     let field_routing = include_str!("../../../docs/403_field_routing.md");
     let adequacy = include_str!("../../../verification/Field/Docs/Adequacy.md");
     let parity = include_str!("../../../verification/Field/Docs/Parity.md");
+    let protocol = include_str!("../../../verification/Field/Docs/Protocol.md");
     let guide = include_str!("../../../verification/Field/Docs/Guide.md");
 
     assert!(field_routing.contains("Lean covers:"));
     assert!(adequacy.contains("FieldReplaySnapshot"));
+    assert!(adequacy.contains("reduced_protocol_replay()"));
     assert!(parity.contains("field is a single private-selector engine"));
+    assert!(field_routing.contains("support-then-hop-then-stable"));
+    assert!(protocol.contains("observational-only reconfiguration"));
     assert!(guide.contains("Field/Search/API.lean"));
     assert!(guide.contains("Field/Adequacy/Search.lean"));
 }
@@ -45,4 +49,17 @@ fn field_surfaces_ban_stale_route_vocabulary() {
         assert!(!source.contains("alternates"));
         assert!(!source.contains("MAX_ALTERNATE_COUNT"));
     }
+}
+
+#[test]
+fn field_docs_keep_runtime_boundary_reduced() {
+    let field_routing = include_str!("../../../docs/403_field_routing.md");
+    let adequacy = include_str!("../../../verification/Field/Docs/Adequacy.md");
+    let parity = include_str!("../../../verification/Field/Docs/Parity.md");
+
+    assert!(field_routing.contains("expose the selected witness"));
+    assert!(adequacy.contains("selected witness"));
+    assert!(
+        parity.contains("protocol artifacts and protocol reconfiguration are observational-only")
+    );
 }

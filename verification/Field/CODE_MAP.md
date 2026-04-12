@@ -81,18 +81,18 @@ This map describes the current organization of `verification/Field`.
 - `Field/Protocol/ReceiveRefinement.lean`
   - first typed receive-refinement hook aligned to `Consume` / subtype-replacement shape
 - `Field/Protocol/Fixtures.lean`
-  - proof-facing concrete summary/ack fixtures, fragment-trace observer-projection agreement, and fixed-participant/no-reconfiguration examples
+  - proof-facing concrete summary/ack fixtures, fragment-trace observer-projection agreement, and fixed-participant/supported-reconfiguration examples
 - `Field/Protocol/Closure.lean`
-  - final reduced protocol-boundary theorem pack covering family alignment, receive-refinement witness closure, and fixed-participant/no-reconfiguration closure
+  - final reduced protocol-boundary theorem pack covering family alignment, receive-refinement witness closure, and fixed-participant/observational-reconfiguration closure
 - `Field/Protocol/Reconfiguration.lean`
-  - fixed-participant audit note proving the reduced protocol has no reconfiguration semantics
+  - reduced protocol reconfiguration vocabulary covering owner transfer, checkpoint/restore, and continuation shift under a fixed participant set
 
 ## Boundary And Adequacy
 
 - `Field/Model/Boundary.lean`
   - protocol/controller boundary from protocol exports and traces, with no runtime-artifact ownership
 - `Field/Adequacy/API.lean`
-  - abstract Rust-runtime artifact boundary, reduced router-facing runtime projection, reduced probabilistic slice, and reduced runtime-to-trace simulation witness
+  - abstract Rust-runtime artifact boundary, reduced router-facing runtime projection, runtime/search linkage metadata, reduced probabilistic slice, and reduced runtime-to-trace simulation witness
 - `Field/Adequacy/Runtime.lean`
   - reduced runtime state, one-step runtime execution semantics, artifact extraction from runtime states/steps, and state-level adequacy/admission preservation lemmas
 - `Field/Adequacy/Canonical.lean`
@@ -106,7 +106,7 @@ This map describes the current organization of `verification/Field`.
 - `Field/Adequacy/Probabilistic.lean`
   - leading-evidence posterior extraction from runtime artifacts, runtime/trace confidence-threshold preservation, min-regret decision preservation, expected-utility order preservation, decision-relevant completeness for the reduced probabilistic projection, and an explicit erased-tail non-claim for the current reduced runtime view
 - `Field/Adequacy/Search.lean`
-  - reduced search projection, runtime-search adequacy object, search-projection extraction functions, canonical-route refinement over quiescent runtime-search bundles, and negative-boundary theorems keeping router truth runtime-owned
+  - reduced search projection, runtime-search adequacy object, optional reduced protocol reconfiguration, search-projection extraction functions, canonical-route refinement over quiescent runtime-search bundles, and negative-boundary theorems keeping router truth runtime-owned
 - `Field/Adequacy/Refinement.lean`
   - runtime-state / system-state refinement relation, stuttering preservation of that relation under reduced runtime steps, and quiescent runtime-state consequences for canonical outcomes and first safety-preservation theorems; the semantic runtime-state object stays distinct from theorem-pack packaging and fixtures
 - `Field/Adequacy/Safety.lean`

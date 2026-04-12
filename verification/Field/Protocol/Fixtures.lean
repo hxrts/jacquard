@@ -14,6 +14,7 @@ Solution Structure.
 1. Define one representative reduced summary/ack exchange trace.
 2. Reuse the fragment-trace and observer-projection bridge on that trace.
 3. Package concrete receive-refinement and no-reconfiguration witnesses.
+3. Package concrete receive-refinement and supported-reconfiguration witnesses.
 -/
 
 /-!
@@ -85,8 +86,54 @@ theorem summary_exchange_fixture_is_fixed_participant :
     FixedParticipantChoreography := by
   exact reduced_protocol_is_fixed_participant
 
-theorem summary_exchange_fixture_requires_no_reconfiguration :
-    ¬ ReconfigurationRequired := by
-  exact current_reduced_protocol_requires_no_reconfiguration
+def ownerTransferFixture : ReducedReconfiguration :=
+  { priorSession :=
+      { protocol := .explicitCoordination
+        routeBinding := some 7
+        destination := some .corridorA
+        generation := 0 }
+    nextSession :=
+      { protocol := .explicitCoordination
+        routeBinding := some 7
+        destination := some .corridorA
+        generation := 1 }
+    priorOwner := 10
+    nextOwner := 11
+    cause := .ownerTransfer
+    participantSetChanged := false }
+
+def checkpointRestoreFixture : ReducedReconfiguration :=
+  { priorSession :=
+      { protocol := .antiEntropy
+        routeBinding := none
+        destination := some .corridorB
+        generation := 3 }
+    nextSession :=
+      { protocol := .antiEntropy
+        routeBinding := none
+        destination := some .corridorB
+        generation := 3 }
+    priorOwner := 4
+    nextOwner := 4
+    cause := .checkpointRestore
+    participantSetChanged := false }
+
+theorem owner_transfer_fixture_is_admitted :
+    ReconfigurationAdmitted ownerTransferFixture := by
+  simp [ReconfigurationAdmitted, ownerTransferFixture]
+
+theorem checkpoint_restore_fixture_is_admitted :
+    ReconfigurationAdmitted checkpointRestoreFixture := by
+  simp [ReconfigurationAdmitted, checkpointRestoreFixture]
+
+theorem owner_transfer_fixture_keeps_participants_fixed :
+    ownerTransferFixture.participantSetChanged = false := by
+  exact admitted_reconfiguration_keeps_participant_set_fixed
+    ownerTransferFixture owner_transfer_fixture_is_admitted
+
+theorem checkpoint_restore_fixture_is_observational_only :
+    ReconfigurationObservationalOnly checkpointRestoreFixture := by
+  exact admitted_reconfiguration_is_observational_only
+    checkpointRestoreFixture checkpoint_restore_fixture_is_admitted
 
 end FieldProtocolFixtures

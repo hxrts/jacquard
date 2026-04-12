@@ -2,6 +2,7 @@ import Field.Model.API
 import Field.Protocol.Bridge
 import Field.Quality.API
 import Field.Router.Canonical
+import Field.Search.API
 
 /- 
 The Problem. The field proof stack needs a narrow adequacy-facing API between
@@ -27,6 +28,7 @@ open FieldModelAPI
 open FieldProtocolAPI
 open FieldRouterCanonical
 open FieldRouterLifecycle
+open FieldSearchAPI
 
 /- Projection taxonomy note:
 
@@ -57,6 +59,13 @@ structure RuntimeRouterArtifact where
   lifecycleRoute : LifecycleRoute
   deriving Repr, DecidableEq, BEq
 
+structure RuntimeSearchLinkage where
+  destinationClass : Option ObjectiveClass
+  snapshotEpoch : Option SearchSnapshotEpoch
+  selectedResultPresent : Bool
+  reconfigurationPresent : Bool
+  deriving Repr, DecidableEq, BEq
+
 /-- Narrowest Rust-facing round artifact currently worth relating to the Lean
 protocol object. This mirrors the controller-relevant fields of
 `FieldChoreographyRoundResult`. -/
@@ -65,6 +74,7 @@ structure RuntimeRoundArtifact where
   disposition : HostDisposition
   emittedCount : Nat
   stepBudgetRemaining : Nat
+  searchLinkage : RuntimeSearchLinkage
   routerArtifact : Option RuntimeRouterArtifact
   deriving Repr, DecidableEq, BEq
 
@@ -112,6 +122,10 @@ adequacy bridge. -/
 def RuntimeArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
   artifact.stepBudgetRemaining ≤ 8 ∧
     artifact.emittedCount ≤ 8 ∧
+    (artifact.searchLinkage.reconfigurationPresent = true →
+      artifact.searchLinkage.snapshotEpoch.isSome) ∧
+    (artifact.searchLinkage.selectedResultPresent = true →
+      artifact.searchLinkage.snapshotEpoch.isSome) ∧
     ((artifact.disposition = HostDisposition.complete ∨
         artifact.disposition = HostDisposition.failedClosed) →
         artifact.blockedReceive = none) ∧

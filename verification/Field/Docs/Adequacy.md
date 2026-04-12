@@ -15,6 +15,26 @@ but the adequacy boundary still treats its search/protocol/commitment subviews
 as observational and its runtime subview as reduced. The replay object is a
 packaging surface, not a new semantic owner.
 
+The Rust field crate now also exposes a reduced replay extraction helper from
+that packaging surface:
+
+```text
+FieldReplaySnapshot::reduced_runtime_search_replay()
+```
+
+That helper is the maintained Rust-side reduction entry point for the combined
+search/runtime adequacy bundle.
+
+The protocol side now has a parallel maintained reduction entry point:
+
+```text
+FieldReplaySnapshot::reduced_protocol_replay()
+```
+
+That helper is the maintained Rust-side reduction entry point for protocol
+artifacts plus explicit protocol reconfiguration markers. Commitment replay
+remains packaging-only and observational.
+
 That ownership is intentionally separate from `Field/Model/Boundary.lean`:
 the model boundary owns protocol/controller extraction from protocol exports and
 semantic traces, while adequacy owns runtime-artifact/runtime-state reduction
@@ -92,12 +112,20 @@ This is intentionally much smaller than the real Rust choreography runtime. It m
 
 The new `routerArtifact` field is still reduced. It carries at most one reduced lifecycle-route projection for the round artifact. It does not make the adequacy layer the owner of canonical route truth.
 
+The reduced runtime artifact now also carries reduced search linkage metadata:
+
+- optional destination/objective class
+- optional search snapshot epoch
+- whether a selected result was present in the linked search boundary
+- whether the linked search boundary carried explicit reconfiguration metadata
+
 The concrete Rust analogue is `jacquard_field::FieldRuntimeRoundArtifact`,
 recorded through `FieldEngine::runtime_round_artifacts()`. The actual Rust
 artifact currently carries more fields than the reduced Lean object, including
 protocol kind, optional destination, host-wait status, execution-policy class,
-and observation tick. The adequacy boundary intentionally erases those fields
-for now.
+observation tick, and only boolean/objective-class search linkage rather than
+the full selected witness. The adequacy boundary intentionally erases the
+selected witness, continuation envelope, and hidden session state.
 
 It intentionally erases:
 
@@ -108,6 +136,8 @@ It intentionally erases:
 - transport-local state
 - protocol kind, destination, host-wait status, execution-policy class, and
   observation tick from the Rust round artifact
+- selected witness detail and continuation-envelope detail from the Rust
+  runtime/search surface
 
 ## Reduced Runtime State Layer
 
