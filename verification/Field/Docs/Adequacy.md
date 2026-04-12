@@ -2,7 +2,18 @@
 
 ## Purpose
 
-The adequacy layer is the first formal bridge between the Rust private field runtime and the reduced Lean protocol object. Its job is narrow and explicit: relate a small Rust-facing artifact shape to a reduced Lean machine snapshot and a reduced Lean protocol trace, then show that the host-visible controller evidence extracted from those artifacts agrees with the controller evidence extracted from the Lean trace.
+The adequacy layer is the formal bridge between the Rust private field runtime
+and the reduced Lean protocol, search, router, and system objects. Its job is
+narrow and explicit: relate reduced Rust-facing runtime/search surfaces to a
+reduced Lean machine snapshot, reduced Lean protocol trace, reduced Lean search
+projection, and reduced canonical-route view, then show that the host-visible
+controller evidence and canonical-route consequences agree across that bridge.
+
+On the Rust side, the maintained inspection entry point for these retained
+surfaces is `FieldReplaySnapshot`. That replay object is versioned and typed,
+but the adequacy boundary still treats its search/protocol/commitment subviews
+as observational and its runtime subview as reduced. The replay object is a
+packaging surface, not a new semantic owner.
 
 That ownership is intentionally separate from `Field/Model/Boundary.lean`:
 the model boundary owns protocol/controller extraction from protocol exports and
@@ -44,6 +55,7 @@ Semantic reduced execution objects:
 - `RuntimeState`
 - `RuntimeStep`
 - runtime/system refinement relations and projected runtime views
+- reduced runtime/search bundles in `Field/Adequacy/Search.lean`
 
 Proof-packaging or fixture objects:
 
@@ -99,7 +111,7 @@ It intentionally erases:
 
 ## Reduced Runtime State Layer
 
-The adequacy layer now also has a proof-facing runtime-state module:
+The adequacy layer has a proof-facing runtime-state module:
 
 ```text
 Field/Adequacy/Runtime.lean
@@ -123,7 +135,9 @@ This is still intentionally reduced. The state records only:
 
 and the step relation consumes exactly one pending artifact and appends it to the completed prefix.
 
-This is not yet a faithful host/runtime operational semantics. It is the first proof-facing execution object above flat artifact lists, and it exists so later phases can state runtime-to-system refinement as an execution theorem rather than only as an artifact-alignment theorem.
+This is an intentionally reduced host/runtime operational semantics. It is the
+execution object adequacy uses above flat artifact lists, not a claim that Lean
+owns the full production runtime machinery.
 
 On top of that state layer, `Field/Adequacy/Safety.lean` now packages the first runtime/system safety consequences:
 
@@ -186,10 +200,11 @@ admitted_runtime_state_extracts_to_observational_trace
 runtime_step_preserves_state_admitted
 ```
 
-So the current adequacy bridge can be read in two compatible ways:
+So the adequacy bridge can be read in two compatible ways:
 
 - as an artifact-list bridge
 - as a reduced runtime-state execution-prefix bridge
+- as a reduced runtime-search bundle bridge through `Field/Adequacy/Search.lean`
 
 That split is deliberate:
 
@@ -271,7 +286,8 @@ The adequacy instance constructs the witness:
 admitted_runtime_execution_simulates_reduced_protocol
 ```
 
-This is the current reduced simulation statement. It is a genuine witness object, not only a prose claim that “the extraction looks reasonable.”
+This is a genuine witness object, not only a prose claim that “the extraction
+looks reasonable.”
 
 The instance also proves:
 
@@ -349,7 +365,9 @@ quiescent_runtime_states_projecting_same_system_have_equal_canonical_route
 runtime_projection_observational_equivalence_preserves_canonical_route
 ```
 
-These are still reduced theorems. They are not full Rust implementation theorems. But they move the current story beyond bare artifact alignment by showing that the runtime/system refinement relation preserves the first safety claims operators actually care about.
+These are reduced theorems. They are not full Rust implementation theorems. But
+they show that the runtime/system refinement relation preserves the first safety
+claims operators actually care about.
 
 ### Proof-Facing Fixtures
 
@@ -372,7 +390,7 @@ The intended parity workflow is:
 2. pin the expected canonical outcome with a small theorem in `Fixtures.lean`
 3. keep at least one non-claim or boundary scenario alongside positive cases
 
-This is still a reduced parity workflow, not a direct Rust extraction pipeline.
+This is a reduced parity workflow, not a direct Rust extraction pipeline.
 
 and proves:
 
@@ -390,7 +408,10 @@ This removes the free alignment hypothesis from the stronger top-level story. Th
 - reduced runtime canonical selector
 - router-owned canonical truth
 
-That is stronger than the earlier alignment-only bridge, but it is still not a full Rust/runtime correctness theorem. The projected artifacts are generated from the reduced Lean `systemStep`, not extracted from arbitrary production Rust executions.
+That is stronger than the earlier alignment-only bridge, but it remains a
+reduced runtime/system theorem. The projected artifacts are generated from the
+reduced Lean `systemStep`, not extracted from arbitrary production Rust
+executions.
 
 ### Runtime-State To System Refinement
 
@@ -440,7 +461,52 @@ quiescent_runtime_state_support_conservative
 quiescent_runtime_state_explicit_path_requires_explicit_sender_knowledge
 ```
 
-This is still a reduced theorem story. The relation is defined against the projected-runtime view induced by the current Lean `systemStep`, so it is not yet a full extracted-Rust forward simulation. But it is now an execution-state refinement layer, not only an artifact-list bridge.
+This is a reduced theorem story. The relation is defined against the
+projected-runtime view induced by the Lean `systemStep`, so it is an explicit
+reduced execution-state refinement layer rather than a full extracted-Rust
+forward simulation.
+
+### Runtime-Search Adequacy
+
+The adequacy layer now also contains:
+
+```text
+Field/Adequacy/Search.lean
+```
+
+It defines the final reduced adequacy object used by the field stack:
+
+```text
+SearchProjection
+RuntimeSearchState
+ReducedRuntimeSearchAdequacy
+```
+
+This layer adds:
+
+- explicit search projections for:
+  - selected result
+  - selected witness
+  - snapshot epoch
+  - execution policy
+  - query and reconfiguration metadata
+- an admitted runtime-search bundle carrying one reduced runtime state plus one
+  reduced field search object
+- reduced canonical-route and route-view refinement theorems for quiescent
+  runtime-search bundles
+- negative-boundary theorems showing that canonical-route truth still depends
+  only on the runtime-state projection, not on search-projection packaging
+
+The important theorems are:
+
+```text
+admitted_runtime_search_state_extracts_to_observational_trace
+runtime_search_state_evidence_agrees_with_semantic_trace
+reduced_runtime_search_adequacy_projects_canonical_route
+reduced_runtime_search_adequacy_projects_canonical_route_view
+bundles_with_same_runtime_state_have_same_canonical_route
+bundles_with_same_runtime_state_have_same_canonical_route_view
+```
 
 ## Assumptions Packaging
 
@@ -512,8 +578,9 @@ The current adequacy layer still does not prove:
 
 So the correct reading is:
 
-- the adequacy layer proves a reduced artifact-to-trace simulation story
-- it does not yet prove full implementation refinement
+- the adequacy layer proves a reduced runtime-search-to-protocol/system
+  refinement story
+- it does not prove full implementation refinement
 
 ## Relationship To End-To-End Results
 
@@ -561,11 +628,6 @@ When any of these change, the adequacy layer must be reviewed first. The key que
 
 ## Where To Extend Next
 
-The most likely next adequacy improvements are:
-
-- a stronger simulation relation over richer runtime artifacts
-- tighter replay correspondence
-- a more explicit connection to Telltale runtime adequacy families
-- a less reduced bridge from Rust choreography states to Lean machine states
-
-Until then, this document should be read as the specification of the current reduced adequacy boundary, not as a claim of whole-runtime correctness.
+This document should be read as the maintained specification of the reduced
+adequacy boundary used by the field stack, not as a claim of whole-runtime
+correctness.

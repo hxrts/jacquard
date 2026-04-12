@@ -23,13 +23,15 @@
 //! - `verification/Field/Docs/Protocol.md`
 //! - `verification/Field/Docs/Adequacy.md`
 //! - `verification/Field/Docs/Guide.md`
+//! - `verification/Field/Docs/Parity.md`
 //!
 //! The current proof boundary is intentionally narrow and explicit:
 //! - Lean covers a bounded local observer-controller model
 //! - Lean covers a reduced private summary-exchange protocol boundary
-//! - Lean covers a reduced runtime-artifact adequacy bridge
+//! - Lean covers a reduced runtime-search adequacy bridge
 //! - Lean does not own canonical route publication or router lifecycle truth
-//! - Lean does not yet model the Rust frozen-snapshot Telltale search substrate
+//! - Lean does not own richer choreography/runtime internals outside the
+//!   reduced proof-facing surfaces
 
 #![forbid(unsafe_code)]
 
@@ -51,12 +53,15 @@ pub use choreography::{
     FieldProtocolSessionKey, FieldRoundDisposition,
 };
 pub use engine::{
-    FieldEngine, FieldForwardSummaryObservation, FieldRuntimeRoundArtifact,
-    FieldRuntimeRouteArtifact, FIELD_CAPABILITIES, FIELD_ENGINE_ID,
-    FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
+    FieldCommitmentReplayEntry, FieldCommitmentReplaySurface, FieldEngine,
+    FieldForwardSummaryObservation, FieldProtocolReplaySurface, FieldReplaySnapshot,
+    FieldReplaySurfaceClass, FieldRuntimeReplaySurface, FieldRuntimeRoundArtifact,
+    FieldRuntimeRouteArtifact, FieldSearchReplaySurface, FIELD_CAPABILITIES, FIELD_ENGINE_ID,
+    FIELD_REPLAY_SURFACE_VERSION, FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
 };
 pub use search::{
     FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchConfigError, FieldSearchEdgeMeta,
-    FieldSearchEpoch, FieldSearchHeuristicMode, FieldSearchReconfiguration, FieldSearchRun,
-    FieldSearchSnapshotId, FieldSearchTransitionClass,
+    FieldSearchEpoch, FieldSearchHeuristicMode, FieldSearchPlanningFailure,
+    FieldSearchReconfiguration, FieldSearchRun, FieldSearchSnapshotId, FieldSearchTransitionClass,
+    FieldSelectedContinuation,
 };

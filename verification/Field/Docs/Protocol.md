@@ -2,13 +2,29 @@
 
 ## Purpose
 
-The field private protocol models the cooperative summary-exchange layer that may later inherit deeper Telltale proofs. It is not a second routing algorithm. The deterministic local controller in `Field/Model` remains the semantic owner of posterior state, regime inference, posture choice, continuation scoring, and public corridor projection.
+The field private protocol models the cooperative summary-exchange layer as a
+deliberately reduced proof object. It is not a second routing algorithm. The
+deterministic local controller in `Field/Model` remains the semantic owner of
+posterior state, regime inference, posture choice, continuation scoring, and
+public corridor projection.
 
 The private protocol may contribute only observational summary facts. It may not publish canonical route truth.
 
+The current design decision is explicit: this protocol remains deliberately
+reduced. The field search substrate now has its own proof-facing object in
+`Field/Search/API.lean`, so the protocol is not being expanded into a second
+owner of search semantics or route truth. Reconfiguration/delegation remains
+absent by design in this reduced protocol object unless a later proof plan
+changes that boundary explicitly.
+
 ## Reduced Protocol Surface
 
-The current reduced protocol lives in `Field/Protocol/API.lean` and `Field/Protocol/Instance.lean`.
+The reduced protocol lives in:
+
+- `Field/Protocol/API.lean`
+- `Field/Protocol/Instance.lean`
+- `Field/Protocol/Fixtures.lean`
+- `Field/Protocol/Closure.lean`
 
 It has:
 
@@ -111,8 +127,8 @@ Provides the first reduced Telltale-shaped bridge:
 - replay-equivalence and observer-style bridge lemmas
 - snapshot-trace erasure lemmas connecting reduced machine snapshots to fragment traces
 
-This is the protocol-machine-adjacent layer that later Telltale reuse should grow through.
-It is also the protocol-side object consumed by the runtime adequacy layer's fragment-trace refinement theorems.
+This is the protocol-machine-adjacent layer consumed by the runtime adequacy
+layer's fragment-trace refinement theorems.
 
 ### `Protocol/Conservation.lean`
 
@@ -123,7 +139,9 @@ Packages field-side conservation statements:
 - fragment-trace authority conservation
 - replay-equivalent fragment traces preserve controller-visible evidence
 
-The current file is a mixture of direct-family style statements and small field-local glue, and it now says so honestly.
+This file is the direct-family aligned conservation pack for the reduced field
+boundary, plus the small field-local glue needed to connect it back to the
+controller-boundary theorems.
 
 ### `Protocol/Coherence.lean`
 
@@ -143,17 +161,39 @@ Introduces a narrow receive-refinement hook:
 - refined labels and refined inputs
 - a subtype-replacement shaped theorem surface over summary and ack receives
 
-The important current result is still intentionally small:
+The important theorem surface is:
 
 ```text
 subtype_replacement_style_receive_refinement
+refined_receive_has_subtype_replacement_witness
+subtype_replacement_witness_preserves_observational_boundary
 ```
 
-This is Telltale-shaped, but it is not yet a full direct instantiation of the generic subtype-replacement kernel.
+This is the reduced subtype-replacement boundary used by Field. It keeps the
+receive refinement object explicit without promoting the protocol into a full
+implementation-complete machine semantics.
+
+### `Protocol/Fixtures.lean`
+
+Provides proof-facing concrete protocol examples:
+
+- one representative summary/ack exchange snapshot list
+- fragment-trace / observer-projection agreement on that exchange
+- concrete receive-refinement witnesses
+- fixed-participant / no-reconfiguration fixtures
+
+### `Protocol/Closure.lean`
+
+Packages the final reduced protocol-boundary statement:
+
+- reduced Telltale-family alignment
+- closed receive-refinement witness coverage
+- fixed-participant choreography
+- no reconfiguration semantics
 
 ### `Protocol/Reconfiguration.lean`
 
-Makes the current limitation explicit:
+Makes the final protocol boundary explicit:
 
 - the reduced protocol is fixed-participant
 - reconfiguration is not part of the current semantics
@@ -169,11 +209,13 @@ The current protocol stack proves:
 - field-side conservation over exports and replay-visible semantic objects
 - reduced coherence cases
 - a narrow receive-refinement theorem
-- absence of reconfiguration semantics in the current reduced protocol
+- absence of reconfiguration semantics in the reduced protocol
+- closed receive-refinement witnesses for the two receive forms
+- a final reduced protocol-boundary theorem pack in `Protocol/Closure.lean`
 
 ## Current Integration Points
 
-The current implementation uses the protocol layer in two main downstream places:
+The protocol layer is used in two main downstream places:
 
 - `Field/Model/Boundary.lean`
   - turns protocol outputs and semantic objects into controller-visible evidence while proving the exports stay observational-only
@@ -191,23 +233,26 @@ The current field protocol is Telltale-aligned in several concrete ways:
 - it uses a bounded machine snapshot and machine-input step model
 - it has replay-visible semantic objects
 - it phrases conservation and observer-style results in Telltale-compatible vocabulary where possible
-- it has a receive-refinement surface deliberately shaped toward subtype-replacement style reasoning
+- it has a receive-refinement surface with explicit subtype-replacement
+  witnesses for both receive forms
 
-## What Is Not Yet Fully Telltale-Derived
+## Final Boundary Statement
 
-The current protocol is not yet fully Telltale-native.
+The right characterization is:
 
-It does not yet provide:
+- directly aligned to the reduced Telltale-family surfaces the repo actually
+  imports today
+- intentionally reduced relative to the richer Rust choreography runtime
+- intentionally fixed-participant
+- intentionally non-reconfiguring
 
-- a direct import of the full generic projection proof surface
-- a full generic subtype-replacement instantiation
-- a full protocol-machine adequacy theorem
-- a full reconfiguration or delegation story
+What is out of scope for this protocol object is therefore explicit rather than
+transitional:
 
-So the right characterization is:
-
-- Telltale-shaped and partially family-aligned
-- not yet a full direct inheritance of the deeper Telltale proof stack
+- full Rust choreography correctness
+- richer multi-kind runtime retention semantics
+- delegation or participant reconfiguration
+- any attempt to turn the protocol layer into a second owner of route truth
 
 ## Rust Mapping
 
@@ -243,13 +288,5 @@ The current protocol layer does not prove:
 
 Those claims must remain outside this module family until the proof objects actually justify them.
 
-## Where To Extend Next
-
-The most useful next protocol extensions are:
-
-- deeper direct instantiation of Telltale projection families
-- a stronger receive-refinement story
-- richer replay-object and observer-projection proofs
-- tighter connection to runtime adequacy families
-
-Until then, this document should be read as the specification of the current reduced private protocol boundary and its present Telltale alignment.
+This document should be read as the maintained specification of the reduced
+private protocol boundary used by the field stack.

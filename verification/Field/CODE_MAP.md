@@ -14,15 +14,17 @@ This map describes the current organization of `verification/Field`.
 - `Field/Information.lean`
   - imports the information API, concrete probabilistic realization, Bayesian update layer, calibration/blindness packs, and quantitative difference lemmas
 - `Field/PrivateProtocol.lean`
-  - imports the reduced private choreography/runtime layer, conservation/coherence packs, and the Telltale-shaped protocol bridge
+  - imports the reduced private choreography/runtime layer, conservation/coherence packs, concrete fixtures, the protocol-closure theorem pack, and the Telltale-family bridge
 - `Field/Boundary.lean`
   - imports the observational controller-boundary theorems
 - `Field/Adequacy.lean`
-  - imports the Rust-runtime adequacy bridge, low-level runtime-to-canonical alignment theorems, stronger projected runtime/system refinement theorems, runtime-state execution refinement theorems, runtime/system safety-preservation results, probabilistic preservation theorems, first budgeted-optimality preservation theorems, and proof-facing fixture cases
+  - imports the Rust-runtime adequacy bridge, low-level runtime-to-canonical alignment theorems, search-aware adequacy closure, stronger projected runtime/system refinement theorems, runtime-state execution refinement theorems, runtime/system safety-preservation results, probabilistic preservation theorems, first budgeted-optimality preservation theorems, and proof-facing fixture cases
 - `Field/Network.lean`
   - imports the reduced finite network layer and its first safety theorems
 - `Field/Router.lean`
   - imports the reduced publication, admission, installation, lifecycle, canonical-selection, and posterior-decision layers
+- `Field/Search.lean`
+  - imports the proof-facing reduced field search boundary
 - `Field/Async.lean`
   - imports the reduced async delivery semantics, transport lifecycle lemmas, and first async safety theorems
 - `Field/System.lean`
@@ -78,8 +80,12 @@ This map describes the current organization of `verification/Field`.
   - reduced updated-edge / incident-edge / unrelated-edge coherence lemmas
 - `Field/Protocol/ReceiveRefinement.lean`
   - first typed receive-refinement hook aligned to `Consume` / subtype-replacement shape
+- `Field/Protocol/Fixtures.lean`
+  - proof-facing concrete summary/ack fixtures, fragment-trace observer-projection agreement, and fixed-participant/no-reconfiguration examples
+- `Field/Protocol/Closure.lean`
+  - final reduced protocol-boundary theorem pack covering family alignment, receive-refinement witness closure, and fixed-participant/no-reconfiguration closure
 - `Field/Protocol/Reconfiguration.lean`
-  - fixed-participant audit note proving the current reduced protocol has no reconfiguration semantics
+  - fixed-participant audit note proving the reduced protocol has no reconfiguration semantics
 
 ## Boundary And Adequacy
 
@@ -99,6 +105,8 @@ This map describes the current organization of `verification/Field`.
   - reduced runtime artifact projection generated from `systemStep`, admission/honesty lemmas for that projection, and stronger runtime/system canonical refinement theorems with no extra alignment hypothesis
 - `Field/Adequacy/Probabilistic.lean`
   - leading-evidence posterior extraction from runtime artifacts, runtime/trace confidence-threshold preservation, min-regret decision preservation, expected-utility order preservation, decision-relevant completeness for the reduced probabilistic projection, and an explicit erased-tail non-claim for the current reduced runtime view
+- `Field/Adequacy/Search.lean`
+  - reduced search projection, runtime-search adequacy object, search-projection extraction functions, canonical-route refinement over quiescent runtime-search bundles, and negative-boundary theorems keeping router truth runtime-owned
 - `Field/Adequacy/Refinement.lean`
   - runtime-state / system-state refinement relation, stuttering preservation of that relation under reduced runtime steps, and quiescent runtime-state consequences for canonical outcomes and first safety-preservation theorems; the semantic runtime-state object stays distinct from theorem-pack packaging and fixtures
 - `Field/Adequacy/Safety.lean`
@@ -142,6 +150,11 @@ This map describes the current organization of `verification/Field`.
   - router-owned confidence-threshold decision semantics over posterior belief, secondary posterior expectation / cost / risk / regret objects, threshold admissibility, dominance-monotonicity theorems, and explicit non-claim theorems separating posterior truth from support ranking and exported route views
 - `Field/Router/Resilience.lean`
   - first participation-fault vocabulary, silence-only dropout budget, surviving-route projection, bounded-dropout support-stability theorems, and an explicit dishonest-publication non-claim
+
+## Search Boundary
+
+- `Field/Search/API.lean`
+  - proof-facing reduced search boundary covering objective-to-query mapping, snapshot identity, execution-policy vocabulary, selected-result shape, reconfiguration metadata, and first replay-style lemmas
 
 ## Async And System Layers
 
@@ -273,7 +286,7 @@ This map describes the current organization of `verification/Field`.
   - one-step decision layer
   - reduced protocol-machine fragment
 - earliest:
-  - stronger extracted-Rust runtime correctness theorem beyond the current reduced simulation bridge and projected runtime/system refinement
+  - stronger extracted-Rust runtime correctness theorem beyond the reduced simulation bridge and projected runtime/system refinement
   - convergence beyond the reliable-immediate / empty-queue / unchanged-network regime
   - stronger global routing optimality theorem beyond the current router-owned support and support-then-hop selectors and their reduced system refinements
   - deeper Telltale-native reuse of conservation and subtype-replacement families

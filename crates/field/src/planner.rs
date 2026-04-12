@@ -3,8 +3,9 @@
 //!
 //! Translates the private attractor view and destination belief state into
 //! public routing decisions satisfying the shared framework planning contract.
-//! `candidate_routes` returns a single corridor candidate built from the
-//! highest-scoring frontier entry for the requested destination. `admit_route`
+//! `candidate_routes` returns one corridor candidate for the requested
+//! objective: field stays a single private-selector engine even though it may
+//! consider multiple admissible continuations internally. `admit_route`
 //! verifies the candidate against the routing objective and returns a
 //! `RouteAdmission` with a full witness.
 //!
@@ -14,7 +15,9 @@
 //! `route_degradation_for` classifies the degradation reason
 //! (LinkInstability, CapacityConstrained, or None) from field belief state.
 //! Backend tokens are encoded by `route::encode_backend_token` and embedded in
-//! the returned `BackendRouteRef`.
+//! the returned `BackendRouteRef`. They carry one selected runtime
+//! realization plus a bounded continuation envelope, not several
+//! planner-visible field candidates.
 
 use jacquard_core::{
     AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief, ByteCount,
@@ -32,7 +35,7 @@ use crate::{
     route::{encode_backend_token, route_id_for_backend, FieldBackendToken, FieldWitnessDetail},
     state::{
         CorridorBeliefEnvelope, DestinationFieldState, DestinationKey, ObservationClass,
-        OperatingRegime, RoutingPosture, MAX_ALTERNATE_COUNT,
+        OperatingRegime, RoutingPosture, MAX_CONTINUATION_NEIGHBOR_COUNT,
     },
     summary::{
         derive_degradation_class, EvidenceContributionClass, FieldSummary, SummaryDestinationKey,
@@ -160,45 +163,38 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             self.state.posture.current,
             &self.state.controller,
         );
-        let Some(primary_neighbor) = search_record
-            .run
-            .as_ref()
-            .and_then(|run| run.selected_node_path.as_ref())
-            .and_then(|path| path.get(1).copied())
-            .or_else(|| {
-                if search_record.query.is_none() {
-                    ranked.first().map(|(primary, _)| primary.neighbor_id)
-                } else {
-                    None
-                }
-            })
-        else {
+        let Some(selected_continuation) = search_record.selected_continuation.as_ref() else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
+        let selected_neighbor = selected_continuation.chosen_neighbor;
         if !ranked
             .iter()
-            .any(|(entry, _)| entry.neighbor_id == primary_neighbor)
+            .any(|(entry, _)| entry.neighbor_id == selected_neighbor)
         {
             return Err(RouteSelectionError::NoCandidate.into());
         }
+        let mut continuation_neighbors = Vec::with_capacity(MAX_CONTINUATION_NEIGHBOR_COUNT + 1);
+        continuation_neighbors.push(selected_neighbor);
+        continuation_neighbors.extend(
+            ranked
+                .iter()
+                .filter(|(entry, _)| entry.neighbor_id != selected_neighbor)
+                .take(MAX_CONTINUATION_NEIGHBOR_COUNT)
+                .map(|(entry, _)| entry.neighbor_id),
+        );
 
         let witness_detail = self.witness_detail_from_state(destination_state);
         let backend_token = FieldBackendToken {
             destination: destination_key,
-            primary_neighbor,
-            alternates: ranked
-                .iter()
-                .filter(|(entry, _)| entry.neighbor_id != primary_neighbor)
-                .take(MAX_ALTERNATE_COUNT)
-                .map(|(entry, _)| entry.neighbor_id)
-                .collect(),
+            selected_neighbor,
+            continuation_neighbors: continuation_neighbors.clone(),
             topology_epoch: topology.value.epoch,
             regime: self.state.regime.current,
             posture: self.state.posture.current,
         };
         let backend_route_id = encode_backend_token(&backend_token);
         let route_id = route_id_for_backend(&backend_route_id);
-        let route_summary = self.route_summary_for(destination_state, primary_neighbor, topology);
+        let route_summary = self.route_summary_for(destination_state, selected_neighbor, topology);
         let degradation = self.route_degradation_for(destination_state, topology.value.epoch);
         let delivered_protection = delivered_protection(destination_state);
         let delivered_connectivity =
@@ -206,7 +202,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let admission_profile = admission_assumptions(&witness_detail, self.state.regime.current);
         let route_cost = route_cost_for(
             &destination_state.corridor_belief,
-            ranked.len().saturating_sub(1),
+            continuation_neighbors.len().saturating_sub(1),
             self.state.posture.current,
         );
         let admission_check = admission_check_for(AdmissionInputs {
@@ -259,7 +255,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         })
     }
 
-    fn witness_detail_from_state(
+    pub(crate) fn witness_detail_from_state(
         &self,
         destination_state: &DestinationFieldState,
     ) -> FieldWitnessDetail {
@@ -278,7 +274,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
     fn route_summary_for(
         &self,
         destination_state: &DestinationFieldState,
-        primary_neighbor: jacquard_core::NodeId,
+        summary_neighbor: jacquard_core::NodeId,
         topology: &Observation<Configuration>,
     ) -> RouteSummary {
         let hop_midpoint = destination_state
@@ -296,7 +292,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let protocol_mix = topology
             .value
             .links
-            .get(&(self.local_node_id, primary_neighbor))
+            .get(&(self.local_node_id, summary_neighbor))
             .map(|link| vec![link.endpoint.transport_kind.clone()])
             .unwrap_or_default();
         RouteSummary {
@@ -494,7 +490,7 @@ fn admission_assumptions(
 
 fn route_cost_for(
     corridor: &CorridorBeliefEnvelope,
-    alternate_count: usize,
+    continuation_neighbor_count: usize,
     posture: RoutingPosture,
 ) -> RouteCost {
     let hop_count = corridor.expected_hop_band.max_hops.max(1);
@@ -508,12 +504,16 @@ fn route_cost_for(
         byte_count_max: Limit::Bounded(ByteCount(u64::from(hop_count) * 256)),
         hop_count,
         repair_attempt_count_max: Limit::Bounded(
-            u32::try_from(alternate_count).expect("alternate count fits u32"),
+            u32::try_from(continuation_neighbor_count)
+                .expect("continuation neighbor count fits u32"),
         ),
         hold_bytes_reserved: Limit::Bounded(hold_bytes_reserved),
         work_step_count_max: Limit::Bounded(
             u32::from(hop_count)
-                .saturating_add(u32::try_from(alternate_count).expect("alternate count fits u32"))
+                .saturating_add(
+                    u32::try_from(continuation_neighbor_count)
+                        .expect("continuation neighbor count fits u32"),
+                )
                 .saturating_add(1),
         ),
     }

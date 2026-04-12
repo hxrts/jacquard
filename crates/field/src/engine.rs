@@ -15,10 +15,11 @@
 use std::{cell::RefCell, collections::VecDeque};
 
 use jacquard_core::{
-    ConnectivityPosture, DestinationId, NodeId, RouteEpoch, RouteId, RoutePartitionClass,
-    RouteProtectionClass, RouteRepairClass, RouteShapeVisibility, RoutingEngineCapabilities,
-    RoutingEngineId, Tick,
+    ConnectivityPosture, DestinationId, MaterializedRoute, NodeId, RouteCommitment, RouteEpoch,
+    RouteId, RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteShapeVisibility,
+    RoutingEngineCapabilities, RoutingEngineId, Tick,
 };
+use jacquard_traits::RoutingEngine;
 
 use crate::{
     choreography::{
@@ -57,6 +58,57 @@ pub const FIELD_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilit
 };
 
 pub const FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX: usize = 16;
+pub const FIELD_REPLAY_SURFACE_VERSION: u16 = 1;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldReplaySurfaceClass {
+    Semantic,
+    Reduced,
+    Observational,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldSearchReplaySurface {
+    pub schema_version: u16,
+    pub surface_class: FieldReplaySurfaceClass,
+    pub record: Option<FieldPlannerSearchRecord>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldProtocolReplaySurface {
+    pub schema_version: u16,
+    pub surface_class: FieldReplaySurfaceClass,
+    pub artifacts: Vec<crate::choreography::FieldProtocolArtifact>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldRuntimeReplaySurface {
+    pub schema_version: u16,
+    pub surface_class: FieldReplaySurfaceClass,
+    pub artifacts: Vec<FieldRuntimeRoundArtifact>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldCommitmentReplayEntry {
+    pub route_id: RouteId,
+    pub commitments: Vec<RouteCommitment>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldCommitmentReplaySurface {
+    pub schema_version: u16,
+    pub surface_class: FieldReplaySurfaceClass,
+    pub entries: Vec<FieldCommitmentReplayEntry>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReplaySnapshot {
+    pub schema_version: u16,
+    pub search: FieldSearchReplaySurface,
+    pub protocol: FieldProtocolReplaySurface,
+    pub runtime: FieldRuntimeReplaySurface,
+    pub commitments: FieldCommitmentReplaySurface,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldRuntimeRouteArtifact {
@@ -264,6 +316,42 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         self.protocol_runtime.artifacts()
     }
 
+    #[must_use]
+    pub fn replay_snapshot(&self, routes: &[MaterializedRoute]) -> FieldReplaySnapshot
+    where
+        Self: jacquard_traits::RoutingEngine,
+    {
+        FieldReplaySnapshot {
+            schema_version: FIELD_REPLAY_SURFACE_VERSION,
+            search: FieldSearchReplaySurface {
+                schema_version: FIELD_REPLAY_SURFACE_VERSION,
+                surface_class: FieldReplaySurfaceClass::Observational,
+                record: self.last_search_record(),
+            },
+            protocol: FieldProtocolReplaySurface {
+                schema_version: FIELD_REPLAY_SURFACE_VERSION,
+                surface_class: FieldReplaySurfaceClass::Observational,
+                artifacts: self.protocol_artifacts(),
+            },
+            runtime: FieldRuntimeReplaySurface {
+                schema_version: FIELD_REPLAY_SURFACE_VERSION,
+                surface_class: FieldReplaySurfaceClass::Reduced,
+                artifacts: self.runtime_round_artifacts(),
+            },
+            commitments: FieldCommitmentReplaySurface {
+                schema_version: FIELD_REPLAY_SURFACE_VERSION,
+                surface_class: FieldReplaySurfaceClass::Observational,
+                entries: routes
+                    .iter()
+                    .map(|route| FieldCommitmentReplayEntry {
+                        route_id: *route.identity.route_id(),
+                        commitments: self.route_commitments(route),
+                    })
+                    .collect(),
+            },
+        }
+    }
+
     pub(crate) fn runtime_route_artifact_for_destination(
         &self,
         destination: &DestinationId,
@@ -327,6 +415,64 @@ mod tests {
                 .effective_search_config()
                 .per_objective_query_budget(),
             engine.search_config.per_objective_query_budget(),
+        );
+    }
+
+    #[test]
+    fn replay_snapshot_is_versioned_and_surface_typed() {
+        let engine = FieldEngine::new(node(1), (), ());
+        let snapshot = engine.replay_snapshot(&[]);
+        assert_eq!(snapshot.schema_version, FIELD_REPLAY_SURFACE_VERSION);
+        assert_eq!(
+            snapshot.search.surface_class,
+            FieldReplaySurfaceClass::Observational
+        );
+        assert_eq!(
+            snapshot.protocol.surface_class,
+            FieldReplaySurfaceClass::Observational
+        );
+        assert_eq!(
+            snapshot.runtime.surface_class,
+            FieldReplaySurfaceClass::Reduced
+        );
+        assert_eq!(
+            snapshot.commitments.surface_class,
+            FieldReplaySurfaceClass::Observational
+        );
+    }
+
+    #[test]
+    fn replay_snapshot_matches_direct_public_surfaces() {
+        let engine = FieldEngine::new(node(1), (), ());
+        let snapshot = engine.replay_snapshot(&[]);
+        assert_eq!(snapshot.search.record, engine.last_search_record());
+        assert_eq!(snapshot.protocol.artifacts, engine.protocol_artifacts());
+        assert_eq!(snapshot.runtime.artifacts, engine.runtime_round_artifacts());
+        assert!(snapshot.commitments.entries.is_empty());
+    }
+
+    #[test]
+    fn replay_snapshot_runtime_surface_stays_bounded() {
+        let engine = FieldEngine::new(node(1), (), ());
+        for index in 0..(FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX + 4) {
+            engine.record_runtime_round_artifact(FieldRuntimeRoundArtifact {
+                protocol: crate::choreography::FieldProtocolKind::SummaryDissemination,
+                destination: None,
+                blocked_receive: None,
+                disposition: crate::choreography::FieldRoundDisposition::Continue,
+                host_wait_status: crate::choreography::FieldHostWaitStatus::Idle,
+                emitted_count: index,
+                step_budget_remaining: 1,
+                execution_policy: crate::choreography::FieldExecutionPolicyClass::Cheap,
+                router_artifact: None,
+                observed_at_tick: Tick(u64::try_from(index).expect("test index fits")),
+            });
+        }
+
+        let snapshot = engine.replay_snapshot(&[]);
+        assert_eq!(
+            snapshot.runtime.artifacts.len(),
+            FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX
         );
     }
 }

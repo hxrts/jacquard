@@ -20,7 +20,8 @@ cfg_if! {
 use super::{
     domain::{freeze_snapshot_for_search, FieldSearchDomain},
     FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchEdgeMeta, FieldSearchEpoch,
-    FieldSearchReconfiguration, FieldSearchRun, FieldSearchTransitionClass,
+    FieldSearchPlanningFailure, FieldSearchReconfiguration, FieldSearchRun,
+    FieldSearchTransitionClass, FieldSelectedContinuation,
 };
 use crate::{
     state::{DestinationKey, NeighborContinuation},
@@ -99,11 +100,16 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 ));
         }
 
+        let (selected_continuation, planning_failure) =
+            selected_continuation_from_record(query.as_ref(), run.as_ref());
+
         let record = FieldPlannerSearchRecord {
             objective: objective.clone(),
             effective_config,
             query,
             run,
+            selected_continuation,
+            planning_failure,
         };
         *self.last_search_record.borrow_mut() = Some(record.clone());
         record
@@ -478,4 +484,36 @@ fn classify_transition(
         }
         Some(_) => FieldSearchTransitionClass::NewRouteEpoch,
     }
+}
+
+fn selected_continuation_from_record(
+    query: Option<&SearchQuery<NodeId>>,
+    run: Option<&FieldSearchRun>,
+) -> (
+    Option<FieldSelectedContinuation>,
+    Option<FieldSearchPlanningFailure>,
+) {
+    let Some(query) = query else {
+        return (None, Some(FieldSearchPlanningFailure::NoAdmittedQuery));
+    };
+    let Some(run) = run else {
+        return (None, Some(FieldSearchPlanningFailure::NoSelectedResult));
+    };
+    let Some(selected_private_witness) = run.selected_node_path.as_ref() else {
+        return (None, Some(FieldSearchPlanningFailure::NoSelectedResult));
+    };
+    let Some(chosen_neighbor) = selected_private_witness.get(1).copied() else {
+        return (
+            None,
+            Some(FieldSearchPlanningFailure::NoPublishableContinuation),
+        );
+    };
+    (
+        Some(FieldSelectedContinuation {
+            query: query.clone(),
+            selected_private_witness: selected_private_witness.clone(),
+            chosen_neighbor,
+        }),
+        None,
+    )
 }

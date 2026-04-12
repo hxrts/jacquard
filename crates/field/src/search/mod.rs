@@ -294,6 +294,33 @@ pub enum FieldSearchTransitionClass {
     NewRouteEpoch,
 }
 
+/// Typed planner-visible reason why a field search record did not yield a
+/// publishable continuation.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum FieldSearchPlanningFailure {
+    /// The objective did not admit any search query under the current topology
+    /// and field state.
+    NoAdmittedQuery,
+    /// The objective admitted a query, but the search machine did not produce a
+    /// selected private result.
+    NoSelectedResult,
+    /// The selected private result existed, but it did not map to a valid
+    /// first continuation from the local field node.
+    NoPublishableContinuation,
+}
+
+/// Explicit field-owned publication boundary between private search output and
+/// router-visible candidate production.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldSelectedContinuation {
+    /// Objective-scoped query that drove the selection.
+    pub query: SearchQuery<NodeId>,
+    /// Full selected private witness retained for replay-oriented diagnostics.
+    pub selected_private_witness: Vec<NodeId>,
+    /// First continuation chosen for route publication.
+    pub chosen_neighbor: NodeId,
+}
+
 /// Field-owned summary of one search-machine reconfiguration step.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct FieldSearchReconfiguration {
@@ -333,4 +360,9 @@ pub struct FieldPlannerSearchRecord {
     pub query: Option<SearchQuery<NodeId>>,
     /// Completed query-scoped search execution, when a query was resolved.
     pub run: Option<FieldSearchRun>,
+    /// Explicit selected continuation boundary, when search produced a
+    /// publishable result.
+    pub selected_continuation: Option<FieldSelectedContinuation>,
+    /// Typed failure reason when no publishable continuation was derived.
+    pub planning_failure: Option<FieldSearchPlanningFailure>,
 }

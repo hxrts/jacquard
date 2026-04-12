@@ -68,6 +68,8 @@ lean_lib JacquardVerification where
     `Field.Protocol.Bridge,
     `Field.Protocol.Coherence,
     `Field.Protocol.Conservation,
+    `Field.Protocol.Fixtures,
+    `Field.Protocol.Closure,
     `Field.Protocol.ReceiveRefinement,
     `Field.Protocol.Reconfiguration,
     `Field.Network.API,
@@ -83,6 +85,8 @@ lean_lib JacquardVerification where
     `Field.Router.Optimality,
     `Field.Router.Probabilistic,
     `Field.Router.Resilience,
+    `Field.Search,
+    `Field.Search.API,
     `Field.Async,
     `Field.Async.API,
     `Field.Async.Safety,
@@ -109,5 +113,6 @@ lean_lib JacquardVerification where
     `Field.Adequacy.Projection,
     `Field.Adequacy.Probabilistic,
     `Field.Adequacy.ProbabilisticFixtures,
+    `Field.Adequacy.Search,
     `Field.Adequacy.Instance
   ]

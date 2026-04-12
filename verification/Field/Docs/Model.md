@@ -1,11 +1,17 @@
 # Field Local Model Specification
 
-This note describes the current formal object for the field engine in mathematical and proof-structural terms. It is the authoritative description of the current reduced local model, not a sketch of the full production Rust system. The wider field verification stack now also has reduced network and router layers in `Field/Network/*` and `Field/Router/*`, but this document stays focused on the destination-local semantic object they build on.
+This note describes the formal local proof object for the field engine in
+mathematical and proof-structural terms. It is the authoritative description of
+the reduced local model, not a sketch of the full production Rust system. The
+wider field verification stack also has reduced network and router layers in
+`Field/Network/*` and `Field/Router/*`, but this document stays focused on the
+destination-local semantic object they build on.
 
 The distinction matters now that the Rust field engine runs a private
 Telltale-backed search layer over continuously refreshed observer state. That
-search layer consumes the local model described here, but it is not itself part
-of the local proof object in this document.
+search layer consumes the local model described here. A first reduced direct
+search object now exists separately in `Field/Search/API.lean`, but it is not
+part of the local proof object in this document.
 
 ## Scope
 
@@ -416,7 +422,7 @@ opaque_projection_erases_unknown_unreachable_split
 
 Informally, once corridor-capable mass is zero on both sides, the public projection forgets how the remaining mass is split between `unknown` and `unreachable`.
 
-This is intentionally still narrow. It does not yet give:
+This is intentionally narrow. It does not give:
 
 - full mutual-information bounds for the public corridor projection
 - KL-style update inequalities
@@ -559,7 +565,7 @@ The new support-only refinement result is still above the local model:
 
 ## What Is Not Yet Proved
 
-The current field local model does not yet prove:
+The field local model does not prove:
 
 - global routing optimality
 - end-to-end convergence outside the reduced reliable-immediate stable-input regime
@@ -571,7 +577,7 @@ The current field local model does not yet prove:
 - theorem-backed information-theoretic optimality claims for the reduced summary
 - production-controller correctness
 
-Those belong to later strengthening phases.
+Those sit outside the local model boundary.
 
 ## Where To Extend Next
 
@@ -585,4 +591,5 @@ The most natural next extensions of this document’s model are:
 - stronger router-canonical objectives beyond the current support-only canonical selector
 - tighter connection between local scoring and public projection conservativity
 
-Until then, this document should be read as the specification of the current reduced local model and information boundary, not of the full Rust field engine.
+This document should be read as the maintained specification of the reduced
+local model and information boundary, not of the full Rust field engine.

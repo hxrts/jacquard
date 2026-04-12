@@ -40,6 +40,9 @@ These surfaces are intentionally separated. The local controller is not a choreo
   - reduced route-comparison views, reference-best semantics, destination-filtered ranking, support-only refinement, and system-facing quality theorems above the lifecycle view
 - `Docs/Adequacy.md`
   - runtime artifact boundary, reduced router projection, reduced simulation witness, stronger runtime/system safety/refinement story, proof-facing fixtures, packaged assumptions, and parity-sensitive surfaces
+- `Docs/Parity.md`
+  - maintained Rust/Lean/docs compatibility ledger for field search, runtime,
+    replay, and ownership boundaries
 - `Docs/Guide.md`
   - contributor guide and current maturity summary
 
@@ -239,6 +242,15 @@ During the probabilistic migration there are now two distinct router-owned truth
 - support-owned canonical lifecycle selection
 - posterior-owned confidence-threshold routing over probabilistic belief
 
+The Rust field lineage that these proof surfaces sit beneath is now explicit:
+
+- local field evidence updates destination-local observer state
+- field search selects one private result
+- that result yields one public corridor-envelope candidate
+- router admission/materialization owns the installed-route truth above that
+- field quality/reference objects do not become canonical unless one router
+  theorem or router rule says so explicitly
+
 Those are intentionally different objects. The support-owned selector is still about reduced lifecycle support truth. The posterior-owned selector is about a routing decision justified by Bayesian posterior mass. Neither one should be read off exported `Field/Quality` views unless a theorem bridges them.
 
 ### System Statistics And Boundary
@@ -353,10 +365,18 @@ top of that selector story:
 - evidence changes can trigger snapshot reconfiguration and explicit reseeding
   within one shared route epoch
 
-The current Lean proof stack does not yet model that Rust search machine
-directly. What is proved today is the selector/execution-policy separation and
-the reduced router/runtime refinement story around it, not the full frozen-
-snapshot search implementation.
+The Lean proof stack now also has a direct reduced field search object in
+`Field/Search/API.lean` and a search-aware adequacy layer in
+`Field/Adequacy/Search.lean`. What is proved is:
+
+- objective-to-query mapping
+- snapshot identity and reduced reconfiguration metadata
+- selected-result and replay-style surface lemmas
+- execution-policy/selector-semantics separation
+- reduced runtime-search adequacy packaging and canonical-route refinement
+
+What remains out of scope for the proof stack is the richer full Rust
+frozen-snapshot Telltale machine and its operational internals.
 
 ### Stat-Mech-Like Story
 
@@ -403,8 +423,7 @@ Several negative boundaries remain deliberate and important:
 - projection is not installation
 - adequacy is not semantic ownership
 - broader async envelopes do not silently replace clean-regime convergence
-- current reduced runtime refinement is not full extracted-Rust forward
-  simulation
+- reduced runtime refinement is not full extracted-Rust forward simulation
 
 ### Gap-Family Status
 
@@ -420,8 +439,7 @@ The harmonization work still leaves explicit open gaps for:
 
 - stronger divergence and information-theoretic reduction results
 - broader async convergence and transport correctness
-- deeper direct Telltale instantiation
-- stronger extracted-Rust runtime correctness
+- stronger extracted-Rust runtime correctness over richer runtime internals
 - richer canonical objectives and global optimality
 - large-network asymptotic theory
 - production-controller correctness
@@ -653,7 +671,8 @@ That means:
 
 - use Telltale theorem-family structure where it genuinely fits
 - do not restate Telltale theorems under field names unless the field theorem is genuinely narrower
-- keep field-local glue explicit when the full generic Telltale theorem is not yet being instantiated directly
+- keep field-local glue explicit when the repo intentionally stops at a reduced
+  Telltale-family instantiation
 - do not overclaim proof reuse
 
 `Docs/Protocol.md` is the authoritative place for the current Telltale alignment story.

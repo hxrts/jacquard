@@ -10,9 +10,10 @@
 //!
 //! `rank_frontier_by_attractor` sorts frontier entries by score.
 //! `derive_local_attractor_view` builds a `LocalAttractorView` capturing the
-//! primary neighbor and coherence margin (gap between top two candidates) for
-//! each destination. The coherence margin feeds the control plane as a signal
-//! of field stability and informs route replacement decisions in the runtime.
+//! leading continuation and coherence margin (gap between top two candidates)
+//! for each destination. The coherence margin feeds the control plane as a
+//! signal of field stability and informs route replacement decisions in the
+//! runtime.
 
 use jacquard_core::NodeId;
 
@@ -24,7 +25,7 @@ use crate::state::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LocalAttractorEntry {
     pub(crate) destination: DestinationKey,
-    pub(crate) primary_neighbor: NodeId,
+    pub(crate) leading_neighbor: NodeId,
     pub(crate) attractor_score: SupportBucket,
     pub(crate) coherence_margin: SupportBucket,
     pub(crate) regime: OperatingRegime,
@@ -82,13 +83,13 @@ pub(crate) fn derive_local_attractor_view(state: &FieldEngineState) -> LocalAttr
             state.posture.current,
             &state.controller,
         );
-        let Some((primary, primary_score)) = ranked.first() else {
+        let Some((leading, primary_score)) = ranked.first() else {
             continue;
         };
         let secondary_score = ranked.get(1).map(|(_, score)| score.value()).unwrap_or(0);
         entries.push(LocalAttractorEntry {
             destination: destination.clone(),
-            primary_neighbor: primary.neighbor_id,
+            leading_neighbor: leading.neighbor_id,
             attractor_score: *primary_score,
             coherence_margin: SupportBucket::new(
                 primary_score.value().saturating_sub(secondary_score),
@@ -241,7 +242,7 @@ mod tests {
         );
         let view = derive_local_attractor_view(&engine_state);
         assert_eq!(view.entries.len(), 1);
-        assert_eq!(view.entries[0].primary_neighbor, node(1));
+        assert_eq!(view.entries[0].leading_neighbor, node(1));
         assert!(view.coherence_score.value() > 0);
     }
 }

@@ -1,18 +1,20 @@
 //! Backend route token encoding and active route tracking for the field engine.
 //!
-//! `FieldBackendToken` packs the routing decision (destination, primary and
-//! alternate neighbors, topology epoch, operating regime, and routing posture)
-//! into an opaque byte vector embedded in `BackendRouteRef`. Tokens are encoded
-//! by `encode_backend_token` and decoded by `decode_backend_token` with bounds
-//! validation. `route_id_for_backend` derives a stable `RouteId` via Blake3
-//! over the destination and primary neighbor identifiers.
+//! `FieldBackendToken` packs the routing decision (destination, one selected
+//! runtime realization, a bounded continuation envelope, topology epoch,
+//! operating regime, and routing posture) into an opaque byte vector embedded
+//! in `BackendRouteRef`. Tokens are encoded by `encode_backend_token` and
+//! decoded by `decode_backend_token` with bounds validation. `route_id_for_backend`
+//! derives a stable `RouteId` via Blake3 over the destination and selected
+//! realization identifiers.
 //!
 //! `ActiveFieldRoute` is the runtime record of an installed route. It carries
 //! the witness detail (evidence class, uncertainty, regime, posture,
 //! degradation) and the corridor envelope at the time of materialization.
 //! Active routes are keyed by `RouteId` and consulted during `maintain_route`
-//! to detect attractor shifts, posture changes, and delivery support drops that
-//! require replacement.
+//! to detect corridor-envelope invalidation, posture changes, and delivery
+//! support drops. The public route stays one corridor claim even though the
+//! runtime may move its concrete send target inside the continuation envelope.
 
 use jacquard_core::{
     BackendRouteId, GatewayId, NodeId, RouteDegradation, RouteEpoch, RouteId, Tick,
@@ -22,12 +24,12 @@ use jacquard_traits::{Blake3Hashing, Hashing};
 use crate::{
     state::{
         CorridorBeliefEnvelope, DestinationKey, OperatingRegime, RoutingPosture,
-        MAX_ALTERNATE_COUNT,
+        MAX_CONTINUATION_NEIGHBOR_COUNT,
     },
     summary::{EvidenceContributionClass, SummaryUncertaintyClass},
 };
 
-const FIELD_BACKEND_TOKEN_VERSION: u8 = 1;
+const FIELD_BACKEND_TOKEN_VERSION: u8 = 2;
 const FIELD_ROUTE_ID_DOMAIN: &[u8] = b"field-route-id";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,8 +44,8 @@ pub(crate) struct FieldWitnessDetail {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FieldBackendToken {
     pub(crate) destination: DestinationKey,
-    pub(crate) primary_neighbor: NodeId,
-    pub(crate) alternates: Vec<NodeId>,
+    pub(crate) selected_neighbor: NodeId,
+    pub(crate) continuation_neighbors: Vec<NodeId>,
     pub(crate) topology_epoch: RouteEpoch,
     pub(crate) regime: OperatingRegime,
     pub(crate) posture: RoutingPosture,
@@ -52,8 +54,8 @@ pub(crate) struct FieldBackendToken {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ActiveFieldRoute {
     pub(crate) destination: DestinationKey,
-    pub(crate) primary_neighbor: NodeId,
-    pub(crate) alternates: Vec<NodeId>,
+    pub(crate) selected_neighbor: NodeId,
+    pub(crate) continuation_neighbors: Vec<NodeId>,
     pub(crate) corridor_envelope: CorridorBeliefEnvelope,
     pub(crate) witness_detail: FieldWitnessDetail,
     pub(crate) backend_route_id: BackendRouteId,
@@ -64,13 +66,16 @@ pub(crate) struct ActiveFieldRoute {
 #[must_use]
 pub(crate) fn encode_backend_token(token: &FieldBackendToken) -> BackendRouteId {
     let mut bytes = Vec::with_capacity(128);
-    let alternate_count = token.alternates.len().min(MAX_ALTERNATE_COUNT);
+    let continuation_count = token
+        .continuation_neighbors
+        .len()
+        .min(MAX_CONTINUATION_NEIGHBOR_COUNT + 1);
     bytes.push(FIELD_BACKEND_TOKEN_VERSION);
     encode_destination(&token.destination, &mut bytes);
-    bytes.extend_from_slice(&token.primary_neighbor.0);
-    bytes.push(u8::try_from(alternate_count).expect("bounded alternate count fits u8"));
-    for alternate in token.alternates.iter().take(alternate_count) {
-        bytes.extend_from_slice(&alternate.0);
+    bytes.extend_from_slice(&token.selected_neighbor.0);
+    bytes.push(u8::try_from(continuation_count).expect("bounded continuation count fits u8"));
+    for neighbor in token.continuation_neighbors.iter().take(continuation_count) {
+        bytes.extend_from_slice(&neighbor.0);
     }
     bytes.extend_from_slice(&token.topology_epoch.0.to_le_bytes());
     bytes.push(regime_code(token.regime));
@@ -86,17 +91,20 @@ pub(crate) fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<
     }
     let mut cursor = 1_usize;
     let destination = decode_destination(bytes, &mut cursor)?;
-    let primary_neighbor = NodeId(bytes.get(cursor..cursor + 32)?.try_into().ok()?);
+    let selected_neighbor = NodeId(bytes.get(cursor..cursor + 32)?.try_into().ok()?);
     cursor += 32;
-    let alternate_count = usize::from(*bytes.get(cursor)?);
-    if alternate_count > MAX_ALTERNATE_COUNT {
+    let continuation_count = usize::from(*bytes.get(cursor)?);
+    if continuation_count == 0 || continuation_count > MAX_CONTINUATION_NEIGHBOR_COUNT + 1 {
         return None;
     }
     cursor += 1;
-    let mut alternates = Vec::with_capacity(alternate_count);
-    for _ in 0..alternate_count {
-        alternates.push(NodeId(bytes.get(cursor..cursor + 32)?.try_into().ok()?));
+    let mut continuation_neighbors = Vec::with_capacity(continuation_count);
+    for _ in 0..continuation_count {
+        continuation_neighbors.push(NodeId(bytes.get(cursor..cursor + 32)?.try_into().ok()?));
         cursor += 32;
+    }
+    if !continuation_neighbors.contains(&selected_neighbor) {
+        return None;
     }
     let topology_epoch = RouteEpoch(u64::from_le_bytes(
         bytes.get(cursor..cursor + 8)?.try_into().ok()?,
@@ -111,8 +119,8 @@ pub(crate) fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<
     }
     Some(FieldBackendToken {
         destination,
-        primary_neighbor,
-        alternates,
+        selected_neighbor,
+        continuation_neighbors,
         topology_epoch,
         regime,
         posture,
@@ -221,8 +229,8 @@ mod tests {
     fn backend_token_round_trips() {
         let token = FieldBackendToken {
             destination: DestinationKey::Service(vec![1, 2, 3]),
-            primary_neighbor: NodeId([1; 32]),
-            alternates: vec![NodeId([2; 32]), NodeId([3; 32])],
+            selected_neighbor: NodeId([1; 32]),
+            continuation_neighbors: vec![NodeId([1; 32]), NodeId([2; 32]), NodeId([3; 32])],
             topology_epoch: RouteEpoch(9),
             regime: OperatingRegime::Congested,
             posture: RoutingPosture::RetentionBiased,
@@ -241,11 +249,12 @@ mod tests {
     }
 
     #[test]
-    fn backend_token_enforces_bounded_alternate_count() {
+    fn backend_token_enforces_bounded_continuation_count() {
         let token = FieldBackendToken {
             destination: DestinationKey::Node(NodeId([1; 32])),
-            primary_neighbor: NodeId([2; 32]),
-            alternates: vec![
+            selected_neighbor: NodeId([2; 32]),
+            continuation_neighbors: vec![
+                NodeId([2; 32]),
                 NodeId([3; 32]),
                 NodeId([4; 32]),
                 NodeId([5; 32]),
@@ -257,6 +266,10 @@ mod tests {
         };
         let encoded = encode_backend_token(&token);
         let decoded = decode_backend_token(&encoded).expect("bounded token");
-        assert_eq!(decoded.alternates.len(), MAX_ALTERNATE_COUNT);
+        assert_eq!(
+            decoded.continuation_neighbors.len(),
+            MAX_CONTINUATION_NEIGHBOR_COUNT + 1
+        );
+        assert_eq!(decoded.selected_neighbor, NodeId([2; 32]));
     }
 }

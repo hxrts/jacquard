@@ -8,7 +8,8 @@
 //! `DestinationFieldState` holds per-destination corridor belief, posterior,
 //! progress belief, and frontier neighbors. `FieldEngineState` aggregates all
 //! destination state under hard size limits: 32 tracked destinations, 8 active,
-//! 4 frontier slots per destination, and 3 alternates per route.
+//! 4 frontier slots per destination, and 3 additional continuation neighbors
+//! per installed route envelope.
 
 #![expect(
     dead_code,
@@ -29,7 +30,7 @@ use crate::summary::{
 pub(crate) const MAX_TRACKED_DESTINATIONS: usize = 32;
 pub(crate) const MAX_ACTIVE_DESTINATIONS: usize = 8;
 pub(crate) const MAX_FRONTIER_SLOTS: usize = 4;
-pub(crate) const MAX_ALTERNATE_COUNT: usize = MAX_FRONTIER_SLOTS.saturating_sub(1);
+pub(crate) const MAX_CONTINUATION_NEIGHBOR_COUNT: usize = MAX_FRONTIER_SLOTS.saturating_sub(1);
 pub(crate) const OBSERVER_CACHE_REFRESH_TICKS: u64 = 2;
 pub(crate) const SUMMARY_HEARTBEAT_TICKS: u64 = 4;
 const BUCKET_MAX: u16 = 1000;

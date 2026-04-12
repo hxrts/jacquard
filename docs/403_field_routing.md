@@ -30,8 +30,8 @@ The runtime ingests forwarded summaries and feedback explicitly on the engine
 surface through `ingest_forward_summary`, `record_forward_summary`, and
 `record_reverse_feedback`, stores them as pending evidence, and feeds them into
 `refresh_destination_observers` on the next tick. Observer refresh is
-fail-closed and explicit: the engine no longer hides protocol evidence behind
-placeholder empty vectors.
+fail-closed and explicit: protocol evidence enters the observer path only
+through those engine-owned evidence buffers.
 
 That refresh updates:
 
@@ -43,6 +43,36 @@ That refresh updates:
 The resulting frontier is the local admissible continuation surface that the
 planner and runtime consume.
 
+## Regime Detection
+
+Field runs a local control-plane pass on each engine tick before planning. That
+pass compresses destination-local state plus topology observations into one
+bounded mean-field summary and one bounded price vector.
+
+The regime detector scores five operating regimes:
+
+- `Sparse`
+- `Congested`
+- `RetentionFavorable`
+- `Unstable`
+- `Adversarial`
+
+Those scores are derived from the current combination of:
+
+- congestion pressure
+- relay pressure
+- retention pressure
+- churn pressure
+- risk pressure
+- mean-field alignment and field-strength signals
+- control prices accumulated by the bounded PI loop
+
+The active regime is not replaced immediately on every score change. Field uses
+residual accumulation, a change threshold, a hysteresis threshold, and a
+post-transition dwell window to prevent one-tick oscillation. A regime change
+happens only when a different regime stays strong enough for long enough to
+clear that bounded switching logic.
+
 ## Telltale Search
 
 Field planning is search-backed.
@@ -52,14 +82,17 @@ For each routing objective, the planner:
 1. resolves the objective into a native Telltale `SearchQuery`
 2. freezes the current field model into one deterministic snapshot
 3. runs exact Telltale search over that snapshot
-4. uses the selected private witness only to choose a continuation
+4. derives one selected private continuation from the selected-result witness
 5. emits a shared `RouteCandidate` with `CorridorEnvelope` visibility
 
 The public result shape stays corridor-only even when the private selected
 result witness is a concrete node path. That split is deliberate: search is an
 internal implementation substrate, not a new source of canonical route truth.
+Field may consider multiple admissible continuations internally, but that
+plurality stays private. One routing objective still yields one field-selected
+private result and one planner-visible corridor claim.
 
-The current query split is explicit:
+The query split is:
 
 - exact node objectives resolve to `SearchQuery::single_goal`
 - gateway and service objectives resolve to selected-result
@@ -72,6 +105,14 @@ explicit reseeding decisions, so evidence changes within one shared route epoch
 still show up as field-owned search reconfiguration rather than being silently
 treated as the same run.
 
+The search/publication boundary is explicit:
+
+- the selected private result stays inside the search record
+- continuation choice is reduced to one selected runtime realization
+- the published route summary remains one corridor-envelope claim
+- backend token and active-route state keep the richer private realization
+  detail needed for runtime maintenance and forwarding
+
 ## Execution Policy
 
 Field keeps truth semantics and execution policy separate.
@@ -80,18 +121,85 @@ Field keeps truth semantics and execution policy separate.
   posture or regime
 - local posture and regime may change only the search execution profile
 
-The current implementation defaults to canonical serial exact search and may
+## Posture Control
+
+Posture is the field engine's local execution stance. It determines how the
+engine reacts to the currently detected regime when it ranks continuations,
+publishes corridor claims, and chooses a search execution profile.
+
+Field chooses among four postures:
+
+- `Opportunistic`
+- `Structured`
+- `RetentionBiased`
+- `RiskSuppressed`
+
+The posture controller scores all four against the current regime, mean-field
+state, and control prices, then selects the highest-scoring posture subject to
+its own hysteresis. The primary posture mapping is:
+
+- sparse regime -> `Opportunistic`
+- congested regime -> `Structured`
+- retention-favorable regime -> `RetentionBiased`
+- unstable or adversarial regime -> `RiskSuppressed`
+
+As with regimes, posture changes are damped. Field keeps a posture switch
+threshold and a short dwell window after each transition. That prevents one
+tick of changed evidence from causing immediate flapping. When the regime is
+very strong, the controller can move more quickly back to that regime's primary
+posture, but posture still remains an execution choice rather than a truth
+owner.
+
+Field defaults to canonical serial exact search and may
 promote to threaded exact single-lane search on native targets when the engine
 enters a congested regime or a risk-suppressed posture. Query meaning,
 admissible destinations, and corridor-envelope publication stay unchanged.
 
+## Corridor Realization
+
+The public field route is a corridor claim, not a single next-hop commitment.
+
+Field therefore keeps two private runtime notions separate:
+
+- one selected runtime realization inside the corridor
+- one bounded continuation envelope of admissible neighbor realizations
+
+That means runtime can change its concrete send target inside the installed
+corridor envelope without forcing immediate route replacement. Replacement is
+required only when the best available continuation leaves the installed
+continuation envelope, the corridor support is withdrawn, or policy state makes
+the installed route inadmissible.
+
+## Route Lineage
+
+The field route lineage is:
+
+1. local field evidence updates observer state and the continuation frontier
+2. field search selects one private result inside the frozen snapshot
+3. the selected private result yields one selected runtime realization
+4. planner publication emits one corridor-envelope candidate
+5. router admission/materialization turns that candidate into an installed route
+6. runtime forwarding and maintenance continue to operate inside the installed
+   continuation envelope
+
+That lineage is intentionally asymmetric:
+
+- field owns the private evidence, search, and runtime-realization layers
+- router owns candidate comparison, canonical publication, and installed-route
+  truth
+- field quality/comparison objects remain reference-only unless one theorem or
+  router rule explicitly promotes them into router-owned truth
+
 ## Runtime Surfaces
 
-Field now exposes bounded private diagnostics for inspection and replay-oriented
+Field exposes bounded private diagnostics for inspection and replay-oriented
 tooling:
 
 - the last planner search record, including query, effective search config,
   execution report, replay artifact, and snapshot reconfiguration data
+- a versioned `FieldReplaySnapshot` surface that packages search, protocol,
+  runtime, and commitment views without requiring access to hidden engine
+  internals
 - bounded protocol artifacts from the private choreography runtime
 - bounded runtime round artifacts carrying blocked-receive state, host
   disposition, emitted-summary count, remaining step budget, execution-policy
@@ -99,24 +207,44 @@ tooling:
 - one route-commitment view per materialized route, with pending, lease-expiry,
   topology-supersession, evidence-withdrawal, and backend-unavailable outcomes
 
+Private protocol flows such as summary dissemination, anti-entropy, retention
+replay, and explicit coordination remain bounded operational surfaces. They
+affect field semantics only when they yield engine-owned evidence that is later
+ingested through the forward-summary or reverse-feedback paths. Otherwise they
+remain observational runtime behavior rather than semantic route truth.
+
 Those runtime round artifacts are intentionally observational. They expose only
 reduced route shape and support hints. They do not promote the field runtime
 into a second canonical route owner.
 
+The replay surfaces also carry an explicit surface-class split:
+
+- search replay is observational
+- protocol replay is observational
+- runtime replay is reduced
+- commitment replay is observational
+
 ## Proof Boundary
 
-The field proof stack remains intentionally narrower than the full Rust runtime.
+The field proof stack is intentionally narrower than the richer Rust runtime,
+and that reduction is deliberate.
 
-Lean currently covers:
+Lean covers:
 
 - the reduced local observer-controller model
-- the reduced private protocol surface
-- the reduced runtime-artifact adequacy bridge
+- the reduced private protocol boundary, including fixed-participant closure,
+  fragment-trace alignment, receive-refinement witnesses, and explicit
+  no-reconfiguration semantics
+- the reduced field search boundary, including query-family mapping, snapshot
+  identity, selected-result shape, execution-policy vocabulary, and
+  reconfiguration metadata
+- the reduced runtime and runtime-search adequacy boundary, including
+  trace/evidence extraction, runtime-state refinement, search projection, and
+  reduced canonical-route refinement
 
-Lean does not yet model the Rust Telltale search substrate directly. In
-particular, the current proof stack does not yet prove the frozen-snapshot
-search machine, its replay artifact, or its snapshot reconfiguration and
-reseeding behavior end to end.
+Lean does not own router truth, private choreography internals, or full replay
+packaging semantics. Those richer Rust surfaces remain observational or
+out-of-scope unless an explicit reduction theorem promotes part of them.
 
 The most important assurance is ownership discipline:
 
