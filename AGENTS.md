@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 Jacquard is a deterministic multi-engine routing system built around explicit router ownership, host bridges, and choreographic protocol support where an engine needs it. It uses Telltale for session types and choreography macros inside pathway, while the shared runtime model stays bridge-and-driver based rather than effect-stream based.
 
