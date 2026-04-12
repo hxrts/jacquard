@@ -2,6 +2,11 @@
 
 This note describes the current formal object for the field engine in mathematical and proof-structural terms. It is the authoritative description of the current reduced local model, not a sketch of the full production Rust system. The wider field verification stack now also has reduced network and router layers in `Field/Network/*` and `Field/Router/*`, but this document stays focused on the destination-local semantic object they build on.
 
+The distinction matters now that the Rust field engine runs a private
+Telltale-backed search layer over continuously refreshed observer state. That
+search layer consumes the local model described here, but it is not itself part
+of the local proof object in this document.
+
 ## Scope
 
 The current field verification stack is no longer only a destination-local model. It now includes:
@@ -23,6 +28,8 @@ It does model:
 
 - one destination-local observer-controller state
 - one local round transition
+- one bounded evidence batch combining direct observations, forwarded summary
+  observations, and reverse delivery feedback
 - a finite belief object over reduced reachability hypotheses
 - a reduced information layer built on top of that belief object
 - a small local refinement layer over the composed round step
@@ -32,6 +39,7 @@ It does model:
 
 The local model by itself still does not model:
 
+- the Rust frozen-snapshot Telltale search substrate
 - asynchronous transport behavior
 - router lifecycle maintenance
 - end-to-end sequencing or stabilization

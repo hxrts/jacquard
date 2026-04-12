@@ -19,17 +19,17 @@
 //!
 //! Verification notes for the first formal model live under
 //! `verification/Field/Docs/`:
-//! - `verification/Field/Docs/README.md`
 //! - `verification/Field/Docs/Model.md`
 //! - `verification/Field/Docs/Protocol.md`
 //! - `verification/Field/Docs/Adequacy.md`
-//! - `verification/Field/Docs/Parity.md`
+//! - `verification/Field/Docs/Guide.md`
 //!
 //! The current proof boundary is intentionally narrow and explicit:
 //! - Lean covers a bounded local observer-controller model
 //! - Lean covers a reduced private summary-exchange protocol boundary
 //! - Lean covers a reduced runtime-artifact adequacy bridge
 //! - Lean does not own canonical route publication or router lifecycle truth
+//! - Lean does not yet model the Rust frozen-snapshot Telltale search substrate
 
 #![forbid(unsafe_code)]
 

@@ -27,7 +27,8 @@ Field updates one destination-local model from three evidence classes:
 - reverse delivery feedback
 
 The runtime ingests forwarded summaries and feedback explicitly on the engine
-surface, stores them as pending evidence, and feeds them into
+surface through `ingest_forward_summary`, `record_forward_summary`, and
+`record_reverse_feedback`, stores them as pending evidence, and feeds them into
 `refresh_destination_observers` on the next tick. Observer refresh is
 fail-closed and explicit: the engine no longer hides protocol evidence behind
 placeholder empty vectors.
@@ -58,8 +59,18 @@ The public result shape stays corridor-only even when the private selected
 result witness is a concrete node path. That split is deliberate: search is an
 internal implementation substrate, not a new source of canonical route truth.
 
-Gateway and service objectives use selected-result style candidate-set search.
-Exact node objectives use single-goal search.
+The current query split is explicit:
+
+- exact node objectives resolve to `SearchQuery::single_goal`
+- gateway and service objectives resolve to selected-result
+  `SearchQuery::try_candidate_set` queries over frontier neighbors
+- candidate-set queries are truncated by the field per-objective search budget
+  before execution
+
+The search record retained by the engine also captures snapshot transitions and
+explicit reseeding decisions, so evidence changes within one shared route epoch
+still show up as field-owned search reconfiguration rather than being silently
+treated as the same run.
 
 ## Execution Policy
 
@@ -71,8 +82,8 @@ Field keeps truth semantics and execution policy separate.
 
 The current implementation defaults to canonical serial exact search and may
 promote to threaded exact single-lane search on native targets when the engine
-enters risk-suppressed or high-pressure regimes. Query meaning, admissible
-destinations, and corridor-envelope publication stay unchanged.
+enters a congested regime or a risk-suppressed posture. Query meaning,
+admissible destinations, and corridor-envelope publication stay unchanged.
 
 ## Runtime Surfaces
 
@@ -85,7 +96,8 @@ tooling:
 - bounded runtime round artifacts carrying blocked-receive state, host
   disposition, emitted-summary count, remaining step budget, execution-policy
   class, and one reduced observational route projection
-- route commitments for materialized routes
+- one route-commitment view per materialized route, with pending, lease-expiry,
+  topology-supersession, evidence-withdrawal, and backend-unavailable outcomes
 
 Those runtime round artifacts are intentionally observational. They expose only
 reduced route shape and support hints. They do not promote the field runtime
@@ -100,6 +112,11 @@ Lean currently covers:
 - the reduced local observer-controller model
 - the reduced private protocol surface
 - the reduced runtime-artifact adequacy bridge
+
+Lean does not yet model the Rust Telltale search substrate directly. In
+particular, the current proof stack does not yet prove the frozen-snapshot
+search machine, its replay artifact, or its snapshot reconfiguration and
+reseeding behavior end to end.
 
 The most important assurance is ownership discipline:
 

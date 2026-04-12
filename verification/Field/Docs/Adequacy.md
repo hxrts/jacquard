@@ -80,6 +80,13 @@ This is intentionally much smaller than the real Rust choreography runtime. It m
 
 The new `routerArtifact` field is still reduced. It carries at most one reduced lifecycle-route projection for the round artifact. It does not make the adequacy layer the owner of canonical route truth.
 
+The concrete Rust analogue is `jacquard_field::FieldRuntimeRoundArtifact`,
+recorded through `FieldEngine::runtime_round_artifacts()`. The actual Rust
+artifact currently carries more fields than the reduced Lean object, including
+protocol kind, optional destination, host-wait status, execution-policy class,
+and observation tick. The adequacy boundary intentionally erases those fields
+for now.
+
 It intentionally erases:
 
 - session maps
@@ -87,6 +94,8 @@ It intentionally erases:
 - outbound queue internals
 - checkpoint payloads
 - transport-local state
+- protocol kind, destination, host-wait status, execution-policy class, and
+  observation tick from the Rust round artifact
 
 ## Reduced Runtime State Layer
 
@@ -531,6 +540,17 @@ The most important Rust/Lean compatibility surfaces are:
 | `FieldProtocolAPI.ProtocolOutput` | host-visible private summary result | must remain observational-only |
 | `FieldProtocolAPI.ProtocolSemanticObject` | replay-visible private protocol export | must not gain stronger authority |
 | `FieldAdequacyAPI.RuntimeRoundArtifact` | reduced projection of `FieldChoreographyRoundResult`-like data | must stay aligned with the actual extraction used in Rust |
+
+Concretely, the Rust surfaces that currently need this review discipline are:
+
+- `FieldEngine::runtime_round_artifacts()`
+- `FieldEngine::protocol_artifacts()`
+- `FieldRuntimeRoundArtifact`
+- `FieldRuntimeRouteArtifact`
+
+Route commitments and planner search records are intentionally outside this
+adequacy object today. They are runtime diagnostics and router-facing runtime
+surfaces, not part of the current artifact-to-trace reduction theorem.
 
 When any of these change, the adequacy layer must be reviewed first. The key questions are:
 

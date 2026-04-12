@@ -36,6 +36,12 @@ MachineSnapshot :=
 
 This is deliberately smaller than the Rust choreography runtime. It erases session maps, queue internals, checkpoint payloads, and transport-local state.
 
+That reduction is now more visibly deliberate because the Rust runtime carries
+more protocol surface than this proof object: multiple protocol kinds, bounded
+artifact retention, host-wait status, and per-round route-adjacent observational
+artifacts. The reduced Lean protocol still keeps only the proof-relevant
+summary/ack machine boundary.
+
 ## What The Protocol Exports
 
 The protocol exports two host-facing observational objects:
@@ -212,6 +218,17 @@ So the right characterization is:
 | `ProtocolOutput` | host-facing private summary batch | observational-only |
 | `ProtocolSemanticObject` | replay-visible private export | authority remains observational-only |
 | `HostDisposition` | private protocol round disposition | running, blocked, complete, failed-closed |
+
+The Rust choreography runtime currently contains more than this reduced proof
+surface:
+
+- multiple protocol kinds, not only the reduced summary/ack vocabulary
+- explicit `FieldProtocolArtifact` retention for replay-oriented diagnostics
+- `FieldRuntimeRoundArtifact` projections recorded alongside protocol rounds
+
+Those richer Rust surfaces are intentionally consumed through reduction layers
+such as `Field/Adequacy/*`; they do not mean the reduced protocol proof object
+has become implementation-complete.
 
 ## What The Protocol Does Not Prove
 

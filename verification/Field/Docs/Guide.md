@@ -27,7 +27,7 @@ These surfaces are intentionally separated. The local controller is not a choreo
 - `Field/Protocol/Boundary.lean`
   - thin protocol-boundary import surface for higher-layer boundary files
 - `Field/Boundary.lean`
-  - observational boundary from protocol outputs / semantic objects into controller-visible evidence
+  - thin re-export surface for the controller-boundary family rooted in `Field/Model/Boundary.lean`
 - `Field/Network/*`
   - finite node/destination state, synchronous round buffer, and first network safety theorems
 - `Field/Router/*`
@@ -343,6 +343,20 @@ The important rule is:
 
 So posture can affect how a search is executed in a richer runtime story, but
 it does not get to redefine canonical selector semantics in the reduced stack.
+
+The current Rust engine now has a private Telltale-backed search substrate on
+top of that selector story:
+
+- exact node objectives run `SearchQuery::single_goal`
+- gateway and service objectives run selected-result candidate-set search over
+  frontier neighbors
+- evidence changes can trigger snapshot reconfiguration and explicit reseeding
+  within one shared route epoch
+
+The current Lean proof stack does not yet model that Rust search machine
+directly. What is proved today is the selector/execution-policy separation and
+the reduced router/runtime refinement story around it, not the full frozen-
+snapshot search implementation.
 
 ### Stat-Mech-Like Story
 
