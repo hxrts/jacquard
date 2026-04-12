@@ -24,7 +24,7 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
-use jacquard_core::{NodeId, RouteEpoch, RouteId, Tick};
+use jacquard_core::{DestinationId, NodeId, RouteEpoch, RouteId, Tick};
 
 use crate::summary::{FieldSummary, SummaryDestinationKey, FIELD_SUMMARY_ENCODING_BYTES};
 
@@ -35,7 +35,7 @@ pub(crate) const FIELD_PROTOCOL_SESSION_MAX: usize = 8;
 pub(crate) const FIELD_PROTOCOL_STEP_BUDGET: u8 = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum FieldProtocolKind {
+pub enum FieldProtocolKind {
     SummaryDissemination,
     AntiEntropy,
     RetentionReplay,
@@ -43,7 +43,7 @@ pub(crate) enum FieldProtocolKind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum FieldExecutionPolicyClass {
+pub enum FieldExecutionPolicyClass {
     Cheap,
     Buffered,
     Coordinated,
@@ -56,23 +56,47 @@ struct FieldProtocolExecutionPolicy {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct FieldProtocolSessionKey {
+pub struct FieldProtocolSessionKey {
     pub(crate) protocol: FieldProtocolKind,
     pub(crate) route_id: Option<RouteId>,
     pub(crate) topology_epoch: RouteEpoch,
     pub(crate) destination: Option<SummaryDestinationKey>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FieldProtocolArtifact {
-    pub(crate) protocol: FieldProtocolKind,
-    pub(crate) session: FieldProtocolSessionKey,
-    pub(crate) detail: FieldProtocolArtifactDetail,
-    pub(crate) last_updated_at: Tick,
+impl FieldProtocolSessionKey {
+    #[must_use]
+    pub fn protocol(&self) -> FieldProtocolKind {
+        self.protocol
+    }
+
+    #[must_use]
+    pub fn route_id(&self) -> Option<RouteId> {
+        self.route_id
+    }
+
+    #[must_use]
+    pub fn topology_epoch(&self) -> RouteEpoch {
+        self.topology_epoch
+    }
+
+    #[must_use]
+    pub fn destination(&self) -> Option<DestinationId> {
+        self.destination.as_ref().map(|destination| {
+            DestinationId::from(&crate::state::DestinationKey::from(destination))
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FieldProtocolArtifactDetail {
+pub struct FieldProtocolArtifact {
+    pub protocol: FieldProtocolKind,
+    session: FieldProtocolSessionKey,
+    pub detail: FieldProtocolArtifactDetail,
+    pub last_updated_at: Tick,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldProtocolArtifactDetail {
     detail: String,
 }
 
@@ -85,8 +109,15 @@ impl FieldProtocolArtifactDetail {
     }
 
     #[must_use]
-    pub(crate) fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         &self.detail
+    }
+}
+
+impl FieldProtocolArtifact {
+    #[must_use]
+    pub fn session(&self) -> &FieldProtocolSessionKey {
+        &self.session
     }
 }
 
@@ -105,19 +136,19 @@ pub(crate) struct StagedProtocolReceive {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum BlockedReceiveMarker {
+pub enum BlockedReceiveMarker {
     Neighbor(NodeId),
     AnyPeer,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum FieldRoundDisposition {
+pub enum FieldRoundDisposition {
     Continue,
     Complete,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum FieldHostWaitStatus {
+pub enum FieldHostWaitStatus {
     Idle,
     Delivered,
     TimedOut,
@@ -126,13 +157,13 @@ pub(crate) enum FieldHostWaitStatus {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FieldChoreographyRoundResult {
-    pub(crate) disposition: FieldRoundDisposition,
-    pub(crate) host_wait_status: FieldHostWaitStatus,
-    pub(crate) blocked_receive: Option<BlockedReceiveMarker>,
-    pub(crate) emitted_send_count: usize,
-    pub(crate) execution_policy: FieldExecutionPolicyClass,
-    pub(crate) step_budget: u8,
+pub struct FieldChoreographyRoundResult {
+    pub disposition: FieldRoundDisposition,
+    pub host_wait_status: FieldHostWaitStatus,
+    pub blocked_receive: Option<BlockedReceiveMarker>,
+    pub emitted_send_count: usize,
+    pub execution_policy: FieldExecutionPolicyClass,
+    pub step_budget_remaining: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -438,6 +469,22 @@ pub(crate) struct FieldProtocolRuntime {
 }
 
 impl FieldProtocolRuntime {
+    #[must_use]
+    pub(crate) fn artifacts(&self) -> Vec<FieldProtocolArtifact> {
+        let mut artifacts = self
+            .sessions
+            .values()
+            .flat_map(|session| session.artifacts.iter().cloned())
+            .collect::<Vec<_>>();
+        artifacts.sort_by(|left, right| {
+            left.last_updated_at
+                .cmp(&right.last_updated_at)
+                .then_with(|| left.session.cmp(&right.session))
+                .then_with(|| left.protocol.cmp(&right.protocol))
+        });
+        artifacts
+    }
+
     pub(crate) fn open_session(
         &mut self,
         session: &FieldProtocolSessionKey,
@@ -636,7 +683,9 @@ impl FieldProtocolRuntime {
                     blocked_receive: None,
                     emitted_send_count: 0,
                     execution_policy: execution_policy_for(capability.session.protocol).class,
-                    step_budget: execution_policy_for(capability.session.protocol).step_budget,
+                    step_budget_remaining: execution_policy_for(capability.session.protocol)
+                        .step_budget
+                        .min(FIELD_PROTOCOL_STEP_BUDGET),
                 },
                 flushed_sends: Vec::new(),
                 recorded_artifacts: Vec::new(),
@@ -663,7 +712,10 @@ impl FieldProtocolRuntime {
                 blocked_receive,
                 emitted_send_count: flushed_sends.len(),
                 execution_policy: execution_policy.class,
-                step_budget: execution_policy.step_budget,
+                step_budget_remaining: execution_policy
+                    .step_budget
+                    .min(FIELD_PROTOCOL_STEP_BUDGET)
+                    .saturating_sub(session.runtime.step_count),
             },
             flushed_sends,
             recorded_artifacts: new_artifacts,
@@ -828,7 +880,7 @@ mod tests {
             advance.round.execution_policy,
             FieldExecutionPolicyClass::Cheap
         );
-        assert_eq!(advance.round.step_budget, 1);
+        assert_eq!(advance.round.step_budget_remaining, 0);
         assert_eq!(advance.flushed_sends.len(), 1);
         assert_eq!(advance.recorded_artifacts.len(), 1);
     }
@@ -1062,7 +1114,7 @@ mod tests {
             last.round.execution_policy,
             FieldExecutionPolicyClass::Coordinated
         );
-        assert_eq!(last.round.step_budget, 4);
+        assert_eq!(last.round.step_budget_remaining, 0);
         assert!(last
             .recorded_artifacts
             .iter()

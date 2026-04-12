@@ -16,22 +16,25 @@
 
 use jacquard_core::{
     Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, NodeId,
-    PublishedRouteRecord, ReachabilityState, RouteCommitment, RouteError, RouteHealth, RouteId,
-    RouteInstallation, RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
-    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
-    RouteMaterializationProof, RouteProgressContract, RouteProgressState, RouteRuntimeError,
-    RouteRuntimeState, RouteSelectionError, RoutingTickChange, RoutingTickContext, RoutingTickHint,
-    RoutingTickOutcome, Tick,
+    PublishedRouteRecord, ReachabilityState, RouteBinding, RouteCommitment, RouteCommitmentFailure,
+    RouteCommitmentId, RouteCommitmentResolution, RouteError, RouteHealth, RouteId,
+    RouteInstallation, RouteInvalidationReason, RouteLifecycleEvent, RouteMaintenanceFailure,
+    RouteMaintenanceOutcome, RouteMaintenanceResult, RouteMaintenanceTrigger,
+    RouteMaterializationInput, RouteMaterializationProof, RouteOperationId, RouteProgressContract,
+    RouteProgressState, RouteRuntimeError, RouteRuntimeState, RouteSelectionError,
+    RoutingTickChange, RoutingTickContext, RoutingTickHint, RoutingTickOutcome, Tick,
+    TimeoutPolicy,
 };
-use jacquard_traits::{RouterManagedEngine, RoutingEngine};
+use jacquard_traits::{Blake3Hashing, Hashing, RouterManagedEngine, RoutingEngine};
 
 use crate::{
     attractor::{derive_local_attractor_view, rank_frontier_by_attractor},
     choreography::{
-        FieldHostWaitStatus, FieldProtocolKind, FieldProtocolSessionKey, QueuedProtocolSend,
-        FIELD_PROTOCOL_SESSION_MAX,
+        FieldChoreographyAdvance, FieldHostWaitStatus, FieldProtocolKind, FieldProtocolSessionKey,
+        QueuedProtocolSend, FIELD_PROTOCOL_SESSION_MAX,
     },
     control::{advance_control_plane, ControlMeasurements},
+    engine::FieldRuntimeRoundArtifact,
     observer::{update_destination_observer, ObserverInputs},
     route::{decode_backend_token, ActiveFieldRoute},
     state::{
@@ -44,6 +47,12 @@ use crate::{
     },
     FieldEngine,
 };
+
+const FIELD_COMMITMENT_ATTEMPT_COUNT_MAX: u32 = 2;
+const FIELD_COMMITMENT_INITIAL_BACKOFF_MS: u32 = 25;
+const FIELD_COMMITMENT_BACKOFF_MS_MAX: u32 = 25;
+const FIELD_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
+const FIELD_COMMITMENT_ID_DOMAIN: &[u8] = b"field-route-commitment";
 
 impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
     fn materialize_route(
@@ -104,8 +113,40 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
         })
     }
 
-    fn route_commitments(&self, _route: &jacquard_core::MaterializedRoute) -> Vec<RouteCommitment> {
-        Vec::new()
+    fn route_commitments(&self, route: &jacquard_core::MaterializedRoute) -> Vec<RouteCommitment> {
+        let resolution = if !route
+            .identity
+            .lease
+            .is_valid_at(self.state.last_tick_processed)
+        {
+            RouteCommitmentResolution::Invalidated(RouteInvalidationReason::LeaseExpired)
+        } else if let Some(active) = self.active_routes.get(route.identity.route_id()) {
+            if active.topology_epoch != route.identity.topology_epoch() {
+                RouteCommitmentResolution::Invalidated(RouteInvalidationReason::TopologySuperseded)
+            } else if active.corridor_envelope.delivery_support.value() < 250 {
+                RouteCommitmentResolution::Invalidated(RouteInvalidationReason::EvidenceWithdrawn)
+            } else {
+                RouteCommitmentResolution::Pending
+            }
+        } else {
+            RouteCommitmentResolution::Failed(RouteCommitmentFailure::BackendUnavailable)
+        };
+
+        vec![RouteCommitment {
+            commitment_id: field_commitment_id_for_route(route.identity.route_id()),
+            operation_id: RouteOperationId(route.identity.route_id().0),
+            route_binding: RouteBinding::Bound(*route.identity.route_id()),
+            owner_node_id: route.identity.lease.owner_node_id,
+            deadline_tick: route.identity.lease.valid_for.end_tick(),
+            retry_policy: TimeoutPolicy {
+                attempt_count_max: FIELD_COMMITMENT_ATTEMPT_COUNT_MAX,
+                initial_backoff_ms: jacquard_core::DurationMs(FIELD_COMMITMENT_INITIAL_BACKOFF_MS),
+                retry_multiplier_permille: jacquard_core::RatioPermille(1000),
+                backoff_ms_max: jacquard_core::DurationMs(FIELD_COMMITMENT_BACKOFF_MS_MAX),
+                overall_timeout_ms: jacquard_core::DurationMs(FIELD_COMMITMENT_OVERALL_TIMEOUT_MS),
+            },
+            resolution,
+        }]
     }
 
     fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
@@ -301,20 +342,44 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .take(FIELD_PROTOCOL_SESSION_MAX)
             .enumerate()
         {
-            let Some(destination_state) = self.state.destinations.get(&destination_key) else {
+            let Some((
+                session_destination,
+                summary,
+                should_publish,
+                primary_neighbor,
+                delivery_support,
+                is_stale,
+                runtime_route_artifact,
+            )) = self
+                .state
+                .destinations
+                .get(&destination_key)
+                .and_then(|destination_state| {
+                    let primary = destination_state.frontier.as_slice().first()?;
+                    let destination = DestinationId::from(&destination_state.destination);
+                    let summary = summary_for_destination(
+                        destination_state,
+                        topology_epoch,
+                        now_tick,
+                        &destination,
+                    );
+                    Some((
+                        SummaryDestinationKey::from(&destination),
+                        summary.clone(),
+                        should_transmit_summary(destination_state, &summary, now_tick),
+                        primary.neighbor_id,
+                        destination_state.corridor_belief.delivery_support.value(),
+                        now_tick.0.saturating_sub(primary.freshness.0) > 4,
+                        self.runtime_route_artifact_for_destination(
+                            &destination,
+                            destination_state,
+                            topology_epoch,
+                        ),
+                    ))
+                })
+            else {
                 continue;
             };
-            let Some(primary) = destination_state.frontier.as_slice().first() else {
-                continue;
-            };
-            let destination = DestinationId::from(&destination_state.destination);
-            let session_destination = SummaryDestinationKey::from(&destination);
-            let summary =
-                summary_for_destination(destination_state, topology_epoch, now_tick, &destination);
-            let should_publish = should_transmit_summary(destination_state, &summary, now_tick);
-            let primary_neighbor = primary.neighbor_id;
-            let delivery_support = destination_state.corridor_belief.delivery_support.value();
-            let is_stale = now_tick.0.saturating_sub(primary.freshness.0) > 4;
 
             let dissemination_key = FieldProtocolSessionKey {
                 protocol: FieldProtocolKind::SummaryDissemination,
@@ -346,7 +411,15 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                             FieldHostWaitStatus::Idle,
                             now_tick,
                         )
-                        .map(|advance| advance.round.emitted_send_count > 0)
+                        .map(|advance| {
+                            self.record_protocol_round(
+                                &dissemination_key,
+                                &advance,
+                                Some(runtime_route_artifact.clone()),
+                                now_tick,
+                            );
+                            advance.round.emitted_send_count > 0
+                        })
                         .unwrap_or(false);
                     if published {
                         if let Some(state) = self.state.destinations.get_mut(&destination_key) {
@@ -376,7 +449,16 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                             FieldHostWaitStatus::Idle,
                             now_tick,
                         )
-                        .is_ok();
+                        .map(|advance| {
+                            self.record_protocol_round(
+                                &anti_entropy_key,
+                                &advance,
+                                Some(runtime_route_artifact.clone()),
+                                now_tick,
+                            );
+                            true
+                        })
+                        .unwrap_or(false);
                 }
             }
 
@@ -413,7 +495,15 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                             FieldHostWaitStatus::Idle,
                             now_tick,
                         )
-                        .map(|advance| advance.round.emitted_send_count > 0)
+                        .map(|advance| {
+                            self.record_protocol_round(
+                                &replay_key,
+                                &advance,
+                                Some(runtime_route_artifact.clone()),
+                                now_tick,
+                            );
+                            advance.round.emitted_send_count > 0
+                        })
                         .unwrap_or(false);
                 }
             }
@@ -437,12 +527,42 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                             FieldHostWaitStatus::Idle,
                             now_tick,
                         )
-                        .is_ok();
+                        .map(|advance| {
+                            self.record_protocol_round(
+                                &coordination_key,
+                                &advance,
+                                Some(runtime_route_artifact.clone()),
+                                now_tick,
+                            );
+                            true
+                        })
+                        .unwrap_or(false);
                 }
             }
         }
 
         changed
+    }
+
+    fn record_protocol_round(
+        &self,
+        session_key: &FieldProtocolSessionKey,
+        advance: &FieldChoreographyAdvance,
+        router_artifact: Option<crate::engine::FieldRuntimeRouteArtifact>,
+        now_tick: Tick,
+    ) {
+        self.record_runtime_round_artifact(FieldRuntimeRoundArtifact {
+            protocol: session_key.protocol(),
+            destination: session_key.destination(),
+            blocked_receive: advance.round.blocked_receive,
+            disposition: advance.round.disposition,
+            host_wait_status: advance.round.host_wait_status,
+            emitted_count: advance.round.emitted_send_count,
+            step_budget_remaining: advance.round.step_budget_remaining,
+            execution_policy: advance.round.execution_policy,
+            router_artifact,
+            observed_at_tick: now_tick,
+        });
     }
 
     // long-block-exception: observer refresh is one sparse incremental scan
@@ -470,8 +590,8 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 &destination,
                 now_tick,
             );
-            let forward_evidence = Vec::new();
-            let reverse_feedback = Vec::new();
+            let forward_evidence = destination_state.pending_forward_evidence.clone();
+            let reverse_feedback = destination_state.pending_reverse_feedback.clone();
             let signature = observer_input_signature(
                 topology_epoch,
                 regime,
@@ -486,10 +606,13 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             {
                 continue;
             }
+            let forward_evidence = std::mem::take(&mut destination_state.pending_forward_evidence);
+            let reverse_feedback = std::mem::take(&mut destination_state.pending_reverse_feedback);
             let had_state = (
                 destination_state.posterior.clone(),
                 destination_state.progress_belief.clone(),
                 destination_state.corridor_belief.clone(),
+                destination_state.frontier.clone(),
             );
             update_destination_observer(
                 destination_state,
@@ -498,18 +621,19 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     topology_epoch,
                     now_tick,
                     direct_evidence: direct_evidence.clone(),
-                    forward_evidence,
-                    reverse_feedback,
+                    forward_evidence: forward_evidence.clone(),
+                    reverse_feedback: reverse_feedback.clone(),
                     local_origin_trace,
                     regime,
                     control_state: control_state.clone(),
                 },
             );
-            destination_state.frontier = refresh_frontier_from_direct_evidence(
+            destination_state.frontier = refresh_frontier_from_evidence(
                 destination_state.frontier.clone(),
                 destination_state.corridor_belief.expected_hop_band,
                 destination_state.corridor_belief.delivery_support,
                 &direct_evidence,
+                &forward_evidence,
                 now_tick,
             );
             destination_state.observer_cache.record(signature, now_tick);
@@ -524,6 +648,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 destination_state.posterior.clone(),
                 destination_state.progress_belief.clone(),
                 destination_state.corridor_belief.clone(),
+                destination_state.frontier.clone(),
             );
             changed |= had_state != has_state;
         }
@@ -585,11 +710,12 @@ fn summary_for_destination(
     }
 }
 
-fn refresh_frontier_from_direct_evidence(
+fn refresh_frontier_from_evidence(
     mut frontier: crate::state::ContinuationFrontier,
     corridor_hops: HopBand,
     corridor_support: SupportBucket,
     direct_evidence: &[DirectEvidence],
+    forward_evidence: &[crate::summary::ForwardPropagatedEvidence],
     now_tick: Tick,
 ) -> crate::state::ContinuationFrontier {
     frontier = frontier.prune_stale(now_tick, 4);
@@ -600,6 +726,22 @@ fn refresh_frontier_from_direct_evidence(
             downstream_support: corridor_support,
             expected_hop_band: HopBand::new(1, corridor_hops.max_hops.max(1)),
             freshness: now_tick,
+        });
+    }
+    for evidence in forward_evidence {
+        frontier = frontier.insert(NeighborContinuation {
+            neighbor_id: evidence.from_neighbor,
+            net_value: SupportBucket::new(
+                corridor_support
+                    .value()
+                    .max(evidence.summary.delivery_support.value()),
+            ),
+            downstream_support: evidence.summary.delivery_support,
+            expected_hop_band: HopBand::new(
+                evidence.summary.hop_band.min_hops.saturating_add(1),
+                evidence.summary.hop_band.max_hops.saturating_add(1),
+            ),
+            freshness: evidence.observed_at_tick,
         });
     }
     frontier
@@ -700,6 +842,11 @@ fn route_health_for(
         )),
         last_validated_at_tick: now_tick,
     }
+}
+
+fn field_commitment_id_for_route(route_id: &RouteId) -> RouteCommitmentId {
+    let digest = Blake3Hashing.hash_tagged(FIELD_COMMITMENT_ID_DOMAIN, &route_id.0);
+    RouteCommitmentId::from(&digest)
 }
 
 #[cfg(test)]

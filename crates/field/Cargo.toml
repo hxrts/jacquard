@@ -15,6 +15,15 @@ workspace = true
 [dependencies]
 jacquard-core = { path = "../core", version = "0.4.0" }
 jacquard-traits = { path = "../traits", version = "0.4.0" }
+cfg-if = { workspace = true }
+serde = { workspace = true, default-features = false }
+bincode = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+telltale-search = { workspace = true, features = ["multi-thread"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+telltale-search = { workspace = true }
 
 [dev-dependencies]
 jacquard-adapter = { path = "../adapter" }

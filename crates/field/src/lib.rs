@@ -5,26 +5,30 @@
 //! `RouteShapeVisibility::CorridorEnvelope`: it can make conservative
 //! end-to-end claims without claiming an explicit hop-by-hop path.
 //!
-//! The implementation is intentionally split into thin modules so the private
-//! observer/controller model can evolve without changing the shared engine
+//! The implementation is intentionally split into thin modules so the
+//! continuously updated field model, Telltale-backed search substrate, and
+//! private protocol runtime can evolve without changing the shared engine
 //! surface:
 //! - `engine` defines the engine type, identity, and baseline capabilities.
 //! - `planner` implements the shared planning surface.
 //! - `runtime` implements materialization, maintenance, and forwarding hooks.
-//!
-//! At this stage the crate only locks the public contract. The richer field
-//! data model is added incrementally in later phases.
+//! - `search` freezes field snapshots and runs exact Telltale search while
+//!   keeping the public result shape as a corridor-envelope claim.
+//! - `summary`, `observer`, `control`, and `choreography` own the
+//!   continuously refreshed evidence path behind that planner/runtime surface.
 //!
 //! Verification notes for the first formal model live under
 //! `verification/Field/Docs/`:
 //! - `verification/Field/Docs/README.md`
 //! - `verification/Field/Docs/Model.md`
 //! - `verification/Field/Docs/Protocol.md`
+//! - `verification/Field/Docs/Adequacy.md`
 //! - `verification/Field/Docs/Parity.md`
 //!
-//! The current proof boundary is intentionally narrow:
+//! The current proof boundary is intentionally narrow and explicit:
 //! - Lean covers a bounded local observer-controller model
 //! - Lean covers a reduced private summary-exchange protocol boundary
+//! - Lean covers a reduced runtime-artifact adequacy bridge
 //! - Lean does not own canonical route publication or router lifecycle truth
 
 #![forbid(unsafe_code)]
@@ -37,7 +41,22 @@ mod observer;
 mod planner;
 mod route;
 mod runtime;
+mod search;
 mod state;
 mod summary;
 
-pub use engine::{FieldEngine, FIELD_CAPABILITIES, FIELD_ENGINE_ID};
+pub use choreography::{
+    BlockedReceiveMarker, FieldChoreographyRoundResult, FieldExecutionPolicyClass,
+    FieldHostWaitStatus, FieldProtocolArtifact, FieldProtocolArtifactDetail, FieldProtocolKind,
+    FieldProtocolSessionKey, FieldRoundDisposition,
+};
+pub use engine::{
+    FieldEngine, FieldForwardSummaryObservation, FieldRuntimeRoundArtifact,
+    FieldRuntimeRouteArtifact, FIELD_CAPABILITIES, FIELD_ENGINE_ID,
+    FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
+};
+pub use search::{
+    FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchConfigError, FieldSearchEdgeMeta,
+    FieldSearchEpoch, FieldSearchHeuristicMode, FieldSearchReconfiguration, FieldSearchRun,
+    FieldSearchSnapshotId, FieldSearchTransitionClass,
+};

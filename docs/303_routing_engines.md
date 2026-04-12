@@ -1,6 +1,6 @@
 # Routing Engines
 
-This page describes the trait surface for adding a routing algorithm to Jacquard. It also captures the host capability boundary that engines consume and the in-tree BATMAN engine shape. See [Pathway Routing](401_pathway_routing.md) for the in-tree explicit-path implementation and its swappable subcomponents.
+This page describes the trait surface for adding a routing algorithm to Jacquard. It also captures the host capability boundary that engines consume and the in-tree engine shapes. See [Pathway Routing](401_pathway_routing.md) for the in-tree explicit-path implementation, [Field Routing](404_field_routing.md) for the corridor-envelope engine over the continuously updated field model, and [Batman Routing](402_batman_routing.md) for the next-hop reference engine.
 
 ## Routing Engine Contract
 

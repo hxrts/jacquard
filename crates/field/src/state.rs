@@ -22,7 +22,9 @@ use jacquard_core::{
     ServiceId, Tick, TimeWindow, ROUTE_HOP_COUNT_MAX,
 };
 
-use crate::summary::FieldSummary;
+use crate::summary::{
+    FieldSummary, ForwardPropagatedEvidence, ReverseFeedbackEvidence, SummaryDestinationKey,
+};
 
 pub(crate) const MAX_TRACKED_DESTINATIONS: usize = 32;
 pub(crate) const MAX_ACTIVE_DESTINATIONS: usize = 8;
@@ -359,6 +361,8 @@ pub(crate) struct DestinationFieldState {
     pub(crate) interest: DestinationInterest,
     pub(crate) observer_cache: ObserverCacheState,
     pub(crate) publication: SummaryPublicationState,
+    pub(crate) pending_forward_evidence: Vec<ForwardPropagatedEvidence>,
+    pub(crate) pending_reverse_feedback: Vec<ReverseFeedbackEvidence>,
 }
 
 impl DestinationFieldState {
@@ -373,6 +377,8 @@ impl DestinationFieldState {
             interest: DestinationInterest::default(),
             observer_cache: ObserverCacheState::default(),
             publication: SummaryPublicationState::default(),
+            pending_forward_evidence: Vec::new(),
+            pending_reverse_feedback: Vec::new(),
         }
     }
 }
@@ -549,6 +555,16 @@ impl From<&DestinationKey> for DestinationId {
             DestinationKey::Gateway(id) => Self::Gateway(*id),
             DestinationKey::Node(id) => Self::Node(*id),
             DestinationKey::Service(id) => Self::Service(ServiceId(id.clone())),
+        }
+    }
+}
+
+impl From<&SummaryDestinationKey> for DestinationKey {
+    fn from(value: &SummaryDestinationKey) -> Self {
+        match value {
+            SummaryDestinationKey::Gateway(id) => Self::Gateway(*id),
+            SummaryDestinationKey::Node(id) => Self::Node(*id),
+            SummaryDestinationKey::Service(id) => Self::Service(id.to_vec()),
         }
     }
 }

@@ -2,6 +2,11 @@
 crate_roots = ["crates"]
 exclude_crates = ["xtask"]
 
+[bundles.rust_base]
+enabled = true
+rust_roots = ["crates"]
+docs_roots = ["docs"]
+
 [checks.proc_macro_scope]
 enabled = true
 include_paths = ["crates"]
@@ -91,6 +96,9 @@ exclude_files = [
   "crates/field/src/observer.rs",
   "crates/field/src/attractor.rs",
   "crates/field/src/route.rs",
+  "crates/field/src/search/domain.rs",
+  "crates/field/src/search/mod.rs",
+  "crates/field/src/search/runner.rs",
   "crates/reference-client/src/clients.rs",
   "crates/reference-client/src/bridge.rs",
   "crates/reference-client/src/lib.rs",
@@ -114,16 +122,6 @@ exclude_files = [
 [checks.result_must_use]
 enabled = true
 include_paths = ["crates/traits/src"]
-
-[checks.test_boundaries]
-enabled = true
-scan_roots = ["crates"]
-exclude_path_parts = [
-  "/target/",
-  "/tests/",
-  "/benches/",
-  "/examples/",
-]
 
 [checks.lean_style]
 enabled = true
@@ -172,11 +170,6 @@ reason = "bounded system execution and accounting theorems remain co-located unt
 path = "verification/Field/AssumptionTheorems.lean"
 reason = "assumption packaging and theorem exports remain consolidated while the assumption-surface split is still in progress"
 
-[checks.docs_link_check]
-enabled = true
-docs_roots = ["docs"]
-scratch_dir_prefix = "work/"
-
 [checks.docs_semantic_drift]
 enabled = true
 docs_roots = ["docs", "crates", "scripts", ".github"]
@@ -205,10 +198,6 @@ include_paths = ["crates"]
 allowed_path_parts = ["/raw/", "/ffi/", "/sys/"]
 required_comment_markers = ["Safety:"]
 
-[checks.bool_param]
-enabled = true
-include_paths = ["crates"]
-
 [checks.must_use_public_return]
 enabled = true
 include_paths = ["crates"]
@@ -219,29 +208,6 @@ exclude_path_parts = [
   "crates/simulator/src/presets.rs",
 ]
 allowed_return_type_prefixes = ["Result", "Option"]
-
-[checks.assert_shape]
-enabled = true
-include_paths = ["crates"]
-
-[checks.drop_side_effects]
-enabled = true
-include_paths = ["crates"]
-allow_comment_marker = "drop-side-effects-exception:"
-
-[checks.recursion_guard]
-enabled = true
-include_paths = ["crates"]
-allow_comment_marker = "recursion-exception:"
-
-[checks.naming_units]
-enabled = true
-include_paths = ["crates"]
-
-[checks.limit_constant]
-enabled = true
-include_paths = ["crates"]
-allow_comment_marker = "limit-constant-exception:"
 
 [checks.public_type_width]
 enabled = true
@@ -278,11 +244,6 @@ exclude_path_parts = ["/.lake/", "/build/", "/target/", "/lake-packages/"]
 enabled = true
 include_paths = ["crates"]
 exclude_path_parts = ["/target/"]
-
-[checks.workflow_actions]
-enabled = true
-workflow_roots = [".github/workflows"]
-pin_comment_markers = ["pin"]
 
 [policy.exemptions]
 bare_primitives_exempt_paths = [

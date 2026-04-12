@@ -75,10 +75,18 @@ fn router_activates_field_route_with_corridor_envelope_visibility() {
         RouteShapeVisibility::CorridorEnvelope
     );
     assert!(route.identity.admission.summary.hop_count_hint.value_or(0) >= 1);
-    assert!(router
+    let commitments = router
         .route_commitments(&route.identity.stamp.route_id)
-        .expect("field commitments")
-        .is_empty());
+        .expect("field commitments");
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(
+        commitments[0].resolution,
+        jacquard_core::RouteCommitmentResolution::Pending
+    );
+    assert_eq!(
+        commitments[0].route_binding,
+        jacquard_core::RouteBinding::Bound(route.identity.stamp.route_id)
+    );
     router
         .forward_payload(&route.identity.stamp.route_id, b"field-data")
         .expect("router forwards via field engine");

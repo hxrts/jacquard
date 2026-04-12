@@ -1,6 +1,6 @@
 # Introduction
 
-Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and two in-tree explicit-path routing engines, `Pathway` and `batman`. It is designed so a host can add external routing engines through the same contract.
+Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and three in-tree routing engines: `Pathway` for explicit-path routing, `field` for corridor-envelope routing over a continuously updated field model, and `batman` for next-hop routing. It is designed so a host can add external routing engines through the same contract.
 
 See [Core Types](201_core_types.md) for the model objects, pipeline, observation, and world-extension surfaces that carry the system. See [Time Model](202_time.md) for the deterministic time rules. See [Routing Engines](303_routing_engines.md) for the engine contract, host runtime-effect boundary, and in-tree BATMAN notes. See [Router Control Plane](304_router_control_plane.md) for how a route moves from objective through materialization, maintenance, and teardown. See [Crate Architecture](999_crate_architecture.md) for separation of concerns and implementation policies.
 

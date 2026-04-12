@@ -65,6 +65,12 @@ humanize_check_name() {
 load_enabled_toolkit_checks() {
   local config_path="$1"
   awk '
+    BEGIN {
+      in_rust_base = 0
+      rust_base_enabled = 0
+      rust_base_docs = 0
+    }
+
     function flush_section() {
       if (section == "") {
         return
@@ -81,7 +87,36 @@ load_enabled_toolkit_checks() {
       enabled = ""
     }
 
+    function emit_rust_base_bundle_checks() {
+      if (rust_base_enabled != 1) {
+        return
+      }
+      print "proc_macro_scope"
+      print "result_must_use"
+      print "test_boundaries"
+      print "workspace_hygiene"
+      print "crate_root_policy"
+      print "ignored_result"
+      print "unsafe_boundary"
+      print "bool_param"
+      print "must_use_public_return"
+      print "assert_shape"
+      print "drop_side_effects"
+      print "recursion_guard"
+      print "naming_units"
+      print "limit_constant"
+      print "public_type_width"
+      print "dependency_policy"
+      print "workflow_actions"
+      if (rust_base_docs == 1) {
+        print "docs_link_check"
+        print "docs_semantic_drift"
+        print "text_formatting"
+      }
+    }
+
     /^\[checks\.[^.][^.]*\]$/ {
+      in_rust_base = 0
       flush_section()
       section = $0
       sub(/^\[checks\./, "", section)
@@ -89,8 +124,25 @@ load_enabled_toolkit_checks() {
       next
     }
 
-    /^\[/ {
+    /^\[bundles\.rust_base\]$/ {
+      in_rust_base = 1
       flush_section()
+      next
+    }
+
+    /^\[/ {
+      in_rust_base = 0
+      flush_section()
+      next
+    }
+
+    in_rust_base && /^[[:space:]]*enabled[[:space:]]*=/ {
+      rust_base_enabled = ($0 ~ /=[[:space:]]*true([[:space:]]|$)/) ? 1 : 0
+      next
+    }
+
+    in_rust_base && /^[[:space:]]*docs_roots[[:space:]]*=/ {
+      rust_base_docs = ($0 ~ /\[[^]]*[^[:space:],][^]]*\]/) ? 1 : 0
       next
     }
 
@@ -102,6 +154,7 @@ load_enabled_toolkit_checks() {
 
     END {
       flush_section()
+      emit_rust_base_bundle_checks()
     }
   ' "$config_path"
 }

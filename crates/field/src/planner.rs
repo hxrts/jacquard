@@ -144,14 +144,15 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Result<PlanningArtifacts, RouteError> {
-        if !self.destination_supports_objective(topology, objective) {
-            return Err(RouteSelectionError::NoCandidate.into());
-        }
-
         let destination_key = DestinationKey::from(&objective.destination);
         let Some(destination_state) = self.state.destinations.get(&destination_key) else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
+        if !self.destination_supports_objective(topology, objective) {
+            return Err(RouteSelectionError::NoCandidate.into());
+        }
+
+        let search_record = self.search_record_for_objective(objective, topology);
         let ranked = rank_frontier_by_attractor(
             destination_state,
             &self.state.mean_field,
@@ -159,17 +160,35 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             self.state.posture.current,
             &self.state.controller,
         );
-        let Some((primary, _)) = ranked.first() else {
+        let Some(primary_neighbor) = search_record
+            .run
+            .as_ref()
+            .and_then(|run| run.selected_node_path.as_ref())
+            .and_then(|path| path.get(1).copied())
+            .or_else(|| {
+                if search_record.query.is_none() {
+                    ranked.first().map(|(primary, _)| primary.neighbor_id)
+                } else {
+                    None
+                }
+            })
+        else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
+        if !ranked
+            .iter()
+            .any(|(entry, _)| entry.neighbor_id == primary_neighbor)
+        {
+            return Err(RouteSelectionError::NoCandidate.into());
+        }
 
         let witness_detail = self.witness_detail_from_state(destination_state);
         let backend_token = FieldBackendToken {
             destination: destination_key,
-            primary_neighbor: primary.neighbor_id,
+            primary_neighbor,
             alternates: ranked
                 .iter()
-                .skip(1)
+                .filter(|(entry, _)| entry.neighbor_id != primary_neighbor)
                 .take(MAX_ALTERNATE_COUNT)
                 .map(|(entry, _)| entry.neighbor_id)
                 .collect(),
@@ -179,8 +198,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         };
         let backend_route_id = encode_backend_token(&backend_token);
         let route_id = route_id_for_backend(&backend_route_id);
-        let route_summary =
-            self.route_summary_for(destination_state, primary.neighbor_id, topology);
+        let route_summary = self.route_summary_for(destination_state, primary_neighbor, topology);
         let degradation = self.route_degradation_for(destination_state, topology.value.epoch);
         let delivered_protection = delivered_protection(destination_state);
         let delivered_connectivity =
@@ -322,7 +340,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         derive_degradation_class(&summary, self.state.regime.current, &self.state.controller)
     }
 
-    fn destination_supports_objective(
+    pub(crate) fn destination_supports_objective(
         &self,
         topology: &Observation<Configuration>,
         objective: &jacquard_core::RoutingObjective,
