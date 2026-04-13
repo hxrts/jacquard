@@ -9,6 +9,7 @@ policy/lints/Cargo.lock
 
 # mdbook
 docs/book/
+docs/SUMMARY.md
 mermaid-init.js
 mermaid.min.js
 theme/
