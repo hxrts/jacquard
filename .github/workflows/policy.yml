@@ -24,6 +24,8 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           nix_path: nixpkgs=channel:nixos-unstable
+      - name: Generate Summary
+        run: just summary
       - name: Docs Link Check
         run: ./scripts/toolkit-shell.sh toolkit-xtask check docs-link-check --repo-root . --config toolkit/toolkit.toml
       - name: Docs Semantic Drift
