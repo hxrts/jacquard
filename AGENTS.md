@@ -116,7 +116,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 
 ## Telltale dependency
 
-Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, `telltale-search`, `telltale-simulator`, currently `13.0.0`). Individual crates import them via `{ workspace = true }`.
+Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, `telltale-search`, `telltale-simulator`). Individual crates import them via `{ workspace = true }`.
 
 ## long-block-exception
 
