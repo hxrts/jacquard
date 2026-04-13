@@ -48,6 +48,17 @@ require_command() {
   command -v "${cmd}" >/dev/null 2>&1 || die "${cmd} is required"
 }
 
+release_package_known() {
+  local target="$1"
+  local package
+  for package in "${RELEASE_PACKAGES[@]}"; do
+    if [[ "${package}" == "${target}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 # Extract version from the [package] table of a Cargo.toml.
 # Handles both inline version = "x.y.z" and version.workspace = true
 # (the latter defers to [workspace.package] in the root Cargo.toml).
@@ -157,12 +168,36 @@ publish_package() {
     cmd+=(--allow-dirty)
   fi
   echo "== ${cmd[*]} =="
-  "${cmd[@]}"
+  local output status missing_dep
+  set +e
+  output="$("${cmd[@]}" 2>&1)"
+  status=$?
+  set -e
+  printf '%s\n' "${output}"
+  if [[ "${status}" -eq 0 ]]; then
+    return 0
+  fi
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    missing_dep="$(
+      printf '%s\n' "${output}" \
+        | sed -n 's/.*no matching package named `\([^`]*\)`.*/\1/p' \
+        | head -n 1
+    )"
+    if [[ -n "${missing_dep}" ]] && release_package_known "${missing_dep}"; then
+      echo "== dry-run could not verify ${package} against crates.io because dependency ${missing_dep} is unpublished in this release set; version validation for both crates already passed =="
+      return 0
+    fi
+  fi
+  return "${status}"
 }
 
 # ── Tagging & Push ─────────────────────────────────────────────────────
 
 create_release_tag() {
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    echo "== dry-run: skipping git tag creation =="
+    return
+  fi
   if [[ "${CREATE_TAG}" -eq 0 ]]; then
     return
   fi
