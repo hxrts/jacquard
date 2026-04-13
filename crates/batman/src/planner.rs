@@ -19,8 +19,8 @@
 //! shared topology observation before any table lookup.
 
 use jacquard_core::{
-    Configuration, DestinationId, Observation, RouteAdmission, RouteAdmissionCheck,
-    RouteAdmissionRejection, RouteCandidate, RouteError, RouteSelectionError,
+    AdmissionDecision, Configuration, DestinationId, Observation, RouteAdmission,
+    RouteAdmissionCheck, RouteAdmissionRejection, RouteCandidate, RouteError, RouteSelectionError,
     RoutingEngineCapabilities, RoutingEngineId, SelectedRoutingParameters,
 };
 use jacquard_traits::{RoutingEnginePlanner, TimeEffects, TransportSenderEffects};
@@ -95,7 +95,11 @@ where
             )
             .into());
         }
-        Ok(self.admission_for(objective, profile, &expected))
+        let admission = self.admission_for(objective, profile, &expected);
+        if let AdmissionDecision::Rejected(reason) = admission.admission_check.decision {
+            return Err(RouteSelectionError::Inadmissible(reason).into());
+        }
+        Ok(admission)
     }
 }
 

@@ -11,6 +11,7 @@ use jacquard_core::{
     ByteCount, ControllerId, Link, Node, NodeId, RatioPermille, RoutingEngineId, Tick,
     TransportKind,
 };
+use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_pathway::PATHWAY_ENGINE_ID;
@@ -65,8 +66,33 @@ impl TopologyNodePreset {
     }
 
     #[must_use]
+    pub fn batman(self) -> Self {
+        self.for_engine(&BATMAN_ENGINE_ID)
+    }
+
+    #[must_use]
     pub fn pathway_and_batman(self) -> Self {
         self.for_engines(&[PATHWAY_ENGINE_ID, BATMAN_ENGINE_ID])
+    }
+
+    #[must_use]
+    pub fn field(self) -> Self {
+        self.for_engine(&FIELD_ENGINE_ID)
+    }
+
+    #[must_use]
+    pub fn pathway_and_field(self) -> Self {
+        self.for_engines(&[PATHWAY_ENGINE_ID, FIELD_ENGINE_ID])
+    }
+
+    #[must_use]
+    pub fn field_and_batman(self) -> Self {
+        self.for_engines(&[FIELD_ENGINE_ID, BATMAN_ENGINE_ID])
+    }
+
+    #[must_use]
+    pub fn all_engines(self) -> Self {
+        self.for_engines(&[PATHWAY_ENGINE_ID, FIELD_ENGINE_ID, BATMAN_ENGINE_ID])
     }
 
     #[must_use]

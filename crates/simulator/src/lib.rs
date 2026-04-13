@@ -24,13 +24,16 @@
 
 #![forbid(unsafe_code)]
 
+mod assertions;
 mod environment;
 mod harness;
+mod reduced_replay;
 mod replay;
 mod scenario;
 
 pub mod presets;
 
+pub use assertions::{AssertionFailure, ScenarioAssertions};
 pub use environment::{
     AppliedEnvironmentHook, EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel,
 };
@@ -38,9 +41,12 @@ pub use harness::{
     JacquardHostAdapter, JacquardSimulationHarness, JacquardSimulator, ReferenceClientAdapter,
     SimulationError,
 };
+pub use reduced_replay::{
+    ReducedReplayRound, ReducedReplayView, ReducedRouteKey, ReducedRouteObservation,
+};
 pub use replay::{
-    DriverStatusEvent, HostCheckpointSnapshot, HostRoundArtifact, HostRoundStatus,
-    IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
+    ActiveRouteSummary, DriverStatusEvent, HostCheckpointSnapshot, HostRoundArtifact,
+    HostRoundStatus, IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
     JacquardRoundArtifact, JacquardSimulationStats, SimulationFailureSummary,
     TelltaleNativeArtifactRef,
 };

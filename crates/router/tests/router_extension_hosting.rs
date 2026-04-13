@@ -11,12 +11,12 @@ mod common;
 
 use common::{
     build_router_with_opaque_engine, build_router_with_pathway_and_batman, objective, FAR_NODE_ID,
-    LOCAL_NODE_ID,
+    LOCAL_NODE_ID, PEER_NODE_ID,
 };
 use jacquard_batman::BATMAN_ENGINE_ID;
 use jacquard_core::{
-    Belief, DestinationId, RouteShapeVisibility, RoutingEngineId, RoutingTickChange,
-    RoutingTickHint, Tick,
+    Belief, ConnectivityPosture, DestinationId, RoutePartitionClass, RouteRepairClass,
+    RouteShapeVisibility, RoutingEngineId, RoutingTickChange, RoutingTickHint, Tick,
 };
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_traits::{Router, RoutingControlPlane};
@@ -54,9 +54,13 @@ fn router_can_host_real_pathway_and_batman_engines_together() {
     assert_eq!(round.engine_change, RoutingTickChange::PrivateStateUpdated);
     assert_eq!(round.next_round_hint, RoutingTickHint::Immediate);
 
+    let mut batman_objective = objective(DestinationId::Node(PEER_NODE_ID));
+    batman_objective.target_connectivity = ConnectivityPosture {
+        repair: RouteRepairClass::Repairable,
+        partition: RoutePartitionClass::ConnectedOnly,
+    };
     let batman_route =
-        Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
-            .expect("batman-backed activation");
+        Router::activate_route(&mut router, batman_objective).expect("batman-backed activation");
     assert_eq!(
         batman_route.identity.admission.summary.engine,
         BATMAN_ENGINE_ID

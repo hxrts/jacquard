@@ -91,7 +91,7 @@ pub use bridge::{
     BoundHostBridge, BridgeQueueConfig, BridgeRoundProgress, BridgeRoundReport, BridgeWaitState,
     HostBridge,
 };
-pub use clients::{ClientBuilder, PathwayClient, PathwayRouter};
+pub use clients::{ClientBuilder, ReferenceClient, ReferenceRouter};
 pub use jacquard_adapter::{
     ObservedLink, ObservedNode, ObservedRoute, ObservedRouteShape, TopologyProjector,
     TopologySnapshot,

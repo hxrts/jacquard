@@ -1,11 +1,18 @@
 //! Scenario presets for simulator smoke tests and examples.
+// long-file-exception: this file is the single maintained catalog of simulator
+// scenario fixtures. Keeping the preset definitions together preserves shared
+// topology/objective helpers, makes scenario diffs reviewable, and avoids
+// scattering the canonical simulator corpus across many tiny modules.
 
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    Configuration, Environment, FactSourceClass, Observation, OriginAuthenticationClass,
-    RatioPermille, RouteEpoch, RoutingEvidenceClass, Tick,
+    Configuration, ConnectivityPosture, DestinationId, DurationMs, Environment, FactSourceClass,
+    Observation, OriginAuthenticationClass, PriorityPoints, RatioPermille, RouteEpoch,
+    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
+    RoutingEvidenceClass, RoutingObjective, ServiceId, Tick,
 };
+use jacquard_pathway::PathwaySearchConfig;
 use jacquard_reference_client::topology;
 
 use crate::{
@@ -99,7 +106,7 @@ pub fn pathway_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
 // long-block-exception: this preset is a single scenario fixture definition
 // pairing topology and environment hooks for regression readability.
 pub fn batman_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let topology = line_topology(
+    let topology = bidirectional_line_topology(
         topology::node(1)
             .for_engine(&jacquard_batman::BATMAN_ENGINE_ID)
             .build(),
@@ -120,7 +127,7 @@ pub fn batman_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
             HostSpec::batman(NODE_B),
             HostSpec::batman(NODE_C),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
         7,
     )
     .with_checkpoint_interval(2);
@@ -178,11 +185,126 @@ pub fn batman_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
 }
 
 #[must_use]
-pub fn mixed_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
+pub fn field_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
-        topology::node(1).pathway_and_batman().build(),
-        topology::node(2).pathway_and_batman().build(),
-        topology::node(3).pathway_and_batman().build(),
+        topology::node(1).field().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
+    );
+    let scenario = JacquardScenario::new(
+        "field-line",
+        jacquard_core::SimulationSeed(17),
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
+        topology.clone(),
+        vec![
+            HostSpec::field(NODE_A),
+            HostSpec::field(NODE_B),
+            HostSpec::field(NODE_C),
+        ],
+        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
+        6,
+    )
+    .with_checkpoint_interval(2);
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(4),
+            EnvironmentHook::MediumDegradation {
+                left: NODE_A,
+                right: NODE_B,
+                confidence: RatioPermille(820),
+                loss: RatioPermille(110),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(5),
+            EnvironmentHook::IntrinsicLimit {
+                node_id: NODE_B,
+                connection_count_max: 1,
+                hold_capacity_bytes_max: jacquard_core::ByteCount(384),
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+#[must_use]
+pub fn all_engines_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = bidirectional_line_topology(
+        topology::node(1).all_engines().build(),
+        topology::node(2).all_engines().build(),
+        topology::node(3).all_engines().build(),
+    );
+    let scenario = JacquardScenario::new(
+        "all-engines-line",
+        jacquard_core::SimulationSeed(18),
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
+        topology.clone(),
+        vec![
+            HostSpec::all_engines(NODE_A),
+            HostSpec::all_engines(NODE_B),
+            HostSpec::all_engines(NODE_C),
+        ],
+        vec![
+            BoundObjective::new(NODE_A, connected_objective(NODE_B)),
+            BoundObjective::new(NODE_B, connected_objective(NODE_C)),
+        ],
+        6,
+    )
+    .with_checkpoint_interval(2);
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(4),
+            EnvironmentHook::MediumDegradation {
+                left: NODE_A,
+                right: NODE_B,
+                confidence: RatioPermille(840),
+                loss: RatioPermille(90),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(5),
+            EnvironmentHook::MobilityRelink {
+                left: NODE_B,
+                from_right: NODE_C,
+                to_right: NODE_A,
+                link: Box::new(topology::link(1).build()),
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+#[must_use]
+pub fn all_engines_ring() -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = ring_topology(
+        topology::node(1).all_engines().build(),
+        topology::node(2).all_engines().build(),
+        topology::node(3).all_engines().build(),
+        topology::node(4).all_engines().build(),
+    );
+    let scenario = JacquardScenario::new(
+        "all-engines-ring",
+        jacquard_core::SimulationSeed(19),
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
+        topology,
+        vec![
+            HostSpec::all_engines(NODE_A),
+            HostSpec::all_engines(NODE_B),
+            HostSpec::all_engines(NODE_C),
+            HostSpec::all_engines(NODE_D),
+        ],
+        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
+        4,
+    );
+    (scenario, ScriptedEnvironmentModel::default())
+}
+
+#[must_use]
+pub fn mixed_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = bidirectional_line_topology(
+        topology::node(1).batman().build(),
+        topology::node(2).field_and_batman().build(),
+        topology::node(3).field().build(),
     );
     let scenario = JacquardScenario::new(
         "mixed-line",
@@ -190,12 +312,12 @@ pub fn mixed_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::pathway_and_batman(NODE_A),
-            HostSpec::pathway_and_batman(NODE_B),
-            HostSpec::pathway_and_batman(NODE_C),
+            HostSpec::batman(NODE_A),
+            HostSpec::field_and_batman(NODE_B),
+            HostSpec::field(NODE_C),
         ],
         vec![
-            BoundObjective::new(NODE_A, default_objective(NODE_B)),
+            BoundObjective::new(NODE_A, connected_objective(NODE_B)),
             BoundObjective::new(NODE_B, default_objective(NODE_C)),
         ],
         4,
@@ -229,9 +351,9 @@ pub fn mixed_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
 // pairing topology and environment hooks for regression readability.
 pub fn churn_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
-        topology::node(1).pathway_and_batman().build(),
-        topology::node(2).pathway_and_batman().build(),
-        topology::node(3).pathway_and_batman().build(),
+        topology::node(1).field().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
     );
     let scenario = JacquardScenario::new(
         "churn-regression",
@@ -239,17 +361,17 @@ pub fn churn_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::pathway_and_batman(NODE_A),
-            HostSpec::pathway_and_batman(NODE_B),
-            HostSpec::pathway_and_batman(NODE_C),
+            HostSpec::field(NODE_A),
+            HostSpec::field(NODE_B),
+            HostSpec::field(NODE_C),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_C))],
+        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
         8,
     )
     .with_checkpoint_interval(2);
     let environment = ScriptedEnvironmentModel::new(vec![
         ScheduledEnvironmentHook::new(
-            Tick(3),
+            Tick(4),
             EnvironmentHook::MobilityRelink {
                 left: NODE_A,
                 from_right: NODE_B,
@@ -261,7 +383,7 @@ pub fn churn_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
             },
         ),
         ScheduledEnvironmentHook::new(
-            Tick(4),
+            Tick(5),
             EnvironmentHook::ReplaceTopology {
                 configuration: Configuration {
                     epoch: RouteEpoch(10),
@@ -276,7 +398,7 @@ pub fn churn_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
             },
         ),
         ScheduledEnvironmentHook::new(
-            Tick(5),
+            Tick(6),
             EnvironmentHook::MobilityRelink {
                 left: NODE_A,
                 from_right: NODE_C,
@@ -294,9 +416,9 @@ pub fn churn_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
 #[must_use]
 pub fn partition_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
-        topology::node(1).pathway_and_batman().build(),
-        topology::node(2).pathway_and_batman().build(),
-        topology::node(3).pathway_and_batman().build(),
+        topology::node(1).field().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
     );
     let scenario = JacquardScenario::new(
         "partition-regression",
@@ -304,11 +426,11 @@ pub fn partition_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology.clone(),
         vec![
-            HostSpec::pathway_and_batman(NODE_A),
-            HostSpec::pathway_and_batman(NODE_B),
-            HostSpec::pathway_and_batman(NODE_C),
+            HostSpec::field(NODE_A),
+            HostSpec::field(NODE_B),
+            HostSpec::field(NODE_C),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_C))],
+        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
         8,
     )
     .with_checkpoint_interval(2);
@@ -316,16 +438,16 @@ pub fn partition_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
         ScheduledEnvironmentHook::new(
             Tick(4),
             EnvironmentHook::Partition {
-                left: NODE_B,
-                right: NODE_C,
+                left: NODE_A,
+                right: NODE_B,
             },
         ),
         ScheduledEnvironmentHook::new(
             Tick(6),
             EnvironmentHook::MobilityRelink {
-                left: NODE_B,
-                from_right: NODE_C,
-                to_right: NODE_A,
+                left: NODE_A,
+                from_right: NODE_B,
+                to_right: NODE_C,
                 link: Box::new(topology::link(3).build()),
             },
         ),
@@ -336,9 +458,9 @@ pub fn partition_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
 #[must_use]
 pub fn deferred_delivery_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
-        topology::node(1).pathway_and_batman().build(),
-        topology::node(2).pathway_and_batman().build(),
-        topology::node(3).pathway_and_batman().build(),
+        topology::node(1).field().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
     );
     let scenario = JacquardScenario::new(
         "deferred-delivery-regression",
@@ -346,36 +468,30 @@ pub fn deferred_delivery_regression() -> (JacquardScenario, ScriptedEnvironmentM
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology.clone(),
         vec![
-            HostSpec::pathway_and_batman(NODE_A),
-            HostSpec::pathway_and_batman(NODE_B),
-            HostSpec::pathway_and_batman(NODE_C),
+            HostSpec::field(NODE_A),
+            HostSpec::field(NODE_B),
+            HostSpec::field(NODE_C),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_C))],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B)).with_activation_round(1)],
         8,
     )
     .with_checkpoint_interval(2);
     let environment = ScriptedEnvironmentModel::new(vec![
         ScheduledEnvironmentHook::new(
-            Tick(4),
-            EnvironmentHook::Partition {
-                left: NODE_B,
-                right: NODE_C,
+            Tick(3),
+            EnvironmentHook::MediumDegradation {
+                left: NODE_A,
+                right: NODE_B,
+                confidence: RatioPermille(760),
+                loss: RatioPermille(140),
             },
         ),
         ScheduledEnvironmentHook::new(
-            Tick(5),
-            EnvironmentHook::IntrinsicLimit {
-                node_id: NODE_B,
-                connection_count_max: 1,
-                hold_capacity_bytes_max: jacquard_core::ByteCount(1024),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(7),
+            Tick(6),
             EnvironmentHook::MobilityRelink {
-                left: NODE_B,
-                from_right: NODE_C,
-                to_right: NODE_A,
+                left: NODE_A,
+                from_right: NODE_B,
+                to_right: NODE_C,
                 link: Box::new(topology::link(3).build()),
             },
         ),
@@ -386,27 +502,27 @@ pub fn deferred_delivery_regression() -> (JacquardScenario, ScriptedEnvironmentM
 #[must_use]
 pub fn adversarial_relay_regression() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
-        topology::node(1).pathway_and_batman().build(),
-        topology::node(2).pathway_and_batman().build(),
-        topology::node(3).pathway_and_batman().build(),
+        topology::node(1).field().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
     );
     let scenario = JacquardScenario::new(
         "adversarial-relay-regression",
         jacquard_core::SimulationSeed(24),
-        jacquard_core::OperatingMode::DenseInteractive,
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology.clone(),
         vec![
-            HostSpec::pathway_and_batman(NODE_A),
-            HostSpec::pathway_and_batman(NODE_B),
-            HostSpec::pathway_and_batman(NODE_C),
+            HostSpec::field(NODE_A),
+            HostSpec::field(NODE_B),
+            HostSpec::field(NODE_C),
         ],
-        vec![BoundObjective::new(NODE_A, default_objective(NODE_C))],
+        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
         7,
     )
     .with_checkpoint_interval(2);
     let environment = ScriptedEnvironmentModel::new(vec![
         ScheduledEnvironmentHook::new(
-            Tick(3),
+            Tick(4),
             EnvironmentHook::MediumDegradation {
                 left: NODE_A,
                 right: NODE_B,
@@ -415,7 +531,7 @@ pub fn adversarial_relay_regression() -> (JacquardScenario, ScriptedEnvironmentM
             },
         ),
         ScheduledEnvironmentHook::new(
-            Tick(4),
+            Tick(5),
             EnvironmentHook::ReplaceTopology {
                 configuration: Configuration {
                     epoch: RouteEpoch(14),
@@ -441,10 +557,10 @@ pub fn dense_saturation_regression() -> (JacquardScenario, ScriptedEnvironmentMo
         value: Configuration {
             epoch: RouteEpoch(1),
             nodes: BTreeMap::from([
-                (NODE_A, topology::node(1).pathway_and_batman().build()),
-                (NODE_B, topology::node(2).pathway_and_batman().build()),
-                (NODE_C, topology::node(3).pathway_and_batman().build()),
-                (NODE_D, topology::node(4).pathway_and_batman().build()),
+                (NODE_A, topology::node(1).field().build()),
+                (NODE_B, topology::node(2).field().build()),
+                (NODE_C, topology::node(3).field().build()),
+                (NODE_D, topology::node(4).field().build()),
             ]),
             links: BTreeMap::from([
                 ((NODE_A, NODE_B), topology::link(2).build()),
@@ -470,14 +586,14 @@ pub fn dense_saturation_regression() -> (JacquardScenario, ScriptedEnvironmentMo
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::pathway_and_batman(NODE_A),
-            HostSpec::pathway_and_batman(NODE_B),
-            HostSpec::pathway_and_batman(NODE_C),
-            HostSpec::pathway_and_batman(NODE_D),
+            HostSpec::field(NODE_A),
+            HostSpec::field(NODE_B),
+            HostSpec::field(NODE_C),
+            HostSpec::field(NODE_D),
         ],
         vec![
-            BoundObjective::new(NODE_A, default_objective(NODE_D)),
-            BoundObjective::new(NODE_B, default_objective(NODE_D)),
+            BoundObjective::new(NODE_A, default_objective(NODE_B)),
+            BoundObjective::new(NODE_C, default_objective(NODE_D)),
         ],
         8,
     )
@@ -503,6 +619,292 @@ pub fn dense_saturation_regression() -> (JacquardScenario, ScriptedEnvironmentMo
     (scenario, environment)
 }
 
+#[must_use]
+pub fn composition_explicit_path_preferred() -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = line_topology(
+        topology::node(1).pathway().build(),
+        topology::node(2).pathway().build(),
+        topology::node(3).pathway().build(),
+    );
+    let scenario = JacquardScenario::new(
+        "composition-explicit-path-preferred",
+        jacquard_core::SimulationSeed(31),
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
+        topology,
+        vec![
+            HostSpec::pathway(NODE_A).with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C),
+        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B)).with_activation_round(1)],
+        4,
+    );
+    (scenario, ScriptedEnvironmentModel::default())
+}
+
+#[must_use]
+pub fn composition_next_hop_only_viable() -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = bidirectional_line_topology(
+        topology::node(1).all_engines().build(),
+        topology::node(2).batman().build(),
+        topology::node(3).batman().build(),
+    );
+    let scenario = JacquardScenario::new(
+        "composition-next-hop-only-viable",
+        jacquard_core::SimulationSeed(32),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        vec![
+            HostSpec::all_engines(NODE_A).with_profile(best_effort_connected_profile()),
+            HostSpec::batman(NODE_B),
+            HostSpec::batman(NODE_C),
+        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+        5,
+    );
+    (scenario, ScriptedEnvironmentModel::default())
+}
+
+#[must_use]
+pub fn composition_corridor_preferred() -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = line_topology(
+        topology::node(1).all_engines().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
+    );
+    let scenario = JacquardScenario::new(
+        "composition-corridor-preferred",
+        jacquard_core::SimulationSeed(33),
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
+        topology,
+        vec![
+            HostSpec::all_engines(NODE_A),
+            HostSpec::field(NODE_B),
+            HostSpec::field(NODE_C),
+        ],
+        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
+        5,
+    );
+    (scenario, ScriptedEnvironmentModel::default())
+}
+
+#[must_use]
+pub fn composition_concurrent_objectives() -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = dual_pair_topology(
+        topology::node(1).batman().build(),
+        topology::node(2).batman().build(),
+        topology::node(3).field().build(),
+        topology::node(4).field().build(),
+    );
+    let scenario = JacquardScenario::new(
+        "composition-concurrent-objectives",
+        jacquard_core::SimulationSeed(34),
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
+        topology,
+        vec![
+            HostSpec::batman(NODE_A),
+            HostSpec::batman(NODE_B),
+            HostSpec::field(NODE_C),
+            HostSpec::field(NODE_D),
+        ],
+        vec![
+            BoundObjective::new(NODE_A, connected_objective(NODE_B)),
+            BoundObjective::new(NODE_C, default_objective(NODE_D)),
+        ],
+        5,
+    );
+    (scenario, ScriptedEnvironmentModel::default())
+}
+
+#[must_use]
+pub fn composition_cascade_partition_eliminates_route(
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = dual_pair_topology(
+        topology::node(1).batman().build(),
+        topology::node(2).batman().build(),
+        topology::node(3).field().build(),
+        topology::node(4).field().build(),
+    );
+    let scenario = JacquardScenario::new(
+        "composition-cascade-partition-eliminates-route",
+        jacquard_core::SimulationSeed(35),
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
+        topology,
+        vec![
+            HostSpec::batman(NODE_A),
+            HostSpec::batman(NODE_B),
+            HostSpec::field(NODE_C),
+            HostSpec::field(NODE_D),
+        ],
+        vec![
+            BoundObjective::new(NODE_A, connected_objective(NODE_B)),
+            BoundObjective::new(NODE_C, default_objective(NODE_D)),
+        ],
+        6,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![ScheduledEnvironmentHook::new(
+        Tick(4),
+        EnvironmentHook::CascadePartition {
+            cuts: vec![(NODE_A, NODE_B), (NODE_C, NODE_D)],
+        },
+    )]);
+    (scenario, environment)
+}
+
+#[must_use]
+pub fn batman_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)> {
+    let topology = bidirectional_line_topology(
+        topology::node(1).batman().build(),
+        topology::node(2).batman().build(),
+        topology::node(3).batman().build(),
+    );
+    let slow = JacquardScenario::new(
+        "batman-decay-slow",
+        jacquard_core::SimulationSeed(41),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        vec![
+            HostSpec::batman(NODE_A)
+                .with_batman_decay_window(jacquard_batman::DecayWindow::new(8, 4)),
+            HostSpec::batman(NODE_B)
+                .with_batman_decay_window(jacquard_batman::DecayWindow::new(8, 4)),
+            HostSpec::batman(NODE_C)
+                .with_batman_decay_window(jacquard_batman::DecayWindow::new(8, 4)),
+        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(6)],
+        36,
+    );
+    let fast = JacquardScenario::new(
+        "batman-decay-fast",
+        jacquard_core::SimulationSeed(42),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        vec![
+            HostSpec::batman(NODE_A)
+                .with_batman_decay_window(jacquard_batman::DecayWindow::new(1, 1)),
+            HostSpec::batman(NODE_B)
+                .with_batman_decay_window(jacquard_batman::DecayWindow::new(1, 1)),
+            HostSpec::batman(NODE_C)
+                .with_batman_decay_window(jacquard_batman::DecayWindow::new(1, 1)),
+        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(6)],
+        36,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(14),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(26),
+            EnvironmentHook::ReplaceTopology {
+                configuration: topology.value.clone(),
+            },
+        ),
+    ]);
+    vec![(slow, environment.clone()), (fast, environment)]
+}
+
+#[must_use]
+pub fn profile_driven_engine_selection() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)> {
+    let topology = bidirectional_line_topology(
+        topology::node(1).field_and_batman().build(),
+        topology::node(2).field_and_batman().build(),
+        topology::node(3).field_and_batman().build(),
+    );
+    let connected = JacquardScenario::new(
+        "profile-driven-engine-selection-connected",
+        jacquard_core::SimulationSeed(43),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        vec![
+            HostSpec::field_and_batman(NODE_A).with_profile(best_effort_connected_profile()),
+            HostSpec::field_and_batman(NODE_B),
+            HostSpec::field_and_batman(NODE_C),
+        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
+        5,
+    );
+    let partition_tolerant = JacquardScenario::new(
+        "profile-driven-engine-selection-partition",
+        jacquard_core::SimulationSeed(44),
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
+        topology,
+        vec![
+            HostSpec::field_and_batman(NODE_A),
+            HostSpec::field_and_batman(NODE_B),
+            HostSpec::field_and_batman(NODE_C),
+        ],
+        vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
+        5,
+    );
+    vec![
+        (connected, ScriptedEnvironmentModel::default()),
+        (partition_tolerant, ScriptedEnvironmentModel::default()),
+    ]
+}
+
+#[must_use]
+pub fn pathway_search_budget_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)> {
+    let topology = fanout_service_topology(
+        topology::node(1).pathway().build(),
+        topology::node(2).pathway().build(),
+        topology::node(3).pathway().build(),
+    );
+    let low_budget = JacquardScenario::new(
+        "pathway-search-budget-low",
+        jacquard_core::SimulationSeed(45),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        vec![
+            HostSpec::pathway(NODE_A)
+                .with_pathway_search_config(
+                    PathwaySearchConfig::default().with_per_objective_query_budget(1),
+                )
+                .with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C),
+        ],
+        vec![BoundObjective::new(
+            NODE_A,
+            service_objective(ServiceId(vec![9; 16])),
+        )],
+        6,
+    );
+    let high_budget = JacquardScenario::new(
+        "pathway-search-budget-high",
+        jacquard_core::SimulationSeed(46),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        vec![
+            HostSpec::pathway(NODE_A)
+                .with_pathway_search_config(
+                    PathwaySearchConfig::default().with_per_objective_query_budget(2),
+                )
+                .with_profile(best_effort_connected_profile()),
+            HostSpec::pathway(NODE_B),
+            HostSpec::pathway(NODE_C),
+        ],
+        vec![BoundObjective::new(
+            NODE_A,
+            service_objective(ServiceId(vec![9; 16])),
+        )],
+        6,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![ScheduledEnvironmentHook::new(
+        Tick(4),
+        EnvironmentHook::CascadePartition {
+            cuts: vec![(NODE_A, NODE_B), (NODE_B, NODE_A)],
+        },
+    )]);
+    vec![
+        (low_budget, environment.clone()),
+        (high_budget, environment),
+    ]
+}
+
 fn line_topology(
     node_a: jacquard_core::Node,
     node_b: jacquard_core::Node,
@@ -526,5 +928,181 @@ fn line_topology(
         evidence_class: RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
         observed_at_tick: Tick(2),
+    }
+}
+
+fn fanout_service_topology(
+    node_a: jacquard_core::Node,
+    node_b: jacquard_core::Node,
+    node_c: jacquard_core::Node,
+) -> Observation<Configuration> {
+    Observation {
+        value: Configuration {
+            epoch: RouteEpoch(1),
+            nodes: BTreeMap::from([(NODE_A, node_a), (NODE_B, node_b), (NODE_C, node_c)]),
+            links: BTreeMap::from([
+                ((NODE_A, NODE_B), topology::link(2).build()),
+                ((NODE_B, NODE_A), topology::link(1).build()),
+                ((NODE_A, NODE_C), topology::link(3).build()),
+                ((NODE_C, NODE_A), topology::link(1).build()),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 2,
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
+            },
+        },
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication: OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(2),
+    }
+}
+
+fn bidirectional_line_topology(
+    node_a: jacquard_core::Node,
+    node_b: jacquard_core::Node,
+    node_c: jacquard_core::Node,
+) -> Observation<Configuration> {
+    Observation {
+        value: Configuration {
+            epoch: RouteEpoch(1),
+            nodes: BTreeMap::from([(NODE_A, node_a), (NODE_B, node_b), (NODE_C, node_c)]),
+            links: BTreeMap::from([
+                ((NODE_A, NODE_B), topology::link(2).build()),
+                ((NODE_B, NODE_A), topology::link(1).build()),
+                ((NODE_B, NODE_C), topology::link(3).build()),
+                ((NODE_C, NODE_B), topology::link(2).build()),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 2,
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
+            },
+        },
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication: OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(2),
+    }
+}
+
+fn dual_pair_topology(
+    node_a: jacquard_core::Node,
+    node_b: jacquard_core::Node,
+    node_c: jacquard_core::Node,
+    node_d: jacquard_core::Node,
+) -> Observation<Configuration> {
+    Observation {
+        value: Configuration {
+            epoch: RouteEpoch(1),
+            nodes: BTreeMap::from([
+                (NODE_A, node_a),
+                (NODE_B, node_b),
+                (NODE_C, node_c),
+                (NODE_D, node_d),
+            ]),
+            links: BTreeMap::from([
+                ((NODE_A, NODE_B), topology::link(2).build()),
+                ((NODE_B, NODE_A), topology::link(1).build()),
+                ((NODE_C, NODE_D), topology::link(4).build()),
+                ((NODE_D, NODE_C), topology::link(3).build()),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 2,
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
+            },
+        },
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication: OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(2),
+    }
+}
+
+fn ring_topology(
+    node_a: jacquard_core::Node,
+    node_b: jacquard_core::Node,
+    node_c: jacquard_core::Node,
+    node_d: jacquard_core::Node,
+) -> Observation<Configuration> {
+    Observation {
+        value: Configuration {
+            epoch: RouteEpoch(1),
+            nodes: BTreeMap::from([
+                (NODE_A, node_a),
+                (NODE_B, node_b),
+                (NODE_C, node_c),
+                (NODE_D, node_d),
+            ]),
+            links: BTreeMap::from([
+                ((NODE_A, NODE_B), topology::link(2).build()),
+                ((NODE_B, NODE_A), topology::link(1).build()),
+                ((NODE_B, NODE_C), topology::link(3).build()),
+                ((NODE_C, NODE_B), topology::link(2).build()),
+                ((NODE_C, NODE_D), topology::link(4).build()),
+                ((NODE_D, NODE_C), topology::link(3).build()),
+                ((NODE_D, NODE_A), topology::link(1).build()),
+                ((NODE_A, NODE_D), topology::link(4).build()),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 2,
+                churn_permille: RatioPermille(0),
+                contention_permille: RatioPermille(0),
+            },
+        },
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication: OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(2),
+    }
+}
+
+fn connected_objective(destination: jacquard_core::NodeId) -> RoutingObjective {
+    RoutingObjective {
+        destination: DestinationId::Node(destination),
+        service_kind: RouteServiceKind::Move,
+        target_protection: RouteProtectionClass::LinkProtected,
+        protection_floor: RouteProtectionClass::LinkProtected,
+        target_connectivity: ConnectivityPosture {
+            repair: RouteRepairClass::BestEffort,
+            partition: RoutePartitionClass::ConnectedOnly,
+        },
+        hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
+        latency_budget_ms: jacquard_core::Limit::Bounded(DurationMs(250)),
+        protection_priority: PriorityPoints(10),
+        connectivity_priority: PriorityPoints(20),
+    }
+}
+
+fn service_objective(service_id: ServiceId) -> RoutingObjective {
+    RoutingObjective {
+        destination: DestinationId::Service(service_id),
+        service_kind: RouteServiceKind::Move,
+        target_protection: RouteProtectionClass::LinkProtected,
+        protection_floor: RouteProtectionClass::LinkProtected,
+        target_connectivity: ConnectivityPosture {
+            repair: RouteRepairClass::Repairable,
+            partition: RoutePartitionClass::ConnectedOnly,
+        },
+        hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
+        latency_budget_ms: jacquard_core::Limit::Bounded(DurationMs(250)),
+        protection_priority: PriorityPoints(10),
+        connectivity_priority: PriorityPoints(20),
+    }
+}
+
+fn best_effort_connected_profile() -> jacquard_core::SelectedRoutingParameters {
+    jacquard_core::SelectedRoutingParameters {
+        selected_protection: jacquard_core::RouteProtectionClass::LinkProtected,
+        selected_connectivity: jacquard_core::ConnectivityPosture {
+            repair: jacquard_core::RouteRepairClass::BestEffort,
+            partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
+        },
+        deployment_profile: jacquard_core::OperatingMode::DenseInteractive,
+        diversity_floor: jacquard_core::DiversityFloor(1),
+        routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+        route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
     }
 }

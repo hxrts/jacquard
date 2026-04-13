@@ -29,8 +29,9 @@ use jacquard_core::{
     RouteProtectionClass, RouteRepairClass, RouteShapeVisibility, RoutingEngineCapabilities,
     RoutingEngineId,
 };
+pub use public_state::DecayWindow;
 use public_state::{
-    ActiveBatmanRoute, BestNextHop, DecayWindow, NeighborRanking, OriginatorObservationTable,
+    ActiveBatmanRoute, BestNextHop, NeighborRanking, OgmReceiveWindow, OriginatorObservationTable,
 };
 
 pub const BATMAN_ENGINE_ID: RoutingEngineId =
@@ -58,6 +59,8 @@ pub struct BatmanEngine<Transport, Effects> {
     latest_topology: Option<Observation<Configuration>>,
     decay_window: DecayWindow,
     learned_advertisements: BTreeMap<NodeId, LearnedAdvertisement>,
+    originator_receive_windows: BTreeMap<NodeId, BTreeMap<NodeId, OgmReceiveWindow>>,
+    bidirectional_receive_windows: BTreeMap<NodeId, OgmReceiveWindow>,
     originator_observations: OriginatorObservationTable,
     neighbor_rankings: BTreeMap<NodeId, NeighborRanking>,
     best_next_hops: BTreeMap<NodeId, BestNextHop>,
@@ -71,7 +74,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
     }
 
     #[must_use]
-    pub(crate) fn with_decay_window(
+    pub fn with_decay_window(
         local_node_id: NodeId,
         transport: Transport,
         effects: Effects,
@@ -84,6 +87,8 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
             latest_topology: None,
             decay_window,
             learned_advertisements: BTreeMap::new(),
+            originator_receive_windows: BTreeMap::new(),
+            bidirectional_receive_windows: BTreeMap::new(),
             originator_observations: BTreeMap::new(),
             neighbor_rankings: BTreeMap::new(),
             best_next_hops: BTreeMap::new(),

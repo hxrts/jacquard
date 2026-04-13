@@ -107,8 +107,16 @@ fn sample_topology() -> Observation<Configuration> {
                     LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1))).build(),
                 ),
                 (
+                    (node(2), node(1)),
+                    LinkPreset::active(LinkPresetOptions::new(endpoint(1), Tick(1))).build(),
+                ),
+                (
                     (node(2), node(4)),
                     LinkPreset::active(LinkPresetOptions::new(endpoint(4), Tick(1))).build(),
+                ),
+                (
+                    (node(4), node(2)),
+                    LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1))).build(),
                 ),
                 (
                     (node(1), node(3)),
@@ -119,9 +127,25 @@ fn sample_topology() -> Observation<Configuration> {
                     .build(),
                 ),
                 (
+                    (node(3), node(1)),
+                    LinkPreset::lossy(
+                        LinkPresetOptions::new(endpoint(1), Tick(1))
+                            .with_confidence(RatioPermille(650)),
+                    )
+                    .build(),
+                ),
+                (
                     (node(3), node(4)),
                     LinkPreset::lossy(
                         LinkPresetOptions::new(endpoint(4), Tick(1))
+                            .with_confidence(RatioPermille(600)),
+                    )
+                    .build(),
+                ),
+                (
+                    (node(4), node(3)),
+                    LinkPreset::lossy(
+                        LinkPresetOptions::new(endpoint(3), Tick(1))
                             .with_confidence(RatioPermille(600)),
                     )
                     .build(),

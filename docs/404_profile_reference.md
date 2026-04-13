@@ -15,13 +15,13 @@ Profile crates are `Observed`. They model capability advertisement, transport ca
 | `jacquard-adapter` | `TransportIngressSender`, `TransportIngressReceiver`, `TransportIngressNotifier`, `TransportIngressDrain`, `PeerDirectory`, `PendingClaims`, `ClaimGuard` | none — it provides transport-neutral adapter support primitives over `jacquard-core` vocabulary |
 | `jacquard-mem-node-profile` | `SimulatedNodeProfile`, `NodeStateSnapshot`, `SimulatedServiceDescriptor` builders | none — it only emits `jacquard-core` model values |
 | `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportSenderEffects`, `TransportDriver`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
-| `jacquard-reference-client` | `topology::{node, link}`, `ClientBuilder`, `HostBridge`, `PathwayRouter`/`PathwayClient` aliases | none — it is pure composition over the crates above |
+| `jacquard-reference-client` | `topology::{node, link}`, `ClientBuilder`, `HostBridge`, `ReferenceRouter`/`ReferenceClient` aliases | none — it is pure composition over the crates above |
 
 The `mem-*` crates stay routing-engine-neutral and transport-neutral: they carry frames, emit observations, and build shared model values, but they do not mint route truth, interpret routing policy, or own BLE/IP-specific authoring helpers. `jacquard-adapter` likewise stays transport-neutral: it owns generic ownership scaffolding only, not endpoint constructors, protocol state, or driver traits. Reference-client fixtures are the single place where a service descriptor picks up the `PATHWAY_ENGINE_ID` routing-engine tag, because that decision is composition, not profile. The reference-client bridge is also the only sanctioned place where transport ingress is drained and stamped before delivery to the router.
 
 ## Composition
 
-`ClientBuilder` is the wiring entry point. It attaches one bridge-owned `InMemoryTransport` driver to a `SharedInMemoryNetwork`, constructs queue-backed sender capabilities for pathway (and optionally batman), plugs those into a `PathwayEngine` over a `DeterministicPathwayTopologyModel`, registers the engine set on a fresh `MultiEngineRouter`, and returns a `PathwayClient` host bridge. Multiple clients built against the same network share one deterministic carrier while still advancing routing state through explicit bridge rounds.
+`ClientBuilder` is the wiring entry point. It attaches one bridge-owned `InMemoryTransport` driver to a `SharedInMemoryNetwork`, constructs queue-backed sender capabilities for pathway (and optionally batman), plugs those into a `PathwayEngine` over a `DeterministicPathwayTopologyModel`, registers the engine set on a fresh `MultiEngineRouter`, and returns a `ReferenceClient` host bridge. Multiple clients built against the same network share one deterministic carrier while still advancing routing state through explicit bridge rounds.
 
 ```mermaid
 graph LR

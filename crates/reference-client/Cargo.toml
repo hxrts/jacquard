@@ -16,6 +16,7 @@ workspace = true
 jacquard-adapter = { path = "../adapter", version = "0.4.0" }
 jacquard-batman = { path = "../batman", version = "0.4.0" }
 jacquard-core = { path = "../core", version = "0.4.0" }
+jacquard-field = { path = "../field", version = "0.4.0" }
 jacquard-mem-link-profile = { path = "../mem-link-profile", version = "0.4.0" }
 jacquard-mem-node-profile = { path = "../mem-node-profile", version = "0.4.0" }
 jacquard-pathway = { path = "../pathway", version = "0.4.0" }

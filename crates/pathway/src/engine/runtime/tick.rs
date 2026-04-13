@@ -63,7 +63,7 @@ where
         &self,
         route: &MaterializedRoute,
     ) -> Vec<RouteCommitment> {
-        let resolution = if route.identity.lease.is_valid_at(self.effects.now_tick()) {
+        let resolution = if route.identity.lease.is_valid_at(self.current_tick()) {
             RouteCommitmentResolution::Pending
         } else {
             RouteCommitmentResolution::Invalidated(RouteInvalidationReason::LeaseExpired)

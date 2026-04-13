@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
-use jacquard_core::{NodeId, Observation, RouteEvent, RouteEventStamped, RouterRoundOutcome, Tick};
+use jacquard_core::{
+    DestinationId, HealthScore, NodeId, Observation, ReachabilityState, RouteEvent,
+    RouteEventStamped, RouteId, RouteLifecycleEvent, RouterRoundOutcome, RoutingEngineId, Tick,
+};
 use jacquard_mem_link_profile::InMemoryRuntimeEffects;
 
 use crate::{
@@ -29,6 +32,18 @@ pub struct HostRoundArtifact {
     pub local_node_id: NodeId,
     pub ingress_batch_boundary: IngressBatchBoundary,
     pub status: HostRoundStatus,
+    pub active_routes: Vec<ActiveRouteSummary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActiveRouteSummary {
+    pub owner_node_id: NodeId,
+    pub route_id: RouteId,
+    pub destination: DestinationId,
+    pub engine_id: RoutingEngineId,
+    pub last_lifecycle_event: RouteLifecycleEvent,
+    pub reachability_state: ReachabilityState,
+    pub stability_score: HealthScore,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

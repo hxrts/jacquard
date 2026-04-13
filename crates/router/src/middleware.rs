@@ -206,6 +206,13 @@ where
         self.active_routes.len()
     }
 
+    #[must_use]
+    pub fn active_routes_snapshot(&self) -> Vec<MaterializedRoute> {
+        let mut routes = self.active_routes.values().cloned().collect::<Vec<_>>();
+        routes.sort_by_key(|route| route.identity.stamp.route_id);
+        routes
+    }
+
     fn current_policy_inputs(&self) -> RoutingPolicyInputs {
         let mut inputs = self.policy_inputs.clone();
         inputs.routing_engine_count =
@@ -398,7 +405,7 @@ where
                     .candidate_routes(objective, profile, &self.topology)
             })
             .collect::<Vec<_>>();
-        candidates.sort_by_key(candidate_ordering_key);
+        candidates.sort_by_key(|candidate| candidate_ordering_key(candidate, profile));
         candidates
     }
 
@@ -760,6 +767,9 @@ fn publication_id(order: OrderStamp) -> PublicationId {
 }
 
 type CandidateOrderingKey = (
+    Reverse<bool>,
+    Reverse<bool>,
+    Reverse<bool>,
     Reverse<RouteProtectionClass>,
     Reverse<RouteRepairClass>,
     Reverse<RoutePartitionClass>,
@@ -770,8 +780,16 @@ type CandidateOrderingKey = (
     Vec<u8>,
 );
 
-fn candidate_ordering_key(candidate: &RouteCandidate) -> CandidateOrderingKey {
+fn candidate_ordering_key(
+    candidate: &RouteCandidate,
+    profile: &SelectedRoutingParameters,
+) -> CandidateOrderingKey {
     (
+        Reverse(candidate.summary.protection == profile.selected_protection),
+        Reverse(candidate.summary.connectivity.repair == profile.selected_connectivity.repair),
+        Reverse(
+            candidate.summary.connectivity.partition == profile.selected_connectivity.partition,
+        ),
         Reverse(candidate.summary.protection),
         Reverse(candidate.summary.connectivity.repair),
         Reverse(candidate.summary.connectivity.partition),

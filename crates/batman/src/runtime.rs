@@ -101,13 +101,25 @@ where
         Ok(())
     }
 
-    fn ingest_advertisement(&mut self, payload: &[u8], observed_at_tick: Tick) {
+    fn ingest_advertisement(
+        &mut self,
+        from_node_id: NodeId,
+        payload: &[u8],
+        observed_at_tick: Tick,
+    ) {
         let Some(advertisement) = decode_advertisement(payload) else {
             return;
         };
         if advertisement.originator == self.local_node_id {
+            self.observe_bidirectional_ogm(from_node_id, advertisement.sequence, observed_at_tick);
             return;
         }
+        self.observe_originator_ogm(
+            advertisement.originator,
+            from_node_id,
+            advertisement.sequence,
+            observed_at_tick,
+        );
 
         let Some(is_newer) = self
             .learned_advertisements
@@ -216,10 +228,17 @@ where
                 outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
             });
         };
+        if !best.is_bidirectional {
+            return Ok(RouteMaintenanceResult {
+                event: RouteLifecycleEvent::Expired,
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
+            });
+        }
         let (stability_score, congestion_penalty_points) = health_scores_from_tq(best.tq);
         runtime.health.last_validated_at_tick = self.effects.now_tick();
         runtime.health.stability_score = stability_score;
         runtime.health.congestion_penalty_points = congestion_penalty_points;
+        runtime.health.reachability_state = ReachabilityState::Reachable;
         if best.next_hop != active_route.next_hop {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Replaced,
@@ -253,12 +272,13 @@ where
         observation: &TransportObservation,
     ) -> Result<(), RouteError> {
         if let TransportObservation::PayloadReceived {
+            from_node_id,
             payload,
             observed_at_tick,
             ..
         } = observation
         {
-            self.ingest_advertisement(payload, *observed_at_tick);
+            self.ingest_advertisement(*from_node_id, payload, *observed_at_tick);
         }
         Ok(())
     }
@@ -354,9 +374,13 @@ mod tests {
                 ]),
                 links: BTreeMap::from([
                     ((node(1), node(2)), link(2, 960, 950, 5)),
+                    ((node(2), node(1)), link(1, 960, 950, 5)),
                     ((node(2), node(4)), link(4, 940, 930, 10)),
+                    ((node(4), node(2)), link(2, 940, 930, 10)),
                     ((node(1), node(3)), link(3, 910, 900, 20)),
+                    ((node(3), node(1)), link(1, 910, 900, 20)),
                     ((node(3), node(4)), link(4, 800, 790, 80)),
+                    ((node(4), node(3)), link(3, 800, 790, 80)),
                 ]),
                 environment: Environment {
                     reachable_neighbor_count: 2,

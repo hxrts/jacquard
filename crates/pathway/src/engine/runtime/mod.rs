@@ -110,7 +110,7 @@ where
         runtime: &mut jacquard_core::RouteRuntimeState,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
-        let now = self.effects.now_tick();
+        let now = self.current_tick();
         let handoff_receipt_id = self.receipt_id_for_route(&identity.stamp.route_id);
         if !identity.lease.is_valid_at(now) {
             return self.expired_lease_result(identity, runtime);

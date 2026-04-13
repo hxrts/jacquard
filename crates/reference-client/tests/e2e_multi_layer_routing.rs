@@ -30,8 +30,8 @@ use jacquard_core::{
 };
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
-    topology, BoundHostBridge, BridgeRoundProgress, ClientBuilder, PathwayClient, PathwayRouter,
-    SharedInMemoryNetwork,
+    topology, BoundHostBridge, BridgeRoundProgress, ClientBuilder, ReferenceClient,
+    ReferenceRouter, SharedInMemoryNetwork,
 };
 use jacquard_traits::{Router, RoutingDataPlane};
 
@@ -94,15 +94,15 @@ fn sample_configuration() -> Observation<Configuration> {
     }
 }
 
-/// Three-node mixed-engine topology. A and B are dual-engine (batman plus
-/// pathway). C is pathway-only. Links are A-B and B-C, so B is the hinge where
-/// the batman leg hands off to the pathway leg.
+/// Three-node mixed-engine topology. A is BATMAN-only, B is dual-engine
+/// (batman plus pathway), and C is pathway-only. Links are A-B and B-C, so B
+/// is the hinge where the BATMAN leg hands off to the Pathway leg.
 fn mixed_engine_configuration() -> Observation<Configuration> {
     Observation {
         value: Configuration {
             epoch: jacquard_core::RouteEpoch(3),
             nodes: BTreeMap::from([
-                (NODE_A, topology::node(1).pathway_and_batman().build()),
+                (NODE_A, topology::node(1).batman().build()),
                 (NODE_B, topology::node(2).pathway_and_batman().build()),
                 (
                     NODE_C,
@@ -117,8 +117,20 @@ fn mixed_engine_configuration() -> Observation<Configuration> {
                         .build(),
                 ),
                 (
+                    (NODE_B, NODE_A),
+                    topology::link(1)
+                        .with_confidence(RatioPermille(940))
+                        .build(),
+                ),
+                (
                     (NODE_B, NODE_C),
                     topology::link(3)
+                        .with_confidence(RatioPermille(910))
+                        .build(),
+                ),
+                (
+                    (NODE_C, NODE_B),
+                    topology::link(2)
                         .with_confidence(RatioPermille(910))
                         .build(),
                 ),
@@ -133,6 +145,23 @@ fn mixed_engine_configuration() -> Observation<Configuration> {
         evidence_class: RoutingEvidenceClass::DirectObservation,
         origin_authentication: OriginAuthenticationClass::Controlled,
         observed_at_tick: Tick(2),
+    }
+}
+
+fn connected_objective(destination: DestinationId) -> RoutingObjective {
+    RoutingObjective {
+        destination,
+        service_kind: RouteServiceKind::Move,
+        target_protection: RouteProtectionClass::LinkProtected,
+        protection_floor: RouteProtectionClass::LinkProtected,
+        target_connectivity: ConnectivityPosture {
+            repair: RouteRepairClass::BestEffort,
+            partition: RoutePartitionClass::ConnectedOnly,
+        },
+        hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
+        latency_budget_ms: jacquard_core::Limit::Bounded(DurationMs(250)),
+        protection_priority: PriorityPoints(10),
+        connectivity_priority: PriorityPoints(20),
     }
 }
 
@@ -181,7 +210,7 @@ fn relay_profile() -> SelectedRoutingParameters {
 fn client_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
-) -> (PathwayClient, PathwayClient, PathwayClient) {
+) -> (ReferenceClient, ReferenceClient, ReferenceClient) {
     let client_a =
         ClientBuilder::pathway(NODE_A, topology.clone(), network.clone(), Tick(2)).build();
     let client_b = ClientBuilder::pathway(NODE_B, topology.clone(), network.clone(), Tick(2))
@@ -191,22 +220,20 @@ fn client_triplet(
     (client_a, client_b, client_c)
 }
 
-/// Build three dual-engine clients (batman + pathway) attached to one shared
-/// network. The receiving client bridges will expose the stamped ingress
-/// observations for assertion after each host-driven round.
+/// Build a mixed client triplet attached to one shared network. A is BATMAN
+/// only, B is dual-engine for the handoff point, and C is pathway-only.
 fn mixed_engine_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
-) -> (PathwayClient, PathwayClient, PathwayClient) {
-    let client_a =
-        ClientBuilder::pathway_and_batman(NODE_A, topology.clone(), network.clone(), Tick(2))
-            .build();
+) -> (ReferenceClient, ReferenceClient, ReferenceClient) {
+    let client_a = ClientBuilder::batman(NODE_A, topology.clone(), network.clone(), Tick(2))
+        .with_profile(relay_profile())
+        .build();
     let client_b =
         ClientBuilder::pathway_and_batman(NODE_B, topology.clone(), network.clone(), Tick(2))
             .with_profile(relay_profile())
             .build();
-    let client_c =
-        ClientBuilder::pathway_and_batman(NODE_C, topology.clone(), network, Tick(2)).build();
+    let client_c = ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2)).build();
 
     (client_a, client_b, client_c)
 }
@@ -217,7 +244,7 @@ fn mixed_engine_triplet(
 /// expected topology epoch, a private-state update, and a one-tick scheduling
 /// hint. Used to confirm a pathway forward landed.
 fn assert_tick_after_forward(
-    receiver: &mut BoundHostBridge<'_, PathwayRouter>,
+    receiver: &mut BoundHostBridge<'_, ReferenceRouter>,
     expected_epoch: jacquard_core::RouteEpoch,
     tick_context: &str,
 ) {
@@ -241,7 +268,7 @@ fn assert_tick_after_forward(
 /// Advance the receiver bridge once, assert at least one `PayloadReceived`
 /// observation, and return the first payload bytes.
 fn advance_and_capture_payload(
-    receiver: &mut BoundHostBridge<'_, PathwayRouter>,
+    receiver: &mut BoundHostBridge<'_, ReferenceRouter>,
     expected_epoch: jacquard_core::RouteEpoch,
     context: &str,
 ) -> Vec<u8> {
@@ -270,7 +297,7 @@ fn advance_and_capture_payload(
 
 /// Advance the sender bridge once and assert that it flushed at least one
 /// queued transport command after the synchronous router round.
-fn flush_sender_round(sender: &mut BoundHostBridge<'_, PathwayRouter>, context: &str) {
+fn flush_sender_round(sender: &mut BoundHostBridge<'_, ReferenceRouter>, context: &str) {
     let BridgeRoundProgress::Advanced(report) = sender.advance_round().expect(context) else {
         panic!("expected a bridge-driven round with outbound flush")
     };
@@ -345,8 +372,8 @@ fn pathway_forwarding_across_shared_network() {
 // sequence.
 #[test]
 fn routing_spans_batman_then_pathway() {
-    // 1. World. A three-node topology where A and B run both batman and pathway
-    //    engines, and C is pathway-only.
+    // 1. World. A three-node topology where A is BATMAN-only, B can hand off
+    //    from BATMAN to Pathway, and C is pathway-only.
     let topology = mixed_engine_configuration();
     let network = SharedInMemoryNetwork::default();
 
@@ -358,21 +385,22 @@ fn routing_spans_batman_then_pathway() {
     let mut client_b = client_b.bind();
     let mut client_c = client_c.bind();
 
-    // 3. Activation. A requests a route to B. The router picks batman because
-    //    batman holds next-hop data for that overlay. B requests a route to C. The
-    //    router picks pathway for that one.
-    let route_a_to_b = Router::activate_route(
-        client_a.router_mut(),
-        objective(DestinationId::Node(NODE_B)),
-    )
-    .expect("client A batman route activation");
     let route_b_to_c = Router::activate_route(
         client_b.router_mut(),
         objective(DestinationId::Node(NODE_C)),
     )
     .expect("client B pathway route activation");
 
-    // 4. Engine check. Verify that the router actually picked the expected engine
+    // 3. Activation. A requests a route to B. The router picks BATMAN because
+    //    BATMAN's direct-neighbor route is admissible on this connected-only
+    //    objective. B's route to C stays on pathway.
+    let route_a_to_b = Router::activate_route(
+        client_a.router_mut(),
+        connected_objective(DestinationId::Node(NODE_B)),
+    )
+    .expect("client A batman route activation");
+
+    // 5. Engine check. Verify that the router actually picked the expected engine
     //    per objective rather than silently falling back.
     assert_eq!(
         route_a_to_b.identity.admission.summary.engine,
@@ -383,7 +411,7 @@ fn routing_spans_batman_then_pathway() {
         PATHWAY_ENGINE_ID
     );
 
-    // 5. Hop one, batman. A forwards the raw payload and B's bridge delivers the
+    // 6. Hop one, batman. A forwards the raw payload and B's bridge delivers the
     //    stamped ingress observation verbatim because batman relays bytes as-is on
     //    this carrier.
     let payload = b"dual-engine-hop";
@@ -396,7 +424,7 @@ fn routing_spans_batman_then_pathway() {
         advance_and_capture_payload(&mut client_b, topology.value.epoch, "client B bridge round");
     assert_eq!(received_by_b, payload);
 
-    // 6. Hop two, pathway. B re-forwards the payload. Pathway hex-encodes payloads
+    // 7. Hop two, pathway. B re-forwards the payload. Pathway hex-encodes payloads
     //    on this carrier, so C observes the hex form instead of the raw bytes.
     client_b
         .router_mut()
@@ -407,7 +435,7 @@ fn routing_spans_batman_then_pathway() {
         advance_and_capture_payload(&mut client_c, topology.value.epoch, "client C bridge round");
     assert_eq!(received_by_c, hex_bytes(payload).into_bytes());
 
-    // 7. Epoch check. C's router tick still reports the current topology epoch
+    // 8. Epoch check. C's router tick still reports the current topology epoch
     //    after the dual-engine path has completed, regardless of whether the bridge
     //    reports an idle wait state or a proactive private-state round.
     match client_c.advance_round().expect("client C router round") {

@@ -28,7 +28,7 @@
 use std::sync::{Arc, Mutex};
 
 use jacquard_batman::BatmanEngine;
-use jacquard_core::Tick;
+use jacquard_core::{RoutePartitionClass, Tick};
 use jacquard_field::FieldEngine;
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
@@ -349,8 +349,16 @@ pub(crate) fn build_router_with_pathway_and_batman(
                     topology::link(2).build(),
                 ),
                 (
+                    (super::fixtures::PEER_NODE_ID, LOCAL_NODE_ID),
+                    topology::link(1).build(),
+                ),
+                (
                     (super::fixtures::PEER_NODE_ID, super::fixtures::FAR_NODE_ID),
                     topology::link(3).build(),
+                ),
+                (
+                    (super::fixtures::FAR_NODE_ID, super::fixtures::PEER_NODE_ID),
+                    topology::link(2).build(),
                 ),
                 (
                     (
@@ -372,7 +380,9 @@ pub(crate) fn build_router_with_pathway_and_batman(
         observed_at_tick: now,
     };
     let policy_inputs = sample_policy_inputs(&topology);
-    let policy_engine = FixedPolicyEngine::new(profile());
+    let mut mixed_profile = profile();
+    mixed_profile.selected_connectivity.partition = RoutePartitionClass::ConnectedOnly;
+    let policy_engine = FixedPolicyEngine::new(mixed_profile);
     let network = SharedInMemoryNetwork::default();
     let endpoints = topology.value.nodes[&LOCAL_NODE_ID]
         .profile

@@ -7,16 +7,15 @@
 //! The main entry point is `refresh_private_state`, which runs on each engine
 //! tick and performs three passes:
 //! 1. `derive_originator_observations` — for each remote node visible in the
-//!    topology, compute a per-neighbor TQ score using `scoring::derive_tq` and
-//!    `scoring::tq_product` over the best known path through each direct
-//!    neighbor.
-//! 2. `merge_observations` — merge fresh observations with non-stale prior
-//!    entries so that destinations last seen within
-//!    `decay_window.stale_after_ticks` are retained even when they are
-//!    temporarily absent from the topology.
+//!    topology, combine the local direct-link score with classic
+//!    B.A.T.M.A.N.-style receive-window occupancy for OGMs relayed by each
+//!    direct neighbor.
+//! 2. Bidirectional-link gating — only neighbors that currently satisfy the
+//!    bidirectional-link check may contribute routing observations.
 //! 3. Ranking and best-next-hop derivation — sort each originator's neighbor
-//!    list by TQ descending, hop count ascending, then neighbor id, and extract
-//!    the first entry as the `BestNextHop`.
+//!    list by descending receive-window quality, then descending combined TQ,
+//!    then ascending hop count, then neighbor id, and extract the first entry
+//!    as the `BestNextHop`.
 //!
 //! Also exposes helper methods used by the planner and runtime:
 //! `candidate_for`, `admission_for`, `route_id_for`, `backend_route_id_for`,
@@ -28,17 +27,19 @@ use jacquard_core::{
     AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId, BackendRouteRef,
     Belief, ByteCount, Configuration, ConnectivityRegime, FailureModelClass, Limit, LinkEndpoint,
     LinkRuntimeState, MessageFlowAssumptionClass, NodeDensityClass, NodeId, ObjectiveVsDelivered,
-    Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost, RouteDegradation,
-    RouteError, RouteEstimate, RouteId, RouteSelectionError, RouteSummary, RouteWitness,
-    RoutingTickChange, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick, TimeWindow,
+    Observation, RatioPermille, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost,
+    RouteDegradation, RouteError, RouteEstimate, RouteId, RouteSelectionError, RouteSummary,
+    RouteWitness, RoutingTickChange, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick,
+    TimeWindow,
 };
 
 use crate::{
     gossip::merge_advertisements,
     public_state::{
-        BestNextHop, NeighborRanking, OriginatorObservation, OriginatorObservationTable,
+        BestNextHop, NeighborRanking, OgmReceiveWindow, OriginatorObservation,
+        OriginatorObservationTable,
     },
-    scoring, BatmanEngine, BATMAN_ENGINE_ID,
+    scoring, BatmanEngine, BATMAN_CAPABILITIES, BATMAN_ENGINE_ID,
 };
 
 impl<Transport, Effects> BatmanEngine<Transport, Effects> {
@@ -50,8 +51,19 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
         now: Tick,
     ) -> RoutingTickChange {
         let stale_after_ticks = self.decay_window.stale_after_ticks;
+        let window_span = self.window_span();
         self.learned_advertisements.retain(|_, learned| {
             now.0.saturating_sub(learned.observed_at_tick.0) <= stale_after_ticks
+        });
+        prune_receive_windows(
+            &mut self.originator_receive_windows,
+            now,
+            stale_after_ticks,
+            window_span,
+        );
+        self.bidirectional_receive_windows.retain(|_, window| {
+            window.prune(now, stale_after_ticks, window_span);
+            window.is_live()
         });
         let merged_topology = merge_advertisements(
             topology,
@@ -59,16 +71,18 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
             now,
             stale_after_ticks,
         );
-        let observed = self.derive_originator_observations(&merged_topology, now);
-        let next_observations = self.merge_observations(observed, now);
+        let next_observations = self.derive_originator_observations(&merged_topology, now);
         let next_rankings = next_observations
             .iter()
             .map(|(originator, observations)| {
                 let mut ranked = observations.values().cloned().collect::<Vec<_>>();
                 ranked.sort_by(|left, right| {
                     right
-                        .tq
-                        .cmp(&left.tq)
+                        .receive_quality
+                        .cmp(&left.receive_quality)
+                        .then_with(|| right.tq.cmp(&left.tq))
+                        .then_with(|| right.is_bidirectional.cmp(&left.is_bidirectional))
+                        .then_with(|| right.observed_at_tick.cmp(&left.observed_at_tick))
                         .then_with(|| left.hop_count.cmp(&right.hop_count))
                         .then_with(|| left.via_neighbor.cmp(&right.via_neighbor))
                 });
@@ -91,6 +105,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                             originator: *originator,
                             next_hop: best.via_neighbor,
                             tq: best.tq,
+                            receive_quality: best.receive_quality,
                             hop_count: best.hop_count,
                             updated_at_tick: best.observed_at_tick,
                             transport_kind: best.transport_kind.clone(),
@@ -98,6 +113,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                             backend_route_id: self
                                 .backend_route_id_for(*originator, best.via_neighbor),
                             topology_epoch: merged_topology.value.epoch,
+                            is_bidirectional: best.is_bidirectional,
                         },
                     )
                 })
@@ -118,8 +134,9 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
         }
     }
 
-    // long-block-exception: one pass walks direct neighbors and derives the
-    // per-originator observation table without intermediate ownership hops.
+    // long-block-exception: one pass derives classic BATMAN originator
+    // observations by combining direct-neighbor transport quality, downstream
+    // path quality, and receive-window occupancy in a single auditable loop.
     fn derive_originator_observations(
         &self,
         topology: &Observation<Configuration>,
@@ -137,6 +154,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                 (*neighbor, tq, degradation, protocol)
             })
             .collect::<Vec<_>>();
+        let any_window_state = !self.originator_receive_windows.is_empty();
 
         topology
             .value
@@ -147,12 +165,27 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
             .filter_map(|originator| {
                 let mut per_neighbor = BTreeMap::new();
                 for (neighbor, local_tq, local_degradation, local_protocol) in &direct_neighbors {
-                    let Some((remote_tq, remote_hops)) =
+                    let Some((path_tq, remote_hops)) =
                         self.best_path_from(*neighbor, originator, topology)
                     else {
                         continue;
                     };
-                    let tq = scoring::tq_product(*local_tq, remote_tq);
+                    let is_bidirectional =
+                        self.bidirectional_neighbor_valid(topology, *neighbor, now);
+                    if !is_bidirectional {
+                        continue;
+                    }
+                    let receive_quality = self
+                        .window_quality_for(originator, *neighbor)
+                        .or_else(|| (!any_window_state).then_some(path_tq))
+                        .unwrap_or(RatioPermille(0));
+                    if receive_quality.0 == 0 {
+                        continue;
+                    }
+                    let tq = scoring::tq_product(
+                        scoring::tq_product(*local_tq, path_tq),
+                        receive_quality,
+                    );
                     let degradation = max_degradation(
                         *local_degradation,
                         if tq.0 < scoring::TQ_DEGRADED_BELOW {
@@ -169,10 +202,12 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                             originator,
                             via_neighbor: *neighbor,
                             tq,
+                            receive_quality,
                             hop_count: remote_hops.saturating_add(1),
                             observed_at_tick: now,
                             transport_kind: local_protocol.clone(),
                             degradation,
+                            is_bidirectional,
                         },
                     );
                 }
@@ -181,23 +216,75 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
             .collect()
     }
 
-    fn merge_observations(
+    pub(crate) fn observe_originator_ogm(
+        &mut self,
+        originator: NodeId,
+        via_neighbor: NodeId,
+        sequence: u64,
+        observed_at_tick: Tick,
+    ) {
+        let window_span = self.window_span();
+        self.originator_receive_windows
+            .entry(originator)
+            .or_default()
+            .entry(via_neighbor)
+            .or_default()
+            .observe(sequence, observed_at_tick, window_span);
+    }
+
+    pub(crate) fn observe_bidirectional_ogm(
+        &mut self,
+        neighbor: NodeId,
+        sequence: u64,
+        observed_at_tick: Tick,
+    ) {
+        let window_span = self.window_span();
+        self.bidirectional_receive_windows
+            .entry(neighbor)
+            .or_default()
+            .observe(sequence, observed_at_tick, window_span);
+    }
+
+    pub(crate) fn bidirectional_neighbor_valid(
         &self,
-        mut observed: OriginatorObservationTable,
+        topology: &Observation<Configuration>,
+        neighbor: NodeId,
         now: Tick,
-    ) -> OriginatorObservationTable {
-        for (originator, previous) in &self.originator_observations {
-            let merged = observed.entry(*originator).or_default();
-            for (neighbor, observation) in previous {
-                if !merged.contains_key(neighbor)
-                    && !self.is_stale(observation.observed_at_tick, now)
-                {
-                    merged.insert(*neighbor, observation.clone());
-                }
-            }
+    ) -> bool {
+        if self
+            .bidirectional_receive_windows
+            .get(&neighbor)
+            .is_some_and(|window| self.window_is_live(window, now))
+        {
+            return true;
         }
-        observed.retain(|_, observations| !observations.is_empty());
-        observed
+        topology
+            .value
+            .links
+            .get(&(neighbor, self.local_node_id))
+            .is_some_and(|link| link_is_usable(link.state.state))
+    }
+
+    fn window_quality_for(
+        &self,
+        originator: NodeId,
+        via_neighbor: NodeId,
+    ) -> Option<RatioPermille> {
+        self.originator_receive_windows
+            .get(&originator)
+            .and_then(|by_neighbor| by_neighbor.get(&via_neighbor))
+            .filter(|window| window.is_live())
+            .map(|window| window.occupancy_permille(self.window_span()))
+    }
+
+    fn window_is_live(&self, window: &OgmReceiveWindow, now: Tick) -> bool {
+        let mut clone = window.clone();
+        clone.prune(now, self.decay_window.stale_after_ticks, self.window_span());
+        clone.is_live()
+    }
+
+    fn window_span(&self) -> u64 {
+        self.decay_window.stale_after_ticks.max(1)
     }
 
     fn best_path_from(
@@ -247,7 +334,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
             summary: RouteSummary {
                 engine: BATMAN_ENGINE_ID,
                 protection: objective.target_protection,
-                connectivity: objective.target_connectivity,
+                connectivity: BATMAN_CAPABILITIES.max_connectivity,
                 protocol_mix: vec![best.transport_kind.clone()],
                 hop_count_hint: Belief::certain(best.hop_count, best.updated_at_tick),
                 valid_for: TimeWindow::new(
@@ -263,7 +350,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
             estimate: jacquard_core::Estimate::certain(
                 RouteEstimate {
                     estimated_protection: objective.target_protection,
-                    estimated_connectivity: objective.target_connectivity,
+                    estimated_connectivity: BATMAN_CAPABILITIES.max_connectivity,
                     topology_epoch: best.topology_epoch,
                     degradation: best.degradation,
                 },
@@ -282,12 +369,20 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
         profile: &SelectedRoutingParameters,
         candidate: &RouteCandidate,
     ) -> RouteAdmission {
+        let decision = if profile.selected_connectivity.partition
+            > BATMAN_CAPABILITIES.max_connectivity.partition
+            || profile.selected_connectivity.repair > BATMAN_CAPABILITIES.max_connectivity.repair
+        {
+            AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::BackendUnavailable)
+        } else {
+            AdmissionDecision::Admissible
+        };
         RouteAdmission {
             backend_ref: candidate.backend_ref.clone(),
             objective: objective.clone(),
             profile: profile.clone(),
             admission_check: RouteAdmissionCheck {
-                decision: AdmissionDecision::Admissible,
+                decision,
                 profile: batman_assumptions(),
                 productive_step_bound: Limit::Bounded(1),
                 total_step_bound: Limit::Bounded(1),
@@ -308,7 +403,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                 },
                 connectivity: ObjectiveVsDelivered {
                     objective: objective.target_connectivity,
-                    delivered: objective.target_connectivity,
+                    delivered: BATMAN_CAPABILITIES.max_connectivity,
                 },
                 admission_profile: batman_assumptions(),
                 topology_epoch: candidate.estimate.value.topology_epoch,
@@ -345,10 +440,21 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
             .and_then(|node| node.profile.endpoints.first().cloned())
             .ok_or(RouteSelectionError::NoCandidate.into())
     }
+}
 
-    pub(crate) fn is_stale(&self, observed_at_tick: Tick, now: Tick) -> bool {
-        now.0.saturating_sub(observed_at_tick.0) > self.decay_window.stale_after_ticks
-    }
+fn prune_receive_windows(
+    windows: &mut BTreeMap<NodeId, BTreeMap<NodeId, OgmReceiveWindow>>,
+    now: Tick,
+    stale_after_ticks: u64,
+    window_span: u64,
+) {
+    windows.retain(|_, by_neighbor| {
+        by_neighbor.retain(|_, window| {
+            window.prune(now, stale_after_ticks, window_span);
+            window.is_live()
+        });
+        !by_neighbor.is_empty()
+    });
 }
 
 pub(crate) fn batman_assumptions() -> AdmissionAssumptions {
@@ -472,9 +578,13 @@ mod tests {
                 ]),
                 links: BTreeMap::from([
                     ((node(1), node(2)), link(2, 960, 950, 5)),
+                    ((node(2), node(1)), link(1, 960, 950, 5)),
                     ((node(2), node(4)), link(4, 940, 930, 10)),
+                    ((node(4), node(2)), link(2, 940, 930, 10)),
                     ((node(1), node(3)), link(3, 910, 900, 20)),
+                    ((node(3), node(1)), link(1, 910, 900, 20)),
                     ((node(3), node(4)), link(4, 800, 790, 80)),
+                    ((node(4), node(3)), link(3, 800, 790, 80)),
                 ]),
                 environment: Environment {
                     reachable_neighbor_count: 2,

@@ -1,20 +1,17 @@
 use std::collections::BTreeMap;
 
-use jacquard_batman::BatmanEngine;
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, HealthScore,
-    IdentityAssuranceClass, NodeId, Observation, OperatingMode, PriorityPoints, RatioPermille,
-    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-    RoutingEngineFallbackPolicy, RoutingObjective, RoutingPolicyInputs, SelectedRoutingParameters,
+    Configuration, ConnectivityPosture, DestinationId, DurationMs, NodeId, Observation,
+    PriorityPoints, RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RoutingObjective,
     Tick,
 };
-use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork};
+use jacquard_mem_link_profile::SharedInMemoryNetwork;
 use jacquard_reference_client::{
-    BridgeRoundProgress, BridgeRoundReport, ClientBuilder, HostBridge, PathwayClient, PathwayRouter,
+    BridgeRoundProgress, BridgeRoundReport, ClientBuilder, ReferenceClient, ReferenceRouter,
 };
-use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::{
-    purity, Router, RoutingEnvironmentModel, RoutingReplayView, RoutingScenario, RoutingSimulator,
+    purity, Router, RoutingControlPlane, RoutingEnvironmentModel, RoutingReplayView,
+    RoutingScenario, RoutingSimulator,
 };
 use telltale_simulator::{BatchConfig, SimRng};
 use thiserror::Error;
@@ -22,8 +19,8 @@ use thiserror::Error;
 use crate::{
     environment::ScriptedEnvironmentModel,
     replay::{
-        DriverStatusEvent, HostCheckpointSnapshot, HostRoundArtifact, HostRoundStatus,
-        IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
+        ActiveRouteSummary, DriverStatusEvent, HostCheckpointSnapshot, HostRoundArtifact,
+        HostRoundStatus, IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
         JacquardRoundArtifact, JacquardSimulationStats, SimulationFailureSummary,
         TelltaleNativeArtifactRef,
     },
@@ -47,7 +44,7 @@ pub trait JacquardHostAdapter {
     fn build_hosts(
         &self,
         scenario: &JacquardScenario,
-    ) -> Result<BTreeMap<NodeId, PathwayClient>, SimulationError>;
+    ) -> Result<BTreeMap<NodeId, ReferenceClient>, SimulationError>;
 
     fn validate_result(
         &self,
@@ -63,34 +60,78 @@ pub trait JacquardHostAdapter {
 pub struct ReferenceClientAdapter;
 
 impl JacquardHostAdapter for ReferenceClientAdapter {
+    // long-block-exception: host construction keeps lane selection and override
+    // threading together so simulator scenarios build deterministic mixed-engine
+    // hosts from one auditable adapter path.
     fn build_hosts(
         &self,
         scenario: &JacquardScenario,
-    ) -> Result<BTreeMap<NodeId, PathwayClient>, SimulationError> {
+    ) -> Result<BTreeMap<NodeId, ReferenceClient>, SimulationError> {
         let topology = scenario.initial_configuration().clone();
         let network = SharedInMemoryNetwork::default();
         let mut hosts = BTreeMap::new();
 
         for host in scenario.hosts() {
-            let client = match host.lane {
+            let mut builder = match host.lane {
                 EngineLane::Pathway => ClientBuilder::pathway(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
                     topology.observed_at_tick,
-                )
-                .build(),
+                ),
+                EngineLane::Field => ClientBuilder::field(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
                 EngineLane::PathwayAndBatman => ClientBuilder::pathway_and_batman(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
                     topology.observed_at_tick,
-                )
-                .build(),
-                EngineLane::Batman => {
-                    batman_only_host(host.local_node_id, topology.clone(), network.clone())?
-                }
+                ),
+                EngineLane::PathwayAndField => ClientBuilder::pathway_and_field(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
+                EngineLane::FieldAndBatman => ClientBuilder::field_and_batman(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
+                EngineLane::AllEngines => ClientBuilder::all_engines(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
+                EngineLane::Batman => ClientBuilder::batman(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
             };
+            if let Some(routing_profile) = host.overrides.routing_profile.clone() {
+                builder = builder.with_profile(routing_profile);
+            }
+            if let Some(policy_inputs) = host.overrides.policy_inputs.clone() {
+                builder = builder.with_policy_inputs(policy_inputs);
+            }
+            if let Some(batman_decay_window) = host.overrides.batman_decay_window {
+                builder = builder.with_batman_decay_window(batman_decay_window);
+            }
+            if let Some(pathway_search_config) = host.overrides.pathway_search_config.clone() {
+                builder = builder.with_pathway_search_config(pathway_search_config);
+            }
+            if let Some(field_search_config) = host.overrides.field_search_config.clone() {
+                builder = builder.with_field_search_config(field_search_config);
+            }
+            let client = builder.build();
             hosts.insert(host.local_node_id, client);
         }
 
@@ -194,12 +235,14 @@ where
         let mut all_route_events = Vec::new();
         let mut all_stamped_route_events = Vec::new();
         let mut driver_status_events = Vec::new();
+        let mut failure_summaries = Vec::new();
         let mut rounds = Vec::new();
         let mut checkpoints = Vec::new();
         let mut advanced_round_count = 0u32;
         let mut waiting_round_count = 0u32;
 
-        let mut objectives_activated = resume_from.is_some();
+        let mut activated_objectives =
+            vec![resume_from.is_some(); scenario.bound_objectives().len()];
         let checkpoint_round_offset =
             resume_from.map_or(0, |checkpoint| checkpoint.completed_rounds);
 
@@ -218,7 +261,14 @@ where
                 let mut bound = bridge.bind();
                 bound.replace_shared_topology(topology.clone());
                 let progress = bound.advance_round()?;
-                let artifact = host_artifact(host.local_node_id, at_tick, &progress);
+                maintain_active_routes(
+                    bound.router_mut(),
+                    &topology,
+                    checkpoint_round_offset + round_index,
+                    &mut failure_summaries,
+                );
+                let active_routes = summarize_active_routes(host.local_node_id, bound.router());
+                let artifact = host_artifact(host.local_node_id, at_tick, &progress, active_routes);
                 if matches!(artifact.status, HostRoundStatus::Advanced { .. }) {
                     all_waiting = false;
                     advanced_round_count = advanced_round_count.saturating_add(1);
@@ -248,15 +298,20 @@ where
                 &mut all_stamped_route_events,
             );
 
-            if !objectives_activated {
-                activate_objectives(scenario.bound_objectives(), &mut hosts)?;
+            if activate_ready_objectives(
+                scenario.bound_objectives(),
+                checkpoint_round_offset + round_index,
+                &mut activated_objectives,
+                &mut hosts,
+                &mut failure_summaries,
+            ) {
+                refresh_host_round_routes(&mut host_rounds, &mut hosts);
                 collect_route_events(
                     &mut hosts,
                     &mut route_event_cursors,
                     &mut all_route_events,
                     &mut all_stamped_route_events,
                 );
-                objectives_activated = true;
             }
 
             if let Some(interval) = scenario.checkpoint_interval() {
@@ -289,8 +344,11 @@ where
 
         let total_completed_rounds =
             checkpoint_round_offset.saturating_add(u32::try_from(rounds.len()).unwrap_or(u32::MAX));
-        let failure_summaries =
-            failure_summaries_for(&checkpoints, &route_event_cursors, &driver_status_events);
+        failure_summaries.extend(failure_summaries_for(
+            &checkpoints,
+            &route_event_cursors,
+            &driver_status_events,
+        ));
         let replay = JacquardReplayArtifact {
             scenario: scenario.clone(),
             environment_model: environment.clone(),
@@ -386,6 +444,7 @@ fn host_artifact(
     local_node_id: NodeId,
     at_tick: Tick,
     progress: &BridgeRoundProgress,
+    active_routes: Vec<ActiveRouteSummary>,
 ) -> HostRoundArtifact {
     let ingress_batch_boundary = IngressBatchBoundary {
         observed_at_tick: at_tick,
@@ -407,6 +466,7 @@ fn host_artifact(
         local_node_id,
         ingress_batch_boundary,
         status,
+        active_routes,
     }
 }
 
@@ -420,7 +480,7 @@ fn advanced_status(report: &BridgeRoundReport) -> HostRoundStatus {
 }
 
 fn collect_route_events(
-    hosts: &mut BTreeMap<NodeId, PathwayClient>,
+    hosts: &mut BTreeMap<NodeId, ReferenceClient>,
     cursors: &mut BTreeMap<NodeId, usize>,
     route_events: &mut Vec<jacquard_core::RouteEvent>,
     stamped_route_events: &mut Vec<jacquard_core::RouteEventStamped>,
@@ -437,8 +497,71 @@ fn collect_route_events(
     }
 }
 
+fn summarize_active_routes(
+    owner_node_id: NodeId,
+    router: &ReferenceRouter,
+) -> Vec<ActiveRouteSummary> {
+    router
+        .active_routes_snapshot()
+        .into_iter()
+        .map(|route| ActiveRouteSummary {
+            owner_node_id,
+            route_id: route.identity.stamp.route_id,
+            destination: route.identity.admission.objective.destination,
+            engine_id: route.identity.admission.summary.engine,
+            last_lifecycle_event: route.runtime.last_lifecycle_event,
+            reachability_state: route.runtime.health.reachability_state,
+            stability_score: route.runtime.health.stability_score,
+        })
+        .collect()
+}
+
+fn refresh_host_round_routes(
+    host_rounds: &mut [HostRoundArtifact],
+    hosts: &mut BTreeMap<NodeId, ReferenceClient>,
+) {
+    for artifact in host_rounds {
+        let Some(host) = hosts.get_mut(&artifact.local_node_id) else {
+            continue;
+        };
+        let bound = host.bind();
+        artifact.active_routes = summarize_active_routes(artifact.local_node_id, bound.router());
+    }
+}
+
+fn maintain_active_routes(
+    router: &mut ReferenceRouter,
+    topology: &Observation<Configuration>,
+    round_index: u32,
+    failure_summaries: &mut Vec<SimulationFailureSummary>,
+) {
+    let route_ids = router
+        .active_routes_snapshot()
+        .into_iter()
+        .map(|route| {
+            let trigger = if route.identity.stamp.topology_epoch != topology.value.epoch {
+                jacquard_core::RouteMaintenanceTrigger::EpochAdvanced
+            } else {
+                jacquard_core::RouteMaintenanceTrigger::AntiEntropyRequired
+            };
+            (route.identity.stamp.route_id, trigger)
+        })
+        .collect::<Vec<_>>();
+    for (route_id, trigger) in route_ids {
+        if let Err(error) = router.maintain_route(&route_id, trigger) {
+            failure_summaries.push(SimulationFailureSummary {
+                round_index: Some(round_index),
+                detail: format!(
+                    "route maintenance failed for route {:?} with trigger {:?}: {}",
+                    route_id, trigger, error
+                ),
+            });
+        }
+    }
+}
+
 fn capture_host_snapshots(
-    hosts: &mut BTreeMap<NodeId, PathwayClient>,
+    hosts: &mut BTreeMap<NodeId, ReferenceClient>,
 ) -> BTreeMap<NodeId, HostCheckpointSnapshot> {
     hosts
         .iter_mut()
@@ -459,7 +582,7 @@ fn capture_host_snapshots(
 }
 
 fn restore_pathway_hosts(
-    hosts: &mut BTreeMap<NodeId, PathwayClient>,
+    hosts: &mut BTreeMap<NodeId, ReferenceClient>,
     checkpoint: &JacquardCheckpointArtifact,
 ) -> Result<(), SimulationError> {
     for (node_id, snapshot) in &checkpoint.host_snapshots {
@@ -573,97 +696,46 @@ fn stitch_replay_from_checkpoint(
     (stitched, stats)
 }
 
-fn activate_objectives(
+fn activate_ready_objectives(
     objectives: &[BoundObjective],
-    hosts: &mut BTreeMap<NodeId, PathwayClient>,
-) -> Result<(), SimulationError> {
-    for binding in objectives {
-        let bridge = hosts
-            .get_mut(&binding.owner_node_id)
-            .ok_or(SimulationError::MissingBridge(binding.owner_node_id))?;
+    round_index: u32,
+    activated: &mut [bool],
+    hosts: &mut BTreeMap<NodeId, ReferenceClient>,
+    failure_summaries: &mut Vec<SimulationFailureSummary>,
+) -> bool {
+    let mut activated_any = false;
+    for (index, binding) in objectives.iter().enumerate() {
+        if activated.get(index).copied().unwrap_or(true) || round_index < binding.activate_at_round
+        {
+            continue;
+        }
+        let Some(bridge) = hosts.get_mut(&binding.owner_node_id) else {
+            failure_summaries.push(SimulationFailureSummary {
+                round_index: Some(round_index),
+                detail: format!(
+                    "objective activation failed for owner {:?}: missing host bridge",
+                    binding.owner_node_id
+                ),
+            });
+            activated[index] = true;
+            continue;
+        };
         let mut bound = bridge.bind();
-        Router::activate_route(bound.router_mut(), binding.objective.clone())?;
+        if let Err(error) = Router::activate_route(bound.router_mut(), binding.objective.clone()) {
+            failure_summaries.push(SimulationFailureSummary {
+                round_index: Some(round_index),
+                detail: format!(
+                    "objective activation failed for owner {:?} destination {:?}: {}",
+                    binding.owner_node_id, binding.objective.destination, error
+                ),
+            });
+            activated[index] = true;
+            continue;
+        }
+        activated[index] = true;
+        activated_any = true;
     }
-    Ok(())
-}
-
-fn batman_only_host(
-    local_node_id: NodeId,
-    topology: Observation<Configuration>,
-    network: SharedInMemoryNetwork,
-) -> Result<PathwayClient, SimulationError> {
-    let local_endpoint = topology.value.nodes[&local_node_id]
-        .profile
-        .endpoints
-        .first()
-        .cloned()
-        .ok_or(SimulationError::MissingEndpoint(local_node_id))?;
-    let bridge_transport =
-        InMemoryTransport::attach(local_node_id, [local_endpoint.clone()], network.clone());
-    let engine_transport = InMemoryTransport::attach(local_node_id, [local_endpoint], network);
-    let now = topology.observed_at_tick;
-    let mut router: PathwayRouter = MultiEngineRouter::new(
-        local_node_id,
-        FixedPolicyEngine::new(default_profile()),
-        InMemoryRuntimeEffects {
-            now,
-            ..Default::default()
-        },
-        topology.clone(),
-        policy_inputs_for(&topology, local_node_id),
-    );
-    router.register_engine(Box::new(BatmanEngine::new(
-        local_node_id,
-        engine_transport,
-        InMemoryRuntimeEffects {
-            now,
-            ..Default::default()
-        },
-    )))?;
-    Ok(HostBridge::new(topology, router, bridge_transport))
-}
-
-fn default_profile() -> SelectedRoutingParameters {
-    SelectedRoutingParameters {
-        selected_protection: RouteProtectionClass::LinkProtected,
-        selected_connectivity: ConnectivityPosture {
-            repair: RouteRepairClass::Repairable,
-            partition: RoutePartitionClass::PartitionTolerant,
-        },
-        deployment_profile: OperatingMode::FieldPartitionTolerant,
-        diversity_floor: DiversityFloor(1),
-        routing_engine_fallback_policy: RoutingEngineFallbackPolicy::Allowed,
-        route_replacement_policy: RouteReplacementPolicy::Allowed,
-    }
-}
-
-fn policy_inputs_for(
-    topology: &Observation<Configuration>,
-    local_node_id: NodeId,
-) -> RoutingPolicyInputs {
-    RoutingPolicyInputs {
-        local_node: Observation {
-            value: topology.value.nodes[&local_node_id].clone(),
-            source_class: topology.source_class,
-            evidence_class: topology.evidence_class,
-            origin_authentication: topology.origin_authentication,
-            observed_at_tick: topology.observed_at_tick,
-        },
-        local_environment: Observation {
-            value: topology.value.environment.clone(),
-            source_class: topology.source_class,
-            evidence_class: topology.evidence_class,
-            origin_authentication: topology.origin_authentication,
-            observed_at_tick: topology.observed_at_tick,
-        },
-        routing_engine_count: 1,
-        median_rtt_ms: DurationMs(40),
-        loss_permille: RatioPermille(50),
-        partition_risk_permille: RatioPermille(150),
-        adversary_pressure_permille: RatioPermille(25),
-        identity_assurance: IdentityAssuranceClass::ControllerBound,
-        direct_reachability_score: HealthScore(900),
-    }
+    activated_any
 }
 
 pub(crate) fn default_objective(destination: NodeId) -> RoutingObjective {

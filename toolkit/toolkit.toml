@@ -118,6 +118,8 @@ exclude_files = [
   "crates/simulator/src/presets.rs",
   "crates/simulator/src/replay.rs",
   "crates/simulator/src/scenario.rs",
+  "crates/simulator/src/assertions.rs",
+  "crates/simulator/src/reduced_replay.rs",
 ]
 
 [checks.result_must_use]

@@ -260,13 +260,14 @@ where
             next_endpoint,
             &payload,
         )?;
+        let now_tick = self.current_tick();
         active_route
             .anti_entropy
             .retained_objects
             .remove(&object_id);
         active_route.forwarding.in_flight_frames =
             active_route.forwarding.in_flight_frames.saturating_add(1);
-        active_route.forwarding.last_ack_at_tick = Some(self.effects.now_tick());
+        active_route.forwarding.last_ack_at_tick = Some(now_tick);
         Ok(())
     }
 

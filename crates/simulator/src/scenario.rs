@@ -1,19 +1,37 @@
+use jacquard_batman::DecayWindow;
 use jacquard_core::{
-    Configuration, NodeId, Observation, OperatingMode, RoutingObjective, SimulationSeed,
+    Configuration, NodeId, Observation, OperatingMode, RoutingObjective, RoutingPolicyInputs,
+    SelectedRoutingParameters, SimulationSeed,
 };
+use jacquard_field::FieldSearchConfig;
+use jacquard_pathway::PathwaySearchConfig;
 use jacquard_traits::RoutingScenario;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineLane {
     Pathway,
     Batman,
+    Field,
     PathwayAndBatman,
+    PathwayAndField,
+    FieldAndBatman,
+    AllEngines,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostSpec {
     pub local_node_id: NodeId,
     pub lane: EngineLane,
+    pub overrides: HostOverrides,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct HostOverrides {
+    pub routing_profile: Option<SelectedRoutingParameters>,
+    pub policy_inputs: Option<RoutingPolicyInputs>,
+    pub batman_decay_window: Option<DecayWindow>,
+    pub pathway_search_config: Option<PathwaySearchConfig>,
+    pub field_search_config: Option<FieldSearchConfig>,
 }
 
 impl HostSpec {
@@ -22,6 +40,7 @@ impl HostSpec {
         Self {
             local_node_id,
             lane: EngineLane::Pathway,
+            overrides: HostOverrides::default(),
         }
     }
 
@@ -30,6 +49,16 @@ impl HostSpec {
         Self {
             local_node_id,
             lane: EngineLane::Batman,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn field(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::Field,
+            overrides: HostOverrides::default(),
         }
     }
 
@@ -38,7 +67,68 @@ impl HostSpec {
         Self {
             local_node_id,
             lane: EngineLane::PathwayAndBatman,
+            overrides: HostOverrides::default(),
         }
+    }
+
+    #[must_use]
+    pub fn pathway_and_field(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::PathwayAndField,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn field_and_batman(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::FieldAndBatman,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn all_engines(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::AllEngines,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn with_profile(mut self, routing_profile: SelectedRoutingParameters) -> Self {
+        self.overrides.routing_profile = Some(routing_profile);
+        self
+    }
+
+    #[must_use]
+    pub fn with_policy_inputs(mut self, policy_inputs: RoutingPolicyInputs) -> Self {
+        self.overrides.policy_inputs = Some(policy_inputs);
+        self
+    }
+
+    #[must_use]
+    pub fn with_batman_decay_window(mut self, batman_decay_window: DecayWindow) -> Self {
+        self.overrides.batman_decay_window = Some(batman_decay_window);
+        self
+    }
+
+    #[must_use]
+    pub fn with_pathway_search_config(
+        mut self,
+        pathway_search_config: PathwaySearchConfig,
+    ) -> Self {
+        self.overrides.pathway_search_config = Some(pathway_search_config);
+        self
+    }
+
+    #[must_use]
+    pub fn with_field_search_config(mut self, field_search_config: FieldSearchConfig) -> Self {
+        self.overrides.field_search_config = Some(field_search_config);
+        self
     }
 }
 
@@ -46,6 +136,7 @@ impl HostSpec {
 pub struct BoundObjective {
     pub owner_node_id: NodeId,
     pub objective: RoutingObjective,
+    pub activate_at_round: u32,
 }
 
 impl BoundObjective {
@@ -54,7 +145,14 @@ impl BoundObjective {
         Self {
             owner_node_id,
             objective,
+            activate_at_round: 0,
         }
+    }
+
+    #[must_use]
+    pub fn with_activation_round(mut self, activate_at_round: u32) -> Self {
+        self.activate_at_round = activate_at_round;
+        self
     }
 }
 

@@ -22,7 +22,7 @@ use jacquard_traits::{
     effect_handler, RoutingControlPlane, TransportDriver, TransportSenderEffects,
 };
 
-use crate::PathwayRouter;
+use crate::ReferenceRouter;
 
 /// Default queue capacities used by the reference client bridge.
 pub(crate) const DEFAULT_BRIDGE_QUEUE_CONFIG: BridgeQueueConfig = BridgeQueueConfig::new(64, 64);
@@ -223,7 +223,7 @@ impl<Router> HostBridge<Router> {
     }
 }
 
-impl HostBridge<PathwayRouter> {
+impl HostBridge<ReferenceRouter> {
     fn sync_router_time(&mut self, tick: Tick) {
         self.router.effects_mut().now = tick;
     }
@@ -256,18 +256,18 @@ impl HostBridge<PathwayRouter> {
     }
 }
 
-impl BoundHostBridge<'_, PathwayRouter> {
+impl BoundHostBridge<'_, ReferenceRouter> {
     #[must_use]
     pub fn topology(&self) -> &Observation<Configuration> {
         self.bridge.topology()
     }
 
     #[must_use]
-    pub fn router(&self) -> &PathwayRouter {
+    pub fn router(&self) -> &ReferenceRouter {
         &self.bridge.router
     }
 
-    pub fn router_mut(&mut self) -> &mut PathwayRouter {
+    pub fn router_mut(&mut self) -> &mut ReferenceRouter {
         &mut self.bridge.router
     }
 
@@ -359,7 +359,7 @@ mod tests {
         }
     }
 
-    fn sample_router(local_node_id: NodeId) -> PathwayRouter {
+    fn sample_router(local_node_id: NodeId) -> ReferenceRouter {
         MultiEngineRouter::new(
             local_node_id,
             FixedPolicyEngine::new(crate::clients::default_profile()),
