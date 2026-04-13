@@ -106,10 +106,17 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-pathway`: deterministic candidate production, admission/materialization, commitment tracking, forwarding, repair, topology-change, observation handling.
 - `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, explicit ingress, synchronous round advancement, fallback legality, adaptive-profile derivation.
 - `jacquard-reference-client`: host-side bridge composition of router + pathway/batman + in-memory profiles for end-to-end tests.
+- `jacquard-batman`: next-hop ranking, TQ derivation, gossip integration, and router integration.
+- `jacquard-field`: observer, attractor, search, regime/posture control, runtime maintenance, and field-client integration.
+- `jacquard-field-client`: end-to-end field client API and replay export.
+- `jacquard-macros`: proc-macro compile checks and trybuild UI regression tests for annotation contracts.
+- `jacquard-mem-link-profile`: transport, retention, and runtime-effect adapter integration.
+- `jacquard-mem-node-profile`: node profile and capability modeling.
+- `jacquard-simulator`: scenario smoke tests and replay round-trip.
 
 ## Telltale dependency
 
-Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, currently `12.0.0`). Individual crates import them via `{ workspace = true }`.
+Telltale crates are pinned from crates.io through the workspace `[workspace.dependencies]` table (`telltale`, `telltale-types`, `telltale-macros`, `telltale-runtime`, `telltale-search`, `telltale-simulator`, currently `13.0.0`). Individual crates import them via `{ workspace = true }`.
 
 ## long-block-exception
 
