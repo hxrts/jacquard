@@ -31,7 +31,7 @@ jobs:
       - name: Format Check
         run: ./scripts/toolkit-shell.sh toolkit-fmt --all -- --check
       - name: Generate Summary
-        run: just summary
+        run: ./scripts/gen-summary.sh
       - name: Clippy
         run: nix develop --command cargo clippy --workspace --all-targets -- -D warnings
       - name: Tests
