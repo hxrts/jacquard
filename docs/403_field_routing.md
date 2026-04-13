@@ -206,6 +206,11 @@ tooling:
 - a reduced `reduced_protocol_replay()` extraction from `FieldReplaySnapshot`
   that exposes the proof-facing protocol artifact and protocol-reconfiguration
   bundle without re-reading private engine state
+- a versioned `FieldExportedReplayBundle` surface derived from the reduced
+  replay helpers, with stable JSON packaging for debugging and regression
+  fixtures
+- a reduced `FieldLeanReplayFixture` derived from that exported replay bundle
+  so proof-facing fixture vocabulary tracks Rust replay structure directly
 - bounded protocol artifacts from the private choreography runtime
 - bounded runtime round artifacts carrying blocked-receive state, host
   disposition, emitted-summary count, remaining step budget, execution-policy
@@ -227,6 +232,13 @@ route-scoped protocol session instead of forcing full route replacement.
 Owner-transfer, checkpoint/restore, and continuation-shift steps are retained
 as replay-visible protocol reconfiguration markers.
 
+The participant-set boundary is explicit:
+
+- owner and generation movement are supported
+- route-scoped checkpoint/restore is supported
+- continuation-shift reconfiguration inside one admitted corridor is supported
+- participant-set change is not supported
+
 Those runtime round artifacts are intentionally observational. They expose only
 reduced route shape, reduced search linkage, and support hints. They do not
 expose the selected witness, the full continuation envelope, or hidden protocol
@@ -241,6 +253,8 @@ The replay surfaces also carry an explicit surface-class split:
   reduction
 - runtime replay is reduced
 - commitment replay is observational
+- exported replay is reduced, versioned, and tooling-oriented rather than
+  authoritative
 
 ## Proof Boundary
 
@@ -260,6 +274,8 @@ Lean covers:
   trace/evidence extraction, runtime-state refinement, runtime-artifact search
   linkage, search projection, reduced protocol replay projection, and reduced
   canonical-route refinement
+- replay-derived fixture vocabulary mirrored in
+  `verification/Field/Adequacy/ReplayFixtures.lean`
 
 Lean does not own router truth, private choreography internals, or full replay
 packaging semantics. Those richer Rust surfaces remain observational or

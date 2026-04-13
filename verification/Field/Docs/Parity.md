@@ -33,6 +33,8 @@ quietly drifting.
 | protocol replay packaging | `FieldProtocolReplaySurface` | `Docs/Protocol.md`, `Docs/Adequacy.md` | observational |
 | reduced protocol replay extraction | `FieldReplaySnapshot::reduced_protocol_replay()` | `Field/Protocol/Reconfiguration.lean`, `Field/Adequacy/Search.lean`, `Docs/Protocol.md`, `Docs/Adequacy.md` | reduced |
 | runtime replay view | `FieldRuntimeReplaySurface` | `Docs/Adequacy.md` | reduced |
+| exported replay bundle | `FieldExportedReplayBundle` | `Docs/403_field_routing.md`, `Docs/Adequacy.md` | reduced tooling surface |
+| replay-derived fixture vocabulary | `FieldExportedReplayBundle::lean_replay_fixture`, fixture JSON under `crates/field/tests/fixtures/replay/` | `Field/Adequacy/ReplayFixtures.lean`, `Docs/Adequacy.md`, `Docs/Protocol.md` | active parity surface |
 | commitment replay view | `FieldCommitmentReplaySurface` | `Docs/403_field_routing.md`, `Docs/Adequacy.md` | observational |
 
 ## Ownership Discipline
@@ -45,6 +47,8 @@ explicitly replaces them:
 - field-internal plurality stays private
 - protocol artifacts and protocol reconfiguration are observational-only
 - runtime round artifacts are reduced
+- exported replay and replay-derived fixtures are reduced and non-authoritative
+- participant-set change stays outside the supported field reconfiguration boundary
 - canonical route truth remains router-owned
 
 ## Drift Checks

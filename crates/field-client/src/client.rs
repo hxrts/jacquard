@@ -25,7 +25,10 @@ use jacquard_core::{
     RoutingTickContext, RoutingTickOutcome, SelectedRoutingParameters, Tick, TimeWindow,
     TransportError, TransportIngressEvent,
 };
-use jacquard_field::FieldEngine;
+use jacquard_field::{
+    FieldEngine, FieldExportedReplayBundle, FieldReducedProtocolReplay,
+    FieldReducedRuntimeSearchReplay, FieldReplaySnapshot,
+};
 use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork};
 use jacquard_traits::{RouterManagedEngine, RoutingEngine, RoutingEnginePlanner, TransportDriver};
 
@@ -172,6 +175,27 @@ impl FieldClient {
         self.active_routes.get(route_id)
     }
 
+    #[must_use]
+    pub fn replay_snapshot(&self) -> FieldReplaySnapshot {
+        let routes: Vec<_> = self.active_routes.values().cloned().collect();
+        self.engine.replay_snapshot(&routes)
+    }
+
+    #[must_use]
+    pub fn reduced_runtime_search_replay(&self) -> FieldReducedRuntimeSearchReplay {
+        self.replay_snapshot().reduced_runtime_search_replay()
+    }
+
+    #[must_use]
+    pub fn reduced_protocol_replay(&self) -> FieldReducedProtocolReplay {
+        self.replay_snapshot().reduced_protocol_replay()
+    }
+
+    #[must_use]
+    pub fn exported_replay_bundle(&self) -> FieldExportedReplayBundle {
+        self.replay_snapshot().exported_bundle()
+    }
+
     pub fn maintain_route(
         &mut self,
         route_id: &RouteId,
@@ -208,6 +232,14 @@ impl FieldClient {
         payload: &[u8],
     ) -> Result<(), RouteError> {
         self.engine.forward_payload_for_router(route_id, payload)
+    }
+
+    pub fn suspend_route_runtime(&mut self, route_id: &RouteId) -> Result<bool, RouteError> {
+        self.engine.suspend_route_runtime_for_recovery(route_id)
+    }
+
+    pub fn restore_route_runtime(&mut self, route_id: &RouteId) -> Result<bool, RouteError> {
+        self.engine.restore_route_runtime_for_router(route_id)
     }
 
     pub fn drain_peer_ingress(

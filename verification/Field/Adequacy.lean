@@ -3,6 +3,7 @@ import Field.Adequacy.Canonical
 import Field.Adequacy.Cost
 import Field.Adequacy.Optimality
 import Field.Adequacy.Fixtures
+import Field.Adequacy.ReplayFixtures
 import Field.Adequacy.Safety
 import Field.Adequacy.Search
 import Field.Adequacy.Instance

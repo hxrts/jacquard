@@ -25,6 +25,7 @@ The reduced protocol lives in:
 - `Field/Protocol/Instance.lean`
 - `Field/Protocol/Fixtures.lean`
 - `Field/Protocol/Closure.lean`
+- `Field/Adequacy/ReplayFixtures.lean`
 
 It has:
 
@@ -255,6 +256,12 @@ transitional:
 - richer multi-kind runtime retention semantics
 - delegation or participant-set reconfiguration
 - any attempt to turn the protocol layer into a second owner of route truth
+
+The maintained Rust/Lean fixture bridge for that explicit boundary is now the
+replay-derived fixture vocabulary in `Field/Adequacy/ReplayFixtures.lean`. It
+tracks fixed-participant owner transfer, checkpoint/restore, and
+continuation-shift cases without widening the protocol into participant-set
+reconfiguration.
 
 ## Rust Mapping
 

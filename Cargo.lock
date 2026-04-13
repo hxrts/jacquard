@@ -607,6 +607,7 @@ dependencies = [
  "jacquard-mem-node-profile",
  "jacquard-traits",
  "serde",
+ "serde_json",
  "telltale-search",
 ]
 

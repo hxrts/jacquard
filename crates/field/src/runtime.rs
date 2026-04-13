@@ -30,13 +30,14 @@ use jacquard_traits::{Blake3Hashing, Hashing, RouterManagedEngine, RoutingEngine
 use crate::{
     attractor::{derive_local_attractor_view, rank_frontier_by_attractor},
     choreography::{
-        FieldChoreographyAdvance, FieldHostWaitStatus, FieldProtocolKind,
+        FieldChoreographyAdvance, FieldHostWaitStatus, FieldProtocolCheckpoint, FieldProtocolKind,
         FieldProtocolReconfigurationCause, FieldProtocolSessionKey, QueuedProtocolSend,
         FIELD_PROTOCOL_SESSION_MAX,
     },
     control::{advance_control_plane, ControlMeasurements},
     engine::FieldRuntimeRoundArtifact,
     observer::{update_destination_observer, ObserverInputs},
+    recovery::{FieldRouteRecoveryTrigger, StoredFieldRouteRecovery},
     route::{decode_backend_token, ActiveFieldRoute},
     state::{
         HopBand, NeighborContinuation, ObserverInputSignature, SupportBucket,
@@ -90,6 +91,7 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
                 topology_epoch: input.handle.topology_epoch(),
                 installed_at_tick: input.handle.materialized_at_tick(),
                 coordination_capability: None,
+                recovery: StoredFieldRouteRecovery::default(),
             },
         );
         self.install_route_protocol_session(
@@ -935,7 +937,7 @@ mod tests {
     };
     use jacquard_mem_link_profile::InMemoryTransport;
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
-    use jacquard_traits::{RoutingEngine, RoutingEnginePlanner};
+    use jacquard_traits::{RouterManagedEngine, RoutingEngine, RoutingEnginePlanner};
 
     use super::*;
     use crate::state::{
@@ -1350,6 +1352,17 @@ mod tests {
                 .selected_neighbor,
             node(3)
         );
+        let recovery = &engine
+            .active_routes
+            .get(&route_id)
+            .expect("active route")
+            .recovery
+            .state;
+        assert_eq!(recovery.continuation_shift_count, 1);
+        assert_eq!(
+            recovery.last_outcome,
+            Some(crate::FieldRouteRecoveryOutcome::ContinuationRetained)
+        );
         let protocol_replay = engine
             .replay_snapshot(std::slice::from_ref(&materialized))
             .reduced_protocol_replay();
@@ -1363,6 +1376,201 @@ mod tests {
                         == crate::choreography::FieldProtocolReconfigurationCause::ContinuationShift
                     && reconfiguration.prior_owner_tag != reconfiguration.next_owner_tag
             }));
+    }
+
+    #[test]
+    fn exported_replay_bundle_captures_continuation_shift_fixture() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let mut materialized =
+            jacquard_core::MaterializedRoute::from_installation(input, installation);
+        let active = engine
+            .active_routes
+            .get_mut(&route_id)
+            .expect("active route");
+        active.continuation_neighbors = vec![node(2), node(3)];
+        engine.state.note_tick(Tick(5));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&crate::state::DestinationKey::from(&DestinationId::Node(
+                node(2),
+            )))
+            .expect("destination");
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(3),
+            net_value: SupportBucket::new(950),
+            downstream_support: SupportBucket::new(900),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(5),
+        });
+        // allow-ignored-result: this fixture needs only the route-local shift side effects before exporting the replay bundle.
+        let _ = engine
+            .maintain_route(
+                &materialized.identity,
+                &mut materialized.runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintenance");
+
+        let actual = engine
+            .replay_snapshot(std::slice::from_ref(&materialized))
+            .exported_bundle_json()
+            .expect("export replay json");
+        let expected = include_str!("../fixtures/replay/continuation-shift.json");
+        assert_eq!(actual, expected.trim_end());
+    }
+
+    #[test]
+    fn suspend_route_runtime_captures_checkpoint_and_marks_recovery_surface() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let materialized = jacquard_core::MaterializedRoute::from_installation(input, installation);
+
+        assert!(engine
+            .suspend_route_runtime_for_recovery(&route_id)
+            .expect("suspend"));
+
+        let active = engine.active_routes.get(&route_id).expect("active route");
+        assert!(active.coordination_capability.is_none());
+        assert!(active.recovery.checkpoint.is_some());
+
+        let replay = engine.replay_snapshot(std::slice::from_ref(&materialized));
+        let entry = replay
+            .recovery
+            .entries
+            .into_iter()
+            .find(|entry| entry.route_id == route_id)
+            .expect("recovery entry");
+        assert!(entry.state.checkpoint_available);
+        assert_eq!(entry.state.checkpoint_capture_count, 1);
+        assert_eq!(
+            entry.state.last_outcome,
+            Some(crate::FieldRouteRecoveryOutcome::CheckpointStored)
+        );
+    }
+
+    #[test]
+    fn restore_route_runtime_prefers_checkpoint_restore() {
+        let topology = supported_topology();
+        let mut engine = seeded_transport_engine();
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let materialized = jacquard_core::MaterializedRoute::from_installation(input, installation);
+
+        engine
+            .suspend_route_runtime_for_recovery(&route_id)
+            .expect("suspend");
+        assert!(engine
+            .restore_route_runtime_for_router(&route_id)
+            .expect("restore"));
+
+        let active = engine.active_routes.get(&route_id).expect("active route");
+        assert!(active.coordination_capability.is_some());
+        assert!(!active.recovery.state.checkpoint_available);
+        assert_eq!(active.recovery.state.checkpoint_capture_count, 1);
+        assert_eq!(active.recovery.state.checkpoint_restore_count, 1);
+        assert_eq!(
+            active.recovery.state.last_outcome,
+            Some(crate::FieldRouteRecoveryOutcome::CheckpointRestored)
+        );
+
+        let protocol_replay = engine
+            .replay_snapshot(std::slice::from_ref(&materialized))
+            .reduced_protocol_replay();
+        assert!(protocol_replay
+            .reconfigurations
+            .iter()
+            .any(|reconfiguration| {
+                reconfiguration.prior_session.route_id == Some(route_id)
+                    && reconfiguration.cause
+                        == crate::choreography::FieldProtocolReconfigurationCause::CheckpointRestore
+            }));
+    }
+
+    #[test]
+    fn restore_route_runtime_fails_closed_for_stale_checkpoint_owner() {
+        let topology = supported_topology();
+        let mut engine = seeded_transport_engine();
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        engine.materialize_route(input).expect("installation");
+
+        engine
+            .suspend_route_runtime_for_recovery(&route_id)
+            .expect("suspend");
+        let active = engine
+            .active_routes
+            .get_mut(&route_id)
+            .expect("active route");
+        active.selected_neighbor = node(9);
+
+        let error = engine
+            .restore_route_runtime_for_router(&route_id)
+            .expect_err("stale restore must fail closed");
+        assert!(matches!(
+            error,
+            RouteError::Runtime(RouteRuntimeError::Invalidated)
+        ));
+        let recovery = &engine
+            .active_routes
+            .get(&route_id)
+            .expect("active route")
+            .recovery
+            .state;
+        assert_eq!(
+            recovery.last_trigger,
+            Some(crate::FieldRouteRecoveryTrigger::RestoreRuntime)
+        );
+        assert_eq!(
+            recovery.last_outcome,
+            Some(crate::FieldRouteRecoveryOutcome::RecoveryFailed)
+        );
     }
 
     #[test]
@@ -1666,16 +1874,22 @@ where
             .get(route_id)
             .is_some_and(|active| active.coordination_capability.is_none());
         if needs_restore {
-            let topology_epoch = self
-                .active_routes
-                .get(route_id)
-                .expect("route presence checked")
-                .topology_epoch;
-            self.install_route_protocol_session(
-                route_id,
-                topology_epoch,
-                self.state.last_tick_processed,
-            )?;
+            if let Some(checkpoint) = self.take_route_checkpoint(route_id) {
+                self.restore_route_protocol_session(route_id, checkpoint)?;
+            } else {
+                self.note_route_without_checkpoint(route_id)?;
+                let topology_epoch = self
+                    .active_routes
+                    .get(route_id)
+                    .expect("route presence checked")
+                    .topology_epoch;
+                self.install_route_protocol_session(
+                    route_id,
+                    topology_epoch,
+                    self.state.last_tick_processed,
+                )?;
+                self.note_fresh_route_runtime_install(route_id)?;
+            }
         }
         Ok(true)
     }
@@ -1708,6 +1922,46 @@ fn bound_task_for_route(route_id: &RouteId) -> u64 {
 }
 
 impl<Transport, Effects> FieldEngine<Transport, Effects> {
+    pub fn suspend_route_runtime_for_recovery(
+        &mut self,
+        route_id: &RouteId,
+    ) -> Result<bool, RouteError> {
+        let Some(capability) = self
+            .active_routes
+            .get(route_id)
+            .and_then(|active| active.coordination_capability.clone())
+        else {
+            return Ok(self.active_routes.contains_key(route_id));
+        };
+        let checkpoint = match self.protocol_runtime.checkpoint_session(&capability) {
+            Ok(checkpoint) => checkpoint,
+            Err(_) => {
+                self.note_route_recovery_failed(
+                    route_id,
+                    FieldRouteRecoveryTrigger::SuspendForRuntimeLoss,
+                )?;
+                return Err(RouteRuntimeError::Invalidated.into());
+            }
+        };
+        let _closed = match self.protocol_runtime.close_session(&capability) {
+            Ok(closed) => closed,
+            Err(_) => {
+                self.note_route_recovery_failed(
+                    route_id,
+                    FieldRouteRecoveryTrigger::SuspendForRuntimeLoss,
+                )?;
+                return Err(RouteRuntimeError::Invalidated.into());
+            }
+        };
+        let active = self
+            .active_routes
+            .get_mut(route_id)
+            .expect("route remains present during recovery suspend");
+        active.coordination_capability = None;
+        active.recovery.note_checkpoint_stored(checkpoint);
+        Ok(true)
+    }
+
     fn install_route_protocol_session(
         &mut self,
         route_id: &RouteId,
@@ -1740,6 +1994,31 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         Ok(())
     }
 
+    fn restore_route_protocol_session(
+        &mut self,
+        route_id: &RouteId,
+        checkpoint: FieldProtocolCheckpoint,
+    ) -> Result<(), RouteError> {
+        self.validate_route_checkpoint(route_id, &checkpoint)?;
+        let capability = match self.protocol_runtime.restore_session(checkpoint) {
+            Ok(capability) => capability,
+            Err(_) => {
+                self.note_route_recovery_failed(
+                    route_id,
+                    FieldRouteRecoveryTrigger::RestoreRuntime,
+                )?;
+                return Err(RouteRuntimeError::Invalidated.into());
+            }
+        };
+        let active = self
+            .active_routes
+            .get_mut(route_id)
+            .expect("route remains present during checkpoint restore");
+        active.coordination_capability = Some(capability);
+        active.recovery.note_checkpoint_restored();
+        Ok(())
+    }
+
     fn reconfigure_route_protocol_session(
         &mut self,
         route_id: &RouteId,
@@ -1767,6 +2046,9 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .get_mut(route_id)
             .expect("route remains present during session reconfiguration");
         active.coordination_capability = Some(updated);
+        if cause == FieldProtocolReconfigurationCause::ContinuationShift {
+            active.recovery.note_continuation_retained();
+        }
         Ok(())
     }
 
@@ -1782,6 +2064,68 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .protocol_runtime
             .close_session(&capability)
             .map_err(|_| RouteRuntimeError::Invalidated)?;
+        Ok(())
+    }
+
+    fn take_route_checkpoint(&mut self, route_id: &RouteId) -> Option<FieldProtocolCheckpoint> {
+        self.active_routes
+            .get_mut(route_id)
+            .and_then(|active| active.recovery.checkpoint.take())
+    }
+
+    fn note_route_without_checkpoint(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
+        let active = self
+            .active_routes
+            .get_mut(route_id)
+            .ok_or(RouteSelectionError::NoCandidate)?;
+        active.recovery.note_no_checkpoint_available();
+        Ok(())
+    }
+
+    fn note_fresh_route_runtime_install(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
+        let active = self
+            .active_routes
+            .get_mut(route_id)
+            .ok_or(RouteSelectionError::NoCandidate)?;
+        active.recovery.note_fresh_session_installed();
+        Ok(())
+    }
+
+    fn note_route_recovery_failed(
+        &mut self,
+        route_id: &RouteId,
+        trigger: FieldRouteRecoveryTrigger,
+    ) -> Result<(), RouteError> {
+        let active = self
+            .active_routes
+            .get_mut(route_id)
+            .ok_or(RouteSelectionError::NoCandidate)?;
+        active.recovery.note_recovery_failed(trigger);
+        Ok(())
+    }
+
+    fn validate_route_checkpoint(
+        &mut self,
+        route_id: &RouteId,
+        checkpoint: &FieldProtocolCheckpoint,
+    ) -> Result<(), RouteError> {
+        let Some(active) = self.active_routes.get_mut(route_id) else {
+            return Err(RouteSelectionError::NoCandidate.into());
+        };
+        let destination = DestinationId::from(&active.destination);
+        let expected_session = FieldProtocolSessionKey {
+            protocol: FieldProtocolKind::ExplicitCoordination,
+            route_id: Some(*route_id),
+            topology_epoch: active.topology_epoch,
+            destination: Some(SummaryDestinationKey::from(&destination)),
+        };
+        let expected_owner = owner_tag_for_neighbor(active.selected_neighbor);
+        if checkpoint.session != expected_session || checkpoint.owner_tag != expected_owner {
+            active
+                .recovery
+                .note_recovery_failed(FieldRouteRecoveryTrigger::RestoreRuntime);
+            return Err(RouteRuntimeError::Invalidated.into());
+        }
         Ok(())
     }
 }

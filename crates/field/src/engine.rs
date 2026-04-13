@@ -11,6 +11,7 @@
 //! protection, `PartitionTolerant` connectivity, and `CorridorEnvelope` route
 //! shape visibility. The field engine makes conservative end-to-end claims
 //! rather than asserting explicit hop-by-hop paths.
+// long-file-exception: engine.rs intentionally co-locates the versioned replay surfaces, reduced/exported replay projections, and the engine facade so the Rust-to-proof boundary stays auditable in one place.
 
 use std::{cell::RefCell, collections::VecDeque};
 
@@ -20,6 +21,7 @@ use jacquard_core::{
     RoutingEngineCapabilities, RoutingEngineId, Tick,
 };
 use jacquard_traits::RoutingEngine;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     choreography::{
@@ -27,6 +29,7 @@ use crate::{
         FieldProtocolReconfiguration, FieldProtocolReconfigurationCause, FieldProtocolRuntime,
         FieldRoundDisposition,
     },
+    recovery::FieldRouteRecoveryState,
     route::ActiveFieldRoute,
     search::{
         FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchEpoch, FieldSearchPlanningFailure,
@@ -95,6 +98,19 @@ pub struct FieldRuntimeReplaySurface {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldRecoveryReplayEntry {
+    pub route_id: RouteId,
+    pub state: FieldRouteRecoveryState,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldRecoveryReplaySurface {
+    pub schema_version: u16,
+    pub surface_class: FieldReplaySurfaceClass,
+    pub entries: Vec<FieldRecoveryReplayEntry>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldCommitmentReplayEntry {
     pub route_id: RouteId,
     pub commitments: Vec<RouteCommitment>,
@@ -107,12 +123,187 @@ pub struct FieldCommitmentReplaySurface {
     pub entries: Vec<FieldCommitmentReplayEntry>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedReplayBundle {
+    pub schema_version: u16,
+    pub runtime_search: FieldExportedRuntimeSearchReplay,
+    pub protocol: FieldExportedProtocolReplay,
+    pub recovery: FieldExportedRecoveryReplay,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedRuntimeSearchReplay {
+    pub schema_version: u16,
+    pub search: Option<FieldExportedSearchProjection>,
+    pub runtime_artifacts: Vec<FieldExportedRuntimeRoundArtifact>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedSearchProjection {
+    pub objective_class: String,
+    pub query: Option<FieldExportedSearchQuery>,
+    pub execution_policy: FieldExportedSearchExecutionPolicy,
+    pub selected_result: Option<FieldExportedSelectedResult>,
+    pub snapshot_epoch: Option<FieldExportedSearchEpoch>,
+    pub reconfiguration: Option<FieldExportedSearchReconfiguration>,
+    pub planning_failure: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedSearchQuery {
+    pub start: NodeId,
+    pub kind: String,
+    pub accepted_goals: Vec<NodeId>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedSearchExecutionPolicy {
+    pub scheduler_profile: String,
+    pub batch_width: u64,
+    pub exact: bool,
+    pub run_to_completion: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedSelectedResult {
+    pub witness: Vec<NodeId>,
+    pub selected_neighbor: Option<NodeId>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedSearchEpoch {
+    pub route_epoch: u64,
+    pub snapshot_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedSearchReconfiguration {
+    pub from: FieldExportedSearchEpoch,
+    pub to: FieldExportedSearchEpoch,
+    pub reseeding_policy: String,
+    pub transition_class: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedRuntimeRoundArtifact {
+    pub protocol: String,
+    pub destination: Option<DestinationId>,
+    pub destination_class: Option<String>,
+    pub blocked_receive: Option<String>,
+    pub disposition: String,
+    pub host_wait_status: String,
+    pub emitted_count: usize,
+    pub step_budget_remaining: u8,
+    pub execution_policy: String,
+    pub search_snapshot_epoch: Option<FieldExportedSearchEpoch>,
+    pub search_selected_result_present: bool,
+    pub search_reconfiguration_present: bool,
+    pub router_artifact: Option<FieldExportedRuntimeRouteArtifact>,
+    pub observed_at_tick: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedRuntimeRouteArtifact {
+    pub destination: DestinationId,
+    pub route_shape: String,
+    pub route_support: u16,
+    pub topology_epoch: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedProtocolReplay {
+    pub schema_version: u16,
+    pub artifacts: Vec<FieldExportedProtocolArtifact>,
+    pub reconfigurations: Vec<FieldExportedProtocolReconfiguration>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedProtocolArtifact {
+    pub protocol: String,
+    pub route_id: Option<RouteId>,
+    pub topology_epoch: u64,
+    pub destination: Option<DestinationId>,
+    pub detail: String,
+    pub last_updated_at: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedProtocolReconfiguration {
+    pub protocol: String,
+    pub route_id: Option<RouteId>,
+    pub destination: Option<DestinationId>,
+    pub prior_owner_tag: u64,
+    pub next_owner_tag: u64,
+    pub prior_generation: u32,
+    pub next_generation: u32,
+    pub cause: String,
+    pub recorded_at: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedRecoveryReplay {
+    pub schema_version: u16,
+    pub entries: Vec<FieldExportedRecoveryEntry>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedRecoveryEntry {
+    pub route_id: RouteId,
+    pub checkpoint_available: bool,
+    pub last_trigger: Option<String>,
+    pub last_outcome: Option<String>,
+    pub checkpoint_capture_count: u32,
+    pub checkpoint_restore_count: u32,
+    pub continuation_shift_count: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldLeanReplayFixture {
+    pub scenario: String,
+    pub search: Option<FieldLeanSearchFixture>,
+    pub protocol: FieldLeanProtocolFixture,
+    pub runtime: FieldLeanRuntimeLinkageFixture,
+    pub recovery: Option<FieldLeanRecoveryFixture>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldLeanSearchFixture {
+    pub objective_class: String,
+    pub query_kind: String,
+    pub selected_neighbor_present: bool,
+    pub snapshot_epoch_present: bool,
+    pub planning_failure: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldLeanProtocolFixture {
+    pub reconfiguration_causes: Vec<String>,
+    pub route_bound_reconfiguration_count: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldLeanRuntimeLinkageFixture {
+    pub artifact_count: usize,
+    pub search_linked_artifact_count: usize,
+    pub route_artifact_count: usize,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldLeanRecoveryFixture {
+    pub last_trigger: Option<String>,
+    pub last_outcome: Option<String>,
+    pub checkpoint_capture_count: u32,
+    pub checkpoint_restore_count: u32,
+    pub continuation_shift_count: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldReplaySnapshot {
     pub schema_version: u16,
     pub search: FieldSearchReplaySurface,
     pub protocol: FieldProtocolReplaySurface,
     pub runtime: FieldRuntimeReplaySurface,
+    pub recovery: FieldRecoveryReplaySurface,
     pub commitments: FieldCommitmentReplaySurface,
 }
 
@@ -333,6 +524,17 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .collect()
     }
 
+    #[must_use]
+    pub fn route_recovery_entries(&self) -> Vec<FieldRecoveryReplayEntry> {
+        self.active_routes
+            .iter()
+            .map(|(route_id, active)| FieldRecoveryReplayEntry {
+                route_id: *route_id,
+                state: active.recovery.state.clone(),
+            })
+            .collect()
+    }
+
     pub fn ingest_forward_summary(
         &mut self,
         from_neighbor: NodeId,
@@ -436,6 +638,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 surface_class: FieldReplaySurfaceClass::Reduced,
                 artifacts: self.runtime_round_artifacts(),
             },
+            recovery: FieldRecoveryReplaySurface {
+                schema_version: FIELD_REPLAY_SURFACE_VERSION,
+                surface_class: FieldReplaySurfaceClass::Reduced,
+                entries: self.route_recovery_entries(),
+            },
             commitments: FieldCommitmentReplaySurface {
                 schema_version: FIELD_REPLAY_SURFACE_VERSION,
                 surface_class: FieldReplaySurfaceClass::Observational,
@@ -448,6 +655,25 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     .collect(),
             },
         }
+    }
+
+    #[must_use]
+    pub fn exported_replay_bundle(&self, routes: &[MaterializedRoute]) -> FieldExportedReplayBundle
+    where
+        Self: jacquard_traits::RoutingEngine,
+    {
+        let snapshot = self.replay_snapshot(routes);
+        snapshot.exported_bundle()
+    }
+
+    pub fn exported_replay_bundle_json(
+        &self,
+        routes: &[MaterializedRoute],
+    ) -> Result<String, serde_json::Error>
+    where
+        Self: jacquard_traits::RoutingEngine,
+    {
+        serde_json::to_string_pretty(&self.exported_replay_bundle(routes))
     }
 
     pub(crate) fn runtime_route_artifact_for_destination(
@@ -648,6 +874,249 @@ impl FieldReplaySnapshot {
                 .collect(),
         }
     }
+
+    #[must_use]
+    pub fn exported_bundle(&self) -> FieldExportedReplayBundle {
+        FieldExportedReplayBundle {
+            schema_version: self.schema_version,
+            runtime_search: exported_runtime_search_replay(&self.reduced_runtime_search_replay()),
+            protocol: exported_protocol_replay(&self.reduced_protocol_replay()),
+            recovery: exported_recovery_replay(&self.recovery),
+        }
+    }
+
+    pub fn exported_bundle_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string_pretty(&self.exported_bundle())
+    }
+}
+
+impl FieldExportedReplayBundle {
+    // long-block-exception: this helper intentionally projects the full reduced replay bundle into one proof-facing fixture object in one auditable place.
+    #[must_use]
+    pub fn lean_replay_fixture(&self, scenario: impl Into<String>) -> FieldLeanReplayFixture {
+        let recovery = self
+            .recovery
+            .entries
+            .first()
+            .map(|entry| FieldLeanRecoveryFixture {
+                last_trigger: entry.last_trigger.clone(),
+                last_outcome: entry.last_outcome.clone(),
+                checkpoint_capture_count: entry.checkpoint_capture_count,
+                checkpoint_restore_count: entry.checkpoint_restore_count,
+                continuation_shift_count: entry.continuation_shift_count,
+            });
+        FieldLeanReplayFixture {
+            scenario: scenario.into(),
+            search: self
+                .runtime_search
+                .search
+                .as_ref()
+                .map(|search| FieldLeanSearchFixture {
+                    objective_class: search.objective_class.clone(),
+                    query_kind: search
+                        .query
+                        .as_ref()
+                        .map_or_else(|| "None".to_string(), |query| query.kind.clone()),
+                    selected_neighbor_present: search
+                        .selected_result
+                        .as_ref()
+                        .is_some_and(|selected| selected.selected_neighbor.is_some()),
+                    snapshot_epoch_present: search.snapshot_epoch.is_some(),
+                    planning_failure: search.planning_failure.clone(),
+                }),
+            protocol: FieldLeanProtocolFixture {
+                reconfiguration_causes: self
+                    .protocol
+                    .reconfigurations
+                    .iter()
+                    .map(|step| step.cause.clone())
+                    .collect(),
+                route_bound_reconfiguration_count: self
+                    .protocol
+                    .reconfigurations
+                    .iter()
+                    .filter(|step| step.route_id.is_some())
+                    .count(),
+            },
+            runtime: FieldLeanRuntimeLinkageFixture {
+                artifact_count: self.runtime_search.runtime_artifacts.len(),
+                search_linked_artifact_count: self
+                    .runtime_search
+                    .runtime_artifacts
+                    .iter()
+                    .filter(|artifact| artifact.search_snapshot_epoch.is_some())
+                    .count(),
+                route_artifact_count: self
+                    .runtime_search
+                    .runtime_artifacts
+                    .iter()
+                    .filter(|artifact| artifact.router_artifact.is_some())
+                    .count(),
+            },
+            recovery,
+        }
+    }
+}
+
+fn exported_runtime_search_replay(
+    replay: &FieldReducedRuntimeSearchReplay,
+) -> FieldExportedRuntimeSearchReplay {
+    FieldExportedRuntimeSearchReplay {
+        schema_version: replay.schema_version,
+        search: replay.search.as_ref().map(exported_search_projection),
+        runtime_artifacts: replay
+            .runtime_artifacts
+            .iter()
+            .map(exported_runtime_round_artifact)
+            .collect(),
+    }
+}
+
+fn exported_search_projection(
+    projection: &FieldReducedSearchProjection,
+) -> FieldExportedSearchProjection {
+    FieldExportedSearchProjection {
+        objective_class: format!("{:?}", projection.objective_class),
+        query: projection.query.as_ref().map(exported_search_query),
+        execution_policy: FieldExportedSearchExecutionPolicy {
+            scheduler_profile: format!("{:?}", projection.execution_policy.scheduler_profile),
+            batch_width: projection.execution_policy.batch_width,
+            exact: projection.execution_policy.exact,
+            run_to_completion: projection.execution_policy.run_to_completion,
+        },
+        selected_result: projection.selected_result.as_ref().map(|selected| {
+            FieldExportedSelectedResult {
+                witness: selected.witness.clone(),
+                selected_neighbor: selected.selected_neighbor,
+            }
+        }),
+        snapshot_epoch: projection
+            .snapshot_epoch
+            .as_ref()
+            .map(exported_search_epoch),
+        reconfiguration: projection
+            .reconfiguration
+            .as_ref()
+            .map(exported_search_reconfiguration),
+        planning_failure: projection
+            .planning_failure
+            .map(|failure| format!("{failure:?}")),
+    }
+}
+
+fn exported_search_query(query: &FieldReducedSearchQuery) -> FieldExportedSearchQuery {
+    FieldExportedSearchQuery {
+        start: query.start,
+        kind: format!("{:?}", query.kind),
+        accepted_goals: query.accepted_goals.clone(),
+    }
+}
+
+fn exported_search_epoch(epoch: &FieldSearchEpoch) -> FieldExportedSearchEpoch {
+    FieldExportedSearchEpoch {
+        route_epoch: epoch.route_epoch.0,
+        snapshot_id: format!("{:?}", epoch.snapshot_id.0),
+    }
+}
+
+fn exported_search_reconfiguration(
+    reconfiguration: &FieldSearchReconfiguration,
+) -> FieldExportedSearchReconfiguration {
+    FieldExportedSearchReconfiguration {
+        from: exported_search_epoch(&reconfiguration.from),
+        to: exported_search_epoch(&reconfiguration.to),
+        reseeding_policy: format!("{:?}", reconfiguration.reseeding_policy),
+        transition_class: format!("{:?}", reconfiguration.transition_class),
+    }
+}
+
+fn exported_runtime_round_artifact(
+    artifact: &FieldRuntimeRoundArtifact,
+) -> FieldExportedRuntimeRoundArtifact {
+    FieldExportedRuntimeRoundArtifact {
+        protocol: format!("{:?}", artifact.protocol),
+        destination: artifact.destination.clone(),
+        destination_class: artifact.destination_class.map(|class| format!("{class:?}")),
+        blocked_receive: artifact.blocked_receive.map(|marker| format!("{marker:?}")),
+        disposition: format!("{:?}", artifact.disposition),
+        host_wait_status: format!("{:?}", artifact.host_wait_status),
+        emitted_count: artifact.emitted_count,
+        step_budget_remaining: artifact.step_budget_remaining,
+        execution_policy: format!("{:?}", artifact.execution_policy),
+        search_snapshot_epoch: artifact
+            .search_snapshot_epoch
+            .as_ref()
+            .map(exported_search_epoch),
+        search_selected_result_present: artifact.search_selected_result_present,
+        search_reconfiguration_present: artifact.search_reconfiguration_present,
+        router_artifact: artifact.router_artifact.as_ref().map(|route| {
+            FieldExportedRuntimeRouteArtifact {
+                destination: route.destination.clone(),
+                route_shape: format!("{:?}", route.route_shape),
+                route_support: route.route_support,
+                topology_epoch: route.topology_epoch.0,
+            }
+        }),
+        observed_at_tick: artifact.observed_at_tick.0,
+    }
+}
+
+fn exported_protocol_replay(replay: &FieldReducedProtocolReplay) -> FieldExportedProtocolReplay {
+    FieldExportedProtocolReplay {
+        schema_version: replay.schema_version,
+        artifacts: replay
+            .artifacts
+            .iter()
+            .map(|artifact| FieldExportedProtocolArtifact {
+                protocol: format!("{:?}", artifact.session.protocol),
+                route_id: artifact.session.route_id,
+                topology_epoch: artifact.session.topology_epoch.0,
+                destination: artifact.session.destination.clone(),
+                detail: artifact.detail.clone(),
+                last_updated_at: artifact.last_updated_at.0,
+            })
+            .collect(),
+        reconfigurations: replay
+            .reconfigurations
+            .iter()
+            .map(|step| FieldExportedProtocolReconfiguration {
+                protocol: format!("{:?}", step.prior_session.protocol),
+                route_id: step.prior_session.route_id,
+                destination: step.prior_session.destination.clone(),
+                prior_owner_tag: step.prior_owner_tag,
+                next_owner_tag: step.next_owner_tag,
+                prior_generation: step.prior_generation,
+                next_generation: step.next_generation,
+                cause: format!("{:?}", step.cause),
+                recorded_at: step.recorded_at.0,
+            })
+            .collect(),
+    }
+}
+
+fn exported_recovery_replay(replay: &FieldRecoveryReplaySurface) -> FieldExportedRecoveryReplay {
+    FieldExportedRecoveryReplay {
+        schema_version: replay.schema_version,
+        entries: replay
+            .entries
+            .iter()
+            .map(|entry| FieldExportedRecoveryEntry {
+                route_id: entry.route_id,
+                checkpoint_available: entry.state.checkpoint_available,
+                last_trigger: entry
+                    .state
+                    .last_trigger
+                    .map(|trigger| format!("{trigger:?}")),
+                last_outcome: entry
+                    .state
+                    .last_outcome
+                    .map(|outcome| format!("{outcome:?}")),
+                checkpoint_capture_count: entry.state.checkpoint_capture_count,
+                checkpoint_restore_count: entry.state.checkpoint_restore_count,
+                continuation_shift_count: entry.state.continuation_shift_count,
+            })
+            .collect(),
+    }
 }
 
 #[cfg(test)]
@@ -704,6 +1173,10 @@ mod tests {
             FieldReplaySurfaceClass::Reduced
         );
         assert_eq!(
+            snapshot.recovery.surface_class,
+            FieldReplaySurfaceClass::Reduced
+        );
+        assert_eq!(
             snapshot.commitments.surface_class,
             FieldReplaySurfaceClass::Observational
         );
@@ -720,6 +1193,7 @@ mod tests {
             engine.protocol_runtime.reconfigurations()
         );
         assert_eq!(snapshot.runtime.artifacts, engine.runtime_round_artifacts());
+        assert_eq!(snapshot.recovery.entries, engine.route_recovery_entries());
         assert!(snapshot.commitments.entries.is_empty());
     }
 

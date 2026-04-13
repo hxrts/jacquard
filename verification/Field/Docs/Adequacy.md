@@ -35,6 +35,17 @@ That helper is the maintained Rust-side reduction entry point for protocol
 artifacts plus explicit protocol reconfiguration markers. Commitment replay
 remains packaging-only and observational.
 
+The Rust field crate now also exposes a stable exported replay bundle and one
+derived proof-facing fixture object:
+
+```text
+FieldExportedReplayBundle
+FieldExportedReplayBundle::lean_replay_fixture(...)
+```
+
+Those surfaces stay reduced. They are debugging/regression carriers and
+proof-facing fixture inputs, not new owners of runtime or router truth.
+
 That ownership is intentionally separate from `Field/Model/Boundary.lean`:
 the model boundary owns protocol/controller extraction from protocol exports and
 semantic traces, while adequacy owns runtime-artifact/runtime-state reduction
@@ -82,6 +93,7 @@ Proof-packaging or fixture objects:
 - `RuntimeTraceSimulation`
 - theorem-pack wrappers in `Field/Adequacy/Refinement.lean`
 - concrete fixture families in `Field/Adequacy/Fixtures.lean`
+- replay-derived Rust fixture vocabulary in `Field/Adequacy/ReplayFixtures.lean`
 - concrete probabilistic boundary cases in
   `Field/Adequacy/ProbabilisticFixtures.lean`
 

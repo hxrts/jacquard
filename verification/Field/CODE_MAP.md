@@ -113,6 +113,8 @@ This map describes the current organization of `verification/Field`.
   - runtime/system reduction-soundness results for support conservativity, no false explicit-path promotion, no route creation from silence, admissible lifecycle origin, and quiescent observational equivalence
 - `Field/Adequacy/Fixtures.lean`
   - proof-facing reduced runtime fixture cases covering canonical support selection, stronger router-selection tie handling, empty-runtime silence, one explicit non-claim scenario, and a small fixture-generation path from runtime artifacts or projected system states into proof-facing fixture objects
+- `Field/Adequacy/ReplayFixtures.lean`
+  - reduced replay-derived fixture vocabulary mirroring the maintained Rust replay export surface across search projection, protocol reconfiguration, runtime linkage, and recovery outcome scenarios
 - `Field/Adequacy/ProbabilisticFixtures.lean`
   - proof-facing probabilistic fixtures covering explicit-evidence posterior support, correlated-evidence boundary marking, miscalibrated-likelihood divergence, and a sparse-evidence confidence guardrail
 - `Field/Adequacy/Instance.lean`

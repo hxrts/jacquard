@@ -22,6 +22,7 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
     let parity = include_str!("../../../verification/Field/Docs/Parity.md");
     let protocol = include_str!("../../../verification/Field/Docs/Protocol.md");
     let guide = include_str!("../../../verification/Field/Docs/Guide.md");
+    let replay_fixtures = include_str!("../../../verification/Field/Adequacy/ReplayFixtures.lean");
 
     assert!(field_routing.contains("Lean covers:"));
     assert!(adequacy.contains("FieldReplaySnapshot"));
@@ -31,6 +32,12 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
     assert!(protocol.contains("observational-only reconfiguration"));
     assert!(guide.contains("Field/Search/API.lean"));
     assert!(guide.contains("Field/Adequacy/Search.lean"));
+    assert!(field_routing.contains("FieldExportedReplayBundle"));
+    assert!(field_routing.contains("participant-set change is not supported"));
+    assert!(protocol.contains("Field/Adequacy/ReplayFixtures.lean"));
+    assert!(adequacy.contains("FieldExportedReplayBundle"));
+    assert!(parity.contains("replay-derived fixture vocabulary"));
+    assert!(replay_fixtures.contains("checkpoint-restore"));
 }
 
 #[test]
@@ -62,4 +69,5 @@ fn field_docs_keep_runtime_boundary_reduced() {
     assert!(
         parity.contains("protocol artifacts and protocol reconfiguration are observational-only")
     );
+    assert!(parity.contains("participant-set change stays outside"));
 }

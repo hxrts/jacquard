@@ -23,6 +23,7 @@ use jacquard_traits::{Blake3Hashing, Hashing};
 
 use crate::{
     choreography::FieldSessionCapability,
+    recovery::StoredFieldRouteRecovery,
     state::{
         CorridorBeliefEnvelope, DestinationKey, OperatingRegime, RoutingPosture,
         MAX_CONTINUATION_NEIGHBOR_COUNT,
@@ -63,6 +64,7 @@ pub(crate) struct ActiveFieldRoute {
     pub(crate) topology_epoch: RouteEpoch,
     pub(crate) installed_at_tick: Tick,
     pub(crate) coordination_capability: Option<FieldSessionCapability>,
+    pub(crate) recovery: StoredFieldRouteRecovery,
 }
 
 #[must_use]

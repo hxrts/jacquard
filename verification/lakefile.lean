@@ -113,6 +113,7 @@ lean_lib JacquardVerification where
     `Field.Adequacy.Projection,
     `Field.Adequacy.Probabilistic,
     `Field.Adequacy.ProbabilisticFixtures,
+    `Field.Adequacy.ReplayFixtures,
     `Field.Adequacy.Search,
     `Field.Adequacy.Instance
   ]

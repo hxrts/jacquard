@@ -96,6 +96,7 @@ exclude_files = [
   "crates/field/src/observer.rs",
   "crates/field/src/attractor.rs",
   "crates/field/src/route.rs",
+  "crates/field/src/recovery.rs",
   "crates/field/src/search/domain.rs",
   "crates/field/src/search/mod.rs",
   "crates/field/src/search/runner.rs",

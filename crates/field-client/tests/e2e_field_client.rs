@@ -183,3 +183,79 @@ fn field_client_surfaces_regime_or_posture_adaptation_under_sustained_stress() {
         maintenance.outcome
     );
 }
+
+#[test]
+fn field_client_exposes_recovery_replay_continuity_end_to_end() {
+    let topology = asymmetric_topology(Tick(2));
+    let network = SharedInMemoryNetwork::default();
+    let mut client = FieldClientBuilder::new(node(1), topology, network, Tick(2)).build();
+
+    let route = client
+        .activate_route(&default_objective(DestinationId::Node(node(2))))
+        .expect("initial field activation");
+
+    assert!(client
+        .suspend_route_runtime(&route.identity.stamp.route_id)
+        .expect("suspend runtime"));
+    let suspended = client.exported_replay_bundle();
+    let suspended_entry = suspended
+        .recovery
+        .entries
+        .iter()
+        .find(|entry| entry.route_id == route.identity.stamp.route_id)
+        .expect("recovery entry");
+    assert!(suspended_entry.checkpoint_available);
+    assert_eq!(suspended_entry.checkpoint_capture_count, 1);
+    assert_eq!(
+        suspended_entry.last_outcome.as_deref(),
+        Some("CheckpointStored")
+    );
+
+    assert!(client
+        .restore_route_runtime(&route.identity.stamp.route_id)
+        .expect("restore runtime"));
+    let restored = client.exported_replay_bundle();
+    let restored_entry = restored
+        .recovery
+        .entries
+        .iter()
+        .find(|entry| entry.route_id == route.identity.stamp.route_id)
+        .expect("recovery entry");
+    assert!(!restored_entry.checkpoint_available);
+    assert_eq!(restored_entry.checkpoint_capture_count, 1);
+    assert_eq!(restored_entry.checkpoint_restore_count, 1);
+    assert_eq!(
+        restored_entry.last_outcome.as_deref(),
+        Some("CheckpointRestored")
+    );
+}
+
+#[test]
+fn field_client_exported_replay_bundle_records_checkpoint_restore_protocol_cause() {
+    let topology = asymmetric_topology(Tick(2));
+    let network = SharedInMemoryNetwork::default();
+    let mut client = FieldClientBuilder::new(node(1), topology, network, Tick(2)).build();
+
+    let route = client
+        .activate_route(&default_objective(DestinationId::Node(node(2))))
+        .expect("initial field activation");
+    client
+        .suspend_route_runtime(&route.identity.stamp.route_id)
+        .expect("suspend runtime");
+    client
+        .restore_route_runtime(&route.identity.stamp.route_id)
+        .expect("restore runtime");
+
+    let bundle = client.exported_replay_bundle();
+    assert!(bundle
+        .protocol
+        .reconfigurations
+        .iter()
+        .any(|reconfiguration| {
+            reconfiguration.route_id == Some(route.identity.stamp.route_id)
+                && reconfiguration.cause == "CheckpointRestore"
+        }));
+    let runtime_search = client.reduced_runtime_search_replay();
+    assert!(runtime_search.search.is_some());
+    assert_eq!(client.reduced_protocol_replay().schema_version, 1);
+}

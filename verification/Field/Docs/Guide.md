@@ -140,6 +140,9 @@ The protocol layer currently gives:
 - a narrow receive-refinement hook aligned to Telltale subtype-replacement style
 - an explicit reduced protocol reconfiguration surface that remains
   observational-only and fixed-participant
+- a replay-derived fixture vocabulary in
+  `Field/Adequacy/ReplayFixtures.lean` that mirrors the maintained Rust replay
+  export surface
 
 ### Network And Router Layers
 
@@ -325,6 +328,9 @@ The runtime-canonical path is now explicit:
 - `Field/Adequacy/Cost.lean` now packages the first cost-preservation results too: projected runtime artifacts preserve the canonical-search input, input size, search space, and linear search-work class exactly
 - `Field/Adequacy/Optimality.lean` now packages the first projected-runtime budgeted-optimality results too: once the reduced budget covers the projected canonical-search surface, projected runtime search agrees exactly with the same router-owned canonical result and has zero regret
 - `Field/Adequacy/Fixtures.lean` pins the reduced canonical story to concrete runtime artifacts and one explicit non-claim
+- `Field/Adequacy/ReplayFixtures.lean` pins replay-derived search,
+  reconfiguration, runtime-linkage, and recovery scenarios to concrete reduced
+  Rust-exported fixture families
 - `Field/AssumptionTheorems.lean` now packages `contract_yields_runtime_execution_canonical_refinement` as the preferred execution-state theorem above the older projected-artifact surface
 - under that stronger runtime-state path, runtime canonical selection agrees with the same router-owned canonical selector without talking only about one synthetic artifact list
 
