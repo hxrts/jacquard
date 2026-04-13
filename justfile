@@ -182,6 +182,7 @@ ci-dry-run:
     add_step "Preflight"                  "./scripts/preflight.sh"
     add_step "Format Check"               "{{fmt_cmd}} --all -- --check"
     add_step "Clippy"                     "cargo clippy --workspace --all-targets -- -D warnings"
+    add_step "Generate Summary"           "just summary"
     add_step "Tests"                      "cargo test --workspace"
     add_step "Lean Style"                 "just lean-style"
     add_step "Wasm Check"                 "just wasm-check"

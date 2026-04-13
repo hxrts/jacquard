@@ -32,6 +32,8 @@ jobs:
         run: ./scripts/toolkit-shell.sh toolkit-fmt --all -- --check
       - name: Clippy
         run: nix develop --command cargo clippy --workspace --all-targets -- -D warnings
+      - name: Generate Summary
+        run: just summary
       - name: Tests
         run: nix develop --command cargo test --workspace
       - name: Lean Style
