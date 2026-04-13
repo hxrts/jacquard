@@ -9,13 +9,13 @@ repository.workspace = true
 documentation.workspace = true
 
 [dependencies]
-jacquard-adapter = { path = "../adapter" }
-jacquard-batman = { path = "../batman" }
-jacquard-core = { path = "../core" }
-jacquard-mem-link-profile = { path = "../mem-link-profile" }
-jacquard-reference-client = { path = "../reference-client" }
-jacquard-router = { path = "../router" }
-jacquard-traits = { path = "../traits" }
+jacquard-adapter = { version = "0.4.0", path = "../adapter" }
+jacquard-batman = { version = "0.4.0", path = "../batman" }
+jacquard-core = { version = "0.4.0", path = "../core" }
+jacquard-mem-link-profile = { version = "0.4.0", path = "../mem-link-profile" }
+jacquard-reference-client = { version = "0.4.0", path = "../reference-client" }
+jacquard-router = { version = "0.4.0", path = "../router" }
+jacquard-traits = { version = "0.4.0", path = "../traits" }
 
 serde = { workspace = true, default-features = false }
 telltale-simulator.workspace = true

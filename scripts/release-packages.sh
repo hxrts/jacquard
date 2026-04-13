@@ -5,7 +5,8 @@
 #
 # Dependency order:
 #   macros → core → traits, adapter, mem-node-profile
-#   adapter → mem-link-profile → pathway, batman, router → reference-client
+#   adapter → mem-link-profile → pathway, batman, field → router
+#   router → reference-client → field-client → simulator
 RELEASE_PACKAGES=(
   "jacquard-macros"
   "jacquard-core"
@@ -15,8 +16,11 @@ RELEASE_PACKAGES=(
   "jacquard-mem-link-profile"
   "jacquard-pathway"
   "jacquard-batman"
+  "jacquard-field"
   "jacquard-router"
   "jacquard-reference-client"
+  "jacquard-field-client"
+  "jacquard-simulator"
 )
 
 manifest_path() {
@@ -30,8 +34,11 @@ manifest_path() {
     jacquard-mem-link-profile) echo "crates/mem-link-profile/Cargo.toml" ;;
     jacquard-pathway)          echo "crates/pathway/Cargo.toml" ;;
     jacquard-batman)           echo "crates/batman/Cargo.toml" ;;
+    jacquard-field)            echo "crates/field/Cargo.toml" ;;
     jacquard-router)           echo "crates/router/Cargo.toml" ;;
     jacquard-reference-client) echo "crates/reference-client/Cargo.toml" ;;
+    jacquard-field-client)     echo "crates/field-client/Cargo.toml" ;;
+    jacquard-simulator)        echo "crates/simulator/Cargo.toml" ;;
     *)
       echo "unknown package: ${crate}" >&2
       return 1

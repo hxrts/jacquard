@@ -178,7 +178,6 @@ manifest_path = "Cargo.toml"
 planned_crates = [
   "jacquard-pathway",
   "jacquard-router",
-  "jacquard-transport",
   "jacquard-simulator",
 ]
 

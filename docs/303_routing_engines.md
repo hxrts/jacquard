@@ -120,21 +120,7 @@ honestly report `NextHopOnly`.
 
 ## In-Tree BATMAN Engine
 
-`jacquard-batman` is the in-tree proactive next-hop reference engine.
-
-- It owns private originator observations, neighbor ranking, and best-next-hop
-  tables.
-- It reports `RouteShapeVisibility::NextHopOnly`.
-- It uses `engine_tick` for proactive maintenance and returns
-  `RoutingTickHint` so the router can observe scheduling pressure without
-  surrendering cadence ownership.
-- It materializes routes under router-owned canonical identity exactly like any
-  other engine.
-
-The BATMAN engine assumes only an OGM-equivalent observation baseline for link
-quality. Richer shared link observations such as delivery confidence,
-symmetry, throughput, and stability horizon are optional refinements, not
-required inputs.
+`jacquard-batman` is the in-tree proactive next-hop reference engine; see [Batman Routing](402_batman_routing.md) for the engine-specific model, capability assumptions, and maintenance behavior.
 
 ## Policy And Coordination
 
