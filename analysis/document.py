@@ -28,6 +28,7 @@ from svglib.svglib import svg2rlg
 
 from .sections import (
     approach_lines,
+    analysis_takeaway_lines,
     asset_block,
     babel_algorithm_lines,
     batman_bellman_algorithm_lines,
@@ -725,6 +726,12 @@ def write_pdf_report(
     )
     story.append(Spacer(1, 0.16 * cm))
     add_paragraphs(story, styles, head_to_head_takeaway_lines(head_to_head_summary))
+    story.append(Paragraph("Part II Takeaways", styles["Subsection"]))
+    add_paragraphs(
+        story,
+        styles,
+        analysis_takeaway_lines(recommendations, comparison_summary, head_to_head_summary),
+    )
 
     if not diffusion_engine_summary.is_empty():
         story.append(PageBreak())

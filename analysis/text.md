@@ -303,6 +303,13 @@ These rows show what each stack does when it is the only available routing surfa
 
 No head-to-head summary is available for this artifact set.
 
+### Part II Takeaways
+
+- The routing comparison does not collapse to one universal winner. In the mixed-engine matrix, `connected-low-loss` is led by `{connected_low_loss_engine}`, `corridor-continuity-uncertainty` by `{corridor_engine}`, and `partial-observability-bridge` by `{partial_bridge_engine}`.
+- Among the maintained proactive next-hop defaults, `babel` and `olsrv2` are the strongest contrasting baselines: `{babel_config}` captures the asymmetry-sensitive distance-vector case, while `{olsrv2_config}` is the full-topology baseline when HELLO and TC propagation have time to pay off.
+- Explicit search still matters when the workload is mixed rather than purely hop-by-hop. In the head-to-head matrix, `concurrent-mixed` is led by `{concurrent_mixed_engine_set}` at {concurrent_mixed_route_presence} permille route presence.
+- `field` remains specialized rather than universal. It is strongest when corridor continuity is the question at {corridor_uncertainty_route_presence} permille, but it is not the default winner in the partial-observability bridge case.
+
 ## Part III. Diffusion Calibration
 
 ### Diffusion Calibration Introduction

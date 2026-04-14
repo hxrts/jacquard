@@ -5302,13 +5302,14 @@ fn repairable_connected_profile() -> SelectedRoutingParameters {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_field_bridge_anti_entropy_continuity, build_field_service_freshness_inversion,
-        build_field_service_overlap_reselection, build_field_service_publication_pressure,
-        build_field_uncertain_service_fanout, local_suite, run_suite, smoke_suite,
-        ExperimentParameterSet,
+        build_comparison_partial_observability_bridge, build_field_bridge_anti_entropy_continuity,
+        build_field_service_freshness_inversion, build_field_service_overlap_reselection,
+        build_field_service_publication_pressure, build_field_uncertain_service_fanout,
+        local_suite, run_suite, smoke_suite, ExperimentParameterSet,
     };
     use crate::ReducedReplayView;
     use jacquard_core::{DestinationId, NodeId, ServiceId};
+    use jacquard_pathway::PathwaySearchHeuristicMode;
 
     #[test]
     fn smoke_suite_runs_and_writes_artifacts() {
@@ -5330,6 +5331,42 @@ mod tests {
     fn local_suite_contains_cross_regime_runs() {
         let suite = local_suite();
         assert!(suite.run_count() > smoke_suite().run_count());
+    }
+
+    #[test]
+    fn head_to_head_pathway_batman_partial_observability_falls_back_to_batman() {
+        let parameters = ExperimentParameterSet::head_to_head(
+            "pathway-batman-bellman",
+            Some((6, 3)),
+            Some((4, PathwaySearchHeuristicMode::HopLowerBound)),
+            None,
+        );
+        let (scenario, environment) = build_comparison_partial_observability_bridge(
+            &parameters,
+            jacquard_core::SimulationSeed(41),
+        );
+        let simulator = crate::JacquardSimulationHarness::new(crate::ReferenceClientAdapter);
+        let (replay, _stats) = simulator
+            .run(&scenario, &environment)
+            .expect("run partial observability pathway+batman scenario");
+        for summary in &replay.failure_summaries {
+            eprintln!("failure: {}", summary.detail);
+        }
+        let reduced = ReducedReplayView::from_replay(&replay);
+        let destination = DestinationId::Node(NodeId([4; 32]));
+
+        assert!(
+            reduced.route_seen(NodeId([1; 32]), &destination),
+            "expected hybrid pathway+batman route activation in partial observability scenario"
+        );
+        assert!(
+            replay.failure_summaries.iter().all(|summary| {
+                !summary
+                    .detail
+                    .contains("candidate was inadmissible: branching infeasible")
+            }),
+            "expected router to continue past inadmissible pathway candidates"
+        );
     }
 
     #[test]

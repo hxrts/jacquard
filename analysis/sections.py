@@ -225,6 +225,58 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
     )
 
 
+def analysis_takeaway_lines(
+    recommendations: pl.DataFrame,
+    comparison_summary: pl.DataFrame,
+    head_to_head_summary: pl.DataFrame,
+) -> list[str]:
+    if comparison_summary.is_empty() or head_to_head_summary.is_empty():
+        return []
+
+    comparison_rows = {
+        row["family_id"]: row for row in comparison_summary.iter_rows(named=True)
+    }
+    head_to_head_rows = {
+        row["family_id"]: row
+        for row in (
+            head_to_head_summary.sort(
+                ["family_id", "route_present_permille_mean", "activation_success_permille_mean"],
+                descending=[False, True, True],
+            ).iter_rows(named=True)
+        )
+    }
+
+    connected_low_loss = comparison_rows.get("comparison-connected-low-loss")
+    corridor = comparison_rows.get("comparison-corridor-continuity-uncertainty")
+    partial_bridge = comparison_rows.get("comparison-partial-observability-bridge")
+    concurrent_mixed = head_to_head_rows.get("head-to-head-concurrent-mixed")
+    corridor_uncertainty = head_to_head_rows.get("head-to-head-corridor-continuity-uncertainty")
+    babel = top_recommendation_row(recommendations, "babel")
+    olsrv2 = top_recommendation_row(recommendations, "olsrv2")
+    if (
+        connected_low_loss is None
+        or corridor is None
+        or partial_bridge is None
+        or concurrent_mixed is None
+        or corridor_uncertainty is None
+        or babel is None
+        or olsrv2 is None
+    ):
+        return []
+
+    return section_lines_formatted(
+        "Part II Takeaways",
+        connected_low_loss_engine=connected_low_loss["dominant_engine"] or "none",
+        corridor_engine=corridor["dominant_engine"] or "none",
+        partial_bridge_engine=partial_bridge["dominant_engine"] or "none",
+        babel_config=babel["config_id"],
+        olsrv2_config=olsrv2["config_id"],
+        concurrent_mixed_engine_set=concurrent_mixed["comparison_engine_set"] or "none",
+        concurrent_mixed_route_presence=concurrent_mixed["route_present_permille_mean"],
+        corridor_uncertainty_route_presence=corridor_uncertainty["route_present_permille_mean"],
+    )
+
+
 def diffusion_field_posture_lines(diffusion_engine_comparison: pl.DataFrame) -> list[str]:
     if diffusion_engine_comparison.is_empty():
         return []
