@@ -63,9 +63,13 @@ Transport ownership is split deliberately:
 
 `macros` owns syntax-local code generation and annotation-site validation. The flake-input `toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `toolkit/lints/` and `toolkit/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
-`jacquard-field` owns field-private posterior state, mean-field compression, regime/posture control state, and continuation scoring. Like pathway and batman, field-private choreography may supply only observational evidence into the deterministic local controller — canonical route publication remains router-owned.
+`jacquard-field` owns field-private posterior state, mean-field compression, regime/posture control state, and continuation scoring. Like pathway and the batman engines, field-private choreography may supply only observational evidence into the deterministic local controller — canonical route publication remains router-owned.
 
-`jacquard-simulator` is the scenario/replay harness above the shared boundaries. It reuses reference-client bridge ownership and round advancement; it does not maintain a simulator-only stack.
+`jacquard-batman-bellman` is the enhanced BATMAN engine using local Bellman-Ford over a gossip-merged topology graph with TQ enrichment and a bootstrap shortcut. `jacquard-batman-classic` is the spec-faithful BATMAN IV engine with OGM-carried TQ, TTL-bounded propagation, and echo-only bidirectionality. `jacquard-babel` implements RFC 8966 with bidirectional ETX link cost, additive metric, and a feasibility distance table for loop-free route selection.
+
+`jacquard-simulator` is the scenario/replay harness above the shared boundaries. It reuses reference-client bridge ownership and round advancement; it does not maintain a simulator-only stack. The `tuning_matrix` binary runs experiment suites and automatically generates analysis reports via `python3 -m analysis.report`. Artifacts are written to `artifacts/analysis/{suite}/{timestamp}/` with a `latest` symlink.
+
+The `analysis/` directory contains a Python pipeline (polars + matplotlib + reportlab) that reads simulator artifacts and generates a PDF report with per-engine recommendations, transition metrics, failure boundaries, cross-engine comparisons, and diffusion analysis.
 
 The canonical host wiring reference is `crates/reference-client/tests/e2e_multi_layer_routing.rs`.
 
@@ -106,13 +110,15 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-pathway`: deterministic candidate production, admission/materialization, commitment tracking, forwarding, repair, topology-change, observation handling.
 - `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, explicit ingress, synchronous round advancement, fallback legality, adaptive-profile derivation.
 - `jacquard-reference-client`: host-side bridge composition of router + pathway/batman + in-memory profiles for end-to-end tests.
-- `jacquard-batman`: next-hop ranking, TQ derivation, gossip integration, and router integration.
+- `jacquard-batman-bellman`: next-hop ranking, TQ derivation with enrichment, Bellman-Ford path computation, gossip integration, bootstrap transition, and router integration.
+- `jacquard-batman-classic`: spec-faithful OGM-carried TQ, echo-only bidirectionality, receive-window occupancy, and router integration.
+- `jacquard-babel`: ETX link cost, additive metric, feasibility distance table, seqno ordering, and router integration.
 - `jacquard-field`: observer, attractor, search, regime/posture control, runtime maintenance, and field-client integration.
 - `jacquard-field-client`: end-to-end field client API and replay export.
 - `jacquard-macros`: proc-macro compile checks and trybuild UI regression tests for annotation contracts.
 - `jacquard-mem-link-profile`: transport, retention, and runtime-effect adapter integration.
 - `jacquard-mem-node-profile`: node profile and capability modeling.
-- `jacquard-simulator`: scenario smoke tests and replay round-trip.
+- `jacquard-simulator`: scenario smoke tests (all five engines), composition tests, regression tests, tuning parameter sweeps, and replay round-trip.
 
 ## Telltale dependency
 
