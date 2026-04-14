@@ -9,7 +9,7 @@ use jacquard_simulator::{
     tuning_local_suite, tuning_smoke_suite, JacquardSimulator, ReferenceClientAdapter,
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn parse_args() -> (String, Option<PathBuf>) {
     let mut args = env::args().skip(1);
     let suite = args.next().unwrap_or_else(|| "smoke".to_string());
     let mut output_dir = None;
@@ -19,103 +19,95 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             output_dir = args.next().map(PathBuf::from);
         }
     }
+    (suite, output_dir)
+}
 
-    let output_dir = output_dir.unwrap_or_else(|| default_output_dir(&suite));
+fn print_tuning_summary(artifacts: &jacquard_simulator::ExperimentArtifacts) {
+    println!(
+        "Tuning suite '{}' wrote {} runs, {} aggregates, {} breakdowns to {}",
+        artifacts.manifest.suite_id,
+        artifacts.manifest.run_count,
+        artifacts.manifest.aggregate_count,
+        artifacts.manifest.breakdown_count,
+        artifacts.output_dir.display()
+    );
+}
 
-    match suite.as_str() {
-        "diffusion-local" => {
-            let artifacts = run_diffusion_suite(&diffusion_local_suite(), &output_dir)?;
-            println!(
-                "Diffusion suite '{}' wrote {} runs, {} aggregates, {} boundaries to {}",
-                artifacts.manifest.suite_id,
-                artifacts.manifest.run_count,
-                artifacts.manifest.aggregate_count,
-                artifacts.manifest.boundary_count,
-                artifacts.output_dir.display()
-            );
-            update_latest_symlink(&output_dir);
-        }
-        "diffusion-smoke" => {
-            let artifacts = run_diffusion_suite(&diffusion_smoke_suite(), &output_dir)?;
-            println!(
-                "Diffusion suite '{}' wrote {} runs, {} aggregates, {} boundaries to {}",
-                artifacts.manifest.suite_id,
-                artifacts.manifest.run_count,
-                artifacts.manifest.aggregate_count,
-                artifacts.manifest.boundary_count,
-                artifacts.output_dir.display()
-            );
-            update_latest_symlink(&output_dir);
-        }
-        "local" => {
-            let suite = tuning_local_suite();
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(&mut simulator, &suite, &output_dir)?;
-            println!(
-                "Tuning suite '{}' wrote {} runs, {} aggregates, {} breakdowns to {}",
-                artifacts.manifest.suite_id,
-                artifacts.manifest.run_count,
-                artifacts.manifest.aggregate_count,
-                artifacts.manifest.breakdown_count,
-                artifacts.output_dir.display()
-            );
-            let diffusion_suite = if suite.suite_id() == "local" {
-                diffusion_local_suite()
-            } else {
-                diffusion_smoke_suite()
-            };
-            let diffusion_artifacts = run_diffusion_suite(&diffusion_suite, &output_dir)?;
-            println!(
-                "Diffusion suite '{}' wrote {} runs, {} aggregates, {} boundaries to {}",
-                diffusion_artifacts.manifest.suite_id,
-                diffusion_artifacts.manifest.run_count,
-                diffusion_artifacts.manifest.aggregate_count,
-                diffusion_artifacts.manifest.boundary_count,
-                diffusion_artifacts.output_dir.display()
-            );
-            update_latest_symlink(&output_dir);
-            run_analysis_report(&output_dir);
-        }
-        "smoke" => {
-            let suite = tuning_smoke_suite();
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(&mut simulator, &suite, &output_dir)?;
-            println!(
-                "Tuning suite '{}' wrote {} runs, {} aggregates, {} breakdowns to {}",
-                artifacts.manifest.suite_id,
-                artifacts.manifest.run_count,
-                artifacts.manifest.aggregate_count,
-                artifacts.manifest.breakdown_count,
-                artifacts.output_dir.display()
-            );
-            let diffusion_artifacts = run_diffusion_suite(&diffusion_smoke_suite(), &output_dir)?;
-            println!(
-                "Diffusion suite '{}' wrote {} runs, {} aggregates, {} boundaries to {}",
-                diffusion_artifacts.manifest.suite_id,
-                diffusion_artifacts.manifest.run_count,
-                diffusion_artifacts.manifest.aggregate_count,
-                diffusion_artifacts.manifest.boundary_count,
-                diffusion_artifacts.output_dir.display()
-            );
-            remove_report_dir(&output_dir);
-            update_latest_symlink(&output_dir);
-        }
-        _ => {
-            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-            let artifacts = run_tuning_suite(&mut simulator, &tuning_smoke_suite(), &output_dir)?;
-            println!(
-                "Tuning suite '{}' wrote {} runs, {} aggregates, {} breakdowns to {}",
-                artifacts.manifest.suite_id,
-                artifacts.manifest.run_count,
-                artifacts.manifest.aggregate_count,
-                artifacts.manifest.breakdown_count,
-                artifacts.output_dir.display()
-            );
-            remove_report_dir(&output_dir);
-            update_latest_symlink(&output_dir);
-        }
+fn print_diffusion_summary(artifacts: &jacquard_simulator::DiffusionArtifacts) {
+    println!(
+        "Diffusion suite '{}' wrote {} runs, {} aggregates, {} boundaries to {}",
+        artifacts.manifest.suite_id,
+        artifacts.manifest.run_count,
+        artifacts.manifest.aggregate_count,
+        artifacts.manifest.boundary_count,
+        artifacts.output_dir.display()
+    );
+}
+
+fn run_single_diffusion_suite(
+    suite: jacquard_simulator::DiffusionSuite,
+    output_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let artifacts = run_diffusion_suite(&suite, output_dir)?;
+    print_diffusion_summary(&artifacts);
+    update_latest_symlink(output_dir);
+    Ok(())
+}
+
+fn run_tuning_mode(
+    suite: jacquard_simulator::ExperimentSuite,
+    diffusion_suite: jacquard_simulator::DiffusionSuite,
+    output_dir: &Path,
+    generate_report: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+    let artifacts = run_tuning_suite(&mut simulator, &suite, output_dir)?;
+    print_tuning_summary(&artifacts);
+    let diffusion_artifacts = run_diffusion_suite(&diffusion_suite, output_dir)?;
+    print_diffusion_summary(&diffusion_artifacts);
+    update_latest_symlink(output_dir);
+    if generate_report {
+        run_analysis_report(output_dir);
+    } else {
+        remove_report_dir(output_dir);
     }
     Ok(())
+}
+
+fn run_default_smoke_tuning(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+    let artifacts = run_tuning_suite(&mut simulator, &tuning_smoke_suite(), output_dir)?;
+    print_tuning_summary(&artifacts);
+    remove_report_dir(output_dir);
+    update_latest_symlink(output_dir);
+    Ok(())
+}
+
+fn run_selected_suite(suite: &str, output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    match suite {
+        "diffusion-local" => run_single_diffusion_suite(diffusion_local_suite(), output_dir),
+        "diffusion-smoke" => run_single_diffusion_suite(diffusion_smoke_suite(), output_dir),
+        "local" => run_tuning_mode(
+            tuning_local_suite(),
+            diffusion_local_suite(),
+            output_dir,
+            true,
+        ),
+        "smoke" => run_tuning_mode(
+            tuning_smoke_suite(),
+            diffusion_smoke_suite(),
+            output_dir,
+            false,
+        ),
+        _ => run_default_smoke_tuning(output_dir),
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let (suite, output_dir) = parse_args();
+
+    let output_dir = output_dir.unwrap_or_else(|| default_output_dir(&suite));
+    run_selected_suite(&suite, &output_dir)
 }
 
 fn default_output_dir(suite: &str) -> PathBuf {

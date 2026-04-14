@@ -48,12 +48,12 @@ wildcard_imports = "warn"
 
 [workspace.dependencies]
 # choreography/runtime
-telltale = "13.0.0"
-telltale-search = "13.0.0"
-telltale-types = "13.0.0"
-telltale-macros = "13.0.0"
-telltale-runtime = "13.0.0"
-telltale-simulator = "13.0.0"
+telltale = "14.0.0"
+telltale-search = "14.0.0"
+telltale-types = "14.0.0"
+telltale-macros = "14.0.0"
+telltale-runtime = "14.0.0"
+telltale-simulator = "14.0.0"
 
 # async
 futures     = "0.3"

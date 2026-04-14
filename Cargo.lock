@@ -1382,9 +1382,9 @@ checksum = "591ef38edfb78ca4771ee32cf494cb8771944bee237a9b91fc9c1424ac4b777b"
 
 [[package]]
 name = "telltale"
-version = "13.0.0"
+version = "14.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b95757bb7867b3d857af46b7a9538399332ccdecdcc75efabdd0adc31ddee4c"
+checksum = "eab6aa98700996f9106b1065fe9b68ac74938655fdc6b0834baa5412e8e79cd4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1414,9 +1414,9 @@ dependencies = [
 
 [[package]]
 name = "telltale-language"
-version = "13.0.0"
+version = "14.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef2728f83de5c447fe817a9898cef2ea4ae44b694fa5d875e25b5976ab1cca13"
+checksum = "aab769fef8dd1292c1238d553343202c1f9e5c506bb460af8f2ea93508f45aca"
 dependencies = [
  "pest",
  "pest_derive",
@@ -1433,9 +1433,9 @@ dependencies = [
 
 [[package]]
 name = "telltale-machine"
-version = "13.0.0"
+version = "14.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dfbb9e671dc33c12c563f406ee89bbad6ea44ad49b1ed7f63fd78dab49d1297"
+checksum = "3ca069c2e543e13e067eba9cfe700ab01dbbba6ba57f2cf5604c2fe25bdfa6bd"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -1454,9 +1454,9 @@ dependencies = [
 
 [[package]]
 name = "telltale-macros"
-version = "13.0.0"
+version = "14.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8723a81a5f1bff4d1a480fb10ed6b19e6d537c0efbdfcb9ff393444cb83c57f"
+checksum = "28afc25415448e41aea090dbf9538ad13ab5040c0a779667c764c6d9b470cc89"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1466,9 +1466,9 @@ dependencies = [
 
 [[package]]
 name = "telltale-search"
-version = "13.0.0"
+version = "14.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8811746779ca1c40af5681b0fe1db762c06372714a93c9d71936acf246415ab7"
+checksum = "244892cca51546ebfc9545a020e83dc5457bd6d16d8d2f5c66cf75550ed762c5"
 dependencies = [
  "rayon",
  "serde",
@@ -1476,9 +1476,9 @@ dependencies = [
 
 [[package]]
 name = "telltale-simulator"
-version = "13.0.0"
+version = "14.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84a0e5b096560c9664fc805e94acf2b9fc3a89170bfeb5d43c20ace73319feed"
+checksum = "c02221b9d7526a96179470a51111de5204cbf34ef766d921446d11bc7745b893"
 dependencies = [
  "getrandom 0.2.17",
  "rand",
@@ -1495,9 +1495,9 @@ dependencies = [
 
 [[package]]
 name = "telltale-theory"
-version = "13.0.0"
+version = "14.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcd586c67f4d48cb82d7fbab981b421abd1cc8c18f9b0926253affe7c00ffb2b"
+checksum = "9bcd8f0f00df79c0dfedc4fed8a2f719d07d9da1a822ac699ef34cdcabed20c4"
 dependencies = [
  "telltale-types",
  "thiserror",
@@ -1505,9 +1505,9 @@ dependencies = [
 
 [[package]]
 name = "telltale-types"
-version = "13.0.0"
+version = "14.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e475025af362fca8ba80944c5edbd9121dcbf6a3a9cbb06b95fa610a450425e0"
+checksum = "5f654235b32e8c6b995a3d6bd9228c7fd20f570cc385ee7e5bc48ce1a6cedfbf"
 dependencies = [
  "blake3",
  "fixed",
