@@ -949,7 +949,7 @@ def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataF
     engine_sets = diffusion_engine_sets(diffusion_engine_comparison)
     cols = 3
     rows = (len(families) + cols - 1) // cols
-    grid = subplotspec.subgridspec(rows, cols, wspace=0.16, hspace=0.85)
+    grid = subplotspec.subgridspec(rows, cols, wspace=0.16, hspace=0.45)
     panels = []
     y_positions = list(range(len(engine_sets)))
     for index, family in enumerate(families):
@@ -1026,13 +1026,13 @@ def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataF
         [*engine_handles, coverage_handle],
         [*engine_labels, "coverage"],
         loc="lower center",
-        bbox_to_anchor=(0.5, 0.04),
+        bbox_to_anchor=(0.5, 0.08),
         ncol=min(4, max(2, len(engine_sets) // 3 + 1)),
         frameon=False,
         fontsize=8,
     )
     style_legend(figure_legend)
-    fig.subplots_adjust(bottom=0.26)
+    fig.subplots_adjust(bottom=0.16)
 
 
 def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.DataFrame) -> None:
@@ -1050,7 +1050,7 @@ def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.Da
     engine_sets = diffusion_engine_sets(diffusion_engine_comparison)
     cols = 3
     rows = (len(families) + cols - 1) // cols
-    grid = subplotspec.subgridspec(rows, cols, wspace=0.16, hspace=0.85)
+    grid = subplotspec.subgridspec(rows, cols, wspace=0.16, hspace=0.45)
     panels = []
     max_tx = diffusion_engine_comparison["total_transmissions_mean"].max()
     y_positions = list(range(len(engine_sets)))
@@ -1138,13 +1138,13 @@ def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.Da
         legend_handles,
         legend_labels,
         loc="lower center",
-        bbox_to_anchor=(0.5, 0.04),
+        bbox_to_anchor=(0.5, 0.08),
         ncol=min(4, max(2, len(engine_sets) // 3 + 1)),
         frameon=False,
         fontsize=8,
     )
     style_legend(figure_legend)
-    fig.subplots_adjust(bottom=0.26)
+    fig.subplots_adjust(bottom=0.16)
 
 
 def save_plot_artifact(
