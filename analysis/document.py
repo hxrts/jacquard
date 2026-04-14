@@ -149,7 +149,7 @@ def build_styles():
             fontName="Helvetica",
             fontSize=9.5,
             leading=13,
-            leftIndent=12,
+            leftIndent=9,
             bulletIndent=0,
             spaceAfter=4,
         )
