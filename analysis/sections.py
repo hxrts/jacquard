@@ -201,6 +201,39 @@ def pressure_findings_lines(aggregates: pl.DataFrame) -> list[str]:
         else:
             lines.extend(section_lines("Pressure Findings Batman Separation"))
 
+    batman_classic_pressure = aggregates.filter(
+        (pl.col("engine_family") == "batman-classic")
+        & pl.col("family_id").is_in(
+            [
+                "batman-classic-decay-window-pressure",
+                "batman-classic-partition-recovery",
+            ]
+        )
+    ).sort(["family_id", "batman_classic_stale_after_ticks"])
+    if not batman_classic_pressure.is_empty():
+        stability_values = batman_classic_pressure["stability_total_mean"].to_list()
+        if len(set(stability_values)) <= 2:
+            lines.extend(section_lines("Pressure Findings Batman Classic Plateau"))
+        else:
+            lines.extend(section_lines("Pressure Findings Batman Classic Separation"))
+
+    babel_pressure = aggregates.filter(
+        (pl.col("engine_family") == "babel")
+        & pl.col("family_id").is_in(
+            [
+                "babel-decay-window-pressure",
+                "babel-asymmetry-cost-penalty",
+                "babel-partition-feasibility-recovery",
+            ]
+        )
+    ).sort(["family_id", "babel_stale_after_ticks"])
+    if not babel_pressure.is_empty():
+        stability_values = babel_pressure["stability_total_mean"].to_list()
+        if len(set(stability_values)) <= 2:
+            lines.extend(section_lines("Pressure Findings Babel Plateau"))
+        else:
+            lines.extend(section_lines("Pressure Findings Babel Separation"))
+
     pathway_pressure = aggregates.filter(
         (pl.col("engine_family") == "pathway")
         & pl.col("family_id").is_in(
@@ -263,6 +296,14 @@ def regime_characterization_lines() -> list[str]:
 
 def batman_bellman_algorithm_lines() -> list[str]:
     return section_lines("BATMAN Bellman Algorithm")
+
+
+def batman_classic_algorithm_lines() -> list[str]:
+    return section_lines("BATMAN Classic Algorithm")
+
+
+def babel_algorithm_lines() -> list[str]:
+    return section_lines("Babel Algorithm")
 
 
 def pathway_algorithm_lines() -> list[str]:
@@ -340,6 +381,63 @@ def engine_section_lines(
                     )
                 )
         lines.extend(section_lines("Engine Section Batman Bellman Closing"))
+    if engine_family == "batman-classic":
+        pressure = family_rows.filter(
+            pl.col("family_id").is_in(
+                [
+                    "batman-classic-decay-window-pressure",
+                    "batman-classic-partition-recovery",
+                ]
+            )
+        )
+        if not pressure.is_empty():
+            stability_values = pressure["stability_total_mean"].to_list()
+            if len(set(stability_values)) == 1:
+                lines.extend(section_lines("Engine Section Batman Classic Plateau"))
+            else:
+                best = pressure.sort(
+                    ["stability_total_mean", "route_present_permille_mean"],
+                    descending=[True, True],
+                ).head(1)
+                best_row = best.iter_rows(named=True).__next__()
+                lines.extend(
+                    section_lines_formatted(
+                        "Engine Section Batman Classic Best",
+                        config_id=best_row["config_id"],
+                        stability_total=best_row["stability_total_mean"],
+                        route_presence=best_row["route_present_permille_mean"],
+                    )
+                )
+        lines.extend(section_lines("Engine Section Batman Classic Closing"))
+    if engine_family == "babel":
+        pressure = family_rows.filter(
+            pl.col("family_id").is_in(
+                [
+                    "babel-decay-window-pressure",
+                    "babel-asymmetry-cost-penalty",
+                    "babel-partition-feasibility-recovery",
+                ]
+            )
+        )
+        if not pressure.is_empty():
+            stability_values = pressure["stability_total_mean"].to_list()
+            if len(set(stability_values)) == 1:
+                lines.extend(section_lines("Engine Section Babel Plateau"))
+            else:
+                best = pressure.sort(
+                    ["stability_total_mean", "route_present_permille_mean"],
+                    descending=[True, True],
+                ).head(1)
+                best_row = best.iter_rows(named=True).__next__()
+                lines.extend(
+                    section_lines_formatted(
+                        "Engine Section Babel Best",
+                        config_id=best_row["config_id"],
+                        stability_total=best_row["stability_total_mean"],
+                        route_presence=best_row["route_present_permille_mean"],
+                    )
+                )
+        lines.extend(section_lines("Engine Section Babel Closing"))
     if engine_family == "pathway":
         pressure = family_rows.filter(
             pl.col("family_id").is_in(
@@ -465,6 +563,12 @@ def recommendation_rationale_lines(
     if engine_family == "batman-bellman":
         lines.extend(section_lines("Recommendation Rationale Batman Bellman 1"))
         lines.extend(section_lines("Recommendation Rationale Batman Bellman 2"))
+    if engine_family == "batman-classic":
+        lines.extend(section_lines("Recommendation Rationale Batman Classic 1"))
+        lines.extend(section_lines("Recommendation Rationale Batman Classic 2"))
+    if engine_family == "babel":
+        lines.extend(section_lines("Recommendation Rationale Babel 1"))
+        lines.extend(section_lines("Recommendation Rationale Babel 2"))
     if engine_family == "pathway":
         lines.extend(section_lines("Recommendation Rationale Pathway 1"))
         lines.extend(section_lines("Recommendation Rationale Pathway 2"))

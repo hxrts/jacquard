@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 import polars as pl
 
 from .constants import (
+    BABEL_FAMILY_COLORS,
     BATMAN_BELLMAN_FAMILY_COLORS,
+    BATMAN_CLASSIC_FAMILY_COLORS,
     COMPARISON_ENGINE_COLORS,
     FIELD_FAMILY_COLORS,
     HEAD_TO_HEAD_SET_COLORS,
@@ -166,6 +168,197 @@ def render_batman_bellman_transition_loss(ax, aggregates: pl.DataFrame) -> None:
         panel.set_ylim(0, y_max)
 
 
+def render_batman_classic_transition_stability(ax, aggregates: pl.DataFrame) -> None:
+    batman_classic_families = [
+        "batman-classic-decay-window-pressure",
+        "batman-classic-partition-recovery",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "batman-classic")
+        & pl.col("family_id").is_in(batman_classic_families)
+    )
+    if data.is_empty():
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(1, 2, wspace=0.18)
+    for index, family_id in enumerate(batman_classic_families):
+        panel = fig.add_subplot(grid[0, index])
+        rows = data.filter(pl.col("family_id") == family_id).sort(
+            "batman_classic_stale_after_ticks"
+        )
+        xs = rows["batman_classic_stale_after_ticks"].to_list()
+        ys = rows["stability_total_mean"].to_list()
+        panel.plot(
+            xs,
+            ys,
+            marker="o",
+            color=BATMAN_CLASSIC_FAMILY_COLORS.get(family_id, "#56B4E9"),
+            linewidth=1.9,
+            markersize=5.5,
+            markeredgecolor="white",
+            markeredgewidth=0.7,
+            zorder=3,
+        )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Stale ticks")
+        if index == 0:
+            panel.set_ylabel("Stability")
+        panel.set_xticks(xs)
+        panel.set_ylim(0, 2500)
+        style_plot_axes(panel)
+
+
+def render_batman_classic_transition_loss(ax, aggregates: pl.DataFrame) -> None:
+    batman_classic_families = [
+        "batman-classic-decay-window-pressure",
+        "batman-classic-partition-recovery",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "batman-classic")
+        & pl.col("family_id").is_in(batman_classic_families)
+        & pl.col("first_loss_round_mean").is_not_null()
+    )
+    if data.is_empty():
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(1, 2, wspace=0.18)
+    panels = []
+    for index, family_id in enumerate(batman_classic_families):
+        panel = fig.add_subplot(grid[0, index])
+        panels.append(panel)
+        rows = data.filter(pl.col("family_id") == family_id).sort(
+            "batman_classic_stale_after_ticks"
+        )
+        xs = rows["batman_classic_stale_after_ticks"].to_list()
+        ys = rows["first_loss_round_mean"].to_list()
+        panel.plot(
+            xs,
+            ys,
+            marker="s",
+            color=BATMAN_CLASSIC_FAMILY_COLORS.get(family_id, "#56B4E9"),
+            linewidth=1.6,
+            markersize=5.5,
+            markeredgecolor="white",
+            markeredgewidth=0.7,
+            linestyle="dashed",
+            zorder=3,
+        )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Stale ticks")
+        if index == 0:
+            panel.set_ylabel("First loss round")
+        panel.set_xticks(xs)
+        style_plot_axes(panel)
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
+
+
+def render_babel_decay_stability(ax, aggregates: pl.DataFrame) -> None:
+    babel_families = [
+        "babel-decay-window-pressure",
+        "babel-asymmetry-cost-penalty",
+        "babel-partition-feasibility-recovery",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "babel") & pl.col("family_id").is_in(babel_families)
+    )
+    if data.is_empty():
+        return
+    present_families = [
+        fid for fid in babel_families if not data.filter(pl.col("family_id") == fid).is_empty()
+    ]
+    if not present_families:
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(1, len(present_families), wspace=0.18)
+    panels = []
+    for index, family_id in enumerate(present_families):
+        panel = fig.add_subplot(grid[0, index])
+        panels.append(panel)
+        rows = data.filter(pl.col("family_id") == family_id).sort("babel_stale_after_ticks")
+        xs = rows["babel_stale_after_ticks"].to_list()
+        ys = rows["stability_total_mean"].to_list()
+        panel.plot(
+            xs,
+            ys,
+            marker="o",
+            color=BABEL_FAMILY_COLORS.get(family_id, "#882255"),
+            linewidth=1.9,
+            markersize=5.5,
+            markeredgecolor="white",
+            markeredgewidth=0.7,
+            zorder=3,
+        )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Stale ticks")
+        if index == 0:
+            panel.set_ylabel("Stability")
+        panel.set_xticks(xs)
+        style_plot_axes(panel)
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
+
+
+def render_babel_decay_loss(ax, aggregates: pl.DataFrame) -> None:
+    babel_families = [
+        "babel-decay-window-pressure",
+        "babel-asymmetry-cost-penalty",
+        "babel-partition-feasibility-recovery",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "babel")
+        & pl.col("family_id").is_in(babel_families)
+        & pl.col("first_loss_round_mean").is_not_null()
+    )
+    if data.is_empty():
+        return
+    present_families = [
+        fid for fid in babel_families if not data.filter(pl.col("family_id") == fid).is_empty()
+    ]
+    if not present_families:
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(1, len(present_families), wspace=0.18)
+    panels = []
+    for index, family_id in enumerate(present_families):
+        panel = fig.add_subplot(grid[0, index])
+        panels.append(panel)
+        rows = data.filter(pl.col("family_id") == family_id).sort("babel_stale_after_ticks")
+        xs = rows["babel_stale_after_ticks"].to_list()
+        ys = rows["first_loss_round_mean"].to_list()
+        panel.plot(
+            xs,
+            ys,
+            marker="s",
+            color=BABEL_FAMILY_COLORS.get(family_id, "#882255"),
+            linewidth=1.6,
+            markersize=5.5,
+            markeredgecolor="white",
+            markeredgewidth=0.7,
+            linestyle="dashed",
+            zorder=3,
+        )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Stale ticks")
+        if index == 0:
+            panel.set_ylabel("First loss round")
+        panel.set_xticks(xs)
+        style_plot_axes(panel)
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
+
+
 def render_pathway_budget_route_presence(ax, aggregates: pl.DataFrame) -> None:
     pathway_families = [
         "pathway-search-budget-pressure",
@@ -290,6 +483,9 @@ def render_field_budget_route_presence(ax, aggregates: pl.DataFrame) -> None:
         "field-reconfiguration-recovery",
         "field-asymmetric-envelope-shift",
         "field-uncertain-service-fanout",
+        "field-service-overlap-reselection",
+        "field-service-freshness-inversion",
+        "field-service-publication-pressure",
         "field-bridge-anti-entropy-continuity",
         "field-bootstrap-upgrade-window",
     ]
@@ -301,12 +497,14 @@ def render_field_budget_route_presence(ax, aggregates: pl.DataFrame) -> None:
     fig = ax.figure
     subplotspec = ax.get_subplotspec()
     ax.remove()
-    grid = subplotspec.subgridspec(2, 3, hspace=0.42, wspace=0.16)
+    columns = 3
+    rows_count = (len(field_families) + columns - 1) // columns
+    grid = subplotspec.subgridspec(rows_count, columns, hspace=0.42, wspace=0.16)
     heuristic_colors = {"zero": "#0072B2", "hop-lower-bound": "#D55E00"}
     heuristic_markers = {"zero": "o", "hop-lower-bound": "s"}
     panels = []
     for index, family_id in enumerate(field_families):
-        panel = fig.add_subplot(grid[index // 3, index % 3])
+        panel = fig.add_subplot(grid[index // columns, index % columns])
         panels.append(panel)
         family_rows = data.filter(pl.col("family_id") == family_id)
         heuristics = (
@@ -335,7 +533,7 @@ def render_field_budget_route_presence(ax, aggregates: pl.DataFrame) -> None:
             )
         panel.set_title(family_label(family_id), fontsize=9.5)
         panel.set_xlabel("Query budget")
-        if index % 3 == 0:
+        if index % columns == 0:
             panel.set_ylabel("Route presence")
         panel.set_xticks(sorted(set(family_rows["field_query_budget"].to_list())))
         style_plot_axes(panel)
@@ -352,6 +550,9 @@ def render_field_budget_reconfiguration(ax, aggregates: pl.DataFrame) -> None:
         "field-reconfiguration-recovery",
         "field-asymmetric-envelope-shift",
         "field-uncertain-service-fanout",
+        "field-service-overlap-reselection",
+        "field-service-freshness-inversion",
+        "field-service-publication-pressure",
         "field-bridge-anti-entropy-continuity",
         "field-bootstrap-upgrade-window",
     ]
@@ -363,12 +564,14 @@ def render_field_budget_reconfiguration(ax, aggregates: pl.DataFrame) -> None:
     fig = ax.figure
     subplotspec = ax.get_subplotspec()
     ax.remove()
-    grid = subplotspec.subgridspec(2, 3, hspace=0.42, wspace=0.16)
+    columns = 3
+    rows_count = (len(field_families) + columns - 1) // columns
+    grid = subplotspec.subgridspec(rows_count, columns, hspace=0.42, wspace=0.16)
     heuristic_colors = {"zero": "#0072B2", "hop-lower-bound": "#D55E00"}
     heuristic_markers = {"zero": "o", "hop-lower-bound": "s"}
     panels = []
     for index, family_id in enumerate(field_families):
-        panel = fig.add_subplot(grid[index // 3, index % 3])
+        panel = fig.add_subplot(grid[index // columns, index % columns])
         panels.append(panel)
         family_rows = data.filter(pl.col("family_id") == family_id)
         heuristics = (
@@ -401,7 +604,7 @@ def render_field_budget_reconfiguration(ax, aggregates: pl.DataFrame) -> None:
             )
         panel.set_title(family_label(family_id), fontsize=9.5)
         panel.set_xlabel("Query budget")
-        if index % 3 == 0:
+        if index % columns == 0:
             panel.set_ylabel("Reconfiguration load")
         panel.set_xticks(sorted(set(family_rows["field_query_budget"].to_list())))
         style_plot_axes(panel)

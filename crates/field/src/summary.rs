@@ -205,6 +205,7 @@ pub(crate) fn evidence_classification(evidence: &FieldEvidence) -> EvidenceContr
 pub(crate) fn decay_summary(summary: &FieldSummary, now_tick: Tick) -> FieldSummary {
     let age = now_tick.0.saturating_sub(summary.freshness_tick.0);
     let age_u16 = u16::try_from(age).unwrap_or(u16::MAX);
+    let service_bias = matches!(summary.destination, SummaryDestinationKey::Service(_));
     let retention_bias = if summary.retention_support.value() >= 320 {
         summary.retention_support.value().min(480) / 6
     } else {
@@ -217,21 +218,58 @@ pub(crate) fn decay_summary(summary: &FieldSummary, now_tick: Tick) -> FieldSumm
     } else {
         0
     };
+    let bridge_continuity_bias = if !service_bias
+        && summary.evidence_class == EvidenceContributionClass::ForwardPropagated
+        && summary.hop_band.max_hops >= 2
+        && summary.retention_support.value() >= 260
+        && summary.uncertainty_penalty.value() <= 760
+    {
+        90
+    } else {
+        0
+    };
+    let service_coherence_bias =
+        if service_bias && summary.evidence_class != EvidenceContributionClass::Direct {
+            if summary.retention_support.value() >= 260
+                && summary.delivery_support.value() >= 180
+                && summary.uncertainty_penalty.value() <= 760
+            {
+                110
+            } else {
+                60
+            }
+        } else {
+            0
+        };
     let support_decay = age_u16
         .min(200)
         .saturating_sub(retention_bias / 2)
-        .saturating_sub(coherent_forward_bias);
+        .saturating_sub(coherent_forward_bias)
+        .saturating_sub(bridge_continuity_bias)
+        .saturating_sub(service_coherence_bias);
     let uncertainty_growth = age_u16
         .min(200)
         .saturating_sub(retention_bias / 3)
-        .saturating_sub(coherent_forward_bias / 2);
+        .saturating_sub(coherent_forward_bias / 2)
+        .saturating_sub(bridge_continuity_bias / 2)
+        .saturating_sub(service_coherence_bias / 2);
     let retention_relief = match summary.evidence_class {
         EvidenceContributionClass::Direct => summary.retention_support.value().min(120) / 6,
         EvidenceContributionClass::ForwardPropagated
         | EvidenceContributionClass::ReverseFeedback => {
             summary.retention_support.value().min(360) / 2
         }
-    };
+    }
+    .saturating_add(if service_bias {
+        summary.retention_support.value().min(240) / 4
+    } else {
+        0
+    })
+    .saturating_add(if bridge_continuity_bias > 0 {
+        summary.retention_support.value().min(280) / 5
+    } else {
+        0
+    });
     let weakened_support = summary
         .delivery_support
         .value()
@@ -297,6 +335,8 @@ pub(crate) fn merge_neighbor_summaries(left: &FieldSummary, right: &FieldSummary
     } else {
         (right, left)
     };
+    let service_bias = matches!(best.destination, SummaryDestinationKey::Service(_))
+        || matches!(other.destination, SummaryDestinationKey::Service(_));
     let cooperative_bonus = if best.evidence_class != EvidenceContributionClass::Direct
         && other.evidence_class != EvidenceContributionClass::Direct
         && best.freshness_tick.0.abs_diff(other.freshness_tick.0) <= 2
@@ -330,12 +370,71 @@ pub(crate) fn merge_neighbor_summaries(left: &FieldSummary, right: &FieldSummary
     } else {
         0
     };
+    let corroborated_bridge_bonus = if !service_bias
+        && best.evidence_class != EvidenceContributionClass::Direct
+        && other.evidence_class != EvidenceContributionClass::Direct
+        && best.freshness_tick.0.abs_diff(other.freshness_tick.0) <= 3
+        && best
+            .delivery_support
+            .value()
+            .abs_diff(other.delivery_support.value())
+            <= 140
+        && best.retention_support.value() >= 240
+        && other.retention_support.value() >= 240
+        && best.hop_band.max_hops >= 2
+        && other.hop_band.max_hops >= 2
+    {
+        best.retention_support
+            .value()
+            .min(other.retention_support.value())
+            .min(360)
+            / 2
+    } else {
+        0
+    };
+    let service_bonus = if service_bias
+        && best.evidence_class != EvidenceContributionClass::Direct
+        && other.evidence_class != EvidenceContributionClass::Direct
+        && best.freshness_tick.0.abs_diff(other.freshness_tick.0) <= 3
+        && best
+            .delivery_support
+            .value()
+            .abs_diff(other.delivery_support.value())
+            <= 240
+    {
+        best.retention_support
+            .value()
+            .min(other.retention_support.value())
+            .min(360)
+            / 2
+    } else {
+        0
+    };
+    let service_fanout_bonus = if service_bias
+        && best.evidence_class != EvidenceContributionClass::Direct
+        && other.evidence_class != EvidenceContributionClass::Direct
+        && best.retention_support.value() >= 220
+        && other.retention_support.value() >= 220
+        && best.uncertainty_penalty.value() <= 820
+        && other.uncertainty_penalty.value() <= 820
+    {
+        best.delivery_support
+            .value()
+            .min(other.delivery_support.value())
+            .min(260)
+            / 2
+    } else {
+        0
+    };
     let merged_support = best
         .delivery_support
         .value()
         .max(other.delivery_support.value())
         .saturating_add(cooperative_bonus)
         .saturating_add(bridge_bonus)
+        .saturating_add(corroborated_bridge_bonus / 2)
+        .saturating_add(service_bonus / 2)
+        .saturating_add(service_fanout_bonus)
         .min(1000);
     let merged_retention = best
         .retention_support
@@ -349,13 +448,19 @@ pub(crate) fn merge_neighbor_summaries(left: &FieldSummary, right: &FieldSummary
                 / 5,
         )
         .saturating_add(bridge_bonus / 2)
+        .saturating_add(corroborated_bridge_bonus)
+        .saturating_add(service_bonus)
+        .saturating_add(service_fanout_bonus)
         .min(1000);
     let merged_uncertainty = best
         .uncertainty_penalty
         .value()
         .max(other.uncertainty_penalty.value())
         .saturating_sub(cooperative_bonus / 2)
-        .saturating_sub(bridge_bonus / 2);
+        .saturating_sub(bridge_bonus / 2)
+        .saturating_sub(corroborated_bridge_bonus / 3)
+        .saturating_sub(service_bonus / 3);
+    let merged_uncertainty = merged_uncertainty.saturating_sub(service_fanout_bonus / 3);
     FieldSummary {
         destination: best.destination,
         topology_epoch: if best.topology_epoch >= other.topology_epoch {
@@ -773,5 +878,31 @@ mod tests {
         assert!(merged.delivery_support.value() > left.delivery_support.value());
         assert!(merged.retention_support.value() > left.retention_support.value());
         assert!(merged.uncertainty_penalty.value() <= left.uncertainty_penalty.value());
+    }
+
+    #[test]
+    fn service_forward_merge_reinforces_fanout_corridor() {
+        let destination = DestinationId::Service(jacquard_core::ServiceId(vec![7; 16]));
+        let left = FieldSummary {
+            freshness_tick: Tick(12),
+            delivery_support: SupportBucket::new(360),
+            retention_support: SupportBucket::new(320),
+            uncertainty_penalty: EntropyBucket::new(520),
+            evidence_class: EvidenceContributionClass::ForwardPropagated,
+            ..summary(&destination)
+        };
+        let right = FieldSummary {
+            freshness_tick: Tick(13),
+            delivery_support: SupportBucket::new(330),
+            retention_support: SupportBucket::new(300),
+            uncertainty_penalty: EntropyBucket::new(560),
+            evidence_class: EvidenceContributionClass::ForwardPropagated,
+            ..summary(&destination)
+        };
+
+        let merged = merge_neighbor_summaries(&left, &right);
+        assert!(merged.delivery_support.value() > left.delivery_support.value());
+        assert!(merged.retention_support.value() > left.retention_support.value());
+        assert!(merged.uncertainty_penalty.value() < right.uncertainty_penalty.value());
     }
 }

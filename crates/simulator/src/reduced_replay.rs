@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use jacquard_core::{DestinationId, NodeId, RouteLifecycleEvent, RoutingEngineId};
+use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_traits::RoutingScenario;
 use serde::{Deserialize, Serialize};
 
@@ -462,6 +463,97 @@ impl ReducedReplayView {
                     .map(|entry| &entry.summary)
             })
             .collect()
+    }
+
+    #[must_use]
+    pub fn field_route_summaries_for(
+        &self,
+        owner_node_id: NodeId,
+        destination: &DestinationId,
+    ) -> Vec<&ActiveRouteSummary> {
+        self.rounds
+            .iter()
+            .flat_map(|round| {
+                round.active_routes.iter().filter(move |route| {
+                    route.owner_node_id == owner_node_id
+                        && &route.destination == destination
+                        && route.engine_id == FIELD_ENGINE_ID
+                })
+            })
+            .collect()
+    }
+
+    #[must_use]
+    pub fn last_field_commitment_resolution(
+        &self,
+        owner_node_id: NodeId,
+        destination: &DestinationId,
+    ) -> Option<String> {
+        self.field_route_summaries_for(owner_node_id, destination)
+            .into_iter()
+            .rev()
+            .find_map(|route| route.commitment_resolution.clone())
+    }
+
+    #[must_use]
+    pub fn last_field_route_outcome(
+        &self,
+        owner_node_id: NodeId,
+        destination: &DestinationId,
+    ) -> Option<String> {
+        self.field_route_summaries_for(owner_node_id, destination)
+            .into_iter()
+            .rev()
+            .find_map(|route| route.field_last_outcome.clone())
+    }
+
+    #[must_use]
+    pub fn last_field_continuity_band(
+        &self,
+        owner_node_id: NodeId,
+        destination: &DestinationId,
+    ) -> Option<String> {
+        self.field_route_summaries_for(owner_node_id, destination)
+            .into_iter()
+            .rev()
+            .find_map(|route| route.field_continuity_band.clone())
+    }
+
+    #[must_use]
+    pub fn last_field_promotion_decision(
+        &self,
+        owner_node_id: NodeId,
+        destination: &DestinationId,
+    ) -> Option<String> {
+        self.field_route_summaries_for(owner_node_id, destination)
+            .into_iter()
+            .rev()
+            .find_map(|route| route.field_last_promotion_decision.clone())
+    }
+
+    #[must_use]
+    pub fn last_field_promotion_blocker(
+        &self,
+        owner_node_id: NodeId,
+        destination: &DestinationId,
+    ) -> Option<String> {
+        self.field_route_summaries_for(owner_node_id, destination)
+            .into_iter()
+            .rev()
+            .find_map(|route| route.field_last_promotion_blocker.clone())
+    }
+
+    #[must_use]
+    pub fn field_continuation_shift_count(
+        &self,
+        owner_node_id: NodeId,
+        destination: &DestinationId,
+    ) -> u32 {
+        self.field_route_summaries_for(owner_node_id, destination)
+            .into_iter()
+            .filter_map(|route| route.field_continuation_shift_count)
+            .max()
+            .unwrap_or(0)
     }
 }
 

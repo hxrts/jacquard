@@ -4,15 +4,15 @@
 
 ### Executive Summary Intro
 
-This report studies Jacquard routing behavior across three engines, `batman-bellman`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
+This report studies Jacquard routing behavior across five engines, `batman-bellman`, `batman-classic`, `babel`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
 
 The goal is not only to pick default parameter settings. It is also to understand where each engine works cleanly, where it begins to degrade, what kinds of failures appear first, and how the engines compare when they are placed under the same network regimes.
 
 That matters because routing quality is regime-dependent. A setting that looks strong in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty. The report is therefore designed to connect tuning choices to concrete failure boundaries rather than treating routing as a single scalar benchmark.
 
-The document is organized in two parts. Part I focuses on tuning: recommended configurations, transition behavior, failure boundaries, and the simulator assumptions that shape those results. Part II focuses on analysis: engine-specific behavior for `batman-bellman`, `pathway`, and `field`, followed by mixed-engine and head-to-head comparisons across maintained regimes.
+The document is organized in two parts. Part I focuses on tuning: recommended configurations, transition behavior, failure boundaries, and the simulator assumptions that shape those results. Part II focuses on analysis: engine-specific behavior for `batman-bellman`, `batman-classic`, `babel`, `pathway`, and `field`, followed by mixed-engine and head-to-head comparisons across maintained regimes.
 
-The emphasis throughout is explanatory rather than purely prescriptive. The recommendations are still present, but they are framed by the measured transition surfaces, breakdown points, and comparative regimes that justify them.
+The emphasis throughout is explanatory rather than purely prescriptive. The recommendations are still present, but they are framed by the measured transition surfaces, breakdown points, and comparative regimes that justify them. That matters especially for `field`, where the current corpus supports both a broad viable default range and a smaller set of profile-specific continuity tradeoffs rather than one single universally best setting.
 
 ## Part I. Tuning
 
@@ -68,7 +68,7 @@ Across the full corpus, the matrix varies network density, message loss, interfe
 
 The report focuses on boundary cases as well as easy cases. The goal is not only to find settings that work when the network is healthy, but also to see where behavior changes sharply.
 
-For BATMAN Bellman, the main sweep changes the decay-window settings. For Pathway and Field, the main sweep changes per-objective search budget and heuristic mode.
+For BATMAN Bellman, BATMAN Classic, and Babel, the main sweep changes the decay-window settings. For Pathway and Field, the main sweep changes per-objective search budget and heuristic mode.
 
 The analysis does not stop at one composite score. It also tracks transition metrics such as first materialization, first loss, recovery timing, churn, and run-to-run spread so the recommendations can distinguish robust settings from lucky averages.
 
@@ -112,6 +112,14 @@ Workload regimes:
 #### BATMAN Bellman Algorithm
 
 BATMAN Bellman is the simpler routing engine in this study. It tries to keep track of a good next hop toward a destination instead of planning a full end-to-end path. In practice, that means it works best when local neighbor information is enough to make a good forwarding choice. The settings tuned here control how quickly old information expires and how quickly the engine refreshes its view of the network. The most important questions for BATMAN Bellman are therefore: does it stay stable under loss, does it hold onto stale routes too long, and how quickly does it recover after a link change.
+
+#### BATMAN Classic Algorithm
+
+BATMAN Classic is the spec-faithful BATMAN IV engine. It implements the original protocol without structural departures: TQ is carried in OGMs and updated multiplicatively at each relay hop, TTL bounds propagation depth, and bidirectionality requires echo-window confirmation. Unlike BATMAN Bellman, it has no bootstrap shortcut and produces no route candidates until receive-window data has accumulated. The settings tuned here are the same decay window parameters as BATMAN Bellman, but the engine's slower convergence and strict echo requirement make it more sensitive to window size. The analysis compares its behavior under identical regimes to isolate what the Bellman-Ford enhancement contributes.
+
+#### Babel Algorithm
+
+Babel implements the RFC 8966 distance-vector protocol with three properties that distinguish it from both BATMAN engines. Link cost uses bidirectional ETX rather than forward-only TQ, which penalizes asymmetric links more heavily. Path metric is additive rather than multiplicative, making Babel more sensitive to a single bad hop. Route selection is gated by a feasibility distance table that provides loop freedom during transient topology changes. The decay window controls route freshness, and the feasibility table introduces a bounded infeasible-fallback window when topology changes invalidate the current best route. The analysis targets asymmetric link regimes and partition recovery to surface these behavioral differences.
 
 #### Pathway Algorithm
 
@@ -159,7 +167,7 @@ These profile recommendations provide alternative defaults for operators who car
 
 Each profile reuses the same simulator corpus but changes the ranking weights so the table answers a different operational question without changing the underlying evidence.
 
-They are meant to show robust centers of acceptable behavior, not to overfit one narrow regime.
+They are meant to show robust centers of acceptable behavior, not to overfit one narrow regime. For `field`, the continuity-oriented profiles are especially important because the newer service regimes separate configurations more clearly in lifecycle shape than in route presence alone.
 
 #### Profile Recommendation Logic Empty
 
@@ -170,6 +178,16 @@ No profile-specific recommendations are available for this artifact set.
 @table profile-recommendations
 
 Column guide: Profile is the ranking policy being applied; Score is the profile-weighted composite value; Activation is the share of runs that installed a route; Route is average route presence; Max Stress is the highest sustained stress level survived under that profile.
+
+#### Field Continuity Profiles
+
+@table field-profile-recommendations
+
+This table treats Field lifecycle behavior as a tuning output in its own right instead of reducing the engine to route presence alone.
+
+Column guide: Profile names the continuity objective being optimized; Score is the profile-weighted value; Route is average route presence; Shifts is mean continuation-shift count; Carry is mean service carry-forward volume; Narrow is mean corridor-narrow count; Degraded is mean degraded-steady occupancy.
+
+Interpretation guide: `field-stable-service` favors settings that keep service corridors alive with limited disruption; `field-low-churn` pushes even harder against unnecessary movement; `field-broad-reselection` favors settings that preserve more alternate service branches and accept more continuation shifts; `field-conservative-publication` favors earlier narrowing and less corridor breadth.
 
 ## Part II. Analysis
 
@@ -195,17 +213,57 @@ This plot uses the swept BATMAN Bellman axis directly: stale-after ticks on the 
 
 This plot shows when routes are first lost under the same transition families. It is the clearest view of whether a shorter or longer decay window helps near relink and asymmetric bridge boundaries.
 
+#### BATMAN Classic Transition Analysis
+
+This part of the BATMAN Classic analysis asks how the spec-faithful protocol behaves under the same transition pressure used for BATMAN Bellman. The classic engine lacks the bootstrap shortcut and Bellman-Ford path computation, so its convergence timing is fundamentally different.
+
+The main questions are whether the echo-only bidirectionality gate and OGM-carried TQ produce stable route maintenance under pressure, and how the decay window interacts with the slower receive-window accumulation.
+
+The two BATMAN Classic plots should be read alongside the BATMAN Bellman pair: the stability plot shows whether the classic engine reaches comparable accumulated stability, and the loss plot shows whether route loss timing differs from the enhanced variant.
+
+#### Figure 3
+
+@figure batman_classic_transition_stability
+
+This plot uses the same stale-after-ticks axis as the BATMAN Bellman stability plot but for the spec-faithful engine. The batman-classic families converge more slowly due to the echo-only bidirectionality requirement and lack of bootstrap shortcut.
+
+#### Figure 4
+
+@figure batman_classic_transition_loss
+
+This plot shows when routes are first lost under the batman-classic transition families. Comparing against Figure 2 isolates the contribution of the Bellman-Ford enhancement to loss timing.
+
+#### Babel Decay Analysis
+
+This part of the Babel analysis asks how the decay window interacts with the feasibility distance table and bidirectional ETX link cost under three distinct regimes: decay-window pressure, asymmetric link penalty, and partition recovery with feasibility constraints.
+
+The asymmetry-cost-penalty family is the primary differentiator. Under asymmetric links, Babel's ETX formula penalizes poor reverse delivery more heavily than BATMAN's forward-only TQ, producing different route selection behavior under identical topology conditions.
+
+The partition-feasibility-recovery family shows the FD table's bounded infeasible-fallback window. After a partition clears, routes arriving with the same seqno as pre-partition are infeasible until the next periodic seqno increment. The two Babel plots show whether this infeasible window is visible in the stability and loss data.
+
+#### Figure 5
+
+@figure babel_decay_stability
+
+This plot shows accumulated stability across the three Babel decay families. The asymmetry-cost-penalty family is the primary differentiator, where the ETX formula produces different route selection than TQ-based engines.
+
+#### Figure 6
+
+@figure babel_decay_loss
+
+This plot shows when routes are first lost under the Babel decay families. The partition-feasibility-recovery family shows the FD table's bounded infeasible-fallback window during reconvergence.
+
 #### Pathway Budget Figures Intro
 
 These Pathway figures show the budget question from two angles. The first asks how much route presence extra budget buys; the second asks where activation collapses outright. Read together, they explain why the report prefers the low stable floor rather than the largest budget.
 
-#### Figure 3
+#### Figure 7
 
 @figure pathway_budget_route_presence
 
 This plot focuses on the Pathway pressure families rather than all families at once. It shows where extra budget buys additional route presence under high-fanout and bridge-pressure service selection.
 
-#### Figure 4
+#### Figure 8
 
 @figure pathway_budget_activation
 
@@ -215,29 +273,29 @@ This plot shows whether low budgets fail immediately and where heuristic choice 
 
 These Field figures are the main diagnostic pair. The first shows how much route-visible continuity Field can maintain across the corridor-oriented families. The second shows how much search and continuation churn accompanies that behavior. Together they distinguish a healthy corridor default from a merely active but unstable bootstrap regime.
 
-#### Figure 5
+#### Figure 9
 
 @figure field_budget_route_presence
 
 This plot shows how Field's route-visible success changes with budget across the corridor-oriented families. It is the main budget-floor view for Field.
 
-#### Figure 6
+#### Figure 10
 
 @figure field_budget_reconfiguration
 
 This plot combines continuation shifts and search reconfiguration rounds into one Field-native reconfiguration load signal. Lower values indicate less corridor churn under pressure.
 
-#### Figure 7
+#### Figure 11
 
 @figure comparison_dominant_engine
 
 This comparison plot shows which engine dominates in the maintained mixed-engine comparison families. It is the clearest regime split between BATMAN-Bellman-favored and Pathway-favored workloads in this tuning corpus.
 
-#### Figure 8
+#### Figure 12
 
 @figure head_to_head_route_presence
 
-This figure compares explicit engine sets over the same regime families. It is the clearest direct comparison between `batman-bellman`, `pathway`, `field`, and the combined `pathway-batman-bellman` stack.
+This figure compares explicit engine sets over the same regime families. It is the clearest direct comparison between `batman-bellman`, `batman-classic`, `babel`, `pathway`, `field`, and the combined `pathway-batman-bellman` stack.
 
 ### Comparison And Head-To-Head
 
@@ -255,7 +313,7 @@ Column guide: Dominant Engine is the best-performing engine in that family; Acti
 
 @table head-to-head-summary
 
-This table compares explicit engine sets on the same regime families: `batman-bellman`, `pathway`, `field`, and `pathway-batman-bellman`.
+This table compares explicit engine sets on the same regime families: `batman-bellman`, `batman-classic`, `babel`, `pathway`, `field`, and `pathway-batman-bellman`.
 
 It should be read as a direct stack-to-stack comparison rather than as the all-engines router outcome.
 
@@ -276,7 +334,7 @@ The head-to-head regimes are a compact direct-comparison subset of the larger si
 
 #### Head-To-Head Findings Intro
 
-The head-to-head matrix runs the same regime families under four explicit engine sets: `batman-bellman`, `pathway`, `field`, and `pathway-batman-bellman`.
+The head-to-head matrix runs the same regime families under six explicit engine sets: `batman-bellman`, `batman-classic`, `babel`, `pathway`, `field`, and `pathway-batman-bellman`.
 
 These rows answer a different question from the all-engines comparison corpus. They show what each stack does when it is the only available routing surface for that host set.
 
@@ -294,13 +352,31 @@ BATMAN Bellman shows a broad plateau in easy regimes, so this report measures tr
 
 BATMAN Bellman separates mainly in the transition families, where relink pressure and asymmetric bridge degradation expose different stability and loss timings.
 
+#### Pressure Findings Batman Classic Plateau
+
+BATMAN Classic shows a flat stability profile across the tested decay windows. The spec-faithful engine's slower convergence means the decay window has less impact on route quality than the Bellman-Ford variant.
+
+#### Pressure Findings Batman Classic Separation
+
+BATMAN Classic separates in the partition-recovery family, where the echo-only bidirectionality check and absence of bootstrap shortcut create measurable timing differences between decay window configurations.
+
+#### Pressure Findings Babel Plateau
+
+Babel shows a broad plateau across the tested decay windows. The feasibility distance table dominates the convergence timing, making the decay window less impactful than in the BATMAN engines.
+
+#### Pressure Findings Babel Separation
+
+Babel separates mainly in the asymmetry-cost-penalty family, where the bidirectional ETX formula produces different route quality under asymmetric link conditions. The partition-feasibility-recovery family also shows separation driven by the FD table's bounded infeasible-fallback window.
+
 #### Pressure Findings Pathway Cliff
 
 Pathway query budget 1 fails immediately, and the high-fanout and bridge-pressure families test that budget plateau under stronger candidate competition.
 
 #### Pressure Findings Field Plateau
 
-Field currently shows a flat low route-presence plateau across the swept budgets: route presence={route_present} permille, bootstrap activation={bootstrap_activation} permille, and bootstrap upgrade={bootstrap_upgrade} permille at the low-budget point.
+Field now shows a broad viable plateau across the swept budgets: route presence={route_present} permille, bootstrap activation={bootstrap_activation} permille, and bootstrap upgrade={bootstrap_upgrade} permille at the low-budget point.
+
+That means the current Field limit is no longer simple non-activation or service-fanout collapse. The more important reading is that several tested settings are now good enough to behave similarly in the maintained corpus.
 
 #### Engine Section Empty Field
 
@@ -330,6 +406,30 @@ The BATMAN Bellman transition families separate most clearly at `{config_id}`, w
 
 Severe asymmetric bridge loss remains a breakdown regime across the tested BATMAN Bellman window range.
 
+#### Engine Section Batman Classic Plateau
+
+The BATMAN Classic transition families are flat on accumulated stability, consistent with the engine's slower convergence due to its no-bootstrap, echo-only bidirectionality model.
+
+#### Engine Section Batman Classic Best
+
+The BATMAN Classic transition families separate most clearly at `{config_id}`, which yields stability-total {stability_total} and route presence {route_presence} permille. The spec-faithful model converges more slowly than BATMAN Bellman under identical conditions.
+
+#### Engine Section Batman Classic Closing
+
+BATMAN Classic's echo-only bidirectionality and lack of bootstrap shortcut make it consistently slower to materialize routes than BATMAN Bellman.
+
+#### Engine Section Babel Plateau
+
+The Babel transition families show a flat stability profile, suggesting the feasibility distance table does not significantly differentiate decay window settings in recoverable regimes.
+
+#### Engine Section Babel Best
+
+The Babel families separate most clearly at `{config_id}`, which yields stability-total {stability_total} and route presence {route_presence} permille. The ETX link cost and additive metric produce measurably different behavior under asymmetric link conditions compared to the BATMAN engines.
+
+#### Engine Section Babel Closing
+
+The feasibility distance table bounds convergence after partition recovery. Routes arriving with the same seqno as pre-partition are infeasible until the next seqno increment, creating a bounded fallback window visible in the partition-feasibility-recovery family.
+
 #### Engine Section Pathway Cliff
 
 Pathway budget 1 is the clear cliff edge: activation={activation} permille.
@@ -348,7 +448,7 @@ Its corridor-continuity profile in the maintained corpus is bootstrap activation
 
 #### Engine Section Field Tied
 
-All swept Field configurations are effectively tied in this corpus. That means the current limit is not mainly a budget or heuristic choice inside the tested range; it is the weak bootstrap-to-steady continuity boundary itself.
+The current Field sweep is no longer tied in a strict sense. Top-line route presence remains close across much of the tested range, but the newer service-oriented knobs separate the configs in continuation-shift count, service carry-forward, and narrowing behavior. The current question is therefore not only which config keeps a route alive, but also what kind of corridor-management behavior is desired while it stays alive.
 
 #### Engine Section Field Replay
 
@@ -356,11 +456,11 @@ Field is no longer replay-only in this corpus: the maintained families now produ
 
 #### Engine Section Field Families
 
-The asymmetric-envelope and bridge anti-entropy families are the clearest places to see whether Field can keep one corridor alive while moving its realization inside that corridor, while the partial-observability and bootstrap-upgrade families are the clearest places to see whether bootstrap routes upgrade or withdraw.
+The asymmetric-envelope and bridge anti-entropy families are the clearest places to see whether Field can keep one corridor alive while moving its realization inside that corridor, while the partial-observability and bootstrap-upgrade families are the clearest places to see whether bootstrap routes upgrade or withdraw. The service-overlap, freshness-inversion, and publication-pressure families are the clearest places to see whether broader publication, stronger freshness weighting, or earlier narrowing change the shape of service-corridor continuity.
 
 #### Engine Section Field Diagnosis
 
-The expanded corpus therefore changes the diagnosis. Earlier results left open the possibility that Field was mostly underexercised; the current results show that underexercise was only part of the story, because bootstrap still stalls even in families designed to favor corridor continuity.
+The expanded corpus changes the diagnosis again. Earlier results left open the possibility that Field was mostly underexercised, and then showed a real bootstrap-to-steady bottleneck. The current results show that the service-corridor publication and materialization path was a major missing piece: once that was fixed, the maintained service-fanout family became a steady route-visible success rather than a persistent weak outlier. The remaining tuning question is no longer whether Field works in these regimes. It is which continuity style is preferable: narrower lower-churn publication or broader reselection with more carried-forward optionality.
 
 #### Recommendation Rationale Empty Field
 
@@ -400,6 +500,22 @@ The BATMAN Bellman recommendation is driven mainly by how well each setting beha
 
 The severe asymmetric bridge regime fails across the entire tested BATMAN Bellman window range, so the recommendation should be read as guidance for recoverable pressure, not impossible bridges.
 
+#### Recommendation Rationale Batman Classic 1
+
+The BATMAN Classic recommendation reflects the spec-faithful model's slower convergence. Larger decay windows are needed to allow the echo-based bidirectionality check and receive-window accumulation to complete before routes expire.
+
+#### Recommendation Rationale Batman Classic 2
+
+Comparing BATMAN Classic results to BATMAN Bellman under the same regimes isolates the contribution of the Bellman-Ford enhancement and bootstrap shortcut. The difference is most visible in early-round materialization timing.
+
+#### Recommendation Rationale Babel 1
+
+The Babel recommendation balances decay window size against the feasibility distance table's convergence behavior. Shorter windows cause faster route expiry but also clear feasibility state sooner, while longer windows retain more route history but delay FD updates.
+
+#### Recommendation Rationale Babel 2
+
+The asymmetry-cost-penalty family is the clearest differentiator for Babel. The bidirectional ETX formula penalizes asymmetric links more than TQ, producing measurably different route selections under identical topology conditions.
+
 #### Recommendation Rationale Pathway 1
 
 The main justification is the hard low-budget cliff: `pathway-1-zero` fails in the pressure families, while higher budgets plateau quickly.
@@ -418,11 +534,11 @@ The current measured continuity profile for `{config_id}` is bootstrap activatio
 
 #### Recommendation Rationale Field 3
 
-The recommendation therefore acts more as a representative baseline than a sharply tuned optimum. In this artifact set, the Field configurations are essentially tied, so the recommendation is not evidence that one tested budget solved the core problem.
+The recommendation therefore acts more as a representative baseline than a sharply tuned optimum. In this artifact set, the Field configurations are still close in top-line route presence, so the primary recommendation should be read as a stable center of a broad acceptable range. The continuity profile table is the better place to choose between lower-churn and broader-reselection behavior inside that range.
 
 #### Recommendation Rationale Field 4
 
-This is a measured but still narrow recommendation: the current Field default activates bootstrap routes in part of the corpus, yet upgrades are almost absent and route presence stays low even in the anti-entropy and bootstrap-upgrade families. That points to a real implementation bottleneck, not only a missing regime.
+This is a measured and materially stronger recommendation than the earlier Field baselines. The maintained corpus now includes steady route-visible service continuity as well as bootstrap-aware corridor behavior, and the newer service regimes make the Field knobs visible in lifecycle metrics even when route presence still clusters closely together.
 
 #### Limitations And Next Steps
 
@@ -432,12 +548,16 @@ A flat curve can mean either genuine robustness or that the sweep has not landed
 
 The BATMAN Bellman corpus exposes recoverable transition differences, but the asymmetry-plus-bridge families remain hard failures rather than nuanced separation regions.
 
+The BATMAN Classic corpus confirms that the spec-faithful engine converges more slowly than BATMAN Bellman. Its echo-only bidirectionality and no-bootstrap design make it more sensitive to round count and activation timing. The tested families produce real route presence data but the decay window settings cluster tightly.
+
+The Babel corpus shows that the ETX link cost and additive metric produce measurably different behavior under asymmetric conditions. The feasibility distance table is visible in the partition-recovery family. The tested decay window settings do not yet separate sharply, suggesting that the FD table and seqno refresh interval dominate convergence timing more than the window size.
+
 The Pathway corpus clearly identifies the minimum viable budget floor, but it also shows a wide plateau above that floor.
 
-The Field corpus now reaches the route-visible boundary with an explicit bootstrap phase, but its route-presence ceiling is still low and its first maintained breakdown arrives earlier than for the leading BATMAN Bellman and Pathway defaults.
+The Field corpus now reaches the route-visible boundary with an explicit bootstrap phase and a working steady service-corridor path, but the tested Field settings still cluster tightly enough that the current sweep is better at identifying a viable range than at isolating one sharply preferred point.
 
 The bridge anti-entropy and bootstrap-upgrade families make the corpus more favorable to Field than a simple bridge-failure matrix, so the report can distinguish between underexercise and real weakness more cleanly.
 
-The current verdict is mixed: earlier matrices were underexercising Field, but the expanded corpus still shows Field underperforming at bootstrap-to-steady continuity. Field therefore needs implementation work more than additional budget sweeps inside the current parameter range.
+The current verdict is more positive than the earlier matrices. The service-corridor fixes materially raised Field's measured route presence and removed the maintained service-fanout failure. The remaining limitation is not that Field cannot sustain service continuity, but that the current tested settings are still effectively tied and therefore leave room for more discriminating future regime design.
 
 The recommendations should therefore be treated as measured defaults for this tuning corpus, not as universal claims about every future deployment.

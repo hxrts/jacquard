@@ -38,6 +38,12 @@ inductive BootstrapClass
   | steady
   deriving Inhabited, Repr, DecidableEq, BEq
 
+inductive ContinuityBand
+  | steady
+  | degradedSteady
+  | bootstrap
+  deriving Inhabited, Repr, DecidableEq, BEq
+
 inductive BootstrapDecision
   | hold
   | narrow
@@ -95,6 +101,7 @@ structure SearchSurface where
   objective : ObjectiveClass
   query : SearchQuery
   bootstrapClass : BootstrapClass
+  continuityBand : ContinuityBand
   bootstrapDecision : Option BootstrapDecision
   promotionBlocker : Option PromotionBlocker
   executionPolicy : ExecutionPolicy
@@ -132,6 +139,11 @@ def bootstrapConservative (surface : SearchSurface) : Prop :=
   match surface.bootstrapClass with
   | .bootstrap => surface.selectedResult.isSome
   | .steady => True
+
+def degradedSteadyConservative (surface : SearchSurface) : Prop :=
+  match surface.continuityBand with
+  | .degradedSteady => surface.selectedResult.isSome
+  | _ => True
 
 def promotionConservative (surface : SearchSurface) : Prop :=
   match surface.bootstrapDecision with
@@ -172,6 +184,12 @@ theorem bootstrap_surface_requires_selected_result
     (hBootstrap : surface.bootstrapClass = .bootstrap) :
     bootstrapConservative surface ↔ surface.selectedResult.isSome := by
   simp [bootstrapConservative, hBootstrap]
+
+theorem degraded_steady_surface_requires_selected_result
+    (surface : SearchSurface)
+    (hDegraded : surface.continuityBand = .degradedSteady) :
+    degradedSteadyConservative surface ↔ surface.selectedResult.isSome := by
+  simp [degradedSteadyConservative, hDegraded]
 
 theorem steady_surface_is_bootstrap_conservative
     (surface : SearchSurface)

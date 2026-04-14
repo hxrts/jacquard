@@ -45,6 +45,8 @@ structure RustReplayRecoveryFixture where
   lastTrigger : Option String
   lastOutcome : Option String
   bootstrapActive : Bool
+  continuityBand : Option String
+  lastContinuityTransition : Option String
   lastBootstrapTransition : Option String
   lastPromotionDecision : Option String
   lastPromotionBlocker : Option String
@@ -53,6 +55,12 @@ structure RustReplayRecoveryFixture where
   bootstrapNarrowCount : Nat
   bootstrapUpgradeCount : Nat
   bootstrapWithdrawCount : Nat
+  degradedSteadyEntryCount : Nat
+  degradedSteadyRecoveryCount : Nat
+  degradedToBootstrapCount : Nat
+  degradedSteadyRoundCount : Nat
+  serviceRetentionCarryForwardCount : Nat
+  asymmetricShiftSuccessCount : Nat
   checkpointCaptureCount : Nat
   checkpointRestoreCount : Nat
   continuationShiftCount : Nat
@@ -89,6 +97,8 @@ def exactNodeActivationFixture : RustReplayFixture :=
       { lastTrigger := none
         lastOutcome := none
         bootstrapActive := false
+        continuityBand := none
+        lastContinuityTransition := none
         lastBootstrapTransition := none
         lastPromotionDecision := none
         lastPromotionBlocker := none
@@ -97,6 +107,12 @@ def exactNodeActivationFixture : RustReplayFixture :=
         bootstrapNarrowCount := 0
         bootstrapUpgradeCount := 0
         bootstrapWithdrawCount := 0
+        degradedSteadyEntryCount := 0
+        degradedSteadyRecoveryCount := 0
+        degradedToBootstrapCount := 0
+        degradedSteadyRoundCount := 0
+        serviceRetentionCarryForwardCount := 0
+        asymmetricShiftSuccessCount := 0
         checkpointCaptureCount := 0
         checkpointRestoreCount := 0
         continuationShiftCount := 0
@@ -122,6 +138,8 @@ def candidateSetActivationFixture : RustReplayFixture :=
       { lastTrigger := none
         lastOutcome := none
         bootstrapActive := false
+        continuityBand := none
+        lastContinuityTransition := none
         lastBootstrapTransition := none
         lastPromotionDecision := none
         lastPromotionBlocker := none
@@ -130,6 +148,12 @@ def candidateSetActivationFixture : RustReplayFixture :=
         bootstrapNarrowCount := 0
         bootstrapUpgradeCount := 0
         bootstrapWithdrawCount := 0
+        degradedSteadyEntryCount := 0
+        degradedSteadyRecoveryCount := 0
+        degradedToBootstrapCount := 0
+        degradedSteadyRoundCount := 0
+        serviceRetentionCarryForwardCount := 0
+        asymmetricShiftSuccessCount := 0
         checkpointCaptureCount := 0
         checkpointRestoreCount := 0
         continuationShiftCount := 0
@@ -155,6 +179,8 @@ def continuationShiftFixture : RustReplayFixture :=
       { lastTrigger := some "ContinuationShift"
         lastOutcome := some "ContinuationRetained"
         bootstrapActive := false
+        continuityBand := none
+        lastContinuityTransition := none
         lastBootstrapTransition := none
         lastPromotionDecision := none
         lastPromotionBlocker := none
@@ -163,6 +189,12 @@ def continuationShiftFixture : RustReplayFixture :=
         bootstrapNarrowCount := 0
         bootstrapUpgradeCount := 0
         bootstrapWithdrawCount := 0
+        degradedSteadyEntryCount := 0
+        degradedSteadyRecoveryCount := 0
+        degradedToBootstrapCount := 0
+        degradedSteadyRoundCount := 0
+        serviceRetentionCarryForwardCount := 0
+        asymmetricShiftSuccessCount := 0
         checkpointCaptureCount := 0
         checkpointRestoreCount := 0
         continuationShiftCount := 1
@@ -188,6 +220,8 @@ def checkpointRestoreFixture : RustReplayFixture :=
       { lastTrigger := some "RestoreRuntime"
         lastOutcome := some "CheckpointRestored"
         bootstrapActive := false
+        continuityBand := none
+        lastContinuityTransition := none
         lastBootstrapTransition := none
         lastPromotionDecision := none
         lastPromotionBlocker := none
@@ -196,6 +230,12 @@ def checkpointRestoreFixture : RustReplayFixture :=
         bootstrapNarrowCount := 0
         bootstrapUpgradeCount := 0
         bootstrapWithdrawCount := 0
+        degradedSteadyEntryCount := 0
+        degradedSteadyRecoveryCount := 0
+        degradedToBootstrapCount := 0
+        degradedSteadyRoundCount := 0
+        serviceRetentionCarryForwardCount := 0
+        asymmetricShiftSuccessCount := 0
         checkpointCaptureCount := 1
         checkpointRestoreCount := 1
         continuationShiftCount := 0

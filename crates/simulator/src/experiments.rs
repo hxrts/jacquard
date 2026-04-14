@@ -83,6 +83,9 @@ pub struct ExperimentParameterSet {
     pub pathway_heuristic_mode: Option<String>,
     pub field_query_budget: Option<usize>,
     pub field_heuristic_mode: Option<String>,
+    pub field_service_publication_neighbor_limit: Option<usize>,
+    pub field_service_freshness_weight: Option<u16>,
+    pub field_service_narrowing_bias: Option<u16>,
 }
 
 impl ExperimentParameterSet {
@@ -101,6 +104,9 @@ impl ExperimentParameterSet {
             pathway_heuristic_mode: None,
             field_query_budget: None,
             field_heuristic_mode: None,
+            field_service_publication_neighbor_limit: None,
+            field_service_freshness_weight: None,
+            field_service_narrowing_bias: None,
             batman_classic_stale_after_ticks: None,
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: None,
@@ -127,6 +133,9 @@ impl ExperimentParameterSet {
             pathway_heuristic_mode: Some(heuristic_mode_label(heuristic_mode).to_string()),
             field_query_budget: None,
             field_heuristic_mode: None,
+            field_service_publication_neighbor_limit: None,
+            field_service_freshness_weight: None,
+            field_service_narrowing_bias: None,
             batman_classic_stale_after_ticks: None,
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: None,
@@ -139,12 +148,26 @@ impl ExperimentParameterSet {
         per_objective_query_budget: usize,
         heuristic_mode: FieldSearchHeuristicMode,
     ) -> Self {
+        Self::field_tuned(per_objective_query_budget, heuristic_mode, 3, 100, 100)
+    }
+
+    #[must_use]
+    pub fn field_tuned(
+        per_objective_query_budget: usize,
+        heuristic_mode: FieldSearchHeuristicMode,
+        service_publication_neighbor_limit: usize,
+        service_freshness_weight: u16,
+        service_narrowing_bias: u16,
+    ) -> Self {
         Self {
             engine_family: "field".to_string(),
             config_id: format!(
-                "field-{}-{}",
+                "field-{}-{}-p{}-f{}-n{}",
                 per_objective_query_budget,
-                field_heuristic_mode_label(heuristic_mode)
+                field_heuristic_mode_label(heuristic_mode),
+                service_publication_neighbor_limit,
+                service_freshness_weight,
+                service_narrowing_bias,
             ),
             comparison_engine_set: None,
             batman_bellman_stale_after_ticks: None,
@@ -153,6 +176,9 @@ impl ExperimentParameterSet {
             pathway_heuristic_mode: None,
             field_query_budget: Some(per_objective_query_budget),
             field_heuristic_mode: Some(field_heuristic_mode_label(heuristic_mode).to_string()),
+            field_service_publication_neighbor_limit: Some(service_publication_neighbor_limit),
+            field_service_freshness_weight: Some(service_freshness_weight),
+            field_service_narrowing_bias: Some(service_narrowing_bias),
             batman_classic_stale_after_ticks: None,
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: None,
@@ -179,16 +205,19 @@ impl ExperimentParameterSet {
             comparison_engine_set: None,
             batman_bellman_stale_after_ticks: Some(stale_after_ticks),
             batman_bellman_next_refresh_within_ticks: Some(next_refresh_within_ticks),
+            batman_classic_stale_after_ticks: Some(stale_after_ticks),
+            batman_classic_next_refresh_within_ticks: Some(next_refresh_within_ticks),
+            babel_stale_after_ticks: Some(stale_after_ticks),
+            babel_next_refresh_within_ticks: Some(next_refresh_within_ticks),
             pathway_query_budget: Some(per_objective_query_budget),
             pathway_heuristic_mode: Some(heuristic_mode_label(heuristic_mode).to_string()),
             field_query_budget: Some(per_objective_query_budget),
             field_heuristic_mode: Some(
                 field_heuristic_mode_label(FieldSearchHeuristicMode::HopLowerBound).to_string(),
             ),
-            batman_classic_stale_after_ticks: None,
-            batman_classic_next_refresh_within_ticks: None,
-            babel_stale_after_ticks: None,
-            babel_next_refresh_within_ticks: None,
+            field_service_publication_neighbor_limit: Some(3),
+            field_service_freshness_weight: Some(100),
+            field_service_narrowing_bias: Some(100),
         }
     }
 
@@ -272,6 +301,15 @@ impl ExperimentParameterSet {
                     Some(field_heuristic_mode_label(heuristic).to_string()),
                 )
             });
+        let (
+            field_service_publication_neighbor_limit,
+            field_service_freshness_weight,
+            field_service_narrowing_bias,
+        ) = if field_search.is_some() {
+            (Some(3), Some(100), Some(100))
+        } else {
+            (None, None, None)
+        };
         Self {
             engine_family: "head-to-head".to_string(),
             config_id: format!("head-to-head-{}", config_suffix),
@@ -286,6 +324,9 @@ impl ExperimentParameterSet {
             pathway_heuristic_mode,
             field_query_budget,
             field_heuristic_mode,
+            field_service_publication_neighbor_limit,
+            field_service_freshness_weight,
+            field_service_narrowing_bias,
         }
     }
 
@@ -326,7 +367,12 @@ impl ExperimentParameterSet {
         Some(
             FieldSearchConfig::default()
                 .with_per_objective_query_budget(budget)
-                .with_heuristic_mode(heuristic_mode),
+                .with_heuristic_mode(heuristic_mode)
+                .with_service_publication_neighbor_limit(
+                    self.field_service_publication_neighbor_limit.unwrap_or(3),
+                )
+                .with_service_freshness_weight(self.field_service_freshness_weight.unwrap_or(100))
+                .with_service_narrowing_bias(self.field_service_narrowing_bias.unwrap_or(100)),
         )
     }
 
@@ -349,6 +395,9 @@ impl ExperimentParameterSet {
             pathway_heuristic_mode: None,
             field_query_budget: None,
             field_heuristic_mode: None,
+            field_service_publication_neighbor_limit: None,
+            field_service_freshness_weight: None,
+            field_service_narrowing_bias: None,
         }
     }
 
@@ -382,6 +431,9 @@ impl ExperimentParameterSet {
             pathway_heuristic_mode: None,
             field_query_budget: None,
             field_heuristic_mode: None,
+            field_service_publication_neighbor_limit: None,
+            field_service_freshness_weight: None,
+            field_service_narrowing_bias: None,
         }
     }
 
@@ -432,6 +484,9 @@ pub struct ExperimentRunSummary {
     pub pathway_heuristic_mode: Option<String>,
     pub field_query_budget: Option<usize>,
     pub field_heuristic_mode: Option<String>,
+    pub field_service_publication_neighbor_limit: Option<usize>,
+    pub field_service_freshness_weight: Option<u16>,
+    pub field_service_narrowing_bias: Option<u16>,
     pub seed: u64,
     pub density: String,
     pub loss: String,
@@ -523,6 +578,9 @@ pub struct ExperimentAggregateSummary {
     pub pathway_heuristic_mode: Option<String>,
     pub field_query_budget: Option<usize>,
     pub field_heuristic_mode: Option<String>,
+    pub field_service_publication_neighbor_limit: Option<usize>,
+    pub field_service_freshness_weight: Option<u16>,
+    pub field_service_narrowing_bias: Option<u16>,
     pub density: String,
     pub loss: String,
     pub interference: String,
@@ -1084,14 +1142,25 @@ fn build_pathway_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experim
 // corridor-specific tuning sweep remains auditable in one place.
 fn build_field_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
     let coarse = vec![
-        ExperimentParameterSet::field(2, FieldSearchHeuristicMode::Zero),
-        ExperimentParameterSet::field(4, FieldSearchHeuristicMode::HopLowerBound),
-        ExperimentParameterSet::field(8, FieldSearchHeuristicMode::HopLowerBound),
+        ExperimentParameterSet::field_tuned(4, FieldSearchHeuristicMode::Zero, 1, 140, 180),
+        ExperimentParameterSet::field_tuned(
+            6,
+            FieldSearchHeuristicMode::HopLowerBound,
+            2,
+            130,
+            130,
+        ),
+        ExperimentParameterSet::field_tuned(6, FieldSearchHeuristicMode::HopLowerBound, 3, 170, 90),
     ];
     let fine = vec![
-        ExperimentParameterSet::field(4, FieldSearchHeuristicMode::Zero),
-        ExperimentParameterSet::field(6, FieldSearchHeuristicMode::HopLowerBound),
-        ExperimentParameterSet::field(10, FieldSearchHeuristicMode::HopLowerBound),
+        ExperimentParameterSet::field_tuned(4, FieldSearchHeuristicMode::Zero, 3, 80, 70),
+        ExperimentParameterSet::field_tuned(
+            8,
+            FieldSearchHeuristicMode::HopLowerBound,
+            1,
+            120,
+            190,
+        ),
     ];
     let parameter_sets = if smoke {
         vec![coarse[0].clone(), coarse[1].clone()]
@@ -1155,6 +1224,48 @@ fn build_field_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experimen
                 stress_score: 46,
             },
             build_field_uncertain_service_fanout,
+        ),
+        (
+            "field-service-overlap-reselection",
+            RegimeDescriptor {
+                density: "high-fanout".to_string(),
+                loss: "moderate".to_string(),
+                interference: "medium".to_string(),
+                asymmetry: "mild".to_string(),
+                churn: "branch-reselection".to_string(),
+                node_pressure: "moderate".to_string(),
+                objective_regime: "service".to_string(),
+                stress_score: 54,
+            },
+            build_field_service_overlap_reselection,
+        ),
+        (
+            "field-service-freshness-inversion",
+            RegimeDescriptor {
+                density: "high-fanout".to_string(),
+                loss: "moderate".to_string(),
+                interference: "medium".to_string(),
+                asymmetry: "mild".to_string(),
+                churn: "freshness-inversion".to_string(),
+                node_pressure: "moderate".to_string(),
+                objective_regime: "service".to_string(),
+                stress_score: 58,
+            },
+            build_field_service_freshness_inversion,
+        ),
+        (
+            "field-service-publication-pressure",
+            RegimeDescriptor {
+                density: "high-fanout".to_string(),
+                loss: "moderate".to_string(),
+                interference: "high".to_string(),
+                asymmetry: "mild".to_string(),
+                churn: "overpublish-pressure".to_string(),
+                node_pressure: "moderate".to_string(),
+                objective_regime: "service".to_string(),
+                stress_score: 60,
+            },
+            build_field_service_publication_pressure,
         ),
         (
             "field-bridge-anti-entropy-continuity",
@@ -1767,6 +1878,11 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
         pathway_heuristic_mode: spec.parameters.pathway_heuristic_mode.clone(),
         field_query_budget: spec.parameters.field_query_budget,
         field_heuristic_mode: spec.parameters.field_heuristic_mode.clone(),
+        field_service_publication_neighbor_limit: spec
+            .parameters
+            .field_service_publication_neighbor_limit,
+        field_service_freshness_weight: spec.parameters.field_service_freshness_weight,
+        field_service_narrowing_bias: spec.parameters.field_service_narrowing_bias,
         seed: spec.seed.0,
         density: spec.regime.density.clone(),
         loss: spec.regime.loss.clone(),
@@ -2068,6 +2184,10 @@ fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSumma
                 pathway_heuristic_mode: first.pathway_heuristic_mode.clone(),
                 field_query_budget: first.field_query_budget,
                 field_heuristic_mode: first.field_heuristic_mode.clone(),
+                field_service_publication_neighbor_limit: first
+                    .field_service_publication_neighbor_limit,
+                field_service_freshness_weight: first.field_service_freshness_weight,
+                field_service_narrowing_bias: first.field_service_narrowing_bias,
                 density: first.density.clone(),
                 loss: first.loss.clone(),
                 interference: first.interference.clone(),
@@ -2529,8 +2649,8 @@ fn build_batman_classic_decay_window_pressure(
                 HostSpec::batman_classic(NODE_B),
                 HostSpec::batman_classic(NODE_C),
             ],
-            vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(8)],
-            30,
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_B)).with_activation_round(12)],
+            50,
         ),
         parameters,
     );
@@ -2559,20 +2679,20 @@ fn build_batman_classic_partition_recovery(
                 HostSpec::batman_classic(NODE_B),
                 HostSpec::batman_classic(NODE_C),
             ],
-            vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(8)],
-            36,
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_B)).with_activation_round(12)],
+            60,
         ),
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
         ScheduledEnvironmentHook::new(
-            Tick(16),
+            Tick(30),
             EnvironmentHook::CascadePartition {
-                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+                cuts: vec![(NODE_A, NODE_B), (NODE_B, NODE_A)],
             },
         ),
         ScheduledEnvironmentHook::new(
-            Tick(26),
+            Tick(45),
             EnvironmentHook::ReplaceTopology {
                 configuration: restore,
             },
@@ -2591,6 +2711,7 @@ fn build_babel_decay_window_pressure(
         topology::node(3).babel().build(),
     );
     set_environment(&mut topology, 2, RatioPermille(40), RatioPermille(100));
+    let restore = topology.value.clone();
     let scenario = apply_overrides(
         &JacquardScenario::new(
             format!("babel-decay-window-pressure-{}", parameters.config_id),
@@ -2603,11 +2724,34 @@ fn build_babel_decay_window_pressure(
                 HostSpec::babel(NODE_C),
             ],
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
-            18,
+            26,
         ),
         parameters,
     );
-    (scenario, ScriptedEnvironmentModel::default())
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(8),
+            EnvironmentHook::MediumDegradation {
+                left: NODE_B,
+                right: NODE_C,
+                confidence: RatioPermille(600),
+                loss: RatioPermille(250),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(12),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(20),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore,
+            },
+        ),
+    ]);
+    (scenario, environment)
 }
 
 fn build_babel_asymmetry_cost_penalty(
@@ -2621,6 +2765,7 @@ fn build_babel_asymmetry_cost_penalty(
         topology::node(4).babel().build(),
     );
     set_environment(&mut topology, 1, RatioPermille(200), RatioPermille(80));
+    let restore = topology.value.clone();
     let scenario = apply_overrides(
         &JacquardScenario::new(
             format!("babel-asymmetry-cost-penalty-{}", parameters.config_id),
@@ -2634,21 +2779,35 @@ fn build_babel_asymmetry_cost_penalty(
                 HostSpec::babel(NODE_D),
             ],
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
-            22,
+            30,
         ),
         parameters,
     );
-    let environment = ScriptedEnvironmentModel::new(vec![ScheduledEnvironmentHook::new(
-        Tick(6),
-        EnvironmentHook::AsymmetricDegradation {
-            left: NODE_B,
-            right: NODE_C,
-            forward_confidence: RatioPermille(520),
-            forward_loss: RatioPermille(380),
-            reverse_confidence: RatioPermille(760),
-            reverse_loss: RatioPermille(180),
-        },
-    )]);
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(6),
+            EnvironmentHook::AsymmetricDegradation {
+                left: NODE_B,
+                right: NODE_C,
+                forward_confidence: RatioPermille(520),
+                forward_loss: RatioPermille(380),
+                reverse_confidence: RatioPermille(760),
+                reverse_loss: RatioPermille(180),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(14),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(22),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore,
+            },
+        ),
+    ]);
     (scenario, environment)
 }
 
@@ -2678,7 +2837,7 @@ fn build_babel_partition_feasibility_recovery(
                 HostSpec::babel(NODE_C),
             ],
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
-            26,
+            36,
         ),
         parameters,
     );
@@ -3286,6 +3445,319 @@ fn build_field_uncertain_service_fanout(
     (scenario, environment)
 }
 
+fn build_field_service_overlap_reselection(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = fanout_service_topology5(
+        topology::node(1).field().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
+        topology::node(4).field().build(),
+        topology::node(5).field().build(),
+    );
+    set_environment(&mut topology, 4, RatioPermille(120), RatioPermille(90));
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!("field-service-overlap-reselection-{}", parameters.config_id),
+            seed,
+            jacquard_core::OperatingMode::FieldPartitionTolerant,
+            topology,
+            vec![
+                HostSpec::field(NODE_A)
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![14; 16])),
+                        NODE_B,
+                        920,
+                        1,
+                        1,
+                        Some(880),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![14; 16])),
+                        NODE_C,
+                        860,
+                        1,
+                        1,
+                        Some(820),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![14; 16])),
+                        NODE_D,
+                        760,
+                        1,
+                        1,
+                        Some(730),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![14; 16])),
+                        NODE_E,
+                        720,
+                        1,
+                        1,
+                        Some(690),
+                    )),
+                HostSpec::field(NODE_B),
+                HostSpec::field(NODE_C),
+                HostSpec::field(NODE_D),
+                HostSpec::field(NODE_E),
+            ],
+            vec![
+                BoundObjective::new(NODE_A, field_service_objective(vec![14; 16]))
+                    .with_activation_round(3),
+            ],
+            22,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(9),
+            EnvironmentHook::IntrinsicLimit {
+                node_id: NODE_B,
+                connection_count_max: 1,
+                hold_capacity_bytes_max: jacquard_core::ByteCount(320),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(12),
+            EnvironmentHook::AsymmetricDegradation {
+                left: NODE_A,
+                right: NODE_C,
+                forward_confidence: RatioPermille(520),
+                forward_loss: RatioPermille(320),
+                reverse_confidence: RatioPermille(760),
+                reverse_loss: RatioPermille(120),
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+fn build_field_service_freshness_inversion(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = fanout_service_topology5(
+        topology::node(1).field().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
+        topology::node(4).field().build(),
+        topology::node(5).field().build(),
+    );
+    set_environment(&mut topology, 4, RatioPermille(130), RatioPermille(100));
+    let restore = topology.value.clone();
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!("field-service-freshness-inversion-{}", parameters.config_id),
+            seed,
+            jacquard_core::OperatingMode::FieldPartitionTolerant,
+            topology,
+            vec![
+                HostSpec::field(NODE_A)
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![15; 16])),
+                        NODE_B,
+                        930,
+                        1,
+                        1,
+                        Some(900),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![15; 16])),
+                        NODE_C,
+                        860,
+                        1,
+                        1,
+                        Some(820),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![15; 16])),
+                        NODE_D,
+                        780,
+                        1,
+                        1,
+                        Some(740),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![15; 16])),
+                        NODE_E,
+                        720,
+                        1,
+                        1,
+                        Some(690),
+                    )),
+                HostSpec::field(NODE_B),
+                HostSpec::field(NODE_C),
+                HostSpec::field(NODE_D),
+                HostSpec::field(NODE_E),
+            ],
+            vec![
+                BoundObjective::new(NODE_A, field_service_objective(vec![15; 16]))
+                    .with_activation_round(3),
+            ],
+            24,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(8),
+            EnvironmentHook::AsymmetricDegradation {
+                left: NODE_A,
+                right: NODE_B,
+                forward_confidence: RatioPermille(520),
+                forward_loss: RatioPermille(340),
+                reverse_confidence: RatioPermille(760),
+                reverse_loss: RatioPermille(120),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(11),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore.clone(),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(13),
+            EnvironmentHook::AsymmetricDegradation {
+                left: NODE_A,
+                right: NODE_C,
+                forward_confidence: RatioPermille(560),
+                forward_loss: RatioPermille(300),
+                reverse_confidence: RatioPermille(760),
+                reverse_loss: RatioPermille(130),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(16),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore.clone(),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(18),
+            EnvironmentHook::AsymmetricDegradation {
+                left: NODE_A,
+                right: NODE_D,
+                forward_confidence: RatioPermille(600),
+                forward_loss: RatioPermille(260),
+                reverse_confidence: RatioPermille(760),
+                reverse_loss: RatioPermille(140),
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+fn build_field_service_publication_pressure(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = fanout_service_topology5(
+        topology::node(1).field().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
+        topology::node(4).field().build(),
+        topology::node(5).field().build(),
+    );
+    set_environment(&mut topology, 4, RatioPermille(180), RatioPermille(120));
+    let restore = topology.value.clone();
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!(
+                "field-service-publication-pressure-{}",
+                parameters.config_id
+            ),
+            seed,
+            jacquard_core::OperatingMode::FieldPartitionTolerant,
+            topology,
+            vec![
+                HostSpec::field(NODE_A)
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![16; 16])),
+                        NODE_B,
+                        910,
+                        1,
+                        1,
+                        Some(870),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![16; 16])),
+                        NODE_C,
+                        860,
+                        1,
+                        1,
+                        Some(820),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![16; 16])),
+                        NODE_D,
+                        790,
+                        1,
+                        1,
+                        Some(760),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Service(jacquard_core::ServiceId(vec![16; 16])),
+                        NODE_E,
+                        750,
+                        1,
+                        1,
+                        Some(700),
+                    )),
+                HostSpec::field(NODE_B),
+                HostSpec::field(NODE_C),
+                HostSpec::field(NODE_D),
+                HostSpec::field(NODE_E),
+            ],
+            vec![
+                BoundObjective::new(NODE_A, field_service_objective(vec![16; 16]))
+                    .with_activation_round(3),
+            ],
+            24,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(8),
+            EnvironmentHook::MediumDegradation {
+                left: NODE_A,
+                right: NODE_D,
+                confidence: RatioPermille(600),
+                loss: RatioPermille(220),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(10),
+            EnvironmentHook::AsymmetricDegradation {
+                left: NODE_A,
+                right: NODE_E,
+                forward_confidence: RatioPermille(520),
+                forward_loss: RatioPermille(320),
+                reverse_confidence: RatioPermille(760),
+                reverse_loss: RatioPermille(150),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(12),
+            EnvironmentHook::IntrinsicLimit {
+                node_id: NODE_C,
+                connection_count_max: 1,
+                hold_capacity_bytes_max: jacquard_core::ByteCount(288),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(17),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore,
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
 fn build_field_bridge_anti_entropy_continuity(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
@@ -3871,6 +4343,8 @@ fn apply_overrides(
 fn comparison_topology_node(node_byte: u8, comparison_engine_set: Option<&str>) -> Node {
     match comparison_engine_set.unwrap_or("all-engines") {
         "batman-bellman" => topology::node(node_byte).batman_bellman().build(),
+        "batman-classic" => topology::node(node_byte).batman_classic().build(),
+        "babel" => topology::node(node_byte).babel().build(),
         "pathway" => topology::node(node_byte).pathway().build(),
         "field" => topology::node(node_byte).field().build(),
         "pathway-batman-bellman" => topology::node(node_byte)
@@ -3883,6 +4357,8 @@ fn comparison_topology_node(node_byte: u8, comparison_engine_set: Option<&str>) 
 fn comparison_host_spec(local_node_id: NodeId, comparison_engine_set: Option<&str>) -> HostSpec {
     match comparison_engine_set.unwrap_or("all-engines") {
         "batman-bellman" => HostSpec::batman_bellman(local_node_id),
+        "batman-classic" => HostSpec::batman_classic(local_node_id),
+        "babel" => HostSpec::babel(local_node_id),
         "pathway" => HostSpec::pathway(local_node_id),
         "field" => HostSpec::field(local_node_id),
         "pathway-batman-bellman" => HostSpec::pathway_and_batman_bellman(local_node_id),
@@ -4351,8 +4827,10 @@ fn repairable_connected_profile() -> SelectedRoutingParameters {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_field_bridge_anti_entropy_continuity, build_field_uncertain_service_fanout,
-        local_suite, run_suite, smoke_suite, ExperimentParameterSet,
+        build_field_bridge_anti_entropy_continuity, build_field_service_freshness_inversion,
+        build_field_service_overlap_reselection, build_field_service_publication_pressure,
+        build_field_uncertain_service_fanout, local_suite, run_suite, smoke_suite,
+        ExperimentParameterSet,
     };
     use crate::ReducedReplayView;
     use jacquard_core::{DestinationId, NodeId, ServiceId};
@@ -4477,6 +4955,89 @@ mod tests {
                 .is_some()
                 || !reduced.route_present_rounds(owner, &destination).is_empty(),
             "expected service fanout replay to preserve route lifecycle visibility"
+        );
+    }
+
+    #[test]
+    fn field_service_overlap_reselection_activates() {
+        let parameters =
+            ExperimentParameterSet::field(4, jacquard_field::FieldSearchHeuristicMode::Zero);
+        let (scenario, environment) =
+            build_field_service_overlap_reselection(&parameters, jacquard_core::SimulationSeed(43));
+        let simulator = crate::JacquardSimulationHarness::new(crate::ReferenceClientAdapter);
+        let (replay, _stats) = simulator
+            .run(&scenario, &environment)
+            .expect("run field overlap reselection scenario");
+        let reduced = ReducedReplayView::from_replay(&replay);
+        let owner = NodeId([1; 32]);
+        let destination = DestinationId::Service(ServiceId(vec![14; 16]));
+        assert!(
+            !reduced.route_present_rounds(owner, &destination).is_empty(),
+            "expected overlap reselection scenario to keep a route-visible service corridor"
+        );
+        assert!(
+            reduced.field_continuation_shift_count(owner, &destination) >= 1,
+            "expected at least one continuation shift in overlap reselection scenario"
+        );
+    }
+
+    #[test]
+    fn field_service_freshness_inversion_activates() {
+        let parameters = ExperimentParameterSet::field_tuned(
+            6,
+            jacquard_field::FieldSearchHeuristicMode::HopLowerBound,
+            3,
+            170,
+            90,
+        );
+        let (scenario, environment) =
+            build_field_service_freshness_inversion(&parameters, jacquard_core::SimulationSeed(47));
+        let simulator = crate::JacquardSimulationHarness::new(crate::ReferenceClientAdapter);
+        let (replay, _stats) = simulator
+            .run(&scenario, &environment)
+            .expect("run field service freshness inversion scenario");
+        let reduced = ReducedReplayView::from_replay(&replay);
+        let owner = NodeId([1; 32]);
+        let destination = DestinationId::Service(ServiceId(vec![15; 16]));
+        assert!(
+            !reduced.route_present_rounds(owner, &destination).is_empty(),
+            "expected freshness inversion scenario to keep a route-visible service corridor"
+        );
+        assert!(
+            reduced.field_continuation_shift_count(owner, &destination) >= 2,
+            "expected repeated continuation shifts in freshness inversion scenario"
+        );
+    }
+
+    #[test]
+    fn field_service_publication_pressure_activates() {
+        let parameters = ExperimentParameterSet::field_tuned(
+            4,
+            jacquard_field::FieldSearchHeuristicMode::Zero,
+            1,
+            140,
+            180,
+        );
+        let (scenario, environment) = build_field_service_publication_pressure(
+            &parameters,
+            jacquard_core::SimulationSeed(49),
+        );
+        let simulator = crate::JacquardSimulationHarness::new(crate::ReferenceClientAdapter);
+        let (replay, _stats) = simulator
+            .run(&scenario, &environment)
+            .expect("run field service publication pressure scenario");
+        let reduced = ReducedReplayView::from_replay(&replay);
+        let owner = NodeId([1; 32]);
+        let destination = DestinationId::Service(ServiceId(vec![16; 16]));
+        assert!(
+            !reduced.route_present_rounds(owner, &destination).is_empty(),
+            "expected publication pressure scenario to keep a route-visible service corridor"
+        );
+        assert!(
+            reduced
+                .last_field_commitment_resolution(owner, &destination)
+                .is_some(),
+            "expected publication pressure scenario to expose commitment resolution"
         );
     }
 }

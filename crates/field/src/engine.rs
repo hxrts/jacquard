@@ -29,9 +29,9 @@ use crate::{
         FieldProtocolReconfiguration, FieldProtocolReconfigurationCause, FieldProtocolRuntime,
         FieldRoundDisposition,
     },
-    planner::bootstrap_class_for_state,
+    planner::{bootstrap_class_for_state, continuity_band_for_state},
     recovery::FieldRouteRecoveryState,
-    route::{ActiveFieldRoute, FieldBootstrapClass},
+    route::{ActiveFieldRoute, FieldBootstrapClass, FieldContinuityBand},
     search::{
         FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchEpoch, FieldSearchPlanningFailure,
         FieldSearchReconfiguration, FieldSearchSnapshotState,
@@ -208,6 +208,7 @@ pub struct FieldExportedRuntimeRouteArtifact {
     pub destination: DestinationId,
     pub route_shape: String,
     pub bootstrap_class: String,
+    pub continuity_band: String,
     pub route_support: u16,
     pub topology_epoch: u64,
 }
@@ -255,6 +256,8 @@ pub struct FieldExportedRecoveryEntry {
     pub last_trigger: Option<String>,
     pub last_outcome: Option<String>,
     pub bootstrap_active: bool,
+    pub continuity_band: Option<String>,
+    pub last_continuity_transition: Option<String>,
     pub last_bootstrap_transition: Option<String>,
     pub last_promotion_decision: Option<String>,
     pub last_promotion_blocker: Option<String>,
@@ -263,6 +266,12 @@ pub struct FieldExportedRecoveryEntry {
     pub bootstrap_narrow_count: u32,
     pub bootstrap_upgrade_count: u32,
     pub bootstrap_withdraw_count: u32,
+    pub degraded_steady_entry_count: u32,
+    pub degraded_steady_recovery_count: u32,
+    pub degraded_to_bootstrap_count: u32,
+    pub degraded_steady_round_count: u32,
+    pub service_retention_carry_forward_count: u32,
+    pub asymmetric_shift_success_count: u32,
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub continuation_shift_count: u32,
@@ -306,6 +315,8 @@ pub struct FieldLeanRecoveryFixture {
     pub last_trigger: Option<String>,
     pub last_outcome: Option<String>,
     pub bootstrap_active: bool,
+    pub continuity_band: Option<String>,
+    pub last_continuity_transition: Option<String>,
     pub last_bootstrap_transition: Option<String>,
     pub last_promotion_decision: Option<String>,
     pub last_promotion_blocker: Option<String>,
@@ -314,6 +325,12 @@ pub struct FieldLeanRecoveryFixture {
     pub bootstrap_narrow_count: u32,
     pub bootstrap_upgrade_count: u32,
     pub bootstrap_withdraw_count: u32,
+    pub degraded_steady_entry_count: u32,
+    pub degraded_steady_recovery_count: u32,
+    pub degraded_to_bootstrap_count: u32,
+    pub degraded_steady_round_count: u32,
+    pub service_retention_carry_forward_count: u32,
+    pub asymmetric_shift_success_count: u32,
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub continuation_shift_count: u32,
@@ -422,6 +439,7 @@ pub struct FieldRuntimeRouteArtifact {
     pub destination: DestinationId,
     pub route_shape: RouteShapeVisibility,
     pub bootstrap_class: FieldBootstrapClass,
+    pub continuity_band: FieldContinuityBand,
     pub route_support: u16,
     pub topology_epoch: RouteEpoch,
 }
@@ -588,6 +606,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         from_neighbor: NodeId,
         observation: FieldForwardSummaryObservation,
     ) {
+        let service_bias = matches!(destination, DestinationId::Service(_));
         let state = self.state.upsert_destination_interest(
             destination,
             DestinationInterestClass::Propagated,
@@ -604,7 +623,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     hop_band: HopBand::new(observation.min_hops, observation.max_hops),
                     delivery_support: SupportBucket::new(observation.delivery_support),
                     congestion_penalty: EntropyBucket::default(),
-                    retention_support: SupportBucket::default(),
+                    retention_support: SupportBucket::new(if service_bias {
+                        observation.delivery_support.saturating_sub(40)
+                    } else {
+                        0
+                    }),
                     uncertainty_penalty: EntropyBucket::default(),
                     evidence_class: EvidenceContributionClass::ForwardPropagated,
                     uncertainty_class: SummaryUncertaintyClass::Low,
@@ -651,6 +674,9 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 ),
                 freshness: observation.observed_at_tick,
             });
+        if service_bias {
+            reinforce_service_bootstrap_fanout(state, observation.delivery_support);
+        }
     }
 
     pub fn record_reverse_feedback(
@@ -787,6 +813,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             destination: destination.clone(),
             route_shape,
             bootstrap_class: bootstrap_class_for_state(destination_state),
+            continuity_band: continuity_band_for_state(destination_state),
             route_support: destination_state.corridor_belief.delivery_support.value(),
             topology_epoch,
         }
@@ -799,6 +826,62 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         }
         retained.push_back(artifact);
     }
+}
+
+fn reinforce_service_bootstrap_fanout(
+    state: &mut crate::state::DestinationFieldState,
+    delivery_support: u16,
+) {
+    let coherent_branch_count = service_bootstrap_branch_count(state);
+    if coherent_branch_count < 2 {
+        return;
+    }
+    let corroboration_bonus = u16::try_from(
+        coherent_branch_count
+            .saturating_sub(1)
+            .saturating_mul(70)
+            .min(220),
+    )
+    .expect("bounded corroboration bonus fits u16");
+    state.posterior.top_corridor_mass = SupportBucket::new(
+        state.posterior.top_corridor_mass.value().max(
+            delivery_support
+                .saturating_sub(10)
+                .saturating_add(corroboration_bonus),
+        ),
+    );
+    state.corridor_belief.delivery_support = SupportBucket::new(
+        state.corridor_belief.delivery_support.value().max(
+            delivery_support
+                .saturating_sub(35)
+                .saturating_add(corroboration_bonus / 2),
+        ),
+    );
+    state.corridor_belief.retention_affinity = SupportBucket::new(
+        state.corridor_belief.retention_affinity.value().max(
+            delivery_support
+                .saturating_sub(20)
+                .saturating_add(corroboration_bonus),
+        ),
+    );
+}
+
+fn service_bootstrap_branch_count(state: &crate::state::DestinationFieldState) -> usize {
+    let mut neighbors = std::collections::BTreeSet::new();
+    for entry in state.frontier.as_slice() {
+        if entry.downstream_support.value() >= 140 && entry.net_value.value() >= 180 {
+            neighbors.insert(entry.neighbor_id);
+        }
+    }
+    for evidence in &state.pending_forward_evidence {
+        if evidence.summary.retention_support.value() >= 140
+            && evidence.summary.delivery_support.value() >= 120
+            && evidence.summary.uncertainty_penalty.value() <= 900
+        {
+            neighbors.insert(evidence.from_neighbor);
+        }
+    }
+    neighbors.len()
 }
 
 fn reduced_objective_class(
@@ -997,6 +1080,8 @@ impl FieldExportedReplayBundle {
                 last_trigger: entry.last_trigger.clone(),
                 last_outcome: entry.last_outcome.clone(),
                 bootstrap_active: entry.bootstrap_active,
+                continuity_band: entry.continuity_band.clone(),
+                last_continuity_transition: entry.last_continuity_transition.clone(),
                 last_bootstrap_transition: entry.last_bootstrap_transition.clone(),
                 last_promotion_decision: entry.last_promotion_decision.clone(),
                 last_promotion_blocker: entry.last_promotion_blocker.clone(),
@@ -1005,6 +1090,12 @@ impl FieldExportedReplayBundle {
                 bootstrap_narrow_count: entry.bootstrap_narrow_count,
                 bootstrap_upgrade_count: entry.bootstrap_upgrade_count,
                 bootstrap_withdraw_count: entry.bootstrap_withdraw_count,
+                degraded_steady_entry_count: entry.degraded_steady_entry_count,
+                degraded_steady_recovery_count: entry.degraded_steady_recovery_count,
+                degraded_to_bootstrap_count: entry.degraded_to_bootstrap_count,
+                degraded_steady_round_count: entry.degraded_steady_round_count,
+                service_retention_carry_forward_count: entry.service_retention_carry_forward_count,
+                asymmetric_shift_success_count: entry.asymmetric_shift_success_count,
                 checkpoint_capture_count: entry.checkpoint_capture_count,
                 checkpoint_restore_count: entry.checkpoint_restore_count,
                 continuation_shift_count: entry.continuation_shift_count,
@@ -1170,6 +1261,7 @@ fn exported_runtime_round_artifact(
                 destination: route.destination.clone(),
                 route_shape: format!("{:?}", route.route_shape),
                 bootstrap_class: format!("{:?}", route.bootstrap_class),
+                continuity_band: format!("{:?}", route.continuity_band),
                 route_support: route.route_support,
                 topology_epoch: route.topology_epoch.0,
             }
@@ -1229,6 +1321,11 @@ fn exported_recovery_replay(replay: &FieldRecoveryReplaySurface) -> FieldExporte
                     .last_outcome
                     .map(|outcome| format!("{outcome:?}")),
                 bootstrap_active: entry.state.bootstrap_active,
+                continuity_band: entry.state.continuity_band.map(|band| format!("{band:?}")),
+                last_continuity_transition: entry
+                    .state
+                    .last_continuity_transition
+                    .map(|transition| format!("{transition:?}")),
                 last_bootstrap_transition: entry
                     .state
                     .last_bootstrap_transition
@@ -1246,6 +1343,14 @@ fn exported_recovery_replay(replay: &FieldRecoveryReplaySurface) -> FieldExporte
                 bootstrap_narrow_count: entry.state.bootstrap_narrow_count,
                 bootstrap_upgrade_count: entry.state.bootstrap_upgrade_count,
                 bootstrap_withdraw_count: entry.state.bootstrap_withdraw_count,
+                degraded_steady_entry_count: entry.state.degraded_steady_entry_count,
+                degraded_steady_recovery_count: entry.state.degraded_steady_recovery_count,
+                degraded_to_bootstrap_count: entry.state.degraded_to_bootstrap_count,
+                degraded_steady_round_count: entry.state.degraded_steady_round_count,
+                service_retention_carry_forward_count: entry
+                    .state
+                    .service_retention_carry_forward_count,
+                asymmetric_shift_success_count: entry.state.asymmetric_shift_success_count,
                 checkpoint_capture_count: entry.state.checkpoint_capture_count,
                 checkpoint_restore_count: entry.state.checkpoint_restore_count,
                 continuation_shift_count: entry.state.continuation_shift_count,
@@ -1257,7 +1362,7 @@ fn exported_recovery_replay(replay: &FieldRecoveryReplaySurface) -> FieldExporte
 
 #[cfg(test)]
 mod tests {
-    use jacquard_core::{LinkEndpoint, TransportError};
+    use jacquard_core::{DestinationId, LinkEndpoint, RouteEpoch, ServiceId, Tick, TransportError};
     use jacquard_traits::{effect_handler, TransportSenderEffects};
     use telltale_search::SearchSchedulerProfile;
 
@@ -1375,6 +1480,36 @@ mod tests {
         assert_eq!(
             snapshot.runtime.artifacts.len(),
             FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX
+        );
+    }
+
+    #[test]
+    fn record_forward_summary_reinforces_service_fanout_before_refresh() {
+        let mut engine = FieldEngine::new(node(1), NoopTransport, ());
+        let destination = DestinationId::Service(ServiceId(vec![9; 16]));
+        for (neighbor, support) in [(node(2), 910), (node(3), 840), (node(4), 780)] {
+            engine.record_forward_summary(
+                &destination,
+                neighbor,
+                FieldForwardSummaryObservation::new(RouteEpoch(1), Tick(1), support, 1, 2),
+            );
+        }
+
+        let state = engine
+            .state
+            .destinations
+            .get(&crate::state::DestinationKey::Service(vec![9; 16]))
+            .expect("tracked service destination");
+        assert_eq!(state.frontier.len(), 3);
+        assert!(
+            state.posterior.top_corridor_mass.value() >= 980,
+            "service fanout should corroborate corridor mass early: {}",
+            state.posterior.top_corridor_mass.value()
+        );
+        assert!(
+            state.corridor_belief.retention_affinity.value() >= 900,
+            "service fanout should seed strong retention before refresh: {}",
+            state.corridor_belief.retention_affinity.value()
         );
     }
 }

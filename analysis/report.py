@@ -8,8 +8,12 @@ from pathlib import Path
 from .data import cleanup_report_dir, ensure_dir, load_json_array, load_ndjson, write_csv
 from .document import write_pdf_report
 from .plots import (
+    render_babel_decay_loss,
+    render_babel_decay_stability,
     render_batman_bellman_transition_loss,
     render_batman_bellman_transition_stability,
+    render_batman_classic_transition_loss,
+    render_batman_classic_transition_stability,
     render_comparison_summary,
     render_field_budget_reconfiguration,
     render_field_budget_route_presence,
@@ -22,6 +26,7 @@ from .scoring import (
     baseline_comparison_table,
     boundary_summary_table,
     comparison_summary_table,
+    field_profile_recommendation_table,
     head_to_head_summary_table,
     profile_recommendation_table,
     recommendation_table,
@@ -50,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
 
     recommendations = recommendation_table(aggregates, breakdowns)
     profile_recommendations = profile_recommendation_table(aggregates, breakdowns)
+    field_profile_recommendations = field_profile_recommendation_table(aggregates, breakdowns)
     transition_metrics = transition_metrics_table(runs, recommendations)
     boundary_summary = boundary_summary_table(recommendations, breakdowns)
     baseline_comparison, baseline_dir = baseline_comparison_table(
@@ -63,6 +69,10 @@ def main(argv: list[str] | None = None) -> int:
     write_csv(breakdowns, report_dir / "breakdowns.csv")
     write_csv(recommendations, report_dir / "recommendations.csv")
     write_csv(profile_recommendations, report_dir / "profile_recommendations.csv")
+    write_csv(
+        field_profile_recommendations,
+        report_dir / "field_profile_recommendations.csv",
+    )
     write_csv(transition_metrics, report_dir / "transition_metrics.csv")
     write_csv(boundary_summary, report_dir / "boundary_summary.csv")
     write_csv(baseline_comparison, report_dir / "baseline_comparison.csv")
@@ -80,6 +90,30 @@ def main(argv: list[str] | None = None) -> int:
         report_dir,
         "batman_bellman_transition_loss",
         render_batman_bellman_transition_loss,
+        aggregates,
+    )
+    save_plot_artifact(
+        report_dir,
+        "batman_classic_transition_stability",
+        render_batman_classic_transition_stability,
+        aggregates,
+    )
+    save_plot_artifact(
+        report_dir,
+        "batman_classic_transition_loss",
+        render_batman_classic_transition_loss,
+        aggregates,
+    )
+    save_plot_artifact(
+        report_dir,
+        "babel_decay_stability",
+        render_babel_decay_stability,
+        aggregates,
+    )
+    save_plot_artifact(
+        report_dir,
+        "babel_decay_loss",
+        render_babel_decay_loss,
         aggregates,
     )
     save_plot_artifact(
@@ -124,6 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         report_dir,
         recommendations,
         profile_recommendations,
+        field_profile_recommendations,
         transition_metrics,
         boundary_summary,
         aggregates,

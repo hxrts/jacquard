@@ -245,6 +245,13 @@ just a second support threshold. The runtime evaluates five observable gates:
 - continuation coherence inside the installed corridor envelope
 - freshness of the leading continuation
 
+Between `Steady` and `Bootstrap`, runtime now also keeps one explicit
+degraded-steady continuity band. A degraded-steady route is still a conservative
+steady corridor claim at the publication boundary, but the runtime has started
+preserving narrowed corridor structure, asymmetric continuation shifts, and
+anti-entropy carry-forward more aggressively because the corridor is no longer
+comfortably steady.
+
 Runtime and replay surfaces then distinguish five bootstrap transitions:
 
 - activation
@@ -254,10 +261,25 @@ Runtime and replay surfaces then distinguish five bootstrap transitions:
 - upgrade to steady state
 - withdrawal when the corridor collapses
 
+Replay also distinguishes continuity-band movement itself:
+
+- entering degraded-steady before bootstrap collapse
+- recovering from degraded-steady back to steady
+- downgrading from degraded-steady into bootstrap when continuity can no longer
+  be preserved
+
 When promotion does not occur, replay also records the dominant blocker:
 
 - weak support trend
 - unresolved uncertainty
+
+Service destinations also use a bounded service-retention carry-forward path.
+When a coherent service corridor has just been published, the observer/runtime
+path can synthesize a short-lived forwarded-evidence reinforcement window so
+service fanout families do not lose continuity after one missing forwarded
+round. That carry-forward is bounded and replay-visible; it preserves coherent
+service summaries, but it does not invent a route when no corridor evidence
+remains.
 - missing anti-entropy confirmation
 - broken continuation coherence
 - stale leading evidence

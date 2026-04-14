@@ -379,6 +379,10 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         topology: &Observation<Configuration>,
     ) -> Vec<NodeId> {
         let destination_key = DestinationKey::from(&objective.destination);
+        let service_bias = matches!(
+            objective.destination,
+            jacquard_core::DestinationId::Service(_)
+        );
         let mut neighbors = self
             .state
             .destinations
@@ -412,9 +416,12 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 .into_iter()
                 .flat_map(|destination_state| destination_state.pending_forward_evidence.iter())
                 .filter(|evidence| {
-                    evidence.summary.retention_support.value() >= 280
-                        && evidence.summary.delivery_support.value() >= 140
-                        && evidence.summary.uncertainty_penalty.value() <= 700
+                    evidence.summary.retention_support.value()
+                        >= if service_bias { 150 } else { 280 }
+                        && evidence.summary.delivery_support.value()
+                            >= if service_bias { 70 } else { 140 }
+                        && evidence.summary.uncertainty_penalty.value()
+                            <= if service_bias { 860 } else { 700 }
                 })
                 .map(|evidence| evidence.from_neighbor),
         );
@@ -519,6 +526,10 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         objective: &RoutingObjective,
         to_node_id: &NodeId,
     ) -> Option<NeighborContinuation> {
+        let service_bias = matches!(
+            objective.destination,
+            jacquard_core::DestinationId::Service(_)
+        );
         let destination_state = self
             .state
             .destinations
@@ -528,9 +539,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .iter()
             .filter(|evidence| evidence.from_neighbor == *to_node_id)
             .filter(|evidence| {
-                evidence.summary.retention_support.value() >= 220
-                    && evidence.summary.delivery_support.value() >= 120
-                    && evidence.summary.uncertainty_penalty.value() <= 780
+                evidence.summary.retention_support.value() >= if service_bias { 130 } else { 220 }
+                    && evidence.summary.delivery_support.value()
+                        >= if service_bias { 60 } else { 120 }
+                    && evidence.summary.uncertainty_penalty.value()
+                        <= if service_bias { 900 } else { 780 }
             })
             .max_by_key(|evidence| {
                 (

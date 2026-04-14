@@ -158,14 +158,14 @@ where
         {
             RouteCommitmentResolution::Invalidated(RouteInvalidationReason::LeaseExpired)
         } else if let Some(active) = self.active_routes.get(route.identity.route_id()) {
-            let current_support = self
-                .state
-                .destinations
-                .get(&active.destination)
+            let destination_state = self.state.destinations.get(&active.destination);
+            let current_support = destination_state
                 .map(|state| state.corridor_belief.delivery_support.value())
                 .unwrap_or(active.corridor_envelope.delivery_support.value());
             let service_bias =
                 matches!(active.destination, crate::state::DestinationKey::Service(_));
+            let service_corridor_viable = service_bias
+                && destination_state.is_some_and(|state| service_corridor_viable(active, state));
             let commitment_support_floor = match (active.bootstrap_class, active.continuity_band) {
                 (_, FieldContinuityBand::DegradedSteady) => {
                     if service_bias {
@@ -185,7 +185,7 @@ where
             };
             if active.topology_epoch != route.identity.topology_epoch() {
                 RouteCommitmentResolution::Invalidated(RouteInvalidationReason::TopologySuperseded)
-            } else if current_support < commitment_support_floor {
+            } else if current_support < commitment_support_floor && !service_corridor_viable {
                 RouteCommitmentResolution::Invalidated(RouteInvalidationReason::EvidenceWithdrawn)
             } else {
                 RouteCommitmentResolution::Pending
@@ -292,10 +292,13 @@ where
         let current_bootstrap_class = current_witness_detail.bootstrap_class;
         let current_continuity_band = continuity_band_for_state(&destination_state);
         let service_bias = matches!(destination_key, crate::state::DestinationKey::Service(_));
+        let search_config = self.search_config().clone();
         let preferred_service_neighbor = if service_bias {
             self.active_routes
                 .get(identity.route_id())
-                .and_then(|active| preferred_service_shift_neighbor(active, &ranked, ranked_best))
+                .and_then(|active| {
+                    preferred_service_shift_neighbor(active, &ranked, ranked_best, &search_config)
+                })
         } else {
             None
         };
@@ -489,24 +492,35 @@ where
                 let support_delta = selected_entry
                     .map(|entry| best.net_value.value().abs_diff(entry.net_value.value()))
                     .unwrap_or(0);
-                let shift_delta_max =
-                    if active.continuity_band == FieldContinuityBand::DegradedSteady {
-                        FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX.saturating_add(120)
-                    } else {
-                        FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX
-                    };
-                let support_floor = if active.continuity_band == FieldContinuityBand::DegradedSteady
-                {
-                    FIELD_DEGRADED_STEADY_FAILURE_SUPPORT_FLOOR
+                let shift_delta_max = if service_bias {
+                    FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX.saturating_add(240)
+                } else if active.continuity_band == FieldContinuityBand::DegradedSteady {
+                    FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX.saturating_add(120)
                 } else {
-                    FIELD_ROUTE_WEAK_SUPPORT_FLOOR
+                    FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX
                 };
+                let support_floor =
+                    if active.continuity_band == FieldContinuityBand::DegradedSteady {
+                        FIELD_DEGRADED_STEADY_FAILURE_SUPPORT_FLOOR
+                    } else {
+                        FIELD_ROUTE_WEAK_SUPPORT_FLOOR
+                    }
+                    .saturating_sub(if service_bias { 40 } else { 0 });
                 if corridor_support >= support_floor && support_delta <= shift_delta_max {
-                    active.continuation_neighbors = ranked
-                        .iter()
-                        .take(crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT + 1)
-                        .map(|(entry, _)| entry.neighbor_id)
-                        .collect();
+                    active.continuation_neighbors = if service_bias {
+                        service_runtime_continuation_neighbors(
+                            &ranked,
+                            &destination_state,
+                            best.neighbor_id,
+                            &search_config,
+                        )
+                    } else {
+                        ranked
+                            .iter()
+                            .take(crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT + 1)
+                            .map(|(entry, _)| entry.neighbor_id)
+                            .collect()
+                    };
                     active.selected_neighbor = best.neighbor_id;
                     pending_coordination_shift = Some(best.neighbor_id);
                     if service_bias {
@@ -545,6 +559,12 @@ where
                     active.recovery.note_asymmetric_shift_success();
                 }
                 if service_bias {
+                    active.continuation_neighbors = service_runtime_continuation_neighbors(
+                        &ranked,
+                        &destination_state,
+                        best.neighbor_id,
+                        &search_config,
+                    );
                     active.recovery.note_service_retention_carry_forward();
                 }
                 active.selected_neighbor = best.neighbor_id;
@@ -1125,6 +1145,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let topology_epoch = topology.epoch;
         let regime = self.state.regime.current;
         let control_state = self.state.controller.clone();
+        let service_freshness_weight = self.search_config().service_freshness_weight();
         let local_origin_trace = LocalOriginTrace {
             local_node_id: self.local_node_id,
             topology_epoch,
@@ -1181,6 +1202,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     local_origin_trace,
                     regime,
                     control_state: control_state.clone(),
+                    service_freshness_weight,
                 },
             );
             destination_state.frontier = refresh_frontier_from_evidence(
@@ -1296,43 +1318,61 @@ fn forward_evidence_for_observer(
             service_carry_forward: false,
         };
     }
-    let Some(neighbor_id) = destination_state
-        .frontier
-        .as_slice()
-        .first()
-        .map(|entry| entry.neighbor_id)
-    else {
+    let frontier_entries = destination_state.frontier.as_slice();
+    let frontier_neighbors = frontier_entries
+        .iter()
+        .take(if service_bias { 3 } else { 1 })
+        .collect::<Vec<_>>();
+    if frontier_neighbors.is_empty() {
         return ForwardEvidenceInput {
             evidence: Vec::new(),
             synthesized: false,
             service_carry_forward: false,
         };
-    };
-    let delivery_bonus = if service_bias { 80 } else { 20 };
-    let retention_bonus = if service_bias { 120 } else { 40 };
+    }
     ForwardEvidenceInput {
-        evidence: vec![crate::summary::ForwardPropagatedEvidence {
-            from_neighbor: neighbor_id,
-            summary: FieldSummary {
-                freshness_tick: now_tick,
-                delivery_support: SupportBucket::new(
-                    last_summary
-                        .delivery_support
-                        .value()
-                        .saturating_add(delivery_bonus)
-                        .min(1000),
-                ),
-                retention_support: SupportBucket::new(
-                    last_summary
-                        .retention_support
-                        .value()
-                        .saturating_add(retention_bonus)
-                        .min(1000),
-                ),
-                ..last_summary
-            },
-            observed_at_tick: now_tick,
-        }],
+        evidence: frontier_neighbors
+            .into_iter()
+            .enumerate()
+            .map(|(index, continuation)| {
+                let decay_rank = u16::try_from(index).unwrap_or(u16::MAX);
+                let delivery_bonus = if service_bias {
+                    80_u16.saturating_sub(decay_rank.saturating_mul(20))
+                } else {
+                    20
+                };
+                let retention_bonus = if service_bias {
+                    120_u16.saturating_sub(decay_rank.saturating_mul(25))
+                } else {
+                    40
+                };
+                crate::summary::ForwardPropagatedEvidence {
+                    from_neighbor: continuation.neighbor_id,
+                    summary: FieldSummary {
+                        freshness_tick: now_tick,
+                        hop_band: continuation.expected_hop_band,
+                        delivery_support: SupportBucket::new(
+                            last_summary
+                                .delivery_support
+                                .value()
+                                .max(continuation.downstream_support.value())
+                                .saturating_add(delivery_bonus)
+                                .min(1000),
+                        ),
+                        retention_support: SupportBucket::new(
+                            last_summary
+                                .retention_support
+                                .value()
+                                .max(continuation.net_value.value())
+                                .saturating_add(retention_bonus)
+                                .min(1000),
+                        ),
+                        ..last_summary.clone()
+                    },
+                    observed_at_tick: now_tick,
+                }
+            })
+            .collect(),
         synthesized: true,
         service_carry_forward: service_bias,
     }
@@ -1588,17 +1628,108 @@ fn preferred_service_shift_neighbor(
     active: &ActiveFieldRoute,
     ranked: &[(NeighborContinuation, SupportBucket)],
     ranked_best: &NeighborContinuation,
+    search_config: &crate::FieldSearchConfig,
 ) -> Option<NodeId> {
+    let quality_margin = 240_u16.saturating_sub(search_config.service_narrowing_bias() / 2);
+    let downstream_margin = 180_u16.saturating_sub(search_config.service_narrowing_bias() / 3);
     ranked
         .iter()
         .find(|(entry, _)| {
-            entry.neighbor_id != active.selected_neighbor
+            (entry.neighbor_id != active.selected_neighbor
                 && active.continuation_neighbors.contains(&entry.neighbor_id)
-                && entry.net_value.value().saturating_add(160) >= ranked_best.net_value.value()
-                && entry.downstream_support.value().saturating_add(120)
-                    >= ranked_best.downstream_support.value()
+                && service_neighbor_quality(entry.clone(), search_config)
+                    >= service_neighbor_quality(ranked_best.clone(), search_config))
+                || (entry.neighbor_id != active.selected_neighbor
+                    && active.continuation_neighbors.contains(&entry.neighbor_id)
+                    && entry.net_value.value().saturating_add(quality_margin)
+                        >= ranked_best.net_value.value()
+                    && entry
+                        .downstream_support
+                        .value()
+                        .saturating_add(downstream_margin)
+                        >= ranked_best.downstream_support.value()
+                    && entry.freshness.0.saturating_add(2) >= ranked_best.freshness.0)
         })
         .map(|(entry, _)| entry.neighbor_id)
+}
+
+fn service_runtime_continuation_neighbors(
+    ranked: &[(NeighborContinuation, SupportBucket)],
+    destination_state: &crate::state::DestinationFieldState,
+    selected_neighbor: NodeId,
+    search_config: &crate::FieldSearchConfig,
+) -> Vec<NodeId> {
+    let support_floor = 120_u16.saturating_add(search_config.service_narrowing_bias() / 5);
+    let max_neighbors = search_config
+        .service_publication_neighbor_limit()
+        .clamp(1, crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT)
+        .min(if search_config.service_narrowing_bias() >= 160 {
+            2
+        } else {
+            crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT
+        });
+    let mut service_ranked: Vec<_> = ranked
+        .iter()
+        .map(|(entry, _)| entry.clone())
+        .filter(|entry| {
+            entry.neighbor_id == selected_neighbor
+                || entry.downstream_support.value() >= support_floor
+                || corroborated_service_forward_support(destination_state, entry.neighbor_id)
+                    >= support_floor
+        })
+        .collect();
+    service_ranked.sort_by(|left, right| {
+        service_neighbor_quality(right.clone(), search_config)
+            .cmp(&service_neighbor_quality(left.clone(), search_config))
+            .then_with(|| left.neighbor_id.cmp(&right.neighbor_id))
+    });
+    let mut continuation_neighbors = Vec::with_capacity(max_neighbors);
+    for entry in service_ranked {
+        if continuation_neighbors.contains(&entry.neighbor_id) {
+            continue;
+        }
+        continuation_neighbors.push(entry.neighbor_id);
+        if continuation_neighbors.len() >= max_neighbors {
+            break;
+        }
+    }
+    if !continuation_neighbors.contains(&selected_neighbor) {
+        continuation_neighbors.insert(0, selected_neighbor);
+    }
+    continuation_neighbors.truncate(max_neighbors);
+    continuation_neighbors
+}
+
+fn corroborated_service_forward_support(
+    destination_state: &crate::state::DestinationFieldState,
+    neighbor_id: NodeId,
+) -> u16 {
+    destination_state
+        .pending_forward_evidence
+        .iter()
+        .filter(|evidence| evidence.from_neighbor == neighbor_id)
+        .map(|evidence| {
+            evidence
+                .summary
+                .delivery_support
+                .value()
+                .saturating_add(evidence.summary.retention_support.value() / 2)
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+fn service_neighbor_quality(
+    entry: NeighborContinuation,
+    search_config: &crate::FieldSearchConfig,
+) -> u32 {
+    let freshness_weight = u32::from(search_config.service_freshness_weight().clamp(25, 200));
+    u32::from(entry.downstream_support.value())
+        .saturating_add(u32::from(entry.net_value.value()))
+        .saturating_add(
+            u32::try_from(entry.freshness.0.min(32)).expect("freshness fits u32")
+                * (freshness_weight / 10).max(1),
+        )
 }
 
 fn continuation_shift_grace_active(
@@ -1612,6 +1743,35 @@ fn continuation_shift_grace_active(
         )
         && promotion_assessment.anti_entropy_confirmed
         && promotion_assessment.continuation_coherent
+}
+
+fn service_corridor_viable(
+    active: &ActiveFieldRoute,
+    destination_state: &crate::state::DestinationFieldState,
+) -> bool {
+    let viable_frontier_branches = destination_state
+        .frontier
+        .as_slice()
+        .iter()
+        .filter(|entry| {
+            active.continuation_neighbors.contains(&entry.neighbor_id)
+                && entry.downstream_support.value() >= 120
+                && entry.net_value.value() >= 180
+        })
+        .count();
+    let viable_forward_branches = destination_state
+        .pending_forward_evidence
+        .iter()
+        .filter(|evidence| {
+            active
+                .continuation_neighbors
+                .contains(&evidence.from_neighbor)
+                && evidence.summary.delivery_support.value() >= 100
+                && evidence.summary.retention_support.value() >= 180
+                && evidence.summary.uncertainty_penalty.value() <= 860
+        })
+        .count();
+    viable_frontier_branches + viable_forward_branches >= 2
 }
 
 fn observer_input_signature(
@@ -2492,10 +2652,68 @@ mod tests {
 
         assert!(input.synthesized);
         assert!(input.service_carry_forward);
+        assert_eq!(input.evidence.len(), 1);
         let carried = input.evidence.first().expect("service evidence");
         assert_eq!(carried.from_neighbor, node(2));
         assert!(carried.summary.delivery_support.value() >= 260);
         assert!(carried.summary.retention_support.value() >= 340);
+    }
+
+    #[test]
+    fn service_forward_evidence_keeps_multiple_branches_alive() {
+        let now_tick = Tick(5);
+        let mut state = crate::state::DestinationFieldState::new(
+            crate::state::DestinationKey::Service(vec![7, 7]),
+            Tick(1),
+        );
+        state.frontier = state.frontier.insert(NeighborContinuation {
+            neighbor_id: node(2),
+            net_value: SupportBucket::new(520),
+            downstream_support: SupportBucket::new(420),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(4),
+        });
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(3),
+            net_value: SupportBucket::new(470),
+            downstream_support: SupportBucket::new(360),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(4),
+        });
+        state.publication.record(
+            FieldSummary {
+                destination: SummaryDestinationKey::from(&DestinationId::Service(ServiceId(vec![
+                    7, 7,
+                ]))),
+                topology_epoch: RouteEpoch(4),
+                freshness_tick: Tick(4),
+                hop_band: HopBand::new(1, 2),
+                delivery_support: SupportBucket::new(220),
+                congestion_penalty: crate::state::EntropyBucket::new(50),
+                retention_support: SupportBucket::new(300),
+                uncertainty_penalty: crate::state::EntropyBucket::new(460),
+                evidence_class: EvidenceContributionClass::ForwardPropagated,
+                uncertainty_class: SummaryUncertaintyClass::Medium,
+            },
+            Tick(4),
+        );
+
+        let input = forward_evidence_for_observer(&state, now_tick);
+
+        assert!(input.synthesized);
+        assert!(input.service_carry_forward);
+        assert_eq!(input.evidence.len(), 2);
+        assert_eq!(input.evidence[0].from_neighbor, node(2));
+        assert_eq!(input.evidence[1].from_neighbor, node(3));
+        assert!(
+            input.evidence[1].summary.delivery_support.value() >= 300,
+            "branch support: {:?}",
+            input
+                .evidence
+                .iter()
+                .map(|e| e.summary.delivery_support.value())
+                .collect::<Vec<_>>()
+        );
     }
 
     // long-block-exception: this test keeps materialization, frontier shift,
@@ -3082,6 +3300,97 @@ mod tests {
     }
 
     #[test]
+    fn service_route_commitments_remain_pending_with_multiple_viable_branches() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let destination_id = DestinationId::Service(ServiceId(vec![6; 16]));
+        let state = engine.state.upsert_destination_interest(
+            &destination_id,
+            DestinationInterestClass::Transit,
+            Tick(4),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(440);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(740);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
+        state.corridor_belief.delivery_support = SupportBucket::new(260);
+        state.corridor_belief.retention_affinity = SupportBucket::new(320);
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(2),
+            net_value: SupportBucket::new(260),
+            downstream_support: SupportBucket::new(180),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(4),
+        });
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(3),
+            net_value: SupportBucket::new(250),
+            downstream_support: SupportBucket::new(170),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(4),
+        });
+        state.pending_forward_evidence = vec![
+            crate::summary::ForwardPropagatedEvidence {
+                from_neighbor: node(2),
+                summary: super::summary_for_destination(
+                    state,
+                    topology.value.epoch,
+                    Tick(4),
+                    &destination_id,
+                ),
+                observed_at_tick: Tick(4),
+            },
+            crate::summary::ForwardPropagatedEvidence {
+                from_neighbor: node(3),
+                summary: super::summary_for_destination(
+                    state,
+                    topology.value.epoch,
+                    Tick(4),
+                    &destination_id,
+                ),
+                observed_at_tick: Tick(4),
+            },
+        ];
+
+        let objective = RoutingObjective {
+            destination: destination_id.clone(),
+            ..sample_objective(node(2))
+        };
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let route = jacquard_core::MaterializedRoute::from_installation(input, installation);
+        engine.state.note_tick(Tick(5));
+        {
+            let active = engine.active_routes.get_mut(&route_id).expect("active");
+            active.continuation_neighbors = vec![node(2), node(3)];
+            active.bootstrap_class = FieldBootstrapClass::Bootstrap;
+            active.continuity_band = FieldContinuityBand::Bootstrap;
+        }
+        let destination = engine
+            .state
+            .destinations
+            .get_mut(&crate::state::DestinationKey::Service(vec![6; 16]))
+            .expect("tracked service destination");
+        destination.corridor_belief.delivery_support = SupportBucket::new(130);
+
+        assert_eq!(
+            engine.route_commitments(&route)[0].resolution,
+            RouteCommitmentResolution::Pending,
+        );
+    }
+
+    #[test]
     fn service_maintenance_prefers_shift_within_existing_corridor() {
         let topology = supported_topology();
         let mut engine = seeded_engine();
@@ -3189,6 +3498,181 @@ mod tests {
             active.recovery.state.service_retention_carry_forward_count,
             1
         );
+    }
+
+    #[test]
+    fn service_runtime_narrows_away_from_weak_stale_branch() {
+        let mut destination = crate::state::DestinationFieldState::new(
+            crate::state::DestinationKey::Service(vec![9; 16]),
+            Tick(8),
+        );
+        destination.pending_forward_evidence = vec![
+            crate::summary::ForwardPropagatedEvidence {
+                from_neighbor: node(2),
+                summary: super::summary_for_destination(
+                    &destination,
+                    RouteEpoch(1),
+                    Tick(8),
+                    &DestinationId::Service(ServiceId(vec![9; 16])),
+                ),
+                observed_at_tick: Tick(8),
+            },
+            crate::summary::ForwardPropagatedEvidence {
+                from_neighbor: node(4),
+                summary: crate::summary::FieldSummary {
+                    destination: crate::summary::SummaryDestinationKey::from(
+                        &DestinationId::Service(ServiceId(vec![9; 16])),
+                    ),
+                    topology_epoch: RouteEpoch(1),
+                    freshness_tick: Tick(3),
+                    hop_band: HopBand::new(1, 2),
+                    delivery_support: SupportBucket::new(80),
+                    congestion_penalty: crate::state::EntropyBucket::default(),
+                    retention_support: SupportBucket::new(90),
+                    uncertainty_penalty: crate::state::EntropyBucket::new(700),
+                    evidence_class: crate::summary::EvidenceContributionClass::ForwardPropagated,
+                    uncertainty_class: crate::summary::SummaryUncertaintyClass::High,
+                },
+                observed_at_tick: Tick(3),
+            },
+        ];
+        let ranked = vec![
+            (
+                NeighborContinuation {
+                    neighbor_id: node(2),
+                    net_value: SupportBucket::new(860),
+                    downstream_support: SupportBucket::new(760),
+                    expected_hop_band: HopBand::new(1, 2),
+                    freshness: Tick(8),
+                },
+                SupportBucket::new(860),
+            ),
+            (
+                NeighborContinuation {
+                    neighbor_id: node(3),
+                    net_value: SupportBucket::new(830),
+                    downstream_support: SupportBucket::new(700),
+                    expected_hop_band: HopBand::new(1, 2),
+                    freshness: Tick(8),
+                },
+                SupportBucket::new(830),
+            ),
+            (
+                NeighborContinuation {
+                    neighbor_id: node(4),
+                    net_value: SupportBucket::new(260),
+                    downstream_support: SupportBucket::new(100),
+                    expected_hop_band: HopBand::new(1, 2),
+                    freshness: Tick(3),
+                },
+                SupportBucket::new(260),
+            ),
+        ];
+
+        let narrowed = service_runtime_continuation_neighbors(
+            &ranked,
+            &destination,
+            node(2),
+            &crate::FieldSearchConfig::default(),
+        );
+        assert!(narrowed.contains(&node(2)));
+        assert!(narrowed.contains(&node(3)));
+        assert!(
+            !narrowed.contains(&node(4)),
+            "continuation envelope: {narrowed:?}"
+        );
+    }
+
+    #[test]
+    fn stronger_narrowing_bias_keeps_fewer_service_continuations() {
+        let destination_id =
+            jacquard_core::DestinationId::Service(jacquard_core::ServiceId(vec![9; 16]));
+        let mut destination = crate::state::DestinationFieldState::new(
+            crate::state::DestinationKey::from(&destination_id),
+            Tick(8),
+        );
+        destination.pending_forward_evidence = vec![
+            crate::summary::ForwardPropagatedEvidence {
+                from_neighbor: node(3),
+                summary: crate::summary::FieldSummary {
+                    destination: crate::summary::SummaryDestinationKey::from(&destination_id),
+                    topology_epoch: jacquard_core::RouteEpoch(1),
+                    freshness_tick: Tick(8),
+                    hop_band: HopBand::new(1, 2),
+                    delivery_support: SupportBucket::new(300),
+                    congestion_penalty: crate::state::EntropyBucket::new(80),
+                    retention_support: SupportBucket::new(280),
+                    uncertainty_penalty: crate::state::EntropyBucket::new(220),
+                    evidence_class: crate::summary::EvidenceContributionClass::ForwardPropagated,
+                    uncertainty_class: crate::summary::SummaryUncertaintyClass::Low,
+                },
+                observed_at_tick: Tick(8),
+            },
+            crate::summary::ForwardPropagatedEvidence {
+                from_neighbor: node(4),
+                summary: crate::summary::FieldSummary {
+                    destination: crate::summary::SummaryDestinationKey::from(&destination_id),
+                    topology_epoch: jacquard_core::RouteEpoch(1),
+                    freshness_tick: Tick(8),
+                    hop_band: HopBand::new(1, 2),
+                    delivery_support: SupportBucket::new(260),
+                    congestion_penalty: crate::state::EntropyBucket::new(100),
+                    retention_support: SupportBucket::new(240),
+                    uncertainty_penalty: crate::state::EntropyBucket::new(260),
+                    evidence_class: crate::summary::EvidenceContributionClass::ForwardPropagated,
+                    uncertainty_class: crate::summary::SummaryUncertaintyClass::Low,
+                },
+                observed_at_tick: Tick(8),
+            },
+        ];
+        let ranked = vec![
+            (
+                NeighborContinuation {
+                    neighbor_id: node(2),
+                    net_value: SupportBucket::new(860),
+                    downstream_support: SupportBucket::new(760),
+                    expected_hop_band: HopBand::new(1, 2),
+                    freshness: Tick(8),
+                },
+                SupportBucket::new(860),
+            ),
+            (
+                NeighborContinuation {
+                    neighbor_id: node(3),
+                    net_value: SupportBucket::new(780),
+                    downstream_support: SupportBucket::new(680),
+                    expected_hop_band: HopBand::new(1, 2),
+                    freshness: Tick(8),
+                },
+                SupportBucket::new(780),
+            ),
+            (
+                NeighborContinuation {
+                    neighbor_id: node(4),
+                    net_value: SupportBucket::new(700),
+                    downstream_support: SupportBucket::new(620),
+                    expected_hop_band: HopBand::new(1, 2),
+                    freshness: Tick(7),
+                },
+                SupportBucket::new(700),
+            ),
+        ];
+
+        let broad = service_runtime_continuation_neighbors(
+            &ranked,
+            &destination,
+            node(2),
+            &crate::FieldSearchConfig::default().with_service_narrowing_bias(60),
+        );
+        let narrow = service_runtime_continuation_neighbors(
+            &ranked,
+            &destination,
+            node(2),
+            &crate::FieldSearchConfig::default().with_service_narrowing_bias(180),
+        );
+
+        assert!(broad.len() >= narrow.len());
+        assert_eq!(narrow.len(), 2);
     }
 
     #[test]

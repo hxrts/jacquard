@@ -284,6 +284,7 @@
           },
           "route_shape": "CorridorEnvelope",
           "bootstrap_class": "Steady",
+          "continuity_band": "Steady",
           "route_support": 688,
           "topology_epoch": 7
         },
@@ -346,7 +347,8 @@
           },
           "route_shape": "CorridorEnvelope",
           "bootstrap_class": "Steady",
-          "route_support": 850,
+          "continuity_band": "Bootstrap",
+          "route_support": 950,
           "topology_epoch": 7
         },
         "observed_at_tick": 2
@@ -438,6 +440,7 @@
           },
           "route_shape": "CorridorEnvelope",
           "bootstrap_class": "Steady",
+          "continuity_band": "Steady",
           "route_support": 672,
           "topology_epoch": 7
         },
@@ -606,6 +609,8 @@
         "last_trigger": null,
         "last_outcome": null,
         "bootstrap_active": false,
+        "continuity_band": "Bootstrap",
+        "last_continuity_transition": null,
         "last_bootstrap_transition": null,
         "last_promotion_decision": null,
         "last_promotion_blocker": null,
@@ -614,6 +619,12 @@
         "bootstrap_narrow_count": 0,
         "bootstrap_upgrade_count": 0,
         "bootstrap_withdraw_count": 0,
+        "degraded_steady_entry_count": 0,
+        "degraded_steady_recovery_count": 0,
+        "degraded_to_bootstrap_count": 0,
+        "degraded_steady_round_count": 0,
+        "service_retention_carry_forward_count": 0,
+        "asymmetric_shift_success_count": 0,
         "checkpoint_capture_count": 0,
         "checkpoint_restore_count": 0,
         "continuation_shift_count": 0,

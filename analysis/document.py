@@ -27,7 +27,9 @@ from svglib.svglib import svg2rlg
 from .sections import (
     approach_lines,
     asset_block,
+    babel_algorithm_lines,
     batman_bellman_algorithm_lines,
+    batman_classic_algorithm_lines,
     comparison_findings_lines,
     engine_section_lines,
     executive_summary_lines,
@@ -47,6 +49,7 @@ from .sections import (
 )
 from .tables import (
     comparison_table_rows,
+    field_profile_table_rows,
     head_to_head_table_rows,
     profile_table_rows,
     recommendation_table_rows,
@@ -56,7 +59,7 @@ from .tables import (
 
 
 def codeify_known_terms(text: str) -> str:
-    terms = ["pathway-batman", "batman-bellman", "pathway", "field"]
+    terms = ["pathway-batman-bellman", "batman-bellman", "batman-classic", "babel", "pathway", "field"]
     pattern = re.compile(r"\b(" + "|".join(re.escape(term) for term in terms) + r")\b")
     parts = re.split(r"(`[^`]+`)", text)
     wrapped: list[str] = []
@@ -299,6 +302,7 @@ def write_pdf_report(
     report_dir: Path,
     recommendations,
     profile_recommendations,
+    field_profile_recommendations,
     transition_metrics,
     boundary_summary,
     aggregates,
@@ -345,7 +349,7 @@ def write_pdf_report(
                      for line in asset_block("Transition Behavior", "table").lines]
                 ),
                 make_table(
-                    ["Engine", "Configuration", "Route Mean", "Route Stddev", "First Mat.", "First Loss", "Recovery", "Churn"],
+                    ["Engine", "Configuration", "Route Mean", "Route Stddev", "First Mat.", "First Loss", "Recov.", "Churn"],
                     transition_table_rows(transition_metrics),
                     styles,
                     [1.8 * cm, 4.5 * cm, 1.9 * cm, 2.1 * cm, 1.8 * cm, 1.8 * cm, 1.8 * cm, 1.5 * cm],
@@ -379,7 +383,9 @@ def write_pdf_report(
         ("Matrix Design", methodology_lines()),
         ("Regime Assumptions", regime_assumption_lines()),
         ("Regime Characterization", regime_characterization_lines()),
-        ("BATMAN Algorithm", batman_bellman_algorithm_lines()),
+        ("BATMAN Bellman Algorithm", batman_bellman_algorithm_lines()),
+        ("BATMAN Classic Algorithm", batman_classic_algorithm_lines()),
+        ("Babel Algorithm", babel_algorithm_lines()),
         ("Pathway Algorithm", pathway_algorithm_lines()),
         ("Field Algorithm", field_algorithm_lines()),
         ("Analytical Approach", approach_lines()),
@@ -400,6 +406,20 @@ def write_pdf_report(
             profile_table_rows(profile_recommendations),
             styles,
             [1.8 * cm, 2.5 * cm, 4.4 * cm, 1.8 * cm, 2.0 * cm, 1.8 * cm, 1.8 * cm],
+        )
+    )
+    story.append(Spacer(1, 0.16 * cm))
+    add_paragraphs(
+        story,
+        styles,
+        asset_block("Field Continuity Profiles", "table").lines,
+    )
+    story.append(
+        make_table(
+            ["Profile", "Configuration", "Score", "Route", "Shifts", "Carry", "Narrow", "Degraded"],
+            field_profile_table_rows(field_profile_recommendations),
+            styles,
+            [3.0 * cm, 4.6 * cm, 1.6 * cm, 1.5 * cm, 1.5 * cm, 1.8 * cm, 1.4 * cm, 1.6 * cm],
         )
     )
 
@@ -433,7 +453,61 @@ def write_pdf_report(
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("6. Pathway Analysis", styles["Section"]))
+    story.append(Paragraph("6. BATMAN Classic Analysis", styles["Section"]))
+    story.append(Paragraph("Findings", styles["Subsection"]))
+    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "batman-classic"))
+    story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
+    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "batman-classic"))
+    story.append(Paragraph("Transition Pressure Analysis", styles["Subsection"]))
+    add_paragraphs(story, styles, section_lines("BATMAN Classic Transition Analysis"))
+    add_figure(
+        story,
+        styles,
+        report_dir,
+        "Figure 3",
+        "Figure 3. BATMAN Classic stability across transition families",
+        16.4 * cm,
+        7.0 * cm,
+    )
+    add_figure(
+        story,
+        styles,
+        report_dir,
+        "Figure 4",
+        "Figure 4. BATMAN Classic loss timing across transition families",
+        16.4 * cm,
+        7.0 * cm,
+    )
+    story.append(PageBreak())
+
+    story.append(Paragraph("7. Babel Analysis", styles["Section"]))
+    story.append(Paragraph("Findings", styles["Subsection"]))
+    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "babel"))
+    story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
+    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "babel"))
+    story.append(Paragraph("Decay Window And Feasibility Analysis", styles["Subsection"]))
+    add_paragraphs(story, styles, section_lines("Babel Decay Analysis"))
+    add_figure(
+        story,
+        styles,
+        report_dir,
+        "Figure 5",
+        "Figure 5. Babel stability across decay families",
+        16.4 * cm,
+        8.2 * cm,
+    )
+    add_figure(
+        story,
+        styles,
+        report_dir,
+        "Figure 6",
+        "Figure 6. Babel loss timing across decay families",
+        16.4 * cm,
+        8.2 * cm,
+    )
+    story.append(PageBreak())
+
+    story.append(Paragraph("8. Pathway Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "pathway"))
     story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
@@ -444,8 +518,8 @@ def write_pdf_report(
         story,
         styles,
         report_dir,
-        "Figure 3",
-        "Figure 3. Pathway route presence by search budget",
+        "Figure 7",
+        "Figure 7. Pathway route presence by search budget",
         16.4 * cm,
         8.0 * cm,
     )
@@ -453,14 +527,14 @@ def write_pdf_report(
         story,
         styles,
         report_dir,
-        "Figure 4",
-        "Figure 4. Pathway activation cliffs by search budget",
+        "Figure 8",
+        "Figure 8. Pathway activation cliffs by search budget",
         16.4 * cm,
         7.2 * cm,
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("7. Field Analysis", styles["Section"]))
+    story.append(Paragraph("9. Field Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "field"))
     story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
@@ -471,8 +545,8 @@ def write_pdf_report(
         story,
         styles,
         report_dir,
-        "Figure 5",
-        "Figure 5. Field route presence by search budget",
+        "Figure 9",
+        "Figure 9. Field route presence by search budget",
         16.4 * cm,
         9.6 * cm,
     )
@@ -480,14 +554,14 @@ def write_pdf_report(
         story,
         styles,
         report_dir,
-        "Figure 6",
-        "Figure 6. Field corridor reconfiguration by search budget",
+        "Figure 10",
+        "Figure 10. Field corridor reconfiguration by search budget",
         16.4 * cm,
         9.6 * cm,
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("8. Comparative Analysis", styles["Section"]))
+    story.append(Paragraph("10. Comparative Analysis", styles["Section"]))
     story.append(Paragraph("Mixed-Engine Comparison", styles["Subsection"]))
     add_paragraphs(story, styles, comparison_findings_lines(comparison_summary))
     story.append(Spacer(1, 0.12 * cm))
@@ -539,8 +613,8 @@ def write_pdf_report(
             figure_flowables(
                 styles,
                 report_dir,
-                "Figure 7",
-                "Figure 7. Dominant engine by comparison regime",
+                "Figure 11",
+                "Figure 11. Dominant engine by comparison regime",
                 14.8 * cm,
                 10.2 * cm,
             )
@@ -552,8 +626,8 @@ def write_pdf_report(
             figure_flowables(
                 styles,
                 report_dir,
-                "Figure 8",
-                "Figure 8. Head-to-head route presence by engine set",
+                "Figure 12",
+                "Figure 12. Head-to-head route presence by engine set",
                 16.4 * cm,
                 10.2 * cm,
             )

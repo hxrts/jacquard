@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::choreography::FieldProtocolCheckpoint;
+use crate::{choreography::FieldProtocolCheckpoint, route::FieldContinuityBand};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum FieldRouteRecoveryTrigger {
@@ -37,6 +37,13 @@ pub enum FieldBootstrapTransition {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum FieldContinuityTransition {
+    EnteredDegradedSteady,
+    RecoveredSteady,
+    DowngradedToBootstrap,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum FieldPromotionDecision {
     Hold,
     Narrow,
@@ -59,6 +66,8 @@ pub struct FieldRouteRecoveryState {
     pub last_trigger: Option<FieldRouteRecoveryTrigger>,
     pub last_outcome: Option<FieldRouteRecoveryOutcome>,
     pub bootstrap_active: bool,
+    pub continuity_band: Option<FieldContinuityBand>,
+    pub last_continuity_transition: Option<FieldContinuityTransition>,
     pub last_bootstrap_transition: Option<FieldBootstrapTransition>,
     pub last_promotion_decision: Option<FieldPromotionDecision>,
     pub last_promotion_blocker: Option<FieldPromotionBlocker>,
@@ -67,6 +76,12 @@ pub struct FieldRouteRecoveryState {
     pub bootstrap_narrow_count: u32,
     pub bootstrap_upgrade_count: u32,
     pub bootstrap_withdraw_count: u32,
+    pub degraded_steady_entry_count: u32,
+    pub degraded_steady_recovery_count: u32,
+    pub degraded_to_bootstrap_count: u32,
+    pub degraded_steady_round_count: u32,
+    pub service_retention_carry_forward_count: u32,
+    pub asymmetric_shift_success_count: u32,
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub continuation_shift_count: u32,
@@ -80,6 +95,51 @@ pub(crate) struct StoredFieldRouteRecovery {
 }
 
 impl StoredFieldRouteRecovery {
+    pub(crate) fn note_continuity_band(&mut self, band: FieldContinuityBand) {
+        self.state.continuity_band = Some(band);
+        if band == FieldContinuityBand::DegradedSteady {
+            self.state.degraded_steady_round_count =
+                self.state.degraded_steady_round_count.saturating_add(1);
+        }
+    }
+
+    pub(crate) fn note_degraded_steady_entered(&mut self) {
+        self.state.continuity_band = Some(FieldContinuityBand::DegradedSteady);
+        self.state.last_continuity_transition =
+            Some(FieldContinuityTransition::EnteredDegradedSteady);
+        self.state.degraded_steady_entry_count =
+            self.state.degraded_steady_entry_count.saturating_add(1);
+        self.state.degraded_steady_round_count =
+            self.state.degraded_steady_round_count.saturating_add(1);
+    }
+
+    pub(crate) fn note_degraded_steady_recovered(&mut self) {
+        self.state.continuity_band = Some(FieldContinuityBand::Steady);
+        self.state.last_continuity_transition = Some(FieldContinuityTransition::RecoveredSteady);
+        self.state.degraded_steady_recovery_count =
+            self.state.degraded_steady_recovery_count.saturating_add(1);
+    }
+
+    pub(crate) fn note_degraded_to_bootstrap(&mut self) {
+        self.state.continuity_band = Some(FieldContinuityBand::Bootstrap);
+        self.state.last_continuity_transition =
+            Some(FieldContinuityTransition::DowngradedToBootstrap);
+        self.state.degraded_to_bootstrap_count =
+            self.state.degraded_to_bootstrap_count.saturating_add(1);
+    }
+
+    pub(crate) fn note_service_retention_carry_forward(&mut self) {
+        self.state.service_retention_carry_forward_count = self
+            .state
+            .service_retention_carry_forward_count
+            .saturating_add(1);
+    }
+
+    pub(crate) fn note_asymmetric_shift_success(&mut self) {
+        self.state.asymmetric_shift_success_count =
+            self.state.asymmetric_shift_success_count.saturating_add(1);
+    }
+
     pub(crate) fn note_checkpoint_stored(&mut self, checkpoint: FieldProtocolCheckpoint) {
         self.checkpoint = Some(checkpoint);
         self.state.checkpoint_available = true;
@@ -90,6 +150,7 @@ impl StoredFieldRouteRecovery {
 
     pub(crate) fn note_bootstrap_activated(&mut self) {
         self.state.bootstrap_active = true;
+        self.state.continuity_band = Some(FieldContinuityBand::Bootstrap);
         self.state.last_bootstrap_transition = Some(FieldBootstrapTransition::Activated);
         self.state.last_promotion_decision = None;
         self.state.last_promotion_blocker = None;
@@ -99,6 +160,7 @@ impl StoredFieldRouteRecovery {
 
     pub(crate) fn note_bootstrap_held(&mut self, blocker: FieldPromotionBlocker) {
         self.state.bootstrap_active = true;
+        self.state.continuity_band = Some(FieldContinuityBand::Bootstrap);
         self.state.last_bootstrap_transition = Some(FieldBootstrapTransition::Held);
         self.state.last_promotion_decision = Some(FieldPromotionDecision::Hold);
         self.state.last_promotion_blocker = Some(blocker);
@@ -107,6 +169,7 @@ impl StoredFieldRouteRecovery {
 
     pub(crate) fn note_bootstrap_narrowed(&mut self, blocker: FieldPromotionBlocker) {
         self.state.bootstrap_active = true;
+        self.state.continuity_band = Some(FieldContinuityBand::Bootstrap);
         self.state.last_trigger = Some(FieldRouteRecoveryTrigger::EnvelopeNarrowing);
         self.state.last_outcome = Some(FieldRouteRecoveryOutcome::CorridorNarrowed);
         self.state.last_bootstrap_transition = Some(FieldBootstrapTransition::Narrowed);
@@ -118,6 +181,7 @@ impl StoredFieldRouteRecovery {
 
     pub(crate) fn note_bootstrap_upgraded(&mut self) {
         self.state.bootstrap_active = false;
+        self.state.continuity_band = Some(FieldContinuityBand::Steady);
         self.state.last_bootstrap_transition = Some(FieldBootstrapTransition::Upgraded);
         self.state.last_promotion_decision = Some(FieldPromotionDecision::Promote);
         self.state.last_promotion_blocker = None;
@@ -126,6 +190,7 @@ impl StoredFieldRouteRecovery {
 
     pub(crate) fn note_bootstrap_withdrawn(&mut self, blocker: FieldPromotionBlocker) {
         self.state.bootstrap_active = false;
+        self.state.continuity_band = Some(FieldContinuityBand::Bootstrap);
         self.state.last_bootstrap_transition = Some(FieldBootstrapTransition::Withdrawn);
         self.state.last_promotion_decision = Some(FieldPromotionDecision::Withdraw);
         self.state.last_promotion_blocker = Some(blocker);

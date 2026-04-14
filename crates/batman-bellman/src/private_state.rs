@@ -154,7 +154,6 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
                 (*neighbor, tq, degradation, protocol)
             })
             .collect::<Vec<_>>();
-        let any_window_state = !self.originator_receive_windows.is_empty();
 
         topology
             .value
@@ -175,17 +174,31 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
                     if !is_bidirectional {
                         continue;
                     }
-                    let receive_quality = self
-                        .window_quality_for(originator, *neighbor)
-                        .or_else(|| (!any_window_state).then_some(path_tq))
-                        .unwrap_or(RatioPermille(0));
-                    if receive_quality.0 == 0 {
-                        continue;
-                    }
-                    let tq = scoring::tq_product(
-                        scoring::tq_product(*local_tq, path_tq),
-                        receive_quality,
-                    );
+                    // Per-originator-per-neighbor bootstrap: if no receive
+                    // window exists for THIS (originator, neighbor) pair, use
+                    // the Bellman-Ford path TQ directly as the combined TQ
+                    // (without double-counting it as both path and receive
+                    // quality). Once a window exists, use the standard
+                    // three-factor formula.
+                    let has_window = self.has_window_for(originator, *neighbor);
+                    let (tq, receive_quality) = if has_window {
+                        let rq = self
+                            .window_quality_for(originator, *neighbor)
+                            .unwrap_or(RatioPermille(0));
+                        if rq.0 == 0 {
+                            continue;
+                        }
+                        (
+                            scoring::tq_product(scoring::tq_product(*local_tq, path_tq), rq),
+                            rq,
+                        )
+                    } else {
+                        // Bootstrap: local_tq * path_tq only. No receive
+                        // quality factor — the Bellman-Ford path already
+                        // captures the multi-hop quality estimate.
+                        let bootstrap_tq = scoring::tq_product(*local_tq, path_tq);
+                        (bootstrap_tq, path_tq)
+                    };
                     let degradation = max_degradation(
                         *local_degradation,
                         if tq.0 < scoring::TQ_DEGRADED_BELOW {
@@ -263,6 +276,13 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
             .links
             .get(&(neighbor, self.local_node_id))
             .is_some_and(|link| link_is_usable(link.state.state))
+    }
+
+    fn has_window_for(&self, originator: NodeId, via_neighbor: NodeId) -> bool {
+        self.originator_receive_windows
+            .get(&originator)
+            .and_then(|by_neighbor| by_neighbor.get(&via_neighbor))
+            .is_some_and(|window| window.is_live())
     }
 
     fn window_quality_for(

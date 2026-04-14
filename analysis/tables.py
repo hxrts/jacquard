@@ -11,7 +11,7 @@ def recommendation_table_rows(
     recommendations: pl.DataFrame, limit_per_engine: int
 ) -> list[list[str]]:
     rows: list[list[str]] = []
-    for engine_family in ["batman-bellman", "pathway", "field", "comparison"]:
+    for engine_family in ["batman-bellman", "batman-classic", "babel", "pathway", "field", "comparison"]:
         family = recommendations.filter(pl.col("engine_family") == engine_family).head(
             limit_per_engine
         )
@@ -86,6 +86,24 @@ def profile_table_rows(profile_recommendations: pl.DataFrame) -> list[list[str]]
     return rows
 
 
+def field_profile_table_rows(field_profile_recommendations: pl.DataFrame) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in field_profile_recommendations.iter_rows(named=True):
+        rows.append(
+            [
+                row["profile_id"],
+                f"`{row['config_id']}`",
+                f"{row['mean_score']:.1f}",
+                f"{row['route_present_mean']:.1f}",
+                f"{row['field_continuation_shift_mean']:.1f}",
+                f"{row['field_service_retention_carry_forward_mean']:.1f}",
+                f"{row['field_corridor_narrow_mean']:.1f}",
+                f"{row['field_degraded_steady_round_mean']:.1f}",
+            ]
+        )
+    return rows
+
+
 def baseline_table_rows(baseline_comparison: pl.DataFrame) -> list[list[str]]:
     rows: list[list[str]] = []
     for row in baseline_comparison.iter_rows(named=True):
@@ -145,4 +163,3 @@ def head_to_head_table_rows(head_to_head_summary: pl.DataFrame) -> list[list[str
                 ]
             )
     return rows
-

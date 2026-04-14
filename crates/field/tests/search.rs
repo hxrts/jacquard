@@ -187,7 +187,7 @@ fn forwarded_summary_enables_search_backed_candidate_selection() {
             ..Default::default()
         },
     );
-    let first = topology(Tick(1));
+    let first = disconnected_topology(Tick(1));
     engine
         .engine_tick(&RoutingTickContext::new(first.clone()))
         .expect("initial tick");
@@ -274,6 +274,55 @@ fn service_objective_uses_candidate_set_query_and_one_selected_candidate() {
         .as_ref()
         .expect("selected continuation");
     assert_eq!(continuation.chosen_neighbor, node(2));
+    let accepted = record
+        .query
+        .as_ref()
+        .expect("query")
+        .accepted_nodes()
+        .to_vec();
+    assert!(accepted.contains(&node(2)));
+}
+
+#[test]
+fn service_objective_query_keeps_multiple_forward_candidates() {
+    let mut engine = FieldEngine::new(
+        node(1),
+        InMemoryTransport::new(),
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
+    );
+    let first = topology(Tick(1));
+    engine
+        .engine_tick(&RoutingTickContext::new(first.clone()))
+        .expect("initial tick");
+
+    engine.record_forward_summary(
+        &DestinationId::Service(ServiceId(vec![9, 9])),
+        node(2),
+        FieldForwardSummaryObservation::new(first.value.epoch, Tick(2), 900, 1, 1),
+    );
+    engine.record_forward_summary(
+        &DestinationId::Service(ServiceId(vec![9, 9])),
+        node(3),
+        FieldForwardSummaryObservation::new(first.value.epoch, Tick(2), 820, 1, 1),
+    );
+    let second = topology(Tick(2));
+    engine
+        .engine_tick(&RoutingTickContext::new(second.clone()))
+        .expect("refresh tick");
+
+    let _ = engine.candidate_routes(&service_objective(), &profile(), &second);
+    let record = engine.last_search_record().expect("field search record");
+    let accepted = record
+        .query
+        .as_ref()
+        .expect("query")
+        .accepted_nodes()
+        .to_vec();
+    assert!(accepted.contains(&node(2)));
+    assert!(accepted.contains(&node(3)));
 }
 
 #[test]

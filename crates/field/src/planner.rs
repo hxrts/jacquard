@@ -35,7 +35,7 @@ use crate::{
     recovery::FieldPromotionBlocker,
     route::{
         encode_backend_token, route_id_for_backend, ActiveFieldRoute, FieldBackendToken,
-        FieldBootstrapClass, FieldWitnessDetail,
+        FieldBootstrapClass, FieldContinuityBand, FieldWitnessDetail,
     },
     runtime::FIELD_ROUTE_WEAK_SUPPORT_FLOOR,
     state::{
@@ -95,8 +95,9 @@ impl FieldPromotionAssessment {
         self,
         destination_state: &DestinationFieldState,
         confirmation_streak: u8,
+        promotion_window_score: u8,
     ) -> bool {
-        confirmation_streak >= 1
+        (confirmation_streak >= 1 || promotion_window_score >= 3)
             && self.anti_entropy_confirmed
             && self.continuation_coherent
             && self.fresh_enough
@@ -107,12 +108,11 @@ impl FieldPromotionAssessment {
     }
 
     #[must_use]
-    pub(crate) fn can_promote(self) -> bool {
-        self.support_growth
-            && self.uncertainty_reduced
-            && self.anti_entropy_confirmed
+    pub(crate) fn can_promote(self, promotion_window_score: u8) -> bool {
+        self.anti_entropy_confirmed
             && self.continuation_coherent
             && self.fresh_enough
+            && ((self.support_growth && self.uncertainty_reduced) || promotion_window_score >= 4)
     }
 
     #[must_use]
@@ -129,9 +129,19 @@ impl FieldPromotionAssessment {
         self,
         destination_state: &DestinationFieldState,
         confirmation_streak: u8,
+        promotion_window_score: u8,
     ) -> FieldBootstrapDecision {
-        if (self.can_promote() || self.confirmed_stability(destination_state, confirmation_streak))
-            && promoted_corridor_admissible(destination_state, confirmation_streak)
+        if (self.can_promote(promotion_window_score)
+            || self.confirmed_stability(
+                destination_state,
+                confirmation_streak,
+                promotion_window_score,
+            ))
+            && promoted_corridor_admissible(
+                destination_state,
+                confirmation_streak,
+                promotion_window_score,
+            )
         {
             FieldBootstrapDecision::Promote
         } else if self.degraded_but_coherent(destination_state)
@@ -276,14 +286,29 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             return Err(RouteSelectionError::NoCandidate.into());
         }
         let mut continuation_neighbors = Vec::with_capacity(MAX_CONTINUATION_NEIGHBOR_COUNT + 1);
+        let mut continuation_set = std::collections::BTreeSet::new();
         continuation_neighbors.push(selected_neighbor);
+        continuation_set.insert(selected_neighbor);
+        if matches!(objective.destination, DestinationId::Service(_)) {
+            continuation_neighbors.extend(
+                service_publication_neighbors(
+                    destination_state,
+                    selected_neighbor,
+                    &self.search_config,
+                )
+                .into_iter()
+                .filter(|neighbor_id| continuation_set.insert(*neighbor_id)),
+            );
+        }
         continuation_neighbors.extend(
             ranked
                 .iter()
                 .filter(|(entry, _)| entry.neighbor_id != selected_neighbor)
-                .take(MAX_CONTINUATION_NEIGHBOR_COUNT)
+                .filter(|(entry, _)| continuation_set.insert(entry.neighbor_id))
+                .take(MAX_CONTINUATION_NEIGHBOR_COUNT + 1)
                 .map(|(entry, _)| entry.neighbor_id),
         );
+        continuation_neighbors.truncate(MAX_CONTINUATION_NEIGHBOR_COUNT + 1);
 
         let admission_class = admission_class_for_state(destination_state);
         let witness_detail = self.witness_detail_from_state(destination_state);
@@ -369,6 +394,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 destination_state.posterior.usability_entropy.value(),
             ),
             bootstrap_class: bootstrap_class_for_state(destination_state),
+            continuity_band: continuity_band_for_state(destination_state),
             corridor_support: destination_state.corridor_belief.delivery_support,
             retention_support: destination_state.corridor_belief.retention_affinity,
             usability_entropy: destination_state.posterior.usability_entropy,
@@ -412,7 +438,10 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             protocol_mix,
             hop_count_hint: Belief::estimated(
                 hop_midpoint,
-                jacquard_core::RatioPermille(destination_state.posterior.top_corridor_mass.value()),
+                jacquard_core::RatioPermille(publication_confidence_for(
+                    destination_state,
+                    &self.search_config,
+                )),
                 topology.observed_at_tick,
             ),
             valid_for: destination_state.corridor_belief.validity_window,
@@ -585,13 +614,28 @@ pub(crate) fn bootstrap_corridor_admissible(destination_state: &DestinationField
     let retention = destination_state.corridor_belief.retention_affinity.value();
     let top_mass = destination_state.posterior.top_corridor_mass.value();
     let evidence_class = evidence_class_from_state(destination_state);
+    let service_bias = matches!(destination_state.destination, DestinationKey::Service(_));
     let coherent_source_count = destination_state
         .frontier
         .len()
         .max(destination_state.pending_forward_evidence.len());
+    let service_branch_count = service_corroborating_branch_count(destination_state);
+    let service_support_score =
+        service_corroborated_support_score(destination_state, &crate::FieldSearchConfig::default());
 
-    if support < 180 || entropy > 950 {
+    if support < if service_bias { 130 } else { 220 } || entropy > 950 {
         return false;
+    }
+
+    if service_bias
+        && service_branch_count >= 2
+        && support >= 130
+        && retention >= 140
+        && top_mass >= 140
+        && entropy <= 970
+        && service_support_score >= 380
+    {
+        return true;
     }
 
     match evidence_class {
@@ -617,15 +661,32 @@ pub(crate) fn steady_corridor_admissible(destination_state: &DestinationFieldSta
 pub(crate) fn promoted_corridor_admissible(
     destination_state: &DestinationFieldState,
     confirmation_streak: u8,
+    promotion_window_score: u8,
 ) -> bool {
     if steady_corridor_admissible(destination_state) {
         return true;
     }
-    let _ = confirmation_streak;
+    let window_confirmed = confirmation_streak >= 1 || promotion_window_score >= 3;
+    let service_bias = matches!(destination_state.destination, DestinationKey::Service(_));
+    let service_branch_count = service_corroborating_branch_count(destination_state);
+    let service_support_score =
+        service_corroborated_support_score(destination_state, &crate::FieldSearchConfig::default());
+    if service_bias
+        && service_branch_count >= 2
+        && destination_state.corridor_belief.delivery_support.value() >= 150
+        && destination_state.posterior.usability_entropy.value() <= 950
+        && destination_state.corridor_belief.retention_affinity.value() >= 160
+        && service_support_score >= if window_confirmed { 420 } else { 460 }
+    {
+        return true;
+    }
     destination_state.corridor_belief.delivery_support.value() >= 180
-        && destination_state.posterior.usability_entropy.value() <= 925
-        && destination_state.corridor_belief.retention_affinity.value() >= 240
-        && destination_state.posterior.top_corridor_mass.value() >= 220
+        && destination_state.posterior.usability_entropy.value()
+            <= if window_confirmed { 940 } else { 925 }
+        && destination_state.corridor_belief.retention_affinity.value()
+            >= if window_confirmed { 220 } else { 240 }
+        && destination_state.posterior.top_corridor_mass.value()
+            >= if window_confirmed { 200 } else { 220 }
 }
 
 fn admission_class_for_state(destination_state: &DestinationFieldState) -> FieldAdmissionClass {
@@ -645,6 +706,218 @@ pub(crate) fn bootstrap_class_for_state(
     }
 }
 
+fn degraded_steady_band_admissible(destination_state: &DestinationFieldState) -> bool {
+    let service_bias = matches!(destination_state.destination, DestinationKey::Service(_));
+    let support_floor = if service_bias { 180 } else { 220 };
+    let retention_floor = if service_bias { 240 } else { 220 };
+    let top_mass_floor = if service_bias { 160 } else { 180 };
+    destination_state.corridor_belief.delivery_support.value() >= support_floor
+        && destination_state.corridor_belief.retention_affinity.value() >= retention_floor
+        && destination_state.posterior.top_corridor_mass.value() >= top_mass_floor
+        && destination_state.posterior.usability_entropy.value() <= 940
+}
+
+fn steady_route_softening_needed(destination_state: &DestinationFieldState) -> bool {
+    let support = destination_state.corridor_belief.delivery_support.value();
+    let retention = destination_state.corridor_belief.retention_affinity.value();
+    let top_mass = destination_state.posterior.top_corridor_mass.value();
+    let entropy = destination_state.posterior.usability_entropy.value();
+    support < 360 || retention < 320 || top_mass < 280 || entropy > 760
+}
+
+pub(crate) fn continuity_band_for_state(
+    destination_state: &DestinationFieldState,
+) -> FieldContinuityBand {
+    if steady_corridor_admissible(destination_state)
+        && !steady_route_softening_needed(destination_state)
+    {
+        FieldContinuityBand::Steady
+    } else if degraded_steady_band_admissible(destination_state) {
+        FieldContinuityBand::DegradedSteady
+    } else {
+        FieldContinuityBand::Bootstrap
+    }
+}
+
+fn service_publication_neighbors(
+    destination_state: &DestinationFieldState,
+    selected_neighbor: jacquard_core::NodeId,
+    search_config: &crate::FieldSearchConfig,
+) -> Vec<jacquard_core::NodeId> {
+    let mut scores: std::collections::BTreeMap<jacquard_core::NodeId, u32> =
+        std::collections::BTreeMap::new();
+    let freshest_forward_tick = destination_state
+        .pending_forward_evidence
+        .iter()
+        .map(|evidence| evidence.observed_at_tick.0)
+        .max()
+        .unwrap_or(0);
+    let freshest_frontier_tick = destination_state
+        .frontier
+        .as_slice()
+        .iter()
+        .map(|entry| entry.freshness.0)
+        .max()
+        .unwrap_or(0);
+    for evidence in &destination_state.pending_forward_evidence {
+        if evidence.summary.retention_support.value() >= 120
+            && evidence.summary.delivery_support.value() >= 80
+            && evidence.summary.uncertainty_penalty.value() <= 900
+        {
+            let freshness_gap = freshest_forward_tick.saturating_sub(evidence.observed_at_tick.0);
+            let freshness_penalty =
+                u32::try_from(freshness_gap.min(4)).expect("bounded freshness gap fits u32");
+            let freshness_weight =
+                u32::from(search_config.service_freshness_weight().clamp(25, 200));
+            let score = u32::from(evidence.summary.retention_support.value())
+                .saturating_add(u32::from(evidence.summary.delivery_support.value()))
+                .saturating_sub(u32::from(evidence.summary.uncertainty_penalty.value()) / 2);
+            let score = score
+                .saturating_add(160)
+                .saturating_sub((freshness_penalty * freshness_weight) / 4);
+            scores
+                .entry(evidence.from_neighbor)
+                .and_modify(|current| *current = (*current).max(score))
+                .or_insert(score);
+        }
+    }
+    for entry in destination_state.frontier.as_slice() {
+        let freshness_gap = freshest_frontier_tick.saturating_sub(entry.freshness.0);
+        let freshness_penalty =
+            u32::try_from(freshness_gap.min(4)).expect("bounded freshness gap fits u32");
+        let freshness_weight = u32::from(search_config.service_freshness_weight().clamp(25, 200));
+        let score = u32::from(entry.downstream_support.value())
+            .saturating_add(u32::from(entry.net_value.value()));
+        let score = score
+            .saturating_add(120)
+            .saturating_sub((freshness_penalty * freshness_weight) / 5);
+        scores
+            .entry(entry.neighbor_id)
+            .and_modify(|current| *current = (*current).max(score))
+            .or_insert(score);
+    }
+    let mut ranked: Vec<(jacquard_core::NodeId, u32)> = scores.into_iter().collect();
+    ranked.sort_by(
+        |(left_neighbor, left_score), (right_neighbor, right_score)| {
+            right_score
+                .cmp(left_score)
+                .then_with(|| left_neighbor.cmp(right_neighbor))
+        },
+    );
+    ranked
+        .into_iter()
+        .filter_map(|(neighbor, _)| (neighbor != selected_neighbor).then_some(neighbor))
+        .take(
+            search_config
+                .service_publication_neighbor_limit()
+                .min(MAX_CONTINUATION_NEIGHBOR_COUNT),
+        )
+        .collect()
+}
+
+fn service_corroborating_branch_count(destination_state: &DestinationFieldState) -> usize {
+    if !matches!(destination_state.destination, DestinationKey::Service(_)) {
+        return 0;
+    }
+    let mut neighbors = std::collections::BTreeSet::new();
+    for entry in destination_state.frontier.as_slice() {
+        if entry.downstream_support.value() >= 140 && entry.net_value.value() >= 180 {
+            neighbors.insert(entry.neighbor_id);
+        }
+    }
+    for evidence in &destination_state.pending_forward_evidence {
+        if evidence.summary.retention_support.value() >= 120
+            && evidence.summary.delivery_support.value() >= 80
+            && evidence.summary.uncertainty_penalty.value() <= 900
+        {
+            neighbors.insert(evidence.from_neighbor);
+        }
+    }
+    neighbors.len()
+}
+
+fn service_corroborated_support_score(
+    destination_state: &DestinationFieldState,
+    search_config: &crate::FieldSearchConfig,
+) -> u16 {
+    let mut per_neighbor: std::collections::BTreeMap<jacquard_core::NodeId, u32> =
+        std::collections::BTreeMap::new();
+    let freshest_forward_tick = destination_state
+        .pending_forward_evidence
+        .iter()
+        .map(|evidence| evidence.observed_at_tick.0)
+        .max()
+        .unwrap_or(0);
+    let freshest_frontier_tick = destination_state
+        .frontier
+        .as_slice()
+        .iter()
+        .map(|entry| entry.freshness.0)
+        .max()
+        .unwrap_or(0);
+    for entry in destination_state.frontier.as_slice() {
+        let freshness_gap = freshest_frontier_tick.saturating_sub(entry.freshness.0);
+        let freshness_penalty = u32::try_from(freshness_gap.min(5))
+            .expect("bounded freshness gap fits u32")
+            * (u32::from(search_config.service_freshness_weight().clamp(25, 200)) / 10).max(1);
+        let score = u32::from(entry.downstream_support.value())
+            .saturating_add(u32::from(entry.net_value.value()))
+            .saturating_sub(freshness_penalty);
+        per_neighbor
+            .entry(entry.neighbor_id)
+            .and_modify(|current| *current = (*current).max(score))
+            .or_insert(score);
+    }
+    for evidence in &destination_state.pending_forward_evidence {
+        let freshness_gap = freshest_forward_tick.saturating_sub(evidence.observed_at_tick.0);
+        let freshness_penalty = u32::try_from(freshness_gap.min(5))
+            .expect("bounded freshness gap fits u32")
+            * (u32::from(search_config.service_freshness_weight().clamp(25, 200)) / 8).max(1);
+        let score = u32::from(evidence.summary.delivery_support.value())
+            .saturating_add(u32::from(evidence.summary.retention_support.value()))
+            .saturating_sub(u32::from(evidence.summary.uncertainty_penalty.value()) / 3)
+            .saturating_sub(freshness_penalty);
+        per_neighbor
+            .entry(evidence.from_neighbor)
+            .and_modify(|current| *current = (*current).max(score))
+            .or_insert(score);
+    }
+    let corroborating_count = per_neighbor.len();
+    let mut branch_scores: Vec<u32> = per_neighbor.into_values().collect();
+    branch_scores.sort_unstable_by(|left, right| right.cmp(left));
+    let branch_mass = branch_scores.iter().take(3).copied().sum::<u32>()
+        / u32::try_from(corroborating_count.clamp(1, 3)).expect("bounded branch count fits");
+    let diversity_floor = branch_scores
+        .get(1)
+        .copied()
+        .unwrap_or(branch_scores.first().copied().unwrap_or(0));
+    let score = u32::from(destination_state.posterior.top_corridor_mass.value())
+        .max(u32::from(
+            destination_state.corridor_belief.delivery_support.value(),
+        ))
+        .saturating_add(branch_mass / 2)
+        .saturating_add(diversity_floor / 4)
+        .saturating_add(
+            u32::try_from(corroborating_count.saturating_sub(1))
+                .expect("branch count fits")
+                .saturating_mul(70),
+        );
+    u16::try_from(score.min(1000)).expect("service support score capped to bucket max")
+}
+
+fn publication_confidence_for(
+    destination_state: &DestinationFieldState,
+    search_config: &crate::FieldSearchConfig,
+) -> u16 {
+    if matches!(destination_state.destination, DestinationKey::Service(_)) {
+        destination_state.posterior.top_corridor_mass.value().max(
+            service_corroborated_support_score(destination_state, search_config),
+        )
+    } else {
+        destination_state.posterior.top_corridor_mass.value()
+    }
+}
+
 #[must_use]
 pub(crate) fn promotion_assessment_for_route(
     active_route: &ActiveFieldRoute,
@@ -657,6 +930,7 @@ pub(crate) fn promotion_assessment_for_route(
     let corridor_entropy = destination_state.posterior.usability_entropy.value();
     let corridor_retention = destination_state.corridor_belief.retention_affinity.value();
     let corridor_mass = destination_state.posterior.top_corridor_mass.value();
+    let promotion_window_score = active_route.promotion_window_score;
     let support_growth = destination_state.corridor_belief.delivery_support.value()
         >= active_route
             .witness_detail
@@ -664,6 +938,11 @@ pub(crate) fn promotion_assessment_for_route(
             .value()
             .saturating_add(40)
         || destination_state.corridor_belief.delivery_support.value() >= 320
+        || (promotion_window_score >= 2
+            && corridor_support.saturating_add(25)
+                >= active_route.witness_detail.corridor_support.value()
+            && corridor_retention >= 280
+            && corridor_mass >= 260)
         || (confirmation_streak >= 1
             && corridor_support >= 250
             && corridor_retention >= 300
@@ -675,6 +954,10 @@ pub(crate) fn promotion_assessment_for_route(
         .saturating_add(50)
         <= active_route.witness_detail.usability_entropy.value()
         || destination_state.posterior.usability_entropy.value() <= 775
+        || (promotion_window_score >= 2
+            && corridor_entropy <= 860
+            && corridor_retention >= 280
+            && corridor_mass >= 260)
         || (confirmation_streak >= 1 && corridor_entropy <= 840 && corridor_mass >= 300);
     let anti_entropy_confirmed = matches!(
         evidence_class_from_state(destination_state),
@@ -701,19 +984,34 @@ pub(crate) fn promotion_assessment_for_route(
                 ),
             };
             let divergence = summary_divergence(previous_summary, &current_summary).value();
-            let recent_publication = destination_state
-                .publication
-                .last_sent_at
-                .is_some_and(|tick| now_tick.0.saturating_sub(tick.0) <= 6);
+            let recent_publication =
+                destination_state
+                    .publication
+                    .last_sent_at
+                    .is_some_and(|tick| {
+                        now_tick.0.saturating_sub(tick.0)
+                            <= if promotion_window_score >= 2 { 8 } else { 6 }
+                    });
             recent_publication
-                && divergence <= if confirmation_streak >= 1 { 240 } else { 180 }
+                && divergence
+                    <= if confirmation_streak >= 1 || promotion_window_score >= 2 {
+                        260
+                    } else {
+                        180
+                    }
                 && previous_summary.retention_support.value()
-                    >= if confirmation_streak >= 1 { 220 } else { 260 }
-                && previous_summary
-                    .delivery_support
-                    .value()
-                    .saturating_add(if confirmation_streak >= 1 { 120 } else { 80 })
-                    >= destination_state.corridor_belief.delivery_support.value()
+                    >= if confirmation_streak >= 1 || promotion_window_score >= 2 {
+                        210
+                    } else {
+                        260
+                    }
+                && previous_summary.delivery_support.value().saturating_add(
+                    if confirmation_streak >= 1 || promotion_window_score >= 2 {
+                        140
+                    } else {
+                        80
+                    },
+                ) >= destination_state.corridor_belief.delivery_support.value()
                 && (confirmation_streak == 0 || (corridor_retention >= 300 && corridor_mass >= 300))
         });
     let continuation_coherent = active_route
@@ -722,10 +1020,15 @@ pub(crate) fn promotion_assessment_for_route(
         || destination_state.frontier.len() <= 2
         || best_neighbor.net_value.value().saturating_add(120)
             >= destination_state.corridor_belief.delivery_support.value()
+        || (promotion_window_score >= 2 && corridor_mass >= 260)
         || (confirmation_streak >= 1
             && best_neighbor.downstream_support.value().saturating_add(140) >= corridor_support);
     let fresh_enough = now_tick.0.saturating_sub(best_neighbor.freshness.0)
-        <= if confirmation_streak >= 1 { 6 } else { 4 };
+        <= if confirmation_streak >= 1 || promotion_window_score >= 2 {
+            7
+        } else {
+            4
+        };
 
     FieldPromotionAssessment {
         support_growth,
@@ -1100,6 +1403,262 @@ mod tests {
         state.corridor_belief.retention_affinity = SupportBucket::new(340);
 
         assert!(!steady_corridor_admissible(state));
-        assert!(promoted_corridor_admissible(state, 2));
+        assert!(promoted_corridor_admissible(state, 2, 0));
+    }
+
+    #[test]
+    fn promoted_corridor_admissible_accepts_window_confirmed_bridge() {
+        let mut engine = seeded_engine();
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&DestinationKey::from(&DestinationId::Node(node(2))))
+            .expect("seeded destination");
+        state.posterior.top_corridor_mass = SupportBucket::new(250);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(930);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.corridor_belief.delivery_support = SupportBucket::new(220);
+        state.corridor_belief.retention_affinity = SupportBucket::new(280);
+
+        assert!(!steady_corridor_admissible(state));
+        assert!(promoted_corridor_admissible(state, 0, 3));
+    }
+
+    #[test]
+    fn service_bootstrap_corridor_accepts_corroborated_fanout() {
+        let mut engine = FieldEngine::new(node(1), (), ());
+        let destination_id = DestinationId::Service(jacquard_core::ServiceId(vec![5; 16]));
+        let state = engine.state.upsert_destination_interest(
+            &destination_id,
+            crate::state::DestinationInterestClass::Transit,
+            Tick(4),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(170);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(930);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
+        state.corridor_belief.delivery_support = SupportBucket::new(150);
+        state.corridor_belief.retention_affinity = SupportBucket::new(180);
+        for (neighbor, support) in [(node(2), 220_u16), (node(3), 210), (node(4), 190)] {
+            state.frontier = state.frontier.clone().insert(NeighborContinuation {
+                neighbor_id: neighbor,
+                net_value: SupportBucket::new(support.saturating_add(40)),
+                downstream_support: SupportBucket::new(support),
+                expected_hop_band: HopBand::new(1, 2),
+                freshness: Tick(4),
+            });
+            state
+                .pending_forward_evidence
+                .push(crate::summary::ForwardPropagatedEvidence {
+                    from_neighbor: neighbor,
+                    summary: FieldSummary {
+                        destination: SummaryDestinationKey::from(&destination_id),
+                        topology_epoch: RouteEpoch(1),
+                        freshness_tick: Tick(4),
+                        hop_band: HopBand::new(1, 2),
+                        delivery_support: SupportBucket::new(support),
+                        congestion_penalty: crate::state::EntropyBucket::default(),
+                        retention_support: SupportBucket::new(support.saturating_add(20)),
+                        uncertainty_penalty: crate::state::EntropyBucket::new(220),
+                        evidence_class: EvidenceContributionClass::ForwardPropagated,
+                        uncertainty_class: SummaryUncertaintyClass::Low,
+                    },
+                    observed_at_tick: Tick(4),
+                });
+        }
+
+        assert!(bootstrap_corridor_admissible(state));
+    }
+
+    #[test]
+    fn service_route_publication_carries_multi_branch_corridor() {
+        let mut engine = FieldEngine::new(node(1), (), ());
+        let destination_id = DestinationId::Service(jacquard_core::ServiceId(vec![6; 16]));
+        let state = engine.state.upsert_destination_interest(
+            &destination_id,
+            crate::state::DestinationInterestClass::Transit,
+            Tick(4),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(220);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(900);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
+        state.corridor_belief.delivery_support = SupportBucket::new(170);
+        state.corridor_belief.retention_affinity = SupportBucket::new(220);
+        for (neighbor, support) in [(node(2), 260_u16), (node(3), 230), (node(4), 210)] {
+            state.frontier = state.frontier.clone().insert(NeighborContinuation {
+                neighbor_id: neighbor,
+                net_value: SupportBucket::new(support.saturating_add(30)),
+                downstream_support: SupportBucket::new(support),
+                expected_hop_band: HopBand::new(1, 2),
+                freshness: Tick(4),
+            });
+            state
+                .pending_forward_evidence
+                .push(crate::summary::ForwardPropagatedEvidence {
+                    from_neighbor: neighbor,
+                    summary: FieldSummary {
+                        destination: SummaryDestinationKey::from(&destination_id),
+                        topology_epoch: RouteEpoch(1),
+                        freshness_tick: Tick(4),
+                        hop_band: HopBand::new(1, 2),
+                        delivery_support: SupportBucket::new(support),
+                        congestion_penalty: crate::state::EntropyBucket::default(),
+                        retention_support: SupportBucket::new(support.saturating_add(20)),
+                        uncertainty_penalty: crate::state::EntropyBucket::new(220),
+                        evidence_class: EvidenceContributionClass::ForwardPropagated,
+                        uncertainty_class: SummaryUncertaintyClass::Low,
+                    },
+                    observed_at_tick: Tick(4),
+                });
+        }
+        let topology = supported_topology();
+        let objective = RoutingObjective {
+            destination: destination_id,
+            ..sample_objective(node(2))
+        };
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let token = crate::route::decode_backend_token(&candidate.backend_ref.backend_route_id)
+            .expect("field backend token");
+        assert!(
+            token.continuation_neighbors.len() >= 3,
+            "service continuation envelope: {:?}",
+            token.continuation_neighbors
+        );
+    }
+
+    #[test]
+    fn service_publication_prefers_fresh_corroborated_neighbors() {
+        let mut engine = FieldEngine::new(node(1), (), ());
+        let destination_id = DestinationId::Service(jacquard_core::ServiceId(vec![7; 16]));
+        let state = engine.state.upsert_destination_interest(
+            &destination_id,
+            crate::state::DestinationInterestClass::Transit,
+            Tick(8),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(260);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(860);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
+        state.corridor_belief.delivery_support = SupportBucket::new(180);
+        state.corridor_belief.retention_affinity = SupportBucket::new(240);
+        for (neighbor, support, freshness) in [
+            (node(2), 260_u16, Tick(8)),
+            (node(3), 240, Tick(8)),
+            (node(4), 250, Tick(2)),
+        ] {
+            state.frontier = state.frontier.clone().insert(NeighborContinuation {
+                neighbor_id: neighbor,
+                net_value: SupportBucket::new(support.saturating_add(30)),
+                downstream_support: SupportBucket::new(support),
+                expected_hop_band: HopBand::new(1, 2),
+                freshness,
+            });
+        }
+
+        let published =
+            service_publication_neighbors(state, node(2), &crate::FieldSearchConfig::default());
+        assert!(published.contains(&node(3)));
+        assert!(!published.is_empty());
+        assert!(
+            published.first() == Some(&node(3)),
+            "published neighbors should favor fresh corroborated branches: {:?}",
+            published
+        );
+    }
+
+    #[test]
+    fn service_publication_confidence_prefers_diverse_fresh_corridors() {
+        let mut engine = FieldEngine::new(node(1), (), ());
+        let destination_id = DestinationId::Service(jacquard_core::ServiceId(vec![8; 16]));
+        let strong = engine.state.upsert_destination_interest(
+            &destination_id,
+            crate::state::DestinationInterestClass::Transit,
+            Tick(8),
+        );
+        strong.posterior.top_corridor_mass = SupportBucket::new(220);
+        strong.corridor_belief.delivery_support = SupportBucket::new(180);
+        strong.corridor_belief.retention_affinity = SupportBucket::new(240);
+        strong.frontier = strong.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(2),
+            net_value: SupportBucket::new(320),
+            downstream_support: SupportBucket::new(260),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(8),
+        });
+        strong.frontier = strong.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(3),
+            net_value: SupportBucket::new(300),
+            downstream_support: SupportBucket::new(240),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(8),
+        });
+
+        let mut weak_engine = FieldEngine::new(node(1), (), ());
+        let weak = weak_engine.state.upsert_destination_interest(
+            &destination_id,
+            crate::state::DestinationInterestClass::Transit,
+            Tick(8),
+        );
+        weak.posterior.top_corridor_mass = SupportBucket::new(220);
+        weak.corridor_belief.delivery_support = SupportBucket::new(180);
+        weak.corridor_belief.retention_affinity = SupportBucket::new(240);
+        weak.frontier = weak.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(2),
+            net_value: SupportBucket::new(320),
+            downstream_support: SupportBucket::new(260),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(3),
+        });
+
+        assert!(
+            publication_confidence_for(strong, &crate::FieldSearchConfig::default())
+                > publication_confidence_for(weak, &crate::FieldSearchConfig::default()),
+            "diverse fresh service corridor should have higher publication confidence"
+        );
+    }
+
+    #[test]
+    fn service_publication_limit_constrains_extra_neighbors() {
+        let mut engine = FieldEngine::new(node(1), (), ());
+        let destination_id = DestinationId::Service(jacquard_core::ServiceId(vec![8; 16]));
+        let state = engine.state.upsert_destination_interest(
+            &destination_id,
+            crate::state::DestinationInterestClass::Transit,
+            Tick(8),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(280);
+        state.corridor_belief.delivery_support = SupportBucket::new(220);
+        state.corridor_belief.retention_affinity = SupportBucket::new(280);
+        for neighbor in [node(2), node(3), node(4)] {
+            state.frontier = state.frontier.clone().insert(NeighborContinuation {
+                neighbor_id: neighbor,
+                net_value: SupportBucket::new(320),
+                downstream_support: SupportBucket::new(260),
+                expected_hop_band: HopBand::new(1, 2),
+                freshness: Tick(8),
+            });
+        }
+
+        let constrained = service_publication_neighbors(
+            state,
+            node(2),
+            &crate::FieldSearchConfig::default().with_service_publication_neighbor_limit(1),
+        );
+        let broad = service_publication_neighbors(
+            state,
+            node(2),
+            &crate::FieldSearchConfig::default().with_service_publication_neighbor_limit(3),
+        );
+
+        assert_eq!(constrained.len(), 1);
+        assert!(broad.len() >= 2);
     }
 }

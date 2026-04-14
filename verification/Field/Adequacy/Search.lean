@@ -56,6 +56,7 @@ def SearchProjectionAdmitted
     (projection : SearchProjection) : Prop :=
   projection.surface.query.kind = objectiveMeaning projection.surface ∧
     bootstrapConservative projection.surface ∧
+    degradedSteadyConservative projection.surface ∧
     promotionConservative projection.surface ∧
     match projection.surface.reconfiguration with
     | none => True
@@ -162,6 +163,7 @@ def exactNodeSearchProjection : SearchProjection :=
             kind := .singleGoal
             acceptedGoals := [.beta] }
         bootstrapClass := .steady
+        continuityBand := .steady
         bootstrapDecision := some .promote
         promotionBlocker := none
         executionPolicy :=
@@ -183,6 +185,7 @@ def candidateSetSearchProjection : SearchProjection :=
             kind := .candidateSet
             acceptedGoals := [.beta, .gamma] }
         bootstrapClass := .steady
+        continuityBand := .degradedSteady
         bootstrapDecision := some .promote
         promotionBlocker := none
         executionPolicy :=
@@ -202,12 +205,14 @@ def candidateSetSearchProjection : SearchProjection :=
 theorem exact_node_search_projection_admitted :
     SearchProjectionAdmitted exactNodeSearchProjection := by
   simp [SearchProjectionAdmitted, exactNodeSearchProjection, objectiveMeaning,
-    queryKindOfObjective, bootstrapConservative, promotionConservative]
+    queryKindOfObjective, bootstrapConservative, degradedSteadyConservative,
+    promotionConservative]
 
 theorem candidate_set_search_projection_admitted :
     SearchProjectionAdmitted candidateSetSearchProjection := by
   simp [SearchProjectionAdmitted, candidateSetSearchProjection, objectiveMeaning,
-    queryKindOfObjective, bootstrapConservative, promotionConservative]
+    queryKindOfObjective, bootstrapConservative, degradedSteadyConservative,
+    promotionConservative]
 
 theorem admitted_replay_extraction_with_search_yields_admitted_bundle
     (replay : RustReplayExtraction)
@@ -269,7 +274,7 @@ theorem admitted_reconfiguration_projection_targets_current_snapshot
   | some actualStep =>
       simp [SearchProjectionAdmitted, reconfigurationProjection, hReconf] at hAdmitted hStep
       cases hStep
-      exact hAdmitted.2.2.2
+      exact hAdmitted.2.2.2.2
 
 theorem selector_truth_is_policy_invariant
     (semantics : LifecycleSelectorSemantics)

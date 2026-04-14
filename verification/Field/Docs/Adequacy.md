@@ -124,6 +124,17 @@ This is intentionally much smaller than the real Rust choreography runtime. It m
 
 The new `routerArtifact` field is still reduced. It carries at most one reduced lifecycle-route projection for the round artifact. It does not make the adequacy layer the owner of canonical route truth.
 
+The reduced adequacy boundary now also carries the runtime continuity band
+explicitly. A reduced runtime route can therefore be:
+
+- `steady`
+- `degraded-steady`
+- `bootstrap`
+
+without promoting adequacy into a new owner of route truth. This band is only
+the reduced runtime-facing continuity classification that the Rust runtime now
+exports through replay.
+
 The reduced runtime artifact now also carries reduced search linkage metadata:
 
 - optional destination/objective class
@@ -205,6 +216,20 @@ The runtime artifact admission condition currently requires:
 - complete or failed-closed states must not claim a blocked receive
 - blocked states must carry a blocked receive marker
 - any reduced router-facing runtime projection must stay lifecycle-honest
+
+It also now requires degraded-steady and bootstrap runtime projections to keep
+an actual reduced lifecycle route. In other words, adequacy is allowed to
+observe that the runtime entered a degraded continuity band, but it is not
+allowed to treat that as a route that exists without a lifecycle projection.
+
+The reduced recovery artifact now carries:
+
+- optional continuity band
+- optional last continuity transition
+- bootstrap transition / decision / blocker
+
+That keeps the new degraded-before-bootstrap semantics explicit at the proof
+boundary rather than forcing proofs to infer them from bootstrap counts alone.
 
 The reduced trace envelope is:
 

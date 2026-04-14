@@ -7,8 +7,12 @@ PLOT_SPECS = {
     "batman_bellman_transition_loss": (11.0, 4.8),
     "pathway_budget_route_presence": (11.0, 4.8),
     "pathway_budget_activation": (11.0, 4.8),
-    "field_budget_route_presence": (11.0, 5.8),
-    "field_budget_reconfiguration": (11.0, 5.8),
+    "field_budget_route_presence": (11.0, 7.6),
+    "field_budget_reconfiguration": (11.0, 7.6),
+    "batman_classic_transition_stability": (11.0, 4.0),
+    "batman_classic_transition_loss": (11.0, 4.0),
+    "babel_decay_stability": (11.0, 4.8),
+    "babel_decay_loss": (11.0, 4.8),
     "comparison_dominant_engine": (8.1, 4.8),
     "head_to_head_route_presence": (9.2, 5.0),
 }
@@ -25,17 +29,33 @@ PATHWAY_FAMILY_COLORS = {
     "pathway-bridge-failure-service": "#009E73",
 }
 
+BATMAN_CLASSIC_FAMILY_COLORS = {
+    "batman-classic-decay-window-pressure": "#56B4E9",
+    "batman-classic-partition-recovery": "#F0E442",
+}
+
+BABEL_FAMILY_COLORS = {
+    "babel-decay-window-pressure": "#882255",
+    "babel-asymmetry-cost-penalty": "#AA4499",
+    "babel-partition-feasibility-recovery": "#DDCC77",
+}
+
 FIELD_FAMILY_COLORS = {
     "field-partial-observability-bridge": "#0072B2",
     "field-reconfiguration-recovery": "#009E73",
     "field-asymmetric-envelope-shift": "#D55E00",
     "field-uncertain-service-fanout": "#CC79A7",
+    "field-service-overlap-reselection": "#7C3AED",
+    "field-service-freshness-inversion": "#C2410C",
+    "field-service-publication-pressure": "#0F766E",
     "field-bridge-anti-entropy-continuity": "#56B4E9",
     "field-bootstrap-upgrade-window": "#F0E442",
 }
 
 COMPARISON_ENGINE_COLORS = {
     "batman-bellman": "#0072B2",
+    "batman-classic": "#56B4E9",
+    "babel": "#882255",
     "pathway": "#009E73",
     "field": "#CC79A7",
     "none": "#999999",
@@ -43,6 +63,8 @@ COMPARISON_ENGINE_COLORS = {
 
 HEAD_TO_HEAD_SET_COLORS = {
     "batman-bellman": "#0072B2",
+    "batman-classic": "#56B4E9",
+    "babel": "#882255",
     "pathway": "#009E73",
     "field": "#CC79A7",
     "pathway-batman-bellman": "#E69F00",
@@ -114,5 +136,68 @@ RECOMMENDATION_PROFILES = {
         "reachability_penalty": 120.0,
         "degraded_penalty": 60.0,
     },
+    "field-stable-service": {
+        "activation_weight": 2.5,
+        "route_weight": 1.4,
+        "stability_weight": 0.03,
+        "stress_weight": 5.0,
+        "materialization_weight": 0.0,
+        "recovery_weight": 2.0,
+        "churn_penalty": 35.0,
+        "maintenance_penalty": 110.0,
+        "reachability_penalty": 120.0,
+        "degraded_penalty": 75.0,
+        "field_service_reward": 0.012,
+        "field_shift_penalty": 18.0,
+        "field_narrow_penalty": 10.0,
+        "field_degraded_round_penalty": 0.15,
+    },
+    "field-low-churn": {
+        "activation_weight": 2.0,
+        "route_weight": 1.2,
+        "stability_weight": 0.03,
+        "stress_weight": 4.5,
+        "materialization_weight": 0.0,
+        "recovery_weight": 2.0,
+        "churn_penalty": 45.0,
+        "maintenance_penalty": 120.0,
+        "reachability_penalty": 130.0,
+        "degraded_penalty": 80.0,
+        "field_service_reward": 0.004,
+        "field_shift_penalty": 45.0,
+        "field_narrow_reward": 18.0,
+        "field_degraded_round_penalty": 0.18,
+    },
+    "field-broad-reselection": {
+        "activation_weight": 2.0,
+        "route_weight": 1.3,
+        "stability_weight": 0.02,
+        "stress_weight": 4.5,
+        "materialization_weight": 0.0,
+        "recovery_weight": 1.0,
+        "churn_penalty": 22.0,
+        "maintenance_penalty": 90.0,
+        "reachability_penalty": 110.0,
+        "degraded_penalty": 60.0,
+        "field_service_reward": 0.02,
+        "field_shift_reward": 18.0,
+        "field_narrow_penalty": 20.0,
+        "field_degraded_round_penalty": 0.08,
+    },
+    "field-conservative-publication": {
+        "activation_weight": 2.3,
+        "route_weight": 1.2,
+        "stability_weight": 0.03,
+        "stress_weight": 5.0,
+        "materialization_weight": 0.0,
+        "recovery_weight": 2.0,
+        "churn_penalty": 40.0,
+        "maintenance_penalty": 120.0,
+        "reachability_penalty": 130.0,
+        "degraded_penalty": 85.0,
+        "field_service_penalty": 0.005,
+        "field_shift_penalty": 35.0,
+        "field_narrow_reward": 32.0,
+        "field_degraded_round_penalty": 0.2,
+    },
 }
-

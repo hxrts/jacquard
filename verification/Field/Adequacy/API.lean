@@ -60,8 +60,16 @@ inductive BootstrapTransition
   | withdrawn
   deriving Repr, DecidableEq, BEq
 
+inductive ContinuityTransition
+  | enteredDegradedSteady
+  | recoveredSteady
+  | downgradedToBootstrap
+  deriving Repr, DecidableEq, BEq
+
 structure RuntimeRecoveryArtifact where
   bootstrapActive : Bool
+  continuityBand : Option ContinuityBand
+  lastContinuityTransition : Option ContinuityTransition
   lastBootstrapTransition : Option BootstrapTransition
   lastPromotionDecision : Option BootstrapDecision
   lastPromotionBlocker : Option PromotionBlocker
@@ -73,6 +81,7 @@ router truth. -/
 structure RuntimeRouterArtifact where
   lifecycleRoute : LifecycleRoute
   bootstrapClass : BootstrapClass
+  continuityBand : ContinuityBand
   deriving Repr, DecidableEq, BEq
 
 structure RuntimeSearchLinkage where
@@ -146,6 +155,15 @@ def RuntimeBootstrapArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
         (routerArtifact.bootstrapClass = .bootstrap ∧
           (runtimeLifecycleRouteOfArtifact artifact).isSome)
 
+def RuntimeContinuityArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
+  match artifact.routerArtifact with
+  | none => True
+  | some routerArtifact =>
+      match routerArtifact.continuityBand with
+      | .steady => True
+      | .degradedSteady => runtimeLifecycleRouteOfArtifact artifact |>.isSome
+      | .bootstrap => runtimeLifecycleRouteOfArtifact artifact |>.isSome
+
 def RuntimeRecoveryArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
   match artifact.recoveryArtifact with
   | none => True
@@ -172,6 +190,7 @@ def RuntimeArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
       artifact.blockedReceive.isSome) ∧
     RuntimeRouterArtifactAdmitted artifact ∧
     RuntimeBootstrapArtifactAdmitted artifact ∧
+    RuntimeContinuityArtifactAdmitted artifact ∧
     RuntimeRecoveryArtifactAdmitted artifact
 
 /-- Execution-level admission: every runtime artifact stays inside the reduced

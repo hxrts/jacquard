@@ -78,6 +78,7 @@ impl ClientBuilder {
             profile: default_profile_for_engine_set(
                 include_pathway,
                 include_batman_bellman,
+                false, // include_batman_classic set after construction
                 include_babel,
                 include_field,
             ),
@@ -153,6 +154,7 @@ impl ClientBuilder {
             false,
         );
         builder.include_batman_classic = true;
+        builder.profile = batman_default_profile();
         builder
     }
 
@@ -601,10 +603,14 @@ fn batman_default_profile() -> SelectedRoutingParameters {
 fn default_profile_for_engine_set(
     include_pathway: bool,
     include_batman_bellman: bool,
+    include_batman_classic: bool,
     include_babel: bool,
     include_field: bool,
 ) -> SelectedRoutingParameters {
-    if (include_batman_bellman || include_babel) && !include_pathway && !include_field {
+    if (include_batman_bellman || include_batman_classic || include_babel)
+        && !include_pathway
+        && !include_field
+    {
         batman_default_profile()
     } else {
         default_profile()

@@ -2,21 +2,15 @@
 
 `jacquard-babel` (engine ID `jacquard.babel..`) implements the Babel distance-vector routing protocol as described in RFC 8966. It uses bidirectional ETX link cost, additive path metric, and a feasibility distance table for loop-free route selection. This is the third distance-vector engine in Jacquard, alongside `jacquard-batman-bellman` and `jacquard-batman-classic`.
 
----
-
 ## Protocol Overview
 
 Babel is a distance-vector routing protocol designed for wireless mesh networks. Each node originates route updates advertising itself as a destination with metric 0. Relay nodes add their local link cost before re-advertising the best route. Downstream nodes select the path with the lowest total metric.
 
 Three properties distinguish Babel from the batman engines in Jacquard. First, link cost uses bidirectional ETX rather than forward-only TQ. Second, path metric is additive rather than multiplicative. Third, route selection is gated by a feasibility condition that provides loop freedom during transient topology changes.
 
----
-
 ## Shared Inputs
 
 The Babel engine consumes `Observation<Configuration>` from the shared Jacquard world model. Destination eligibility is checked against `ServiceDescriptor` before the engine produces a candidate. A destination node must declare support for the engine's specific ID in its shared service surface before the engine emits a `RouteCandidate` toward it. See [Pathway Routing](401_pathway_routing.md) for the shared planning contract all engines implement.
-
----
 
 ## Update Structure
 
@@ -35,8 +29,6 @@ The originator sets `metric=0` and assigns a monotonically increasing `seqno`. E
 
 No TTL field is present. Propagation depth is controlled by the decay window: stale entries are pruned when `observed_at_tick` exceeds `stale_after_ticks`. No hop-count bound is needed because only the selected route per destination is re-advertised, and infeasible routes are rejected by the feasibility condition.
 
----
-
 ## ETX Link Cost
 
 Link cost uses the Expected Transmission Count formula:
@@ -49,8 +41,6 @@ This captures bidirectional link quality. A perfectly symmetric active link (100
 
 If either direction is absent or faulted (delivery 0), cost equals `BABEL_INFINITY` (0xFFFF), making the route unusable. This replaces the echo-window bidirectionality gate used by batman-classic. No separate bidirectionality check is needed because asymmetry is encoded directly in the metric.
 
----
-
 ## Additive Metric
 
 Path metric is the sum of link cost and the neighbor's reported metric:
@@ -62,8 +52,6 @@ compound_metric = link_cost + neighbor_metric
 If either input equals `BABEL_INFINITY`, the result is `BABEL_INFINITY`. Otherwise the sum saturates at `BABEL_INFINITY - 1` (0xFFFE). The metric scale runs from 0 (perfect local route) to 0xFFFF (unreachable). Values at or above 0xFFFF are treated as unreachable.
 
 This additive model differs from BATMAN's multiplicative TQ product. A single bad hop in a multi-hop path raises the total metric by its full link cost. In BATMAN, the same bad hop would reduce the multiplicative product less dramatically relative to other hops. Babel therefore discriminates more strongly against paths with one weak link among otherwise strong links.
-
----
 
 ## Feasibility Distance Table
 
@@ -94,15 +82,11 @@ When no feasible route exists for a destination, the engine selects the best inf
 
 When all routes to a destination expire from the route table, FD for that destination is removed. The next route learned will be treated as if FD is absent (any finite metric is feasible).
 
----
-
 ## Sequence Number Management
 
 The originator seqno is incremented every `SEQNO_REFRESH_INTERVAL_TICKS` (16 ticks). This periodic increment serves as the mechanism for resolving infeasible-fallback states across the network. The seqno uses u16 with modular arithmetic and wraps at 2^16.
 
 No explicit seqno request mechanism is implemented. In the full RFC 8966 protocol, a node can send a SEQREQ to the originator asking it to bump its seqno immediately. In the Jacquard tick model, the periodic increment bounds the infeasible-fallback window to at most 16 ticks without requiring asynchronous request handling.
-
----
 
 ## Selected-Route Flooding
 
@@ -110,21 +94,15 @@ Each tick, the engine floods two types of updates to all direct neighbors. The f
 
 This differs from batman-classic, which re-broadcasts all received OGMs. Babel's selected-route flooding reduces overhead and works in concert with the feasibility condition to provide loop freedom.
 
----
-
 ## Decay Window
 
 `DecayWindow` governs route entry freshness. The default marks entries stale after 8 ticks and expects the next refresh within 4 ticks. Both parameters are configurable via `BabelEngine::with_decay_window`. Stale entries are pruned during each refresh pass before route selection.
 
 The decay window is identical in shape to the one used by both batman engines. All three engines accept `with_decay_window` at construction for tuning.
 
----
-
 ## Quality Scoring
 
 The engine converts Babel metric to a `RatioPermille` quality score using a linear mapping. Metric 0 maps to quality 1000 (perfect). Metric values at or above 1024 map to quality 0. Routes with metric at or above 512 are classified as degraded.
-
----
 
 ## Planning, Admission, and Lifecycle
 
@@ -133,8 +111,6 @@ Planning, admission, and route lifecycle follow the shared contract used by all 
 `candidate_routes` emits at most one `RouteCandidate` per reachable destination. `admit_route` validates the candidate's `BackendRouteId` against the current best next-hop table. A stale or superseded reference is inadmissible. `materialize_route` records an active route and derives health from the quality score.
 
 `maintain_route` returns `ReplacementRequired` when the best next-hop has changed. It returns `Failed(LostReachability)` when the destination has no table entry. Route replacement is the only reconfiguration path. The engine does not implement suffix repair or hold.
-
----
 
 ## Capabilities
 
@@ -150,8 +126,6 @@ The Babel engine declares the same capability envelope as both batman engines:
 | `quantitative_bounds` | `ProductiveOnly` |
 | `reconfiguration_support` | `ReplaceOnly` |
 | `route_shape_visibility` | `NextHopOnly` |
-
----
 
 ## Comparison with Batman Engines
 
