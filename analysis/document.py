@@ -861,8 +861,8 @@ def write_pdf_report(
             report_dir,
             "Figure 15",
             "Figure 15. Diffusion delivery and coverage by scenario family",
-            17.4 * cm,
-            15.0 * cm,
+            18.0 * cm,
+            22.0 * cm,
         )
         add_figure(
             story,
@@ -870,8 +870,8 @@ def write_pdf_report(
             report_dir,
             "Figure 16",
             "Figure 16. Diffusion transmission load and boundedness by scenario family",
-            17.4 * cm,
-            15.3 * cm,
+            18.0 * cm,
+            22.0 * cm,
         )
         story.append(Paragraph("Diffusion Takeaways", styles["Subsection"]))
         add_paragraphs(story, styles, section_lines("Diffusion Takeaways"))
