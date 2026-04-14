@@ -3657,8 +3657,8 @@ fn repairable_connected_profile() -> SelectedRoutingParameters {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_field_bridge_anti_entropy_continuity, local_suite, run_suite, smoke_suite,
-        ExperimentParameterSet,
+        build_field_bridge_anti_entropy_continuity, build_field_uncertain_service_fanout,
+        local_suite, run_suite, smoke_suite, ExperimentParameterSet,
     };
 
     #[test]
@@ -3685,10 +3685,8 @@ mod tests {
 
     #[test]
     fn field_bridge_anti_entropy_continuity_activates() {
-        let parameters = ExperimentParameterSet::field(
-            2,
-            jacquard_field::FieldSearchHeuristicMode::Zero,
-        );
+        let parameters =
+            ExperimentParameterSet::field(2, jacquard_field::FieldSearchHeuristicMode::Zero);
         let (scenario, environment) = build_field_bridge_anti_entropy_continuity(
             &parameters,
             jacquard_core::SimulationSeed(41),
@@ -3707,8 +3705,47 @@ mod tests {
             }
         }
         let any_route_present = replay.rounds.iter().any(|round| {
-            round.host_rounds.iter().any(|host| !host.active_routes.is_empty())
+            round
+                .host_rounds
+                .iter()
+                .any(|host| !host.active_routes.is_empty())
         });
-        assert!(any_route_present, "expected field bridge anti-entropy scenario to activate at least one route");
+        assert!(
+            any_route_present,
+            "expected field bridge anti-entropy scenario to activate at least one route"
+        );
+    }
+
+    #[test]
+    fn field_uncertain_service_fanout_activates() {
+        let parameters = ExperimentParameterSet::field(
+            8,
+            jacquard_field::FieldSearchHeuristicMode::HopLowerBound,
+        );
+        let (scenario, environment) =
+            build_field_uncertain_service_fanout(&parameters, jacquard_core::SimulationSeed(41));
+        let simulator = crate::JacquardSimulationHarness::new(crate::ReferenceClientAdapter);
+        let (replay, _stats) = simulator
+            .run(&scenario, &environment)
+            .expect("run field uncertain service scenario");
+        if replay
+            .failure_summaries
+            .iter()
+            .any(|summary| summary.detail.contains("objective activation failed"))
+        {
+            for summary in &replay.failure_summaries {
+                eprintln!("failure: {}", summary.detail);
+            }
+        }
+        let any_route_present = replay.rounds.iter().any(|round| {
+            round
+                .host_rounds
+                .iter()
+                .any(|host| !host.active_routes.is_empty())
+        });
+        assert!(
+            any_route_present,
+            "expected field uncertain service scenario to activate at least one route"
+        );
     }
 }

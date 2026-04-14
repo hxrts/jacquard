@@ -100,10 +100,10 @@ impl FieldPromotionAssessment {
             && self.anti_entropy_confirmed
             && self.continuation_coherent
             && self.fresh_enough
-            && destination_state.corridor_belief.delivery_support.value() >= 220
-            && destination_state.corridor_belief.retention_affinity.value() >= 300
-            && destination_state.posterior.top_corridor_mass.value() >= 280
-            && destination_state.posterior.usability_entropy.value() <= 900
+            && destination_state.corridor_belief.delivery_support.value() >= 180
+            && destination_state.corridor_belief.retention_affinity.value() >= 240
+            && destination_state.posterior.top_corridor_mass.value() >= 220
+            && destination_state.posterior.usability_entropy.value() <= 925
     }
 
     #[must_use]
@@ -267,10 +267,12 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             return Err(RouteSelectionError::NoCandidate.into());
         };
         let selected_neighbor = selected_continuation.chosen_neighbor;
-        if !ranked
-            .iter()
-            .any(|(entry, _)| entry.neighbor_id == selected_neighbor)
-        {
+        if !selected_neighbor_publishable(
+            destination_state,
+            topology,
+            self.local_node_id,
+            selected_neighbor,
+        ) {
             return Err(RouteSelectionError::NoCandidate.into());
         }
         let mut continuation_neighbors = Vec::with_capacity(MAX_CONTINUATION_NEIGHBOR_COUNT + 1);
@@ -481,6 +483,31 @@ fn evidence_class_from_state(
     }
 }
 
+fn selected_neighbor_publishable(
+    destination_state: &DestinationFieldState,
+    topology: &Observation<Configuration>,
+    local_node_id: jacquard_core::NodeId,
+    selected_neighbor: jacquard_core::NodeId,
+) -> bool {
+    destination_state
+        .frontier
+        .as_slice()
+        .iter()
+        .any(|entry| entry.neighbor_id == selected_neighbor)
+        || destination_state
+            .pending_forward_evidence
+            .iter()
+            .any(|evidence| evidence.from_neighbor == selected_neighbor)
+        || topology
+            .value
+            .links
+            .contains_key(&(local_node_id, selected_neighbor))
+        || topology
+            .value
+            .links
+            .contains_key(&(selected_neighbor, local_node_id))
+}
+
 fn admission_check_for(inputs: AdmissionInputs<'_>) -> RouteAdmissionCheck {
     let AdmissionInputs {
         objective,
@@ -558,15 +585,26 @@ pub(crate) fn bootstrap_corridor_admissible(destination_state: &DestinationField
     let retention = destination_state.corridor_belief.retention_affinity.value();
     let top_mass = destination_state.posterior.top_corridor_mass.value();
     let evidence_class = evidence_class_from_state(destination_state);
+    let coherent_source_count = destination_state
+        .frontier
+        .len()
+        .max(destination_state.pending_forward_evidence.len());
 
-    if support < 220 || entropy > 925 || top_mass < 260 {
+    if support < 180 || entropy > 950 {
         return false;
     }
 
     match evidence_class {
-        EvidenceContributionClass::Direct | EvidenceContributionClass::ReverseFeedback => true,
+        EvidenceContributionClass::Direct => top_mass >= 260,
+        EvidenceContributionClass::ReverseFeedback => {
+            top_mass >= 180 && (support >= 180 || retention >= 180 || coherent_source_count >= 2)
+        }
         EvidenceContributionClass::ForwardPropagated => {
-            retention >= 220 && support.saturating_add(retention) >= 520
+            (top_mass >= 260 && retention >= 220 && support.saturating_add(retention) >= 520)
+                || (coherent_source_count >= 2
+                    && top_mass >= 180
+                    && retention >= 160
+                    && support.saturating_add(retention) >= 420)
         }
     }
 }
@@ -584,10 +622,10 @@ pub(crate) fn promoted_corridor_admissible(
         return true;
     }
     confirmation_streak >= 1
-        && destination_state.corridor_belief.delivery_support.value() >= 220
-        && destination_state.posterior.usability_entropy.value() <= 900
-        && destination_state.corridor_belief.retention_affinity.value() >= 300
-        && destination_state.posterior.top_corridor_mass.value() >= 280
+        && destination_state.corridor_belief.delivery_support.value() >= 180
+        && destination_state.posterior.usability_entropy.value() <= 925
+        && destination_state.corridor_belief.retention_affinity.value() >= 240
+        && destination_state.posterior.top_corridor_mass.value() >= 220
 }
 
 fn admission_class_for_state(destination_state: &DestinationFieldState) -> FieldAdmissionClass {

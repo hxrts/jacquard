@@ -277,6 +277,74 @@ fn service_objective_uses_candidate_set_query_and_one_selected_candidate() {
 }
 
 #[test]
+fn delayed_service_bootstrap_remains_admissible() {
+    let mut engine = FieldEngine::new(
+        node(1),
+        InMemoryTransport::new(),
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
+    );
+    let first = topology(Tick(1));
+    engine.record_forward_summary(
+        &DestinationId::Service(ServiceId(vec![13; 16])),
+        node(2),
+        FieldForwardSummaryObservation::new(first.value.epoch, Tick(1), 910, 1, 1),
+    );
+    engine.record_forward_summary(
+        &DestinationId::Service(ServiceId(vec![13; 16])),
+        node(3),
+        FieldForwardSummaryObservation::new(first.value.epoch, Tick(1), 840, 1, 1),
+    );
+    engine.record_forward_summary(
+        &DestinationId::Service(ServiceId(vec![13; 16])),
+        node(2),
+        FieldForwardSummaryObservation::new(first.value.epoch, Tick(1), 760, 1, 1),
+    );
+    engine
+        .engine_tick(&RoutingTickContext::new(first.clone()))
+        .expect("initial tick");
+    let second = topology(Tick(2));
+    engine
+        .engine_tick(&RoutingTickContext::new(second.clone()))
+        .expect("second tick");
+    let third = topology(Tick(3));
+    engine
+        .engine_tick(&RoutingTickContext::new(third.clone()))
+        .expect("third tick");
+
+    let candidates = engine.candidate_routes(
+        &RoutingObjective {
+            destination: DestinationId::Service(ServiceId(vec![13; 16])),
+            service_kind: RouteServiceKind::Move,
+            target_protection: RouteProtectionClass::LinkProtected,
+            protection_floor: RouteProtectionClass::LinkProtected,
+            target_connectivity: ConnectivityPosture {
+                repair: RouteRepairClass::Repairable,
+                partition: RoutePartitionClass::PartitionTolerant,
+            },
+            hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
+            latency_budget_ms: jacquard_core::Limit::Bounded(DurationMs(250)),
+            protection_priority: jacquard_core::PriorityPoints(10),
+            connectivity_priority: jacquard_core::PriorityPoints(20),
+        },
+        &profile(),
+        &third,
+    );
+    eprintln!("candidate_count={}", candidates.len());
+    let record = engine.last_search_record().expect("field search record");
+    eprintln!(
+        "planning_failure={:?} selected={:?}",
+        record.planning_failure, record.selected_continuation
+    );
+    assert!(
+        !candidates.is_empty(),
+        "expected delayed service bootstrap to remain admissible"
+    );
+}
+
+#[test]
 fn admitted_query_without_selected_result_fails_closed() {
     let mut engine = FieldEngine::new(
         node(1),

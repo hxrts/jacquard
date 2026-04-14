@@ -611,6 +611,46 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 },
                 observed_at_tick: observation.observed_at_tick,
             });
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.posterior.top_corridor_mass = SupportBucket::new(
+            state
+                .posterior
+                .top_corridor_mass
+                .value()
+                .max(observation.delivery_support.saturating_sub(40)),
+        );
+        state.corridor_belief.delivery_support = SupportBucket::new(
+            state
+                .corridor_belief
+                .delivery_support
+                .value()
+                .max(observation.delivery_support.saturating_sub(60)),
+        );
+        state.corridor_belief.retention_affinity = SupportBucket::new(
+            state
+                .corridor_belief
+                .retention_affinity
+                .value()
+                .max(observation.delivery_support.saturating_sub(80)),
+        );
+        state.corridor_belief.expected_hop_band = HopBand::new(
+            observation.min_hops.saturating_add(1),
+            observation.max_hops.saturating_add(1),
+        );
+        state.frontier = state
+            .frontier
+            .clone()
+            .insert(crate::state::NeighborContinuation {
+                neighbor_id: from_neighbor,
+                net_value: SupportBucket::new(observation.delivery_support),
+                downstream_support: SupportBucket::new(observation.delivery_support),
+                expected_hop_band: HopBand::new(
+                    observation.min_hops.saturating_add(1),
+                    observation.max_hops.saturating_add(1),
+                ),
+                freshness: observation.observed_at_tick,
+            });
     }
 
     pub fn record_reverse_feedback(
@@ -632,6 +672,36 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 delivery_feedback: SupportBucket::new(delivery_feedback),
                 observed_at_tick,
             });
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ReverseValidated;
+        state.posterior.usability_entropy = EntropyBucket::new(
+            state
+                .posterior
+                .usability_entropy
+                .value()
+                .saturating_sub(120),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(
+            state
+                .posterior
+                .top_corridor_mass
+                .value()
+                .max(delivery_feedback.saturating_sub(20)),
+        );
+        state.corridor_belief.delivery_support = SupportBucket::new(
+            state
+                .corridor_belief
+                .delivery_support
+                .value()
+                .max(delivery_feedback.saturating_sub(40)),
+        );
+        state.corridor_belief.retention_affinity = SupportBucket::new(
+            state
+                .corridor_belief
+                .retention_affinity
+                .value()
+                .max(delivery_feedback.saturating_sub(60)),
+        );
     }
 
     #[must_use]
