@@ -202,6 +202,8 @@ pub(crate) fn evidence_classification(evidence: &FieldEvidence) -> EvidenceContr
 }
 
 #[must_use]
+// long-block-exception: summary decay keeps the support and uncertainty
+// transforms in one audited mapping from encoded evidence to aged evidence.
 pub(crate) fn decay_summary(summary: &FieldSummary, now_tick: Tick) -> FieldSummary {
     let age = now_tick.0.saturating_sub(summary.freshness_tick.0);
     let age_u16 = u16::try_from(age).unwrap_or(u16::MAX);
@@ -328,6 +330,8 @@ pub(crate) fn compose_summary_with_link(
 }
 
 #[must_use]
+// long-block-exception: summary fusion keeps the corroboration bonuses in one
+// place so the fixed-width record semantics remain auditable.
 pub(crate) fn merge_neighbor_summaries(left: &FieldSummary, right: &FieldSummary) -> FieldSummary {
     let preferred = summary_preference(left).cmp(&summary_preference(right));
     let (best, other) = if preferred.is_gt() || preferred.is_eq() {

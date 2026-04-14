@@ -62,12 +62,10 @@ The harness writes:
   regimes
 - `diffusion_runs.jsonl`: one run-level summary per diffusion scenario seed and
   policy setting
-- [`artifacts/analysis/local/latest/diffusion_aggregates.json`](../artifacts/analysis/local/latest/diffusion_aggregates.json):
-  grouped means for delivery, coverage, transmissions, energy, boundedness,
-  and leakage metrics
-- [`artifacts/analysis/local/latest/diffusion_boundaries.json`](../artifacts/analysis/local/latest/diffusion_boundaries.json):
-  per-policy viability, collapse, and overload boundaries across maintained
-  diffusion families
+- the diffusion aggregate summary file: grouped means for delivery, coverage,
+  transmissions, energy, boundedness, and leakage metrics
+- the diffusion boundary summary file: per-policy viability, collapse, and
+  overload boundaries across maintained diffusion families
 - CSV tables for recommendations, transitions, boundaries, and profile variants
 - vector plot assets plus a generated PDF report
 

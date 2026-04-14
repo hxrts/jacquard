@@ -424,26 +424,28 @@ impl ExperimentParameterSet {
                 .as_deref()
                 .unwrap_or("hop-lower-bound"),
         );
-        Some(
-            FieldSearchConfig::default()
-                .with_per_objective_query_budget(budget)
-                .with_heuristic_mode(heuristic_mode)
-                .with_service_publication_neighbor_limit(
-                    self.field_service_publication_neighbor_limit.unwrap_or(3),
-                )
-                .with_service_freshness_weight(self.field_service_freshness_weight.unwrap_or(100))
-                .with_service_narrowing_bias(self.field_service_narrowing_bias.unwrap_or(100))
-                .with_node_bootstrap_support_floor(
-                    self.field_node_bootstrap_support_floor.unwrap_or(220),
-                )
-                .with_node_bootstrap_top_mass_floor(
-                    self.field_node_bootstrap_top_mass_floor.unwrap_or(260),
-                )
-                .with_node_bootstrap_entropy_ceiling(
-                    self.field_node_bootstrap_entropy_ceiling.unwrap_or(950),
-                )
-                .with_node_discovery_enabled(self.field_node_discovery_enabled.unwrap_or(false)),
-        )
+        let config = FieldSearchConfig::default()
+            .with_per_objective_query_budget(budget)
+            .with_heuristic_mode(heuristic_mode)
+            .with_service_publication_neighbor_limit(
+                self.field_service_publication_neighbor_limit.unwrap_or(3),
+            )
+            .with_service_freshness_weight(self.field_service_freshness_weight.unwrap_or(100))
+            .with_service_narrowing_bias(self.field_service_narrowing_bias.unwrap_or(100))
+            .with_node_bootstrap_support_floor(
+                self.field_node_bootstrap_support_floor.unwrap_or(220),
+            )
+            .with_node_bootstrap_top_mass_floor(
+                self.field_node_bootstrap_top_mass_floor.unwrap_or(260),
+            )
+            .with_node_bootstrap_entropy_ceiling(
+                self.field_node_bootstrap_entropy_ceiling.unwrap_or(950),
+            );
+        Some(if self.field_node_discovery_enabled.unwrap_or(false) {
+            config.enable_node_discovery()
+        } else {
+            config.disable_node_discovery()
+        })
     }
 
     #[must_use]

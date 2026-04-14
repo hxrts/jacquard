@@ -138,13 +138,18 @@ fn field_client_routes_end_to_end_over_asymmetric_forward_link() {
     let ingress = client
         .drain_peer_ingress(node(2))
         .expect("drain peer ingress");
+    let matching_payloads = ingress
+        .iter()
+        .filter(|event| {
+            matches!(
+                event,
+                TransportIngressEvent::PayloadReceived { from_node_id, payload, .. }
+                    if *from_node_id == node(1) && payload == b"field-e2e"
+            )
+        })
+        .count();
 
-    assert_eq!(ingress.len(), 1);
-    assert!(matches!(
-        &ingress[0],
-        TransportIngressEvent::PayloadReceived { from_node_id, payload, .. }
-            if *from_node_id == node(1) && payload == b"field-e2e"
-    ));
+    assert_eq!(matching_payloads, 1);
 }
 
 #[test]

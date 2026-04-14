@@ -393,6 +393,8 @@ where
         }
     }
 
+    /// Proof-bearing action: selects, admits, materializes, and publishes one
+    /// canonical route using the current policy inputs without advancing time.
     pub fn activate_route_without_tick(
         &mut self,
         objective: &RoutingObjective,

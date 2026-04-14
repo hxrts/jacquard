@@ -1,15 +1,28 @@
 //! Drift checks for field docs and maintained parity surfaces.
 
+use std::path::PathBuf;
+
+fn repo_text(relative_path: &str) -> String {
+    std::fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../")
+            .join(relative_path),
+    )
+    .unwrap_or_else(|error| panic!("read {relative_path}: {error}"))
+}
+
 #[test]
 fn field_docs_reference_current_pages_and_parity_ledger() {
-    let summary = include_str!("../../../docs/SUMMARY.md");
-    let crate_docs = include_str!("../src/lib.rs");
-    let guide = include_str!("../../../verification/Field/Docs/Guide.md");
+    let summary = repo_text("docs/SUMMARY.md");
+    let crate_docs = repo_text("crates/field/src/lib.rs");
+    let guide = repo_text("verification/Field/Docs/Guide.md");
 
-    assert!(summary.contains("403_field_routing.md"));
-    assert!(summary.contains("404_profile_reference.md"));
+    assert!(summary.contains("405_field_routing.md"));
+    assert!(summary.contains("305_profile_reference.md"));
     assert!(!summary.contains("404_field_routing.md"));
+    assert!(!summary.contains("403_field_routing.md"));
     assert!(!summary.contains("403_profile_reference.md"));
+    assert!(!summary.contains("404_profile_reference.md"));
 
     assert!(crate_docs.contains("verification/Field/Docs/Parity.md"));
     assert!(guide.contains("Docs/Parity.md"));
@@ -17,12 +30,12 @@ fn field_docs_reference_current_pages_and_parity_ledger() {
 
 #[test]
 fn field_docs_keep_the_current_proof_boundary_explicit() {
-    let field_routing = include_str!("../../../docs/403_field_routing.md");
-    let adequacy = include_str!("../../../verification/Field/Docs/Adequacy.md");
-    let parity = include_str!("../../../verification/Field/Docs/Parity.md");
-    let protocol = include_str!("../../../verification/Field/Docs/Protocol.md");
-    let guide = include_str!("../../../verification/Field/Docs/Guide.md");
-    let replay_fixtures = include_str!("../../../verification/Field/Adequacy/ReplayFixtures.lean");
+    let field_routing = repo_text("docs/405_field_routing.md");
+    let adequacy = repo_text("verification/Field/Docs/Adequacy.md");
+    let parity = repo_text("verification/Field/Docs/Parity.md");
+    let protocol = repo_text("verification/Field/Docs/Protocol.md");
+    let guide = repo_text("verification/Field/Docs/Guide.md");
+    let replay_fixtures = repo_text("verification/Field/Adequacy/ReplayFixtures.lean");
 
     assert!(field_routing.contains("Lean covers:"));
     assert!(adequacy.contains("FieldReplaySnapshot"));
@@ -43,15 +56,15 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
 #[test]
 fn field_surfaces_ban_stale_route_vocabulary() {
     let sources = [
-        include_str!("../src/attractor.rs"),
-        include_str!("../src/planner.rs"),
-        include_str!("../src/route.rs"),
-        include_str!("../src/runtime.rs"),
-        include_str!("../src/state.rs"),
-        include_str!("../../../docs/403_field_routing.md"),
+        repo_text("crates/field/src/attractor.rs"),
+        repo_text("crates/field/src/planner.rs"),
+        repo_text("crates/field/src/route.rs"),
+        repo_text("crates/field/src/runtime.rs"),
+        repo_text("crates/field/src/state.rs"),
+        repo_text("docs/405_field_routing.md"),
     ];
 
-    for source in sources {
+    for source in &sources {
         assert!(!source.contains("primary_neighbor"));
         assert!(!source.contains("alternates"));
         assert!(!source.contains("MAX_ALTERNATE_COUNT"));
@@ -60,9 +73,9 @@ fn field_surfaces_ban_stale_route_vocabulary() {
 
 #[test]
 fn field_docs_keep_runtime_boundary_reduced() {
-    let field_routing = include_str!("../../../docs/403_field_routing.md");
-    let adequacy = include_str!("../../../verification/Field/Docs/Adequacy.md");
-    let parity = include_str!("../../../verification/Field/Docs/Parity.md");
+    let field_routing = repo_text("docs/405_field_routing.md");
+    let adequacy = repo_text("verification/Field/Docs/Adequacy.md");
+    let parity = repo_text("verification/Field/Docs/Parity.md");
 
     assert!(field_routing.contains("expose the selected witness"));
     assert!(adequacy.contains("selected witness"));

@@ -373,8 +373,14 @@ impl FieldSearchConfig {
     }
 
     #[must_use]
-    pub fn with_node_discovery_enabled(mut self, enabled: bool) -> Self {
-        self.node_discovery_enabled = enabled;
+    pub fn enable_node_discovery(mut self) -> Self {
+        self.node_discovery_enabled = true;
+        self
+    }
+
+    #[must_use]
+    pub fn disable_node_discovery(mut self) -> Self {
+        self.node_discovery_enabled = false;
         self
     }
 

@@ -313,6 +313,7 @@ fn service_objective_query_keeps_multiple_forward_candidates() {
         .engine_tick(&RoutingTickContext::new(second.clone()))
         .expect("refresh tick");
 
+    // allow-ignored-result: this call refreshes the last search record used by the assertions below.
     let _ = engine.candidate_routes(&service_objective(), &profile(), &second);
     let record = engine.last_search_record().expect("field search record");
     let accepted = record

@@ -1039,7 +1039,7 @@ fn node_publication_neighbors(
         .collect()
 }
 
-fn corroborated_node_forward_support(
+pub(crate) fn corroborated_node_forward_support(
     destination_state: &DestinationFieldState,
     neighbor_id: jacquard_core::NodeId,
 ) -> u16 {
@@ -1564,7 +1564,7 @@ mod tests {
                 .with_node_bootstrap_support_floor(180)
                 .with_node_bootstrap_top_mass_floor(180)
                 .with_node_bootstrap_entropy_ceiling(970)
-                .with_node_discovery_enabled(true),
+                .enable_node_discovery(),
         );
         let state = engine.state.upsert_destination_interest(
             &DestinationId::Node(node(2)),

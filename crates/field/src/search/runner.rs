@@ -462,12 +462,12 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         }
         let support_penalty = 1000_u32.saturating_sub(support);
         let loss_penalty = u32::from(link.state.loss_permille.0);
-        let latency_penalty = link.profile.latency_floor_ms.0 / 2;
+        let latency_penalty_ms = link.profile.latency_floor_ms.0 / 2;
         Some(
             50_u32
                 .saturating_add(support_penalty)
                 .saturating_add(loss_penalty)
-                .saturating_add(latency_penalty),
+                .saturating_add(latency_penalty_ms),
         )
     }
 

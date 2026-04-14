@@ -1110,6 +1110,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                             now_tick,
                         )
                         .map(|advance| {
+                            // allow-ignored-result: anti-entropy progression should continue even if observational transport flushing reports a non-fatal send error.
                             let _ = self.dispatch_protocol_sends(&advance.flushed_sends);
                             self.record_protocol_round(
                                 &anti_entropy_key,
@@ -1196,6 +1197,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                             now_tick,
                         )
                         .map(|advance| {
+                            // allow-ignored-result: explicit-coordination progression should continue even if observational transport flushing reports a non-fatal send error.
                             let _ = self.dispatch_protocol_sends(&advance.flushed_sends);
                             self.record_protocol_round(
                                 &coordination_key,
@@ -1654,6 +1656,8 @@ fn summary_for_destination(
     }
 }
 
+// long-block-exception: anti-entropy replay keeps the publication, posterior,
+// and bridge-retention floors in one auditable summary synthesis path.
 fn anti_entropy_summary_for_destination(
     destination_state: &crate::state::DestinationFieldState,
     summary: &FieldSummary,
@@ -1963,8 +1967,10 @@ fn preferred_node_shift_neighbor(
                 && active.continuation_neighbors.contains(&entry.neighbor_id)
                 && neighbor_endpoints.contains_key(&entry.neighbor_id)
                 && (entry.downstream_support.value() >= support_floor
-                    || corroborated_node_forward_support(destination_state, entry.neighbor_id)
-                        >= support_floor)
+                    || crate::planner::corroborated_node_forward_support(
+                        destination_state,
+                        entry.neighbor_id,
+                    ) >= support_floor)
         })
         .map(|(entry, _)| entry.neighbor_id)
 }
@@ -1986,8 +1992,10 @@ fn node_runtime_continuation_neighbors(
         .filter(|entry| {
             entry.neighbor_id == selected_neighbor
                 || entry.downstream_support.value() >= support_floor
-                || corroborated_node_forward_support(destination_state, entry.neighbor_id)
-                    >= support_floor
+                || crate::planner::corroborated_node_forward_support(
+                    destination_state,
+                    entry.neighbor_id,
+                ) >= support_floor
         })
         .collect();
     node_ranked.sort_by(|left, right| {
@@ -2015,19 +2023,8 @@ fn node_runtime_continuation_neighbors(
     continuation_neighbors
 }
 
-fn corroborated_node_forward_support(
-    destination_state: &crate::state::DestinationFieldState,
-    neighbor_id: NodeId,
-) -> u16 {
-    destination_state
-        .pending_forward_evidence
-        .iter()
-        .filter(|evidence| evidence.from_neighbor == neighbor_id)
-        .map(|evidence| evidence.summary.delivery_support.value())
-        .max()
-        .unwrap_or(0)
-}
-
+// long-block-exception: synthesized carry-forward ranking keeps the degraded
+// node-route fallback ordering in one deterministic selection pass.
 fn synthesized_node_carry_forward_ranked(
     active: &ActiveFieldRoute,
     destination_state: &crate::state::DestinationFieldState,
@@ -2069,7 +2066,8 @@ fn synthesized_node_carry_forward_ranked(
         .iter()
         .enumerate()
         .filter_map(|(index, neighbor_id)| {
-            let corroborated = corroborated_node_forward_support(destination_state, *neighbor_id);
+            let corroborated =
+                crate::planner::corroborated_node_forward_support(destination_state, *neighbor_id);
             let reachable = neighbor_endpoints.contains_key(neighbor_id);
             if !reachable && corroborated < support_floor {
                 return None;
@@ -3015,7 +3013,7 @@ mod tests {
                 .with_node_bootstrap_support_floor(180)
                 .with_node_bootstrap_top_mass_floor(180)
                 .with_node_bootstrap_entropy_ceiling(970)
-                .with_node_discovery_enabled(true),
+                .enable_node_discovery(),
         );
         let destination = crate::state::DestinationKey::from(&DestinationId::Node(node(2)));
         {
@@ -3090,7 +3088,7 @@ mod tests {
                 .with_node_bootstrap_support_floor(180)
                 .with_node_bootstrap_top_mass_floor(180)
                 .with_node_bootstrap_entropy_ceiling(970)
-                .with_node_discovery_enabled(true),
+                .enable_node_discovery(),
         );
         let destination = crate::state::DestinationKey::from(&DestinationId::Node(node(2)));
         {
@@ -3189,7 +3187,7 @@ mod tests {
                 .with_node_bootstrap_support_floor(180)
                 .with_node_bootstrap_top_mass_floor(180)
                 .with_node_bootstrap_entropy_ceiling(970)
-                .with_node_discovery_enabled(true),
+                .enable_node_discovery(),
         );
         let objective = sample_objective(node(2));
         let candidate = engine
@@ -3946,7 +3944,7 @@ mod tests {
     }
 
     #[test]
-    fn degraded_service_route_commitments_remain_pending_below_legacy_floor() {
+    fn degraded_service_route_commitments_remain_pending_below_support_floor() {
         let topology = supported_topology();
         let mut engine = seeded_engine();
         let destination_id = DestinationId::Service(ServiceId(vec![8; 16]));
@@ -4018,7 +4016,7 @@ mod tests {
                 .with_node_bootstrap_support_floor(180)
                 .with_node_bootstrap_top_mass_floor(180)
                 .with_node_bootstrap_entropy_ceiling(970)
-                .with_node_discovery_enabled(true),
+                .enable_node_discovery(),
         );
         let objective = sample_objective(node(2));
         let candidate = engine

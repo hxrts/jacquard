@@ -347,7 +347,7 @@
           },
           "route_shape": "CorridorEnvelope",
           "bootstrap_class": "Steady",
-          "continuity_band": "Bootstrap",
+          "continuity_band": "Steady",
           "route_support": 950,
           "topology_epoch": 7
         },
@@ -609,7 +609,7 @@
         "last_trigger": null,
         "last_outcome": null,
         "bootstrap_active": false,
-        "continuity_band": "Bootstrap",
+        "continuity_band": "Steady",
         "last_continuity_transition": null,
         "last_bootstrap_transition": null,
         "last_promotion_decision": null,
