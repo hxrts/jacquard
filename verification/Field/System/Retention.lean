@@ -59,6 +59,18 @@ theorem retained_tokens_survive_async_delay
     (asyncDelayCarryStep state).retention = state.retention := by
   rfl
 
+theorem async_delay_preserves_retention_timestamps
+    (state : RetentionSystemState) :
+    ((asyncDelayCarryStep state).retention.buffer.map PayloadToken.retainedAtTick) =
+      (state.retention.buffer.map PayloadToken.retainedAtTick) := by
+  rfl
+
+theorem async_delay_preserves_retention_epochs
+    (state : RetentionSystemState) :
+    ((asyncDelayCarryStep state).retention.buffer.map PayloadToken.admittedRouteEpoch) =
+      (state.retention.buffer.map PayloadToken.admittedRouteEpoch) := by
+  rfl
+
 theorem admitted_runtime_forwarding_consumes_retained_token
     (input : RetentionPolicyInput)
     (state : RetentionSystemState)
@@ -88,7 +100,7 @@ theorem admitted_runtime_forwarding_consumes_retained_token
       · simp [hBuffer, hDecision, mkRetentionState] at hForward
       · have hLen' : state.retention.buffer.length = tail.length + 1 := by
             simpa using hLen.symm
-        simp [hBuffer, hDecision, mkRetentionState, hTakeTail, hLen']
+        simp [hDecision, mkRetentionState, hTakeTail, hLen']
       · simp [hBuffer, hDecision, mkRetentionState] at hForward
 
 theorem silence_does_not_strengthen_delivery_claims

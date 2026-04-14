@@ -89,7 +89,7 @@ theorem payload_custody_conserved_under_retain_carry_forward_drop
   | nil =>
       cases hState : state.buffer with
       | nil =>
-          simp [hState, mkRetentionState, normalizeBuffer]
+          simp [mkRetentionState, normalizeBuffer]
       | cons head tail =>
           simp [ageBuffer, hState] at hBuffer
   | cons token tail =>
@@ -106,12 +106,11 @@ theorem payload_custody_conserved_under_retain_carry_forward_drop
       have hCount : state.buffer.length = tail.length + 1 := by
         simpa using hLen.symm
       cases hDecision : selectRetentionDecisionImpl input token
-      · simp [hDecision, mkRetentionState, hTakeCons, hCount, RetentionState.accountedCount]
-      · simp [hDecision, mkRetentionState, hTakeCons, hCount, RetentionState.accountedCount]
-      · simp [hDecision, mkRetentionState, hTakeTail, hCount, RetentionState.accountedCount,
-          Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
-      · simp [hDecision, mkRetentionState, hTakeTail, hCount, RetentionState.accountedCount,
-          Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
+      · simp [hDecision, mkRetentionState, hTakeCons, hCount]
+      · simp [hDecision, mkRetentionState, hTakeCons, hCount]
+      · simp [hDecision, mkRetentionState, hTakeTail, hCount, Nat.add_left_comm, Nat.add_comm]
+      · simp [hDecision, mkRetentionState, hTakeTail, hCount, Nat.add_assoc, Nat.add_left_comm,
+          Nat.add_comm]
 
 theorem no_payload_creation_from_silence
     (input : RetentionPolicyInput)
@@ -126,6 +125,20 @@ theorem checkpoint_restore_preserves_retained_multiset
     (hBounded : state.buffer.length ≤ retentionCapacity) :
     (restoreRetentionStateImpl state).buffer = state.buffer :=
   restoreRetentionStateImpl_preserves_buffer_of_bounded_state state hBounded
+
+theorem checkpoint_restore_preserves_retention_timestamps
+    (state : RetentionState)
+    (hBounded : state.buffer.length ≤ retentionCapacity) :
+    ((restoreRetentionStateImpl state).buffer.map PayloadToken.retainedAtTick) =
+      (state.buffer.map PayloadToken.retainedAtTick) := by
+  rw [restoreRetentionStateImpl_preserves_buffer_of_bounded_state state hBounded]
+
+theorem checkpoint_restore_preserves_retention_epochs
+    (state : RetentionState)
+    (hBounded : state.buffer.length ≤ retentionCapacity) :
+    ((restoreRetentionStateImpl state).buffer.map PayloadToken.admittedRouteEpoch) =
+      (state.buffer.map PayloadToken.admittedRouteEpoch) := by
+  rw [restoreRetentionStateImpl_preserves_buffer_of_bounded_state state hBounded]
 
 /-! ## Forwarding Admissibility -/
 
@@ -151,17 +164,31 @@ theorem forward_decision_characterizes_runtime_preconditions
     (token : PayloadToken)
     (hForward : selectRetentionDecisionImpl input token = .forward) :
     input.routeInstalled = true ∧ input.continuity = .steady ∧
-      input.continuationAvailable = true := by
-  by_cases hRoute : input.routeInstalled
-  · by_cases hDrop : token.ageClass = .stale ∧ input.supportBand = .low
-    · simp [selectRetentionDecisionImpl, hRoute, hDrop] at hForward
-    · by_cases hBootstrap : input.continuity = .bootstrap ∧ input.uncertaintyBand = .risky
-      · simp [selectRetentionDecisionImpl, hRoute, hDrop, hBootstrap] at hForward
-      · by_cases hCarry : input.posture = .retentionBiased ∧ input.supportBand ≠ .low
-        · simp [selectRetentionDecisionImpl, hRoute, hDrop, hBootstrap, hCarry] at hForward
-        · simp [selectRetentionDecisionImpl, hRoute, hDrop, hBootstrap, hCarry] at hForward
-          exact ⟨hRoute, hForward.1, hForward.2⟩
-  · simp [selectRetentionDecisionImpl, hRoute] at hForward
+      input.continuationAvailable = true ∧
+      token.admittedRouteEpoch = input.activeRouteEpoch ∧
+      (token.custodyAge input.nowTick).value ≤ input.custodyTimeout.value := by
+  by_cases hTimeout : tokenCustodyExpired input token
+  · simp [selectRetentionDecisionImpl, hTimeout] at hForward
+  · by_cases hRoute : input.routeInstalled
+    · by_cases hEpoch : tokenRouteEpochCurrent input token
+      · by_cases hDrop : token.ageClass = .stale ∧ input.supportBand = .low
+        · simp [selectRetentionDecisionImpl, hTimeout, hRoute, hEpoch, hDrop] at hForward
+        · by_cases hBootstrap : input.continuity = .bootstrap ∧ input.uncertaintyBand = .risky
+          · simp [selectRetentionDecisionImpl, hTimeout, hRoute, hEpoch, hDrop, hBootstrap] at hForward
+          · by_cases hCarry : input.posture = .retentionBiased ∧ input.supportBand ≠ .low
+            · simp [selectRetentionDecisionImpl, hTimeout, hRoute, hEpoch, hBootstrap, hCarry] at hForward
+            · have hFresh :
+                  (token.custodyAge input.nowTick).value ≤ input.custodyTimeout.value := by
+                  unfold tokenCustodyExpired at hTimeout
+                  have hNotLt : ¬ input.custodyTimeout.value < (token.custodyAge input.nowTick).value := by
+                    simpa using hTimeout
+                  exact Nat.le_of_not_gt hNotLt
+              simp [selectRetentionDecisionImpl, hTimeout, hRoute, hEpoch, hDrop, hBootstrap,
+                hCarry] at hForward
+              exact ⟨hRoute, hForward.1, hForward.2, by simpa [tokenRouteEpochCurrent] using hEpoch,
+                hFresh⟩
+      · simp [selectRetentionDecisionImpl, hTimeout, hRoute, hEpoch] at hForward
+    · simp [selectRetentionDecisionImpl, hTimeout, hRoute] at hForward
 
 theorem forward_requires_admitted_runtime_path
     (input : RetentionPolicyInput)
@@ -171,11 +198,12 @@ theorem forward_requires_admitted_runtime_path
     (hWitness : InstalledRouteWitness input view token.destination) :
     ∃ route ∈ view.routes,
       CanonicalRouteEligible token.destination route ∧
-        input.continuationAvailable = true := by
+        input.continuationAvailable = true ∧
+        token.admittedRouteEpoch = input.activeRouteEpoch := by
   rcases forward_decision_characterizes_runtime_preconditions input token hForward with
-    ⟨hRoute, _hSteady, hContinuation⟩
+    ⟨hRoute, _hSteady, hContinuation, hEpoch, _hFresh⟩
   rcases hWitness hRoute with ⟨route, hMem, hEligible⟩
-  exact ⟨route, hMem, hEligible, hContinuation⟩
+  exact ⟨route, hMem, hEligible, hContinuation, hEpoch⟩
 
 theorem forward_stays_inside_continuation_envelope
     (input : RetentionPolicyInput)
@@ -186,10 +214,11 @@ theorem forward_stays_inside_continuation_envelope
     (hAllowed : neighbor = envelope.selectedNeighbor ∨
       neighbor ∈ envelope.admissibleNeighbors) :
     input.continuationAvailable = true ∧
+      token.admittedRouteEpoch = input.activeRouteEpoch ∧
       ForwardWithinContinuationEnvelope envelope neighbor := by
   rcases forward_decision_characterizes_runtime_preconditions input token hForward with
-    ⟨_hRoute, _hSteady, hContinuation⟩
-  exact ⟨hContinuation, hAllowed⟩
+    ⟨_hRoute, _hSteady, hContinuation, hEpoch, _hFresh⟩
+  exact ⟨hContinuation, hEpoch, hAllowed⟩
 
 theorem retention_biased_posture_has_carry_witness :
     ∃ input token,
@@ -203,18 +232,24 @@ theorem retention_biased_posture_has_carry_witness :
       uncertaintyBand := .stable
       continuity := .degradedSteady
       continuationAvailable := false
-      routeInstalled := true }
+      routeInstalled := true
+      nowTick := ⟨4⟩
+      activeRouteEpoch := ⟨9⟩
+      custodyTimeout := ⟨5⟩ }
   let token : PayloadToken :=
     { messageId := 1
       destination := .corridorA
       sizeClass := .small
       ageClass := .fresh
-      custodyClass := .localOnly }
+      custodyClass := .localOnly
+      retainedAtTick := ⟨2⟩
+      lastRetryTick := ⟨2⟩
+      admittedRouteEpoch := ⟨9⟩ }
   refine ⟨input, token, rfl, rfl, ?_⟩
   unfold input token
   exact
     selectRetentionDecision_retention_biased_carries
-      _ _ rfl
+      _ _ (by decide) rfl rfl
       (Or.inl (by decide))
       (Or.inl (by decide))
       rfl
@@ -232,18 +267,24 @@ theorem retention_biased_posture_has_forward_witness :
       uncertaintyBand := .stable
       continuity := .steady
       continuationAvailable := true
-      routeInstalled := true }
+      routeInstalled := true
+      nowTick := ⟨4⟩
+      activeRouteEpoch := ⟨9⟩
+      custodyTimeout := ⟨5⟩ }
   let token : PayloadToken :=
     { messageId := 2
       destination := .corridorA
       sizeClass := .small
       ageClass := .fresh
-      custodyClass := .localOnly }
+      custodyClass := .localOnly
+      retainedAtTick := ⟨2⟩
+      lastRetryTick := ⟨2⟩
+      admittedRouteEpoch := ⟨9⟩ }
   refine ⟨input, token, rfl, rfl, ?_⟩
   unfold input token
   exact
     selectRetentionDecision_steady_with_continuation_forwards
-      _ _ rfl
+      _ _ (by decide) rfl rfl
       (Or.inl (by decide))
       (Or.inl (by decide))
       (Or.inr rfl)

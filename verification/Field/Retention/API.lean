@@ -24,6 +24,26 @@ open FieldNetworkAPI
 open FieldRouterLifecycle
 open FieldRouterCanonical
 
+/-! ## Reduced Time Vocabulary -/
+
+structure Tick where
+  value : Nat
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+structure DurationMs where
+  value : Nat
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+structure RouteEpoch where
+  value : Nat
+  deriving Inhabited, Repr, DecidableEq, BEq
+
+def Tick.elapsedSince (nowTick earlierTick : Tick) : DurationMs :=
+  ⟨nowTick.value - earlierTick.value⟩
+
+def DurationMs.within (elapsed limit : DurationMs) : Prop :=
+  elapsed.value ≤ limit.value
+
 /-! ## Reduced Retention Vocabulary -/
 
 inductive SizeClass
@@ -74,6 +94,9 @@ structure PayloadToken where
   sizeClass : SizeClass
   ageClass : AgeClass
   custodyClass : CustodyClass
+  retainedAtTick : Tick
+  lastRetryTick : Tick
+  admittedRouteEpoch : RouteEpoch
   deriving Inhabited, Repr, DecidableEq, BEq
 
 structure RetentionPolicyInput where
@@ -84,6 +107,9 @@ structure RetentionPolicyInput where
   continuity : ContinuityBand
   continuationAvailable : Bool
   routeInstalled : Bool
+  nowTick : Tick
+  activeRouteEpoch : RouteEpoch
+  custodyTimeout : DurationMs
   deriving Inhabited, Repr, DecidableEq, BEq
 
 structure RetentionState where
@@ -117,6 +143,35 @@ def RetentionState.accountedCount (state : RetentionState) : Nat :=
 
 def retentionBufferIds (state : RetentionState) : List Nat :=
   state.buffer.map PayloadToken.messageId
+
+def PayloadToken.custodyAge
+    (token : PayloadToken)
+    (nowTick : Tick) : DurationMs :=
+  Tick.elapsedSince nowTick token.retainedAtTick
+
+def PayloadToken.retryAge
+    (token : PayloadToken)
+    (nowTick : Tick) : DurationMs :=
+  Tick.elapsedSince nowTick token.lastRetryTick
+
+def RetentionPolicyInput.routeEpochFreshFor
+    (input : RetentionPolicyInput)
+    (token : PayloadToken) : Prop :=
+  token.admittedRouteEpoch = input.activeRouteEpoch
+
+def RetentionPolicyInput.custodyFreshFor
+    (input : RetentionPolicyInput)
+    (token : PayloadToken) : Prop :=
+  DurationMs.within (token.custodyAge input.nowTick) input.custodyTimeout
+
+def RetentionPolicyInput.currentAuthorityFor
+    (input : RetentionPolicyInput)
+    (token : PayloadToken) : Prop :=
+  input.routeInstalled = true ∧
+    input.continuationAvailable = true ∧
+    input.continuity = .steady ∧
+    input.routeEpochFreshFor token ∧
+    input.custodyFreshFor token
 
 /-- Small abstract interface for reduced retention behavior. -/
 structure RetentionInterface where

@@ -55,10 +55,24 @@ def mkRetentionState
 
 /-! ## Executable Retention Policy -/
 
+def tokenCustodyExpired
+    (input : RetentionPolicyInput)
+    (token : PayloadToken) : Bool :=
+  input.custodyTimeout.value < (token.custodyAge input.nowTick).value
+
+def tokenRouteEpochCurrent
+    (input : RetentionPolicyInput)
+    (token : PayloadToken) : Bool :=
+  token.admittedRouteEpoch = input.activeRouteEpoch
+
 def selectRetentionDecisionImpl
     (input : RetentionPolicyInput)
     (token : PayloadToken) : RetentionDecision :=
-  if !input.routeInstalled then
+  if tokenCustodyExpired input token then
+    .drop
+  else if !input.routeInstalled then
+    .retain
+  else if !tokenRouteEpochCurrent input token then
     .retain
   else if token.ageClass = .stale && input.supportBand = .low then
     .drop
@@ -133,19 +147,55 @@ theorem ageToken_not_younger
     ageRank token.ageClass ≤ ageRank (ageToken token).ageClass := by
   simpa [ageToken] using ageRank_advanceAge_monotone token.ageClass
 
+theorem ageToken_preserves_retainedAtTick
+    (token : PayloadToken) :
+    (ageToken token).retainedAtTick = token.retainedAtTick := by
+  rfl
+
+theorem ageToken_preserves_lastRetryTick
+    (token : PayloadToken) :
+    (ageToken token).lastRetryTick = token.lastRetryTick := by
+  rfl
+
+theorem ageToken_preserves_admittedRouteEpoch
+    (token : PayloadToken) :
+    (ageToken token).admittedRouteEpoch = token.admittedRouteEpoch := by
+  rfl
+
 /-! ## Decision And Step Lemmas -/
 
 theorem selectRetentionDecision_no_route_retains
     (input : RetentionPolicyInput)
     (token : PayloadToken)
+    (hTimeout : tokenCustodyExpired input token = false)
     (hRoute : input.routeInstalled = false) :
     selectRetentionDecisionImpl input token = .retain := by
-  simp [selectRetentionDecisionImpl, hRoute]
+  by_cases hEpoch : tokenRouteEpochCurrent input token
+  · simp [selectRetentionDecisionImpl, hTimeout, hRoute]
+  · simp [selectRetentionDecisionImpl, hTimeout, hRoute]
+
+theorem selectRetentionDecision_expired_drops
+    (input : RetentionPolicyInput)
+    (token : PayloadToken)
+    (hTimeout : tokenCustodyExpired input token = true) :
+    selectRetentionDecisionImpl input token = .drop := by
+  simp [selectRetentionDecisionImpl, hTimeout]
+
+theorem selectRetentionDecision_stale_epoch_retains
+    (input : RetentionPolicyInput)
+    (token : PayloadToken)
+    (hTimeout : tokenCustodyExpired input token = false)
+    (hRoute : input.routeInstalled = true)
+    (hEpoch : tokenRouteEpochCurrent input token = false) :
+    selectRetentionDecisionImpl input token = .retain := by
+  simp [selectRetentionDecisionImpl, hTimeout, hRoute, hEpoch]
 
 theorem selectRetentionDecision_retention_biased_carries
     (input : RetentionPolicyInput)
     (token : PayloadToken)
+    (hTimeout : tokenCustodyExpired input token = false)
     (hRoute : input.routeInstalled = true)
+    (hEpoch : tokenRouteEpochCurrent input token = true)
     (hNoDrop : token.ageClass ≠ .stale ∨ input.supportBand ≠ .low)
     (hNoBootstrap : input.continuity ≠ .bootstrap ∨ input.uncertaintyBand ≠ .risky)
     (hPosture : input.posture = .retentionBiased)
@@ -162,12 +212,14 @@ theorem selectRetentionDecision_retention_biased_carries
     · exact hCont h.1
     · exact hUncertainty h.2
   unfold selectRetentionDecisionImpl
-  simp [hRoute, hDropFalse, hBootstrapFalse, hPosture, hSupport]
+  simp [hTimeout, hRoute, hEpoch, hBootstrapFalse, hPosture, hSupport]
 
 theorem selectRetentionDecision_steady_with_continuation_forwards
     (input : RetentionPolicyInput)
     (token : PayloadToken)
+    (hTimeout : tokenCustodyExpired input token = false)
     (hRoute : input.routeInstalled = true)
+    (hEpoch : tokenRouteEpochCurrent input token = true)
     (hNoDrop : token.ageClass ≠ .stale ∨ input.supportBand ≠ .low)
     (hNoBootstrap : input.continuity ≠ .bootstrap ∨ input.uncertaintyBand ≠ .risky)
     (hNoCarry : input.posture ≠ .retentionBiased ∨ input.supportBand = .low)
@@ -190,7 +242,8 @@ theorem selectRetentionDecision_steady_with_continuation_forwards
     · exact hPosture h.1
     · exact h.2 hLow
   unfold selectRetentionDecisionImpl
-  simp [hRoute, hDropFalse, hBootstrapFalse, hCarryFalse, hSteady, hContinuation]
+  simp [hTimeout, hRoute, hEpoch, hDropFalse, hCarryFalse, hSteady,
+    hContinuation]
 
 theorem retentionStepImpl_coherent
     (input : RetentionPolicyInput)
@@ -238,7 +291,7 @@ theorem retentionStepImpl_bounded
       simpa [hBuffer, mkRetentionState] using normalizeBuffer_length_le_capacity ([] : List PayloadToken)
   | cons token tail =>
       cases hDecision : selectRetentionDecisionImpl input token <;>
-        simp [hBuffer, hDecision, mkRetentionState, normalizeBuffer_length_le_capacity]
+        simp [hDecision, mkRetentionState, normalizeBuffer_length_le_capacity]
 
 theorem injectPayloadImpl_bounded
     (token : PayloadToken)
@@ -304,7 +357,7 @@ theorem mem_take_implies_mem
   | succ n ih =>
       cases buffer with
       | nil =>
-          simpa using hMem
+          simp at hMem
       | cons head tail =>
           simp at hMem ⊢
           rcases hMem with rfl | hTail
@@ -328,7 +381,7 @@ theorem retentionStepImpl_preserves_message_origin
   cases hBuffer : ageBuffer state.buffer with
   | nil =>
       have hImpossible : token ∈ ([] : List PayloadToken) := by
-        simpa [hBuffer, mkRetentionState, normalizeBuffer] using hMem
+        simp [hBuffer, mkRetentionState, normalizeBuffer] at hMem
       cases hImpossible
   | cons head tail =>
       cases hDecision : selectRetentionDecisionImpl input head
@@ -377,7 +430,7 @@ theorem forward_step_removes_at_most_one_token
   cases hBuffer : ageBuffer state.buffer with
   | nil =>
       simp [ageBuffer] at hBuffer
-      simpa [hBuffer, mkRetentionState]
+      simp [hBuffer, mkRetentionState]
   | cons token tail =>
       have hLen : (token :: tail).length = state.buffer.length := by
         rw [← hBuffer, ageBuffer_length]
@@ -392,10 +445,10 @@ theorem forward_step_removes_at_most_one_token
       have hLen' : state.buffer.length = tail.length + 1 := by
         simpa using hLen.symm
       cases hDecision : selectRetentionDecisionImpl input token
-      · simp [hDecision, mkRetentionState, hTakeCons, hTakeTail, hLen']
-      · simp [hDecision, mkRetentionState, hTakeCons, hTakeTail, hLen']
-      · simp [hDecision, mkRetentionState, hTakeCons, hTakeTail, hLen']
-      · simp [hDecision, mkRetentionState, hTakeCons, hTakeTail, hLen']
+      · simp [hDecision, mkRetentionState, hTakeCons, hLen']
+      · simp [hDecision, mkRetentionState, hTakeCons, hLen']
+      · simp [hDecision, mkRetentionState, hTakeTail, hLen']
+      · simp [hDecision, mkRetentionState, hTakeTail, hLen']
 
 theorem restoreRetentionStateImpl_preserves_buffer_of_bounded_state
     (state : RetentionState)
