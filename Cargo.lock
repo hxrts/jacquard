@@ -1178,15 +1178,15 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
 name = "rust-toolkit-effects"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "129d9de63516aff0512a2aeb80e61bf864b101e8cfa02912c5fa3380a344ab71"
+checksum = "fcf843a461134b68f6708e8a3c2d4deaac34699566e472b68af2eccfa4c767a5"
 
 [[package]]
 name = "rust-toolkit-trait-contracts"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c1a145bef5597eba09b5b084548b1ffee2b9d81cbb625e9ce4c2a0636e4a4d7"
+checksum = "53d2990a94ebe6233554f8ca670cc6b0d4029091edc742c969154e6c93af663c"
 dependencies = [
  "proc-macro2",
  "quote",

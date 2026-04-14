@@ -80,5 +80,5 @@ cfg-if = "1"
 wasm-bindgen-test = "0.3"
 
 # toolkit
-rust-toolkit-effects = "0.2.0"
-rust-toolkit-trait-contracts = "0.2.0"
+rust-toolkit-effects = "0.3.0"
+rust-toolkit-trait-contracts = "0.3.0"
