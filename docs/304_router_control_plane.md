@@ -85,7 +85,7 @@ If a future engine needs stronger bilateral terms, add service-specific negotiat
 
 ## Multi-Device Composition
 
-A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-reference-client` now shows the minimum host bridge wiring for a new device target: one bridge-owned transport driver, one or more queue-backed transport senders handed to engines, explicit ingress stamping, and explicit synchronous router rounds. The end-to-end multi-device test exercises `reference-client`, `router`, `pathway`, `batman`, and `mem-link-profile` across multiple runtimes.
+A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-reference-client` now shows the minimum host bridge wiring for a new device target: one bridge-owned transport driver, one or more queue-backed transport senders handed to engines, explicit ingress stamping, and explicit synchronous router rounds. The end-to-end multi-device test exercises `reference-client`, `router`, `pathway`, `batman-bellman`, `batman-classic`, `babel`, and `mem-link-profile` across multiple runtimes.
 
 This harness proves crate-boundary composition. It does not replace the simulator. The simulator remains the scenario/replay layer above these shared boundaries.
 
