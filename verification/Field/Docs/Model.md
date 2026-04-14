@@ -47,6 +47,7 @@ The local model by itself still does not model:
 
 - the Rust frozen-snapshot Telltale search substrate
 - asynchronous transport behavior
+- deferred payload retention or payload-custody state
 - router lifecycle maintenance
 - end-to-end sequencing or stabilization
 - routing-quality or optimality claims
@@ -71,6 +72,26 @@ Those wider concerns are now split as follows:
   - `Field/System/*`
 - runtime extraction and reduced simulation witness
   - `Field/Adequacy/*`
+
+## Retention Boundary
+
+Deferred payload retention is intentionally outside the local model.
+
+The reduced local field object stores:
+
+- posterior state
+- reduced controller-facing summaries
+- order parameters
+- public corridor projections
+
+It does not store payload buffers or payload-custody truth.
+
+That boundary is deliberate. Retained payloads are runtime-facing execution
+state, not additional observational evidence. In the current verification tree
+they belong in the reduced retention layer (`Field/Retention/*`) and the
+system-facing retention bridge (`Field/System/Retention.lean`), where controller
+state may constrain retain/carry/forward/drop decisions without promoting
+payload custody into posterior truth or router-owned canonical route truth.
 
 ## Core State Space
 

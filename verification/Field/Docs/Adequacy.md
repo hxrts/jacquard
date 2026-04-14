@@ -55,6 +55,14 @@ This layer does not prove full Rust runtime correctness. It does not prove sched
 
 It now also proves a small runtime/system safety story on top of the stuttering refinement layer, and it includes proof-facing fixture cases so the canonical theorems are pinned to concrete reduced runtime examples rather than only prose descriptions.
 
+Deferred payload retention currently stays outside this adequacy boundary. The
+new reduced retention layer in `Field/Retention/*` and
+`Field/System/Retention.lean` reasons about payload custody below router-owned
+truth, but it does not yet flow through `FieldReplaySnapshot` or the reduced
+runtime replay projection. That omission is explicit: retention is modeled as a
+runtime/system execution surface, not as a replay-derived owner of canonical
+truth.
+
 ## Refinement Ladder
 
 The adequacy layer now sits inside one explicit refinement ladder:

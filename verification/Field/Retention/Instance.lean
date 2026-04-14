@@ -19,6 +19,8 @@ namespace FieldRetentionInstance
 open FieldModelAPI
 open FieldRetentionAPI
 
+/-! ## Capacity And Aging -/
+
 def retentionCapacity : Nat := 4
 
 def ageRank : AgeClass → Nat
@@ -50,6 +52,8 @@ def mkRetentionState
     deliveredCount := deliveredCount
     droppedCount := droppedCount
     lastDecision := lastDecision }
+
+/-! ## Executable Retention Policy -/
 
 def selectRetentionDecisionImpl
     (input : RetentionPolicyInput)
@@ -99,6 +103,8 @@ def retentionInterfaceImpl : RetentionInterface :=
     injectPayload := injectPayloadImpl
     restoreRetentionState := restoreRetentionStateImpl }
 
+/-! ## Boundedness And Coherence -/
+
 theorem normalizeBuffer_length_le_capacity
     (buffer : List PayloadToken) :
     (normalizeBuffer buffer).length ≤ retentionCapacity := by
@@ -127,6 +133,8 @@ theorem ageToken_not_younger
     ageRank token.ageClass ≤ ageRank (ageToken token).ageClass := by
   simpa [ageToken] using ageRank_advanceAge_monotone token.ageClass
 
+/-! ## Decision And Step Lemmas -/
+
 theorem selectRetentionDecision_no_route_retains
     (input : RetentionPolicyInput)
     (token : PayloadToken)
@@ -138,24 +146,51 @@ theorem selectRetentionDecision_retention_biased_carries
     (input : RetentionPolicyInput)
     (token : PayloadToken)
     (hRoute : input.routeInstalled = true)
-    (hNotDrop : !(token.ageClass = .stale && input.supportBand = .low))
-    (hBootstrap : !(input.continuity = .bootstrap && input.uncertaintyBand = .risky))
+    (hNoDrop : token.ageClass ≠ .stale ∨ input.supportBand ≠ .low)
+    (hNoBootstrap : input.continuity ≠ .bootstrap ∨ input.uncertaintyBand ≠ .risky)
     (hPosture : input.posture = .retentionBiased)
     (hSupport : input.supportBand ≠ .low) :
     selectRetentionDecisionImpl input token = .carry := by
-  simp [selectRetentionDecisionImpl, hRoute, hNotDrop, hBootstrap, hPosture, hSupport]
+  have hDropFalse : ¬ (token.ageClass = .stale ∧ input.supportBand = .low) := by
+    intro h
+    rcases hNoDrop with hAge | hSupport'
+    · exact hAge h.1
+    · exact hSupport' h.2
+  have hBootstrapFalse : ¬ (input.continuity = .bootstrap ∧ input.uncertaintyBand = .risky) := by
+    intro h
+    rcases hNoBootstrap with hCont | hUncertainty
+    · exact hCont h.1
+    · exact hUncertainty h.2
+  unfold selectRetentionDecisionImpl
+  simp [hRoute, hDropFalse, hBootstrapFalse, hPosture, hSupport]
 
 theorem selectRetentionDecision_steady_with_continuation_forwards
     (input : RetentionPolicyInput)
     (token : PayloadToken)
     (hRoute : input.routeInstalled = true)
-    (hNotDrop : !(token.ageClass = .stale && input.supportBand = .low))
-    (hBootstrap : !(input.continuity = .bootstrap && input.uncertaintyBand = .risky))
-    (hCarry : !(input.posture = .retentionBiased && input.supportBand ≠ .low))
+    (hNoDrop : token.ageClass ≠ .stale ∨ input.supportBand ≠ .low)
+    (hNoBootstrap : input.continuity ≠ .bootstrap ∨ input.uncertaintyBand ≠ .risky)
+    (hNoCarry : input.posture ≠ .retentionBiased ∨ input.supportBand = .low)
     (hSteady : input.continuity = .steady)
     (hContinuation : input.continuationAvailable = true) :
     selectRetentionDecisionImpl input token = .forward := by
-  simp [selectRetentionDecisionImpl, hRoute, hNotDrop, hBootstrap, hCarry, hSteady, hContinuation]
+  have hDropFalse : ¬ (token.ageClass = .stale ∧ input.supportBand = .low) := by
+    intro h
+    rcases hNoDrop with hAge | hSupport'
+    · exact hAge h.1
+    · exact hSupport' h.2
+  have hBootstrapFalse : ¬ (input.continuity = .bootstrap ∧ input.uncertaintyBand = .risky) := by
+    intro h
+    rcases hNoBootstrap with hCont | hUncertainty
+    · exact hCont h.1
+    · exact hUncertainty h.2
+  have hCarryFalse : ¬ (input.posture = .retentionBiased ∧ input.supportBand ≠ .low) := by
+    intro h
+    rcases hNoCarry with hPosture | hLow
+    · exact hPosture h.1
+    · exact h.2 hLow
+  unfold selectRetentionDecisionImpl
+  simp [hRoute, hDropFalse, hBootstrapFalse, hCarryFalse, hSteady, hContinuation]
 
 theorem retentionStepImpl_coherent
     (input : RetentionPolicyInput)
@@ -167,25 +202,15 @@ theorem retentionStepImpl_coherent
   | nil =>
       simpa [hBuffer] using mkRetentionState_coherent [] state.deliveredCount state.droppedCount none
   | cons token tail =>
-      cases hDecision : selectRetentionDecisionImpl input token <;>
-        simpa [hBuffer, hDecision] using
-          mkRetentionState_coherent
-            (match RetentionDecision.retain with
-              | .retain => token :: tail
-              | .carry => token :: tail
-              | .forward => tail
-              | .drop => tail)
-            (match RetentionDecision.retain with
-              | .retain => state.deliveredCount
-              | .carry => state.deliveredCount
-              | .forward => state.deliveredCount + 1
-              | .drop => state.deliveredCount)
-            (match RetentionDecision.retain with
-              | .retain => state.droppedCount
-              | .carry => state.droppedCount
-              | .forward => state.droppedCount
-              | .drop => state.droppedCount + 1)
-            (some RetentionDecision.retain)
+      cases hDecision : selectRetentionDecisionImpl input token
+      · simpa [hBuffer, hDecision] using
+          mkRetentionState_coherent (token :: tail) state.deliveredCount state.droppedCount (some .retain)
+      · simpa [hBuffer, hDecision] using
+          mkRetentionState_coherent (token :: tail) state.deliveredCount state.droppedCount (some .carry)
+      · simpa [hBuffer, hDecision] using
+          mkRetentionState_coherent tail (state.deliveredCount + 1) state.droppedCount (some .forward)
+      · simpa [hBuffer, hDecision] using
+          mkRetentionState_coherent tail state.deliveredCount (state.droppedCount + 1) (some .drop)
 
 theorem injectPayloadImpl_coherent
     (token : PayloadToken)
@@ -261,20 +286,37 @@ theorem mem_ageBuffer_implies_origin
     (token : PayloadToken)
     (hMem : token ∈ ageBuffer buffer) :
     ∃ prior ∈ buffer, prior.messageId = token.messageId := by
-  induction buffer with
-  | nil =>
-      simp [ageBuffer] at hMem
-  | cons head tail ih =>
-      simp [ageBuffer, List.mem_map] at hMem
-      rcases hMem with ⟨prior, hMemPrior, hEq, hOrigin⟩
-      simp at hOrigin
-      rcases hOrigin with rfl | hTail
-      · refine ⟨head, by simp, ?_⟩
-        cases hEq
-        rfl
-      · rcases ih prior ?_ with ⟨older, hOlder, hId⟩
-        · exact ⟨older, by simp [hOlder], hId⟩
-        · exact ⟨prior, hMemPrior, hTail⟩
+  unfold ageBuffer at hMem
+  rcases List.mem_map.1 hMem with ⟨prior, hPrior, hEq⟩
+  refine ⟨prior, hPrior, ?_⟩
+  cases hEq
+  rfl
+
+theorem mem_take_implies_mem
+    (n : Nat)
+    (buffer : List PayloadToken)
+    (token : PayloadToken)
+    (hMem : token ∈ buffer.take n) :
+    token ∈ buffer := by
+  induction n generalizing buffer with
+  | zero =>
+      cases buffer <;> simp at hMem
+  | succ n ih =>
+      cases buffer with
+      | nil =>
+          simpa using hMem
+      | cons head tail =>
+          simp at hMem ⊢
+          rcases hMem with rfl | hTail
+          · exact Or.inl rfl
+          · exact Or.inr (ih tail hTail)
+
+theorem mem_normalizeBuffer_implies_mem
+    (buffer : List PayloadToken)
+    (token : PayloadToken)
+    (hMem : token ∈ normalizeBuffer buffer) :
+    token ∈ buffer := by
+  exact mem_take_implies_mem retentionCapacity buffer token (by simpa [normalizeBuffer] using hMem)
 
 theorem retentionStepImpl_preserves_message_origin
     (input : RetentionPolicyInput)
@@ -285,13 +327,35 @@ theorem retentionStepImpl_preserves_message_origin
   unfold retentionStepImpl at hMem
   cases hBuffer : ageBuffer state.buffer with
   | nil =>
-      simp [hBuffer, mkRetentionState] at hMem
+      have hImpossible : token ∈ ([] : List PayloadToken) := by
+        simpa [hBuffer, mkRetentionState, normalizeBuffer] using hMem
+      cases hImpossible
   | cons head tail =>
-      cases hDecision : selectRetentionDecisionImpl input head <;>
-        simp [hBuffer, hDecision, mkRetentionState, normalizeBuffer] at hMem
-      all_goals
-        rcases mem_ageBuffer_implies_origin state.buffer token hMem with ⟨prior, hPrior, hId⟩
-        exact ⟨prior, hPrior, hId⟩
+      cases hDecision : selectRetentionDecisionImpl input head
+      · have hAged : token ∈ ageBuffer state.buffer := by
+          simp [hBuffer, hDecision, mkRetentionState] at hMem
+          rw [hBuffer]
+          exact mem_normalizeBuffer_implies_mem (head :: tail) token hMem
+        exact mem_ageBuffer_implies_origin state.buffer token hAged
+      · have hAged : token ∈ ageBuffer state.buffer := by
+          simp [hBuffer, hDecision, mkRetentionState] at hMem
+          rw [hBuffer]
+          exact mem_normalizeBuffer_implies_mem (head :: tail) token hMem
+        exact mem_ageBuffer_implies_origin state.buffer token hAged
+      · have hTail : token ∈ tail := by
+          simp [hBuffer, hDecision, mkRetentionState] at hMem
+          exact mem_normalizeBuffer_implies_mem tail token hMem
+        have hAged : token ∈ ageBuffer state.buffer := by
+          rw [hBuffer]
+          simp [hTail]
+        exact mem_ageBuffer_implies_origin state.buffer token hAged
+      · have hTail : token ∈ tail := by
+          simp [hBuffer, hDecision, mkRetentionState] at hMem
+          exact mem_normalizeBuffer_implies_mem tail token hMem
+        have hAged : token ∈ ageBuffer state.buffer := by
+          rw [hBuffer]
+          simp [hTail]
+        exact mem_ageBuffer_implies_origin state.buffer token hAged
 
 theorem restoreRetentionStateImpl_preserves_message_origin
     (state : RetentionState)
@@ -299,13 +363,15 @@ theorem restoreRetentionStateImpl_preserves_message_origin
     (hMem : token ∈ (restoreRetentionStateImpl state).buffer) :
     ∃ prior ∈ state.buffer, prior.messageId = token.messageId := by
   unfold restoreRetentionStateImpl mkRetentionState at hMem
-  simp [normalizeBuffer] at hMem
-  exact ⟨token, hMem, rfl⟩
+  have hIn : token ∈ state.buffer := by
+    exact mem_normalizeBuffer_implies_mem state.buffer token (by simpa [normalizeBuffer] using hMem)
+  exact ⟨token, hIn, rfl⟩
 
 theorem forward_step_removes_at_most_one_token
     (input : RetentionPolicyInput)
     (state : RetentionState)
-    (hCoherent : state.coherent) :
+    (_hCoherent : state.coherent)
+    (hBounded : state.buffer.length ≤ retentionCapacity) :
     state.buffer.length ≤ (retentionStepImpl input state).buffer.length + 1 := by
   unfold retentionStepImpl
   cases hBuffer : ageBuffer state.buffer with
@@ -313,15 +379,30 @@ theorem forward_step_removes_at_most_one_token
       simp [ageBuffer] at hBuffer
       simpa [hBuffer, mkRetentionState]
   | cons token tail =>
-      cases hDecision : selectRetentionDecisionImpl input token <;>
-        simp [hBuffer, hDecision, mkRetentionState, ageBuffer_length] at hCoherent ⊢
+      have hLen : (token :: tail).length = state.buffer.length := by
+        rw [← hBuffer, ageBuffer_length]
+      have hBoundedCons : (token :: tail).length ≤ retentionCapacity := by
+        simpa [hLen] using hBounded
+      have hBoundedTail : tail.length ≤ retentionCapacity := by
+        exact Nat.le_trans (Nat.le_succ tail.length) hBoundedCons
+      have hTakeCons : normalizeBuffer (token :: tail) = token :: tail := by
+        exact (List.take_eq_self_iff (token :: tail)).2 hBoundedCons
+      have hTakeTail : normalizeBuffer tail = tail := by
+        exact (List.take_eq_self_iff tail).2 hBoundedTail
+      have hLen' : state.buffer.length = tail.length + 1 := by
+        simpa using hLen.symm
+      cases hDecision : selectRetentionDecisionImpl input token
+      · simp [hDecision, mkRetentionState, hTakeCons, hTakeTail, hLen']
+      · simp [hDecision, mkRetentionState, hTakeCons, hTakeTail, hLen']
+      · simp [hDecision, mkRetentionState, hTakeCons, hTakeTail, hLen']
+      · simp [hDecision, mkRetentionState, hTakeCons, hTakeTail, hLen']
 
 theorem restoreRetentionStateImpl_preserves_buffer_of_bounded_state
     (state : RetentionState)
     (hBounded : state.buffer.length ≤ retentionCapacity) :
     (restoreRetentionStateImpl state).buffer = state.buffer := by
   unfold restoreRetentionStateImpl mkRetentionState normalizeBuffer
-  simpa [List.take_all_of_le hBounded]
+  exact (List.take_eq_self_iff state.buffer).2 hBounded
 
 def boundednessLaws : RetentionBoundednessLaws retentionInterfaceImpl :=
   { capacity := retentionCapacity
