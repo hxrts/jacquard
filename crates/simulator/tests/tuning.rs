@@ -1,4 +1,4 @@
-use jacquard_batman::BATMAN_ENGINE_ID;
+use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
 use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_simulator::{
@@ -8,7 +8,7 @@ use jacquard_simulator::{
 use jacquard_traits::RoutingSimulator;
 
 #[test]
-fn batman_decay_window_changes_route_loss_timing() {
+fn batman_bellman_decay_window_changes_route_loss_timing() {
     let scenarios = presets::batman_decay_tuning();
     assert_eq!(scenarios.len(), 2);
     let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
@@ -27,12 +27,12 @@ fn batman_decay_window_changes_route_loss_timing() {
 
     ScenarioAssertions::new()
         .expect_route_materialized(owner, destination.clone())
-        .expect_engine_selected(owner, destination.clone(), &BATMAN_ENGINE_ID)
+        .expect_engine_selected(owner, destination.clone(), &BATMAN_BELLMAN_ENGINE_ID)
         .evaluate(&slow)
         .expect("slow BATMAN decay assertions");
     ScenarioAssertions::new()
         .expect_route_materialized(owner, destination.clone())
-        .expect_engine_selected(owner, destination.clone(), &BATMAN_ENGINE_ID)
+        .expect_engine_selected(owner, destination.clone(), &BATMAN_BELLMAN_ENGINE_ID)
         .evaluate(&fast)
         .expect("fast BATMAN decay assertions");
 
@@ -79,7 +79,7 @@ fn routing_profile_changes_selected_engine() {
 
     ScenarioAssertions::new()
         .expect_route_materialized(owner, destination.clone())
-        .expect_engine_selected(owner, destination.clone(), &BATMAN_ENGINE_ID)
+        .expect_engine_selected(owner, destination.clone(), &BATMAN_BELLMAN_ENGINE_ID)
         .evaluate(&connected)
         .expect("connected-profile BATMAN selection");
     ScenarioAssertions::new()

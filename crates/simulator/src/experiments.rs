@@ -14,7 +14,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use jacquard_batman::{DecayWindow, BATMAN_ENGINE_ID};
+use jacquard_babel::BABEL_ENGINE_ID;
+use jacquard_batman_bellman::{DecayWindow, BATMAN_BELLMAN_ENGINE_ID};
+use jacquard_batman_classic::BATMAN_CLASSIC_ENGINE_ID;
 use jacquard_core::{
     Belief, Configuration, ConnectivityPosture, DestinationId, DurationMs, Environment,
     FactSourceClass, Node, NodeId, Observation, OriginAuthenticationClass, PriorityPoints,
@@ -71,8 +73,12 @@ pub struct ExperimentParameterSet {
     pub engine_family: String,
     pub config_id: String,
     pub comparison_engine_set: Option<String>,
-    pub batman_stale_after_ticks: Option<u32>,
-    pub batman_next_refresh_within_ticks: Option<u32>,
+    pub batman_bellman_stale_after_ticks: Option<u32>,
+    pub batman_bellman_next_refresh_within_ticks: Option<u32>,
+    pub batman_classic_stale_after_ticks: Option<u32>,
+    pub batman_classic_next_refresh_within_ticks: Option<u32>,
+    pub babel_stale_after_ticks: Option<u32>,
+    pub babel_next_refresh_within_ticks: Option<u32>,
     pub pathway_query_budget: Option<usize>,
     pub pathway_heuristic_mode: Option<String>,
     pub field_query_budget: Option<usize>,
@@ -81,17 +87,24 @@ pub struct ExperimentParameterSet {
 
 impl ExperimentParameterSet {
     #[must_use]
-    pub fn batman(stale_after_ticks: u32, next_refresh_within_ticks: u32) -> Self {
+    pub fn batman_bellman(stale_after_ticks: u32, next_refresh_within_ticks: u32) -> Self {
         Self {
-            engine_family: "batman".to_string(),
-            config_id: format!("batman-{}-{}", stale_after_ticks, next_refresh_within_ticks),
+            engine_family: "batman-bellman".to_string(),
+            config_id: format!(
+                "batman-bellman-{}-{}",
+                stale_after_ticks, next_refresh_within_ticks
+            ),
             comparison_engine_set: None,
-            batman_stale_after_ticks: Some(stale_after_ticks),
-            batman_next_refresh_within_ticks: Some(next_refresh_within_ticks),
+            batman_bellman_stale_after_ticks: Some(stale_after_ticks),
+            batman_bellman_next_refresh_within_ticks: Some(next_refresh_within_ticks),
             pathway_query_budget: None,
             pathway_heuristic_mode: None,
             field_query_budget: None,
             field_heuristic_mode: None,
+            batman_classic_stale_after_ticks: None,
+            batman_classic_next_refresh_within_ticks: None,
+            babel_stale_after_ticks: None,
+            babel_next_refresh_within_ticks: None,
         }
     }
 
@@ -108,12 +121,16 @@ impl ExperimentParameterSet {
                 heuristic_mode_label(heuristic_mode)
             ),
             comparison_engine_set: None,
-            batman_stale_after_ticks: None,
-            batman_next_refresh_within_ticks: None,
+            batman_bellman_stale_after_ticks: None,
+            batman_bellman_next_refresh_within_ticks: None,
             pathway_query_budget: Some(per_objective_query_budget),
             pathway_heuristic_mode: Some(heuristic_mode_label(heuristic_mode).to_string()),
             field_query_budget: None,
             field_heuristic_mode: None,
+            batman_classic_stale_after_ticks: None,
+            batman_classic_next_refresh_within_ticks: None,
+            babel_stale_after_ticks: None,
+            babel_next_refresh_within_ticks: None,
         }
     }
 
@@ -130,12 +147,16 @@ impl ExperimentParameterSet {
                 field_heuristic_mode_label(heuristic_mode)
             ),
             comparison_engine_set: None,
-            batman_stale_after_ticks: None,
-            batman_next_refresh_within_ticks: None,
+            batman_bellman_stale_after_ticks: None,
+            batman_bellman_next_refresh_within_ticks: None,
             pathway_query_budget: None,
             pathway_heuristic_mode: None,
             field_query_budget: Some(per_objective_query_budget),
             field_heuristic_mode: Some(field_heuristic_mode_label(heuristic_mode).to_string()),
+            batman_classic_stale_after_ticks: None,
+            batman_classic_next_refresh_within_ticks: None,
+            babel_stale_after_ticks: None,
+            babel_next_refresh_within_ticks: None,
         }
     }
 
@@ -156,29 +177,49 @@ impl ExperimentParameterSet {
                 heuristic_mode_label(heuristic_mode)
             ),
             comparison_engine_set: None,
-            batman_stale_after_ticks: Some(stale_after_ticks),
-            batman_next_refresh_within_ticks: Some(next_refresh_within_ticks),
+            batman_bellman_stale_after_ticks: Some(stale_after_ticks),
+            batman_bellman_next_refresh_within_ticks: Some(next_refresh_within_ticks),
             pathway_query_budget: Some(per_objective_query_budget),
             pathway_heuristic_mode: Some(heuristic_mode_label(heuristic_mode).to_string()),
             field_query_budget: Some(per_objective_query_budget),
             field_heuristic_mode: Some(
                 field_heuristic_mode_label(FieldSearchHeuristicMode::HopLowerBound).to_string(),
             ),
+            batman_classic_stale_after_ticks: None,
+            batman_classic_next_refresh_within_ticks: None,
+            babel_stale_after_ticks: None,
+            babel_next_refresh_within_ticks: None,
         }
     }
 
     #[must_use]
     pub fn head_to_head(
         comparison_engine_set: &str,
-        batman_decay_window: Option<(u32, u32)>,
+        batman_bellman_decay_window: Option<(u32, u32)>,
         pathway_search: Option<(usize, PathwaySearchHeuristicMode)>,
         field_search: Option<(usize, FieldSearchHeuristicMode)>,
     ) -> Self {
         let config_suffix = match comparison_engine_set {
-            "batman" => {
+            "batman-bellman" => {
                 let (stale_after_ticks, next_refresh_within_ticks) =
-                    batman_decay_window.unwrap_or((1, 1));
-                format!("batman-{}-{}", stale_after_ticks, next_refresh_within_ticks)
+                    batman_bellman_decay_window.unwrap_or((1, 1));
+                format!(
+                    "batman-bellman-{}-{}",
+                    stale_after_ticks, next_refresh_within_ticks
+                )
+            }
+            "batman-classic" => {
+                let (stale_after_ticks, next_refresh_within_ticks) =
+                    batman_bellman_decay_window.unwrap_or((4, 2));
+                format!(
+                    "batman-classic-{}-{}",
+                    stale_after_ticks, next_refresh_within_ticks
+                )
+            }
+            "babel" => {
+                let (stale_after_ticks, next_refresh_within_ticks) =
+                    batman_bellman_decay_window.unwrap_or((4, 2));
+                format!("babel-{}-{}", stale_after_ticks, next_refresh_within_ticks)
             }
             "pathway" => {
                 let (budget, heuristic_mode) =
@@ -198,9 +239,9 @@ impl ExperimentParameterSet {
                     field_heuristic_mode_label(heuristic_mode)
                 )
             }
-            "pathway-batman" => {
+            "pathway-batman-bellman" => {
                 let (stale_after_ticks, next_refresh_within_ticks) =
-                    batman_decay_window.unwrap_or((1, 1));
+                    batman_bellman_decay_window.unwrap_or((1, 1));
                 let (budget, heuristic_mode) =
                     pathway_search.unwrap_or((2, PathwaySearchHeuristicMode::Zero));
                 format!(
@@ -213,8 +254,8 @@ impl ExperimentParameterSet {
             }
             other => other.to_string(),
         };
-        let (batman_stale_after_ticks, batman_next_refresh_within_ticks) = batman_decay_window
-            .map_or((None, None), |(stale, refresh)| {
+        let (batman_bellman_stale_after_ticks, batman_bellman_next_refresh_within_ticks) =
+            batman_bellman_decay_window.map_or((None, None), |(stale, refresh)| {
                 (Some(stale), Some(refresh))
             });
         let (pathway_query_budget, pathway_heuristic_mode) =
@@ -235,8 +276,12 @@ impl ExperimentParameterSet {
             engine_family: "head-to-head".to_string(),
             config_id: format!("head-to-head-{}", config_suffix),
             comparison_engine_set: Some(comparison_engine_set.to_string()),
-            batman_stale_after_ticks,
-            batman_next_refresh_within_ticks,
+            batman_bellman_stale_after_ticks,
+            batman_bellman_next_refresh_within_ticks,
+            batman_classic_stale_after_ticks: None,
+            batman_classic_next_refresh_within_ticks: None,
+            babel_stale_after_ticks: None,
+            babel_next_refresh_within_ticks: None,
             pathway_query_budget,
             pathway_heuristic_mode,
             field_query_budget,
@@ -245,10 +290,10 @@ impl ExperimentParameterSet {
     }
 
     #[must_use]
-    pub fn batman_decay_window(&self) -> Option<DecayWindow> {
+    pub fn batman_bellman_decay_window(&self) -> Option<DecayWindow> {
         match (
-            self.batman_stale_after_ticks,
-            self.batman_next_refresh_within_ticks,
+            self.batman_bellman_stale_after_ticks,
+            self.batman_bellman_next_refresh_within_ticks,
         ) {
             (Some(stale_after_ticks), Some(next_refresh_within_ticks)) => Some(DecayWindow::new(
                 u64::from(stale_after_ticks),
@@ -284,6 +329,75 @@ impl ExperimentParameterSet {
                 .with_heuristic_mode(heuristic_mode),
         )
     }
+
+    #[must_use]
+    pub fn batman_classic(stale_after_ticks: u32, next_refresh_within_ticks: u32) -> Self {
+        Self {
+            engine_family: "batman-classic".to_string(),
+            config_id: format!(
+                "batman-classic-{}-{}",
+                stale_after_ticks, next_refresh_within_ticks
+            ),
+            comparison_engine_set: None,
+            batman_bellman_stale_after_ticks: None,
+            batman_bellman_next_refresh_within_ticks: None,
+            batman_classic_stale_after_ticks: Some(stale_after_ticks),
+            batman_classic_next_refresh_within_ticks: Some(next_refresh_within_ticks),
+            babel_stale_after_ticks: None,
+            babel_next_refresh_within_ticks: None,
+            pathway_query_budget: None,
+            pathway_heuristic_mode: None,
+            field_query_budget: None,
+            field_heuristic_mode: None,
+        }
+    }
+
+    #[must_use]
+    pub fn batman_classic_decay_window(&self) -> Option<jacquard_batman_classic::DecayWindow> {
+        match (
+            self.batman_classic_stale_after_ticks,
+            self.batman_classic_next_refresh_within_ticks,
+        ) {
+            (Some(stale), Some(refresh)) => Some(jacquard_batman_classic::DecayWindow::new(
+                u64::from(stale),
+                u64::from(refresh),
+            )),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn babel(stale_after_ticks: u32, next_refresh_within_ticks: u32) -> Self {
+        Self {
+            engine_family: "babel".to_string(),
+            config_id: format!("babel-{}-{}", stale_after_ticks, next_refresh_within_ticks),
+            comparison_engine_set: None,
+            batman_bellman_stale_after_ticks: None,
+            batman_bellman_next_refresh_within_ticks: None,
+            batman_classic_stale_after_ticks: None,
+            batman_classic_next_refresh_within_ticks: None,
+            babel_stale_after_ticks: Some(stale_after_ticks),
+            babel_next_refresh_within_ticks: Some(next_refresh_within_ticks),
+            pathway_query_budget: None,
+            pathway_heuristic_mode: None,
+            field_query_budget: None,
+            field_heuristic_mode: None,
+        }
+    }
+
+    #[must_use]
+    pub fn babel_decay_window(&self) -> Option<jacquard_babel::DecayWindow> {
+        match (
+            self.babel_stale_after_ticks,
+            self.babel_next_refresh_within_ticks,
+        ) {
+            (Some(stale), Some(refresh)) => Some(jacquard_babel::DecayWindow::new(
+                u64::from(stale),
+                u64::from(refresh),
+            )),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -308,8 +422,12 @@ pub struct ExperimentRunSummary {
     pub engine_family: String,
     pub config_id: String,
     pub comparison_engine_set: Option<String>,
-    pub batman_stale_after_ticks: Option<u32>,
-    pub batman_next_refresh_within_ticks: Option<u32>,
+    pub batman_bellman_stale_after_ticks: Option<u32>,
+    pub batman_bellman_next_refresh_within_ticks: Option<u32>,
+    pub batman_classic_stale_after_ticks: Option<u32>,
+    pub batman_classic_next_refresh_within_ticks: Option<u32>,
+    pub babel_stale_after_ticks: Option<u32>,
+    pub babel_next_refresh_within_ticks: Option<u32>,
     pub pathway_query_budget: Option<usize>,
     pub pathway_heuristic_mode: Option<String>,
     pub field_query_budget: Option<usize>,
@@ -332,12 +450,18 @@ pub struct ExperimentRunSummary {
     pub route_churn_count: u32,
     pub engine_handoff_count: u32,
     pub route_observation_count: u32,
-    pub batman_selected_rounds: u32,
+    pub batman_bellman_selected_rounds: u32,
+    pub batman_classic_selected_rounds: u32,
+    pub babel_selected_rounds: u32,
     pub pathway_selected_rounds: u32,
     pub field_selected_rounds: u32,
     pub field_selected_result_rounds: u32,
     pub field_search_reconfiguration_rounds: u32,
     pub field_bootstrap_active_rounds: u32,
+    pub field_continuity_band: Option<String>,
+    pub field_commitment_resolution: Option<String>,
+    pub field_last_outcome: Option<String>,
+    pub field_last_continuity_transition: Option<String>,
     pub field_last_promotion_decision: Option<String>,
     pub field_last_promotion_blocker: Option<String>,
     pub field_bootstrap_activation_permille: u32,
@@ -345,6 +469,12 @@ pub struct ExperimentRunSummary {
     pub field_bootstrap_narrow_permille: u32,
     pub field_bootstrap_upgrade_permille: u32,
     pub field_bootstrap_withdraw_permille: u32,
+    pub field_degraded_steady_entry_permille: u32,
+    pub field_degraded_steady_recovery_permille: u32,
+    pub field_degraded_to_bootstrap_permille: u32,
+    pub field_degraded_steady_round_permille: u32,
+    pub field_service_retention_carry_forward_permille: u32,
+    pub field_asymmetric_shift_success_permille: u32,
     pub field_protocol_reconfiguration_count: u32,
     pub field_route_bound_reconfiguration_count: u32,
     pub field_continuation_shift_count: u32,
@@ -383,8 +513,12 @@ pub struct ExperimentAggregateSummary {
     pub engine_family: String,
     pub config_id: String,
     pub comparison_engine_set: Option<String>,
-    pub batman_stale_after_ticks: Option<u32>,
-    pub batman_next_refresh_within_ticks: Option<u32>,
+    pub batman_bellman_stale_after_ticks: Option<u32>,
+    pub batman_bellman_next_refresh_within_ticks: Option<u32>,
+    pub batman_classic_stale_after_ticks: Option<u32>,
+    pub batman_classic_next_refresh_within_ticks: Option<u32>,
+    pub babel_stale_after_ticks: Option<u32>,
+    pub babel_next_refresh_within_ticks: Option<u32>,
     pub pathway_query_budget: Option<usize>,
     pub pathway_heuristic_mode: Option<String>,
     pub field_query_budget: Option<usize>,
@@ -409,6 +543,10 @@ pub struct ExperimentAggregateSummary {
     pub field_selected_result_rounds_mean: u32,
     pub field_search_reconfiguration_rounds_mean: u32,
     pub field_bootstrap_active_rounds_mean: u32,
+    pub field_continuity_band_mode: Option<String>,
+    pub field_commitment_resolution_mode: Option<String>,
+    pub field_last_outcome_mode: Option<String>,
+    pub field_last_continuity_transition_mode: Option<String>,
     pub field_last_promotion_decision_mode: Option<String>,
     pub field_last_promotion_blocker_mode: Option<String>,
     pub field_bootstrap_activation_permille_mean: u32,
@@ -416,6 +554,12 @@ pub struct ExperimentAggregateSummary {
     pub field_bootstrap_narrow_permille_mean: u32,
     pub field_bootstrap_upgrade_permille_mean: u32,
     pub field_bootstrap_withdraw_permille_mean: u32,
+    pub field_degraded_steady_entry_permille_mean: u32,
+    pub field_degraded_steady_recovery_permille_mean: u32,
+    pub field_degraded_to_bootstrap_permille_mean: u32,
+    pub field_degraded_steady_round_permille_mean: u32,
+    pub field_service_retention_carry_forward_permille_mean: u32,
+    pub field_asymmetric_shift_success_permille_mean: u32,
     pub field_protocol_reconfiguration_count_mean: u32,
     pub field_route_bound_reconfiguration_count_mean: u32,
     pub field_continuation_shift_count_mean: u32,
@@ -546,7 +690,9 @@ where
 
 fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
     let mut runs = Vec::new();
-    runs.extend(build_batman_runs(suite_id, seeds, smoke));
+    runs.extend(build_batman_bellman_runs(suite_id, seeds, smoke));
+    runs.extend(build_batman_classic_runs(suite_id, seeds, smoke));
+    runs.extend(build_babel_runs(suite_id, seeds, smoke));
     runs.extend(build_pathway_runs(suite_id, seeds, smoke));
     runs.extend(build_field_runs(suite_id, seeds, smoke));
     runs.extend(build_comparison_runs(suite_id, seeds, smoke));
@@ -559,19 +705,19 @@ fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
 
 // long-block-exception: the BATMAN family catalog is kept in one function so the
 // full coarse/fine sweep roster stays reviewable in one place.
-fn build_batman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
+fn build_batman_bellman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
     let coarse = vec![
-        ExperimentParameterSet::batman(1, 1),
-        ExperimentParameterSet::batman(2, 1),
-        ExperimentParameterSet::batman(4, 2),
-        ExperimentParameterSet::batman(8, 4),
+        ExperimentParameterSet::batman_bellman(1, 1),
+        ExperimentParameterSet::batman_bellman(2, 1),
+        ExperimentParameterSet::batman_bellman(4, 2),
+        ExperimentParameterSet::batman_bellman(8, 4),
     ];
     let fine = vec![
-        ExperimentParameterSet::batman(1, 1),
-        ExperimentParameterSet::batman(3, 1),
-        ExperimentParameterSet::batman(4, 2),
-        ExperimentParameterSet::batman(5, 2),
-        ExperimentParameterSet::batman(6, 3),
+        ExperimentParameterSet::batman_bellman(1, 1),
+        ExperimentParameterSet::batman_bellman(3, 1),
+        ExperimentParameterSet::batman_bellman(4, 2),
+        ExperimentParameterSet::batman_bellman(5, 2),
+        ExperimentParameterSet::batman_bellman(6, 3),
     ];
     let parameter_sets = if smoke {
         vec![coarse[1].clone(), coarse[3].clone()]
@@ -581,7 +727,7 @@ fn build_batman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
 
     let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
         (
-            "batman-sparse-line-low-loss",
+            "batman-bellman-sparse-line-low-loss",
             RegimeDescriptor {
                 density: "sparse-line".to_string(),
                 loss: "low".to_string(),
@@ -592,10 +738,10 @@ fn build_batman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
                 objective_regime: "connected-only".to_string(),
                 stress_score: 12,
             },
-            build_batman_sparse_line_low_loss,
+            build_batman_bellman_sparse_line_low_loss,
         ),
         (
-            "batman-decay-window-pressure",
+            "batman-bellman-decay-window-pressure",
             RegimeDescriptor {
                 density: "sparse-line".to_string(),
                 loss: "moderate".to_string(),
@@ -606,10 +752,10 @@ fn build_batman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
                 objective_regime: "connected-only".to_string(),
                 stress_score: 44,
             },
-            build_batman_decay_window_pressure,
+            build_batman_bellman_decay_window_pressure,
         ),
         (
-            "batman-partition-recovery",
+            "batman-bellman-partition-recovery",
             RegimeDescriptor {
                 density: "sparse-line".to_string(),
                 loss: "moderate".to_string(),
@@ -620,10 +766,10 @@ fn build_batman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
                 objective_regime: "connected-only".to_string(),
                 stress_score: 38,
             },
-            build_batman_partition_recovery,
+            build_batman_bellman_partition_recovery,
         ),
         (
-            "batman-medium-ring-contention",
+            "batman-bellman-medium-ring-contention",
             RegimeDescriptor {
                 density: "medium-ring".to_string(),
                 loss: "moderate".to_string(),
@@ -634,10 +780,10 @@ fn build_batman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
                 objective_regime: "connected-only".to_string(),
                 stress_score: 28,
             },
-            build_batman_medium_ring_contention,
+            build_batman_bellman_medium_ring_contention,
         ),
         (
-            "batman-asymmetric-bridge",
+            "batman-bellman-asymmetric-bridge",
             RegimeDescriptor {
                 density: "bridge-cluster".to_string(),
                 loss: "moderate".to_string(),
@@ -648,10 +794,10 @@ fn build_batman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
                 objective_regime: "connected-only".to_string(),
                 stress_score: 52,
             },
-            build_batman_asymmetric_bridge,
+            build_batman_bellman_asymmetric_bridge,
         ),
         (
-            "batman-asymmetry-relink-transition",
+            "batman-bellman-asymmetry-relink-transition",
             RegimeDescriptor {
                 density: "bridge-cluster".to_string(),
                 loss: "moderate".to_string(),
@@ -662,10 +808,10 @@ fn build_batman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
                 objective_regime: "connected-only".to_string(),
                 stress_score: 48,
             },
-            build_batman_asymmetry_relink_transition,
+            build_batman_bellman_asymmetry_relink_transition,
         ),
         (
-            "batman-churn-intrinsic-limit",
+            "batman-bellman-churn-intrinsic-limit",
             RegimeDescriptor {
                 density: "medium-ring".to_string(),
                 loss: "low".to_string(),
@@ -676,11 +822,138 @@ fn build_batman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
                 objective_regime: "connected-only".to_string(),
                 stress_score: 56,
             },
-            build_batman_churn_intrinsic_limit,
+            build_batman_bellman_churn_intrinsic_limit,
         ),
     ];
 
-    expand_runs(suite_id, "batman", seeds, &parameter_sets, &families)
+    expand_runs(
+        suite_id,
+        "batman-bellman",
+        seeds,
+        &parameter_sets,
+        &families,
+    )
+}
+
+// long-block-exception: the batman-classic family catalog mirrors batman-bellman
+// for direct comparison between spec-faithful and enhanced engines.
+fn build_batman_classic_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
+    let coarse = vec![
+        ExperimentParameterSet::batman_classic(2, 1),
+        ExperimentParameterSet::batman_classic(4, 2),
+        ExperimentParameterSet::batman_classic(8, 4),
+    ];
+    let fine = vec![
+        ExperimentParameterSet::batman_classic(4, 2),
+        ExperimentParameterSet::batman_classic(6, 3),
+        ExperimentParameterSet::batman_classic(10, 5),
+    ];
+    let parameter_sets = if smoke {
+        vec![coarse[1].clone(), coarse[2].clone()]
+    } else {
+        coarse.into_iter().chain(fine).collect()
+    };
+    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
+        (
+            "batman-classic-decay-window-pressure",
+            RegimeDescriptor {
+                density: "sparse-line".to_string(),
+                loss: "moderate".to_string(),
+                interference: "low".to_string(),
+                asymmetry: "none".to_string(),
+                churn: "partition-recovery".to_string(),
+                node_pressure: "none".to_string(),
+                objective_regime: "connected-only".to_string(),
+                stress_score: 44,
+            },
+            build_batman_classic_decay_window_pressure,
+        ),
+        (
+            "batman-classic-partition-recovery",
+            RegimeDescriptor {
+                density: "sparse-line".to_string(),
+                loss: "moderate".to_string(),
+                interference: "low".to_string(),
+                asymmetry: "none".to_string(),
+                churn: "partition-recovery".to_string(),
+                node_pressure: "none".to_string(),
+                objective_regime: "connected-only".to_string(),
+                stress_score: 38,
+            },
+            build_batman_classic_partition_recovery,
+        ),
+    ];
+    expand_runs(
+        suite_id,
+        "batman-classic",
+        seeds,
+        &parameter_sets,
+        &families,
+    )
+}
+
+// long-block-exception: the Babel family catalog mirrors batman-bellman for
+// direct comparison under identical regimes.
+fn build_babel_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
+    let coarse = vec![
+        ExperimentParameterSet::babel(2, 1),
+        ExperimentParameterSet::babel(4, 2),
+        ExperimentParameterSet::babel(8, 4),
+    ];
+    let fine = vec![
+        ExperimentParameterSet::babel(4, 2),
+        ExperimentParameterSet::babel(6, 3),
+    ];
+    let parameter_sets = if smoke {
+        vec![coarse[1].clone(), coarse[2].clone()]
+    } else {
+        coarse.into_iter().chain(fine).collect()
+    };
+    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
+        (
+            "babel-decay-window-pressure",
+            RegimeDescriptor {
+                density: "sparse-line".to_string(),
+                loss: "moderate".to_string(),
+                interference: "low".to_string(),
+                asymmetry: "none".to_string(),
+                churn: "partition-recovery".to_string(),
+                node_pressure: "none".to_string(),
+                objective_regime: "connected-only".to_string(),
+                stress_score: 44,
+            },
+            build_babel_decay_window_pressure,
+        ),
+        (
+            "babel-asymmetry-cost-penalty",
+            RegimeDescriptor {
+                density: "bridge-cluster".to_string(),
+                loss: "moderate".to_string(),
+                interference: "medium".to_string(),
+                asymmetry: "severe".to_string(),
+                churn: "static".to_string(),
+                node_pressure: "none".to_string(),
+                objective_regime: "connected-only".to_string(),
+                stress_score: 52,
+            },
+            build_babel_asymmetry_cost_penalty,
+        ),
+        (
+            "babel-partition-feasibility-recovery",
+            RegimeDescriptor {
+                density: "sparse-line".to_string(),
+                loss: "moderate".to_string(),
+                interference: "low".to_string(),
+                asymmetry: "none".to_string(),
+                churn: "partition-recovery".to_string(),
+                node_pressure: "none".to_string(),
+                objective_regime: "connected-only".to_string(),
+                stress_score: 38,
+            },
+            build_babel_partition_feasibility_recovery,
+        ),
+    ];
+    expand_runs(suite_id, "babel", seeds, &parameter_sets, &families)
 }
 
 // long-block-exception: the Pathway family catalog is kept in one function so the
@@ -1021,7 +1294,9 @@ fn build_comparison_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Expe
 
 fn build_head_to_head_runs(suite_id: &str, seeds: &[u64], _smoke: bool) -> Vec<ExperimentRunSpec> {
     let configs = vec![
-        ExperimentParameterSet::head_to_head("batman", Some((1, 1)), None, None),
+        ExperimentParameterSet::head_to_head("batman-bellman", Some((1, 1)), None, None),
+        ExperimentParameterSet::head_to_head("batman-classic", Some((4, 2)), None, None),
+        ExperimentParameterSet::head_to_head("babel", Some((4, 2)), None, None),
         ExperimentParameterSet::head_to_head(
             "pathway",
             None,
@@ -1035,7 +1310,7 @@ fn build_head_to_head_runs(suite_id: &str, seeds: &[u64], _smoke: bool) -> Vec<E
             Some((4, FieldSearchHeuristicMode::HopLowerBound)),
         ),
         ExperimentParameterSet::head_to_head(
-            "pathway-batman",
+            "pathway-batman-bellman",
             Some((1, 1)),
             Some((2, PathwaySearchHeuristicMode::Zero)),
             None,
@@ -1249,6 +1524,10 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
     let mut field_selected_result_rounds = 0u32;
     let mut field_search_reconfiguration_rounds = 0u32;
     let mut field_bootstrap_active_rounds = 0u32;
+    let mut field_continuity_band = None;
+    let mut field_commitment_resolution = None;
+    let mut field_last_outcome = None;
+    let mut field_last_continuity_transition = None;
     let mut field_last_promotion_decision = None;
     let mut field_last_promotion_blocker = None;
     let mut field_bootstrap_activation_count = 0u32;
@@ -1256,6 +1535,12 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
     let mut field_bootstrap_narrow_count = 0u32;
     let mut field_bootstrap_upgrade_count = 0u32;
     let mut field_bootstrap_withdraw_count = 0u32;
+    let mut field_degraded_steady_entry_count = 0u32;
+    let mut field_degraded_steady_recovery_count = 0u32;
+    let mut field_degraded_to_bootstrap_count = 0u32;
+    let mut field_degraded_steady_round_count = 0u32;
+    let mut field_service_retention_carry_forward_count = 0u32;
+    let mut field_asymmetric_shift_success_count = 0u32;
     let mut field_protocol_reconfiguration_count = 0u32;
     let mut field_route_bound_reconfiguration_count = 0u32;
     let mut field_continuation_shift_count = 0u32;
@@ -1290,6 +1575,16 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
             )
             .unwrap_or(u32::MAX),
         );
+        field_continuity_band = field_continuity_band.or_else(|| {
+            field_replays
+                .iter()
+                .find_map(|summary| summary.continuity_band.clone())
+        });
+        field_last_continuity_transition = field_last_continuity_transition.or_else(|| {
+            field_replays
+                .iter()
+                .find_map(|summary| summary.last_continuity_transition.clone())
+        });
         field_last_promotion_decision = field_last_promotion_decision.or_else(|| {
             field_replays
                 .iter()
@@ -1335,6 +1630,49 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
                 .max()
                 .unwrap_or(0),
         );
+        field_degraded_steady_entry_count = field_degraded_steady_entry_count.max(
+            field_replays
+                .iter()
+                .map(|summary| summary.degraded_steady_entry_count)
+                .max()
+                .unwrap_or(0),
+        );
+        field_degraded_steady_recovery_count = field_degraded_steady_recovery_count.max(
+            field_replays
+                .iter()
+                .map(|summary| summary.degraded_steady_recovery_count)
+                .max()
+                .unwrap_or(0),
+        );
+        field_degraded_to_bootstrap_count = field_degraded_to_bootstrap_count.max(
+            field_replays
+                .iter()
+                .map(|summary| summary.degraded_to_bootstrap_count)
+                .max()
+                .unwrap_or(0),
+        );
+        field_degraded_steady_round_count = field_degraded_steady_round_count.max(
+            field_replays
+                .iter()
+                .map(|summary| summary.degraded_steady_round_count)
+                .max()
+                .unwrap_or(0),
+        );
+        field_service_retention_carry_forward_count = field_service_retention_carry_forward_count
+            .max(
+                field_replays
+                    .iter()
+                    .map(|summary| summary.service_retention_carry_forward_count)
+                    .max()
+                    .unwrap_or(0),
+            );
+        field_asymmetric_shift_success_count = field_asymmetric_shift_success_count.max(
+            field_replays
+                .iter()
+                .map(|summary| summary.asymmetric_shift_success_count)
+                .max()
+                .unwrap_or(0),
+        );
         field_protocol_reconfiguration_count = field_protocol_reconfiguration_count.max(
             field_replays
                 .iter()
@@ -1375,6 +1713,38 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
                 .unwrap_or(0),
         );
     }
+
+    for binding in spec.scenario.bound_objectives() {
+        field_commitment_resolution = field_commitment_resolution.or_else(|| {
+            reduced.last_field_commitment_resolution(
+                binding.owner_node_id,
+                &binding.objective.destination,
+            )
+        });
+        field_last_outcome = field_last_outcome.or_else(|| {
+            reduced.last_field_route_outcome(binding.owner_node_id, &binding.objective.destination)
+        });
+        field_continuity_band = field_continuity_band.or_else(|| {
+            reduced
+                .last_field_continuity_band(binding.owner_node_id, &binding.objective.destination)
+        });
+        field_last_promotion_decision = field_last_promotion_decision.or_else(|| {
+            reduced.last_field_promotion_decision(
+                binding.owner_node_id,
+                &binding.objective.destination,
+            )
+        });
+        field_last_promotion_blocker = field_last_promotion_blocker.or_else(|| {
+            reduced
+                .last_field_promotion_blocker(binding.owner_node_id, &binding.objective.destination)
+        });
+        field_continuation_shift_count =
+            field_continuation_shift_count.max(reduced.field_continuation_shift_count(
+                binding.owner_node_id,
+                &binding.objective.destination,
+            ));
+    }
+
     ExperimentRunSummary {
         run_id: spec.run_id.clone(),
         suite_id: spec.suite_id.clone(),
@@ -1383,8 +1753,16 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
         engine_family: spec.engine_family.clone(),
         config_id: spec.parameters.config_id.clone(),
         comparison_engine_set: spec.parameters.comparison_engine_set.clone(),
-        batman_stale_after_ticks: spec.parameters.batman_stale_after_ticks,
-        batman_next_refresh_within_ticks: spec.parameters.batman_next_refresh_within_ticks,
+        batman_bellman_stale_after_ticks: spec.parameters.batman_bellman_stale_after_ticks,
+        batman_bellman_next_refresh_within_ticks: spec
+            .parameters
+            .batman_bellman_next_refresh_within_ticks,
+        batman_classic_stale_after_ticks: spec.parameters.batman_classic_stale_after_ticks,
+        batman_classic_next_refresh_within_ticks: spec
+            .parameters
+            .batman_classic_next_refresh_within_ticks,
+        babel_stale_after_ticks: spec.parameters.babel_stale_after_ticks,
+        babel_next_refresh_within_ticks: spec.parameters.babel_next_refresh_within_ticks,
         pathway_query_budget: spec.parameters.pathway_query_budget,
         pathway_heuristic_mode: spec.parameters.pathway_heuristic_mode.clone(),
         field_query_budget: spec.parameters.field_query_budget,
@@ -1410,12 +1788,18 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
         route_churn_count: churn_count,
         engine_handoff_count: handoff_count,
         route_observation_count,
-        batman_selected_rounds: *engine_round_counts.get("batman").unwrap_or(&0),
+        batman_bellman_selected_rounds: *engine_round_counts.get("batman-bellman").unwrap_or(&0),
+        batman_classic_selected_rounds: *engine_round_counts.get("batman-classic").unwrap_or(&0),
+        babel_selected_rounds: *engine_round_counts.get("babel").unwrap_or(&0),
         pathway_selected_rounds: *engine_round_counts.get("pathway").unwrap_or(&0),
         field_selected_rounds: *engine_round_counts.get("field").unwrap_or(&0),
         field_selected_result_rounds,
         field_search_reconfiguration_rounds,
         field_bootstrap_active_rounds,
+        field_continuity_band,
+        field_commitment_resolution,
+        field_last_outcome,
+        field_last_continuity_transition,
         field_last_promotion_decision,
         field_last_promotion_blocker,
         field_bootstrap_activation_permille: ratio_permille(
@@ -1436,6 +1820,32 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
         ),
         field_bootstrap_withdraw_permille: ratio_permille(
             field_bootstrap_withdraw_count,
+            objective_count.max(1),
+        ),
+        field_degraded_steady_entry_permille: ratio_permille(
+            field_degraded_steady_entry_count,
+            objective_count.max(1),
+        ),
+        field_degraded_steady_recovery_permille: ratio_permille(
+            field_degraded_steady_recovery_count,
+            objective_count.max(1),
+        ),
+        field_degraded_to_bootstrap_permille: ratio_permille(
+            field_degraded_to_bootstrap_count,
+            objective_count.max(1),
+        ),
+        field_degraded_steady_round_permille: ratio_permille(
+            field_degraded_steady_round_count,
+            objective_count
+                .saturating_mul(reduced.round_count.max(1))
+                .max(1),
+        ),
+        field_service_retention_carry_forward_permille: ratio_permille(
+            field_service_retention_carry_forward_count,
+            objective_count.max(1),
+        ),
+        field_asymmetric_shift_success_permille: ratio_permille(
+            field_asymmetric_shift_success_count,
             objective_count.max(1),
         ),
         field_protocol_reconfiguration_count,
@@ -1533,6 +1943,26 @@ fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSumma
             );
             let field_bootstrap_active_rounds_mean =
                 average_u32(group.iter().map(|run| run.field_bootstrap_active_rounds));
+            let field_continuity_band_mode = mode(
+                group
+                    .iter()
+                    .filter_map(|run| run.field_continuity_band.clone()),
+            );
+            let field_commitment_resolution_mode = mode(
+                group
+                    .iter()
+                    .filter_map(|run| run.field_commitment_resolution.clone()),
+            );
+            let field_last_outcome_mode = mode(
+                group
+                    .iter()
+                    .filter_map(|run| run.field_last_outcome.clone()),
+            );
+            let field_last_continuity_transition_mode = mode(
+                group
+                    .iter()
+                    .filter_map(|run| run.field_last_continuity_transition.clone()),
+            );
             let field_last_promotion_decision_mode = mode(
                 group
                     .iter()
@@ -1558,6 +1988,36 @@ fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSumma
                 group
                     .iter()
                     .map(|run| run.field_bootstrap_withdraw_permille),
+            );
+            let field_degraded_steady_entry_permille_mean = average_u32(
+                group
+                    .iter()
+                    .map(|run| run.field_degraded_steady_entry_permille),
+            );
+            let field_degraded_steady_recovery_permille_mean = average_u32(
+                group
+                    .iter()
+                    .map(|run| run.field_degraded_steady_recovery_permille),
+            );
+            let field_degraded_to_bootstrap_permille_mean = average_u32(
+                group
+                    .iter()
+                    .map(|run| run.field_degraded_to_bootstrap_permille),
+            );
+            let field_degraded_steady_round_permille_mean = average_u32(
+                group
+                    .iter()
+                    .map(|run| run.field_degraded_steady_round_permille),
+            );
+            let field_service_retention_carry_forward_permille_mean = average_u32(
+                group
+                    .iter()
+                    .map(|run| run.field_service_retention_carry_forward_permille),
+            );
+            let field_asymmetric_shift_success_permille_mean = average_u32(
+                group
+                    .iter()
+                    .map(|run| run.field_asymmetric_shift_success_permille),
             );
             let field_protocol_reconfiguration_count_mean = average_u32(
                 group
@@ -1596,8 +2056,14 @@ fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSumma
                 engine_family: first.engine_family.clone(),
                 config_id: first.config_id.clone(),
                 comparison_engine_set: first.comparison_engine_set.clone(),
-                batman_stale_after_ticks: first.batman_stale_after_ticks,
-                batman_next_refresh_within_ticks: first.batman_next_refresh_within_ticks,
+                batman_bellman_stale_after_ticks: first.batman_bellman_stale_after_ticks,
+                batman_bellman_next_refresh_within_ticks: first
+                    .batman_bellman_next_refresh_within_ticks,
+                batman_classic_stale_after_ticks: first.batman_classic_stale_after_ticks,
+                batman_classic_next_refresh_within_ticks: first
+                    .batman_classic_next_refresh_within_ticks,
+                babel_stale_after_ticks: first.babel_stale_after_ticks,
+                babel_next_refresh_within_ticks: first.babel_next_refresh_within_ticks,
                 pathway_query_budget: first.pathway_query_budget,
                 pathway_heuristic_mode: first.pathway_heuristic_mode.clone(),
                 field_query_budget: first.field_query_budget,
@@ -1622,6 +2088,10 @@ fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSumma
                 field_selected_result_rounds_mean,
                 field_search_reconfiguration_rounds_mean,
                 field_bootstrap_active_rounds_mean,
+                field_continuity_band_mode,
+                field_commitment_resolution_mode,
+                field_last_outcome_mode,
+                field_last_continuity_transition_mode,
                 field_last_promotion_decision_mode,
                 field_last_promotion_blocker_mode,
                 field_bootstrap_activation_permille_mean,
@@ -1629,6 +2099,12 @@ fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSumma
                 field_bootstrap_narrow_permille_mean,
                 field_bootstrap_upgrade_permille_mean,
                 field_bootstrap_withdraw_permille_mean,
+                field_degraded_steady_entry_permille_mean,
+                field_degraded_steady_recovery_permille_mean,
+                field_degraded_to_bootstrap_permille_mean,
+                field_degraded_steady_round_permille_mean,
+                field_service_retention_carry_forward_permille_mean,
+                field_asymmetric_shift_success_permille_mean,
                 field_protocol_reconfiguration_count_mean,
                 field_route_bound_reconfiguration_count_mean,
                 field_continuation_shift_count_mean,
@@ -1703,24 +2179,27 @@ fn summarize_breakdowns(
         .collect()
 }
 
-fn build_batman_sparse_line_low_loss(
+fn build_batman_bellman_sparse_line_low_loss(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let mut topology = bidirectional_line_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).batman().build(),
-        topology::node(3).batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).batman_bellman().build(),
+        topology::node(3).batman_bellman().build(),
     );
     set_environment(&mut topology, 2, RatioPermille(0), RatioPermille(20));
     let hosts = vec![
-        HostSpec::batman(NODE_A),
-        HostSpec::batman(NODE_B),
-        HostSpec::batman(NODE_C),
+        HostSpec::batman_bellman(NODE_A),
+        HostSpec::batman_bellman(NODE_B),
+        HostSpec::batman_bellman(NODE_C),
     ];
     let scenario = apply_overrides(
         &JacquardScenario::new(
-            format!("batman-sparse-line-low-loss-{}", parameters.config_id),
+            format!(
+                "batman-bellman-sparse-line-low-loss-{}",
+                parameters.config_id
+            ),
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
@@ -1733,27 +2212,27 @@ fn build_batman_sparse_line_low_loss(
     (scenario, ScriptedEnvironmentModel::default())
 }
 
-fn build_batman_partition_recovery(
+fn build_batman_bellman_partition_recovery(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let mut topology = bidirectional_line_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).batman().build(),
-        topology::node(3).batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).batman_bellman().build(),
+        topology::node(3).batman_bellman().build(),
     );
     set_environment(&mut topology, 2, RatioPermille(40), RatioPermille(150));
     let restore = topology.value.clone();
     let scenario = apply_overrides(
         &JacquardScenario::new(
-            format!("batman-partition-recovery-{}", parameters.config_id),
+            format!("batman-bellman-partition-recovery-{}", parameters.config_id),
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
             vec![
-                HostSpec::batman(NODE_A),
-                HostSpec::batman(NODE_B),
-                HostSpec::batman(NODE_C),
+                HostSpec::batman_bellman(NODE_A),
+                HostSpec::batman_bellman(NODE_B),
+                HostSpec::batman_bellman(NODE_C),
             ],
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
             26,
@@ -1777,26 +2256,29 @@ fn build_batman_partition_recovery(
     (scenario, environment)
 }
 
-fn build_batman_decay_window_pressure(
+fn build_batman_bellman_decay_window_pressure(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = bidirectional_line_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).batman().build(),
-        topology::node(3).batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).batman_bellman().build(),
+        topology::node(3).batman_bellman().build(),
     );
     let restore = topology.value.clone();
     let scenario = apply_overrides(
         &JacquardScenario::new(
-            format!("batman-decay-window-pressure-{}", parameters.config_id),
+            format!(
+                "batman-bellman-decay-window-pressure-{}",
+                parameters.config_id
+            ),
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
             vec![
-                HostSpec::batman(NODE_A),
-                HostSpec::batman(NODE_B),
-                HostSpec::batman(NODE_C),
+                HostSpec::batman_bellman(NODE_A),
+                HostSpec::batman_bellman(NODE_B),
+                HostSpec::batman_bellman(NODE_C),
             ],
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(6)],
             36,
@@ -1820,28 +2302,31 @@ fn build_batman_decay_window_pressure(
     (scenario, environment)
 }
 
-fn build_batman_medium_ring_contention(
+fn build_batman_bellman_medium_ring_contention(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let mut topology = ring_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).batman().build(),
-        topology::node(3).batman().build(),
-        topology::node(4).batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).batman_bellman().build(),
+        topology::node(3).batman_bellman().build(),
+        topology::node(4).batman_bellman().build(),
     );
     set_environment(&mut topology, 2, RatioPermille(150), RatioPermille(100));
     let scenario = apply_overrides(
         &JacquardScenario::new(
-            format!("batman-medium-ring-contention-{}", parameters.config_id),
+            format!(
+                "batman-bellman-medium-ring-contention-{}",
+                parameters.config_id
+            ),
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
             vec![
-                HostSpec::batman(NODE_A),
-                HostSpec::batman(NODE_B),
-                HostSpec::batman(NODE_C),
-                HostSpec::batman(NODE_D),
+                HostSpec::batman_bellman(NODE_A),
+                HostSpec::batman_bellman(NODE_B),
+                HostSpec::batman_bellman(NODE_C),
+                HostSpec::batman_bellman(NODE_D),
             ],
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
             20,
@@ -1851,28 +2336,28 @@ fn build_batman_medium_ring_contention(
     (scenario, ScriptedEnvironmentModel::default())
 }
 
-fn build_batman_asymmetric_bridge(
+fn build_batman_bellman_asymmetric_bridge(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let mut topology = bridge_cluster_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).batman().build(),
-        topology::node(3).batman().build(),
-        topology::node(4).batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).batman_bellman().build(),
+        topology::node(3).batman_bellman().build(),
+        topology::node(4).batman_bellman().build(),
     );
     set_environment(&mut topology, 1, RatioPermille(200), RatioPermille(80));
     let scenario = apply_overrides(
         &JacquardScenario::new(
-            format!("batman-asymmetric-bridge-{}", parameters.config_id),
+            format!("batman-bellman-asymmetric-bridge-{}", parameters.config_id),
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
             vec![
-                HostSpec::batman(NODE_A),
-                HostSpec::batman(NODE_B),
-                HostSpec::batman(NODE_C),
-                HostSpec::batman(NODE_D),
+                HostSpec::batman_bellman(NODE_A),
+                HostSpec::batman_bellman(NODE_B),
+                HostSpec::batman_bellman(NODE_C),
+                HostSpec::batman_bellman(NODE_D),
             ],
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
             22,
@@ -1893,31 +2378,31 @@ fn build_batman_asymmetric_bridge(
     (scenario, environment)
 }
 
-fn build_batman_asymmetry_relink_transition(
+fn build_batman_bellman_asymmetry_relink_transition(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let mut topology = bridge_cluster_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).batman().build(),
-        topology::node(3).batman().build(),
-        topology::node(4).batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).batman_bellman().build(),
+        topology::node(3).batman_bellman().build(),
+        topology::node(4).batman_bellman().build(),
     );
     set_environment(&mut topology, 1, RatioPermille(120), RatioPermille(140));
     let scenario = apply_overrides(
         &JacquardScenario::new(
             format!(
-                "batman-asymmetry-relink-transition-{}",
+                "batman-bellman-asymmetry-relink-transition-{}",
                 parameters.config_id
             ),
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
             vec![
-                HostSpec::batman(NODE_A),
-                HostSpec::batman(NODE_B),
-                HostSpec::batman(NODE_C),
-                HostSpec::batman(NODE_D),
+                HostSpec::batman_bellman(NODE_A),
+                HostSpec::batman_bellman(NODE_B),
+                HostSpec::batman_bellman(NODE_C),
+                HostSpec::batman_bellman(NODE_D),
             ],
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
             24,
@@ -1958,28 +2443,31 @@ fn build_batman_asymmetry_relink_transition(
     (scenario, environment)
 }
 
-fn build_batman_churn_intrinsic_limit(
+fn build_batman_bellman_churn_intrinsic_limit(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let mut topology = ring_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).batman().build(),
-        topology::node(3).batman().build(),
-        topology::node(4).batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).batman_bellman().build(),
+        topology::node(3).batman_bellman().build(),
+        topology::node(4).batman_bellman().build(),
     );
     set_environment(&mut topology, 2, RatioPermille(50), RatioPermille(50));
     let scenario = apply_overrides(
         &JacquardScenario::new(
-            format!("batman-churn-intrinsic-limit-{}", parameters.config_id),
+            format!(
+                "batman-bellman-churn-intrinsic-limit-{}",
+                parameters.config_id
+            ),
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
             vec![
-                HostSpec::batman(NODE_A),
-                HostSpec::batman(NODE_B),
-                HostSpec::batman(NODE_C),
-                HostSpec::batman(NODE_D),
+                HostSpec::batman_bellman(NODE_A),
+                HostSpec::batman_bellman(NODE_B),
+                HostSpec::batman_bellman(NODE_C),
+                HostSpec::batman_bellman(NODE_D),
             ],
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(3)],
             24,
@@ -2011,6 +2499,200 @@ fn build_batman_churn_intrinsic_limit(
                 from_right: NODE_C,
                 to_right: NODE_B,
                 link: Box::new(topology::link(2).build()),
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+fn build_batman_classic_decay_window_pressure(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = bidirectional_line_topology(
+        topology::node(1).batman_classic().build(),
+        topology::node(2).batman_classic().build(),
+        topology::node(3).batman_classic().build(),
+    );
+    set_environment(&mut topology, 2, RatioPermille(40), RatioPermille(100));
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!(
+                "batman-classic-decay-window-pressure-{}",
+                parameters.config_id
+            ),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::batman_classic(NODE_A),
+                HostSpec::batman_classic(NODE_B),
+                HostSpec::batman_classic(NODE_C),
+            ],
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(8)],
+            30,
+        ),
+        parameters,
+    );
+    (scenario, ScriptedEnvironmentModel::default())
+}
+
+fn build_batman_classic_partition_recovery(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = bidirectional_line_topology(
+        topology::node(1).batman_classic().build(),
+        topology::node(2).batman_classic().build(),
+        topology::node(3).batman_classic().build(),
+    );
+    set_environment(&mut topology, 2, RatioPermille(40), RatioPermille(150));
+    let restore = topology.value.clone();
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!("batman-classic-partition-recovery-{}", parameters.config_id),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::batman_classic(NODE_A),
+                HostSpec::batman_classic(NODE_B),
+                HostSpec::batman_classic(NODE_C),
+            ],
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(8)],
+            36,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(16),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(26),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore,
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+fn build_babel_decay_window_pressure(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = bidirectional_line_topology(
+        topology::node(1).babel().build(),
+        topology::node(2).babel().build(),
+        topology::node(3).babel().build(),
+    );
+    set_environment(&mut topology, 2, RatioPermille(40), RatioPermille(100));
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!("babel-decay-window-pressure-{}", parameters.config_id),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::babel(NODE_A),
+                HostSpec::babel(NODE_B),
+                HostSpec::babel(NODE_C),
+            ],
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+            18,
+        ),
+        parameters,
+    );
+    (scenario, ScriptedEnvironmentModel::default())
+}
+
+fn build_babel_asymmetry_cost_penalty(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = bridge_cluster_topology(
+        topology::node(1).babel().build(),
+        topology::node(2).babel().build(),
+        topology::node(3).babel().build(),
+        topology::node(4).babel().build(),
+    );
+    set_environment(&mut topology, 1, RatioPermille(200), RatioPermille(80));
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!("babel-asymmetry-cost-penalty-{}", parameters.config_id),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::babel(NODE_A),
+                HostSpec::babel(NODE_B),
+                HostSpec::babel(NODE_C),
+                HostSpec::babel(NODE_D),
+            ],
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
+            22,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![ScheduledEnvironmentHook::new(
+        Tick(6),
+        EnvironmentHook::AsymmetricDegradation {
+            left: NODE_B,
+            right: NODE_C,
+            forward_confidence: RatioPermille(520),
+            forward_loss: RatioPermille(380),
+            reverse_confidence: RatioPermille(760),
+            reverse_loss: RatioPermille(180),
+        },
+    )]);
+    (scenario, environment)
+}
+
+fn build_babel_partition_feasibility_recovery(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = bidirectional_line_topology(
+        topology::node(1).babel().build(),
+        topology::node(2).babel().build(),
+        topology::node(3).babel().build(),
+    );
+    set_environment(&mut topology, 2, RatioPermille(40), RatioPermille(150));
+    let restore = topology.value.clone();
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!(
+                "babel-partition-feasibility-recovery-{}",
+                parameters.config_id
+            ),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::babel(NODE_A),
+                HostSpec::babel(NODE_B),
+                HostSpec::babel(NODE_C),
+            ],
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+            26,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(10),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(18),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore,
             },
         ),
     ]);
@@ -3156,8 +3838,14 @@ fn apply_overrides(
         .iter()
         .cloned()
         .map(|mut host| {
-            if let Some(decay_window) = parameters.batman_decay_window() {
-                host = host.with_batman_decay_window(decay_window);
+            if let Some(decay_window) = parameters.batman_bellman_decay_window() {
+                host = host.with_batman_bellman_decay_window(decay_window);
+            }
+            if let Some(decay_window) = parameters.batman_classic_decay_window() {
+                host = host.with_batman_classic_decay_window(decay_window);
+            }
+            if let Some(decay_window) = parameters.babel_decay_window() {
+                host = host.with_babel_decay_window(decay_window);
             }
             if let Some(search_config) = parameters.pathway_search_config() {
                 host = host.with_pathway_search_config(search_config);
@@ -3182,20 +3870,22 @@ fn apply_overrides(
 
 fn comparison_topology_node(node_byte: u8, comparison_engine_set: Option<&str>) -> Node {
     match comparison_engine_set.unwrap_or("all-engines") {
-        "batman" => topology::node(node_byte).batman().build(),
+        "batman-bellman" => topology::node(node_byte).batman_bellman().build(),
         "pathway" => topology::node(node_byte).pathway().build(),
         "field" => topology::node(node_byte).field().build(),
-        "pathway-batman" => topology::node(node_byte).pathway_and_batman().build(),
+        "pathway-batman-bellman" => topology::node(node_byte)
+            .pathway_and_batman_bellman()
+            .build(),
         _ => topology::node(node_byte).all_engines().build(),
     }
 }
 
 fn comparison_host_spec(local_node_id: NodeId, comparison_engine_set: Option<&str>) -> HostSpec {
     match comparison_engine_set.unwrap_or("all-engines") {
-        "batman" => HostSpec::batman(local_node_id),
+        "batman-bellman" => HostSpec::batman_bellman(local_node_id),
         "pathway" => HostSpec::pathway(local_node_id),
         "field" => HostSpec::field(local_node_id),
-        "pathway-batman" => HostSpec::pathway_and_batman(local_node_id),
+        "pathway-batman-bellman" => HostSpec::pathway_and_batman_bellman(local_node_id),
         _ => HostSpec::all_engines(local_node_id),
     }
 }
@@ -3310,8 +4000,12 @@ fn field_heuristic_mode_from_str(label: &str) -> FieldSearchHeuristicMode {
 }
 
 fn normalized_engine_id(engine_id: &jacquard_core::RoutingEngineId) -> &'static str {
-    if engine_id == &BATMAN_ENGINE_ID {
-        "batman"
+    if engine_id == &BATMAN_BELLMAN_ENGINE_ID {
+        "batman-bellman"
+    } else if engine_id == &BATMAN_CLASSIC_ENGINE_ID {
+        "batman-classic"
+    } else if engine_id == &BABEL_ENGINE_ID {
+        "babel"
     } else if engine_id == &PATHWAY_ENGINE_ID {
         "pathway"
     } else if engine_id == &FIELD_ENGINE_ID {
@@ -3660,6 +4354,8 @@ mod tests {
         build_field_bridge_anti_entropy_continuity, build_field_uncertain_service_fanout,
         local_suite, run_suite, smoke_suite, ExperimentParameterSet,
     };
+    use crate::ReducedReplayView;
+    use jacquard_core::{DestinationId, NodeId, ServiceId};
 
     #[test]
     fn smoke_suite_runs_and_writes_artifacts() {
@@ -3710,9 +4406,28 @@ mod tests {
                 .iter()
                 .any(|host| !host.active_routes.is_empty())
         });
+        let reduced = ReducedReplayView::from_replay(&replay);
         assert!(
             any_route_present,
             "expected field bridge anti-entropy scenario to activate at least one route"
+        );
+        let owner = NodeId([1; 32]);
+        let destination = DestinationId::Node(NodeId([4; 32]));
+        assert!(
+            reduced.field_continuation_shift_count(owner, &destination) >= 1,
+            "expected at least one continuation shift in bridge continuity scenario"
+        );
+        assert!(
+            reduced
+                .last_field_route_outcome(owner, &destination)
+                .is_some(),
+            "expected replay-visible route outcome for bridge continuity scenario"
+        );
+        assert!(
+            reduced
+                .last_field_commitment_resolution(owner, &destination)
+                .is_some(),
+            "expected replay-visible commitment resolution for bridge continuity scenario"
         );
     }
 
@@ -3743,9 +4458,25 @@ mod tests {
                 .iter()
                 .any(|host| !host.active_routes.is_empty())
         });
+        let reduced = ReducedReplayView::from_replay(&replay);
         assert!(
             any_route_present,
             "expected field uncertain service scenario to activate at least one route"
+        );
+        let owner = NodeId([1; 32]);
+        let destination = DestinationId::Service(ServiceId(vec![13; 16]));
+        assert!(
+            reduced
+                .last_field_commitment_resolution(owner, &destination)
+                .is_some(),
+            "expected replay-visible commitment resolution for service fanout scenario"
+        );
+        assert!(
+            reduced
+                .last_field_route_outcome(owner, &destination)
+                .is_some()
+                || !reduced.route_present_rounds(owner, &destination).is_empty(),
+            "expected service fanout replay to preserve route lifecycle visibility"
         );
     }
 }

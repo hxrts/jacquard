@@ -8,8 +8,8 @@ from pathlib import Path
 from .data import cleanup_report_dir, ensure_dir, load_json_array, load_ndjson, write_csv
 from .document import write_pdf_report
 from .plots import (
-    render_batman_transition_loss,
-    render_batman_transition_stability,
+    render_batman_bellman_transition_loss,
+    render_batman_bellman_transition_stability,
     render_comparison_summary,
     render_field_budget_reconfiguration,
     render_field_budget_route_presence,
@@ -72,14 +72,14 @@ def main(argv: list[str] | None = None) -> int:
 
     save_plot_artifact(
         report_dir,
-        "batman_transition_stability",
-        render_batman_transition_stability,
+        "batman_bellman_transition_stability",
+        render_batman_bellman_transition_stability,
         aggregates,
     )
     save_plot_artifact(
         report_dir,
-        "batman_transition_loss",
-        render_batman_transition_loss,
+        "batman_bellman_transition_loss",
+        render_batman_bellman_transition_loss,
         aggregates,
     )
     save_plot_artifact(

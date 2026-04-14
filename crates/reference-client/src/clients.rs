@@ -5,7 +5,8 @@
 //! client.
 
 use jacquard_babel::{BabelEngine, DecayWindow as BabelDecayWindow};
-use jacquard_batman::{BatmanEngine, DecayWindow};
+use jacquard_batman_bellman::{BatmanBellmanEngine, DecayWindow};
+use jacquard_batman_classic::{BatmanClassicEngine, DecayWindow as ClassicDecayWindow};
 use jacquard_core::{
     Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, HealthScore,
     IdentityAssuranceClass, LinkEndpoint, NodeId, Observation, OperatingMode, RatioPermille,
@@ -44,14 +45,16 @@ pub struct ClientBuilder {
     now: Tick,
     profile: SelectedRoutingParameters,
     policy_inputs: Option<RoutingPolicyInputs>,
-    batman_decay_window: Option<DecayWindow>,
+    batman_bellman_decay_window: Option<DecayWindow>,
+    batman_classic_decay_window: Option<ClassicDecayWindow>,
     pathway_search_config: Option<PathwaySearchConfig>,
     field_search_config: Option<FieldSearchConfig>,
     field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
     babel_decay_window: Option<BabelDecayWindow>,
     queue_config: BridgeQueueConfig,
     include_pathway: bool,
-    include_batman: bool,
+    include_batman_bellman: bool,
+    include_batman_classic: bool,
     include_babel: bool,
     include_field: bool,
 }
@@ -63,7 +66,7 @@ impl ClientBuilder {
         network: SharedInMemoryNetwork,
         now: Tick,
         include_pathway: bool,
-        include_batman: bool,
+        include_batman_bellman: bool,
         include_babel: bool,
         include_field: bool,
     ) -> Self {
@@ -74,19 +77,21 @@ impl ClientBuilder {
             now,
             profile: default_profile_for_engine_set(
                 include_pathway,
-                include_batman,
+                include_batman_bellman,
                 include_babel,
                 include_field,
             ),
             policy_inputs: None,
-            batman_decay_window: None,
+            batman_bellman_decay_window: None,
+            batman_classic_decay_window: None,
             babel_decay_window: None,
             pathway_search_config: None,
             field_search_config: None,
             field_bootstrap_summaries: Vec::new(),
             queue_config: DEFAULT_BRIDGE_QUEUE_CONFIG,
             include_pathway,
-            include_batman,
+            include_batman_bellman,
+            include_batman_classic: false,
             include_babel,
             include_field,
         }
@@ -112,7 +117,7 @@ impl ClientBuilder {
     }
 
     #[must_use]
-    pub fn batman(
+    pub fn batman_bellman(
         local_node_id: NodeId,
         topology: Observation<Configuration>,
         network: SharedInMemoryNetwork,
@@ -128,6 +133,27 @@ impl ClientBuilder {
             false,
             false,
         )
+    }
+
+    #[must_use]
+    pub fn batman_classic(
+        local_node_id: NodeId,
+        topology: Observation<Configuration>,
+        network: SharedInMemoryNetwork,
+        now: Tick,
+    ) -> Self {
+        let mut builder = Self::with_engine_set(
+            local_node_id,
+            topology,
+            network,
+            now,
+            false,
+            false,
+            false,
+            false,
+        );
+        builder.include_batman_classic = true;
+        builder
     }
 
     #[must_use]
@@ -169,13 +195,13 @@ impl ClientBuilder {
     }
 
     #[must_use]
-    pub fn pathway_and_batman(
+    pub fn pathway_and_batman_bellman(
         local_node_id: NodeId,
         topology: Observation<Configuration>,
         network: SharedInMemoryNetwork,
         now: Tick,
     ) -> Self {
-        Self::pathway(local_node_id, topology, network, now).with_batman()
+        Self::pathway(local_node_id, topology, network, now).with_batman_bellman()
     }
 
     #[must_use]
@@ -189,13 +215,13 @@ impl ClientBuilder {
     }
 
     #[must_use]
-    pub fn field_and_batman(
+    pub fn field_and_batman_bellman(
         local_node_id: NodeId,
         topology: Observation<Configuration>,
         network: SharedInMemoryNetwork,
         now: Tick,
     ) -> Self {
-        Self::field(local_node_id, topology, network, now).with_batman()
+        Self::field(local_node_id, topology, network, now).with_batman_bellman()
     }
 
     #[must_use]
@@ -207,7 +233,7 @@ impl ClientBuilder {
     ) -> Self {
         Self::pathway(local_node_id, topology, network, now)
             .with_field()
-            .with_batman()
+            .with_batman_bellman()
     }
 
     #[must_use]
@@ -247,13 +273,13 @@ impl ClientBuilder {
     }
 
     #[must_use]
-    pub fn babel_and_batman(
+    pub fn babel_and_batman_bellman(
         local_node_id: NodeId,
         topology: Observation<Configuration>,
         network: SharedInMemoryNetwork,
         now: Tick,
     ) -> Self {
-        Self::babel(local_node_id, topology, network, now).with_batman()
+        Self::babel(local_node_id, topology, network, now).with_batman_bellman()
     }
 
     #[must_use]
@@ -267,8 +293,8 @@ impl ClientBuilder {
     }
 
     #[must_use]
-    pub fn with_batman_decay_window(mut self, decay_window: DecayWindow) -> Self {
-        self.batman_decay_window = Some(decay_window);
+    pub fn with_batman_bellman_decay_window(mut self, decay_window: DecayWindow) -> Self {
+        self.batman_bellman_decay_window = Some(decay_window);
         self
     }
 
@@ -279,8 +305,20 @@ impl ClientBuilder {
     }
 
     #[must_use]
-    pub fn with_batman(mut self) -> Self {
-        self.include_batman = true;
+    pub fn with_batman_bellman(mut self) -> Self {
+        self.include_batman_bellman = true;
+        self
+    }
+
+    #[must_use]
+    pub fn with_batman_classic(mut self) -> Self {
+        self.include_batman_classic = true;
+        self
+    }
+
+    #[must_use]
+    pub fn with_batman_classic_decay_window(mut self, decay_window: ClassicDecayWindow) -> Self {
+        self.batman_classic_decay_window = Some(decay_window);
         self
     }
 
@@ -339,9 +377,9 @@ impl ClientBuilder {
                 .expect("register pathway engine");
         }
 
-        if self.include_batman {
-            let batman_engine = if let Some(decay_window) = self.batman_decay_window {
-                BatmanEngine::with_decay_window(
+        if self.include_batman_bellman {
+            let batman_engine = if let Some(decay_window) = self.batman_bellman_decay_window {
+                BatmanBellmanEngine::with_decay_window(
                     self.local_node_id,
                     transport.sender(),
                     InMemoryRuntimeEffects {
@@ -351,7 +389,7 @@ impl ClientBuilder {
                     decay_window,
                 )
             } else {
-                BatmanEngine::new(
+                BatmanBellmanEngine::new(
                     self.local_node_id,
                     transport.sender(),
                     InMemoryRuntimeEffects {
@@ -363,6 +401,32 @@ impl ClientBuilder {
             router
                 .register_engine(Box::new(batman_engine))
                 .expect("register batman engine");
+        }
+
+        if self.include_batman_classic {
+            let classic_engine = if let Some(decay_window) = self.batman_classic_decay_window {
+                BatmanClassicEngine::with_decay_window(
+                    self.local_node_id,
+                    transport.sender(),
+                    InMemoryRuntimeEffects {
+                        now: self.now,
+                        ..Default::default()
+                    },
+                    decay_window,
+                )
+            } else {
+                BatmanClassicEngine::new(
+                    self.local_node_id,
+                    transport.sender(),
+                    InMemoryRuntimeEffects {
+                        now: self.now,
+                        ..Default::default()
+                    },
+                )
+            };
+            router
+                .register_engine(Box::new(classic_engine))
+                .expect("register batman-classic engine");
         }
 
         if self.include_babel {
@@ -536,11 +600,11 @@ fn batman_default_profile() -> SelectedRoutingParameters {
 
 fn default_profile_for_engine_set(
     include_pathway: bool,
-    include_batman: bool,
+    include_batman_bellman: bool,
     include_babel: bool,
     include_field: bool,
 ) -> SelectedRoutingParameters {
-    if (include_batman || include_babel) && !include_pathway && !include_field {
+    if (include_batman_bellman || include_babel) && !include_pathway && !include_field {
         batman_default_profile()
     } else {
         default_profile()

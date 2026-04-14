@@ -20,7 +20,7 @@
 
 use std::collections::BTreeMap;
 
-use jacquard_batman::BATMAN_ENGINE_ID;
+use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
 use jacquard_core::{
     Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, Environment,
     FactSourceClass, NodeId, Observation, OperatingMode, OriginAuthenticationClass, PriorityPoints,
@@ -102,8 +102,11 @@ fn mixed_engine_configuration() -> Observation<Configuration> {
         value: Configuration {
             epoch: jacquard_core::RouteEpoch(3),
             nodes: BTreeMap::from([
-                (NODE_A, topology::node(1).batman().build()),
-                (NODE_B, topology::node(2).pathway_and_batman().build()),
+                (NODE_A, topology::node(1).batman_bellman().build()),
+                (
+                    NODE_B,
+                    topology::node(2).pathway_and_batman_bellman().build(),
+                ),
                 (
                     NODE_C,
                     topology::node(3).for_engine(&PATHWAY_ENGINE_ID).build(),
@@ -226,13 +229,18 @@ fn mixed_engine_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
 ) -> (ReferenceClient, ReferenceClient, ReferenceClient) {
-    let client_a = ClientBuilder::batman(NODE_A, topology.clone(), network.clone(), Tick(2))
-        .with_profile(relay_profile())
-        .build();
-    let client_b =
-        ClientBuilder::pathway_and_batman(NODE_B, topology.clone(), network.clone(), Tick(2))
+    let client_a =
+        ClientBuilder::batman_bellman(NODE_A, topology.clone(), network.clone(), Tick(2))
             .with_profile(relay_profile())
             .build();
+    let client_b = ClientBuilder::pathway_and_batman_bellman(
+        NODE_B,
+        topology.clone(),
+        network.clone(),
+        Tick(2),
+    )
+    .with_profile(relay_profile())
+    .build();
     let client_c = ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2)).build();
 
     (client_a, client_b, client_c)
@@ -404,7 +412,7 @@ fn routing_spans_batman_then_pathway() {
     //    per objective rather than silently falling back.
     assert_eq!(
         route_a_to_b.identity.admission.summary.engine,
-        BATMAN_ENGINE_ID
+        BATMAN_BELLMAN_ENGINE_ID
     );
     assert_eq!(
         route_b_to_c.identity.admission.summary.engine,

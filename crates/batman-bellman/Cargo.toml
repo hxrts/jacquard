@@ -1,5 +1,5 @@
 [package]
-name = "jacquard-batman"
+name = "jacquard-batman-bellman"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,7 +7,7 @@ authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
 documentation.workspace = true
-description = "Proactive BATMAN-style next-hop routing engine for Jacquard"
+description = "Bellman-Ford enhanced BATMAN next-hop routing engine for Jacquard"
 
 [lints]
 workspace = true

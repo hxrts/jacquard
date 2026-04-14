@@ -39,9 +39,37 @@ def score_expression(profile_id: str) -> pl.Expr:
     )
 
 
+_OPTIONAL_FLOAT_COLUMNS = [
+    "field_degraded_steady_entry_permille_mean",
+    "field_degraded_steady_recovery_permille_mean",
+    "field_degraded_to_bootstrap_permille_mean",
+    "field_degraded_steady_round_permille_mean",
+    "field_service_retention_carry_forward_permille_mean",
+    "field_asymmetric_shift_success_permille_mean",
+]
+
+_OPTIONAL_STR_COLUMNS = [
+    "field_continuity_band_mode",
+    "field_commitment_resolution_mode",
+    "field_last_outcome_mode",
+    "field_last_continuity_transition_mode",
+]
+
+
+def _ensure_optional_columns(df: pl.DataFrame) -> pl.DataFrame:
+    for col in _OPTIONAL_FLOAT_COLUMNS:
+        if col not in df.columns:
+            df = df.with_columns(pl.lit(None).cast(pl.Float64).alias(col))
+    for col in _OPTIONAL_STR_COLUMNS:
+        if col not in df.columns:
+            df = df.with_columns(pl.lit(None).cast(pl.String).alias(col))
+    return df
+
+
 def recommendation_table(
     aggregates: pl.DataFrame, breakdowns: pl.DataFrame, profile_id: str = "balanced"
 ) -> pl.DataFrame:
+    aggregates = _ensure_optional_columns(aggregates)
     joined = aggregates.join(
         breakdowns.select(["engine_family", "config_id", "max_sustained_stress_score"]),
         on=["engine_family", "config_id"],
@@ -78,6 +106,44 @@ def recommendation_table(
             pl.col("field_bootstrap_withdraw_permille_mean")
             .mean()
             .alias("field_bootstrap_withdraw_mean"),
+            pl.col("field_degraded_steady_entry_permille_mean")
+            .mean()
+            .alias("field_degraded_steady_entry_mean"),
+            pl.col("field_degraded_steady_recovery_permille_mean")
+            .mean()
+            .alias("field_degraded_steady_recovery_mean"),
+            pl.col("field_degraded_to_bootstrap_permille_mean")
+            .mean()
+            .alias("field_degraded_to_bootstrap_mean"),
+            pl.col("field_degraded_steady_round_permille_mean")
+            .mean()
+            .alias("field_degraded_steady_round_mean"),
+            pl.col("field_service_retention_carry_forward_permille_mean")
+            .mean()
+            .alias("field_service_retention_carry_forward_mean"),
+            pl.col("field_asymmetric_shift_success_permille_mean")
+            .mean()
+            .alias("field_asymmetric_shift_success_mean"),
+            pl.col("field_continuity_band_mode")
+            .drop_nulls()
+            .mode()
+            .first()
+            .alias("field_continuity_band_mode"),
+            pl.col("field_commitment_resolution_mode")
+            .drop_nulls()
+            .mode()
+            .first()
+            .alias("field_commitment_resolution_mode"),
+            pl.col("field_last_outcome_mode")
+            .drop_nulls()
+            .mode()
+            .first()
+            .alias("field_last_outcome_mode"),
+            pl.col("field_last_continuity_transition_mode")
+            .drop_nulls()
+            .mode()
+            .first()
+            .alias("field_last_continuity_transition_mode"),
             pl.col("field_last_promotion_decision_mode")
             .drop_nulls()
             .mode()
@@ -110,7 +176,7 @@ def profile_recommendation_table(
 ) -> pl.DataFrame:
     frames: list[pl.DataFrame] = []
     for engine_family, profiles in {
-        "batman": ["conservative", "aggressive", "degraded-network"],
+        "batman-bellman": ["conservative", "aggressive", "degraded-network"],
         "pathway": ["balanced", "service-heavy", "degraded-network"],
         "field": ["balanced", "conservative", "degraded-network"],
     }.items():
@@ -138,7 +204,7 @@ def leading_recommendation_configs(
     recommendations: pl.DataFrame, limit_per_engine: int = 2
 ) -> pl.DataFrame:
     frames: list[pl.DataFrame] = []
-    for engine_family in ["batman", "pathway", "field", "comparison"]:
+    for engine_family in ["batman-bellman", "pathway", "field", "comparison"]:
         family = recommendations.filter(pl.col("engine_family") == engine_family).head(
             limit_per_engine
         )
@@ -262,7 +328,7 @@ def baseline_comparison_table(
     baseline = pl.read_csv(baseline_dir / "report" / "recommendations.csv")
     current_frames = []
     prior_frames = []
-    for engine_family in ["batman", "pathway", "field", "comparison"]:
+    for engine_family in ["batman-bellman", "pathway", "field", "comparison"]:
         current_family = recommendations.filter(pl.col("engine_family") == engine_family).head(1)
         if not current_family.is_empty():
             current_frames.append(current_family)
@@ -326,7 +392,7 @@ def write_recommendations(path: Path, recommendations: pl.DataFrame) -> None:
         "They should be read as robust defaults for this tuning corpus, not as single-scenario winners.",
         "",
     ]
-    for engine_family in ["batman", "pathway", "field", "comparison"]:
+    for engine_family in ["batman-bellman", "pathway", "field", "comparison"]:
         rows = top_recommendation_rows(recommendations, engine_family, 3)
         if not rows and engine_family != "field":
             continue

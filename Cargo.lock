@@ -585,7 +585,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "jacquard-batman"
+name = "jacquard-batman-bellman"
 version = "0.4.0"
 dependencies = [
  "bincode",
@@ -704,7 +704,8 @@ version = "0.4.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-babel",
- "jacquard-batman",
+ "jacquard-batman-bellman",
+ "jacquard-batman-classic",
  "jacquard-core",
  "jacquard-field",
  "jacquard-mem-link-profile",
@@ -720,7 +721,7 @@ name = "jacquard-router"
 version = "0.4.0"
 dependencies = [
  "bincode",
- "jacquard-batman",
+ "jacquard-batman-bellman",
  "jacquard-core",
  "jacquard-field",
  "jacquard-mem-link-profile",
@@ -736,7 +737,8 @@ version = "0.4.0"
 dependencies = [
  "jacquard-adapter",
  "jacquard-babel",
- "jacquard-batman",
+ "jacquard-batman-bellman",
+ "jacquard-batman-classic",
  "jacquard-core",
  "jacquard-field",
  "jacquard-mem-link-profile",

@@ -27,7 +27,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use jacquard_batman::BatmanEngine;
+use jacquard_batman_bellman::BatmanBellmanEngine;
 use jacquard_core::{RoutePartitionClass, Tick};
 use jacquard_field::FieldEngine;
 use jacquard_mem_link_profile::{
@@ -326,16 +326,16 @@ pub(crate) fn build_router_with_pathway_and_batman(
             nodes: std::collections::BTreeMap::from([
                 (
                     LOCAL_NODE_ID,
-                    topology::node(1).pathway_and_batman().build(),
+                    topology::node(1).pathway_and_batman_bellman().build(),
                 ),
                 (
                     super::fixtures::PEER_NODE_ID,
-                    topology::node(2).pathway_and_batman().build(),
+                    topology::node(2).pathway_and_batman_bellman().build(),
                 ),
                 (
                     super::fixtures::FAR_NODE_ID,
                     topology::node(3)
-                        .for_engine(&jacquard_batman::BATMAN_ENGINE_ID)
+                        .for_engine(&jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID)
                         .build(),
                 ),
                 (
@@ -402,7 +402,7 @@ pub(crate) fn build_router_with_pathway_and_batman(
         },
         Blake3Hashing,
     );
-    let batman_engine = BatmanEngine::new(
+    let batman_engine = BatmanBellmanEngine::new(
         LOCAL_NODE_ID,
         batman_transport,
         InMemoryRuntimeEffects {

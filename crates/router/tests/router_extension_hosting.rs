@@ -13,7 +13,7 @@ use common::{
     build_router_with_opaque_engine, build_router_with_pathway_and_batman, objective, FAR_NODE_ID,
     LOCAL_NODE_ID, PEER_NODE_ID,
 };
-use jacquard_batman::BATMAN_ENGINE_ID;
+use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
 use jacquard_core::{
     Belief, ConnectivityPosture, DestinationId, RoutePartitionClass, RouteRepairClass,
     RouteShapeVisibility, RoutingEngineId, RoutingTickChange, RoutingTickHint, Tick,
@@ -63,12 +63,12 @@ fn router_can_host_real_pathway_and_batman_engines_together() {
         Router::activate_route(&mut router, batman_objective).expect("batman-backed activation");
     assert_eq!(
         batman_route.identity.admission.summary.engine,
-        BATMAN_ENGINE_ID
+        BATMAN_BELLMAN_ENGINE_ID
     );
     assert_eq!(batman_route.identity.lease.owner_node_id, LOCAL_NODE_ID);
     assert_eq!(
         router.registered_engine_ids(),
-        vec![BATMAN_ENGINE_ID, PATHWAY_ENGINE_ID]
+        vec![BATMAN_BELLMAN_ENGINE_ID, PATHWAY_ENGINE_ID]
     );
     assert_eq!(
         router
@@ -79,7 +79,7 @@ fn router_can_host_real_pathway_and_batman_engines_together() {
     );
     assert_eq!(
         router
-            .registered_engine_capabilities(&BATMAN_ENGINE_ID)
+            .registered_engine_capabilities(&BATMAN_BELLMAN_ENGINE_ID)
             .expect("registered batman engine")
             .route_shape_visibility,
         RouteShapeVisibility::NextHopOnly

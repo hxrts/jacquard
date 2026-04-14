@@ -12,8 +12,8 @@ use jacquard_reference_client::{
     FieldBootstrapSummary as ClientFieldBootstrapSummary, ReferenceClient, ReferenceRouter,
 };
 use jacquard_traits::{
-    purity, RoutingControlPlane, RoutingEnvironmentModel, RoutingReplayView, RoutingScenario,
-    RoutingSimulator,
+    purity, Router, RoutingControlPlane, RoutingEnvironmentModel, RoutingReplayView,
+    RoutingScenario, RoutingSimulator,
 };
 use telltale_simulator::{BatchConfig, SimRng};
 use thiserror::Error;
@@ -87,7 +87,7 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
                     network.clone(),
                     topology.observed_at_tick,
                 ),
-                EngineLane::PathwayAndBatman => ClientBuilder::pathway_and_batman(
+                EngineLane::PathwayAndBatmanBellman => ClientBuilder::pathway_and_batman_bellman(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
@@ -99,7 +99,7 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
                     network.clone(),
                     topology.observed_at_tick,
                 ),
-                EngineLane::FieldAndBatman => ClientBuilder::field_and_batman(
+                EngineLane::FieldAndBatmanBellman => ClientBuilder::field_and_batman_bellman(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
@@ -111,7 +111,13 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
                     network.clone(),
                     topology.observed_at_tick,
                 ),
-                EngineLane::Batman => ClientBuilder::batman(
+                EngineLane::BatmanBellman => ClientBuilder::batman_bellman(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
+                EngineLane::BatmanClassic => ClientBuilder::batman_classic(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
@@ -129,7 +135,7 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
                     network.clone(),
                     topology.observed_at_tick,
                 ),
-                EngineLane::BabelAndBatman => ClientBuilder::babel_and_batman(
+                EngineLane::BabelAndBatmanBellman => ClientBuilder::babel_and_batman_bellman(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
@@ -142,8 +148,11 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
             if let Some(policy_inputs) = host.overrides.policy_inputs.clone() {
                 builder = builder.with_policy_inputs(policy_inputs);
             }
-            if let Some(batman_decay_window) = host.overrides.batman_decay_window {
-                builder = builder.with_batman_decay_window(batman_decay_window);
+            if let Some(batman_bellman_decay_window) = host.overrides.batman_bellman_decay_window {
+                builder = builder.with_batman_bellman_decay_window(batman_bellman_decay_window);
+            }
+            if let Some(batman_classic_decay_window) = host.overrides.batman_classic_decay_window {
+                builder = builder.with_batman_classic_decay_window(batman_classic_decay_window);
             }
             if let Some(babel_decay_window) = host.overrides.babel_decay_window {
                 builder = builder.with_babel_decay_window(babel_decay_window);
@@ -536,6 +545,16 @@ fn summarize_field_replay(router: &ReferenceRouter) -> Option<FieldReplaySummary
         .entries
         .iter()
         .any(|entry| entry.bootstrap_active);
+    let continuity_band = bundle
+        .recovery
+        .entries
+        .iter()
+        .find_map(|entry| entry.continuity_band.clone());
+    let last_continuity_transition = bundle
+        .recovery
+        .entries
+        .iter()
+        .find_map(|entry| entry.last_continuity_transition.clone());
     let last_promotion_decision = bundle
         .recovery
         .entries
@@ -579,6 +598,48 @@ fn summarize_field_replay(router: &ReferenceRouter) -> Option<FieldReplaySummary
         .entries
         .iter()
         .map(|entry| entry.bootstrap_withdraw_count)
+        .max()
+        .unwrap_or(0);
+    let degraded_steady_entry_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.degraded_steady_entry_count)
+        .max()
+        .unwrap_or(0);
+    let degraded_steady_recovery_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.degraded_steady_recovery_count)
+        .max()
+        .unwrap_or(0);
+    let degraded_to_bootstrap_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.degraded_to_bootstrap_count)
+        .max()
+        .unwrap_or(0);
+    let degraded_steady_round_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.degraded_steady_round_count)
+        .max()
+        .unwrap_or(0);
+    let service_retention_carry_forward_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.service_retention_carry_forward_count)
+        .max()
+        .unwrap_or(0);
+    let asymmetric_shift_success_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.asymmetric_shift_success_count)
         .max()
         .unwrap_or(0);
     let protocol_reconfiguration_count = bundle.protocol.reconfigurations.len();
@@ -628,6 +689,8 @@ fn summarize_field_replay(router: &ReferenceRouter) -> Option<FieldReplaySummary
         search_reconfiguration_present,
         execution_policy,
         bootstrap_active,
+        continuity_band,
+        last_continuity_transition,
         last_promotion_decision,
         last_promotion_blocker,
         bootstrap_activation_count,
@@ -635,6 +698,12 @@ fn summarize_field_replay(router: &ReferenceRouter) -> Option<FieldReplaySummary
         bootstrap_narrow_count,
         bootstrap_upgrade_count,
         bootstrap_withdraw_count,
+        degraded_steady_entry_count,
+        degraded_steady_recovery_count,
+        degraded_to_bootstrap_count,
+        degraded_steady_round_count,
+        service_retention_carry_forward_count,
+        asymmetric_shift_success_count,
         protocol_reconfiguration_count,
         route_bound_reconfiguration_count,
         continuation_shift_count,
@@ -676,17 +745,46 @@ fn summarize_active_routes(
     owner_node_id: NodeId,
     router: &ReferenceRouter,
 ) -> Vec<ActiveRouteSummary> {
+    let field_bundle = router
+        .engine_analysis_snapshot(&FIELD_ENGINE_ID)
+        .and_then(|snapshot| snapshot.downcast::<FieldExportedReplayBundle>().ok())
+        .map(|boxed| *boxed);
     router
         .active_routes_snapshot()
         .into_iter()
-        .map(|route| ActiveRouteSummary {
-            owner_node_id,
-            route_id: route.identity.stamp.route_id,
-            destination: route.identity.admission.objective.destination,
-            engine_id: route.identity.admission.summary.engine,
-            last_lifecycle_event: route.runtime.last_lifecycle_event,
-            reachability_state: route.runtime.health.reachability_state,
-            stability_score: route.runtime.health.stability_score,
+        .map(|route| {
+            let route_id = route.identity.stamp.route_id;
+            let recovery_entry = field_bundle.as_ref().and_then(|bundle| {
+                bundle
+                    .recovery
+                    .entries
+                    .iter()
+                    .find(|entry| entry.route_id == route_id)
+            });
+            let commitment_resolution = router
+                .route_commitments(&route_id)
+                .ok()
+                .and_then(|commitments| commitments.into_iter().next())
+                .map(|commitment| format!("{:?}", commitment.resolution));
+            ActiveRouteSummary {
+                owner_node_id,
+                route_id,
+                destination: route.identity.admission.objective.destination,
+                engine_id: route.identity.admission.summary.engine,
+                last_lifecycle_event: route.runtime.last_lifecycle_event,
+                reachability_state: route.runtime.health.reachability_state,
+                stability_score: route.runtime.health.stability_score,
+                commitment_resolution,
+                field_continuity_band: recovery_entry
+                    .and_then(|entry| entry.continuity_band.clone()),
+                field_last_outcome: recovery_entry.and_then(|entry| entry.last_outcome.clone()),
+                field_last_promotion_decision: recovery_entry
+                    .and_then(|entry| entry.last_promotion_decision.clone()),
+                field_last_promotion_blocker: recovery_entry
+                    .and_then(|entry| entry.last_promotion_blocker.clone()),
+                field_continuation_shift_count: recovery_entry
+                    .map(|entry| entry.continuation_shift_count),
+            }
         })
         .collect()
 }

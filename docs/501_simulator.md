@@ -4,9 +4,9 @@
 
 Hosts own transport drivers. The bridge stamps ingress with Jacquard `Tick`. The router advances through explicit synchronous rounds. Engines keep private runtime state below the shared routing boundary.
 
-The simulator runs two lanes, selected per host through `EngineLane`. The `pathway` engine uses a Telltale-backed lane. Its runtime is choreography-driven internally. The `batman` engine uses a plain deterministic-round lane.
+The simulator runs two lanes, selected per host through `EngineLane`. The `pathway` engine uses a Telltale-backed lane. Its runtime is choreography-driven internally. The batman-bellman engine uses a plain deterministic-round lane.
 
-The `batman` engine is a proactive next-hop state machine. Mixed-engine scenarios use `EngineLane::PathwayAndBatman`. Both engines share one host bridge.
+The batman-bellman engine is a proactive next-hop state machine. Mixed-engine scenarios use `EngineLane::PathwayAndBatmanBellman`. Both engines share one host bridge.
 
 The simulator also owns the maintained tuning harness. `just tuning-smoke` and
 `just tuning-local` run the scenario matrix sweeps, write deterministic

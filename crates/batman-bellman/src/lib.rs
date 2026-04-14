@@ -34,11 +34,11 @@ use public_state::{
     ActiveBatmanRoute, BestNextHop, NeighborRanking, OgmReceiveWindow, OriginatorObservationTable,
 };
 
-pub const BATMAN_ENGINE_ID: RoutingEngineId =
-    RoutingEngineId::from_contract_bytes(*b"jacquard.batman.");
+pub const BATMAN_BELLMAN_ENGINE_ID: RoutingEngineId =
+    RoutingEngineId::from_contract_bytes(*b"jacquard.batmanb");
 
-pub const BATMAN_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilities {
-    engine: BATMAN_ENGINE_ID,
+pub const BATMAN_BELLMAN_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilities {
+    engine: BATMAN_BELLMAN_ENGINE_ID,
     max_protection: RouteProtectionClass::LinkProtected,
     max_connectivity: ConnectivityPosture {
         repair: RouteRepairClass::Repairable,
@@ -52,7 +52,7 @@ pub const BATMAN_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabili
     route_shape_visibility: RouteShapeVisibility::NextHopOnly,
 };
 
-pub struct BatmanEngine<Transport, Effects> {
+pub struct BatmanBellmanEngine<Transport, Effects> {
     local_node_id: NodeId,
     transport: Transport,
     effects: Effects,
@@ -67,7 +67,7 @@ pub struct BatmanEngine<Transport, Effects> {
     active_routes: BTreeMap<RouteId, ActiveBatmanRoute>,
 }
 
-impl<Transport, Effects> BatmanEngine<Transport, Effects> {
+impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
     #[must_use]
     pub fn new(local_node_id: NodeId, transport: Transport, effects: Effects) -> Self {
         Self::with_decay_window(local_node_id, transport, effects, DecayWindow::default())

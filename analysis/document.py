@@ -27,7 +27,7 @@ from svglib.svglib import svg2rlg
 from .sections import (
     approach_lines,
     asset_block,
-    batman_algorithm_lines,
+    batman_bellman_algorithm_lines,
     comparison_findings_lines,
     engine_section_lines,
     executive_summary_lines,
@@ -56,7 +56,7 @@ from .tables import (
 
 
 def codeify_known_terms(text: str) -> str:
-    terms = ["pathway-batman", "batman", "pathway", "field"]
+    terms = ["pathway-batman", "batman-bellman", "pathway", "field"]
     pattern = re.compile(r"\b(" + "|".join(re.escape(term) for term in terms) + r")\b")
     parts = re.split(r"(`[^`]+`)", text)
     wrapped: list[str] = []
@@ -156,11 +156,14 @@ def build_styles():
         ParagraphStyle(
             name="Caption",
             parent=styles["BodyText"],
-            fontName="Helvetica",
-            fontSize=8.6,
+            fontName="Helvetica-Oblique",
+            fontSize=8.2,
             leading=11,
-            textColor=colors.HexColor("#334155"),
-            spaceAfter=8,
+            textColor=colors.HexColor("#64748b"),
+            spaceBefore=4,
+            spaceAfter=10,
+            leftIndent=24,
+            rightIndent=24,
         )
     )
     styles.add(
@@ -308,10 +311,10 @@ def write_pdf_report(
     doc = SimpleDocTemplate(
         str(report_dir / "tuning_report.pdf"),
         pagesize=A4,
-        leftMargin=1.6 * cm,
-        rightMargin=1.6 * cm,
-        topMargin=1.5 * cm,
-        bottomMargin=1.4 * cm,
+        leftMargin=2.2 * cm,
+        rightMargin=2.2 * cm,
+        topMargin=2.0 * cm,
+        bottomMargin=2.0 * cm,
         title="Jacquard Routing: Tuning and Analysis",
     )
     story: list = []
@@ -376,7 +379,7 @@ def write_pdf_report(
         ("Matrix Design", methodology_lines()),
         ("Regime Assumptions", regime_assumption_lines()),
         ("Regime Characterization", regime_characterization_lines()),
-        ("BATMAN Algorithm", batman_algorithm_lines()),
+        ("BATMAN Algorithm", batman_bellman_algorithm_lines()),
         ("Pathway Algorithm", pathway_algorithm_lines()),
         ("Field Algorithm", field_algorithm_lines()),
         ("Analytical Approach", approach_lines()),
@@ -403,20 +406,20 @@ def write_pdf_report(
     story.append(PageBreak())
     story.append(Paragraph("Part II. Analysis", styles["Section"]))
 
-    story.append(Paragraph("5. BATMAN Analysis", styles["Section"]))
+    story.append(Paragraph("5. BATMAN Bellman Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
-    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "batman"))
+    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "batman-bellman"))
     story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
-    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "batman"))
+    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "batman-bellman"))
     story.append(Paragraph("Transition Pressure Analysis", styles["Subsection"]))
-    add_paragraphs(story, styles, section_lines("BATMAN Transition Analysis"))
+    add_paragraphs(story, styles, section_lines("BATMAN Bellman Transition Analysis"))
     add_figure(
         story,
         styles,
         report_dir,
         "Figure 1",
-        "Figure 1. BATMAN stability across transition families",
-        16.8 * cm,
+        "Figure 1. BATMAN Bellman stability across transition families",
+        16.4 * cm,
         8.2 * cm,
     )
     add_figure(
@@ -424,8 +427,8 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 2",
-        "Figure 2. BATMAN loss timing across transition families",
-        16.8 * cm,
+        "Figure 2. BATMAN Bellman loss timing across transition families",
+        16.4 * cm,
         7.4 * cm,
     )
     story.append(PageBreak())
@@ -443,7 +446,7 @@ def write_pdf_report(
         report_dir,
         "Figure 3",
         "Figure 3. Pathway route presence by search budget",
-        16.8 * cm,
+        16.4 * cm,
         8.0 * cm,
     )
     add_figure(
@@ -452,7 +455,7 @@ def write_pdf_report(
         report_dir,
         "Figure 4",
         "Figure 4. Pathway activation cliffs by search budget",
-        16.8 * cm,
+        16.4 * cm,
         7.2 * cm,
     )
     story.append(PageBreak())
@@ -470,8 +473,8 @@ def write_pdf_report(
         report_dir,
         "Figure 5",
         "Figure 5. Field route presence by search budget",
-        16.8 * cm,
-        8.0 * cm,
+        16.4 * cm,
+        9.6 * cm,
     )
     add_figure(
         story,
@@ -479,8 +482,8 @@ def write_pdf_report(
         report_dir,
         "Figure 6",
         "Figure 6. Field corridor reconfiguration by search budget",
-        16.8 * cm,
-        7.2 * cm,
+        16.4 * cm,
+        9.6 * cm,
     )
     story.append(PageBreak())
 
@@ -538,7 +541,7 @@ def write_pdf_report(
                 report_dir,
                 "Figure 7",
                 "Figure 7. Dominant engine by comparison regime",
-                19.92 * cm,
+                14.8 * cm,
                 10.2 * cm,
             )
         )
@@ -551,7 +554,7 @@ def write_pdf_report(
                 report_dir,
                 "Figure 8",
                 "Figure 8. Head-to-head route presence by engine set",
-                19.92 * cm,
+                16.4 * cm,
                 10.2 * cm,
             )
         )

@@ -1,4 +1,4 @@
-use jacquard_batman::BATMAN_ENGINE_ID;
+use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
 use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_simulator::{
@@ -48,7 +48,7 @@ fn composition_next_hop_only_viable_selects_batman() {
         .expect_engine_selected(
             jacquard_core::NodeId([1; 32]),
             jacquard_core::DestinationId::Node(jacquard_core::NodeId([3; 32])),
-            &BATMAN_ENGINE_ID,
+            &BATMAN_BELLMAN_ENGINE_ID,
         )
         .evaluate(&reduced)
         .expect("next-hop-only composition assertions");
@@ -92,7 +92,7 @@ fn composition_concurrent_objectives_select_distinct_engines() {
         .expect_engine_selected(
             jacquard_core::NodeId([1; 32]),
             jacquard_core::DestinationId::Node(jacquard_core::NodeId([2; 32])),
-            &BATMAN_ENGINE_ID,
+            &BATMAN_BELLMAN_ENGINE_ID,
         )
         .expect_engine_selected(
             jacquard_core::NodeId([3; 32]),
@@ -121,7 +121,11 @@ fn composition_cascade_partition_eliminates_route() {
     ScenarioAssertions::new()
         .expect_route_materialized(batman_owner, batman_destination.clone())
         .expect_route_materialized(field_owner, field_destination.clone())
-        .expect_engine_selected(batman_owner, batman_destination.clone(), &BATMAN_ENGINE_ID)
+        .expect_engine_selected(
+            batman_owner,
+            batman_destination.clone(),
+            &BATMAN_BELLMAN_ENGINE_ID,
+        )
         .expect_engine_selected(field_owner, field_destination.clone(), &FIELD_ENGINE_ID)
         .evaluate(&reduced)
         .expect("cascade partition initial assertions");

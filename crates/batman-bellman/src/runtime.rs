@@ -1,4 +1,4 @@
-//! `RoutingEngine` and `RouterManagedEngine` impls for `BatmanEngine`.
+//! `RoutingEngine` and `RouterManagedEngine` impls for `BatmanBellmanEngine`.
 //!
 //! Provides the full lifecycle surface for installed BATMAN routes:
 //!
@@ -36,7 +36,7 @@ use crate::{
     },
     private_state::link_is_usable,
     public_state::ActiveBatmanRoute,
-    scoring, BatmanEngine, BATMAN_ENGINE_ID,
+    scoring, BatmanBellmanEngine, BATMAN_BELLMAN_ENGINE_ID,
 };
 
 fn health_scores_from_tq(tq: RatioPermille) -> (HealthScore, jacquard_core::PenaltyPoints) {
@@ -49,7 +49,7 @@ fn health_scores_from_tq(tq: RatioPermille) -> (HealthScore, jacquard_core::Pena
     )
 }
 
-impl<Transport, Effects> BatmanEngine<Transport, Effects>
+impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects>
 where
     Transport: TransportSenderEffects,
     Effects: TimeEffects,
@@ -140,7 +140,7 @@ where
     }
 }
 
-impl<Transport, Effects> RoutingEngine for BatmanEngine<Transport, Effects>
+impl<Transport, Effects> RoutingEngine for BatmanBellmanEngine<Transport, Effects>
 where
     Transport: TransportSenderEffects,
     Effects: TimeEffects,
@@ -152,7 +152,7 @@ where
         let DestinationId::Node(destination) = input.admission.objective.destination else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
-        if input.admission.backend_ref.engine != BATMAN_ENGINE_ID {
+        if input.admission.backend_ref.engine != BATMAN_BELLMAN_ENGINE_ID {
             return Err(RouteRuntimeError::Invalidated.into());
         }
         let Some(best) = self.best_next_hops.get(&destination) else {
@@ -258,7 +258,7 @@ where
     }
 }
 
-impl<Transport, Effects> RouterManagedEngine for BatmanEngine<Transport, Effects>
+impl<Transport, Effects> RouterManagedEngine for BatmanBellmanEngine<Transport, Effects>
 where
     Transport: TransportSenderEffects,
     Effects: TimeEffects,
@@ -337,7 +337,7 @@ mod tests {
                 endpoint(byte),
                 Tick(1),
             ),
-            &BATMAN_ENGINE_ID,
+            &BATMAN_BELLMAN_ENGINE_ID,
         )
         .build()
     }
@@ -445,7 +445,7 @@ mod tests {
     }
 
     fn install_route(
-        engine: &mut BatmanEngine<InMemoryTransport, InMemoryRuntimeEffects>,
+        engine: &mut BatmanBellmanEngine<InMemoryTransport, InMemoryRuntimeEffects>,
         topology: &Observation<Configuration>,
     ) -> (PublishedRouteRecord, RouteRuntimeState) {
         let objective = sample_objective();
@@ -484,7 +484,7 @@ mod tests {
 
     #[test]
     fn maintain_route_recommends_replacement_for_better_next_hop() {
-        let mut engine = BatmanEngine::new(
+        let mut engine = BatmanBellmanEngine::new(
             node(1),
             InMemoryTransport::new(),
             InMemoryRuntimeEffects {
@@ -533,7 +533,7 @@ mod tests {
 
     #[test]
     fn maintain_route_expires_when_originator_disappears() {
-        let mut engine = BatmanEngine::with_decay_window(
+        let mut engine = BatmanBellmanEngine::with_decay_window(
             node(1),
             InMemoryTransport::new(),
             InMemoryRuntimeEffects {

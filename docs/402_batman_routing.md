@@ -2,7 +2,7 @@
 
 Two BATMAN routing engines are provided. Each implements the proactive originator-message model over the shared Jacquard world picture.
 
-- `jacquard-batman` (engine ID `jacquard.batman.`) is the Jacquard-enhanced engine. It replaces the spec's distributed TQ propagation with a local Bellman-Ford computation over a gossip-merged topology graph. It enriches TQ with Jacquard link beliefs and includes a bootstrap shortcut for tick-1 route availability. This is the engine measured in the tuning corpus.
+- `jacquard-batman-bellman` (engine ID `jacquard.batmanb`) is the Jacquard-enhanced engine. It replaces the spec's distributed TQ propagation with a local Bellman-Ford computation over a gossip-merged topology graph. It enriches TQ with Jacquard link beliefs and includes a bootstrap shortcut for tick-1 route availability. This is the engine measured in the tuning corpus.
 
 - `jacquard-batman-classic` (engine ID `jacquard.batmanc`) is a spec-faithful engine. It implements the BATMAN IV originator-message model without structural departures. TQ is carried in the OGM and updated by each re-broadcasting node. No candidate is emitted before receive-window data has accumulated.
 
@@ -78,7 +78,7 @@ If no receive-window data has accumulated for a `(originator, via_neighbor)` pai
 
 ---
 
-## Enhanced BATMAN (`jacquard.batman.`)
+## Enhanced BATMAN (`jacquard.batmanb`)
 
 ### OGM Structure
 

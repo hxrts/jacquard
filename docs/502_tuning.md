@@ -6,7 +6,7 @@ public parameters, writes stable artifacts under `artifacts/tuning/`, and
 generates CSV tables plus a PDF report with vector plots through the repo-local
 Python, Polars, matplotlib, and ReportLab toolchain. It also includes a
 dedicated head-to-head corpus that runs the same regimes under four explicit
-engine sets: `batman`, `pathway`, `field`, and `pathway-batman`.
+engine sets: `batman-bellman`, `pathway`, `field`, and `pathway-batman-bellman`.
 
 ## Commands
 
@@ -122,10 +122,12 @@ Field-specific CSV columns, and Field plot/report sections. The matrix is able
 to observe:
 
 - corridor route-support evolution in the replay surface
+- degraded-steady continuity-band entry, recovery, and downgrade timing
 - bootstrap activation, hold, narrowing, upgrade, and withdrawal behavior in
   recovery and runtime linkage
 - dominant promotion decisions and dominant promotion blockers exported from the
   replay surface
+- service-retention carry-forward and asymmetric continuation-shift success
 - search and protocol replay metadata
 - continuation-shift and reconfiguration counters
 - field-favorable comparison regimes
@@ -143,16 +145,18 @@ What this means operationally:
 - Field is no longer replay-only in the maintained corpus
 - Field bootstrap is an explicit measured phase rather than an implicit lower
   threshold
+- degraded-steady continuity is now an explicit measured band rather than an
+  inferred “almost bootstrap” state
 - the expanded corpus shows that Field was partly underexercised in earlier
   matrices, because dedicated anti-entropy and bootstrap-upgrade families do
   produce route-visible Field behavior
 - the current recommendation is still narrower and weaker than the leading
   BATMAN and Pathway defaults
 - the main remaining gap is not only coverage but implementation maturity:
-  bootstrap activates widely, but upgrade still does not land in the
-  maintained corpus, so route presence stays lower than the BATMAN and Pathway
-  defaults even after the more favorable anti-entropy and corridor-continuity
-  regimes were added
+  route presence improved once the runtime began degrading before bootstrap and
+  carrying service evidence forward more smoothly, but bootstrap-to-steady
+  upgrade is still narrower than it should be, so Field still trails the BATMAN
+  and Pathway defaults in the maintained corpus
 
 ### Mixed Comparison
 
@@ -174,11 +178,11 @@ same regime families. This is separate from the mixed-engine comparison corpus:
 - mixed-engine comparison asks which engine wins when several engines are
   available to the same router
 - head-to-head comparison asks what happens when the host set is restricted to
-  one explicit stack: `batman`, `pathway`, `field`, or `pathway-batman`
+  one explicit stack: `batman-bellman`, `pathway`, `field`, or `pathway-batman-bellman`
 
 In the latest local artifact set:
 
-- `batman` and `pathway-batman` are strongest in the low-loss connected and
+- `batman-bellman` and `pathway-batman-bellman` are strongest in the low-loss connected and
   bridge-transition regimes
 - `pathway` is strongest in the concurrent mixed and high-loss connected
   regimes

@@ -1,12 +1,12 @@
 //! Router integration tests for `jacquard-batman`.
 //!
-//! Exercises `BatmanEngine` wired into a `MultiEngineRouter` with
+//! Exercises `BatmanBellmanEngine` wired into a `MultiEngineRouter` with
 //! `InMemoryTransport` and `InMemoryRuntimeEffects`, verifying end-to-end
 //! behavior from route activation through payload forwarding.
 //!
 //! Tests in this module confirm:
-//! - `BatmanEngine` can be registered with a `MultiEngineRouter` and its
-//!   `BATMAN_ENGINE_ID` capabilities are accessible after registration.
+//! - `BatmanBellmanEngine` can be registered with a `MultiEngineRouter` and its
+//!   `BATMAN_BELLMAN_ENGINE_ID` capabilities are accessible after registration.
 //! - `Router::activate_route` selects a next-hop-only route with
 //!   `RouteShapeVisibility::NextHopOnly` via the BATMAN engine.
 //! - After an `advance_round` tick, `forward_payload` delivers a payload to the
@@ -19,7 +19,7 @@
 use std::collections::BTreeMap;
 
 use jacquard_adapter::{dispatch_mailbox, opaque_endpoint, DispatchReceiver, DispatchSender};
-use jacquard_batman::{BatmanEngine, BATMAN_ENGINE_ID};
+use jacquard_batman_bellman::{BatmanBellmanEngine, BATMAN_BELLMAN_ENGINE_ID};
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
     Environment, HealthScore, IdentityAssuranceClass, LinkEndpoint, Observation, RatioPermille,
@@ -60,7 +60,7 @@ fn sample_topology() -> Observation<Configuration> {
                             endpoint(1),
                             Tick(1),
                         ),
-                        &BATMAN_ENGINE_ID,
+                        &BATMAN_BELLMAN_ENGINE_ID,
                     )
                     .build(),
                 ),
@@ -72,7 +72,7 @@ fn sample_topology() -> Observation<Configuration> {
                             endpoint(2),
                             Tick(1),
                         ),
-                        &BATMAN_ENGINE_ID,
+                        &BATMAN_BELLMAN_ENGINE_ID,
                     )
                     .build(),
                 ),
@@ -84,7 +84,7 @@ fn sample_topology() -> Observation<Configuration> {
                             endpoint(3),
                             Tick(1),
                         ),
-                        &BATMAN_ENGINE_ID,
+                        &BATMAN_BELLMAN_ENGINE_ID,
                     )
                     .build(),
                 ),
@@ -96,7 +96,7 @@ fn sample_topology() -> Observation<Configuration> {
                             endpoint(4),
                             Tick(1),
                         ),
-                        &BATMAN_ENGINE_ID,
+                        &BATMAN_BELLMAN_ENGINE_ID,
                     )
                     .build(),
                 ),
@@ -275,7 +275,7 @@ impl BatmanHost {
         let sender = QueuedTransportSender {
             outbound: outbound_tx,
         };
-        let engine = BatmanEngine::new(
+        let engine = BatmanBellmanEngine::new(
             local_node_id,
             sender,
             InMemoryRuntimeEffects {
@@ -388,7 +388,7 @@ fn five_node_roster_topology(local_node_id: jacquard_core::NodeId) -> Observatio
                             endpoint(1),
                             Tick(1),
                         ),
-                        &BATMAN_ENGINE_ID,
+                        &BATMAN_BELLMAN_ENGINE_ID,
                     )
                     .build(),
                 ),
@@ -400,7 +400,7 @@ fn five_node_roster_topology(local_node_id: jacquard_core::NodeId) -> Observatio
                             endpoint(2),
                             Tick(1),
                         ),
-                        &BATMAN_ENGINE_ID,
+                        &BATMAN_BELLMAN_ENGINE_ID,
                     )
                     .build(),
                 ),
@@ -412,7 +412,7 @@ fn five_node_roster_topology(local_node_id: jacquard_core::NodeId) -> Observatio
                             endpoint(3),
                             Tick(1),
                         ),
-                        &BATMAN_ENGINE_ID,
+                        &BATMAN_BELLMAN_ENGINE_ID,
                     )
                     .build(),
                 ),
@@ -424,7 +424,7 @@ fn five_node_roster_topology(local_node_id: jacquard_core::NodeId) -> Observatio
                             endpoint(4),
                             Tick(1),
                         ),
-                        &BATMAN_ENGINE_ID,
+                        &BATMAN_BELLMAN_ENGINE_ID,
                     )
                     .build(),
                 ),
@@ -436,7 +436,7 @@ fn five_node_roster_topology(local_node_id: jacquard_core::NodeId) -> Observatio
                             endpoint(5),
                             Tick(1),
                         ),
-                        &BATMAN_ENGINE_ID,
+                        &BATMAN_BELLMAN_ENGINE_ID,
                     )
                     .build(),
                 ),
@@ -476,7 +476,7 @@ fn batman_router_activates_next_hop_only_routes() {
         topology.value.nodes[&node(1)].profile.endpoints.clone(),
         network,
     );
-    let engine = BatmanEngine::new(
+    let engine = BatmanBellmanEngine::new(
         node(1),
         local_transport,
         InMemoryRuntimeEffects {
@@ -500,10 +500,13 @@ fn batman_router_activates_next_hop_only_routes() {
 
     let route = Router::activate_route(&mut router, sample_objective()).expect("activate route");
 
-    assert_eq!(route.identity.admission.summary.engine, BATMAN_ENGINE_ID);
+    assert_eq!(
+        route.identity.admission.summary.engine,
+        BATMAN_BELLMAN_ENGINE_ID
+    );
     assert_eq!(
         router
-            .registered_engine_capabilities(&BATMAN_ENGINE_ID)
+            .registered_engine_capabilities(&BATMAN_BELLMAN_ENGINE_ID)
             .expect("registered BATMAN capabilities")
             .route_shape_visibility,
         jacquard_core::RouteShapeVisibility::NextHopOnly
@@ -525,7 +528,7 @@ fn batman_router_composes_with_in_memory_transport_and_private_ticks() {
         network,
     );
 
-    let engine = BatmanEngine::new(
+    let engine = BatmanBellmanEngine::new(
         node(1),
         local_transport,
         InMemoryRuntimeEffects {
@@ -614,7 +617,10 @@ fn batman_router_activates_a_five_node_route_from_direct_neighbor_observations()
     )
     .expect("activate route across learned five-node line");
 
-    assert_eq!(route.identity.admission.summary.engine, BATMAN_ENGINE_ID);
+    assert_eq!(
+        route.identity.admission.summary.engine,
+        BATMAN_BELLMAN_ENGINE_ID
+    );
     assert_eq!(
         route.identity.admission.summary.hop_count_hint.value_or(0),
         4

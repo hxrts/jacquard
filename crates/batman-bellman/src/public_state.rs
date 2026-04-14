@@ -1,4 +1,4 @@
-//! Engine-public state types for `BatmanEngine`.
+//! Engine-public state types for `BatmanBellmanEngine`.
 //!
 //! Defines the observation records, ranked neighbor tables, and best next-hop
 //! entries that travel across the planner and runtime module boundaries, along

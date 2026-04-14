@@ -20,6 +20,7 @@ use jacquard_core::{
     BackendRouteId, GatewayId, NodeId, RouteDegradation, RouteEpoch, RouteId, Tick,
 };
 use jacquard_traits::{Blake3Hashing, Hashing};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     choreography::FieldSessionCapability,
@@ -40,11 +41,19 @@ pub enum FieldBootstrapClass {
     Steady,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub enum FieldContinuityBand {
+    Steady,
+    DegradedSteady,
+    Bootstrap,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FieldWitnessDetail {
     pub(crate) evidence_class: EvidenceContributionClass,
     pub(crate) uncertainty_class: SummaryUncertaintyClass,
     pub(crate) bootstrap_class: FieldBootstrapClass,
+    pub(crate) continuity_band: FieldContinuityBand,
     pub(crate) corridor_support: SupportBucket,
     pub(crate) retention_support: SupportBucket,
     pub(crate) usability_entropy: EntropyBucket,
@@ -73,10 +82,12 @@ pub(crate) struct ActiveFieldRoute {
     pub(crate) corridor_envelope: CorridorBeliefEnvelope,
     pub(crate) witness_detail: FieldWitnessDetail,
     pub(crate) bootstrap_class: FieldBootstrapClass,
+    pub(crate) continuity_band: FieldContinuityBand,
     pub(crate) backend_route_id: BackendRouteId,
     pub(crate) topology_epoch: RouteEpoch,
     pub(crate) installed_at_tick: Tick,
     pub(crate) bootstrap_confirmation_streak: u8,
+    pub(crate) promotion_window_score: u8,
     pub(crate) coordination_capability: Option<FieldSessionCapability>,
     pub(crate) recovery: StoredFieldRouteRecovery,
 }

@@ -135,7 +135,7 @@ fn client_builder_accepts_explicit_queue_config_and_profile() {
         Tick(1),
     )
     .with_queue_config(BridgeQueueConfig::new(1, 1))
-    .with_batman()
+    .with_batman_bellman()
     .build();
     let mut bound = client.bind();
 

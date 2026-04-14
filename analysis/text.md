@@ -4,13 +4,13 @@
 
 ### Executive Summary Intro
 
-This report studies Jacquard routing behavior across three engines, `batman`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
+This report studies Jacquard routing behavior across three engines, `batman-bellman`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
 
 The goal is not only to pick default parameter settings. It is also to understand where each engine works cleanly, where it begins to degrade, what kinds of failures appear first, and how the engines compare when they are placed under the same network regimes.
 
 That matters because routing quality is regime-dependent. A setting that looks strong in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty. The report is therefore designed to connect tuning choices to concrete failure boundaries rather than treating routing as a single scalar benchmark.
 
-The document is organized in two parts. Part I focuses on tuning: recommended configurations, transition behavior, failure boundaries, and the simulator assumptions that shape those results. Part II focuses on analysis: engine-specific behavior for `batman`, `pathway`, and `field`, followed by mixed-engine and head-to-head comparisons across maintained regimes.
+The document is organized in two parts. Part I focuses on tuning: recommended configurations, transition behavior, failure boundaries, and the simulator assumptions that shape those results. Part II focuses on analysis: engine-specific behavior for `batman-bellman`, `pathway`, and `field`, followed by mixed-engine and head-to-head comparisons across maintained regimes.
 
 The emphasis throughout is explanatory rather than purely prescriptive. The recommendations are still present, but they are framed by the measured transition surfaces, breakdown points, and comparative regimes that justify them.
 
@@ -68,7 +68,7 @@ Across the full corpus, the matrix varies network density, message loss, interfe
 
 The report focuses on boundary cases as well as easy cases. The goal is not only to find settings that work when the network is healthy, but also to see where behavior changes sharply.
 
-For BATMAN, the main sweep changes the decay-window settings. For Pathway and Field, the main sweep changes per-objective search budget and heuristic mode.
+For BATMAN Bellman, the main sweep changes the decay-window settings. For Pathway and Field, the main sweep changes per-objective search budget and heuristic mode.
 
 The analysis does not stop at one composite score. It also tracks transition metrics such as first materialization, first loss, recovery timing, churn, and run-to-run spread so the recommendations can distinguish robust settings from lucky averages.
 
@@ -109,9 +109,9 @@ Workload regimes:
 - `service` means the engine is choosing among candidate service locations rather than only driving to one fixed node.
 - `concurrent mixed` means multiple route requests of different kinds are active at the same time, so the engines are competing under shared pressure.
 
-#### BATMAN Algorithm
+#### BATMAN Bellman Algorithm
 
-BATMAN is the simpler routing engine in this study. It tries to keep track of a good next hop toward a destination instead of planning a full end-to-end path. In practice, that means it works best when local neighbor information is enough to make a good forwarding choice. The settings tuned here control how quickly old information expires and how quickly the engine refreshes its view of the network. The most important questions for BATMAN are therefore: does it stay stable under loss, does it hold onto stale routes too long, and how quickly does it recover after a link change.
+BATMAN Bellman is the simpler routing engine in this study. It tries to keep track of a good next hop toward a destination instead of planning a full end-to-end path. In practice, that means it works best when local neighbor information is enough to make a good forwarding choice. The settings tuned here control how quickly old information expires and how quickly the engine refreshes its view of the network. The most important questions for BATMAN Bellman are therefore: does it stay stable under loss, does it hold onto stale routes too long, and how quickly does it recover after a link change.
 
 #### Pathway Algorithm
 
@@ -129,7 +129,7 @@ The main tuning questions are therefore: how much search budget Field needs befo
 
 The report is organized around three practical questions: where an engine works comfortably, where it begins to degrade, and where it stops being acceptable.
 
-The BATMAN families emphasize next-hop maintenance under loss, asymmetry, and relink pressure. The Pathway families emphasize service selection and explicit search under candidate pressure. The Field families emphasize corridor continuity, search reconfiguration, and continuation shifts under uncertain or changing evidence.
+The BATMAN Bellman families emphasize next-hop maintenance under loss, asymmetry, and relink pressure. The Pathway families emphasize service selection and explicit search under candidate pressure. The Field families emphasize corridor continuity, search reconfiguration, and continuation shifts under uncertain or changing evidence.
 
 The plots put the tuned parameter directly on the x-axis. That makes it easier to see whether a result is a real trend or only an average over unrelated cases.
 
@@ -143,7 +143,7 @@ The comparison section is separate on purpose. Its job is to show when one engin
 
 The recommendation score is only a guide for ranking configurations.
 
-It rewards settings that activate routes reliably, keep routes present for more of the run, tolerate harder stress levels, and, for BATMAN, maintain stronger stability totals.
+It rewards settings that activate routes reliably, keep routes present for more of the run, tolerate harder stress levels, and, for BATMAN Bellman, maintain stronger stability totals.
 
 It penalizes settings that cause frequent route churn, maintenance failures, lost reachability, or long degraded periods.
 
@@ -175,23 +175,23 @@ Column guide: Profile is the ranking policy being applied; Score is the profile-
 
 ### Figure Context
 
-#### BATMAN Transition Analysis
+#### BATMAN Bellman Transition Analysis
 
-This part of the BATMAN analysis asks how the protocol behaves near transition pressure rather than in easy steady-state cases.
+This part of the BATMAN Bellman analysis asks how the protocol behaves near transition pressure rather than in easy steady-state cases.
 
 The main questions are whether a decay-window choice preserves stable next-hop behavior as asymmetry and relink pressure increase, and whether that same choice delays route loss once the regime begins to break down.
 
-The two BATMAN plots should therefore be read as one analytical pair: the first shows where stability accumulates across the transition families, and the second shows when those same settings first lose a route.
+The two BATMAN Bellman plots should therefore be read as one analytical pair: the first shows where stability accumulates across the transition families, and the second shows when those same settings first lose a route.
 
 #### Figure 1
 
-@figure batman_transition_stability
+@figure batman_bellman_transition_stability
 
-This plot uses the swept BATMAN axis directly: stale-after ticks on the x-axis, with transition-family lines showing accumulated stability. Small point annotations mark the paired refresh setting for each configuration.
+This plot uses the swept BATMAN Bellman axis directly: stale-after ticks on the x-axis, with transition-family lines showing accumulated stability. Small point annotations mark the paired refresh setting for each configuration.
 
 #### Figure 2
 
-@figure batman_transition_loss
+@figure batman_bellman_transition_loss
 
 This plot shows when routes are first lost under the same transition families. It is the clearest view of whether a shorter or longer decay window helps near relink and asymmetric bridge boundaries.
 
@@ -231,13 +231,13 @@ This plot combines continuation shifts and search reconfiguration rounds into on
 
 @figure comparison_dominant_engine
 
-This comparison plot shows which engine dominates in the maintained mixed-engine comparison families. It is the clearest regime split between BATMAN-favored and Pathway-favored workloads in this tuning corpus.
+This comparison plot shows which engine dominates in the maintained mixed-engine comparison families. It is the clearest regime split between BATMAN-Bellman-favored and Pathway-favored workloads in this tuning corpus.
 
 #### Figure 8
 
 @figure head_to_head_route_presence
 
-This figure compares explicit engine sets over the same regime families. It is the clearest direct comparison between `batman`, `pathway`, `field`, and the combined `pathway-batman` stack.
+This figure compares explicit engine sets over the same regime families. It is the clearest direct comparison between `batman-bellman`, `pathway`, `field`, and the combined `pathway-batman-bellman` stack.
 
 ### Comparison And Head-To-Head
 
@@ -255,7 +255,7 @@ Column guide: Dominant Engine is the best-performing engine in that family; Acti
 
 @table head-to-head-summary
 
-This table compares explicit engine sets on the same regime families: `batman`, `pathway`, `field`, and `pathway-batman`.
+This table compares explicit engine sets on the same regime families: `batman-bellman`, `pathway`, `field`, and `pathway-batman-bellman`.
 
 It should be read as a direct stack-to-stack comparison rather than as the all-engines router outcome.
 
@@ -276,7 +276,7 @@ The head-to-head regimes are a compact direct-comparison subset of the larger si
 
 #### Head-To-Head Findings Intro
 
-The head-to-head matrix runs the same regime families under four explicit engine sets: `batman`, `pathway`, `field`, and `pathway-batman`.
+The head-to-head matrix runs the same regime families under four explicit engine sets: `batman-bellman`, `pathway`, `field`, and `pathway-batman-bellman`.
 
 These rows answer a different question from the all-engines comparison corpus. They show what each stack does when it is the only available routing surface for that host set.
 
@@ -288,11 +288,11 @@ No head-to-head summary is available for this artifact set.
 
 #### Pressure Findings Batman Plateau
 
-BATMAN shows a broad plateau in easy regimes, so this report measures transition families on stability accumulation and loss timing.
+BATMAN Bellman shows a broad plateau in easy regimes, so this report measures transition families on stability accumulation and loss timing.
 
 #### Pressure Findings Batman Separation
 
-BATMAN separates mainly in the transition families, where relink pressure and asymmetric bridge degradation expose different stability and loss timings.
+BATMAN Bellman separates mainly in the transition families, where relink pressure and asymmetric bridge degradation expose different stability and loss timings.
 
 #### Pressure Findings Pathway Cliff
 
@@ -318,17 +318,17 @@ No {engine_family} recommendation is available for this artifact set.
 
 Recommended configuration: `{config_id}` (score={score}, activation={activation} permille, route presence={route_presence} permille, max sustained stress={max_stress}).
 
-#### Engine Section Batman Plateau
+#### Engine Section Batman Bellman Plateau
 
-The BATMAN transition families remain mostly flat on accumulated stability, which suggests a plateau rather than one narrow best setting in those cases.
+The BATMAN Bellman transition families remain mostly flat on accumulated stability, which suggests a plateau rather than one narrow best setting in those cases.
 
-#### Engine Section Batman Best
+#### Engine Section Batman Bellman Best
 
-The BATMAN transition families separate most clearly at `{config_id}`, which yields stability-total {stability_total} and route presence {route_presence} permille.
+The BATMAN Bellman transition families separate most clearly at `{config_id}`, which yields stability-total {stability_total} and route presence {route_presence} permille.
 
-#### Engine Section Batman Closing
+#### Engine Section Batman Bellman Closing
 
-Severe asymmetric bridge loss remains a breakdown regime across the tested BATMAN window range.
+Severe asymmetric bridge loss remains a breakdown regime across the tested BATMAN Bellman window range.
 
 #### Engine Section Pathway Cliff
 
@@ -344,7 +344,7 @@ Field separates most clearly where corridor continuity and reconfiguration cost 
 
 #### Engine Section Field Bootstrap
 
-Its bootstrap profile in the maintained corpus is activation {activation} permille, hold {hold} permille, narrow {narrow} permille, upgrade {upgrade} permille, and withdrawal {withdrawal} permille. The dominant last decision is `{decision}`, and the dominant blocker is `{blocker}`.
+Its corridor-continuity profile in the maintained corpus is bootstrap activation {activation} permille, hold {hold} permille, narrow {narrow} permille, upgrade {upgrade} permille, withdrawal {withdrawal} permille, degraded-steady occupancy {degraded} permille, service carry-forward {service} permille, and asymmetric shift success {shift} permille. The dominant commitment resolution is `{commitment}`, the dominant last recovery outcome is `{outcome}`, the dominant continuity band is `{band}`, the dominant continuity transition is `{transition}`, the dominant last decision is `{decision}`, and the dominant blocker is `{blocker}`.
 
 #### Engine Section Field Tied
 
@@ -392,13 +392,13 @@ That small gap means the result should be read as an acceptable range rather tha
 
 That larger gap means this tuning corpus is finding a real preferred point, not only a shallow plateau.
 
-#### Recommendation Rationale Batman 1
+#### Recommendation Rationale Batman Bellman 1
 
-The BATMAN recommendation is driven mainly by how well each setting behaves in the recoverable transition families, not by easy-regime route presence alone.
+The BATMAN Bellman recommendation is driven mainly by how well each setting behaves in the recoverable transition families, not by easy-regime route presence alone.
 
-#### Recommendation Rationale Batman 2
+#### Recommendation Rationale Batman Bellman 2
 
-The severe asymmetric bridge regime fails across the entire tested BATMAN window range, so the recommendation should be read as guidance for recoverable pressure, not impossible bridges.
+The severe asymmetric bridge regime fails across the entire tested BATMAN Bellman window range, so the recommendation should be read as guidance for recoverable pressure, not impossible bridges.
 
 #### Recommendation Rationale Pathway 1
 
@@ -414,7 +414,7 @@ The Field recommendation is driven by corridor continuity, bootstrap upgrade beh
 
 #### Recommendation Rationale Field 2
 
-The current measured bootstrap profile for `{config_id}` is activation {activation} permille, hold {hold} permille, narrow {narrow} permille, upgrade {upgrade} permille, and withdrawal {withdrawal} permille. The dominant last decision is `{decision}`, and the dominant blocker is `{blocker}`.
+The current measured continuity profile for `{config_id}` is bootstrap activation {activation} permille, hold {hold} permille, narrow {narrow} permille, upgrade {upgrade} permille, withdrawal {withdrawal} permille, degraded-steady occupancy {degraded} permille, service carry-forward {service} permille, and asymmetric shift success {shift} permille. The dominant commitment resolution is `{commitment}`, the dominant last recovery outcome is `{outcome}`, the dominant continuity band is `{band}`, the dominant continuity transition is `{transition}`, the dominant last decision is `{decision}`, and the dominant blocker is `{blocker}`.
 
 #### Recommendation Rationale Field 3
 
@@ -430,11 +430,11 @@ These recommendations are only as good as the simulated regime corpus.
 
 A flat curve can mean either genuine robustness or that the sweep has not landed exactly on the most informative failure boundary.
 
-The BATMAN corpus exposes recoverable transition differences, but the asymmetry-plus-bridge families remain hard failures rather than nuanced separation regions.
+The BATMAN Bellman corpus exposes recoverable transition differences, but the asymmetry-plus-bridge families remain hard failures rather than nuanced separation regions.
 
 The Pathway corpus clearly identifies the minimum viable budget floor, but it also shows a wide plateau above that floor.
 
-The Field corpus now reaches the route-visible boundary with an explicit bootstrap phase, but its route-presence ceiling is still low and its first maintained breakdown arrives earlier than for the leading BATMAN and Pathway defaults.
+The Field corpus now reaches the route-visible boundary with an explicit bootstrap phase, but its route-presence ceiling is still low and its first maintained breakdown arrives earlier than for the leading BATMAN Bellman and Pathway defaults.
 
 The bridge anti-entropy and bootstrap-upgrade families make the corpus more favorable to Field than a simple bridge-failure matrix, so the report can distinguish between underexercise and real weakness more cleanly.
 

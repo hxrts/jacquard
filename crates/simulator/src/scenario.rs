@@ -1,5 +1,6 @@
 use jacquard_babel::DecayWindow as BabelDecayWindow;
-use jacquard_batman::DecayWindow;
+use jacquard_batman_bellman::DecayWindow;
+use jacquard_batman_classic::DecayWindow as ClassicDecayWindow;
 use jacquard_core::{
     Configuration, NodeId, Observation, OperatingMode, RoutingObjective, RoutingPolicyInputs,
     SelectedRoutingParameters, SimulationSeed,
@@ -12,14 +13,15 @@ use jacquard_traits::RoutingScenario;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineLane {
     Pathway,
-    Batman,
+    BatmanBellman,
+    BatmanClassic,
     Babel,
     Field,
-    PathwayAndBatman,
+    PathwayAndBatmanBellman,
     PathwayAndBabel,
-    BabelAndBatman,
+    BabelAndBatmanBellman,
     PathwayAndField,
-    FieldAndBatman,
+    FieldAndBatmanBellman,
     AllEngines,
 }
 
@@ -34,7 +36,8 @@ pub struct HostSpec {
 pub struct HostOverrides {
     pub routing_profile: Option<SelectedRoutingParameters>,
     pub policy_inputs: Option<RoutingPolicyInputs>,
-    pub batman_decay_window: Option<DecayWindow>,
+    pub batman_bellman_decay_window: Option<DecayWindow>,
+    pub batman_classic_decay_window: Option<ClassicDecayWindow>,
     pub babel_decay_window: Option<BabelDecayWindow>,
     pub pathway_search_config: Option<PathwaySearchConfig>,
     pub field_search_config: Option<FieldSearchConfig>,
@@ -82,10 +85,19 @@ impl HostSpec {
     }
 
     #[must_use]
-    pub fn batman(local_node_id: NodeId) -> Self {
+    pub fn batman_bellman(local_node_id: NodeId) -> Self {
         Self {
             local_node_id,
-            lane: EngineLane::Batman,
+            lane: EngineLane::BatmanBellman,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn batman_classic(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::BatmanClassic,
             overrides: HostOverrides::default(),
         }
     }
@@ -109,10 +121,10 @@ impl HostSpec {
     }
 
     #[must_use]
-    pub fn pathway_and_batman(local_node_id: NodeId) -> Self {
+    pub fn pathway_and_batman_bellman(local_node_id: NodeId) -> Self {
         Self {
             local_node_id,
-            lane: EngineLane::PathwayAndBatman,
+            lane: EngineLane::PathwayAndBatmanBellman,
             overrides: HostOverrides::default(),
         }
     }
@@ -127,10 +139,10 @@ impl HostSpec {
     }
 
     #[must_use]
-    pub fn babel_and_batman(local_node_id: NodeId) -> Self {
+    pub fn babel_and_batman_bellman(local_node_id: NodeId) -> Self {
         Self {
             local_node_id,
-            lane: EngineLane::BabelAndBatman,
+            lane: EngineLane::BabelAndBatmanBellman,
             overrides: HostOverrides::default(),
         }
     }
@@ -145,10 +157,10 @@ impl HostSpec {
     }
 
     #[must_use]
-    pub fn field_and_batman(local_node_id: NodeId) -> Self {
+    pub fn field_and_batman_bellman(local_node_id: NodeId) -> Self {
         Self {
             local_node_id,
-            lane: EngineLane::FieldAndBatman,
+            lane: EngineLane::FieldAndBatmanBellman,
             overrides: HostOverrides::default(),
         }
     }
@@ -175,8 +187,20 @@ impl HostSpec {
     }
 
     #[must_use]
-    pub fn with_batman_decay_window(mut self, batman_decay_window: DecayWindow) -> Self {
-        self.overrides.batman_decay_window = Some(batman_decay_window);
+    pub fn with_batman_bellman_decay_window(
+        mut self,
+        batman_bellman_decay_window: DecayWindow,
+    ) -> Self {
+        self.overrides.batman_bellman_decay_window = Some(batman_bellman_decay_window);
+        self
+    }
+
+    #[must_use]
+    pub fn with_batman_classic_decay_window(
+        mut self,
+        batman_classic_decay_window: ClassicDecayWindow,
+    ) -> Self {
+        self.overrides.batman_classic_decay_window = Some(batman_classic_decay_window);
         self
     }
 

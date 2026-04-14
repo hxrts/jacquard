@@ -184,18 +184,18 @@ def head_to_head_regime_lines() -> list[str]:
 
 def pressure_findings_lines(aggregates: pl.DataFrame) -> list[str]:
     lines: list[str] = []
-    batman_pressure = aggregates.filter(
-        (pl.col("engine_family") == "batman")
+    batman_bellman_pressure = aggregates.filter(
+        (pl.col("engine_family") == "batman-bellman")
         & pl.col("family_id").is_in(
             [
-                "batman-decay-window-pressure",
-                "batman-partition-recovery",
-                "batman-asymmetry-relink-transition",
+                "batman-bellman-decay-window-pressure",
+                "batman-bellman-partition-recovery",
+                "batman-bellman-asymmetry-relink-transition",
             ]
         )
-    ).sort(["family_id", "batman_stale_after_ticks"])
-    if not batman_pressure.is_empty():
-        stability_values = batman_pressure["stability_total_mean"].to_list()
+    ).sort(["family_id", "batman_bellman_stale_after_ticks"])
+    if not batman_bellman_pressure.is_empty():
+        stability_values = batman_bellman_pressure["stability_total_mean"].to_list()
         if len(set(stability_values)) <= 2:
             lines.extend(section_lines("Pressure Findings Batman Plateau"))
         else:
@@ -261,8 +261,8 @@ def regime_characterization_lines() -> list[str]:
     return section_lines("Regime Characterization")
 
 
-def batman_algorithm_lines() -> list[str]:
-    return section_lines("BATMAN Algorithm")
+def batman_bellman_algorithm_lines() -> list[str]:
+    return section_lines("BATMAN Bellman Algorithm")
 
 
 def pathway_algorithm_lines() -> list[str]:
@@ -311,20 +311,20 @@ def engine_section_lines(
     family_rows = aggregates.filter(pl.col("engine_family") == engine_family)
     if family_rows.is_empty():
         return lines
-    if engine_family == "batman":
+    if engine_family == "batman-bellman":
         pressure = family_rows.filter(
             pl.col("family_id").is_in(
                 [
-                    "batman-decay-window-pressure",
-                    "batman-partition-recovery",
-                    "batman-asymmetry-relink-transition",
+                    "batman-bellman-decay-window-pressure",
+                    "batman-bellman-partition-recovery",
+                    "batman-bellman-asymmetry-relink-transition",
                 ]
             )
         )
         if not pressure.is_empty():
             stability_values = pressure["stability_total_mean"].to_list()
             if len(set(stability_values)) == 1:
-                lines.extend(section_lines("Engine Section Batman Plateau"))
+                lines.extend(section_lines("Engine Section Batman Bellman Plateau"))
             else:
                 best = pressure.sort(
                     ["stability_total_mean", "route_present_permille_mean"],
@@ -333,13 +333,13 @@ def engine_section_lines(
                 best_row = best.iter_rows(named=True).__next__()
                 lines.extend(
                     section_lines_formatted(
-                        "Engine Section Batman Best",
+                        "Engine Section Batman Bellman Best",
                         config_id=best_row["config_id"],
                         stability_total=best_row["stability_total_mean"],
                         route_presence=best_row["route_present_permille_mean"],
                     )
                 )
-        lines.extend(section_lines("Engine Section Batman Closing"))
+        lines.extend(section_lines("Engine Section Batman Bellman Closing"))
     if engine_family == "pathway":
         pressure = family_rows.filter(
             pl.col("family_id").is_in(
@@ -411,6 +411,13 @@ def engine_section_lines(
                     narrow=f"{row['field_bootstrap_narrow_mean']:.1f}",
                     upgrade=f"{row['field_bootstrap_upgrade_mean']:.1f}",
                     withdrawal=f"{row['field_bootstrap_withdraw_mean']:.1f}",
+                    degraded=f"{(row['field_degraded_steady_round_mean'] or 0):.1f}",
+                    service=f"{(row['field_service_retention_carry_forward_mean'] or 0):.1f}",
+                    shift=f"{(row['field_asymmetric_shift_success_mean'] or 0):.1f}",
+                    commitment=row["field_commitment_resolution_mode"] or "none",
+                    outcome=row["field_last_outcome_mode"] or "none",
+                    band=row["field_continuity_band_mode"] or "none",
+                    transition=row["field_last_continuity_transition_mode"] or "none",
                     decision=row["field_last_promotion_decision_mode"] or "none",
                     blocker=row["field_last_promotion_blocker_mode"] or "none",
                 )
@@ -455,9 +462,9 @@ def recommendation_rationale_lines(
             lines.extend(section_lines("Recommendation Rationale Small Gap"))
         else:
             lines.extend(section_lines("Recommendation Rationale Large Gap"))
-    if engine_family == "batman":
-        lines.extend(section_lines("Recommendation Rationale Batman 1"))
-        lines.extend(section_lines("Recommendation Rationale Batman 2"))
+    if engine_family == "batman-bellman":
+        lines.extend(section_lines("Recommendation Rationale Batman Bellman 1"))
+        lines.extend(section_lines("Recommendation Rationale Batman Bellman 2"))
     if engine_family == "pathway":
         lines.extend(section_lines("Recommendation Rationale Pathway 1"))
         lines.extend(section_lines("Recommendation Rationale Pathway 2"))
@@ -472,6 +479,13 @@ def recommendation_rationale_lines(
                 narrow=f"{top['field_bootstrap_narrow_mean']:.1f}",
                 upgrade=f"{top['field_bootstrap_upgrade_mean']:.1f}",
                 withdrawal=f"{top['field_bootstrap_withdraw_mean']:.1f}",
+                degraded=f"{(top['field_degraded_steady_round_mean'] or 0):.1f}",
+                service=f"{(top['field_service_retention_carry_forward_mean'] or 0):.1f}",
+                shift=f"{(top['field_asymmetric_shift_success_mean'] or 0):.1f}",
+                commitment=top["field_commitment_resolution_mode"] or "none",
+                outcome=top["field_last_outcome_mode"] or "none",
+                band=top["field_continuity_band_mode"] or "none",
+                transition=top["field_last_continuity_transition_mode"] or "none",
                 decision=top["field_last_promotion_decision_mode"] or "none",
                 blocker=top["field_last_promotion_blocker_mode"] or "none",
             )

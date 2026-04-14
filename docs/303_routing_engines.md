@@ -120,7 +120,7 @@ honestly report `NextHopOnly`.
 
 ## In-Tree BATMAN Engine
 
-`jacquard-batman` is the in-tree proactive next-hop reference engine; see [Batman Routing](402_batman_routing.md) for the engine-specific model, capability assumptions, and maintenance behavior.
+`jacquard-batman-bellman` is the in-tree proactive next-hop reference engine; see [Batman Routing](402_batman_routing.md) for the engine-specific model, capability assumptions, and maintenance behavior.
 
 ## Policy And Coordination
 

@@ -37,9 +37,12 @@ use crate::{
     control::{advance_control_plane, ControlMeasurements},
     engine::FieldRuntimeRoundArtifact,
     observer::{update_destination_observer, ObserverInputs},
-    planner::{promotion_assessment_for_route, FieldBootstrapDecision},
-    recovery::{FieldPromotionBlocker, FieldRouteRecoveryTrigger, StoredFieldRouteRecovery},
-    route::{decode_backend_token, ActiveFieldRoute, FieldBootstrapClass},
+    planner::{continuity_band_for_state, promotion_assessment_for_route, FieldBootstrapDecision},
+    recovery::{
+        FieldPromotionBlocker, FieldRouteRecoveryOutcome, FieldRouteRecoveryTrigger,
+        StoredFieldRouteRecovery,
+    },
+    route::{decode_backend_token, ActiveFieldRoute, FieldBootstrapClass, FieldContinuityBand},
     state::{
         HopBand, NeighborContinuation, ObserverInputSignature, SupportBucket,
         SUMMARY_HEARTBEAT_TICKS,
@@ -60,7 +63,9 @@ const FIELD_COMMITMENT_ID_DOMAIN: &[u8] = b"field-route-commitment";
 pub(crate) const FIELD_ROUTE_FAILURE_SUPPORT_FLOOR: u16 = 180;
 pub(crate) const FIELD_ROUTE_WEAK_SUPPORT_FLOOR: u16 = 220;
 const FIELD_BOOTSTRAP_FAILURE_SUPPORT_FLOOR: u16 = 140;
+const FIELD_DEGRADED_STEADY_FAILURE_SUPPORT_FLOOR: u16 = 160;
 const FIELD_BOOTSTRAP_STALE_TICKS_MAX: u64 = 6;
+const FIELD_DEGRADED_STEADY_STALE_TICKS_MAX: u64 = 5;
 const FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX: u16 = 180;
 
 impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects>
@@ -90,6 +95,7 @@ where
             .ok_or(RouteRuntimeError::Invalidated)?;
         let bootstrap_class = detail.bootstrap_class;
         let mut recovery = StoredFieldRouteRecovery::default();
+        recovery.note_continuity_band(detail.continuity_band);
         if bootstrap_class == FieldBootstrapClass::Bootstrap {
             recovery.note_bootstrap_activated();
         }
@@ -101,12 +107,14 @@ where
                 selected_neighbor: token.selected_neighbor,
                 continuation_neighbors: token.continuation_neighbors,
                 corridor_envelope: corridor_envelope.clone(),
-                witness_detail: detail,
+                witness_detail: detail.clone(),
                 bootstrap_class,
+                continuity_band: detail.continuity_band,
                 backend_route_id: input.admission.backend_ref.backend_route_id.clone(),
                 topology_epoch: input.handle.topology_epoch(),
                 installed_at_tick: input.handle.materialized_at_tick(),
                 bootstrap_confirmation_streak: 0,
+                promotion_window_score: 0,
                 coordination_capability: None,
                 recovery,
             },
@@ -156,9 +164,28 @@ where
                 .get(&active.destination)
                 .map(|state| state.corridor_belief.delivery_support.value())
                 .unwrap_or(active.corridor_envelope.delivery_support.value());
+            let service_bias =
+                matches!(active.destination, crate::state::DestinationKey::Service(_));
+            let commitment_support_floor = match (active.bootstrap_class, active.continuity_band) {
+                (_, FieldContinuityBand::DegradedSteady) => {
+                    if service_bias {
+                        140
+                    } else {
+                        160
+                    }
+                }
+                (FieldBootstrapClass::Bootstrap, _) => {
+                    if service_bias {
+                        120
+                    } else {
+                        140
+                    }
+                }
+                _ => 250,
+            };
             if active.topology_epoch != route.identity.topology_epoch() {
                 RouteCommitmentResolution::Invalidated(RouteInvalidationReason::TopologySuperseded)
-            } else if current_support < 250 {
+            } else if current_support < commitment_support_floor {
                 RouteCommitmentResolution::Invalidated(RouteInvalidationReason::EvidenceWithdrawn)
             } else {
                 RouteCommitmentResolution::Pending
@@ -240,14 +267,15 @@ where
                 outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
             });
         };
-        let ranked = rank_frontier_by_attractor(
+        let mut ranked = rank_frontier_by_attractor(
             &destination_state,
             &self.state.mean_field,
             self.state.regime.current,
             self.state.posture.current,
             &self.state.controller,
         );
-        let Some((best, _)) = ranked.first() else {
+        merge_pending_forward_continuations(&mut ranked, &destination_state);
+        let Some((ranked_best, _)) = ranked.first() else {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Expired,
                 outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
@@ -262,6 +290,23 @@ where
         let current_corridor_envelope = destination_state.corridor_belief.clone();
         let current_witness_detail = self.witness_detail_from_state(&destination_state);
         let current_bootstrap_class = current_witness_detail.bootstrap_class;
+        let current_continuity_band = continuity_band_for_state(&destination_state);
+        let service_bias = matches!(destination_key, crate::state::DestinationKey::Service(_));
+        let preferred_service_neighbor = if service_bias {
+            self.active_routes
+                .get(identity.route_id())
+                .and_then(|active| preferred_service_shift_neighbor(active, &ranked, ranked_best))
+        } else {
+            None
+        };
+        let best = preferred_service_neighbor
+            .and_then(|neighbor_id| {
+                ranked
+                    .iter()
+                    .find(|(entry, _)| entry.neighbor_id == neighbor_id)
+                    .map(|(entry, _)| entry)
+            })
+            .unwrap_or(ranked_best);
 
         if self.state.controller.congestion_price.value() >= 850
             && self.state.posture.current == crate::state::RoutingPosture::RetentionBiased
@@ -280,8 +325,10 @@ where
         let mut maintenance_outcome = RouteMaintenanceOutcome::Continued;
         let previous_posture;
         let previous_bootstrap_class;
+        let previous_continuity_band;
         let promotion_assessment;
         let bootstrap_decision;
+        let effective_continuity_band;
         {
             let active = self
                 .active_routes
@@ -289,6 +336,7 @@ where
                 .expect("active route remains present during maintenance");
             previous_posture = active.witness_detail.posture;
             previous_bootstrap_class = active.bootstrap_class;
+            previous_continuity_band = active.continuity_band;
             promotion_assessment = promotion_assessment_for_route(
                 active,
                 &destination_state,
@@ -296,6 +344,12 @@ where
                 self.state.last_tick_processed,
             );
             let blocker = promotion_assessment.primary_blocker();
+            let projected_promotion_window_score = updated_promotion_window_score(
+                active.promotion_window_score,
+                &promotion_assessment,
+                &destination_state,
+                service_bias,
+            );
             let projected_confirmation_streak = if current_bootstrap_class
                 == FieldBootstrapClass::Bootstrap
                 && promotion_assessment.anti_entropy_confirmed
@@ -306,10 +360,29 @@ where
                 0
             };
             bootstrap_decision = if current_bootstrap_class == FieldBootstrapClass::Bootstrap {
-                promotion_assessment
-                    .decision_for_bootstrap(&destination_state, projected_confirmation_streak)
+                promotion_assessment.decision_for_bootstrap(
+                    &destination_state,
+                    projected_confirmation_streak,
+                    projected_promotion_window_score,
+                )
             } else {
                 FieldBootstrapDecision::Hold
+            };
+            effective_continuity_band = match (
+                previous_continuity_band,
+                current_continuity_band,
+                current_bootstrap_class,
+            ) {
+                (_, FieldContinuityBand::Steady, _) => FieldContinuityBand::Steady,
+                (_, FieldContinuityBand::DegradedSteady, _) => FieldContinuityBand::DegradedSteady,
+                (
+                    FieldContinuityBand::Steady | FieldContinuityBand::DegradedSteady,
+                    FieldContinuityBand::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                ) if promotion_assessment.degraded_but_coherent(&destination_state) => {
+                    FieldContinuityBand::DegradedSteady
+                }
+                _ => FieldContinuityBand::Bootstrap,
             };
             active.corridor_envelope = current_corridor_envelope;
             active.witness_detail = current_witness_detail;
@@ -317,10 +390,33 @@ where
                 (FieldBootstrapClass::Bootstrap, FieldBootstrapDecision::Promote) => {
                     FieldBootstrapClass::Steady
                 }
+                (FieldBootstrapClass::Bootstrap, _)
+                    if current_bootstrap_class == FieldBootstrapClass::Steady
+                        && effective_continuity_band != FieldContinuityBand::Bootstrap =>
+                {
+                    FieldBootstrapClass::Steady
+                }
                 (FieldBootstrapClass::Bootstrap, _) => FieldBootstrapClass::Bootstrap,
                 (_, _) => current_bootstrap_class,
             };
             active.witness_detail.bootstrap_class = active.bootstrap_class;
+            active.continuity_band = effective_continuity_band;
+            active.witness_detail.continuity_band = effective_continuity_band;
+            active.promotion_window_score = projected_promotion_window_score;
+
+            match (previous_continuity_band, active.continuity_band) {
+                (FieldContinuityBand::Steady, FieldContinuityBand::DegradedSteady)
+                | (FieldContinuityBand::Bootstrap, FieldContinuityBand::DegradedSteady) => {
+                    active.recovery.note_degraded_steady_entered();
+                }
+                (FieldContinuityBand::DegradedSteady, FieldContinuityBand::Steady) => {
+                    active.recovery.note_degraded_steady_recovered();
+                }
+                (FieldContinuityBand::DegradedSteady, FieldContinuityBand::Bootstrap) => {
+                    active.recovery.note_degraded_to_bootstrap();
+                }
+                (_, band) => active.recovery.note_continuity_band(band),
+            }
 
             match (
                 previous_bootstrap_class,
@@ -337,6 +433,7 @@ where
                 ) => {
                     active.recovery.note_bootstrap_narrowed(blocker);
                     active.bootstrap_confirmation_streak = 0;
+                    active.promotion_window_score = active.promotion_window_score.saturating_sub(1);
                 }
                 (
                     FieldBootstrapClass::Bootstrap,
@@ -353,13 +450,10 @@ where
                         active.bootstrap_confirmation_streak = 0;
                     }
                 }
-                (
-                    FieldBootstrapClass::Bootstrap,
-                    FieldBootstrapClass::Steady,
-                    FieldBootstrapDecision::Promote,
-                ) => {
+                (FieldBootstrapClass::Bootstrap, FieldBootstrapClass::Steady, _) => {
                     active.recovery.note_bootstrap_upgraded();
                     active.bootstrap_confirmation_streak = 0;
+                    active.promotion_window_score = 0;
                 }
                 (
                     FieldBootstrapClass::Bootstrap,
@@ -368,6 +462,7 @@ where
                 ) => {
                     active.recovery.note_bootstrap_withdrawn(blocker);
                     active.bootstrap_confirmation_streak = 0;
+                    active.promotion_window_score = 0;
                 }
                 (FieldBootstrapClass::Steady, FieldBootstrapClass::Steady, _) => {}
                 (
@@ -379,7 +474,6 @@ where
                         .recovery
                         .note_bootstrap_held(FieldPromotionBlocker::SupportTrend);
                 }
-                (FieldBootstrapClass::Bootstrap, FieldBootstrapClass::Steady, _) => {}
             }
 
             if !active.continuation_neighbors.contains(&best.neighbor_id) {
@@ -387,12 +481,27 @@ where
                     .iter()
                     .find(|(entry, _)| entry.neighbor_id == active.selected_neighbor)
                     .map(|(entry, _)| entry);
+                let degraded_continuity = matches!(
+                    active.continuity_band,
+                    FieldContinuityBand::DegradedSteady | FieldContinuityBand::Bootstrap
+                ) && promotion_assessment
+                    .degraded_but_coherent(&destination_state);
                 let support_delta = selected_entry
                     .map(|entry| best.net_value.value().abs_diff(entry.net_value.value()))
                     .unwrap_or(0);
-                if corridor_support >= FIELD_ROUTE_WEAK_SUPPORT_FLOOR
-                    && support_delta <= FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX
+                let shift_delta_max =
+                    if active.continuity_band == FieldContinuityBand::DegradedSteady {
+                        FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX.saturating_add(120)
+                    } else {
+                        FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX
+                    };
+                let support_floor = if active.continuity_band == FieldContinuityBand::DegradedSteady
                 {
+                    FIELD_DEGRADED_STEADY_FAILURE_SUPPORT_FLOOR
+                } else {
+                    FIELD_ROUTE_WEAK_SUPPORT_FLOOR
+                };
+                if corridor_support >= support_floor && support_delta <= shift_delta_max {
                     active.continuation_neighbors = ranked
                         .iter()
                         .take(crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT + 1)
@@ -400,10 +509,14 @@ where
                         .collect();
                     active.selected_neighbor = best.neighbor_id;
                     pending_coordination_shift = Some(best.neighbor_id);
+                    if service_bias {
+                        active.recovery.note_service_retention_carry_forward();
+                    }
+                    if degraded_continuity {
+                        active.recovery.note_asymmetric_shift_success();
+                    }
                 } else {
-                    if previous_bootstrap_class == FieldBootstrapClass::Bootstrap
-                        && promotion_assessment.degraded_but_coherent(&destination_state)
-                    {
+                    if degraded_continuity {
                         active.continuation_neighbors = ranked
                             .iter()
                             .take(2)
@@ -428,27 +541,66 @@ where
             }
 
             if active.selected_neighbor != best.neighbor_id {
+                if active.continuity_band == FieldContinuityBand::DegradedSteady {
+                    active.recovery.note_asymmetric_shift_success();
+                }
+                if service_bias {
+                    active.recovery.note_service_retention_carry_forward();
+                }
                 active.selected_neighbor = best.neighbor_id;
                 pending_coordination_shift = Some(best.neighbor_id);
             }
         }
 
-        let failure_support_floor = if previous_bootstrap_class == FieldBootstrapClass::Bootstrap
-            && promotion_assessment.degraded_but_coherent(&destination_state)
-        {
-            FIELD_BOOTSTRAP_FAILURE_SUPPORT_FLOOR
-        } else {
-            FIELD_ROUTE_FAILURE_SUPPORT_FLOOR
-        };
+        let degraded_continuity = matches!(
+            effective_continuity_band,
+            FieldContinuityBand::DegradedSteady | FieldContinuityBand::Bootstrap
+        ) && promotion_assessment
+            .degraded_but_coherent(&destination_state);
+        let post_shift_grace = self
+            .active_routes
+            .get(identity.route_id())
+            .is_some_and(|active| continuation_shift_grace_active(active, &promotion_assessment));
+        let failure_support_floor =
+            if current_bootstrap_class == FieldBootstrapClass::Bootstrap && degraded_continuity {
+                if service_bias {
+                    FIELD_BOOTSTRAP_FAILURE_SUPPORT_FLOOR.saturating_sub(20)
+                } else {
+                    FIELD_BOOTSTRAP_FAILURE_SUPPORT_FLOOR
+                }
+            } else if effective_continuity_band == FieldContinuityBand::DegradedSteady {
+                if service_bias {
+                    FIELD_DEGRADED_STEADY_FAILURE_SUPPORT_FLOOR.saturating_sub(20)
+                } else {
+                    FIELD_DEGRADED_STEADY_FAILURE_SUPPORT_FLOOR
+                }
+            } else {
+                FIELD_ROUTE_FAILURE_SUPPORT_FLOOR
+            }
+            .saturating_sub(if post_shift_grace { 30 } else { 0 });
 
         if corridor_support < failure_support_floor {
-            if previous_bootstrap_class == FieldBootstrapClass::Bootstrap
-                && promotion_assessment.degraded_but_coherent(&destination_state)
-            {
+            if degraded_continuity {
                 if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
-                    active
-                        .recovery
-                        .note_bootstrap_narrowed(FieldPromotionBlocker::SupportTrend);
+                    if active.continuity_band == FieldContinuityBand::DegradedSteady {
+                        active.recovery.note_corridor_narrowed();
+                    } else {
+                        active
+                            .recovery
+                            .note_bootstrap_narrowed(FieldPromotionBlocker::SupportTrend);
+                    }
+                }
+                return Ok(RouteMaintenanceResult {
+                    event: RouteLifecycleEvent::Activated,
+                    outcome: RouteMaintenanceOutcome::HoldFallback {
+                        trigger,
+                        retained_object_count: jacquard_core::HoldItemCount(1),
+                    },
+                });
+            }
+            if post_shift_grace {
+                if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
+                    active.recovery.note_continuation_retained();
                 }
                 return Ok(RouteMaintenanceResult {
                     event: RouteLifecycleEvent::Activated,
@@ -509,18 +661,29 @@ where
             .last_tick_processed
             .0
             .saturating_sub(best.freshness.0)
-            > if previous_bootstrap_class == FieldBootstrapClass::Bootstrap
-                && promotion_assessment.degraded_but_coherent(&destination_state)
-            {
-                FIELD_BOOTSTRAP_STALE_TICKS_MAX
+            > if current_bootstrap_class == FieldBootstrapClass::Bootstrap && degraded_continuity {
+                if service_bias {
+                    FIELD_BOOTSTRAP_STALE_TICKS_MAX.saturating_add(2)
+                } else {
+                    FIELD_BOOTSTRAP_STALE_TICKS_MAX
+                }
+            } else if effective_continuity_band == FieldContinuityBand::DegradedSteady {
+                if service_bias {
+                    FIELD_DEGRADED_STEADY_STALE_TICKS_MAX.saturating_add(2)
+                } else {
+                    FIELD_DEGRADED_STEADY_STALE_TICKS_MAX
+                }
             } else {
                 4
-            };
+            }
+            .saturating_add(if post_shift_grace { 2 } else { 0 });
         if is_stale {
             if corridor_support < FIELD_ROUTE_WEAK_SUPPORT_FLOOR {
                 if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
-                    if active.bootstrap_class == FieldBootstrapClass::Bootstrap {
-                        if promotion_assessment.degraded_but_coherent(&destination_state) {
+                    if active.bootstrap_class == FieldBootstrapClass::Bootstrap
+                        || active.continuity_band == FieldContinuityBand::DegradedSteady
+                    {
+                        if degraded_continuity {
                             active
                                 .recovery
                                 .note_bootstrap_narrowed(FieldPromotionBlocker::Freshness);
@@ -536,9 +699,14 @@ where
                         }
                     }
                 }
-                if promotion_assessment.degraded_but_coherent(&destination_state) {
+                if degraded_continuity {
                     maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
                         trigger: RouteMaintenanceTrigger::AntiEntropyRequired,
+                        retained_object_count: jacquard_core::HoldItemCount(1),
+                    };
+                } else if post_shift_grace {
+                    maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
+                        trigger,
                         retained_object_count: jacquard_core::HoldItemCount(1),
                     };
                 } else {
@@ -975,7 +1143,8 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 &destination,
                 now_tick,
             );
-            let forward_evidence = forward_evidence_for_observer(destination_state, now_tick);
+            let forward_input = forward_evidence_for_observer(destination_state, now_tick);
+            let forward_evidence = forward_input.evidence.clone();
             let reverse_feedback = destination_state.pending_reverse_feedback.clone();
             let signature = observer_input_signature(
                 topology_epoch,
@@ -1038,6 +1207,13 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 destination_state.frontier.clone(),
             );
             changed |= had_state != has_state;
+            if forward_input.synthesized && forward_input.service_carry_forward {
+                for active in self.active_routes.values_mut() {
+                    if active.destination == destination_key {
+                        active.recovery.note_service_retention_carry_forward();
+                    }
+                }
+            }
         }
         changed
     }
@@ -1066,24 +1242,59 @@ fn direct_evidence_for_destination(
         .unwrap_or_default()
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ForwardEvidenceInput {
+    evidence: Vec<crate::summary::ForwardPropagatedEvidence>,
+    synthesized: bool,
+    service_carry_forward: bool,
+}
+
 fn forward_evidence_for_observer(
     destination_state: &crate::state::DestinationFieldState,
     now_tick: Tick,
-) -> Vec<crate::summary::ForwardPropagatedEvidence> {
+) -> ForwardEvidenceInput {
     if !destination_state.pending_forward_evidence.is_empty() {
-        return destination_state.pending_forward_evidence.clone();
+        return ForwardEvidenceInput {
+            evidence: destination_state.pending_forward_evidence.clone(),
+            synthesized: false,
+            service_carry_forward: false,
+        };
     }
     let Some(last_summary) = destination_state.publication.last_summary.clone() else {
-        return Vec::new();
+        return ForwardEvidenceInput {
+            evidence: Vec::new(),
+            synthesized: false,
+            service_carry_forward: false,
+        };
     };
     let Some(last_sent_at) = destination_state.publication.last_sent_at else {
-        return Vec::new();
+        return ForwardEvidenceInput {
+            evidence: Vec::new(),
+            synthesized: false,
+            service_carry_forward: false,
+        };
     };
-    if now_tick.0.saturating_sub(last_sent_at.0) > 3 {
-        return Vec::new();
+    let service_bias = matches!(
+        destination_state.destination,
+        crate::state::DestinationKey::Service(_)
+    );
+    if now_tick.0.saturating_sub(last_sent_at.0) > if service_bias { 5 } else { 3 } {
+        return ForwardEvidenceInput {
+            evidence: Vec::new(),
+            synthesized: false,
+            service_carry_forward: false,
+        };
     }
-    if last_summary.retention_support.value() < 180 || last_summary.delivery_support.value() < 180 {
-        return Vec::new();
+    let retention_floor = if service_bias { 140 } else { 180 };
+    let support_floor = if service_bias { 140 } else { 180 };
+    if last_summary.retention_support.value() < retention_floor
+        || last_summary.delivery_support.value() < support_floor
+    {
+        return ForwardEvidenceInput {
+            evidence: Vec::new(),
+            synthesized: false,
+            service_carry_forward: false,
+        };
     }
     let Some(neighbor_id) = destination_state
         .frontier
@@ -1091,16 +1302,40 @@ fn forward_evidence_for_observer(
         .first()
         .map(|entry| entry.neighbor_id)
     else {
-        return Vec::new();
+        return ForwardEvidenceInput {
+            evidence: Vec::new(),
+            synthesized: false,
+            service_carry_forward: false,
+        };
     };
-    vec![crate::summary::ForwardPropagatedEvidence {
-        from_neighbor: neighbor_id,
-        summary: FieldSummary {
-            freshness_tick: now_tick,
-            ..last_summary
-        },
-        observed_at_tick: now_tick,
-    }]
+    let delivery_bonus = if service_bias { 80 } else { 20 };
+    let retention_bonus = if service_bias { 120 } else { 40 };
+    ForwardEvidenceInput {
+        evidence: vec![crate::summary::ForwardPropagatedEvidence {
+            from_neighbor: neighbor_id,
+            summary: FieldSummary {
+                freshness_tick: now_tick,
+                delivery_support: SupportBucket::new(
+                    last_summary
+                        .delivery_support
+                        .value()
+                        .saturating_add(delivery_bonus)
+                        .min(1000),
+                ),
+                retention_support: SupportBucket::new(
+                    last_summary
+                        .retention_support
+                        .value()
+                        .saturating_add(retention_bonus)
+                        .min(1000),
+                ),
+                ..last_summary
+            },
+            observed_at_tick: now_tick,
+        }],
+        synthesized: true,
+        service_carry_forward: service_bias,
+    }
 }
 
 fn summary_for_destination(
@@ -1164,6 +1399,10 @@ fn anti_entropy_summary_for_destination(
                 .saturating_add(destination_state.posterior.top_corridor_mass.value())
                 / 2,
         );
+    let bridge_bias = summary.hop_band.max_hops >= 2
+        && summary.evidence_class != EvidenceContributionClass::Direct
+        && destination_state.posterior.top_corridor_mass.value() >= 240
+        && destination_state.corridor_belief.retention_affinity.value() >= 280;
     let replay_support = summary
         .delivery_support
         .value()
@@ -1174,6 +1413,7 @@ fn anti_entropy_summary_for_destination(
                 .saturating_add(publication_retention / 6)
                 .min(1000),
         )
+        .saturating_add(if bridge_bias { 80 } else { 0 })
         .min(1000);
     let replay_retention = summary
         .retention_support
@@ -1188,6 +1428,7 @@ fn anti_entropy_summary_for_destination(
                 .saturating_add(replay_support)
                 / 2,
         )
+        .saturating_add(if bridge_bias { 100 } else { 0 })
         .min(1000);
     let replay_uncertainty = summary
         .uncertainty_penalty
@@ -1212,6 +1453,32 @@ fn anti_entropy_summary_for_destination(
         },
         ..summary.clone()
     }
+}
+
+fn updated_promotion_window_score(
+    current_score: u8,
+    assessment: &crate::planner::FieldPromotionAssessment,
+    destination_state: &crate::state::DestinationFieldState,
+    service_bias: bool,
+) -> u8 {
+    let mut next_score = current_score.saturating_sub(if assessment.continuation_coherent {
+        0
+    } else {
+        2
+    });
+    if assessment.anti_entropy_confirmed {
+        next_score = next_score.saturating_add(2);
+    }
+    if assessment.continuation_coherent && assessment.fresh_enough {
+        next_score = next_score.saturating_add(1);
+    }
+    if assessment.support_growth || assessment.uncertainty_reduced {
+        next_score = next_score.saturating_add(1);
+    }
+    if assessment.degraded_but_coherent(destination_state) {
+        next_score = next_score.saturating_add(if service_bias { 2 } else { 1 });
+    }
+    next_score.min(6)
 }
 
 fn refresh_frontier_from_evidence(
@@ -1257,6 +1524,94 @@ fn refresh_frontier_from_evidence(
         });
     }
     frontier
+}
+
+fn merge_pending_forward_continuations(
+    ranked: &mut Vec<(NeighborContinuation, SupportBucket)>,
+    destination_state: &crate::state::DestinationFieldState,
+) {
+    for continuation in pending_forward_continuations_for_maintenance(destination_state) {
+        if ranked
+            .iter()
+            .any(|(entry, _)| entry.neighbor_id == continuation.neighbor_id)
+        {
+            continue;
+        }
+        let score = continuation.net_value;
+        ranked.push((continuation, score));
+    }
+    ranked.sort_by(|left, right| {
+        right
+            .1
+            .cmp(&left.1)
+            .then_with(|| left.0.neighbor_id.cmp(&right.0.neighbor_id))
+    });
+}
+
+fn pending_forward_continuations_for_maintenance(
+    destination_state: &crate::state::DestinationFieldState,
+) -> Vec<NeighborContinuation> {
+    let service_bias = matches!(
+        destination_state.destination,
+        crate::state::DestinationKey::Service(_)
+    );
+    destination_state
+        .pending_forward_evidence
+        .iter()
+        .filter(|evidence| {
+            evidence.summary.retention_support.value() >= if service_bias { 140 } else { 220 }
+                && evidence.summary.delivery_support.value() >= if service_bias { 80 } else { 120 }
+                && evidence.summary.uncertainty_penalty.value()
+                    <= if service_bias { 880 } else { 780 }
+        })
+        .map(|evidence| NeighborContinuation {
+            neighbor_id: evidence.from_neighbor,
+            net_value: SupportBucket::new(
+                evidence
+                    .summary
+                    .delivery_support
+                    .value()
+                    .saturating_add(evidence.summary.retention_support.value() / 3)
+                    .min(1000),
+            ),
+            downstream_support: evidence.summary.delivery_support,
+            expected_hop_band: HopBand::new(
+                evidence.summary.hop_band.min_hops.saturating_add(1),
+                evidence.summary.hop_band.max_hops.saturating_add(1),
+            ),
+            freshness: evidence.observed_at_tick,
+        })
+        .collect()
+}
+
+fn preferred_service_shift_neighbor(
+    active: &ActiveFieldRoute,
+    ranked: &[(NeighborContinuation, SupportBucket)],
+    ranked_best: &NeighborContinuation,
+) -> Option<NodeId> {
+    ranked
+        .iter()
+        .find(|(entry, _)| {
+            entry.neighbor_id != active.selected_neighbor
+                && active.continuation_neighbors.contains(&entry.neighbor_id)
+                && entry.net_value.value().saturating_add(160) >= ranked_best.net_value.value()
+                && entry.downstream_support.value().saturating_add(120)
+                    >= ranked_best.downstream_support.value()
+        })
+        .map(|(entry, _)| entry.neighbor_id)
+}
+
+fn continuation_shift_grace_active(
+    active: &ActiveFieldRoute,
+    promotion_assessment: &crate::planner::FieldPromotionAssessment,
+) -> bool {
+    active.recovery.state.last_outcome == Some(FieldRouteRecoveryOutcome::ContinuationRetained)
+        && matches!(
+            active.continuity_band,
+            FieldContinuityBand::DegradedSteady | FieldContinuityBand::Bootstrap
+        )
+        && promotion_assessment.anti_entropy_confirmed
+        && promotion_assessment.continuation_coherent
 }
 
 fn observer_input_signature(
@@ -1377,8 +1732,8 @@ mod tests {
         FactSourceClass, LinkEndpoint, Observation, OriginAuthenticationClass, PublicationId,
         RatioPermille, RouteEpoch, RouteHandle, RouteLease, RoutePartitionClass,
         RouteProtectionClass, RouteRepairClass, RouteSelectionError, RouteServiceKind,
-        RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
-        TransportError,
+        RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, ServiceId, Tick,
+        TimeWindow, TransportError,
     };
     use jacquard_mem_link_profile::InMemoryTransport;
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
@@ -1751,8 +2106,9 @@ mod tests {
             .expect("maintenance");
         assert_eq!(
             result.outcome,
-            RouteMaintenanceOutcome::ReplacementRequired {
+            RouteMaintenanceOutcome::HoldFallback {
                 trigger: RouteMaintenanceTrigger::LinkDegraded,
+                retained_object_count: jacquard_core::HoldItemCount(1),
             }
         );
     }
@@ -1880,6 +2236,9 @@ mod tests {
             .get_mut(&destination)
             .expect("destination");
         state.corridor_belief.delivery_support = SupportBucket::new(360);
+        state.corridor_belief.retention_affinity = SupportBucket::new(360);
+        state.posterior.top_corridor_mass = SupportBucket::new(340);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(720);
 
         let result = engine
             .maintain_route(
@@ -2033,6 +2392,110 @@ mod tests {
             Some(crate::FieldBootstrapTransition::Withdrawn)
         );
         assert_eq!(active.recovery.state.bootstrap_withdraw_count, 1);
+    }
+
+    #[test]
+    fn steady_route_enters_degraded_band_before_bootstrap_collapse() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let destination = crate::state::DestinationKey::from(&DestinationId::Node(node(2)));
+        {
+            let state = engine
+                .state
+                .destinations
+                .get_mut(&destination)
+                .expect("destination");
+            state.corridor_belief.delivery_support = SupportBucket::new(420);
+            state.corridor_belief.retention_affinity = SupportBucket::new(380);
+            state.posterior.top_corridor_mass = SupportBucket::new(360);
+            state.posterior.usability_entropy = crate::state::EntropyBucket::new(680);
+        }
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let mut materialized =
+            jacquard_core::MaterializedRoute::from_installation(input, installation);
+
+        engine.state.note_tick(Tick(5));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&destination)
+            .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(330);
+        state.corridor_belief.retention_affinity = SupportBucket::new(300);
+        state.posterior.top_corridor_mass = SupportBucket::new(260);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(810);
+
+        let result = engine
+            .maintain_route(
+                &materialized.identity,
+                &mut materialized.runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintenance");
+
+        assert_eq!(result.outcome, RouteMaintenanceOutcome::Continued);
+        let active = engine.active_routes.get(&route_id).expect("active route");
+        assert_eq!(active.bootstrap_class, FieldBootstrapClass::Steady);
+        assert_eq!(active.continuity_band, FieldContinuityBand::DegradedSteady);
+        assert_eq!(
+            active.recovery.state.last_continuity_transition,
+            Some(crate::recovery::FieldContinuityTransition::EnteredDegradedSteady)
+        );
+        assert_eq!(active.recovery.state.degraded_steady_entry_count, 1);
+    }
+
+    #[test]
+    fn service_forward_evidence_uses_bounded_carry_forward() {
+        let now_tick = Tick(5);
+        let mut state = crate::state::DestinationFieldState::new(
+            crate::state::DestinationKey::Service(vec![9, 9]),
+            Tick(1),
+        );
+        state.frontier = state.frontier.insert(NeighborContinuation {
+            neighbor_id: node(2),
+            net_value: SupportBucket::new(420),
+            downstream_support: SupportBucket::new(360),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(4),
+        });
+        state.publication.record(
+            FieldSummary {
+                destination: SummaryDestinationKey::from(&DestinationId::Service(ServiceId(vec![
+                    9, 9,
+                ]))),
+                topology_epoch: RouteEpoch(4),
+                freshness_tick: Tick(4),
+                hop_band: HopBand::new(1, 2),
+                delivery_support: SupportBucket::new(180),
+                congestion_penalty: crate::state::EntropyBucket::new(50),
+                retention_support: SupportBucket::new(220),
+                uncertainty_penalty: crate::state::EntropyBucket::new(500),
+                evidence_class: EvidenceContributionClass::ForwardPropagated,
+                uncertainty_class: SummaryUncertaintyClass::Medium,
+            },
+            Tick(4),
+        );
+
+        let input = forward_evidence_for_observer(&state, now_tick);
+
+        assert!(input.synthesized);
+        assert!(input.service_carry_forward);
+        let carried = input.evidence.first().expect("service evidence");
+        assert_eq!(carried.from_neighbor, node(2));
+        assert!(carried.summary.delivery_support.value() >= 260);
+        assert!(carried.summary.retention_support.value() >= 340);
     }
 
     // long-block-exception: this test keeps materialization, frontier shift,
@@ -2550,6 +3013,181 @@ mod tests {
         assert_eq!(
             engine.route_commitments(&route)[0].resolution,
             RouteCommitmentResolution::Invalidated(RouteInvalidationReason::EvidenceWithdrawn,),
+        );
+    }
+
+    #[test]
+    fn degraded_service_route_commitments_remain_pending_below_legacy_floor() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let destination_id = DestinationId::Service(ServiceId(vec![8; 16]));
+        let state = engine.state.upsert_destination_interest(
+            &destination_id,
+            DestinationInterestClass::Transit,
+            Tick(4),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(420);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(720);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
+        state.corridor_belief.delivery_support = SupportBucket::new(260);
+        state.corridor_belief.retention_affinity = SupportBucket::new(320);
+        state.pending_forward_evidence = vec![crate::summary::ForwardPropagatedEvidence {
+            from_neighbor: node(2),
+            summary: super::summary_for_destination(
+                state,
+                topology.value.epoch,
+                Tick(4),
+                &destination_id,
+            ),
+            observed_at_tick: Tick(4),
+        }];
+
+        let objective = RoutingObjective {
+            destination: destination_id.clone(),
+            ..sample_objective(node(2))
+        };
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let route = jacquard_core::MaterializedRoute::from_installation(input, installation);
+        engine.state.note_tick(Tick(5));
+
+        {
+            let active = engine.active_routes.get_mut(&route_id).expect("active");
+            active.bootstrap_class = FieldBootstrapClass::Bootstrap;
+            active.continuity_band = FieldContinuityBand::DegradedSteady;
+        }
+        let destination = engine
+            .state
+            .destinations
+            .get_mut(&crate::state::DestinationKey::Service(vec![8; 16]))
+            .expect("tracked service destination");
+        destination.corridor_belief.delivery_support = SupportBucket::new(145);
+
+        assert_eq!(
+            engine.route_commitments(&route)[0].resolution,
+            RouteCommitmentResolution::Pending,
+        );
+    }
+
+    #[test]
+    fn service_maintenance_prefers_shift_within_existing_corridor() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let destination_id = DestinationId::Service(ServiceId(vec![8; 16]));
+        let state = engine.state.upsert_destination_interest(
+            &destination_id,
+            DestinationInterestClass::Transit,
+            Tick(4),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(460);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(700);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
+        state.corridor_belief.delivery_support = SupportBucket::new(320);
+        state.corridor_belief.retention_affinity = SupportBucket::new(360);
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(2),
+            net_value: SupportBucket::new(420),
+            downstream_support: SupportBucket::new(320),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(4),
+        });
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(3),
+            net_value: SupportBucket::new(830),
+            downstream_support: SupportBucket::new(700),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(4),
+        });
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(4),
+            net_value: SupportBucket::new(920),
+            downstream_support: SupportBucket::new(760),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(4),
+        });
+        state.pending_forward_evidence = vec![
+            crate::summary::ForwardPropagatedEvidence {
+                from_neighbor: node(2),
+                summary: super::summary_for_destination(
+                    state,
+                    topology.value.epoch,
+                    Tick(4),
+                    &destination_id,
+                ),
+                observed_at_tick: Tick(4),
+            },
+            crate::summary::ForwardPropagatedEvidence {
+                from_neighbor: node(3),
+                summary: super::summary_for_destination(
+                    state,
+                    topology.value.epoch,
+                    Tick(4),
+                    &destination_id,
+                ),
+                observed_at_tick: Tick(4),
+            },
+        ];
+
+        let objective = RoutingObjective {
+            destination: destination_id.clone(),
+            ..sample_objective(node(2))
+        };
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let mut route = jacquard_core::MaterializedRoute::from_installation(input, installation);
+        engine.state.note_tick(Tick(5));
+
+        {
+            let active = engine.active_routes.get_mut(&route_id).expect("active");
+            active.selected_neighbor = node(2);
+            active.continuation_neighbors = vec![node(2), node(3)];
+            active.bootstrap_class = FieldBootstrapClass::Bootstrap;
+            active.continuity_band = FieldContinuityBand::DegradedSteady;
+        }
+
+        let result = engine
+            .maintain_route(
+                &route.identity,
+                &mut route.runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintenance");
+
+        assert_eq!(result.outcome, RouteMaintenanceOutcome::Continued);
+        let active = engine.active_routes.get(&route_id).expect("active");
+        assert_eq!(active.selected_neighbor, node(3));
+        assert!(
+            active.continuation_neighbors.contains(&node(3)),
+            "continuation envelope: {:?}",
+            active.continuation_neighbors
+        );
+        assert_eq!(
+            active.recovery.state.service_retention_carry_forward_count,
+            1
         );
     }
 

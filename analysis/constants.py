@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 PLOT_SPECS = {
-    "batman_transition_stability": (7.4, 4.8),
-    "batman_transition_loss": (7.4, 4.8),
-    "pathway_budget_route_presence": (7.4, 4.8),
-    "pathway_budget_activation": (7.4, 4.8),
-    "field_budget_route_presence": (7.4, 4.8),
-    "field_budget_reconfiguration": (7.4, 4.8),
-    "comparison_dominant_engine": (7.4, 4.8),
-    "head_to_head_route_presence": (7.6, 5.0),
+    "batman_bellman_transition_stability": (11.0, 4.8),
+    "batman_bellman_transition_loss": (11.0, 4.8),
+    "pathway_budget_route_presence": (11.0, 4.8),
+    "pathway_budget_activation": (11.0, 4.8),
+    "field_budget_route_presence": (11.0, 5.8),
+    "field_budget_reconfiguration": (11.0, 5.8),
+    "comparison_dominant_engine": (8.1, 4.8),
+    "head_to_head_route_presence": (9.2, 5.0),
 }
 
-BATMAN_FAMILY_COLORS = {
-    "batman-decay-window-pressure": "#0072B2",
-    "batman-partition-recovery": "#009E73",
-    "batman-asymmetry-relink-transition": "#D55E00",
+BATMAN_BELLMAN_FAMILY_COLORS = {
+    "batman-bellman-decay-window-pressure": "#0072B2",
+    "batman-bellman-partition-recovery": "#009E73",
+    "batman-bellman-asymmetry-relink-transition": "#D55E00",
 }
 
 PATHWAY_FAMILY_COLORS = {
@@ -35,17 +35,17 @@ FIELD_FAMILY_COLORS = {
 }
 
 COMPARISON_ENGINE_COLORS = {
-    "batman": "#0072B2",
+    "batman-bellman": "#0072B2",
     "pathway": "#009E73",
     "field": "#CC79A7",
     "none": "#999999",
 }
 
 HEAD_TO_HEAD_SET_COLORS = {
-    "batman": "#0072B2",
+    "batman-bellman": "#0072B2",
     "pathway": "#009E73",
     "field": "#CC79A7",
-    "pathway-batman": "#E69F00",
+    "pathway-batman-bellman": "#E69F00",
 }
 
 HEURISTIC_LINESTYLES = {

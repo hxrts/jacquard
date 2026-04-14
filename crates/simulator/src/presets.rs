@@ -108,13 +108,13 @@ pub fn pathway_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
 pub fn batman_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = bidirectional_line_topology(
         topology::node(1)
-            .for_engine(&jacquard_batman::BATMAN_ENGINE_ID)
+            .for_engine(&jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID)
             .build(),
         topology::node(2)
-            .for_engine(&jacquard_batman::BATMAN_ENGINE_ID)
+            .for_engine(&jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID)
             .build(),
         topology::node(3)
-            .for_engine(&jacquard_batman::BATMAN_ENGINE_ID)
+            .for_engine(&jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID)
             .build(),
     );
     let scenario = JacquardScenario::new(
@@ -123,9 +123,9 @@ pub fn batman_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::batman(NODE_A),
-            HostSpec::batman(NODE_B),
-            HostSpec::batman(NODE_C),
+            HostSpec::batman_bellman(NODE_A),
+            HostSpec::batman_bellman(NODE_B),
+            HostSpec::batman_bellman(NODE_C),
         ],
         vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
         7,
@@ -264,6 +264,37 @@ pub fn babel_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
         ),
     ]);
     (scenario, environment)
+}
+
+#[must_use]
+// long-block-exception: this preset is a single scenario fixture definition
+// pairing topology and environment hooks for regression readability.
+pub fn batman_classic_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = bidirectional_line_topology(
+        topology::node(1)
+            .for_engine(&jacquard_batman_classic::BATMAN_CLASSIC_ENGINE_ID)
+            .build(),
+        topology::node(2)
+            .for_engine(&jacquard_batman_classic::BATMAN_CLASSIC_ENGINE_ID)
+            .build(),
+        topology::node(3)
+            .for_engine(&jacquard_batman_classic::BATMAN_CLASSIC_ENGINE_ID)
+            .build(),
+    );
+    let scenario = JacquardScenario::new(
+        "batman-classic-line",
+        jacquard_core::SimulationSeed(61),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        vec![
+            HostSpec::batman_classic(NODE_A),
+            HostSpec::batman_classic(NODE_B),
+            HostSpec::batman_classic(NODE_C),
+        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B)).with_activation_round(6)],
+        30,
+    );
+    (scenario, ScriptedEnvironmentModel::default())
 }
 
 #[must_use]
@@ -413,8 +444,8 @@ pub fn all_engines_ring() -> (JacquardScenario, ScriptedEnvironmentModel) {
 #[must_use]
 pub fn mixed_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = bidirectional_line_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).field_and_batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).field_and_batman_bellman().build(),
         topology::node(3).field().build(),
     );
     let scenario = JacquardScenario::new(
@@ -423,8 +454,8 @@ pub fn mixed_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::batman(NODE_A),
-            HostSpec::field_and_batman(NODE_B),
+            HostSpec::batman_bellman(NODE_A),
+            HostSpec::field_and_batman_bellman(NODE_B),
             HostSpec::field(NODE_C),
         ],
         vec![
@@ -757,8 +788,8 @@ pub fn composition_explicit_path_preferred() -> (JacquardScenario, ScriptedEnvir
 pub fn composition_next_hop_only_viable() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = bidirectional_line_topology(
         topology::node(1).all_engines().build(),
-        topology::node(2).batman().build(),
-        topology::node(3).batman().build(),
+        topology::node(2).batman_bellman().build(),
+        topology::node(3).batman_bellman().build(),
     );
     let scenario = JacquardScenario::new(
         "composition-next-hop-only-viable",
@@ -767,8 +798,8 @@ pub fn composition_next_hop_only_viable() -> (JacquardScenario, ScriptedEnvironm
         topology,
         vec![
             HostSpec::all_engines(NODE_A).with_profile(best_effort_connected_profile()),
-            HostSpec::batman(NODE_B),
-            HostSpec::batman(NODE_C),
+            HostSpec::batman_bellman(NODE_B),
+            HostSpec::batman_bellman(NODE_C),
         ],
         vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
         5,
@@ -802,8 +833,8 @@ pub fn composition_corridor_preferred() -> (JacquardScenario, ScriptedEnvironmen
 #[must_use]
 pub fn composition_concurrent_objectives() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = dual_pair_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).batman_bellman().build(),
         topology::node(3).field().build(),
         topology::node(4).field().build(),
     );
@@ -813,8 +844,8 @@ pub fn composition_concurrent_objectives() -> (JacquardScenario, ScriptedEnviron
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology,
         vec![
-            HostSpec::batman(NODE_A),
-            HostSpec::batman(NODE_B),
+            HostSpec::batman_bellman(NODE_A),
+            HostSpec::batman_bellman(NODE_B),
             HostSpec::field(NODE_C),
             HostSpec::field(NODE_D),
         ],
@@ -831,8 +862,8 @@ pub fn composition_concurrent_objectives() -> (JacquardScenario, ScriptedEnviron
 pub fn composition_cascade_partition_eliminates_route(
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = dual_pair_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).batman_bellman().build(),
         topology::node(3).field().build(),
         topology::node(4).field().build(),
     );
@@ -842,8 +873,8 @@ pub fn composition_cascade_partition_eliminates_route(
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology,
         vec![
-            HostSpec::batman(NODE_A),
-            HostSpec::batman(NODE_B),
+            HostSpec::batman_bellman(NODE_A),
+            HostSpec::batman_bellman(NODE_B),
             HostSpec::field(NODE_C),
             HostSpec::field(NODE_D),
         ],
@@ -865,9 +896,9 @@ pub fn composition_cascade_partition_eliminates_route(
 #[must_use]
 pub fn batman_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)> {
     let topology = bidirectional_line_topology(
-        topology::node(1).batman().build(),
-        topology::node(2).batman().build(),
-        topology::node(3).batman().build(),
+        topology::node(1).batman_bellman().build(),
+        topology::node(2).batman_bellman().build(),
+        topology::node(3).batman_bellman().build(),
     );
     let slow = JacquardScenario::new(
         "batman-decay-slow",
@@ -875,12 +906,12 @@ pub fn batman_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::batman(NODE_A)
-                .with_batman_decay_window(jacquard_batman::DecayWindow::new(8, 4)),
-            HostSpec::batman(NODE_B)
-                .with_batman_decay_window(jacquard_batman::DecayWindow::new(8, 4)),
-            HostSpec::batman(NODE_C)
-                .with_batman_decay_window(jacquard_batman::DecayWindow::new(8, 4)),
+            HostSpec::batman_bellman(NODE_A)
+                .with_batman_bellman_decay_window(jacquard_batman_bellman::DecayWindow::new(8, 4)),
+            HostSpec::batman_bellman(NODE_B)
+                .with_batman_bellman_decay_window(jacquard_batman_bellman::DecayWindow::new(8, 4)),
+            HostSpec::batman_bellman(NODE_C)
+                .with_batman_bellman_decay_window(jacquard_batman_bellman::DecayWindow::new(8, 4)),
         ],
         vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(6)],
         36,
@@ -891,12 +922,12 @@ pub fn batman_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::batman(NODE_A)
-                .with_batman_decay_window(jacquard_batman::DecayWindow::new(1, 1)),
-            HostSpec::batman(NODE_B)
-                .with_batman_decay_window(jacquard_batman::DecayWindow::new(1, 1)),
-            HostSpec::batman(NODE_C)
-                .with_batman_decay_window(jacquard_batman::DecayWindow::new(1, 1)),
+            HostSpec::batman_bellman(NODE_A)
+                .with_batman_bellman_decay_window(jacquard_batman_bellman::DecayWindow::new(1, 1)),
+            HostSpec::batman_bellman(NODE_B)
+                .with_batman_bellman_decay_window(jacquard_batman_bellman::DecayWindow::new(1, 1)),
+            HostSpec::batman_bellman(NODE_C)
+                .with_batman_bellman_decay_window(jacquard_batman_bellman::DecayWindow::new(1, 1)),
         ],
         vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(6)],
         36,
@@ -921,9 +952,9 @@ pub fn batman_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)
 #[must_use]
 pub fn profile_driven_engine_selection() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)> {
     let topology = bidirectional_line_topology(
-        topology::node(1).field_and_batman().build(),
-        topology::node(2).field_and_batman().build(),
-        topology::node(3).field_and_batman().build(),
+        topology::node(1).field_and_batman_bellman().build(),
+        topology::node(2).field_and_batman_bellman().build(),
+        topology::node(3).field_and_batman_bellman().build(),
     );
     let connected = JacquardScenario::new(
         "profile-driven-engine-selection-connected",
@@ -931,9 +962,10 @@ pub fn profile_driven_engine_selection() -> Vec<(JacquardScenario, ScriptedEnvir
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
         vec![
-            HostSpec::field_and_batman(NODE_A).with_profile(best_effort_connected_profile()),
-            HostSpec::field_and_batman(NODE_B),
-            HostSpec::field_and_batman(NODE_C),
+            HostSpec::field_and_batman_bellman(NODE_A)
+                .with_profile(best_effort_connected_profile()),
+            HostSpec::field_and_batman_bellman(NODE_B),
+            HostSpec::field_and_batman_bellman(NODE_C),
         ],
         vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
         5,
@@ -944,9 +976,9 @@ pub fn profile_driven_engine_selection() -> Vec<(JacquardScenario, ScriptedEnvir
         jacquard_core::OperatingMode::FieldPartitionTolerant,
         topology,
         vec![
-            HostSpec::field_and_batman(NODE_A),
-            HostSpec::field_and_batman(NODE_B),
-            HostSpec::field_and_batman(NODE_C),
+            HostSpec::field_and_batman_bellman(NODE_A),
+            HostSpec::field_and_batman_bellman(NODE_B),
+            HostSpec::field_and_batman_bellman(NODE_C),
         ],
         vec![BoundObjective::new(NODE_A, default_objective(NODE_B))],
         5,

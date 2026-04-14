@@ -7,7 +7,8 @@
 
 use jacquard_adapter::opaque_endpoint;
 use jacquard_babel::BABEL_ENGINE_ID;
-use jacquard_batman::BATMAN_ENGINE_ID;
+use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
+use jacquard_batman_classic::BATMAN_CLASSIC_ENGINE_ID;
 use jacquard_core::{
     ByteCount, ControllerId, Link, Node, NodeId, RatioPermille, RoutingEngineId, Tick,
     TransportKind,
@@ -67,8 +68,8 @@ impl TopologyNodePreset {
     }
 
     #[must_use]
-    pub fn batman(self) -> Self {
-        self.for_engine(&BATMAN_ENGINE_ID)
+    pub fn batman_bellman(self) -> Self {
+        self.for_engine(&BATMAN_BELLMAN_ENGINE_ID)
     }
 
     #[must_use]
@@ -77,8 +78,13 @@ impl TopologyNodePreset {
     }
 
     #[must_use]
-    pub fn pathway_and_batman(self) -> Self {
-        self.for_engines(&[PATHWAY_ENGINE_ID, BATMAN_ENGINE_ID])
+    pub fn batman_classic(self) -> Self {
+        self.for_engine(&BATMAN_CLASSIC_ENGINE_ID)
+    }
+
+    #[must_use]
+    pub fn pathway_and_batman_bellman(self) -> Self {
+        self.for_engines(&[PATHWAY_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
     }
 
     #[must_use]
@@ -87,8 +93,8 @@ impl TopologyNodePreset {
     }
 
     #[must_use]
-    pub fn babel_and_batman(self) -> Self {
-        self.for_engines(&[BABEL_ENGINE_ID, BATMAN_ENGINE_ID])
+    pub fn babel_and_batman_bellman(self) -> Self {
+        self.for_engines(&[BABEL_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
     }
 
     #[must_use]
@@ -102,13 +108,13 @@ impl TopologyNodePreset {
     }
 
     #[must_use]
-    pub fn field_and_batman(self) -> Self {
-        self.for_engines(&[FIELD_ENGINE_ID, BATMAN_ENGINE_ID])
+    pub fn field_and_batman_bellman(self) -> Self {
+        self.for_engines(&[FIELD_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
     }
 
     #[must_use]
     pub fn all_engines(self) -> Self {
-        self.for_engines(&[PATHWAY_ENGINE_ID, FIELD_ENGINE_ID, BATMAN_ENGINE_ID])
+        self.for_engines(&[PATHWAY_ENGINE_ID, FIELD_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
     }
 
     #[must_use]

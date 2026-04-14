@@ -1,4 +1,4 @@
-//! `RoutingEnginePlanner` impl for `BatmanEngine`.
+//! `RoutingEnginePlanner` impl for `BatmanBellmanEngine`.
 //!
 //! Candidate enumeration reads the best next-hop table keyed by destination
 //! node and emits at most one `RouteCandidate` per known destination without
@@ -25,19 +25,19 @@ use jacquard_core::{
 };
 use jacquard_traits::{RoutingEnginePlanner, TimeEffects, TransportSenderEffects};
 
-use crate::{BatmanEngine, BATMAN_CAPABILITIES, BATMAN_ENGINE_ID};
+use crate::{BatmanBellmanEngine, BATMAN_BELLMAN_CAPABILITIES, BATMAN_BELLMAN_ENGINE_ID};
 
-impl<Transport, Effects> RoutingEnginePlanner for BatmanEngine<Transport, Effects>
+impl<Transport, Effects> RoutingEnginePlanner for BatmanBellmanEngine<Transport, Effects>
 where
     Transport: TransportSenderEffects,
     Effects: TimeEffects,
 {
     fn engine_id(&self) -> RoutingEngineId {
-        BATMAN_ENGINE_ID
+        BATMAN_BELLMAN_ENGINE_ID
     }
 
     fn capabilities(&self) -> RoutingEngineCapabilities {
-        BATMAN_CAPABILITIES
+        BATMAN_BELLMAN_CAPABILITIES
     }
 
     fn candidate_routes(
@@ -115,7 +115,7 @@ fn destination_supports_objective(
         .map(|node| {
             node.profile.services.iter().any(|service| {
                 service.service_kind == service_kind
-                    && service.routing_engines.contains(&BATMAN_ENGINE_ID)
+                    && service.routing_engines.contains(&BATMAN_BELLMAN_ENGINE_ID)
             })
         })
         .unwrap_or(false)
@@ -194,7 +194,7 @@ mod tests {
                                 endpoint(1),
                                 Tick(1),
                             ),
-                            &BATMAN_ENGINE_ID,
+                            &BATMAN_BELLMAN_ENGINE_ID,
                         )
                         .build(),
                     ),
@@ -206,7 +206,7 @@ mod tests {
                                 endpoint(2),
                                 Tick(1),
                             ),
-                            &BATMAN_ENGINE_ID,
+                            &BATMAN_BELLMAN_ENGINE_ID,
                         )
                         .build(),
                     ),
@@ -245,7 +245,7 @@ mod tests {
             )
             .build(),
         );
-        let mut engine = BatmanEngine::new(
+        let mut engine = BatmanBellmanEngine::new(
             node(1),
             InMemoryTransport::new(),
             InMemoryRuntimeEffects {

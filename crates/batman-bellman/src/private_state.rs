@@ -1,4 +1,4 @@
-//! Engine-private state maintenance for `BatmanEngine`.
+//! Engine-private state maintenance for `BatmanBellmanEngine`.
 //!
 //! Refreshes per-originator observations from the latest topology, ranks
 //! neighbors by transmit quality and hop count, and derives the best next-hop
@@ -39,10 +39,10 @@ use crate::{
         BestNextHop, NeighborRanking, OgmReceiveWindow, OriginatorObservation,
         OriginatorObservationTable,
     },
-    scoring, BatmanEngine, BATMAN_CAPABILITIES, BATMAN_ENGINE_ID,
+    scoring, BatmanBellmanEngine, BATMAN_BELLMAN_CAPABILITIES, BATMAN_BELLMAN_ENGINE_ID,
 };
 
-impl<Transport, Effects> BatmanEngine<Transport, Effects> {
+impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
     // long-block-exception: one refresh pass derives observations, rankings,
     // and best-next-hop state in a single bounded state update.
     pub(crate) fn refresh_private_state(
@@ -332,9 +332,9 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
         RouteCandidate {
             route_id: self.route_id_for(best.originator),
             summary: RouteSummary {
-                engine: BATMAN_ENGINE_ID,
+                engine: BATMAN_BELLMAN_ENGINE_ID,
                 protection: objective.target_protection,
-                connectivity: BATMAN_CAPABILITIES.max_connectivity,
+                connectivity: BATMAN_BELLMAN_CAPABILITIES.max_connectivity,
                 protocol_mix: vec![best.transport_kind.clone()],
                 hop_count_hint: Belief::certain(best.hop_count, best.updated_at_tick),
                 valid_for: TimeWindow::new(
@@ -350,14 +350,14 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
             estimate: jacquard_core::Estimate::certain(
                 RouteEstimate {
                     estimated_protection: objective.target_protection,
-                    estimated_connectivity: BATMAN_CAPABILITIES.max_connectivity,
+                    estimated_connectivity: BATMAN_BELLMAN_CAPABILITIES.max_connectivity,
                     topology_epoch: best.topology_epoch,
                     degradation: best.degradation,
                 },
                 best.updated_at_tick,
             ),
             backend_ref: BackendRouteRef {
-                engine: BATMAN_ENGINE_ID,
+                engine: BATMAN_BELLMAN_ENGINE_ID,
                 backend_route_id: best.backend_route_id.clone(),
             },
         }
@@ -370,8 +370,9 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
         candidate: &RouteCandidate,
     ) -> RouteAdmission {
         let decision = if profile.selected_connectivity.partition
-            > BATMAN_CAPABILITIES.max_connectivity.partition
-            || profile.selected_connectivity.repair > BATMAN_CAPABILITIES.max_connectivity.repair
+            > BATMAN_BELLMAN_CAPABILITIES.max_connectivity.partition
+            || profile.selected_connectivity.repair
+                > BATMAN_BELLMAN_CAPABILITIES.max_connectivity.repair
         {
             AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::BackendUnavailable)
         } else {
@@ -403,7 +404,7 @@ impl<Transport, Effects> BatmanEngine<Transport, Effects> {
                 },
                 connectivity: ObjectiveVsDelivered {
                     objective: objective.target_connectivity,
-                    delivered: BATMAN_CAPABILITIES.max_connectivity,
+                    delivered: BATMAN_BELLMAN_CAPABILITIES.max_connectivity,
                 },
                 admission_profile: batman_assumptions(),
                 topology_epoch: candidate.estimate.value.topology_epoch,
@@ -601,7 +602,7 @@ mod tests {
 
     #[test]
     fn ranking_table_prefers_higher_tq_neighbor() {
-        let mut engine = BatmanEngine::new(
+        let mut engine = BatmanBellmanEngine::new(
             node(1),
             InMemoryTransport::new(),
             InMemoryRuntimeEffects {
@@ -621,7 +622,7 @@ mod tests {
 
     #[test]
     fn stale_observations_decay_out_of_private_tables() {
-        let mut engine = BatmanEngine::with_decay_window(
+        let mut engine = BatmanBellmanEngine::with_decay_window(
             node(1),
             InMemoryTransport::new(),
             InMemoryRuntimeEffects {
@@ -653,7 +654,7 @@ mod tests {
 
     #[test]
     fn engine_tick_reports_immediate_then_bounded_hint() {
-        let mut engine = BatmanEngine::new(
+        let mut engine = BatmanBellmanEngine::new(
             node(1),
             InMemoryTransport::new(),
             InMemoryRuntimeEffects {
