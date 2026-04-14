@@ -51,6 +51,10 @@ def refresh_annotation(refresh: int | None) -> str:
     return f"r{refresh}" if refresh is not None else ""
 
 
+def diffusion_config_label(config_id: str) -> str:
+    return break_tick_label(config_id)
+
+
 def style_plot_axes(ax) -> None:
     ax.grid(alpha=0.22, color="#cbd5e1", linewidth=0.8)
     ax.set_facecolor("#fbfdff")
@@ -771,94 +775,150 @@ def render_head_to_head_route_presence(ax, aggregates: pl.DataFrame) -> None:
     style_legend(legend)
 
 
-def render_diffusion_delivery_coverage(ax, diffusion_policy_summary: pl.DataFrame) -> None:
-    if diffusion_policy_summary.is_empty():
+def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataFrame) -> None:
+    if diffusion_engine_comparison.is_empty():
         return
-    data = diffusion_policy_summary.sort("family_id")
-    families = data["family_id"].to_list()
-    delivery = data["delivery_probability_permille_mean"].to_list()
-    coverage = data["coverage_permille_mean"].to_list()
-    y_positions = list(range(len(families)))
-    height = 0.34
-    ax.barh(
-        [position - height / 2 for position in y_positions],
-        delivery,
-        height=height,
-        color="#2563eb",
-        label="delivery",
-        edgecolor="#334155",
-        linewidth=0.6,
-    )
-    ax.barh(
-        [position + height / 2 for position in y_positions],
-        coverage,
-        height=height,
-        color="#0f766e",
-        label="coverage",
-        edgecolor="#334155",
-        linewidth=0.6,
-    )
-    ax.set_yticks(y_positions)
-    ax.set_yticklabels([break_tick_label(family) for family in families], fontsize=8.1)
-    ax.set_xlabel("Permille")
-    ax.set_xlim(0, 1000)
-    ax.invert_yaxis()
-    style_plot_axes(ax)
-    legend = ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2, frameon=False)
-    style_legend(legend)
-
-
-def render_diffusion_resource_boundedness(ax, diffusion_policy_summary: pl.DataFrame) -> None:
-    if diffusion_policy_summary.is_empty():
-        return
-    data = diffusion_policy_summary.sort("family_id")
-    families = data["family_id"].to_list()
-    transmissions = data["total_transmissions_mean"].to_list()
-    reproduction = data["estimated_reproduction_permille_mean"].to_list()
-    bounded_states = data["bounded_state_mode"].to_list()
-    y_positions = list(range(len(families)))
-    bars = ax.barh(
-        y_positions,
-        transmissions,
-        height=0.58,
-        color=[DIFFUSION_BOUND_STATE_COLORS.get(state, "#64748b") for state in bounded_states],
-        edgecolor="#334155",
-        linewidth=0.7,
-    )
-    ax.set_yticks(y_positions)
-    ax.set_yticklabels([break_tick_label(family) for family in families], fontsize=8.1)
-    ax.set_xlabel("Mean transmissions")
-    ax.invert_yaxis()
-    style_plot_axes(ax)
-    max_tx = max(transmissions) if transmissions else 0
-    ax.set_xlim(0, max(16, max_tx + 8))
-    for bar, reproduction_value, state in zip(bars, reproduction, bounded_states, strict=False):
-        y = bar.get_y() + bar.get_height() / 2
-        x = bar.get_width()
-        ax.text(
-            x + 0.5,
-            y,
-            f"R={reproduction_value} {state}",
-            va="center",
-            ha="left",
-            fontsize=8.1,
-            color=PLOT_TEXT_COLOR,
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    families = diffusion_engine_comparison["family_id"].unique().sort().to_list()
+    cols = 2
+    rows = (len(families) + cols - 1) // cols
+    grid = subplotspec.subgridspec(rows, cols, wspace=0.22, hspace=0.42)
+    panels = []
+    for index, family in enumerate(families):
+        panel = fig.add_subplot(grid[index // cols, index % cols])
+        panels.append(panel)
+        family_rows = diffusion_engine_comparison.filter(pl.col("family_id") == family)
+        xs = list(range(family_rows.height))
+        labels = [diffusion_config_label(config_id) for config_id in family_rows["config_id"].to_list()]
+        engine_sets = family_rows["config_id"].to_list()
+        delivery = family_rows["delivery_probability_permille_mean"].to_list()
+        coverage = family_rows["coverage_permille_mean"].to_list()
+        colors = [HEAD_TO_HEAD_SET_COLORS.get(engine_set, "#64748b") for engine_set in engine_sets]
+        panel.bar(
+            xs,
+            delivery,
+            color=colors,
+            edgecolor="#334155",
+            linewidth=0.5,
         )
-    legend_handles = [
-        plt.Rectangle((0, 0), 1, 1, color=color, linewidth=0)
-        for _, color in DIFFUSION_BOUND_STATE_COLORS.items()
+        panel.plot(
+            xs,
+            coverage,
+            color="#111827",
+            marker="o",
+            linewidth=1.0,
+            markersize=3.6,
+            label="coverage",
+            zorder=4,
+        )
+        panel.set_title(family_label(family), fontsize=9.2)
+        panel.set_xticks(xs)
+        panel.set_xticklabels(labels, fontsize=7.4)
+        panel.set_ylim(0, 1000)
+        if index % cols == 0:
+            panel.set_ylabel("Permille")
+        style_plot_axes(panel)
+    for empty_index in range(len(families), rows * cols):
+        empty = fig.add_subplot(grid[empty_index // cols, empty_index % cols])
+        empty.axis("off")
+    engine_handles = [
+        plt.Rectangle((0, 0), 1, 1, color=HEAD_TO_HEAD_SET_COLORS.get(engine, "#64748b"), linewidth=0)
+        for engine in ["batman-bellman", "batman-classic", "babel", "pathway", "field", "pathway-batman-bellman"]
     ]
-    legend_labels = list(DIFFUSION_BOUND_STATE_COLORS.keys())
-    legend = ax.legend(
-        legend_handles,
-        legend_labels,
+    engine_labels = ["`batman-bellman`", "`batman-classic`", "`babel`", "`pathway`", "`field`", "`pathway-batman-bellman`"]
+    coverage_handle = plt.Line2D([0], [0], color="#111827", marker="o", linewidth=1.0, markersize=3.6)
+    legend = panels[0].legend(
+        [*engine_handles, coverage_handle],
+        [*engine_labels, "coverage"],
         loc="upper center",
-        bbox_to_anchor=(0.5, -0.12),
+        bbox_to_anchor=(1.0, -0.22),
         ncol=3,
         frameon=False,
         fontsize=8,
     )
     style_legend(legend)
+
+
+def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.DataFrame) -> None:
+    if diffusion_engine_comparison.is_empty():
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    families = diffusion_engine_comparison["family_id"].unique().sort().to_list()
+    cols = 2
+    rows = (len(families) + cols - 1) // cols
+    grid = subplotspec.subgridspec(rows, cols, wspace=0.22, hspace=0.46)
+    panels = []
+    max_tx = diffusion_engine_comparison["total_transmissions_mean"].max()
+    for index, family in enumerate(families):
+        panel = fig.add_subplot(grid[index // cols, index % cols])
+        panels.append(panel)
+        family_rows = diffusion_engine_comparison.filter(pl.col("family_id") == family)
+        xs = list(range(family_rows.height))
+        labels = [diffusion_config_label(config_id) for config_id in family_rows["config_id"].to_list()]
+        engine_sets = family_rows["config_id"].to_list()
+        transmissions = family_rows["total_transmissions_mean"].to_list()
+        reproduction = family_rows["estimated_reproduction_permille_mean"].to_list()
+        bounded_states = family_rows["bounded_state_mode"].to_list()
+        bars = panel.bar(
+            xs,
+            transmissions,
+            color=[HEAD_TO_HEAD_SET_COLORS.get(engine_set, "#64748b") for engine_set in engine_sets],
+            edgecolor="#334155",
+            linewidth=0.6,
+        )
+        panel.set_title(family_label(family), fontsize=9.2)
+        panel.set_xticks(xs)
+        panel.set_xticklabels(labels, fontsize=7.2)
+        panel.set_ylim(0, max(16, (max_tx or 0) + 8))
+        if index % cols == 0:
+            panel.set_ylabel("Tx mean")
+        style_plot_axes(panel)
+        for bar, r_value in zip(bars, reproduction, strict=False):
+            panel.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.35,
+                f"R={r_value}",
+                ha="center",
+                va="bottom",
+                fontsize=7.1,
+                color=PLOT_TEXT_COLOR,
+            )
+    for empty_index in range(len(families), rows * cols):
+        empty = fig.add_subplot(grid[empty_index // cols, empty_index % cols])
+        empty.axis("off")
+    legend_handles = [
+        plt.Rectangle((0, 0), 1, 1, color=HEAD_TO_HEAD_SET_COLORS.get(engine, "#64748b"), linewidth=0)
+        for engine in ["batman-bellman", "batman-classic", "babel", "pathway", "field", "pathway-batman-bellman"]
+    ]
+    legend_labels = ["`batman-bellman`", "`batman-classic`", "`babel`", "`pathway`", "`field`", "`pathway-batman-bellman`"]
+    legend = panels[0].legend(
+        legend_handles,
+        legend_labels,
+        loc="upper center",
+        bbox_to_anchor=(1.0, -0.24),
+        ncol=3,
+        frameon=False,
+        fontsize=8,
+    )
+    style_legend(legend)
+    for panel, family in zip(panels, families, strict=False):
+        family_rows = diffusion_engine_comparison.filter(pl.col("family_id") == family)
+        bounded_states = family_rows["bounded_state_mode"].to_list()
+        for x, state in zip(range(len(bounded_states)), bounded_states, strict=False):
+            panel.text(
+                x,
+                0.6,
+                state,
+                ha="center",
+                va="bottom",
+                fontsize=6.8,
+                color=DIFFUSION_BOUND_STATE_COLORS.get(state, "#64748b"),
+                rotation=90,
+            )
 
 
 def save_plot_artifact(

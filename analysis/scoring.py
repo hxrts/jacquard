@@ -571,7 +571,7 @@ def head_to_head_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def diffusion_policy_table(diffusion_aggregates: pl.DataFrame) -> pl.DataFrame:
+def diffusion_engine_summary_table(diffusion_aggregates: pl.DataFrame) -> pl.DataFrame:
     if diffusion_aggregates.is_empty():
         return pl.DataFrame()
     scored = diffusion_aggregates.with_columns(
@@ -608,6 +608,22 @@ def diffusion_policy_table(diffusion_aggregates: pl.DataFrame) -> pl.DataFrame:
         )
         .sort("family_id")
     )
+
+
+def diffusion_engine_comparison_table(diffusion_aggregates: pl.DataFrame) -> pl.DataFrame:
+    if diffusion_aggregates.is_empty():
+        return pl.DataFrame()
+    return diffusion_aggregates.with_columns(
+        (
+            pl.col("delivery_probability_permille_mean") * 1.2
+            + pl.col("coverage_permille_mean") * 0.8
+            + pl.col("corridor_persistence_permille_mean") * 0.2
+            - pl.col("total_transmissions_mean") * 6.0
+            - pl.col("observer_leakage_permille_mean") * 0.2
+            - pl.when(pl.col("bounded_state_mode") == "explosive").then(220.0).otherwise(0.0)
+            - pl.when(pl.col("bounded_state_mode") == "collapse").then(120.0).otherwise(0.0)
+        ).alias("score")
+    ).sort(["family_id", "score", "config_id"], descending=[False, True, False])
 
 
 def diffusion_boundary_table(diffusion_boundaries: pl.DataFrame) -> pl.DataFrame:

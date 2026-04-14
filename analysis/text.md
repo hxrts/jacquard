@@ -351,61 +351,69 @@ These takeaways summarize the main patterns in the head-to-head plot.
 
 No head-to-head summary is available for this artifact set.
 
-## Part III. Diffusion Analysis
+## Part III. Diffusion Engine Comparison
 
 ### Diffusion Introduction
 
-This final part adds a second analytical lane to the report. The earlier sections focus on route-visible routing under maintained connected or repairable regimes. The diffusion track instead asks how bounded message spread behaves when connectivity is intermittent, mobility is the transport, and end-to-end paths may not exist at send time.
+This final part evaluates the same engine sets under message-diffusion scenarios where mobility is the transport and end-to-end paths may not exist when a message is created.
 
-The purpose is not to replace the route-visible corpus. It is to complement it with a population-and-contact view that is closer to the design constraints in `work/design_constraints.md`: store-carry-forward, bounded replication, resource cost, observer leakage, and corridor emergence under permanent partition risk.
+The goal is to compare `batman-bellman`, `batman-classic`, `babel`, `pathway`, `field`, and the combined `pathway-batman-bellman` stack under bounded-replication delivery pressure. This keeps Part III structurally aligned with the engine-comparison logic used earlier in the report, while shifting the measured outcome from live routes to eventual spread, boundedness, and leakage.
 
 The maintained diffusion families are:
 
 - `random-waypoint-sanity`: a lightweight baseline where mixed movers create a sanity-check contact field rather than a strongly structured community pattern.
-- `partitioned-clusters`: separated clusters with rare bridger contacts, used to test whether bounded replication can sustain useful carry-forward under permanent partition risk.
+- `partitioned-clusters`: separated clusters with rare bridger contacts, used to test whether bounded spread can sustain useful carry-forward under permanent partition risk.
 - `disaster-broadcast`: an urgent one-to-many message over disrupted clustered mobility, used to test controlled broadcast spread.
 - `sparse-long-delay`: a sparse network with long delays and a few long-range movers, used to test store-carry-forward under weak contact opportunity.
-- `high-density-overload`: a dense camp-like setting, used to expose when bounded spread turns into overload.
+- `high-density-overload`: a dense camp-like setting, used to expose when spread turns into overload.
 - `mobility-shift`: clusters reconfigure over time, used to test whether diffusion corridors adapt rather than freezing around one early contact pattern.
 - `adversarial-observation`: clustered delivery with observer nodes, used to expose the leakage cost of spread.
 
-### Diffusion Scenario Summary
+### Diffusion Engine Summary
 
-@table diffusion-policy-summary
+@table diffusion-engine-summary
 
-This table summarizes the best-scoring diffusion policy per maintained scenario family.
+This table summarizes the best-performing engine set in each maintained diffusion family.
 
-Column guide: Delivery is the fraction of intended targets reached; Coverage is the fraction of reachable nodes that saw the message; Latency is the mean delivery delay for reached targets; State is the boundedness classification for that family; Stress is the maintained stress level of the scenario.
+Column guide: Engine Set is the best-scoring stack for that family; Delivery is the fraction of intended targets reached; Coverage is the fraction of reachable nodes that saw the message; Latency is the mean delivery delay for reached targets; State is the dominant boundedness classification; Stress is the maintained stress level of the scenario.
 
-### Diffusion Regime Boundaries
+### Diffusion Engine Comparison
 
-@table diffusion-boundary-summary
+@table diffusion-engine-comparison
 
-This table summarizes where each diffusion policy stays viable and where it first collapses or becomes explosive.
+This table exposes the full maintained diffusion engine surface instead of only the family winners.
 
-Column guide: Viable Families counts the maintained scenario families classified as bounded and effective; First Collapse is the first family where delivery or coverage falls below the acceptable floor; First Explosive is the first family where reproduction and transmission load become unbounded for the policy.
+Column guide: Family groups rows by scenario; Engine Set is the routing stack being compared; Delivery and Coverage are the main success signals; Tx is mean transmission count; `R_est` is the boundedness signal; State is the dominant boundedness classification for that engine set in that family.
+
+### Diffusion Engine Boundaries
+
+@table diffusion-engine-boundaries
+
+This table summarizes where each engine set stays viable and where it first collapses or becomes explosive across the maintained diffusion families.
+
+Column guide: Viable Families counts the maintained families classified as bounded and effective; First Collapse is the first family where delivery or coverage falls below the acceptable floor; First Explosive is the first family where reproduction and transmission load become unbounded for that engine set.
 
 ### Diffusion Figure Context
 
-These two diffusion figures separate delivery success from resource boundedness. The first asks which scenario families can sustain useful spread. The second asks whether that spread stays inside a bounded operating region or spills into overload.
+These two diffusion figures separate delivery success from resource boundedness. The first asks which engine sets actually move messages across the maintained diffusion families. The second asks whether those same engine sets stay inside a bounded operating region or spill into overload.
 
 #### Figure 13
 
 @figure diffusion_delivery_coverage
 
-This figure compares delivery and coverage for the best-scoring diffusion policy in each maintained scenario family.
+This figure shows delivery and coverage by engine set across the maintained diffusion families.
 
 #### Figure 14
 
 @figure diffusion_resource_boundedness
 
-This figure shows the corresponding transmission load and boundedness state for those same best-scoring policies.
+This figure shows transmission load and boundedness by engine set across the maintained diffusion families.
 
 ### Diffusion Takeaways
 
-- The diffusion track makes permanent-partition and mobility-driven delivery visible in the same artifact set as the route-visible routing corpus.
-- The key question in these scenarios is not shortest-path quality but whether bounded replication can maintain useful spread without collapsing or exploding.
-- The most informative scenarios are the ones that separate bounded viable spread from overload or delivery collapse rather than merely confirming that a message can move at all.
+- The diffusion track is now an engine comparison, not a generic policy sweep.
+- The main question in these scenarios is which engine set keeps spread useful while staying bounded, not which one produces the most copies.
+- The most informative families are the ones that separate viable carry-forward from collapse or overload rather than merely confirming that some message movement occurred.
 
 ### Data-Driven Templates
 

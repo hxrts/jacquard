@@ -53,7 +53,8 @@ from .sections import (
 from .tables import (
     comparison_table_rows,
     diffusion_boundary_table_rows,
-    diffusion_policy_table_rows,
+    diffusion_engine_comparison_table_rows,
+    diffusion_engine_summary_table_rows,
     field_profile_table_rows,
     head_to_head_table_rows,
     profile_table_rows,
@@ -326,7 +327,8 @@ def write_pdf_report(
     aggregates,
     comparison_summary,
     head_to_head_summary,
-    diffusion_policy_summary,
+    diffusion_engine_summary,
+    diffusion_engine_comparison,
     diffusion_boundary_summary,
     baseline_comparison,
     baseline_dir,
@@ -656,23 +658,23 @@ def write_pdf_report(
     story.append(Spacer(1, 0.16 * cm))
     add_paragraphs(story, styles, head_to_head_takeaway_lines(head_to_head_summary))
 
-    if not diffusion_policy_summary.is_empty():
+    if not diffusion_engine_summary.is_empty():
         story.append(PageBreak())
-        story.append(Paragraph("Part III. Diffusion Analysis", styles["Section"]))
-        story.append(Paragraph("11. Diffusion Analysis", styles["Section"]))
+        story.append(Paragraph("Part III. Diffusion Engine Comparison", styles["Section"]))
+        story.append(Paragraph("11. Diffusion Engine Comparison", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Introduction"))
         story.append(Spacer(1, 0.16 * cm))
         story.append(
             KeepTogether(
                 [
-                    Paragraph("Diffusion Scenario Summary", styles["Subsection"]),
+                    Paragraph("Diffusion Engine Summary", styles["Subsection"]),
                     *(
                         [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                         for line in asset_block("Diffusion Scenario Summary", "table").lines]
+                         for line in asset_block("Diffusion Engine Summary", "table").lines]
                     ),
                     make_table(
-                        ["Family", "Configuration", "Delivery", "Coverage", "Latency", "State", "Stress"],
-                        diffusion_policy_table_rows(diffusion_policy_summary),
+                        ["Family", "Engine Set", "Delivery", "Coverage", "Latency", "State", "Stress"],
+                        diffusion_engine_summary_table_rows(diffusion_engine_summary),
                         styles,
                         [4.0 * cm, 4.6 * cm, 1.6 * cm, 1.6 * cm, 1.5 * cm, 2.0 * cm, 1.4 * cm],
                     ),
@@ -683,13 +685,31 @@ def write_pdf_report(
         story.append(
             KeepTogether(
                 [
-                    Paragraph("Diffusion Regime Boundaries", styles["Subsection"]),
+                    Paragraph("Diffusion Engine Comparison", styles["Subsection"]),
                     *(
                         [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                         for line in asset_block("Diffusion Regime Boundaries", "table").lines]
+                         for line in asset_block("Diffusion Engine Comparison", "table").lines]
                     ),
                     make_table(
-                        ["Configuration", "Viable Families", "First Collapse", "Collapse Stress", "First Explosive", "Explosive Stress"],
+                        ["Family", "Engine Set", "Delivery", "Coverage", "Tx", "R_est", "State"],
+                        diffusion_engine_comparison_table_rows(diffusion_engine_comparison),
+                        styles,
+                        [3.7 * cm, 4.8 * cm, 1.5 * cm, 1.5 * cm, 1.2 * cm, 1.5 * cm, 1.7 * cm],
+                    ),
+                ]
+            )
+        )
+        story.append(Spacer(1, 0.18 * cm))
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("Diffusion Engine Boundaries", styles["Subsection"]),
+                    *(
+                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
+                         for line in asset_block("Diffusion Engine Boundaries", "table").lines]
+                    ),
+                    make_table(
+                        ["Engine Set", "Viable Families", "First Collapse", "Collapse Stress", "First Explosive", "Explosive Stress"],
                         diffusion_boundary_table_rows(diffusion_boundary_summary),
                         styles,
                         [4.6 * cm, 2.0 * cm, 3.4 * cm, 1.8 * cm, 3.4 * cm, 1.8 * cm],

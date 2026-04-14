@@ -165,9 +165,9 @@ def head_to_head_table_rows(head_to_head_summary: pl.DataFrame) -> list[list[str
     return rows
 
 
-def diffusion_policy_table_rows(diffusion_policy_summary: pl.DataFrame) -> list[list[str]]:
+def diffusion_engine_summary_table_rows(diffusion_engine_summary: pl.DataFrame) -> list[list[str]]:
     rows: list[list[str]] = []
-    for row in diffusion_policy_summary.iter_rows(named=True):
+    for row in diffusion_engine_summary.iter_rows(named=True):
         rows.append(
             [
                 break_tick_label(row["family_id"]).replace("\n", " / "),
@@ -181,6 +181,26 @@ def diffusion_policy_table_rows(diffusion_policy_summary: pl.DataFrame) -> list[
                 str(row["stress_score"]),
             ]
         )
+    return rows
+
+
+def diffusion_engine_comparison_table_rows(diffusion_engine_comparison: pl.DataFrame) -> list[list[str]]:
+    rows: list[list[str]] = []
+    current_family = None
+    for row in diffusion_engine_comparison.iter_rows(named=True):
+        family = row["family_id"]
+        rows.append(
+            [
+                break_tick_label(family).replace("\n", " / ") if family != current_family else "",
+                f"`{row['config_id']}`",
+                str(row["delivery_probability_permille_mean"]),
+                str(row["coverage_permille_mean"]),
+                str(row["total_transmissions_mean"]),
+                str(row["estimated_reproduction_permille_mean"]),
+                str(row["bounded_state_mode"]),
+            ]
+        )
+        current_family = family
     return rows
 
 

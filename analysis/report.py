@@ -37,7 +37,8 @@ from .scoring import (
     boundary_summary_table,
     comparison_summary_table,
     diffusion_boundary_table,
-    diffusion_policy_table,
+    diffusion_engine_comparison_table,
+    diffusion_engine_summary_table,
     field_profile_recommendation_table,
     head_to_head_summary_table,
     profile_recommendation_table,
@@ -78,7 +79,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     comparison_summary = comparison_summary_table(aggregates)
     head_to_head_summary = head_to_head_summary_table(aggregates)
-    diffusion_policy_summary = diffusion_policy_table(diffusion_aggregates)
+    diffusion_engine_summary = diffusion_engine_summary_table(diffusion_aggregates)
+    diffusion_engine_comparison = diffusion_engine_comparison_table(diffusion_aggregates)
     diffusion_boundary_summary = diffusion_boundary_table(diffusion_boundaries)
 
     write_csv(runs, report_dir / "runs.csv")
@@ -98,7 +100,11 @@ def main(argv: list[str] | None = None) -> int:
     write_csv(diffusion_runs, report_dir / "diffusion_runs.csv")
     write_csv(diffusion_aggregates, report_dir / "diffusion_aggregates.csv")
     write_csv(diffusion_boundaries, report_dir / "diffusion_boundaries.csv")
-    write_csv(diffusion_policy_summary, report_dir / "diffusion_policy_summary.csv")
+    write_csv(diffusion_engine_summary, report_dir / "diffusion_engine_summary.csv")
+    write_csv(
+        diffusion_engine_comparison,
+        report_dir / "diffusion_engine_comparison.csv",
+    )
     write_csv(diffusion_boundary_summary, report_dir / "diffusion_boundary_summary.csv")
     write_recommendations(report_dir / "recommendations.md", recommendations)
 
@@ -174,18 +180,18 @@ def main(argv: list[str] | None = None) -> int:
         render_head_to_head_route_presence,
         aggregates,
     )
-    if not diffusion_policy_summary.is_empty():
+    if not diffusion_engine_comparison.is_empty():
         save_plot_artifact(
             report_dir,
             "diffusion_delivery_coverage",
             render_diffusion_delivery_coverage,
-            diffusion_policy_summary,
+            diffusion_engine_comparison,
         )
         save_plot_artifact(
             report_dir,
             "diffusion_resource_boundedness",
             render_diffusion_resource_boundedness,
-            diffusion_policy_summary,
+            diffusion_engine_comparison,
         )
 
     write_pdf_report(
@@ -199,7 +205,8 @@ def main(argv: list[str] | None = None) -> int:
         aggregates,
         comparison_summary,
         head_to_head_summary,
-        diffusion_policy_summary,
+        diffusion_engine_summary,
+        diffusion_engine_comparison,
         diffusion_boundary_summary,
         baseline_comparison,
         baseline_dir,

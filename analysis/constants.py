@@ -15,8 +15,8 @@ PLOT_SPECS = {
     "babel_decay_loss": (11.0, 4.8),
     "comparison_dominant_engine": (8.1, 4.8),
     "head_to_head_route_presence": (9.2, 5.0),
-    "diffusion_delivery_coverage": (10.8, 5.4),
-    "diffusion_resource_boundedness": (10.8, 5.8),
+    "diffusion_delivery_coverage": (11.0, 8.4),
+    "diffusion_resource_boundedness": (11.0, 8.8),
 }
 
 BATMAN_BELLMAN_FAMILY_COLORS = {
