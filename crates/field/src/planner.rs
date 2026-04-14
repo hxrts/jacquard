@@ -646,6 +646,7 @@ fn delivered_connectivity(
     ConnectivityPosture { repair, partition }
 }
 
+#[cfg(test)]
 pub(crate) fn bootstrap_corridor_admissible(destination_state: &DestinationFieldState) -> bool {
     bootstrap_corridor_admissible_with_config(
         destination_state,
@@ -742,6 +743,7 @@ pub(crate) fn steady_corridor_admissible(destination_state: &DestinationFieldSta
         && destination_state.posterior.usability_entropy.value() <= 850
 }
 
+#[cfg(test)]
 pub(crate) fn promoted_corridor_admissible(
     destination_state: &DestinationFieldState,
     confirmation_streak: u8,
@@ -813,10 +815,6 @@ pub(crate) fn promoted_corridor_admissible_with_config(
             }
 }
 
-fn admission_class_for_state(destination_state: &DestinationFieldState) -> FieldAdmissionClass {
-    admission_class_for_state_with_config(destination_state, &crate::FieldSearchConfig::default())
-}
-
 fn admission_class_for_state_with_config(
     destination_state: &DestinationFieldState,
     _search_config: &crate::FieldSearchConfig,
@@ -844,22 +842,13 @@ pub(crate) fn bootstrap_class_for_state_with_config(
     }
 }
 
-fn degraded_steady_band_admissible(destination_state: &DestinationFieldState) -> bool {
-    degraded_steady_band_admissible_with_config(
-        destination_state,
-        &crate::FieldSearchConfig::default(),
-    )
-}
-
 fn degraded_steady_band_admissible_with_config(
     destination_state: &DestinationFieldState,
     search_config: &crate::FieldSearchConfig,
 ) -> bool {
     let service_bias = matches!(destination_state.destination, DestinationKey::Service(_));
     let discovery_node_route = !service_bias && search_config.node_discovery_enabled();
-    let support_floor = if service_bias {
-        180
-    } else if discovery_node_route {
+    let support_floor = if service_bias || discovery_node_route {
         180
     } else {
         220
@@ -871,9 +860,7 @@ fn degraded_steady_band_admissible_with_config(
     } else {
         220
     };
-    let top_mass_floor = if service_bias {
-        160
-    } else if discovery_node_route {
+    let top_mass_floor = if service_bias || discovery_node_route {
         160
     } else {
         180
@@ -883,13 +870,6 @@ fn degraded_steady_band_admissible_with_config(
         && destination_state.posterior.top_corridor_mass.value() >= top_mass_floor
         && destination_state.posterior.usability_entropy.value()
             <= if discovery_node_route { 960 } else { 940 }
-}
-
-fn steady_route_softening_needed(destination_state: &DestinationFieldState) -> bool {
-    steady_route_softening_needed_with_config(
-        destination_state,
-        &crate::FieldSearchConfig::default(),
-    )
 }
 
 fn steady_route_softening_needed_with_config(

@@ -4545,7 +4545,7 @@ fn build_comparison_connected_high_loss(
                     comparison_host_spec(NODE_A, comparison_engine_set)
                         .with_profile(repairable_connected_profile()),
                     comparison_engine_set,
-                    DestinationId::Node(NODE_D),
+                    &DestinationId::Node(NODE_D),
                     &[
                         (NODE_B, 760, 2, 4, Some(680)),
                         (NODE_C, 820, 2, 4, Some(760)),
@@ -4609,7 +4609,7 @@ fn build_comparison_bridge_transition(
                     comparison_host_spec(NODE_A, comparison_engine_set)
                         .with_profile(repairable_connected_profile()),
                     comparison_engine_set,
-                    DestinationId::Node(NODE_D),
+                    &DestinationId::Node(NODE_D),
                     &[
                         (NODE_B, 820, 2, 4, Some(760)),
                         (NODE_C, 720, 2, 4, Some(680)),
@@ -4949,7 +4949,7 @@ fn comparison_host_spec(local_node_id: NodeId, comparison_engine_set: Option<&st
 fn seed_standalone_field_bootstrap(
     host: HostSpec,
     comparison_engine_set: Option<&str>,
-    destination: DestinationId,
+    destination: &DestinationId,
     summaries: &[(NodeId, u16, u8, u8, Option<u16>)],
 ) -> HostSpec {
     if comparison_engine_set != Some("field") {

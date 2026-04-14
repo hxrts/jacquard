@@ -174,18 +174,14 @@ where
                 && destination_state.is_some_and(|state| node_corridor_viable(active, state));
             let commitment_support_floor = match (active.bootstrap_class, active.continuity_band) {
                 (_, FieldContinuityBand::DegradedSteady) => {
-                    if service_bias {
-                        140
-                    } else if discovery_node_route {
+                    if service_bias || discovery_node_route {
                         140
                     } else {
                         160
                     }
                 }
                 (FieldBootstrapClass::Bootstrap, _) => {
-                    if service_bias {
-                        120
-                    } else if discovery_node_route {
+                    if service_bias || discovery_node_route {
                         120
                     } else {
                         140
@@ -576,9 +572,7 @@ where
                     } else {
                         FIELD_ROUTE_WEAK_SUPPORT_FLOOR
                     }
-                    .saturating_sub(if service_bias {
-                        40
-                    } else if discovery_node_route {
+                    .saturating_sub(if service_bias || discovery_node_route {
                         40
                     } else {
                         0
