@@ -949,7 +949,7 @@ def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataF
     engine_sets = diffusion_engine_sets(diffusion_engine_comparison)
     cols = 3
     rows = (len(families) + cols - 1) // cols
-    grid = subplotspec.subgridspec(rows, cols, wspace=0.16, hspace=0.45)
+    grid = subplotspec.subgridspec(rows, cols, wspace=0.16, hspace=0.35)
     panels = []
     y_positions = list(range(len(engine_sets)))
     for index, family in enumerate(families):
@@ -1050,7 +1050,7 @@ def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.Da
     engine_sets = diffusion_engine_sets(diffusion_engine_comparison)
     cols = 3
     rows = (len(families) + cols - 1) // cols
-    grid = subplotspec.subgridspec(rows, cols, wspace=0.16, hspace=0.45)
+    grid = subplotspec.subgridspec(rows, cols, wspace=0.16, hspace=0.35)
     panels = []
     max_tx = diffusion_engine_comparison["total_transmissions_mean"].max()
     y_positions = list(range(len(engine_sets)))
