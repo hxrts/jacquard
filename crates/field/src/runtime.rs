@@ -631,14 +631,13 @@ where
                 });
             }
             if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
-                if active.bootstrap_class == FieldBootstrapClass::Bootstrap {
-                    if active.recovery.state.last_bootstrap_transition
+                if active.bootstrap_class == FieldBootstrapClass::Bootstrap
+                    && active.recovery.state.last_bootstrap_transition
                         != Some(crate::FieldBootstrapTransition::Withdrawn)
-                    {
-                        active
-                            .recovery
-                            .note_bootstrap_withdrawn(FieldPromotionBlocker::SupportTrend);
-                    }
+                {
+                    active
+                        .recovery
+                        .note_bootstrap_withdrawn(FieldPromotionBlocker::SupportTrend);
                 }
             }
             return Ok(RouteMaintenanceResult {
@@ -1637,8 +1636,8 @@ fn preferred_service_shift_neighbor(
         .find(|(entry, _)| {
             (entry.neighbor_id != active.selected_neighbor
                 && active.continuation_neighbors.contains(&entry.neighbor_id)
-                && service_neighbor_quality(entry.clone(), search_config)
-                    >= service_neighbor_quality(ranked_best.clone(), search_config))
+                && service_neighbor_quality(entry, search_config)
+                    >= service_neighbor_quality(ranked_best, search_config))
                 || (entry.neighbor_id != active.selected_neighbor
                     && active.continuation_neighbors.contains(&entry.neighbor_id)
                     && entry.net_value.value().saturating_add(quality_margin)
@@ -1679,8 +1678,8 @@ fn service_runtime_continuation_neighbors(
         })
         .collect();
     service_ranked.sort_by(|left, right| {
-        service_neighbor_quality(right.clone(), search_config)
-            .cmp(&service_neighbor_quality(left.clone(), search_config))
+        service_neighbor_quality(right, search_config)
+            .cmp(&service_neighbor_quality(left, search_config))
             .then_with(|| left.neighbor_id.cmp(&right.neighbor_id))
     });
     let mut continuation_neighbors = Vec::with_capacity(max_neighbors);
@@ -1720,7 +1719,7 @@ fn corroborated_service_forward_support(
 }
 
 fn service_neighbor_quality(
-    entry: NeighborContinuation,
+    entry: &NeighborContinuation,
     search_config: &crate::FieldSearchConfig,
 ) -> u32 {
     let freshness_weight = u32::from(search_config.service_freshness_weight().clamp(25, 200));

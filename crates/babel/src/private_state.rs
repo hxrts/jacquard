@@ -224,7 +224,7 @@ impl<Transport, Effects> BabelEngine<Transport, Effects> {
             topology.value.links.get(&(from_neighbor, local)),
         );
         let metric = scoring::compound_metric(cost, update.metric);
-        if metric >= BABEL_INFINITY {
+        if metric == BABEL_INFINITY {
             return;
         }
         // Only update if seqno is fresher or equal (accept same seqno with

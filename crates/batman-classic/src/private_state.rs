@@ -243,7 +243,7 @@ impl<Transport, Effects> BatmanClassicEngine<Transport, Effects> {
             .or_default()
             .entry(via_neighbor)
             .or_default();
-        let is_fresher = window.latest_sequence.map_or(true, |seq| sequence > seq);
+        let is_fresher = window.latest_sequence.is_none_or(|seq| sequence > seq);
         window.observe(sequence, observed_at_tick, window_span);
         // Update TQ info only when the sequence is strictly newer so that the
         // stored TQ always corresponds to the most recent OGM from this neighbor.

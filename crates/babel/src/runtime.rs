@@ -195,7 +195,12 @@ where
 
     fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
         // Increment local_seqno every SEQNO_REFRESH_INTERVAL_TICKS ticks.
-        if tick.topology.observed_at_tick.0 % SEQNO_REFRESH_INTERVAL_TICKS == 0 {
+        if tick
+            .topology
+            .observed_at_tick
+            .0
+            .is_multiple_of(SEQNO_REFRESH_INTERVAL_TICKS)
+        {
             self.local_seqno = self.local_seqno.wrapping_add(1);
         }
         let change = self.refresh_private_state(&tick.topology, tick.topology.observed_at_tick);

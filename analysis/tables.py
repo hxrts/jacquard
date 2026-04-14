@@ -11,7 +11,15 @@ def recommendation_table_rows(
     recommendations: pl.DataFrame, limit_per_engine: int
 ) -> list[list[str]]:
     rows: list[list[str]] = []
-    for engine_family in ["batman-bellman", "batman-classic", "babel", "pathway", "field", "comparison"]:
+    for engine_family in [
+        "batman-bellman",
+        "batman-classic",
+        "babel",
+        "olsrv2",
+        "pathway",
+        "field",
+        "comparison",
+    ]:
         family = recommendations.filter(pl.col("engine_family") == engine_family).head(
             limit_per_engine
         )

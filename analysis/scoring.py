@@ -229,6 +229,7 @@ def profile_recommendation_table(
         "batman-bellman": ["conservative", "aggressive", "degraded-network"],
         "batman-classic": ["conservative", "aggressive", "degraded-network"],
         "babel": ["conservative", "aggressive", "degraded-network"],
+        "olsrv2": ["conservative", "aggressive", "degraded-network"],
         "pathway": ["balanced", "service-heavy", "degraded-network"],
         "field": [
             "balanced",
@@ -843,11 +844,22 @@ def field_diffusion_regime_calibration_table(
             (pl.col("bounded_state_mode") != "collapse")
             & (pl.col("regime_fit_score") > 0.0)
         )
-        .alias("acceptable_candidate")
+        .alias("acceptable_candidate"),
+        (
+            (pl.col("config_family") == pl.col("field_regime"))
+            | ((pl.col("field_regime") == "balanced") & (pl.col("config_id") == "field"))
+        )
+        .alias("config_family_match")
     )
     ranked = scored.sort(
-        ["field_regime", "acceptable_candidate", "regime_fit_score", "config_id"],
-        descending=[False, True, True, False],
+        [
+            "field_regime",
+            "acceptable_candidate",
+            "config_family_match",
+            "regime_fit_score",
+            "config_id",
+        ],
+        descending=[False, True, True, True, False],
     )
     selected = ranked.group_by("field_regime").agg(
         pl.first("config_id").alias("best_attempt_config_id"),
@@ -943,7 +955,15 @@ def leading_recommendation_configs(
     recommendations: pl.DataFrame, limit_per_engine: int = 2
 ) -> pl.DataFrame:
     frames: list[pl.DataFrame] = []
-    for engine_family in ["batman-bellman", "batman-classic", "babel", "pathway", "field", "comparison"]:
+    for engine_family in [
+        "batman-bellman",
+        "batman-classic",
+        "babel",
+        "olsrv2",
+        "pathway",
+        "field",
+        "comparison",
+    ]:
         family = recommendations.filter(pl.col("engine_family") == engine_family).head(
             limit_per_engine
         )
@@ -1067,7 +1087,15 @@ def baseline_comparison_table(
     baseline = pl.read_csv(baseline_dir / "report" / "recommendations.csv")
     current_frames = []
     prior_frames = []
-    for engine_family in ["batman-bellman", "batman-classic", "babel", "pathway", "field", "comparison"]:
+    for engine_family in [
+        "batman-bellman",
+        "batman-classic",
+        "babel",
+        "olsrv2",
+        "pathway",
+        "field",
+        "comparison",
+    ]:
         current_family = recommendations.filter(pl.col("engine_family") == engine_family).head(1)
         if not current_family.is_empty():
             current_frames.append(current_family)
@@ -1131,7 +1159,15 @@ def write_recommendations(path: Path, recommendations: pl.DataFrame) -> None:
         "They should be read as robust defaults for this tuning corpus, not as single-scenario winners.",
         "",
     ]
-    for engine_family in ["batman-bellman", "batman-classic", "babel", "pathway", "field", "comparison"]:
+    for engine_family in [
+        "batman-bellman",
+        "batman-classic",
+        "babel",
+        "olsrv2",
+        "pathway",
+        "field",
+        "comparison",
+    ]:
         rows = top_recommendation_rows(recommendations, engine_family, 3)
         if not rows and engine_family != "field":
             continue

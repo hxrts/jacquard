@@ -1,6 +1,6 @@
 # Routing Engines
 
-This page describes the trait surface for adding a routing algorithm to Jacquard. It also captures the host capability boundary that engines consume and the in-tree engine shapes. See [Pathway Routing](401_pathway_routing.md) for the explicit-path engine, [Batman Routing](402_batman_routing.md) for the batman-bellman and batman-classic next-hop engines, [Field Routing](403_field_routing.md) for the corridor-envelope engine, and [Babel Routing](405_babel_routing.md) for the RFC 8966 distance-vector engine.
+This page describes the trait surface for adding a routing algorithm to Jacquard. It also captures the host capability boundary that engines consume and the in-tree engine shapes. See [Pathway Routing](401_pathway_routing.md) for the explicit-path engine, [Batman Routing](402_batman_routing.md) for the batman-bellman and batman-classic next-hop engines, [Field Routing](403_field_routing.md) for the corridor-envelope engine, [Babel Routing](405_babel_routing.md) for the RFC 8966 distance-vector engine, and [OLSRv2 Routing](406_olsrv2_routing.md) for the deterministic link-state engine.
 
 ## Routing Engine Contract
 
@@ -118,7 +118,7 @@ This matters for proactive engines. Pathway is `ExplicitPath`. Field is `Corrido
 
 ## In-Tree Engines
 
-See [Pathway Routing](401_pathway_routing.md), [Batman Routing](402_batman_routing.md), [Field Routing](403_field_routing.md), [Babel Routing](405_babel_routing.md) for engine-specific models, capability assumptions, and maintenance behavior.
+See [Pathway Routing](401_pathway_routing.md), [Batman Routing](402_batman_routing.md), [Field Routing](403_field_routing.md), [Babel Routing](405_babel_routing.md), and [OLSRv2 Routing](406_olsrv2_routing.md) for engine-specific models, capability assumptions, and maintenance behavior.
 
 ## Policy And Coordination
 

@@ -60,7 +60,7 @@ pub(crate) fn link_cost(link_fwd: Option<&Link>, link_rev: Option<&Link>) -> u16
 /// adds cost and neighbor_metric, saturating at `BABEL_INFINITY - 1`.
 #[must_use]
 pub(crate) fn compound_metric(cost: u16, neighbor_metric: u16) -> u16 {
-    if cost >= BABEL_INFINITY || neighbor_metric >= BABEL_INFINITY {
+    if cost == BABEL_INFINITY || neighbor_metric == BABEL_INFINITY {
         return BABEL_INFINITY;
     }
     cost.saturating_add(neighbor_metric).min(BABEL_INFINITY - 1)
@@ -71,7 +71,7 @@ pub(crate) fn compound_metric(cost: u16, neighbor_metric: u16) -> u16 {
 /// metric=0 → 1000 (perfect); metric>=`METRIC_SATURATION` or `BABEL_INFINITY` → 0.
 #[must_use]
 pub(crate) fn metric_to_ratio(metric: u16) -> RatioPermille {
-    if metric >= BABEL_INFINITY {
+    if metric == BABEL_INFINITY {
         return RatioPermille(0);
     }
     let m = u32::from(metric);
@@ -81,7 +81,7 @@ pub(crate) fn metric_to_ratio(metric: u16) -> RatioPermille {
     // Linear mapping: 0 → 1000, METRIC_SATURATION-1 → ~1.
     let quality = (METRIC_SATURATION - m) * PERMILLE_MAX / METRIC_SATURATION;
     #[allow(clippy::cast_possible_truncation)]
-    RatioPermille(u16::try_from(quality.min(u32::from(PERMILLE_MAX))).unwrap_or(0))
+    RatioPermille(u16::try_from(quality.min(PERMILLE_MAX)).unwrap_or(0))
 }
 
 /// RFC 8966 Section 3.5.1 seqno ordering.

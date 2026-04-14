@@ -1032,6 +1032,78 @@ pub fn batman_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)
 }
 
 #[must_use]
+pub fn olsrv2_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)> {
+    let topology = ring_topology(
+        topology::node(1).olsrv2().build(),
+        topology::node(2).olsrv2().build(),
+        topology::node(3).olsrv2().build(),
+        topology::node(4).olsrv2().build(),
+    );
+    let slow = JacquardScenario::new(
+        "olsrv2-decay-slow",
+        jacquard_core::SimulationSeed(51),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        vec![
+            HostSpec::olsrv2(NODE_A)
+                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(8, 4)),
+            HostSpec::olsrv2(NODE_B)
+                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(8, 4)),
+            HostSpec::olsrv2(NODE_C)
+                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(8, 4)),
+            HostSpec::olsrv2(NODE_D)
+                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(8, 4)),
+        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+        26,
+    );
+    let fast = JacquardScenario::new(
+        "olsrv2-decay-fast",
+        jacquard_core::SimulationSeed(52),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        vec![
+            HostSpec::olsrv2(NODE_A)
+                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(1, 1)),
+            HostSpec::olsrv2(NODE_B)
+                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(1, 1)),
+            HostSpec::olsrv2(NODE_C)
+                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(1, 1)),
+            HostSpec::olsrv2(NODE_D)
+                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(1, 1)),
+        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+        26,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(6),
+            EnvironmentHook::AsymmetricDegradation {
+                left: NODE_B,
+                right: NODE_C,
+                forward_confidence: RatioPermille(540),
+                forward_loss: RatioPermille(320),
+                reverse_confidence: RatioPermille(760),
+                reverse_loss: RatioPermille(160),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(10),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(16),
+            EnvironmentHook::ReplaceTopology {
+                configuration: topology.value.clone(),
+            },
+        ),
+    ]);
+    vec![(slow, environment.clone()), (fast, environment)]
+}
+
+#[must_use]
 pub fn profile_driven_engine_selection() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)> {
     let topology = bidirectional_line_topology(
         topology::node(1).field_and_batman_bellman().build(),

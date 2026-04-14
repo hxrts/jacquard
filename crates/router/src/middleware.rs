@@ -387,12 +387,12 @@ where
 
     pub fn activate_route_without_tick(
         &mut self,
-        objective: RoutingObjective,
+        objective: &RoutingObjective,
     ) -> Result<MaterializedRoute, RouteError> {
         let profile = self
             .policy_engine
-            .compute_profile(&objective, &self.current_policy_inputs());
-        self.activate_with_profile_without_tick(&objective, &profile)
+            .compute_profile(objective, &self.current_policy_inputs());
+        self.activate_with_profile_without_tick(objective, &profile)
     }
 
     fn materialization_input(

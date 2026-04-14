@@ -13,6 +13,8 @@ PLOT_SPECS = {
     "batman_classic_transition_loss": (11.0, 4.0),
     "babel_decay_stability": (11.0, 4.8),
     "babel_decay_loss": (11.0, 4.8),
+    "olsrv2_decay_stability": (11.0, 4.8),
+    "olsrv2_decay_loss": (11.0, 4.8),
     "comparison_dominant_engine": (8.1, 4.8),
     "head_to_head_route_presence": (9.2, 5.0),
     "diffusion_delivery_coverage": (12.5, 10.0),
@@ -43,6 +45,13 @@ BABEL_FAMILY_COLORS = {
     "babel-partition-feasibility-recovery": "#8A6F00",
 }
 
+OLSRV2_FAMILY_COLORS = {
+    "olsrv2-topology-propagation-latency": "#0F766E",
+    "olsrv2-partition-recovery": "#0EA5A4",
+    "olsrv2-mpr-flooding-stability": "#0891B2",
+    "olsrv2-asymmetric-relink-transition": "#155E75",
+}
+
 FIELD_FAMILY_COLORS = {
     "field-partial-observability-bridge": "#0072B2",
     "field-reconfiguration-recovery": "#009E73",
@@ -59,6 +68,7 @@ COMPARISON_ENGINE_COLORS = {
     "batman-bellman": "#0072B2",
     "batman-classic": "#56B4E9",
     "babel": "#882255",
+    "olsrv2": "#0F766E",
     "pathway": "#009E73",
     "field": "#CC79A7",
     "none": "#999999",
@@ -68,6 +78,7 @@ HEAD_TO_HEAD_SET_COLORS = {
     "batman-bellman": "#0072B2",
     "batman-classic": "#56B4E9",
     "babel": "#882255",
+    "olsrv2": "#0F766E",
     "pathway": "#009E73",
     "field": "#CC79A7",
     "pathway-batman-bellman": "#E69F00",

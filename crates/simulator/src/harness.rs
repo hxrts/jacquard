@@ -1017,7 +1017,7 @@ fn activate_ready_objectives(
         let mut bound = bridge.bind();
         if let Err(error) = bound
             .router_mut()
-            .activate_route_without_tick(binding.objective.clone())
+            .activate_route_without_tick(&binding.objective)
         {
             failure_summaries.push(SimulationFailureSummary {
                 round_index: Some(round_index),

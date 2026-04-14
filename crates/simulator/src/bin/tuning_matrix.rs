@@ -1,4 +1,8 @@
-use std::{env, path::PathBuf, process::Command};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use jacquard_simulator::{
     diffusion_local_suite, diffusion_smoke_suite, run_diffusion_suite, run_tuning_suite,
@@ -16,16 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let output_dir = output_dir.unwrap_or_else(|| {
-        let base = PathBuf::from(format!("artifacts/analysis/{suite}"));
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-        let run_dir = base.join(format!("{timestamp}"));
-        std::fs::create_dir_all(&run_dir).expect("create analysis output directory");
-        run_dir
-    });
+    let output_dir = output_dir.unwrap_or_else(|| default_output_dir(&suite));
 
     match suite.as_str() {
         "diffusion-local" => {
@@ -123,10 +118,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run_analysis_report(artifact_dir: &PathBuf) {
+fn default_output_dir(suite: &str) -> PathBuf {
+    let base = PathBuf::from(format!("artifacts/analysis/{suite}"));
+    std::fs::create_dir_all(&base).expect("create analysis base output directory");
+    let next_index = std::fs::read_dir(&base)
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .filter_map(|entry| entry.file_name().to_str().map(str::to_owned))
+                .filter_map(|name| name.strip_prefix("run-").map(str::to_owned))
+                .filter_map(|suffix| suffix.parse::<u32>().ok())
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1)
+        })
+        .unwrap_or(1);
+    let run_dir = base.join(format!("run-{next_index:04}"));
+    std::fs::create_dir_all(&run_dir).expect("create analysis output directory");
+    run_dir
+}
+
+fn run_analysis_report(artifact_dir: &Path) {
     let canonical = artifact_dir
         .canonicalize()
-        .unwrap_or_else(|_| artifact_dir.clone());
+        .unwrap_or_else(|_| artifact_dir.to_path_buf());
     println!("Generating analysis report...");
     // Try python3 directly first, fall back to nix develop --command.
     let status = Command::new("python3")
@@ -156,7 +171,7 @@ fn run_analysis_report(artifact_dir: &PathBuf) {
     }
 }
 
-fn update_latest_symlink(output_dir: &PathBuf) {
+fn update_latest_symlink(output_dir: &Path) {
     let Some(base) = output_dir.parent() else {
         return;
     };
@@ -179,7 +194,7 @@ fn update_latest_symlink(output_dir: &PathBuf) {
     }
 }
 
-fn remove_report_dir(output_dir: &PathBuf) {
+fn remove_report_dir(output_dir: &Path) {
     let report_dir = output_dir.join("report");
     if report_dir.exists() {
         let _ = std::fs::remove_dir_all(report_dir);

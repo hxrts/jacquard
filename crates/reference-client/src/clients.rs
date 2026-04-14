@@ -63,6 +63,7 @@ pub struct ClientBuilder {
 }
 
 impl ClientBuilder {
+    #[allow(clippy::too_many_arguments)]
     fn with_engine_set(
         local_node_id: NodeId,
         topology: Observation<Configuration>,

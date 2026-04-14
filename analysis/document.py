@@ -42,6 +42,7 @@ from .sections import (
     head_to_head_takeaway_lines,
     limitations_lines,
     methodology_lines,
+    olsrv2_algorithm_lines,
     pathway_algorithm_lines,
     profile_recommendation_lines,
     recommendation_rationale_lines,
@@ -70,7 +71,15 @@ from .tables import (
 
 
 def codeify_known_terms(text: str) -> str:
-    terms = ["pathway-batman-bellman", "batman-bellman", "batman-classic", "babel", "pathway", "field"]
+    terms = [
+        "pathway-batman-bellman",
+        "batman-bellman",
+        "batman-classic",
+        "babel",
+        "olsrv2",
+        "pathway",
+        "field",
+    ]
     pattern = re.compile(r"\b(" + "|".join(re.escape(term) for term in terms) + r")\b")
     parts = re.split(r"(`[^`]+`)", text)
     wrapped: list[str] = []
@@ -426,6 +435,7 @@ def write_pdf_report(
         ("BATMAN Bellman Algorithm", batman_bellman_algorithm_lines()),
         ("BATMAN Classic Algorithm", batman_classic_algorithm_lines()),
         ("Babel Algorithm", babel_algorithm_lines()),
+        ("OLSRv2 Algorithm", olsrv2_algorithm_lines()),
         ("Pathway Algorithm", pathway_algorithm_lines()),
         ("Field Algorithm", field_algorithm_lines()),
         ("Recommendation Logic", scoring_lines()),
@@ -560,7 +570,34 @@ def write_pdf_report(
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("8. Pathway Analysis", styles["Section"]))
+    story.append(Paragraph("8. OLSRv2 Analysis", styles["Section"]))
+    story.append(Paragraph("Findings", styles["Subsection"]))
+    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "olsrv2"))
+    story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
+    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "olsrv2"))
+    story.append(Paragraph("Topology Propagation And Churn Analysis", styles["Subsection"]))
+    add_paragraphs(story, styles, section_lines("OLSRv2 Decay Analysis"))
+    add_figure(
+        story,
+        styles,
+        report_dir,
+        "Figure 7",
+        "Figure 7. OLSRv2 stability across topology and churn families",
+        16.4 * cm,
+        8.2 * cm,
+    )
+    add_figure(
+        story,
+        styles,
+        report_dir,
+        "Figure 8",
+        "Figure 8. OLSRv2 loss timing across topology and churn families",
+        16.4 * cm,
+        8.2 * cm,
+    )
+    story.append(PageBreak())
+
+    story.append(Paragraph("9. Pathway Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "pathway"))
     story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
@@ -571,8 +608,8 @@ def write_pdf_report(
         story,
         styles,
         report_dir,
-        "Figure 7",
-        "Figure 7. Pathway route presence by search budget",
+        "Figure 9",
+        "Figure 9. Pathway route presence by search budget",
         16.4 * cm,
         8.0 * cm,
     )
@@ -580,14 +617,14 @@ def write_pdf_report(
         story,
         styles,
         report_dir,
-        "Figure 8",
-        "Figure 8. Pathway activation cliffs by search budget",
+        "Figure 10",
+        "Figure 10. Pathway activation cliffs by search budget",
         16.4 * cm,
         7.2 * cm,
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("9. Field Analysis", styles["Section"]))
+    story.append(Paragraph("10. Field Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "field"))
     story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
@@ -598,8 +635,8 @@ def write_pdf_report(
         story,
         styles,
         report_dir,
-        "Figure 9",
-        "Figure 9. Field route presence by search budget",
+        "Figure 11",
+        "Figure 11. Field route presence by search budget",
         16.4 * cm,
         9.6 * cm,
     )
@@ -607,14 +644,14 @@ def write_pdf_report(
         story,
         styles,
         report_dir,
-        "Figure 10",
-        "Figure 10. Field corridor reconfiguration by search budget",
+        "Figure 12",
+        "Figure 12. Field corridor reconfiguration by search budget",
         16.4 * cm,
         9.6 * cm,
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("10. Comparative Analysis", styles["Section"]))
+    story.append(Paragraph("11. Comparative Analysis", styles["Section"]))
     story.append(Paragraph("Mixed-Engine Comparison", styles["Subsection"]))
     add_paragraphs(story, styles, comparison_findings_lines(comparison_summary))
     story.append(Spacer(1, 0.12 * cm))
@@ -666,8 +703,8 @@ def write_pdf_report(
             figure_flowables(
                 styles,
                 report_dir,
-                "Figure 11",
-                "Figure 11. Dominant engine by comparison regime",
+                "Figure 13",
+                "Figure 13. Dominant engine by comparison regime",
                 14.8 * cm,
                 10.2 * cm,
             )
@@ -679,8 +716,8 @@ def write_pdf_report(
             figure_flowables(
                 styles,
                 report_dir,
-                "Figure 12",
-                "Figure 12. Head-to-head route presence by engine set",
+                "Figure 14",
+                "Figure 14. Head-to-head route presence by engine set",
                 16.4 * cm,
                 10.2 * cm,
             )
@@ -692,7 +729,7 @@ def write_pdf_report(
     if not diffusion_engine_summary.is_empty():
         story.append(PageBreak())
         story.append(Paragraph("Part III. Diffusion Calibration", styles["Section"]))
-        story.append(Paragraph("11. Diffusion Calibration", styles["Section"]))
+        story.append(Paragraph("12. Diffusion Calibration", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Calibration Introduction"))
         story.append(Spacer(1, 0.16 * cm))
         story.append(
@@ -750,7 +787,7 @@ def write_pdf_report(
         )
         story.append(PageBreak())
         story.append(Paragraph("Part IV. Diffusion Engine Comparison", styles["Section"]))
-        story.append(Paragraph("12. Diffusion Engine Comparison", styles["Section"]))
+        story.append(Paragraph("13. Diffusion Engine Comparison", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Analysis Introduction"))
         story.append(Spacer(1, 0.18 * cm))
         story.append(
@@ -815,8 +852,8 @@ def write_pdf_report(
             story,
             styles,
             report_dir,
-            "Figure 13",
-            "Figure 13. Diffusion delivery and coverage by scenario family",
+            "Figure 15",
+            "Figure 15. Diffusion delivery and coverage by scenario family",
             17.4 * cm,
             15.0 * cm,
         )
@@ -824,8 +861,8 @@ def write_pdf_report(
             story,
             styles,
             report_dir,
-            "Figure 14",
-            "Figure 14. Diffusion transmission load and boundedness by scenario family",
+            "Figure 16",
+            "Figure 16. Diffusion transmission load and boundedness by scenario family",
             17.4 * cm,
             15.3 * cm,
         )

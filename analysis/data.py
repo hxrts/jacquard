@@ -38,6 +38,8 @@ def cleanup_report_dir(report_dir: Path) -> None:
     for name in [
         "babel_decay_loss.png",
         "babel_decay_stability.png",
+        "olsrv2_decay_loss.png",
+        "olsrv2_decay_stability.png",
         "batman_bellman_transition_loss.png",
         "batman_bellman_transition_stability.png",
         "batman_classic_transition_loss.png",

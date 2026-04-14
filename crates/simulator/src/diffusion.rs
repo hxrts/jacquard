@@ -51,9 +51,12 @@ pub(crate) enum DiffusionFieldPosture {
     /// Conserve transfer opportunities under low remaining energy or rising
     /// storage pressure by preferring fewer, cheaper continuations.
     ScarcityConservative,
-    /// Suppress redundant spread once holder count and storage pressure imply
-    /// that broad broadcast is becoming the main risk.
-    CongestionSuppressed,
+    /// Spend protected budget on first-arrival target-cluster coverage before
+    /// broad duplicate suppression takes over.
+    ClusterSeeding,
+    /// Suppress redundant spread once first-arrival cluster coverage is largely
+    /// established and duplicate dissemination becomes the main risk.
+    DuplicateSuppressed,
     /// Penalize observer-adjacent dissemination more aggressively when leakage
     /// signals dominate the local forwarding decision.
     PrivacyConservative,
@@ -154,6 +157,7 @@ pub struct DiffusionRunSummary {
     pub delivery_probability_permille: u32,
     pub delivery_latency_rounds: Option<u32>,
     pub coverage_permille: u32,
+    pub cluster_coverage_permille: u32,
     pub total_transmissions: u32,
     pub energy_spent_units: u32,
     pub energy_per_delivered_message: Option<u32>,
@@ -170,6 +174,8 @@ pub struct DiffusionRunSummary {
     pub field_balanced_rounds: u32,
     pub field_scarcity_conservative_rounds: u32,
     pub field_congestion_suppressed_rounds: u32,
+    pub field_cluster_seeding_rounds: u32,
+    pub field_duplicate_suppressed_rounds: u32,
     pub field_privacy_conservative_rounds: u32,
     pub field_first_scarcity_transition_round: Option<u32>,
     pub field_first_congestion_transition_round: Option<u32>,
@@ -177,6 +183,9 @@ pub struct DiffusionRunSummary {
     pub field_generic_budget_used: u32,
     pub field_bridge_opportunity_count: u32,
     pub field_protected_bridge_usage_count: u32,
+    pub field_cluster_seed_opportunity_count: u32,
+    pub field_cluster_seed_usage_count: u32,
+    pub field_cluster_coverage_starvation_count: u32,
     pub field_redundant_forward_suppression_count: u32,
     pub field_same_cluster_suppression_count: u32,
     pub field_expensive_transport_suppression_count: u32,
@@ -201,6 +210,7 @@ pub struct DiffusionAggregateSummary {
     pub delivery_probability_permille_mean: u32,
     pub delivery_latency_rounds_mean: Option<u32>,
     pub coverage_permille_mean: u32,
+    pub cluster_coverage_permille_mean: u32,
     pub total_transmissions_mean: u32,
     pub energy_spent_units_mean: u32,
     pub energy_per_delivered_message_mean: Option<u32>,
@@ -217,6 +227,8 @@ pub struct DiffusionAggregateSummary {
     pub field_balanced_rounds_mean: u32,
     pub field_scarcity_conservative_rounds_mean: u32,
     pub field_congestion_suppressed_rounds_mean: u32,
+    pub field_cluster_seeding_rounds_mean: u32,
+    pub field_duplicate_suppressed_rounds_mean: u32,
     pub field_privacy_conservative_rounds_mean: u32,
     pub field_first_scarcity_transition_round_mean: Option<u32>,
     pub field_first_congestion_transition_round_mean: Option<u32>,
@@ -224,6 +236,9 @@ pub struct DiffusionAggregateSummary {
     pub field_generic_budget_used_mean: u32,
     pub field_bridge_opportunity_count_mean: u32,
     pub field_protected_bridge_usage_count_mean: u32,
+    pub field_cluster_seed_opportunity_count_mean: u32,
+    pub field_cluster_seed_usage_count_mean: u32,
+    pub field_cluster_coverage_starvation_count_mean: u32,
     pub field_redundant_forward_suppression_count_mean: u32,
     pub field_same_cluster_suppression_count_mean: u32,
     pub field_expensive_transport_suppression_count_mean: u32,
@@ -287,7 +302,8 @@ struct FieldPostureMetrics {
     continuity_biased_rounds: u32,
     balanced_rounds: u32,
     scarcity_conservative_rounds: u32,
-    congestion_suppressed_rounds: u32,
+    cluster_seeding_rounds: u32,
+    duplicate_suppressed_rounds: u32,
     privacy_conservative_rounds: u32,
     first_scarcity_transition_round: Option<u32>,
     first_congestion_transition_round: Option<u32>,
@@ -302,6 +318,7 @@ struct FieldPostureSignals {
     recent_bridge_opportunity: bool,
     observer_exposure_permille: u32,
     delivery_progress_permille: u32,
+    cluster_delivery_progress_permille: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -316,6 +333,9 @@ struct FieldBudgetState {
 struct FieldExecutionMetrics {
     bridge_opportunity_count: u32,
     protected_bridge_usage_count: u32,
+    cluster_seed_opportunity_count: u32,
+    cluster_seed_usage_count: u32,
+    cluster_coverage_starvation_count: u32,
     redundant_forward_suppression_count: u32,
     same_cluster_suppression_count: u32,
     expensive_transport_suppression_count: u32,
@@ -336,6 +356,7 @@ struct FieldTransferFeatures {
     sender_is_observer: bool,
     receiver_is_observer: bool,
     same_cluster: bool,
+    new_cluster_coverage: bool,
     expensive_transport: bool,
     continuity_value: bool,
     protected_opportunity: bool,
@@ -444,58 +465,65 @@ fn build_diffusion_suite(suite_id: &str, seeds: &[u64], _smoke: bool) -> Diffusi
 }
 
 fn field_diffusion_profiles() -> Vec<DiffusionPolicyConfig> {
-    let variants = [
-        ("field", "field", None),
-        (
-            "field",
-            "field-balanced-low-churn",
-            Some((3, 24, 430, 220, 140, 20, 190, 40, 180, 150)),
-        ),
-        ("field-continuity", "field-continuity", None),
+    type Overrides = (u32, u32, u32, u32, i32, i32, i32, i32, u32, u32);
+    let mut variants = vec![("field".to_string(), "field".to_string(), None)];
+    let search_templates: [(&str, &str, [Overrides; 4]); 4] = [
         (
             "field-continuity",
-            "field-continuity-reserve",
-            Some((4, 34, 455, 360, 190, -10, 180, 140, 140, 120)),
-        ),
-        (
             "field-continuity",
-            "field-continuity-tight",
-            Some((3, 28, 420, 340, 180, 30, 210, 80, 190, 150)),
-        ),
-        ("field-scarcity", "field-scarcity", None),
-        (
-            "field-scarcity",
-            "field-scarcity-cheap",
-            Some((2, 20, 320, 210, 190, 95, 220, -90, 320, 260)),
+            [
+                (4, 34, 455, 360, 190, -10, 180, 140, 140, 120),
+                (3, 28, 420, 340, 180, 30, 210, 80, 190, 150),
+                (5, 38, 470, 390, 210, -30, 170, 160, 110, 110),
+                (4, 32, 440, 350, 210, 0, 190, 120, 150, 130),
+            ],
         ),
         (
             "field-scarcity",
-            "field-scarcity-hardcap",
-            Some((2, 18, 290, 230, 210, 110, 240, -120, 360, 300)),
+            "field-scarcity",
+            [
+                (2, 20, 320, 210, 190, 95, 220, -90, 320, 260),
+                (2, 18, 290, 230, 210, 110, 240, -120, 360, 300),
+                (1, 16, 260, 220, 220, 130, 250, -150, 420, 340),
+                (2, 18, 300, 250, 230, 120, 220, -140, 390, 320),
+            ],
         ),
-        ("field-congestion", "field-congestion", None),
         (
             "field-congestion",
-            "field-congestion-tight",
-            Some((2, 18, 300, 150, 120, 140, 210, -120, 360, 240)),
-        ),
-        (
             "field-congestion",
-            "field-congestion-memory",
-            Some((5, 24, 540, 180, 150, 20, 200, 0, 140, 120)),
+            [
+                (2, 18, 300, 150, 120, 140, 210, -120, 360, 240),
+                (8, 26, 520, 180, 150, 20, 200, 0, 140, 120),
+                (6, 22, 380, 170, 170, 120, 210, -80, 280, 190),
+                (7, 24, 440, 210, 210, 50, 190, -20, 200, 130),
+            ],
         ),
-        ("field-privacy", "field-privacy", None),
         (
             "field-privacy",
-            "field-privacy-tight",
-            Some((2, 22, 310, 200, 160, 100, 360, -40, 260, 220)),
+            "field-privacy",
+            [
+                (2, 22, 320, 210, 160, 90, 360, -40, 260, 220),
+                (2, 22, 310, 200, 160, 100, 360, -40, 260, 220),
+                (2, 24, 330, 240, 190, 70, 420, -80, 280, 240),
+                (3, 24, 360, 250, 200, 40, 440, -120, 260, 210),
+            ],
         ),
     ];
+    for (base_id, prefix, overrides) in search_templates {
+        variants.push((base_id.to_string(), prefix.to_string(), None));
+        for (index, override_set) in overrides.into_iter().enumerate() {
+            variants.push((
+                base_id.to_string(),
+                format!("{prefix}-search-{}", index + 1),
+                Some(override_set),
+            ));
+        }
+    }
     variants
         .into_iter()
         .map(|(base_id, config_id, overrides)| {
-            let mut profile = diffusion_engine_profile(base_id);
-            profile.config_id = config_id.to_string();
+            let mut profile = diffusion_engine_profile(&base_id);
+            profile.config_id = config_id;
             if let Some((
                 replication_budget,
                 ttl_rounds,
@@ -758,6 +786,7 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
         }
 
         let contacts = generate_contacts(spec.seed, scenario, round);
+        let covered_clusters = covered_target_clusters(scenario, &delivered_targets, &pending);
         if let Some(current_posture) = field_posture {
             let posture_signals = compute_field_posture_signals(
                 scenario,
@@ -766,6 +795,8 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
                 &contacts,
                 target_count,
                 delivered_targets.len(),
+                scenario_target_cluster_count(scenario),
+                covered_clusters.len(),
                 *round_new_copies.last().unwrap_or(&0),
                 total_transmissions,
                 observer_touches,
@@ -788,7 +819,8 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
                                 .first_scarcity_transition_round
                                 .get_or_insert(round);
                         }
-                        DiffusionFieldPosture::CongestionSuppressed => {
+                        DiffusionFieldPosture::ClusterSeeding
+                        | DiffusionFieldPosture::DuplicateSuppressed => {
                             field_posture_metrics
                                 .first_congestion_transition_round
                                 .get_or_insert(round);
@@ -806,6 +838,7 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
             );
         }
         let mut round_edge_counts = BTreeMap::<(u32, u32), u32>::new();
+        let mut planned_covered_clusters = covered_clusters.clone();
         for contact in contacts {
             for (from, to) in [
                 (contact.node_a, contact.node_b),
@@ -828,12 +861,17 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
                     continue;
                 }
                 let field_features = if field_posture_enabled {
-                    classify_field_transfer(scenario, from, to, &contact)
+                    classify_field_transfer(scenario, from, to, &contact, &planned_covered_clusters)
                 } else {
                     None
                 };
                 let field_budget_kind = if let Some(features) = field_features.as_ref() {
-                    if features.protected_opportunity && !features.receiver_is_target {
+                    if features.new_cluster_coverage {
+                        field_execution_metrics.cluster_seed_opportunity_count =
+                            field_execution_metrics
+                                .cluster_seed_opportunity_count
+                                .saturating_add(1);
+                    } else if features.protected_opportunity && !features.receiver_is_target {
                         field_execution_metrics.bridge_opportunity_count = field_execution_metrics
                             .bridge_opportunity_count
                             .saturating_add(1);
@@ -841,12 +879,25 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
                     let Some(budget_state) = field_budget_state.as_ref() else {
                         continue;
                     };
-                    let Some(budget_kind) = field_budget_kind(features, budget_state) else {
+                    let Some(budget_kind) = field_budget_kind(
+                        scenario,
+                        field_posture,
+                        features,
+                        budget_state,
+                        &planned_covered_clusters,
+                    ) else {
+                        if features.new_cluster_coverage {
+                            field_execution_metrics.cluster_coverage_starvation_count =
+                                field_execution_metrics
+                                    .cluster_coverage_starvation_count
+                                    .saturating_add(1);
+                        }
                         if let Some(posture) = field_posture {
                             if matches!(
                                 posture,
                                 DiffusionFieldPosture::ScarcityConservative
-                                    | DiffusionFieldPosture::CongestionSuppressed
+                                    | DiffusionFieldPosture::ClusterSeeding
+                                    | DiffusionFieldPosture::DuplicateSuppressed
                             ) && !features.receiver_is_target
                             {
                                 field_execution_metrics.redundant_forward_suppression_count =
@@ -879,6 +930,12 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
                             &field_suppression_state,
                             &mut field_execution_metrics,
                         ) {
+                            if features.new_cluster_coverage {
+                                field_execution_metrics.cluster_coverage_starvation_count =
+                                    field_execution_metrics
+                                        .cluster_coverage_starvation_count
+                                        .saturating_add(1);
+                            }
                             continue;
                         }
                     }
@@ -900,6 +957,7 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
                     holders.len(),
                     sender_energy,
                     field_posture,
+                    field_features.as_ref(),
                 );
                 if score
                     <= permille_hash(spec.seed, scenario.family_id.as_str(), round, from, to, 0)
@@ -928,6 +986,11 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
                         arrival_round,
                         target_node_id: to,
                     });
+                    if is_target_node(scenario, to) {
+                        if let Some(node) = node_by_id(scenario, to) {
+                            planned_covered_clusters.insert(node.cluster_id);
+                        }
+                    }
                 }
                 if let (Some(features), Some(budget_kind), Some(budget_state)) = (
                     field_features.as_ref(),
@@ -970,6 +1033,10 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
         }
     };
     let coverage_permille = coverage_permille_for(target_count, delivered_targets.len());
+    let cluster_coverage_permille = coverage_permille_for(
+        scenario_target_cluster_count(scenario),
+        covered_target_clusters(scenario, &delivered_targets, &[]).len(),
+    );
     let energy_per_delivered_message = if delivered_targets.is_empty() {
         None
     } else {
@@ -1021,10 +1088,13 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
             .saturating_mul(1000)
             / total_transmissions
     };
-    let decision_churn_count = dominant_edge_by_round
-        .windows(2)
-        .filter(|window| window[0].is_some() && window[1].is_some() && window[0] != window[1])
-        .count() as u32;
+    let decision_churn_count = u32::try_from(
+        dominant_edge_by_round
+            .windows(2)
+            .filter(|window| window[0].is_some() && window[1].is_some() && window[0] != window[1])
+            .count(),
+    )
+    .unwrap_or(u32::MAX);
     let observer_leakage_permille = if total_transmissions == 0 {
         0
     } else {
@@ -1069,6 +1139,7 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
         delivery_probability_permille,
         delivery_latency_rounds,
         coverage_permille,
+        cluster_coverage_permille,
         total_transmissions,
         energy_spent_units: total_energy,
         energy_per_delivered_message,
@@ -1084,7 +1155,11 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
         field_continuity_biased_rounds: field_posture_metrics.continuity_biased_rounds,
         field_balanced_rounds: field_posture_metrics.balanced_rounds,
         field_scarcity_conservative_rounds: field_posture_metrics.scarcity_conservative_rounds,
-        field_congestion_suppressed_rounds: field_posture_metrics.congestion_suppressed_rounds,
+        field_congestion_suppressed_rounds: field_posture_metrics
+            .cluster_seeding_rounds
+            .saturating_add(field_posture_metrics.duplicate_suppressed_rounds),
+        field_cluster_seeding_rounds: field_posture_metrics.cluster_seeding_rounds,
+        field_duplicate_suppressed_rounds: field_posture_metrics.duplicate_suppressed_rounds,
         field_privacy_conservative_rounds: field_posture_metrics.privacy_conservative_rounds,
         field_first_scarcity_transition_round: field_posture_metrics
             .first_scarcity_transition_round,
@@ -1100,6 +1175,11 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
             .unwrap_or(0),
         field_bridge_opportunity_count: field_execution_metrics.bridge_opportunity_count,
         field_protected_bridge_usage_count: field_execution_metrics.protected_bridge_usage_count,
+        field_cluster_seed_opportunity_count: field_execution_metrics
+            .cluster_seed_opportunity_count,
+        field_cluster_seed_usage_count: field_execution_metrics.cluster_seed_usage_count,
+        field_cluster_coverage_starvation_count: field_execution_metrics
+            .cluster_coverage_starvation_count,
         field_redundant_forward_suppression_count: field_execution_metrics
             .redundant_forward_suppression_count,
         field_same_cluster_suppression_count: field_execution_metrics
@@ -1144,6 +1224,9 @@ fn aggregate_diffusion_runs(runs: &[DiffusionRunSummary]) -> Vec<DiffusionAggreg
                 group.iter().map(|row| row.delivery_latency_rounds),
             ),
             coverage_permille_mean: mean_u32(group.iter().map(|row| row.coverage_permille)),
+            cluster_coverage_permille_mean: mean_u32(
+                group.iter().map(|row| row.cluster_coverage_permille),
+            ),
             total_transmissions_mean: mean_u32(group.iter().map(|row| row.total_transmissions)),
             energy_spent_units_mean: mean_u32(group.iter().map(|row| row.energy_spent_units)),
             energy_per_delivered_message_mean: mean_option_u32(
@@ -1186,6 +1269,14 @@ fn aggregate_diffusion_runs(runs: &[DiffusionRunSummary]) -> Vec<DiffusionAggreg
                     .iter()
                     .map(|row| row.field_congestion_suppressed_rounds),
             ),
+            field_cluster_seeding_rounds_mean: mean_u32(
+                group.iter().map(|row| row.field_cluster_seeding_rounds),
+            ),
+            field_duplicate_suppressed_rounds_mean: mean_u32(
+                group
+                    .iter()
+                    .map(|row| row.field_duplicate_suppressed_rounds),
+            ),
             field_privacy_conservative_rounds_mean: mean_u32(
                 group
                     .iter()
@@ -1214,6 +1305,19 @@ fn aggregate_diffusion_runs(runs: &[DiffusionRunSummary]) -> Vec<DiffusionAggreg
                 group
                     .iter()
                     .map(|row| row.field_protected_bridge_usage_count),
+            ),
+            field_cluster_seed_opportunity_count_mean: mean_u32(
+                group
+                    .iter()
+                    .map(|row| row.field_cluster_seed_opportunity_count),
+            ),
+            field_cluster_seed_usage_count_mean: mean_u32(
+                group.iter().map(|row| row.field_cluster_seed_usage_count),
+            ),
+            field_cluster_coverage_starvation_count_mean: mean_u32(
+                group
+                    .iter()
+                    .map(|row| row.field_cluster_coverage_starvation_count),
             ),
             field_redundant_forward_suppression_count_mean: mean_u32(
                 group
@@ -1297,7 +1401,7 @@ fn initial_field_posture(
         "diffusion-congestion-cascade" | "diffusion-high-density-overload"
             if policy.config_id.starts_with("field-congestion") =>
         {
-            DiffusionFieldPosture::CongestionSuppressed
+            DiffusionFieldPosture::ClusterSeeding
         }
         "diffusion-adversarial-observation" if policy.config_id.starts_with("field-privacy") => {
             DiffusionFieldPosture::PrivacyConservative
@@ -1310,6 +1414,7 @@ fn initial_field_posture(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn compute_field_posture_signals(
     scenario: &DiffusionScenarioSpec,
     holders: &BTreeMap<u32, HolderState>,
@@ -1317,6 +1422,8 @@ fn compute_field_posture_signals(
     contacts: &[DiffusionContactEvent],
     target_count: usize,
     delivered_target_count: usize,
+    target_cluster_count: usize,
+    delivered_target_cluster_count: usize,
     spread_growth: u32,
     total_transmissions: u32,
     observer_touches: u32,
@@ -1371,6 +1478,8 @@ fn compute_field_posture_signals(
         observer_touches.saturating_mul(1000) / total_transmissions
     };
     let delivery_progress_permille = coverage_permille_for(target_count, delivered_target_count);
+    let cluster_delivery_progress_permille =
+        coverage_permille_for(target_cluster_count, delivered_target_cluster_count);
     FieldPostureSignals {
         holder_count: holders.len(),
         spread_growth,
@@ -1379,6 +1488,7 @@ fn compute_field_posture_signals(
         recent_bridge_opportunity,
         observer_exposure_permille,
         delivery_progress_permille,
+        cluster_delivery_progress_permille,
     }
 }
 
@@ -1392,17 +1502,6 @@ fn desired_field_posture(
     {
         return DiffusionFieldPosture::PrivacyConservative;
     }
-    if signals.storage_pressure_permille >= 560
-        || signals.holder_count >= 6
-        || matches!(
-            scenario.family_id.as_str(),
-            "diffusion-high-density-overload" | "diffusion-congestion-cascade"
-        ) && (signals.holder_count >= 4
-            || signals.spread_growth >= 1
-            || signals.storage_pressure_permille >= 340)
-    {
-        return DiffusionFieldPosture::CongestionSuppressed;
-    }
     if signals.remaining_energy_fraction_permille <= 520
         || (scenario.family_id == "diffusion-energy-starved-relay"
             && (signals.remaining_energy_fraction_permille <= 920
@@ -1412,6 +1511,28 @@ fn desired_field_posture(
             && signals.storage_pressure_permille >= 180)
     {
         return DiffusionFieldPosture::ScarcityConservative;
+    }
+    if matches!(
+        scenario.family_id.as_str(),
+        "diffusion-high-density-overload" | "diffusion-congestion-cascade"
+    ) {
+        if signals.cluster_delivery_progress_permille < 1000
+            && (signals.storage_pressure_permille >= 260
+                || signals.holder_count >= 3
+                || signals.spread_growth >= 1)
+        {
+            return DiffusionFieldPosture::ClusterSeeding;
+        }
+        if signals.storage_pressure_permille >= 360
+            || signals.holder_count >= 5
+            || signals.cluster_delivery_progress_permille >= 1000
+            || signals.delivery_progress_permille >= 720
+        {
+            return DiffusionFieldPosture::DuplicateSuppressed;
+        }
+    }
+    if signals.storage_pressure_permille >= 560 || signals.holder_count >= 6 {
+        return DiffusionFieldPosture::DuplicateSuppressed;
     }
     if matches!(
         scenario.family_id.as_str(),
@@ -1440,9 +1561,12 @@ fn count_field_posture_round(metrics: &mut FieldPostureMetrics, posture: Diffusi
             metrics.scarcity_conservative_rounds =
                 metrics.scarcity_conservative_rounds.saturating_add(1)
         }
-        DiffusionFieldPosture::CongestionSuppressed => {
-            metrics.congestion_suppressed_rounds =
-                metrics.congestion_suppressed_rounds.saturating_add(1)
+        DiffusionFieldPosture::ClusterSeeding => {
+            metrics.cluster_seeding_rounds = metrics.cluster_seeding_rounds.saturating_add(1)
+        }
+        DiffusionFieldPosture::DuplicateSuppressed => {
+            metrics.duplicate_suppressed_rounds =
+                metrics.duplicate_suppressed_rounds.saturating_add(1)
         }
         DiffusionFieldPosture::PrivacyConservative => {
             metrics.privacy_conservative_rounds =
@@ -1456,7 +1580,8 @@ fn field_posture_name(posture: DiffusionFieldPosture) -> String {
         DiffusionFieldPosture::ContinuityBiased => "continuity_biased".to_string(),
         DiffusionFieldPosture::Balanced => "balanced".to_string(),
         DiffusionFieldPosture::ScarcityConservative => "scarcity_conservative".to_string(),
-        DiffusionFieldPosture::CongestionSuppressed => "congestion_suppressed".to_string(),
+        DiffusionFieldPosture::ClusterSeeding => "cluster_seeding".to_string(),
+        DiffusionFieldPosture::DuplicateSuppressed => "duplicate_suppressed".to_string(),
         DiffusionFieldPosture::PrivacyConservative => "privacy_conservative".to_string(),
     }
 }
@@ -1479,13 +1604,18 @@ fn dominant_field_posture_name(metrics: &FieldPostureMetrics) -> Option<String> 
             DiffusionFieldPosture::ScarcityConservative,
         ),
         (
-            metrics.congestion_suppressed_rounds,
+            metrics.cluster_seeding_rounds,
             3_u8,
-            DiffusionFieldPosture::CongestionSuppressed,
+            DiffusionFieldPosture::ClusterSeeding,
+        ),
+        (
+            metrics.duplicate_suppressed_rounds,
+            4_u8,
+            DiffusionFieldPosture::DuplicateSuppressed,
         ),
         (
             metrics.privacy_conservative_rounds,
-            4_u8,
+            5_u8,
             DiffusionFieldPosture::PrivacyConservative,
         ),
     ];
@@ -1508,7 +1638,7 @@ fn initial_field_budget(
     let base_protected = if matches!(scenario.message_mode, DiffusionMessageMode::Unicast) {
         1
     } else {
-        0
+        u32::try_from(scenario_target_cluster_count(scenario)).unwrap_or(u32::MAX)
     };
     let continuity_reserved = if matches!(
         scenario.family_id.as_str(),
@@ -1552,6 +1682,7 @@ fn classify_field_transfer(
     from: u32,
     to: u32,
     contact: &DiffusionContactEvent,
+    covered_clusters: &BTreeSet<u8>,
 ) -> Option<FieldTransferFeatures> {
     let from_node = node_by_id(scenario, from)?;
     let to_node = node_by_id(scenario, to)?;
@@ -1561,6 +1692,8 @@ fn classify_field_transfer(
         .and_then(|destination| node_by_id(scenario, destination))
         .map(|node| node.cluster_id);
     let receiver_is_target = is_terminal_target(scenario, to);
+    let new_cluster_coverage =
+        is_target_node(scenario, to) && !covered_clusters.contains(&to_node.cluster_id);
     let same_cluster = from_node.cluster_id == to_node.cluster_id;
     let toward_destination_cluster = destination_cluster == Some(to_node.cluster_id);
     let leaving_source_cluster =
@@ -1570,10 +1703,12 @@ fn classify_field_transfer(
         DiffusionMobilityProfile::Bridger | DiffusionMobilityProfile::LongRangeMover
     );
     let continuity_value = receiver_is_target
+        || new_cluster_coverage
         || toward_destination_cluster
         || bridge_candidate
         || leaving_source_cluster;
     let protected_opportunity = receiver_is_target
+        || new_cluster_coverage
         || toward_destination_cluster
         || (!same_cluster && bridge_candidate)
         || (leaving_source_cluster
@@ -1597,6 +1732,7 @@ fn classify_field_transfer(
             DiffusionMobilityProfile::Observer
         ),
         same_cluster,
+        new_cluster_coverage,
         expensive_transport: matches!(contact.transport_kind, DiffusionTransportKind::LoRa),
         continuity_value,
         protected_opportunity,
@@ -1628,12 +1764,63 @@ fn holder_count_in_cluster(
     holder_count.saturating_add(pending_count)
 }
 
+fn covered_target_clusters(
+    scenario: &DiffusionScenarioSpec,
+    delivered_targets: &BTreeSet<u32>,
+    pending: &[PendingTransfer],
+) -> BTreeSet<u8> {
+    let mut clusters = BTreeSet::new();
+    for node_id in delivered_targets {
+        if let Some(node) = node_by_id(scenario, *node_id) {
+            clusters.insert(node.cluster_id);
+        }
+    }
+    for transfer in pending {
+        if is_target_node(scenario, transfer.target_node_id) {
+            if let Some(node) = node_by_id(scenario, transfer.target_node_id) {
+                clusters.insert(node.cluster_id);
+            }
+        }
+    }
+    clusters
+}
+
+fn broadcast_cluster_seeding_active(
+    scenario: &DiffusionScenarioSpec,
+    posture: Option<DiffusionFieldPosture>,
+    covered_clusters: &BTreeSet<u8>,
+) -> bool {
+    matches!(scenario.message_mode, DiffusionMessageMode::Broadcast)
+        && matches!(posture, Some(DiffusionFieldPosture::ClusterSeeding))
+        && covered_clusters.len() < scenario_target_cluster_count(scenario)
+}
+
 fn field_budget_kind(
+    scenario: &DiffusionScenarioSpec,
+    posture: Option<DiffusionFieldPosture>,
     features: &FieldTransferFeatures,
     budget_state: &FieldBudgetState,
+    covered_clusters: &BTreeSet<u8>,
 ) -> Option<FieldBudgetKind> {
     if features.receiver_is_target {
         return Some(FieldBudgetKind::Target);
+    }
+    if broadcast_cluster_seeding_active(scenario, posture, covered_clusters) {
+        if features.new_cluster_coverage && budget_state.protected_remaining > 0 {
+            return Some(FieldBudgetKind::Protected);
+        }
+        return None;
+    }
+    if matches!(scenario.message_mode, DiffusionMessageMode::Broadcast)
+        && features.new_cluster_coverage
+    {
+        if budget_state.protected_remaining > 0 {
+            return Some(FieldBudgetKind::Protected);
+        }
+        if budget_state.generic_remaining > 0 {
+            return Some(FieldBudgetKind::Generic);
+        }
+        return None;
     }
     if features.protected_opportunity {
         if budget_state.protected_remaining > 0 {
@@ -1651,6 +1838,7 @@ fn field_budget_kind(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn field_forwarding_suppressed(
     posture: DiffusionFieldPosture,
     round: u32,
@@ -1661,26 +1849,65 @@ fn field_forwarding_suppressed(
     suppression_state: &FieldSuppressionState,
     metrics: &mut FieldExecutionMetrics,
 ) -> bool {
+    let completion_forward_allowed = matches!(posture, DiffusionFieldPosture::DuplicateSuppressed)
+        && features.same_cluster
+        && !features.receiver_is_observer
+        && !features.sender_is_observer
+        && receiver_cluster_holders <= 1;
     let (max_holders, max_same_cluster_holders, cooldown_rounds) = match posture {
         DiffusionFieldPosture::ContinuityBiased => (6_usize, 2_usize, 1_u32),
         DiffusionFieldPosture::Balanced => (5_usize, 2_usize, 1_u32),
         DiffusionFieldPosture::ScarcityConservative => (4_usize, 1_usize, 2_u32),
-        DiffusionFieldPosture::CongestionSuppressed => (4_usize, 1_usize, 3_u32),
+        DiffusionFieldPosture::ClusterSeeding => (4_usize, 1_usize, 2_u32),
+        DiffusionFieldPosture::DuplicateSuppressed => (4_usize, 1_usize, 4_u32),
         DiffusionFieldPosture::PrivacyConservative => (4_usize, 1_usize, 2_u32),
     };
 
+    if matches!(posture, DiffusionFieldPosture::ClusterSeeding)
+        && !features.new_cluster_coverage
+        && !features.receiver_is_target
+        && receiver_cluster_holders > 0
+    {
+        metrics.redundant_forward_suppression_count = metrics
+            .redundant_forward_suppression_count
+            .saturating_add(1);
+        if features.same_cluster {
+            metrics.same_cluster_suppression_count =
+                metrics.same_cluster_suppression_count.saturating_add(1);
+        }
+        return true;
+    }
+    if matches!(posture, DiffusionFieldPosture::DuplicateSuppressed)
+        && !features.new_cluster_coverage
+        && !features.receiver_is_target
+        && !completion_forward_allowed
+    {
+        metrics.redundant_forward_suppression_count = metrics
+            .redundant_forward_suppression_count
+            .saturating_add(1);
+        if features.same_cluster {
+            metrics.same_cluster_suppression_count =
+                metrics.same_cluster_suppression_count.saturating_add(1);
+        }
+        return true;
+    }
     if !features.receiver_is_target
         && !features.protected_opportunity
         && holder_count >= max_holders
+        && !completion_forward_allowed
     {
         metrics.redundant_forward_suppression_count = metrics
             .redundant_forward_suppression_count
             .saturating_add(1);
         return true;
     }
-    if matches!(posture, DiffusionFieldPosture::CongestionSuppressed)
-        && receiver_cluster_holders > 0
+    if matches!(
+        posture,
+        DiffusionFieldPosture::ClusterSeeding | DiffusionFieldPosture::DuplicateSuppressed
+    ) && receiver_cluster_holders > 0
         && !features.receiver_is_target
+        && !features.new_cluster_coverage
+        && !completion_forward_allowed
         && !features.protected_opportunity
     {
         metrics.redundant_forward_suppression_count = metrics
@@ -1695,10 +1922,14 @@ fn field_forwarding_suppressed(
     if features.same_cluster
         && !features.receiver_is_target
         && receiver_cluster_holders >= max_same_cluster_holders
+        && !completion_forward_allowed
     {
         metrics.same_cluster_suppression_count =
             metrics.same_cluster_suppression_count.saturating_add(1);
-        if matches!(posture, DiffusionFieldPosture::CongestionSuppressed) {
+        if matches!(
+            posture,
+            DiffusionFieldPosture::ClusterSeeding | DiffusionFieldPosture::DuplicateSuppressed
+        ) {
             metrics.redundant_forward_suppression_count = metrics
                 .redundant_forward_suppression_count
                 .saturating_add(1);
@@ -1710,7 +1941,8 @@ fn field_forwarding_suppressed(
         && matches!(
             posture,
             DiffusionFieldPosture::ScarcityConservative
-                | DiffusionFieldPosture::CongestionSuppressed
+                | DiffusionFieldPosture::ClusterSeeding
+                | DiffusionFieldPosture::DuplicateSuppressed
                 | DiffusionFieldPosture::PrivacyConservative
         )
     {
@@ -1742,9 +1974,13 @@ fn field_forwarding_suppressed(
         }
         return true;
     }
-    if matches!(posture, DiffusionFieldPosture::CongestionSuppressed)
-        && !features.continuity_value
+    if matches!(
+        posture,
+        DiffusionFieldPosture::ClusterSeeding | DiffusionFieldPosture::DuplicateSuppressed
+    ) && !features.continuity_value
         && !features.receiver_is_target
+        && !features.new_cluster_coverage
+        && !completion_forward_allowed
     {
         metrics.redundant_forward_suppression_count = metrics
             .redundant_forward_suppression_count
@@ -1759,7 +1995,8 @@ fn field_forwarding_suppressed(
             if round <= last_round.saturating_add(cooldown_rounds)
                 && matches!(
                     posture,
-                    DiffusionFieldPosture::CongestionSuppressed
+                    DiffusionFieldPosture::ClusterSeeding
+                        | DiffusionFieldPosture::DuplicateSuppressed
                         | DiffusionFieldPosture::ScarcityConservative
                 )
                 && !features.protected_opportunity
@@ -1775,10 +2012,16 @@ fn field_forwarding_suppressed(
                 .recent_same_cluster_forward_round
                 .get(&features.from_cluster_id)
             {
-                if round <= last_round.saturating_add(cooldown_rounds) {
+                if round <= last_round.saturating_add(cooldown_rounds)
+                    && !completion_forward_allowed
+                {
                     metrics.same_cluster_suppression_count =
                         metrics.same_cluster_suppression_count.saturating_add(1);
-                    if matches!(posture, DiffusionFieldPosture::CongestionSuppressed) {
+                    if matches!(
+                        posture,
+                        DiffusionFieldPosture::ClusterSeeding
+                            | DiffusionFieldPosture::DuplicateSuppressed
+                    ) {
                         metrics.redundant_forward_suppression_count = metrics
                             .redundant_forward_suppression_count
                             .saturating_add(1);
@@ -1791,7 +2034,11 @@ fn field_forwarding_suppressed(
             .get(&(features.from_cluster_id, features.to_cluster_id))
         {
             if round <= last_round.saturating_add(cooldown_rounds)
-                && matches!(posture, DiffusionFieldPosture::CongestionSuppressed)
+                && matches!(
+                    posture,
+                    DiffusionFieldPosture::ClusterSeeding
+                        | DiffusionFieldPosture::DuplicateSuppressed
+                )
                 && !features.protected_opportunity
             {
                 metrics.redundant_forward_suppression_count = metrics
@@ -1817,9 +2064,13 @@ fn record_field_forward(
         FieldBudgetKind::Protected => {
             budget_state.protected_remaining = budget_state.protected_remaining.saturating_sub(1);
             budget_state.protected_used = budget_state.protected_used.saturating_add(1);
-            if features.protected_opportunity {
+            if features.protected_opportunity && !features.new_cluster_coverage {
                 metrics.protected_bridge_usage_count =
                     metrics.protected_bridge_usage_count.saturating_add(1);
+            }
+            if features.new_cluster_coverage {
+                metrics.cluster_seed_usage_count =
+                    metrics.cluster_seed_usage_count.saturating_add(1);
             }
         }
         FieldBudgetKind::Generic => {
@@ -2020,7 +2271,7 @@ fn choose_transport(
     ) || matches!(
         right.mobility_profile,
         DiffusionMobilityProfile::LongRangeMover
-    ) || round % 5 == 0
+    ) || round.is_multiple_of(5)
     {
         DiffusionTransportKind::LoRa
     } else {
@@ -2036,6 +2287,7 @@ fn transport_properties(kind: DiffusionTransportKind) -> (u32, u32, u32) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn forwarding_score(
     scenario: &DiffusionScenarioSpec,
     policy: &DiffusionPolicyConfig,
@@ -2045,6 +2297,7 @@ fn forwarding_score(
     holder_count: usize,
     sender_energy_remaining: u32,
     field_posture: Option<DiffusionFieldPosture>,
+    field_features: Option<&FieldTransferFeatures>,
 ) -> u32 {
     let Some(from_node) = node_by_id(scenario, from) else {
         return 0;
@@ -2085,6 +2338,18 @@ fn forwarding_score(
     }
     if matches!(contact.transport_kind, DiffusionTransportKind::LoRa) {
         score = score.saturating_add(policy.lora_bias_permille);
+    }
+    if let Some(features) = field_features {
+        if matches!(scenario.message_mode, DiffusionMessageMode::Broadcast) {
+            if features.new_cluster_coverage {
+                score = score.saturating_add(260);
+            } else {
+                score = score.saturating_sub(220);
+            }
+            if features.same_cluster {
+                score = score.saturating_sub(140);
+            }
+        }
     }
     let sender_energy_ratio = if from_node.energy_budget == 0 {
         0
@@ -2131,6 +2396,13 @@ fn forwarding_score(
                 if toward_destination_cluster {
                     score = score.saturating_add(70);
                 }
+                if matches!(scenario.message_mode, DiffusionMessageMode::Broadcast)
+                    && field_features
+                        .map(|features| features.new_cluster_coverage)
+                        .unwrap_or(false)
+                {
+                    score = score.saturating_add(110);
+                }
             }
             DiffusionFieldPosture::ScarcityConservative => {
                 score = score.saturating_sub(220);
@@ -2148,11 +2420,18 @@ fn forwarding_score(
                 if holder_count > 1 {
                     score = score.saturating_sub(110);
                 }
+                if matches!(scenario.message_mode, DiffusionMessageMode::Broadcast)
+                    && field_features
+                        .map(|features| features.new_cluster_coverage)
+                        .unwrap_or(false)
+                {
+                    score = score.saturating_add(140);
+                }
             }
-            DiffusionFieldPosture::CongestionSuppressed => {
-                score = score.saturating_sub(240);
+            DiffusionFieldPosture::ClusterSeeding => {
+                score = score.saturating_sub(210);
                 if matches!(scenario.message_mode, DiffusionMessageMode::Broadcast) {
-                    score = score.saturating_sub(180);
+                    score = score.saturating_sub(120);
                 }
                 if toward_destination_cluster || is_target_node(scenario, to) {
                     score = score.saturating_add(120);
@@ -2161,7 +2440,40 @@ fn forwarding_score(
                     score = score.saturating_sub(170);
                 }
                 if holder_count > 2 {
-                    score = score.saturating_sub(160);
+                    score = score.saturating_sub(120);
+                }
+                if let Some(features) = field_features {
+                    if matches!(scenario.message_mode, DiffusionMessageMode::Broadcast) {
+                        if features.new_cluster_coverage {
+                            score = score.saturating_add(320);
+                            if !features.same_cluster {
+                                score = score.saturating_add(70);
+                            }
+                        } else {
+                            score = score.saturating_sub(260);
+                        }
+                    }
+                }
+            }
+            DiffusionFieldPosture::DuplicateSuppressed => {
+                score = score.saturating_sub(320);
+                if toward_destination_cluster || is_target_node(scenario, to) {
+                    score = score.saturating_add(100);
+                }
+                if from_node.cluster_id == to_node.cluster_id {
+                    score = score.saturating_sub(220);
+                }
+                if holder_count > 1 {
+                    score = score.saturating_sub(180);
+                }
+                if let Some(features) = field_features {
+                    if matches!(scenario.message_mode, DiffusionMessageMode::Broadcast) {
+                        if features.new_cluster_coverage {
+                            score = score.saturating_add(280);
+                        } else {
+                            score = score.saturating_sub(340);
+                        }
+                    }
                 }
             }
             DiffusionFieldPosture::PrivacyConservative => {
@@ -2263,7 +2575,7 @@ fn forwarding_score(
         }
         _ => {}
     }
-    score.clamp(0, 1000) as u32
+    score.clamp(0, 1000).cast_unsigned()
 }
 
 fn bounded_state(
@@ -2303,6 +2615,16 @@ fn scenario_target_count(scenario: &DiffusionScenarioSpec) -> usize {
         DiffusionMessageMode::Unicast => 1,
         DiffusionMessageMode::Broadcast => scenario.nodes.len().saturating_sub(1),
     }
+}
+
+fn scenario_target_cluster_count(scenario: &DiffusionScenarioSpec) -> usize {
+    let mut clusters = BTreeSet::new();
+    for node in &scenario.nodes {
+        if is_target_node(scenario, node.node_id) {
+            clusters.insert(node.cluster_id);
+        }
+    }
+    clusters.len()
 }
 
 fn is_target_node(scenario: &DiffusionScenarioSpec, node_id: u32) -> bool {
@@ -2678,14 +3000,17 @@ fn clustered_nodes(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::{
         aggregate_diffusion_runs, bounded_state, build_adversarial_observation_scenario,
         build_bridge_drought_scenario, build_congestion_cascade_scenario,
         build_energy_starved_relay_scenario, build_partitioned_clusters_scenario,
-        diffusion_engine_profile, diffusion_smoke_suite, field_diffusion_profiles,
-        field_forwarding_suppressed, generate_contacts, simulate_diffusion_run,
-        DiffusionFieldPosture, DiffusionForwardingStyle, DiffusionPolicyConfig, DiffusionRunSpec,
-        FieldExecutionMetrics, FieldSuppressionState, FieldTransferFeatures,
+        diffusion_engine_profile, diffusion_smoke_suite, field_budget_kind,
+        field_diffusion_profiles, field_forwarding_suppressed, generate_contacts,
+        simulate_diffusion_run, DiffusionFieldPosture, DiffusionForwardingStyle,
+        DiffusionPolicyConfig, DiffusionRunSpec, FieldBudgetState, FieldExecutionMetrics,
+        FieldSuppressionState, FieldTransferFeatures,
     };
 
     #[test]
@@ -2818,7 +3143,7 @@ mod tests {
         let scenario = build_bridge_drought_scenario();
         let policy = field_diffusion_profiles()
             .into_iter()
-            .find(|candidate| candidate.config_id == "field-continuity-reserve")
+            .find(|candidate| candidate.config_id == "field-continuity-search-1")
             .expect("field continuity reserve profile");
         let field = simulate_diffusion_run(&DiffusionRunSpec {
             suite_id: "test".to_string(),
@@ -2851,7 +3176,7 @@ mod tests {
     }
 
     #[test]
-    fn field_congestion_cascade_transitions_into_congestion_suppressed() {
+    fn field_congestion_cascade_transitions_into_congestion_control_posture() {
         let scenario = build_congestion_cascade_scenario();
         let field = simulate_diffusion_run(&DiffusionRunSpec {
             suite_id: "test".to_string(),
@@ -2860,10 +3185,7 @@ mod tests {
             policy: diffusion_engine_profile("field"),
             scenario,
         });
-        assert_eq!(
-            field.field_posture_mode.as_deref(),
-            Some("congestion_suppressed")
-        );
+        assert_eq!(field.field_posture_mode.as_deref(), Some("cluster_seeding"));
         assert!(field.field_first_congestion_transition_round.is_some());
     }
 
@@ -2872,7 +3194,7 @@ mod tests {
         let scenario = build_energy_starved_relay_scenario();
         let scarcity_policy = field_diffusion_profiles()
             .into_iter()
-            .find(|candidate| candidate.config_id == "field-scarcity-hardcap")
+            .find(|candidate| candidate.config_id == "field-scarcity-search-2")
             .expect("field scarcity hardcap profile");
         let baseline = simulate_diffusion_run(&DiffusionRunSpec {
             suite_id: "test".to_string(),
@@ -2903,7 +3225,7 @@ mod tests {
         let scenario = build_congestion_cascade_scenario();
         let congestion_policy = field_diffusion_profiles()
             .into_iter()
-            .find(|candidate| candidate.config_id == "field-congestion-memory")
+            .find(|candidate| candidate.config_id == "field-congestion-search-2")
             .expect("field congestion memory profile");
         let congestion = simulate_diffusion_run(&DiffusionRunSpec {
             suite_id: "test".to_string(),
@@ -2912,15 +3234,20 @@ mod tests {
             policy: congestion_policy,
             scenario,
         });
-        assert_eq!(
-            congestion.field_posture_mode.as_deref(),
-            Some("congestion_suppressed")
+        assert!(
+            matches!(
+                congestion.field_posture_mode.as_deref(),
+                Some("cluster_seeding") | Some("duplicate_suppressed")
+            ),
+            "unexpected posture: {:?}",
+            congestion.field_posture_mode
         );
         assert!(
             congestion.field_redundant_forward_suppression_count
                 + congestion.field_same_cluster_suppression_count
                 > 0
         );
+        assert!(congestion.field_cluster_seed_usage_count > 0);
     }
 
     #[test]
@@ -2934,12 +3261,13 @@ mod tests {
             sender_is_observer: false,
             receiver_is_observer: false,
             same_cluster: false,
+            new_cluster_coverage: false,
             expensive_transport: false,
             continuity_value: false,
             protected_opportunity: false,
         };
         let suppressed = field_forwarding_suppressed(
-            DiffusionFieldPosture::CongestionSuppressed,
+            DiffusionFieldPosture::DuplicateSuppressed,
             4,
             4,
             1,
@@ -2953,11 +3281,72 @@ mod tests {
     }
 
     #[test]
+    fn cluster_seeding_budget_blocks_non_novel_broadcast_forwarding() {
+        let scenario = build_congestion_cascade_scenario();
+        let covered_clusters = BTreeSet::from([1_u8]);
+        let features = FieldTransferFeatures {
+            from_cluster_id: 0,
+            to_cluster_id: 1,
+            receiver_is_target: false,
+            sender_is_observer: false,
+            receiver_is_observer: false,
+            same_cluster: false,
+            new_cluster_coverage: false,
+            expensive_transport: false,
+            continuity_value: false,
+            protected_opportunity: false,
+        };
+        let budget = FieldBudgetState {
+            protected_remaining: 2,
+            generic_remaining: 2,
+            protected_used: 0,
+            generic_used: 0,
+        };
+        let decision = field_budget_kind(
+            &scenario,
+            Some(DiffusionFieldPosture::ClusterSeeding),
+            &features,
+            &budget,
+            &covered_clusters,
+        );
+        assert!(decision.is_none());
+    }
+
+    #[test]
+    fn duplicate_suppressed_allows_one_bounded_completion_forward() {
+        let mut metrics = FieldExecutionMetrics::default();
+        let suppression_state = FieldSuppressionState::default();
+        let features = FieldTransferFeatures {
+            from_cluster_id: 1,
+            to_cluster_id: 1,
+            receiver_is_target: false,
+            sender_is_observer: false,
+            receiver_is_observer: false,
+            same_cluster: true,
+            new_cluster_coverage: false,
+            expensive_transport: false,
+            continuity_value: false,
+            protected_opportunity: false,
+        };
+        let suppressed = field_forwarding_suppressed(
+            DiffusionFieldPosture::DuplicateSuppressed,
+            6,
+            4,
+            1,
+            900,
+            &features,
+            &suppression_state,
+            &mut metrics,
+        );
+        assert!(!suppressed);
+    }
+
+    #[test]
     fn privacy_variant_reduces_observer_leakage_relative_to_balanced() {
         let scenario = build_adversarial_observation_scenario();
         let privacy_policy = field_diffusion_profiles()
             .into_iter()
-            .find(|candidate| candidate.config_id == "field-privacy-tight")
+            .find(|candidate| candidate.config_id == "field-privacy-search-2")
             .expect("field privacy tight profile");
         let baseline = simulate_diffusion_run(&DiffusionRunSpec {
             suite_id: "test".to_string(),

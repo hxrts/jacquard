@@ -4,7 +4,7 @@
 
 ### Executive Summary Intro
 
-This report studies Jacquard routing behavior across five engines, `batman-bellman`, `batman-classic`, `babel`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
+This report studies Jacquard routing behavior across six engines, `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
 
 The goal is to understand where each engine works cleanly, where it begins to degrade, what kinds of failures appear first, and compare engines under the same network regimes. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
 
@@ -48,7 +48,7 @@ The report scores observable replay output: whether a route appears, when it is 
 
 #### Matrix Design
 
-The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-bellman`, `batman-classic`, and `babel`, the main sweep changes decay-window settings. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
+The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-bellman`, `batman-classic`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
 
 The recommendations are meant to be good defaults for this modeled corpus, not single winners from one scenario.
 
@@ -92,6 +92,12 @@ BATMAN Classic is the spec-faithful BATMAN IV engine: TQ is carried in OGMs and 
 #### Babel Algorithm
 
 Babel implements the RFC 8966 distance-vector protocol. Link cost uses bidirectional ETX rather than forward-only TQ, penalizing asymmetric links more heavily. Path metric is additive rather than multiplicative. Route selection is gated by a feasibility distance table that provides loop freedom during transient topology changes. The analysis targets asymmetric link regimes and partition recovery to surface these behavioral differences.
+
+#### OLSRv2 Algorithm
+
+`olsrv2` is Jacquard's deterministic proactive link-state baseline. It learns one-hop and two-hop reachability from HELLO exchange, elects a stable MPR covering set, floods TC advertisements only when local topology changes or forwarded MPR-selected TC state is fresher, and runs shortest-path derivation over the learned topology tuples.
+
+The Jacquard engine intentionally simplifies the full RFC surface: it keeps one deterministic link-state view, one MPR election policy, and next-hop-only route publication. The tuning sweep therefore focuses on the decay window that controls how long HELLO and TC evidence stays live and how quickly the engine requests another synchronous round.
 
 #### Pathway Algorithm
 
@@ -197,17 +203,33 @@ Accumulated stability across the three Babel decay families.
 
 When routes are first lost under the Babel decay families. The partition-feasibility-recovery family shows the FD table's infeasible-fallback window.
 
+#### OLSRv2 Decay Analysis
+
+These plots answer the missing proactive link-state question directly: how quickly the full-topology engine stabilizes when links degrade, partitions clear, and relay roles shift. The topology-propagation and MPR-flooding families expose whether fresher HELLO and TC retention buys cleaner recovery or just unnecessary churn.
+
+#### Figure 7
+
+@figure olsrv2_decay_stability
+
+Accumulated stability across the four maintained OLSRv2 topology and churn families.
+
+#### Figure 8
+
+@figure olsrv2_decay_loss
+
+When routes are first lost under the same OLSRv2 families. Compare against the BATMAN and Babel figures to separate link-state freshness from distance-vector decay effects.
+
 #### Pathway Budget Figures Intro
 
 These two figures show the budget question from two angles: how much route presence extra budget buys, and where activation collapses outright.
 
-#### Figure 7
+#### Figure 9
 
 @figure pathway_budget_route_presence
 
 Route presence under the Pathway pressure families by search budget.
 
-#### Figure 8
+#### Figure 10
 
 @figure pathway_budget_activation
 
@@ -217,25 +239,25 @@ Activation success by search budget. The clearest view of minimum viable Pathway
 
 The first figure shows route-visible continuity across corridor-oriented families. The second shows search and continuation churn. Together they distinguish a healthy corridor default from an unstable bootstrap regime.
 
-#### Figure 9
+#### Figure 11
 
 @figure field_budget_route_presence
 
 Field route-visible success by budget across corridor-oriented families.
 
-#### Figure 10
+#### Figure 12
 
 @figure field_budget_reconfiguration
 
 Continuation shifts and search reconfiguration rounds combined into one reconfiguration load signal.
 
-#### Figure 11
+#### Figure 13
 
 @figure comparison_dominant_engine
 
 Which engine dominates in each maintained mixed-engine comparison family.
 
-#### Figure 12
+#### Figure 14
 
 @figure head_to_head_route_presence
 
@@ -253,7 +275,7 @@ Dominant engine per maintained comparison family. Column guide: Dominant Engine 
 
 @table head-to-head-summary
 
-Direct stack-to-stack comparison: `batman-bellman`, `batman-classic`, `babel`, `pathway`, `field`, and `pathway-batman-bellman`. Column guide: Engine Set is the only stack enabled; Activation, Route, Dominant, and Stress as above. A `-` means no route-visible winner was observed.
+Direct stack-to-stack comparison: `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `pathway`, `field`, and `pathway-batman-bellman`. Column guide: Engine Set is the only stack enabled; Activation, Route, Dominant, and Stress as above. A `-` means no route-visible winner was observed.
 
 #### Head-To-Head Regimes
 
@@ -352,13 +374,13 @@ Full maintained diffusion engine surface. Column guide: Family, Engine Set, Deli
 
 These two figures separate delivery success from resource boundedness across the most discriminating maintained diffusion families.
 
-#### Figure 13
+#### Figure 15
 
 @figure diffusion_delivery_coverage
 
 Delivery and coverage by engine set.
 
-#### Figure 14
+#### Figure 16
 
 @figure diffusion_resource_boundedness
 
@@ -461,6 +483,18 @@ The Babel families separate most clearly at `{config_id}` (stability-total {stab
 
 The feasibility distance table bounds convergence after partition recovery. Routes with the same seqno as pre-partition are infeasible until the next seqno increment.
 
+#### Engine Section OLSRv2 Plateau
+
+The OLSRv2 families show a broad stable region. Once HELLO and TC state stay live long enough to cover one topology churn cycle, extra retention mostly changes recovery timing rather than route visibility.
+
+#### Engine Section OLSRv2 Best
+
+The OLSRv2 families separate most clearly at `{config_id}` (stability-total {stability_total}, route presence {route_presence} permille).
+
+#### Engine Section OLSRv2 Closing
+
+The remaining stress point is asymmetric relink timing: full-topology knowledge helps after relays settle, but stale symmetric-link evidence can still leave one churn window where the best next hop is temporarily absent.
+
 #### Engine Section Pathway Cliff
 
 Pathway budget 1 is the cliff edge: activation={activation} permille.
@@ -540,6 +574,14 @@ The Babel recommendation balances decay window size against the feasibility dist
 #### Recommendation Rationale Babel 2
 
 The asymmetry-cost-penalty family is the clearest differentiator. The bidirectional ETX formula penalizes asymmetric links more than TQ.
+
+#### Recommendation Rationale OLSRv2 1
+
+The OLSRv2 recommendation is driven by the topology-propagation and partition-recovery families. The selected decay window keeps HELLO and TC state live long enough to span one churn window without delaying recovery so long that stale next hops dominate.
+
+#### Recommendation Rationale OLSRv2 2
+
+The MPR-flooding and asymmetric-relink families are the main differentiators. If the window is too short, symmetric-link state expires before the topology settles; if it is too long, the link-state graph holds on to obsolete bridge evidence longer than needed.
 
 #### Recommendation Rationale Pathway 1
 

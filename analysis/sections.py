@@ -415,6 +415,10 @@ def babel_algorithm_lines() -> list[str]:
     return section_lines("Babel Algorithm")
 
 
+def olsrv2_algorithm_lines() -> list[str]:
+    return section_lines("OLSRv2 Algorithm")
+
+
 def pathway_algorithm_lines() -> list[str]:
     return section_lines("Pathway Algorithm")
 
@@ -548,6 +552,36 @@ def engine_section_lines(
                     )
                 )
         lines.extend(section_lines("Engine Section Babel Closing"))
+    if engine_family == "olsrv2":
+        pressure = family_rows.filter(
+            pl.col("family_id").is_in(
+                [
+                    "olsrv2-topology-propagation-latency",
+                    "olsrv2-partition-recovery",
+                    "olsrv2-mpr-flooding-stability",
+                    "olsrv2-asymmetric-relink-transition",
+                ]
+            )
+        )
+        if not pressure.is_empty():
+            stability_values = pressure["stability_total_mean"].to_list()
+            if len(set(stability_values)) == 1:
+                lines.extend(section_lines("Engine Section OLSRv2 Plateau"))
+            else:
+                best = pressure.sort(
+                    ["stability_total_mean", "route_present_permille_mean"],
+                    descending=[True, True],
+                ).head(1)
+                best_row = best.iter_rows(named=True).__next__()
+                lines.extend(
+                    section_lines_formatted(
+                        "Engine Section OLSRv2 Best",
+                        config_id=best_row["config_id"],
+                        stability_total=best_row["stability_total_mean"],
+                        route_presence=best_row["route_present_permille_mean"],
+                    )
+                )
+        lines.extend(section_lines("Engine Section OLSRv2 Closing"))
     if engine_family == "pathway":
         pressure = family_rows.filter(
             pl.col("family_id").is_in(
@@ -679,6 +713,9 @@ def recommendation_rationale_lines(
     if engine_family == "babel":
         lines.extend(section_lines("Recommendation Rationale Babel 1"))
         lines.extend(section_lines("Recommendation Rationale Babel 2"))
+    if engine_family == "olsrv2":
+        lines.extend(section_lines("Recommendation Rationale OLSRv2 1"))
+        lines.extend(section_lines("Recommendation Rationale OLSRv2 2"))
     if engine_family == "pathway":
         lines.extend(section_lines("Recommendation Rationale Pathway 1"))
         lines.extend(section_lines("Recommendation Rationale Pathway 2"))

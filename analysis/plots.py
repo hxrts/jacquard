@@ -15,6 +15,7 @@ from .constants import (
     DIFFUSION_BOUND_STATE_COLORS,
     FIELD_FAMILY_COLORS,
     HEAD_TO_HEAD_SET_COLORS,
+    OLSRV2_FAMILY_COLORS,
     PLOT_SPECS,
 )
 
@@ -35,6 +36,7 @@ def family_label(family_id: str) -> str:
         family_id.replace("batman-bellman-", "")
         .replace("pathway-", "")
         .replace("field-", "")
+        .replace("olsrv2-", "")
         .replace("comparison-", "")
         .replace("head-to-head-", "")
         .replace("-", " ")
@@ -415,6 +417,109 @@ def render_babel_decay_loss(ax, aggregates: pl.DataFrame) -> None:
         panel.set_ylim(0, y_max)
 
 
+def render_olsrv2_decay_stability(ax, aggregates: pl.DataFrame) -> None:
+    olsrv2_families = [
+        "olsrv2-topology-propagation-latency",
+        "olsrv2-partition-recovery",
+        "olsrv2-mpr-flooding-stability",
+        "olsrv2-asymmetric-relink-transition",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "olsrv2") & pl.col("family_id").is_in(olsrv2_families)
+    )
+    if data.is_empty():
+        return
+    present_families = [
+        fid for fid in olsrv2_families if not data.filter(pl.col("family_id") == fid).is_empty()
+    ]
+    if not present_families:
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(1, len(present_families), wspace=0.18)
+    panels = []
+    for index, family_id in enumerate(present_families):
+        panel = fig.add_subplot(grid[0, index])
+        panels.append(panel)
+        rows = data.filter(pl.col("family_id") == family_id).sort("olsrv2_stale_after_ticks")
+        xs = rows["olsrv2_stale_after_ticks"].to_list()
+        ys = rows["stability_total_mean"].to_list()
+        panel.plot(
+            xs,
+            ys,
+            marker="o",
+            color=OLSRV2_FAMILY_COLORS.get(family_id, "#0F766E"),
+            linewidth=2.1,
+            markersize=6.0,
+            markeredgecolor="white",
+            markeredgewidth=0.8,
+            zorder=3,
+        )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Stale ticks")
+        if index == 0:
+            panel.set_ylabel("Stability")
+        panel.set_xticks(xs)
+        style_plot_axes(panel)
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
+
+
+def render_olsrv2_decay_loss(ax, aggregates: pl.DataFrame) -> None:
+    olsrv2_families = [
+        "olsrv2-topology-propagation-latency",
+        "olsrv2-partition-recovery",
+        "olsrv2-mpr-flooding-stability",
+        "olsrv2-asymmetric-relink-transition",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "olsrv2")
+        & pl.col("family_id").is_in(olsrv2_families)
+        & pl.col("first_loss_round_mean").is_not_null()
+    )
+    if data.is_empty():
+        return
+    present_families = [
+        fid for fid in olsrv2_families if not data.filter(pl.col("family_id") == fid).is_empty()
+    ]
+    if not present_families:
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(1, len(present_families), wspace=0.18)
+    panels = []
+    for index, family_id in enumerate(present_families):
+        panel = fig.add_subplot(grid[0, index])
+        panels.append(panel)
+        rows = data.filter(pl.col("family_id") == family_id).sort("olsrv2_stale_after_ticks")
+        xs = rows["olsrv2_stale_after_ticks"].to_list()
+        ys = rows["first_loss_round_mean"].to_list()
+        panel.plot(
+            xs,
+            ys,
+            marker="s",
+            color=OLSRV2_FAMILY_COLORS.get(family_id, "#0F766E"),
+            linewidth=1.9,
+            markersize=5.8,
+            markeredgecolor="white",
+            markeredgewidth=0.8,
+            linestyle="dashed",
+            zorder=3,
+        )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Stale ticks")
+        if index == 0:
+            panel.set_ylabel("First loss round")
+        panel.set_xticks(xs)
+        style_plot_axes(panel)
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
+
+
 def render_pathway_budget_route_presence(ax, aggregates: pl.DataFrame) -> None:
     pathway_families = [
         "pathway-search-budget-pressure",
@@ -769,17 +874,26 @@ def render_head_to_head_route_presence(ax, aggregates: pl.DataFrame) -> None:
     if data.is_empty():
         return
     families = data["family_id"].unique().sort().to_list()
-    engine_sets = [
+    preferred_order = [
         "batman-bellman",
         "batman-classic",
         "babel",
+        "olsrv2",
         "pathway",
         "field",
         "pathway-batman-bellman",
     ]
+    available = set(data["comparison_engine_set"].drop_nulls().unique().to_list())
+    engine_sets = [engine_set for engine_set in preferred_order if engine_set in available]
+    engine_sets.extend(sorted(available.difference(engine_sets)))
+    if not engine_sets:
+        return
     y_positions = list(range(len(families)))
-    height = 0.12
-    offsets = [-2.5 * height, -1.5 * height, -0.5 * height, 0.5 * height, 1.5 * height, 2.5 * height]
+    height = min(0.12, 0.72 / max(len(engine_sets), 1))
+    offsets = [
+        (index - (len(engine_sets) - 1) / 2) * height
+        for index in range(len(engine_sets))
+    ]
     for engine_set, offset in zip(engine_sets, offsets, strict=False):
         rows = data.filter(pl.col("comparison_engine_set") == engine_set)
         values = []

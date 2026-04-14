@@ -28,6 +28,8 @@ from .plots import (
     render_field_budget_reconfiguration,
     render_field_budget_route_presence,
     render_head_to_head_route_presence,
+    render_olsrv2_decay_loss,
+    render_olsrv2_decay_stability,
     render_pathway_budget_activation,
     render_pathway_budget_route_presence,
     save_plot_artifact,
@@ -175,6 +177,18 @@ def main(argv: list[str] | None = None) -> int:
         report_dir,
         "babel_decay_loss",
         render_babel_decay_loss,
+        aggregates,
+    )
+    save_plot_artifact(
+        report_dir,
+        "olsrv2_decay_stability",
+        render_olsrv2_decay_stability,
+        aggregates,
+    )
+    save_plot_artifact(
+        report_dir,
+        "olsrv2_decay_loss",
+        render_olsrv2_decay_loss,
         aggregates,
     )
     save_plot_artifact(

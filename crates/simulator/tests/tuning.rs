@@ -1,5 +1,6 @@
 use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
 use jacquard_field::FIELD_ENGINE_ID;
+use jacquard_olsrv2::OLSRV2_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_simulator::{
     presets, JacquardHostAdapter, JacquardSimulator, ReducedReplayView, ReferenceClientAdapter,
@@ -56,6 +57,48 @@ fn batman_bellman_decay_window_changes_route_loss_timing() {
         slow.first_round_without_route_after_presence(owner, &destination).is_some()
             && fast.first_round_without_route_after_presence(owner, &destination).is_some(),
         "expected both BATMAN decay scenarios to lose the route after partition; slow rounds: {slow_rounds:?}, fast rounds: {fast_rounds:?}"
+    );
+}
+
+#[test]
+fn olsrv2_decay_window_tuning_scenarios_materialize_routes() {
+    let scenarios = presets::olsrv2_decay_tuning();
+    assert_eq!(scenarios.len(), 2);
+    let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+    let owner = jacquard_core::NodeId([1; 32]);
+    let destination = jacquard_core::DestinationId::Node(jacquard_core::NodeId([3; 32]));
+
+    let (slow_replay, _) = simulator
+        .run_scenario(&scenarios[0].0, &scenarios[0].1)
+        .expect("run slow olsrv2 decay scenario");
+    let (fast_replay, _) = simulator
+        .run_scenario(&scenarios[1].0, &scenarios[1].1)
+        .expect("run fast olsrv2 decay scenario");
+
+    let slow = ReducedReplayView::from_replay(&slow_replay);
+    let fast = ReducedReplayView::from_replay(&fast_replay);
+
+    ScenarioAssertions::new()
+        .expect_route_materialized(owner, destination.clone())
+        .expect_engine_selected(owner, destination.clone(), &OLSRV2_ENGINE_ID)
+        .evaluate(&slow)
+        .expect("slow olsrv2 decay assertions");
+    ScenarioAssertions::new()
+        .expect_route_materialized(owner, destination.clone())
+        .expect_engine_selected(owner, destination.clone(), &OLSRV2_ENGINE_ID)
+        .evaluate(&fast)
+        .expect("fast olsrv2 decay assertions");
+
+    let slow_rounds = slow.route_present_rounds(owner, &destination);
+    let fast_rounds = fast.route_present_rounds(owner, &destination);
+    assert!(
+        !slow_rounds.is_empty() && !fast_rounds.is_empty(),
+        "slow rounds: {slow_rounds:?}, fast rounds: {fast_rounds:?}"
+    );
+    assert!(
+        !slow.route_stability_scores(owner, &destination).is_empty()
+            && !fast.route_stability_scores(owner, &destination).is_empty(),
+        "slow rounds: {slow_rounds:?}, fast rounds: {fast_rounds:?}"
     );
 }
 
@@ -199,7 +242,7 @@ fn field_bootstrap_multihop_materializes_route_through_router_boundary() {
         let objective = scenario.bound_objectives()[0].objective.clone();
         let route = bound
             .router_mut()
-            .activate_route_without_tick(objective)
+            .activate_route_without_tick(&objective)
             .expect("field bootstrap activation should materialize a route");
         assert_eq!(route.identity.admission.summary.engine, FIELD_ENGINE_ID);
     }

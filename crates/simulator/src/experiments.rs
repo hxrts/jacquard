@@ -27,6 +27,7 @@ use jacquard_core::{
 use jacquard_field::{
     FieldForwardSummaryObservation, FieldSearchConfig, FieldSearchHeuristicMode, FIELD_ENGINE_ID,
 };
+use jacquard_olsrv2::{DecayWindow as OlsrV2DecayWindow, OLSRV2_ENGINE_ID};
 use jacquard_pathway::{PathwaySearchConfig, PathwaySearchHeuristicMode, PATHWAY_ENGINE_ID};
 use jacquard_reference_client::topology;
 use jacquard_traits::{RoutingScenario, RoutingSimulator};
@@ -79,6 +80,8 @@ pub struct ExperimentParameterSet {
     pub batman_classic_next_refresh_within_ticks: Option<u32>,
     pub babel_stale_after_ticks: Option<u32>,
     pub babel_next_refresh_within_ticks: Option<u32>,
+    pub olsrv2_stale_after_ticks: Option<u32>,
+    pub olsrv2_next_refresh_within_ticks: Option<u32>,
     pub pathway_query_budget: Option<usize>,
     pub pathway_heuristic_mode: Option<String>,
     pub field_query_budget: Option<usize>,
@@ -111,6 +114,8 @@ impl ExperimentParameterSet {
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: None,
             babel_next_refresh_within_ticks: None,
+            olsrv2_stale_after_ticks: None,
+            olsrv2_next_refresh_within_ticks: None,
         }
     }
 
@@ -140,6 +145,8 @@ impl ExperimentParameterSet {
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: None,
             babel_next_refresh_within_ticks: None,
+            olsrv2_stale_after_ticks: None,
+            olsrv2_next_refresh_within_ticks: None,
         }
     }
 
@@ -183,6 +190,8 @@ impl ExperimentParameterSet {
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: None,
             babel_next_refresh_within_ticks: None,
+            olsrv2_stale_after_ticks: None,
+            olsrv2_next_refresh_within_ticks: None,
         }
     }
 
@@ -209,6 +218,8 @@ impl ExperimentParameterSet {
             batman_classic_next_refresh_within_ticks: Some(next_refresh_within_ticks),
             babel_stale_after_ticks: Some(stale_after_ticks),
             babel_next_refresh_within_ticks: Some(next_refresh_within_ticks),
+            olsrv2_stale_after_ticks: Some(stale_after_ticks),
+            olsrv2_next_refresh_within_ticks: Some(next_refresh_within_ticks),
             pathway_query_budget: Some(per_objective_query_budget),
             pathway_heuristic_mode: Some(heuristic_mode_label(heuristic_mode).to_string()),
             field_query_budget: Some(per_objective_query_budget),
@@ -249,6 +260,11 @@ impl ExperimentParameterSet {
                 let (stale_after_ticks, next_refresh_within_ticks) =
                     batman_bellman_decay_window.unwrap_or((4, 2));
                 format!("babel-{}-{}", stale_after_ticks, next_refresh_within_ticks)
+            }
+            "olsrv2" => {
+                let (stale_after_ticks, next_refresh_within_ticks) =
+                    batman_bellman_decay_window.unwrap_or((4, 2));
+                format!("olsrv2-{}-{}", stale_after_ticks, next_refresh_within_ticks)
             }
             "pathway" => {
                 let (budget, heuristic_mode) =
@@ -320,6 +336,8 @@ impl ExperimentParameterSet {
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: None,
             babel_next_refresh_within_ticks: None,
+            olsrv2_stale_after_ticks: batman_bellman_stale_after_ticks,
+            olsrv2_next_refresh_within_ticks: batman_bellman_next_refresh_within_ticks,
             pathway_query_budget,
             pathway_heuristic_mode,
             field_query_budget,
@@ -391,6 +409,8 @@ impl ExperimentParameterSet {
             batman_classic_next_refresh_within_ticks: Some(next_refresh_within_ticks),
             babel_stale_after_ticks: None,
             babel_next_refresh_within_ticks: None,
+            olsrv2_stale_after_ticks: None,
+            olsrv2_next_refresh_within_ticks: None,
             pathway_query_budget: None,
             pathway_heuristic_mode: None,
             field_query_budget: None,
@@ -427,6 +447,8 @@ impl ExperimentParameterSet {
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: Some(stale_after_ticks),
             babel_next_refresh_within_ticks: Some(next_refresh_within_ticks),
+            olsrv2_stale_after_ticks: None,
+            olsrv2_next_refresh_within_ticks: None,
             pathway_query_budget: None,
             pathway_heuristic_mode: None,
             field_query_budget: None,
@@ -447,6 +469,43 @@ impl ExperimentParameterSet {
                 u64::from(stale),
                 u64::from(refresh),
             )),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn olsrv2(stale_after_ticks: u32, next_refresh_within_ticks: u32) -> Self {
+        Self {
+            engine_family: "olsrv2".to_string(),
+            config_id: format!("olsrv2-{}-{}", stale_after_ticks, next_refresh_within_ticks),
+            comparison_engine_set: None,
+            batman_bellman_stale_after_ticks: None,
+            batman_bellman_next_refresh_within_ticks: None,
+            batman_classic_stale_after_ticks: None,
+            batman_classic_next_refresh_within_ticks: None,
+            babel_stale_after_ticks: None,
+            babel_next_refresh_within_ticks: None,
+            olsrv2_stale_after_ticks: Some(stale_after_ticks),
+            olsrv2_next_refresh_within_ticks: Some(next_refresh_within_ticks),
+            pathway_query_budget: None,
+            pathway_heuristic_mode: None,
+            field_query_budget: None,
+            field_heuristic_mode: None,
+            field_service_publication_neighbor_limit: None,
+            field_service_freshness_weight: None,
+            field_service_narrowing_bias: None,
+        }
+    }
+
+    #[must_use]
+    pub fn olsrv2_decay_window(&self) -> Option<OlsrV2DecayWindow> {
+        match (
+            self.olsrv2_stale_after_ticks,
+            self.olsrv2_next_refresh_within_ticks,
+        ) {
+            (Some(stale), Some(refresh)) => {
+                Some(OlsrV2DecayWindow::new(u64::from(stale), u64::from(refresh)))
+            }
             _ => None,
         }
     }
@@ -480,6 +539,8 @@ pub struct ExperimentRunSummary {
     pub batman_classic_next_refresh_within_ticks: Option<u32>,
     pub babel_stale_after_ticks: Option<u32>,
     pub babel_next_refresh_within_ticks: Option<u32>,
+    pub olsrv2_stale_after_ticks: Option<u32>,
+    pub olsrv2_next_refresh_within_ticks: Option<u32>,
     pub pathway_query_budget: Option<usize>,
     pub pathway_heuristic_mode: Option<String>,
     pub field_query_budget: Option<usize>,
@@ -508,6 +569,7 @@ pub struct ExperimentRunSummary {
     pub batman_bellman_selected_rounds: u32,
     pub batman_classic_selected_rounds: u32,
     pub babel_selected_rounds: u32,
+    pub olsrv2_selected_rounds: u32,
     pub pathway_selected_rounds: u32,
     pub field_selected_rounds: u32,
     pub field_selected_result_rounds: u32,
@@ -574,6 +636,8 @@ pub struct ExperimentAggregateSummary {
     pub batman_classic_next_refresh_within_ticks: Option<u32>,
     pub babel_stale_after_ticks: Option<u32>,
     pub babel_next_refresh_within_ticks: Option<u32>,
+    pub olsrv2_stale_after_ticks: Option<u32>,
+    pub olsrv2_next_refresh_within_ticks: Option<u32>,
     pub pathway_query_budget: Option<usize>,
     pub pathway_heuristic_mode: Option<String>,
     pub field_query_budget: Option<usize>,
@@ -598,6 +662,7 @@ pub struct ExperimentAggregateSummary {
     pub route_churn_count_mean: u32,
     pub engine_handoff_count_mean: u32,
     pub dominant_engine: Option<String>,
+    pub olsrv2_selected_rounds_mean: u32,
     pub field_selected_result_rounds_mean: u32,
     pub field_search_reconfiguration_rounds_mean: u32,
     pub field_bootstrap_active_rounds_mean: u32,
@@ -751,6 +816,7 @@ fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
     runs.extend(build_batman_bellman_runs(suite_id, seeds, smoke));
     runs.extend(build_batman_classic_runs(suite_id, seeds, smoke));
     runs.extend(build_babel_runs(suite_id, seeds, smoke));
+    runs.extend(build_olsrv2_runs(suite_id, seeds, smoke));
     runs.extend(build_pathway_runs(suite_id, seeds, smoke));
     runs.extend(build_field_runs(suite_id, seeds, smoke));
     runs.extend(build_comparison_runs(suite_id, seeds, smoke));
@@ -1026,6 +1092,82 @@ fn build_babel_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experimen
         ),
     ];
     expand_runs(suite_id, "babel", seeds, &parameter_sets, &families)
+}
+
+fn build_olsrv2_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
+    let coarse = vec![
+        ExperimentParameterSet::olsrv2(2, 1),
+        ExperimentParameterSet::olsrv2(4, 2),
+        ExperimentParameterSet::olsrv2(8, 4),
+    ];
+    let fine = vec![
+        ExperimentParameterSet::olsrv2(4, 2),
+        ExperimentParameterSet::olsrv2(6, 3),
+    ];
+    let parameter_sets = if smoke {
+        vec![coarse[1].clone(), coarse[2].clone()]
+    } else {
+        coarse.into_iter().chain(fine).collect()
+    };
+    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
+        (
+            "olsrv2-topology-propagation-latency",
+            RegimeDescriptor {
+                density: "sparse-line".to_string(),
+                loss: "moderate".to_string(),
+                interference: "low".to_string(),
+                asymmetry: "none".to_string(),
+                churn: "partition-recovery".to_string(),
+                node_pressure: "none".to_string(),
+                objective_regime: "connected-only".to_string(),
+                stress_score: 42,
+            },
+            build_olsrv2_topology_propagation_latency,
+        ),
+        (
+            "olsrv2-partition-recovery",
+            RegimeDescriptor {
+                density: "sparse-line".to_string(),
+                loss: "moderate".to_string(),
+                interference: "low".to_string(),
+                asymmetry: "none".to_string(),
+                churn: "partition-recovery".to_string(),
+                node_pressure: "none".to_string(),
+                objective_regime: "connected-only".to_string(),
+                stress_score: 38,
+            },
+            build_olsrv2_partition_recovery,
+        ),
+        (
+            "olsrv2-mpr-flooding-stability",
+            RegimeDescriptor {
+                density: "medium-ring".to_string(),
+                loss: "moderate".to_string(),
+                interference: "medium".to_string(),
+                asymmetry: "none".to_string(),
+                churn: "relink-and-replace".to_string(),
+                node_pressure: "none".to_string(),
+                objective_regime: "connected-only".to_string(),
+                stress_score: 46,
+            },
+            build_olsrv2_mpr_flooding_stability,
+        ),
+        (
+            "olsrv2-asymmetric-relink-transition",
+            RegimeDescriptor {
+                density: "bridge-cluster".to_string(),
+                loss: "moderate".to_string(),
+                interference: "medium".to_string(),
+                asymmetry: "severe".to_string(),
+                churn: "relink-and-replace".to_string(),
+                node_pressure: "none".to_string(),
+                objective_regime: "connected-only".to_string(),
+                stress_score: 52,
+            },
+            build_olsrv2_asymmetric_relink_transition,
+        ),
+    ];
+    expand_runs(suite_id, "olsrv2", seeds, &parameter_sets, &families)
 }
 
 // long-block-exception: the Pathway family catalog is kept in one function so the
@@ -1422,10 +1564,11 @@ fn build_head_to_head_runs(suite_id: &str, seeds: &[u64], _smoke: bool) -> Vec<E
         ExperimentParameterSet::head_to_head("batman-bellman", Some((1, 1)), None, None),
         ExperimentParameterSet::head_to_head("batman-classic", Some((4, 2)), None, None),
         ExperimentParameterSet::head_to_head("babel", Some((4, 2)), None, None),
+        ExperimentParameterSet::head_to_head("olsrv2", Some((4, 2)), None, None),
         ExperimentParameterSet::head_to_head(
             "pathway",
             None,
-            Some((2, PathwaySearchHeuristicMode::Zero)),
+            Some((4, PathwaySearchHeuristicMode::HopLowerBound)),
             None,
         ),
         ExperimentParameterSet::head_to_head(
@@ -1436,8 +1579,8 @@ fn build_head_to_head_runs(suite_id: &str, seeds: &[u64], _smoke: bool) -> Vec<E
         ),
         ExperimentParameterSet::head_to_head(
             "pathway-batman-bellman",
-            Some((1, 1)),
-            Some((2, PathwaySearchHeuristicMode::Zero)),
+            Some((6, 3)),
+            Some((4, PathwaySearchHeuristicMode::HopLowerBound)),
             None,
         ),
     ];
@@ -1888,6 +2031,8 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
             .batman_classic_next_refresh_within_ticks,
         babel_stale_after_ticks: spec.parameters.babel_stale_after_ticks,
         babel_next_refresh_within_ticks: spec.parameters.babel_next_refresh_within_ticks,
+        olsrv2_stale_after_ticks: spec.parameters.olsrv2_stale_after_ticks,
+        olsrv2_next_refresh_within_ticks: spec.parameters.olsrv2_next_refresh_within_ticks,
         pathway_query_budget: spec.parameters.pathway_query_budget,
         pathway_heuristic_mode: spec.parameters.pathway_heuristic_mode.clone(),
         field_query_budget: spec.parameters.field_query_budget,
@@ -1921,6 +2066,7 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
         batman_bellman_selected_rounds: *engine_round_counts.get("batman-bellman").unwrap_or(&0),
         batman_classic_selected_rounds: *engine_round_counts.get("batman-classic").unwrap_or(&0),
         babel_selected_rounds: *engine_round_counts.get("babel").unwrap_or(&0),
+        olsrv2_selected_rounds: *engine_round_counts.get("olsrv2").unwrap_or(&0),
         pathway_selected_rounds: *engine_round_counts.get("pathway").unwrap_or(&0),
         field_selected_rounds: *engine_round_counts.get("field").unwrap_or(&0),
         field_selected_result_rounds,
@@ -2066,6 +2212,8 @@ fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSumma
                 average_u32(group.iter().map(|run| run.failure_summary_count));
             let field_selected_result_rounds_mean =
                 average_u32(group.iter().map(|run| run.field_selected_result_rounds));
+            let olsrv2_selected_rounds_mean =
+                average_u32(group.iter().map(|run| run.olsrv2_selected_rounds));
             let field_search_reconfiguration_rounds_mean = average_u32(
                 group
                     .iter()
@@ -2194,6 +2342,8 @@ fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSumma
                     .batman_classic_next_refresh_within_ticks,
                 babel_stale_after_ticks: first.babel_stale_after_ticks,
                 babel_next_refresh_within_ticks: first.babel_next_refresh_within_ticks,
+                olsrv2_stale_after_ticks: first.olsrv2_stale_after_ticks,
+                olsrv2_next_refresh_within_ticks: first.olsrv2_next_refresh_within_ticks,
                 pathway_query_budget: first.pathway_query_budget,
                 pathway_heuristic_mode: first.pathway_heuristic_mode.clone(),
                 field_query_budget: first.field_query_budget,
@@ -2219,6 +2369,7 @@ fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSumma
                 route_churn_count_mean,
                 engine_handoff_count_mean,
                 dominant_engine: engine_mode,
+                olsrv2_selected_rounds_mean,
                 field_selected_result_rounds_mean,
                 field_search_reconfiguration_rounds_mean,
                 field_bootstrap_active_rounds_mean,
@@ -2929,6 +3080,233 @@ fn build_babel_partition_feasibility_recovery(
         ),
         ScheduledEnvironmentHook::new(
             Tick(18),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore,
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+fn build_olsrv2_topology_propagation_latency(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = bidirectional_line_topology(
+        topology::node(1).olsrv2().build(),
+        topology::node(2).olsrv2().build(),
+        topology::node(3).olsrv2().build(),
+    );
+    set_environment(&mut topology, 2, RatioPermille(40), RatioPermille(90));
+    let restore = topology.value.clone();
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!(
+                "olsrv2-topology-propagation-latency-{}",
+                parameters.config_id
+            ),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::olsrv2(NODE_A),
+                HostSpec::olsrv2(NODE_B),
+                HostSpec::olsrv2(NODE_C),
+            ],
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+            24,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(6),
+            EnvironmentHook::MediumDegradation {
+                left: NODE_A,
+                right: NODE_B,
+                confidence: RatioPermille(640),
+                loss: RatioPermille(200),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(10),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore.clone(),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(14),
+            EnvironmentHook::MediumDegradation {
+                left: NODE_B,
+                right: NODE_C,
+                confidence: RatioPermille(600),
+                loss: RatioPermille(240),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(18),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore,
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+fn build_olsrv2_partition_recovery(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = bidirectional_line_topology(
+        topology::node(1).olsrv2().build(),
+        topology::node(2).olsrv2().build(),
+        topology::node(3).olsrv2().build(),
+    );
+    set_environment(&mut topology, 2, RatioPermille(40), RatioPermille(120));
+    let restore = topology.value.clone();
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!("olsrv2-partition-recovery-{}", parameters.config_id),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::olsrv2(NODE_A),
+                HostSpec::olsrv2(NODE_B),
+                HostSpec::olsrv2(NODE_C),
+            ],
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+            34,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(10),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(18),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore,
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+fn build_olsrv2_mpr_flooding_stability(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = ring_topology(
+        topology::node(1).olsrv2().build(),
+        topology::node(2).olsrv2().build(),
+        topology::node(3).olsrv2().build(),
+        topology::node(4).olsrv2().build(),
+    );
+    set_environment(&mut topology, 2, RatioPermille(150), RatioPermille(110));
+    let restore = topology.value.clone();
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!("olsrv2-mpr-flooding-stability-{}", parameters.config_id),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::olsrv2(NODE_A),
+                HostSpec::olsrv2(NODE_B),
+                HostSpec::olsrv2(NODE_C),
+                HostSpec::olsrv2(NODE_D),
+            ],
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+            26,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(7),
+            EnvironmentHook::MediumDegradation {
+                left: NODE_B,
+                right: NODE_C,
+                confidence: RatioPermille(630),
+                loss: RatioPermille(190),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(12),
+            EnvironmentHook::MobilityRelink {
+                left: NODE_A,
+                from_right: NODE_B,
+                to_right: NODE_D,
+                link: Box::new(topology::link(4).build()),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(18),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore,
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+fn build_olsrv2_asymmetric_relink_transition(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = bridge_cluster_topology(
+        topology::node(1).olsrv2().build(),
+        topology::node(2).olsrv2().build(),
+        topology::node(3).olsrv2().build(),
+        topology::node(4).olsrv2().build(),
+    );
+    set_environment(&mut topology, 1, RatioPermille(120), RatioPermille(130));
+    let restore = topology.value.clone();
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!(
+                "olsrv2-asymmetric-relink-transition-{}",
+                parameters.config_id
+            ),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::olsrv2(NODE_A),
+                HostSpec::olsrv2(NODE_B),
+                HostSpec::olsrv2(NODE_C),
+                HostSpec::olsrv2(NODE_D),
+            ],
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
+            24,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(6),
+            EnvironmentHook::AsymmetricDegradation {
+                left: NODE_B,
+                right: NODE_C,
+                forward_confidence: RatioPermille(540),
+                forward_loss: RatioPermille(320),
+                reverse_confidence: RatioPermille(760),
+                reverse_loss: RatioPermille(160),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(10),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(16),
             EnvironmentHook::ReplaceTopology {
                 configuration: restore,
             },
@@ -4398,6 +4776,9 @@ fn apply_overrides(
             if let Some(decay_window) = parameters.babel_decay_window() {
                 host = host.with_babel_decay_window(decay_window);
             }
+            if let Some(decay_window) = parameters.olsrv2_decay_window() {
+                host = host.with_olsrv2_decay_window(decay_window);
+            }
             if let Some(search_config) = parameters.pathway_search_config() {
                 host = host.with_pathway_search_config(search_config);
             }
@@ -4424,6 +4805,7 @@ fn comparison_topology_node(node_byte: u8, comparison_engine_set: Option<&str>) 
         "batman-bellman" => topology::node(node_byte).batman_bellman().build(),
         "batman-classic" => topology::node(node_byte).batman_classic().build(),
         "babel" => topology::node(node_byte).babel().build(),
+        "olsrv2" => topology::node(node_byte).olsrv2().build(),
         "pathway" => topology::node(node_byte).pathway().build(),
         "field" => topology::node(node_byte).field().build(),
         "pathway-batman-bellman" => topology::node(node_byte)
@@ -4438,6 +4820,7 @@ fn comparison_host_spec(local_node_id: NodeId, comparison_engine_set: Option<&st
         "batman-bellman" => HostSpec::batman_bellman(local_node_id),
         "batman-classic" => HostSpec::batman_classic(local_node_id),
         "babel" => HostSpec::babel(local_node_id),
+        "olsrv2" => HostSpec::olsrv2(local_node_id),
         "pathway" => HostSpec::pathway(local_node_id),
         "field" => HostSpec::field(local_node_id),
         "pathway-batman-bellman" => HostSpec::pathway_and_batman_bellman(local_node_id),
@@ -4561,6 +4944,8 @@ fn normalized_engine_id(engine_id: &jacquard_core::RoutingEngineId) -> &'static 
         "batman-classic"
     } else if engine_id == &BABEL_ENGINE_ID {
         "babel"
+    } else if engine_id == &OLSRV2_ENGINE_ID {
+        "olsrv2"
     } else if engine_id == &PATHWAY_ENGINE_ID {
         "pathway"
     } else if engine_id == &FIELD_ENGINE_ID {
