@@ -135,7 +135,8 @@ def build_styles():
             fontName="Helvetica",
             fontSize=9.5,
             leading=13,
-            leftIndent=10,
+            leftIndent=20,
+            bulletIndent=8,
             spaceAfter=4,
         )
     )
@@ -227,7 +228,14 @@ def add_paragraphs(story: list, styles, lines: list[str]) -> None:
         if line == "":
             story.append(Spacer(1, 0.08 * cm))
         elif line.startswith("- "):
-            story.append(Paragraph(markup(line), styles["BulletBody"]))
+            bullet_text = line[2:]
+            story.append(
+                Paragraph(
+                    markup(bullet_text),
+                    styles["BulletBody"],
+                    bulletText="\u2022",
+                )
+            )
         else:
             story.append(Paragraph(markup(line), styles["Body"]))
 
