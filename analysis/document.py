@@ -56,7 +56,9 @@ from .tables import (
     diffusion_boundary_table_rows,
     diffusion_engine_comparison_table_rows,
     diffusion_engine_summary_table_rows,
+    field_diffusion_regime_table_rows,
     field_profile_table_rows,
+    field_routing_regime_table_rows,
     head_to_head_table_rows,
     profile_table_rows,
     recommendation_table_rows,
@@ -331,6 +333,7 @@ def write_pdf_report(
     recommendations,
     profile_recommendations,
     field_profile_recommendations,
+    field_routing_regime_calibration,
     transition_metrics,
     boundary_summary,
     aggregates,
@@ -339,6 +342,7 @@ def write_pdf_report(
     diffusion_engine_summary,
     diffusion_engine_comparison,
     diffusion_boundary_summary,
+    field_diffusion_regime_calibration,
     baseline_comparison,
     baseline_dir,
 ) -> None:
@@ -450,6 +454,20 @@ def write_pdf_report(
             field_profile_table_rows(field_profile_recommendations),
             styles,
             [3.0 * cm, 4.6 * cm, 1.6 * cm, 1.5 * cm, 1.5 * cm, 1.8 * cm, 1.4 * cm, 1.6 * cm],
+        )
+    )
+    story.append(Spacer(1, 0.16 * cm))
+    add_paragraphs(
+        story,
+        styles,
+        asset_block("Field Regime Calibration", "table").lines,
+    )
+    story.append(
+        make_table(
+            ["Regime", "Success Criteria", "Configuration", "Route", "Transition", "Shifts", "Carry", "Stress"],
+            field_routing_regime_table_rows(field_routing_regime_calibration),
+            styles,
+            [2.2 * cm, 5.1 * cm, 3.6 * cm, 1.2 * cm, 1.4 * cm, 1.2 * cm, 1.4 * cm, 1.1 * cm],
         )
     )
 
@@ -707,6 +725,24 @@ def write_pdf_report(
                 ]
             )
         )
+        story.append(Spacer(1, 0.18 * cm))
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("Field Diffusion Regime Calibration", styles["Subsection"]),
+                    *(
+                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
+                         for line in asset_block("Field Diffusion Regime Calibration", "table").lines]
+                    ),
+                    make_table(
+                        ["Regime", "Success Criteria", "Posture", "State", "Transition", "Delivery", "Tx", "Fit"],
+                        field_diffusion_regime_table_rows(field_diffusion_regime_calibration),
+                        styles,
+                        [1.8 * cm, 5.5 * cm, 2.2 * cm, 1.5 * cm, 1.8 * cm, 1.4 * cm, 1.2 * cm, 1.3 * cm],
+                    ),
+                ]
+            )
+        )
         story.append(PageBreak())
         story.append(Paragraph("Part IV. Diffusion Engine Comparison", styles["Section"]))
         story.append(Paragraph("12. Diffusion Engine Comparison", styles["Section"]))
@@ -738,8 +774,8 @@ def write_pdf_report(
             report_dir,
             "Figure 13",
             "Figure 13. Diffusion delivery and coverage by scenario family",
-            16.6 * cm,
-            12.0 * cm,
+            17.4 * cm,
+            15.0 * cm,
         )
         add_figure(
             story,
@@ -747,8 +783,8 @@ def write_pdf_report(
             report_dir,
             "Figure 14",
             "Figure 14. Diffusion transmission load and boundedness by scenario family",
-            16.6 * cm,
-            12.3 * cm,
+            17.4 * cm,
+            15.3 * cm,
         )
         story.append(Paragraph("Diffusion Takeaways", styles["Subsection"]))
         add_paragraphs(story, styles, section_lines("Diffusion Takeaways"))
