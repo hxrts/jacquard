@@ -398,10 +398,10 @@ def write_pdf_report(
     add_paragraphs(story, styles, recommendation_block.lines)
     story.append(
         make_table(
-            ["Engine", "Configuration", "Score", "Activation", "Route Presence", "Max Stress"],
+            ["Engine Configuration", "Score", "Activation", "Route Presence", "Max Stress"],
             recommendation_table_rows(recommendations, 2),
             styles,
-            [2.0 * cm, 5.3 * cm, 2.0 * cm, 2.3 * cm, 2.7 * cm, 2.1 * cm],
+            [6.0 * cm, 2.2 * cm, 2.3 * cm, 2.7 * cm, 2.2 * cm],
         )
     )
     add_paragraphs(

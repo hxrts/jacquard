@@ -26,7 +26,6 @@ def recommendation_table_rows(
         for row in family.iter_rows(named=True):
             rows.append(
                 [
-                    engine_family,
                     f"`{row['config_id']}`",
                     f"{row['mean_score']:.1f}",
                     f"{row['activation_success_mean']:.1f}",
