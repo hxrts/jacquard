@@ -32,12 +32,14 @@ mod scoring;
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    BackendRouteId, Configuration, ConnectivityPosture, NodeId, Observation, RouteId,
-    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteShapeVisibility,
-    RoutingEngineCapabilities, RoutingEngineId,
+    Configuration, ConnectivityPosture, NodeId, Observation, RouteId, RoutePartitionClass,
+    RouteProtectionClass, RouteRepairClass, RouteShapeVisibility, RoutingEngineCapabilities,
+    RoutingEngineId,
 };
 pub use public_state::DecayWindow;
-use public_state::{ActiveBabelRoute, BabelBestNextHop, RouteEntry, SelectedBabelRoute};
+use public_state::{
+    ActiveBabelRoute, BabelBestNextHop, FeasibilityEntry, RouteEntry, SelectedBabelRoute,
+};
 
 pub const BABEL_ENGINE_ID: RoutingEngineId =
     RoutingEngineId::from_contract_bytes(*b"jacquard.babel..");
@@ -73,6 +75,11 @@ pub struct BabelEngine<Transport, Effects> {
     selected_routes: BTreeMap<NodeId, SelectedBabelRoute>,
     /// Best next-hop per destination, derived from `selected_routes`.
     best_next_hops: BTreeMap<NodeId, BabelBestNextHop>,
+    /// Feasibility distance table: per-destination record of the last feasibly
+    /// selected route's `(seqno, metric)`. An absent entry means FD = ∞.
+    /// Routes are selected using the RFC 8966 feasibility condition; this table
+    /// is updated only on feasible selections and cleared on full route expiry.
+    feasibility_distances: BTreeMap<NodeId, FeasibilityEntry>,
     /// Currently active (materialized) routes keyed by `RouteId`.
     active_routes: BTreeMap<RouteId, ActiveBabelRoute>,
 }
@@ -100,6 +107,7 @@ impl<Transport, Effects> BabelEngine<Transport, Effects> {
             route_table: BTreeMap::new(),
             selected_routes: BTreeMap::new(),
             best_next_hops: BTreeMap::new(),
+            feasibility_distances: BTreeMap::new(),
             active_routes: BTreeMap::new(),
         }
     }

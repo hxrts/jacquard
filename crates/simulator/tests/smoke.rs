@@ -61,6 +61,28 @@ fn batman_scenario_runs_through_deterministic_round_lane() {
 }
 
 #[test]
+fn babel_scenario_runs_through_deterministic_round_lane() {
+    let (scenario, environment) = presets::babel_line();
+    let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+
+    let (replay, stats) = simulator
+        .run_scenario(&scenario, &environment)
+        .expect("run babel scenario");
+
+    assert!(stats.executed_round_count > 0);
+    assert!(!replay.rounds.is_empty());
+    let reduced = ReducedReplayView::from_replay(&replay);
+    ScenarioAssertions::new()
+        .expect_route_materialized(
+            jacquard_core::NodeId([1; 32]),
+            jacquard_core::DestinationId::Node(jacquard_core::NodeId([2; 32])),
+        )
+        .expect_distinct_engine_count(1)
+        .evaluate(&reduced)
+        .expect("babel replay assertions");
+}
+
+#[test]
 fn field_scenario_runs() {
     let (scenario, environment) = presets::field_line();
     let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);

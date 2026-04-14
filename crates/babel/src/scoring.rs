@@ -84,6 +84,17 @@ pub(crate) fn metric_to_ratio(metric: u16) -> RatioPermille {
     RatioPermille(u16::try_from(quality.min(u32::from(PERMILLE_MAX))).unwrap_or(0))
 }
 
+/// RFC 8966 Section 3.5.1 seqno ordering.
+///
+/// Returns `true` if `candidate` is strictly newer than `reference`. Uses
+/// modular arithmetic over u16 so the comparison wraps correctly at 2^16.
+/// A seqno is "newer" if the unsigned distance `(candidate - reference) mod
+/// 2^16` is in the range (0, 2^15).
+#[must_use]
+pub(crate) fn seqno_is_newer(candidate: u16, reference: u16) -> bool {
+    candidate != reference && candidate.wrapping_sub(reference) < 0x8000
+}
+
 /// Classify a Babel metric as degraded or nominal.
 #[must_use]
 pub(crate) fn metric_degradation(metric: u16) -> RouteDegradation {
@@ -105,16 +116,18 @@ fn delivery_permille(link: Option<&Link>) -> u16 {
     match link.state.state {
         LinkRuntimeState::Faulted => 0,
         LinkRuntimeState::Suspended => 250,
-        LinkRuntimeState::Degraded => link
-            .state
-            .delivery_confidence_permille
-            .value_or(RatioPermille(500))
-            .0,
-        LinkRuntimeState::Active => link
-            .state
-            .delivery_confidence_permille
-            .value_or(RatioPermille(900))
-            .0,
+        LinkRuntimeState::Degraded => {
+            link.state
+                .delivery_confidence_permille
+                .value_or(RatioPermille(500))
+                .0
+        }
+        LinkRuntimeState::Active => {
+            link.state
+                .delivery_confidence_permille
+                .value_or(RatioPermille(900))
+                .0
+        }
     }
 }
 
