@@ -695,4 +695,153 @@ mod tests {
         assert_eq!(second.change, RoutingTickChange::NoChange);
         assert_eq!(second.next_tick_hint, RoutingTickHint::WithinTicks(Tick(4)));
     }
+
+    #[test]
+    fn bootstrap_is_per_originator_not_global() {
+        // Bug regression: receiving an OGM for originator node(2) should NOT
+        // disable the bootstrap path to node(4). The old code used a global
+        // `any_window_state` flag that disabled bootstrap for ALL originators
+        // once any receive window existed.
+        let mut engine = BatmanBellmanEngine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        let topology = sample_topology();
+
+        // Before any OGMs: bootstrap produces routes to all reachable nodes.
+        engine.refresh_private_state(&topology, Tick(1));
+        assert!(
+            engine.best_next_hops.contains_key(&node(4)),
+            "node(4) should be reachable via bootstrap before any OGMs"
+        );
+
+        // Inject ONE OGM from node(2) via node(2). This creates a receive
+        // window for (originator=node(2), via=node(2)).
+        engine.observe_originator_ogm(node(2), node(2), 1, Tick(2));
+        engine.refresh_private_state(&topology, Tick(2));
+
+        // node(4) should STILL be reachable. It has no receive window, so
+        // bootstrap should still apply for it specifically.
+        assert!(
+            engine.best_next_hops.contains_key(&node(4)),
+            "node(4) should remain reachable via bootstrap even after OGM for node(2)"
+        );
+        // node(2) should also be reachable (it now has a real receive window).
+        assert!(
+            engine.best_next_hops.contains_key(&node(2)),
+            "node(2) should be reachable via receive window"
+        );
+    }
+
+    #[test]
+    fn bootstrap_tq_is_not_double_counted() {
+        // Bug regression: bootstrap TQ should be local_tq * path_tq (two
+        // factors). The old code used path_tq as both the path quality AND
+        // the receive quality substitute, effectively computing
+        // local_tq * path_tq * path_tq (three factors with path_tq squared).
+        let mut engine = BatmanBellmanEngine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        let topology = sample_topology();
+
+        // Bootstrap: no OGMs received.
+        engine.refresh_private_state(&topology, Tick(1));
+
+        // node(2) is a direct neighbor with link delivery=960, symmetry=950.
+        // derive_tq averages the OGM-equivalent baseline (~900) with the
+        // available beliefs. The exact value depends on the enrichment, but
+        // the key property is: bootstrap TQ for a 1-hop destination should
+        // equal local_tq * 1000 / 1000 = local_tq (since path_tq for a
+        // direct neighbor is 1000).
+        let _best_to_2 = &engine.best_next_hops[&node(2)];
+        // For direct neighbor: path_tq = 1000 (start == destination).
+        // Bootstrap TQ = tq_product(local_tq, 1000) = local_tq.
+        // If double-counting: tq_product(tq_product(local_tq, 1000), 1000) = local_tq.
+        // Both happen to be the same for path_tq=1000, so test with node(4)
+        // which is 2 hops away (node(1) -> node(2) -> node(4)).
+        let best_to_4 = &engine.best_next_hops[&node(4)];
+        let local_tq_to_2 = scoring::derive_tq(&topology.value.links[&(node(1), node(2))]).0;
+        let edge_tq_2_to_4 = scoring::derive_tq(&topology.value.links[&(node(2), node(4))]).0;
+        let path_tq = scoring::tq_product(RatioPermille(1000), edge_tq_2_to_4);
+        let expected_bootstrap_tq = scoring::tq_product(local_tq_to_2, path_tq);
+        let double_counted_tq =
+            scoring::tq_product(scoring::tq_product(local_tq_to_2, path_tq), path_tq);
+
+        assert_eq!(
+            best_to_4.tq, expected_bootstrap_tq,
+            "bootstrap TQ should be local_tq * path_tq, got {:?}",
+            best_to_4.tq
+        );
+        assert_ne!(
+            best_to_4.tq, double_counted_tq,
+            "bootstrap TQ must NOT double-count path_tq"
+        );
+    }
+
+    #[test]
+    fn bootstrap_transitions_to_ogm_based_routing() {
+        // Verify the engine starts with bootstrap (Bellman-Ford) and
+        // transitions to OGM-based routing once receive windows fill. The
+        // route should persist across the transition — not disappear when
+        // bootstrap turns off for a given (originator, neighbor) pair.
+        let mut engine = BatmanBellmanEngine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        let topology = sample_topology();
+
+        // Tick 1: bootstrap — route to node(2) exists via Bellman-Ford.
+        engine.refresh_private_state(&topology, Tick(1));
+        let bootstrap_tq = engine.best_next_hops[&node(2)].tq;
+        assert!(
+            bootstrap_tq.0 > 0,
+            "bootstrap should produce a route to node(2)"
+        );
+
+        // Simulate receiving OGMs from node(2) over several ticks, filling
+        // the receive window for (originator=node(2), via=node(2)).
+        for seq in 1..=5 {
+            let tick = Tick(1 + seq);
+            engine.observe_originator_ogm(node(2), node(2), seq, tick);
+            engine.observe_bidirectional_ogm(node(2), seq, tick);
+            engine.refresh_private_state(&topology, tick);
+        }
+
+        // After OGMs: route to node(2) should still exist, now backed by
+        // real receive-window data instead of bootstrap.
+        let ogm_tq = engine.best_next_hops[&node(2)].tq;
+        assert!(
+            ogm_tq.0 > 0,
+            "route to node(2) must persist after bootstrap transitions to OGM-based"
+        );
+
+        // The OGM-based TQ uses three factors (local * path * receive_quality)
+        // while bootstrap uses two (local * path). With a healthy receive
+        // window, the OGM-based TQ should differ from the bootstrap TQ.
+        // For a direct neighbor, path_tq=1000, so the difference comes from
+        // the receive_quality factor being != 1000 (window occupancy).
+        let has_window = engine.has_window_for(node(2), node(2));
+        assert!(
+            has_window,
+            "receive window should exist after OGM ingestion"
+        );
+        let receive_quality = engine.window_quality_for(node(2), node(2));
+        assert!(
+            receive_quality.is_some_and(|rq| rq.0 > 0),
+            "receive quality should be non-zero after OGM ingestion"
+        );
+    }
 }
