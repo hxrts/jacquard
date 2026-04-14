@@ -127,7 +127,7 @@ A host-owned policy engine above the router may own cross-engine migration polic
 
 `core::Configuration` is the shared graph-shaped world object. Engine-specific structure such as topology exports, peer novelty, bridge estimates, planning caches, and forwarding tables belongs in the engine crate behind its trait boundary rather than in `core`.
 
-The extension surface is split across [Core Types](201_core_types.md), [Routing Engines](303_routing_engines.md), and [Pathway Routing](401_pathway_routing.md).
+The extension surface is split across [Core Types](201_core_types.md), [Routing Engines](303_routing_engines.md), and [Pathway Routing](404_pathway_routing.md).
 
 For first-party pathway specifically, Telltale stays an internal implementation substrate. Shared crates remain runtime-free. The future router may drive pathway through shared planning, tick, maintenance, and checkpoint orchestration, but it must not depend on pathway-private choreography payloads, protocol session keys, or guest-runtime internals.
 

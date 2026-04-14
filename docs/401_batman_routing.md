@@ -12,7 +12,7 @@ Both engines declare `RouteShapeVisibility::NextHopOnly` and the same capability
 
 ## Shared Inputs
 
-Both engines consume `Observation<Configuration>` from the shared Jacquard world model. Destination eligibility is checked against `ServiceDescriptor` before either engine produces a candidate. A destination node must declare support for the engine's specific ID in its shared service surface before the engine emits a `RouteCandidate` toward it. See [Pathway Routing](401_pathway_routing.md) for the shared planning contract both engines implement.
+Both engines consume `Observation<Configuration>` from the shared Jacquard world model. Destination eligibility is checked against `ServiceDescriptor` before either engine produces a candidate. A destination node must declare support for the engine's specific ID in its shared service surface before the engine emits a `RouteCandidate` toward it. See [Pathway Routing](404_pathway_routing.md) for the shared planning contract both engines implement.
 
 ---
 

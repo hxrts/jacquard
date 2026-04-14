@@ -10,7 +10,7 @@ Three properties distinguish Babel from the batman engines in Jacquard. First, l
 
 ## Shared Inputs
 
-The Babel engine consumes `Observation<Configuration>` from the shared Jacquard world model. Destination eligibility is checked against `ServiceDescriptor` before the engine produces a candidate. A destination node must declare support for the engine's specific ID in its shared service surface before the engine emits a `RouteCandidate` toward it. See [Pathway Routing](401_pathway_routing.md) for the shared planning contract all engines implement.
+The Babel engine consumes `Observation<Configuration>` from the shared Jacquard world model. Destination eligibility is checked against `ServiceDescriptor` before the engine produces a candidate. A destination node must declare support for the engine's specific ID in its shared service surface before the engine emits a `RouteCandidate` toward it. See [Pathway Routing](404_pathway_routing.md) for the shared planning contract all engines implement.
 
 ## Update Structure
 

@@ -89,6 +89,6 @@ OLSRv2 is the primary comparison point for measuring how much full topology know
 ## Related Pages
 
 - [Routing Engines](303_routing_engines.md)
-- [Batman Routing](402_batman_routing.md)
-- [Babel Routing](404_babel_routing.md)
+- [Batman Routing](401_batman_routing.md)
+- [Babel Routing](402_babel_routing.md)
 - [Crate Architecture](999_crate_architecture.md)
