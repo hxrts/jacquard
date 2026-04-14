@@ -180,8 +180,30 @@ fn update_latest_symlink(output_dir: &Path) {
     };
     let latest = base.join("latest");
     if latest.is_symlink() || latest.exists() {
-        let _ = std::fs::remove_file(&latest);
-        let _ = std::fs::remove_dir_all(&latest);
+        if let Err(error) = std::fs::remove_file(&latest) {
+            let acceptable = matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::IsADirectory
+            );
+            if !acceptable {
+                eprintln!(
+                    "warning: could not remove stale latest file at {}: {error}",
+                    latest.display()
+                );
+            }
+        }
+        if let Err(error) = std::fs::remove_dir_all(&latest) {
+            let acceptable = matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+            );
+            if !acceptable {
+                eprintln!(
+                    "warning: could not remove stale latest directory at {}: {error}",
+                    latest.display()
+                );
+            }
+        }
     }
     #[cfg(unix)]
     {
@@ -197,6 +219,15 @@ fn update_latest_symlink(output_dir: &Path) {
 fn remove_report_dir(output_dir: &Path) {
     let report_dir = output_dir.join("report");
     if report_dir.exists() {
-        let _ = std::fs::remove_dir_all(report_dir);
+        match std::fs::remove_dir_all(&report_dir) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                eprintln!(
+                    "warning: could not remove stale smoke report directory at {}: {error}",
+                    report_dir.display()
+                );
+            }
+        }
     }
 }

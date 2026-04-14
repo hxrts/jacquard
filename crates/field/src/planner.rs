@@ -14,10 +14,10 @@
 //! connectivity posture is incompatible with the objective.
 //! `route_degradation_for` classifies the degradation reason
 //! (LinkInstability, CapacityConstrained, or None) from field belief state.
-//! Backend tokens are encoded by `route::encode_backend_token` and embedded in
-//! the returned `BackendRouteRef`. They carry one selected runtime
-//! realization plus a bounded continuation envelope, not several
-//! planner-visible field candidates.
+//! Backend tokens are encoded by `route::encode_backend_token` and embedded in the
+//! returned `BackendRouteRef`. They carry one selected runtime realization plus
+//! a bounded continuation envelope, not several planner-visible field candidates.
+// long-file-exception: planner keeps candidate production, admission, and promotion assessment together because those mappings share one audited route-publication contract.
 
 use jacquard_core::{
     AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteRef, Belief, ByteCount,
@@ -654,6 +654,8 @@ pub(crate) fn bootstrap_corridor_admissible(destination_state: &DestinationField
     )
 }
 
+// long-block-exception: bootstrap admission keeps the node and service
+// thresholds in one fail-closed gate over the same belief surface.
 pub(crate) fn bootstrap_corridor_admissible_with_config(
     destination_state: &DestinationFieldState,
     search_config: &crate::FieldSearchConfig,
@@ -909,6 +911,8 @@ pub(crate) fn continuity_band_for_state_with_config(
     }
 }
 
+// long-block-exception: service publication narrowing keeps corroboration and
+// freshness ordering in one deterministic neighbor-selection pass.
 fn service_publication_neighbors(
     destination_state: &DestinationFieldState,
     selected_neighbor: jacquard_core::NodeId,
@@ -1073,6 +1077,8 @@ fn service_corroborating_branch_count(destination_state: &DestinationFieldState)
     neighbors.len()
 }
 
+// long-block-exception: service corroboration scoring keeps the fused
+// per-neighbor evidence buckets in one audited support calculation.
 fn service_corroborated_support_score(
     destination_state: &DestinationFieldState,
     search_config: &crate::FieldSearchConfig,
@@ -1156,6 +1162,8 @@ fn publication_confidence_for(
 }
 
 #[must_use]
+// long-block-exception: promotion assessment keeps the bootstrap, degraded,
+// and anti-entropy upgrade rules in one coherent route-state evaluation.
 pub(crate) fn promotion_assessment_for_route(
     active_route: &ActiveFieldRoute,
     destination_state: &DestinationFieldState,

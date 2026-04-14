@@ -394,6 +394,8 @@ pub(crate) fn observe_regime(
 }
 
 #[must_use]
+// long-block-exception: posture choice keeps hysteresis, dwell, and
+// regime-primary preference in one deterministic transition rule.
 pub(crate) fn choose_posture(
     previous: &PostureControllerState,
     regime: &RegimeObserverState,

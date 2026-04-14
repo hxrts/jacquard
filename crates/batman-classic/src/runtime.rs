@@ -3,10 +3,10 @@
 //! The core lifecycle is identical in shape to the enhanced batman engine. The
 //! key behavioural differences are in two functions:
 //!
-//! - `flood_gossip` — re-broadcasts learned OGMs with a decremented TTL and a
+//! - `flood_gossip` — re-broadcasts learned OGMs with a decremented hop limit and a
 //!   re-computed TQ (`tq_product(local_link_tq, learned.tq)`) rather than
-//!   forwarding raw link state. OGMs with TTL=0 are dropped, bounding
-//!   propagation distance to `DEFAULT_OGM_TTL` hops.
+//!   forwarding raw link state. OGMs with zero remaining hops are dropped,
+//!   bounding propagation distance to `DEFAULT_OGM_HOP_LIMIT` hops.
 //! - `ingest_advertisement` — records both the receive-window occupancy event
 //!   and the TQ scalar carried in the OGM (via `observe_originator_ogm`), so
 //!   the private state can derive path quality without a Bellman-Ford
@@ -27,7 +27,7 @@ use jacquard_traits::{RouterManagedEngine, RoutingEngine, TimeEffects, Transport
 use crate::{
     gossip::{
         decode_advertisement, encode_advertisement, local_advertisement, rebroadcast_advertisement,
-        LearnedAdvertisement, DEFAULT_OGM_TTL,
+        LearnedAdvertisement, DEFAULT_OGM_HOP_LIMIT,
     },
     private_state::link_is_usable,
     public_state::ActiveBatmanClassicRoute,
@@ -77,7 +77,7 @@ where
             return Ok(());
         }
 
-        // Send local originator OGM (tq=1000, ttl=DEFAULT_OGM_TTL) to all
+        // Send local originator OGM (tq=1000, hop_limit=DEFAULT_OGM_HOP_LIMIT) to all
         // direct neighbors.
         let local_ad = local_advertisement(self.local_node_id, observed_at_tick.0);
         if let Ok(payload) = encode_advertisement(&local_ad) {
@@ -131,11 +131,11 @@ where
             return;
         }
 
-        // Derive hop count from the advertisement's TTL.
-        // DEFAULT_OGM_TTL - received_ttl = hops from originator to sender;
+        // Derive hop count from the advertisement's remaining hop limit.
+        // DEFAULT_OGM_HOP_LIMIT - received_hop_limit = hops from originator to sender;
         // +1 for the final hop from sender to us.
-        let hop_count = DEFAULT_OGM_TTL
-            .saturating_sub(advertisement.ttl)
+        let hop_count = DEFAULT_OGM_HOP_LIMIT
+            .saturating_sub(advertisement.remaining_hop_limit)
             .saturating_add(1);
 
         // Record receive-window occupancy event and TQ for path-quality scoring.
@@ -456,7 +456,7 @@ mod tests {
         );
         let topology = sample_topology();
         // Simulate having received node(2)'s OGM via node(2) directly.
-        // tq=1000 (originator's own OGM), ttl=DEFAULT_OGM_TTL, hop_count=1.
+        // tq=1000 (originator's own OGM), hop_limit=DEFAULT_OGM_HOP_LIMIT, hop_count=1.
         engine.observe_originator_ogm(node(2), node(2), 1, RatioPermille(1000), 1, now);
         engine.observe_bidirectional_ogm(node(2), 1, now);
         engine.refresh_private_state(&topology, now);

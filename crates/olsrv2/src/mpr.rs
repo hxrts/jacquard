@@ -7,6 +7,8 @@ use jacquard_core::NodeId;
 use crate::public_state::{MprSelection, NeighborLinkState, TwoHopReachability};
 
 #[must_use]
+// long-block-exception: MPR selection keeps mandatory single-cover relays and
+// greedy completion in one deterministic RFC-style pass.
 pub(crate) fn select_mprs(
     neighbors: &BTreeMap<NodeId, NeighborLinkState>,
     two_hop_reachability: &BTreeMap<NodeId, TwoHopReachability>,

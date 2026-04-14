@@ -324,6 +324,8 @@ where
         self.activate_with_profile_without_tick(objective, profile)
     }
 
+    // long-block-exception: fail-closed activation keeps candidate selection,
+    // admission, materialization, and checkpoint publication in one path.
     fn activate_with_profile_without_tick(
         &mut self,
         objective: &RoutingObjective,

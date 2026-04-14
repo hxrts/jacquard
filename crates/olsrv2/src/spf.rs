@@ -106,7 +106,7 @@ fn shortest_paths(
     local_node_id: NodeId,
     adjacency: &BTreeMap<NodeId, Vec<(NodeId, u32)>>,
 ) -> BTreeMap<NodeId, RouteState> {
-    let mut unsettled = BTreeSet::from([local_node_id]);
+    let mut unsettled_nodes = BTreeSet::from([local_node_id]);
     let mut states = BTreeMap::from([(
         local_node_id,
         RouteState {
@@ -115,15 +115,15 @@ fn shortest_paths(
             first_hop: local_node_id,
         },
     )]);
-    let mut settled = BTreeSet::new();
+    let mut settled_nodes = BTreeSet::new();
 
-    while let Some(current) = unsettled
+    while let Some(current) = unsettled_nodes
         .iter()
         .copied()
         .min_by(|left, right| compare_route_state(left, right, &states))
     {
-        unsettled.remove(&current);
-        if !settled.insert(current) {
+        unsettled_nodes.remove(&current);
+        if !settled_nodes.insert(current) {
             continue;
         }
         let Some(current_state) = states.get(&current).copied() else {
@@ -148,7 +148,7 @@ fn shortest_paths(
                 .unwrap_or(true);
             if replace {
                 states.insert(*neighbor, candidate);
-                unsettled.insert(*neighbor);
+                unsettled_nodes.insert(*neighbor);
             }
         }
     }

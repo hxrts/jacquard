@@ -327,6 +327,8 @@ fn service_objective_query_keeps_multiple_forward_candidates() {
 }
 
 #[test]
+// long-block-exception: regression keeps the delayed service bootstrap fixture
+// and admissibility assertions together for one end-to-end search surface.
 fn delayed_service_bootstrap_remains_admissible() {
     let mut engine = FieldEngine::new(
         node(1),

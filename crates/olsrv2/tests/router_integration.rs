@@ -169,5 +169,5 @@ fn olsrv2_registers_and_exposes_capabilities() {
         .expect("seed topology");
 
     assert_eq!(engine.engine_id(), OLSRV2_ENGINE_ID);
-    let _ = objective();
+    let _objective = objective();
 }

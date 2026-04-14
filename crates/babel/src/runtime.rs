@@ -38,8 +38,8 @@ use crate::{
     BabelEngine, BABEL_ENGINE_ID,
 };
 
-/// Ticks between local_seqno increments.
-const SEQNO_REFRESH_INTERVAL_TICKS: u64 = 16;
+/// Tick interval between local sequence-number increments.
+const SEQNO_REFRESH_INTERVAL: Tick = Tick(16);
 
 fn health_scores_from_metric(tq: RatioPermille) -> (HealthScore, jacquard_core::PenaltyPoints) {
     let penalty = u16::try_from(PERMILLE_MAX)
@@ -194,12 +194,12 @@ where
     }
 
     fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
-        // Increment local_seqno every SEQNO_REFRESH_INTERVAL_TICKS ticks.
+        // Increment local_seqno every SEQNO_REFRESH_INTERVAL ticks.
         if tick
             .topology
             .observed_at_tick
             .0
-            .is_multiple_of(SEQNO_REFRESH_INTERVAL_TICKS)
+            .is_multiple_of(SEQNO_REFRESH_INTERVAL.0)
         {
             self.local_seqno = self.local_seqno.wrapping_add(1);
         }

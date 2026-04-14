@@ -153,6 +153,8 @@ where
         })
     }
 
+    // long-block-exception: route commitments keep lease validity, continuity,
+    // and downgrade handling in one publication-facing resolution path.
     fn route_commitments(&self, route: &jacquard_core::MaterializedRoute) -> Vec<RouteCommitment> {
         let resolution = if !route
             .identity
@@ -1411,6 +1413,8 @@ struct ForwardEvidenceInput {
     service_carry_forward: bool,
 }
 
+// long-block-exception: observer evidence synthesis keeps pending, published,
+// and carry-forward evidence in one deterministic fallback order.
 fn forward_evidence_for_observer(
     destination_state: &crate::state::DestinationFieldState,
     now_tick: Tick,
@@ -1518,6 +1522,8 @@ fn forward_evidence_for_observer(
     }
 }
 
+// long-block-exception: synthesized node evidence keeps degraded carry-forward
+// ranking and publication replay in one audited reconstruction path.
 fn synthesized_node_forward_evidence_from_active_routes(
     destination_state: &crate::state::DestinationFieldState,
     active_routes: &[&ActiveFieldRoute],
@@ -2871,6 +2877,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: regression exercises the full bootstrap upgrade
+    // path across repeated bridge confirmation rounds.
     fn bootstrap_route_promotes_after_confirmed_bridge_streak() {
         let topology = supported_topology();
         let mut engine = seeded_engine();
@@ -3006,6 +3014,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: regression keeps the degraded discovery bootstrap
+    // transition sequence explicit and end-to-end.
     fn discovery_bootstrap_route_enters_degraded_steady_before_withdrawal() {
         let topology = supported_topology();
         let mut engine = seeded_engine().with_search_config(
@@ -3081,6 +3091,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: regression keeps the degraded steady-state node
+    // retention path explicit across observer and maintenance updates.
     fn discovery_node_route_stays_degraded_steady_instead_of_withdrawing() {
         let topology = supported_topology();
         let mut engine = seeded_engine().with_search_config(
@@ -3180,6 +3192,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: regression keeps observer refresh synthesis and
+    // continuation carry-forward assertions in one fixture.
     fn discovery_node_observer_refresh_synthesizes_carry_forward_from_active_route() {
         let topology = supported_topology();
         let mut engine = seeded_engine().with_search_config(
@@ -3510,6 +3524,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: replay export regression keeps the full fixture
+    // assembly and golden comparison in one test.
     fn exported_replay_bundle_captures_continuation_shift_fixture() {
         use std::path::PathBuf;
 
@@ -3944,6 +3960,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: regression keeps the service commitment floor and
+    // pending-resolution assertions in one route setup.
     fn degraded_service_route_commitments_remain_pending_below_support_floor() {
         let topology = supported_topology();
         let mut engine = seeded_engine();
@@ -4068,6 +4086,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: regression keeps the multi-branch service
+    // commitment viability setup and assertions together.
     fn service_route_commitments_remain_pending_with_multiple_viable_branches() {
         let topology = supported_topology();
         let mut engine = seeded_engine();
@@ -4159,6 +4179,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: regression keeps service maintenance shift
+    // selection within one corridor fixture and assertion block.
     fn service_maintenance_prefers_shift_within_existing_corridor() {
         let topology = supported_topology();
         let mut engine = seeded_engine();
@@ -4269,6 +4291,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: regression keeps the narrowing-bias fixture and
+    // stale-branch assertions together.
     fn service_runtime_narrows_away_from_weak_stale_branch() {
         let mut destination = crate::state::DestinationFieldState::new(
             crate::state::DestinationKey::Service(vec![9; 16]),
@@ -4352,6 +4376,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: regression compares wide and narrow continuation
+    // bias settings across one full service fixture.
     fn stronger_narrowing_bias_keeps_fewer_service_continuations() {
         let destination_id =
             jacquard_core::DestinationId::Service(jacquard_core::ServiceId(vec![9; 16]));

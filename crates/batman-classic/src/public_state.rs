@@ -103,7 +103,8 @@ impl OgmReceiveWindow {
 /// `tq` is the TQ scalar the forwarding neighbor encoded in the OGM — their
 /// computed path quality from themselves to the originator. `hop_count` is the
 /// total path length from the local node to the originator via this neighbor,
-/// derived from the OGM's received TTL: `DEFAULT_OGM_TTL - received_ttl + 1`.
+/// derived from the OGM's received hop limit:
+/// `DEFAULT_OGM_HOP_LIMIT - received_hop_limit + 1`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ReceivedOgmInfo {
     /// TQ the forwarding neighbor encoded in the OGM (their path quality to the

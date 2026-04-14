@@ -1,16 +1,16 @@
-//! Classic BATMAN OGM encoding: originator ID, sequence, TQ scalar, and TTL.
+//! Classic BATMAN OGM encoding: originator ID, sequence, TQ scalar, and hop limit.
 //!
 //! Unlike the enhanced batman engine, `OriginatorAdvertisement` carries no link
 //! state. Quality is represented entirely by the `tq` field — a permille scalar
 //! that the originator initialises to 1000 and each re-broadcasting node
-//! updates via `tq_product` before forwarding. The `ttl` field decrements at
-//! each hop; OGMs with TTL=0 are not re-broadcast.
+//! updates via `tq_product` before forwarding. The `remaining_hop_limit` field
+//! decrements at each hop; OGMs with zero remaining hops are not re-broadcast.
 //!
 //! Key functions:
 //! - `local_advertisement` — builds the originator's own OGM (tq=1000,
-//!   ttl=`DEFAULT_OGM_TTL`).
-//! - `rebroadcast_advertisement` — applies `tq_product` and decrements TTL,
-//!   returning `None` when TTL has reached zero.
+//!   hop limit=`DEFAULT_OGM_HOP_LIMIT`).
+//! - `rebroadcast_advertisement` — applies `tq_product` and decrements the hop
+//!   limit, returning `None` when it reaches zero.
 //! - `encode_advertisement` / `decode_advertisement` — frame and validate OGMs
 //!   with the eight-byte magic prefix `JQBATMNC`.
 
@@ -21,9 +21,9 @@ use crate::scoring;
 
 const GOSSIP_MAGIC: &[u8; 8] = b"JQBATMNC";
 
-/// Default TTL assigned to OGMs at the originating node. Decremented at each
-/// re-broadcasting hop; OGMs reaching TTL=0 are discarded and not re-broadcast.
-pub(crate) const DEFAULT_OGM_TTL: u8 = 50;
+/// Default hop limit assigned to OGMs at the originating node. Decremented at
+/// each re-broadcasting hop; OGMs reaching zero are discarded.
+pub(crate) const DEFAULT_OGM_HOP_LIMIT: u8 = 50;
 
 /// A classic BATMAN originator message.
 ///
@@ -36,7 +36,7 @@ pub(crate) struct OriginatorAdvertisement {
     pub originator: NodeId,
     pub sequence: u64,
     pub tq: RatioPermille,
-    pub ttl: u8,
+    pub remaining_hop_limit: u8,
 }
 
 /// A received OGM stored in the local learned-advertisement table.
@@ -87,7 +87,8 @@ pub(crate) fn decode_advertisement(payload: &[u8]) -> Option<OriginatorAdvertise
 
 /// Build the originator's own OGM for flooding.
 ///
-/// TQ starts at 1000 (perfect quality); TTL starts at `DEFAULT_OGM_TTL`.
+/// TQ starts at 1000 (perfect quality); hop limit starts at
+/// `DEFAULT_OGM_HOP_LIMIT`.
 /// The `sequence` argument should be monotonically increasing (tick number is
 /// an appropriate source).
 pub(crate) fn local_advertisement(local_node_id: NodeId, sequence: u64) -> OriginatorAdvertisement {
@@ -95,26 +96,26 @@ pub(crate) fn local_advertisement(local_node_id: NodeId, sequence: u64) -> Origi
         originator: local_node_id,
         sequence,
         tq: RatioPermille(1000),
-        ttl: DEFAULT_OGM_TTL,
+        remaining_hop_limit: DEFAULT_OGM_HOP_LIMIT,
     }
 }
 
 /// Construct the re-broadcast form of a received OGM.
 ///
 /// Applies `tq_product(local_link_tq, received.tq)` to encode this node's
-/// path quality to the originator, then decrements TTL. Returns `None` if the
-/// OGM's TTL is already zero (do not re-broadcast).
+/// path quality to the originator, then decrements the hop limit. Returns
+/// `None` if the OGM's remaining hop limit is already zero.
 pub(crate) fn rebroadcast_advertisement(
     received: &OriginatorAdvertisement,
     local_link_tq: RatioPermille,
 ) -> Option<OriginatorAdvertisement> {
-    if received.ttl == 0 {
+    if received.remaining_hop_limit == 0 {
         return None;
     }
     Some(OriginatorAdvertisement {
         originator: received.originator,
         sequence: received.sequence,
         tq: scoring::tq_product(local_link_tq, received.tq),
-        ttl: received.ttl - 1,
+        remaining_hop_limit: received.remaining_hop_limit - 1,
     })
 }

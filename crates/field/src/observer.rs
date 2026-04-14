@@ -185,6 +185,8 @@ fn fuse_evidence(predicted_summary: &FieldSummary, inputs: &ObserverInputs) -> F
     fused
 }
 
+// long-block-exception: posterior correction keeps the fused summary,
+// divergence, and service-branch adjustments in one Bayesian-style update.
 fn correct_posterior(
     previous: &DestinationPosterior,
     fused_summary: &FieldSummary,

@@ -72,7 +72,7 @@ mod tests {
 
     use super::*;
 
-    fn active_link() -> Link {
+    fn fixture_link() -> Link {
         Link {
             endpoint: LinkEndpoint {
                 transport_kind: TransportKind::WifiAware,
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn derive_tq_uses_only_state_baseline_ignoring_richer_beliefs() {
-        let (tq, _, _) = derive_tq(&active_link());
+        let (tq, _, _) = derive_tq(&fixture_link());
         // Must equal the plain ogm_equivalent_tq(Active) = 900, not an
         // enriched average incorporating delivery_confidence or symmetry.
         assert_eq!(tq, RatioPermille(900));

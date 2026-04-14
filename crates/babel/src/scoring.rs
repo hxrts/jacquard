@@ -169,7 +169,7 @@ mod tests {
     }
 
     #[test]
-    fn symmetric_active_link_yields_low_cost() {
+    fn symmetric_fixture_link_yields_low_cost() {
         let fwd = fixture_link(LinkRuntimeState::Active, 1000);
         let rev = fixture_link(LinkRuntimeState::Active, 1000);
         // 256 * 1_000_000 / (1000 * 1000) = 256

@@ -8,9 +8,9 @@
 //!   field. Originators initialise it to 1000; re-broadcasting nodes apply
 //!   `tq_product(local_link_tq, received_tq)` before forwarding. Downstream
 //!   nodes read path quality directly from received OGMs.
-//! - **TTL-bounded propagation** — OGMs carry a `ttl` field decremented at
-//!   each hop. OGMs reaching TTL=0 are not re-broadcast, bounding propagation
-//!   to `DEFAULT_OGM_TTL` hops.
+//! - **Hop-limit-bounded propagation** — OGMs carry a `remaining_hop_limit`
+//!   field decremented at each hop. OGMs reaching zero are not re-broadcast,
+//!   bounding propagation to `DEFAULT_OGM_HOP_LIMIT` hops.
 //! - **No Bellman-Ford** — path quality to remote originators is read from
 //!   received OGM TQ values, not computed locally over a gossip-merged topology
 //!   graph.

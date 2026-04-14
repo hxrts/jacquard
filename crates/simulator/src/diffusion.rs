@@ -13,7 +13,8 @@ use crate::experiments::ExperimentError;
 pub struct DiffusionPolicyConfig {
     pub config_id: String,
     pub replication_budget: u32,
-    pub ttl_rounds: u32,
+    #[serde(rename = "ttl_rounds")]
+    pub ttl_tick_count: u32,
     pub forward_probability_permille: u32,
     pub bridge_bias_permille: u32,
     pub target_cluster_bias_permille: i32,
@@ -131,10 +132,10 @@ pub(crate) struct DiffusionContactEvent {
     pub round_index: u32,
     pub node_a: u32,
     pub node_b: u32,
-    pub duration_rounds: u32,
+    pub duration_tick_count: u32,
     pub bandwidth_bytes: u32,
     pub transport_kind: DiffusionTransportKind,
-    pub connection_latency_rounds: u32,
+    pub connection_latency_tick_count: u32,
     pub energy_cost_per_byte: u32,
 }
 
@@ -151,11 +152,13 @@ pub struct DiffusionRunSummary {
     pub objective_regime: String,
     pub stress_score: u32,
     pub replication_budget: u32,
-    pub ttl_rounds: u32,
+    #[serde(rename = "ttl_rounds")]
+    pub ttl_tick_count: u32,
     pub forward_probability_permille: u32,
     pub bridge_bias_permille: u32,
     pub delivery_probability_permille: u32,
-    pub delivery_latency_rounds: Option<u32>,
+    #[serde(rename = "delivery_latency_rounds")]
+    pub delivery_latency_tick_count: Option<u32>,
     pub coverage_permille: u32,
     pub cluster_coverage_permille: u32,
     pub total_transmissions: u32,
@@ -203,12 +206,14 @@ pub struct DiffusionAggregateSummary {
     pub objective_regime: String,
     pub stress_score: u32,
     pub replication_budget: u32,
-    pub ttl_rounds: u32,
+    #[serde(rename = "ttl_rounds")]
+    pub ttl_tick_count: u32,
     pub forward_probability_permille: u32,
     pub bridge_bias_permille: u32,
     pub run_count: u32,
     pub delivery_probability_permille_mean: u32,
-    pub delivery_latency_rounds_mean: Option<u32>,
+    #[serde(rename = "delivery_latency_rounds_mean")]
+    pub delivery_latency_tick_count_mean: Option<u32>,
     pub coverage_permille_mean: u32,
     pub cluster_coverage_permille_mean: u32,
     pub total_transmissions_mean: u32,
@@ -526,7 +531,7 @@ fn field_diffusion_profiles() -> Vec<DiffusionPolicyConfig> {
             profile.config_id = config_id;
             if let Some((
                 replication_budget,
-                ttl_rounds,
+                ttl_tick_count,
                 forward_probability_permille,
                 bridge_bias_permille,
                 target_cluster_bias_permille,
@@ -538,7 +543,7 @@ fn field_diffusion_profiles() -> Vec<DiffusionPolicyConfig> {
             )) = overrides
             {
                 profile.replication_budget = replication_budget;
-                profile.ttl_rounds = ttl_rounds;
+                profile.ttl_tick_count = ttl_tick_count;
                 profile.forward_probability_permille = forward_probability_permille;
                 profile.bridge_bias_permille = bridge_bias_permille;
                 profile.target_cluster_bias_permille = target_cluster_bias_permille;
@@ -558,7 +563,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         "batman-bellman" => DiffusionPolicyConfig {
             config_id: "batman-bellman".to_string(),
             replication_budget: 3,
-            ttl_rounds: 20,
+            ttl_tick_count: 20,
             forward_probability_permille: 380,
             bridge_bias_permille: 80,
             target_cluster_bias_permille: 90,
@@ -572,7 +577,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         "batman-classic" => DiffusionPolicyConfig {
             config_id: "batman-classic".to_string(),
             replication_budget: 2,
-            ttl_rounds: 24,
+            ttl_tick_count: 24,
             forward_probability_permille: 320,
             bridge_bias_permille: 60,
             target_cluster_bias_permille: 80,
@@ -586,7 +591,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         "babel" => DiffusionPolicyConfig {
             config_id: "babel".to_string(),
             replication_budget: 3,
-            ttl_rounds: 22,
+            ttl_tick_count: 22,
             forward_probability_permille: 430,
             bridge_bias_permille: 90,
             target_cluster_bias_permille: 105,
@@ -600,7 +605,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         "pathway" => DiffusionPolicyConfig {
             config_id: "pathway".to_string(),
             replication_budget: 5,
-            ttl_rounds: 20,
+            ttl_tick_count: 20,
             forward_probability_permille: 540,
             bridge_bias_permille: 180,
             target_cluster_bias_permille: 170,
@@ -614,7 +619,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         "field" => DiffusionPolicyConfig {
             config_id: "field".to_string(),
             replication_budget: 3,
-            ttl_rounds: 26,
+            ttl_tick_count: 26,
             forward_probability_permille: 430,
             bridge_bias_permille: 240,
             target_cluster_bias_permille: 150,
@@ -628,7 +633,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         "field-continuity" => DiffusionPolicyConfig {
             config_id: "field-continuity".to_string(),
             replication_budget: 4,
-            ttl_rounds: 34,
+            ttl_tick_count: 34,
             forward_probability_permille: 460,
             bridge_bias_permille: 360,
             target_cluster_bias_permille: 190,
@@ -642,7 +647,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         "field-scarcity" => DiffusionPolicyConfig {
             config_id: "field-scarcity".to_string(),
             replication_budget: 2,
-            ttl_rounds: 20,
+            ttl_tick_count: 20,
             forward_probability_permille: 330,
             bridge_bias_permille: 220,
             target_cluster_bias_permille: 200,
@@ -656,7 +661,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         "field-congestion" => DiffusionPolicyConfig {
             config_id: "field-congestion".to_string(),
             replication_budget: 2,
-            ttl_rounds: 18,
+            ttl_tick_count: 18,
             forward_probability_permille: 300,
             bridge_bias_permille: 160,
             target_cluster_bias_permille: 130,
@@ -670,7 +675,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         "field-privacy" => DiffusionPolicyConfig {
             config_id: "field-privacy".to_string(),
             replication_budget: 2,
-            ttl_rounds: 22,
+            ttl_tick_count: 22,
             forward_probability_permille: 320,
             bridge_bias_permille: 210,
             target_cluster_bias_permille: 160,
@@ -684,7 +689,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         "pathway-batman-bellman" => DiffusionPolicyConfig {
             config_id: "pathway-batman-bellman".to_string(),
             replication_budget: 6,
-            ttl_rounds: 24,
+            ttl_tick_count: 24,
             forward_probability_permille: 560,
             bridge_bias_permille: 180,
             target_cluster_bias_permille: 150,
@@ -698,7 +703,7 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
         _ => DiffusionPolicyConfig {
             config_id: engine_set.to_string(),
             replication_budget: 4,
-            ttl_rounds: 24,
+            ttl_tick_count: 24,
             forward_probability_permille: 450,
             bridge_bias_permille: 120,
             target_cluster_bias_permille: 100,
@@ -778,7 +783,10 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
         }
 
         if round < scenario.creation_round
-            || round > scenario.creation_round.saturating_add(policy.ttl_rounds)
+            || round
+                > scenario
+                    .creation_round
+                    .saturating_add(policy.ttl_tick_count)
         {
             round_new_copies.push(new_copies_this_round);
             dominant_edge_by_round.push(None);
@@ -980,8 +988,12 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
                 let edge = normalized_edge(from, to);
                 *edge_flows.entry(edge).or_insert(0) += 1;
                 *round_edge_counts.entry(edge).or_insert(0) += 1;
-                let arrival_round = round.saturating_add(contact.connection_latency_rounds);
-                if arrival_round <= scenario.creation_round.saturating_add(policy.ttl_rounds) {
+                let arrival_round = round.saturating_add(contact.connection_latency_tick_count);
+                if arrival_round
+                    <= scenario
+                        .creation_round
+                        .saturating_add(policy.ttl_tick_count)
+                {
                     pending.push(PendingTransfer {
                         arrival_round,
                         target_node_id: to,
@@ -1042,7 +1054,7 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
     } else {
         Some(total_energy / u32::try_from(delivered_targets.len()).unwrap_or(1))
     };
-    let delivery_latency_rounds = if delivery_rounds.is_empty() {
+    let delivery_latency_tick_count = if delivery_rounds.is_empty() {
         None
     } else {
         Some(
@@ -1133,11 +1145,11 @@ fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
         objective_regime: scenario.regime.objective_regime.clone(),
         stress_score: scenario.regime.stress_score,
         replication_budget: policy.replication_budget,
-        ttl_rounds: policy.ttl_rounds,
+        ttl_tick_count: policy.ttl_tick_count,
         forward_probability_permille: policy.forward_probability_permille,
         bridge_bias_permille: policy.bridge_bias_permille,
         delivery_probability_permille,
-        delivery_latency_rounds,
+        delivery_latency_tick_count,
         coverage_permille,
         cluster_coverage_permille,
         total_transmissions,
@@ -1213,15 +1225,15 @@ fn aggregate_diffusion_runs(runs: &[DiffusionRunSummary]) -> Vec<DiffusionAggreg
             objective_regime: first.objective_regime.clone(),
             stress_score: first.stress_score,
             replication_budget: first.replication_budget,
-            ttl_rounds: first.ttl_rounds,
+            ttl_tick_count: first.ttl_tick_count,
             forward_probability_permille: first.forward_probability_permille,
             bridge_bias_permille: first.bridge_bias_permille,
             run_count,
             delivery_probability_permille_mean: mean_u32(
                 group.iter().map(|row| row.delivery_probability_permille),
             ),
-            delivery_latency_rounds_mean: mean_option_u32(
-                group.iter().map(|row| row.delivery_latency_rounds),
+            delivery_latency_tick_count_mean: mean_option_u32(
+                group.iter().map(|row| row.delivery_latency_tick_count),
             ),
             coverage_permille_mean: mean_u32(group.iter().map(|row| row.coverage_permille)),
             cluster_coverage_permille_mean: mean_u32(
@@ -2117,16 +2129,16 @@ fn generate_contacts(
                 continue;
             }
             let transport_kind = choose_transport(left, right, round);
-            let (bandwidth_bytes, energy_cost_per_byte, connection_latency_rounds) =
+            let (bandwidth_bytes, energy_cost_per_byte, connection_latency_tick_count) =
                 transport_properties(transport_kind);
             contacts.push(DiffusionContactEvent {
                 round_index: round,
                 node_a: left.node_id,
                 node_b: right.node_id,
-                duration_rounds: 1,
+                duration_tick_count: 1,
                 bandwidth_bytes,
                 transport_kind,
-                connection_latency_rounds,
+                connection_latency_tick_count,
                 energy_cost_per_byte,
             });
         }
@@ -3027,7 +3039,7 @@ mod tests {
         let policy = DiffusionPolicyConfig {
             config_id: "test".to_string(),
             replication_budget: 4,
-            ttl_rounds: 30,
+            ttl_tick_count: 30,
             forward_probability_permille: 650,
             bridge_bias_permille: 250,
             target_cluster_bias_permille: 120,

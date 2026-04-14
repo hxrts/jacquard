@@ -476,13 +476,13 @@ fn advance_convergence_rounds(
     rounds: usize,
 ) {
     for _ in 0..rounds {
-        let _ = client_a
+        let _client_a_progress = client_a
             .advance_round()
             .expect("client A convergence round");
-        let _ = client_b
+        let _client_b_progress = client_b
             .advance_round()
             .expect("client B convergence round");
-        let _ = client_c
+        let _client_c_progress = client_c
             .advance_round()
             .expect("client C convergence round");
     }

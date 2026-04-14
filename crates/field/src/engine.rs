@@ -600,6 +600,8 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         Ok(())
     }
 
+    // long-block-exception: forward summary recording keeps destination
+    // upsert and evidence normalization in one ingestion path.
     pub fn record_forward_summary(
         &mut self,
         destination: &DestinationId,
