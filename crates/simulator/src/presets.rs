@@ -185,6 +185,88 @@ pub fn batman_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
 }
 
 #[must_use]
+// long-block-exception: this preset is a single scenario fixture definition
+// pairing topology and environment hooks for regression readability.
+pub fn babel_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = bidirectional_line_topology(
+        topology::node(1)
+            .for_engine(&jacquard_babel::BABEL_ENGINE_ID)
+            .build(),
+        topology::node(2)
+            .for_engine(&jacquard_babel::BABEL_ENGINE_ID)
+            .build(),
+        topology::node(3)
+            .for_engine(&jacquard_babel::BABEL_ENGINE_ID)
+            .build(),
+    );
+    let scenario = JacquardScenario::new(
+        "babel-line",
+        jacquard_core::SimulationSeed(51),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        vec![
+            HostSpec::babel(NODE_A),
+            HostSpec::babel(NODE_B),
+            HostSpec::babel(NODE_C),
+        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_B))],
+        7,
+    )
+    .with_checkpoint_interval(2);
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(3),
+            EnvironmentHook::MediumDegradation {
+                left: NODE_A,
+                right: NODE_B,
+                confidence: RatioPermille(825),
+                loss: RatioPermille(100),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(4),
+            EnvironmentHook::IntrinsicLimit {
+                node_id: NODE_B,
+                connection_count_max: 1,
+                hold_capacity_bytes_max: jacquard_core::ByteCount(256),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(5),
+            EnvironmentHook::Partition {
+                left: NODE_B,
+                right: NODE_C,
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(6),
+            EnvironmentHook::MobilityRelink {
+                left: NODE_B,
+                from_right: NODE_C,
+                to_right: NODE_A,
+                link: Box::new(topology::link(1).build()),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(7),
+            EnvironmentHook::ReplaceTopology {
+                configuration: Configuration {
+                    epoch: RouteEpoch(12),
+                    nodes: topology.value.nodes.clone(),
+                    links: topology.value.links.clone(),
+                    environment: Environment {
+                        reachable_neighbor_count: 1,
+                        churn_permille: RatioPermille(50),
+                        contention_permille: RatioPermille(15),
+                    },
+                },
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+#[must_use]
 pub fn field_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
     let topology = line_topology(
         topology::node(1).field().build(),

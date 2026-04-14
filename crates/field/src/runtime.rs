@@ -296,7 +296,7 @@ where
                 self.state.last_tick_processed,
             );
             let blocker = promotion_assessment.primary_blocker();
-            let projected_confirmation_streak = if previous_bootstrap_class
+            let projected_confirmation_streak = if current_bootstrap_class
                 == FieldBootstrapClass::Bootstrap
                 && promotion_assessment.anti_entropy_confirmed
                 && promotion_assessment.continuation_coherent
@@ -305,7 +305,7 @@ where
             } else {
                 0
             };
-            bootstrap_decision = if previous_bootstrap_class == FieldBootstrapClass::Bootstrap {
+            bootstrap_decision = if current_bootstrap_class == FieldBootstrapClass::Bootstrap {
                 promotion_assessment
                     .decision_for_bootstrap(&destination_state, projected_confirmation_streak)
             } else {
@@ -975,7 +975,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 &destination,
                 now_tick,
             );
-            let forward_evidence = destination_state.pending_forward_evidence.clone();
+            let forward_evidence = forward_evidence_for_observer(destination_state, now_tick);
             let reverse_feedback = destination_state.pending_reverse_feedback.clone();
             let signature = observer_input_signature(
                 topology_epoch,
@@ -991,7 +991,8 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             {
                 continue;
             }
-            let forward_evidence = std::mem::take(&mut destination_state.pending_forward_evidence);
+            let _pending_forward_evidence =
+                std::mem::take(&mut destination_state.pending_forward_evidence);
             let reverse_feedback = std::mem::take(&mut destination_state.pending_reverse_feedback);
             let had_state = (
                 destination_state.posterior.clone(),
@@ -1063,6 +1064,43 @@ fn direct_evidence_for_destination(
             }]
         })
         .unwrap_or_default()
+}
+
+fn forward_evidence_for_observer(
+    destination_state: &crate::state::DestinationFieldState,
+    now_tick: Tick,
+) -> Vec<crate::summary::ForwardPropagatedEvidence> {
+    if !destination_state.pending_forward_evidence.is_empty() {
+        return destination_state.pending_forward_evidence.clone();
+    }
+    let Some(last_summary) = destination_state.publication.last_summary.clone() else {
+        return Vec::new();
+    };
+    let Some(last_sent_at) = destination_state.publication.last_sent_at else {
+        return Vec::new();
+    };
+    if now_tick.0.saturating_sub(last_sent_at.0) > 3 {
+        return Vec::new();
+    }
+    if last_summary.retention_support.value() < 180 || last_summary.delivery_support.value() < 180 {
+        return Vec::new();
+    }
+    let Some(neighbor_id) = destination_state
+        .frontier
+        .as_slice()
+        .first()
+        .map(|entry| entry.neighbor_id)
+    else {
+        return Vec::new();
+    };
+    vec![crate::summary::ForwardPropagatedEvidence {
+        from_neighbor: neighbor_id,
+        summary: FieldSummary {
+            freshness_tick: now_tick,
+            ..last_summary
+        },
+        observed_at_tick: now_tick,
+    }]
 }
 
 fn summary_for_destination(

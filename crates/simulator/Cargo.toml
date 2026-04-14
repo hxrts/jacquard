@@ -10,6 +10,7 @@ documentation.workspace = true
 
 [dependencies]
 jacquard-adapter = { version = "0.4.0", path = "../adapter" }
+jacquard-babel = { version = "0.4.0", path = "../babel" }
 jacquard-batman = { version = "0.4.0", path = "../batman" }
 jacquard-core = { version = "0.4.0", path = "../core" }
 jacquard-field = { version = "0.4.0", path = "../field" }

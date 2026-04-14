@@ -117,6 +117,24 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
                     network.clone(),
                     topology.observed_at_tick,
                 ),
+                EngineLane::Babel => ClientBuilder::babel(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
+                EngineLane::PathwayAndBabel => ClientBuilder::pathway_and_babel(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
+                EngineLane::BabelAndBatman => ClientBuilder::babel_and_batman(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
             };
             if let Some(routing_profile) = host.overrides.routing_profile.clone() {
                 builder = builder.with_profile(routing_profile);
@@ -126,6 +144,9 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
             }
             if let Some(batman_decay_window) = host.overrides.batman_decay_window {
                 builder = builder.with_batman_decay_window(batman_decay_window);
+            }
+            if let Some(babel_decay_window) = host.overrides.babel_decay_window {
+                builder = builder.with_babel_decay_window(babel_decay_window);
             }
             if let Some(pathway_search_config) = host.overrides.pathway_search_config.clone() {
                 builder = builder.with_pathway_search_config(pathway_search_config);

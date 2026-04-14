@@ -1,3 +1,4 @@
+use jacquard_babel::DecayWindow as BabelDecayWindow;
 use jacquard_batman::DecayWindow;
 use jacquard_core::{
     Configuration, NodeId, Observation, OperatingMode, RoutingObjective, RoutingPolicyInputs,
@@ -12,8 +13,11 @@ use jacquard_traits::RoutingScenario;
 pub enum EngineLane {
     Pathway,
     Batman,
+    Babel,
     Field,
     PathwayAndBatman,
+    PathwayAndBabel,
+    BabelAndBatman,
     PathwayAndField,
     FieldAndBatman,
     AllEngines,
@@ -31,6 +35,7 @@ pub struct HostOverrides {
     pub routing_profile: Option<SelectedRoutingParameters>,
     pub policy_inputs: Option<RoutingPolicyInputs>,
     pub batman_decay_window: Option<DecayWindow>,
+    pub babel_decay_window: Option<BabelDecayWindow>,
     pub pathway_search_config: Option<PathwaySearchConfig>,
     pub field_search_config: Option<FieldSearchConfig>,
     pub field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
@@ -86,6 +91,15 @@ impl HostSpec {
     }
 
     #[must_use]
+    pub fn babel(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::Babel,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
     pub fn field(local_node_id: NodeId) -> Self {
         Self {
             local_node_id,
@@ -99,6 +113,24 @@ impl HostSpec {
         Self {
             local_node_id,
             lane: EngineLane::PathwayAndBatman,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn pathway_and_babel(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::PathwayAndBabel,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn babel_and_batman(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::BabelAndBatman,
             overrides: HostOverrides::default(),
         }
     }
@@ -145,6 +177,12 @@ impl HostSpec {
     #[must_use]
     pub fn with_batman_decay_window(mut self, batman_decay_window: DecayWindow) -> Self {
         self.overrides.batman_decay_window = Some(batman_decay_window);
+        self
+    }
+
+    #[must_use]
+    pub fn with_babel_decay_window(mut self, babel_decay_window: BabelDecayWindow) -> Self {
+        self.overrides.babel_decay_window = Some(babel_decay_window);
         self
     }
 

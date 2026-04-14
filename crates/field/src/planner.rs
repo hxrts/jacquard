@@ -621,8 +621,8 @@ pub(crate) fn promoted_corridor_admissible(
     if steady_corridor_admissible(destination_state) {
         return true;
     }
-    confirmation_streak >= 1
-        && destination_state.corridor_belief.delivery_support.value() >= 180
+    let _ = confirmation_streak;
+    destination_state.corridor_belief.delivery_support.value() >= 180
         && destination_state.posterior.usability_entropy.value() <= 925
         && destination_state.corridor_belief.retention_affinity.value() >= 240
         && destination_state.posterior.top_corridor_mass.value() >= 220

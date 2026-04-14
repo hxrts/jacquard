@@ -6,6 +6,7 @@
 //! - `link(byte).with_confidence(...).build()`
 
 use jacquard_adapter::opaque_endpoint;
+use jacquard_babel::BABEL_ENGINE_ID;
 use jacquard_batman::BATMAN_ENGINE_ID;
 use jacquard_core::{
     ByteCount, ControllerId, Link, Node, NodeId, RatioPermille, RoutingEngineId, Tick,
@@ -71,8 +72,23 @@ impl TopologyNodePreset {
     }
 
     #[must_use]
+    pub fn babel(self) -> Self {
+        self.for_engine(&BABEL_ENGINE_ID)
+    }
+
+    #[must_use]
     pub fn pathway_and_batman(self) -> Self {
         self.for_engines(&[PATHWAY_ENGINE_ID, BATMAN_ENGINE_ID])
+    }
+
+    #[must_use]
+    pub fn pathway_and_babel(self) -> Self {
+        self.for_engines(&[PATHWAY_ENGINE_ID, BABEL_ENGINE_ID])
+    }
+
+    #[must_use]
+    pub fn babel_and_batman(self) -> Self {
+        self.for_engines(&[BABEL_ENGINE_ID, BATMAN_ENGINE_ID])
     }
 
     #[must_use]
