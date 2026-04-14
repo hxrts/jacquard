@@ -18,7 +18,7 @@ PLOT_SPECS = {
     "comparison_dominant_engine": (8.1, 4.8),
     "head_to_head_route_presence": (9.2, 5.0),
     "diffusion_delivery_coverage": (12.5, 10.0),
-    "diffusion_resource_boundedness": (12.5, 10.4),
+    "diffusion_resource_boundedness": (12.5, 13.0),
 }
 
 BATMAN_BELLMAN_FAMILY_COLORS = {
