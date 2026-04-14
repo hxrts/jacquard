@@ -31,7 +31,7 @@ in `core` or the transport-neutral mem profile crates.
 
 ## Dependency Graph
 
-The workspace today contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-batman-bellman`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-field-client`, `jacquard-reference-client`, and `jacquard-simulator`.
+The workspace today contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-batman-bellman`, `jacquard-batman-classic`, `jacquard-babel`, `jacquard-olsrv2`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-field-client`, `jacquard-reference-client`, and `jacquard-simulator`.
 
 ```
 jacquard-core
@@ -42,12 +42,15 @@ jacquard-mem-node-profile
       │
 jacquard-mem-link-profile
       │
-jacquard-pathway ─┐
-jacquard-field   ─┼──→ jacquard-router ←── jacquard-reference-client
-jacquard-batman-bellman ─┘         │                ↑
-      │                     ├──→ jacquard-field-client
-      └────────────────────→ jacquard-simulator
-                             └── composes mem-* + router + in-tree engines
+jacquard-pathway ─────────┐
+jacquard-field   ─────────┼──→ jacquard-router ←── jacquard-reference-client
+jacquard-batman-bellman ──┤         │                ↑
+jacquard-batman-classic ──┤         ├──→ jacquard-field-client
+jacquard-babel ───────────┤         └──→ jacquard-simulator
+jacquard-olsrv2 ──────────┘
+
+jacquard-reference-client composes mem-* + router + in-tree engines
+jacquard-simulator reuses reference-client composition rather than a simulator-only stack
 
 jacquard-toolkit-xtask
 ```
@@ -108,7 +111,10 @@ Each crate owns a narrow slice of runtime state.
 | `jacquard-adapter` | Generic adapter-side ingress mailboxes, peer identity bookkeeping, claim ownership helpers, transport-neutral endpoint conveniences, and host-side observational read models. No route truth, no transport-specific protocol logic, no router actions, no time/order stamping. |
 | `jacquard-pathway` | Pathway-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
 | `jacquard-field` | Field-private posterior state, mean-field compression, regime/posture control state, Telltale-backed frozen-snapshot search, bounded runtime-round diagnostics, continuation scoring, and any field-private choreography runtime used only for observational summary exchange. |
-| `jacquard-batman-bellman` | BATMAN-private originator observations, next-hop ranking tables, TQ derivation, and active next-hop forwarding records. |
+| `jacquard-batman-bellman` | BATMAN Bellman-private originator observations, gossip-merged topology, Bellman-Ford path computation, TQ enrichment, next-hop ranking tables, and active next-hop forwarding records. |
+| `jacquard-batman-classic` | BATMAN Classic-private OGM-carried TQ state, receive windows, echo-based bidirectionality tables, learned advertisement state, next-hop ranking tables, and active next-hop forwarding records. |
+| `jacquard-babel` | Babel-private route table, feasibility-distance state, additive-metric scoring, seqno management, and active next-hop forwarding records. |
+| `jacquard-olsrv2` | OLSRv2-private HELLO state, symmetric-neighbor and two-hop reachability tables, deterministic MPR state, TC topology tuples, shortest-path derivation, and active next-hop forwarding records. |
 | `jacquard-router` | Canonical route identity, materialization inputs, leases, handle issuance, top-level route-health publication, and multi-engine orchestration state. |
 | `jacquard-mem-node-profile` | In-memory node capability and node-state modeling only. No routing semantics. |
 | `jacquard-mem-link-profile` | In-memory link capability, carrier, retention, and runtime-effect adapter state only. No canonical routing truth. |
