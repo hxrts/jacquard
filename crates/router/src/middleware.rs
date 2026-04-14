@@ -15,7 +15,7 @@
 //! - canonical route mutations and registry-level engine dispatch happen here
 //! - registered engines return typed evidence and opaque private runtime state
 
-use std::{cmp::Reverse, collections::BTreeMap};
+use std::{any::Any, cmp::Reverse, collections::BTreeMap};
 
 use jacquard_core::{
     AdmissionDecision, Belief, CapabilityError, Configuration, FactSourceClass, MaterializedRoute,
@@ -213,6 +213,19 @@ where
         routes
     }
 
+    #[must_use]
+    pub fn engine_analysis_snapshot(&self, engine_id: &RoutingEngineId) -> Option<Box<dyn Any>> {
+        let entry = self.registered_engines.get(engine_id)?;
+        let mut routes = self
+            .active_routes
+            .values()
+            .filter(|route| route.identity.admission.summary.engine == *engine_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        routes.sort_by_key(|route| route.identity.stamp.route_id);
+        entry.engine.analysis_snapshot_for_router(&routes)
+    }
+
     fn current_policy_inputs(&self) -> RoutingPolicyInputs {
         let mut inputs = self.policy_inputs.clone();
         inputs.routing_engine_count =
@@ -308,6 +321,14 @@ where
         profile: &SelectedRoutingParameters,
     ) -> Result<MaterializedRoute, RouteError> {
         self.advance_all_engines()?;
+        self.activate_with_profile_without_tick(objective, profile)
+    }
+
+    fn activate_with_profile_without_tick(
+        &mut self,
+        objective: &RoutingObjective,
+        profile: &SelectedRoutingParameters,
+    ) -> Result<MaterializedRoute, RouteError> {
         let candidate = self
             .ordered_candidates(objective, profile)
             .into_iter()
@@ -362,6 +383,16 @@ where
         self.active_routes.insert(route_id, route.clone());
         self.published_commitments.insert(route_id, commitments);
         Ok(route)
+    }
+
+    pub fn activate_route_without_tick(
+        &mut self,
+        objective: RoutingObjective,
+    ) -> Result<MaterializedRoute, RouteError> {
+        let profile = self
+            .policy_engine
+            .compute_profile(&objective, &self.current_policy_inputs());
+        self.activate_with_profile_without_tick(&objective, &profile)
     }
 
     fn materialization_input(

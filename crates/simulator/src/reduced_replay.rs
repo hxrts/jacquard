@@ -2,10 +2,11 @@ use std::collections::BTreeSet;
 
 use jacquard_core::{DestinationId, NodeId, RouteLifecycleEvent, RoutingEngineId};
 use jacquard_traits::RoutingScenario;
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    environment::AppliedEnvironmentHook,
-    replay::{ActiveRouteSummary, DriverStatusEvent, SimulationFailureSummary},
+    environment::{AppliedEnvironmentHook, EnvironmentHook},
+    replay::{ActiveRouteSummary, DriverStatusEvent, FieldReplaySummary, SimulationFailureSummary},
     JacquardReplayArtifact,
 };
 
@@ -24,6 +25,7 @@ pub struct ReducedReplayRound {
     pub round_index: u32,
     pub active_routes: Vec<ActiveRouteSummary>,
     pub environment_hooks: Vec<AppliedEnvironmentHook>,
+    pub field_replays: Vec<ReducedFieldReplayObservation>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,6 +44,35 @@ pub struct ReducedRouteObservation {
     pub last_lifecycle_event: RouteLifecycleEvent,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReducedFieldReplayObservation {
+    pub local_node_id: NodeId,
+    pub summary: FieldReplaySummary,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+pub struct ReducedFailureClassCounts {
+    pub no_candidate: u32,
+    pub inadmissible_candidate: u32,
+    pub lost_reachability: u32,
+    pub replacement_loop: u32,
+    pub maintenance_failure: u32,
+    pub activation_failure: u32,
+    pub persistent_degraded: u32,
+    pub other: u32,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+pub struct ReducedEnvironmentHookCounts {
+    pub replace_topology: u32,
+    pub medium_degradation: u32,
+    pub asymmetric_degradation: u32,
+    pub partition: u32,
+    pub cascade_partition: u32,
+    pub mobility_relink: u32,
+    pub intrinsic_limit: u32,
+}
+
 impl ReducedReplayView {
     #[must_use]
     pub fn from_replay(replay: &JacquardReplayArtifact) -> Self {
@@ -56,6 +87,18 @@ impl ReducedReplayView {
                     .flat_map(|host| host.active_routes.iter().cloned())
                     .collect(),
                 environment_hooks: round.environment_artifacts.clone(),
+                field_replays: round
+                    .host_rounds
+                    .iter()
+                    .filter_map(|host| {
+                        host.field_replay
+                            .clone()
+                            .map(|summary| ReducedFieldReplayObservation {
+                                local_node_id: host.local_node_id,
+                                summary,
+                            })
+                    })
+                    .collect(),
             })
             .collect::<Vec<_>>();
         let distinct_engine_ids = rounds
@@ -301,5 +344,178 @@ impl ReducedReplayView {
                     route.owner_node_id != owner_node_id || &route.destination != destination
                 })
             })
+    }
+
+    #[must_use]
+    pub fn route_churn_count(&self, owner_node_id: NodeId, destination: &DestinationId) -> u32 {
+        let observations = self
+            .route_observations()
+            .into_iter()
+            .filter(|observation| {
+                observation.key.owner_node_id == owner_node_id
+                    && &observation.key.destination == destination
+            })
+            .count();
+        u32::try_from(observations.saturating_sub(1)).unwrap_or(u32::MAX)
+    }
+
+    #[must_use]
+    pub fn engine_handoff_count(&self, owner_node_id: NodeId, destination: &DestinationId) -> u32 {
+        let observations = self
+            .route_observations()
+            .into_iter()
+            .filter(|observation| {
+                observation.key.owner_node_id == owner_node_id
+                    && &observation.key.destination == destination
+            })
+            .collect::<Vec<_>>();
+        let distinct_engines = observations
+            .iter()
+            .map(|observation| observation.engine_id.clone())
+            .collect::<BTreeSet<_>>()
+            .len();
+        u32::try_from(distinct_engines.saturating_sub(1)).unwrap_or(u32::MAX)
+    }
+
+    #[must_use]
+    pub fn maintenance_failure_count(&self) -> u32 {
+        u32::try_from(
+            self.failure_summaries
+                .iter()
+                .filter(|summary| summary.detail.contains("route maintenance failed"))
+                .count(),
+        )
+        .unwrap_or(u32::MAX)
+    }
+
+    #[must_use]
+    pub fn failure_class_counts(&self) -> ReducedFailureClassCounts {
+        let mut counts = ReducedFailureClassCounts::default();
+        for summary in &self.failure_summaries {
+            let detail = summary.detail.to_ascii_lowercase();
+            if detail.contains("objective activation failed") {
+                counts.activation_failure = counts.activation_failure.saturating_add(1);
+            } else if detail.contains("route maintenance failed") {
+                counts.maintenance_failure = counts.maintenance_failure.saturating_add(1);
+            } else if detail.contains("no candidate") {
+                counts.no_candidate = counts.no_candidate.saturating_add(1);
+            } else if detail.contains("inadmissible") {
+                counts.inadmissible_candidate = counts.inadmissible_candidate.saturating_add(1);
+            } else if detail.contains("lost reachability") {
+                counts.lost_reachability = counts.lost_reachability.saturating_add(1);
+            } else if detail.contains("replacement")
+                && (detail.contains("loop") || detail.contains("churn"))
+            {
+                counts.replacement_loop = counts.replacement_loop.saturating_add(1);
+            } else if detail.contains("degraded") {
+                counts.persistent_degraded = counts.persistent_degraded.saturating_add(1);
+            } else {
+                counts.other = counts.other.saturating_add(1);
+            }
+        }
+        counts
+    }
+
+    #[must_use]
+    pub fn environment_hook_counts(&self) -> ReducedEnvironmentHookCounts {
+        let mut counts = ReducedEnvironmentHookCounts::default();
+        for round in &self.rounds {
+            for hook in &round.environment_hooks {
+                match hook_kind(&hook.hook) {
+                    EnvironmentHookKind::ReplaceTopology => {
+                        counts.replace_topology = counts.replace_topology.saturating_add(1);
+                    }
+                    EnvironmentHookKind::MediumDegradation => {
+                        counts.medium_degradation = counts.medium_degradation.saturating_add(1);
+                    }
+                    EnvironmentHookKind::AsymmetricDegradation => {
+                        counts.asymmetric_degradation =
+                            counts.asymmetric_degradation.saturating_add(1);
+                    }
+                    EnvironmentHookKind::Partition => {
+                        counts.partition = counts.partition.saturating_add(1);
+                    }
+                    EnvironmentHookKind::CascadePartition => {
+                        counts.cascade_partition = counts.cascade_partition.saturating_add(1);
+                    }
+                    EnvironmentHookKind::MobilityRelink => {
+                        counts.mobility_relink = counts.mobility_relink.saturating_add(1);
+                    }
+                    EnvironmentHookKind::IntrinsicLimit => {
+                        counts.intrinsic_limit = counts.intrinsic_limit.saturating_add(1);
+                    }
+                }
+            }
+        }
+        counts
+    }
+
+    #[must_use]
+    pub fn field_replays_for(&self, local_node_id: NodeId) -> Vec<&FieldReplaySummary> {
+        self.rounds
+            .iter()
+            .flat_map(|round| {
+                round
+                    .field_replays
+                    .iter()
+                    .filter(move |entry| entry.local_node_id == local_node_id)
+                    .map(|entry| &entry.summary)
+            })
+            .collect()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EnvironmentHookKind {
+    ReplaceTopology,
+    MediumDegradation,
+    AsymmetricDegradation,
+    Partition,
+    CascadePartition,
+    MobilityRelink,
+    IntrinsicLimit,
+}
+
+fn hook_kind(hook: &EnvironmentHook) -> EnvironmentHookKind {
+    match hook {
+        EnvironmentHook::ReplaceTopology { .. } => EnvironmentHookKind::ReplaceTopology,
+        EnvironmentHook::MediumDegradation { .. } => EnvironmentHookKind::MediumDegradation,
+        EnvironmentHook::AsymmetricDegradation { .. } => EnvironmentHookKind::AsymmetricDegradation,
+        EnvironmentHook::Partition { .. } => EnvironmentHookKind::Partition,
+        EnvironmentHook::CascadePartition { .. } => EnvironmentHookKind::CascadePartition,
+        EnvironmentHook::MobilityRelink { .. } => EnvironmentHookKind::MobilityRelink,
+        EnvironmentHook::IntrinsicLimit { .. } => EnvironmentHookKind::IntrinsicLimit,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{presets, ReducedReplayView};
+    use jacquard_traits::RoutingSimulator;
+
+    #[test]
+    fn reducers_classify_failures_and_hooks_deterministically() {
+        let (scenario, environment) = presets::batman_decay_tuning()
+            .into_iter()
+            .next()
+            .expect("batman tuning preset");
+        let mut simulator = crate::JacquardSimulator::new(crate::ReferenceClientAdapter);
+        let (replay, _) = simulator
+            .run_scenario(&scenario, &environment)
+            .expect("run simulator");
+        let reduced = ReducedReplayView::from_replay(&replay);
+
+        let hook_counts = reduced.environment_hook_counts();
+        assert_eq!(hook_counts.cascade_partition, 1);
+        assert_eq!(hook_counts.replace_topology, 1);
+
+        let failure_counts = reduced.failure_class_counts();
+        assert!(
+            failure_counts
+                .other
+                .saturating_add(failure_counts.maintenance_failure)
+                >= 1,
+            "expected deterministic failure classification: {failure_counts:?}"
+        );
     }
 }

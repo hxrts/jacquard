@@ -292,9 +292,19 @@
         "checkpoint_available": false,
         "last_trigger": "ContinuationShift",
         "last_outcome": "ContinuationRetained",
+        "bootstrap_active": false,
+        "last_bootstrap_transition": null,
+        "last_promotion_decision": null,
+        "last_promotion_blocker": null,
+        "bootstrap_activation_count": 0,
+        "bootstrap_hold_count": 0,
+        "bootstrap_narrow_count": 0,
+        "bootstrap_upgrade_count": 0,
+        "bootstrap_withdraw_count": 0,
         "checkpoint_capture_count": 0,
         "checkpoint_restore_count": 0,
-        "continuation_shift_count": 1
+        "continuation_shift_count": 1,
+        "corridor_narrow_count": 0
       }
     ]
   }

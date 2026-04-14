@@ -24,6 +24,32 @@ test:
 lint:
     cargo clippy --workspace --all-targets -- -D warnings
 
+# run the small tuning matrix and generate the analysis report
+tuning-smoke:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run_id="$(date +%Y%m%d-%H%M%S)"
+    output_dir="${PWD}/artifacts/tuning/smoke/${run_id}"
+    cargo run -p jacquard-simulator --bin tuning_matrix -- smoke --output "$output_dir"
+    nix develop --command python3 -m analysis.report "$output_dir"
+    echo "Tuning smoke artifacts: $output_dir"
+
+# run the full local tuning matrix and generate the analysis report
+tuning-local:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run_id="$(date +%Y%m%d-%H%M%S)"
+    output_dir="${PWD}/artifacts/tuning/local/${run_id}"
+    cargo run -p jacquard-simulator --bin tuning_matrix -- local --output "$output_dir"
+    nix develop --command python3 -m analysis.report "$output_dir"
+    echo "Tuning local artifacts: $output_dir"
+
+# regenerate CSVs, plots, and the analysis report for one existing tuning artifact directory
+tuning-report artifact_dir:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    nix develop --command python3 -m analysis.report "{{artifact_dir}}"
+
 # format code (uses the toolkit-owned nightly rustfmt policy)
 fmt:
     {{fmt_cmd}} --all

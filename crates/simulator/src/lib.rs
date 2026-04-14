@@ -26,6 +26,7 @@
 
 mod assertions;
 mod environment;
+mod experiments;
 mod harness;
 mod reduced_replay;
 mod replay;
@@ -37,12 +38,19 @@ pub use assertions::{AssertionFailure, ScenarioAssertions};
 pub use environment::{
     AppliedEnvironmentHook, EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel,
 };
+pub use experiments::{
+    local_suite as tuning_local_suite, run_suite as run_tuning_suite,
+    smoke_suite as tuning_smoke_suite, ExperimentAggregateSummary, ExperimentArtifacts,
+    ExperimentBreakdownSummary, ExperimentError, ExperimentManifest, ExperimentParameterSet,
+    ExperimentRunSummary, ExperimentSuite, RegimeDescriptor,
+};
 pub use harness::{
     JacquardHostAdapter, JacquardSimulationHarness, JacquardSimulator, ReferenceClientAdapter,
     SimulationError,
 };
 pub use reduced_replay::{
-    ReducedReplayRound, ReducedReplayView, ReducedRouteKey, ReducedRouteObservation,
+    ReducedEnvironmentHookCounts, ReducedFailureClassCounts, ReducedReplayRound, ReducedReplayView,
+    ReducedRouteKey, ReducedRouteObservation,
 };
 pub use replay::{
     ActiveRouteSummary, DriverStatusEvent, HostCheckpointSnapshot, HostRoundArtifact,
@@ -50,4 +58,4 @@ pub use replay::{
     JacquardRoundArtifact, JacquardSimulationStats, SimulationFailureSummary,
     TelltaleNativeArtifactRef,
 };
-pub use scenario::{BoundObjective, EngineLane, HostSpec, JacquardScenario};
+pub use scenario::{BoundObjective, EngineLane, FieldBootstrapSummary, HostSpec, JacquardScenario};

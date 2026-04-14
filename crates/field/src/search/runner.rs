@@ -28,6 +28,8 @@ use crate::{
     FieldEngine,
 };
 
+const FIELD_DIRECT_EDGE_SUPPORT_FLOOR: u16 = 180;
+
 type FieldSearchExecutionReport =
     telltale_search::SearchExecutionReport<NodeId, FieldSearchEpoch, u32>;
 type FieldSearchMachine = SearchMachine<FieldSearchDomain>;
@@ -125,7 +127,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             return None;
         }
         let destination_key = DestinationKey::from(&objective.destination);
-        let destination_state = self.state.destinations.get(&destination_key)?;
+        self.state.destinations.get(&destination_key)?;
         match objective.destination {
             jacquard_core::DestinationId::Node(goal_node_id) => {
                 if goal_node_id == self.local_node_id {
@@ -134,12 +136,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 Some(SearchQuery::single_goal(self.local_node_id, goal_node_id))
             }
             jacquard_core::DestinationId::Gateway(_) | jacquard_core::DestinationId::Service(_) => {
-                let mut accepted_nodes = destination_state
-                    .frontier
-                    .as_slice()
-                    .iter()
-                    .map(|entry| entry.neighbor_id)
-                    .collect::<Vec<_>>();
+                let mut accepted_nodes = self.local_search_neighbor_ids(objective, topology);
                 accepted_nodes.truncate(search_config.per_objective_query_budget());
                 SearchQuery::try_candidate_set(self.local_node_id, accepted_nodes, None).ok()
             }
@@ -295,20 +292,10 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
     ) -> FieldSearchSuccessors {
-        let destination_key = DestinationKey::from(&objective.destination);
         let frontier_neighbor_ids = self
-            .state
-            .destinations
-            .get(&destination_key)
-            .map(|destination_state| {
-                destination_state
-                    .frontier
-                    .as_slice()
-                    .iter()
-                    .map(|entry| entry.neighbor_id)
-                    .collect::<BTreeSet<_>>()
-            })
-            .unwrap_or_default();
+            .local_search_neighbor_ids(objective, topology)
+            .into_iter()
+            .collect::<BTreeSet<_>>();
         let node_ids = topology
             .value
             .nodes
@@ -330,7 +317,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 let edge_cost =
                     self.edge_cost_for_search(objective, topology, &from_node_id, &to_node_id)?;
                 let support_hint =
-                    self.support_hint_for_edge(objective, &from_node_id, &to_node_id);
+                    self.support_hint_for_edge(objective, topology, &from_node_id, &to_node_id);
                 Some((
                     to_node_id,
                     FieldSearchEdgeMeta {
@@ -356,16 +343,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         to_node_id: &NodeId,
     ) -> Option<u32> {
         if *from_node_id == self.local_node_id {
-            let destination_state = self
-                .state
-                .destinations
-                .get(&DestinationKey::from(&objective.destination))?;
-            let continuation = destination_state
-                .frontier
-                .as_slice()
-                .iter()
-                .find(|entry| entry.neighbor_id == *to_node_id)?;
-            return Some(continuation_edge_cost(continuation));
+            return self
+                .frontier_continuation_for_search(objective, to_node_id)
+                .or_else(|| self.weak_forward_continuation_for_search(objective, to_node_id))
+                .map(|continuation| continuation_edge_cost(&continuation))
+                .or_else(|| self.inferred_direct_edge_cost(topology, to_node_id));
         }
         if !nodes_are_adjacent(&topology.value, from_node_id, to_node_id) {
             return None;
@@ -376,25 +358,204 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
     fn support_hint_for_edge(
         &self,
         objective: &RoutingObjective,
+        topology: &Observation<Configuration>,
         from_node_id: &NodeId,
         to_node_id: &NodeId,
     ) -> u16 {
         if *from_node_id == self.local_node_id {
             return self
-                .state
-                .destinations
-                .get(&DestinationKey::from(&objective.destination))
-                .and_then(|destination_state| {
-                    destination_state
-                        .frontier
-                        .as_slice()
-                        .iter()
-                        .find(|entry| entry.neighbor_id == *to_node_id)
-                        .map(|entry| entry.net_value.value())
-                })
+                .frontier_continuation_for_search(objective, to_node_id)
+                .or_else(|| self.weak_forward_continuation_for_search(objective, to_node_id))
+                .map(|entry| entry.net_value.value())
+                .or_else(|| self.inferred_direct_edge_support_hint(topology, objective, to_node_id))
                 .unwrap_or(0);
         }
         0
+    }
+
+    fn local_search_neighbor_ids(
+        &self,
+        objective: &RoutingObjective,
+        topology: &Observation<Configuration>,
+    ) -> Vec<NodeId> {
+        let destination_key = DestinationKey::from(&objective.destination);
+        let mut neighbors = self
+            .state
+            .destinations
+            .get(&destination_key)
+            .map(|destination_state| {
+                destination_state
+                    .frontier
+                    .as_slice()
+                    .iter()
+                    .map(|entry| entry.neighbor_id)
+                    .collect::<BTreeSet<_>>()
+            })
+            .unwrap_or_default();
+        neighbors.extend(
+            adjacent_node_ids(
+                &self.local_node_id,
+                &topology.value,
+                self.local_node_id,
+                &BTreeSet::new(),
+            )
+            .into_iter()
+            .filter(|neighbor| {
+                self.inferred_direct_edge_support_hint(topology, objective, neighbor)
+                    .is_some_and(|support| support >= FIELD_DIRECT_EDGE_SUPPORT_FLOOR)
+            }),
+        );
+        neighbors.extend(
+            self.state
+                .destinations
+                .get(&destination_key)
+                .into_iter()
+                .flat_map(|destination_state| destination_state.pending_forward_evidence.iter())
+                .filter(|evidence| {
+                    evidence.summary.retention_support.value() >= 280
+                        && evidence.summary.delivery_support.value() >= 140
+                        && evidence.summary.uncertainty_penalty.value() <= 700
+                })
+                .map(|evidence| evidence.from_neighbor),
+        );
+        neighbors.into_iter().collect()
+    }
+
+    fn frontier_continuation_for_search(
+        &self,
+        objective: &RoutingObjective,
+        to_node_id: &NodeId,
+    ) -> Option<NeighborContinuation> {
+        self.state
+            .destinations
+            .get(&DestinationKey::from(&objective.destination))
+            .and_then(|destination_state| {
+                destination_state
+                    .frontier
+                    .as_slice()
+                    .iter()
+                    .find(|entry| entry.neighbor_id == *to_node_id)
+                    .cloned()
+            })
+    }
+
+    fn inferred_direct_edge_cost(
+        &self,
+        topology: &Observation<Configuration>,
+        to_node_id: &NodeId,
+    ) -> Option<u32> {
+        let link = topology
+            .value
+            .links
+            .get(&(self.local_node_id, *to_node_id))
+            .or_else(|| topology.value.links.get(&(*to_node_id, self.local_node_id)))?;
+        let support = u32::from(self.inferred_direct_edge_support_hint_for_link(link));
+        if support < u32::from(FIELD_DIRECT_EDGE_SUPPORT_FLOOR) {
+            return None;
+        }
+        let support_penalty = 1000_u32.saturating_sub(support);
+        let loss_penalty = u32::from(link.state.loss_permille.0);
+        let latency_penalty = link.profile.latency_floor_ms.0 / 2;
+        Some(
+            50_u32
+                .saturating_add(support_penalty)
+                .saturating_add(loss_penalty)
+                .saturating_add(latency_penalty),
+        )
+    }
+
+    fn inferred_direct_edge_support_hint(
+        &self,
+        topology: &Observation<Configuration>,
+        objective: &RoutingObjective,
+        to_node_id: &NodeId,
+    ) -> Option<u16> {
+        let link = topology
+            .value
+            .links
+            .get(&(self.local_node_id, *to_node_id))
+            .or_else(|| topology.value.links.get(&(*to_node_id, self.local_node_id)))?;
+        let destination_support = self
+            .state
+            .destinations
+            .get(&DestinationKey::from(&objective.destination))
+            .map(|destination_state| {
+                average_support_hint(
+                    destination_state.posterior.top_corridor_mass.value(),
+                    destination_state.corridor_belief.delivery_support.value(),
+                )
+            })
+            .unwrap_or(320);
+        Some(
+            self.inferred_direct_edge_support_hint_for_link(link)
+                .saturating_add(destination_support / 4)
+                .min(1000),
+        )
+    }
+
+    fn inferred_direct_edge_support_hint_for_link(&self, link: &jacquard_core::Link) -> u16 {
+        let confidence = link
+            .state
+            .delivery_confidence_permille
+            .value()
+            .map(|ratio| ratio.0)
+            .unwrap_or(1000_u16.saturating_sub(link.state.loss_permille.0 / 2));
+        let symmetry = link
+            .state
+            .symmetry_permille
+            .value()
+            .map(|ratio| ratio.0)
+            .unwrap_or(800);
+        average_support_hint(
+            confidence,
+            1000_u16
+                .saturating_sub(link.state.loss_permille.0 / 2)
+                .min(symmetry),
+        )
+    }
+
+    fn weak_forward_continuation_for_search(
+        &self,
+        objective: &RoutingObjective,
+        to_node_id: &NodeId,
+    ) -> Option<NeighborContinuation> {
+        let destination_state = self
+            .state
+            .destinations
+            .get(&DestinationKey::from(&objective.destination))?;
+        let evidence = destination_state
+            .pending_forward_evidence
+            .iter()
+            .filter(|evidence| evidence.from_neighbor == *to_node_id)
+            .filter(|evidence| {
+                evidence.summary.retention_support.value() >= 220
+                    && evidence.summary.delivery_support.value() >= 120
+                    && evidence.summary.uncertainty_penalty.value() <= 780
+            })
+            .max_by_key(|evidence| {
+                (
+                    evidence.summary.retention_support.value(),
+                    evidence.summary.delivery_support.value(),
+                    evidence.observed_at_tick,
+                )
+            })?;
+        Some(NeighborContinuation {
+            neighbor_id: evidence.from_neighbor,
+            net_value: crate::state::SupportBucket::new(
+                evidence
+                    .summary
+                    .delivery_support
+                    .value()
+                    .saturating_add(evidence.summary.retention_support.value() / 3)
+                    .min(1000),
+            ),
+            downstream_support: evidence.summary.delivery_support,
+            expected_hop_band: crate::state::HopBand::new(
+                evidence.summary.hop_band.min_hops.saturating_add(1),
+                evidence.summary.hop_band.max_hops.saturating_add(1),
+            ),
+            freshness: evidence.observed_at_tick,
+        })
     }
 
     fn execute_search_machine(
@@ -470,6 +631,11 @@ fn continuation_edge_cost(continuation: &NeighborContinuation) -> u32 {
         .saturating_add(support_penalty)
         .saturating_add(downstream_penalty)
         .saturating_add(hop_penalty)
+}
+
+fn average_support_hint(left: u16, right: u16) -> u16 {
+    let sum = u32::from(left).saturating_add(u32::from(right));
+    u16::try_from(sum / 2).expect("support hint average fits u16")
 }
 
 fn classify_transition(

@@ -2,7 +2,8 @@ use jacquard_batman::BATMAN_ENGINE_ID;
 use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_simulator::{
-    presets, JacquardSimulator, ReducedReplayView, ReferenceClientAdapter, ScenarioAssertions,
+    presets, JacquardHostAdapter, JacquardSimulator, ReducedReplayView, ReferenceClientAdapter,
+    ScenarioAssertions,
 };
 use jacquard_traits::RoutingSimulator;
 
@@ -131,4 +132,75 @@ fn pathway_search_budget_changes_service_route_presence() {
         "high-budget search should preserve or recover service routing after partition: {:?}",
         high_budget.route_present_rounds(owner, &destination)
     );
+}
+
+#[test]
+fn field_bootstrap_evidence_surfaces_in_replay_analysis() {
+    let (scenario, environment) = presets::field_bootstrap_multihop();
+    let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+    let owner = jacquard_core::NodeId([1; 32]);
+    let destination = jacquard_core::DestinationId::Node(jacquard_core::NodeId([3; 32]));
+
+    let (replay, _) = simulator
+        .run_scenario(&scenario, &environment)
+        .expect("run field bootstrap scenario");
+    let reduced = ReducedReplayView::from_replay(&replay);
+    let field_replays = reduced.field_replays_for(owner);
+    assert!(
+        !field_replays.is_empty(),
+        "expected field replay analysis for owner {owner:?}"
+    );
+    assert!(
+        field_replays.iter().any(|summary| {
+            summary
+                .bundle
+                .runtime_search
+                .runtime_artifacts
+                .iter()
+                .any(|artifact| {
+                    artifact.destination.as_ref() == Some(&destination)
+                        && artifact
+                            .router_artifact
+                            .as_ref()
+                            .is_some_and(|router_artifact| router_artifact.route_support > 0)
+                })
+        }),
+        "expected bootstrap evidence to surface in replay analysis for {destination:?}"
+    );
+    assert!(field_replays.iter().any(|summary| {
+        summary.bootstrap_activation_count
+            == summary
+                .bundle
+                .recovery
+                .entries
+                .iter()
+                .map(|entry| entry.bootstrap_activation_count)
+                .max()
+                .unwrap_or(0)
+    }));
+}
+
+#[test]
+fn field_bootstrap_multihop_materializes_route_through_router_boundary() {
+    let (scenario, _environment) = presets::field_bootstrap_multihop();
+    let adapter = ReferenceClientAdapter;
+    let mut hosts = adapter.build_hosts(&scenario).expect("build hosts");
+    let host = hosts
+        .get_mut(&jacquard_core::NodeId([1; 32]))
+        .expect("owner host");
+
+    {
+        let mut bound = host.bind();
+        for round in 1..=3 {
+            bound
+                .advance_round()
+                .unwrap_or_else(|_| panic!("advance field round {round}"));
+        }
+        let objective = scenario.bound_objectives()[0].objective.clone();
+        let route = bound
+            .router_mut()
+            .activate_route_without_tick(objective)
+            .expect("field bootstrap activation should materialize a route");
+        assert_eq!(route.identity.admission.summary.engine, FIELD_ENGINE_ID);
+    }
 }

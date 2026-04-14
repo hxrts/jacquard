@@ -77,6 +77,18 @@ fn topology(observed_at_tick: Tick) -> Observation<Configuration> {
     }
 }
 
+fn disconnected_topology(observed_at_tick: Tick) -> Observation<Configuration> {
+    let mut configuration = topology_config();
+    configuration.links.clear();
+    Observation {
+        value: configuration,
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication: OriginAuthenticationClass::Controlled,
+        observed_at_tick,
+    }
+}
+
 fn objective() -> RoutingObjective {
     RoutingObjective {
         destination: DestinationId::Node(node(3)),
@@ -274,11 +286,11 @@ fn admitted_query_without_selected_result_fails_closed() {
             ..Default::default()
         },
     );
-    let first = topology(Tick(1));
+    let first = disconnected_topology(Tick(1));
     engine
         .engine_tick(&RoutingTickContext::new(first.clone()))
         .expect("initial tick");
-    let second = topology(Tick(2));
+    let second = disconnected_topology(Tick(2));
 
     let candidates = engine.candidate_routes(&objective(), &profile(), &second);
     assert!(candidates.is_empty());

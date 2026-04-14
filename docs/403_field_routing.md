@@ -214,10 +214,12 @@ tooling:
 - bounded protocol artifacts from the private choreography runtime
 - bounded runtime round artifacts carrying blocked-receive state, host
   disposition, emitted-summary count, remaining step budget, execution-policy
-  class, destination class, search-snapshot linkage metadata, and one reduced
-  observational route projection
+  class, destination class, search-snapshot linkage metadata, bootstrap class,
+  and one reduced observational route projection
 - one route-commitment view per materialized route, with pending, lease-expiry,
   topology-supersession, evidence-withdrawal, and backend-unavailable outcomes
+- route-scoped recovery state carrying checkpoint, continuation-shift, and
+  bootstrap activation/upgrade/withdrawal counters
 
 Private protocol flows such as summary dissemination, anti-entropy, retention
 replay, and explicit coordination remain bounded operational surfaces. They
@@ -231,6 +233,34 @@ inside the already-admitted continuation envelope, field reconfigures the
 route-scoped protocol session instead of forcing full route replacement.
 Owner-transfer, checkpoint/restore, and continuation-shift steps are retained
 as replay-visible protocol reconfiguration markers.
+
+Field route publication also has an explicit bootstrap phase. A bootstrap route
+is a weaker corridor claim that is allowed when the evidence is coherent but
+not yet strong enough for steady admission. Promotion out of bootstrap is not
+just a second support threshold. The runtime evaluates five observable gates:
+
+- support growth relative to the installed bootstrap corridor
+- uncertainty reduction
+- anti-entropy confirmation from recent coherent summary publication
+- continuation coherence inside the installed corridor envelope
+- freshness of the leading continuation
+
+Runtime and replay surfaces then distinguish five bootstrap transitions:
+
+- activation
+- hold
+- narrowing when the corridor is still conservative but must contract before it
+  can strengthen
+- upgrade to steady state
+- withdrawal when the corridor collapses
+
+When promotion does not occur, replay also records the dominant blocker:
+
+- weak support trend
+- unresolved uncertainty
+- missing anti-entropy confirmation
+- broken continuation coherence
+- stale leading evidence
 
 The participant-set boundary is explicit:
 

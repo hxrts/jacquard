@@ -656,10 +656,19 @@ Concretely, the Rust surfaces that currently need this review discipline are:
 - `FieldEngine::protocol_artifacts()`
 - `FieldRuntimeRoundArtifact`
 - `FieldRuntimeRouteArtifact`
+- `FieldRouteRecoveryState` when bootstrap or recovery linkage changes
 
 Route commitments and planner search records are intentionally outside this
 adequacy object today. They are runtime diagnostics and router-facing runtime
 surfaces, not part of the current artifact-to-trace reduction theorem.
+
+Bootstrap is inside the reduced adequacy boundary. The reduced runtime route
+artifact now carries a bootstrap class, and the replay-derived recovery fixture
+tracks bootstrap hold, narrowing, upgrade, and withdrawal, along with the last
+promotion decision and the dominant blocker. That means the adequacy layer
+explicitly acknowledges the semantic gap between no route, a weak but coherent
+bootstrap corridor, and a fully steady corridor rather than leaving bootstrap
+as an implementation-only threshold decision.
 
 When any of these change, the adequacy layer must be reviewed first. The key questions are:
 

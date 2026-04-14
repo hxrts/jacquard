@@ -419,6 +419,30 @@ pub(crate) fn choose_posture(
         return previous.clone();
     }
 
+    if preferred == RoutingPosture::RiskSuppressed
+        && previous.current != RoutingPosture::RiskSuppressed
+        && mean_field.field_strength.value() >= 260
+        && mean_field.retention_alignment.value() >= 340
+        && mean_field.relay_alignment.value() >= 300
+        && control.risk_price.value() <= 760
+        && regime.current != OperatingRegime::Adversarial
+    {
+        return PostureControllerState {
+            current: previous.current,
+            stability_margin: SupportBucket::new(
+                previous
+                    .stability_margin
+                    .value()
+                    .max(mean_field.field_strength.value()),
+            ),
+            convergence_score: SupportBucket::new(
+                regime.current_regime_score.value().max(current_score),
+            ),
+            posture_switch_threshold: previous.posture_switch_threshold,
+            last_transition_tick: previous.last_transition_tick,
+        };
+    }
+
     let preference_gap = preferred_score.saturating_sub(current_score);
     if preferred == previous.current || preference_gap < effective_threshold {
         return PostureControllerState {

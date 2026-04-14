@@ -1,6 +1,7 @@
 //! Stable exported replay fixture tests for `jacquard-field`.
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use jacquard_adapter::opaque_endpoint;
 use jacquard_core::{
@@ -262,14 +263,19 @@ fn recovery_bundle() -> FieldExportedReplayBundle {
 
 fn assert_fixture(name: &str, bundle: &FieldExportedReplayBundle) {
     let actual = serde_json::to_string_pretty(bundle).expect("serialize replay bundle");
-    let expected = match name {
-        "exact-node-activation" => include_str!("../fixtures/replay/exact-node-activation.json"),
-        "candidate-set-activation" => {
-            include_str!("../fixtures/replay/candidate-set-activation.json")
-        }
-        "checkpoint-restore" => include_str!("../fixtures/replay/checkpoint-restore.json"),
+    let relative_path = match name {
+        "exact-node-activation" => "../fixtures/replay/exact-node-activation.json",
+        "candidate-set-activation" => "../fixtures/replay/candidate-set-activation.json",
+        "checkpoint-restore" => "../fixtures/replay/checkpoint-restore.json",
         _ => panic!("unknown fixture"),
     };
+    let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join(relative_path);
+    if std::env::var_os("JACQUARD_UPDATE_FIELD_REPLAY_FIXTURES").is_some() {
+        std::fs::write(&fixture_path, format!("{actual}\n")).expect("write replay fixture");
+    }
+    let expected = std::fs::read_to_string(&fixture_path).expect("read replay fixture");
     assert_eq!(actual, expected.trim_end());
 }
 
@@ -300,6 +306,7 @@ fn rust_lean_replay_fixture_generation_tracks_exported_replay_families() {
         Some("SingleGoal")
     );
     assert_eq!(exact.protocol.route_bound_reconfiguration_count, 0);
+    assert_eq!(exact.runtime.bootstrap_route_artifact_count, 0);
 
     let candidate = candidate_set_bundle().lean_replay_fixture("candidate-set-activation");
     assert_eq!(
@@ -319,6 +326,13 @@ fn rust_lean_replay_fixture_generation_tracks_exported_replay_families() {
         Some("CheckpointRestored")
     );
     assert_eq!(
+        recovery
+            .recovery
+            .as_ref()
+            .map(|state| state.bootstrap_active),
+        Some(false)
+    );
+    assert_eq!(
         recovery.protocol.reconfiguration_causes,
         vec!["CheckpointRestore"]
     );
@@ -334,6 +348,13 @@ fn rust_lean_replay_fixture_vocabulary_stays_aligned_with_lean_surface() {
         "structure RustReplayProtocolFixture",
         "structure RustReplayRuntimeLinkageFixture",
         "structure RustReplayRecoveryFixture",
+        "bootstrapRouteArtifactCount",
+        "bootstrapActive",
+        "lastBootstrapTransition",
+        "lastPromotionDecision",
+        "lastPromotionBlocker",
+        "bootstrapHoldCount",
+        "bootstrapNarrowCount",
         "exact-node-activation",
         "candidate-set-activation",
         "continuation-shift",

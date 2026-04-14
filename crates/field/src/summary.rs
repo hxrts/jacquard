@@ -205,15 +205,44 @@ pub(crate) fn evidence_classification(evidence: &FieldEvidence) -> EvidenceContr
 pub(crate) fn decay_summary(summary: &FieldSummary, now_tick: Tick) -> FieldSummary {
     let age = now_tick.0.saturating_sub(summary.freshness_tick.0);
     let age_u16 = u16::try_from(age).unwrap_or(u16::MAX);
+    let retention_bias = if summary.retention_support.value() >= 320 {
+        summary.retention_support.value().min(480) / 6
+    } else {
+        0
+    };
+    let coherent_forward_bias = if summary.evidence_class != EvidenceContributionClass::Direct
+        && summary.uncertainty_penalty.value() <= 600
+    {
+        70
+    } else {
+        0
+    };
+    let support_decay = age_u16
+        .min(200)
+        .saturating_sub(retention_bias / 2)
+        .saturating_sub(coherent_forward_bias);
+    let uncertainty_growth = age_u16
+        .min(200)
+        .saturating_sub(retention_bias / 3)
+        .saturating_sub(coherent_forward_bias / 2);
+    let retention_relief = match summary.evidence_class {
+        EvidenceContributionClass::Direct => summary.retention_support.value().min(120) / 6,
+        EvidenceContributionClass::ForwardPropagated
+        | EvidenceContributionClass::ReverseFeedback => {
+            summary.retention_support.value().min(360) / 2
+        }
+    };
     let weakened_support = summary
         .delivery_support
         .value()
-        .saturating_sub(age_u16.min(200));
+        .saturating_sub(support_decay.saturating_sub(retention_relief));
     let raised_uncertainty = summary
         .uncertainty_penalty
         .value()
-        .saturating_add(age_u16.min(200));
-    let hop_penalty = u8::try_from((age / 16).min(2)).unwrap_or(2);
+        .saturating_add(uncertainty_growth.saturating_sub(retention_relief / 2));
+    let hop_penalty = u8::try_from((age / 16).min(2))
+        .unwrap_or(2)
+        .saturating_sub(u8::try_from((retention_relief / 80).min(1)).unwrap_or(0));
     FieldSummary {
         destination: summary.destination,
         topology_epoch: summary.topology_epoch,
@@ -238,35 +267,25 @@ pub(crate) fn compose_summary_with_link(
 ) -> FieldSummary {
     let link_support = link_support_bucket(direct_link);
     let loss_penalty = EntropyBucket::new(direct_link.state.loss_permille.0);
-    let bootstraps_from_direct = summary.delivery_support.value() == 0;
     FieldSummary {
         destination: summary.destination,
         topology_epoch: summary.topology_epoch,
         freshness_tick: summary.freshness_tick,
-        hop_band: if bootstraps_from_direct {
-            HopBand::new(1, 1)
-        } else {
-            HopBand::new(
-                summary.hop_band.min_hops.saturating_add(1),
-                summary.hop_band.max_hops.saturating_add(1),
-            )
-        },
-        delivery_support: if bootstraps_from_direct {
-            link_support
-        } else {
-            SupportBucket::new(summary.delivery_support.value().min(link_support.value()))
-        },
-        congestion_penalty: EntropyBucket::new(
+        // Direct link observations are authoritative for direct node
+        // destinations and should refresh support from the live link rather
+        // than ratcheting downward through prior multihop estimates.
+        hop_band: HopBand::new(1, 1),
+        delivery_support: link_support,
+        congestion_penalty: loss_penalty,
+        retention_support: SupportBucket::new(
             summary
-                .congestion_penalty
+                .retention_support
                 .value()
-                .saturating_add(loss_penalty.value())
-                .min(1000),
+                .max(link_support.value() / 2),
         ),
-        retention_support: summary.retention_support,
-        uncertainty_penalty: summary.uncertainty_penalty,
+        uncertainty_penalty: EntropyBucket::default(),
         evidence_class: EvidenceContributionClass::Direct,
-        uncertainty_class: summary.uncertainty_class,
+        uncertainty_class: SummaryUncertaintyClass::Low,
     }
 }
 
@@ -278,6 +297,65 @@ pub(crate) fn merge_neighbor_summaries(left: &FieldSummary, right: &FieldSummary
     } else {
         (right, left)
     };
+    let cooperative_bonus = if best.evidence_class != EvidenceContributionClass::Direct
+        && other.evidence_class != EvidenceContributionClass::Direct
+        && best.freshness_tick.0.abs_diff(other.freshness_tick.0) <= 2
+    {
+        best.retention_support
+            .value()
+            .min(other.retention_support.value())
+            .min(160)
+            / 4
+    } else {
+        0
+    };
+    let bridge_bonus = if best.hop_band.max_hops >= 2
+        && other.hop_band.max_hops >= 2
+        && best
+            .uncertainty_penalty
+            .value()
+            .abs_diff(other.uncertainty_penalty.value())
+            <= 150
+        && best
+            .delivery_support
+            .value()
+            .abs_diff(other.delivery_support.value())
+            <= 180
+    {
+        best.retention_support
+            .value()
+            .min(other.retention_support.value())
+            .min(320)
+            / 2
+    } else {
+        0
+    };
+    let merged_support = best
+        .delivery_support
+        .value()
+        .max(other.delivery_support.value())
+        .saturating_add(cooperative_bonus)
+        .saturating_add(bridge_bonus)
+        .min(1000);
+    let merged_retention = best
+        .retention_support
+        .value()
+        .max(other.retention_support.value())
+        .saturating_add(
+            best.retention_support
+                .value()
+                .min(other.retention_support.value())
+                .min(200)
+                / 5,
+        )
+        .saturating_add(bridge_bonus / 2)
+        .min(1000);
+    let merged_uncertainty = best
+        .uncertainty_penalty
+        .value()
+        .max(other.uncertainty_penalty.value())
+        .saturating_sub(cooperative_bonus / 2)
+        .saturating_sub(bridge_bonus / 2);
     FieldSummary {
         destination: best.destination,
         topology_epoch: if best.topology_epoch >= other.topology_epoch {
@@ -294,26 +372,14 @@ pub(crate) fn merge_neighbor_summaries(left: &FieldSummary, right: &FieldSummary
             best.hop_band.min_hops.min(other.hop_band.min_hops),
             best.hop_band.max_hops.max(other.hop_band.max_hops),
         ),
-        delivery_support: SupportBucket::new(
-            best.delivery_support
-                .value()
-                .max(other.delivery_support.value()),
-        ),
+        delivery_support: SupportBucket::new(merged_support),
         congestion_penalty: EntropyBucket::new(
             best.congestion_penalty
                 .value()
                 .max(other.congestion_penalty.value()),
         ),
-        retention_support: SupportBucket::new(
-            best.retention_support
-                .value()
-                .max(other.retention_support.value()),
-        ),
-        uncertainty_penalty: EntropyBucket::new(
-            best.uncertainty_penalty
-                .value()
-                .max(other.uncertainty_penalty.value()),
-        ),
+        retention_support: SupportBucket::new(merged_retention),
+        uncertainty_penalty: EntropyBucket::new(merged_uncertainty),
         evidence_class: best.evidence_class,
         uncertainty_class: best.uncertainty_class.max(other.uncertainty_class),
     }
@@ -327,7 +393,7 @@ pub(crate) fn discount_reflected_evidence(
     let reflected = matches!(
         summary.destination,
         SummaryDestinationKey::Node(node_id) if node_id == local_origin_trace.local_node_id
-    ) || summary.topology_epoch == local_origin_trace.topology_epoch;
+    );
     if !reflected {
         return summary.clone();
     }
@@ -595,11 +661,25 @@ mod tests {
     }
 
     #[test]
+    fn same_epoch_neighbor_summary_is_not_treated_as_reflection() {
+        let forwarded = summary(&DestinationId::Node(node(3)));
+        let discounted = discount_reflected_evidence(
+            &forwarded,
+            LocalOriginTrace {
+                local_node_id: node(1),
+                topology_epoch: RouteEpoch(2),
+            },
+        );
+        assert_eq!(discounted, forwarded);
+    }
+
+    #[test]
     fn direct_composition_has_priority_over_forward_only_support() {
         let composed =
             compose_summary_with_link(&summary(&DestinationId::Node(node(3))), &link(650, 50));
         assert_eq!(composed.evidence_class, EvidenceContributionClass::Direct);
         assert_eq!(composed.delivery_support.value(), 650);
+        assert_eq!(composed.hop_band, HopBand::new(1, 1));
     }
 
     #[test]
@@ -612,6 +692,20 @@ mod tests {
         let composed = compose_summary_with_link(&empty, &link(900, 50));
         assert_eq!(composed.delivery_support.value(), 900);
         assert_eq!(composed.hop_band, HopBand::new(1, 1));
+    }
+
+    #[test]
+    fn direct_composition_refreshes_live_link_support_without_decay_ratcheting() {
+        let degraded_prior = FieldSummary {
+            delivery_support: SupportBucket::new(250),
+            hop_band: HopBand::new(2, 4),
+            uncertainty_penalty: EntropyBucket::new(600),
+            ..summary(&DestinationId::Node(node(3)))
+        };
+        let composed = compose_summary_with_link(&degraded_prior, &link(900, 25));
+        assert_eq!(composed.delivery_support.value(), 900);
+        assert_eq!(composed.hop_band, HopBand::new(1, 1));
+        assert_eq!(composed.uncertainty_class, SummaryUncertaintyClass::Low);
     }
 
     #[test]
@@ -634,5 +728,50 @@ mod tests {
             merge_neighbor_summaries(&left, &right),
             merge_neighbor_summaries(&left, &right)
         );
+    }
+
+    #[test]
+    fn retention_support_slows_forward_summary_decay() {
+        let destination = DestinationId::Node(node(8));
+        let weak_retention = FieldSummary {
+            evidence_class: EvidenceContributionClass::ForwardPropagated,
+            retention_support: SupportBucket::new(60),
+            ..summary(&destination)
+        };
+        let strong_retention = FieldSummary {
+            evidence_class: EvidenceContributionClass::ForwardPropagated,
+            retention_support: SupportBucket::new(720),
+            ..summary(&destination)
+        };
+
+        let weak_decay = decay_summary(&weak_retention, Tick(8));
+        let strong_decay = decay_summary(&strong_retention, Tick(8));
+
+        assert!(strong_decay.delivery_support.value() >= weak_decay.delivery_support.value());
+        assert!(strong_decay.uncertainty_penalty.value() <= weak_decay.uncertainty_penalty.value());
+    }
+
+    #[test]
+    fn cooperative_forward_merge_preserves_more_bridge_support() {
+        let destination = DestinationId::Node(node(9));
+        let left = FieldSummary {
+            freshness_tick: Tick(5),
+            delivery_support: SupportBucket::new(620),
+            retention_support: SupportBucket::new(540),
+            evidence_class: EvidenceContributionClass::ForwardPropagated,
+            ..summary(&destination)
+        };
+        let right = FieldSummary {
+            freshness_tick: Tick(6),
+            delivery_support: SupportBucket::new(610),
+            retention_support: SupportBucket::new(520),
+            evidence_class: EvidenceContributionClass::ForwardPropagated,
+            ..summary(&destination)
+        };
+
+        let merged = merge_neighbor_summaries(&left, &right);
+        assert!(merged.delivery_support.value() > left.delivery_support.value());
+        assert!(merged.retention_support.value() > left.retention_support.value());
+        assert!(merged.uncertainty_penalty.value() <= left.uncertainty_penalty.value());
     }
 }

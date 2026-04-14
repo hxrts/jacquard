@@ -5,13 +5,15 @@ use jacquard_core::{
     PriorityPoints, RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RoutingObjective,
     Tick,
 };
+use jacquard_field::{FieldExportedReplayBundle, FIELD_ENGINE_ID};
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
 use jacquard_reference_client::{
-    BridgeRoundProgress, BridgeRoundReport, ClientBuilder, ReferenceClient, ReferenceRouter,
+    BridgeRoundProgress, BridgeRoundReport, ClientBuilder,
+    FieldBootstrapSummary as ClientFieldBootstrapSummary, ReferenceClient, ReferenceRouter,
 };
 use jacquard_traits::{
-    purity, Router, RoutingControlPlane, RoutingEnvironmentModel, RoutingReplayView,
-    RoutingScenario, RoutingSimulator,
+    purity, RoutingControlPlane, RoutingEnvironmentModel, RoutingReplayView, RoutingScenario,
+    RoutingSimulator,
 };
 use telltale_simulator::{BatchConfig, SimRng};
 use thiserror::Error;
@@ -19,10 +21,10 @@ use thiserror::Error;
 use crate::{
     environment::ScriptedEnvironmentModel,
     replay::{
-        ActiveRouteSummary, DriverStatusEvent, HostCheckpointSnapshot, HostRoundArtifact,
-        HostRoundStatus, IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
-        JacquardRoundArtifact, JacquardSimulationStats, SimulationFailureSummary,
-        TelltaleNativeArtifactRef,
+        ActiveRouteSummary, DriverStatusEvent, FieldReplaySummary, HostCheckpointSnapshot,
+        HostRoundArtifact, HostRoundStatus, IngressBatchBoundary, JacquardCheckpointArtifact,
+        JacquardReplayArtifact, JacquardRoundArtifact, JacquardSimulationStats,
+        SimulationFailureSummary, TelltaleNativeArtifactRef,
     },
     scenario::{BoundObjective, EngineLane, JacquardScenario},
 };
@@ -130,6 +132,14 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
             }
             if let Some(field_search_config) = host.overrides.field_search_config.clone() {
                 builder = builder.with_field_search_config(field_search_config);
+            }
+            for bootstrap in &host.overrides.field_bootstrap_summaries {
+                builder = builder.with_field_bootstrap_summary(ClientFieldBootstrapSummary {
+                    destination: bootstrap.destination.clone(),
+                    from_neighbor: bootstrap.from_neighbor,
+                    forward_observation: bootstrap.forward_observation,
+                    reverse_feedback: bootstrap.reverse_feedback,
+                });
             }
             let client = builder.build();
             hosts.insert(host.local_node_id, client);
@@ -268,7 +278,14 @@ where
                     &mut failure_summaries,
                 );
                 let active_routes = summarize_active_routes(host.local_node_id, bound.router());
-                let artifact = host_artifact(host.local_node_id, at_tick, &progress, active_routes);
+                let field_replay = summarize_field_replay(bound.router());
+                let artifact = host_artifact(
+                    host.local_node_id,
+                    at_tick,
+                    &progress,
+                    active_routes,
+                    field_replay,
+                );
                 if matches!(artifact.status, HostRoundStatus::Advanced { .. }) {
                     all_waiting = false;
                     advanced_round_count = advanced_round_count.saturating_add(1);
@@ -445,6 +462,7 @@ fn host_artifact(
     at_tick: Tick,
     progress: &BridgeRoundProgress,
     active_routes: Vec<ActiveRouteSummary>,
+    field_replay: Option<FieldReplaySummary>,
 ) -> HostRoundArtifact {
     let ingress_batch_boundary = IngressBatchBoundary {
         observed_at_tick: at_tick,
@@ -467,7 +485,143 @@ fn host_artifact(
         ingress_batch_boundary,
         status,
         active_routes,
+        field_replay,
     }
+}
+
+fn summarize_field_replay(router: &ReferenceRouter) -> Option<FieldReplaySummary> {
+    let bundle = router
+        .engine_analysis_snapshot(&FIELD_ENGINE_ID)?
+        .downcast::<FieldExportedReplayBundle>()
+        .ok()
+        .map(|boxed| *boxed)?;
+    let selected_result_present = bundle
+        .runtime_search
+        .search
+        .as_ref()
+        .is_some_and(|search| search.selected_result.is_some());
+    let search_reconfiguration_present = bundle
+        .runtime_search
+        .search
+        .as_ref()
+        .is_some_and(|search| search.reconfiguration.is_some());
+    let execution_policy = bundle
+        .runtime_search
+        .search
+        .as_ref()
+        .map(|search| search.execution_policy.scheduler_profile.clone());
+    let bootstrap_active = bundle
+        .recovery
+        .entries
+        .iter()
+        .any(|entry| entry.bootstrap_active);
+    let last_promotion_decision = bundle
+        .recovery
+        .entries
+        .iter()
+        .find_map(|entry| entry.last_promotion_decision.clone());
+    let last_promotion_blocker = bundle
+        .recovery
+        .entries
+        .iter()
+        .find_map(|entry| entry.last_promotion_blocker.clone());
+    let bootstrap_activation_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.bootstrap_activation_count)
+        .max()
+        .unwrap_or(0);
+    let bootstrap_hold_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.bootstrap_hold_count)
+        .max()
+        .unwrap_or(0);
+    let bootstrap_narrow_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.bootstrap_narrow_count)
+        .max()
+        .unwrap_or(0);
+    let bootstrap_upgrade_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.bootstrap_upgrade_count)
+        .max()
+        .unwrap_or(0);
+    let bootstrap_withdraw_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.bootstrap_withdraw_count)
+        .max()
+        .unwrap_or(0);
+    let protocol_reconfiguration_count = bundle.protocol.reconfigurations.len();
+    let route_bound_reconfiguration_count = bundle
+        .protocol
+        .reconfigurations
+        .iter()
+        .filter(|step| step.route_id.is_some())
+        .count();
+    let continuation_shift_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.continuation_shift_count)
+        .max()
+        .unwrap_or(0);
+    let corridor_narrow_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.corridor_narrow_count)
+        .max()
+        .unwrap_or(0);
+    let checkpoint_capture_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.checkpoint_capture_count)
+        .max()
+        .unwrap_or(0);
+    let checkpoint_restore_count = bundle
+        .recovery
+        .entries
+        .iter()
+        .map(|entry| entry.checkpoint_restore_count)
+        .max()
+        .unwrap_or(0);
+    let reconfiguration_causes = bundle
+        .protocol
+        .reconfigurations
+        .iter()
+        .map(|entry| entry.cause.clone())
+        .collect();
+    Some(FieldReplaySummary {
+        bundle,
+        selected_result_present,
+        search_reconfiguration_present,
+        execution_policy,
+        bootstrap_active,
+        last_promotion_decision,
+        last_promotion_blocker,
+        bootstrap_activation_count,
+        bootstrap_hold_count,
+        bootstrap_narrow_count,
+        bootstrap_upgrade_count,
+        bootstrap_withdraw_count,
+        protocol_reconfiguration_count,
+        route_bound_reconfiguration_count,
+        continuation_shift_count,
+        corridor_narrow_count,
+        checkpoint_capture_count,
+        checkpoint_restore_count,
+        reconfiguration_causes,
+    })
 }
 
 fn advanced_status(report: &BridgeRoundReport) -> HostRoundStatus {
@@ -721,7 +875,10 @@ fn activate_ready_objectives(
             continue;
         };
         let mut bound = bridge.bind();
-        if let Err(error) = Router::activate_route(bound.router_mut(), binding.objective.clone()) {
+        if let Err(error) = bound
+            .router_mut()
+            .activate_route_without_tick(binding.objective.clone())
+        {
             failure_summaries.push(SimulationFailureSummary {
                 round_index: Some(round_index),
                 detail: format!(
@@ -729,7 +886,6 @@ fn activate_ready_objectives(
                     binding.owner_node_id, binding.objective.destination, error
                 ),
             });
-            activated[index] = true;
             continue;
         }
         activated[index] = true;

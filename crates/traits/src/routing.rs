@@ -20,6 +20,8 @@
 //! - Forward-looking substrate and layering traits for multi-engine
 //!   composition.
 
+use std::any::Any;
+
 use jacquard_core::{
     CommitteeSelection, Configuration, LayerParameters, MaterializedRoute, NodeId, Observation,
     PublishedRouteRecord, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCommitment,
@@ -322,6 +324,14 @@ pub trait RouterManagedEngine: RoutingEngine {
             route_id: &RouteId,
         ) -> Result<bool, RouteError>;
     );
+
+    #[must_use]
+    fn analysis_snapshot_for_router(
+        &self,
+        _active_routes: &[MaterializedRoute],
+    ) -> Option<Box<dyn Any>> {
+        None
+    }
 }
 
 #[purity(effectful)]

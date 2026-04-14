@@ -8,6 +8,12 @@ The simulator runs two lanes, selected per host through `EngineLane`. The `pathw
 
 The `batman` engine is a proactive next-hop state machine. Mixed-engine scenarios use `EngineLane::PathwayAndBatman`. Both engines share one host bridge.
 
+The simulator also owns the maintained tuning harness. `just tuning-smoke` and
+`just tuning-local` run the scenario matrix sweeps, write deterministic
+artifacts under `artifacts/tuning/`, and call the repo-local Python report
+tooling to generate CSV summaries and plots. The tuning methodology and current
+recommendations live in [Routing Tuning](502_tuning.md).
+
 ## Reused Surfaces
 
 The simulator reuses existing Jacquard composition surfaces. It does not maintain a simulator-only stack.
@@ -42,3 +48,5 @@ For the `pathway` lane, checkpoints carry `InMemoryRuntimeEffects` snapshots per
 1. Build a `JacquardScenario` and `ScriptedEnvironmentModel` with `jacquard_simulator::presets`.
 2. Pass them to `JacquardSimulator::run_scenario()`.
 3. Inspect the returned `JacquardReplayArtifact` for round, event, and checkpoint data.
+4. For matrix sweeps, run `just tuning-smoke` or `just tuning-local` and review
+   the generated report artifacts.

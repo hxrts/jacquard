@@ -212,7 +212,7 @@ theorem admitted_runtime_artifact_router_projection_honest
     (hAdmitted : RuntimeArtifactAdmitted artifact) :
     RuntimeRouterArtifactAdmitted artifact := by
   rcases hAdmitted with
-    ⟨_hBudget, _hEmitted, _hReconf, _hSelected, _hDone, _hBlocked, hRouter⟩
+    ⟨_hBudget, _hEmitted, _hReconf, _hSelected, _hDone, _hBlocked, hRouter, _hBootstrap⟩
   exact hRouter
 
 theorem runtimeLifecycleRoutes_mem_implies_honest

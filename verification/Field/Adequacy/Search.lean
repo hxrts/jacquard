@@ -55,6 +55,8 @@ structure SearchProjection where
 def SearchProjectionAdmitted
     (projection : SearchProjection) : Prop :=
   projection.surface.query.kind = objectiveMeaning projection.surface ∧
+    bootstrapConservative projection.surface ∧
+    promotionConservative projection.surface ∧
     match projection.surface.reconfiguration with
     | none => True
     | some step => step.toEpoch = projection.surface.snapshot
@@ -159,6 +161,9 @@ def exactNodeSearchProjection : SearchProjection :=
           { start := .alpha
             kind := .singleGoal
             acceptedGoals := [.beta] }
+        bootstrapClass := .steady
+        bootstrapDecision := some .promote
+        promotionBlocker := none
         executionPolicy :=
           { scheduler := .canonicalSerial
             batchWidth := 1
@@ -177,6 +182,9 @@ def candidateSetSearchProjection : SearchProjection :=
           { start := .alpha
             kind := .candidateSet
             acceptedGoals := [.beta, .gamma] }
+        bootstrapClass := .steady
+        bootstrapDecision := some .promote
+        promotionBlocker := none
         executionPolicy :=
           { scheduler := .threadedExactSingleLane
             batchWidth := 2
@@ -194,12 +202,12 @@ def candidateSetSearchProjection : SearchProjection :=
 theorem exact_node_search_projection_admitted :
     SearchProjectionAdmitted exactNodeSearchProjection := by
   simp [SearchProjectionAdmitted, exactNodeSearchProjection, objectiveMeaning,
-    queryKindOfObjective]
+    queryKindOfObjective, bootstrapConservative, promotionConservative]
 
 theorem candidate_set_search_projection_admitted :
     SearchProjectionAdmitted candidateSetSearchProjection := by
   simp [SearchProjectionAdmitted, candidateSetSearchProjection, objectiveMeaning,
-    queryKindOfObjective]
+    queryKindOfObjective, bootstrapConservative, promotionConservative]
 
 theorem admitted_replay_extraction_with_search_yields_admitted_bundle
     (replay : RustReplayExtraction)
@@ -261,7 +269,7 @@ theorem admitted_reconfiguration_projection_targets_current_snapshot
   | some actualStep =>
       simp [SearchProjectionAdmitted, reconfigurationProjection, hReconf] at hAdmitted hStep
       cases hStep
-      exact hAdmitted.2
+      exact hAdmitted.2.2.2
 
 theorem selector_truth_is_policy_invariant
     (semantics : LifecycleSelectorSemantics)

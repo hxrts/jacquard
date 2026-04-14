@@ -38,14 +38,25 @@ structure RustReplayRuntimeLinkageFixture where
   artifactCount : Nat
   searchLinkedArtifactCount : Nat
   routeArtifactCount : Nat
+  bootstrapRouteArtifactCount : Nat
   deriving Inhabited, Repr, DecidableEq, BEq
 
 structure RustReplayRecoveryFixture where
   lastTrigger : Option String
   lastOutcome : Option String
+  bootstrapActive : Bool
+  lastBootstrapTransition : Option String
+  lastPromotionDecision : Option String
+  lastPromotionBlocker : Option String
+  bootstrapActivationCount : Nat
+  bootstrapHoldCount : Nat
+  bootstrapNarrowCount : Nat
+  bootstrapUpgradeCount : Nat
+  bootstrapWithdrawCount : Nat
   checkpointCaptureCount : Nat
   checkpointRestoreCount : Nat
   continuationShiftCount : Nat
+  corridorNarrowCount : Nat
   deriving Inhabited, Repr, DecidableEq, BEq
 
 structure RustReplayFixture where
@@ -72,13 +83,24 @@ def exactNodeActivationFixture : RustReplayFixture :=
     runtime :=
       { artifactCount := 3
         searchLinkedArtifactCount := 0
-        routeArtifactCount := 3 }
+        routeArtifactCount := 3
+        bootstrapRouteArtifactCount := 0 }
     recovery := some
       { lastTrigger := none
         lastOutcome := none
+        bootstrapActive := false
+        lastBootstrapTransition := none
+        lastPromotionDecision := none
+        lastPromotionBlocker := none
+        bootstrapActivationCount := 0
+        bootstrapHoldCount := 0
+        bootstrapNarrowCount := 0
+        bootstrapUpgradeCount := 0
+        bootstrapWithdrawCount := 0
         checkpointCaptureCount := 0
         checkpointRestoreCount := 0
-        continuationShiftCount := 0 } }
+        continuationShiftCount := 0
+        corridorNarrowCount := 0 } }
 
 def candidateSetActivationFixture : RustReplayFixture :=
   { scenario := "candidate-set-activation"
@@ -94,13 +116,24 @@ def candidateSetActivationFixture : RustReplayFixture :=
     runtime :=
       { artifactCount := 3
         searchLinkedArtifactCount := 0
-        routeArtifactCount := 3 }
+        routeArtifactCount := 3
+        bootstrapRouteArtifactCount := 0 }
     recovery := some
       { lastTrigger := none
         lastOutcome := none
+        bootstrapActive := false
+        lastBootstrapTransition := none
+        lastPromotionDecision := none
+        lastPromotionBlocker := none
+        bootstrapActivationCount := 0
+        bootstrapHoldCount := 0
+        bootstrapNarrowCount := 0
+        bootstrapUpgradeCount := 0
+        bootstrapWithdrawCount := 0
         checkpointCaptureCount := 0
         checkpointRestoreCount := 0
-        continuationShiftCount := 0 } }
+        continuationShiftCount := 0
+        corridorNarrowCount := 0 } }
 
 def continuationShiftFixture : RustReplayFixture :=
   { scenario := "continuation-shift"
@@ -116,13 +149,24 @@ def continuationShiftFixture : RustReplayFixture :=
     runtime :=
       { artifactCount := 0
         searchLinkedArtifactCount := 0
-        routeArtifactCount := 0 }
+        routeArtifactCount := 0
+        bootstrapRouteArtifactCount := 0 }
     recovery := some
       { lastTrigger := some "ContinuationShift"
         lastOutcome := some "ContinuationRetained"
+        bootstrapActive := false
+        lastBootstrapTransition := none
+        lastPromotionDecision := none
+        lastPromotionBlocker := none
+        bootstrapActivationCount := 0
+        bootstrapHoldCount := 0
+        bootstrapNarrowCount := 0
+        bootstrapUpgradeCount := 0
+        bootstrapWithdrawCount := 0
         checkpointCaptureCount := 0
         checkpointRestoreCount := 0
-        continuationShiftCount := 1 } }
+        continuationShiftCount := 1
+        corridorNarrowCount := 0 } }
 
 def checkpointRestoreFixture : RustReplayFixture :=
   { scenario := "checkpoint-restore"
@@ -138,13 +182,24 @@ def checkpointRestoreFixture : RustReplayFixture :=
     runtime :=
       { artifactCount := 3
         searchLinkedArtifactCount := 0
-        routeArtifactCount := 3 }
+        routeArtifactCount := 3
+        bootstrapRouteArtifactCount := 0 }
     recovery := some
       { lastTrigger := some "RestoreRuntime"
         lastOutcome := some "CheckpointRestored"
+        bootstrapActive := false
+        lastBootstrapTransition := none
+        lastPromotionDecision := none
+        lastPromotionBlocker := none
+        bootstrapActivationCount := 0
+        bootstrapHoldCount := 0
+        bootstrapNarrowCount := 0
+        bootstrapUpgradeCount := 0
+        bootstrapWithdrawCount := 0
         checkpointCaptureCount := 1
         checkpointRestoreCount := 1
-        continuationShiftCount := 0 } }
+        continuationShiftCount := 0
+        corridorNarrowCount := 0 } }
 
 /-! ## Fixture Facts -/
 
@@ -163,6 +218,10 @@ theorem continuation_shift_fixture_records_route_bound_reconfiguration :
 theorem checkpoint_restore_fixture_records_checkpoint_restore_outcome :
     checkpointRestoreFixture.recovery.bind (fun recovery => recovery.lastOutcome) =
       some "CheckpointRestored" := by
+  rfl
+
+theorem exact_node_activation_fixture_has_no_bootstrap_route_artifacts :
+    exactNodeActivationFixture.runtime.bootstrapRouteArtifactCount = 0 := by
   rfl
 
 end FieldAdequacyReplayFixtures

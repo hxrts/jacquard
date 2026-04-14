@@ -317,6 +317,7 @@
             ]
           },
           "route_shape": "CorridorEnvelope",
+          "bootstrap_class": "Steady",
           "route_support": 688,
           "topology_epoch": 7
         },
@@ -408,7 +409,8 @@
             ]
           },
           "route_shape": "CorridorEnvelope",
-          "route_support": 663,
+          "bootstrap_class": "Steady",
+          "route_support": 713,
           "topology_epoch": 7
         },
         "observed_at_tick": 2
@@ -499,7 +501,8 @@
             ]
           },
           "route_shape": "CorridorEnvelope",
-          "route_support": 488,
+          "bootstrap_class": "Steady",
+          "route_support": 672,
           "topology_epoch": 7
         },
         "observed_at_tick": 2
@@ -730,9 +733,19 @@
         "checkpoint_available": false,
         "last_trigger": "RestoreRuntime",
         "last_outcome": "CheckpointRestored",
+        "bootstrap_active": false,
+        "last_bootstrap_transition": null,
+        "last_promotion_decision": null,
+        "last_promotion_blocker": null,
+        "bootstrap_activation_count": 0,
+        "bootstrap_hold_count": 0,
+        "bootstrap_narrow_count": 0,
+        "bootstrap_upgrade_count": 0,
+        "bootstrap_withdraw_count": 0,
         "checkpoint_capture_count": 1,
         "checkpoint_restore_count": 1,
-        "continuation_shift_count": 0
+        "continuation_shift_count": 0,
+        "corridor_narrow_count": 0
       }
     ]
   }

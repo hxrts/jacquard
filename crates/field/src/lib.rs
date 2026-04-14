@@ -74,7 +74,11 @@ pub use engine::{
     FIELD_CAPABILITIES, FIELD_ENGINE_ID, FIELD_REPLAY_SURFACE_VERSION,
     FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
 };
-pub use recovery::{FieldRouteRecoveryOutcome, FieldRouteRecoveryState, FieldRouteRecoveryTrigger};
+pub use recovery::{
+    FieldBootstrapTransition, FieldPromotionBlocker, FieldPromotionDecision,
+    FieldRouteRecoveryOutcome, FieldRouteRecoveryState, FieldRouteRecoveryTrigger,
+};
+pub use route::FieldBootstrapClass;
 pub use search::{
     FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchConfigError, FieldSearchEdgeMeta,
     FieldSearchEpoch, FieldSearchHeuristicMode, FieldSearchPlanningFailure,

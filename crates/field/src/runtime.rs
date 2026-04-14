@@ -23,7 +23,7 @@ use jacquard_core::{
     RouteMaterializationInput, RouteMaterializationProof, RouteOperationId, RouteProgressContract,
     RouteProgressState, RouteRuntimeError, RouteRuntimeState, RouteSelectionError,
     RoutingTickChange, RoutingTickContext, RoutingTickHint, RoutingTickOutcome, Tick,
-    TimeoutPolicy,
+    TimeoutPolicy, TransportObservation,
 };
 use jacquard_traits::{Blake3Hashing, Hashing, RouterManagedEngine, RoutingEngine};
 
@@ -37,8 +37,9 @@ use crate::{
     control::{advance_control_plane, ControlMeasurements},
     engine::FieldRuntimeRoundArtifact,
     observer::{update_destination_observer, ObserverInputs},
-    recovery::{FieldRouteRecoveryTrigger, StoredFieldRouteRecovery},
-    route::{decode_backend_token, ActiveFieldRoute},
+    planner::{promotion_assessment_for_route, FieldBootstrapDecision},
+    recovery::{FieldPromotionBlocker, FieldRouteRecoveryTrigger, StoredFieldRouteRecovery},
+    route::{decode_backend_token, ActiveFieldRoute, FieldBootstrapClass},
     state::{
         HopBand, NeighborContinuation, ObserverInputSignature, SupportBucket,
         SUMMARY_HEARTBEAT_TICKS,
@@ -46,6 +47,7 @@ use crate::{
     summary::{
         summary_divergence, DirectEvidence, EvidenceContributionClass, FieldSummary,
         LocalOriginTrace, SummaryDestinationKey, SummaryUncertaintyClass,
+        FIELD_SUMMARY_ENCODING_BYTES,
     },
     FieldEngine,
 };
@@ -55,8 +57,16 @@ const FIELD_COMMITMENT_INITIAL_BACKOFF_MS: u32 = 25;
 const FIELD_COMMITMENT_BACKOFF_MS_MAX: u32 = 25;
 const FIELD_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 const FIELD_COMMITMENT_ID_DOMAIN: &[u8] = b"field-route-commitment";
+pub(crate) const FIELD_ROUTE_FAILURE_SUPPORT_FLOOR: u16 = 180;
+pub(crate) const FIELD_ROUTE_WEAK_SUPPORT_FLOOR: u16 = 220;
+const FIELD_BOOTSTRAP_FAILURE_SUPPORT_FLOOR: u16 = 140;
+const FIELD_BOOTSTRAP_STALE_TICKS_MAX: u64 = 6;
+const FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX: u16 = 180;
 
-impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
+impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects>
+where
+    Transport: jacquard_traits::TransportSenderEffects,
+{
     // long-block-exception: route materialization intentionally keeps backend
     // decoding, witness validation, active-route installation, and
     // route-scoped protocol session startup in one fail-closed path.
@@ -78,6 +88,11 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
             .get(&token.destination)
             .map(|state| state.corridor_belief.clone())
             .ok_or(RouteRuntimeError::Invalidated)?;
+        let bootstrap_class = detail.bootstrap_class;
+        let mut recovery = StoredFieldRouteRecovery::default();
+        if bootstrap_class == FieldBootstrapClass::Bootstrap {
+            recovery.note_bootstrap_activated();
+        }
 
         self.active_routes.insert(
             *input.handle.route_id(),
@@ -87,11 +102,13 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
                 continuation_neighbors: token.continuation_neighbors,
                 corridor_envelope: corridor_envelope.clone(),
                 witness_detail: detail,
+                bootstrap_class,
                 backend_route_id: input.admission.backend_ref.backend_route_id.clone(),
                 topology_epoch: input.handle.topology_epoch(),
                 installed_at_tick: input.handle.materialized_at_tick(),
+                bootstrap_confirmation_streak: 0,
                 coordination_capability: None,
-                recovery: StoredFieldRouteRecovery::default(),
+                recovery,
             },
         );
         self.install_route_protocol_session(
@@ -217,14 +234,14 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
         else {
             return Err(RouteRuntimeError::Invalidated.into());
         };
-        let Some(destination_state) = self.state.destinations.get(&destination_key) else {
+        let Some(destination_state) = self.state.destinations.get(&destination_key).cloned() else {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Expired,
                 outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
             });
         };
         let ranked = rank_frontier_by_attractor(
-            destination_state,
+            &destination_state,
             &self.state.mean_field,
             self.state.regime.current,
             self.state.posture.current,
@@ -243,7 +260,8 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
         );
         runtime.progress.last_progress_at_tick = self.state.last_tick_processed;
         let current_corridor_envelope = destination_state.corridor_belief.clone();
-        let current_witness_detail = self.witness_detail_from_state(destination_state);
+        let current_witness_detail = self.witness_detail_from_state(&destination_state);
+        let current_bootstrap_class = current_witness_detail.bootstrap_class;
 
         if self.state.controller.congestion_price.value() >= 850
             && self.state.posture.current == crate::state::RoutingPosture::RetentionBiased
@@ -257,35 +275,204 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
             });
         }
 
-        if destination_state.corridor_belief.delivery_support.value() < 250 {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::CapacityExceeded),
-            });
-        }
-
+        let corridor_support = destination_state.corridor_belief.delivery_support.value();
         let mut pending_coordination_shift = None;
+        let mut maintenance_outcome = RouteMaintenanceOutcome::Continued;
         let previous_posture;
+        let previous_bootstrap_class;
+        let promotion_assessment;
+        let bootstrap_decision;
         {
             let active = self
                 .active_routes
                 .get_mut(identity.route_id())
                 .expect("active route remains present during maintenance");
             previous_posture = active.witness_detail.posture;
+            previous_bootstrap_class = active.bootstrap_class;
+            promotion_assessment = promotion_assessment_for_route(
+                active,
+                &destination_state,
+                best,
+                self.state.last_tick_processed,
+            );
+            let blocker = promotion_assessment.primary_blocker();
+            let projected_confirmation_streak = if previous_bootstrap_class
+                == FieldBootstrapClass::Bootstrap
+                && promotion_assessment.anti_entropy_confirmed
+                && promotion_assessment.continuation_coherent
+            {
+                active.bootstrap_confirmation_streak.saturating_add(1)
+            } else {
+                0
+            };
+            bootstrap_decision = if previous_bootstrap_class == FieldBootstrapClass::Bootstrap {
+                promotion_assessment
+                    .decision_for_bootstrap(&destination_state, projected_confirmation_streak)
+            } else {
+                FieldBootstrapDecision::Hold
+            };
             active.corridor_envelope = current_corridor_envelope;
             active.witness_detail = current_witness_detail;
+            active.bootstrap_class = match (previous_bootstrap_class, bootstrap_decision) {
+                (FieldBootstrapClass::Bootstrap, FieldBootstrapDecision::Promote) => {
+                    FieldBootstrapClass::Steady
+                }
+                (FieldBootstrapClass::Bootstrap, _) => FieldBootstrapClass::Bootstrap,
+                (_, _) => current_bootstrap_class,
+            };
+            active.witness_detail.bootstrap_class = active.bootstrap_class;
+
+            match (
+                previous_bootstrap_class,
+                active.bootstrap_class,
+                bootstrap_decision,
+            ) {
+                (FieldBootstrapClass::Steady, FieldBootstrapClass::Bootstrap, _) => {
+                    active.recovery.note_bootstrap_activated();
+                }
+                (
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapDecision::Narrow,
+                ) => {
+                    active.recovery.note_bootstrap_narrowed(blocker);
+                    active.bootstrap_confirmation_streak = 0;
+                }
+                (
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapDecision::Hold,
+                ) => {
+                    active.recovery.note_bootstrap_held(blocker);
+                    if promotion_assessment.anti_entropy_confirmed
+                        && promotion_assessment.continuation_coherent
+                    {
+                        active.bootstrap_confirmation_streak =
+                            active.bootstrap_confirmation_streak.saturating_add(1);
+                    } else {
+                        active.bootstrap_confirmation_streak = 0;
+                    }
+                }
+                (
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapClass::Steady,
+                    FieldBootstrapDecision::Promote,
+                ) => {
+                    active.recovery.note_bootstrap_upgraded();
+                    active.bootstrap_confirmation_streak = 0;
+                }
+                (
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapDecision::Withdraw,
+                ) => {
+                    active.recovery.note_bootstrap_withdrawn(blocker);
+                    active.bootstrap_confirmation_streak = 0;
+                }
+                (FieldBootstrapClass::Steady, FieldBootstrapClass::Steady, _) => {}
+                (
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapDecision::Promote,
+                ) => {
+                    active
+                        .recovery
+                        .note_bootstrap_held(FieldPromotionBlocker::SupportTrend);
+                }
+                (FieldBootstrapClass::Bootstrap, FieldBootstrapClass::Steady, _) => {}
+            }
 
             if !active.continuation_neighbors.contains(&best.neighbor_id) {
-                return Ok(RouteMaintenanceResult {
-                    event: RouteLifecycleEvent::Replaced,
-                    outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
-                });
+                let selected_entry = ranked
+                    .iter()
+                    .find(|(entry, _)| entry.neighbor_id == active.selected_neighbor)
+                    .map(|(entry, _)| entry);
+                let support_delta = selected_entry
+                    .map(|entry| best.net_value.value().abs_diff(entry.net_value.value()))
+                    .unwrap_or(0);
+                if corridor_support >= FIELD_ROUTE_WEAK_SUPPORT_FLOOR
+                    && support_delta <= FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX
+                {
+                    active.continuation_neighbors = ranked
+                        .iter()
+                        .take(crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT + 1)
+                        .map(|(entry, _)| entry.neighbor_id)
+                        .collect();
+                    active.selected_neighbor = best.neighbor_id;
+                    pending_coordination_shift = Some(best.neighbor_id);
+                } else {
+                    if previous_bootstrap_class == FieldBootstrapClass::Bootstrap
+                        && promotion_assessment.degraded_but_coherent(&destination_state)
+                    {
+                        active.continuation_neighbors = ranked
+                            .iter()
+                            .take(2)
+                            .map(|(entry, _)| entry.neighbor_id)
+                            .collect();
+                        if let Some(first) = active.continuation_neighbors.first().copied() {
+                            active.selected_neighbor = first;
+                        }
+                        active.recovery.note_corridor_narrowed();
+                        active.recovery.note_bootstrap_narrowed(blocker);
+                        maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
+                            trigger,
+                            retained_object_count: jacquard_core::HoldItemCount(1),
+                        };
+                    } else {
+                        return Ok(RouteMaintenanceResult {
+                            event: RouteLifecycleEvent::Replaced,
+                            outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
+                        });
+                    }
+                }
             }
 
             if active.selected_neighbor != best.neighbor_id {
                 active.selected_neighbor = best.neighbor_id;
                 pending_coordination_shift = Some(best.neighbor_id);
             }
+        }
+
+        let failure_support_floor = if previous_bootstrap_class == FieldBootstrapClass::Bootstrap
+            && promotion_assessment.degraded_but_coherent(&destination_state)
+        {
+            FIELD_BOOTSTRAP_FAILURE_SUPPORT_FLOOR
+        } else {
+            FIELD_ROUTE_FAILURE_SUPPORT_FLOOR
+        };
+
+        if corridor_support < failure_support_floor {
+            if previous_bootstrap_class == FieldBootstrapClass::Bootstrap
+                && promotion_assessment.degraded_but_coherent(&destination_state)
+            {
+                if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
+                    active
+                        .recovery
+                        .note_bootstrap_narrowed(FieldPromotionBlocker::SupportTrend);
+                }
+                return Ok(RouteMaintenanceResult {
+                    event: RouteLifecycleEvent::Activated,
+                    outcome: RouteMaintenanceOutcome::HoldFallback {
+                        trigger,
+                        retained_object_count: jacquard_core::HoldItemCount(1),
+                    },
+                });
+            }
+            if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
+                if active.bootstrap_class == FieldBootstrapClass::Bootstrap {
+                    if active.recovery.state.last_bootstrap_transition
+                        != Some(crate::FieldBootstrapTransition::Withdrawn)
+                    {
+                        active
+                            .recovery
+                            .note_bootstrap_withdrawn(FieldPromotionBlocker::SupportTrend);
+                    }
+                }
+            }
+            return Ok(RouteMaintenanceResult {
+                event: RouteLifecycleEvent::Expired,
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::CapacityExceeded),
+            });
         }
 
         if self.state.controller.congestion_price.value() >= 850 {
@@ -297,7 +484,9 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
             });
         }
 
-        if self.state.posture.current != previous_posture {
+        if self.state.posture.current != previous_posture
+            && self.state.posture.current == crate::state::RoutingPosture::RiskSuppressed
+        {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Replaced,
                 outcome: RouteMaintenanceOutcome::ReplacementRequired {
@@ -320,19 +509,72 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
             .last_tick_processed
             .0
             .saturating_sub(best.freshness.0)
-            > 4;
+            > if previous_bootstrap_class == FieldBootstrapClass::Bootstrap
+                && promotion_assessment.degraded_but_coherent(&destination_state)
+            {
+                FIELD_BOOTSTRAP_STALE_TICKS_MAX
+            } else {
+                4
+            };
         if is_stale {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Activated,
-                outcome: RouteMaintenanceOutcome::ReplacementRequired {
+            if corridor_support < FIELD_ROUTE_WEAK_SUPPORT_FLOOR {
+                if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
+                    if active.bootstrap_class == FieldBootstrapClass::Bootstrap {
+                        if promotion_assessment.degraded_but_coherent(&destination_state) {
+                            active
+                                .recovery
+                                .note_bootstrap_narrowed(FieldPromotionBlocker::Freshness);
+                            active.recovery.note_corridor_narrowed();
+                        } else {
+                            if active.recovery.state.last_bootstrap_transition
+                                != Some(crate::FieldBootstrapTransition::Withdrawn)
+                            {
+                                active
+                                    .recovery
+                                    .note_bootstrap_withdrawn(FieldPromotionBlocker::Freshness);
+                            }
+                        }
+                    }
+                }
+                if promotion_assessment.degraded_but_coherent(&destination_state) {
+                    maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
+                        trigger: RouteMaintenanceTrigger::AntiEntropyRequired,
+                        retained_object_count: jacquard_core::HoldItemCount(1),
+                    };
+                } else {
+                    return Ok(RouteMaintenanceResult {
+                        event: RouteLifecycleEvent::Activated,
+                        outcome: RouteMaintenanceOutcome::ReplacementRequired {
+                            trigger: RouteMaintenanceTrigger::AntiEntropyRequired,
+                        },
+                    });
+                }
+            }
+            if maintenance_outcome == RouteMaintenanceOutcome::Continued {
+                maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
                     trigger: RouteMaintenanceTrigger::AntiEntropyRequired,
-                },
-            });
+                    retained_object_count: jacquard_core::HoldItemCount(1),
+                };
+            }
         }
 
         Ok(RouteMaintenanceResult {
             event: RouteLifecycleEvent::Activated,
-            outcome: RouteMaintenanceOutcome::Continued,
+            outcome: if corridor_support < FIELD_ROUTE_WEAK_SUPPORT_FLOOR {
+                if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
+                    if active.bootstrap_class == FieldBootstrapClass::Bootstrap {
+                        active
+                            .recovery
+                            .note_bootstrap_held(promotion_assessment.primary_blocker());
+                    }
+                }
+                RouteMaintenanceOutcome::HoldFallback {
+                    trigger,
+                    retained_object_count: jacquard_core::HoldItemCount(1),
+                }
+            } else {
+                maintenance_outcome
+            },
         })
     }
 
@@ -344,6 +586,42 @@ impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects> {
 }
 
 impl<Transport, Effects> FieldEngine<Transport, Effects> {
+    fn protocol_neighbor_targets(&self, preferred_neighbor: NodeId) -> Vec<NodeId> {
+        let mut neighbors = self
+            .state
+            .neighbor_endpoints
+            .keys()
+            .copied()
+            .collect::<Vec<_>>();
+        if neighbors.is_empty() {
+            neighbors.push(preferred_neighbor);
+            return neighbors;
+        }
+        neighbors.sort();
+        if let Some(index) = neighbors
+            .iter()
+            .position(|neighbor| *neighbor == preferred_neighbor)
+        {
+            neighbors.swap(0, index);
+        }
+        neighbors
+    }
+
+    fn dispatch_protocol_sends(&mut self, sends: &[QueuedProtocolSend]) -> Result<usize, RouteError>
+    where
+        Transport: jacquard_traits::TransportSenderEffects,
+    {
+        let mut sent = 0usize;
+        for send in sends {
+            let Some(endpoint) = self.state.neighbor_endpoints.get(&send.to_neighbor) else {
+                continue;
+            };
+            self.transport.send_transport(endpoint, &send.payload)?;
+            sent = sent.saturating_add(1);
+        }
+        Ok(sent)
+    }
+
     fn seed_destinations_from_topology(
         &mut self,
         topology: &Configuration,
@@ -383,7 +661,10 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         &mut self,
         topology_epoch: jacquard_core::RouteEpoch,
         now_tick: Tick,
-    ) -> bool {
+    ) -> bool
+    where
+        Transport: jacquard_traits::TransportSenderEffects,
+    {
         let attractor_view = derive_local_attractor_view(&self.state);
         let low_coherence =
             !attractor_view.entries.is_empty() && attractor_view.coherence_score.value() < 200;
@@ -398,6 +679,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             let Some((
                 session_destination,
                 summary,
+                anti_entropy_summary,
                 should_publish,
                 leading_neighbor,
                 delivery_support,
@@ -416,9 +698,12 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                         now_tick,
                         &destination,
                     );
+                    let anti_entropy_summary =
+                        anti_entropy_summary_for_destination(destination_state, &summary, now_tick);
                     Some((
                         SummaryDestinationKey::from(&destination),
                         summary.clone(),
+                        anti_entropy_summary,
                         should_transmit_summary(destination_state, &summary, now_tick),
                         primary.neighbor_id,
                         destination_state.corridor_belief.delivery_support.value(),
@@ -449,11 +734,13 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                         .protocol_runtime
                         .queue_summary_flow(
                             &capability,
-                            [QueuedProtocolSend {
-                                protocol: FieldProtocolKind::SummaryDissemination,
-                                to_neighbor: leading_neighbor,
-                                payload: summary.encode(),
-                            }],
+                            self.protocol_neighbor_targets(leading_neighbor)
+                                .into_iter()
+                                .map(|neighbor| QueuedProtocolSend {
+                                    protocol: FieldProtocolKind::SummaryDissemination,
+                                    to_neighbor: neighbor,
+                                    payload: summary.encode(),
+                                }),
                         )
                         .is_err();
                     let published = self
@@ -465,13 +752,16 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                             now_tick,
                         )
                         .map(|advance| {
+                            let dispatched = self
+                                .dispatch_protocol_sends(&advance.flushed_sends)
+                                .unwrap_or(0);
                             self.record_protocol_round(
                                 &dissemination_key,
                                 &advance,
                                 Some(runtime_route_artifact.clone()),
                                 now_tick,
                             );
-                            advance.round.emitted_send_count > 0
+                            dispatched > 0
                         })
                         .unwrap_or(false);
                     if published {
@@ -494,6 +784,19 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     self.protocol_runtime
                         .open_session(&anti_entropy_key, 0, None)
                 {
+                    let _summary_queue_failed = self
+                        .protocol_runtime
+                        .queue_summary_flow(
+                            &capability,
+                            self.protocol_neighbor_targets(leading_neighbor)
+                                .into_iter()
+                                .map(|neighbor| QueuedProtocolSend {
+                                    protocol: FieldProtocolKind::AntiEntropy,
+                                    to_neighbor: neighbor,
+                                    payload: anti_entropy_summary.encode(),
+                                }),
+                        )
+                        .is_err();
                     changed |= self
                         .protocol_runtime
                         .advance_host_bridged_round(
@@ -503,6 +806,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                             now_tick,
                         )
                         .map(|advance| {
+                            let _ = self.dispatch_protocol_sends(&advance.flushed_sends);
                             self.record_protocol_round(
                                 &anti_entropy_key,
                                 &advance,
@@ -515,9 +819,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 }
             }
 
-            if self.state.posture.current == crate::state::RoutingPosture::RetentionBiased
-                && delivery_support < 400
-            {
+            let should_replay_retention = (self.state.posture.current
+                == crate::state::RoutingPosture::RetentionBiased
+                && (delivery_support < 450 || is_stale))
+                || (delivery_support < 520 && summary.uncertainty_penalty.value() >= 350);
+            if should_replay_retention {
                 let replay_key = FieldProtocolSessionKey {
                     protocol: FieldProtocolKind::RetentionReplay,
                     route_id: None,
@@ -533,11 +839,13 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                         .protocol_runtime
                         .queue_summary_flow(
                             &capability,
-                            [QueuedProtocolSend {
-                                protocol: FieldProtocolKind::RetentionReplay,
-                                to_neighbor: leading_neighbor,
-                                payload: summary.encode(),
-                            }],
+                            self.protocol_neighbor_targets(leading_neighbor)
+                                .into_iter()
+                                .map(|neighbor| QueuedProtocolSend {
+                                    protocol: FieldProtocolKind::RetentionReplay,
+                                    to_neighbor: neighbor,
+                                    payload: anti_entropy_summary.encode(),
+                                }),
                         )
                         .is_err();
                     changed |= self
@@ -549,13 +857,16 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                             now_tick,
                         )
                         .map(|advance| {
+                            let dispatched = self
+                                .dispatch_protocol_sends(&advance.flushed_sends)
+                                .unwrap_or(0);
                             self.record_protocol_round(
                                 &replay_key,
                                 &advance,
                                 Some(runtime_route_artifact.clone()),
                                 now_tick,
                             );
-                            advance.round.emitted_send_count > 0
+                            dispatched > 0
                         })
                         .unwrap_or(false);
                 }
@@ -581,6 +892,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                             now_tick,
                         )
                         .map(|advance| {
+                            let _ = self.dispatch_protocol_sends(&advance.flushed_sends);
                             self.record_protocol_round(
                                 &coordination_key,
                                 &advance,
@@ -705,6 +1017,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 destination_state.frontier.clone(),
                 destination_state.corridor_belief.expected_hop_band,
                 destination_state.corridor_belief.delivery_support,
+                destination_state.corridor_belief.retention_affinity,
                 &direct_evidence,
                 &forward_evidence,
                 now_tick,
@@ -783,15 +1096,103 @@ fn summary_for_destination(
     }
 }
 
+fn anti_entropy_summary_for_destination(
+    destination_state: &crate::state::DestinationFieldState,
+    summary: &FieldSummary,
+    now_tick: Tick,
+) -> FieldSummary {
+    let publication_support = destination_state
+        .publication
+        .last_summary
+        .as_ref()
+        .map(|published| published.delivery_support.value())
+        .unwrap_or(0);
+    let publication_retention = destination_state
+        .publication
+        .last_summary
+        .as_ref()
+        .map(|published| published.retention_support.value())
+        .unwrap_or(0);
+    let bootstrap_delivery_floor = destination_state
+        .progress_belief
+        .posterior_support
+        .value()
+        .min(destination_state.posterior.top_corridor_mass.value())
+        .max(
+            destination_state
+                .progress_belief
+                .posterior_support
+                .value()
+                .saturating_add(destination_state.posterior.top_corridor_mass.value())
+                / 2,
+        );
+    let replay_support = summary
+        .delivery_support
+        .value()
+        .max(bootstrap_delivery_floor)
+        .max(publication_support.saturating_sub(20))
+        .max(
+            publication_support
+                .saturating_add(publication_retention / 6)
+                .min(1000),
+        )
+        .min(1000);
+    let replay_retention = summary
+        .retention_support
+        .value()
+        .max(publication_retention)
+        .max((replay_support.saturating_mul(4)) / 5)
+        .max(
+            destination_state
+                .posterior
+                .top_corridor_mass
+                .value()
+                .saturating_add(replay_support)
+                / 2,
+        )
+        .min(1000);
+    let replay_uncertainty = summary
+        .uncertainty_penalty
+        .value()
+        .saturating_sub(if replay_retention >= 700 {
+            190
+        } else if replay_retention >= 560 {
+            150
+        } else {
+            100
+        })
+        .saturating_sub(if publication_retention >= 320 { 40 } else { 0 });
+    FieldSummary {
+        freshness_tick: now_tick,
+        delivery_support: SupportBucket::new(replay_support),
+        retention_support: SupportBucket::new(replay_retention),
+        uncertainty_penalty: crate::state::EntropyBucket::new(replay_uncertainty),
+        uncertainty_class: match replay_uncertainty {
+            0..=249 => SummaryUncertaintyClass::Low,
+            250..=599 => SummaryUncertaintyClass::Medium,
+            _ => SummaryUncertaintyClass::High,
+        },
+        ..summary.clone()
+    }
+}
+
 fn refresh_frontier_from_evidence(
     mut frontier: crate::state::ContinuationFrontier,
     corridor_hops: HopBand,
     corridor_support: SupportBucket,
+    corridor_retention: SupportBucket,
     direct_evidence: &[DirectEvidence],
     forward_evidence: &[crate::summary::ForwardPropagatedEvidence],
     now_tick: Tick,
 ) -> crate::state::ContinuationFrontier {
-    frontier = frontier.prune_stale(now_tick, 4);
+    let prune_horizon = if corridor_retention.value() >= 300 && corridor_support.value() >= 220 {
+        8
+    } else if corridor_retention.value() >= 240 {
+        6
+    } else {
+        4
+    };
+    frontier = frontier.prune_stale(now_tick, prune_horizon);
     for evidence in direct_evidence {
         frontier = frontier.insert(NeighborContinuation {
             neighbor_id: evidence.neighbor_id,
@@ -861,7 +1262,12 @@ fn should_transmit_summary(
     if now_tick.0.saturating_sub(last_sent_at.0) >= SUMMARY_HEARTBEAT_TICKS {
         return true;
     }
-    summary_divergence(previous_summary, summary).value() >= 100
+    if summary_divergence(previous_summary, summary).value() >= 100 {
+        return true;
+    }
+    destination_state.corridor_belief.delivery_support.value() < 320
+        && destination_state.corridor_belief.retention_affinity.value() >= 260
+        && now_tick.0.saturating_sub(last_sent_at.0) >= SUMMARY_HEARTBEAT_TICKS.saturating_sub(1)
 }
 
 fn direct_evidence_digest(direct_evidence: &[DirectEvidence]) -> u64 {
@@ -930,14 +1336,18 @@ mod tests {
 
     use jacquard_core::{
         ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, Environment,
-        FactSourceClass, Observation, OriginAuthenticationClass, PublicationId, RatioPermille,
-        RouteEpoch, RouteHandle, RouteLease, RoutePartitionClass, RouteProtectionClass,
-        RouteRepairClass, RouteSelectionError, RouteServiceKind, RoutingEvidenceClass,
-        RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
+        FactSourceClass, LinkEndpoint, Observation, OriginAuthenticationClass, PublicationId,
+        RatioPermille, RouteEpoch, RouteHandle, RouteLease, RoutePartitionClass,
+        RouteProtectionClass, RouteRepairClass, RouteSelectionError, RouteServiceKind,
+        RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
+        TransportError,
     };
     use jacquard_mem_link_profile::InMemoryTransport;
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
-    use jacquard_traits::{RouterManagedEngine, RoutingEngine, RoutingEnginePlanner};
+    use jacquard_traits::{
+        effect_handler, RouterManagedEngine, RoutingEngine, RoutingEnginePlanner,
+        TransportSenderEffects,
+    };
 
     use super::*;
     use crate::state::{
@@ -950,6 +1360,20 @@ mod tests {
 
     fn node(byte: u8) -> NodeId {
         NodeId([byte; 32])
+    }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    struct NoopTransport;
+
+    #[effect_handler]
+    impl TransportSenderEffects for NoopTransport {
+        fn send_transport(
+            &mut self,
+            _endpoint: &LinkEndpoint,
+            _payload: &[u8],
+        ) -> Result<(), TransportError> {
+            Ok(())
+        }
     }
 
     fn sample_objective(destination: NodeId) -> RoutingObjective {
@@ -1035,8 +1459,8 @@ mod tests {
         }
     }
 
-    fn seeded_engine() -> FieldEngine<(), ()> {
-        let mut engine = FieldEngine::new(node(1), (), ());
+    fn seeded_engine() -> FieldEngine<NoopTransport, ()> {
+        let mut engine = FieldEngine::new(node(1), NoopTransport, ());
         let state = engine.state.upsert_destination_interest(
             &DestinationId::Node(node(2)),
             DestinationInterestClass::Transit,
@@ -1272,6 +1696,7 @@ mod tests {
                 node(2),
             )))
             .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(210);
         state.frontier = state.frontier.clone().insert(NeighborContinuation {
             neighbor_id: node(3),
             net_value: SupportBucket::new(950),
@@ -1292,6 +1717,284 @@ mod tests {
                 trigger: RouteMaintenanceTrigger::LinkDegraded,
             }
         );
+    }
+
+    #[test]
+    fn maintenance_expands_corridor_envelope_for_close_stronger_neighbor() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let mut materialized =
+            jacquard_core::MaterializedRoute::from_installation(input, installation);
+
+        engine.state.note_tick(Tick(5));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&crate::state::DestinationKey::from(&DestinationId::Node(
+                node(2),
+            )))
+            .expect("destination");
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(3),
+            net_value: SupportBucket::new(950),
+            downstream_support: SupportBucket::new(900),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(5),
+        });
+        let result = engine
+            .maintain_route(
+                &materialized.identity,
+                &mut materialized.runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintenance");
+        assert_eq!(result.outcome, RouteMaintenanceOutcome::Continued);
+        let active = engine.active_routes.get(&route_id).expect("active route");
+        assert_eq!(active.selected_neighbor, node(3));
+        assert!(active.continuation_neighbors.contains(&node(3)));
+        assert!(active.continuation_neighbors.contains(&node(2)));
+    }
+
+    #[test]
+    fn bootstrap_route_materialization_records_activation() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let destination = crate::state::DestinationKey::from(&DestinationId::Node(node(2)));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&destination)
+            .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(240);
+        state.corridor_belief.retention_affinity = SupportBucket::new(320);
+
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        engine
+            .materialize_route(materialization_input(route_id, admission))
+            .expect("installation");
+
+        let active = engine.active_routes.get(&route_id).expect("active route");
+        assert_eq!(active.bootstrap_class, FieldBootstrapClass::Bootstrap);
+        assert!(active.recovery.state.bootstrap_active);
+        assert_eq!(
+            active.recovery.state.last_bootstrap_transition,
+            Some(crate::FieldBootstrapTransition::Activated)
+        );
+        assert_eq!(active.recovery.state.bootstrap_activation_count, 1);
+    }
+
+    #[test]
+    fn bootstrap_route_upgrades_to_steady_without_replacement() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let destination = crate::state::DestinationKey::from(&DestinationId::Node(node(2)));
+        {
+            let state = engine
+                .state
+                .destinations
+                .get_mut(&destination)
+                .expect("destination");
+            state.corridor_belief.delivery_support = SupportBucket::new(240);
+            state.corridor_belief.retention_affinity = SupportBucket::new(320);
+        }
+
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let mut materialized =
+            jacquard_core::MaterializedRoute::from_installation(input, installation);
+
+        engine.state.note_tick(Tick(5));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&destination)
+            .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(360);
+
+        let result = engine
+            .maintain_route(
+                &materialized.identity,
+                &mut materialized.runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintenance");
+
+        assert_eq!(result.outcome, RouteMaintenanceOutcome::Continued);
+        let active = engine.active_routes.get(&route_id).expect("active route");
+        assert_eq!(active.bootstrap_class, FieldBootstrapClass::Steady);
+        assert!(!active.recovery.state.bootstrap_active);
+        assert_eq!(
+            active.recovery.state.last_bootstrap_transition,
+            Some(crate::FieldBootstrapTransition::Upgraded)
+        );
+        assert_eq!(active.recovery.state.bootstrap_upgrade_count, 1);
+    }
+
+    #[test]
+    fn bootstrap_route_promotes_after_confirmed_bridge_streak() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let destination = crate::state::DestinationKey::from(&DestinationId::Node(node(2)));
+        {
+            let state = engine
+                .state
+                .destinations
+                .get_mut(&destination)
+                .expect("destination");
+            state.corridor_belief.delivery_support = SupportBucket::new(240);
+            state.corridor_belief.retention_affinity = SupportBucket::new(340);
+            state.posterior.top_corridor_mass = SupportBucket::new(320);
+            state.posterior.usability_entropy = crate::state::EntropyBucket::new(900);
+        }
+
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let mut materialized =
+            jacquard_core::MaterializedRoute::from_installation(input, installation);
+
+        {
+            let active = engine.active_routes.get_mut(&route_id).expect("active");
+            active.bootstrap_confirmation_streak = 1;
+        }
+        engine.state.note_tick(Tick(5));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&destination)
+            .expect("destination");
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.posterior.top_corridor_mass = SupportBucket::new(340);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(835);
+        state.corridor_belief.delivery_support = SupportBucket::new(275);
+        state.corridor_belief.retention_affinity = SupportBucket::new(360);
+        state.publication.last_summary = Some(super::summary_for_destination(
+            state,
+            topology.value.epoch,
+            Tick(4),
+            &objective.destination,
+        ));
+        state.publication.last_sent_at = Some(Tick(4));
+
+        let result = engine
+            .maintain_route(
+                &materialized.identity,
+                &mut materialized.runtime,
+                RouteMaintenanceTrigger::AntiEntropyRequired,
+            )
+            .expect("maintenance");
+
+        assert_eq!(result.outcome, RouteMaintenanceOutcome::Continued);
+        let active = engine.active_routes.get(&route_id).expect("active route");
+        assert_eq!(active.bootstrap_class, FieldBootstrapClass::Steady);
+        assert_eq!(
+            active.recovery.state.last_bootstrap_transition,
+            Some(crate::FieldBootstrapTransition::Upgraded)
+        );
+        assert_eq!(active.recovery.state.bootstrap_upgrade_count, 1);
+    }
+
+    #[test]
+    fn bootstrap_route_withdrawal_is_recorded_before_failure() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let destination = crate::state::DestinationKey::from(&DestinationId::Node(node(2)));
+        {
+            let state = engine
+                .state
+                .destinations
+                .get_mut(&destination)
+                .expect("destination");
+            state.corridor_belief.delivery_support = SupportBucket::new(240);
+            state.corridor_belief.retention_affinity = SupportBucket::new(320);
+        }
+
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let mut materialized =
+            jacquard_core::MaterializedRoute::from_installation(input, installation);
+
+        engine.state.note_tick(Tick(5));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&destination)
+            .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(120);
+
+        let result = engine
+            .maintain_route(
+                &materialized.identity,
+                &mut materialized.runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintenance");
+
+        assert_eq!(
+            result.outcome,
+            RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::CapacityExceeded)
+        );
+        let active = engine.active_routes.get(&route_id).expect("active route");
+        assert!(!active.recovery.state.bootstrap_active);
+        assert_eq!(
+            active.recovery.state.last_bootstrap_transition,
+            Some(crate::FieldBootstrapTransition::Withdrawn)
+        );
+        assert_eq!(active.recovery.state.bootstrap_withdraw_count, 1);
     }
 
     // long-block-exception: this test keeps materialization, frontier shift,
@@ -1380,6 +2083,8 @@ mod tests {
 
     #[test]
     fn exported_replay_bundle_captures_continuation_shift_fixture() {
+        use std::path::PathBuf;
+
         let topology = supported_topology();
         let mut engine = seeded_engine();
         let objective = sample_objective(node(2));
@@ -1430,7 +2135,15 @@ mod tests {
             .replay_snapshot(std::slice::from_ref(&materialized))
             .exported_bundle_json()
             .expect("export replay json");
-        let expected = include_str!("../fixtures/replay/continuation-shift.json");
+        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("../fixtures/replay/continuation-shift.json");
+        if std::env::var_os("JACQUARD_UPDATE_FIELD_REPLAY_FIXTURES").is_some() {
+            std::fs::write(&fixture_path, format!("{actual}\n"))
+                .expect("write continuation shift replay fixture");
+        }
+        let expected =
+            std::fs::read_to_string(&fixture_path).expect("read continuation shift replay fixture");
         assert_eq!(actual, expected.trim_end());
     }
 
@@ -1614,20 +2327,61 @@ mod tests {
     }
 
     #[test]
-    fn summary_transmission_is_suppressed_until_gain_or_heartbeat() {
+    fn weak_corridor_support_prefers_hold_fallback_before_failure() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine();
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let mut materialized =
+            jacquard_core::MaterializedRoute::from_installation(input, installation);
+        engine.state.note_tick(Tick(5));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&crate::state::DestinationKey::from(&DestinationId::Node(
+                node(2),
+            )))
+            .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(210);
+        let result = engine
+            .maintain_route(
+                &materialized.identity,
+                &mut materialized.runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintenance");
+        assert_eq!(
+            result.outcome,
+            RouteMaintenanceOutcome::HoldFallback {
+                trigger: RouteMaintenanceTrigger::LinkDegraded,
+                retained_object_count: jacquard_core::HoldItemCount(1),
+            }
+        );
+    }
+
+    #[test]
+    fn summary_transmission_heartbeats_each_tick_for_active_destinations() {
         let mut engine = seeded_engine();
         assert!(engine.advance_protocol_sessions(RouteEpoch(4), Tick(4)));
-        assert!(!engine.advance_protocol_sessions(RouteEpoch(4), Tick(5)));
-        assert!(engine.advance_protocol_sessions(
-            RouteEpoch(4),
-            Tick(4_u64.saturating_add(SUMMARY_HEARTBEAT_TICKS))
-        ));
+        assert!(engine.advance_protocol_sessions(RouteEpoch(4), Tick(5)));
+        assert!(engine.advance_protocol_sessions(RouteEpoch(4), Tick(6)));
     }
 
     #[test]
     fn observer_refresh_is_incremental_and_sparse_under_load() {
         let topology = supported_topology();
-        let mut engine = FieldEngine::new(node(1), (), ());
+        let mut engine = FieldEngine::new(node(1), NoopTransport, ());
         for index in 0..MAX_ACTIVE_DESTINATIONS {
             let destination = DestinationId::Node(node(u8::try_from(index + 2).unwrap()));
             let state = engine.state.upsert_destination_interest(
@@ -1826,6 +2580,32 @@ where
         self.local_node_id
     }
 
+    fn ingest_transport_observation_for_router(
+        &mut self,
+        observation: &TransportObservation,
+    ) -> Result<(), RouteError> {
+        let TransportObservation::PayloadReceived {
+            from_node_id,
+            payload,
+            observed_at_tick,
+            ..
+        } = observation
+        else {
+            return Ok(());
+        };
+        if payload.len() != FIELD_SUMMARY_ENCODING_BYTES {
+            return Ok(());
+        }
+        let payload: [u8; FIELD_SUMMARY_ENCODING_BYTES] = payload
+            .as_slice()
+            .try_into()
+            .map_err(|_| RouteRuntimeError::Invalidated)?;
+        let _ignored_non_field_payload = self
+            .ingest_forward_summary(*from_node_id, payload, *observed_at_tick)
+            .is_err();
+        Ok(())
+    }
+
     fn forward_payload_for_router(
         &mut self,
         route_id: &RouteId,
@@ -1892,6 +2672,13 @@ where
             }
         }
         Ok(true)
+    }
+
+    fn analysis_snapshot_for_router(
+        &self,
+        active_routes: &[jacquard_core::MaterializedRoute],
+    ) -> Option<Box<dyn std::any::Any>> {
+        Some(Box::new(self.exported_replay_bundle(active_routes)))
     }
 }
 

@@ -1,0 +1,520 @@
+"""Matplotlib render functions for each analysis figure and a shared save-plot-artifact helper."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import polars as pl
+
+from .constants import (
+    BATMAN_FAMILY_COLORS,
+    COMPARISON_ENGINE_COLORS,
+    FIELD_FAMILY_COLORS,
+    HEAD_TO_HEAD_SET_COLORS,
+    PLOT_SPECS,
+)
+
+
+def family_label(family_id: str) -> str:
+    return (
+        family_id.replace("batman-", "")
+        .replace("pathway-", "")
+        .replace("field-", "")
+        .replace("comparison-", "")
+        .replace("head-to-head-", "")
+        .replace("-", " ")
+    )
+
+
+def break_tick_label(label: str) -> str:
+    parts = label.split("-")
+    if len(parts) < 2:
+        return label
+    midpoint = max(1, len(parts) // 2)
+    return "-".join(parts[:midpoint]) + "\n" + "-".join(parts[midpoint:])
+
+
+def heuristic_label(label: str | None) -> str:
+    if label == "hop-lower-bound":
+        return "hop-lb"
+    return label or "zero"
+
+
+def refresh_annotation(refresh: int | None) -> str:
+    return f"r{refresh}" if refresh is not None else ""
+
+
+def style_plot_axes(ax) -> None:
+    ax.grid(alpha=0.22, color="#cbd5e1", linewidth=0.8)
+    ax.set_facecolor("#fbfdff")
+    for spine in ax.spines.values():
+        spine.set_color("#94a3b8")
+        spine.set_linewidth(0.8)
+
+
+def render_batman_transition_stability(ax, aggregates: pl.DataFrame) -> None:
+    batman_families = [
+        "batman-decay-window-pressure",
+        "batman-partition-recovery",
+        "batman-asymmetry-relink-transition",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "batman") & pl.col("family_id").is_in(batman_families)
+    )
+    if data.is_empty():
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(1, 3, wspace=0.26)
+    for index, family_id in enumerate(batman_families):
+        panel = fig.add_subplot(grid[0, index])
+        rows = data.filter(pl.col("family_id") == family_id).sort("batman_stale_after_ticks")
+        xs = rows["batman_stale_after_ticks"].to_list()
+        ys = rows["stability_total_mean"].to_list()
+        panel.plot(
+            xs,
+            ys,
+            marker="o",
+            color=BATMAN_FAMILY_COLORS.get(family_id, "#0072B2"),
+            linewidth=1.9,
+            markersize=5.5,
+            markeredgecolor="white",
+            markeredgewidth=0.7,
+            zorder=3,
+        )
+        for x, y, refresh in zip(
+            xs, ys, rows["batman_next_refresh_within_ticks"].to_list(), strict=False
+        ):
+            panel.annotate(
+                refresh_annotation(refresh),
+                (x, y),
+                textcoords="offset points",
+                xytext=(0, 6),
+                ha="center",
+                fontsize=7.2,
+            )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Stale ticks")
+        if index == 0:
+            panel.set_ylabel("Stability")
+        panel.set_xticks(xs)
+        panel.set_ylim(0, 2500)
+        style_plot_axes(panel)
+
+
+def render_batman_transition_loss(ax, aggregates: pl.DataFrame) -> None:
+    batman_families = [
+        "batman-decay-window-pressure",
+        "batman-partition-recovery",
+        "batman-asymmetry-relink-transition",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "batman")
+        & pl.col("family_id").is_in(batman_families)
+        & pl.col("first_loss_round_mean").is_not_null()
+    )
+    if data.is_empty():
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(1, 3, wspace=0.26)
+    panels = []
+    for index, family_id in enumerate(batman_families):
+        panel = fig.add_subplot(grid[0, index])
+        panels.append(panel)
+        rows = data.filter(pl.col("family_id") == family_id).sort("batman_stale_after_ticks")
+        xs = rows["batman_stale_after_ticks"].to_list()
+        ys = rows["first_loss_round_mean"].to_list()
+        panel.plot(
+            xs,
+            ys,
+            marker="o",
+            color=BATMAN_FAMILY_COLORS.get(family_id, "#0072B2"),
+            linewidth=1.9,
+            markersize=5.5,
+            markeredgecolor="white",
+            markeredgewidth=0.7,
+            zorder=3,
+        )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Stale ticks")
+        if index == 0:
+            panel.set_ylabel("First loss")
+        panel.set_xticks(xs)
+        style_plot_axes(panel)
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
+
+
+def render_pathway_budget_route_presence(ax, aggregates: pl.DataFrame) -> None:
+    pathway_families = [
+        "pathway-search-budget-pressure",
+        "pathway-high-fanout-budget-pressure",
+        "pathway-bridge-failure-service",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "pathway") & pl.col("family_id").is_in(pathway_families)
+    )
+    if data.is_empty():
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(1, 3, wspace=0.26)
+    heuristic_colors = {"zero": "#0072B2", "hop-lower-bound": "#D55E00"}
+    heuristic_markers = {"zero": "o", "hop-lower-bound": "s"}
+    panels = []
+    for index, family_id in enumerate(pathway_families):
+        panel = fig.add_subplot(grid[0, index])
+        panels.append(panel)
+        family_rows = data.filter(pl.col("family_id") == family_id)
+        heuristics = (
+            family_rows.select("pathway_heuristic_mode")
+            .unique()
+            .sort("pathway_heuristic_mode")
+            .to_series()
+            .to_list()
+        )
+        for heuristic in heuristics:
+            rows = family_rows.filter(pl.col("pathway_heuristic_mode") == heuristic).sort(
+                "pathway_query_budget"
+            )
+            panel.plot(
+                rows["pathway_query_budget"].to_list(),
+                rows["route_present_permille_mean"].to_list(),
+                color=heuristic_colors.get(heuristic or "zero", "#475569"),
+                marker=heuristic_markers.get(heuristic or "zero", "o"),
+                linestyle="-",
+                linewidth=1.8,
+                markersize=5.5,
+                markeredgecolor="white",
+                markeredgewidth=0.7,
+                label=heuristic_label(heuristic),
+                zorder=3,
+            )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Query budget")
+        if index == 0:
+            panel.set_ylabel("Route presence")
+        panel.set_xticks(sorted(set(family_rows["pathway_query_budget"].to_list())))
+        style_plot_axes(panel)
+        panel.legend(fontsize="x-small", title="Heuristic", title_fontsize="x-small")
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
+
+
+def render_pathway_budget_activation(ax, aggregates: pl.DataFrame) -> None:
+    pathway_families = [
+        "pathway-search-budget-pressure",
+        "pathway-high-fanout-budget-pressure",
+        "pathway-bridge-failure-service",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "pathway") & pl.col("family_id").is_in(pathway_families)
+    )
+    if data.is_empty():
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(1, 3, wspace=0.26)
+    heuristic_colors = {"zero": "#0072B2", "hop-lower-bound": "#D55E00"}
+    heuristic_markers = {"zero": "o", "hop-lower-bound": "s"}
+    panels = []
+    for index, family_id in enumerate(pathway_families):
+        panel = fig.add_subplot(grid[0, index])
+        panels.append(panel)
+        family_rows = data.filter(pl.col("family_id") == family_id)
+        heuristics = (
+            family_rows.select("pathway_heuristic_mode")
+            .unique()
+            .sort("pathway_heuristic_mode")
+            .to_series()
+            .to_list()
+        )
+        for heuristic in heuristics:
+            rows = family_rows.filter(pl.col("pathway_heuristic_mode") == heuristic).sort(
+                "pathway_query_budget"
+            )
+            panel.plot(
+                rows["pathway_query_budget"].to_list(),
+                rows["activation_success_permille_mean"].to_list(),
+                color=heuristic_colors.get(heuristic or "zero", "#475569"),
+                marker=heuristic_markers.get(heuristic or "zero", "o"),
+                linestyle="-",
+                linewidth=1.8,
+                markersize=5.5,
+                markeredgecolor="white",
+                markeredgewidth=0.7,
+                label=heuristic_label(heuristic),
+                zorder=3,
+            )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Query budget")
+        if index == 0:
+            panel.set_ylabel("Activation")
+        panel.set_xticks(sorted(set(family_rows["pathway_query_budget"].to_list())))
+        style_plot_axes(panel)
+        panel.legend(fontsize="x-small", title="Heuristic", title_fontsize="x-small")
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
+
+
+def render_field_budget_route_presence(ax, aggregates: pl.DataFrame) -> None:
+    field_families = [
+        "field-partial-observability-bridge",
+        "field-reconfiguration-recovery",
+        "field-asymmetric-envelope-shift",
+        "field-uncertain-service-fanout",
+        "field-bridge-anti-entropy-continuity",
+        "field-bootstrap-upgrade-window",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "field") & pl.col("family_id").is_in(field_families)
+    )
+    if data.is_empty():
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(2, 3, hspace=0.42, wspace=0.22)
+    heuristic_colors = {"zero": "#0072B2", "hop-lower-bound": "#D55E00"}
+    heuristic_markers = {"zero": "o", "hop-lower-bound": "s"}
+    panels = []
+    for index, family_id in enumerate(field_families):
+        panel = fig.add_subplot(grid[index // 3, index % 3])
+        panels.append(panel)
+        family_rows = data.filter(pl.col("family_id") == family_id)
+        heuristics = (
+            family_rows.select("field_heuristic_mode")
+            .unique()
+            .sort("field_heuristic_mode")
+            .to_series()
+            .to_list()
+        )
+        for heuristic in heuristics:
+            rows = family_rows.filter(pl.col("field_heuristic_mode") == heuristic).sort(
+                "field_query_budget"
+            )
+            panel.plot(
+                rows["field_query_budget"].to_list(),
+                rows["route_present_permille_mean"].to_list(),
+                color=heuristic_colors.get(heuristic or "zero", "#475569"),
+                marker=heuristic_markers.get(heuristic or "zero", "o"),
+                linestyle="-",
+                linewidth=1.8,
+                markersize=5.5,
+                markeredgecolor="white",
+                markeredgewidth=0.7,
+                label=heuristic_label(heuristic),
+                zorder=3,
+            )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Query budget")
+        if index % 3 == 0:
+            panel.set_ylabel("Route presence")
+        panel.set_xticks(sorted(set(family_rows["field_query_budget"].to_list())))
+        style_plot_axes(panel)
+        panel.legend(fontsize="x-small", title="Heuristic", title_fontsize="x-small")
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
+
+
+def render_field_budget_reconfiguration(ax, aggregates: pl.DataFrame) -> None:
+    field_families = [
+        "field-partial-observability-bridge",
+        "field-reconfiguration-recovery",
+        "field-asymmetric-envelope-shift",
+        "field-uncertain-service-fanout",
+        "field-bridge-anti-entropy-continuity",
+        "field-bootstrap-upgrade-window",
+    ]
+    data = aggregates.filter(
+        (pl.col("engine_family") == "field") & pl.col("family_id").is_in(field_families)
+    )
+    if data.is_empty():
+        return
+    fig = ax.figure
+    subplotspec = ax.get_subplotspec()
+    ax.remove()
+    grid = subplotspec.subgridspec(2, 3, hspace=0.42, wspace=0.22)
+    heuristic_colors = {"zero": "#0072B2", "hop-lower-bound": "#D55E00"}
+    heuristic_markers = {"zero": "o", "hop-lower-bound": "s"}
+    panels = []
+    for index, family_id in enumerate(field_families):
+        panel = fig.add_subplot(grid[index // 3, index % 3])
+        panels.append(panel)
+        family_rows = data.filter(pl.col("family_id") == family_id)
+        heuristics = (
+            family_rows.select("field_heuristic_mode")
+            .unique()
+            .sort("field_heuristic_mode")
+            .to_series()
+            .to_list()
+        )
+        for heuristic in heuristics:
+            rows = family_rows.filter(pl.col("field_heuristic_mode") == heuristic).sort(
+                "field_query_budget"
+            )
+            reconfiguration_load = (
+                rows["field_continuation_shift_count_mean"]
+                + rows["field_search_reconfiguration_rounds_mean"]
+            ).to_list()
+            panel.plot(
+                rows["field_query_budget"].to_list(),
+                reconfiguration_load,
+                color=heuristic_colors.get(heuristic or "zero", "#475569"),
+                marker=heuristic_markers.get(heuristic or "zero", "o"),
+                linestyle="-",
+                linewidth=1.8,
+                markersize=5.5,
+                markeredgecolor="white",
+                markeredgewidth=0.7,
+                label=heuristic_label(heuristic),
+                zorder=3,
+            )
+        panel.set_title(family_label(family_id), fontsize=9.5)
+        panel.set_xlabel("Query budget")
+        if index % 3 == 0:
+            panel.set_ylabel("Reconfiguration load")
+        panel.set_xticks(sorted(set(family_rows["field_query_budget"].to_list())))
+        style_plot_axes(panel)
+        panel.legend(fontsize="x-small", title="Heuristic", title_fontsize="x-small")
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
+
+
+def render_comparison_summary(ax, aggregates: pl.DataFrame) -> None:
+    data = aggregates.filter(pl.col("engine_family") == "comparison")
+    if data.is_empty():
+        return
+    summary = (
+        data.with_columns(pl.col("dominant_engine").fill_null("none"))
+        .sort(["family_id", "route_present_permille_mean"], descending=[False, True])
+        .group_by("family_id")
+        .agg(
+            pl.first("dominant_engine").alias("dominant_engine"),
+            pl.first("route_present_permille_mean").alias("route_present_permille_mean"),
+            pl.first("activation_success_permille_mean").alias("activation_success_permille_mean"),
+            pl.first("stress_score").alias("stress_score"),
+        )
+        .sort("family_id")
+    )
+    families = summary["family_id"].to_list()
+    engines = summary["dominant_engine"].to_list()
+    route_presence = summary["route_present_permille_mean"].to_list()
+    activation = summary["activation_success_permille_mean"].to_list()
+    stress = summary["stress_score"].to_list()
+    y_positions = list(range(len(families)))
+    bars = ax.barh(
+        y_positions,
+        route_presence,
+        color=[COMPARISON_ENGINE_COLORS.get(engine, "#999999") for engine in engines],
+        edgecolor="#334155",
+        linewidth=0.8,
+        height=0.64,
+    )
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels([break_tick_label(family) for family in families], fontsize=8.5)
+    ax.set_xlabel("Route presence")
+    ax.invert_yaxis()
+    style_plot_axes(ax)
+    ax.set_xlim(0, 1000)
+    for bar, engine, act, stress_level in zip(
+        bars, engines, activation, stress, strict=False
+    ):
+        y = bar.get_y() + bar.get_height() / 2
+        x = bar.get_width()
+        note = f"`{engine}` act={act} stress={stress_level}"
+        if x == 0:
+            ax.scatter(
+                [8],
+                [y],
+                marker="x",
+                color="#64748b",
+                s=28,
+                linewidths=1.2,
+                zorder=4,
+            )
+            ax.text(18, y, "no route", va="center", ha="left", fontsize=8.2, color="#475569")
+        else:
+            ax.text(min(x + 12, 985), y, note, va="center", ha="left", fontsize=8.2)
+    legend_handles = [
+        plt.Rectangle((0, 0), 1, 1, color=color)
+        for _, color in COMPARISON_ENGINE_COLORS.items()
+    ]
+    legend_labels = [f"`{engine}`" for engine in COMPARISON_ENGINE_COLORS]
+    ax.legend(
+        legend_handles,
+        legend_labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.12),
+        ncol=4,
+        fontsize=8,
+        frameon=False,
+        handlelength=1.4,
+        columnspacing=1.2,
+    )
+
+
+def render_head_to_head_route_presence(ax, aggregates: pl.DataFrame) -> None:
+    data = aggregates.filter(pl.col("engine_family") == "head-to-head")
+    if data.is_empty():
+        return
+    families = data["family_id"].unique().sort().to_list()
+    engine_sets = ["batman", "pathway", "field", "pathway-batman"]
+    y_positions = list(range(len(families)))
+    height = 0.18
+    offsets = [-1.5 * height, -0.5 * height, 0.5 * height, 1.5 * height]
+    for engine_set, offset in zip(engine_sets, offsets, strict=False):
+        rows = data.filter(pl.col("comparison_engine_set") == engine_set)
+        values = []
+        for family in families:
+            family_row = rows.filter(pl.col("family_id") == family).head(1)
+            values.append(
+                family_row["route_present_permille_mean"].item() if not family_row.is_empty() else 0
+            )
+        ax.barh(
+            [position + offset for position in y_positions],
+            values,
+            height=height,
+            label=f"`{engine_set}`",
+            color=HEAD_TO_HEAD_SET_COLORS.get(engine_set, "#94a3b8"),
+            edgecolor="#334155",
+            linewidth=0.7,
+        )
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels([break_tick_label(family) for family in families], fontsize=8.2)
+    ax.set_xlabel("Route presence")
+    ax.set_xlim(0, 1000)
+    ax.invert_yaxis()
+    style_plot_axes(ax)
+    ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.12),
+        ncol=4,
+        fontsize=8,
+        frameon=False,
+    )
+
+
+def save_plot_artifact(
+    report_dir: Path,
+    key: str,
+    render_fn,
+    aggregates: pl.DataFrame,
+) -> None:
+    width_inches, height_inches = PLOT_SPECS[key]
+    fig, ax = plt.subplots(figsize=(width_inches, height_inches), layout="constrained")
+    render_fn(ax, aggregates)
+    fig.savefig(report_dir / f"{key}.svg", format="svg")
+    fig.savefig(report_dir / f"{key}.pdf", format="pdf")
+    plt.close(fig)

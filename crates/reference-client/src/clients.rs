@@ -6,12 +6,12 @@
 
 use jacquard_batman::{BatmanEngine, DecayWindow};
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DiversityFloor, DurationMs, HealthScore,
+    Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, HealthScore,
     IdentityAssuranceClass, LinkEndpoint, NodeId, Observation, OperatingMode, RatioPermille,
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
     RoutingEngineFallbackPolicy, RoutingPolicyInputs, SelectedRoutingParameters, Tick,
 };
-use jacquard_field::{FieldEngine, FieldSearchConfig};
+use jacquard_field::{FieldEngine, FieldForwardSummaryObservation, FieldSearchConfig};
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
 };
@@ -27,6 +27,14 @@ use crate::{
 pub type ReferenceRouter = MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>;
 pub type ReferenceClient = HostBridge<ReferenceRouter>;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldBootstrapSummary {
+    pub destination: DestinationId,
+    pub from_neighbor: NodeId,
+    pub forward_observation: FieldForwardSummaryObservation,
+    pub reverse_feedback: Option<(u16, Tick)>,
+}
+
 #[derive(Clone)]
 pub struct ClientBuilder {
     local_node_id: NodeId,
@@ -38,6 +46,7 @@ pub struct ClientBuilder {
     batman_decay_window: Option<DecayWindow>,
     pathway_search_config: Option<PathwaySearchConfig>,
     field_search_config: Option<FieldSearchConfig>,
+    field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
     queue_config: BridgeQueueConfig,
     include_pathway: bool,
     include_batman: bool,
@@ -64,6 +73,7 @@ impl ClientBuilder {
             batman_decay_window: None,
             pathway_search_config: None,
             field_search_config: None,
+            field_bootstrap_summaries: Vec::new(),
             queue_config: DEFAULT_BRIDGE_QUEUE_CONFIG,
             include_pathway,
             include_batman,
@@ -174,6 +184,12 @@ impl ClientBuilder {
     }
 
     #[must_use]
+    pub fn with_field_bootstrap_summary(mut self, bootstrap: FieldBootstrapSummary) -> Self {
+        self.field_bootstrap_summaries.push(bootstrap);
+        self
+    }
+
+    #[must_use]
     pub fn with_queue_config(mut self, queue_config: BridgeQueueConfig) -> Self {
         self.queue_config = queue_config;
         self
@@ -269,11 +285,26 @@ impl ClientBuilder {
                     ..Default::default()
                 },
             );
-            let field_engine = if let Some(search_config) = self.field_search_config.clone() {
+            let mut field_engine = if let Some(search_config) = self.field_search_config.clone() {
                 field_engine.with_search_config(search_config)
             } else {
                 field_engine
             };
+            for bootstrap in &self.field_bootstrap_summaries {
+                field_engine.record_forward_summary(
+                    &bootstrap.destination,
+                    bootstrap.from_neighbor,
+                    bootstrap.forward_observation,
+                );
+                if let Some((delivery_feedback, observed_at_tick)) = bootstrap.reverse_feedback {
+                    field_engine.record_reverse_feedback(
+                        &bootstrap.destination,
+                        bootstrap.from_neighbor,
+                        delivery_feedback,
+                        observed_at_tick,
+                    );
+                }
+            }
             router
                 .register_engine(Box::new(field_engine))
                 .expect("register field engine");

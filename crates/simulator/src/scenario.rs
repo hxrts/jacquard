@@ -3,7 +3,8 @@ use jacquard_core::{
     Configuration, NodeId, Observation, OperatingMode, RoutingObjective, RoutingPolicyInputs,
     SelectedRoutingParameters, SimulationSeed,
 };
-use jacquard_field::FieldSearchConfig;
+use jacquard_core::{DestinationId, Tick};
+use jacquard_field::{FieldForwardSummaryObservation, FieldSearchConfig};
 use jacquard_pathway::PathwaySearchConfig;
 use jacquard_traits::RoutingScenario;
 
@@ -32,6 +33,37 @@ pub struct HostOverrides {
     pub batman_decay_window: Option<DecayWindow>,
     pub pathway_search_config: Option<PathwaySearchConfig>,
     pub field_search_config: Option<FieldSearchConfig>,
+    pub field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldBootstrapSummary {
+    pub destination: DestinationId,
+    pub from_neighbor: NodeId,
+    pub forward_observation: FieldForwardSummaryObservation,
+    pub reverse_feedback: Option<(u16, Tick)>,
+}
+
+impl FieldBootstrapSummary {
+    #[must_use]
+    pub fn new(
+        destination: DestinationId,
+        from_neighbor: NodeId,
+        forward_observation: FieldForwardSummaryObservation,
+    ) -> Self {
+        Self {
+            destination,
+            from_neighbor,
+            forward_observation,
+            reverse_feedback: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_reverse_feedback(mut self, delivery_feedback: u16, observed_at_tick: Tick) -> Self {
+        self.reverse_feedback = Some((delivery_feedback, observed_at_tick));
+        self
+    }
 }
 
 impl HostSpec {
@@ -128,6 +160,17 @@ impl HostSpec {
     #[must_use]
     pub fn with_field_search_config(mut self, field_search_config: FieldSearchConfig) -> Self {
         self.overrides.field_search_config = Some(field_search_config);
+        self
+    }
+
+    #[must_use]
+    pub fn with_field_bootstrap_summary(
+        mut self,
+        field_bootstrap_summary: FieldBootstrapSummary,
+    ) -> Self {
+        self.overrides
+            .field_bootstrap_summaries
+            .push(field_bootstrap_summary);
         self
     }
 }
@@ -235,6 +278,12 @@ impl JacquardScenario {
     #[must_use]
     pub fn with_round_limit(mut self, round_limit: u32) -> Self {
         self.round_limit = round_limit;
+        self
+    }
+
+    #[must_use]
+    pub fn with_seed(mut self, seed: SimulationSeed) -> Self {
+        self.seed = seed;
         self
     }
 

@@ -4,6 +4,7 @@ use jacquard_core::{
     DestinationId, HealthScore, NodeId, Observation, ReachabilityState, RouteEvent,
     RouteEventStamped, RouteId, RouteLifecycleEvent, RouterRoundOutcome, RoutingEngineId, Tick,
 };
+use jacquard_field::FieldExportedReplayBundle;
 use jacquard_mem_link_profile::InMemoryRuntimeEffects;
 
 use crate::{
@@ -33,6 +34,7 @@ pub struct HostRoundArtifact {
     pub ingress_batch_boundary: IngressBatchBoundary,
     pub status: HostRoundStatus,
     pub active_routes: Vec<ActiveRouteSummary>,
+    pub field_replay: Option<FieldReplaySummary>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,6 +46,29 @@ pub struct ActiveRouteSummary {
     pub last_lifecycle_event: RouteLifecycleEvent,
     pub reachability_state: ReachabilityState,
     pub stability_score: HealthScore,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReplaySummary {
+    pub bundle: FieldExportedReplayBundle,
+    pub selected_result_present: bool,
+    pub search_reconfiguration_present: bool,
+    pub execution_policy: Option<String>,
+    pub bootstrap_active: bool,
+    pub last_promotion_decision: Option<String>,
+    pub last_promotion_blocker: Option<String>,
+    pub bootstrap_activation_count: u32,
+    pub bootstrap_hold_count: u32,
+    pub bootstrap_narrow_count: u32,
+    pub bootstrap_upgrade_count: u32,
+    pub bootstrap_withdraw_count: u32,
+    pub protocol_reconfiguration_count: usize,
+    pub route_bound_reconfiguration_count: usize,
+    pub continuation_shift_count: u32,
+    pub corridor_narrow_count: u32,
+    pub checkpoint_capture_count: u32,
+    pub checkpoint_restore_count: u32,
+    pub reconfiguration_causes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -20,6 +20,7 @@ jacquard-router = { version = "0.4.0", path = "../router" }
 jacquard-traits = { version = "0.4.0", path = "../traits" }
 
 serde = { workspace = true, default-features = false }
+serde_json.workspace = true
 telltale-simulator.workspace = true
 thiserror.workspace = true
 

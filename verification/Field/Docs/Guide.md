@@ -244,6 +244,13 @@ The router layer now also gives:
 
 This is the current owner of canonical route truth in the reduced stack. It lives in `Field/Router`, not in `Field/Quality`. The stronger selector exists now, but the project still does not claim that every observational quality objective has been promoted to router-owned truth.
 
+Bootstrap promotion is also part of the maintained reduced story now. The
+Rust replay surface and the reduced adequacy vocabulary distinguish bootstrap
+hold, narrow, promote, and withdraw, together with the dominant promotion
+blocker. That still does not make Lean the owner of the full Rust maintenance
+machine; it means the reduced replay/proof boundary names the bootstrap
+transitions that matter semantically.
+
 During the probabilistic migration there are now two distinct router-owned truths:
 
 - support-owned canonical lifecycle selection

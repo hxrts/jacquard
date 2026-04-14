@@ -18,7 +18,7 @@ use jacquard_reference_client::topology;
 use crate::{
     environment::{EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel},
     harness::default_objective,
-    scenario::{BoundObjective, HostSpec, JacquardScenario},
+    scenario::{BoundObjective, FieldBootstrapSummary, HostSpec, JacquardScenario},
 };
 
 const NODE_A: jacquard_core::NodeId = jacquard_core::NodeId([1; 32]);
@@ -225,6 +225,35 @@ pub fn field_line() -> (JacquardScenario, ScriptedEnvironmentModel) {
         ),
     ]);
     (scenario, environment)
+}
+
+#[must_use]
+pub fn field_bootstrap_multihop() -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let topology = bidirectional_line_topology(
+        topology::node(1).field().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
+    );
+    let bootstrap = FieldBootstrapSummary::new(
+        DestinationId::Node(NODE_C),
+        NODE_B,
+        jacquard_field::FieldForwardSummaryObservation::new(RouteEpoch(1), Tick(1), 900, 1, 2),
+    )
+    .with_reverse_feedback(860, Tick(1));
+    let scenario = JacquardScenario::new(
+        "field-bootstrap-multihop",
+        jacquard_core::SimulationSeed(71),
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
+        topology,
+        vec![
+            HostSpec::field(NODE_A).with_field_bootstrap_summary(bootstrap),
+            HostSpec::field(NODE_B),
+            HostSpec::field(NODE_C),
+        ],
+        vec![BoundObjective::new(NODE_A, default_objective(NODE_C)).with_activation_round(3)],
+        10,
+    );
+    (scenario, ScriptedEnvironmentModel::default())
 }
 
 #[must_use]

@@ -29,8 +29,9 @@ use crate::{
         FieldProtocolReconfiguration, FieldProtocolReconfigurationCause, FieldProtocolRuntime,
         FieldRoundDisposition,
     },
+    planner::bootstrap_class_for_state,
     recovery::FieldRouteRecoveryState,
-    route::ActiveFieldRoute,
+    route::{ActiveFieldRoute, FieldBootstrapClass},
     search::{
         FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchEpoch, FieldSearchPlanningFailure,
         FieldSearchReconfiguration, FieldSearchSnapshotState,
@@ -206,6 +207,7 @@ pub struct FieldExportedRuntimeRoundArtifact {
 pub struct FieldExportedRuntimeRouteArtifact {
     pub destination: DestinationId,
     pub route_shape: String,
+    pub bootstrap_class: String,
     pub route_support: u16,
     pub topology_epoch: u64,
 }
@@ -252,9 +254,19 @@ pub struct FieldExportedRecoveryEntry {
     pub checkpoint_available: bool,
     pub last_trigger: Option<String>,
     pub last_outcome: Option<String>,
+    pub bootstrap_active: bool,
+    pub last_bootstrap_transition: Option<String>,
+    pub last_promotion_decision: Option<String>,
+    pub last_promotion_blocker: Option<String>,
+    pub bootstrap_activation_count: u32,
+    pub bootstrap_hold_count: u32,
+    pub bootstrap_narrow_count: u32,
+    pub bootstrap_upgrade_count: u32,
+    pub bootstrap_withdraw_count: u32,
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub continuation_shift_count: u32,
+    pub corridor_narrow_count: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -286,15 +298,26 @@ pub struct FieldLeanRuntimeLinkageFixture {
     pub artifact_count: usize,
     pub search_linked_artifact_count: usize,
     pub route_artifact_count: usize,
+    pub bootstrap_route_artifact_count: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct FieldLeanRecoveryFixture {
     pub last_trigger: Option<String>,
     pub last_outcome: Option<String>,
+    pub bootstrap_active: bool,
+    pub last_bootstrap_transition: Option<String>,
+    pub last_promotion_decision: Option<String>,
+    pub last_promotion_blocker: Option<String>,
+    pub bootstrap_activation_count: u32,
+    pub bootstrap_hold_count: u32,
+    pub bootstrap_narrow_count: u32,
+    pub bootstrap_upgrade_count: u32,
+    pub bootstrap_withdraw_count: u32,
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub continuation_shift_count: u32,
+    pub corridor_narrow_count: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -398,6 +421,7 @@ pub struct FieldReducedProtocolReplay {
 pub struct FieldRuntimeRouteArtifact {
     pub destination: DestinationId,
     pub route_shape: RouteShapeVisibility,
+    pub bootstrap_class: FieldBootstrapClass,
     pub route_support: u16,
     pub topology_epoch: RouteEpoch,
 }
@@ -692,6 +716,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         FieldRuntimeRouteArtifact {
             destination: destination.clone(),
             route_shape,
+            bootstrap_class: bootstrap_class_for_state(destination_state),
             route_support: destination_state.corridor_belief.delivery_support.value(),
             topology_epoch,
         }
@@ -901,9 +926,19 @@ impl FieldExportedReplayBundle {
             .map(|entry| FieldLeanRecoveryFixture {
                 last_trigger: entry.last_trigger.clone(),
                 last_outcome: entry.last_outcome.clone(),
+                bootstrap_active: entry.bootstrap_active,
+                last_bootstrap_transition: entry.last_bootstrap_transition.clone(),
+                last_promotion_decision: entry.last_promotion_decision.clone(),
+                last_promotion_blocker: entry.last_promotion_blocker.clone(),
+                bootstrap_activation_count: entry.bootstrap_activation_count,
+                bootstrap_hold_count: entry.bootstrap_hold_count,
+                bootstrap_narrow_count: entry.bootstrap_narrow_count,
+                bootstrap_upgrade_count: entry.bootstrap_upgrade_count,
+                bootstrap_withdraw_count: entry.bootstrap_withdraw_count,
                 checkpoint_capture_count: entry.checkpoint_capture_count,
                 checkpoint_restore_count: entry.checkpoint_restore_count,
                 continuation_shift_count: entry.continuation_shift_count,
+                corridor_narrow_count: entry.corridor_narrow_count,
             });
         FieldLeanReplayFixture {
             scenario: scenario.into(),
@@ -951,6 +986,17 @@ impl FieldExportedReplayBundle {
                     .runtime_artifacts
                     .iter()
                     .filter(|artifact| artifact.router_artifact.is_some())
+                    .count(),
+                bootstrap_route_artifact_count: self
+                    .runtime_search
+                    .runtime_artifacts
+                    .iter()
+                    .filter(|artifact| {
+                        artifact
+                            .router_artifact
+                            .as_ref()
+                            .is_some_and(|route| route.bootstrap_class == "Bootstrap")
+                    })
                     .count(),
             },
             recovery,
@@ -1053,6 +1099,7 @@ fn exported_runtime_round_artifact(
             FieldExportedRuntimeRouteArtifact {
                 destination: route.destination.clone(),
                 route_shape: format!("{:?}", route.route_shape),
+                bootstrap_class: format!("{:?}", route.bootstrap_class),
                 route_support: route.route_support,
                 topology_epoch: route.topology_epoch.0,
             }
@@ -1111,9 +1158,28 @@ fn exported_recovery_replay(replay: &FieldRecoveryReplaySurface) -> FieldExporte
                     .state
                     .last_outcome
                     .map(|outcome| format!("{outcome:?}")),
+                bootstrap_active: entry.state.bootstrap_active,
+                last_bootstrap_transition: entry
+                    .state
+                    .last_bootstrap_transition
+                    .map(|transition| format!("{transition:?}")),
+                last_promotion_decision: entry
+                    .state
+                    .last_promotion_decision
+                    .map(|decision| format!("{decision:?}")),
+                last_promotion_blocker: entry
+                    .state
+                    .last_promotion_blocker
+                    .map(|blocker| format!("{blocker:?}")),
+                bootstrap_activation_count: entry.state.bootstrap_activation_count,
+                bootstrap_hold_count: entry.state.bootstrap_hold_count,
+                bootstrap_narrow_count: entry.state.bootstrap_narrow_count,
+                bootstrap_upgrade_count: entry.state.bootstrap_upgrade_count,
+                bootstrap_withdraw_count: entry.state.bootstrap_withdraw_count,
                 checkpoint_capture_count: entry.state.checkpoint_capture_count,
                 checkpoint_restore_count: entry.state.checkpoint_restore_count,
                 continuation_shift_count: entry.state.continuation_shift_count,
+                corridor_narrow_count: entry.state.corridor_narrow_count,
             })
             .collect(),
     }
@@ -1121,9 +1187,25 @@ fn exported_recovery_replay(replay: &FieldRecoveryReplaySurface) -> FieldExporte
 
 #[cfg(test)]
 mod tests {
+    use jacquard_core::{LinkEndpoint, TransportError};
+    use jacquard_traits::{effect_handler, TransportSenderEffects};
     use telltale_search::SearchSchedulerProfile;
 
     use super::*;
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    struct NoopTransport;
+
+    #[effect_handler]
+    impl TransportSenderEffects for NoopTransport {
+        fn send_transport(
+            &mut self,
+            _endpoint: &LinkEndpoint,
+            _payload: &[u8],
+        ) -> Result<(), TransportError> {
+            Ok(())
+        }
+    }
 
     fn node(byte: u8) -> NodeId {
         NodeId([byte; 32])
@@ -1131,7 +1213,7 @@ mod tests {
 
     #[test]
     fn effective_search_config_tracks_posture_without_changing_field_defaults() {
-        let mut engine = FieldEngine::new(node(1), (), ());
+        let mut engine = FieldEngine::new(node(1), NoopTransport, ());
         assert_eq!(
             engine.effective_search_config().scheduler_profile(),
             SearchSchedulerProfile::CanonicalSerial,
@@ -1157,7 +1239,7 @@ mod tests {
 
     #[test]
     fn replay_snapshot_is_versioned_and_surface_typed() {
-        let engine = FieldEngine::new(node(1), (), ());
+        let engine = FieldEngine::new(node(1), NoopTransport, ());
         let snapshot = engine.replay_snapshot(&[]);
         assert_eq!(snapshot.schema_version, FIELD_REPLAY_SURFACE_VERSION);
         assert_eq!(
@@ -1184,7 +1266,7 @@ mod tests {
 
     #[test]
     fn replay_snapshot_matches_direct_public_surfaces() {
-        let engine = FieldEngine::new(node(1), (), ());
+        let engine = FieldEngine::new(node(1), NoopTransport, ());
         let snapshot = engine.replay_snapshot(&[]);
         assert_eq!(snapshot.search.record, engine.last_search_record());
         assert_eq!(snapshot.protocol.artifacts, engine.protocol_artifacts());
@@ -1199,7 +1281,7 @@ mod tests {
 
     #[test]
     fn replay_snapshot_runtime_surface_stays_bounded() {
-        let engine = FieldEngine::new(node(1), (), ());
+        let engine = FieldEngine::new(node(1), NoopTransport, ());
         for index in 0..(FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX + 4) {
             engine.record_runtime_round_artifact(FieldRuntimeRoundArtifact {
                 protocol: crate::choreography::FieldProtocolKind::SummaryDissemination,
