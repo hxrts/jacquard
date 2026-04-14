@@ -585,6 +585,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-batman-classic"
+version = "0.4.0"
+dependencies = [
+ "bincode",
+ "jacquard-adapter",
+ "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
+ "jacquard-router",
+ "jacquard-traits",
+ "serde",
+]
+
+[[package]]
 name = "jacquard-core"
 version = "0.4.0"
 dependencies = [
@@ -715,6 +729,7 @@ dependencies = [
  "jacquard-router",
  "jacquard-traits",
  "serde",
+ "serde_json",
  "telltale-simulator",
  "thiserror",
 ]

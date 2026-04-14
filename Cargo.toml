@@ -4,6 +4,7 @@ members = [
   "toolkit/xtask",
   "crates/adapter",
   "crates/batman",
+  "crates/batman-classic",
   "crates/core",
   "crates/field",
   "crates/field-client",
