@@ -194,7 +194,7 @@ def build_styles():
         ParagraphStyle(
             name="Caption",
             parent=styles["BodyText"],
-            fontName="Helvetica-Oblique",
+            fontName="Helvetica",
             fontSize=8.2,
             leading=11,
             textColor=colors.HexColor("#64748b"),
