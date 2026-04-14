@@ -12,7 +12,7 @@ That matters because routing quality is regime-dependent. A setting that looks s
 
 The document is organized in two parts. Part I focuses on tuning: recommended configurations, transition behavior, failure boundaries, and the simulator assumptions that shape those results. Part II focuses on analysis: engine-specific behavior for `batman-bellman`, `batman-classic`, `babel`, `pathway`, and `field`, followed by mixed-engine and head-to-head comparisons across maintained regimes.
 
-The emphasis throughout is explanatory rather than purely prescriptive. The recommendations are still present, but they are framed by the measured transition surfaces, breakdown points, and comparative regimes that justify them. That matters especially for `field`, where the current corpus supports both a broad viable default range and a smaller set of profile-specific continuity tradeoffs rather than one single universally best setting.
+The emphasis throughout is explanatory rather than purely prescriptive. The recommendations are framed by the measured transition surfaces, breakdown points, and comparative regimes that justify them. That matters especially for `field`, where the corpus supports both a broad viable default range and a smaller set of profile-specific continuity tradeoffs rather than one single universally best setting.
 
 ## Part I. Tuning
 
@@ -167,7 +167,7 @@ These profile recommendations provide alternative defaults for operators who car
 
 Each profile reuses the same simulator corpus but changes the ranking weights so the table answers a different operational question without changing the underlying evidence.
 
-They are meant to show robust centers of acceptable behavior, not to overfit one narrow regime. For `field`, the continuity-oriented profiles are especially important because the newer service regimes separate configurations more clearly in lifecycle shape than in route presence alone.
+They are meant to show robust centers of acceptable behavior, not to overfit one narrow regime. For `field`, the continuity-oriented profiles are especially important because the service regimes separate configurations more clearly in lifecycle shape than in route presence alone.
 
 #### Profile Recommendation Logic Empty
 
@@ -359,6 +359,8 @@ This final part evaluates the same engine sets under message-diffusion scenarios
 
 The goal is to compare `batman-bellman`, `batman-classic`, `babel`, `pathway`, `field`, and the combined `pathway-batman-bellman` stack under bounded-replication delivery pressure. This keeps Part III structurally aligned with the engine-comparison logic used earlier in the report, while shifting the measured outcome from live routes to eventual spread, boundedness, and leakage.
 
+The harsher diffusion families create real operating-region boundaries: the more conservative distance-vector stacks remain viable longer, `field` and `pathway` trade stronger opportunism for earlier energy-bound explosiveness, and the combined `pathway-batman-bellman` stack over-publishes earliest in the hard boundedness regimes.
+
 The maintained diffusion families are:
 
 - `random-waypoint-sanity`: a lightweight baseline where mixed movers create a sanity-check contact field rather than a strongly structured community pattern.
@@ -368,12 +370,15 @@ The maintained diffusion families are:
 - `high-density-overload`: a dense camp-like setting, used to expose when spread turns into overload.
 - `mobility-shift`: clusters reconfigure over time, used to test whether diffusion corridors adapt rather than freezing around one early contact pattern.
 - `adversarial-observation`: clustered delivery with observer nodes, used to expose the leakage cost of spread.
+- `bridge-drought`: a prolonged low-contact bridge regime, used to separate engines that can exploit rare bridge opportunities from engines that stay too local.
+- `energy-starved-relay`: a low-energy relay regime, used to punish over-forwarding when transfer opportunities exist but relay budgets are tight.
+- `congestion-cascade`: a dense low-capacity broadcast regime, used to expose when broad spread turns into overload.
 
 ### Diffusion Engine Summary
 
 @table diffusion-engine-summary
 
-This table summarizes the best-performing engine set in each maintained diffusion family.
+This table summarizes the best-performing engine set in each maintained diffusion family after balancing success against cost, leakage, latency, and boundedness. In this artifact set, the winners are split across the engines rather than collapsing to one uniformly dominant diffusion profile.
 
 Column guide: Engine Set is the best-scoring stack for that family; Delivery is the fraction of intended targets reached; Coverage is the fraction of reachable nodes that saw the message; Latency is the mean delivery delay for reached targets; State is the dominant boundedness classification; Stress is the maintained stress level of the scenario.
 
@@ -381,7 +386,7 @@ Column guide: Engine Set is the best-scoring stack for that family; Delivery is 
 
 @table diffusion-engine-comparison
 
-This table exposes the full maintained diffusion engine surface instead of only the family winners.
+This table exposes the full maintained diffusion engine surface instead of only the family winners. The harder families are intended to create real failure and overload boundaries rather than only near-perfect delivery ties.
 
 Column guide: Family groups rows by scenario; Engine Set is the routing stack being compared; Delivery and Coverage are the main success signals; Tx is mean transmission count; `R_est` is the boundedness signal; State is the dominant boundedness classification for that engine set in that family.
 
@@ -389,13 +394,13 @@ Column guide: Family groups rows by scenario; Engine Set is the routing stack be
 
 @table diffusion-engine-boundaries
 
-This table summarizes where each engine set stays viable and where it first collapses or becomes explosive across the maintained diffusion families.
+This table summarizes where each engine set stays viable and where it first collapses or becomes explosive across the maintained diffusion families. The main separation is in first explosive family rather than outright delivery collapse.
 
 Column guide: Viable Families counts the maintained families classified as bounded and effective; First Collapse is the first family where delivery or coverage falls below the acceptable floor; First Explosive is the first family where reproduction and transmission load become unbounded for that engine set.
 
 ### Diffusion Figure Context
 
-These two diffusion figures separate delivery success from resource boundedness. The first asks which engine sets actually move messages across the maintained diffusion families. The second asks whether those same engine sets stay inside a bounded operating region or spill into overload.
+These two diffusion figures separate delivery success from resource boundedness. The first asks which engine sets actually move messages across the maintained diffusion families. The second asks whether those same engine sets stay inside a bounded operating region or spill into overload. The bridge-drought, energy-starved, and congestion-cascade families are the most important discriminators.
 
 #### Figure 13
 
@@ -411,9 +416,10 @@ This figure shows transmission load and boundedness by engine set across the mai
 
 ### Diffusion Takeaways
 
-- The diffusion track is now an engine comparison, not a generic policy sweep.
-- The main question in these scenarios is which engine set keeps spread useful while staying bounded, not which one produces the most copies.
-- The most informative families are the ones that separate viable carry-forward from collapse or overload rather than merely confirming that some message movement occurred.
+- The diffusion track is an engine comparison, not a generic policy sweep.
+- The main Part III result is boundedness separation, not delivery separation: `batman-classic`, `batman-bellman`, and `babel` stay viable across nine maintained families, while `field` and `pathway` first go explosive in `energy-starved-relay`, and `pathway-batman-bellman` goes explosive as early as `partitioned-clusters`.
+- The conservative stacks are strongest when scarce relays and bounded forwarding matter most; `field` and `pathway` win selected families, but they pay for stronger opportunism under energy and replication pressure.
+- The harsher families should be read as boundary finders: `bridge-drought` tests rare-opportunity carry, `energy-starved-relay` tests efficiency under scarcity, and `congestion-cascade` tests whether broad forwarding remains bounded.
 
 ### Data-Driven Templates
 
@@ -447,17 +453,17 @@ Pathway query budget 1 fails immediately, and the high-fanout and bridge-pressur
 
 #### Pressure Findings Field Plateau
 
-Field now shows a broad viable plateau across the swept budgets: route presence={route_present} permille, bootstrap activation={bootstrap_activation} permille, and bootstrap upgrade={bootstrap_upgrade} permille at the low-budget point.
+Field shows a broad viable plateau across the swept budgets: route presence={route_present} permille, bootstrap activation={bootstrap_activation} permille, and bootstrap upgrade={bootstrap_upgrade} permille at the low-budget point.
 
-That means the current Field limit is no longer simple non-activation or service-fanout collapse. The more important reading is that several tested settings are now good enough to behave similarly in the maintained corpus.
+Several tested settings behave similarly in the maintained corpus, indicating that the separation between Field configurations comes from lifecycle shape rather than raw route presence.
 
 #### Engine Section Empty Field
 
 No measured Field recommendation is available for this artifact set.
 
-The current simulator matrix does extract Field replay, search, reconfiguration, and bootstrap signals, including corridor support, selected-result presence, bootstrap activation or upgrade behavior, continuation shifts, and protocol or route-bound reconfiguration counts.
+The simulator matrix does extract Field replay, search, reconfiguration, and bootstrap signals, including corridor support, selected-result presence, bootstrap activation or upgrade behavior, continuation shifts, and protocol or route-bound reconfiguration counts.
 
-But those signals still do not close the boundary to a stable bootstrap-to-steady route-visible default in the maintained Field families, so the report does not publish a measured Field default from this corpus.
+But those signals do not close the boundary to a stable bootstrap-to-steady route-visible default in the maintained Field families, so the report does not publish a measured Field default from this corpus.
 
 #### Engine Section Empty Generic
 
@@ -521,11 +527,11 @@ Its corridor-continuity profile in the maintained corpus is bootstrap activation
 
 #### Engine Section Field Tied
 
-The current Field sweep is no longer tied in a strict sense. Top-line route presence remains close across much of the tested range, but the newer service-oriented knobs separate the configs in continuation-shift count, service carry-forward, and narrowing behavior. The current question is therefore not only which config keeps a route alive, but also what kind of corridor-management behavior is desired while it stays alive.
+Top-line route presence remains close across much of the tested range, but the service-oriented knobs separate the configs in continuation-shift count, service carry-forward, and narrowing behavior. The question is therefore not only which config keeps a route alive, but also what kind of corridor-management behavior is desired while it stays alive.
 
 #### Engine Section Field Replay
 
-Field is no longer replay-only in this corpus: the maintained families now produce real router-visible activation and route presence, and the bootstrap phase is directly visible in replay and recovery surfaces.
+The maintained families produce real router-visible activation and route presence, and the bootstrap phase is directly visible in replay and recovery surfaces.
 
 #### Engine Section Field Families
 
@@ -533,7 +539,7 @@ The asymmetric-envelope and bridge anti-entropy families are the clearest places
 
 #### Engine Section Field Diagnosis
 
-The expanded corpus changes the diagnosis again. Earlier results left open the possibility that Field was mostly underexercised, and then showed a real bootstrap-to-steady bottleneck. The current results show that the service-corridor publication and materialization path was a major missing piece: once that was fixed, the maintained service-fanout family became a steady route-visible success rather than a persistent weak outlier. The remaining tuning question is no longer whether Field works in these regimes. It is which continuity style is preferable: narrower lower-churn publication or broader reselection with more carried-forward optionality.
+The service-corridor publication and materialization path is the key enabler for Field's route-visible behavior. The maintained service-fanout family produces steady route-visible success rather than persistent weak outlier behavior. The tuning question is which continuity style is preferable: narrower lower-churn publication or broader reselection with more carried-forward optionality.
 
 #### Recommendation Rationale Empty Field
 
@@ -603,15 +609,15 @@ The Field recommendation is driven by corridor continuity, bootstrap upgrade beh
 
 #### Recommendation Rationale Field 2
 
-The current measured continuity profile for `{config_id}` is bootstrap activation {activation} permille, hold {hold} permille, narrow {narrow} permille, upgrade {upgrade} permille, withdrawal {withdrawal} permille, degraded-steady occupancy {degraded} permille, service carry-forward {service} permille, and asymmetric shift success {shift} permille. The dominant commitment resolution is `{commitment}`, the dominant last recovery outcome is `{outcome}`, the dominant continuity band is `{band}`, the dominant continuity transition is `{transition}`, the dominant last decision is `{decision}`, and the dominant blocker is `{blocker}`.
+The measured continuity profile for `{config_id}` is bootstrap activation {activation} permille, hold {hold} permille, narrow {narrow} permille, upgrade {upgrade} permille, withdrawal {withdrawal} permille, degraded-steady occupancy {degraded} permille, service carry-forward {service} permille, and asymmetric shift success {shift} permille. The dominant commitment resolution is `{commitment}`, the dominant last recovery outcome is `{outcome}`, the dominant continuity band is `{band}`, the dominant continuity transition is `{transition}`, the dominant last decision is `{decision}`, and the dominant blocker is `{blocker}`.
 
 #### Recommendation Rationale Field 3
 
-The recommendation therefore acts more as a representative baseline than a sharply tuned optimum. In this artifact set, the Field configurations are still close in top-line route presence, so the primary recommendation should be read as a stable center of a broad acceptable range. The continuity profile table is the better place to choose between lower-churn and broader-reselection behavior inside that range.
+The recommendation acts more as a representative baseline than a sharply tuned optimum. The Field configurations are close in top-line route presence, so the primary recommendation should be read as a stable center of a broad acceptable range. The continuity profile table is the better place to choose between lower-churn and broader-reselection behavior inside that range.
 
 #### Recommendation Rationale Field 4
 
-This is a measured and materially stronger recommendation than the earlier Field baselines. The maintained corpus now includes steady route-visible service continuity as well as bootstrap-aware corridor behavior, and the newer service regimes make the Field knobs visible in lifecycle metrics even when route presence still clusters closely together.
+The maintained corpus includes steady route-visible service continuity as well as bootstrap-aware corridor behavior. The service regimes make the Field knobs visible in lifecycle metrics even when route presence clusters closely together.
 
 #### Limitations And Next Steps
 
@@ -627,10 +633,10 @@ The Babel corpus shows that the ETX link cost and additive metric produce measur
 
 The Pathway corpus clearly identifies the minimum viable budget floor, but it also shows a wide plateau above that floor.
 
-The Field corpus now reaches the route-visible boundary with an explicit bootstrap phase and a working steady service-corridor path, but the tested Field settings still cluster tightly enough that the current sweep is better at identifying a viable range than at isolating one sharply preferred point.
+The Field corpus reaches the route-visible boundary with an explicit bootstrap phase and a working steady service-corridor path, but the tested Field settings cluster tightly enough that the sweep is better at identifying a viable range than at isolating one sharply preferred point.
 
-The bridge anti-entropy and bootstrap-upgrade families make the corpus more favorable to Field than a simple bridge-failure matrix, so the report can distinguish between underexercise and real weakness more cleanly.
+The bridge anti-entropy and bootstrap-upgrade families make the corpus more favorable to Field than a simple bridge-failure matrix, allowing the report to distinguish between underexercise and real weakness.
 
-The current verdict is more positive than the earlier matrices. The service-corridor fixes materially raised Field's measured route presence and removed the maintained service-fanout failure. The remaining limitation is not that Field cannot sustain service continuity, but that the current tested settings are still effectively tied and therefore leave room for more discriminating future regime design.
+Field sustains service continuity across the maintained families. The remaining limitation is that the tested settings cluster closely, leaving room for more discriminating future regime design.
 
 The recommendations should therefore be treated as measured defaults for this tuning corpus, not as universal claims about every future deployment.
