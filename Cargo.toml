@@ -3,6 +3,7 @@ resolver = "2"
 members = [
   "toolkit/xtask",
   "crates/adapter",
+  "crates/babel",
   "crates/batman",
   "crates/batman-classic",
   "crates/core",

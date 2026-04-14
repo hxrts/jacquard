@@ -571,6 +571,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-babel"
+version = "0.4.0"
+dependencies = [
+ "bincode",
+ "jacquard-adapter",
+ "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
+ "jacquard-router",
+ "jacquard-traits",
+ "serde",
+]
+
+[[package]]
 name = "jacquard-batman"
 version = "0.4.0"
 dependencies = [
@@ -689,6 +703,7 @@ name = "jacquard-reference-client"
 version = "0.4.0"
 dependencies = [
  "jacquard-adapter",
+ "jacquard-babel",
  "jacquard-batman",
  "jacquard-core",
  "jacquard-field",
@@ -720,6 +735,7 @@ name = "jacquard-simulator"
 version = "0.4.0"
 dependencies = [
  "jacquard-adapter",
+ "jacquard-babel",
  "jacquard-batman",
  "jacquard-core",
  "jacquard-field",
