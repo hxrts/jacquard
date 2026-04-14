@@ -6,13 +6,11 @@
 
 This report studies Jacquard routing behavior across five engines, `batman-bellman`, `batman-classic`, `babel`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
 
-The goal is not only to pick default parameter settings. It is also to understand where each engine works cleanly, where it begins to degrade, what kinds of failures appear first, and how the engines compare when they are placed under the same network regimes.
+The goal is not only to pick default parameter settings. It is also to understand where each engine works cleanly, where it begins to degrade, what kinds of failures appear first, and how the engines compare when placed under the same network regimes. That matters because routing quality is regime-dependent. A setting that looks strong in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
 
-That matters because routing quality is regime-dependent. A setting that looks strong in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty. The report is therefore designed to connect tuning choices to concrete failure boundaries rather than treating routing as a single scalar benchmark.
+The document is organized in three parts. Part I focuses on tuning: recommended configurations, transition behavior, failure boundaries, and the simulator assumptions that shape those results. Part II focuses on analysis: engine-specific behavior for each engine, followed by mixed-engine and head-to-head comparisons across maintained regimes. Part III evaluates the same engine sets under message-diffusion scenarios where mobility is the transport and end-to-end paths may not exist, measuring eventual spread, boundedness, and leakage instead of live route presence.
 
-The document is organized in two parts. Part I focuses on tuning: recommended configurations, transition behavior, failure boundaries, and the simulator assumptions that shape those results. Part II focuses on analysis: engine-specific behavior for `batman-bellman`, `batman-classic`, `babel`, `pathway`, and `field`, followed by mixed-engine and head-to-head comparisons across maintained regimes.
-
-The emphasis throughout is explanatory rather than purely prescriptive. The recommendations are framed by the measured transition surfaces, breakdown points, and comparative regimes that justify them. That matters especially for `field`, where the corpus supports both a broad viable default range and a smaller set of profile-specific continuity tradeoffs rather than one single universally best setting.
+The emphasis throughout is explanatory rather than purely prescriptive. The recommendations are framed by the measured transition surfaces, breakdown points, and comparative regimes that justify them. For `field`, the corpus supports both a broad viable default range and a smaller set of profile-specific continuity tradeoffs rather than one single universally best setting. For the distance-vector engines (`batman-bellman`, `batman-classic`, `babel`), the report connects decay window tuning to concrete convergence timing and partition recovery behavior.
 
 ## Part I. Tuning
 
@@ -400,19 +398,19 @@ Column guide: Viable Families counts the maintained families classified as bound
 
 ### Diffusion Figure Context
 
-These two diffusion figures separate delivery success from resource boundedness. The first asks which engine sets actually move messages across the maintained diffusion families. The second asks whether those same engine sets stay inside a bounded operating region or spill into overload. The bridge-drought, energy-starved, and congestion-cascade families are the most important discriminators.
+These two diffusion figures separate delivery success from resource boundedness. The first asks which engine sets actually move messages across the most discriminating maintained diffusion families. The second asks whether those same engine sets stay inside a bounded operating region or spill into overload. The tables above still cover the full maintained family set; the figures focus on the six families that best expose carry, privacy, energy, and congestion tradeoffs in this artifact set.
 
 #### Figure 13
 
 @figure diffusion_delivery_coverage
 
-This figure shows delivery and coverage by engine set across the maintained diffusion families.
+This figure shows delivery and coverage by engine set across the six most discriminating maintained diffusion families.
 
 #### Figure 14
 
 @figure diffusion_resource_boundedness
 
-This figure shows transmission load and boundedness by engine set across the maintained diffusion families.
+This figure shows transmission load and boundedness by engine set across the six most discriminating maintained diffusion families.
 
 ### Diffusion Takeaways
 
