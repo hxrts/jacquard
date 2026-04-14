@@ -853,7 +853,7 @@ def render_comparison_summary(ax, aggregates: pl.DataFrame) -> None:
         if engine != "none"
     ]
     legend_labels = [
-        f"`{engine}`" for engine in COMPARISON_ENGINE_COLORS if engine != "none"
+        engine for engine in COMPARISON_ENGINE_COLORS if engine != "none"
     ]
     legend = ax.legend(
         legend_handles,
@@ -906,7 +906,7 @@ def render_head_to_head_route_presence(ax, aggregates: pl.DataFrame) -> None:
             [position + offset for position in y_positions],
             values,
             height=height,
-            label=f"`{engine_set}`",
+            label=engine_set,
             color=HEAD_TO_HEAD_SET_COLORS.get(engine_set, "#94a3b8"),
             edgecolor="#334155",
             linewidth=0.7,
@@ -921,7 +921,7 @@ def render_head_to_head_route_presence(ax, aggregates: pl.DataFrame) -> None:
         plt.Rectangle((0, 0), 1, 1, color=HEAD_TO_HEAD_SET_COLORS.get(e, "#94a3b8"), linewidth=0)
         for e in engine_sets
     ]
-    legend_labels = [f"`{e}`" for e in engine_sets]
+    legend_labels = [e for e in engine_sets]
     legend = ax.legend(
         legend_handles,
         legend_labels,
@@ -1009,7 +1009,7 @@ def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataF
         plt.Rectangle((0, 0), 1, 1, color=diffusion_config_color(engine), linewidth=0)
         for engine in engine_sets
     ]
-    engine_labels = [f"`{engine}`" for engine in engine_sets]
+    engine_labels = [engine for engine in engine_sets]
     coverage_handle = plt.Line2D([0], [0], color="#111827", marker="o", linewidth=1.0, markersize=4.0)
     legend = panels[0].legend(
         [*engine_handles, coverage_handle],
@@ -1122,7 +1122,7 @@ def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.Da
         plt.Rectangle((0, 0), 1, 1, color=diffusion_config_color(engine), linewidth=0)
         for engine in engine_sets
     ]
-    legend_labels = [f"`{engine}`" for engine in engine_sets]
+    legend_labels = [engine for engine in engine_sets]
     legend = panels[0].legend(
         legend_handles,
         legend_labels,
