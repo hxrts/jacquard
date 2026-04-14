@@ -295,7 +295,7 @@ These rows show what each stack does when it is the only available routing surfa
 #### Head-To-Head Takeaways
 
 - `connected-low-loss` is mostly a tie regime.
-- Lossy and bridge-recovery cases favor the distance-vector stacks: `connected-high-loss` is led by `{connected_high_loss_engine_set}` at {connected_high_loss_route_presence} permille, `bridge-transition` by `{bridge_transition_engine_set}` at {bridge_transition_route_presence} permille.
+- Lossy and bridge-recovery cases remain the clearest separators: `connected-high-loss` is led by `{connected_high_loss_engine_set}` at {connected_high_loss_route_presence} permille, `bridge-transition` by `{bridge_transition_engine_set}` at {bridge_transition_route_presence} permille.
 - Mixed workloads favor explicit search: `concurrent-mixed` is led by `{concurrent_mixed_engine_set}` at {concurrent_mixed_route_presence} permille.
 - `field` is strongest when corridor continuity is the question: {corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`, but only {partial_bridge_route_presence} permille in `partial-observability-bridge`.
 
@@ -611,6 +611,6 @@ The corpus includes steady route-visible service continuity and bootstrap-aware 
 
 These recommendations are only as good as the simulated regime corpus. A flat curve can mean genuine robustness or that the sweep has not found the most informative failure boundary.
 
-The BATMAN Bellman corpus exposes recoverable transition differences, but asymmetry-plus-bridge families remain hard failures. The BATMAN Classic corpus confirms slower convergence and tight clustering of decay window settings. The Babel corpus shows measurably different behavior under asymmetric conditions, with the FD table visible in partition recovery, but decay window settings do not yet separate sharply. The Pathway corpus identifies the minimum viable budget floor with a wide plateau above it.
+The BATMAN Bellman corpus exposes recoverable transition differences, but asymmetry-plus-bridge families remain hard failures. The BATMAN Classic corpus confirms slower convergence and tight clustering of decay window settings. The Babel corpus shows measurably different behavior under asymmetric conditions, with the FD table visible in partition recovery, but decay window settings do not yet separate sharply. The OLSRv2 corpus separates most clearly on topology propagation, MPR flooding stability, and asymmetric relink timing, but the maintained window sweep is still narrow enough that several settings remain tied on route visibility. The Pathway corpus identifies the minimum viable budget floor with a wide plateau above it.
 
 The Field corpus reaches the route-visible boundary with an explicit bootstrap phase and working service-corridor path, but tested settings cluster tightly. The bridge anti-entropy and bootstrap-upgrade families allow the report to distinguish between underexercise and real weakness. The remaining limitation is that tested settings cluster closely, leaving room for more discriminating future regime design.

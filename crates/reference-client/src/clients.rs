@@ -269,6 +269,10 @@ impl ClientBuilder {
         Self::pathway(local_node_id, topology, network, now)
             .with_field()
             .with_batman_bellman()
+            .with_batman_classic()
+            .with_babel()
+            .with_olsrv2()
+            .with_queue_config(BridgeQueueConfig::new(256, 256))
     }
 
     #[must_use]

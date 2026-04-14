@@ -1065,6 +1065,19 @@ def top_recommendation_row(recommendations: pl.DataFrame, engine_family: str) ->
     return rows[0] if rows else None
 
 
+def engine_family_label(engine_family: str) -> str:
+    labels = {
+        "batman-bellman": "BATMAN Bellman",
+        "batman-classic": "BATMAN Classic",
+        "babel": "Babel",
+        "olsrv2": "OLSRv2",
+        "pathway": "Pathway",
+        "field": "Field",
+        "comparison": "Comparison",
+    }
+    return labels.get(engine_family, engine_family)
+
+
 def previous_artifact_dir(artifact_dir: Path) -> Path | None:
     if not artifact_dir.parent.exists():
         return None
@@ -1182,7 +1195,7 @@ def write_recommendations(path: Path, recommendations: pl.DataFrame) -> None:
             lines.append("")
             continue
         top = rows[0]
-        lines.append(f"## {engine_family.capitalize()}")
+        lines.append(f"## {engine_family_label(engine_family)}")
         lines.append("")
         lines.append(
             f"Primary recommendation: `{top['config_id']}` "

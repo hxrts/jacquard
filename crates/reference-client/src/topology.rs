@@ -130,7 +130,14 @@ impl TopologyNodePreset {
 
     #[must_use]
     pub fn all_engines(self) -> Self {
-        self.for_engines(&[PATHWAY_ENGINE_ID, FIELD_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
+        self.for_engines(&[
+            PATHWAY_ENGINE_ID,
+            FIELD_ENGINE_ID,
+            BATMAN_BELLMAN_ENGINE_ID,
+            BATMAN_CLASSIC_ENGINE_ID,
+            BABEL_ENGINE_ID,
+            OLSRV2_ENGINE_ID,
+        ])
     }
 
     #[must_use]

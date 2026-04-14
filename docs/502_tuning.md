@@ -34,7 +34,7 @@ Regenerate the report for an existing artifact directory:
 nix develop --command python3 -m analysis.report artifacts/analysis/local/latest
 ```
 
-The report is written to `artifacts/analysis/{suite}/latest/report/report.pdf`.
+The report is written to `artifacts/analysis/{suite}/latest/report.pdf`.
 
 ## Matrix Structure
 
@@ -112,7 +112,7 @@ cargo run --bin tuning_matrix -- local
 ```
 
 The report is generated automatically at
-`artifacts/analysis/local/latest/report/report.pdf`.
+`artifacts/analysis/local/latest/report.pdf`.
 
 ### BATMAN Bellman
 

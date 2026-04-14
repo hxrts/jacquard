@@ -51,6 +51,12 @@ const NODE_E: NodeId = NodeId([5; 32]);
 pub enum ExperimentError {
     #[error("simulation failed: {0}")]
     Simulation(#[from] SimulationError),
+    #[error("simulation failed for {run_id}: {source}")]
+    SimulationRun {
+        run_id: String,
+        #[source]
+        source: SimulationError,
+    },
     #[error("io failed: {0}")]
     Io(#[from] std::io::Error),
     #[error("json failed: {0}")]
@@ -773,7 +779,12 @@ where
     let mut writer = BufWriter::new(File::create(&run_path)?);
 
     for spec in &suite.runs {
-        let (replay, _) = simulator.run_scenario(&spec.scenario, &spec.environment)?;
+        let (replay, _) = simulator
+            .run_scenario(&spec.scenario, &spec.environment)
+            .map_err(|source| ExperimentError::SimulationRun {
+                run_id: spec.run_id.clone(),
+                source,
+            })?;
         let reduced = ReducedReplayView::from_replay(&replay);
         let summary = summarize_run(spec, &reduced);
         serde_json::to_writer(&mut writer, &summary)?;
