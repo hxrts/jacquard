@@ -25,6 +25,7 @@
 #![forbid(unsafe_code)]
 
 mod assertions;
+mod diffusion;
 mod environment;
 mod experiments;
 mod harness;
@@ -35,6 +36,11 @@ mod scenario;
 pub mod presets;
 
 pub use assertions::{AssertionFailure, ScenarioAssertions};
+pub use diffusion::{
+    diffusion_local_suite, diffusion_smoke_suite, run_diffusion_suite, DiffusionAggregateSummary,
+    DiffusionArtifacts, DiffusionBoundarySummary, DiffusionManifest, DiffusionPolicyConfig,
+    DiffusionRegimeDescriptor, DiffusionRunSummary, DiffusionSuite,
+};
 pub use environment::{
     AppliedEnvironmentHook, EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel,
 };

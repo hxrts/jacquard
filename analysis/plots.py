@@ -12,6 +12,7 @@ from .constants import (
     BATMAN_BELLMAN_FAMILY_COLORS,
     BATMAN_CLASSIC_FAMILY_COLORS,
     COMPARISON_ENGINE_COLORS,
+    DIFFUSION_BOUND_STATE_COLORS,
     FIELD_FAMILY_COLORS,
     HEAD_TO_HEAD_SET_COLORS,
     PLOT_SPECS,
@@ -172,6 +173,7 @@ def render_batman_classic_transition_stability(ax, aggregates: pl.DataFrame) -> 
     batman_classic_families = [
         "batman-classic-decay-window-pressure",
         "batman-classic-partition-recovery",
+        "batman-classic-asymmetry-relink-transition",
     ]
     data = aggregates.filter(
         (pl.col("engine_family") == "batman-classic")
@@ -182,9 +184,11 @@ def render_batman_classic_transition_stability(ax, aggregates: pl.DataFrame) -> 
     fig = ax.figure
     subplotspec = ax.get_subplotspec()
     ax.remove()
-    grid = subplotspec.subgridspec(1, 2, wspace=0.18)
+    grid = subplotspec.subgridspec(1, 3, wspace=0.18)
+    panels = []
     for index, family_id in enumerate(batman_classic_families):
         panel = fig.add_subplot(grid[0, index])
+        panels.append(panel)
         rows = data.filter(pl.col("family_id") == family_id).sort(
             "batman_classic_stale_after_ticks"
         )
@@ -206,14 +210,17 @@ def render_batman_classic_transition_stability(ax, aggregates: pl.DataFrame) -> 
         if index == 0:
             panel.set_ylabel("Stability")
         panel.set_xticks(xs)
-        panel.set_ylim(0, 2500)
         style_plot_axes(panel)
+    y_max = max(panel.get_ylim()[1] for panel in panels)
+    for panel in panels:
+        panel.set_ylim(0, y_max)
 
 
 def render_batman_classic_transition_loss(ax, aggregates: pl.DataFrame) -> None:
     batman_classic_families = [
         "batman-classic-decay-window-pressure",
         "batman-classic-partition-recovery",
+        "batman-classic-asymmetry-relink-transition",
     ]
     data = aggregates.filter(
         (pl.col("engine_family") == "batman-classic")
@@ -225,7 +232,7 @@ def render_batman_classic_transition_loss(ax, aggregates: pl.DataFrame) -> None:
     fig = ax.figure
     subplotspec = ax.get_subplotspec()
     ax.remove()
-    grid = subplotspec.subgridspec(1, 2, wspace=0.18)
+    grid = subplotspec.subgridspec(1, 3, wspace=0.18)
     panels = []
     for index, family_id in enumerate(batman_classic_families):
         panel = fig.add_subplot(grid[0, index])
@@ -290,10 +297,10 @@ def render_babel_decay_stability(ax, aggregates: pl.DataFrame) -> None:
             ys,
             marker="o",
             color=BABEL_FAMILY_COLORS.get(family_id, "#882255"),
-            linewidth=1.9,
-            markersize=5.5,
+            linewidth=2.3,
+            markersize=6.2,
             markeredgecolor="white",
-            markeredgewidth=0.7,
+            markeredgewidth=0.9,
             zorder=3,
         )
         panel.set_title(family_label(family_id), fontsize=9.5)
@@ -341,10 +348,10 @@ def render_babel_decay_loss(ax, aggregates: pl.DataFrame) -> None:
             ys,
             marker="s",
             color=BABEL_FAMILY_COLORS.get(family_id, "#882255"),
-            linewidth=1.6,
-            markersize=5.5,
+            linewidth=2.0,
+            markersize=6.0,
             markeredgecolor="white",
-            markeredgewidth=0.7,
+            markeredgewidth=0.9,
             linestyle="dashed",
             zorder=3,
         )
@@ -713,10 +720,17 @@ def render_head_to_head_route_presence(ax, aggregates: pl.DataFrame) -> None:
     if data.is_empty():
         return
     families = data["family_id"].unique().sort().to_list()
-    engine_sets = ["batman-bellman", "pathway", "field", "pathway-batman"]
+    engine_sets = [
+        "batman-bellman",
+        "batman-classic",
+        "babel",
+        "pathway",
+        "field",
+        "pathway-batman-bellman",
+    ]
     y_positions = list(range(len(families)))
-    height = 0.18
-    offsets = [-1.5 * height, -0.5 * height, 0.5 * height, 1.5 * height]
+    height = 0.12
+    offsets = [-2.5 * height, -1.5 * height, -0.5 * height, 0.5 * height, 1.5 * height, 2.5 * height]
     for engine_set, offset in zip(engine_sets, offsets, strict=False):
         rows = data.filter(pl.col("comparison_engine_set") == engine_set)
         values = []
@@ -750,9 +764,99 @@ def render_head_to_head_route_presence(ax, aggregates: pl.DataFrame) -> None:
         legend_labels,
         loc="upper center",
         bbox_to_anchor=(0.5, -0.12),
-        ncol=4,
+        ncol=3,
         fontsize=8,
         frameon=False,
+    )
+    style_legend(legend)
+
+
+def render_diffusion_delivery_coverage(ax, diffusion_policy_summary: pl.DataFrame) -> None:
+    if diffusion_policy_summary.is_empty():
+        return
+    data = diffusion_policy_summary.sort("family_id")
+    families = data["family_id"].to_list()
+    delivery = data["delivery_probability_permille_mean"].to_list()
+    coverage = data["coverage_permille_mean"].to_list()
+    y_positions = list(range(len(families)))
+    height = 0.34
+    ax.barh(
+        [position - height / 2 for position in y_positions],
+        delivery,
+        height=height,
+        color="#2563eb",
+        label="delivery",
+        edgecolor="#334155",
+        linewidth=0.6,
+    )
+    ax.barh(
+        [position + height / 2 for position in y_positions],
+        coverage,
+        height=height,
+        color="#0f766e",
+        label="coverage",
+        edgecolor="#334155",
+        linewidth=0.6,
+    )
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels([break_tick_label(family) for family in families], fontsize=8.1)
+    ax.set_xlabel("Permille")
+    ax.set_xlim(0, 1000)
+    ax.invert_yaxis()
+    style_plot_axes(ax)
+    legend = ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2, frameon=False)
+    style_legend(legend)
+
+
+def render_diffusion_resource_boundedness(ax, diffusion_policy_summary: pl.DataFrame) -> None:
+    if diffusion_policy_summary.is_empty():
+        return
+    data = diffusion_policy_summary.sort("family_id")
+    families = data["family_id"].to_list()
+    transmissions = data["total_transmissions_mean"].to_list()
+    reproduction = data["estimated_reproduction_permille_mean"].to_list()
+    bounded_states = data["bounded_state_mode"].to_list()
+    y_positions = list(range(len(families)))
+    bars = ax.barh(
+        y_positions,
+        transmissions,
+        height=0.58,
+        color=[DIFFUSION_BOUND_STATE_COLORS.get(state, "#64748b") for state in bounded_states],
+        edgecolor="#334155",
+        linewidth=0.7,
+    )
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels([break_tick_label(family) for family in families], fontsize=8.1)
+    ax.set_xlabel("Mean transmissions")
+    ax.invert_yaxis()
+    style_plot_axes(ax)
+    max_tx = max(transmissions) if transmissions else 0
+    ax.set_xlim(0, max(16, max_tx + 8))
+    for bar, reproduction_value, state in zip(bars, reproduction, bounded_states, strict=False):
+        y = bar.get_y() + bar.get_height() / 2
+        x = bar.get_width()
+        ax.text(
+            x + 0.5,
+            y,
+            f"R={reproduction_value} {state}",
+            va="center",
+            ha="left",
+            fontsize=8.1,
+            color=PLOT_TEXT_COLOR,
+        )
+    legend_handles = [
+        plt.Rectangle((0, 0), 1, 1, color=color, linewidth=0)
+        for _, color in DIFFUSION_BOUND_STATE_COLORS.items()
+    ]
+    legend_labels = list(DIFFUSION_BOUND_STATE_COLORS.keys())
+    legend = ax.legend(
+        legend_handles,
+        legend_labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.12),
+        ncol=3,
+        frameon=False,
+        fontsize=8,
     )
     style_legend(legend)
 
@@ -768,4 +872,5 @@ def save_plot_artifact(
     render_fn(ax, aggregates)
     fig.savefig(report_dir / f"{key}.svg", format="svg")
     fig.savefig(report_dir / f"{key}.pdf", format="pdf")
+    fig.savefig(report_dir / f"{key}.png", format="png", dpi=300)
     plt.close(fig)

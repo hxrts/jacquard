@@ -15,6 +15,8 @@ PLOT_SPECS = {
     "babel_decay_loss": (11.0, 4.8),
     "comparison_dominant_engine": (8.1, 4.8),
     "head_to_head_route_presence": (9.2, 5.0),
+    "diffusion_delivery_coverage": (10.8, 5.4),
+    "diffusion_resource_boundedness": (10.8, 5.8),
 }
 
 BATMAN_BELLMAN_FAMILY_COLORS = {
@@ -30,14 +32,15 @@ PATHWAY_FAMILY_COLORS = {
 }
 
 BATMAN_CLASSIC_FAMILY_COLORS = {
-    "batman-classic-decay-window-pressure": "#56B4E9",
-    "batman-classic-partition-recovery": "#F0E442",
+    "batman-classic-decay-window-pressure": "#1D4ED8",
+    "batman-classic-partition-recovery": "#B45309",
+    "batman-classic-asymmetry-relink-transition": "#059669",
 }
 
 BABEL_FAMILY_COLORS = {
-    "babel-decay-window-pressure": "#882255",
-    "babel-asymmetry-cost-penalty": "#AA4499",
-    "babel-partition-feasibility-recovery": "#DDCC77",
+    "babel-decay-window-pressure": "#7A1F4D",
+    "babel-asymmetry-cost-penalty": "#A23B72",
+    "babel-partition-feasibility-recovery": "#8A6F00",
 }
 
 FIELD_FAMILY_COLORS = {
@@ -68,6 +71,12 @@ HEAD_TO_HEAD_SET_COLORS = {
     "pathway": "#009E73",
     "field": "#CC79A7",
     "pathway-batman-bellman": "#E69F00",
+}
+
+DIFFUSION_BOUND_STATE_COLORS = {
+    "viable": "#0F766E",
+    "collapse": "#B45309",
+    "explosive": "#B91C1C",
 }
 
 HEURISTIC_LINESTYLES = {

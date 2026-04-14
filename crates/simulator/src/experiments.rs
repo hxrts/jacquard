@@ -940,6 +940,20 @@ fn build_batman_classic_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<
             },
             build_batman_classic_partition_recovery,
         ),
+        (
+            "batman-classic-asymmetry-relink-transition",
+            RegimeDescriptor {
+                density: "bridge-cluster".to_string(),
+                loss: "moderate".to_string(),
+                interference: "medium".to_string(),
+                asymmetry: "moderate".to_string(),
+                churn: "repeated-relink".to_string(),
+                node_pressure: "none".to_string(),
+                objective_regime: "connected-only".to_string(),
+                stress_score: 48,
+            },
+            build_batman_classic_asymmetry_relink_transition,
+        ),
     ];
     expand_runs(
         suite_id,
@@ -2695,6 +2709,71 @@ fn build_batman_classic_partition_recovery(
             Tick(45),
             EnvironmentHook::ReplaceTopology {
                 configuration: restore,
+            },
+        ),
+    ]);
+    (scenario, environment)
+}
+
+fn build_batman_classic_asymmetry_relink_transition(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let mut topology = bridge_cluster_topology(
+        topology::node(1).batman_classic().build(),
+        topology::node(2).batman_classic().build(),
+        topology::node(3).batman_classic().build(),
+        topology::node(4).batman_classic().build(),
+    );
+    set_environment(&mut topology, 1, RatioPermille(120), RatioPermille(140));
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!(
+                "batman-classic-asymmetry-relink-transition-{}",
+                parameters.config_id
+            ),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::batman_classic(NODE_A),
+                HostSpec::batman_classic(NODE_B),
+                HostSpec::batman_classic(NODE_C),
+                HostSpec::batman_classic(NODE_D),
+            ],
+            vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
+            24,
+        ),
+        parameters,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(6),
+            EnvironmentHook::AsymmetricDegradation {
+                left: NODE_B,
+                right: NODE_C,
+                forward_confidence: RatioPermille(560),
+                forward_loss: RatioPermille(260),
+                reverse_confidence: RatioPermille(740),
+                reverse_loss: RatioPermille(140),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(10),
+            EnvironmentHook::MobilityRelink {
+                left: NODE_A,
+                from_right: NODE_B,
+                to_right: NODE_C,
+                link: Box::new(topology::link(3).build()),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(15),
+            EnvironmentHook::MobilityRelink {
+                left: NODE_A,
+                from_right: NODE_C,
+                to_right: NODE_B,
+                link: Box::new(topology::link(2).build()),
             },
         ),
     ]);

@@ -182,6 +182,49 @@ def head_to_head_regime_lines() -> list[str]:
     return section_lines("Head-To-Head Regimes")
 
 
+def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]:
+    if head_to_head_summary.is_empty():
+        return []
+
+    rows = {
+        row["family_id"]: row
+        for row in (
+            head_to_head_summary.sort(
+                ["family_id", "route_present_permille_mean", "activation_success_permille_mean"],
+                descending=[False, True, True],
+            ).iter_rows(named=True)
+        )
+    }
+
+    connected_low_loss = rows.get("head-to-head-connected-low-loss")
+    connected_high_loss = rows.get("head-to-head-connected-high-loss")
+    bridge_transition = rows.get("head-to-head-bridge-transition")
+    concurrent_mixed = rows.get("head-to-head-concurrent-mixed")
+    corridor_uncertainty = rows.get("head-to-head-corridor-continuity-uncertainty")
+    partial_bridge = rows.get("head-to-head-partial-observability-bridge")
+    if (
+        connected_low_loss is None
+        or connected_high_loss is None
+        or bridge_transition is None
+        or concurrent_mixed is None
+        or corridor_uncertainty is None
+        or partial_bridge is None
+    ):
+        return []
+
+    return section_lines_formatted(
+        "Head-To-Head Takeaways",
+        connected_high_loss_engine_set=connected_high_loss["comparison_engine_set"] or "none",
+        connected_high_loss_route_presence=connected_high_loss["route_present_permille_mean"],
+        bridge_transition_engine_set=bridge_transition["comparison_engine_set"] or "none",
+        bridge_transition_route_presence=bridge_transition["route_present_permille_mean"],
+        concurrent_mixed_engine_set=concurrent_mixed["comparison_engine_set"] or "none",
+        concurrent_mixed_route_presence=concurrent_mixed["route_present_permille_mean"],
+        corridor_uncertainty_route_presence=corridor_uncertainty["route_present_permille_mean"],
+        partial_bridge_route_presence=partial_bridge["route_present_permille_mean"],
+    )
+
+
 def pressure_findings_lines(aggregates: pl.DataFrame) -> list[str]:
     lines: list[str] = []
     batman_bellman_pressure = aggregates.filter(
@@ -207,6 +250,7 @@ def pressure_findings_lines(aggregates: pl.DataFrame) -> list[str]:
             [
                 "batman-classic-decay-window-pressure",
                 "batman-classic-partition-recovery",
+                "batman-classic-asymmetry-relink-transition",
             ]
         )
     ).sort(["family_id", "batman_classic_stale_after_ticks"])
@@ -387,6 +431,7 @@ def engine_section_lines(
                 [
                     "batman-classic-decay-window-pressure",
                     "batman-classic-partition-recovery",
+                    "batman-classic-asymmetry-relink-transition",
                 ]
             )
         )

@@ -531,6 +531,15 @@ def write_recommendations(path: Path, recommendations: pl.DataFrame) -> None:
 def comparison_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
     return (
         aggregates.filter(pl.col("engine_family") == "comparison")
+        .sort(["family_id", "route_present_permille_mean"], descending=[False, True])
+        .group_by("family_id")
+        .agg(
+            pl.first("config_id").alias("config_id"),
+            pl.first("dominant_engine").alias("dominant_engine"),
+            pl.first("activation_success_permille_mean").alias("activation_success_permille_mean"),
+            pl.first("route_present_permille_mean").alias("route_present_permille_mean"),
+            pl.first("stress_score").alias("stress_score"),
+        )
         .select(
             "family_id",
             "config_id",
@@ -539,7 +548,7 @@ def comparison_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
             "route_present_permille_mean",
             "stress_score",
         )
-        .sort(["family_id", "route_present_permille_mean"], descending=[False, True])
+        .sort("family_id")
     )
 
 
@@ -559,4 +568,51 @@ def head_to_head_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
             ["family_id", "route_present_permille_mean", "activation_success_permille_mean"],
             descending=[False, True, True],
         )
+    )
+
+
+def diffusion_policy_table(diffusion_aggregates: pl.DataFrame) -> pl.DataFrame:
+    if diffusion_aggregates.is_empty():
+        return pl.DataFrame()
+    scored = diffusion_aggregates.with_columns(
+        (
+            pl.col("delivery_probability_permille_mean") * 1.2
+            + pl.col("coverage_permille_mean") * 0.8
+            + pl.col("corridor_persistence_permille_mean") * 0.2
+            - pl.col("total_transmissions_mean") * 6.0
+            - pl.col("observer_leakage_permille_mean") * 0.2
+            - pl.when(pl.col("bounded_state_mode") == "explosive").then(220.0).otherwise(0.0)
+            - pl.when(pl.col("bounded_state_mode") == "collapse").then(120.0).otherwise(0.0)
+        ).alias("score")
+    )
+    return (
+        scored.sort(["family_id", "score"], descending=[False, True])
+        .group_by("family_id")
+        .agg(
+            pl.first("config_id").alias("config_id"),
+            pl.first("density").alias("density"),
+            pl.first("mobility_model").alias("mobility_model"),
+            pl.first("transport_mix").alias("transport_mix"),
+            pl.first("pressure").alias("pressure"),
+            pl.first("objective_regime").alias("objective_regime"),
+            pl.first("stress_score").alias("stress_score"),
+            pl.first("delivery_probability_permille_mean").alias("delivery_probability_permille_mean"),
+            pl.first("coverage_permille_mean").alias("coverage_permille_mean"),
+            pl.first("delivery_latency_rounds_mean").alias("delivery_latency_rounds_mean"),
+            pl.first("total_transmissions_mean").alias("total_transmissions_mean"),
+            pl.first("energy_per_delivered_message_mean").alias("energy_per_delivered_message_mean"),
+            pl.first("estimated_reproduction_permille_mean").alias("estimated_reproduction_permille_mean"),
+            pl.first("observer_leakage_permille_mean").alias("observer_leakage_permille_mean"),
+            pl.first("bounded_state_mode").alias("bounded_state_mode"),
+            pl.first("score").alias("score"),
+        )
+        .sort("family_id")
+    )
+
+
+def diffusion_boundary_table(diffusion_boundaries: pl.DataFrame) -> pl.DataFrame:
+    if diffusion_boundaries.is_empty():
+        return pl.DataFrame()
+    return diffusion_boundaries.sort(
+        ["viable_family_count", "config_id"], descending=[True, False]
     )

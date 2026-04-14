@@ -163,3 +163,42 @@ def head_to_head_table_rows(head_to_head_summary: pl.DataFrame) -> list[list[str
                 ]
             )
     return rows
+
+
+def diffusion_policy_table_rows(diffusion_policy_summary: pl.DataFrame) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in diffusion_policy_summary.iter_rows(named=True):
+        rows.append(
+            [
+                break_tick_label(row["family_id"]).replace("\n", " / "),
+                f"`{row['config_id']}`",
+                str(row["delivery_probability_permille_mean"]),
+                str(row["coverage_permille_mean"]),
+                str(row["delivery_latency_rounds_mean"])
+                if row["delivery_latency_rounds_mean"] is not None
+                else "-",
+                str(row["bounded_state_mode"]),
+                str(row["stress_score"]),
+            ]
+        )
+    return rows
+
+
+def diffusion_boundary_table_rows(diffusion_boundary_summary: pl.DataFrame) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in diffusion_boundary_summary.iter_rows(named=True):
+        rows.append(
+            [
+                f"`{row['config_id']}`",
+                str(row["viable_family_count"]),
+                row["first_collapse_family_id"] or "-",
+                str(row["first_collapse_stress_score"])
+                if row["first_collapse_stress_score"] is not None
+                else "-",
+                row["first_explosive_family_id"] or "-",
+                str(row["first_explosive_stress_score"])
+                if row["first_explosive_stress_score"] is not None
+                else "-",
+            ]
+        )
+    return rows

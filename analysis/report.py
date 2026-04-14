@@ -5,7 +5,15 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .data import cleanup_report_dir, ensure_dir, load_json_array, load_ndjson, write_csv
+from .data import (
+    cleanup_report_dir,
+    ensure_dir,
+    load_json_array,
+    load_ndjson,
+    load_optional_json_array,
+    load_optional_ndjson,
+    write_csv,
+)
 from .document import write_pdf_report
 from .plots import (
     render_babel_decay_loss,
@@ -15,6 +23,8 @@ from .plots import (
     render_batman_classic_transition_loss,
     render_batman_classic_transition_stability,
     render_comparison_summary,
+    render_diffusion_delivery_coverage,
+    render_diffusion_resource_boundedness,
     render_field_budget_reconfiguration,
     render_field_budget_route_presence,
     render_head_to_head_route_presence,
@@ -26,6 +36,8 @@ from .scoring import (
     baseline_comparison_table,
     boundary_summary_table,
     comparison_summary_table,
+    diffusion_boundary_table,
+    diffusion_policy_table,
     field_profile_recommendation_table,
     head_to_head_summary_table,
     profile_recommendation_table,
@@ -49,6 +61,9 @@ def main(argv: list[str] | None = None) -> int:
     runs = load_ndjson(artifact_dir / "runs.jsonl")
     aggregates = load_json_array(artifact_dir / "aggregates.json")
     breakdowns = load_json_array(artifact_dir / "breakdowns.json")
+    diffusion_runs = load_optional_ndjson(artifact_dir / "diffusion_runs.jsonl")
+    diffusion_aggregates = load_optional_json_array(artifact_dir / "diffusion_aggregates.json")
+    diffusion_boundaries = load_optional_json_array(artifact_dir / "diffusion_boundaries.json")
     if runs.is_empty() or aggregates.is_empty():
         print(f"no tuning data found in {artifact_dir}", file=sys.stderr)
         return 1
@@ -63,6 +78,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     comparison_summary = comparison_summary_table(aggregates)
     head_to_head_summary = head_to_head_summary_table(aggregates)
+    diffusion_policy_summary = diffusion_policy_table(diffusion_aggregates)
+    diffusion_boundary_summary = diffusion_boundary_table(diffusion_boundaries)
 
     write_csv(runs, report_dir / "runs.csv")
     write_csv(aggregates, report_dir / "aggregates.csv")
@@ -78,6 +95,11 @@ def main(argv: list[str] | None = None) -> int:
     write_csv(baseline_comparison, report_dir / "baseline_comparison.csv")
     write_csv(comparison_summary, report_dir / "comparison_summary.csv")
     write_csv(head_to_head_summary, report_dir / "head_to_head_summary.csv")
+    write_csv(diffusion_runs, report_dir / "diffusion_runs.csv")
+    write_csv(diffusion_aggregates, report_dir / "diffusion_aggregates.csv")
+    write_csv(diffusion_boundaries, report_dir / "diffusion_boundaries.csv")
+    write_csv(diffusion_policy_summary, report_dir / "diffusion_policy_summary.csv")
+    write_csv(diffusion_boundary_summary, report_dir / "diffusion_boundary_summary.csv")
     write_recommendations(report_dir / "recommendations.md", recommendations)
 
     save_plot_artifact(
@@ -152,6 +174,19 @@ def main(argv: list[str] | None = None) -> int:
         render_head_to_head_route_presence,
         aggregates,
     )
+    if not diffusion_policy_summary.is_empty():
+        save_plot_artifact(
+            report_dir,
+            "diffusion_delivery_coverage",
+            render_diffusion_delivery_coverage,
+            diffusion_policy_summary,
+        )
+        save_plot_artifact(
+            report_dir,
+            "diffusion_resource_boundedness",
+            render_diffusion_resource_boundedness,
+            diffusion_policy_summary,
+        )
 
     write_pdf_report(
         artifact_dir,
@@ -164,6 +199,8 @@ def main(argv: list[str] | None = None) -> int:
         aggregates,
         comparison_summary,
         head_to_head_summary,
+        diffusion_policy_summary,
+        diffusion_boundary_summary,
         baseline_comparison,
         baseline_dir,
     )

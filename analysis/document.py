@@ -13,6 +13,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
+    Image,
     KeepTogether,
     PageBreak,
     Paragraph,
@@ -22,6 +23,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 from reportlab.platypus.flowables import Flowable
+from reportlab.lib.utils import ImageReader
 from svglib.svglib import svg2rlg
 
 from .sections import (
@@ -36,6 +38,7 @@ from .sections import (
     field_algorithm_lines,
     head_to_head_findings_lines,
     head_to_head_regime_lines,
+    head_to_head_takeaway_lines,
     limitations_lines,
     methodology_lines,
     pathway_algorithm_lines,
@@ -49,6 +52,8 @@ from .sections import (
 )
 from .tables import (
     comparison_table_rows,
+    diffusion_boundary_table_rows,
+    diffusion_policy_table_rows,
     field_profile_table_rows,
     head_to_head_table_rows,
     profile_table_rows,
@@ -93,6 +98,19 @@ class SvgPlot(Flowable):
         self.canv.scale(self.scale, self.scale)
         renderPDF.draw(self.drawing, self.canv, 0, 0)
         self.canv.restoreState()
+
+
+def figure_flowable(report_dir: Path, asset_id: str, max_width: float, max_height: float):
+    png_path = report_dir / f"{asset_id}.png"
+    if png_path.exists():
+        reader = ImageReader(str(png_path))
+        width_px, height_px = reader.getSize()
+        scale = min(max_width / width_px, max_height / height_px)
+        image = Image(str(png_path))
+        image.drawWidth = width_px * scale
+        image.drawHeight = height_px * scale
+        return image
+    return SvgPlot(report_dir / f"{asset_id}.svg", max_width, max_height)
 
 
 def build_styles():
@@ -230,7 +248,7 @@ def add_figure(
     max_height: float,
 ) -> None:
     figure = asset_block(section_name, "figure")
-    story.append(SvgPlot(report_dir / f"{figure.asset_id}.svg", max_width, max_height))
+    story.append(figure_flowable(report_dir, figure.asset_id, max_width, max_height))
     caption_lines = list(figure.lines)
     if caption_lines:
         caption_lines[0] = f"{figure_title}. {caption_lines[0]}"
@@ -253,7 +271,7 @@ def figure_flowables(
         caption_lines[0] = f"{figure_title}. {caption_lines[0]}"
     else:
         caption_lines = [f"{figure_title}."]
-    flowables: list = [SvgPlot(report_dir / f"{figure.asset_id}.svg", max_width, max_height)]
+    flowables: list = [figure_flowable(report_dir, figure.asset_id, max_width, max_height)]
     for line in caption_lines:
         if line == "":
             flowables.append(Spacer(1, 0.08 * cm))
@@ -308,6 +326,8 @@ def write_pdf_report(
     aggregates,
     comparison_summary,
     head_to_head_summary,
+    diffusion_policy_summary,
+    diffusion_boundary_summary,
     baseline_comparison,
     baseline_dir,
 ) -> None:
@@ -633,5 +653,72 @@ def write_pdf_report(
             )
         )
     )
+    story.append(Spacer(1, 0.16 * cm))
+    add_paragraphs(story, styles, head_to_head_takeaway_lines(head_to_head_summary))
+
+    if not diffusion_policy_summary.is_empty():
+        story.append(PageBreak())
+        story.append(Paragraph("Part III. Diffusion Analysis", styles["Section"]))
+        story.append(Paragraph("11. Diffusion Analysis", styles["Section"]))
+        add_paragraphs(story, styles, section_lines("Diffusion Introduction"))
+        story.append(Spacer(1, 0.16 * cm))
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("Diffusion Scenario Summary", styles["Subsection"]),
+                    *(
+                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
+                         for line in asset_block("Diffusion Scenario Summary", "table").lines]
+                    ),
+                    make_table(
+                        ["Family", "Configuration", "Delivery", "Coverage", "Latency", "State", "Stress"],
+                        diffusion_policy_table_rows(diffusion_policy_summary),
+                        styles,
+                        [4.0 * cm, 4.6 * cm, 1.6 * cm, 1.6 * cm, 1.5 * cm, 2.0 * cm, 1.4 * cm],
+                    ),
+                ]
+            )
+        )
+        story.append(Spacer(1, 0.18 * cm))
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("Diffusion Regime Boundaries", styles["Subsection"]),
+                    *(
+                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
+                         for line in asset_block("Diffusion Regime Boundaries", "table").lines]
+                    ),
+                    make_table(
+                        ["Configuration", "Viable Families", "First Collapse", "Collapse Stress", "First Explosive", "Explosive Stress"],
+                        diffusion_boundary_table_rows(diffusion_boundary_summary),
+                        styles,
+                        [4.6 * cm, 2.0 * cm, 3.4 * cm, 1.8 * cm, 3.4 * cm, 1.8 * cm],
+                    ),
+                ]
+            )
+        )
+        story.append(Spacer(1, 0.18 * cm))
+        story.append(Paragraph("Diffusion Figure Context", styles["Subsection"]))
+        add_paragraphs(story, styles, section_lines("Diffusion Figure Context"))
+        add_figure(
+            story,
+            styles,
+            report_dir,
+            "Figure 13",
+            "Figure 13. Diffusion delivery and coverage by scenario family",
+            16.4 * cm,
+            9.2 * cm,
+        )
+        add_figure(
+            story,
+            styles,
+            report_dir,
+            "Figure 14",
+            "Figure 14. Diffusion transmission load and boundedness by scenario family",
+            16.4 * cm,
+            9.6 * cm,
+        )
+        story.append(Paragraph("Diffusion Takeaways", styles["Subsection"]))
+        add_paragraphs(story, styles, section_lines("Diffusion Takeaways"))
 
     doc.build(story)

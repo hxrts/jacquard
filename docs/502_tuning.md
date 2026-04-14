@@ -5,8 +5,14 @@ and Field. The harness runs deterministic scenario matrices, sweeps maintained
 public parameters, writes stable artifacts under `artifacts/tuning/`, and
 generates CSV tables plus a PDF report with vector plots through the repo-local
 Python, Polars, matplotlib, and ReportLab toolchain. It also includes a
-dedicated head-to-head corpus that runs the same regimes under four explicit
-engine sets: `batman-bellman`, `pathway`, `field`, and `pathway-batman-bellman`.
+dedicated head-to-head corpus that runs the same regimes under six explicit
+engine sets: `batman-bellman`, `batman-classic`, `babel`, `pathway`, `field`,
+and `pathway-batman-bellman`.
+
+The harness also now emits a companion diffusion-oriented corpus in the same
+artifact directory. That second track models mobility-driven contacts,
+message persistence, bounded replication, resource cost, and observer leakage
+for partition-tolerant delivery scenarios.
 
 ## Commands
 
@@ -52,6 +58,12 @@ The harness writes:
   config
 - `head_to_head_summary.csv`: explicit engine-set comparisons over shared
   regimes
+- `diffusion_runs.jsonl`: one run-level summary per diffusion scenario seed and
+  policy setting
+- `diffusion_aggregates.json`: grouped means for delivery, coverage,
+  transmissions, energy, boundedness, and leakage metrics
+- `diffusion_boundaries.json`: per-policy viability, collapse, and overload
+  boundaries across maintained diffusion families
 - CSV tables for recommendations, transitions, boundaries, and profile variants
 - vector plot assets plus a generated PDF report
 
@@ -72,6 +84,20 @@ transition and boundary tables:
 The default recommendations are intended to be robust centers of acceptable
 behavior for this maintained corpus, not one-off winners from a single easy
 scenario.
+
+The diffusion track adds a second set of metrics that are intentionally not
+route-centric:
+
+- delivery probability
+- delivery latency
+- coverage
+- total transmissions
+- energy per delivered message
+- storage utilization
+- estimated reproduction number
+- corridor persistence
+- observer leakage
+- boundedness state (`collapse`, `viable`, `explosive`)
 
 ## Current Guidance
 

@@ -18,6 +18,18 @@ def load_json_array(path: Path) -> pl.DataFrame:
     return pl.from_dicts(data, infer_schema_length=None) if data else pl.DataFrame()
 
 
+def load_optional_ndjson(path: Path) -> pl.DataFrame:
+    if not path.exists():
+        return pl.DataFrame()
+    return load_ndjson(path)
+
+
+def load_optional_json_array(path: Path) -> pl.DataFrame:
+    if not path.exists():
+        return pl.DataFrame()
+    return load_json_array(path)
+
+
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
@@ -35,6 +47,8 @@ def cleanup_report_dir(report_dir: Path) -> None:
         "comparison_dominant_engine.png",
         "pathway_budget_activation.png",
         "pathway_budget_route_presence.png",
+        "diffusion_delivery_coverage.png",
+        "diffusion_resource_boundedness.png",
     ]:
         stale = report_dir / name
         if stale.exists():
@@ -46,4 +60,3 @@ def write_csv(df: pl.DataFrame, path: Path) -> None:
         path.write_text("")
         return
     df.write_csv(path)
-

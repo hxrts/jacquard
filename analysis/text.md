@@ -338,9 +338,74 @@ The head-to-head matrix runs the same regime families under six explicit engine 
 
 These rows answer a different question from the all-engines comparison corpus. They show what each stack does when it is the only available routing surface for that host set.
 
+#### Head-To-Head Takeaways
+
+These takeaways summarize the main patterns in the head-to-head plot.
+
+- `connected-low-loss` remains mostly a tie regime: several stacks reach the same top-line route presence, so this case does not sharply separate the engines.
+- Lossy and bridge-recovery cases still favor the classic distance-vector stacks: `connected-high-loss` is led by `{connected_high_loss_engine_set}` at {connected_high_loss_route_presence} permille, while `bridge-transition` is led by `{bridge_transition_engine_set}` at {bridge_transition_route_presence} permille.
+- Mixed workloads continue to favor explicit search: `concurrent-mixed` is led by `{concurrent_mixed_engine_set}` at {concurrent_mixed_route_presence} permille.
+- `field` is strongest when corridor continuity is truly the question: it reaches {corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`, but only {partial_bridge_route_presence} permille in `partial-observability-bridge`, so incomplete evidence still costs it more than continuous uncertainty.
+
 #### Head-To-Head Findings Empty
 
 No head-to-head summary is available for this artifact set.
+
+## Part III. Diffusion Analysis
+
+### Diffusion Introduction
+
+This final part adds a second analytical lane to the report. The earlier sections focus on route-visible routing under maintained connected or repairable regimes. The diffusion track instead asks how bounded message spread behaves when connectivity is intermittent, mobility is the transport, and end-to-end paths may not exist at send time.
+
+The purpose is not to replace the route-visible corpus. It is to complement it with a population-and-contact view that is closer to the design constraints in `work/design_constraints.md`: store-carry-forward, bounded replication, resource cost, observer leakage, and corridor emergence under permanent partition risk.
+
+The maintained diffusion families are:
+
+- `random-waypoint-sanity`: a lightweight baseline where mixed movers create a sanity-check contact field rather than a strongly structured community pattern.
+- `partitioned-clusters`: separated clusters with rare bridger contacts, used to test whether bounded replication can sustain useful carry-forward under permanent partition risk.
+- `disaster-broadcast`: an urgent one-to-many message over disrupted clustered mobility, used to test controlled broadcast spread.
+- `sparse-long-delay`: a sparse network with long delays and a few long-range movers, used to test store-carry-forward under weak contact opportunity.
+- `high-density-overload`: a dense camp-like setting, used to expose when bounded spread turns into overload.
+- `mobility-shift`: clusters reconfigure over time, used to test whether diffusion corridors adapt rather than freezing around one early contact pattern.
+- `adversarial-observation`: clustered delivery with observer nodes, used to expose the leakage cost of spread.
+
+### Diffusion Scenario Summary
+
+@table diffusion-policy-summary
+
+This table summarizes the best-scoring diffusion policy per maintained scenario family.
+
+Column guide: Delivery is the fraction of intended targets reached; Coverage is the fraction of reachable nodes that saw the message; Latency is the mean delivery delay for reached targets; State is the boundedness classification for that family; Stress is the maintained stress level of the scenario.
+
+### Diffusion Regime Boundaries
+
+@table diffusion-boundary-summary
+
+This table summarizes where each diffusion policy stays viable and where it first collapses or becomes explosive.
+
+Column guide: Viable Families counts the maintained scenario families classified as bounded and effective; First Collapse is the first family where delivery or coverage falls below the acceptable floor; First Explosive is the first family where reproduction and transmission load become unbounded for the policy.
+
+### Diffusion Figure Context
+
+These two diffusion figures separate delivery success from resource boundedness. The first asks which scenario families can sustain useful spread. The second asks whether that spread stays inside a bounded operating region or spills into overload.
+
+#### Figure 13
+
+@figure diffusion_delivery_coverage
+
+This figure compares delivery and coverage for the best-scoring diffusion policy in each maintained scenario family.
+
+#### Figure 14
+
+@figure diffusion_resource_boundedness
+
+This figure shows the corresponding transmission load and boundedness state for those same best-scoring policies.
+
+### Diffusion Takeaways
+
+- The diffusion track makes permanent-partition and mobility-driven delivery visible in the same artifact set as the route-visible routing corpus.
+- The key question in these scenarios is not shortest-path quality but whether bounded replication can maintain useful spread without collapsing or exploding.
+- The most informative scenarios are the ones that separate bounded viable spread from overload or delivery collapse rather than merely confirming that a message can move at all.
 
 ### Data-Driven Templates
 
