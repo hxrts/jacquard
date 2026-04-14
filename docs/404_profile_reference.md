@@ -1,6 +1,6 @@
 # Profile Implementations
 
-`jacquard-mem-node-profile`, `jacquard-mem-link-profile`, and `jacquard-reference-client` are Jacquard's in-tree profile and composition crates. The two `mem-*` crates model node and link inputs without importing routing logic. `jacquard-adapter` sits beside them as the reusable support crate for transport/profile implementers. The reference client composes those profile implementations with `jacquard-router` and `jacquard-pathway` to exercise the full shared routing path in tests.
+`jacquard-mem-node-profile`, `jacquard-mem-link-profile`, and `jacquard-reference-client` are Jacquard's in-tree profile and composition crates. The two `mem-*` crates model node and link inputs without importing routing logic. `jacquard-adapter` sits beside them as the reusable support crate for transport/profile implementers. The reference client composes those profile implementations with `jacquard-router` and the in-tree routing engines to exercise the full shared routing path in tests.
 
 ## Ownership Boundary
 
@@ -17,11 +17,11 @@ Profile crates are `Observed`. They model capability advertisement, transport ca
 | `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportSenderEffects`, `TransportDriver`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
 | `jacquard-reference-client` | `topology::{node, link}`, `ClientBuilder`, `HostBridge`, `ReferenceRouter`/`ReferenceClient` aliases | none — it is pure composition over the crates above |
 
-The `mem-*` crates stay routing-engine-neutral and transport-neutral: they carry frames, emit observations, and build shared model values, but they do not mint route truth, interpret routing policy, or own BLE/IP-specific authoring helpers. `jacquard-adapter` likewise stays transport-neutral: it owns generic ownership scaffolding only, not endpoint constructors, protocol state, or driver traits. Reference-client fixtures are the single place where a service descriptor picks up the `PATHWAY_ENGINE_ID` routing-engine tag, because that decision is composition, not profile. The reference-client bridge is also the only sanctioned place where transport ingress is drained and stamped before delivery to the router.
+The `mem-*` crates stay routing-engine-neutral and transport-neutral: they carry frames, emit observations, and build shared model values, but they do not mint route truth, interpret routing policy, or own BLE/IP-specific authoring helpers. `jacquard-adapter` likewise stays transport-neutral: it owns generic ownership scaffolding only, not endpoint constructors, protocol state, or driver traits. Reference-client fixtures are the single place where a service descriptor picks up engine-specific routing-engine tags (e.g. `PATHWAY_ENGINE_ID`, `BATMAN_BELLMAN_ENGINE_ID`, `BABEL_ENGINE_ID`), because that decision is composition, not profile. The reference-client bridge is also the only sanctioned place where transport ingress is drained and stamped before delivery to the router.
 
 ## Composition
 
-`ClientBuilder` is the wiring entry point. It attaches one bridge-owned `InMemoryTransport` driver to a `SharedInMemoryNetwork`, constructs queue-backed sender capabilities for pathway (and optionally batman), plugs those into a `PathwayEngine` over a `DeterministicPathwayTopologyModel`, registers the engine set on a fresh `MultiEngineRouter`, and returns a `ReferenceClient` host bridge. Multiple clients built against the same network share one deterministic carrier while still advancing routing state through explicit bridge rounds.
+`ClientBuilder` is the wiring entry point. It attaches one bridge-owned `InMemoryTransport` driver to a `SharedInMemoryNetwork`, constructs queue-backed sender capabilities for each enabled engine, registers the engine set on a fresh `MultiEngineRouter`, and returns a `ReferenceClient` host bridge. The builder supports any combination of `pathway`, `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, and `field` engines. Multiple clients built against the same network share one deterministic carrier while still advancing routing state through explicit bridge rounds.
 
 ```mermaid
 graph LR
@@ -30,14 +30,14 @@ graph LR
   Network((SharedInMemoryNetwork))
   Ref[jacquard-reference-client<br/>fixtures + ClientBuilder + HostBridge]
   Router[MultiEngineRouter]
-  Pathway[PathwayEngine]
+  Engines[PathwayEngine / BatmanBellmanEngine /<br/>BatmanClassicEngine / BabelEngine /<br/>OlsrV2Engine / FieldEngine]
 
   NodeProfile --> Ref
   LinkProfile --> Ref
   Network --> LinkProfile
   Ref --> Router
-  Ref --> Pathway
-  Router -- registers --> Pathway
+  Ref --> Engines
+  Router -- registers --> Engines
 ```
 
 The reference end-to-end example is the `reference-client` multi-layer routing test at [`crates/reference-client/tests/e2e_multi_layer_routing.rs`](../crates/reference-client/tests/e2e_multi_layer_routing.rs). It shows how to add a new client runtime to the same in-memory network without bypassing the bridge-owned ingress path or the router-owned canonical path.
