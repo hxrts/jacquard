@@ -49,6 +49,7 @@ def cleanup_report_dir(report_dir: Path) -> None:
         "pathway_budget_route_presence.png",
         "diffusion_delivery_coverage.png",
         "diffusion_resource_boundedness.png",
+        "tuning_report.pdf",
     ]:
         stale = report_dir / name
         if stale.exists():

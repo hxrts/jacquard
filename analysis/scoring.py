@@ -87,6 +87,7 @@ _OPTIONAL_FLOAT_COLUMNS = [
     "field_degraded_steady_round_permille_mean",
     "field_service_retention_carry_forward_permille_mean",
     "field_asymmetric_shift_success_permille_mean",
+    "field_route_bound_reconfiguration_count_mean",
     "field_continuation_shift_count_mean",
     "field_corridor_narrow_count_mean",
 ]
@@ -290,6 +291,437 @@ def field_profile_recommendation_table(
         "field_corridor_narrow_mean",
         "field_degraded_steady_round_mean",
         "max_sustained_stress_score",
+    )
+
+
+def _field_routing_regime_expr() -> pl.Expr:
+    return (
+        pl.when(
+            pl.col("family_id").is_in(
+                [
+                    "field-partial-observability-bridge",
+                    "field-bootstrap-upgrade-window",
+                ]
+            )
+        )
+        .then(pl.lit("bootstrap-upgrade"))
+        .when(
+            pl.col("family_id").is_in(
+                [
+                    "field-asymmetric-envelope-shift",
+                    "field-reconfiguration-recovery",
+                    "field-bridge-anti-entropy-continuity",
+                ]
+            )
+        )
+        .then(pl.lit("continuity-transition"))
+        .when(
+            pl.col("family_id").is_in(
+                [
+                    "field-uncertain-service-fanout",
+                    "field-service-overlap-reselection",
+                    "field-service-freshness-inversion",
+                    "field-service-publication-pressure",
+                ]
+            )
+        )
+        .then(pl.lit("service-continuity"))
+        .otherwise(pl.lit(None))
+    )
+
+
+def _field_routing_success_criteria_expr() -> pl.Expr:
+    return (
+        pl.when(pl.col("field_regime") == "bootstrap-upgrade")
+        .then(
+            pl.lit(
+                "upgrade bootstrap cleanly and avoid withdrawal or degraded fallback"
+            )
+        )
+        .when(pl.col("field_regime") == "continuity-transition")
+        .then(
+            pl.lit(
+                "retain corridor continuity through recovery with bounded shift pressure"
+            )
+        )
+        .when(pl.col("field_regime") == "service-continuity")
+        .then(
+            pl.lit(
+                "preserve service continuity while keeping continuation churn bounded"
+            )
+        )
+        .otherwise(pl.lit("none"))
+    )
+
+
+def field_routing_regime_calibration_table(aggregates: pl.DataFrame) -> pl.DataFrame:
+    aggregates = _ensure_optional_columns(aggregates)
+    field_rows = (
+        aggregates.filter(pl.col("engine_family") == "field")
+        .with_columns(_field_routing_regime_expr().alias("field_regime"))
+        .filter(pl.col("field_regime").is_not_null())
+    )
+    if field_rows.is_empty():
+        return pl.DataFrame()
+    grouped = field_rows.group_by("field_regime", "config_id").agg(
+        pl.col("route_present_permille_mean").mean().alias("route_present_mean"),
+        pl.col("activation_success_permille_mean").mean().alias("activation_success_mean"),
+        pl.col("stress_score").max().alias("stress_envelope"),
+        pl.col("field_bootstrap_upgrade_permille_mean").mean().alias("bootstrap_upgrade_mean"),
+        pl.col("field_bootstrap_withdraw_permille_mean").mean().alias("bootstrap_withdraw_mean"),
+        pl.col("field_degraded_steady_recovery_permille_mean")
+        .mean()
+        .alias("degraded_recovery_mean"),
+        pl.col("field_degraded_to_bootstrap_permille_mean")
+        .mean()
+        .alias("degraded_to_bootstrap_mean"),
+        pl.col("field_service_retention_carry_forward_permille_mean")
+        .mean()
+        .alias("service_carry_mean"),
+        pl.col("field_asymmetric_shift_success_permille_mean")
+        .mean()
+        .alias("asymmetric_shift_success_mean"),
+        pl.col("field_continuation_shift_count_mean")
+        .mean()
+        .alias("continuation_shift_mean"),
+        pl.col("field_route_bound_reconfiguration_count_mean")
+        .mean()
+        .alias("route_reconfiguration_mean"),
+        pl.col("route_churn_count_mean").mean().alias("route_churn_mean"),
+        pl.col("field_continuity_band_mode")
+        .drop_nulls()
+        .mode()
+        .first()
+        .alias("field_continuity_band_mode"),
+        pl.col("field_last_continuity_transition_mode")
+        .drop_nulls()
+        .mode()
+        .first()
+        .alias("field_last_continuity_transition_mode"),
+    )
+    scored = grouped.with_columns(
+        pl.when(pl.col("field_regime") == "bootstrap-upgrade")
+        .then(
+            pl.col("route_present_mean") * 1.0
+            + pl.col("activation_success_mean") * 0.5
+            + pl.col("stress_envelope") * 8.0
+            + pl.col("bootstrap_upgrade_mean") * 0.55
+            + pl.col("degraded_recovery_mean") * 0.18
+            - pl.col("bootstrap_withdraw_mean") * 0.35
+            - pl.col("degraded_to_bootstrap_mean") * 0.22
+            - pl.col("continuation_shift_mean") * 12.0
+        )
+        .when(pl.col("field_regime") == "continuity-transition")
+        .then(
+            pl.col("route_present_mean") * 1.2
+            + pl.col("stress_envelope") * 8.0
+            + pl.col("degraded_recovery_mean") * 0.25
+            + pl.col("asymmetric_shift_success_mean") * 0.22
+            - pl.col("continuation_shift_mean") * 26.0
+            - pl.col("route_churn_mean") * 35.0
+            - pl.col("degraded_to_bootstrap_mean") * 0.12
+        )
+        .otherwise(
+            pl.col("route_present_mean") * 1.15
+            + pl.col("stress_envelope") * 7.0
+            + pl.col("service_carry_mean") * 0.012
+            - pl.col("continuation_shift_mean") * 18.0
+            - pl.col("route_reconfiguration_mean") * 12.0
+            - pl.col("route_churn_mean") * 28.0
+        )
+        .alias("regime_fit_score")
+    ).with_columns(
+        (
+            pl.when(pl.col("field_regime") == "bootstrap-upgrade")
+            .then(
+                pl.col("bootstrap_upgrade_mean") * 0.6
+                + pl.col("degraded_recovery_mean") * 0.2
+                - pl.col("bootstrap_withdraw_mean") * 0.4
+                - pl.col("degraded_to_bootstrap_mean") * 0.2
+            )
+            .when(pl.col("field_regime") == "continuity-transition")
+            .then(
+                pl.col("degraded_recovery_mean") * 0.3
+                + pl.col("asymmetric_shift_success_mean") * 0.3
+                - pl.col("continuation_shift_mean") * 10.0
+                - pl.col("route_churn_mean") * 12.0
+            )
+            .otherwise(
+                pl.col("service_carry_mean") * 0.01
+                - pl.col("continuation_shift_mean") * 8.0
+                - pl.col("route_reconfiguration_mean") * 6.0
+            )
+        ).alias("transition_health")
+    )
+    return (
+        scored.sort(["field_regime", "regime_fit_score", "config_id"], descending=[False, True, False])
+        .group_by("field_regime")
+        .agg(
+            pl.first("config_id").alias("config_id"),
+            pl.first("route_present_mean").alias("route_present_mean"),
+            pl.first("activation_success_mean").alias("activation_success_mean"),
+            pl.first("stress_envelope").alias("stress_envelope"),
+            pl.first("transition_health").alias("transition_health"),
+            pl.first("continuation_shift_mean").alias("continuation_shift_mean"),
+            pl.first("service_carry_mean").alias("service_carry_mean"),
+            pl.first("field_continuity_band_mode").alias("field_continuity_band_mode"),
+            pl.first("field_last_continuity_transition_mode").alias(
+                "field_last_continuity_transition_mode"
+            ),
+            pl.first("regime_fit_score").alias("regime_fit_score"),
+        )
+        .with_columns(_field_routing_success_criteria_expr().alias("success_criteria"))
+        .select(
+            "field_regime",
+            "success_criteria",
+            "config_id",
+            "route_present_mean",
+            "transition_health",
+            "continuation_shift_mean",
+            "service_carry_mean",
+            "stress_envelope",
+            "field_continuity_band_mode",
+            "field_last_continuity_transition_mode",
+            "regime_fit_score",
+        )
+        .sort("field_regime")
+    )
+
+
+def _field_diffusion_regime_expr() -> pl.Expr:
+    return (
+        pl.when(
+            pl.col("family_id").is_in(
+                [
+                    "diffusion-bridge-drought",
+                    "diffusion-partitioned-clusters",
+                    "diffusion-sparse-long-delay",
+                    "diffusion-mobility-shift",
+                ]
+            )
+        )
+        .then(pl.lit("continuity"))
+        .when(pl.col("family_id") == "diffusion-energy-starved-relay")
+        .then(pl.lit("scarcity"))
+        .when(
+            pl.col("family_id").is_in(
+                [
+                    "diffusion-congestion-cascade",
+                    "diffusion-high-density-overload",
+                    "diffusion-disaster-broadcast",
+                ]
+            )
+        )
+        .then(pl.lit("congestion"))
+        .when(pl.col("family_id") == "diffusion-adversarial-observation")
+        .then(pl.lit("privacy"))
+        .otherwise(pl.lit("balanced"))
+    )
+
+
+def _field_diffusion_success_criteria_expr() -> pl.Expr:
+    return (
+        pl.when(pl.col("field_regime") == "continuity")
+        .then(
+            pl.lit(
+                "stay continuity-biased long enough to exploit rare opportunities without overspread"
+            )
+        )
+        .when(pl.col("field_regime") == "scarcity")
+        .then(
+            pl.lit(
+                "enter scarcity early enough to cut energy and spread pressure before explosiveness"
+            )
+        )
+        .when(pl.col("field_regime") == "congestion")
+        .then(
+            pl.lit(
+                "enter congestion suppression early enough to bound redundant spread"
+            )
+        )
+        .when(pl.col("field_regime") == "privacy")
+        .then(
+            pl.lit(
+                "reduce observer-adjacent dissemination while preserving delivery"
+            )
+        )
+        .otherwise(pl.lit("stay balanced when no stronger regime dominates"))
+    )
+
+
+def _field_diffusion_regime_match_bonus_expr() -> pl.Expr:
+    return (
+        pl.when(
+            (pl.col("field_regime") == "balanced") & (pl.col("config_id") == "field")
+        )
+        .then(40.0)
+        .when(
+            (pl.col("field_regime") == "continuity")
+            & (pl.col("config_id") == "field-continuity")
+        )
+        .then(40.0)
+        .when(
+            (pl.col("field_regime") == "scarcity")
+            & (pl.col("config_id") == "field-scarcity")
+        )
+        .then(40.0)
+        .when(
+            (pl.col("field_regime") == "congestion")
+            & (pl.col("config_id") == "field-congestion")
+        )
+        .then(40.0)
+        .when(
+            (pl.col("field_regime") == "privacy")
+            & (pl.col("config_id") == "field-privacy")
+        )
+        .then(40.0)
+        .otherwise(0.0)
+    )
+
+
+def field_diffusion_regime_calibration_table(
+    diffusion_aggregates: pl.DataFrame,
+) -> pl.DataFrame:
+    if diffusion_aggregates.is_empty():
+        return pl.DataFrame()
+    field_rows = diffusion_aggregates.filter(
+        pl.col("config_id").str.starts_with("field")
+    ).with_columns(_field_diffusion_regime_expr().alias("field_regime"))
+    grouped = field_rows.group_by("field_regime", "config_id").agg(
+        pl.col("field_posture_mode").drop_nulls().mode().first().alias("field_posture_mode"),
+        pl.col("delivery_probability_permille_mean").mean().alias("delivery_probability_mean"),
+        pl.col("coverage_permille_mean").mean().alias("coverage_mean"),
+        pl.col("total_transmissions_mean").mean().alias("total_transmissions_mean"),
+        pl.col("energy_per_delivered_message_mean").mean().alias(
+            "energy_per_delivered_message_mean"
+        ),
+        pl.col("storage_utilization_permille_mean").mean().alias(
+            "storage_utilization_mean"
+        ),
+        pl.col("estimated_reproduction_permille_mean").mean().alias(
+            "estimated_reproduction_mean"
+        ),
+        pl.col("corridor_persistence_permille_mean").mean().alias(
+            "corridor_persistence_mean"
+        ),
+        pl.col("observer_leakage_permille_mean").mean().alias("observer_leakage_mean"),
+        pl.col("field_posture_transition_count_mean").mean().alias(
+            "field_posture_transition_count_mean"
+        ),
+        pl.col("field_first_scarcity_transition_round_mean").mean().alias(
+            "first_scarcity_transition_round_mean"
+        ),
+        pl.col("field_first_congestion_transition_round_mean").mean().alias(
+            "first_congestion_transition_round_mean"
+        ),
+        pl.col("bounded_state_mode").drop_nulls().mode().first().alias("bounded_state_mode"),
+    )
+    scored = grouped.with_columns(
+        (
+            pl.when(pl.col("field_regime") == "continuity")
+            .then(
+                pl.col("delivery_probability_mean") * 1.0
+                + pl.col("coverage_mean") * 0.4
+                + pl.col("corridor_persistence_mean") * 0.45
+                - pl.col("total_transmissions_mean") * 8.0
+                - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.05
+                - pl.when(pl.col("field_posture_mode") == "continuity_biased")
+                .then(0.0)
+                .otherwise(140.0)
+                - pl.col("field_posture_transition_count_mean") * 20.0
+            )
+            .when(pl.col("field_regime") == "scarcity")
+            .then(
+                pl.col("delivery_probability_mean") * 0.85
+                + pl.col("coverage_mean") * 0.3
+                - pl.col("total_transmissions_mean") * 18.0
+                - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.35
+                - pl.col("storage_utilization_mean") * 0.35
+                - pl.col("estimated_reproduction_mean") * 0.22
+                - pl.when(pl.col("field_posture_mode") == "scarcity_conservative")
+                .then(0.0)
+                .otherwise(180.0)
+                - pl.col("first_scarcity_transition_round_mean").fill_null(20) * 10.0
+                - pl.when(pl.col("bounded_state_mode") == "explosive").then(320.0).otherwise(0.0)
+            )
+            .when(pl.col("field_regime") == "congestion")
+            .then(
+                pl.col("delivery_probability_mean") * 0.7
+                + pl.col("coverage_mean") * 0.4
+                - pl.col("total_transmissions_mean") * 16.0
+                - pl.col("storage_utilization_mean") * 0.42
+                - pl.col("estimated_reproduction_mean") * 0.28
+                - pl.when(pl.col("field_posture_mode") == "congestion_suppressed")
+                .then(0.0)
+                .otherwise(180.0)
+                - pl.col("first_congestion_transition_round_mean").fill_null(20) * 12.0
+                - pl.when(pl.col("bounded_state_mode") == "explosive").then(320.0).otherwise(0.0)
+            )
+            .when(pl.col("field_regime") == "privacy")
+            .then(
+                pl.col("delivery_probability_mean") * 0.9
+                + pl.col("coverage_mean") * 0.3
+                - pl.col("observer_leakage_mean") * 1.2
+                - pl.col("total_transmissions_mean") * 8.0
+                - pl.when(pl.col("field_posture_mode") == "privacy_conservative")
+                .then(0.0)
+                .otherwise(120.0)
+            )
+            .otherwise(
+                pl.col("delivery_probability_mean") * 0.9
+                + pl.col("coverage_mean") * 0.4
+                - pl.col("total_transmissions_mean") * 9.0
+                - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.12
+                - pl.col("observer_leakage_mean") * 0.4
+                - pl.when(pl.col("field_posture_mode") == "balanced")
+                .then(0.0)
+                .otherwise(80.0)
+            )
+            + _field_diffusion_regime_match_bonus_expr()
+        ).alias("regime_fit_score")
+    )
+    return (
+        scored.sort(
+            ["field_regime", "regime_fit_score", "config_id"],
+            descending=[False, True, False],
+        )
+        .group_by("field_regime")
+        .agg(
+            pl.first("config_id").alias("config_id"),
+            pl.first("field_posture_mode").alias("field_posture_mode"),
+            pl.first("delivery_probability_mean").alias("delivery_probability_mean"),
+            pl.first("coverage_mean").alias("coverage_mean"),
+            pl.first("total_transmissions_mean").alias("total_transmissions_mean"),
+            pl.first("observer_leakage_mean").alias("observer_leakage_mean"),
+            pl.first("bounded_state_mode").alias("bounded_state_mode"),
+            pl.first("field_posture_transition_count_mean").alias(
+                "field_posture_transition_count_mean"
+            ),
+            pl.first("first_scarcity_transition_round_mean").alias(
+                "first_scarcity_transition_round_mean"
+            ),
+            pl.first("first_congestion_transition_round_mean").alias(
+                "first_congestion_transition_round_mean"
+            ),
+            pl.first("regime_fit_score").alias("regime_fit_score"),
+        )
+        .with_columns(_field_diffusion_success_criteria_expr().alias("success_criteria"))
+        .select(
+            "field_regime",
+            "success_criteria",
+            "config_id",
+            "field_posture_mode",
+            "delivery_probability_mean",
+            "coverage_mean",
+            "total_transmissions_mean",
+            "observer_leakage_mean",
+            "bounded_state_mode",
+            "field_posture_transition_count_mean",
+            "first_scarcity_transition_round_mean",
+            "first_congestion_transition_round_mean",
+            "regime_fit_score",
+        )
+        .sort("field_regime")
     )
 
 
@@ -576,13 +1008,17 @@ def diffusion_engine_summary_table(diffusion_aggregates: pl.DataFrame) -> pl.Dat
         return pl.DataFrame()
     scored = diffusion_aggregates.with_columns(
         (
-            pl.col("delivery_probability_permille_mean") * 1.2
-            + pl.col("coverage_permille_mean") * 0.8
-            + pl.col("corridor_persistence_permille_mean") * 0.2
-            - pl.col("total_transmissions_mean") * 6.0
-            - pl.col("observer_leakage_permille_mean") * 0.2
-            - pl.when(pl.col("bounded_state_mode") == "explosive").then(220.0).otherwise(0.0)
-            - pl.when(pl.col("bounded_state_mode") == "collapse").then(120.0).otherwise(0.0)
+            pl.col("delivery_probability_permille_mean") * 1.0
+            + pl.col("coverage_permille_mean") * 0.6
+            + pl.col("corridor_persistence_permille_mean") * 0.15
+            - pl.col("delivery_latency_rounds_mean").fill_null(0) * 16.0
+            - pl.col("total_transmissions_mean") * 10.0
+            - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.18
+            - pl.col("storage_utilization_permille_mean") * 0.25
+            - pl.col("estimated_reproduction_permille_mean") * 0.15
+            - pl.col("observer_leakage_permille_mean") * 0.45
+            - pl.when(pl.col("bounded_state_mode") == "explosive").then(320.0).otherwise(0.0)
+            - pl.when(pl.col("bounded_state_mode") == "collapse").then(220.0).otherwise(0.0)
         ).alias("score")
     )
     return (
@@ -615,13 +1051,17 @@ def diffusion_engine_comparison_table(diffusion_aggregates: pl.DataFrame) -> pl.
         return pl.DataFrame()
     return diffusion_aggregates.with_columns(
         (
-            pl.col("delivery_probability_permille_mean") * 1.2
-            + pl.col("coverage_permille_mean") * 0.8
-            + pl.col("corridor_persistence_permille_mean") * 0.2
-            - pl.col("total_transmissions_mean") * 6.0
-            - pl.col("observer_leakage_permille_mean") * 0.2
-            - pl.when(pl.col("bounded_state_mode") == "explosive").then(220.0).otherwise(0.0)
-            - pl.when(pl.col("bounded_state_mode") == "collapse").then(120.0).otherwise(0.0)
+            pl.col("delivery_probability_permille_mean") * 1.0
+            + pl.col("coverage_permille_mean") * 0.6
+            + pl.col("corridor_persistence_permille_mean") * 0.15
+            - pl.col("delivery_latency_rounds_mean").fill_null(0) * 16.0
+            - pl.col("total_transmissions_mean") * 10.0
+            - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.18
+            - pl.col("storage_utilization_permille_mean") * 0.25
+            - pl.col("estimated_reproduction_permille_mean") * 0.15
+            - pl.col("observer_leakage_permille_mean") * 0.45
+            - pl.when(pl.col("bounded_state_mode") == "explosive").then(320.0).otherwise(0.0)
+            - pl.when(pl.col("bounded_state_mode") == "collapse").then(220.0).otherwise(0.0)
         ).alias("score")
     ).sort(["family_id", "score", "config_id"], descending=[False, True, False])
 

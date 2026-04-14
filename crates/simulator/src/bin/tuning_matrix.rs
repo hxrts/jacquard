@@ -2,8 +2,7 @@ use std::{env, path::PathBuf};
 
 use jacquard_simulator::{
     diffusion_local_suite, diffusion_smoke_suite, run_diffusion_suite, run_tuning_suite,
-    tuning_local_suite, tuning_smoke_suite, JacquardSimulator,
-    ReferenceClientAdapter,
+    tuning_local_suite, tuning_smoke_suite, JacquardSimulator, ReferenceClientAdapter,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,8 +16,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let output_dir =
-        output_dir.unwrap_or_else(|| PathBuf::from(format!("artifacts/tuning/{suite}/latest")));
+    let output_dir = output_dir.unwrap_or_else(|| {
+        let base = PathBuf::from(format!("artifacts/analysis/{suite}"));
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let run_dir = base.join(format!("{timestamp}"));
+        std::fs::create_dir_all(&run_dir).expect("create analysis output directory");
+        let latest = base.join("latest");
+        // Remove existing symlink or directory named "latest"
+        if latest.is_symlink() || latest.exists() {
+            let _ = std::fs::remove_file(&latest);
+            let _ = std::fs::remove_dir_all(&latest);
+        }
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(format!("{timestamp}"), &latest).expect("create latest symlink");
+        run_dir
+    });
 
     match suite.as_str() {
         "diffusion-local" => {

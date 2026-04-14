@@ -348,7 +348,7 @@ def write_pdf_report(
 ) -> None:
     styles = build_styles()
     doc = SimpleDocTemplate(
-        str(report_dir / "tuning_report.pdf"),
+        str(report_dir / "report.pdf"),
         pagesize=A4,
         leftMargin=2.2 * cm,
         rightMargin=2.2 * cm,
@@ -735,10 +735,10 @@ def write_pdf_report(
                          for line in asset_block("Field Diffusion Regime Calibration", "table").lines]
                     ),
                     make_table(
-                        ["Regime", "Success Criteria", "Posture", "State", "Transition", "Delivery", "Tx", "Fit"],
+                        ["Regime", "Success Criteria", "Configuration", "Posture", "State", "Transition", "Delivery", "Tx", "Fit"],
                         field_diffusion_regime_table_rows(field_diffusion_regime_calibration),
                         styles,
-                        [1.8 * cm, 5.5 * cm, 2.2 * cm, 1.5 * cm, 1.8 * cm, 1.4 * cm, 1.2 * cm, 1.3 * cm],
+                        [1.6 * cm, 4.8 * cm, 3.0 * cm, 1.9 * cm, 1.3 * cm, 1.7 * cm, 1.3 * cm, 1.0 * cm, 1.2 * cm],
                     ),
                 ]
             )
