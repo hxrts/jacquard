@@ -33,6 +33,7 @@ from .sections import (
     batman_bellman_algorithm_lines,
     batman_classic_algorithm_lines,
     comparison_findings_lines,
+    diffusion_field_posture_lines,
     engine_section_lines,
     executive_summary_lines,
     field_algorithm_lines,
@@ -410,7 +411,6 @@ def write_pdf_report(
         ("Babel Algorithm", babel_algorithm_lines()),
         ("Pathway Algorithm", pathway_algorithm_lines()),
         ("Field Algorithm", field_algorithm_lines()),
-        ("Analytical Approach", approach_lines()),
         ("Recommendation Logic", scoring_lines()),
     ]:
         story.append(Paragraph(heading, styles["Subsection"]))
@@ -660,17 +660,17 @@ def write_pdf_report(
 
     if not diffusion_engine_summary.is_empty():
         story.append(PageBreak())
-        story.append(Paragraph("Part III. Diffusion Engine Comparison", styles["Section"]))
-        story.append(Paragraph("11. Diffusion Engine Comparison", styles["Section"]))
-        add_paragraphs(story, styles, section_lines("Diffusion Introduction"))
+        story.append(Paragraph("Part III. Diffusion Calibration", styles["Section"]))
+        story.append(Paragraph("11. Diffusion Calibration", styles["Section"]))
+        add_paragraphs(story, styles, section_lines("Diffusion Calibration Introduction"))
         story.append(Spacer(1, 0.16 * cm))
         story.append(
             KeepTogether(
                 [
-                    Paragraph("Diffusion Engine Summary", styles["Subsection"]),
+                    Paragraph("Diffusion Calibration Summary", styles["Subsection"]),
                     *(
                         [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                         for line in asset_block("Diffusion Engine Summary", "table").lines]
+                         for line in asset_block("Diffusion Calibration Summary", "table").lines]
                     ),
                     make_table(
                         ["Family", "Engine Set", "Delivery", "Coverage", "Latency", "State", "Stress"],
@@ -681,6 +681,28 @@ def write_pdf_report(
                 ]
             )
         )
+        story.append(Spacer(1, 0.18 * cm))
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("Diffusion Calibration Boundaries", styles["Subsection"]),
+                    *(
+                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
+                         for line in asset_block("Diffusion Calibration Boundaries", "table").lines]
+                    ),
+                    make_table(
+                        ["Engine Set", "Viable Families", "First Collapse", "Collapse Stress", "First Explosive", "Explosive Stress"],
+                        diffusion_boundary_table_rows(diffusion_boundary_summary),
+                        styles,
+                        [4.6 * cm, 2.0 * cm, 3.4 * cm, 1.8 * cm, 3.4 * cm, 1.8 * cm],
+                    ),
+                ]
+            )
+        )
+        story.append(PageBreak())
+        story.append(Paragraph("Part IV. Diffusion Engine Comparison", styles["Section"]))
+        story.append(Paragraph("12. Diffusion Engine Comparison", styles["Section"]))
+        add_paragraphs(story, styles, section_lines("Diffusion Analysis Introduction"))
         story.append(Spacer(1, 0.18 * cm))
         story.append(
             KeepTogether(
@@ -700,24 +722,6 @@ def write_pdf_report(
             )
         )
         story.append(Spacer(1, 0.18 * cm))
-        story.append(
-            KeepTogether(
-                [
-                    Paragraph("Diffusion Engine Boundaries", styles["Subsection"]),
-                    *(
-                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                         for line in asset_block("Diffusion Engine Boundaries", "table").lines]
-                    ),
-                    make_table(
-                        ["Engine Set", "Viable Families", "First Collapse", "Collapse Stress", "First Explosive", "Explosive Stress"],
-                        diffusion_boundary_table_rows(diffusion_boundary_summary),
-                        styles,
-                        [4.6 * cm, 2.0 * cm, 3.4 * cm, 1.8 * cm, 3.4 * cm, 1.8 * cm],
-                    ),
-                ]
-            )
-        )
-        story.append(Spacer(1, 0.18 * cm))
         story.append(Paragraph("Diffusion Figure Context", styles["Subsection"]))
         add_paragraphs(story, styles, section_lines("Diffusion Figure Context"))
         add_figure(
@@ -726,8 +730,8 @@ def write_pdf_report(
             report_dir,
             "Figure 13",
             "Figure 13. Diffusion delivery and coverage by scenario family",
-            16.4 * cm,
-            9.2 * cm,
+            16.6 * cm,
+            12.0 * cm,
         )
         add_figure(
             story,
@@ -735,10 +739,11 @@ def write_pdf_report(
             report_dir,
             "Figure 14",
             "Figure 14. Diffusion transmission load and boundedness by scenario family",
-            16.4 * cm,
-            9.6 * cm,
+            16.6 * cm,
+            12.3 * cm,
         )
         story.append(Paragraph("Diffusion Takeaways", styles["Subsection"]))
         add_paragraphs(story, styles, section_lines("Diffusion Takeaways"))
+        add_paragraphs(story, styles, diffusion_field_posture_lines(diffusion_engine_comparison))
 
     doc.build(story)
