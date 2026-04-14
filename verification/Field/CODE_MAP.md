@@ -27,6 +27,8 @@ This map describes the current organization of `verification/Field`.
   - imports the proof-facing reduced field search boundary
 - `Field/Async.lean`
   - imports the reduced async delivery semantics, transport lifecycle lemmas, and first async safety theorems
+- `Field/Retention.lean`
+  - imports the reduced payload-retention policy/custody layer, executable bounded retention instance, separation/refinement theorems, and proof-facing fixtures
 - `Field/System.lean`
   - imports system-level summaries, reduced end-to-end semantics, probabilistic evidence-flow theorems, refinement to router-owned canonical selection above the async layer, and the first budgeted/reduced-context optimality theorems
 - `Field/Quality.lean`
@@ -158,6 +160,17 @@ This map describes the current organization of `verification/Field`.
 - `Field/Search/API.lean`
   - proof-facing reduced search boundary covering objective-to-query mapping, snapshot identity, execution-policy vocabulary, selected-result shape, reconfiguration metadata, and first replay-style lemmas
 
+## Retention Boundary
+
+- `Field/Retention/API.lean`
+  - reduced payload-token, retention-policy input, retention-state, and abstract retention-step vocabulary plus boundary law bundles
+- `Field/Retention/Instance.lean`
+  - first bounded concrete retention instance with token aging, retain/carry/forward/drop policy, and executable state transitions
+- `Field/Retention/Refinement.lean`
+  - separation from local posterior/publication/canonical-route truth plus custody-conservation and forwarding-admissibility theorems
+- `Field/Retention/Fixtures.lean`
+  - proof-facing reduced retention scenarios covering retain, forward, drop, and checkpoint-restore cases
+
 ## Async And System Layers
 
 - `Field/Async/API.lean`
@@ -192,6 +205,8 @@ This map describes the current organization of `verification/Field`.
   - system-facing stronger router selector based on support-then-hop-then-stable lifecycle choice, plus reliable-immediate stability and basic membership/eligibility theorems
 - `Field/System/Resilience.lean`
   - system-facing bounded-dropout and bounded-non-participation stabilization/degradation theorems connecting reduced participation loss to canonical support behavior under the clean async regime, including reduced participation-cut and unique-bridge disappearance theorems
+- `Field/System/Retention.lean`
+  - system-facing retention/custody bridge above the async/runtime layer, including silence, no-delivery-without-custody, bounded retention work, and non-strengthening theorems for retained payloads
 - `Field/Quality/API.lean`
   - reduced route-comparison views, admissibility rules, objective vocabulary, pairwise comparison objects, destination-filtered best-view selection, and maintenance-idempotence facts for exported route views
 - `Field/Quality/Reference.lean`
@@ -210,6 +225,7 @@ This map describes the current organization of `verification/Field`.
   - `Field/Adequacy` owns reduction and runtime projection
   - `Field/Assumptions` packages contracts and theorem access
   - `Field/Information` and `Field/Model` own probabilistic local state, priors, likelihoods, and Bayesian posterior-update semantics
+  - `Field/Retention` owns reduced payload custody, retention policy, and bounded retention execution state below router-owned route truth
   - only explicit support/canonical refinement theorems connect `Field/Quality` objectives back to router-owned truth; all other ranking objectives remain observational unless a theorem says otherwise
 
 - stable architecture notes:
@@ -224,11 +240,12 @@ This map describes the current organization of `verification/Field`.
   - control state: `ReducedBeliefSummary`, `LocalOrderParameter`, `MeanFieldState`, `ControllerState`, `RegimeState`, `PostureState`, `ScoredContinuationSet`
   - publication/public-observable state: `CorridorEnvelopeProjection`, `PublishedCandidate`, `AdmittedCandidate`
   - lifecycle state: `LifecycleRoute`
-  - execution state: `AsyncState`, `EndToEndState`, `RuntimeState`
+  - execution state: `AsyncState`, `RetentionState`, `EndToEndState`, `RuntimeState`
 
 - projection taxonomy:
   - protocol projection: choreography/session structure -> local protocol surface (`Field/Protocol/*`)
   - local public projection: local field semantics -> corridor/public observable surface (`Field/Model/*`, `Field/Information/*`, `Field/Model/Boundary.lean`)
+  - retention projection: controller/runtime signals -> payload-custody decisions and retained-token execution state (`Field/Retention/*`)
   - runtime projection / adequacy reduction: runtime artifacts or runtime state -> reduced Lean protocol/router/system surface (`Field/Adequacy/*`)
 
 - truth ladder:
@@ -251,7 +268,7 @@ This map describes the current organization of `verification/Field`.
 
 - docs:
   - `Field/Docs/Model.md`
-    - local-model specification, stored posterior-to-reduction boundary, order-parameter interpretation, and corridor coarse-graining story
+    - local-model specification, stored posterior-to-reduction boundary, order-parameter interpretation, corridor coarse-graining story, and the explicit note that deferred payload retention stays runtime-facing rather than entering the local model
   - `Field/Docs/Protocol.md`
     - protocol, Telltale mapping, and replay/authority notes
   - `Field/Docs/Adequacy.md`

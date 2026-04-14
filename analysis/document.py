@@ -74,8 +74,8 @@ from .tables import (
 def codeify_known_terms(text: str) -> str:
     terms = [
         "pathway-batman-bellman",
-        "batman-bellman",
         "batman-classic",
+        "batman-bellman",
         "babel",
         "olsrv2",
         "pathway",
@@ -339,6 +339,21 @@ def make_table(column_labels: list[str], rows: list[list[str]], styles, col_widt
     return table
 
 
+def add_table_section(
+    story: list,
+    styles,
+    title: str,
+    intro_lines: list[str],
+    column_labels: list[str],
+    rows: list[list[str]],
+    col_widths: list[float],
+) -> None:
+    story.append(Paragraph(title, styles["Subsection"]))
+    add_paragraphs(story, styles, intro_lines)
+    story.append(make_table(column_labels, rows, styles, col_widths))
+    story.append(Spacer(1, 0.16 * cm))
+
+
 def write_pdf_report(
     artifact_dir: Path,
     report_dir: Path,
@@ -389,52 +404,23 @@ def write_pdf_report(
             [2.0 * cm, 5.3 * cm, 2.0 * cm, 2.3 * cm, 2.7 * cm, 2.1 * cm],
         )
     )
-    story.append(Spacer(1, 0.16 * cm))
-    story.append(
-        KeepTogether(
-            [
-                Paragraph("2. Transition Behavior", styles["Section"]),
-                *(
-                    [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                     for line in asset_block("Transition Behavior", "table").lines]
-                ),
-                make_table(
-                    ["Engine", "Configuration", "Route Mean", "Route Stddev", "First Mat.", "First Loss", "Recov.", "Churn"],
-                    transition_table_rows(transition_metrics),
-                    styles,
-                    [1.8 * cm, 4.5 * cm, 1.9 * cm, 2.1 * cm, 1.8 * cm, 1.8 * cm, 1.8 * cm, 1.5 * cm],
-                ),
-            ]
-        )
-    )
-    story.append(Spacer(1, 0.16 * cm))
-    story.append(
-        KeepTogether(
-            [
-                Paragraph("3. Failure Boundaries", styles["Section"]),
-                *(
-                    [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                     for line in asset_block("Failure Boundaries", "table").lines]
-                ),
-                make_table(
-                    ["Engine", "Configuration", "Max Stress", "First Failed Family", "Fail Stress", "Reason"],
-                    boundary_table_rows(boundary_summary),
-                    styles,
-                    [1.8 * cm, 4.3 * cm, 1.7 * cm, 4.5 * cm, 1.6 * cm, 2.2 * cm],
-                ),
-            ]
-        )
+    add_paragraphs(
+        story,
+        styles,
+        [
+            "Detailed transition, failure-boundary, profile, and field-regime tables are collected in Appendix A so the main report can stay focused on the key recommendations and figures.",
+        ],
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("4. Tuning Setup And Scoring", styles["Section"]))
+    story.append(Paragraph("2. Tuning Setup And Scoring", styles["Section"]))
     for heading, lines in [
         ("Simulation Setup", simulation_setup_lines()),
         ("Matrix Design", methodology_lines()),
         ("Regime Assumptions", regime_assumption_lines()),
         ("Regime Characterization", regime_characterization_lines()),
-        ("BATMAN Bellman Algorithm", batman_bellman_algorithm_lines()),
         ("BATMAN Classic Algorithm", batman_classic_algorithm_lines()),
+        ("BATMAN Bellman Algorithm", batman_bellman_algorithm_lines()),
         ("Babel Algorithm", babel_algorithm_lines()),
         ("OLSRv2 Algorithm", olsrv2_algorithm_lines()),
         ("Pathway Algorithm", pathway_algorithm_lines()),
@@ -443,66 +429,54 @@ def write_pdf_report(
     ]:
         story.append(Paragraph(heading, styles["Subsection"]))
         add_paragraphs(story, styles, lines)
-    story.append(Paragraph("Profile Recommendation Logic", styles["Subsection"]))
-    add_paragraphs(story, styles, profile_recommendation_lines(profile_recommendations))
+    story.append(Paragraph("Reference Material", styles["Subsection"]))
     add_paragraphs(
         story,
         styles,
-        asset_block("Profile Recommendations", "table").lines,
-    )
-    story.append(
-        make_table(
-            ["Engine", "Profile", "Configuration", "Score", "Activation", "Route", "Max Stress"],
-            profile_table_rows(profile_recommendations),
-            styles,
-            [1.8 * cm, 2.5 * cm, 4.4 * cm, 1.8 * cm, 2.0 * cm, 1.8 * cm, 1.8 * cm],
-        )
-    )
-    story.append(Spacer(1, 0.16 * cm))
-    add_paragraphs(
-        story,
-        styles,
-        asset_block("Field Continuity Profiles", "table").lines,
-    )
-    story.append(
-        make_table(
-            ["Profile", "Configuration", "Score", "Route", "Shifts", "Carry", "Narrow", "Degraded"],
-            field_profile_table_rows(field_profile_recommendations),
-            styles,
-            [3.0 * cm, 4.6 * cm, 1.6 * cm, 1.5 * cm, 1.5 * cm, 1.8 * cm, 1.4 * cm, 1.6 * cm],
-        )
-    )
-    story.append(Spacer(1, 0.16 * cm))
-    add_paragraphs(
-        story,
-        styles,
-        asset_block("Field Regime Calibration", "table").lines,
-    )
-    story.append(
-        make_table(
-            ["Regime", "Success Criteria", "Configuration", "Route", "Transition", "Shifts", "Carry", "Stress"],
-            field_routing_regime_table_rows(field_routing_regime_calibration),
-            styles,
-            [2.2 * cm, 5.1 * cm, 3.6 * cm, 1.2 * cm, 1.4 * cm, 1.2 * cm, 1.4 * cm, 1.1 * cm],
-        )
+        [
+            "Appendix A contains the detailed transition, failure-boundary, profile, and field-specific calibration tables that support the main tuning recommendation.",
+        ],
     )
 
     story.append(PageBreak())
     story.append(Paragraph("Part II. Analysis", styles["Section"]))
 
-    story.append(Paragraph("5. BATMAN Bellman Analysis", styles["Section"]))
+    story.append(Paragraph("3. BATMAN Classic Analysis", styles["Section"]))
+    story.append(Paragraph("Findings", styles["Subsection"]))
+    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "batman-classic"))
+    story.append(Paragraph("Transition Pressure Analysis", styles["Subsection"]))
+    add_paragraphs(story, styles, section_lines("BATMAN Classic Transition Analysis"))
+    add_figure(
+        story,
+        styles,
+        report_dir,
+        "Figure 1",
+        "Figure 1. BATMAN Classic stability across transition families",
+        16.4 * cm,
+        7.0 * cm,
+    )
+    add_figure(
+        story,
+        styles,
+        report_dir,
+        "Figure 2",
+        "Figure 2. BATMAN Classic loss timing across transition families",
+        16.4 * cm,
+        7.0 * cm,
+    )
+    story.append(PageBreak())
+
+    story.append(Paragraph("4. BATMAN Bellman Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "batman-bellman"))
-    story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
-    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "batman-bellman"))
     story.append(Paragraph("Transition Pressure Analysis", styles["Subsection"]))
     add_paragraphs(story, styles, section_lines("BATMAN Bellman Transition Analysis"))
     add_figure(
         story,
         styles,
         report_dir,
-        "Figure 1",
-        "Figure 1. BATMAN Bellman stability across transition families",
+        "Figure 3",
+        "Figure 3. BATMAN Bellman stability across transition families",
         16.4 * cm,
         8.2 * cm,
     )
@@ -510,45 +484,16 @@ def write_pdf_report(
         story,
         styles,
         report_dir,
-        "Figure 2",
-        "Figure 2. BATMAN Bellman loss timing across transition families",
+        "Figure 4",
+        "Figure 4. BATMAN Bellman loss timing across transition families",
         16.4 * cm,
         7.4 * cm,
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("6. BATMAN Classic Analysis", styles["Section"]))
-    story.append(Paragraph("Findings", styles["Subsection"]))
-    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "batman-classic"))
-    story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
-    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "batman-classic"))
-    story.append(Paragraph("Transition Pressure Analysis", styles["Subsection"]))
-    add_paragraphs(story, styles, section_lines("BATMAN Classic Transition Analysis"))
-    add_figure(
-        story,
-        styles,
-        report_dir,
-        "Figure 3",
-        "Figure 3. BATMAN Classic stability across transition families",
-        16.4 * cm,
-        7.0 * cm,
-    )
-    add_figure(
-        story,
-        styles,
-        report_dir,
-        "Figure 4",
-        "Figure 4. BATMAN Classic loss timing across transition families",
-        16.4 * cm,
-        7.0 * cm,
-    )
-    story.append(PageBreak())
-
-    story.append(Paragraph("7. Babel Analysis", styles["Section"]))
+    story.append(Paragraph("5. Babel Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "babel"))
-    story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
-    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "babel"))
     story.append(Paragraph("Decay Window And Feasibility Analysis", styles["Subsection"]))
     add_paragraphs(story, styles, section_lines("Babel Decay Analysis"))
     add_figure(
@@ -571,11 +516,9 @@ def write_pdf_report(
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("8. OLSRv2 Analysis", styles["Section"]))
+    story.append(Paragraph("6. OLSRv2 Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "olsrv2"))
-    story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
-    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "olsrv2"))
     story.append(Paragraph("Topology Propagation And Churn Analysis", styles["Subsection"]))
     add_paragraphs(story, styles, section_lines("OLSRv2 Decay Analysis"))
     add_figure(
@@ -598,11 +541,9 @@ def write_pdf_report(
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("9. Pathway Analysis", styles["Section"]))
+    story.append(Paragraph("7. Pathway Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "pathway"))
-    story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
-    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "pathway"))
     story.append(Paragraph("Budget Figures", styles["Subsection"]))
     add_paragraphs(story, styles, section_lines("Pathway Budget Figures Intro"))
     add_figure(
@@ -625,11 +566,9 @@ def write_pdf_report(
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("10. Field Analysis", styles["Section"]))
+    story.append(Paragraph("8. Field Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "field"))
-    story.append(Paragraph("Recommendation Rationale", styles["Subsection"]))
-    add_paragraphs(story, styles, recommendation_rationale_lines(recommendations, aggregates, "field"))
     story.append(Paragraph("Corridor Figures", styles["Subsection"]))
     add_paragraphs(story, styles, section_lines("Field Corridor Figures Intro"))
     add_figure(
@@ -652,7 +591,7 @@ def write_pdf_report(
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("11. Comparative Analysis", styles["Section"]))
+    story.append(Paragraph("9. Comparative Analysis", styles["Section"]))
     story.append(Paragraph("Mixed-Engine Comparison", styles["Subsection"]))
     add_paragraphs(story, styles, comparison_findings_lines(comparison_summary))
     story.append(Spacer(1, 0.12 * cm))
@@ -662,41 +601,12 @@ def write_pdf_report(
     add_paragraphs(story, styles, head_to_head_regime_lines())
     story.append(Paragraph("Limitations And Next Steps", styles["Subsection"]))
     add_paragraphs(story, styles, limitations_lines())
-    story.append(Spacer(1, 0.18 * cm))
-    story.append(
-        KeepTogether(
-            [
-                Paragraph("Mixed-Engine Regime Split", styles["Subsection"]),
-                *(
-                    [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                     for line in asset_block("Mixed-Engine Regime Split", "table").lines]
-                ),
-                make_table(
-                    ["Family", "Dominant Engine", "Activation", "Route Presence", "Stress"],
-                    comparison_table_rows(comparison_summary),
-                    styles,
-                    [6.4 * cm, 3.1 * cm, 2.2 * cm, 3.0 * cm, 1.8 * cm],
-                ),
-            ]
-        )
-    )
-    story.append(Spacer(1, 0.18 * cm))
-    story.append(
-        KeepTogether(
-            [
-                Paragraph("Head-To-Head Results", styles["Subsection"]),
-                *(
-                    [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                     for line in asset_block("Head-To-Head Results", "table").lines]
-                ),
-                make_table(
-                    ["Regime", "Engine Set", "Activation", "Route", "Dominant", "Stress"],
-                    head_to_head_table_rows(head_to_head_summary),
-                    styles,
-                    [5.6 * cm, 3.2 * cm, 2.0 * cm, 1.8 * cm, 2.1 * cm, 1.4 * cm],
-                ),
-            ]
-        )
+    add_paragraphs(
+        story,
+        styles,
+        [
+            "The full mixed-engine and head-to-head tables are collected in Appendix B. The main body keeps the figures and takeaways.",
+        ],
     )
     story.append(Spacer(1, 0.18 * cm))
     story.append(
@@ -736,65 +646,18 @@ def write_pdf_report(
     if not diffusion_engine_summary.is_empty():
         story.append(PageBreak())
         story.append(Paragraph("Part III. Diffusion Calibration", styles["Section"]))
-        story.append(Paragraph("12. Diffusion Calibration", styles["Section"]))
+        story.append(Paragraph("10. Diffusion Calibration", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Calibration Introduction"))
-        story.append(Spacer(1, 0.16 * cm))
-        story.append(
-            KeepTogether(
-                [
-                    Paragraph("Diffusion Calibration Summary", styles["Subsection"]),
-                    *(
-                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                         for line in asset_block("Diffusion Calibration Summary", "table").lines]
-                    ),
-                    make_table(
-                        ["Family", "Engine Set", "Delivery", "Coverage", "Latency", "State", "Stress"],
-                        diffusion_engine_summary_table_rows(diffusion_engine_summary),
-                        styles,
-                        [4.0 * cm, 4.6 * cm, 1.6 * cm, 1.6 * cm, 1.5 * cm, 2.0 * cm, 1.4 * cm],
-                    ),
-                ]
-            )
-        )
-        story.append(Spacer(1, 0.18 * cm))
-        story.append(
-            KeepTogether(
-                [
-                    Paragraph("Diffusion Calibration Boundaries", styles["Subsection"]),
-                    *(
-                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                         for line in asset_block("Diffusion Calibration Boundaries", "table").lines]
-                    ),
-                    make_table(
-                        ["Engine Set", "Viable Families", "First Collapse", "Collapse Stress", "First Explosive", "Explosive Stress"],
-                        diffusion_boundary_table_rows(diffusion_boundary_summary),
-                        styles,
-                        [4.6 * cm, 2.0 * cm, 3.4 * cm, 1.8 * cm, 3.4 * cm, 1.8 * cm],
-                    ),
-                ]
-            )
-        )
-        story.append(Spacer(1, 0.18 * cm))
-        story.append(
-            KeepTogether(
-                [
-                    Paragraph("Field Diffusion Regime Calibration", styles["Subsection"]),
-                    *(
-                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                         for line in asset_block("Field Diffusion Regime Calibration", "table").lines]
-                    ),
-                    make_table(
-                        ["Regime", "Success Criteria", "Configuration", "Posture", "State", "Transition", "Delivery", "Tx", "Fit"],
-                        field_diffusion_regime_table_rows(field_diffusion_regime_calibration),
-                        styles,
-                        [1.6 * cm, 4.8 * cm, 3.0 * cm, 1.9 * cm, 1.3 * cm, 1.7 * cm, 1.3 * cm, 1.0 * cm, 1.2 * cm],
-                    ),
-                ]
-            )
+        add_paragraphs(
+            story,
+            styles,
+            [
+                "Detailed diffusion calibration, field-calibration, and boundary tables are collected in Appendix C so the main comparison can stay focused on regime winners and the figure-level differences.",
+            ],
         )
         story.append(PageBreak())
         story.append(Paragraph("Part IV. Diffusion Engine Comparison", styles["Section"]))
-        story.append(Paragraph("13. Diffusion Engine Comparison", styles["Section"]))
+        story.append(Paragraph("11. Diffusion Engine Comparison", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Analysis Introduction"))
         story.append(Spacer(1, 0.18 * cm))
         story.append(
@@ -815,42 +678,12 @@ def write_pdf_report(
             )
         )
         story.append(Spacer(1, 0.18 * cm))
-        story.append(
-            KeepTogether(
-                [
-                    Paragraph("Field Vs Best Alternative", styles["Subsection"]),
-                    *(
-                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                         for line in asset_block("Field Vs Best Alternative", "table").lines]
-                    ),
-                    make_table(
-                        ["Regime", "Field", "OK", "State", "Alternative", "Alt State", "dDel", "dCov", "dClus", "dTx", "dScore"],
-                        field_vs_best_diffusion_alternative_table_rows(
-                            field_vs_best_diffusion_alternative
-                        ),
-                        styles,
-                        [1.5 * cm, 3.0 * cm, 0.8 * cm, 1.3 * cm, 3.0 * cm, 1.5 * cm, 1.0 * cm, 1.0 * cm, 1.1 * cm, 0.9 * cm, 1.1 * cm],
-                    ),
-                ]
-            )
-        )
-        story.append(Spacer(1, 0.18 * cm))
-        story.append(
-            KeepTogether(
-                [
-                    Paragraph("Diffusion Engine Comparison", styles["Subsection"]),
-                    *(
-                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                         for line in asset_block("Diffusion Engine Comparison", "table").lines]
-                    ),
-                    make_table(
-                        ["Family", "Engine Set", "Delivery", "Coverage", "Tx", "R_est", "State"],
-                        diffusion_engine_comparison_table_rows(diffusion_engine_comparison),
-                        styles,
-                        [3.7 * cm, 4.8 * cm, 1.5 * cm, 1.5 * cm, 1.2 * cm, 1.5 * cm, 1.7 * cm],
-                    ),
-                ]
-            )
+        add_paragraphs(
+            story,
+            styles,
+            [
+                "Appendix C contains the full diffusion family matrix and the field-versus-best-alternative regime table.",
+            ],
         )
         story.append(Spacer(1, 0.18 * cm))
         story.append(Paragraph("Diffusion Figure Context", styles["Subsection"]))
@@ -876,5 +709,146 @@ def write_pdf_report(
         story.append(Paragraph("Diffusion Takeaways", styles["Subsection"]))
         add_paragraphs(story, styles, section_lines("Diffusion Takeaways"))
         add_paragraphs(story, styles, diffusion_field_posture_lines(diffusion_engine_comparison))
+
+    story.append(PageBreak())
+    story.append(Paragraph("Appendix A. Tuning Reference Tables", styles["Section"]))
+    add_paragraphs(
+        story,
+        styles,
+        [
+            "These tables provide the detailed tuning reference material behind the main recommendation and analysis sections.",
+        ],
+    )
+    add_table_section(
+        story,
+        styles,
+        "Transition Behavior",
+        asset_block("Transition Behavior", "table").lines,
+        ["Engine", "Configuration", "Route Mean", "Route Stddev", "First Mat.", "First Loss", "Recov.", "Churn"],
+        transition_table_rows(transition_metrics),
+        [1.8 * cm, 4.5 * cm, 1.9 * cm, 2.1 * cm, 1.8 * cm, 1.8 * cm, 1.8 * cm, 1.5 * cm],
+    )
+    add_table_section(
+        story,
+        styles,
+        "Failure Boundaries",
+        asset_block("Failure Boundaries", "table").lines,
+        ["Engine", "Configuration", "Max Stress", "First Failed Family", "Fail Stress", "Reason"],
+        boundary_table_rows(boundary_summary),
+        [1.8 * cm, 4.3 * cm, 1.7 * cm, 4.5 * cm, 1.6 * cm, 2.2 * cm],
+    )
+    add_table_section(
+        story,
+        styles,
+        "Profile Recommendations",
+        asset_block("Profile Recommendations", "table").lines,
+        ["Engine", "Profile", "Configuration", "Score", "Activation", "Route", "Max Stress"],
+        profile_table_rows(profile_recommendations),
+        [1.8 * cm, 2.5 * cm, 4.4 * cm, 1.8 * cm, 2.0 * cm, 1.8 * cm, 1.8 * cm],
+    )
+    add_table_section(
+        story,
+        styles,
+        "Field Continuity Profiles",
+        asset_block("Field Continuity Profiles", "table").lines,
+        ["Profile", "Configuration", "Score", "Route", "Shifts", "Carry", "Narrow", "Degraded"],
+        field_profile_table_rows(field_profile_recommendations),
+        [3.0 * cm, 4.6 * cm, 1.6 * cm, 1.5 * cm, 1.5 * cm, 1.8 * cm, 1.4 * cm, 1.6 * cm],
+    )
+    add_table_section(
+        story,
+        styles,
+        "Field Regime Calibration",
+        asset_block("Field Regime Calibration", "table").lines,
+        ["Regime", "Success Criteria", "Configuration", "Route", "Transition", "Shifts", "Carry", "Stress"],
+        field_routing_regime_table_rows(field_routing_regime_calibration),
+        [2.2 * cm, 5.1 * cm, 3.6 * cm, 1.2 * cm, 1.4 * cm, 1.2 * cm, 1.4 * cm, 1.1 * cm],
+    )
+
+    story.append(PageBreak())
+    story.append(Paragraph("Appendix B. Route-Visible Reference Tables", styles["Section"]))
+    add_paragraphs(
+        story,
+        styles,
+        [
+            "These tables collect the exhaustive mixed-engine and head-to-head route-visible results referenced by the main comparison section.",
+        ],
+    )
+    add_table_section(
+        story,
+        styles,
+        "Mixed-Engine Regime Split",
+        asset_block("Mixed-Engine Regime Split", "table").lines,
+        ["Family", "Dominant Engine", "Activation", "Route Presence", "Stress"],
+        comparison_table_rows(comparison_summary),
+        [6.4 * cm, 3.1 * cm, 2.2 * cm, 3.0 * cm, 1.8 * cm],
+    )
+    add_table_section(
+        story,
+        styles,
+        "Head-To-Head Results",
+        asset_block("Head-To-Head Results", "table").lines,
+        ["Regime", "Engine Set", "Activation", "Route", "Dominant", "Stress"],
+        head_to_head_table_rows(head_to_head_summary),
+        [5.6 * cm, 3.2 * cm, 2.0 * cm, 1.8 * cm, 2.1 * cm, 1.4 * cm],
+    )
+
+    if not diffusion_engine_summary.is_empty():
+        story.append(PageBreak())
+        story.append(Paragraph("Appendix C. Diffusion Reference Tables", styles["Section"]))
+        add_paragraphs(
+            story,
+            styles,
+            [
+                "These tables hold the exhaustive diffusion calibration and comparison material that supports the shorter regime-level discussion in the main body.",
+            ],
+        )
+        add_table_section(
+            story,
+            styles,
+            "Diffusion Calibration Summary",
+            asset_block("Diffusion Calibration Summary", "table").lines,
+            ["Family", "Engine Set", "Delivery", "Coverage", "Latency", "State", "Stress"],
+            diffusion_engine_summary_table_rows(diffusion_engine_summary),
+            [4.0 * cm, 4.6 * cm, 1.6 * cm, 1.6 * cm, 1.5 * cm, 2.0 * cm, 1.4 * cm],
+        )
+        add_table_section(
+            story,
+            styles,
+            "Diffusion Calibration Boundaries",
+            asset_block("Diffusion Calibration Boundaries", "table").lines,
+            ["Engine Set", "Viable Families", "First Collapse", "Collapse Stress", "First Explosive", "Explosive Stress"],
+            diffusion_boundary_table_rows(diffusion_boundary_summary),
+            [4.6 * cm, 2.0 * cm, 3.4 * cm, 1.8 * cm, 3.4 * cm, 1.8 * cm],
+        )
+        add_table_section(
+            story,
+            styles,
+            "Field Diffusion Regime Calibration",
+            asset_block("Field Diffusion Regime Calibration", "table").lines,
+            ["Regime", "Success Criteria", "Configuration", "Posture", "State", "Transition", "Delivery", "Tx", "Fit"],
+            field_diffusion_regime_table_rows(field_diffusion_regime_calibration),
+            [1.6 * cm, 4.8 * cm, 3.0 * cm, 1.9 * cm, 1.3 * cm, 1.7 * cm, 1.3 * cm, 1.0 * cm, 1.2 * cm],
+        )
+        add_table_section(
+            story,
+            styles,
+            "Field Vs Best Alternative",
+            asset_block("Field Vs Best Alternative", "table").lines,
+            ["Regime", "Field", "OK", "State", "Alternative", "Alt State", "dDel", "dCov", "dClus", "dTx", "dScore"],
+            field_vs_best_diffusion_alternative_table_rows(
+                field_vs_best_diffusion_alternative
+            ),
+            [1.5 * cm, 3.0 * cm, 0.8 * cm, 1.3 * cm, 3.0 * cm, 1.5 * cm, 1.0 * cm, 1.0 * cm, 1.1 * cm, 0.9 * cm, 1.1 * cm],
+        )
+        add_table_section(
+            story,
+            styles,
+            "Diffusion Engine Comparison",
+            asset_block("Diffusion Engine Comparison", "table").lines,
+            ["Family", "Engine Set", "Delivery", "Coverage", "Tx", "R_est", "State"],
+            diffusion_engine_comparison_table_rows(diffusion_engine_comparison),
+            [3.7 * cm, 4.8 * cm, 1.5 * cm, 1.5 * cm, 1.2 * cm, 1.5 * cm, 1.7 * cm],
+        )
 
     doc.build(story)

@@ -37,7 +37,10 @@ use crate::{
     control::{advance_control_plane, ControlMeasurements},
     engine::FieldRuntimeRoundArtifact,
     observer::{update_destination_observer, ObserverInputs},
-    planner::{continuity_band_for_state, promotion_assessment_for_route, FieldBootstrapDecision},
+    planner::{
+        continuity_band_for_state_with_config, promotion_assessment_for_route,
+        FieldBootstrapDecision,
+    },
     recovery::{
         FieldPromotionBlocker, FieldRouteRecoveryOutcome, FieldRouteRecoveryTrigger,
         StoredFieldRouteRecovery,
@@ -164,11 +167,16 @@ where
                 .unwrap_or(active.corridor_envelope.delivery_support.value());
             let service_bias =
                 matches!(active.destination, crate::state::DestinationKey::Service(_));
+            let discovery_node_route = !service_bias && self.search_config.node_discovery_enabled();
             let service_corridor_viable = service_bias
                 && destination_state.is_some_and(|state| service_corridor_viable(active, state));
+            let node_corridor_viable = discovery_node_route
+                && destination_state.is_some_and(|state| node_corridor_viable(active, state));
             let commitment_support_floor = match (active.bootstrap_class, active.continuity_band) {
                 (_, FieldContinuityBand::DegradedSteady) => {
                     if service_bias {
+                        140
+                    } else if discovery_node_route {
                         140
                     } else {
                         160
@@ -177,15 +185,21 @@ where
                 (FieldBootstrapClass::Bootstrap, _) => {
                     if service_bias {
                         120
+                    } else if discovery_node_route {
+                        120
                     } else {
                         140
                     }
                 }
+                _ if discovery_node_route => 220,
                 _ => 250,
             };
             if active.topology_epoch != route.identity.topology_epoch() {
                 RouteCommitmentResolution::Invalidated(RouteInvalidationReason::TopologySuperseded)
-            } else if current_support < commitment_support_floor && !service_corridor_viable {
+            } else if current_support < commitment_support_floor
+                && !service_corridor_viable
+                && !node_corridor_viable
+            {
                 RouteCommitmentResolution::Invalidated(RouteInvalidationReason::EvidenceWithdrawn)
             } else {
                 RouteCommitmentResolution::Pending
@@ -254,19 +268,19 @@ where
         runtime: &mut RouteRuntimeState,
         trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
-        let Some(destination_key) = self
-            .active_routes
-            .get(identity.route_id())
-            .map(|active| active.destination.clone())
-        else {
+        let Some(active_route) = self.active_routes.get(identity.route_id()).cloned() else {
             return Err(RouteRuntimeError::Invalidated.into());
         };
+        let destination_key = active_route.destination.clone();
         let Some(destination_state) = self.state.destinations.get(&destination_key).cloned() else {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Expired,
                 outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
             });
         };
+        let search_config = self.search_config().clone();
+        let service_bias = matches!(destination_key, crate::state::DestinationKey::Service(_));
+        let discovery_node_route = !service_bias && search_config.node_discovery_enabled();
         let mut ranked = rank_frontier_by_attractor(
             &destination_state,
             &self.state.mean_field,
@@ -275,6 +289,15 @@ where
             &self.state.controller,
         );
         merge_pending_forward_continuations(&mut ranked, &destination_state);
+        if ranked.is_empty() && discovery_node_route {
+            ranked = synthesized_node_carry_forward_ranked(
+                &active_route,
+                &destination_state,
+                &self.state.neighbor_endpoints,
+                self.state.last_tick_processed,
+                &search_config,
+            );
+        }
         let Some((ranked_best, _)) = ranked.first() else {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Expired,
@@ -290,9 +313,8 @@ where
         let current_corridor_envelope = destination_state.corridor_belief.clone();
         let current_witness_detail = self.witness_detail_from_state(&destination_state);
         let current_bootstrap_class = current_witness_detail.bootstrap_class;
-        let current_continuity_band = continuity_band_for_state(&destination_state);
-        let service_bias = matches!(destination_key, crate::state::DestinationKey::Service(_));
-        let search_config = self.search_config().clone();
+        let current_continuity_band =
+            continuity_band_for_state_with_config(&destination_state, &search_config);
         let preferred_service_neighbor = if service_bias {
             self.active_routes
                 .get(identity.route_id())
@@ -302,7 +324,23 @@ where
         } else {
             None
         };
+        let preferred_node_neighbor = if discovery_node_route {
+            self.active_routes
+                .get(identity.route_id())
+                .and_then(|active| {
+                    preferred_node_shift_neighbor(
+                        active,
+                        &ranked,
+                        &destination_state,
+                        &self.state.neighbor_endpoints,
+                        &search_config,
+                    )
+                })
+        } else {
+            None
+        };
         let best = preferred_service_neighbor
+            .or(preferred_node_neighbor)
             .and_then(|neighbor_id| {
                 ranked
                     .iter()
@@ -362,15 +400,25 @@ where
             } else {
                 0
             };
-            bootstrap_decision = if current_bootstrap_class == FieldBootstrapClass::Bootstrap {
-                promotion_assessment.decision_for_bootstrap(
-                    &destination_state,
-                    projected_confirmation_streak,
-                    projected_promotion_window_score,
-                )
-            } else {
-                FieldBootstrapDecision::Hold
-            };
+            let mut local_bootstrap_decision =
+                if current_bootstrap_class == FieldBootstrapClass::Bootstrap {
+                    promotion_assessment.decision_for_bootstrap(
+                        &destination_state,
+                        projected_confirmation_streak,
+                        projected_promotion_window_score,
+                        &self.search_config,
+                    )
+                } else {
+                    FieldBootstrapDecision::Hold
+                };
+            if discovery_node_route
+                && previous_continuity_band == FieldContinuityBand::DegradedSteady
+                && local_bootstrap_decision == FieldBootstrapDecision::Withdraw
+                && node_corridor_viable(active, &destination_state)
+            {
+                local_bootstrap_decision = FieldBootstrapDecision::Hold;
+            }
+            bootstrap_decision = local_bootstrap_decision;
             effective_continuity_band = match (
                 previous_continuity_band,
                 current_continuity_band,
@@ -383,6 +431,25 @@ where
                     FieldContinuityBand::Bootstrap,
                     FieldBootstrapClass::Bootstrap,
                 ) if promotion_assessment.degraded_but_coherent(&destination_state) => {
+                    FieldContinuityBand::DegradedSteady
+                }
+                (
+                    FieldContinuityBand::Bootstrap,
+                    FieldContinuityBand::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                ) if discovery_node_route
+                    && promotion_assessment.degraded_but_coherent(&destination_state) =>
+                {
+                    FieldContinuityBand::DegradedSteady
+                }
+                (
+                    FieldContinuityBand::DegradedSteady,
+                    FieldContinuityBand::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                ) if discovery_node_route
+                    && bootstrap_decision == FieldBootstrapDecision::Hold
+                    && node_corridor_viable(active, &destination_state) =>
+                {
                     FieldContinuityBand::DegradedSteady
                 }
                 _ => FieldContinuityBand::Bootstrap,
@@ -494,6 +561,10 @@ where
                     .unwrap_or(0);
                 let shift_delta_max = if service_bias {
                     FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX.saturating_add(240)
+                } else if discovery_node_route
+                    && active.continuity_band == FieldContinuityBand::DegradedSteady
+                {
+                    FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX.saturating_add(180)
                 } else if active.continuity_band == FieldContinuityBand::DegradedSteady {
                     FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX.saturating_add(120)
                 } else {
@@ -505,10 +576,23 @@ where
                     } else {
                         FIELD_ROUTE_WEAK_SUPPORT_FLOOR
                     }
-                    .saturating_sub(if service_bias { 40 } else { 0 });
+                    .saturating_sub(if service_bias {
+                        40
+                    } else if discovery_node_route {
+                        40
+                    } else {
+                        0
+                    });
                 if corridor_support >= support_floor && support_delta <= shift_delta_max {
                     active.continuation_neighbors = if service_bias {
                         service_runtime_continuation_neighbors(
+                            &ranked,
+                            &destination_state,
+                            best.neighbor_id,
+                            &search_config,
+                        )
+                    } else if discovery_node_route {
+                        node_runtime_continuation_neighbors(
                             &ranked,
                             &destination_state,
                             best.neighbor_id,
@@ -530,12 +614,21 @@ where
                         active.recovery.note_asymmetric_shift_success();
                     }
                 } else {
-                    if degraded_continuity {
-                        active.continuation_neighbors = ranked
-                            .iter()
-                            .take(2)
-                            .map(|(entry, _)| entry.neighbor_id)
-                            .collect();
+                    if degraded_continuity || discovery_node_route {
+                        active.continuation_neighbors = if discovery_node_route {
+                            node_runtime_continuation_neighbors(
+                                &ranked,
+                                &destination_state,
+                                active.selected_neighbor,
+                                &search_config,
+                            )
+                        } else {
+                            ranked
+                                .iter()
+                                .take(2)
+                                .map(|(entry, _)| entry.neighbor_id)
+                                .collect()
+                        };
                         if let Some(first) = active.continuation_neighbors.first().copied() {
                             active.selected_neighbor = first;
                         }
@@ -566,6 +659,13 @@ where
                         &search_config,
                     );
                     active.recovery.note_service_retention_carry_forward();
+                } else if discovery_node_route {
+                    active.continuation_neighbors = node_runtime_continuation_neighbors(
+                        &ranked,
+                        &destination_state,
+                        best.neighbor_id,
+                        &search_config,
+                    );
                 }
                 active.selected_neighbor = best.neighbor_id;
                 pending_coordination_shift = Some(best.neighbor_id);
@@ -597,7 +697,13 @@ where
             } else {
                 FIELD_ROUTE_FAILURE_SUPPORT_FLOOR
             }
-            .saturating_sub(if post_shift_grace { 30 } else { 0 });
+            .saturating_sub(if post_shift_grace {
+                30
+            } else if discovery_node_route {
+                40
+            } else {
+                0
+            });
 
         if corridor_support < failure_support_floor {
             if degraded_continuity {
@@ -689,15 +795,27 @@ where
             } else if effective_continuity_band == FieldContinuityBand::DegradedSteady {
                 if service_bias {
                     FIELD_DEGRADED_STEADY_STALE_TICKS_MAX.saturating_add(2)
+                } else if discovery_node_route {
+                    FIELD_DEGRADED_STEADY_STALE_TICKS_MAX.saturating_add(5)
                 } else {
                     FIELD_DEGRADED_STEADY_STALE_TICKS_MAX
                 }
             } else {
-                4
+                if discovery_node_route {
+                    8
+                } else {
+                    4
+                }
             }
             .saturating_add(if post_shift_grace { 2 } else { 0 });
         if is_stale {
-            if corridor_support < FIELD_ROUTE_WEAK_SUPPORT_FLOOR {
+            if corridor_support
+                < if discovery_node_route {
+                    FIELD_ROUTE_WEAK_SUPPORT_FLOOR.saturating_sub(50)
+                } else {
+                    FIELD_ROUTE_WEAK_SUPPORT_FLOOR
+                }
+            {
                 if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
                     if active.bootstrap_class == FieldBootstrapClass::Bootstrap
                         || active.continuity_band == FieldContinuityBand::DegradedSteady
@@ -747,7 +865,12 @@ where
 
         Ok(RouteMaintenanceResult {
             event: RouteLifecycleEvent::Activated,
-            outcome: if corridor_support < FIELD_ROUTE_WEAK_SUPPORT_FLOOR {
+            outcome: if corridor_support
+                < if discovery_node_route {
+                    FIELD_ROUTE_WEAK_SUPPORT_FLOOR.saturating_sub(50)
+                } else {
+                    FIELD_ROUTE_WEAK_SUPPORT_FLOOR
+                } {
                 if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
                     if active.bootstrap_class == FieldBootstrapClass::Bootstrap {
                         active
@@ -1144,11 +1267,13 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let topology_epoch = topology.epoch;
         let regime = self.state.regime.current;
         let control_state = self.state.controller.clone();
-        let service_freshness_weight = self.search_config().service_freshness_weight();
+        let search_config = self.search_config().clone();
+        let service_freshness_weight = search_config.service_freshness_weight();
         let local_origin_trace = LocalOriginTrace {
             local_node_id: self.local_node_id,
             topology_epoch,
         };
+        let active_routes = self.active_routes.values().cloned().collect::<Vec<_>>();
 
         let mut changed = false;
         let active_keys = self.state.active_destination_keys();
@@ -1157,13 +1282,33 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 continue;
             };
             let destination = DestinationId::from(&destination_key);
+            let destination_active_routes = active_routes
+                .iter()
+                .filter(|active| active.destination == destination_key)
+                .collect::<Vec<_>>();
             let direct_evidence = direct_evidence_for_destination(
                 topology,
                 self.local_node_id,
                 &destination,
                 now_tick,
             );
-            let forward_input = forward_evidence_for_observer(destination_state, now_tick);
+            let mut forward_input = forward_evidence_for_observer(destination_state, now_tick);
+            if forward_input.evidence.is_empty() {
+                let carry_forward = synthesized_node_forward_evidence_from_active_routes(
+                    destination_state,
+                    &destination_active_routes,
+                    &self.state.neighbor_endpoints,
+                    now_tick,
+                    &search_config,
+                );
+                if !carry_forward.is_empty() {
+                    forward_input = ForwardEvidenceInput {
+                        evidence: carry_forward,
+                        synthesized: true,
+                        service_carry_forward: false,
+                    };
+                }
+            }
             let forward_evidence = forward_input.evidence.clone();
             let reverse_feedback = destination_state.pending_reverse_feedback.clone();
             let signature = observer_input_signature(
@@ -1375,6 +1520,113 @@ fn forward_evidence_for_observer(
         synthesized: true,
         service_carry_forward: service_bias,
     }
+}
+
+fn synthesized_node_forward_evidence_from_active_routes(
+    destination_state: &crate::state::DestinationFieldState,
+    active_routes: &[&ActiveFieldRoute],
+    neighbor_endpoints: &std::collections::BTreeMap<NodeId, jacquard_core::LinkEndpoint>,
+    now_tick: Tick,
+    search_config: &crate::FieldSearchConfig,
+) -> Vec<crate::summary::ForwardPropagatedEvidence> {
+    if !search_config.node_discovery_enabled() {
+        return Vec::new();
+    }
+    let crate::state::DestinationKey::Node(_) = destination_state.destination else {
+        return Vec::new();
+    };
+    let Some(last_summary) = destination_state.publication.last_summary.as_ref() else {
+        return Vec::new();
+    };
+    let Some(last_sent_at) = destination_state.publication.last_sent_at else {
+        return Vec::new();
+    };
+    if now_tick.0.saturating_sub(last_sent_at.0)
+        > FIELD_DEGRADED_STEADY_STALE_TICKS_MAX.saturating_add(6)
+    {
+        return Vec::new();
+    }
+    if last_summary.delivery_support.value()
+        < search_config
+            .node_bootstrap_support_floor()
+            .saturating_sub(60)
+            .max(120)
+        || last_summary.retention_support.value() < 140
+    {
+        return Vec::new();
+    }
+    let mut synthesized = active_routes
+        .iter()
+        .filter(|active| {
+            active.continuity_band == FieldContinuityBand::DegradedSteady
+                || active.bootstrap_class == FieldBootstrapClass::Bootstrap
+        })
+        .flat_map(|active| {
+            active
+                .continuation_neighbors
+                .iter()
+                .enumerate()
+                .filter_map(|(index, neighbor_id)| {
+                    let reachable = neighbor_endpoints.contains_key(neighbor_id);
+                    if !reachable && *neighbor_id != active.selected_neighbor {
+                        return None;
+                    }
+                    let rank_penalty = u16::try_from(index).unwrap_or(u16::MAX).saturating_mul(20);
+                    let selection_bonus = if *neighbor_id == active.selected_neighbor {
+                        40
+                    } else {
+                        0
+                    };
+                    let reachability_bonus = if reachable { 80 } else { 0 };
+                    Some(crate::summary::ForwardPropagatedEvidence {
+                        from_neighbor: *neighbor_id,
+                        summary: FieldSummary {
+                            freshness_tick: now_tick,
+                            hop_band: active.corridor_envelope.expected_hop_band,
+                            delivery_support: SupportBucket::new(
+                                last_summary
+                                    .delivery_support
+                                    .value()
+                                    .max(active.corridor_envelope.delivery_support.value())
+                                    .saturating_add(reachability_bonus)
+                                    .saturating_add(selection_bonus)
+                                    .saturating_sub(rank_penalty)
+                                    .min(1000),
+                            ),
+                            retention_support: SupportBucket::new(
+                                last_summary
+                                    .retention_support
+                                    .value()
+                                    .max(active.corridor_envelope.retention_affinity.value())
+                                    .saturating_add(60)
+                                    .saturating_sub(rank_penalty / 2)
+                                    .min(1000),
+                            ),
+                            ..last_summary.clone()
+                        },
+                        observed_at_tick: now_tick,
+                    })
+                })
+        })
+        .collect::<Vec<_>>();
+    synthesized.sort_by(|left, right| {
+        right
+            .summary
+            .delivery_support
+            .value()
+            .cmp(&left.summary.delivery_support.value())
+            .then_with(|| {
+                right
+                    .summary
+                    .retention_support
+                    .value()
+                    .cmp(&left.summary.retention_support.value())
+            })
+            .then_with(|| left.from_neighbor.cmp(&right.from_neighbor))
+    });
+    synthesized.dedup_by(|left, right| left.from_neighbor == right.from_neighbor);
+    synthesized.truncate(2);
+    synthesized
 }
 
 fn summary_for_destination(
@@ -1699,6 +1951,185 @@ fn service_runtime_continuation_neighbors(
     continuation_neighbors
 }
 
+fn preferred_node_shift_neighbor(
+    active: &ActiveFieldRoute,
+    ranked: &[(NeighborContinuation, SupportBucket)],
+    destination_state: &crate::state::DestinationFieldState,
+    neighbor_endpoints: &std::collections::BTreeMap<NodeId, jacquard_core::LinkEndpoint>,
+    search_config: &crate::FieldSearchConfig,
+) -> Option<NodeId> {
+    let support_floor = search_config
+        .node_bootstrap_support_floor()
+        .saturating_sub(20)
+        .max(140);
+    ranked
+        .iter()
+        .find(|(entry, _)| {
+            entry.neighbor_id != active.selected_neighbor
+                && active.continuation_neighbors.contains(&entry.neighbor_id)
+                && neighbor_endpoints.contains_key(&entry.neighbor_id)
+                && (entry.downstream_support.value() >= support_floor
+                    || corroborated_node_forward_support(destination_state, entry.neighbor_id)
+                        >= support_floor)
+        })
+        .map(|(entry, _)| entry.neighbor_id)
+}
+
+fn node_runtime_continuation_neighbors(
+    ranked: &[(NeighborContinuation, SupportBucket)],
+    destination_state: &crate::state::DestinationFieldState,
+    selected_neighbor: NodeId,
+    search_config: &crate::FieldSearchConfig,
+) -> Vec<NodeId> {
+    let support_floor = search_config
+        .node_bootstrap_support_floor()
+        .saturating_sub(20)
+        .max(140);
+    let max_neighbors = 2usize.min(crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT);
+    let mut node_ranked: Vec<_> = ranked
+        .iter()
+        .map(|(entry, _)| entry.clone())
+        .filter(|entry| {
+            entry.neighbor_id == selected_neighbor
+                || entry.downstream_support.value() >= support_floor
+                || corroborated_node_forward_support(destination_state, entry.neighbor_id)
+                    >= support_floor
+        })
+        .collect();
+    node_ranked.sort_by(|left, right| {
+        right
+            .downstream_support
+            .value()
+            .cmp(&left.downstream_support.value())
+            .then_with(|| right.net_value.value().cmp(&left.net_value.value()))
+            .then_with(|| left.neighbor_id.cmp(&right.neighbor_id))
+    });
+    let mut continuation_neighbors = Vec::with_capacity(max_neighbors);
+    for entry in node_ranked {
+        if continuation_neighbors.contains(&entry.neighbor_id) {
+            continue;
+        }
+        continuation_neighbors.push(entry.neighbor_id);
+        if continuation_neighbors.len() >= max_neighbors {
+            break;
+        }
+    }
+    if !continuation_neighbors.contains(&selected_neighbor) {
+        continuation_neighbors.insert(0, selected_neighbor);
+    }
+    continuation_neighbors.truncate(max_neighbors);
+    continuation_neighbors
+}
+
+fn corroborated_node_forward_support(
+    destination_state: &crate::state::DestinationFieldState,
+    neighbor_id: NodeId,
+) -> u16 {
+    destination_state
+        .pending_forward_evidence
+        .iter()
+        .filter(|evidence| evidence.from_neighbor == neighbor_id)
+        .map(|evidence| evidence.summary.delivery_support.value())
+        .max()
+        .unwrap_or(0)
+}
+
+fn synthesized_node_carry_forward_ranked(
+    active: &ActiveFieldRoute,
+    destination_state: &crate::state::DestinationFieldState,
+    neighbor_endpoints: &std::collections::BTreeMap<NodeId, jacquard_core::LinkEndpoint>,
+    now_tick: Tick,
+    search_config: &crate::FieldSearchConfig,
+) -> Vec<(NeighborContinuation, SupportBucket)> {
+    let Some(last_summary) = destination_state.publication.last_summary.as_ref() else {
+        return Vec::new();
+    };
+    let Some(last_sent_at) = destination_state.publication.last_sent_at else {
+        return Vec::new();
+    };
+    if now_tick.0.saturating_sub(last_sent_at.0)
+        > FIELD_DEGRADED_STEADY_STALE_TICKS_MAX.saturating_add(6)
+    {
+        return Vec::new();
+    }
+    let support_floor = search_config
+        .node_bootstrap_support_floor()
+        .saturating_sub(40)
+        .max(120);
+    let base_delivery = destination_state
+        .corridor_belief
+        .delivery_support
+        .value()
+        .max(last_summary.delivery_support.value());
+    let base_retention = destination_state
+        .corridor_belief
+        .retention_affinity
+        .value()
+        .max(last_summary.retention_support.value());
+    let hop_band = active
+        .corridor_envelope
+        .expected_hop_band
+        .max(last_summary.hop_band);
+    let mut ranked = active
+        .continuation_neighbors
+        .iter()
+        .enumerate()
+        .filter_map(|(index, neighbor_id)| {
+            let corroborated = corroborated_node_forward_support(destination_state, *neighbor_id);
+            let reachable = neighbor_endpoints.contains_key(neighbor_id);
+            if !reachable && corroborated < support_floor {
+                return None;
+            }
+            let rank_penalty = u16::try_from(index).unwrap_or(u16::MAX).saturating_mul(20);
+            let reachability_bonus = if reachable { 100 } else { 0 };
+            let selection_bonus = if *neighbor_id == active.selected_neighbor {
+                20
+            } else {
+                0
+            };
+            let delivery = base_delivery
+                .max(corroborated)
+                .saturating_add(reachability_bonus)
+                .saturating_add(selection_bonus)
+                .saturating_sub(rank_penalty)
+                .min(1000);
+            let retention = base_retention
+                .saturating_add(if reachable { 60 } else { 0 })
+                .saturating_sub(rank_penalty / 2)
+                .min(1000);
+            Some((
+                NeighborContinuation {
+                    neighbor_id: *neighbor_id,
+                    net_value: SupportBucket::new(retention),
+                    downstream_support: SupportBucket::new(delivery),
+                    expected_hop_band: hop_band,
+                    freshness: now_tick,
+                },
+                SupportBucket::new(delivery.max(retention / 2)),
+            ))
+        })
+        .collect::<Vec<_>>();
+    ranked.sort_by(|(left_entry, left_score), (right_entry, right_score)| {
+        right_score
+            .value()
+            .cmp(&left_score.value())
+            .then_with(|| {
+                right_entry
+                    .downstream_support
+                    .value()
+                    .cmp(&left_entry.downstream_support.value())
+            })
+            .then_with(|| {
+                right_entry
+                    .net_value
+                    .value()
+                    .cmp(&left_entry.net_value.value())
+            })
+            .then_with(|| left_entry.neighbor_id.cmp(&right_entry.neighbor_id))
+    });
+    ranked
+}
+
 fn corroborated_service_forward_support(
     destination_state: &crate::state::DestinationFieldState,
     neighbor_id: NodeId,
@@ -1771,6 +2202,35 @@ fn service_corridor_viable(
         })
         .count();
     viable_frontier_branches + viable_forward_branches >= 2
+}
+
+fn node_corridor_viable(
+    active: &ActiveFieldRoute,
+    destination_state: &crate::state::DestinationFieldState,
+) -> bool {
+    let viable_frontier_branches = destination_state
+        .frontier
+        .as_slice()
+        .iter()
+        .filter(|entry| {
+            active.continuation_neighbors.contains(&entry.neighbor_id)
+                && entry.downstream_support.value() >= 140
+                && entry.net_value.value() >= 180
+        })
+        .count();
+    let viable_forward_branches = destination_state
+        .pending_forward_evidence
+        .iter()
+        .filter(|evidence| {
+            active
+                .continuation_neighbors
+                .contains(&evidence.from_neighbor)
+                && evidence.summary.delivery_support.value() >= 120
+                && evidence.summary.retention_support.value() >= 160
+                && evidence.summary.uncertainty_penalty.value() <= 920
+        })
+        .count();
+    viable_frontier_branches + viable_forward_branches >= 1
 }
 
 fn observer_input_signature(
@@ -2554,6 +3014,264 @@ mod tests {
     }
 
     #[test]
+    fn discovery_bootstrap_route_enters_degraded_steady_before_withdrawal() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine().with_search_config(
+            crate::FieldSearchConfig::default()
+                .with_node_bootstrap_support_floor(180)
+                .with_node_bootstrap_top_mass_floor(180)
+                .with_node_bootstrap_entropy_ceiling(970)
+                .with_node_discovery_enabled(true),
+        );
+        let destination = crate::state::DestinationKey::from(&DestinationId::Node(node(2)));
+        {
+            let state = engine
+                .state
+                .destinations
+                .get_mut(&destination)
+                .expect("destination");
+            state.corridor_belief.delivery_support = SupportBucket::new(230);
+            state.corridor_belief.retention_affinity = SupportBucket::new(280);
+            state.posterior.top_corridor_mass = SupportBucket::new(220);
+            state.posterior.usability_entropy = crate::state::EntropyBucket::new(900);
+            state.posterior.predicted_observation_class =
+                crate::state::ObservationClass::ForwardPropagated;
+        }
+
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let mut materialized =
+            jacquard_core::MaterializedRoute::from_installation(input, installation);
+
+        engine.state.note_tick(Tick(5));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&destination)
+            .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(200);
+        state.corridor_belief.retention_affinity = SupportBucket::new(270);
+        state.posterior.top_corridor_mass = SupportBucket::new(190);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(920);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+
+        let result = engine
+            .maintain_route(
+                &materialized.identity,
+                &mut materialized.runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintenance");
+
+        assert_ne!(
+            result.outcome,
+            RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::CapacityExceeded)
+        );
+        let active = engine.active_routes.get(&route_id).expect("active route");
+        assert_eq!(active.bootstrap_class, FieldBootstrapClass::Bootstrap);
+        assert_eq!(active.continuity_band, FieldContinuityBand::DegradedSteady);
+        assert_ne!(
+            active.recovery.state.last_bootstrap_transition,
+            Some(crate::FieldBootstrapTransition::Withdrawn)
+        );
+    }
+
+    #[test]
+    fn discovery_node_route_stays_degraded_steady_instead_of_withdrawing() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine().with_search_config(
+            crate::FieldSearchConfig::default()
+                .with_node_bootstrap_support_floor(180)
+                .with_node_bootstrap_top_mass_floor(180)
+                .with_node_bootstrap_entropy_ceiling(970)
+                .with_node_discovery_enabled(true),
+        );
+        let destination = crate::state::DestinationKey::from(&DestinationId::Node(node(2)));
+        {
+            let state = engine
+                .state
+                .destinations
+                .get_mut(&destination)
+                .expect("destination");
+            state.corridor_belief.delivery_support = SupportBucket::new(230);
+            state.corridor_belief.retention_affinity = SupportBucket::new(280);
+            state.posterior.top_corridor_mass = SupportBucket::new(220);
+            state.posterior.usability_entropy = crate::state::EntropyBucket::new(900);
+            state.posterior.predicted_observation_class =
+                crate::state::ObservationClass::ForwardPropagated;
+            state.frontier = state.frontier.clone().insert(NeighborContinuation {
+                neighbor_id: node(3),
+                net_value: SupportBucket::new(240),
+                downstream_support: SupportBucket::new(170),
+                expected_hop_band: HopBand::new(2, 4),
+                freshness: Tick(4),
+            });
+        }
+
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let mut materialized =
+            jacquard_core::MaterializedRoute::from_installation(input, installation);
+
+        {
+            let active = engine.active_routes.get_mut(&route_id).expect("active");
+            active.bootstrap_class = FieldBootstrapClass::Bootstrap;
+            active.continuity_band = FieldContinuityBand::DegradedSteady;
+            active.continuation_neighbors = vec![node(2), node(3)];
+        }
+        engine.state.note_tick(Tick(6));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&destination)
+            .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(150);
+        state.corridor_belief.retention_affinity = SupportBucket::new(190);
+        state.posterior.top_corridor_mass = SupportBucket::new(170);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(940);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state
+            .pending_forward_evidence
+            .push(crate::summary::ForwardPropagatedEvidence {
+                from_neighbor: node(3),
+                summary: super::summary_for_destination(
+                    state,
+                    topology.value.epoch,
+                    Tick(6),
+                    &objective.destination,
+                ),
+                observed_at_tick: Tick(6),
+            });
+
+        let result = engine
+            .maintain_route(
+                &materialized.identity,
+                &mut materialized.runtime,
+                RouteMaintenanceTrigger::AntiEntropyRequired,
+            )
+            .expect("maintenance");
+
+        assert_ne!(
+            result.outcome,
+            RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::CapacityExceeded)
+        );
+        let active = engine.active_routes.get(&route_id).expect("active route");
+        assert_eq!(active.continuity_band, FieldContinuityBand::DegradedSteady);
+        assert_ne!(
+            active.recovery.state.last_bootstrap_transition,
+            Some(crate::FieldBootstrapTransition::Withdrawn)
+        );
+    }
+
+    #[test]
+    fn discovery_node_observer_refresh_synthesizes_carry_forward_from_active_route() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine().with_search_config(
+            crate::FieldSearchConfig::default()
+                .with_node_bootstrap_support_floor(180)
+                .with_node_bootstrap_top_mass_floor(180)
+                .with_node_bootstrap_entropy_ceiling(970)
+                .with_node_discovery_enabled(true),
+        );
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        engine.materialize_route(input).expect("installation");
+
+        engine.state.neighbor_endpoints.insert(
+            node(3),
+            jacquard_adapter::opaque_endpoint(
+                jacquard_core::TransportKind::WifiAware,
+                vec![3],
+                ByteCount(128),
+            ),
+        );
+        {
+            let active = engine.active_routes.get_mut(&route_id).expect("active");
+            active.bootstrap_class = FieldBootstrapClass::Bootstrap;
+            active.continuity_band = FieldContinuityBand::DegradedSteady;
+            active.continuation_neighbors = vec![node(2), node(3)];
+            active.corridor_envelope.delivery_support = SupportBucket::new(260);
+            active.corridor_envelope.retention_affinity = SupportBucket::new(240);
+        }
+        {
+            let destination = engine
+                .state
+                .destinations
+                .get_mut(&crate::state::DestinationKey::from(&DestinationId::Node(
+                    node(2),
+                )))
+                .expect("destination");
+            destination.frontier = crate::state::ContinuationFrontier::default();
+            destination.pending_forward_evidence.clear();
+            destination.publication.last_summary = Some(super::summary_for_destination(
+                destination,
+                topology.value.epoch,
+                Tick(6),
+                &objective.destination,
+            ));
+            destination.publication.last_sent_at = Some(Tick(6));
+            destination.corridor_belief.delivery_support = SupportBucket::new(230);
+            destination.corridor_belief.retention_affinity = SupportBucket::new(220);
+        }
+
+        let changed = engine.refresh_destination_observers(&topology.value, Tick(7));
+        assert!(
+            changed,
+            "expected observer refresh to synthesize node carry-forward evidence"
+        );
+        let destination = engine
+            .state
+            .destinations
+            .get(&crate::state::DestinationKey::from(&DestinationId::Node(
+                node(2),
+            )))
+            .expect("destination");
+        let frontier_neighbors = destination
+            .frontier
+            .as_slice()
+            .iter()
+            .map(|entry| entry.neighbor_id)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert!(
+            frontier_neighbors.contains(&node(2)) || frontier_neighbors.contains(&node(3)),
+            "expected synthesized node carry-forward frontier entries, got {:?}",
+            frontier_neighbors
+        );
+    }
+
+    #[test]
     fn steady_route_enters_degraded_band_before_bootstrap_collapse() {
         let topology = supported_topology();
         let mut engine = seeded_engine();
@@ -3291,6 +4009,65 @@ mod tests {
             .get_mut(&crate::state::DestinationKey::Service(vec![8; 16]))
             .expect("tracked service destination");
         destination.corridor_belief.delivery_support = SupportBucket::new(145);
+
+        assert_eq!(
+            engine.route_commitments(&route)[0].resolution,
+            RouteCommitmentResolution::Pending,
+        );
+    }
+
+    #[test]
+    fn discovery_node_route_commitments_remain_pending_with_viable_continuation() {
+        let topology = supported_topology();
+        let mut engine = seeded_engine().with_search_config(
+            crate::FieldSearchConfig::default()
+                .with_node_bootstrap_support_floor(180)
+                .with_node_bootstrap_top_mass_floor(180)
+                .with_node_bootstrap_entropy_ceiling(970)
+                .with_node_discovery_enabled(true),
+        );
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        let route = jacquard_core::MaterializedRoute::from_installation(input, installation);
+        engine.state.note_tick(Tick(5));
+        {
+            let active = engine.active_routes.get_mut(&route_id).expect("active");
+            active.continuation_neighbors = vec![node(2), node(3)];
+            active.bootstrap_class = FieldBootstrapClass::Bootstrap;
+            active.continuity_band = FieldContinuityBand::DegradedSteady;
+        }
+        let destination = engine
+            .state
+            .destinations
+            .get_mut(&crate::state::DestinationKey::Node(node(2)))
+            .expect("tracked destination");
+        destination.corridor_belief.delivery_support = SupportBucket::new(130);
+        destination.corridor_belief.retention_affinity = SupportBucket::new(220);
+        destination.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        destination
+            .pending_forward_evidence
+            .push(crate::summary::ForwardPropagatedEvidence {
+                from_neighbor: node(3),
+                summary: super::summary_for_destination(
+                    destination,
+                    topology.value.epoch,
+                    Tick(5),
+                    &objective.destination,
+                ),
+                observed_at_tick: Tick(5),
+            });
 
         assert_eq!(
             engine.route_commitments(&route)[0].resolution,

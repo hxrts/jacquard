@@ -95,6 +95,10 @@ pub struct ExperimentParameterSet {
     pub field_service_publication_neighbor_limit: Option<usize>,
     pub field_service_freshness_weight: Option<u16>,
     pub field_service_narrowing_bias: Option<u16>,
+    pub field_node_bootstrap_support_floor: Option<u16>,
+    pub field_node_bootstrap_top_mass_floor: Option<u16>,
+    pub field_node_bootstrap_entropy_ceiling: Option<u16>,
+    pub field_node_discovery_enabled: Option<bool>,
 }
 
 impl ExperimentParameterSet {
@@ -116,6 +120,10 @@ impl ExperimentParameterSet {
             field_service_publication_neighbor_limit: None,
             field_service_freshness_weight: None,
             field_service_narrowing_bias: None,
+            field_node_bootstrap_support_floor: None,
+            field_node_bootstrap_top_mass_floor: None,
+            field_node_bootstrap_entropy_ceiling: None,
+            field_node_discovery_enabled: None,
             batman_classic_stale_after_ticks: None,
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: None,
@@ -147,6 +155,10 @@ impl ExperimentParameterSet {
             field_service_publication_neighbor_limit: None,
             field_service_freshness_weight: None,
             field_service_narrowing_bias: None,
+            field_node_bootstrap_support_floor: None,
+            field_node_bootstrap_top_mass_floor: None,
+            field_node_bootstrap_entropy_ceiling: None,
+            field_node_discovery_enabled: None,
             batman_classic_stale_after_ticks: None,
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: None,
@@ -192,6 +204,10 @@ impl ExperimentParameterSet {
             field_service_publication_neighbor_limit: Some(service_publication_neighbor_limit),
             field_service_freshness_weight: Some(service_freshness_weight),
             field_service_narrowing_bias: Some(service_narrowing_bias),
+            field_node_bootstrap_support_floor: None,
+            field_node_bootstrap_top_mass_floor: None,
+            field_node_bootstrap_entropy_ceiling: None,
+            field_node_discovery_enabled: None,
             batman_classic_stale_after_ticks: None,
             batman_classic_next_refresh_within_ticks: None,
             babel_stale_after_ticks: None,
@@ -235,6 +251,10 @@ impl ExperimentParameterSet {
             field_service_publication_neighbor_limit: Some(3),
             field_service_freshness_weight: Some(100),
             field_service_narrowing_bias: Some(100),
+            field_node_bootstrap_support_floor: None,
+            field_node_bootstrap_top_mass_floor: None,
+            field_node_bootstrap_entropy_ceiling: None,
+            field_node_discovery_enabled: None,
         }
     }
 
@@ -327,10 +347,22 @@ impl ExperimentParameterSet {
             field_service_publication_neighbor_limit,
             field_service_freshness_weight,
             field_service_narrowing_bias,
+            field_node_bootstrap_support_floor,
+            field_node_bootstrap_top_mass_floor,
+            field_node_bootstrap_entropy_ceiling,
+            field_node_discovery_enabled,
         ) = if field_search.is_some() {
-            (Some(3), Some(100), Some(100))
+            (
+                Some(1),
+                Some(120),
+                Some(190),
+                Some(180),
+                Some(180),
+                Some(970),
+                Some(true),
+            )
         } else {
-            (None, None, None)
+            (None, None, None, None, None, None, None)
         };
         Self {
             engine_family: "head-to-head".to_string(),
@@ -351,6 +383,10 @@ impl ExperimentParameterSet {
             field_service_publication_neighbor_limit,
             field_service_freshness_weight,
             field_service_narrowing_bias,
+            field_node_bootstrap_support_floor,
+            field_node_bootstrap_top_mass_floor,
+            field_node_bootstrap_entropy_ceiling,
+            field_node_discovery_enabled,
         }
     }
 
@@ -396,7 +432,17 @@ impl ExperimentParameterSet {
                     self.field_service_publication_neighbor_limit.unwrap_or(3),
                 )
                 .with_service_freshness_weight(self.field_service_freshness_weight.unwrap_or(100))
-                .with_service_narrowing_bias(self.field_service_narrowing_bias.unwrap_or(100)),
+                .with_service_narrowing_bias(self.field_service_narrowing_bias.unwrap_or(100))
+                .with_node_bootstrap_support_floor(
+                    self.field_node_bootstrap_support_floor.unwrap_or(220),
+                )
+                .with_node_bootstrap_top_mass_floor(
+                    self.field_node_bootstrap_top_mass_floor.unwrap_or(260),
+                )
+                .with_node_bootstrap_entropy_ceiling(
+                    self.field_node_bootstrap_entropy_ceiling.unwrap_or(950),
+                )
+                .with_node_discovery_enabled(self.field_node_discovery_enabled.unwrap_or(false)),
         )
     }
 
@@ -424,6 +470,10 @@ impl ExperimentParameterSet {
             field_service_publication_neighbor_limit: None,
             field_service_freshness_weight: None,
             field_service_narrowing_bias: None,
+            field_node_bootstrap_support_floor: None,
+            field_node_bootstrap_top_mass_floor: None,
+            field_node_bootstrap_entropy_ceiling: None,
+            field_node_discovery_enabled: None,
         }
     }
 
@@ -462,6 +512,10 @@ impl ExperimentParameterSet {
             field_service_publication_neighbor_limit: None,
             field_service_freshness_weight: None,
             field_service_narrowing_bias: None,
+            field_node_bootstrap_support_floor: None,
+            field_node_bootstrap_top_mass_floor: None,
+            field_node_bootstrap_entropy_ceiling: None,
+            field_node_discovery_enabled: None,
         }
     }
 
@@ -500,6 +554,10 @@ impl ExperimentParameterSet {
             field_service_publication_neighbor_limit: None,
             field_service_freshness_weight: None,
             field_service_narrowing_bias: None,
+            field_node_bootstrap_support_floor: None,
+            field_node_bootstrap_top_mass_floor: None,
+            field_node_bootstrap_entropy_ceiling: None,
+            field_node_discovery_enabled: None,
         }
     }
 
@@ -554,6 +612,10 @@ pub struct ExperimentRunSummary {
     pub field_service_publication_neighbor_limit: Option<usize>,
     pub field_service_freshness_weight: Option<u16>,
     pub field_service_narrowing_bias: Option<u16>,
+    pub field_node_bootstrap_support_floor: Option<u16>,
+    pub field_node_bootstrap_top_mass_floor: Option<u16>,
+    pub field_node_bootstrap_entropy_ceiling: Option<u16>,
+    pub field_node_discovery_enabled: Option<bool>,
     pub seed: u64,
     pub density: String,
     pub loss: String,
@@ -651,6 +713,10 @@ pub struct ExperimentAggregateSummary {
     pub field_service_publication_neighbor_limit: Option<usize>,
     pub field_service_freshness_weight: Option<u16>,
     pub field_service_narrowing_bias: Option<u16>,
+    pub field_node_bootstrap_support_floor: Option<u16>,
+    pub field_node_bootstrap_top_mass_floor: Option<u16>,
+    pub field_node_bootstrap_entropy_ceiling: Option<u16>,
+    pub field_node_discovery_enabled: Option<bool>,
     pub density: String,
     pub loss: String,
     pub interference: String,
@@ -1579,19 +1645,19 @@ fn build_head_to_head_runs(suite_id: &str, seeds: &[u64], _smoke: bool) -> Vec<E
         ExperimentParameterSet::head_to_head(
             "pathway",
             None,
-            Some((4, PathwaySearchHeuristicMode::HopLowerBound)),
+            Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
             None,
         ),
         ExperimentParameterSet::head_to_head(
             "field",
             None,
             None,
-            Some((4, FieldSearchHeuristicMode::HopLowerBound)),
+            Some((8, FieldSearchHeuristicMode::HopLowerBound)),
         ),
         ExperimentParameterSet::head_to_head(
             "pathway-batman-bellman",
             Some((6, 3)),
-            Some((4, PathwaySearchHeuristicMode::HopLowerBound)),
+            Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
             None,
         ),
     ];
@@ -2053,6 +2119,10 @@ fn summarize_run(spec: &ExperimentRunSpec, reduced: &ReducedReplayView) -> Exper
             .field_service_publication_neighbor_limit,
         field_service_freshness_weight: spec.parameters.field_service_freshness_weight,
         field_service_narrowing_bias: spec.parameters.field_service_narrowing_bias,
+        field_node_bootstrap_support_floor: spec.parameters.field_node_bootstrap_support_floor,
+        field_node_bootstrap_top_mass_floor: spec.parameters.field_node_bootstrap_top_mass_floor,
+        field_node_bootstrap_entropy_ceiling: spec.parameters.field_node_bootstrap_entropy_ceiling,
+        field_node_discovery_enabled: spec.parameters.field_node_discovery_enabled,
         seed: spec.seed.0,
         density: spec.regime.density.clone(),
         loss: spec.regime.loss.clone(),
@@ -2363,6 +2433,10 @@ fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSumma
                     .field_service_publication_neighbor_limit,
                 field_service_freshness_weight: first.field_service_freshness_weight,
                 field_service_narrowing_bias: first.field_service_narrowing_bias,
+                field_node_bootstrap_support_floor: first.field_node_bootstrap_support_floor,
+                field_node_bootstrap_top_mass_floor: first.field_node_bootstrap_top_mass_floor,
+                field_node_bootstrap_entropy_ceiling: first.field_node_bootstrap_entropy_ceiling,
+                field_node_discovery_enabled: first.field_node_discovery_enabled,
                 density: first.density.clone(),
                 loss: first.loss.clone(),
                 interference: first.interference.clone(),
@@ -3678,14 +3752,23 @@ fn build_field_partial_observability_bridge(
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
             vec![
-                HostSpec::field(NODE_A).with_field_bootstrap_summary(field_bootstrap_summary(
-                    DestinationId::Node(NODE_D),
-                    NODE_B,
-                    900,
-                    2,
-                    3,
-                    Some(860),
-                )),
+                HostSpec::field(NODE_A)
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Node(NODE_D),
+                        NODE_B,
+                        900,
+                        2,
+                        3,
+                        Some(860),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Node(NODE_D),
+                        NODE_C,
+                        780,
+                        2,
+                        4,
+                        Some(720),
+                    )),
                 HostSpec::field(NODE_B),
                 HostSpec::field(NODE_C),
                 HostSpec::field(NODE_D),
@@ -4458,8 +4541,16 @@ fn build_comparison_connected_high_loss(
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
             vec![
-                comparison_host_spec(NODE_A, comparison_engine_set)
-                    .with_profile(repairable_connected_profile()),
+                seed_standalone_field_bootstrap(
+                    comparison_host_spec(NODE_A, comparison_engine_set)
+                        .with_profile(repairable_connected_profile()),
+                    comparison_engine_set,
+                    DestinationId::Node(NODE_D),
+                    &[
+                        (NODE_B, 760, 2, 4, Some(680)),
+                        (NODE_C, 820, 2, 4, Some(760)),
+                    ],
+                ),
                 comparison_host_spec(NODE_B, comparison_engine_set),
                 comparison_host_spec(NODE_C, comparison_engine_set),
                 comparison_host_spec(NODE_D, comparison_engine_set),
@@ -4514,8 +4605,16 @@ fn build_comparison_bridge_transition(
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
             vec![
-                comparison_host_spec(NODE_A, comparison_engine_set)
-                    .with_profile(repairable_connected_profile()),
+                seed_standalone_field_bootstrap(
+                    comparison_host_spec(NODE_A, comparison_engine_set)
+                        .with_profile(repairable_connected_profile()),
+                    comparison_engine_set,
+                    DestinationId::Node(NODE_D),
+                    &[
+                        (NODE_B, 820, 2, 4, Some(760)),
+                        (NODE_C, 720, 2, 4, Some(680)),
+                    ],
+                ),
                 comparison_host_spec(NODE_B, comparison_engine_set),
                 comparison_host_spec(NODE_C, comparison_engine_set),
                 comparison_host_spec(NODE_D, comparison_engine_set),
@@ -4585,6 +4684,14 @@ fn build_comparison_partial_observability_bridge(
                         2,
                         3,
                         Some(860),
+                    ))
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
+                        DestinationId::Node(NODE_D),
+                        NODE_C,
+                        780,
+                        2,
+                        4,
+                        Some(720),
                     )),
                 comparison_host_spec(NODE_B, comparison_engine_set),
                 comparison_host_spec(NODE_C, comparison_engine_set),
@@ -4837,6 +4944,27 @@ fn comparison_host_spec(local_node_id: NodeId, comparison_engine_set: Option<&st
         "pathway-batman-bellman" => HostSpec::pathway_and_batman_bellman(local_node_id),
         _ => HostSpec::all_engines(local_node_id),
     }
+}
+
+fn seed_standalone_field_bootstrap(
+    host: HostSpec,
+    comparison_engine_set: Option<&str>,
+    destination: DestinationId,
+    summaries: &[(NodeId, u16, u8, u8, Option<u16>)],
+) -> HostSpec {
+    if comparison_engine_set != Some("field") {
+        return host;
+    }
+    summaries.iter().fold(host, |host, summary| {
+        host.with_field_bootstrap_summary(field_bootstrap_summary(
+            destination.clone(),
+            summary.0,
+            summary.1,
+            summary.2,
+            summary.3,
+            summary.4,
+        ))
+    })
 }
 
 fn ratio_permille(numerator: u32, denominator: u32) -> u32 {
@@ -5302,7 +5430,8 @@ fn repairable_connected_profile() -> SelectedRoutingParameters {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_comparison_bridge_transition, build_comparison_corridor_continuity_uncertainty,
+        build_comparison_bridge_transition, build_comparison_connected_high_loss,
+        build_comparison_corridor_continuity_uncertainty,
         build_comparison_partial_observability_bridge, build_field_bridge_anti_entropy_continuity,
         build_field_service_freshness_inversion, build_field_service_overlap_reselection,
         build_field_service_publication_pressure, build_field_uncertain_service_fanout,
@@ -5310,6 +5439,7 @@ mod tests {
     };
     use crate::{JacquardScenario, ReducedReplayView, ScriptedEnvironmentModel};
     use jacquard_core::{DestinationId, NodeId, ServiceId};
+    use jacquard_field::FieldSearchHeuristicMode;
     use jacquard_pathway::PathwaySearchHeuristicMode;
 
     #[test]
@@ -5340,11 +5470,11 @@ mod tests {
             SimulationSeed,
         ) -> (JacquardScenario, ScriptedEnvironmentModel),
         label: &str,
-    ) {
+    ) -> usize {
         let parameters = ExperimentParameterSet::head_to_head(
             "pathway",
             None,
-            Some((4, PathwaySearchHeuristicMode::HopLowerBound)),
+            Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
             None,
         );
         let (scenario, environment) = builder(&parameters, SimulationSeed(41));
@@ -5365,6 +5495,45 @@ mod tests {
                 .is_empty(),
             "expected replay-visible standalone pathway route rounds in {label}"
         );
+        reduced
+            .route_present_rounds(NodeId([1; 32]), &destination)
+            .len()
+    }
+
+    fn assert_head_to_head_field_route_seen(
+        builder: fn(
+            &ExperimentParameterSet,
+            SimulationSeed,
+        ) -> (JacquardScenario, ScriptedEnvironmentModel),
+        label: &str,
+    ) -> usize {
+        let parameters = ExperimentParameterSet::head_to_head(
+            "field",
+            None,
+            None,
+            Some((8, FieldSearchHeuristicMode::HopLowerBound)),
+        );
+        let (scenario, environment) = builder(&parameters, SimulationSeed(41));
+        let simulator = crate::JacquardSimulationHarness::new(crate::ReferenceClientAdapter);
+        let (replay, _stats) = simulator
+            .run(&scenario, &environment)
+            .unwrap_or_else(|error| panic!("run standalone field {label} scenario: {error}"));
+        let reduced = ReducedReplayView::from_replay(&replay);
+        let destination = DestinationId::Node(NodeId([4; 32]));
+
+        assert!(
+            reduced.route_seen(NodeId([1; 32]), &destination),
+            "expected standalone field route activation in {label}"
+        );
+        assert!(
+            !reduced
+                .route_present_rounds(NodeId([1; 32]), &destination)
+                .is_empty(),
+            "expected replay-visible standalone field route rounds in {label}"
+        );
+        reduced
+            .route_present_rounds(NodeId([1; 32]), &destination)
+            .len()
     }
 
     #[test]
@@ -5372,7 +5541,7 @@ mod tests {
         let parameters = ExperimentParameterSet::head_to_head(
             "pathway-batman-bellman",
             Some((6, 3)),
-            Some((4, PathwaySearchHeuristicMode::HopLowerBound)),
+            Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
             None,
         );
         let (scenario, environment) = build_comparison_partial_observability_bridge(
@@ -5419,6 +5588,131 @@ mod tests {
         assert_head_to_head_pathway_route_seen(
             build_comparison_corridor_continuity_uncertainty,
             "corridor continuity uncertainty",
+        );
+    }
+
+    #[test]
+    fn head_to_head_pathway_bridge_transition_retains_route_across_churn() {
+        let route_round_count = assert_head_to_head_pathway_route_seen(
+            build_comparison_bridge_transition,
+            "bridge transition",
+        );
+        assert!(
+            route_round_count >= 8,
+            "expected standalone pathway route persistence across bridge churn, got {route_round_count} rounds"
+        );
+    }
+
+    #[test]
+    fn head_to_head_pathway_corridor_continuity_retains_route_for_majority_of_rounds() {
+        let route_round_count = assert_head_to_head_pathway_route_seen(
+            build_comparison_corridor_continuity_uncertainty,
+            "corridor continuity uncertainty",
+        );
+        assert!(
+            route_round_count >= 15,
+            "expected standalone pathway continuity route to survive for a majority of rounds, got {route_round_count}"
+        );
+    }
+
+    #[test]
+    fn head_to_head_field_bridge_transition_activates() {
+        let route_round_count = assert_head_to_head_field_route_seen(
+            build_comparison_bridge_transition,
+            "bridge transition",
+        );
+        assert!(
+            route_round_count >= 6,
+            "expected standalone field route to survive beyond bootstrap in bridge transition, got {route_round_count} rounds"
+        );
+    }
+
+    #[test]
+    fn head_to_head_field_connected_high_loss_activates() {
+        let route_round_count = assert_head_to_head_field_route_seen(
+            build_comparison_connected_high_loss,
+            "connected high loss",
+        );
+        assert!(
+            route_round_count >= 6,
+            "expected standalone field route to survive beyond bootstrap in connected high loss, got {route_round_count} rounds"
+        );
+    }
+
+    #[test]
+    fn head_to_head_field_bridge_transition_retains_route_for_substantial_window() {
+        let route_round_count = assert_head_to_head_field_route_seen(
+            build_comparison_bridge_transition,
+            "bridge transition",
+        );
+        assert!(
+            route_round_count >= 16,
+            "expected standalone field route persistence across bridge transition, got {route_round_count} rounds"
+        );
+    }
+
+    #[test]
+    fn head_to_head_field_connected_high_loss_retains_route_for_substantial_window() {
+        let route_round_count = assert_head_to_head_field_route_seen(
+            build_comparison_connected_high_loss,
+            "connected high loss",
+        );
+        assert!(
+            route_round_count >= 18,
+            "expected standalone field route persistence in connected high loss, got {route_round_count} rounds"
+        );
+    }
+
+    #[test]
+    fn head_to_head_field_connected_high_loss_retains_route_through_relink_window() {
+        let parameters = ExperimentParameterSet::head_to_head(
+            "field",
+            None,
+            None,
+            Some((8, FieldSearchHeuristicMode::HopLowerBound)),
+        );
+        let (scenario, environment) =
+            build_comparison_connected_high_loss(&parameters, SimulationSeed(41));
+        let simulator = crate::JacquardSimulationHarness::new(crate::ReferenceClientAdapter);
+        let (replay, _stats) = simulator
+            .run(&scenario, &environment)
+            .expect("run standalone field connected-high-loss scenario");
+        let reduced = ReducedReplayView::from_replay(&replay);
+        let destination = DestinationId::Node(NodeId([4; 32]));
+        let present_rounds = reduced.route_present_rounds(NodeId([1; 32]), &destination);
+        let present_after_relink = present_rounds
+            .iter()
+            .copied()
+            .filter(|round| *round >= 12 && *round <= 15)
+            .collect::<std::collections::BTreeSet<_>>();
+
+        assert!(
+            present_after_relink == std::collections::BTreeSet::from([12, 13, 14, 15]),
+            "expected standalone field to retain the route through the immediate relink window, got rounds {:?}",
+            present_after_relink
+        );
+        let present_after_relink_recovery = present_rounds
+            .iter()
+            .copied()
+            .filter(|round| *round >= 16 && *round <= 19)
+            .collect::<std::collections::BTreeSet<_>>();
+
+        assert!(
+            present_after_relink_recovery == std::collections::BTreeSet::from([16, 17, 18, 19]),
+            "expected standalone field to retain the route through the post-relink recovery window, got rounds {:?}",
+            present_after_relink_recovery
+        );
+    }
+
+    #[test]
+    fn head_to_head_field_partial_observability_retains_route_for_majority_of_rounds() {
+        let route_round_count = assert_head_to_head_field_route_seen(
+            build_comparison_partial_observability_bridge,
+            "partial observability bridge",
+        );
+        assert!(
+            route_round_count >= 18,
+            "expected standalone field route persistence in partial observability bridge, got {route_round_count} rounds"
         );
     }
 

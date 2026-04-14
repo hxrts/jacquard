@@ -12,13 +12,13 @@ def recommendation_table_rows(
 ) -> list[list[str]]:
     rows: list[list[str]] = []
     for engine_family in [
-        "batman-bellman",
         "batman-classic",
+        "batman-bellman",
         "babel",
         "olsrv2",
         "pathway",
-        "field",
         "comparison",
+        "field",
     ]:
         family = recommendations.filter(pl.col("engine_family") == engine_family).head(
             limit_per_engine

@@ -42,8 +42,12 @@ where
         active_route: &mut ActivePathwayRoute,
         runtime: &mut jacquard_core::RouteRuntimeState,
         now: jacquard_core::Tick,
+        consume_budget: bool,
     ) -> Result<RouteMaintenanceResult, RouteError> {
-        active_route.repair.steps_remaining = active_route.repair.steps_remaining.saturating_sub(1);
+        if consume_budget {
+            active_route.repair.steps_remaining =
+                active_route.repair.steps_remaining.saturating_sub(1);
+        }
         active_route.repair.last_repaired_at_tick = Some(now);
         active_route.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
@@ -400,12 +404,14 @@ where
         if !repaired {
             return Ok(Self::replacement_required(trigger));
         }
+        let topology_advanced = active_route.current_epoch != context.latest_topology.value.epoch;
         active_route.current_epoch = context.latest_topology.value.epoch;
         let result = self.apply_repair(
             &context.identity.stamp.route_id,
             active_route,
             runtime,
             context.now,
+            !matches!(trigger, RouteMaintenanceTrigger::EpochAdvanced) || !topology_advanced,
         )?;
         if let Some(recovered) =
             self.recover_from_partition_if_possible(active_route, runtime, context.now)?

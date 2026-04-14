@@ -64,6 +64,7 @@ struct AdmissionInputs<'a> {
     delivered_connectivity: ConnectivityPosture,
     assumptions: AdmissionAssumptions,
     route_cost: RouteCost,
+    search_config: &'a crate::FieldSearchConfig,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -130,6 +131,7 @@ impl FieldPromotionAssessment {
         destination_state: &DestinationFieldState,
         confirmation_streak: u8,
         promotion_window_score: u8,
+        search_config: &crate::FieldSearchConfig,
     ) -> FieldBootstrapDecision {
         if (self.can_promote(promotion_window_score)
             || self.confirmed_stability(
@@ -137,10 +139,11 @@ impl FieldPromotionAssessment {
                 confirmation_streak,
                 promotion_window_score,
             ))
-            && promoted_corridor_admissible(
+            && promoted_corridor_admissible_with_config(
                 destination_state,
                 confirmation_streak,
                 promotion_window_score,
+                search_config,
             )
         {
             FieldBootstrapDecision::Promote
@@ -299,6 +302,16 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 .into_iter()
                 .filter(|neighbor_id| continuation_set.insert(*neighbor_id)),
             );
+        } else if self.search_config.node_discovery_enabled() {
+            continuation_neighbors.extend(
+                node_publication_neighbors(
+                    destination_state,
+                    selected_neighbor,
+                    &self.search_config,
+                )
+                .into_iter()
+                .filter(|neighbor_id| continuation_set.insert(*neighbor_id)),
+            );
         }
         continuation_neighbors.extend(
             ranked
@@ -310,7 +323,8 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         );
         continuation_neighbors.truncate(MAX_CONTINUATION_NEIGHBOR_COUNT + 1);
 
-        let admission_class = admission_class_for_state(destination_state);
+        let admission_class =
+            admission_class_for_state_with_config(destination_state, &self.search_config);
         let witness_detail = self.witness_detail_from_state(destination_state);
         let backend_token = FieldBackendToken {
             destination: destination_key,
@@ -324,9 +338,12 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let route_id = route_id_for_backend(&backend_route_id);
         let route_summary = self.route_summary_for(destination_state, selected_neighbor, topology);
         let degradation = self.route_degradation_for(destination_state, topology.value.epoch);
-        let delivered_protection = delivered_protection(destination_state);
-        let delivered_connectivity =
-            delivered_connectivity(self.state.posture.current, destination_state);
+        let delivered_protection = delivered_protection(destination_state, &self.search_config);
+        let delivered_connectivity = delivered_connectivity(
+            self.state.posture.current,
+            destination_state,
+            &self.search_config,
+        );
         let admission_profile =
             admission_assumptions(&witness_detail, self.state.regime.current, admission_class);
         let route_cost = route_cost_for(
@@ -343,6 +360,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             delivered_connectivity,
             assumptions: admission_profile.clone(),
             route_cost,
+            search_config: &self.search_config,
         });
         let witness = RouteWitness {
             protection: ObjectiveVsDelivered {
@@ -393,8 +411,14 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             uncertainty_class: uncertainty_class_for(
                 destination_state.posterior.usability_entropy.value(),
             ),
-            bootstrap_class: bootstrap_class_for_state(destination_state),
-            continuity_band: continuity_band_for_state(destination_state),
+            bootstrap_class: bootstrap_class_for_state_with_config(
+                destination_state,
+                &self.search_config,
+            ),
+            continuity_band: continuity_band_for_state_with_config(
+                destination_state,
+                &self.search_config,
+            ),
             corridor_support: destination_state.corridor_belief.delivery_support,
             retention_support: destination_state.corridor_belief.retention_affinity,
             usability_entropy: destination_state.posterior.usability_entropy,
@@ -433,8 +457,12 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .unwrap_or_default();
         RouteSummary {
             engine: FIELD_ENGINE_ID,
-            protection: delivered_protection(destination_state),
-            connectivity: delivered_connectivity(self.state.posture.current, destination_state),
+            protection: delivered_protection(destination_state, &self.search_config),
+            connectivity: delivered_connectivity(
+                self.state.posture.current,
+                destination_state,
+                &self.search_config,
+            ),
             protocol_mix,
             hop_count_hint: Belief::estimated(
                 hop_midpoint,
@@ -547,9 +575,10 @@ fn admission_check_for(inputs: AdmissionInputs<'_>) -> RouteAdmissionCheck {
         delivered_connectivity,
         assumptions,
         route_cost,
+        search_config,
     } = inputs;
 
-    let decision = if !bootstrap_corridor_admissible(destination_state) {
+    let decision = if !bootstrap_corridor_admissible_with_config(destination_state, search_config) {
         AdmissionDecision::Rejected(RouteAdmissionRejection::CapacityExceeded)
     } else if objective.protection_floor > FIELD_CAPABILITIES.max_protection
         || profile.selected_protection > FIELD_CAPABILITIES.max_protection
@@ -557,7 +586,12 @@ fn admission_check_for(inputs: AdmissionInputs<'_>) -> RouteAdmissionCheck {
     {
         AdmissionDecision::Rejected(RouteAdmissionRejection::ProtectionFloorUnsatisfied)
     } else if !steady_corridor_admissible(destination_state)
-        && destination_state.posterior.usability_entropy.value() > 925
+        && destination_state.posterior.usability_entropy.value()
+            > if search_config.node_discovery_enabled() {
+                search_config.node_bootstrap_entropy_ceiling()
+            } else {
+                925
+            }
     {
         AdmissionDecision::Rejected(RouteAdmissionRejection::DeliveryAssumptionUnsupported)
     } else if delivered_connectivity.repair < profile.selected_connectivity.repair
@@ -579,8 +613,11 @@ fn admission_check_for(inputs: AdmissionInputs<'_>) -> RouteAdmissionCheck {
     }
 }
 
-fn delivered_protection(destination_state: &DestinationFieldState) -> RouteProtectionClass {
-    if bootstrap_corridor_admissible(destination_state) {
+fn delivered_protection(
+    destination_state: &DestinationFieldState,
+    search_config: &crate::FieldSearchConfig,
+) -> RouteProtectionClass {
+    if bootstrap_corridor_admissible_with_config(destination_state, search_config) {
         RouteProtectionClass::LinkProtected
     } else {
         RouteProtectionClass::None
@@ -590,8 +627,9 @@ fn delivered_protection(destination_state: &DestinationFieldState) -> RouteProte
 fn delivered_connectivity(
     posture: RoutingPosture,
     destination_state: &DestinationFieldState,
+    search_config: &crate::FieldSearchConfig,
 ) -> ConnectivityPosture {
-    let partition = if bootstrap_corridor_admissible(destination_state)
+    let partition = if bootstrap_corridor_admissible_with_config(destination_state, search_config)
         || posture == RoutingPosture::RetentionBiased
     {
         jacquard_core::RoutePartitionClass::PartitionTolerant
@@ -609,12 +647,38 @@ fn delivered_connectivity(
 }
 
 pub(crate) fn bootstrap_corridor_admissible(destination_state: &DestinationFieldState) -> bool {
+    bootstrap_corridor_admissible_with_config(
+        destination_state,
+        &crate::FieldSearchConfig::default(),
+    )
+}
+
+pub(crate) fn bootstrap_corridor_admissible_with_config(
+    destination_state: &DestinationFieldState,
+    search_config: &crate::FieldSearchConfig,
+) -> bool {
     let support = destination_state.corridor_belief.delivery_support.value();
     let entropy = destination_state.posterior.usability_entropy.value();
     let retention = destination_state.corridor_belief.retention_affinity.value();
     let top_mass = destination_state.posterior.top_corridor_mass.value();
     let evidence_class = evidence_class_from_state(destination_state);
     let service_bias = matches!(destination_state.destination, DestinationKey::Service(_));
+    let discovery_enabled = !service_bias && search_config.node_discovery_enabled();
+    let support_floor = if service_bias {
+        130
+    } else {
+        search_config.node_bootstrap_support_floor()
+    };
+    let top_mass_floor = if service_bias {
+        260
+    } else {
+        search_config.node_bootstrap_top_mass_floor()
+    };
+    let entropy_ceiling = if service_bias {
+        950
+    } else {
+        search_config.node_bootstrap_entropy_ceiling()
+    };
     let coherent_source_count = destination_state
         .frontier
         .len()
@@ -623,7 +687,7 @@ pub(crate) fn bootstrap_corridor_admissible(destination_state: &DestinationField
     let service_support_score =
         service_corroborated_support_score(destination_state, &crate::FieldSearchConfig::default());
 
-    if support < if service_bias { 130 } else { 220 } || entropy > 950 {
+    if support < support_floor || entropy > entropy_ceiling {
         return false;
     }
 
@@ -639,9 +703,24 @@ pub(crate) fn bootstrap_corridor_admissible(destination_state: &DestinationField
     }
 
     match evidence_class {
-        EvidenceContributionClass::Direct => top_mass >= 260,
+        EvidenceContributionClass::Direct => {
+            top_mass
+                >= if discovery_enabled {
+                    top_mass_floor.saturating_sub(80)
+                } else {
+                    top_mass_floor
+                }
+        }
         EvidenceContributionClass::ReverseFeedback => {
-            top_mass >= 180 && (support >= 180 || retention >= 180 || coherent_source_count >= 2)
+            top_mass
+                >= if discovery_enabled {
+                    top_mass_floor.saturating_sub(100)
+                } else {
+                    180
+                }
+                && (support >= support_floor.saturating_sub(40)
+                    || retention >= if discovery_enabled { 140 } else { 180 }
+                    || coherent_source_count >= if discovery_enabled { 1 } else { 2 })
         }
         EvidenceContributionClass::ForwardPropagated => {
             (top_mass >= 260 && retention >= 220 && support.saturating_add(retention) >= 520)
@@ -649,6 +728,11 @@ pub(crate) fn bootstrap_corridor_admissible(destination_state: &DestinationField
                     && top_mass >= 180
                     && retention >= 160
                     && support.saturating_add(retention) >= 420)
+                || (discovery_enabled
+                    && coherent_source_count >= 1
+                    && top_mass >= top_mass_floor.saturating_sub(90)
+                    && retention >= 140
+                    && support.saturating_add(retention) >= support_floor.saturating_add(160))
         }
     }
 }
@@ -662,6 +746,20 @@ pub(crate) fn promoted_corridor_admissible(
     destination_state: &DestinationFieldState,
     confirmation_streak: u8,
     promotion_window_score: u8,
+) -> bool {
+    promoted_corridor_admissible_with_config(
+        destination_state,
+        confirmation_streak,
+        promotion_window_score,
+        &crate::FieldSearchConfig::default(),
+    )
+}
+
+pub(crate) fn promoted_corridor_admissible_with_config(
+    destination_state: &DestinationFieldState,
+    confirmation_streak: u8,
+    promotion_window_score: u8,
+    search_config: &crate::FieldSearchConfig,
 ) -> bool {
     if steady_corridor_admissible(destination_state) {
         return true;
@@ -680,16 +778,49 @@ pub(crate) fn promoted_corridor_admissible(
     {
         return true;
     }
-    destination_state.corridor_belief.delivery_support.value() >= 180
+    destination_state.corridor_belief.delivery_support.value()
+        >= if search_config.node_discovery_enabled() {
+            search_config
+                .node_bootstrap_support_floor()
+                .saturating_sub(20)
+                .max(180)
+        } else {
+            180
+        }
         && destination_state.posterior.usability_entropy.value()
-            <= if window_confirmed { 940 } else { 925 }
+            <= if search_config.node_discovery_enabled() {
+                search_config
+                    .node_bootstrap_entropy_ceiling()
+                    .saturating_sub(if window_confirmed { 20 } else { 35 })
+                    .max(if window_confirmed { 940 } else { 925 })
+            } else if window_confirmed {
+                940
+            } else {
+                925
+            }
         && destination_state.corridor_belief.retention_affinity.value()
             >= if window_confirmed { 220 } else { 240 }
         && destination_state.posterior.top_corridor_mass.value()
-            >= if window_confirmed { 200 } else { 220 }
+            >= if search_config.node_discovery_enabled() {
+                search_config
+                    .node_bootstrap_top_mass_floor()
+                    .saturating_sub(if window_confirmed { 20 } else { 0 })
+                    .max(if window_confirmed { 200 } else { 220 })
+            } else if window_confirmed {
+                200
+            } else {
+                220
+            }
 }
 
 fn admission_class_for_state(destination_state: &DestinationFieldState) -> FieldAdmissionClass {
+    admission_class_for_state_with_config(destination_state, &crate::FieldSearchConfig::default())
+}
+
+fn admission_class_for_state_with_config(
+    destination_state: &DestinationFieldState,
+    _search_config: &crate::FieldSearchConfig,
+) -> FieldAdmissionClass {
     if steady_corridor_admissible(destination_state) {
         FieldAdmissionClass::SteadyAdmissible
     } else {
@@ -700,39 +831,98 @@ fn admission_class_for_state(destination_state: &DestinationFieldState) -> Field
 pub(crate) fn bootstrap_class_for_state(
     destination_state: &DestinationFieldState,
 ) -> FieldBootstrapClass {
-    match admission_class_for_state(destination_state) {
+    bootstrap_class_for_state_with_config(destination_state, &crate::FieldSearchConfig::default())
+}
+
+pub(crate) fn bootstrap_class_for_state_with_config(
+    destination_state: &DestinationFieldState,
+    search_config: &crate::FieldSearchConfig,
+) -> FieldBootstrapClass {
+    match admission_class_for_state_with_config(destination_state, search_config) {
         FieldAdmissionClass::BootstrapAdmissible => FieldBootstrapClass::Bootstrap,
         FieldAdmissionClass::SteadyAdmissible => FieldBootstrapClass::Steady,
     }
 }
 
 fn degraded_steady_band_admissible(destination_state: &DestinationFieldState) -> bool {
+    degraded_steady_band_admissible_with_config(
+        destination_state,
+        &crate::FieldSearchConfig::default(),
+    )
+}
+
+fn degraded_steady_band_admissible_with_config(
+    destination_state: &DestinationFieldState,
+    search_config: &crate::FieldSearchConfig,
+) -> bool {
     let service_bias = matches!(destination_state.destination, DestinationKey::Service(_));
-    let support_floor = if service_bias { 180 } else { 220 };
-    let retention_floor = if service_bias { 240 } else { 220 };
-    let top_mass_floor = if service_bias { 160 } else { 180 };
+    let discovery_node_route = !service_bias && search_config.node_discovery_enabled();
+    let support_floor = if service_bias {
+        180
+    } else if discovery_node_route {
+        180
+    } else {
+        220
+    };
+    let retention_floor = if service_bias {
+        240
+    } else if discovery_node_route {
+        180
+    } else {
+        220
+    };
+    let top_mass_floor = if service_bias {
+        160
+    } else if discovery_node_route {
+        160
+    } else {
+        180
+    };
     destination_state.corridor_belief.delivery_support.value() >= support_floor
         && destination_state.corridor_belief.retention_affinity.value() >= retention_floor
         && destination_state.posterior.top_corridor_mass.value() >= top_mass_floor
-        && destination_state.posterior.usability_entropy.value() <= 940
+        && destination_state.posterior.usability_entropy.value()
+            <= if discovery_node_route { 960 } else { 940 }
 }
 
 fn steady_route_softening_needed(destination_state: &DestinationFieldState) -> bool {
+    steady_route_softening_needed_with_config(
+        destination_state,
+        &crate::FieldSearchConfig::default(),
+    )
+}
+
+fn steady_route_softening_needed_with_config(
+    destination_state: &DestinationFieldState,
+    search_config: &crate::FieldSearchConfig,
+) -> bool {
+    let service_bias = matches!(destination_state.destination, DestinationKey::Service(_));
+    let discovery_node_route = !service_bias && search_config.node_discovery_enabled();
     let support = destination_state.corridor_belief.delivery_support.value();
     let retention = destination_state.corridor_belief.retention_affinity.value();
     let top_mass = destination_state.posterior.top_corridor_mass.value();
     let entropy = destination_state.posterior.usability_entropy.value();
-    support < 360 || retention < 320 || top_mass < 280 || entropy > 760
+    support < if discovery_node_route { 320 } else { 360 }
+        || retention < if discovery_node_route { 260 } else { 320 }
+        || top_mass < if discovery_node_route { 220 } else { 280 }
+        || entropy > if discovery_node_route { 820 } else { 760 }
 }
 
 pub(crate) fn continuity_band_for_state(
     destination_state: &DestinationFieldState,
 ) -> FieldContinuityBand {
+    continuity_band_for_state_with_config(destination_state, &crate::FieldSearchConfig::default())
+}
+
+pub(crate) fn continuity_band_for_state_with_config(
+    destination_state: &DestinationFieldState,
+    search_config: &crate::FieldSearchConfig,
+) -> FieldContinuityBand {
     if steady_corridor_admissible(destination_state)
-        && !steady_route_softening_needed(destination_state)
+        && !steady_route_softening_needed_with_config(destination_state, search_config)
     {
         FieldContinuityBand::Steady
-    } else if degraded_steady_band_admissible(destination_state) {
+    } else if degraded_steady_band_admissible_with_config(destination_state, search_config) {
         FieldContinuityBand::DegradedSteady
     } else {
         FieldContinuityBand::Bootstrap
@@ -813,6 +1003,73 @@ fn service_publication_neighbors(
                 .min(MAX_CONTINUATION_NEIGHBOR_COUNT),
         )
         .collect()
+}
+
+fn node_publication_neighbors(
+    destination_state: &DestinationFieldState,
+    selected_neighbor: jacquard_core::NodeId,
+    search_config: &crate::FieldSearchConfig,
+) -> Vec<jacquard_core::NodeId> {
+    let support_floor = search_config
+        .node_bootstrap_support_floor()
+        .saturating_sub(20)
+        .max(140);
+    let mut scores: std::collections::BTreeMap<jacquard_core::NodeId, u32> =
+        std::collections::BTreeMap::new();
+    for evidence in &destination_state.pending_forward_evidence {
+        if evidence.summary.delivery_support.value() >= support_floor.saturating_sub(20)
+            && evidence.summary.uncertainty_penalty.value()
+                <= search_config.node_bootstrap_entropy_ceiling()
+        {
+            let score = u32::from(evidence.summary.delivery_support.value())
+                .saturating_add(u32::from(evidence.summary.retention_support.value()))
+                .saturating_add(120);
+            scores
+                .entry(evidence.from_neighbor)
+                .and_modify(|current| *current = (*current).max(score))
+                .or_insert(score);
+        }
+    }
+    for entry in destination_state.frontier.as_slice() {
+        if entry.downstream_support.value() >= support_floor
+            || corroborated_node_forward_support(destination_state, entry.neighbor_id)
+                >= support_floor
+        {
+            let score = u32::from(entry.downstream_support.value())
+                .saturating_add(u32::from(entry.net_value.value()))
+                .saturating_add(80);
+            scores
+                .entry(entry.neighbor_id)
+                .and_modify(|current| *current = (*current).max(score))
+                .or_insert(score);
+        }
+    }
+    let mut ranked: Vec<(jacquard_core::NodeId, u32)> = scores.into_iter().collect();
+    ranked.sort_by(
+        |(left_neighbor, left_score), (right_neighbor, right_score)| {
+            right_score
+                .cmp(left_score)
+                .then_with(|| left_neighbor.cmp(right_neighbor))
+        },
+    );
+    ranked
+        .into_iter()
+        .filter_map(|(neighbor, _)| (neighbor != selected_neighbor).then_some(neighbor))
+        .take(2.min(MAX_CONTINUATION_NEIGHBOR_COUNT))
+        .collect()
+}
+
+fn corroborated_node_forward_support(
+    destination_state: &DestinationFieldState,
+    neighbor_id: jacquard_core::NodeId,
+) -> u16 {
+    destination_state
+        .pending_forward_evidence
+        .iter()
+        .filter(|evidence| evidence.from_neighbor == neighbor_id)
+        .map(|evidence| evidence.summary.delivery_support.value())
+        .max()
+        .unwrap_or(0)
 }
 
 fn service_corroborating_branch_count(destination_state: &DestinationFieldState) -> usize {
@@ -1317,6 +1574,49 @@ mod tests {
         assert_eq!(
             check.decision,
             AdmissionDecision::Rejected(RouteAdmissionRejection::CapacityExceeded),
+        );
+    }
+
+    #[test]
+    fn discovery_config_admits_single_source_node_bootstrap_corridor() {
+        let mut engine = FieldEngine::new(node(1), (), ()).with_search_config(
+            crate::FieldSearchConfig::default()
+                .with_node_bootstrap_support_floor(180)
+                .with_node_bootstrap_top_mass_floor(180)
+                .with_node_bootstrap_entropy_ceiling(970)
+                .with_node_discovery_enabled(true),
+        );
+        let state = engine.state.upsert_destination_interest(
+            &DestinationId::Node(node(2)),
+            DestinationInterestClass::Transit,
+            Tick(4),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(180);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(940);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.corridor_belief.expected_hop_band = HopBand::new(2, 4);
+        state.corridor_belief.delivery_support = SupportBucket::new(185);
+        state.corridor_belief.retention_affinity = SupportBucket::new(165);
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(2),
+            net_value: SupportBucket::new(260),
+            downstream_support: SupportBucket::new(220),
+            expected_hop_band: HopBand::new(2, 4),
+            freshness: Tick(4),
+        });
+        let topology = supported_topology();
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("discovery bootstrap corridor should admit");
+        assert_eq!(
+            admission.admission_check.decision,
+            AdmissionDecision::Admissible
         );
     }
 

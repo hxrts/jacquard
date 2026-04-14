@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DestinationId, DurationMs, NodeId, Observation,
-    PriorityPoints, RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RoutingObjective,
-    Tick,
+    ConnectivityPosture, DestinationId, DurationMs, HoldFallbackPolicy, NodeId, PriorityPoints,
+    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RoutingObjective, Tick,
 };
 use jacquard_field::{FieldExportedReplayBundle, FIELD_ENGINE_ID};
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
+use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
     BridgeRoundProgress, BridgeRoundReport, ClientBuilder,
     FieldBootstrapSummary as ClientFieldBootstrapSummary, ReferenceClient, ReferenceRouter,
@@ -308,10 +308,12 @@ where
             resume_from.map_or(0, |checkpoint| checkpoint.completed_rounds);
 
         for round_index in 0..scenario.round_limit() {
+            let prior_topology_epoch = topology.value.epoch;
             let at_tick = Tick(topology.observed_at_tick.0.saturating_add(1));
             let (next_topology, environment_artifacts) =
                 environment.advance_environment(&topology.value, at_tick);
             topology = next_topology;
+            let topology_advanced = topology.value.epoch != prior_topology_epoch;
 
             let mut host_rounds = Vec::new();
             let mut all_waiting = true;
@@ -324,7 +326,7 @@ where
                 let progress = bound.advance_round()?;
                 maintain_active_routes(
                     bound.router_mut(),
-                    &topology,
+                    topology_advanced,
                     checkpoint_round_offset + round_index,
                     &mut failure_summaries,
                 );
@@ -825,7 +827,7 @@ fn refresh_host_round_routes(
 
 fn maintain_active_routes(
     router: &mut ReferenceRouter,
-    topology: &Observation<Configuration>,
+    topology_advanced: bool,
     round_index: u32,
     failure_summaries: &mut Vec<SimulationFailureSummary>,
 ) {
@@ -833,7 +835,15 @@ fn maintain_active_routes(
         .active_routes_snapshot()
         .into_iter()
         .map(|route| {
-            let trigger = if route.identity.stamp.topology_epoch != topology.value.epoch {
+            let trigger = if topology_advanced
+                && route.identity.admission.summary.engine == PATHWAY_ENGINE_ID
+                && route.identity.admission.objective.hold_fallback_policy
+                    == HoldFallbackPolicy::Allowed
+                && route.identity.admission.summary.connectivity.partition
+                    == RoutePartitionClass::PartitionTolerant
+            {
+                jacquard_core::RouteMaintenanceTrigger::PartitionDetected
+            } else if topology_advanced {
                 jacquard_core::RouteMaintenanceTrigger::EpochAdvanced
             } else {
                 jacquard_core::RouteMaintenanceTrigger::AntiEntropyRequired

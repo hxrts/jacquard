@@ -217,7 +217,10 @@ def recommendation_table(
         .filter(
             (pl.col("activation_success_mean") > 0) | (pl.col("route_present_mean") > 0)
         )
-        .sort(["engine_family", "mean_score"], descending=[False, True])
+        .sort(
+            ["engine_family", "mean_score", "config_id"],
+            descending=[False, True, False],
+        )
     )
 
 
@@ -956,13 +959,13 @@ def leading_recommendation_configs(
 ) -> pl.DataFrame:
     frames: list[pl.DataFrame] = []
     for engine_family in [
-        "batman-bellman",
         "batman-classic",
+        "batman-bellman",
         "babel",
         "olsrv2",
         "pathway",
-        "field",
         "comparison",
+        "field",
     ]:
         family = recommendations.filter(pl.col("engine_family") == engine_family).head(
             limit_per_engine
@@ -1101,13 +1104,13 @@ def baseline_comparison_table(
     current_frames = []
     prior_frames = []
     for engine_family in [
-        "batman-bellman",
         "batman-classic",
+        "batman-bellman",
         "babel",
         "olsrv2",
         "pathway",
-        "field",
         "comparison",
+        "field",
     ]:
         current_family = recommendations.filter(pl.col("engine_family") == engine_family).head(1)
         if not current_family.is_empty():
@@ -1173,13 +1176,13 @@ def write_recommendations(path: Path, recommendations: pl.DataFrame) -> None:
         "",
     ]
     for engine_family in [
-        "batman-bellman",
         "batman-classic",
+        "batman-bellman",
         "babel",
         "olsrv2",
         "pathway",
-        "field",
         "comparison",
+        "field",
     ]:
         rows = top_recommendation_rows(recommendations, engine_family, 3)
         if not rows and engine_family != "field":

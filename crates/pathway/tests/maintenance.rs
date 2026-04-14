@@ -15,14 +15,14 @@ mod common;
 use common::{
     engine::{
         activate_route, activate_route_with_profile, build_engine, lease, objective,
-        profile_with_connectivity,
+        profile_with_connectivity, tick_context,
     },
     fixtures::sample_configuration,
     BRIDGE_NODE_ID, FAR_NODE_ID, LOCAL_NODE_ID, PEER_NODE_ID,
 };
 use jacquard_traits::{
     jacquard_core::{
-        DestinationId, RouteError, RouteMaintenanceFailure, RouteMaintenanceOutcome,
+        DestinationId, RouteEpoch, RouteError, RouteMaintenanceFailure, RouteMaintenanceOutcome,
         RouteMaintenanceResult, RouteMaintenanceTrigger, RoutePartitionClass, RouteRepairClass,
         RouteRuntimeError, Tick,
     },
@@ -217,6 +217,42 @@ fn epoch_advanced_with_budget_repairs_and_bumps_epoch() {
     run_maintenance_trigger_test(RouteMaintenanceTrigger::EpochAdvanced, |result| {
         assert_eq!(result.outcome, RouteMaintenanceOutcome::Repaired);
     });
+}
+
+#[test]
+fn epoch_advanced_after_real_topology_change_preserves_repair_budget() {
+    let mut engine = build_engine();
+    let topology = sample_configuration();
+    let (identity, mut runtime) = activate_route(
+        &mut engine,
+        &topology,
+        FAR_NODE_ID,
+        lease(Tick(2), Tick(1000)),
+    );
+    let before = engine
+        .active_route(&identity.stamp.route_id)
+        .map(|route| route.repair_steps_remaining)
+        .expect("active route exists");
+    let mut advanced_topology = topology.clone();
+    advanced_topology.value.epoch = RouteEpoch(advanced_topology.value.epoch.0.saturating_add(1));
+    engine
+        .engine_tick(&tick_context(&advanced_topology))
+        .expect("refresh advanced topology");
+
+    let result = engine
+        .maintain_route(
+            &identity,
+            &mut runtime,
+            RouteMaintenanceTrigger::EpochAdvanced,
+        )
+        .expect("epoch advanced maintenance succeeds");
+    let after = engine
+        .active_route(&identity.stamp.route_id)
+        .map(|route| route.repair_steps_remaining)
+        .expect("active route exists after epoch repair");
+
+    assert_eq!(result.outcome, RouteMaintenanceOutcome::Repaired);
+    assert_eq!(after, before);
 }
 
 // LeaseExpiring is the soft signal: it does not fail outright but does

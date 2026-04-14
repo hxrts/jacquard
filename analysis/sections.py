@@ -182,26 +182,57 @@ def head_to_head_regime_lines() -> list[str]:
     return section_lines("Head-To-Head Regimes")
 
 
+def best_head_to_head_rows(head_to_head_summary: pl.DataFrame) -> dict[str, dict]:
+    rows: dict[str, dict] = {}
+    for family_id in head_to_head_summary["family_id"].unique().sort().to_list():
+        family = (
+            head_to_head_summary.filter(pl.col("family_id") == family_id)
+            .sort(
+                ["route_present_permille_mean", "activation_success_permille_mean"],
+                descending=[True, True],
+            )
+            .head(1)
+        )
+        if family.is_empty():
+            continue
+        rows[family_id] = family.iter_rows(named=True).__next__()
+    return rows
+
+
+def head_to_head_row_for_engine(
+    head_to_head_summary: pl.DataFrame,
+    family_id: str,
+    comparison_engine_set: str,
+) -> dict | None:
+    row = head_to_head_summary.filter(
+        (pl.col("family_id") == family_id)
+        & (pl.col("comparison_engine_set") == comparison_engine_set)
+    ).head(1)
+    if row.is_empty():
+        return None
+    return row.iter_rows(named=True).__next__()
+
+
 def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]:
     if head_to_head_summary.is_empty():
         return []
 
-    rows = {
-        row["family_id"]: row
-        for row in (
-            head_to_head_summary.sort(
-                ["family_id", "route_present_permille_mean", "activation_success_permille_mean"],
-                descending=[False, True, True],
-            ).iter_rows(named=True)
-        )
-    }
+    rows = best_head_to_head_rows(head_to_head_summary)
 
     connected_low_loss = rows.get("head-to-head-connected-low-loss")
     connected_high_loss = rows.get("head-to-head-connected-high-loss")
     bridge_transition = rows.get("head-to-head-bridge-transition")
     concurrent_mixed = rows.get("head-to-head-concurrent-mixed")
-    corridor_uncertainty = rows.get("head-to-head-corridor-continuity-uncertainty")
-    partial_bridge = rows.get("head-to-head-partial-observability-bridge")
+    corridor_uncertainty = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-corridor-continuity-uncertainty",
+        "field",
+    )
+    partial_bridge = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-partial-observability-bridge",
+        "field",
+    )
     if (
         connected_low_loss is None
         or connected_high_loss is None
@@ -236,28 +267,24 @@ def analysis_takeaway_lines(
     comparison_rows = {
         row["family_id"]: row for row in comparison_summary.iter_rows(named=True)
     }
-    head_to_head_rows = {
-        row["family_id"]: row
-        for row in (
-            head_to_head_summary.sort(
-                ["family_id", "route_present_permille_mean", "activation_success_permille_mean"],
-                descending=[False, True, True],
-            ).iter_rows(named=True)
-        )
-    }
+    head_to_head_rows = best_head_to_head_rows(head_to_head_summary)
 
     connected_low_loss = comparison_rows.get("comparison-connected-low-loss")
+    connected_high_loss = comparison_rows.get("comparison-connected-high-loss")
     corridor = comparison_rows.get("comparison-corridor-continuity-uncertainty")
     partial_bridge = comparison_rows.get("comparison-partial-observability-bridge")
     concurrent_mixed = head_to_head_rows.get("head-to-head-concurrent-mixed")
+    comparison_concurrent_mixed = comparison_rows.get("comparison-concurrent-mixed")
     corridor_uncertainty = head_to_head_rows.get("head-to-head-corridor-continuity-uncertainty")
     babel = top_recommendation_row(recommendations, "babel")
     olsrv2 = top_recommendation_row(recommendations, "olsrv2")
     if (
         connected_low_loss is None
+        or connected_high_loss is None
         or corridor is None
         or partial_bridge is None
         or concurrent_mixed is None
+        or comparison_concurrent_mixed is None
         or corridor_uncertainty is None
         or babel is None
         or olsrv2 is None
@@ -267,6 +294,8 @@ def analysis_takeaway_lines(
     return section_lines_formatted(
         "Part II Takeaways",
         connected_low_loss_engine=connected_low_loss["dominant_engine"] or "none",
+        connected_high_loss_engine=connected_high_loss["dominant_engine"] or "none",
+        comparison_concurrent_mixed_engine=comparison_concurrent_mixed["dominant_engine"] or "none",
         corridor_engine=corridor["dominant_engine"] or "none",
         partial_bridge_engine=partial_bridge["dominant_engine"] or "none",
         babel_config=babel["config_id"],

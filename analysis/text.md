@@ -4,11 +4,11 @@
 
 ### Executive Summary Intro
 
-This report studies Jacquard routing behavior across six engines, `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
+This report studies Jacquard routing behavior across six engines, `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
 
 The goal is to understand where each engine works cleanly, where it begins to degrade, what kinds of failures appear first, and compare engines under the same network regimes. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
 
-The document is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles. Part IV evaluates these calibrated profiles under message-diffusion scenarios where mobility is the transport and end-to-end paths may not exist.
+The document is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles. Part IV evaluates these calibrated profiles under message-diffusion scenarios where node movement and intermittent contact opportunities carry messages, and end-to-end paths may not exist.
 
 ## Part I. Tuning
 
@@ -48,7 +48,7 @@ The report scores observable replay output: whether a route appears, when it is 
 
 #### Matrix Design
 
-The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-bellman`, `batman-classic`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
+The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-classic`, `batman-bellman`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
 
 The recommendations are meant to be good defaults for this modeled corpus, not single winners from one scenario.
 
@@ -83,31 +83,29 @@ Workload regimes:
 
 #### BATMAN Bellman Algorithm
 
-BATMAN Bellman tracks a good next hop toward each destination using a local Bellman-Ford computation over a gossip-merged topology graph. It can bootstrap routes from topology data before OGMs arrive. The tuning parameters control how quickly old information expires and how quickly the engine refreshes its view.
+BATMAN Bellman tracks a good next hop toward each destination using a local Bellman-Ford computation over a gossip-merged topology graph. It can bootstrap routes from topology data before OGMs arrive. The tuning parameters control how quickly old information expires and how quickly the engine refreshes its view. Like the other conventional proactive next-hop engines in this corpus, it retains routing control state such as learned advertisements and bidirectionality evidence, but it does not buffer payloads for deferred store-and-forward delivery.
 
 #### BATMAN Classic Algorithm
 
-BATMAN Classic is the spec-faithful BATMAN IV engine: TQ is carried in OGMs and updated multiplicatively at each relay hop, TTL bounds propagation depth, and bidirectionality requires echo-window confirmation. It produces no route candidates until receive-window data has accumulated and echo confirmation has been received. BATMAN Bellman can bootstrap routes from its local Bellman-Ford computation before OGMs arrive, but BATMAN Classic has no such shortcut. The analysis compares its behavior under identical regimes to isolate what the Bellman-Ford enhancement contributes.
+BATMAN Classic is the spec-faithful BATMAN IV engine: TQ is carried in OGMs and updated multiplicatively at each relay hop, TTL bounds propagation depth, and bidirectionality requires echo-window confirmation. It produces no route candidates until receive-window data has accumulated and echo confirmation has been received. BATMAN Bellman can bootstrap routes from its local Bellman-Ford computation before OGMs arrive, but BATMAN Classic has no such shortcut. The analysis compares its behavior under identical regimes to isolate what the Bellman-Ford enhancement contributes. Its retained state is protocol state only, not deferred payload storage.
 
 #### Babel Algorithm
 
-Babel implements the RFC 8966 distance-vector protocol. Link cost uses bidirectional ETX rather than forward-only TQ, penalizing asymmetric links more heavily. Path metric is additive rather than multiplicative. Route selection is gated by a feasibility distance table that provides loop freedom during transient topology changes. The analysis targets asymmetric link regimes and partition recovery to surface these behavioral differences.
+Babel implements the RFC 8966 distance-vector protocol. Link cost uses bidirectional ETX rather than forward-only TQ, penalizing asymmetric links more heavily. Path metric is additive rather than multiplicative. Route selection is gated by a feasibility distance table that provides loop freedom during transient topology changes. The analysis targets asymmetric link regimes and partition recovery to surface these behavioral differences. As with the BATMAN variants, the cached state here is advertisement, feasibility, and metric state rather than payloads awaiting store-and-forward delivery.
 
 #### OLSRv2 Algorithm
 
 `olsrv2` is Jacquard's deterministic proactive link-state baseline. It learns one-hop and two-hop reachability from HELLO exchange, elects a stable MPR covering set, floods TC advertisements only when local topology changes or forwarded MPR-selected TC state is fresher, and runs shortest-path derivation over the learned topology tuples.
 
-The Jacquard engine intentionally simplifies the full RFC surface: it keeps one deterministic link-state view, one MPR election policy, and next-hop-only route publication. The tuning sweep therefore focuses on the decay window that controls how long HELLO and TC evidence stays live and how quickly the engine requests another synchronous round.
+The Jacquard engine intentionally simplifies the full RFC surface: it keeps one deterministic link-state view, one MPR election policy, and next-hop-only route publication. The tuning sweep therefore focuses on the decay window that controls how long HELLO and TC evidence stays live and how quickly the engine requests another synchronous round. That retained state is topology and freshness metadata only; `olsrv2` is not a deferred-delivery payload buffer.
 
 #### Pathway Algorithm
 
-Pathway explores candidate continuations and chooses a full routing decision for the requested destination or service. The main tuning question is how much search budget it needs before it reliably finds good candidates.
+Pathway explores candidate continuations and chooses a full routing decision for the requested destination or service. The main tuning question is how much search budget it needs before it reliably finds good candidates. It is also the one in-tree routing engine that supports bounded deferred delivery of payloads: when a route enters partition mode, payloads can be retained through the shared retention boundary and later replayed on recovery or handoff.
 
 #### Field Algorithm
 
-Field maintains a continuously updated field model, searches over frozen snapshots, and publishes one corridor-style routing claim while allowing the concrete realization to move inside that corridor. It has an explicit bootstrap phase where weaker corridor claims can be published when evidence is coherent but not yet strong enough for steady admission.
-
-The main tuning questions are how much search budget Field needs, how often it reconfigures or shifts continuation, and how often bootstrap routes successfully upgrade.
+Field maintains a continuously updated field model, searches over frozen snapshots, and publishes one corridor-style routing claim while allowing the concrete realization to move inside that corridor. It has an explicit bootstrap phase where weaker corridor claims can be published when evidence is coherent but not yet strong enough for steady admission. The main tuning questions are how much search budget Field needs, how often it reconfigures or shifts continuation, and how often bootstrap routes successfully upgrade. Field does carry forward bounded routing and service evidence, but that carry-forward supports corridor and service continuity rather than acting as a general payload store-and-forward cache.
 
 #### Recommendation Logic
 
@@ -115,7 +113,7 @@ The recommendation score rewards settings that activate routes reliably, maintai
 
 Profile-specific recommendations allow different operational priorities. Conservative profiles weight stability and failure avoidance more heavily, while aggressive or service-heavy profiles tolerate more risk.
 
-`field` is now calibrated on two surfaces in Part I: the generic route-visible recommendation surface and a separate regime-specific surface that explicitly scores corridor continuity, bootstrap upgrade quality, service continuity, and transition health.
+`field` is calibrated on two surfaces in Part I: the generic route-visible recommendation surface and a separate regime-specific surface that explicitly scores corridor continuity, bootstrap upgrade quality, service continuity, and transition health.
 
 When several nearby settings score about the same, the report prefers the middle of the acceptable range.
 
@@ -275,7 +273,7 @@ Dominant engine per maintained comparison family. Column guide: Dominant Engine 
 
 @table head-to-head-summary
 
-Direct stack-to-stack comparison: `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `pathway`, `field`, and `pathway-batman-bellman`. Column guide: Engine Set is the only stack enabled; Activation, Route, Dominant, and Stress as above. A `-` means no route-visible winner was observed.
+Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `pathway`, `pathway-batman-bellman`, and `field`. Column guide: Engine Set is the only stack enabled; Activation, Route, Dominant, and Stress as above. A `-` means no route-visible winner was observed.
 
 #### Head-To-Head Regimes
 
@@ -295,9 +293,9 @@ These rows show what each stack does when it is the only available routing surfa
 #### Head-To-Head Takeaways
 
 - `connected-low-loss` is mostly a tie regime.
-- Lossy and bridge-recovery cases remain the clearest separators: `connected-high-loss` is led by `{connected_high_loss_engine_set}` at {connected_high_loss_route_presence} permille, `bridge-transition` by `{bridge_transition_engine_set}` at {bridge_transition_route_presence} permille.
+- The hard route-visible bridge families are the clearest separators: `connected-high-loss` is led by `{connected_high_loss_engine_set}` at {connected_high_loss_route_presence} permille, `bridge-transition` by `{bridge_transition_engine_set}` at {bridge_transition_route_presence} permille.
 - Mixed workloads favor explicit search: `concurrent-mixed` is led by `{concurrent_mixed_engine_set}` at {concurrent_mixed_route_presence} permille.
-- `field` is strongest when corridor continuity is the question: {corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`, but only {partial_bridge_route_presence} permille in `partial-observability-bridge`.
+- `field` reaches {connected_high_loss_route_presence} permille in `connected-high-loss`, {bridge_transition_route_presence} permille in `bridge-transition`, and {partial_bridge_route_presence} permille in `partial-observability-bridge`, while staying strong at {corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`.
 
 #### Head-To-Head Findings Empty
 
@@ -305,18 +303,18 @@ No head-to-head summary is available for this artifact set.
 
 ### Part II Takeaways
 
-- The routing comparison does not collapse to one universal winner. In the mixed-engine matrix, `connected-low-loss` is led by `{connected_low_loss_engine}`, `corridor-continuity-uncertainty` by `{corridor_engine}`, and `partial-observability-bridge` by `{partial_bridge_engine}`.
+- The routing comparison does not collapse to one universal winner. In the mixed-engine matrix, `connected-low-loss` is led by `{connected_low_loss_engine}`, `connected-high-loss` by `{connected_high_loss_engine}`, and `concurrent-mixed` by `{comparison_concurrent_mixed_engine}`.
 - Among the maintained proactive next-hop defaults, `babel` and `olsrv2` are the strongest contrasting baselines: `{babel_config}` captures the asymmetry-sensitive distance-vector case, while `{olsrv2_config}` is the full-topology baseline when HELLO and TC propagation have time to pay off.
 - Explicit search still matters when the workload is mixed rather than purely hop-by-hop. In the head-to-head matrix, `concurrent-mixed` is led by `{concurrent_mixed_engine_set}` at {concurrent_mixed_route_presence} permille route presence.
-- `field` remains specialized rather than universal. It is strongest when corridor continuity is the question at {corridor_uncertainty_route_presence} permille, but it is not the default winner in the partial-observability bridge case.
+- `field` is corridor-oriented rather than universal, but it stays competitive across the hard repairable-connected bridge families while preserving its strongest corridor-continuity behavior at {corridor_uncertainty_route_presence} permille.
 
 ## Part III. Diffusion Calibration
 
 ### Diffusion Calibration Introduction
 
-Routing calibration and diffusion calibration use different objectives and should not be merged. Routing optimizes for activation, route presence, and recovery. Diffusion optimizes for eventual delivery, boundedness, latency, energy, and leakage.
+Routing calibration and diffusion calibration are distinct objectives. Routing optimizes for activation, route presence, and recovery. Diffusion optimizes for eventual delivery, boundedness, latency, energy, and leakage.
 
-For `field`, diffusion calibration also now uses regime-specific success criteria: continuity families reward protected bridge-budget preservation and corridor persistence, scarcity families reward early conservative transition plus lower generic spread and expensive transport use, congestion families reward timely transition from cluster seeding into duplicate suppression without starving first-arrival cluster coverage, and privacy families reward lower observer leakage.
+For `field`, diffusion calibration also uses regime-specific success criteria: continuity families reward protected bridge-budget preservation and corridor persistence, scarcity families reward early conservative transition plus lower generic spread and expensive transport use, congestion families reward timely transition from cluster seeding into duplicate suppression without starving first-arrival cluster coverage, and privacy families reward lower observer leakage.
 
 The maintained diffusion families are:
 
@@ -336,6 +334,8 @@ The maintained diffusion families are:
 @table diffusion-engine-summary
 
 Best-performing engine set per maintained diffusion family. Column guide: Engine Set, Delivery (fraction of targets reached), Coverage (fraction of reachable nodes), Latency (mean delivery delay), State (boundedness classification), Stress.
+
+Here, `collapse` means the engine falls below the basic viability floor for delivery or coverage, while `explosive` means it preserves delivery only by driving reproduction, transmission, storage, or energy cost into an unbounded regime.
 
 ### Diffusion Calibration Boundaries
 
@@ -396,9 +396,9 @@ Transmission load and boundedness by engine set.
 ### Diffusion Takeaways
 
 - The diffusion track is an engine comparison, but the regime summary is the right top-level view because continuity, scarcity, congestion, and privacy reward different tradeoffs.
-- The conservative stacks are still strongest when scarce relays and bounded forwarding matter most.
-- `field` now shows clearer regime specialization, but the calibration surface also fails closed when all field congestion candidates are still unacceptable.
-- The harsher families are still boundary finders: `bridge-drought` tests rare-opportunity carry, `energy-starved-relay` tests efficiency under scarcity, and `congestion-cascade` tests whether broad forwarding remains bounded without starving first-arrival cluster coverage.
+- The conservative stacks are strongest when scarce relays and bounded forwarding matter most.
+- `field` shows clearer regime specialization: field configurations lead the balanced and congestion regimes, while `batman-classic` leads continuity, privacy, and scarcity.
+- The harsher families are boundary finders: `bridge-drought` tests rare-opportunity carry, `energy-starved-relay` tests efficiency under scarcity, and `congestion-cascade` tests whether broad forwarding remains bounded without starving first-arrival cluster coverage.
 
 ### Field Diffusion Posture
 
