@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, process::Command};
 
 use jacquard_simulator::{
     diffusion_local_suite, diffusion_smoke_suite, run_diffusion_suite, run_tuning_suite,
@@ -88,6 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 diffusion_artifacts.manifest.boundary_count,
                 diffusion_artifacts.output_dir.display()
             );
+            run_analysis_report(&output_dir);
         }
         _ => {
             let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
@@ -100,7 +101,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 artifacts.manifest.breakdown_count,
                 artifacts.output_dir.display()
             );
+            run_analysis_report(&output_dir);
         }
     }
     Ok(())
+}
+
+fn run_analysis_report(artifact_dir: &PathBuf) {
+    let canonical = artifact_dir
+        .canonicalize()
+        .unwrap_or_else(|_| artifact_dir.clone());
+    println!("Generating analysis report...");
+    // Try python3 directly first, fall back to nix develop --command.
+    let status = Command::new("python3")
+        .args(["-m", "analysis.report"])
+        .arg(&canonical)
+        .status()
+        .and_then(|s| {
+            if s.success() {
+                Ok(s)
+            } else {
+                Err(std::io::Error::other("python3 failed"))
+            }
+        })
+        .or_else(|_| {
+            Command::new("nix")
+                .args(["develop", "--command", "python3", "-m", "analysis.report"])
+                .arg(&canonical)
+                .status()
+        });
+    match status {
+        Ok(s) if s.success() => {}
+        Ok(s) => eprintln!(
+            "warning: analysis report exited with status {}",
+            s.code().unwrap_or(-1)
+        ),
+        Err(e) => eprintln!("warning: could not run analysis report: {e}"),
+    }
 }
