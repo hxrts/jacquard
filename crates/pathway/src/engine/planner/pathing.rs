@@ -91,23 +91,23 @@ where
         }
     }
 
-    // Three cases by path length: (1) 1-hop — only a shared neighbor can
-    // bridge; (2) multi-hop with alternate first-hop — repair is possible;
-    // (3) multi-hop — scan each segment pair for a bypass node.
-    pub(super) fn local_repair_slack(
+    fn owner_relative_repair_slack(
         &self,
         configuration: &Configuration,
         node_path: &[NodeId],
     ) -> bool {
+        let Some(owner_node_id) = node_path.first().copied() else {
+            return false;
+        };
         if node_path.len() <= 2 {
             let Some(destination_node_id) = node_path.last().copied() else {
                 return false;
             };
-            return crate::topology::adjacent_node_ids(&self.local_node_id, configuration)
+            return crate::topology::adjacent_node_ids(&owner_node_id, configuration)
                 .into_iter()
                 .filter(|candidate| *candidate != destination_node_id)
                 .any(|candidate| {
-                    estimate_hop_link(&self.local_node_id, &candidate, configuration).is_some()
+                    estimate_hop_link(&owner_node_id, &candidate, configuration).is_some()
                         && estimate_hop_link(&candidate, &destination_node_id, configuration)
                             .is_some()
                 });
@@ -115,7 +115,7 @@ where
 
         let next_hop = node_path.get(1).copied();
         let source_has_alternate_neighbor =
-            crate::topology::adjacent_node_ids(&self.local_node_id, configuration)
+            crate::topology::adjacent_node_ids(&owner_node_id, configuration)
                 .into_iter()
                 .any(|candidate| Some(candidate) != next_hop);
         if source_has_alternate_neighbor {
@@ -138,6 +138,19 @@ where
             }
         }
         false
+    }
+
+    // Runtime repair is owner-relative: after one or more handoffs, Pathway
+    // repairs the remaining suffix from the current owner rather than only
+    // from the original source. Admission therefore treats a route as
+    // repairable when any owner-relative suffix has bounded repair slack.
+    pub(super) fn local_repair_slack(
+        &self,
+        configuration: &Configuration,
+        node_path: &[NodeId],
+    ) -> bool {
+        (0..node_path.len().saturating_sub(1))
+            .any(|start| self.owner_relative_repair_slack(configuration, &node_path[start..]))
     }
 
     pub(super) fn route_connectivity_for_path(

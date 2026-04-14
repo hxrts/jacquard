@@ -329,60 +329,68 @@ where
         objective: &RoutingObjective,
         profile: &SelectedRoutingParameters,
     ) -> Result<MaterializedRoute, RouteError> {
-        let candidate = self
-            .ordered_candidates(objective, profile)
-            .into_iter()
-            .next()
-            .ok_or(RouteSelectionError::NoCandidate)?;
-        let route_id = candidate.route_id;
-        let engine_id = candidate.backend_ref.engine.clone();
-        let admission = self.engine_for_id(&engine_id)?.admit_route(
-            objective,
-            profile,
-            candidate,
-            &self.topology,
-        )?;
-        if admission.admission_check.decision != AdmissionDecision::Admissible {
-            return Err(RouteSelectionError::Inadmissible(
-                match admission.admission_check.decision {
-                    AdmissionDecision::Rejected(reason) => reason,
-                    AdmissionDecision::Admissible => unreachable!(),
-                },
-            )
-            .into());
-        }
+        let mut first_inadmissible = None;
+        for candidate in self.ordered_candidates(objective, profile) {
+            let route_id = candidate.route_id;
+            let engine_id = candidate.backend_ref.engine.clone();
+            let admission = match self.engine_for_id(&engine_id)?.admit_route(
+                objective,
+                profile,
+                candidate,
+                &self.topology,
+            ) {
+                Ok(admission) => admission,
+                Err(RouteError::Selection(RouteSelectionError::Inadmissible(reason))) => {
+                    first_inadmissible.get_or_insert(reason);
+                    continue;
+                }
+                Err(RouteError::Selection(RouteSelectionError::NoCandidate)) => continue,
+                Err(error) => return Err(error),
+            };
+            if admission.admission_check.decision != AdmissionDecision::Admissible {
+                if let AdmissionDecision::Rejected(reason) = admission.admission_check.decision {
+                    first_inadmissible.get_or_insert(reason);
+                }
+                continue;
+            }
 
-        let input = self.materialization_input(route_id, &admission)?;
-        let route_id = *input.handle.route_id();
-        let installation = self
-            .engine_for_id_mut(&engine_id)?
-            .materialize_route(input.clone())?;
-        let route = MaterializedRoute::from_installation(input, installation);
-        let commitments = self.route_commitments_for(&route)?;
-        let record = RouterCheckpointRecord {
-            route: route.clone(),
-            commitments: commitments.clone(),
-        };
-        if let Err(error) = self
-            .runtime_adapter()
-            .persist_route(&record)
-            .and_then(|()| {
-                self.runtime_adapter().record_route_event(
-                    jacquard_core::RouteEvent::RouteMaterialized {
-                        handle: jacquard_core::RouteHandle {
-                            stamp: route.identity.stamp.clone(),
+            let input = self.materialization_input(route_id, &admission)?;
+            let route_id = *input.handle.route_id();
+            let installation = self
+                .engine_for_id_mut(&engine_id)?
+                .materialize_route(input.clone())?;
+            let route = MaterializedRoute::from_installation(input, installation);
+            let commitments = self.route_commitments_for(&route)?;
+            let record = RouterCheckpointRecord {
+                route: route.clone(),
+                commitments: commitments.clone(),
+            };
+            if let Err(error) = self
+                .runtime_adapter()
+                .persist_route(&record)
+                .and_then(|()| {
+                    self.runtime_adapter().record_route_event(
+                        jacquard_core::RouteEvent::RouteMaterialized {
+                            handle: jacquard_core::RouteHandle {
+                                stamp: route.identity.stamp.clone(),
+                            },
+                            proof: route.identity.proof.clone(),
                         },
-                        proof: route.identity.proof.clone(),
-                    },
-                )
-            })
-        {
-            self.engine_for_id_mut(&engine_id)?.teardown(&route_id);
-            return Err(error);
+                    )
+                })
+            {
+                self.engine_for_id_mut(&engine_id)?.teardown(&route_id);
+                return Err(error);
+            }
+            self.active_routes.insert(route_id, route.clone());
+            self.published_commitments.insert(route_id, commitments);
+            return Ok(route);
         }
-        self.active_routes.insert(route_id, route.clone());
-        self.published_commitments.insert(route_id, commitments);
-        Ok(route)
+        if let Some(reason) = first_inadmissible {
+            Err(RouteSelectionError::Inadmissible(reason).into())
+        } else {
+            Err(RouteSelectionError::NoCandidate.into())
+        }
     }
 
     pub fn activate_route_without_tick(

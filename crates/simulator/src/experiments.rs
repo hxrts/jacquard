@@ -4576,16 +4576,16 @@ fn build_comparison_partial_observability_bridge(
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
             vec![
-                comparison_host_spec(NODE_A, comparison_engine_set).with_field_bootstrap_summary(
-                    field_bootstrap_summary(
+                comparison_host_spec(NODE_A, comparison_engine_set)
+                    .with_profile(repairable_connected_profile())
+                    .with_field_bootstrap_summary(field_bootstrap_summary(
                         DestinationId::Node(NODE_D),
                         NODE_B,
                         900,
                         2,
                         3,
                         Some(860),
-                    ),
-                ),
+                    )),
                 comparison_host_spec(NODE_B, comparison_engine_set),
                 comparison_host_spec(NODE_C, comparison_engine_set),
                 comparison_host_spec(NODE_D, comparison_engine_set),
@@ -5302,12 +5302,13 @@ fn repairable_connected_profile() -> SelectedRoutingParameters {
 #[cfg(test)]
 mod tests {
     use super::{
+        build_comparison_bridge_transition, build_comparison_corridor_continuity_uncertainty,
         build_comparison_partial_observability_bridge, build_field_bridge_anti_entropy_continuity,
         build_field_service_freshness_inversion, build_field_service_overlap_reselection,
         build_field_service_publication_pressure, build_field_uncertain_service_fanout,
-        local_suite, run_suite, smoke_suite, ExperimentParameterSet,
+        local_suite, run_suite, smoke_suite, ExperimentParameterSet, SimulationSeed,
     };
-    use crate::ReducedReplayView;
+    use crate::{JacquardScenario, ReducedReplayView, ScriptedEnvironmentModel};
     use jacquard_core::{DestinationId, NodeId, ServiceId};
     use jacquard_pathway::PathwaySearchHeuristicMode;
 
@@ -5333,6 +5334,39 @@ mod tests {
         assert!(suite.run_count() > smoke_suite().run_count());
     }
 
+    fn assert_head_to_head_pathway_route_seen(
+        builder: fn(
+            &ExperimentParameterSet,
+            SimulationSeed,
+        ) -> (JacquardScenario, ScriptedEnvironmentModel),
+        label: &str,
+    ) {
+        let parameters = ExperimentParameterSet::head_to_head(
+            "pathway",
+            None,
+            Some((4, PathwaySearchHeuristicMode::HopLowerBound)),
+            None,
+        );
+        let (scenario, environment) = builder(&parameters, SimulationSeed(41));
+        let simulator = crate::JacquardSimulationHarness::new(crate::ReferenceClientAdapter);
+        let (replay, _stats) = simulator
+            .run(&scenario, &environment)
+            .unwrap_or_else(|error| panic!("run standalone pathway {label} scenario: {error}"));
+        let reduced = ReducedReplayView::from_replay(&replay);
+        let destination = DestinationId::Node(NodeId([4; 32]));
+
+        assert!(
+            reduced.route_seen(NodeId([1; 32]), &destination),
+            "expected standalone pathway route activation in {label}"
+        );
+        assert!(
+            !reduced
+                .route_present_rounds(NodeId([1; 32]), &destination)
+                .is_empty(),
+            "expected replay-visible standalone pathway route rounds in {label}"
+        );
+    }
+
     #[test]
     fn head_to_head_pathway_batman_partial_observability_falls_back_to_batman() {
         let parameters = ExperimentParameterSet::head_to_head(
@@ -5349,9 +5383,6 @@ mod tests {
         let (replay, _stats) = simulator
             .run(&scenario, &environment)
             .expect("run partial observability pathway+batman scenario");
-        for summary in &replay.failure_summaries {
-            eprintln!("failure: {}", summary.detail);
-        }
         let reduced = ReducedReplayView::from_replay(&replay);
         let destination = DestinationId::Node(NodeId([4; 32]));
 
@@ -5360,12 +5391,34 @@ mod tests {
             "expected hybrid pathway+batman route activation in partial observability scenario"
         );
         assert!(
-            replay.failure_summaries.iter().all(|summary| {
-                !summary
-                    .detail
-                    .contains("candidate was inadmissible: branching infeasible")
-            }),
-            "expected router to continue past inadmissible pathway candidates"
+            !reduced
+                .route_present_rounds(NodeId([1; 32]), &destination)
+                .is_empty(),
+            "expected at least one hybrid route-visible round after fallback"
+        );
+    }
+
+    #[test]
+    fn head_to_head_pathway_bridge_transition_activates() {
+        assert_head_to_head_pathway_route_seen(
+            build_comparison_bridge_transition,
+            "bridge transition",
+        );
+    }
+
+    #[test]
+    fn head_to_head_pathway_partial_observability_activates() {
+        assert_head_to_head_pathway_route_seen(
+            build_comparison_partial_observability_bridge,
+            "partial observability bridge",
+        );
+    }
+
+    #[test]
+    fn head_to_head_pathway_corridor_continuity_activates() {
+        assert_head_to_head_pathway_route_seen(
+            build_comparison_corridor_continuity_uncertainty,
+            "corridor continuity uncertainty",
         );
     }
 
@@ -5381,15 +5434,6 @@ mod tests {
         let (replay, _stats) = simulator
             .run(&scenario, &environment)
             .expect("run bridge anti-entropy scenario");
-        if replay
-            .failure_summaries
-            .iter()
-            .any(|summary| summary.detail.contains("objective activation failed"))
-        {
-            for summary in &replay.failure_summaries {
-                eprintln!("failure: {}", summary.detail);
-            }
-        }
         let any_route_present = replay.rounds.iter().any(|round| {
             round
                 .host_rounds
@@ -5433,15 +5477,6 @@ mod tests {
         let (replay, _stats) = simulator
             .run(&scenario, &environment)
             .expect("run field uncertain service scenario");
-        if replay
-            .failure_summaries
-            .iter()
-            .any(|summary| summary.detail.contains("objective activation failed"))
-        {
-            for summary in &replay.failure_summaries {
-                eprintln!("failure: {}", summary.detail);
-            }
-        }
         let any_route_present = replay.rounds.iter().any(|round| {
             round
                 .host_rounds

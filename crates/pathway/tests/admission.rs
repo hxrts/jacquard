@@ -9,16 +9,19 @@
 
 mod common;
 
+use std::collections::BTreeMap;
+
 use common::{
     engine::{build_engine, objective, objective_with_floor, profile, profile_with_connectivity},
-    fixtures::sample_configuration,
+    fixtures::{link, node, sample_configuration},
 };
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_traits::{
     jacquard_core::{
-        AdmissionDecision, Belief, ByteCount, DestinationId, Estimate, NodeId,
-        RouteAdmissionRejection, RouteError, RoutePartitionClass, RouteProtectionClass,
-        RouteRepairClass, RouteSelectionError, RouteServiceKind, Tick,
+        AdmissionDecision, Belief, ByteCount, Configuration, DestinationId, Environment, Estimate,
+        FactSourceClass, NodeId, Observation, OriginAuthenticationClass, RatioPermille,
+        RouteAdmissionRejection, RouteEpoch, RouteError, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, RouteSelectionError, RouteServiceKind, RoutingEvidenceClass, Tick,
     },
     RoutingEnginePlanner,
 };
@@ -37,6 +40,42 @@ fn keep_only_move_service(
     node.profile
         .services
         .retain(|service| service.service_kind == RouteServiceKind::Move);
+}
+
+fn bridge_chain_configuration() -> Observation<Configuration> {
+    let node_one = NodeId([1; 32]);
+    let node_two = NodeId([2; 32]);
+    let node_three = NodeId([3; 32]);
+    let node_four = NodeId([4; 32]);
+
+    Observation {
+        value: Configuration {
+            epoch: RouteEpoch(2),
+            nodes: BTreeMap::from([
+                (node_one, node(1)),
+                (node_two, node(2)),
+                (node_three, node(3)),
+                (node_four, node(4)),
+            ]),
+            links: BTreeMap::from([
+                ((node_one, node_two), link(2, 950)),
+                ((node_two, node_one), link(1, 900)),
+                ((node_two, node_three), link(3, 875)),
+                ((node_three, node_two), link(2, 850)),
+                ((node_three, node_four), link(4, 840)),
+                ((node_four, node_three), link(3, 820)),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 1,
+                churn_permille: RatioPermille(150),
+                contention_permille: RatioPermille(120),
+            },
+        },
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication: OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(2),
+    }
 }
 
 // A candidate produced by the pathway engine always carries LinkProtected
@@ -155,6 +194,32 @@ fn admit_route_accepts_best_effort_candidate_when_profile_matches() {
         admission.admission_check.decision,
         AdmissionDecision::Admissible
     ));
+}
+
+#[test]
+fn admit_route_accepts_bridge_chain_when_downstream_suffix_is_repairable() {
+    let engine = build_engine();
+    let topology = bridge_chain_configuration();
+    let goal = objective(DestinationId::Node(NodeId([4; 32])));
+    let policy = profile();
+
+    let candidate = engine
+        .candidate_routes(&goal, &policy, &topology)
+        .into_iter()
+        .next()
+        .expect("bridge-chain candidate should be produced");
+    let check = engine
+        .check_candidate(&goal, &policy, &candidate, &topology)
+        .expect("check_candidate should succeed on bridge chain");
+    assert_eq!(check.decision, AdmissionDecision::Admissible);
+
+    let admission = engine
+        .admit_route(&goal, &policy, candidate, &topology)
+        .expect("downstream-repairable bridge chain should be admissible");
+    assert_eq!(
+        admission.summary.connectivity.repair,
+        RouteRepairClass::Repairable
+    );
 }
 
 // Asking for partition tolerance against a direct route still exercises
