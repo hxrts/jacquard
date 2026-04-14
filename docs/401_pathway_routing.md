@@ -1,6 +1,6 @@
 # Pathway Routing
 
-`jacquard-pathway` is Jacquard's first-party routing-engine implementation. It consumes the shared world model from `jacquard-core` and implements the stable routing boundaries from `jacquard-traits`. Pathway-only heuristics, runtime caches, and repair state remain inside the pathway crate. Proactive engines such as Babel- or BATMAN-style implementations would remain separate routing-engine crates rather than changing pathway's explicit-path semantics.
+`jacquard-pathway` is Jacquard's first-party routing-engine implementation. It consumes the shared world model from `jacquard-core` and implements the stable routing boundaries from `jacquard-traits`. Pathway-only heuristics, runtime caches, and repair state remain inside the pathway crate. Proactive engines such as `babel`, `batman-bellman`, `batman-classic`, and `olsrv2` are separate routing-engine crates that do not change pathway's explicit-path semantics.
 
 ## Shared Inputs
 

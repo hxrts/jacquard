@@ -99,10 +99,16 @@ This advertisement is sufficient to reconstruct a topology graph. It does not en
 
 `merge_advertisements` folds learned advertisements into a copy of the current topology observation. It inserts synthesized `Link` entries for gossip-discovered edges not already present in the direct view. This produces a merged topology that may include nodes and links beyond the local one-hop view.
 
-`refresh_private_state` then runs Bellman-Ford on this merged topology to compute `(path_tq, hop_count)` from each direct neighbor to every reachable originator. The local routing decision uses this path TQ as the second factor:
+`refresh_private_state` then runs Bellman-Ford on this merged topology to compute `(path_tq, hop_count)` from each direct neighbor to every reachable originator. When a receive window exists for the `(originator, neighbor)` pair, the local routing decision uses three factors:
 
 ```text
-observation_tq = tq_product(tq_product(local_link_tq, bellman_ford_path_tq), receive_quality)
+steady_state_tq = tq_product(tq_product(local_link_tq, bellman_ford_path_tq), receive_quality)
+```
+
+When no receive window exists (bootstrap), the decision uses two factors:
+
+```text
+bootstrap_tq = tq_product(local_link_tq, bellman_ford_path_tq)
 ```
 
 This substitutes a deterministic local computation for the spec's distributed OGM-propagated TQ. The computation is reproducible from the topology snapshot. The spec's TQ reflects whatever the neighborhood has recently observed.
@@ -126,7 +132,9 @@ The final TQ is the integer average over all contributing terms. With no beliefs
 
 ### Bootstrap Shortcut
 
-In `derive_originator_observations`, if no receive-window data exists at all, the engine uses the Bellman-Ford path TQ directly in place of the receive quality. On tick 1, before any OGMs have been received, the engine produces routing candidates from topology-derived path quality. The spec produces no candidates until receive-window data has accumulated.
+In `derive_originator_observations`, if no receive-window data exists for a specific `(originator, via_neighbor)` pair, the engine uses the Bellman-Ford path TQ directly as the combined TQ: `bootstrap_tq = tq_product(local_link_tq, path_tq)`. This is a two-factor formula. Once a receive window exists for that pair, the engine switches to the standard three-factor formula: `tq = tq_product(tq_product(local_link_tq, path_tq), receive_quality)`.
+
+The bootstrap check is per-originator-per-neighbor. Receiving an OGM for one originator does not disable bootstrap for other originators that have not yet accumulated window data. On tick 1, before any OGMs have been received, the engine produces routing candidates from topology-derived path quality for all reachable destinations. The spec produces no candidates until receive-window data has accumulated.
 
 ---
 
@@ -224,7 +232,7 @@ One minor deviation exists. The re-broadcast TQ uses `ogm_equivalent_tq(LinkRunt
 | TTL | Absent. OGMs propagate without hop-count bounds. | OGMs circulate for as long as advertisements remain within the staleness window. The spec's propagation depth control is lost. |
 | TQ enrichment | Delivery confidence, symmetry, transfer rate, stability averaged into TQ. | TQ reflects richer signal quality than packet counts alone. No BATMAN protocol equivalent. |
 | Bidirectionality | Echo window with topology fallback. | Routes are available on tick 1. The engine admits paths the spec would withhold until echo confirmation. |
-| Bootstrap | Path TQ used in place of window quality when no windows exist. | Routing candidates are produced on tick 1. The spec produces no candidates until receive-window data has accumulated. |
+| Bootstrap | Per-originator-per-neighbor: path TQ used as combined TQ (two factors) when no window exists for that pair. | Routing candidates are produced on tick 1. Receiving OGMs for one destination does not disable bootstrap for others. The spec produces no candidates until receive-window data has accumulated. |
 | Full topology reconstruction | `merge_advertisements` builds a complete adjacency graph. | The implementation behaves closer to a link-state protocol than a pure DV-gossip protocol. Path computation is centralized and explicit rather than implicit in the OGM flood. |
 
 ### Classic as Babel Comparison
@@ -239,9 +247,9 @@ Babel addresses three gaps relative to classic BATMAN:
 
 Comparing classic batman against Babel measures what each mechanism contributes independently. Comparing the enhanced engine against Babel conflates the Bellman-Ford and topology-enrichment changes with the DV-gossip differences, making performance attribution unreliable.
 
-### Enhanced as OLSR Comparison
+### Enhanced as OLSRv2 Comparison
 
-The enhanced engine is the correct baseline when comparing against OLSR (RFC 7181). Both use local shortest-path computation over a topology database distributed by gossip. The primary structural difference is TC messages with MPR election versus OGM flooding.
+The enhanced engine is the correct baseline when comparing against OLSRv2 (`jacquard-olsrv2`). Both use local shortest-path computation over a topology database distributed by gossip. The primary structural difference is TC messages with MPR election versus OGM flooding.
 
 The enhanced engine also exhibits the partition-recovery weakness that OLSR directly addresses. The receive window used as `receive_quality` is the same window used to gate bidirectionality. Both indicators require the full window span to recover when a partition clears, which delays route restoration compared to OLSR's explicit TC-flood response to topology changes.
 
