@@ -1,6 +1,6 @@
 # Babel Routing
 
-`jacquard-babel` (engine ID `jacquard.babel..`) implements the Babel distance-vector routing protocol as described in RFC 8966. It uses bidirectional ETX link cost, additive path metric, and a feasibility distance table for loop-free route selection. This is the third distance-vector engine in Jacquard, alongside `jacquard-batman-bellman` and `jacquard-batman-classic`.
+`jacquard-babel` (engine ID `jacquard.babel..`) implements the Babel distance-vector routing protocol as described in RFC 8966. It uses bidirectional ETX link cost, additive path metric, and a feasibility distance table for loop-free route selection.
 
 ## Protocol Overview
 
@@ -98,7 +98,7 @@ This differs from batman-classic, which re-broadcasts all received OGMs. Babel's
 
 `DecayWindow` governs route entry freshness. The default marks entries stale after 8 ticks and expects the next refresh within 4 ticks. Both parameters are configurable via `BabelEngine::with_decay_window`. Stale entries are pruned during each refresh pass before route selection.
 
-The decay window is identical in shape to the one used by both batman engines. All three engines accept `with_decay_window` at construction for tuning.
+The decay window is identical in shape to the one used by the batman engines. All distance-vector engines accept `with_decay_window` at construction for tuning.
 
 ## Quality Scoring
 
@@ -114,7 +114,7 @@ Planning, admission, and route lifecycle follow the shared contract used by all 
 
 ## Capabilities
 
-The Babel engine declares the same capability envelope as both batman engines:
+The Babel engine declares the same capability envelope as the batman engines:
 
 | Capability | Value |
 |---|---|
