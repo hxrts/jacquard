@@ -129,13 +129,31 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
                     network.clone(),
                     topology.observed_at_tick,
                 ),
+                EngineLane::OlsrV2 => ClientBuilder::olsrv2(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
                 EngineLane::PathwayAndBabel => ClientBuilder::pathway_and_babel(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
                     topology.observed_at_tick,
                 ),
+                EngineLane::PathwayAndOlsrV2 => ClientBuilder::pathway_and_olsrv2(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
                 EngineLane::BabelAndBatmanBellman => ClientBuilder::babel_and_batman_bellman(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
+                EngineLane::OlsrV2AndBatmanBellman => ClientBuilder::olsrv2_and_batman_bellman(
                     host.local_node_id,
                     topology.clone(),
                     network.clone(),
@@ -156,6 +174,9 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
             }
             if let Some(babel_decay_window) = host.overrides.babel_decay_window {
                 builder = builder.with_babel_decay_window(babel_decay_window);
+            }
+            if let Some(olsrv2_decay_window) = host.overrides.olsrv2_decay_window {
+                builder = builder.with_olsrv2_decay_window(olsrv2_decay_window);
             }
             if let Some(pathway_search_config) = host.overrides.pathway_search_config.clone() {
                 builder = builder.with_pathway_search_config(pathway_search_config);

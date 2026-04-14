@@ -24,14 +24,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(0);
         let run_dir = base.join(format!("{timestamp}"));
         std::fs::create_dir_all(&run_dir).expect("create analysis output directory");
-        let latest = base.join("latest");
-        // Remove existing symlink or directory named "latest"
-        if latest.is_symlink() || latest.exists() {
-            let _ = std::fs::remove_file(&latest);
-            let _ = std::fs::remove_dir_all(&latest);
-        }
-        #[cfg(unix)]
-        std::os::unix::fs::symlink(format!("{timestamp}"), &latest).expect("create latest symlink");
         run_dir
     });
 
@@ -46,6 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 artifacts.manifest.boundary_count,
                 artifacts.output_dir.display()
             );
+            update_latest_symlink(&output_dir);
         }
         "diffusion-smoke" => {
             let artifacts = run_diffusion_suite(&diffusion_smoke_suite(), &output_dir)?;
@@ -57,13 +50,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 artifacts.manifest.boundary_count,
                 artifacts.output_dir.display()
             );
+            update_latest_symlink(&output_dir);
         }
-        "local" | "smoke" => {
-            let suite = if suite == "local" {
-                tuning_local_suite()
-            } else {
-                tuning_smoke_suite()
-            };
+        "local" => {
+            let suite = tuning_local_suite();
             let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
             let artifacts = run_tuning_suite(&mut simulator, &suite, &output_dir)?;
             println!(
@@ -88,7 +78,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 diffusion_artifacts.manifest.boundary_count,
                 diffusion_artifacts.output_dir.display()
             );
+            update_latest_symlink(&output_dir);
             run_analysis_report(&output_dir);
+        }
+        "smoke" => {
+            let suite = tuning_smoke_suite();
+            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+            let artifacts = run_tuning_suite(&mut simulator, &suite, &output_dir)?;
+            println!(
+                "Tuning suite '{}' wrote {} runs, {} aggregates, {} breakdowns to {}",
+                artifacts.manifest.suite_id,
+                artifacts.manifest.run_count,
+                artifacts.manifest.aggregate_count,
+                artifacts.manifest.breakdown_count,
+                artifacts.output_dir.display()
+            );
+            let diffusion_artifacts = run_diffusion_suite(&diffusion_smoke_suite(), &output_dir)?;
+            println!(
+                "Diffusion suite '{}' wrote {} runs, {} aggregates, {} boundaries to {}",
+                diffusion_artifacts.manifest.suite_id,
+                diffusion_artifacts.manifest.run_count,
+                diffusion_artifacts.manifest.aggregate_count,
+                diffusion_artifacts.manifest.boundary_count,
+                diffusion_artifacts.output_dir.display()
+            );
+            remove_report_dir(&output_dir);
+            update_latest_symlink(&output_dir);
         }
         _ => {
             let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
@@ -101,7 +116,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 artifacts.manifest.breakdown_count,
                 artifacts.output_dir.display()
             );
-            run_analysis_report(&output_dir);
+            remove_report_dir(&output_dir);
+            update_latest_symlink(&output_dir);
         }
     }
     Ok(())
@@ -137,5 +153,35 @@ fn run_analysis_report(artifact_dir: &PathBuf) {
             s.code().unwrap_or(-1)
         ),
         Err(e) => eprintln!("warning: could not run analysis report: {e}"),
+    }
+}
+
+fn update_latest_symlink(output_dir: &PathBuf) {
+    let Some(base) = output_dir.parent() else {
+        return;
+    };
+    let Some(run_name) = output_dir.file_name() else {
+        return;
+    };
+    let latest = base.join("latest");
+    if latest.is_symlink() || latest.exists() {
+        let _ = std::fs::remove_file(&latest);
+        let _ = std::fs::remove_dir_all(&latest);
+    }
+    #[cfg(unix)]
+    {
+        if let Err(error) = std::os::unix::fs::symlink(run_name, &latest) {
+            eprintln!(
+                "warning: could not update latest symlink at {}: {error}",
+                latest.display()
+            );
+        }
+    }
+}
+
+fn remove_report_dir(output_dir: &PathBuf) {
+    let report_dir = output_dir.join("report");
+    if report_dir.exists() {
+        let _ = std::fs::remove_dir_all(report_dir);
     }
 }

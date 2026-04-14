@@ -684,6 +684,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-olsrv2"
+version = "0.4.0"
+dependencies = [
+ "bincode",
+ "jacquard-adapter",
+ "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
+ "jacquard-router",
+ "jacquard-traits",
+ "serde",
+]
+
+[[package]]
 name = "jacquard-pathway"
 version = "0.4.0"
 dependencies = [
@@ -710,6 +724,7 @@ dependencies = [
  "jacquard-field",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
+ "jacquard-olsrv2",
  "jacquard-pathway",
  "jacquard-router",
  "jacquard-traits",
@@ -742,6 +757,7 @@ dependencies = [
  "jacquard-core",
  "jacquard-field",
  "jacquard-mem-link-profile",
+ "jacquard-olsrv2",
  "jacquard-pathway",
  "jacquard-reference-client",
  "jacquard-router",

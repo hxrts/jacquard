@@ -55,7 +55,9 @@ from .tables import (
     comparison_table_rows,
     diffusion_boundary_table_rows,
     diffusion_engine_comparison_table_rows,
+    diffusion_regime_engine_summary_table_rows,
     diffusion_engine_summary_table_rows,
+    field_vs_best_diffusion_alternative_table_rows,
     field_diffusion_regime_table_rows,
     field_profile_table_rows,
     field_routing_regime_table_rows,
@@ -330,6 +332,7 @@ def make_table(column_labels: list[str], rows: list[list[str]], styles, col_widt
 def write_pdf_report(
     artifact_dir: Path,
     report_dir: Path,
+    pdf_path: Path,
     recommendations,
     profile_recommendations,
     field_profile_recommendations,
@@ -340,15 +343,17 @@ def write_pdf_report(
     comparison_summary,
     head_to_head_summary,
     diffusion_engine_summary,
+    diffusion_regime_engine_summary,
     diffusion_engine_comparison,
     diffusion_boundary_summary,
     field_diffusion_regime_calibration,
+    field_vs_best_diffusion_alternative,
     baseline_comparison,
     baseline_dir,
 ) -> None:
     styles = build_styles()
     doc = SimpleDocTemplate(
-        str(report_dir / "report.pdf"),
+        str(pdf_path),
         pagesize=A4,
         leftMargin=2.2 * cm,
         rightMargin=2.2 * cm,
@@ -747,6 +752,44 @@ def write_pdf_report(
         story.append(Paragraph("Part IV. Diffusion Engine Comparison", styles["Section"]))
         story.append(Paragraph("12. Diffusion Engine Comparison", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Analysis Introduction"))
+        story.append(Spacer(1, 0.18 * cm))
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("Diffusion Regime Comparison", styles["Subsection"]),
+                    *(
+                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
+                         for line in asset_block("Diffusion Regime Comparison", "table").lines]
+                    ),
+                    make_table(
+                        ["Regime", "Engine Set", "Delivery", "Coverage", "Cluster Cov.", "Tx", "State", "Score"],
+                        diffusion_regime_engine_summary_table_rows(diffusion_regime_engine_summary),
+                        styles,
+                        [1.6 * cm, 4.0 * cm, 1.4 * cm, 1.4 * cm, 1.9 * cm, 1.1 * cm, 1.6 * cm, 1.4 * cm],
+                    ),
+                ]
+            )
+        )
+        story.append(Spacer(1, 0.18 * cm))
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("Field Vs Best Alternative", styles["Subsection"]),
+                    *(
+                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
+                         for line in asset_block("Field Vs Best Alternative", "table").lines]
+                    ),
+                    make_table(
+                        ["Regime", "Field", "OK", "State", "Alternative", "Alt State", "dDel", "dCov", "dClus", "dTx", "dScore"],
+                        field_vs_best_diffusion_alternative_table_rows(
+                            field_vs_best_diffusion_alternative
+                        ),
+                        styles,
+                        [1.5 * cm, 3.0 * cm, 0.8 * cm, 1.3 * cm, 3.0 * cm, 1.5 * cm, 1.0 * cm, 1.0 * cm, 1.1 * cm, 0.9 * cm, 1.1 * cm],
+                    ),
+                ]
+            )
+        )
         story.append(Spacer(1, 0.18 * cm))
         story.append(
             KeepTogether(

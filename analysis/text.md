@@ -6,9 +6,9 @@
 
 This report studies Jacquard routing behavior across five engines, `batman-bellman`, `batman-classic`, `babel`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
 
-The goal is to understand where each engine works cleanly, where it begins to degrade, what kinds of failures appear first, and how the engines compare under the same network regimes. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
+The goal is to understand where each engine works cleanly, where it begins to degrade, what kinds of failures appear first, and compare engines under the same network regimes. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
 
-The document is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles separately from live-route routing. Part IV evaluates the calibrated profiles under message-diffusion scenarios where mobility is the transport and end-to-end paths may not exist.
+The document is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles. Part IV evaluates these calibrated profiles under message-diffusion scenarios where mobility is the transport and end-to-end paths may not exist.
 
 ## Part I. Tuning
 
@@ -109,6 +109,8 @@ The recommendation score rewards settings that activate routes reliably, maintai
 
 Profile-specific recommendations allow different operational priorities. Conservative profiles weight stability and failure avoidance more heavily, while aggressive or service-heavy profiles tolerate more risk.
 
+`field` is now calibrated on two surfaces in Part I: the generic route-visible recommendation surface and a separate regime-specific surface that explicitly scores corridor continuity, bootstrap upgrade quality, service continuity, and transition health.
+
 When several nearby settings score about the same, the report prefers the middle of the acceptable range.
 
 #### Profile Recommendation Logic
@@ -134,6 +136,14 @@ This table treats Field lifecycle behavior as a tuning output in its own right.
 Column guide: Profile names the continuity objective; Score is the profile-weighted value; Route is average route presence; Shifts is mean continuation-shift count; Carry is mean service carry-forward volume; Narrow is mean corridor-narrow count; Degraded is mean degraded-steady occupancy.
 
 Interpretation guide: `field-stable-service` favors limited disruption; `field-low-churn` pushes harder against unnecessary movement; `field-broad-reselection` preserves more alternate branches and accepts more shifts; `field-conservative-publication` favors earlier narrowing and less corridor breadth.
+
+#### Field Regime Calibration
+
+@table field-routing-regime-calibration
+
+This table calibrates `field` against regime-specific success criteria rather than only one flat route-visible recommendation score.
+
+Column guide: Regime names the field-specific operating regime; Success Criteria states what the calibration is trying to optimize in that regime; Configuration is the best-scoring field setting for that regime; Route is mean route presence; Transition is the transition-health score; Shifts is mean continuation-shift count; Carry is mean service carry-forward volume; Stress is the highest stress envelope represented by the regime rows.
 
 ## Part II. Analysis
 
@@ -277,6 +287,8 @@ No head-to-head summary is available for this artifact set.
 
 Routing calibration and diffusion calibration use different objectives and should not be merged. Routing optimizes for activation, route presence, and recovery. Diffusion optimizes for eventual delivery, boundedness, latency, energy, and leakage.
 
+For `field`, diffusion calibration also now uses regime-specific success criteria: continuity families reward protected bridge-budget preservation and corridor persistence, scarcity families reward early conservative transition plus lower generic spread and expensive transport use, congestion families reward timely transition from cluster seeding into duplicate suppression without starving first-arrival cluster coverage, and privacy families reward lower observer leakage.
+
 The maintained diffusion families are:
 
 - `random-waypoint-sanity`: lightweight baseline with mixed movers.
@@ -302,19 +314,39 @@ Best-performing engine set per maintained diffusion family. Column guide: Engine
 
 Where each engine set stays viable and where it first collapses or becomes explosive. Column guide: Viable Families, First Collapse, First Explosive.
 
+### Field Diffusion Regime Calibration
+
+@table field-diffusion-regime-calibration
+
+This table calibrates `field` on its own diffusion success surface instead of only asking whether the generic cross-engine score liked it.
+
+Column guide: Regime names the diffusion posture regime; Success Criteria states what `field` is supposed to optimize there; Configuration is the accepted field diffusion profile for that regime, or an explicit no-acceptable-candidate marker if every field candidate still fails; Posture is the dominant field posture; State is the dominant boundedness class; Transition summarizes either the posture transition count or the first scarcity / congestion transition round; Delivery is mean delivery success; Tx is mean transmission count; Fit is the regime-specific field fitness score. The CSV export also includes protected-budget use, bridge-opportunity capture, cluster-seeding use, coverage-starvation counts, and deterministic suppression counts for the winning profile or best attempt.
+
 ## Part IV. Diffusion Engine Comparison
 
 ### Diffusion Analysis Introduction
 
 This part evaluates the calibrated profiles directly. The emphasis shifts from admissibility to how the engines differ when diffusion itself is the comparison surface.
 
-The conservative distance-vector stacks remain viable longer. `field` and `pathway` trade stronger opportunism for earlier energy-bound explosiveness. The combined `pathway-batman-bellman` stack over-publishes earliest in the hard boundedness regimes.
+The comparison surface here is regime-aware rather than purely family-by-family. Continuity, scarcity, congestion, privacy, and balanced regimes reward different behaviors, so the first summary table reports the best engine set per regime before the full family matrix.
+
+### Diffusion Regime Comparison
+
+@table diffusion-regime-engine-summary
+
+Best-performing engine set per diffusion regime. Column guide: Regime, Engine Set, Delivery, Coverage, Cluster Cov. (target-cluster coverage), Tx, State, Score.
+
+### Field Vs Best Alternative
+
+@table field-vs-best-diffusion-alternative
+
+Best field candidate per diffusion regime against the best non-field alternative under the same regime-aware comparison score. Column guide: Field is the best field attempt, OK reports whether that attempt cleared the field-specific acceptability gate, State / Alt State are boundedness modes, `dDel` / `dCov` / `dClus` are field-minus-alternative delivery, coverage, and target-cluster coverage deltas, `dTx` is transmission delta, and `dScore` is regime-score delta. Negative `dTx` is good for field.
 
 ### Diffusion Engine Comparison
 
 @table diffusion-engine-comparison
 
-Full maintained diffusion engine surface. Column guide: Family, Engine Set, Delivery, Coverage, Tx (transmission count), `R_est` (boundedness signal), State (boundedness classification).
+Full maintained diffusion engine surface. Column guide: Family, Engine Set, Delivery, Coverage, Tx (transmission count), `R_est` (boundedness signal), State (boundedness classification). Use this table to inspect family-level exceptions after the regime summary above.
 
 ### Diffusion Figure Context
 
@@ -334,18 +366,18 @@ Transmission load and boundedness by engine set.
 
 ### Diffusion Takeaways
 
-- The diffusion track is an engine comparison, not a generic policy sweep.
-- The main result is boundedness separation: `batman-classic`, `batman-bellman`, and `babel` stay viable across nine families, while `field` and `pathway` first go explosive in `energy-starved-relay`, and `pathway-batman-bellman` goes explosive as early as `partitioned-clusters`.
-- The conservative stacks are strongest when scarce relays and bounded forwarding matter most.
-- The harsher families are boundary finders: `bridge-drought` tests rare-opportunity carry, `energy-starved-relay` tests efficiency under scarcity, `congestion-cascade` tests whether broad forwarding remains bounded.
+- The diffusion track is an engine comparison, but the regime summary is the right top-level view because continuity, scarcity, congestion, and privacy reward different tradeoffs.
+- The conservative stacks are still strongest when scarce relays and bounded forwarding matter most.
+- `field` now shows clearer regime specialization, but the calibration surface also fails closed when all field congestion candidates are still unacceptable.
+- The harsher families are still boundary finders: `bridge-drought` tests rare-opportunity carry, `energy-starved-relay` tests efficiency under scarcity, and `congestion-cascade` tests whether broad forwarding remains bounded without starving first-arrival cluster coverage.
 
 ### Field Diffusion Posture
 
 The artifact set exposes posture-aware `field` diffusion behavior:
 
-- In `bridge-drought`, `field` ends with dominant posture `{bridge_drought_posture}` after {bridge_drought_transitions} posture transitions.
-- In `energy-starved-relay`, `field` ends with dominant posture `{energy_starved_posture}` and first enters scarcity-conservative behavior at round {energy_starved_first_scarcity}.
-- In `congestion-cascade`, `field` ends with dominant posture `{congestion_posture}` and first enters congestion-suppressed behavior at round {congestion_first_transition}.
+- In `bridge-drought`, `field` ends with dominant posture `{bridge_drought_posture}` after {bridge_drought_transitions} posture transitions, using {bridge_drought_protected_budget} protected budget units and converting {bridge_drought_bridge_use} of {bridge_drought_bridge_opportunities} protected bridge opportunities.
+- In `energy-starved-relay`, `field` ends with dominant posture `{energy_starved_posture}`, first enters scarcity-conservative behavior at round {energy_starved_first_scarcity}, and suppresses {energy_starved_expensive_suppressions} expensive transport attempts.
+- In `congestion-cascade`, `field` ends with dominant posture `{congestion_posture}`, first enters congestion control at round {congestion_first_transition}, seeds {congestion_cluster_seed_uses} first-arrival cluster transfers, records {congestion_cluster_starvation} cluster-coverage starvation events, and records {congestion_redundant_suppressions} redundant-forward suppressions plus {congestion_same_cluster_suppressions} same-cluster suppressions.
 
 ### Data-Driven Templates
 
@@ -519,7 +551,7 @@ The recommendation chooses the lowest stable floor rather than spending more sea
 
 #### Recommendation Rationale Field 1
 
-The Field recommendation is driven by corridor continuity, bootstrap upgrade behavior, and reconfiguration cost together.
+The Field recommendation is driven by corridor continuity, bootstrap upgrade behavior, and reconfiguration cost together. When route presence is effectively tied, the default choice should favor lower-churn corridor management rather than broader reselection.
 
 #### Recommendation Rationale Field 2
 
@@ -527,7 +559,7 @@ Measured continuity profile for `{config_id}`: bootstrap activation {activation}
 
 #### Recommendation Rationale Field 3
 
-The Field configurations are close in top-line route presence. The continuity profile table is the better place to choose between lower-churn and broader-reselection behavior.
+The Field configurations are close in top-line route presence. The continuity profile table is the better place to choose between lower-churn and broader-reselection behavior, and low-churn continuity should remain the default surface unless a regime explicitly needs broader reselection.
 
 #### Recommendation Rationale Field 4
 

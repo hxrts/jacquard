@@ -37,9 +37,13 @@ from .scoring import (
     boundary_summary_table,
     comparison_summary_table,
     diffusion_boundary_table,
+    diffusion_regime_engine_summary_table,
     diffusion_engine_comparison_table,
     diffusion_engine_summary_table,
+    field_vs_best_diffusion_alternative_table,
+    field_diffusion_regime_calibration_table,
     field_profile_recommendation_table,
+    field_routing_regime_calibration_table,
     head_to_head_summary_table,
     profile_recommendation_table,
     recommendation_table,
@@ -56,8 +60,11 @@ def main(argv: list[str] | None = None) -> int:
 
     artifact_dir = Path(argv[0]).resolve()
     report_dir = artifact_dir / "report"
+    pdf_path = artifact_dir / "report.pdf"
     ensure_dir(report_dir)
     cleanup_report_dir(report_dir)
+    if pdf_path.exists():
+        pdf_path.unlink()
 
     runs = load_ndjson(artifact_dir / "runs.jsonl")
     aggregates = load_json_array(artifact_dir / "aggregates.json")
@@ -72,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
     recommendations = recommendation_table(aggregates, breakdowns)
     profile_recommendations = profile_recommendation_table(aggregates, breakdowns)
     field_profile_recommendations = field_profile_recommendation_table(aggregates, breakdowns)
+    field_routing_regime_calibration = field_routing_regime_calibration_table(aggregates)
     transition_metrics = transition_metrics_table(runs, recommendations)
     boundary_summary = boundary_summary_table(recommendations, breakdowns)
     baseline_comparison, baseline_dir = baseline_comparison_table(
@@ -80,8 +88,17 @@ def main(argv: list[str] | None = None) -> int:
     comparison_summary = comparison_summary_table(aggregates)
     head_to_head_summary = head_to_head_summary_table(aggregates)
     diffusion_engine_summary = diffusion_engine_summary_table(diffusion_aggregates)
+    diffusion_regime_engine_summary = diffusion_regime_engine_summary_table(
+        diffusion_aggregates
+    )
     diffusion_engine_comparison = diffusion_engine_comparison_table(diffusion_aggregates)
     diffusion_boundary_summary = diffusion_boundary_table(diffusion_boundaries)
+    field_diffusion_regime_calibration = field_diffusion_regime_calibration_table(
+        diffusion_aggregates
+    )
+    field_vs_best_diffusion_alternative = field_vs_best_diffusion_alternative_table(
+        diffusion_aggregates, field_diffusion_regime_calibration
+    )
 
     write_csv(runs, report_dir / "runs.csv")
     write_csv(aggregates, report_dir / "aggregates.csv")
@@ -91,6 +108,10 @@ def main(argv: list[str] | None = None) -> int:
     write_csv(
         field_profile_recommendations,
         report_dir / "field_profile_recommendations.csv",
+    )
+    write_csv(
+        field_routing_regime_calibration,
+        report_dir / "field_routing_regime_calibration.csv",
     )
     write_csv(transition_metrics, report_dir / "transition_metrics.csv")
     write_csv(boundary_summary, report_dir / "boundary_summary.csv")
@@ -102,10 +123,22 @@ def main(argv: list[str] | None = None) -> int:
     write_csv(diffusion_boundaries, report_dir / "diffusion_boundaries.csv")
     write_csv(diffusion_engine_summary, report_dir / "diffusion_engine_summary.csv")
     write_csv(
+        diffusion_regime_engine_summary,
+        report_dir / "diffusion_regime_engine_summary.csv",
+    )
+    write_csv(
         diffusion_engine_comparison,
         report_dir / "diffusion_engine_comparison.csv",
     )
     write_csv(diffusion_boundary_summary, report_dir / "diffusion_boundary_summary.csv")
+    write_csv(
+        field_diffusion_regime_calibration,
+        report_dir / "field_diffusion_regime_calibration.csv",
+    )
+    write_csv(
+        field_vs_best_diffusion_alternative,
+        report_dir / "field_vs_best_diffusion_alternative.csv",
+    )
     write_recommendations(report_dir / "recommendations.md", recommendations)
 
     save_plot_artifact(
@@ -197,17 +230,22 @@ def main(argv: list[str] | None = None) -> int:
     write_pdf_report(
         artifact_dir,
         report_dir,
+        pdf_path,
         recommendations,
         profile_recommendations,
         field_profile_recommendations,
+        field_routing_regime_calibration,
         transition_metrics,
         boundary_summary,
         aggregates,
         comparison_summary,
         head_to_head_summary,
         diffusion_engine_summary,
+        diffusion_regime_engine_summary,
         diffusion_engine_comparison,
         diffusion_boundary_summary,
+        field_diffusion_regime_calibration,
+        field_vs_best_diffusion_alternative,
         baseline_comparison,
         baseline_dir,
     )

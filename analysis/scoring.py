@@ -524,19 +524,19 @@ def _field_diffusion_success_criteria_expr() -> pl.Expr:
         pl.when(pl.col("field_regime") == "continuity")
         .then(
             pl.lit(
-                "stay continuity-biased long enough to exploit rare opportunities without overspread"
+                "preserve protected bridge budget long enough to exploit rare continuity opportunities without overspread"
             )
         )
         .when(pl.col("field_regime") == "scarcity")
         .then(
             pl.lit(
-                "enter scarcity early enough to cut energy and spread pressure before explosiveness"
+                "enter scarcity early and cut generic spread, expensive transport use, and energy before explosiveness"
             )
         )
         .when(pl.col("field_regime") == "congestion")
         .then(
             pl.lit(
-                "enter congestion suppression early enough to bound redundant spread"
+                "enter congestion suppression early enough to bound redundant spread with deterministic suppression memory"
             )
         )
         .when(pl.col("field_regime") == "privacy")
@@ -549,6 +549,20 @@ def _field_diffusion_success_criteria_expr() -> pl.Expr:
     )
 
 
+def _field_diffusion_config_family_expr() -> pl.Expr:
+    return (
+        pl.when(pl.col("config_id").str.starts_with("field-continuity"))
+        .then(pl.lit("continuity"))
+        .when(pl.col("config_id").str.starts_with("field-scarcity"))
+        .then(pl.lit("scarcity"))
+        .when(pl.col("config_id").str.starts_with("field-congestion"))
+        .then(pl.lit("congestion"))
+        .when(pl.col("config_id").str.starts_with("field-privacy"))
+        .then(pl.lit("privacy"))
+        .otherwise(pl.lit("balanced"))
+    )
+
+
 def _field_diffusion_regime_match_bonus_expr() -> pl.Expr:
     return (
         pl.when(
@@ -557,47 +571,44 @@ def _field_diffusion_regime_match_bonus_expr() -> pl.Expr:
         .then(40.0)
         .when(
             (pl.col("field_regime") == "continuity")
-            & (pl.col("config_id") == "field-continuity")
+            & pl.col("config_id").str.starts_with("field-continuity")
         )
         .then(40.0)
         .when(
             (pl.col("field_regime") == "scarcity")
-            & (pl.col("config_id") == "field-scarcity")
+            & pl.col("config_id").str.starts_with("field-scarcity")
         )
         .then(40.0)
         .when(
             (pl.col("field_regime") == "congestion")
-            & (pl.col("config_id") == "field-congestion")
+            & pl.col("config_id").str.starts_with("field-congestion")
         )
         .then(40.0)
         .when(
             (pl.col("field_regime") == "privacy")
-            & (pl.col("config_id") == "field-privacy")
+            & pl.col("config_id").str.starts_with("field-privacy")
         )
         .then(40.0)
         .otherwise(0.0)
     )
 
 
-def field_diffusion_regime_calibration_table(
-    diffusion_aggregates: pl.DataFrame,
+def _grouped_diffusion_regime_candidates(
+    diffusion_aggregates: pl.DataFrame, regime_column: str
 ) -> pl.DataFrame:
-    if diffusion_aggregates.is_empty():
-        return pl.DataFrame()
-    field_rows = diffusion_aggregates.filter(
-        pl.col("config_id").str.starts_with("field")
-    ).with_columns(_field_diffusion_regime_expr().alias("field_regime"))
-    grouped = field_rows.group_by("field_regime", "config_id").agg(
+    return diffusion_aggregates.with_columns(
+        _field_diffusion_regime_expr().alias(regime_column)
+    ).group_by(regime_column, "config_id").agg(
         pl.col("field_posture_mode").drop_nulls().mode().first().alias("field_posture_mode"),
         pl.col("delivery_probability_permille_mean").mean().alias("delivery_probability_mean"),
         pl.col("coverage_permille_mean").mean().alias("coverage_mean"),
+        pl.col("cluster_coverage_permille_mean").mean().alias("cluster_coverage_mean"),
+        pl.col("delivery_latency_rounds_mean").mean().alias("delivery_latency_mean"),
         pl.col("total_transmissions_mean").mean().alias("total_transmissions_mean"),
         pl.col("energy_per_delivered_message_mean").mean().alias(
             "energy_per_delivered_message_mean"
         ),
-        pl.col("storage_utilization_permille_mean").mean().alias(
-            "storage_utilization_mean"
-        ),
+        pl.col("storage_utilization_permille_mean").mean().alias("storage_utilization_mean"),
         pl.col("estimated_reproduction_permille_mean").mean().alias(
             "estimated_reproduction_mean"
         ),
@@ -614,48 +625,184 @@ def field_diffusion_regime_calibration_table(
         pl.col("field_first_congestion_transition_round_mean").mean().alias(
             "first_congestion_transition_round_mean"
         ),
+        pl.col("field_protected_budget_used_mean").mean().alias("protected_budget_used_mean"),
+        pl.col("field_generic_budget_used_mean").mean().alias("generic_budget_used_mean"),
+        pl.col("field_bridge_opportunity_count_mean").mean().alias(
+            "bridge_opportunity_count_mean"
+        ),
+        pl.col("field_protected_bridge_usage_count_mean").mean().alias(
+            "protected_bridge_usage_count_mean"
+        ),
+        pl.col("field_cluster_seed_opportunity_count_mean").mean().alias(
+            "cluster_seed_opportunity_count_mean"
+        ),
+        pl.col("field_cluster_seed_usage_count_mean").mean().alias(
+            "cluster_seed_usage_count_mean"
+        ),
+        pl.col("field_cluster_coverage_starvation_count_mean").mean().alias(
+            "cluster_coverage_starvation_count_mean"
+        ),
+        pl.col("field_redundant_forward_suppression_count_mean").mean().alias(
+            "redundant_forward_suppression_count_mean"
+        ),
+        pl.col("field_same_cluster_suppression_count_mean").mean().alias(
+            "same_cluster_suppression_count_mean"
+        ),
+        pl.col("field_expensive_transport_suppression_count_mean").mean().alias(
+            "expensive_transport_suppression_count_mean"
+        ),
+        pl.col("field_cluster_seeding_rounds_mean").mean().alias(
+            "cluster_seeding_rounds_mean"
+        ),
+        pl.col("field_duplicate_suppressed_rounds_mean").mean().alias(
+            "duplicate_suppressed_rounds_mean"
+        ),
         pl.col("bounded_state_mode").drop_nulls().mode().first().alias("bounded_state_mode"),
     )
+
+
+def _regime_scored_diffusion_candidates(diffusion_aggregates: pl.DataFrame) -> pl.DataFrame:
+    if diffusion_aggregates.is_empty():
+        return pl.DataFrame()
+    grouped = _grouped_diffusion_regime_candidates(diffusion_aggregates, "diffusion_regime")
+    return grouped.with_columns(
+        (
+            pl.when(pl.col("diffusion_regime") == "continuity")
+            .then(
+                pl.col("delivery_probability_mean") * 0.95
+                + pl.col("coverage_mean") * 0.35
+                + pl.col("cluster_coverage_mean") * 0.25
+                + pl.col("corridor_persistence_mean") * 0.25
+                - pl.col("total_transmissions_mean") * 8.0
+                - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.08
+            )
+            .when(pl.col("diffusion_regime") == "scarcity")
+            .then(
+                pl.col("delivery_probability_mean") * 0.9
+                + pl.col("coverage_mean") * 0.25
+                - pl.col("total_transmissions_mean") * 14.0
+                - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.35
+                - pl.col("storage_utilization_mean") * 0.2
+                - pl.col("estimated_reproduction_mean") * 0.15
+            )
+            .when(pl.col("diffusion_regime") == "congestion")
+            .then(
+                pl.col("delivery_probability_mean") * 0.55
+                + pl.col("coverage_mean") * 0.2
+                + pl.col("cluster_coverage_mean") * 1.0
+                - pl.col("total_transmissions_mean") * 10.0
+                - pl.col("storage_utilization_mean") * 0.18
+                - pl.col("estimated_reproduction_mean") * 0.18
+            )
+            .when(pl.col("diffusion_regime") == "privacy")
+            .then(
+                pl.col("delivery_probability_mean") * 0.9
+                + pl.col("coverage_mean") * 0.25
+                - pl.col("observer_leakage_mean") * 1.5
+                - pl.col("total_transmissions_mean") * 6.0
+            )
+            .otherwise(
+                pl.col("delivery_probability_mean") * 0.95
+                + pl.col("coverage_mean") * 0.4
+                + pl.col("cluster_coverage_mean") * 0.2
+                - pl.col("total_transmissions_mean") * 8.0
+                - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.1
+                - pl.col("observer_leakage_mean") * 0.3
+            )
+            - pl.when(pl.col("bounded_state_mode") == "explosive").then(420.0).otherwise(0.0)
+            - pl.when(pl.col("bounded_state_mode") == "collapse").then(520.0).otherwise(0.0)
+        ).alias("regime_score")
+    )
+
+
+def field_diffusion_regime_calibration_table(
+    diffusion_aggregates: pl.DataFrame,
+) -> pl.DataFrame:
+    if diffusion_aggregates.is_empty():
+        return pl.DataFrame()
+    grouped = _grouped_diffusion_regime_candidates(
+        diffusion_aggregates.filter(pl.col("config_id").str.starts_with("field")),
+        "field_regime",
+    ).with_columns(_field_diffusion_config_family_expr().alias("config_family"))
     scored = grouped.with_columns(
+        pl.when(pl.col("bridge_opportunity_count_mean") > 0)
+        .then(
+            pl.col("protected_bridge_usage_count_mean")
+            * 1000.0
+            / pl.col("bridge_opportunity_count_mean")
+        )
+        .otherwise(0.0)
+        .alias("bridge_capture_ratio")
+    ).with_columns(
         (
             pl.when(pl.col("field_regime") == "continuity")
             .then(
                 pl.col("delivery_probability_mean") * 1.0
                 + pl.col("coverage_mean") * 0.4
                 + pl.col("corridor_persistence_mean") * 0.45
-                - pl.col("total_transmissions_mean") * 8.0
+                + pl.col("bridge_capture_ratio") * 0.12
+                + pl.col("protected_budget_used_mean") * 18.0
+                - pl.col("total_transmissions_mean") * 9.0
                 - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.05
+                - pl.col("generic_budget_used_mean") * 12.0
                 - pl.when(pl.col("field_posture_mode") == "continuity_biased")
                 .then(0.0)
                 .otherwise(140.0)
-                - pl.col("field_posture_transition_count_mean") * 20.0
+                - pl.when(pl.col("config_family") == "continuity")
+                .then(0.0)
+                .otherwise(120.0)
+                - pl.col("field_posture_transition_count_mean") * 24.0
+                - pl.when(pl.col("bounded_state_mode") == "explosive").then(320.0).otherwise(0.0)
+                - pl.when(pl.col("bounded_state_mode") == "collapse").then(420.0).otherwise(0.0)
             )
             .when(pl.col("field_regime") == "scarcity")
             .then(
-                pl.col("delivery_probability_mean") * 0.85
+                pl.col("delivery_probability_mean") * 0.9
                 + pl.col("coverage_mean") * 0.3
-                - pl.col("total_transmissions_mean") * 18.0
-                - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.35
+                - pl.col("total_transmissions_mean") * 16.0
+                - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.42
                 - pl.col("storage_utilization_mean") * 0.35
                 - pl.col("estimated_reproduction_mean") * 0.22
+                - pl.col("generic_budget_used_mean") * 34.0
+                + pl.col("same_cluster_suppression_count_mean").clip(0.0, 20.0) * 12.0
+                + pl.col("expensive_transport_suppression_count_mean").clip(0.0, 12.0) * 18.0
                 - pl.when(pl.col("field_posture_mode") == "scarcity_conservative")
                 .then(0.0)
                 .otherwise(180.0)
-                - pl.col("first_scarcity_transition_round_mean").fill_null(20) * 10.0
-                - pl.when(pl.col("bounded_state_mode") == "explosive").then(320.0).otherwise(0.0)
+                - pl.when(pl.col("config_family") == "scarcity")
+                .then(0.0)
+                .otherwise(120.0)
+                - pl.col("first_scarcity_transition_round_mean").fill_null(20) * 18.0
+                - pl.when(pl.col("bounded_state_mode") == "explosive").then(380.0).otherwise(0.0)
+                - pl.when(pl.col("bounded_state_mode") == "collapse").then(520.0).otherwise(0.0)
             )
             .when(pl.col("field_regime") == "congestion")
             .then(
-                pl.col("delivery_probability_mean") * 0.7
-                + pl.col("coverage_mean") * 0.4
-                - pl.col("total_transmissions_mean") * 16.0
+                pl.col("delivery_probability_mean") * 0.78
+                + pl.col("coverage_mean") * 0.2
+                + pl.col("cluster_coverage_mean") * 0.95
+                - pl.col("total_transmissions_mean") * 15.0
                 - pl.col("storage_utilization_mean") * 0.42
-                - pl.col("estimated_reproduction_mean") * 0.28
-                - pl.when(pl.col("field_posture_mode") == "congestion_suppressed")
+                - pl.col("estimated_reproduction_mean") * 0.3
+                - pl.col("generic_budget_used_mean") * 20.0
+                + pl.col("cluster_seed_usage_count_mean").clip(0.0, 8.0) * 24.0
+                - pl.col("cluster_coverage_starvation_count_mean").clip(0.0, 12.0) * 32.0
+                + pl.col("redundant_forward_suppression_count_mean").clip(0.0, 40.0) * 4.0
+                + pl.col("same_cluster_suppression_count_mean").clip(0.0, 20.0) * 6.0
+                - pl.when(
+                    pl.col("field_posture_mode").is_in(
+                        ["cluster_seeding", "duplicate_suppressed"]
+                    )
+                )
                 .then(0.0)
                 .otherwise(180.0)
-                - pl.col("first_congestion_transition_round_mean").fill_null(20) * 12.0
-                - pl.when(pl.col("bounded_state_mode") == "explosive").then(320.0).otherwise(0.0)
+                - pl.when(pl.col("config_family") == "congestion")
+                .then(0.0)
+                .otherwise(120.0)
+                - pl.col("first_congestion_transition_round_mean").fill_null(20) * 16.0
+                - pl.when(pl.col("duplicate_suppressed_rounds_mean") <= 0).then(160.0).otherwise(0.0)
+                - pl.when(pl.col("bounded_state_mode") == "explosive").then(380.0).otherwise(0.0)
+                - pl.when(pl.col("bounded_state_mode") == "collapse").then(620.0).otherwise(0.0)
             )
             .when(pl.col("field_regime") == "privacy")
             .then(
@@ -663,9 +810,13 @@ def field_diffusion_regime_calibration_table(
                 + pl.col("coverage_mean") * 0.3
                 - pl.col("observer_leakage_mean") * 1.2
                 - pl.col("total_transmissions_mean") * 8.0
+                + pl.col("expensive_transport_suppression_count_mean") * 8.0
                 - pl.when(pl.col("field_posture_mode") == "privacy_conservative")
                 .then(0.0)
                 .otherwise(120.0)
+                - pl.when(pl.col("config_family") == "privacy")
+                .then(0.0)
+                .otherwise(90.0)
             )
             .otherwise(
                 pl.col("delivery_probability_mean") * 0.9
@@ -673,56 +824,119 @@ def field_diffusion_regime_calibration_table(
                 - pl.col("total_transmissions_mean") * 9.0
                 - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.12
                 - pl.col("observer_leakage_mean") * 0.4
+                - pl.col("generic_budget_used_mean") * 8.0
                 - pl.when(pl.col("field_posture_mode") == "balanced")
                 .then(0.0)
                 .otherwise(80.0)
             )
             + _field_diffusion_regime_match_bonus_expr()
         ).alias("regime_fit_score")
+    ).with_columns(
+        pl.when(pl.col("field_regime") == "congestion")
+        .then(
+            (pl.col("bounded_state_mode") == "viable")
+            & (pl.col("cluster_seed_usage_count_mean") > 0)
+            & (pl.col("cluster_coverage_mean") >= 500.0)
+            & (pl.col("cluster_coverage_starvation_count_mean") <= 6.0)
+        )
+        .otherwise(
+            (pl.col("bounded_state_mode") != "collapse")
+            & (pl.col("regime_fit_score") > 0.0)
+        )
+        .alias("acceptable_candidate")
     )
-    return (
-        scored.sort(
-            ["field_regime", "regime_fit_score", "config_id"],
-            descending=[False, True, False],
-        )
-        .group_by("field_regime")
-        .agg(
-            pl.first("config_id").alias("config_id"),
-            pl.first("field_posture_mode").alias("field_posture_mode"),
-            pl.first("delivery_probability_mean").alias("delivery_probability_mean"),
-            pl.first("coverage_mean").alias("coverage_mean"),
-            pl.first("total_transmissions_mean").alias("total_transmissions_mean"),
-            pl.first("observer_leakage_mean").alias("observer_leakage_mean"),
-            pl.first("bounded_state_mode").alias("bounded_state_mode"),
-            pl.first("field_posture_transition_count_mean").alias(
-                "field_posture_transition_count_mean"
-            ),
-            pl.first("first_scarcity_transition_round_mean").alias(
-                "first_scarcity_transition_round_mean"
-            ),
-            pl.first("first_congestion_transition_round_mean").alias(
-                "first_congestion_transition_round_mean"
-            ),
-            pl.first("regime_fit_score").alias("regime_fit_score"),
-        )
-        .with_columns(_field_diffusion_success_criteria_expr().alias("success_criteria"))
-        .select(
-            "field_regime",
-            "success_criteria",
-            "config_id",
-            "field_posture_mode",
-            "delivery_probability_mean",
-            "coverage_mean",
-            "total_transmissions_mean",
-            "observer_leakage_mean",
-            "bounded_state_mode",
-            "field_posture_transition_count_mean",
-            "first_scarcity_transition_round_mean",
-            "first_congestion_transition_round_mean",
-            "regime_fit_score",
-        )
-        .sort("field_regime")
+    ranked = scored.sort(
+        ["field_regime", "acceptable_candidate", "regime_fit_score", "config_id"],
+        descending=[False, True, True, False],
     )
+    selected = ranked.group_by("field_regime").agg(
+        pl.first("config_id").alias("best_attempt_config_id"),
+        pl.first("acceptable_candidate").alias("acceptable_candidate"),
+        pl.first("field_posture_mode").alias("field_posture_mode"),
+        pl.first("delivery_probability_mean").alias("delivery_probability_mean"),
+        pl.first("coverage_mean").alias("coverage_mean"),
+        pl.first("cluster_coverage_mean").alias("cluster_coverage_mean"),
+        pl.first("total_transmissions_mean").alias("total_transmissions_mean"),
+        pl.first("observer_leakage_mean").alias("observer_leakage_mean"),
+        pl.first("bounded_state_mode").alias("bounded_state_mode"),
+        pl.first("field_posture_transition_count_mean").alias(
+            "field_posture_transition_count_mean"
+        ),
+        pl.first("first_scarcity_transition_round_mean").alias(
+            "first_scarcity_transition_round_mean"
+        ),
+        pl.first("first_congestion_transition_round_mean").alias(
+            "first_congestion_transition_round_mean"
+        ),
+        pl.first("protected_budget_used_mean").alias("protected_budget_used_mean"),
+        pl.first("generic_budget_used_mean").alias("generic_budget_used_mean"),
+        pl.first("bridge_opportunity_count_mean").alias("bridge_opportunity_count_mean"),
+        pl.first("protected_bridge_usage_count_mean").alias(
+            "protected_bridge_usage_count_mean"
+        ),
+        pl.first("cluster_seed_opportunity_count_mean").alias(
+            "cluster_seed_opportunity_count_mean"
+        ),
+        pl.first("cluster_seed_usage_count_mean").alias("cluster_seed_usage_count_mean"),
+        pl.first("cluster_coverage_starvation_count_mean").alias(
+            "cluster_coverage_starvation_count_mean"
+        ),
+        pl.first("cluster_seeding_rounds_mean").alias("cluster_seeding_rounds_mean"),
+        pl.first("duplicate_suppressed_rounds_mean").alias(
+            "duplicate_suppressed_rounds_mean"
+        ),
+        pl.first("redundant_forward_suppression_count_mean").alias(
+            "redundant_forward_suppression_count_mean"
+        ),
+        pl.first("same_cluster_suppression_count_mean").alias(
+            "same_cluster_suppression_count_mean"
+        ),
+        pl.first("expensive_transport_suppression_count_mean").alias(
+            "expensive_transport_suppression_count_mean"
+        ),
+        pl.first("regime_fit_score").alias("regime_fit_score"),
+    )
+    return selected.with_columns(
+        _field_diffusion_success_criteria_expr().alias("success_criteria"),
+        pl.when(pl.col("acceptable_candidate"))
+        .then(pl.col("best_attempt_config_id"))
+        .otherwise(pl.lit("no-acceptable-field-candidate"))
+        .alias("config_id"),
+        pl.when(pl.col("acceptable_candidate"))
+        .then(pl.lit("accepted"))
+        .otherwise(pl.lit("no acceptable field candidate"))
+        .alias("selection_status"),
+    ).select(
+        "field_regime",
+        "success_criteria",
+        "selection_status",
+        "acceptable_candidate",
+        "config_id",
+        "best_attempt_config_id",
+        "field_posture_mode",
+        "delivery_probability_mean",
+        "coverage_mean",
+        "cluster_coverage_mean",
+        "total_transmissions_mean",
+        "observer_leakage_mean",
+        "bounded_state_mode",
+        "field_posture_transition_count_mean",
+        "first_scarcity_transition_round_mean",
+        "first_congestion_transition_round_mean",
+        "protected_budget_used_mean",
+        "generic_budget_used_mean",
+        "bridge_opportunity_count_mean",
+        "protected_bridge_usage_count_mean",
+        "cluster_seed_opportunity_count_mean",
+        "cluster_seed_usage_count_mean",
+        "cluster_coverage_starvation_count_mean",
+        "cluster_seeding_rounds_mean",
+        "duplicate_suppressed_rounds_mean",
+        "redundant_forward_suppression_count_mean",
+        "same_cluster_suppression_count_mean",
+        "expensive_transport_suppression_count_mean",
+        "regime_fit_score",
+    ).sort("field_regime")
 
 
 def leading_recommendation_configs(
@@ -1010,6 +1224,7 @@ def diffusion_engine_summary_table(diffusion_aggregates: pl.DataFrame) -> pl.Dat
         (
             pl.col("delivery_probability_permille_mean") * 1.0
             + pl.col("coverage_permille_mean") * 0.6
+            + pl.col("cluster_coverage_permille_mean") * 0.35
             + pl.col("corridor_persistence_permille_mean") * 0.15
             - pl.col("delivery_latency_rounds_mean").fill_null(0) * 16.0
             - pl.col("total_transmissions_mean") * 10.0
@@ -1034,6 +1249,7 @@ def diffusion_engine_summary_table(diffusion_aggregates: pl.DataFrame) -> pl.Dat
             pl.first("stress_score").alias("stress_score"),
             pl.first("delivery_probability_permille_mean").alias("delivery_probability_permille_mean"),
             pl.first("coverage_permille_mean").alias("coverage_permille_mean"),
+            pl.first("cluster_coverage_permille_mean").alias("cluster_coverage_permille_mean"),
             pl.first("delivery_latency_rounds_mean").alias("delivery_latency_rounds_mean"),
             pl.first("total_transmissions_mean").alias("total_transmissions_mean"),
             pl.first("energy_per_delivered_message_mean").alias("energy_per_delivered_message_mean"),
@@ -1053,6 +1269,7 @@ def diffusion_engine_comparison_table(diffusion_aggregates: pl.DataFrame) -> pl.
         (
             pl.col("delivery_probability_permille_mean") * 1.0
             + pl.col("coverage_permille_mean") * 0.6
+            + pl.col("cluster_coverage_permille_mean") * 0.35
             + pl.col("corridor_persistence_permille_mean") * 0.15
             - pl.col("delivery_latency_rounds_mean").fill_null(0) * 16.0
             - pl.col("total_transmissions_mean") * 10.0
@@ -1064,6 +1281,122 @@ def diffusion_engine_comparison_table(diffusion_aggregates: pl.DataFrame) -> pl.
             - pl.when(pl.col("bounded_state_mode") == "collapse").then(220.0).otherwise(0.0)
         ).alias("score")
     ).sort(["family_id", "score", "config_id"], descending=[False, True, False])
+
+
+def diffusion_regime_engine_summary_table(
+    diffusion_aggregates: pl.DataFrame,
+) -> pl.DataFrame:
+    if diffusion_aggregates.is_empty():
+        return pl.DataFrame()
+    scored = _regime_scored_diffusion_candidates(diffusion_aggregates)
+    return (
+        scored.sort(
+            ["diffusion_regime", "regime_score", "config_id"],
+            descending=[False, True, False],
+        )
+        .group_by("diffusion_regime")
+        .agg(
+            pl.first("config_id").alias("config_id"),
+            pl.first("delivery_probability_mean").alias("delivery_probability_mean"),
+            pl.first("coverage_mean").alias("coverage_mean"),
+            pl.first("cluster_coverage_mean").alias("cluster_coverage_mean"),
+            pl.first("total_transmissions_mean").alias("total_transmissions_mean"),
+            pl.first("observer_leakage_mean").alias("observer_leakage_mean"),
+            pl.first("bounded_state_mode").alias("bounded_state_mode"),
+            pl.first("regime_score").alias("regime_score"),
+        )
+        .sort("diffusion_regime")
+    )
+
+
+def field_vs_best_diffusion_alternative_table(
+    diffusion_aggregates: pl.DataFrame,
+    field_diffusion_regime_calibration: pl.DataFrame,
+) -> pl.DataFrame:
+    if diffusion_aggregates.is_empty() or field_diffusion_regime_calibration.is_empty():
+        return pl.DataFrame()
+    scored = _regime_scored_diffusion_candidates(diffusion_aggregates)
+    alternatives = (
+        scored.filter(~pl.col("config_id").str.starts_with("field"))
+        .sort(
+            ["diffusion_regime", "regime_score", "config_id"],
+            descending=[False, True, False],
+        )
+        .group_by("diffusion_regime")
+        .agg(
+            pl.first("config_id").alias("alternative_config_id"),
+            pl.first("delivery_probability_mean").alias("alternative_delivery_mean"),
+            pl.first("coverage_mean").alias("alternative_coverage_mean"),
+            pl.first("cluster_coverage_mean").alias("alternative_cluster_coverage_mean"),
+            pl.first("total_transmissions_mean").alias("alternative_total_transmissions_mean"),
+            pl.first("observer_leakage_mean").alias("alternative_observer_leakage_mean"),
+            pl.first("bounded_state_mode").alias("alternative_bounded_state_mode"),
+            pl.first("regime_score").alias("alternative_regime_score"),
+        )
+    )
+    field_candidates = (
+        scored.filter(pl.col("config_id").str.starts_with("field"))
+        .rename(
+            {
+                "diffusion_regime": "field_regime",
+                "config_id": "field_candidate_config_id",
+                "delivery_probability_mean": "field_candidate_delivery_mean",
+                "coverage_mean": "field_candidate_coverage_mean",
+                "cluster_coverage_mean": "field_candidate_cluster_coverage_mean",
+                "total_transmissions_mean": "field_candidate_total_transmissions_mean",
+                "observer_leakage_mean": "field_candidate_observer_leakage_mean",
+                "bounded_state_mode": "field_candidate_bounded_state_mode",
+                "regime_score": "field_candidate_regime_score",
+            }
+        )
+    )
+    calibration = field_diffusion_regime_calibration.join(
+        field_candidates,
+        left_on=["field_regime", "best_attempt_config_id"],
+        right_on=["field_regime", "field_candidate_config_id"],
+        how="left",
+    )
+    return calibration.join(
+        alternatives,
+        left_on="field_regime",
+        right_on="diffusion_regime",
+        how="left",
+    ).with_columns(
+        (pl.col("field_candidate_delivery_mean") - pl.col("alternative_delivery_mean"))
+        .round(1)
+        .alias("delivery_delta"),
+        (pl.col("field_candidate_coverage_mean") - pl.col("alternative_coverage_mean"))
+        .round(1)
+        .alias("coverage_delta"),
+        (
+            pl.col("field_candidate_cluster_coverage_mean")
+            - pl.col("alternative_cluster_coverage_mean")
+        )
+        .round(1)
+        .alias("cluster_coverage_delta"),
+        (
+            pl.col("field_candidate_total_transmissions_mean")
+            - pl.col("alternative_total_transmissions_mean")
+        )
+        .round(1)
+        .alias("tx_delta"),
+        (pl.col("field_candidate_regime_score") - pl.col("alternative_regime_score"))
+        .round(1)
+        .alias("regime_score_delta"),
+    ).select(
+        "field_regime",
+        "selection_status",
+        "acceptable_candidate",
+        "best_attempt_config_id",
+        "field_candidate_bounded_state_mode",
+        "alternative_config_id",
+        "alternative_bounded_state_mode",
+        "delivery_delta",
+        "coverage_delta",
+        "cluster_coverage_delta",
+        "tx_delta",
+        "regime_score_delta",
+    ).sort("field_regime")
 
 
 def diffusion_boundary_table(diffusion_boundaries: pl.DataFrame) -> pl.DataFrame:

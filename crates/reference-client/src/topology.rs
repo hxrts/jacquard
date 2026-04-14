@@ -16,6 +16,7 @@ use jacquard_core::{
 use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
+use jacquard_olsrv2::OLSRV2_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 
 // Stable WifiAware endpoint keyed by a single byte — used as a compact,
@@ -83,6 +84,11 @@ impl TopologyNodePreset {
     }
 
     #[must_use]
+    pub fn olsrv2(self) -> Self {
+        self.for_engine(&OLSRV2_ENGINE_ID)
+    }
+
+    #[must_use]
     pub fn pathway_and_batman_bellman(self) -> Self {
         self.for_engines(&[PATHWAY_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
     }
@@ -95,6 +101,16 @@ impl TopologyNodePreset {
     #[must_use]
     pub fn babel_and_batman_bellman(self) -> Self {
         self.for_engines(&[BABEL_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
+    }
+
+    #[must_use]
+    pub fn pathway_and_olsrv2(self) -> Self {
+        self.for_engines(&[PATHWAY_ENGINE_ID, OLSRV2_ENGINE_ID])
+    }
+
+    #[must_use]
+    pub fn olsrv2_and_batman_bellman(self) -> Self {
+        self.for_engines(&[OLSRV2_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
     }
 
     #[must_use]

@@ -12,6 +12,7 @@ members = [
   "crates/macros",
   "crates/mem-link-profile",
   "crates/mem-node-profile",
+  "crates/olsrv2",
   "crates/pathway",
   "crates/reference-client",
   "crates/router",

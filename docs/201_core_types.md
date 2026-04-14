@@ -53,7 +53,7 @@ This group of types shows two important boundaries. `NodeBinding` says who contr
 
 `Configuration` is the shared graph-shaped world object the router reasons about. It wires together `Node`, `Link`, and `Environment`. World extensions emit `Observation<ObservedValue>` items that contribute to that picture.
 
-Pathway-specific peer or neighborhood heuristics do not live here. Novelty scoring, bridge detection, reach estimation, and similar derived pathway signals stay behind the pathway trait boundary as engine-owned estimate types. `core` carries the world facts those heuristics are computed from, not the heuristics themselves.
+Engine-specific heuristics do not live here. Novelty scoring, bridge detection, reach estimation, feasibility distances, and similar derived signals stay behind the engine trait boundary as engine-owned estimate types. `core` carries the world facts those heuristics are computed from, not the heuristics themselves.
 
 ## Route Lifecycle Objects
 

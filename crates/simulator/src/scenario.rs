@@ -7,6 +7,7 @@ use jacquard_core::{
 };
 use jacquard_core::{DestinationId, Tick};
 use jacquard_field::{FieldForwardSummaryObservation, FieldSearchConfig};
+use jacquard_olsrv2::DecayWindow as OlsrV2DecayWindow;
 use jacquard_pathway::PathwaySearchConfig;
 use jacquard_traits::RoutingScenario;
 
@@ -16,10 +17,13 @@ pub enum EngineLane {
     BatmanBellman,
     BatmanClassic,
     Babel,
+    OlsrV2,
     Field,
     PathwayAndBatmanBellman,
     PathwayAndBabel,
+    PathwayAndOlsrV2,
     BabelAndBatmanBellman,
+    OlsrV2AndBatmanBellman,
     PathwayAndField,
     FieldAndBatmanBellman,
     AllEngines,
@@ -39,6 +43,7 @@ pub struct HostOverrides {
     pub batman_bellman_decay_window: Option<DecayWindow>,
     pub batman_classic_decay_window: Option<ClassicDecayWindow>,
     pub babel_decay_window: Option<BabelDecayWindow>,
+    pub olsrv2_decay_window: Option<OlsrV2DecayWindow>,
     pub pathway_search_config: Option<PathwaySearchConfig>,
     pub field_search_config: Option<FieldSearchConfig>,
     pub field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
@@ -112,6 +117,15 @@ impl HostSpec {
     }
 
     #[must_use]
+    pub fn olsrv2(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::OlsrV2,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
     pub fn field(local_node_id: NodeId) -> Self {
         Self {
             local_node_id,
@@ -139,10 +153,28 @@ impl HostSpec {
     }
 
     #[must_use]
+    pub fn pathway_and_olsrv2(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::PathwayAndOlsrV2,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
     pub fn babel_and_batman_bellman(local_node_id: NodeId) -> Self {
         Self {
             local_node_id,
             lane: EngineLane::BabelAndBatmanBellman,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn olsrv2_and_batman_bellman(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::OlsrV2AndBatmanBellman,
             overrides: HostOverrides::default(),
         }
     }
@@ -207,6 +239,12 @@ impl HostSpec {
     #[must_use]
     pub fn with_babel_decay_window(mut self, babel_decay_window: BabelDecayWindow) -> Self {
         self.overrides.babel_decay_window = Some(babel_decay_window);
+        self
+    }
+
+    #[must_use]
+    pub fn with_olsrv2_decay_window(mut self, olsrv2_decay_window: OlsrV2DecayWindow) -> Self {
+        self.overrides.olsrv2_decay_window = Some(olsrv2_decay_window);
         self
     }
 

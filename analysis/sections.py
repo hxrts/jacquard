@@ -225,6 +225,71 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
     )
 
 
+def diffusion_field_posture_lines(diffusion_engine_comparison: pl.DataFrame) -> list[str]:
+    if diffusion_engine_comparison.is_empty():
+        return []
+    field_rows = diffusion_engine_comparison.filter(
+        pl.col("config_id").str.starts_with("field")
+    )
+    bridge = (
+        field_rows.filter(pl.col("family_id") == "diffusion-bridge-drought")
+        .sort("score", descending=True)
+        .head(1)
+    )
+    energy = (
+        field_rows.filter(pl.col("family_id") == "diffusion-energy-starved-relay")
+        .sort("score", descending=True)
+        .head(1)
+    )
+    congestion = (
+        field_rows.filter(pl.col("family_id") == "diffusion-congestion-cascade")
+        .sort("score", descending=True)
+        .head(1)
+    )
+    if bridge.is_empty() or energy.is_empty() or congestion.is_empty():
+        return []
+    bridge_row = bridge.iter_rows(named=True).__next__()
+    energy_row = energy.iter_rows(named=True).__next__()
+    congestion_row = congestion.iter_rows(named=True).__next__()
+    return section_lines_formatted(
+        "Field Diffusion Posture",
+        bridge_drought_posture=bridge_row.get("field_posture_mode") or "none",
+        bridge_drought_transitions=bridge_row.get("field_posture_transition_count_mean") or 0,
+        bridge_drought_protected_budget=bridge_row.get("field_protected_budget_used_mean") or 0,
+        bridge_drought_bridge_use=bridge_row.get("field_protected_bridge_usage_count_mean") or 0,
+        bridge_drought_bridge_opportunities=bridge_row.get("field_bridge_opportunity_count_mean")
+        or 0,
+        energy_starved_posture=energy_row.get("field_posture_mode") or "none",
+        energy_starved_first_scarcity=energy_row.get("field_first_scarcity_transition_round_mean")
+        if energy_row.get("field_first_scarcity_transition_round_mean") is not None
+        else "-",
+        energy_starved_expensive_suppressions=energy_row.get(
+            "field_expensive_transport_suppression_count_mean"
+        )
+        or 0,
+        congestion_posture=congestion_row.get("field_posture_mode") or "none",
+        congestion_first_transition=congestion_row.get("field_first_congestion_transition_round_mean")
+        if congestion_row.get("field_first_congestion_transition_round_mean") is not None
+        else "-",
+        congestion_cluster_seed_uses=congestion_row.get(
+            "field_cluster_seed_usage_count_mean"
+        )
+        or 0,
+        congestion_cluster_starvation=congestion_row.get(
+            "field_cluster_coverage_starvation_count_mean"
+        )
+        or 0,
+        congestion_redundant_suppressions=congestion_row.get(
+            "field_redundant_forward_suppression_count_mean"
+        )
+        or 0,
+        congestion_same_cluster_suppressions=congestion_row.get(
+            "field_same_cluster_suppression_count_mean"
+        )
+        or 0,
+    )
+
+
 def pressure_findings_lines(aggregates: pl.DataFrame) -> list[str]:
     lines: list[str] = []
     batman_bellman_pressure = aggregates.filter(

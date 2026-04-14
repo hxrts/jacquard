@@ -17,6 +17,7 @@ use jacquard_field::{FieldEngine, FieldForwardSummaryObservation, FieldSearchCon
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
 };
+use jacquard_olsrv2::{DecayWindow as OlsrV2DecayWindow, OlsrV2Engine};
 use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine, PathwaySearchConfig};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::Blake3Hashing;
@@ -47,6 +48,7 @@ pub struct ClientBuilder {
     policy_inputs: Option<RoutingPolicyInputs>,
     batman_bellman_decay_window: Option<DecayWindow>,
     batman_classic_decay_window: Option<ClassicDecayWindow>,
+    olsrv2_decay_window: Option<OlsrV2DecayWindow>,
     pathway_search_config: Option<PathwaySearchConfig>,
     field_search_config: Option<FieldSearchConfig>,
     field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
@@ -55,6 +57,7 @@ pub struct ClientBuilder {
     include_pathway: bool,
     include_batman_bellman: bool,
     include_batman_classic: bool,
+    include_olsrv2: bool,
     include_babel: bool,
     include_field: bool,
 }
@@ -67,6 +70,7 @@ impl ClientBuilder {
         now: Tick,
         include_pathway: bool,
         include_batman_bellman: bool,
+        include_olsrv2: bool,
         include_babel: bool,
         include_field: bool,
     ) -> Self {
@@ -79,12 +83,14 @@ impl ClientBuilder {
                 include_pathway,
                 include_batman_bellman,
                 false, // include_batman_classic set after construction
+                include_olsrv2,
                 include_babel,
                 include_field,
             ),
             policy_inputs: None,
             batman_bellman_decay_window: None,
             batman_classic_decay_window: None,
+            olsrv2_decay_window: None,
             babel_decay_window: None,
             pathway_search_config: None,
             field_search_config: None,
@@ -93,6 +99,7 @@ impl ClientBuilder {
             include_pathway,
             include_batman_bellman,
             include_batman_classic: false,
+            include_olsrv2,
             include_babel,
             include_field,
         }
@@ -111,6 +118,7 @@ impl ClientBuilder {
             network,
             now,
             true,
+            false,
             false,
             false,
             false,
@@ -133,6 +141,7 @@ impl ClientBuilder {
             true,
             false,
             false,
+            false,
         )
     }
 
@@ -148,6 +157,7 @@ impl ClientBuilder {
             topology,
             network,
             now,
+            false,
             false,
             false,
             false,
@@ -172,6 +182,7 @@ impl ClientBuilder {
             now,
             false,
             false,
+            false,
             true,
             false,
         )
@@ -192,7 +203,28 @@ impl ClientBuilder {
             false,
             false,
             false,
+            false,
             true,
+        )
+    }
+
+    #[must_use]
+    pub fn olsrv2(
+        local_node_id: NodeId,
+        topology: Observation<Configuration>,
+        network: SharedInMemoryNetwork,
+        now: Tick,
+    ) -> Self {
+        Self::with_engine_set(
+            local_node_id,
+            topology,
+            network,
+            now,
+            false,
+            false,
+            true,
+            false,
+            false,
         )
     }
 
@@ -295,8 +327,34 @@ impl ClientBuilder {
     }
 
     #[must_use]
+    pub fn pathway_and_olsrv2(
+        local_node_id: NodeId,
+        topology: Observation<Configuration>,
+        network: SharedInMemoryNetwork,
+        now: Tick,
+    ) -> Self {
+        Self::pathway(local_node_id, topology, network, now).with_olsrv2()
+    }
+
+    #[must_use]
+    pub fn olsrv2_and_batman_bellman(
+        local_node_id: NodeId,
+        topology: Observation<Configuration>,
+        network: SharedInMemoryNetwork,
+        now: Tick,
+    ) -> Self {
+        Self::olsrv2(local_node_id, topology, network, now).with_batman_bellman()
+    }
+
+    #[must_use]
     pub fn with_batman_bellman_decay_window(mut self, decay_window: DecayWindow) -> Self {
         self.batman_bellman_decay_window = Some(decay_window);
+        self
+    }
+
+    #[must_use]
+    pub fn with_olsrv2_decay_window(mut self, decay_window: OlsrV2DecayWindow) -> Self {
+        self.olsrv2_decay_window = Some(decay_window);
         self
     }
 
@@ -327,6 +385,12 @@ impl ClientBuilder {
     #[must_use]
     pub fn with_babel(mut self) -> Self {
         self.include_babel = true;
+        self
+    }
+
+    #[must_use]
+    pub fn with_olsrv2(mut self) -> Self {
+        self.include_olsrv2 = true;
         self
     }
 
@@ -455,6 +519,32 @@ impl ClientBuilder {
             router
                 .register_engine(Box::new(babel_engine))
                 .expect("register babel engine");
+        }
+
+        if self.include_olsrv2 {
+            let olsrv2_engine = if let Some(decay_window) = self.olsrv2_decay_window {
+                OlsrV2Engine::with_decay_window(
+                    self.local_node_id,
+                    transport.sender(),
+                    InMemoryRuntimeEffects {
+                        now: self.now,
+                        ..Default::default()
+                    },
+                    decay_window,
+                )
+            } else {
+                OlsrV2Engine::new(
+                    self.local_node_id,
+                    transport.sender(),
+                    InMemoryRuntimeEffects {
+                        now: self.now,
+                        ..Default::default()
+                    },
+                )
+            };
+            router
+                .register_engine(Box::new(olsrv2_engine))
+                .expect("register olsrv2 engine");
         }
 
         if self.include_field {
@@ -604,10 +694,11 @@ fn default_profile_for_engine_set(
     include_pathway: bool,
     include_batman_bellman: bool,
     include_batman_classic: bool,
+    include_olsrv2: bool,
     include_babel: bool,
     include_field: bool,
 ) -> SelectedRoutingParameters {
-    if (include_batman_bellman || include_batman_classic || include_babel)
+    if (include_batman_bellman || include_batman_classic || include_babel || include_olsrv2)
         && !include_pathway
         && !include_field
     {

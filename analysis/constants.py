@@ -96,6 +96,10 @@ RECOMMENDATION_PROFILES = {
         "maintenance_penalty": 100.0,
         "reachability_penalty": 120.0,
         "degraded_penalty": 60.0,
+        "field_service_reward": 0.003,
+        "field_shift_penalty": 32.0,
+        "field_narrow_reward": 14.0,
+        "field_degraded_round_penalty": 0.14,
     },
     "conservative": {
         "activation_weight": 4.0,

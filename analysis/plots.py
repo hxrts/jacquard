@@ -20,14 +20,6 @@ from .constants import (
 
 PLOT_TEXT_COLOR = "#2f3437"
 PLOT_MUTED_TEXT_COLOR = "#4b5563"
-DIFFUSION_ENGINE_SETS = [
-    "batman-bellman",
-    "batman-classic",
-    "babel",
-    "pathway",
-    "field",
-    "pathway-batman-bellman",
-]
 DIFFUSION_FIGURE_FAMILIES = [
     "diffusion-partitioned-clusters",
     "diffusion-sparse-long-delay",
@@ -69,6 +61,43 @@ def refresh_annotation(refresh: int | None) -> str:
 
 def diffusion_config_label(config_id: str) -> str:
     return break_tick_label(config_id)
+
+
+def diffusion_config_color(config_id: str) -> str:
+    if config_id in HEAD_TO_HEAD_SET_COLORS:
+        return HEAD_TO_HEAD_SET_COLORS[config_id]
+    if config_id.startswith("field-"):
+        if config_id == "field":
+            return "#D16D9E"
+        if config_id.startswith("field-continuity"):
+            return {"field-continuity": "#CC79A7"}.get(config_id, "#B85F97")
+        if config_id.startswith("field-scarcity"):
+            return {"field-scarcity": "#B35C8C"}.get(config_id, "#8F4E72")
+        if config_id.startswith("field-congestion"):
+            return {"field-congestion": "#9D4EDD"}.get(config_id, "#5B21B6")
+        if config_id.startswith("field-privacy"):
+            return {"field-privacy": "#7A1F4D"}.get(config_id, "#5C173A")
+        return "#CC79A7"
+    return "#64748b"
+
+
+def diffusion_engine_sets(diffusion_engine_comparison: pl.DataFrame) -> list[str]:
+    preferred_order = [
+        "batman-bellman",
+        "batman-classic",
+        "babel",
+        "pathway",
+        "field",
+        "field-continuity",
+        "field-scarcity",
+        "field-congestion",
+        "field-privacy",
+        "pathway-batman-bellman",
+    ]
+    available = set(diffusion_engine_comparison["config_id"].unique().to_list())
+    ordered = [engine for engine in preferred_order if engine in available]
+    remaining = sorted(available.difference(preferred_order))
+    return [*ordered, *remaining]
 
 
 def style_plot_axes(ax) -> None:
@@ -803,11 +832,12 @@ def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataF
         for family in DIFFUSION_FIGURE_FAMILIES
         if not diffusion_engine_comparison.filter(pl.col("family_id") == family).is_empty()
     ]
+    engine_sets = diffusion_engine_sets(diffusion_engine_comparison)
     cols = 3
     rows = (len(families) + cols - 1) // cols
     grid = subplotspec.subgridspec(rows, cols, wspace=0.16, hspace=0.85)
     panels = []
-    y_positions = list(range(len(DIFFUSION_ENGINE_SETS)))
+    y_positions = list(range(len(engine_sets)))
     for index, family in enumerate(families):
         panel = fig.add_subplot(grid[index // cols, index % cols])
         panels.append(panel)
@@ -815,7 +845,7 @@ def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataF
         delivery = []
         coverage = []
         colors = []
-        for engine_set in DIFFUSION_ENGINE_SETS:
+        for engine_set in engine_sets:
             row = family_rows.filter(pl.col("config_id") == engine_set).head(1)
             delivery.append(
                 row["delivery_probability_permille_mean"].item() if not row.is_empty() else 0
@@ -823,7 +853,7 @@ def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataF
             coverage.append(
                 row["coverage_permille_mean"].item() if not row.is_empty() else 0
             )
-            colors.append(HEAD_TO_HEAD_SET_COLORS.get(engine_set, "#64748b"))
+            colors.append(diffusion_config_color(engine_set))
         bars = panel.barh(
             y_positions,
             delivery,
@@ -851,7 +881,7 @@ def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataF
         if index % cols == 0:
             panel.set_ylabel("Engine set")
             panel.set_yticklabels(
-                [break_tick_label(engine) for engine in DIFFUSION_ENGINE_SETS],
+                [break_tick_label(engine) for engine in engine_sets],
                 fontsize=7.4,
             )
         else:
@@ -862,17 +892,17 @@ def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataF
         empty = fig.add_subplot(grid[empty_index // cols, empty_index % cols])
         empty.axis("off")
     engine_handles = [
-        plt.Rectangle((0, 0), 1, 1, color=HEAD_TO_HEAD_SET_COLORS.get(engine, "#64748b"), linewidth=0)
-        for engine in DIFFUSION_ENGINE_SETS
+        plt.Rectangle((0, 0), 1, 1, color=diffusion_config_color(engine), linewidth=0)
+        for engine in engine_sets
     ]
-    engine_labels = [f"`{engine}`" for engine in DIFFUSION_ENGINE_SETS]
+    engine_labels = [f"`{engine}`" for engine in engine_sets]
     coverage_handle = plt.Line2D([0], [0], color="#111827", marker="o", linewidth=1.0, markersize=4.0)
     legend = panels[0].legend(
         [*engine_handles, coverage_handle],
         [*engine_labels, "coverage"],
         loc="lower center",
         bbox_to_anchor=(0.5, 0.0),
-        ncol=3,
+        ncol=min(4, max(2, len(engine_sets) // 3 + 1)),
         frameon=False,
         fontsize=8,
     )
@@ -883,12 +913,12 @@ def render_diffusion_delivery_coverage(ax, diffusion_engine_comparison: pl.DataF
         [*engine_labels, "coverage"],
         loc="lower center",
         bbox_to_anchor=(0.5, 0.04),
-        ncol=3,
+        ncol=min(4, max(2, len(engine_sets) // 3 + 1)),
         frameon=False,
         fontsize=8,
     )
     style_legend(figure_legend)
-    fig.subplots_adjust(bottom=0.22)
+    fig.subplots_adjust(bottom=0.26)
 
 
 def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.DataFrame) -> None:
@@ -903,12 +933,13 @@ def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.Da
         for family in DIFFUSION_FIGURE_FAMILIES
         if not diffusion_engine_comparison.filter(pl.col("family_id") == family).is_empty()
     ]
+    engine_sets = diffusion_engine_sets(diffusion_engine_comparison)
     cols = 3
     rows = (len(families) + cols - 1) // cols
     grid = subplotspec.subgridspec(rows, cols, wspace=0.16, hspace=0.85)
     panels = []
     max_tx = diffusion_engine_comparison["total_transmissions_mean"].max()
-    y_positions = list(range(len(DIFFUSION_ENGINE_SETS)))
+    y_positions = list(range(len(engine_sets)))
     for index, family in enumerate(families):
         panel = fig.add_subplot(grid[index // cols, index % cols])
         panels.append(panel)
@@ -917,14 +948,14 @@ def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.Da
         reproduction = []
         bounded_states = []
         colors = []
-        for engine_set in DIFFUSION_ENGINE_SETS:
+        for engine_set in engine_sets:
             row = family_rows.filter(pl.col("config_id") == engine_set).head(1)
             transmissions.append(row["total_transmissions_mean"].item() if not row.is_empty() else 0)
             reproduction.append(
                 row["estimated_reproduction_permille_mean"].item() if not row.is_empty() else 0
             )
             bounded_states.append(row["bounded_state_mode"].item() if not row.is_empty() else "none")
-            colors.append(HEAD_TO_HEAD_SET_COLORS.get(engine_set, "#64748b"))
+            colors.append(diffusion_config_color(engine_set))
         bars = panel.barh(
             y_positions,
             transmissions,
@@ -941,7 +972,7 @@ def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.Da
         if index % cols == 0:
             panel.set_ylabel("Engine set")
             panel.set_yticklabels(
-                [break_tick_label(engine) for engine in DIFFUSION_ENGINE_SETS],
+                [break_tick_label(engine) for engine in engine_sets],
                 fontsize=7.4,
             )
         else:
@@ -974,16 +1005,16 @@ def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.Da
         empty = fig.add_subplot(grid[empty_index // cols, empty_index % cols])
         empty.axis("off")
     legend_handles = [
-        plt.Rectangle((0, 0), 1, 1, color=HEAD_TO_HEAD_SET_COLORS.get(engine, "#64748b"), linewidth=0)
-        for engine in DIFFUSION_ENGINE_SETS
+        plt.Rectangle((0, 0), 1, 1, color=diffusion_config_color(engine), linewidth=0)
+        for engine in engine_sets
     ]
-    legend_labels = [f"`{engine}`" for engine in DIFFUSION_ENGINE_SETS]
+    legend_labels = [f"`{engine}`" for engine in engine_sets]
     legend = panels[0].legend(
         legend_handles,
         legend_labels,
         loc="lower center",
         bbox_to_anchor=(0.5, 0.0),
-        ncol=3,
+        ncol=min(4, max(2, len(engine_sets) // 3 + 1)),
         frameon=False,
         fontsize=8,
     )
@@ -994,12 +1025,12 @@ def render_diffusion_resource_boundedness(ax, diffusion_engine_comparison: pl.Da
         legend_labels,
         loc="lower center",
         bbox_to_anchor=(0.5, 0.04),
-        ncol=3,
+        ncol=min(4, max(2, len(engine_sets) // 3 + 1)),
         frameon=False,
         fontsize=8,
     )
     style_legend(figure_legend)
-    fig.subplots_adjust(bottom=0.22)
+    fig.subplots_adjust(bottom=0.26)
 
 
 def save_plot_artifact(

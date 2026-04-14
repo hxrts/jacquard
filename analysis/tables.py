@@ -104,6 +104,24 @@ def field_profile_table_rows(field_profile_recommendations: pl.DataFrame) -> lis
     return rows
 
 
+def field_routing_regime_table_rows(field_routing_regime_calibration: pl.DataFrame) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in field_routing_regime_calibration.iter_rows(named=True):
+        rows.append(
+            [
+                row["field_regime"],
+                row["success_criteria"],
+                f"`{row['config_id']}`",
+                f"{row['route_present_mean']:.1f}",
+                f"{row['transition_health']:.1f}",
+                f"{row['continuation_shift_mean']:.1f}",
+                f"{row['service_carry_mean']:.1f}",
+                str(row["stress_envelope"]),
+            ]
+        )
+    return rows
+
+
 def baseline_table_rows(baseline_comparison: pl.DataFrame) -> list[list[str]]:
     rows: list[list[str]] = []
     for row in baseline_comparison.iter_rows(named=True):
@@ -184,6 +202,49 @@ def diffusion_engine_summary_table_rows(diffusion_engine_summary: pl.DataFrame) 
     return rows
 
 
+def diffusion_regime_engine_summary_table_rows(
+    diffusion_regime_engine_summary: pl.DataFrame,
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in diffusion_regime_engine_summary.iter_rows(named=True):
+        rows.append(
+            [
+                row["diffusion_regime"],
+                f"`{row['config_id']}`",
+                f"{row['delivery_probability_mean']:.1f}",
+                f"{row['coverage_mean']:.1f}",
+                f"{row['cluster_coverage_mean']:.1f}",
+                f"{row['total_transmissions_mean']:.1f}",
+                str(row["bounded_state_mode"]),
+                f"{row['regime_score']:.1f}",
+            ]
+        )
+    return rows
+
+
+def field_vs_best_diffusion_alternative_table_rows(
+    field_vs_best_diffusion_alternative: pl.DataFrame,
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in field_vs_best_diffusion_alternative.iter_rows(named=True):
+        rows.append(
+            [
+                row["field_regime"],
+                f"`{row['best_attempt_config_id']}`",
+                "yes" if row["acceptable_candidate"] else "no",
+                str(row["field_candidate_bounded_state_mode"]),
+                f"`{row['alternative_config_id']}`",
+                str(row["alternative_bounded_state_mode"]),
+                f"{row['delivery_delta']:.1f}",
+                f"{row['coverage_delta']:.1f}",
+                f"{row['cluster_coverage_delta']:.1f}",
+                f"{row['tx_delta']:.1f}",
+                f"{row['regime_score_delta']:.1f}",
+            ]
+        )
+    return rows
+
+
 def diffusion_engine_comparison_table_rows(diffusion_engine_comparison: pl.DataFrame) -> list[list[str]]:
     rows: list[list[str]] = []
     current_family = None
@@ -219,6 +280,37 @@ def diffusion_boundary_table_rows(diffusion_boundary_summary: pl.DataFrame) -> l
                 str(row["first_explosive_stress_score"])
                 if row["first_explosive_stress_score"] is not None
                 else "-",
+            ]
+        )
+    return rows
+
+
+def field_diffusion_regime_table_rows(
+    field_diffusion_regime_calibration: pl.DataFrame,
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in field_diffusion_regime_calibration.iter_rows(named=True):
+        transition = "-"
+        if row["field_regime"] == "scarcity" and row["first_scarcity_transition_round_mean"] is not None:
+            transition = f"scarcity@{int(row['first_scarcity_transition_round_mean'])}"
+        elif row["field_regime"] == "congestion" and row["first_congestion_transition_round_mean"] is not None:
+            transition = f"congestion@{int(row['first_congestion_transition_round_mean'])}"
+        elif row["field_posture_transition_count_mean"] is not None:
+            transition = f"{row['field_posture_transition_count_mean']:.1f} shifts"
+        configuration = f"`{row['config_id']}`"
+        if not row["acceptable_candidate"]:
+            configuration = f"no acceptable (`{row['best_attempt_config_id']}`)"
+        rows.append(
+            [
+                row["field_regime"],
+                row["success_criteria"],
+                configuration,
+                str(row["field_posture_mode"] or "none"),
+                str(row["bounded_state_mode"]),
+                transition,
+                f"{row['delivery_probability_mean']:.1f}",
+                f"{row['total_transmissions_mean']:.1f}",
+                f"{row['regime_fit_score']:.1f}",
             ]
         )
     return rows

@@ -28,6 +28,7 @@ use jacquard_core::{
     RouteReplacementPolicy, RouteServiceKind, RoutingEngineFallbackPolicy, RoutingEvidenceClass,
     RoutingObjective, SelectedRoutingParameters, Tick,
 };
+use jacquard_olsrv2::OLSRV2_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
     topology, BoundHostBridge, BridgeRoundProgress, ClientBuilder, ReferenceClient,
@@ -151,6 +152,106 @@ fn mixed_engine_configuration() -> Observation<Configuration> {
     }
 }
 
+/// Three-node OLSRv2-only line topology. A and C are not directly linked, so A
+/// must learn C through B before it can route there.
+fn olsrv2_line_configuration() -> Observation<Configuration> {
+    Observation {
+        value: Configuration {
+            epoch: jacquard_core::RouteEpoch(4),
+            nodes: BTreeMap::from([
+                (NODE_A, topology::node(1).olsrv2().build()),
+                (NODE_B, topology::node(2).olsrv2().build()),
+                (NODE_C, topology::node(3).olsrv2().build()),
+            ]),
+            links: BTreeMap::from([
+                (
+                    (NODE_A, NODE_B),
+                    topology::link(2)
+                        .with_confidence(RatioPermille(940))
+                        .build(),
+                ),
+                (
+                    (NODE_B, NODE_A),
+                    topology::link(1)
+                        .with_confidence(RatioPermille(940))
+                        .build(),
+                ),
+                (
+                    (NODE_B, NODE_C),
+                    topology::link(3)
+                        .with_confidence(RatioPermille(930))
+                        .build(),
+                ),
+                (
+                    (NODE_C, NODE_B),
+                    topology::link(2)
+                        .with_confidence(RatioPermille(930))
+                        .build(),
+                ),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 2,
+                churn_permille: RatioPermille(40),
+                contention_permille: RatioPermille(20),
+            },
+        },
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication: OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(2),
+    }
+}
+
+/// Mixed three-node topology. A runs OLSRv2 only, B can hand off from OLSRv2
+/// to Pathway, and C is pathway-only.
+fn olsrv2_pathway_configuration() -> Observation<Configuration> {
+    Observation {
+        value: Configuration {
+            epoch: jacquard_core::RouteEpoch(5),
+            nodes: BTreeMap::from([
+                (NODE_A, topology::node(1).olsrv2().build()),
+                (NODE_B, topology::node(2).pathway_and_olsrv2().build()),
+                (NODE_C, topology::node(3).pathway().build()),
+            ]),
+            links: BTreeMap::from([
+                (
+                    (NODE_A, NODE_B),
+                    topology::link(2)
+                        .with_confidence(RatioPermille(945))
+                        .build(),
+                ),
+                (
+                    (NODE_B, NODE_A),
+                    topology::link(1)
+                        .with_confidence(RatioPermille(945))
+                        .build(),
+                ),
+                (
+                    (NODE_B, NODE_C),
+                    topology::link(3)
+                        .with_confidence(RatioPermille(915))
+                        .build(),
+                ),
+                (
+                    (NODE_C, NODE_B),
+                    topology::link(2)
+                        .with_confidence(RatioPermille(915))
+                        .build(),
+                ),
+            ]),
+            environment: Environment {
+                reachable_neighbor_count: 2,
+                churn_permille: RatioPermille(50),
+                contention_permille: RatioPermille(25),
+            },
+        },
+        source_class: FactSourceClass::Local,
+        evidence_class: RoutingEvidenceClass::DirectObservation,
+        origin_authentication: OriginAuthenticationClass::Controlled,
+        observed_at_tick: Tick(2),
+    }
+}
+
 fn connected_objective(destination: DestinationId) -> RoutingObjective {
     RoutingObjective {
         destination,
@@ -246,6 +347,33 @@ fn mixed_engine_triplet(
     (client_a, client_b, client_c)
 }
 
+fn olsrv2_triplet(
+    topology: &Observation<Configuration>,
+    network: SharedInMemoryNetwork,
+) -> (ReferenceClient, ReferenceClient, ReferenceClient) {
+    let client_a =
+        ClientBuilder::olsrv2(NODE_A, topology.clone(), network.clone(), Tick(2)).build();
+    let client_b = ClientBuilder::olsrv2(NODE_B, topology.clone(), network.clone(), Tick(2))
+        .with_profile(relay_profile())
+        .build();
+    let client_c = ClientBuilder::olsrv2(NODE_C, topology.clone(), network, Tick(2)).build();
+    (client_a, client_b, client_c)
+}
+
+fn olsrv2_pathway_triplet(
+    topology: &Observation<Configuration>,
+    network: SharedInMemoryNetwork,
+) -> (ReferenceClient, ReferenceClient, ReferenceClient) {
+    let client_a =
+        ClientBuilder::olsrv2(NODE_A, topology.clone(), network.clone(), Tick(2)).build();
+    let client_b =
+        ClientBuilder::pathway_and_olsrv2(NODE_B, topology.clone(), network.clone(), Tick(2))
+            .with_profile(relay_profile())
+            .build();
+    let client_c = ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2)).build();
+    (client_a, client_b, client_c)
+}
+
 // -- Observation helpers -----------------------------------------------
 
 /// Run one bridge round on the receiver and assert the router reported the
@@ -303,6 +431,35 @@ fn advance_and_capture_payload(
         })
 }
 
+fn advance_and_capture_exact_payload(
+    receiver: &mut BoundHostBridge<'_, ReferenceRouter>,
+    expected_epoch: jacquard_core::RouteEpoch,
+    expected_payload: &[u8],
+    context: &str,
+) -> Vec<u8> {
+    let BridgeRoundProgress::Advanced(report) = receiver.advance_round().expect(context) else {
+        panic!("expected a bridge-driven round with ingress")
+    };
+    assert_eq!(report.router_outcome.topology_epoch, expected_epoch);
+    report
+        .ingested_transport_observations
+        .iter()
+        .find_map(|observation| match observation {
+            jacquard_core::TransportObservation::PayloadReceived { payload, .. }
+                if payload == expected_payload =>
+            {
+                Some(payload.clone())
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "expected exact payload {:?}, got {:?}",
+                expected_payload, report.ingested_transport_observations
+            )
+        })
+}
+
 /// Advance the sender bridge once and assert that it flushed at least one
 /// queued transport command after the synchronous router round.
 fn flush_sender_round(sender: &mut BoundHostBridge<'_, ReferenceRouter>, context: &str) {
@@ -310,6 +467,25 @@ fn flush_sender_round(sender: &mut BoundHostBridge<'_, ReferenceRouter>, context
         panic!("expected a bridge-driven round with outbound flush")
     };
     assert!(report.flushed_transport_commands >= 1);
+}
+
+fn advance_convergence_rounds(
+    client_a: &mut BoundHostBridge<'_, ReferenceRouter>,
+    client_b: &mut BoundHostBridge<'_, ReferenceRouter>,
+    client_c: &mut BoundHostBridge<'_, ReferenceRouter>,
+    rounds: usize,
+) {
+    for _ in 0..rounds {
+        let _ = client_a
+            .advance_round()
+            .expect("client A convergence round");
+        let _ = client_b
+            .advance_round()
+            .expect("client B convergence round");
+        let _ = client_c
+            .advance_round()
+            .expect("client C convergence round");
+    }
 }
 
 /// Lowercase hex encoding of a byte slice. The pathway carrier hex-encodes
@@ -455,4 +631,122 @@ fn routing_spans_batman_then_pathway() {
         }
         BridgeRoundProgress::Waiting(_) => {}
     }
+}
+
+#[test]
+fn olsrv2_forwarding_across_shared_network() {
+    let topology = olsrv2_line_configuration();
+    let network = SharedInMemoryNetwork::default();
+    let (mut client_a, mut client_b, mut client_c) = olsrv2_triplet(&topology, network);
+    let mut client_a = client_a.bind();
+    let mut client_b = client_b.bind();
+    let mut client_c = client_c.bind();
+
+    advance_convergence_rounds(&mut client_a, &mut client_b, &mut client_c, 3);
+
+    let route_a_to_c = Router::activate_route(
+        client_a.router_mut(),
+        connected_objective(DestinationId::Node(NODE_C)),
+    )
+    .expect("client A OLSRv2 route activation");
+    let route_b_to_c = Router::activate_route(
+        client_b.router_mut(),
+        connected_objective(DestinationId::Node(NODE_C)),
+    )
+    .expect("client B OLSRv2 route activation");
+
+    assert_eq!(
+        route_a_to_c.identity.admission.summary.engine,
+        OLSRV2_ENGINE_ID
+    );
+    assert_eq!(
+        route_b_to_c.identity.admission.summary.engine,
+        OLSRV2_ENGINE_ID
+    );
+
+    let payload = b"olsrv2-e2e";
+    client_a
+        .router_mut()
+        .forward_payload(route_a_to_c.identity.route_id(), payload)
+        .expect("client A forwards over OLSRv2");
+    flush_sender_round(&mut client_a, "client A OLSRv2 flush round");
+    let received_by_b = advance_and_capture_exact_payload(
+        &mut client_b,
+        topology.value.epoch,
+        payload,
+        "client B OLSRv2 round",
+    );
+    assert_eq!(received_by_b, payload);
+
+    client_b
+        .router_mut()
+        .forward_payload(route_b_to_c.identity.route_id(), &received_by_b)
+        .expect("client B forwards over OLSRv2");
+    flush_sender_round(&mut client_b, "client B OLSRv2 flush round");
+    let received_by_c = advance_and_capture_exact_payload(
+        &mut client_c,
+        topology.value.epoch,
+        payload,
+        "client C OLSRv2 round",
+    );
+    assert_eq!(received_by_c, payload);
+}
+
+#[test]
+fn routing_spans_olsrv2_then_pathway() {
+    let topology = olsrv2_pathway_configuration();
+    let network = SharedInMemoryNetwork::default();
+    let (mut client_a, mut client_b, mut client_c) = olsrv2_pathway_triplet(&topology, network);
+    let mut client_a = client_a.bind();
+    let mut client_b = client_b.bind();
+    let mut client_c = client_c.bind();
+
+    let route_b_to_c = Router::activate_route(
+        client_b.router_mut(),
+        objective(DestinationId::Node(NODE_C)),
+    )
+    .expect("client B pathway route activation");
+    advance_convergence_rounds(&mut client_a, &mut client_b, &mut client_c, 2);
+    let route_a_to_b = Router::activate_route(
+        client_a.router_mut(),
+        connected_objective(DestinationId::Node(NODE_B)),
+    )
+    .expect("client A OLSRv2 route activation");
+
+    assert_eq!(
+        route_a_to_b.identity.admission.summary.engine,
+        OLSRV2_ENGINE_ID
+    );
+    assert_eq!(
+        route_b_to_c.identity.admission.summary.engine,
+        PATHWAY_ENGINE_ID
+    );
+
+    let payload = b"olsrv2-pathway-hop";
+    client_a
+        .router_mut()
+        .forward_payload(route_a_to_b.identity.route_id(), payload)
+        .expect("client A forwards over OLSRv2");
+    flush_sender_round(&mut client_a, "client A OLSRv2 flush round");
+    let received_by_b = advance_and_capture_exact_payload(
+        &mut client_b,
+        topology.value.epoch,
+        payload,
+        "client B ingress round",
+    );
+    assert_eq!(received_by_b, payload);
+
+    client_b
+        .router_mut()
+        .forward_payload(route_b_to_c.identity.route_id(), &received_by_b)
+        .expect("client B forwards over pathway");
+    flush_sender_round(&mut client_b, "client B pathway flush round");
+    let expected_hex = hex_bytes(payload).into_bytes();
+    let received_by_c = advance_and_capture_exact_payload(
+        &mut client_c,
+        topology.value.epoch,
+        &expected_hex,
+        "client C ingress round",
+    );
+    assert_eq!(received_by_c, expected_hex);
 }
