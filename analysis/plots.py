@@ -817,7 +817,7 @@ def render_comparison_summary(ax, aggregates: pl.DataFrame) -> None:
     ):
         y = bar.get_y() + bar.get_height() / 2
         x = bar.get_width()
-        note = f"`{engine}` act={act} stress={stress_level}"
+        note = f"{engine} act={act} stress={stress_level}"
         if x == 0:
             ax.scatter(
                 [8],
