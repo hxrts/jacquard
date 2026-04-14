@@ -149,8 +149,8 @@ def build_styles():
             fontName="Helvetica",
             fontSize=9.5,
             leading=13,
-            leftIndent=20,
-            bulletIndent=8,
+            leftIndent=12,
+            bulletIndent=0,
             spaceAfter=4,
         )
     )
@@ -275,7 +275,7 @@ def add_figure(
     story.append(figure_flowable(report_dir, figure.asset_id, max_width, max_height))
     caption_lines = list(figure.lines)
     if caption_lines:
-        caption_lines[0] = f"{figure_title}. {caption_lines[0]}"
+        caption_lines = [f"{figure_title}."]
     else:
         caption_lines = [f"{figure_title}."]
     add_lines(story, styles, caption_lines, "Caption")
