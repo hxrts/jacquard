@@ -8,7 +8,7 @@ PLOT_SPECS = {
     "pathway_budget_route_presence": (11.0, 4.8),
     "pathway_budget_activation": (11.0, 4.8),
     "field_budget_route_presence": (11.0, 7.6),
-    "field_budget_reconfiguration": (11.0, 7.6),
+    "field_budget_reconfiguration": (11.0, 9.0),
     "batman_classic_transition_stability": (11.0, 4.0),
     "batman_classic_transition_loss": (11.0, 4.0),
     "babel_decay_stability": (11.0, 4.8),
