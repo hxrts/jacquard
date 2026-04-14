@@ -113,7 +113,7 @@ BATMAN Bellman is the simpler routing engine in this study. It tries to keep tra
 
 #### BATMAN Classic Algorithm
 
-BATMAN Classic is the spec-faithful BATMAN IV engine. It implements the original protocol without structural departures: TQ is carried in OGMs and updated multiplicatively at each relay hop, TTL bounds propagation depth, and bidirectionality requires echo-window confirmation. Unlike BATMAN Bellman, it has no bootstrap shortcut and produces no route candidates until receive-window data has accumulated. The settings tuned here are the same decay window parameters as BATMAN Bellman, but the engine's slower convergence and strict echo requirement make it more sensitive to window size. The analysis compares its behavior under identical regimes to isolate what the Bellman-Ford enhancement contributes.
+BATMAN Classic is the spec-faithful BATMAN IV engine. It implements the original protocol without structural departures: TQ is carried in OGMs and updated multiplicatively at each relay hop, TTL bounds propagation depth, and bidirectionality requires echo-window confirmation. It produces no route candidates until receive-window data has accumulated and echo confirmation has been received. BATMAN Bellman can bootstrap routes from its local Bellman-Ford computation before OGMs arrive, but BATMAN Classic has no such shortcut. The settings tuned here are the same decay window parameters as BATMAN Bellman, but the engine's slower convergence and strict echo requirement make it more sensitive to window size. The analysis compares its behavior under identical regimes to isolate what the Bellman-Ford enhancement contributes.
 
 #### Babel Algorithm
 
