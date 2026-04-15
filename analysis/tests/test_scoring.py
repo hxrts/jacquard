@@ -4,10 +4,15 @@ import unittest
 
 import polars as pl
 
+from analysis.constants import ROUTE_VISIBLE_ENGINE_SET_ORDER
 from analysis.scoring import (
-    field_profile_recommendation_table,
+    benchmark_profile_audit_table,
+    diffusion_baseline_audit_table,
+    diffusion_family_weight_sensitivity_table,
     field_diffusion_regime_calibration_table,
+    field_profile_recommendation_table,
     field_vs_best_diffusion_alternative_table,
+    head_to_head_summary_table,
     recommendation_table,
 )
 
@@ -83,6 +88,80 @@ def _field_breakdowns() -> pl.DataFrame:
     )
 
 
+def _head_to_head_aggregates() -> pl.DataFrame:
+    return pl.from_dicts(
+        [
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-connected-low-loss",
+                "config_id": "head-to-head-batman-classic-4-2",
+                "comparison_engine_set": "batman-classic",
+                "dominant_engine": "batman-classic",
+                "activation_success_permille_mean": 1000.0,
+                "route_present_permille_mean": 900.0,
+                "route_present_total_window_permille_mean": 750.0,
+                "stress_score": 18,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-connected-low-loss",
+                "config_id": "head-to-head-batman-bellman-1-1",
+                "comparison_engine_set": "batman-bellman",
+                "dominant_engine": "batman-bellman",
+                "activation_success_permille_mean": 1000.0,
+                "route_present_permille_mean": 900.0,
+                "route_present_total_window_permille_mean": 750.0,
+                "stress_score": 18,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-connected-low-loss",
+                "config_id": "head-to-head-field-8-hop-lower-bound",
+                "comparison_engine_set": "field",
+                "dominant_engine": "field",
+                "activation_success_permille_mean": 1000.0,
+                "route_present_permille_mean": 900.0,
+                "route_present_total_window_permille_mean": 750.0,
+                "stress_score": 18,
+            },
+        ]
+    )
+
+
+def _benchmark_profile_recommendations() -> pl.DataFrame:
+    return pl.from_dicts(
+        [
+            {
+                "engine_family": "batman-classic",
+                "profile_id": "conservative",
+                "config_id": "batman-classic-2-1",
+                "mean_score": 10.0,
+                "activation_success_mean": 1000.0,
+                "route_present_mean": 900.0,
+                "max_sustained_stress_score": 44,
+            },
+            {
+                "engine_family": "batman-bellman",
+                "profile_id": "conservative",
+                "config_id": "batman-bellman-1-1",
+                "mean_score": 10.0,
+                "activation_success_mean": 1000.0,
+                "route_present_mean": 900.0,
+                "max_sustained_stress_score": 56,
+            },
+            {
+                "engine_family": "field",
+                "profile_id": "balanced",
+                "config_id": "field-8-hop-lower-bound",
+                "mean_score": 10.0,
+                "activation_success_mean": 1000.0,
+                "route_present_mean": 900.0,
+                "max_sustained_stress_score": 60,
+            },
+        ]
+    )
+
+
 def _diffusion_regime_aggregates() -> pl.DataFrame:
     base = {
         "family_id": "diffusion-congestion-cascade",
@@ -152,6 +231,30 @@ def _diffusion_regime_aggregates() -> pl.DataFrame:
                 "field_cluster_seeding_rounds_mean": 0.0,
                 "field_duplicate_suppressed_rounds_mean": 0.0,
             },
+            {
+                **base,
+                "config_id": "olsrv2",
+                "delivery_probability_permille_mean": 720.0,
+                "coverage_permille_mean": 690.0,
+                "cluster_coverage_permille_mean": 760.0,
+                "total_transmissions_mean": 16.0,
+                "energy_per_delivered_message_mean": 460.0,
+                "storage_utilization_permille_mean": 320.0,
+                "estimated_reproduction_permille_mean": 590.0,
+                "bounded_state_mode": "viable",
+                "field_posture_mode": None,
+                "field_posture_transition_count_mean": 0.0,
+                "field_first_congestion_transition_round_mean": None,
+                "field_protected_budget_used_mean": 0.0,
+                "field_generic_budget_used_mean": 0.0,
+                "field_cluster_seed_opportunity_count_mean": 0.0,
+                "field_cluster_seed_usage_count_mean": 0.0,
+                "field_cluster_coverage_starvation_count_mean": 0.0,
+                "field_redundant_forward_suppression_count_mean": 0.0,
+                "field_same_cluster_suppression_count_mean": 0.0,
+                "field_cluster_seeding_rounds_mean": 0.0,
+                "field_duplicate_suppressed_rounds_mean": 0.0,
+            },
         ]
     )
 
@@ -177,6 +280,37 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(rows["field-low-churn"], LOW_CHURN_CONFIG)
         self.assertEqual(rows["field-broad-reselection"], BROAD_RESELECTION_CONFIG)
 
+    def test_head_to_head_summary_uses_consistent_engine_order_on_ties(self) -> None:
+        summary = head_to_head_summary_table(_head_to_head_aggregates())
+        engine_sets = summary["comparison_engine_set"].to_list()
+        self.assertEqual(
+            engine_sets,
+            [engine for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER if engine in engine_sets],
+        )
+
+    def test_benchmark_profile_audit_marks_fixed_and_calibrated_surfaces(self) -> None:
+        audit = benchmark_profile_audit_table(
+            _head_to_head_aggregates(), _benchmark_profile_recommendations()
+        )
+        rows = {row["engine_set"]: row for row in audit.iter_rows(named=True)}
+        self.assertEqual(
+            rows["batman-classic"]["representative_surface_kind"], "fixed-representative"
+        )
+        self.assertEqual(
+            rows["batman-classic"]["calibrated_surface_kind"], "calibrated-best"
+        )
+
+    def test_benchmark_profile_audit_requires_calibrated_profile_for_single_engine_sets(
+        self,
+    ) -> None:
+        audit = benchmark_profile_audit_table(
+            _head_to_head_aggregates(), _benchmark_profile_recommendations()
+        )
+        rows = {row["engine_set"]: row for row in audit.iter_rows(named=True)}
+        self.assertIsNotNone(rows["batman-classic"]["calibrated_profile_id"])
+        self.assertIsNotNone(rows["batman-bellman"]["calibrated_profile_id"])
+        self.assertIsNotNone(rows["field"]["calibrated_profile_id"])
+
     def test_field_diffusion_regime_calibration_fails_closed_when_all_field_candidates_collapse(
         self,
     ) -> None:
@@ -199,6 +333,59 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         congestion = delta.filter(pl.col("field_regime") == "congestion").row(0, named=True)
         self.assertEqual(congestion["alternative_config_id"], "batman-classic")
         self.assertLess(congestion["regime_score_delta"], 0.0)
+
+    def test_diffusion_baseline_audit_lists_non_field_benchmarks(self) -> None:
+        audit = diffusion_baseline_audit_table(_diffusion_regime_aggregates())
+        self.assertEqual(audit["config_id"].to_list(), ["batman-classic", "olsrv2"])
+
+    def test_diffusion_weight_sensitivity_marks_unstable_generic_winners(self) -> None:
+        aggregates = pl.from_dicts(
+            [
+                {
+                    "family_id": "diffusion-sensitivity-check",
+                    "config_id": "bounded",
+                    "replication_budget": 2,
+                    "message_horizon": 20,
+                    "forward_probability_permille": 320,
+                    "bridge_bias_permille": 60,
+                    "delivery_probability_permille_mean": 780.0,
+                    "coverage_permille_mean": 760.0,
+                    "cluster_coverage_permille_mean": 760.0,
+                    "corridor_persistence_permille_mean": 300.0,
+                    "delivery_latency_rounds_mean": 8.0,
+                    "total_transmissions_mean": 10.0,
+                    "energy_per_delivered_message_mean": 380.0,
+                    "storage_utilization_permille_mean": 180.0,
+                    "estimated_reproduction_permille_mean": 400.0,
+                    "observer_leakage_permille_mean": 10.0,
+                    "bounded_state_mode": "viable",
+                },
+                {
+                    "family_id": "diffusion-sensitivity-check",
+                    "config_id": "fast-but-expensive",
+                    "replication_budget": 6,
+                    "message_horizon": 28,
+                    "forward_probability_permille": 560,
+                    "bridge_bias_permille": 180,
+                    "delivery_probability_permille_mean": 980.0,
+                    "coverage_permille_mean": 960.0,
+                    "cluster_coverage_permille_mean": 960.0,
+                    "corridor_persistence_permille_mean": 220.0,
+                    "delivery_latency_rounds_mean": 2.0,
+                    "total_transmissions_mean": 24.0,
+                    "energy_per_delivered_message_mean": 900.0,
+                    "storage_utilization_permille_mean": 650.0,
+                    "estimated_reproduction_permille_mean": 900.0,
+                    "observer_leakage_permille_mean": 50.0,
+                    "bounded_state_mode": "viable",
+                },
+            ]
+        )
+        sensitivity = diffusion_family_weight_sensitivity_table(aggregates)
+        row = sensitivity.row(0, named=True)
+        self.assertEqual(row["balanced_winner_config_id"], "fast-but-expensive")
+        self.assertEqual(row["boundedness_heavy_winner_config_id"], "bounded")
+        self.assertFalse(row["winner_stable"])
 
 
 if __name__ == "__main__":

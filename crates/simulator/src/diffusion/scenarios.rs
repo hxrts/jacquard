@@ -364,6 +364,18 @@ mod tests {
     }
 
     #[test]
+    fn diffusion_smoke_suite_includes_maintained_olsrv2_baseline() {
+        let suite = diffusion_smoke_suite();
+        assert!(
+            suite
+                .runs
+                .iter()
+                .any(|run| run.policy.config_id == "olsrv2"),
+            "diffusion suite should include the maintained OLSRv2 baseline"
+        );
+    }
+
+    #[test]
     fn bounded_state_classifies_regions() {
         assert_eq!(bounded_state(100, 200, 400, 8, 120, Some(200)), "collapse");
         assert_eq!(bounded_state(800, 850, 1000, 20, 260, Some(900)), "viable");
@@ -666,6 +678,32 @@ mod tests {
             baseline.total_transmissions
         );
         assert!(privacy.delivery_probability_permille >= 1000);
+    }
+
+    #[test]
+    fn congestion_cascade_tracks_cluster_coverage_separately_from_node_coverage() {
+        let scenario = build_congestion_cascade_scenario();
+        let summary = simulate_diffusion_run(&DiffusionRunSpec {
+            suite_id: "test".to_string(),
+            family_id: scenario.family_id.clone(),
+            seed: 41,
+            policy: diffusion_engine_profile("pathway"),
+            scenario,
+        });
+        assert!(summary.cluster_coverage_permille > summary.coverage_permille);
+    }
+
+    #[test]
+    fn adversarial_observation_reports_non_zero_leakage_for_broad_baseline() {
+        let scenario = build_adversarial_observation_scenario();
+        let summary = simulate_diffusion_run(&DiffusionRunSpec {
+            suite_id: "test".to_string(),
+            family_id: scenario.family_id.clone(),
+            seed: 41,
+            policy: diffusion_engine_profile("pathway"),
+            scenario,
+        });
+        assert!(summary.observer_leakage_permille > 0);
     }
 
     #[test]

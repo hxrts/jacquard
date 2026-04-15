@@ -35,7 +35,7 @@ use scenarios::{
     build_random_waypoint_sanity_scenario, build_sparse_long_delay_scenario,
 };
 use scoring::forwarding_score;
-use stats::{mean_option_u32, mean_u32, mode_option_string, mode_string};
+use stats::{mean_option_u32, mean_u32, min_max_spread_u32, mode_option_string, mode_string};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DiffusionPolicyConfig {
@@ -240,6 +240,9 @@ pub struct DiffusionAggregateSummary {
     pub bridge_bias_permille: u32,
     pub run_count: u32,
     pub delivery_probability_permille_mean: u32,
+    pub delivery_probability_permille_min: u32,
+    pub delivery_probability_permille_max: u32,
+    pub delivery_probability_permille_spread: u32,
     #[serde(rename = "delivery_latency_rounds_mean")]
     pub delivery_delay_mean: Option<u32>,
     pub coverage_permille_mean: u32,
@@ -453,7 +456,7 @@ pub fn diffusion_smoke_suite() -> DiffusionSuite {
 
 #[must_use]
 pub fn diffusion_local_suite() -> DiffusionSuite {
-    build_diffusion_suite("diffusion-local", &[41, 43], false)
+    build_diffusion_suite("diffusion-local", &[41, 43, 47, 53], false)
 }
 
 pub fn run_diffusion_suite(
@@ -505,6 +508,8 @@ fn build_diffusion_suite(suite_id: &str, seeds: &[u64], _smoke: bool) -> Diffusi
         diffusion_engine_profile("batman-bellman"),
         diffusion_engine_profile("batman-classic"),
         diffusion_engine_profile("babel"),
+        diffusion_engine_profile("olsrv2"),
+        diffusion_engine_profile("scatter"),
         diffusion_engine_profile("pathway"),
         diffusion_engine_profile("pathway-batman-bellman"),
     ];
@@ -732,6 +737,22 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
                 DiffusionForwardingStyle::FreshnessAware,
             ),
         ),
+        "olsrv2" => diffusion_policy_profile(
+            "olsrv2",
+            (
+                3,
+                24,
+                400,
+                110,
+                120,
+                20,
+                130,
+                0,
+                150,
+                130,
+                DiffusionForwardingStyle::FreshnessAware,
+            ),
+        ),
         "pathway" => diffusion_policy_profile(
             "pathway",
             (
@@ -746,6 +767,22 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
                 90,
                 80,
                 DiffusionForwardingStyle::ServiceDirected,
+            ),
+        ),
+        "scatter" => diffusion_policy_profile(
+            "scatter",
+            (
+                4,
+                28,
+                470,
+                260,
+                150,
+                -20,
+                180,
+                80,
+                170,
+                140,
+                DiffusionForwardingStyle::ConservativeLocal,
             ),
         ),
         "field" => diffusion_policy_profile(

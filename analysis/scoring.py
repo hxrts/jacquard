@@ -7,7 +7,7 @@ from pathlib import Path
 
 import polars as pl
 
-from .constants import RECOMMENDATION_PROFILES
+from .constants import RECOMMENDATION_PROFILES, ROUTE_VISIBLE_ENGINE_SET_ORDER
 
 
 def score_expression(profile_id: str) -> pl.Expr:
@@ -81,6 +81,20 @@ def score_expression(profile_id: str) -> pl.Expr:
 
 
 _OPTIONAL_FLOAT_COLUMNS = [
+    "route_present_total_window_permille_mean",
+    "activation_success_permille_min",
+    "activation_success_permille_max",
+    "activation_success_permille_spread",
+    "route_present_permille_min",
+    "route_present_permille_max",
+    "route_present_permille_spread",
+    "batman_bellman_selected_rounds_mean",
+    "batman_classic_selected_rounds_mean",
+    "babel_selected_rounds_mean",
+    "olsrv2_selected_rounds_mean",
+    "pathway_selected_rounds_mean",
+    "scatter_selected_rounds_mean",
+    "field_selected_rounds_mean",
     "field_degraded_steady_entry_permille_mean",
     "field_degraded_steady_recovery_permille_mean",
     "field_degraded_to_bootstrap_permille_mean",
@@ -233,6 +247,7 @@ def profile_recommendation_table(
         "batman-classic": ["conservative", "aggressive", "degraded-network"],
         "babel": ["conservative", "aggressive", "degraded-network"],
         "olsrv2": ["conservative", "aggressive", "degraded-network"],
+        "scatter": ["balanced", "conservative", "degraded-network"],
         "pathway": ["balanced", "service-heavy", "degraded-network"],
         "field": [
             "balanced",
@@ -964,6 +979,7 @@ def leading_recommendation_configs(
         "babel",
         "olsrv2",
         "pathway",
+        "scatter",
         "comparison",
         "field",
     ]:
@@ -1074,6 +1090,7 @@ def engine_family_label(engine_family: str) -> str:
         "batman-classic": "BATMAN Classic",
         "babel": "Babel",
         "olsrv2": "OLSRv2",
+        "scatter": "Scatter",
         "pathway": "Pathway",
         "field": "Field",
         "comparison": "Comparison",
@@ -1109,6 +1126,7 @@ def baseline_comparison_table(
         "babel",
         "olsrv2",
         "pathway",
+        "scatter",
         "comparison",
         "field",
     ]:
@@ -1181,6 +1199,7 @@ def write_recommendations(path: Path, recommendations: pl.DataFrame) -> None:
         "babel",
         "olsrv2",
         "pathway",
+        "scatter",
         "comparison",
         "field",
     ]:
@@ -1227,6 +1246,7 @@ def write_recommendations(path: Path, recommendations: pl.DataFrame) -> None:
 
 
 def comparison_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
+    aggregates = _ensure_optional_columns(aggregates)
     return (
         aggregates.filter(pl.col("engine_family") == "comparison")
         .sort(["family_id", "route_present_permille_mean"], descending=[False, True])
@@ -1235,7 +1255,12 @@ def comparison_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
             pl.first("config_id").alias("config_id"),
             pl.first("dominant_engine").alias("dominant_engine"),
             pl.first("activation_success_permille_mean").alias("activation_success_permille_mean"),
-            pl.first("route_present_permille_mean").alias("route_present_permille_mean"),
+            pl.first("route_present_permille_mean").alias(
+                "route_present_active_window_permille_mean"
+            ),
+            pl.first("route_present_total_window_permille_mean").alias(
+                "route_present_total_window_permille_mean"
+            ),
             pl.first("stress_score").alias("stress_score"),
         )
         .select(
@@ -1243,29 +1268,303 @@ def comparison_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
             "config_id",
             "dominant_engine",
             "activation_success_permille_mean",
-            "route_present_permille_mean",
+            "route_present_active_window_permille_mean",
+            "route_present_total_window_permille_mean",
             "stress_score",
         )
         .sort("family_id")
     )
 
 
+def comparison_engine_round_breakdown_table(aggregates: pl.DataFrame) -> pl.DataFrame:
+    aggregates = _ensure_optional_columns(aggregates)
+    return (
+        aggregates.filter(pl.col("engine_family") == "comparison")
+        .sort(
+            ["family_id", "route_present_permille_mean", "config_id"],
+            descending=[False, True, False],
+        )
+        .group_by("family_id")
+        .agg(
+            pl.first("config_id").alias("config_id"),
+            pl.first("dominant_engine").alias("dominant_engine"),
+            pl.first("route_present_permille_mean").alias(
+                "route_present_active_window_permille_mean"
+            ),
+            pl.first("engine_handoff_count_mean").alias("engine_handoff_count_mean"),
+            pl.first("batman_bellman_selected_rounds_mean").alias(
+                "batman_bellman_selected_rounds_mean"
+            ),
+            pl.first("batman_classic_selected_rounds_mean").alias(
+                "batman_classic_selected_rounds_mean"
+            ),
+            pl.first("babel_selected_rounds_mean").alias("babel_selected_rounds_mean"),
+            pl.first("olsrv2_selected_rounds_mean").alias("olsrv2_selected_rounds_mean"),
+            pl.first("pathway_selected_rounds_mean").alias("pathway_selected_rounds_mean"),
+            pl.first("scatter_selected_rounds_mean").alias("scatter_selected_rounds_mean"),
+            pl.first("field_selected_rounds_mean").alias("field_selected_rounds_mean"),
+        )
+        .select(
+            "family_id",
+            "config_id",
+            "dominant_engine",
+            "route_present_active_window_permille_mean",
+            "engine_handoff_count_mean",
+            "batman_bellman_selected_rounds_mean",
+            "batman_classic_selected_rounds_mean",
+            "babel_selected_rounds_mean",
+            "olsrv2_selected_rounds_mean",
+            "pathway_selected_rounds_mean",
+            "scatter_selected_rounds_mean",
+            "field_selected_rounds_mean",
+        )
+        .sort("family_id")
+    )
+
+
 def head_to_head_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
+    aggregates = _ensure_optional_columns(aggregates)
+    engine_order = {engine: index for index, engine in enumerate(ROUTE_VISIBLE_ENGINE_SET_ORDER)}
     return (
         aggregates.filter(pl.col("engine_family") == "head-to-head")
+        .with_columns(
+            pl.col("comparison_engine_set")
+            .replace_strict(engine_order, default=len(engine_order))
+            .alias("comparison_engine_order")
+        )
         .select(
             "family_id",
             "config_id",
             "comparison_engine_set",
+            "comparison_engine_order",
             "dominant_engine",
             "activation_success_permille_mean",
-            "route_present_permille_mean",
+            pl.col("route_present_permille_mean").alias(
+                "route_present_active_window_permille_mean"
+            ),
+            pl.col("route_present_total_window_permille_mean").alias(
+                "route_present_total_window_permille_mean"
+            ),
             "stress_score",
         )
         .sort(
-            ["family_id", "route_present_permille_mean", "activation_success_permille_mean"],
-            descending=[False, True, True],
+            [
+                "family_id",
+                "route_present_active_window_permille_mean",
+                "activation_success_permille_mean",
+                "comparison_engine_order",
+            ],
+            descending=[False, True, True, False],
         )
+        .drop("comparison_engine_order")
+    )
+
+
+def benchmark_profile_audit_table(
+    aggregates: pl.DataFrame, profile_recommendations: pl.DataFrame
+) -> pl.DataFrame:
+    if aggregates.is_empty():
+        return pl.DataFrame()
+    aggregates = _ensure_optional_columns(aggregates)
+    order = {engine: index for index, engine in enumerate(ROUTE_VISIBLE_ENGINE_SET_ORDER)}
+    representative = (
+        aggregates.filter(pl.col("engine_family") == "head-to-head")
+        .with_columns(
+            pl.col("comparison_engine_set")
+            .replace_strict(order, default=len(order))
+            .alias("comparison_engine_order")
+        )
+        .select(
+            pl.col("comparison_engine_set").alias("engine_set"),
+            pl.col("config_id").alias("representative_config_id"),
+            pl.col("route_present_permille_mean").alias("representative_route_present_mean"),
+            pl.col("activation_success_permille_mean").alias(
+                "representative_activation_mean"
+            ),
+            pl.lit("fixed-representative").alias("representative_surface_kind"),
+            "comparison_engine_order",
+        )
+        .unique(subset=["engine_set"], keep="first")
+    )
+    calibrated = (
+        profile_recommendations.select(
+            pl.col("engine_family").alias("engine_set"),
+            pl.col("profile_id").alias("calibrated_profile_id"),
+            pl.col("config_id").alias("calibrated_config_id"),
+            pl.col("route_present_mean").alias("calibrated_route_present_mean"),
+            pl.col("activation_success_mean").alias("calibrated_activation_mean"),
+            pl.lit("calibrated-best").alias("calibrated_surface_kind"),
+        )
+        .filter(pl.col("engine_set") != "comparison")
+    )
+    return (
+        representative.join(calibrated, on="engine_set", how="left")
+        .with_columns(
+            (
+                pl.col("representative_config_id") == pl.col("calibrated_config_id")
+            ).fill_null(False).alias("configs_match")
+        )
+        .sort("comparison_engine_order")
+        .drop("comparison_engine_order")
+    )
+
+
+def _generic_diffusion_score_expr(weights: dict[str, float]) -> pl.Expr:
+    return (
+        pl.col("delivery_probability_permille_mean") * weights["delivery"]
+        + pl.col("coverage_permille_mean") * weights["coverage"]
+        + pl.col("cluster_coverage_permille_mean") * weights["cluster_coverage"]
+        + pl.col("corridor_persistence_permille_mean") * weights["corridor_persistence"]
+        - pl.col("delivery_latency_rounds_mean").fill_null(0) * weights["latency_penalty"]
+        - pl.col("total_transmissions_mean") * weights["transmission_penalty"]
+        - pl.col("energy_per_delivered_message_mean").fill_null(0)
+        * weights["energy_penalty"]
+        - pl.col("storage_utilization_permille_mean") * weights["storage_penalty"]
+        - pl.col("estimated_reproduction_permille_mean") * weights["reproduction_penalty"]
+        - pl.col("observer_leakage_permille_mean") * weights["observer_penalty"]
+        - pl.when(pl.col("bounded_state_mode") == "explosive")
+        .then(weights["explosive_penalty"])
+        .otherwise(0.0)
+        - pl.when(pl.col("bounded_state_mode") == "collapse")
+        .then(weights["collapse_penalty"])
+        .otherwise(0.0)
+    )
+
+
+_BALANCED_DIFFUSION_WEIGHTS = {
+    "delivery": 1.0,
+    "coverage": 0.6,
+    "cluster_coverage": 0.35,
+    "corridor_persistence": 0.15,
+    "latency_penalty": 16.0,
+    "transmission_penalty": 10.0,
+    "energy_penalty": 0.18,
+    "storage_penalty": 0.25,
+    "reproduction_penalty": 0.15,
+    "observer_penalty": 0.45,
+    "explosive_penalty": 320.0,
+    "collapse_penalty": 220.0,
+}
+
+_DELIVERY_HEAVY_DIFFUSION_WEIGHTS = {
+    "delivery": 1.15,
+    "coverage": 0.75,
+    "cluster_coverage": 0.45,
+    "corridor_persistence": 0.12,
+    "latency_penalty": 12.0,
+    "transmission_penalty": 8.0,
+    "energy_penalty": 0.12,
+    "storage_penalty": 0.18,
+    "reproduction_penalty": 0.1,
+    "observer_penalty": 0.3,
+    "explosive_penalty": 240.0,
+    "collapse_penalty": 180.0,
+}
+
+_BOUNDEDNESS_HEAVY_DIFFUSION_WEIGHTS = {
+    "delivery": 0.85,
+    "coverage": 0.5,
+    "cluster_coverage": 0.35,
+    "corridor_persistence": 0.2,
+    "latency_penalty": 20.0,
+    "transmission_penalty": 14.0,
+    "energy_penalty": 0.25,
+    "storage_penalty": 0.35,
+    "reproduction_penalty": 0.22,
+    "observer_penalty": 0.5,
+    "explosive_penalty": 420.0,
+    "collapse_penalty": 280.0,
+}
+
+
+def diffusion_baseline_audit_table(diffusion_aggregates: pl.DataFrame) -> pl.DataFrame:
+    if diffusion_aggregates.is_empty():
+        return pl.DataFrame()
+    for column in [
+        "replication_budget",
+        "message_horizon",
+        "forward_probability_permille",
+        "bridge_bias_permille",
+    ]:
+        if column not in diffusion_aggregates.columns:
+            diffusion_aggregates = diffusion_aggregates.with_columns(
+                pl.lit(None).cast(pl.Int64).alias(column)
+            )
+    baseline_ids = [
+        "batman-classic",
+        "batman-bellman",
+        "babel",
+        "olsrv2",
+        "scatter",
+        "pathway",
+        "pathway-batman-bellman",
+    ]
+    return (
+        diffusion_aggregates.filter(pl.col("config_id").is_in(baseline_ids))
+        .group_by("config_id")
+        .agg(
+            pl.col("replication_budget").first().alias("replication_budget"),
+            pl.col("message_horizon").first().alias("ttl_rounds"),
+            pl.col("forward_probability_permille")
+            .first()
+            .alias("forward_probability_permille"),
+            pl.col("bridge_bias_permille").first().alias("bridge_bias_permille"),
+            pl.col("delivery_probability_permille_mean")
+            .mean()
+            .alias("delivery_probability_mean"),
+            pl.col("coverage_permille_mean").mean().alias("coverage_mean"),
+            pl.col("cluster_coverage_permille_mean")
+            .mean()
+            .alias("cluster_coverage_mean"),
+            pl.col("observer_leakage_permille_mean")
+            .mean()
+            .alias("observer_leakage_mean"),
+            pl.col("bounded_state_mode").drop_nulls().mode().first().alias("bounded_state_mode"),
+        )
+        .sort("config_id")
+    )
+
+
+def diffusion_family_weight_sensitivity_table(
+    diffusion_aggregates: pl.DataFrame,
+) -> pl.DataFrame:
+    if diffusion_aggregates.is_empty():
+        return pl.DataFrame()
+
+    def winners_for(profile_id: str, weights: dict[str, float]) -> pl.DataFrame:
+        return (
+            diffusion_aggregates.with_columns(
+                _generic_diffusion_score_expr(weights).alias("score")
+            )
+            .sort(["family_id", "score", "config_id"], descending=[False, True, False])
+            .group_by("family_id")
+            .agg(
+                pl.first("config_id").alias(f"{profile_id}_winner_config_id"),
+                pl.first("score").alias(f"{profile_id}_winner_score"),
+            )
+        )
+
+    balanced = winners_for("balanced", _BALANCED_DIFFUSION_WEIGHTS)
+    delivery_heavy = winners_for("delivery_heavy", _DELIVERY_HEAVY_DIFFUSION_WEIGHTS)
+    boundedness_heavy = winners_for(
+        "boundedness_heavy", _BOUNDEDNESS_HEAVY_DIFFUSION_WEIGHTS
+    )
+    return (
+        balanced.join(delivery_heavy, on="family_id", how="inner")
+        .join(boundedness_heavy, on="family_id", how="inner")
+        .with_columns(
+            (
+                (
+                    pl.col("balanced_winner_config_id")
+                    == pl.col("delivery_heavy_winner_config_id")
+                )
+                & (
+                    pl.col("balanced_winner_config_id")
+                    == pl.col("boundedness_heavy_winner_config_id")
+                )
+            ).alias("winner_stable")
+        )
+        .sort("family_id")
     )
 
 
@@ -1273,20 +1572,7 @@ def diffusion_engine_summary_table(diffusion_aggregates: pl.DataFrame) -> pl.Dat
     if diffusion_aggregates.is_empty():
         return pl.DataFrame()
     scored = diffusion_aggregates.with_columns(
-        (
-            pl.col("delivery_probability_permille_mean") * 1.0
-            + pl.col("coverage_permille_mean") * 0.6
-            + pl.col("cluster_coverage_permille_mean") * 0.35
-            + pl.col("corridor_persistence_permille_mean") * 0.15
-            - pl.col("delivery_latency_rounds_mean").fill_null(0) * 16.0
-            - pl.col("total_transmissions_mean") * 10.0
-            - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.18
-            - pl.col("storage_utilization_permille_mean") * 0.25
-            - pl.col("estimated_reproduction_permille_mean") * 0.15
-            - pl.col("observer_leakage_permille_mean") * 0.45
-            - pl.when(pl.col("bounded_state_mode") == "explosive").then(320.0).otherwise(0.0)
-            - pl.when(pl.col("bounded_state_mode") == "collapse").then(220.0).otherwise(0.0)
-        ).alias("score")
+        _generic_diffusion_score_expr(_BALANCED_DIFFUSION_WEIGHTS).alias("score")
     )
     return (
         scored.sort(["family_id", "score"], descending=[False, True])
@@ -1318,20 +1604,7 @@ def diffusion_engine_comparison_table(diffusion_aggregates: pl.DataFrame) -> pl.
     if diffusion_aggregates.is_empty():
         return pl.DataFrame()
     return diffusion_aggregates.with_columns(
-        (
-            pl.col("delivery_probability_permille_mean") * 1.0
-            + pl.col("coverage_permille_mean") * 0.6
-            + pl.col("cluster_coverage_permille_mean") * 0.35
-            + pl.col("corridor_persistence_permille_mean") * 0.15
-            - pl.col("delivery_latency_rounds_mean").fill_null(0) * 16.0
-            - pl.col("total_transmissions_mean") * 10.0
-            - pl.col("energy_per_delivered_message_mean").fill_null(0) * 0.18
-            - pl.col("storage_utilization_permille_mean") * 0.25
-            - pl.col("estimated_reproduction_permille_mean") * 0.15
-            - pl.col("observer_leakage_permille_mean") * 0.45
-            - pl.when(pl.col("bounded_state_mode") == "explosive").then(320.0).otherwise(0.0)
-            - pl.when(pl.col("bounded_state_mode") == "collapse").then(220.0).otherwise(0.0)
-        ).alias("score")
+        _generic_diffusion_score_expr(_BALANCED_DIFFUSION_WEIGHTS).alias("score")
     ).sort(["family_id", "score", "config_id"], descending=[False, True, False])
 
 

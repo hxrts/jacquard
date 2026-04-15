@@ -100,6 +100,12 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
                     network.clone(),
                     topology.observed_at_tick,
                 ),
+                EngineLane::Scatter => ClientBuilder::scatter(
+                    host.local_node_id,
+                    topology.clone(),
+                    network.clone(),
+                    topology.observed_at_tick,
+                ),
                 EngineLane::PathwayAndBatmanBellman => ClientBuilder::pathway_and_batman_bellman(
                     host.local_node_id,
                     topology.clone(),
@@ -424,7 +430,10 @@ where
                 host_rounds,
             });
 
-            if all_waiting && environment.is_quiescent_after(at_tick) {
+            if all_waiting
+                && scenario.bound_objectives().is_empty()
+                && environment.is_quiescent_after(at_tick)
+            {
                 break;
             }
         }

@@ -1,13 +1,13 @@
 # Routing Tuning
 
-`jacquard-simulator` includes a maintained tuning harness for all six in-tree
+`jacquard-simulator` includes a maintained tuning harness for all seven in-tree
 engines. The harness runs deterministic scenario matrices, sweeps maintained
 public parameters, writes stable artifacts under `artifacts/analysis/`, and
 generates CSV tables plus a PDF report with vector plots through the repo-local
 Python, Polars, matplotlib, and ReportLab toolchain. It also includes a
 dedicated head-to-head corpus that runs the same regimes under explicit
-engine sets: `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `pathway`,
-`field`, and `pathway-batman-bellman`.
+engine sets: `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `scatter`,
+`pathway`, `field`, and `pathway-batman-bellman`.
 
 The harness also emits a companion diffusion-oriented corpus in the same
 artifact directory. That second track models mobility-driven contacts,
