@@ -401,7 +401,7 @@ def write_pdf_report(
             ["Engine Configuration", "Score", "Activation", "Route Presence", "Max Stress"],
             recommendation_table_rows(recommendations, 2),
             styles,
-            [6.0 * cm, 2.2 * cm, 2.3 * cm, 2.7 * cm, 2.2 * cm],
+            [6.8 * cm, 1.8 * cm, 2.0 * cm, 2.4 * cm, 1.8 * cm],
         )
     )
     add_paragraphs(
