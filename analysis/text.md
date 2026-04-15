@@ -50,6 +50,12 @@ The tuning matrix changes one small set of conditions at a time. Across the corp
 
 The recommendations are meant to be good defaults for this modeled corpus, not single winners from one scenario.
 
+Methodology note:
+- route-visible `Active Route` means active-window route presence from objective activation onward, not total scenario-round presence.
+- the head-to-head route-visible surface is a fixed representative-profile benchmark, while Part I recommendation tables are calibrated-best surfaces.
+- mixed-stack `Selected-Round Leader` means the engine selected for the most active-route rounds inside one shared router policy, not the best standalone engine.
+- generic family-by-family diffusion winners are more provisional than the regime-aware diffusion tables when different generic weightings change the winner.
+
 #### Regime Assumptions
 
 The scenarios are stylized representations of common mesh-network conditions. Names like sparse line, medium ring, and bridge cluster describe the network shape. Loss and interference settings then make communication easier or harder within that shape. Some families are intentionally placed near break points where a small parameter change can determine whether a route survives.
@@ -169,7 +175,7 @@ When routes are first lost under the same transition families. The clearest view
 
 #### BATMAN Classic Transition Analysis
 
-These plots mirror the BATMAN Bellman pair for the spec-faithful engine. The classic engine converges more slowly due to its echo-only bidirectionality requirement.
+These two plots form an analytical pair: the first shows where stability accumulates across the transition families, and the second shows when those same settings first lose a route. The classic engine converges more slowly than other BATMAN variants due to its echo-only bidirectionality requirement.
 
 #### Figure 3
 
@@ -251,13 +257,13 @@ Continuation shifts and search reconfiguration rounds combined into one reconfig
 
 @figure comparison_dominant_engine
 
-Which engine dominates in each maintained mixed-engine comparison family.
+Which engine leads by selected route rounds in each maintained mixed-engine comparison family. A `tie` means the mixed stack split selected-route rounds evenly at the top.
 
 #### Figure 14
 
 @figure head_to_head_route_presence
 
-Direct comparison of explicit engine sets over the same regime families.
+Direct comparison of explicit engine sets over the same regime families using active-window route presence.
 
 ### Comparison And Head-To-Head
 
@@ -265,13 +271,21 @@ Direct comparison of explicit engine sets over the same regime families.
 
 @table comparison-summary
 
-Dominant engine per maintained comparison family. Column guide: Dominant Engine is the best performer; Activation, Route Presence, and Stress as above.
+Selected-round leader per maintained comparison family. Column guide: Selected-Round Leader means the engine selected for the most active-route rounds in one shared mixed stack, not necessarily the best standalone performer. Activation is objective activation success, Active Route is active-window route presence, and Stress is the scenario stress score.
+
+The mixed comparison surface is a single-router arbitration benchmark, not an oracle ensemble. The router gathers candidates across engines, publishes one canonical route per objective, and only reselects when maintenance or expiry requires it. That means a mixed stack can legitimately underperform the best standalone engine in a family if the first durable admissible route comes from a weaker constituent engine.
 
 #### Head-To-Head Results
 
 @table head-to-head-summary
 
-Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `pathway`, `pathway-batman-bellman`, and `field`. Column guide: Engine Set is the only stack enabled; Activation, Route, Dominant, and Stress as above. A `-` means no route-visible winner was observed.
+Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `pathway`, `pathway-batman-bellman`, and `field`. Column guide: Engine Set is the only stack enabled; Activation is objective activation success; Active Route is active-window route presence; Selected Leader is the selected-round leader for that run and may be `tie`; Stress is the regime stress score.
+
+#### Benchmark Profile Audit
+
+@table benchmark-profile-audit
+
+This appendix table separates the fixed representative benchmark configs used in the head-to-head surface from the calibrated-best profile recommendations in Part I. A `Match` row means the representative benchmark config and the current calibrated-best config happen to be the same.
 
 #### Head-To-Head Regimes
 
@@ -286,7 +300,7 @@ The head-to-head regimes are:
 
 #### Head-To-Head Findings Intro
 
-These rows show what each stack does when it is the only available routing surface for that host set.
+These rows show what each stack does when it is the only available routing surface for that host set. This is a fixed representative-profile benchmark surface, not the calibrated-best profile surface from Part I.
 
 #### Head-To-Head Takeaways
 
@@ -356,6 +370,8 @@ Column guide: Regime names the diffusion posture regime; Success Criteria states
 This part evaluates the calibrated profiles directly. The emphasis shifts from admissibility to how the engines differ when diffusion itself is the comparison surface.
 
 The comparison surface here is regime-aware rather than purely family-by-family. Continuity, scarcity, congestion, privacy, and balanced regimes reward different behaviors, so the first summary table reports the best engine set per regime before the full family matrix.
+
+The generic family-by-family winner table is a representative weighted surface, not a universal truth. Appendix C includes both the maintained non-field baseline audit and a winner-sensitivity table showing where delivery-heavy and boundedness-heavy generic weights keep or change the family winner.
 
 ### Diffusion Regime Comparison
 
