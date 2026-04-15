@@ -36,6 +36,8 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - uses: dtolnay/rust-toolchain@stable
+      - name: Generate Summary
+        run: ./scripts/gen-summary.sh
       - name: Clippy
         run: nix develop --command cargo clippy --workspace --all-targets -- -D warnings
 
@@ -48,6 +50,8 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - uses: dtolnay/rust-toolchain@stable
+      - name: Generate Summary
+        run: ./scripts/gen-summary.sh
       - name: Tests
         run: nix develop --command cargo test --workspace
 
