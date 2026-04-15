@@ -18,6 +18,15 @@ Field owns four private layers:
 Those layers stay engine-private. The router still owns canonical route
 identity, publication, and cross-engine selection.
 
+The current Rust implementation now makes the operational layer more explicit:
+
+- `policy.rs` centralizes calibrated regime, posture, continuity, promotion,
+  and evidence thresholds as one deterministic `FieldPolicy` surface
+- `operational.rs` derives a reduced `FieldOperationalView` with support,
+  retention, entropy, and freshness bands for decision code
+- those operational surfaces remain runtime-private and do not become
+  posterior truth or canonical route truth
+
 ## Continuously Updated Field Model
 
 Field updates one destination-local model from three evidence classes:
@@ -112,6 +121,35 @@ The search/publication boundary is explicit:
 - the published route summary remains one corridor-envelope claim
 - backend token and active-route state keep the richer private realization
   detail needed for runtime maintenance and forwarding
+
+## Experimental Surface
+
+Field now separates two different tuning surfaces:
+
+- `FieldSearchConfig` remains the search-substrate surface:
+  - scheduler profile
+  - batch-width / effort invariants
+  - heuristic mode
+  - query budget
+  - reseeding policy
+- `FieldPolicy` is the operational surface:
+  - regime detection and dwell
+  - posture switching
+  - continuity and bootstrap floors
+  - promotion / hold / narrow / withdraw gates
+  - evidence aging, carry-forward, publication, and replay thresholds
+
+The intended maintained experiment knobs are profile-level and few:
+
+- regime sensitivity
+- posture conservatism
+- continuity softness
+- promotion strictness
+- evidence freshness / corroboration weight
+
+Those profile-level variables expand into the lower-level policy families
+internally. The point of the split is to keep the experiment surface legible
+without turning the runtime into an unbounded configuration matrix.
 
 ## Execution Policy
 
