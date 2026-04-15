@@ -4,9 +4,11 @@
 # Mirrors the production dependency graph — dev-only deps do not appear here.
 #
 # Dependency order:
-#   macros → core → traits, adapter, mem-node-profile
-#   adapter → mem-link-profile → pathway, batman, field → router
-#   router → reference-client → field-client → simulator
+#   macros → core → traits, adapter
+#   adapter → mem-node-profile, mem-link-profile
+#   core/traits → pathway, field, scatter, babel, batman-classic, batman-bellman, olsrv2
+#   router depends on shared crates; reference-client and simulator depend on router + engines
+#   testkit comes last because it depends on most of the publishable surface
 RELEASE_PACKAGES=(
   "jacquard-macros"
   "jacquard-core"
@@ -14,13 +16,17 @@ RELEASE_PACKAGES=(
   "jacquard-adapter"
   "jacquard-mem-node-profile"
   "jacquard-mem-link-profile"
+  "jacquard-babel"
+  "jacquard-batman-bellman"
+  "jacquard-batman-classic"
+  "jacquard-olsrv2"
   "jacquard-pathway"
-  "jacquard-batman"
+  "jacquard-scatter"
   "jacquard-field"
   "jacquard-router"
   "jacquard-reference-client"
-  "jacquard-field-client"
   "jacquard-simulator"
+  "jacquard-testkit"
 )
 
 manifest_path() {
@@ -32,13 +38,17 @@ manifest_path() {
     jacquard-adapter)          echo "crates/adapter/Cargo.toml" ;;
     jacquard-mem-node-profile) echo "crates/mem-node-profile/Cargo.toml" ;;
     jacquard-mem-link-profile) echo "crates/mem-link-profile/Cargo.toml" ;;
+    jacquard-babel)            echo "crates/babel/Cargo.toml" ;;
+    jacquard-batman-bellman)   echo "crates/batman-bellman/Cargo.toml" ;;
+    jacquard-batman-classic)   echo "crates/batman-classic/Cargo.toml" ;;
+    jacquard-olsrv2)           echo "crates/olsrv2/Cargo.toml" ;;
     jacquard-pathway)          echo "crates/pathway/Cargo.toml" ;;
-    jacquard-batman)           echo "crates/batman/Cargo.toml" ;;
+    jacquard-scatter)          echo "crates/scatter/Cargo.toml" ;;
     jacquard-field)            echo "crates/field/Cargo.toml" ;;
     jacquard-router)           echo "crates/router/Cargo.toml" ;;
     jacquard-reference-client) echo "crates/reference-client/Cargo.toml" ;;
-    jacquard-field-client)     echo "crates/field-client/Cargo.toml" ;;
     jacquard-simulator)        echo "crates/simulator/Cargo.toml" ;;
+    jacquard-testkit)          echo "crates/testkit/Cargo.toml" ;;
     *)
       echo "unknown package: ${crate}" >&2
       return 1
