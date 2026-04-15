@@ -113,8 +113,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-batman-bellman`: next-hop ranking, TQ derivation with enrichment, Bellman-Ford path computation, gossip integration, bootstrap transition, and router integration.
 - `jacquard-batman-classic`: spec-faithful OGM-carried TQ, echo-only bidirectionality, receive-window occupancy, and router integration.
 - `jacquard-babel`: ETX link cost, additive metric, feasibility distance table, seqno ordering, and router integration.
-- `jacquard-field`: observer, attractor, search, regime/posture control, runtime maintenance, and field-client integration.
-- `jacquard-field-client`: end-to-end field client API and replay export.
+- `jacquard-field`: observer, attractor, search, regime/posture control, and runtime maintenance.
 - `jacquard-macros`: proc-macro compile checks and trybuild UI regression tests for annotation contracts.
 - `jacquard-mem-link-profile`: transport, retention, and runtime-effect adapter integration.
 - `jacquard-mem-node-profile`: node profile and capability modeling.

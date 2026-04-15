@@ -31,7 +31,7 @@ in `core` or the transport-neutral mem profile crates.
 
 ## Dependency Graph
 
-The workspace today contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-batman-bellman`, `jacquard-batman-classic`, `jacquard-babel`, `jacquard-olsrv2`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-field-client`, `jacquard-reference-client`, and `jacquard-simulator`.
+The workspace today contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-batman-bellman`, `jacquard-batman-classic`, `jacquard-babel`, `jacquard-olsrv2`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-reference-client`, and `jacquard-simulator`.
 
 ```
 jacquard-core
@@ -45,7 +45,7 @@ jacquard-mem-link-profile
 jacquard-pathway ─────────┐
 jacquard-field   ─────────┼──→ jacquard-router ←── jacquard-reference-client
 jacquard-batman-bellman ──┤         │                ↑
-jacquard-batman-classic ──┤         ├──→ jacquard-field-client
+jacquard-batman-classic ──┤         │
 jacquard-babel ───────────┤         └──→ jacquard-simulator
 jacquard-olsrv2 ──────────┘
 

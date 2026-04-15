@@ -575,12 +575,9 @@ name = "jacquard-babel"
 version = "0.4.0"
 dependencies = [
  "bincode",
- "jacquard-adapter",
  "jacquard-core",
  "jacquard-mem-link-profile",
- "jacquard-mem-node-profile",
- "jacquard-reference-client",
- "jacquard-router",
+ "jacquard-testkit",
  "jacquard-traits",
  "serde",
 ]
@@ -604,12 +601,9 @@ name = "jacquard-batman-classic"
 version = "0.4.0"
 dependencies = [
  "bincode",
- "jacquard-adapter",
  "jacquard-core",
  "jacquard-mem-link-profile",
- "jacquard-mem-node-profile",
- "jacquard-reference-client",
- "jacquard-router",
+ "jacquard-testkit",
  "jacquard-traits",
  "serde",
 ]
@@ -639,18 +633,6 @@ dependencies = [
  "serde",
  "serde_json",
  "telltale-search",
-]
-
-[[package]]
-name = "jacquard-field-client"
-version = "0.4.0"
-dependencies = [
- "jacquard-adapter",
- "jacquard-core",
- "jacquard-field",
- "jacquard-mem-link-profile",
- "jacquard-mem-node-profile",
- "jacquard-traits",
 ]
 
 [[package]]
@@ -707,9 +689,7 @@ dependencies = [
  "cfg-if",
  "jacquard-core",
  "jacquard-mem-link-profile",
- "jacquard-mem-node-profile",
- "jacquard-reference-client",
- "jacquard-router",
+ "jacquard-testkit",
  "jacquard-traits",
  "serde",
  "serde_json",
@@ -732,6 +712,7 @@ dependencies = [
  "jacquard-olsrv2",
  "jacquard-pathway",
  "jacquard-router",
+ "jacquard-testkit",
  "jacquard-traits",
  "thiserror",
  "wasm-bindgen-test",
@@ -772,6 +753,23 @@ dependencies = [
  "serde_json",
  "telltale-simulator",
  "thiserror",
+]
+
+[[package]]
+name = "jacquard-testkit"
+version = "0.4.0"
+dependencies = [
+ "jacquard-adapter",
+ "jacquard-babel",
+ "jacquard-batman-bellman",
+ "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
+ "jacquard-olsrv2",
+ "jacquard-pathway",
+ "jacquard-reference-client",
+ "jacquard-router",
+ "jacquard-traits",
 ]
 
 [[package]]
