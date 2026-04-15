@@ -594,6 +594,8 @@ def write_pdf_report(
 
     story.append(Paragraph(report_title, styles["TitleCustom"]))
     add_paragraphs(story, styles, executive_summary_lines(recommendations, aggregates, comparison_summary))
+    story.append(Paragraph("Design Setting", styles["Subsection"]))
+    add_paragraphs(story, styles, section_lines("Design Setting"))
     story.append(Spacer(1, TITLE_SPACER))
     story.append(Paragraph("Part I. Tuning", styles["Section"]))
 

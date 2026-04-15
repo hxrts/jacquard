@@ -8,6 +8,14 @@ This report studies Jacquard routing behavior across seven engines using a commo
 
 The report is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles. Part IV evaluates these calibrated profiles under message-diffusion scenarios where node movement and intermittent contact opportunities carry messages, and end-to-end paths may not exist.
 
+### Design Setting
+
+The maintained corpus is designed for disrupted and mobility-driven mesh environments. In this setting, end-to-end paths are often absent. Connectivity appears through short contact windows, weak bridges, and repeated partial recovery rather than through one stable connected graph. Nodes are also resource-constrained, so routing quality depends on bounded state, bounded work, and disciplined use of transmissions and custody.
+
+The route-visible matrix gives useful evidence for this setting because it stresses the conditions that determine whether a router-facing engine remains usable at all. The maintained families vary bridge pressure, asymmetry, loss, relink events, partitions, recovery, contention, and local node pressure. Those are the same forces that determine whether a proactive engine keeps a route, whether a search-driven engine finds one, and where each approach breaks down.
+
+The diffusion track adds the second half of the picture. It models cases where movement is the transport mechanism and messages must persist across disconnection. Its mobility-driven contacts, bounded replication, energy and transmission accounting, storage utilization, and observer-leakage measures give insight into whether a deferred-delivery policy remains viable in the same population-level setting, not only in easy connected regimes.
+
 ## Part I. Tuning
 
 ### Recommendation Tables
