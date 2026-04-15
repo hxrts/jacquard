@@ -202,6 +202,45 @@ pub(super) fn build_comparison_partial_observability_bridge(
     (scenario, environment)
 }
 
+fn comparison_concurrent_mixed_hosts(
+    comparison_engine_set: Option<&str>,
+    service_destination: &DestinationId,
+    service_bootstrap: &[FieldBootstrapSeed],
+) -> Vec<HostSpec> {
+    vec![
+        comparison_host_spec(NODE_A, comparison_engine_set)
+            .with_profile(best_effort_connected_profile()),
+        seed_standalone_field_bootstrap(
+            comparison_host_spec(NODE_B, comparison_engine_set)
+                .with_profile(best_effort_connected_profile()),
+            comparison_engine_set,
+            service_destination,
+            service_bootstrap,
+        ),
+        comparison_host_spec(NODE_C, comparison_engine_set),
+        comparison_host_spec(NODE_D, comparison_engine_set),
+    ]
+}
+
+fn comparison_concurrent_mixed_environment() -> ScriptedEnvironmentModel {
+    ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(9),
+            EnvironmentHook::IntrinsicLimit {
+                node_id: NODE_C,
+                connection_count_max: 1,
+                hold_capacity_bytes_max: jacquard_core::ByteCount(384),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(12),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_A, NODE_D), (NODE_D, NODE_A)],
+            },
+        ),
+    ])
+}
+
 pub(super) fn build_comparison_concurrent_mixed(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
@@ -225,19 +264,11 @@ pub(super) fn build_comparison_concurrent_mixed(
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
-            vec![
-                comparison_host_spec(NODE_A, comparison_engine_set)
-                    .with_profile(best_effort_connected_profile()),
-                seed_standalone_field_bootstrap(
-                    comparison_host_spec(NODE_B, comparison_engine_set)
-                        .with_profile(best_effort_connected_profile()),
-                    comparison_engine_set,
-                    &service_destination,
-                    &service_bootstrap,
-                ),
-                comparison_host_spec(NODE_C, comparison_engine_set),
-                comparison_host_spec(NODE_D, comparison_engine_set),
-            ],
+            comparison_concurrent_mixed_hosts(
+                comparison_engine_set,
+                &service_destination,
+                &service_bootstrap,
+            ),
             vec![
                 BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2),
                 BoundObjective::new(NODE_B, service_objective(vec![13; 16]))
@@ -247,22 +278,7 @@ pub(super) fn build_comparison_concurrent_mixed(
         ),
         parameters,
     );
-    let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(9),
-            EnvironmentHook::IntrinsicLimit {
-                node_id: NODE_C,
-                connection_count_max: 1,
-                hold_capacity_bytes_max: jacquard_core::ByteCount(384),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(12),
-            EnvironmentHook::CascadePartition {
-                cuts: vec![(NODE_A, NODE_D), (NODE_D, NODE_A)],
-            },
-        ),
-    ]);
+    let environment = comparison_concurrent_mixed_environment();
     (scenario, environment)
 }
 
@@ -308,6 +324,37 @@ pub(super) fn build_comparison_corridor_continuity_uncertainty(
     (scenario, environment)
 }
 
+fn medium_bridge_repair_alternate(topology: &Observation<Configuration>) -> Configuration {
+    let mut alternate = topology.value.clone();
+    alternate.links.remove(&(NODE_B, NODE_C));
+    alternate.links.remove(&(NODE_C, NODE_B));
+    alternate
+        .links
+        .insert((NODE_B, NODE_E), crate::topology::link(5).build());
+    alternate
+        .links
+        .insert((NODE_E, NODE_B), crate::topology::link(2).build());
+    alternate
+}
+
+fn medium_bridge_repair_hosts(
+    comparison_engine_set: Option<&str>,
+    destination: &DestinationId,
+    bootstrap: &[FieldBootstrapSeed],
+) -> Vec<HostSpec> {
+    host_specs_with_primary(
+        seed_standalone_field_bootstrap(
+            comparison_host_spec(NODE_A, comparison_engine_set)
+                .with_profile(repairable_connected_profile()),
+            comparison_engine_set,
+            destination,
+            bootstrap,
+        ),
+        &[NODE_B, NODE_C, NODE_D, NODE_E, NODE_F],
+        |node_id| comparison_host_spec(node_id, comparison_engine_set),
+    )
+}
+
 pub(super) fn build_comparison_medium_bridge_repair(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
@@ -328,32 +375,14 @@ pub(super) fn build_comparison_medium_bridge_repair(
         comparison_topology_node(6, comparison_engine_set),
     );
     set_environment(&mut topology, 2, RatioPermille(170), RatioPermille(120));
-    let mut alternate = topology.value.clone();
-    alternate.links.remove(&(NODE_B, NODE_C));
-    alternate.links.remove(&(NODE_C, NODE_B));
-    alternate
-        .links
-        .insert((NODE_B, NODE_E), crate::topology::link(5).build());
-    alternate
-        .links
-        .insert((NODE_E, NODE_B), crate::topology::link(2).build());
+    let alternate = medium_bridge_repair_alternate(&topology);
     let scenario = apply_overrides(
         &JacquardScenario::new(
             format!("comparison-medium-bridge-repair-{}", parameters.config_id),
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
-            host_specs_with_primary(
-                seed_standalone_field_bootstrap(
-                    comparison_host_spec(NODE_A, comparison_engine_set)
-                        .with_profile(repairable_connected_profile()),
-                    comparison_engine_set,
-                    &destination,
-                    &bootstrap,
-                ),
-                &[NODE_B, NODE_C, NODE_D, NODE_E, NODE_F],
-                |node_id| comparison_host_spec(node_id, comparison_engine_set),
-            ),
+            medium_bridge_repair_hosts(comparison_engine_set, &destination, &bootstrap),
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_F)).with_activation_round(2)],
             30,
         ),
@@ -372,6 +401,50 @@ pub(super) fn build_comparison_medium_bridge_repair(
         replace_topology_hook(14, &alternate),
     ]);
     (scenario, environment)
+}
+
+#[cfg(test)]
+fn comparison_activation_window_cases(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> Vec<(JacquardScenario, Vec<u32>, u32)> {
+    vec![
+        (
+            build_comparison_connected_low_loss(parameters, seed).0,
+            vec![2u32],
+            18u32,
+        ),
+        (
+            build_comparison_connected_high_loss(parameters, seed).0,
+            vec![2u32],
+            24u32,
+        ),
+        (
+            build_comparison_bridge_transition(parameters, seed).0,
+            vec![2u32],
+            24u32,
+        ),
+        (
+            build_comparison_partial_observability_bridge(parameters, seed).0,
+            vec![3u32],
+            24u32,
+        ),
+        (
+            build_comparison_concurrent_mixed(parameters, seed).0,
+            vec![2u32, 4u32],
+            20u32,
+        ),
+        (
+            build_comparison_corridor_continuity_uncertainty(parameters, seed).0,
+            vec![3u32],
+            28u32,
+        ),
+        (
+            build_comparison_medium_bridge_repair(parameters, seed).0,
+            vec![2u32],
+            30u32,
+        ),
+    ]
 }
 
 #[cfg(test)]
@@ -429,43 +502,7 @@ mod tests {
     fn comparison_families_document_activation_rounds_and_active_windows() {
         let parameters = sample_parameters();
         let seed = SimulationSeed(41);
-        let cases = [
-            (
-                build_comparison_connected_low_loss(&parameters, seed).0,
-                vec![2u32],
-                18u32,
-            ),
-            (
-                build_comparison_connected_high_loss(&parameters, seed).0,
-                vec![2u32],
-                24u32,
-            ),
-            (
-                build_comparison_bridge_transition(&parameters, seed).0,
-                vec![2u32],
-                24u32,
-            ),
-            (
-                build_comparison_partial_observability_bridge(&parameters, seed).0,
-                vec![3u32],
-                24u32,
-            ),
-            (
-                build_comparison_concurrent_mixed(&parameters, seed).0,
-                vec![2u32, 4u32],
-                20u32,
-            ),
-            (
-                build_comparison_corridor_continuity_uncertainty(&parameters, seed).0,
-                vec![3u32],
-                28u32,
-            ),
-            (
-                build_comparison_medium_bridge_repair(&parameters, seed).0,
-                vec![2u32],
-                30u32,
-            ),
-        ];
+        let cases = comparison_activation_window_cases(&parameters, seed);
 
         for (scenario, expected_activations, expected_round_limit) in cases {
             let activations = scenario

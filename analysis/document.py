@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from reportlab.graphics import renderPDF
@@ -15,7 +16,6 @@ from reportlab.lib.units import cm
 from reportlab.platypus import (
     Image,
     KeepTogether,
-    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -27,9 +27,9 @@ from reportlab.lib.utils import ImageReader
 from svglib.svglib import svg2rlg
 
 from .sections import (
-    approach_lines,
     analysis_takeaway_lines,
     asset_block,
+    asset_block_by_id,
     babel_algorithm_lines,
     batman_bellman_algorithm_lines,
     batman_classic_algorithm_lines,
@@ -45,8 +45,6 @@ from .sections import (
     methodology_lines,
     olsrv2_algorithm_lines,
     pathway_algorithm_lines,
-    profile_recommendation_lines,
-    recommendation_rationale_lines,
     regime_assumption_lines,
     regime_characterization_lines,
     scatter_algorithm_lines,
@@ -74,6 +72,12 @@ from .tables import (
     transition_table_rows,
     boundary_table_rows,
 )
+
+REPORT_TEXT_COLOR = colors.HexColor("#000000")
+REPORT_CAPTION_COLOR = colors.HexColor("#6b6b6b")
+REPORT_TABLE_HEADER_COLOR = colors.HexColor("#7a7a7a")
+REPORT_TABLE_STRIPE_COLOR = colors.HexColor("#f0f0f0")
+REPORT_INVERSE_TEXT_COLOR = colors.HexColor("#ffffff")
 
 
 def codeify_known_terms(text: str) -> str:
@@ -167,7 +171,7 @@ def build_styles():
             fontName="Helvetica-Bold",
             fontSize=13,
             leading=16,
-            textColor=colors.HexColor("#000000"),
+            textColor=REPORT_TEXT_COLOR,
             spaceBefore=16,
             spaceAfter=8,
         )
@@ -179,7 +183,7 @@ def build_styles():
             fontName="Helvetica-Bold",
             fontSize=11.2,
             leading=14,
-            textColor=colors.HexColor("#000000"),
+            textColor=REPORT_TEXT_COLOR,
             spaceBefore=12,
             spaceAfter=4,
         )
@@ -192,7 +196,7 @@ def build_styles():
             fontSize=18,
             leading=22,
             alignment=TA_LEFT,
-            textColor=colors.HexColor("#000000"),
+            textColor=REPORT_TEXT_COLOR,
             spaceAfter=14,
         )
     )
@@ -203,7 +207,7 @@ def build_styles():
             fontName="Helvetica",
             fontSize=8.2,
             leading=11,
-            textColor=colors.HexColor("#64748b"),
+            textColor=REPORT_CAPTION_COLOR,
             spaceBefore=4,
             spaceAfter=10,
             leftIndent=24,
@@ -246,7 +250,7 @@ def build_styles():
 def add_paragraphs(story: list, styles, lines: list[str]) -> None:
     for line in lines:
         if line == "":
-            story.append(Spacer(1, 0.08 * cm))
+            story.append(Spacer(1, INLINE_SPACER))
         elif line.startswith("- "):
             bullet_text = line[2:]
             story.append(
@@ -259,63 +263,213 @@ def add_paragraphs(story: list, styles, lines: list[str]) -> None:
         else:
             story.append(Paragraph(markup(line), styles["Body"]))
 
+REPORT_TITLE = "Jacquard Router: Tuning and Analysis"
+PAGE_MARGIN_LEFT = 2.5 * cm
+PAGE_MARGIN_RIGHT = 2.5 * cm
+PAGE_MARGIN_TOP = 2.2 * cm
+PAGE_MARGIN_BOTTOM = 2.2 * cm
+TABLE_WIDTH = 16.6 * cm
+INLINE_SPACER = 0.08 * cm
+TITLE_SPACER = 0.15 * cm
+SECTION_SPACER = 0.12 * cm
+BLOCK_SPACER = 0.16 * cm
+FIGURE_BLOCK_SPACER = 0.18 * cm
+TABLE_CAPTION_SPACER = 0.14 * cm
 
-def add_lines(story: list, styles, lines: list[str], style_name: str) -> None:
+
+@dataclass(frozen=True)
+class FigureLayout:
+    width: float
+    height: float
+    keep_together: bool = False
+
+
+FIGURE_LAYOUT_STANDARD = FigureLayout(16.4 * cm, 7.4 * cm)
+FIGURE_LAYOUT_TALL = FigureLayout(16.4 * cm, 8.6 * cm)
+FIGURE_LAYOUT_SCATTER = FigureLayout(16.4 * cm, 9.4 * cm)
+FIGURE_LAYOUT_FIELD = FigureLayout(16.4 * cm, 10.2 * cm)
+FIGURE_LAYOUT_COMPARISON_TILE = FigureLayout(14.8 * cm, 10.2 * cm, keep_together=True)
+FIGURE_LAYOUT_COMPARISON_BAR = FigureLayout(16.4 * cm, 10.2 * cm, keep_together=True)
+FIGURE_LAYOUT_COMPARISON_HEATMAP = FigureLayout(17.2 * cm, 9.6 * cm, keep_together=True)
+FIGURE_LAYOUT_COMPARISON_SCATTER = FigureLayout(15.4 * cm, 9.0 * cm, keep_together=True)
+FIGURE_LAYOUT_COMPARISON_DIVERGENCE = FigureLayout(16.8 * cm, 9.2 * cm, keep_together=True)
+FIGURE_LAYOUT_DIFFUSION = FigureLayout(18.0 * cm, 22.0 * cm)
+
+FIGURE_LAYOUTS: dict[str, FigureLayout] = {
+    "batman_classic_transition_stability": FIGURE_LAYOUT_STANDARD,
+    "batman_classic_transition_loss": FIGURE_LAYOUT_STANDARD,
+    "batman_bellman_transition_stability": FIGURE_LAYOUT_STANDARD,
+    "batman_bellman_transition_loss": FIGURE_LAYOUT_STANDARD,
+    "babel_decay_stability": FIGURE_LAYOUT_STANDARD,
+    "babel_decay_loss": FIGURE_LAYOUT_STANDARD,
+    "olsrv2_decay_stability": FIGURE_LAYOUT_TALL,
+    "olsrv2_decay_loss": FIGURE_LAYOUT_TALL,
+    "scatter_profile_route_presence": FIGURE_LAYOUT_SCATTER,
+    "scatter_profile_startup": FIGURE_LAYOUT_SCATTER,
+    "pathway_budget_route_presence": FIGURE_LAYOUT_STANDARD,
+    "pathway_budget_activation": FIGURE_LAYOUT_STANDARD,
+    "field_budget_route_presence": FIGURE_LAYOUT_FIELD,
+    "field_budget_reconfiguration": FIGURE_LAYOUT_FIELD,
+    "comparison_dominant_engine": FIGURE_LAYOUT_COMPARISON_TILE,
+    "head_to_head_route_presence": FIGURE_LAYOUT_COMPARISON_BAR,
+    "head_to_head_timing_profile": FIGURE_LAYOUT_COMPARISON_HEATMAP,
+    "recommended_engine_robustness": FIGURE_LAYOUT_COMPARISON_SCATTER,
+    "mixed_vs_standalone_divergence": FIGURE_LAYOUT_COMPARISON_DIVERGENCE,
+    "diffusion_delivery_coverage": FIGURE_LAYOUT_DIFFUSION,
+    "diffusion_resource_boundedness": FIGURE_LAYOUT_DIFFUSION,
+}
+
+PART_I_SETUP_SECTIONS = [
+    ("Simulation Setup", simulation_setup_lines),
+    ("Matrix Design", methodology_lines),
+    ("Regime Assumptions", regime_assumption_lines),
+    ("Regime Characterization", regime_characterization_lines),
+    ("BATMAN Classic Algorithm", batman_classic_algorithm_lines),
+    ("BATMAN Bellman Algorithm", batman_bellman_algorithm_lines),
+    ("Babel Algorithm", babel_algorithm_lines),
+    ("OLSRv2 Algorithm", olsrv2_algorithm_lines),
+    ("Scatter Algorithm", scatter_algorithm_lines),
+    ("Pathway Algorithm", pathway_algorithm_lines),
+    ("Field Algorithm", field_algorithm_lines),
+    ("Recommendation Logic", scoring_lines),
+]
+
+ENGINE_ANALYSIS_SECTIONS = [
+    {
+        "title": "3. BATMAN Classic Analysis",
+        "engine_family": "batman-classic",
+        "context_heading": "Transition Pressure Analysis",
+        "context_section": "BATMAN Classic Transition Analysis",
+        "figure_ids": (
+            "batman_classic_transition_stability",
+            "batman_classic_transition_loss",
+        ),
+    },
+    {
+        "title": "4. BATMAN Bellman Analysis",
+        "engine_family": "batman-bellman",
+        "context_heading": "Transition Pressure Analysis",
+        "context_section": "BATMAN Bellman Transition Analysis",
+        "figure_ids": (
+            "batman_bellman_transition_stability",
+            "batman_bellman_transition_loss",
+        ),
+    },
+    {
+        "title": "5. Babel Analysis",
+        "engine_family": "babel",
+        "context_heading": "Decay Window And Feasibility Analysis",
+        "context_section": "Babel Decay Analysis",
+        "figure_ids": ("babel_decay_stability", "babel_decay_loss"),
+    },
+    {
+        "title": "6. OLSRv2 Analysis",
+        "engine_family": "olsrv2",
+        "context_heading": "Topology Propagation And Churn Analysis",
+        "context_section": "OLSRv2 Decay Analysis",
+        "figure_ids": ("olsrv2_decay_stability", "olsrv2_decay_loss"),
+    },
+    {
+        "title": "7. Scatter Analysis",
+        "engine_family": "scatter",
+        "context_heading": None,
+        "context_section": "Scatter Profile Figures Intro",
+        "figure_ids": ("scatter_profile_route_presence", "scatter_profile_startup"),
+    },
+    {
+        "title": "8. Pathway Analysis",
+        "engine_family": "pathway",
+        "context_heading": "Budget Figures",
+        "context_section": "Pathway Budget Figures Intro",
+        "figure_ids": ("pathway_budget_route_presence", "pathway_budget_activation"),
+    },
+    {
+        "title": "9. Field Analysis",
+        "engine_family": "field",
+        "context_heading": "Corridor Figures",
+        "context_section": "Field Corridor Figures Intro",
+        "figure_ids": ("field_budget_route_presence", "field_budget_reconfiguration"),
+    },
+]
+
+COMPARISON_FIGURE_IDS = [
+    "comparison_dominant_engine",
+    "head_to_head_route_presence",
+    "head_to_head_timing_profile",
+    "recommended_engine_robustness",
+    "mixed_vs_standalone_divergence",
+]
+
+DIFFUSION_FIGURE_IDS = [
+    "diffusion_delivery_coverage",
+    "diffusion_resource_boundedness",
+]
+
+
+def caption_lines_with_label(label: str, lines: list[str]) -> list[str]:
+    caption_lines = list(lines) if lines else []
+    while caption_lines and caption_lines[0] == "":
+        caption_lines.pop(0)
+    if caption_lines:
+        caption_lines[0] = f"{label}. {caption_lines[0]}"
+        return caption_lines
+    return [f"{label}."]
+
+
+def caption_lines_with_inline_label(label: str, lines: list[str]) -> list[str]:
+    caption_lines = list(lines) if lines else []
+    while caption_lines and caption_lines[0] == "":
+        caption_lines.pop(0)
+    if caption_lines:
+        caption_lines[0] = f"{label}.{chr(160)}{caption_lines[0]}"
+        return caption_lines
+    return [f"{label}."]
+
+
+def paragraph_flowables(styles, lines: list[str], style_name: str) -> list:
+    flowables: list = []
     for line in lines:
         if line == "":
-            story.append(Spacer(1, 0.08 * cm))
+            flowables.append(Spacer(1, INLINE_SPACER))
         else:
-            story.append(Paragraph(markup(line), styles[style_name]))
-
-
-def add_figure(
-    story: list,
-    styles,
-    report_dir: Path,
-    section_name: str,
-    figure_title: str,
-    max_width: float,
-    max_height: float,
-) -> None:
-    figure = asset_block(section_name, "figure")
-    story.append(figure_flowable(report_dir, figure.asset_id, max_width, max_height))
-    caption_lines = list(figure.lines)
-    if caption_lines:
-        caption_lines[0] = f"{figure_title}. {caption_lines[0]}"
-    else:
-        caption_lines = [f"{figure_title}."]
-    add_lines(story, styles, caption_lines, "Caption")
-
-
-def figure_flowables(
-    styles,
-    report_dir: Path,
-    section_name: str,
-    figure_title: str,
-    max_width: float,
-    max_height: float,
-) -> list:
-    figure = asset_block(section_name, "figure")
-    caption_lines = list(figure.lines)
-    if caption_lines:
-        caption_lines[0] = f"{figure_title}. {caption_lines[0]}"
-    else:
-        caption_lines = [f"{figure_title}."]
-    flowables: list = [figure_flowable(report_dir, figure.asset_id, max_width, max_height)]
-    for line in caption_lines:
-        if line == "":
-            flowables.append(Spacer(1, 0.08 * cm))
-        else:
-            flowables.append(Paragraph(markup(line), styles["Caption"]))
+            flowables.append(Paragraph(markup(line), styles[style_name]))
     return flowables
 
 
-TABLE_WIDTH = 16.6 * cm
-PART_II_FIGURE_WIDTH = 16.4 * cm
-PART_II_TRIPTYCH_HEIGHT = 7.4 * cm
-PART_II_QUAD_HEIGHT = 8.6 * cm
-PART_II_HEPTAD_HEIGHT = 9.4 * cm
-PART_II_NINE_PANEL_HEIGHT = 10.2 * cm
+def figure_caption_flowables(styles, asset_id: str) -> list:
+    block = asset_block_by_id(asset_id, "figure")
+    return paragraph_flowables(
+        styles,
+        caption_lines_with_inline_label(block.section_title, block.lines),
+        "Caption",
+    )
+
+
+def figure_asset_flowables(
+    styles,
+    report_dir: Path,
+    asset_id: str,
+    layout: FigureLayout,
+) -> list:
+    flowables: list = [
+        figure_flowable(report_dir, asset_id, layout.width, layout.height),
+        *figure_caption_flowables(styles, asset_id),
+    ]
+    return flowables
+
+
+def add_figure_asset(
+    story: list,
+    styles,
+    report_dir: Path,
+    asset_id: str,
+) -> None:
+    layout = FIGURE_LAYOUTS[asset_id]
+    flowables = figure_asset_flowables(styles, report_dir, asset_id, layout)
+    if layout.keep_together:
+        story.append(KeepTogether(flowables))
+    else:
+        story.extend(flowables)
 
 
 def make_table(column_labels: list[str], rows: list[list[str]], styles, col_widths: list[float]) -> Table:
@@ -338,10 +492,10 @@ def make_table(column_labels: list[str], rows: list[list[str]], styles, col_widt
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#7a7a7a")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#ffffff")),
+                ("BACKGROUND", (0, 0), (-1, 0), REPORT_TABLE_HEADER_COLOR),
+                ("TEXTCOLOR", (0, 0), (-1, 0), REPORT_INVERSE_TEXT_COLOR),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f0f0")]),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, REPORT_TABLE_STRIPE_COLOR]),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 6),
@@ -359,19 +513,14 @@ def table_caption_flowables(
     table_number: int,
     description_lines: list[str],
 ) -> list:
-    table_title = f"Table {table_number}"
-    caption_lines = list(description_lines) if description_lines else []
-    if caption_lines:
-        caption_lines[0] = f"{table_title}. {caption_lines[0]}"
-    else:
-        caption_lines = [f"{table_title}."]
-    flowables: list = []
-    for line in caption_lines:
-        if line == "":
-            flowables.append(Spacer(1, 0.08 * cm))
-        else:
-            flowables.append(Paragraph(markup(line), styles["Caption"]))
-    return flowables
+    return [
+        Spacer(1, TABLE_CAPTION_SPACER),
+        *paragraph_flowables(
+            styles,
+            caption_lines_with_label(f"Table {table_number}", description_lines),
+            "Caption",
+        ),
+    ]
 
 
 def add_table_caption(
@@ -399,7 +548,7 @@ def add_table_section(
     story.append(make_table(column_labels, rows, styles, col_widths))
     table_counter[0] += 1
     add_table_caption(story, styles, table_counter[0], description_lines or [])
-    story.append(Spacer(1, 0.16 * cm))
+    story.append(Spacer(1, BLOCK_SPACER))
 
 
 def write_pdf_report(
@@ -432,18 +581,18 @@ def write_pdf_report(
     doc = SimpleDocTemplate(
         str(pdf_path),
         pagesize=A4,
-        leftMargin=2.2 * cm,
-        rightMargin=2.2 * cm,
-        topMargin=2.0 * cm,
-        bottomMargin=2.0 * cm,
-        title="Jacquard Routing: Tuning and Analysis",
+        leftMargin=PAGE_MARGIN_LEFT,
+        rightMargin=PAGE_MARGIN_RIGHT,
+        topMargin=PAGE_MARGIN_TOP,
+        bottomMargin=PAGE_MARGIN_BOTTOM,
+        title=REPORT_TITLE,
     )
     story: list = []
     table_counter = [0]
 
-    story.append(Paragraph("Jacquard Routing: Tuning and Analysis", styles["TitleCustom"]))
+    story.append(Paragraph(REPORT_TITLE, styles["TitleCustom"]))
     add_paragraphs(story, styles, executive_summary_lines(recommendations, aggregates, comparison_summary))
-    story.append(Spacer(1, 0.15 * cm))
+    story.append(Spacer(1, TITLE_SPACER))
     story.append(Paragraph("Part I. Tuning", styles["Section"]))
 
     story.append(Paragraph("1. Recommended Configurations", styles["Section"]))
@@ -459,246 +608,52 @@ def write_pdf_report(
     )
     table_counter[0] += 1
     add_table_caption(story, styles, table_counter[0], recommendation_block.description_lines)
-    add_paragraphs(
-        story,
-        styles,
-        [
-            "Detailed transition, failure-boundary, profile, and field-regime tables are collected in Appendix A so the main report can stay focused on the key recommendations and figures.",
-        ],
-    )
+    add_paragraphs(story, styles, section_lines("Recommendation Detail Note"))
 
     story.append(Paragraph("2. Tuning Setup And Scoring", styles["Section"]))
-    for heading, lines in [
-        ("Simulation Setup", simulation_setup_lines()),
-        ("Matrix Design", methodology_lines()),
-        ("Regime Assumptions", regime_assumption_lines()),
-        ("Regime Characterization", regime_characterization_lines()),
-        ("BATMAN Classic Algorithm", batman_classic_algorithm_lines()),
-        ("BATMAN Bellman Algorithm", batman_bellman_algorithm_lines()),
-        ("Babel Algorithm", babel_algorithm_lines()),
-        ("OLSRv2 Algorithm", olsrv2_algorithm_lines()),
-        ("Scatter Algorithm", scatter_algorithm_lines()),
-        ("Pathway Algorithm", pathway_algorithm_lines()),
-        ("Field Algorithm", field_algorithm_lines()),
-        ("Recommendation Logic", scoring_lines()),
-    ]:
+    for heading, lines_fn in PART_I_SETUP_SECTIONS:
         story.append(Paragraph(heading, styles["Subsection"]))
-        add_paragraphs(story, styles, lines)
+        add_paragraphs(story, styles, lines_fn())
     story.append(Paragraph("Reference Material", styles["Subsection"]))
-    add_paragraphs(
-        story,
-        styles,
-        [
-            "Appendix A contains the detailed transition, failure-boundary, profile, and field-specific calibration tables that support the main tuning recommendation.",
-        ],
-    )
+    add_paragraphs(story, styles, section_lines("Tuning Reference Material"))
 
     story.append(Paragraph("Part II. Analysis", styles["Section"]))
     story.append(Paragraph("Reading Guide", styles["Subsection"]))
     add_paragraphs(story, styles, section_lines("Part II Reading Guide"))
 
-    story.append(Paragraph("3. BATMAN Classic Analysis", styles["Section"]))
-    story.append(Paragraph("Findings", styles["Subsection"]))
-    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "batman-classic"))
-    story.append(Paragraph("Transition Pressure Analysis", styles["Subsection"]))
-    add_paragraphs(story, styles, section_lines("BATMAN Classic Transition Analysis"))
-    add_figure(
-        story, styles, report_dir, "Figure 1", "Figure 1", PART_II_FIGURE_WIDTH, PART_II_TRIPTYCH_HEIGHT
-    )
-    add_figure(
-        story, styles, report_dir, "Figure 2", "Figure 2", PART_II_FIGURE_WIDTH, PART_II_TRIPTYCH_HEIGHT
-    )
-
-    story.append(Paragraph("4. BATMAN Bellman Analysis", styles["Section"]))
-    story.append(Paragraph("Findings", styles["Subsection"]))
-    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "batman-bellman"))
-    story.append(Paragraph("Transition Pressure Analysis", styles["Subsection"]))
-    add_paragraphs(story, styles, section_lines("BATMAN Bellman Transition Analysis"))
-    add_figure(
-        story, styles, report_dir, "Figure 3", "Figure 3", PART_II_FIGURE_WIDTH, PART_II_TRIPTYCH_HEIGHT
-    )
-    add_figure(
-        story, styles, report_dir, "Figure 4", "Figure 4", PART_II_FIGURE_WIDTH, PART_II_TRIPTYCH_HEIGHT
-    )
-
-    story.append(Paragraph("5. Babel Analysis", styles["Section"]))
-    story.append(Paragraph("Findings", styles["Subsection"]))
-    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "babel"))
-    story.append(Paragraph("Decay Window And Feasibility Analysis", styles["Subsection"]))
-    add_paragraphs(story, styles, section_lines("Babel Decay Analysis"))
-    add_figure(
-        story, styles, report_dir, "Figure 5", "Figure 5", PART_II_FIGURE_WIDTH, PART_II_TRIPTYCH_HEIGHT
-    )
-    add_figure(
-        story, styles, report_dir, "Figure 6", "Figure 6", PART_II_FIGURE_WIDTH, PART_II_TRIPTYCH_HEIGHT
-    )
-
-    story.append(Paragraph("6. OLSRv2 Analysis", styles["Section"]))
-    story.append(Paragraph("Findings", styles["Subsection"]))
-    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "olsrv2"))
-    story.append(Paragraph("Topology Propagation And Churn Analysis", styles["Subsection"]))
-    add_paragraphs(story, styles, section_lines("OLSRv2 Decay Analysis"))
-    add_figure(
-        story, styles, report_dir, "Figure 7", "Figure 7", PART_II_FIGURE_WIDTH, PART_II_QUAD_HEIGHT
-    )
-    add_figure(
-        story, styles, report_dir, "Figure 8", "Figure 8", PART_II_FIGURE_WIDTH, PART_II_QUAD_HEIGHT
-    )
-
-    story.append(Paragraph("7. Scatter Analysis", styles["Section"]))
-    story.append(Paragraph("Findings", styles["Subsection"]))
-    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "scatter"))
-    add_paragraphs(story, styles, section_lines("Scatter Profile Figures Intro"))
-    add_figure(
-        story,
-        styles,
-        report_dir,
-        "Figure 9",
-        "Figure 9. Scatter active route presence by maintained profile. Higher values are better because they indicate the objective-visible route stays present for more of the active window. The y-axis is shown as a percentage so the outcome sweep reads like the other route-visible figures in Part II.",
-        PART_II_FIGURE_WIDTH,
-        PART_II_HEPTAD_HEIGHT,
-    )
-    add_figure(
-        story,
-        styles,
-        report_dir,
-        "Figure 10",
-        "Figure 10. Scatter startup timing by maintained profile. Lower values are better because routes materialize earlier. The dashed family lines reuse the same profile sweep as Figure 9 so startup cost can be compared directly against the route-visible outcome view.",
-        PART_II_FIGURE_WIDTH,
-        PART_II_HEPTAD_HEIGHT,
-    )
-
-    story.append(Paragraph("8. Pathway Analysis", styles["Section"]))
-    story.append(Paragraph("Findings", styles["Subsection"]))
-    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "pathway"))
-    story.append(Paragraph("Budget Figures", styles["Subsection"]))
-    add_paragraphs(story, styles, section_lines("Pathway Budget Figures Intro"))
-    add_figure(
-        story,
-        styles,
-        report_dir,
-        "Figure 11",
-        "Figure 11. Pathway active route presence by search budget. Higher values are better: they indicate the route is present for more of the objective-active window. Upward trends show budgets where additional search is still buying useful coverage; plateaus show diminishing returns.",
-        PART_II_FIGURE_WIDTH,
-        PART_II_TRIPTYCH_HEIGHT,
-    )
-    add_figure(
-        story,
-        styles,
-        report_dir,
-        "Figure 12",
-        "Figure 12. Pathway activation cliffs by search budget. Higher values are better: they indicate objectives activate successfully more often. Step changes reveal the budget threshold where Pathway moves from under-search to reliable activation.",
-        PART_II_FIGURE_WIDTH,
-        PART_II_TRIPTYCH_HEIGHT,
-    )
-
-    story.append(Paragraph("9. Field Analysis", styles["Section"]))
-    story.append(Paragraph("Findings", styles["Subsection"]))
-    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "field"))
-    story.append(Paragraph("Corridor Figures", styles["Subsection"]))
-    add_paragraphs(story, styles, section_lines("Field Corridor Figures Intro"))
-    add_figure(
-        story,
-        styles,
-        report_dir,
-        "Figure 13",
-        "Figure 13. Field active route presence by search budget. Higher values are better: they indicate the admitted corridor stays available for more of the active window. Rising curves show where additional search or heuristic guidance is still improving continuity; flat curves show the stable operating floor.",
-        PART_II_FIGURE_WIDTH,
-        PART_II_NINE_PANEL_HEIGHT,
-    )
-    add_figure(
-        story,
-        styles,
-        report_dir,
-        "Figure 14",
-        "Figure 14. Field corridor reconfiguration by search budget. Lower values are generally better because they indicate less continuation churn and fewer search-driven reconfigurations. Rising lines mean the engine is paying more control-motion cost to maintain continuity.",
-        PART_II_FIGURE_WIDTH,
-        PART_II_NINE_PANEL_HEIGHT,
-    )
+    for section_spec in ENGINE_ANALYSIS_SECTIONS:
+        story.append(Paragraph(section_spec["title"], styles["Section"]))
+        story.append(Paragraph("Findings", styles["Subsection"]))
+        add_paragraphs(
+            story,
+            styles,
+            engine_section_lines(
+                recommendations,
+                aggregates,
+                section_spec["engine_family"],
+            ),
+        )
+        if section_spec["context_heading"] is not None:
+            story.append(Paragraph(section_spec["context_heading"], styles["Subsection"]))
+        add_paragraphs(story, styles, section_lines(section_spec["context_section"]))
+        for asset_id in section_spec["figure_ids"]:
+            add_figure_asset(story, styles, report_dir, asset_id)
 
     story.append(Paragraph("10. Comparative Analysis", styles["Section"]))
     story.append(Paragraph("Mixed-Engine Comparison", styles["Subsection"]))
     add_paragraphs(story, styles, comparison_findings_lines(comparison_summary))
-    story.append(Spacer(1, 0.12 * cm))
+    story.append(Spacer(1, SECTION_SPACER))
     story.append(Paragraph("Head-To-Head Engine Sets", styles["Subsection"]))
     add_paragraphs(story, styles, head_to_head_findings_lines(head_to_head_summary))
     story.append(Paragraph("Head-To-Head Regimes", styles["Subsection"]))
     add_paragraphs(story, styles, head_to_head_regime_lines())
     story.append(Paragraph("Limitations And Next Steps", styles["Subsection"]))
     add_paragraphs(story, styles, limitations_lines())
-    add_paragraphs(
-        story,
-        styles,
-        [
-            "The full mixed-engine and head-to-head tables are collected in Appendix B. The main body keeps the figures and takeaways.",
-        ],
-    )
-    story.append(Spacer(1, 0.18 * cm))
-    story.append(
-        KeepTogether(
-            figure_flowables(
-                styles,
-                report_dir,
-                "Figure 15",
-                "Figure 15. Mixed-engine router arbitration by comparison regime. Tile color marks the engine the deterministic router selected most often in the mixed stack, while the overlaid percentage shows how dominant that choice was. This is an arbitration view, not a standalone performance comparison: close to 100% means the router effectively stuck with one engine for that regime, while lower percentages mean arbitration was more split.",
-                14.8 * cm,
-                10.2 * cm,
-            )
-        )
-    )
-    story.append(Spacer(1, 0.18 * cm))
-    story.append(
-        KeepTogether(
-            figure_flowables(
-                styles,
-                report_dir,
-                "Figure 16",
-                "Figure 16. Head-to-head standalone capability by comparison regime. Longer bars are better: they mark the engine with the highest total-window route presence when run alone, and bar width encodes that route-presence level directly. This is the standalone capability view for the same regime families, so a small `next lower gap` means the engines cluster tightly at the top while a large gap means the scenario cleanly separates the leading tier from the rest.",
-                16.4 * cm,
-                10.2 * cm,
-            )
-        )
-    )
-    story.append(Spacer(1, 0.18 * cm))
-    story.append(
-        KeepTogether(
-            figure_flowables(
-                styles,
-                report_dir,
-                "Figure 17",
-                "Figure 17. Head-to-head timing profile by regime and engine set. Earlier materialization is better in the left panel, while later first-loss rounds are better in the right panel. Blank first-loss cells mean no loss was observed in the maintained scenario window.",
-                17.2 * cm,
-                9.6 * cm,
-            )
-        )
-    )
-    story.append(Spacer(1, 0.18 * cm))
-    story.append(
-        KeepTogether(
-            figure_flowables(
-                styles,
-                report_dir,
-                "Figure 18",
-                "Figure 18. Recommended-engine robustness frontier. Farther right is better because route presence is higher, while lower is better because variability is lower. The best defaults sit toward the lower-right, where they combine strong coverage with less regime-to-regime spread.",
-                15.4 * cm,
-                9.0 * cm,
-            )
-        )
-    )
-    story.append(Spacer(1, 0.18 * cm))
-    story.append(
-        KeepTogether(
-            figure_flowables(
-                styles,
-                report_dir,
-                "Figure 19",
-                "Figure 19. Mixed-vs-standalone route-presence divergence by regime. Longer bars are larger gaps: they show how much more total-window route presence the best standalone engine achieved than the mixed-stack outcome in the same regime. Bar color marks the standalone winner for that gap, while the overlaid label shows the mixed-engine choice versus the standalone winner.",
-                16.8 * cm,
-                9.2 * cm,
-            )
-        )
-    )
-    story.append(Spacer(1, 0.16 * cm))
+    add_paragraphs(story, styles, section_lines("Comparison Detail Note"))
+    story.append(Spacer(1, FIGURE_BLOCK_SPACER))
+    for asset_id in COMPARISON_FIGURE_IDS:
+        add_figure_asset(story, styles, report_dir, asset_id)
+        story.append(Spacer(1, FIGURE_BLOCK_SPACER))
     add_paragraphs(story, styles, head_to_head_takeaway_lines(head_to_head_summary))
     story.append(Paragraph("Part II Takeaways", styles["Subsection"]))
     add_paragraphs(
@@ -711,27 +666,18 @@ def write_pdf_report(
         story.append(Paragraph("Part III. Diffusion Calibration", styles["Section"]))
         story.append(Paragraph("10. Diffusion Calibration", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Calibration Introduction"))
-        add_paragraphs(
-            story,
-            styles,
-            [
-                "Detailed diffusion calibration, field-calibration, and boundary tables are collected in Appendix C so the main comparison can stay focused on regime winners and the figure-level differences.",
-            ],
-        )
+        add_paragraphs(story, styles, section_lines("Diffusion Calibration Detail Note"))
         story.append(Paragraph("Part IV. Diffusion Engine Comparison", styles["Section"]))
         story.append(Paragraph("11. Diffusion Engine Comparison", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Analysis Introduction"))
-        story.append(Spacer(1, 0.18 * cm))
+        story.append(Spacer(1, FIGURE_BLOCK_SPACER))
         diffusion_regime_block = asset_block("Diffusion Regime Comparison", "table")
         table_counter[0] += 1
         story.append(
             KeepTogether(
                 [
                     Paragraph("Diffusion Regime Comparison", styles["Subsection"]),
-                    *(
-                        [Paragraph(markup(line), styles["Body"]) if line else Spacer(1, 0.08 * cm)
-                         for line in diffusion_regime_block.lines]
-                    ),
+                    *paragraph_flowables(styles, diffusion_regime_block.lines, "Body"),
                     make_table(
                         ["Regime", "Engine Set", "Delivery", "Coverage", "Cluster Cov.", "Tx", "State", "Score"],
                         diffusion_regime_engine_summary_table_rows(diffusion_regime_engine_summary),
@@ -742,47 +688,19 @@ def write_pdf_report(
                 ]
             )
         )
-        story.append(Spacer(1, 0.18 * cm))
-        add_paragraphs(
-            story,
-            styles,
-            [
-                "Appendix C contains the full diffusion family matrix and the field-versus-best-alternative regime table.",
-            ],
-        )
-        story.append(Spacer(1, 0.18 * cm))
+        story.append(Spacer(1, FIGURE_BLOCK_SPACER))
+        add_paragraphs(story, styles, section_lines("Diffusion Appendix Note"))
+        story.append(Spacer(1, FIGURE_BLOCK_SPACER))
         story.append(Paragraph("Diffusion Figure Context", styles["Subsection"]))
         add_paragraphs(story, styles, section_lines("Diffusion Figure Context"))
-        add_figure(
-            story,
-            styles,
-            report_dir,
-            "Figure 20",
-            "Figure 20. Diffusion delivery and coverage by scenario family. Longer bars are better because they indicate more successful delivery; the dot shows coverage, so a wider gap between bar and dot means delivery is lagging behind spread. Strong performers keep both high rather than trading one off against the other.",
-            18.0 * cm,
-            22.0 * cm,
-        )
-        add_figure(
-            story,
-            styles,
-            report_dir,
-            "Figure 21",
-            "Figure 21. Diffusion transmission load and boundedness by scenario family. Lower transmission bars are better when delivery remains competitive because they indicate cheaper diffusion. The `R=` and bounded-state annotations show whether that load is staying inside the intended bounded operating regime or drifting toward over-spread.",
-            18.0 * cm,
-            22.0 * cm,
-        )
+        for asset_id in DIFFUSION_FIGURE_IDS:
+            add_figure_asset(story, styles, report_dir, asset_id)
         story.append(Paragraph("Diffusion Takeaways", styles["Subsection"]))
         add_paragraphs(story, styles, section_lines("Diffusion Takeaways"))
         add_paragraphs(story, styles, diffusion_field_posture_lines(diffusion_engine_comparison))
 
     story.append(Paragraph("Appendix A. Tuning Reference Tables", styles["Section"]))
-    add_paragraphs(
-        story,
-        styles,
-        [
-            "These tables provide the detailed tuning reference material behind the main recommendation and analysis sections.",
-        ],
-    )
+    add_paragraphs(story, styles, section_lines("Tuning Reference Tables Intro"))
     transition_block = asset_block("Transition Behavior", "table")
     add_table_section(
         story,
@@ -845,13 +763,7 @@ def write_pdf_report(
     )
 
     story.append(Paragraph("Appendix B. Route-Visible Reference Tables", styles["Section"]))
-    add_paragraphs(
-        story,
-        styles,
-        [
-            "These tables collect the exhaustive mixed-engine, mixed-engine selected-round breakdown, and head-to-head route-visible results referenced by the main comparison section.",
-        ],
-    )
+    add_paragraphs(story, styles, section_lines("Route-Visible Reference Tables Intro"))
     mixed_regime_block = asset_block("Mixed-Engine Regime Split", "table")
     add_table_section(
         story,
@@ -864,13 +776,12 @@ def write_pdf_report(
         table_counter,
         mixed_regime_block.description_lines,
     )
+    comparison_breakdown_block = asset_block("Mixed-Engine Selected-Round Breakdown", "table")
     add_table_section(
         story,
         styles,
         "Mixed-Engine Selected-Round Breakdown",
-        [
-            "Each row reports the best maintained mixed comparison config for that family. The per-engine columns show average selected-route rounds under one shared router policy, so this table explains why the mixed stack leader is not an oracle best-of-engines result.",
-        ],
+        comparison_breakdown_block.lines,
         [
             "Family",
             "Leader",
@@ -887,9 +798,7 @@ def write_pdf_report(
         comparison_engine_round_breakdown_table_rows(comparison_engine_round_breakdown),
         [3.0 * cm, 1.5 * cm, 1.2 * cm, 1.0 * cm, 1.1 * cm, 1.1 * cm, 0.9 * cm, 0.9 * cm, 0.9 * cm, 0.9 * cm, 0.9 * cm],
         table_counter,
-        [
-            "Family is the comparison regime. Leader is the selected-round leader. Active Route is active-window route presence. Handoffs is mean engine handoff count. The remaining columns show mean selected-route rounds per engine under the shared router policy.",
-        ],
+        comparison_breakdown_block.description_lines,
     )
     benchmark_block = asset_block("Benchmark Profile Audit", "table")
     add_table_section(
@@ -918,13 +827,7 @@ def write_pdf_report(
 
     if not diffusion_engine_summary.is_empty():
         story.append(Paragraph("Appendix C. Diffusion Reference Tables", styles["Section"]))
-        add_paragraphs(
-            story,
-            styles,
-            [
-                "These tables hold the exhaustive diffusion calibration and comparison material that supports the shorter regime-level discussion in the main body.",
-            ],
-        )
+        add_paragraphs(story, styles, section_lines("Diffusion Reference Tables Intro"))
         diffusion_cal_block = asset_block("Diffusion Calibration Summary", "table")
         add_table_section(
             story,
@@ -937,13 +840,12 @@ def write_pdf_report(
             table_counter,
             diffusion_cal_block.description_lines,
         )
+        diffusion_baseline_block = asset_block("Diffusion Baseline Audit", "table")
         add_table_section(
             story,
             styles,
             "Diffusion Baseline Audit",
-            [
-                "These rows summarize the maintained non-field diffusion baselines. They are representative benchmark configs, not a calibrated-best sweep, so the generic winner tables should be read with that scope in mind.",
-            ],
+            diffusion_baseline_block.lines,
             [
                 "Config",
                 "Rep",
@@ -958,9 +860,7 @@ def write_pdf_report(
             diffusion_baseline_audit_table_rows(diffusion_baseline_audit),
             [3.6 * cm, 0.9 * cm, 0.9 * cm, 1.2 * cm, 1.1 * cm, 1.2 * cm, 1.2 * cm, 1.2 * cm, 1.3 * cm],
             table_counter,
-            [
-                "Config is the baseline configuration. Rep is the replication budget. TTL is the time-to-live in rounds. Forward is the forward probability. Bridge is the bridge bias. Delivery, Coverage, and Cluster are mean delivery, coverage, and cluster-coverage scores. State is the boundedness classification.",
-            ],
+            diffusion_baseline_block.description_lines,
         )
         diffusion_boundary_block = asset_block("Diffusion Calibration Boundaries", "table")
         add_table_section(
@@ -1000,20 +900,17 @@ def write_pdf_report(
             table_counter,
             field_alt_block.description_lines,
         )
+        diffusion_sensitivity_block = asset_block("Diffusion Winner Sensitivity", "table")
         add_table_section(
             story,
             styles,
             "Diffusion Winner Sensitivity",
-            [
-                "This table re-scores the generic Part IV family winners under delivery-heavy and boundedness-heavy weights. A `no` in Stable means the family-level winner is sensitive to generic weighting and should be read as provisional relative to the regime-specific tables.",
-            ],
+            diffusion_sensitivity_block.lines,
             ["Family", "Balanced", "Delivery-Heavy", "Boundedness-Heavy", "Stable"],
             diffusion_weight_sensitivity_table_rows(diffusion_weight_sensitivity),
             [4.3 * cm, 3.3 * cm, 3.3 * cm, 3.5 * cm, 1.2 * cm],
             table_counter,
-            [
-                "Family is the diffusion scenario. Balanced, Delivery-Heavy, and Boundedness-Heavy show the winning configuration under each weighting. Stable indicates whether the winner is consistent across all three weightings.",
-            ],
+            diffusion_sensitivity_block.description_lines,
         )
         diffusion_comp_block = asset_block("Diffusion Engine Comparison", "table")
         add_table_section(

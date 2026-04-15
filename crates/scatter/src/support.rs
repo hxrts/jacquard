@@ -229,6 +229,87 @@ pub(crate) fn diversity_score(topology: &Observation<Configuration>, local_node_
     u32::try_from(protocols.len()).unwrap_or(u32::MAX)
 }
 
+fn distinct_peer_rate(
+    topology: &Observation<Configuration>,
+    peer_observations: &std::collections::BTreeMap<NodeId, PeerObservationState>,
+    config: &ScatterEngineConfig,
+) -> usize {
+    peer_observations
+        .values()
+        .filter_map(|state| state.last_seen_tick)
+        .filter(|tick| {
+            topology.observed_at_tick.0.saturating_sub(tick.0) <= config.regime.history_window_ticks
+        })
+        .count()
+}
+
+fn resource_pressure_permille(local_node: &Node) -> u16 {
+    if local_node.profile.hold_capacity_bytes_max.0 == 0 {
+        return relay_utilization_permille(local_node);
+    }
+
+    let remaining = u64::from(hold_capacity_available_bytes(local_node));
+    let max = local_node.profile.hold_capacity_bytes_max.0.max(1);
+    let used = max.saturating_sub(remaining.min(max));
+    u16::try_from(used.saturating_mul(1000) / max).unwrap_or(1000)
+}
+
+fn local_summary(
+    topology: &Observation<Configuration>,
+    local_node_id: NodeId,
+    local_node: &Node,
+    peer_observations: &std::collections::BTreeMap<NodeId, PeerObservationState>,
+    config: &ScatterEngineConfig,
+) -> ScatterLocalSummary {
+    let neighbors = direct_neighbors(topology, local_node_id)
+        .into_iter()
+        .filter(|(_, link)| link_is_usable(link))
+        .collect::<Vec<_>>();
+    let diversity_score = diversity_score(topology, local_node_id);
+    ScatterLocalSummary {
+        contact_rate: u32::try_from(neighbors.len()).unwrap_or(u32::MAX),
+        distinct_peer_rate: u32::try_from(distinct_peer_rate(topology, peer_observations, config))
+            .unwrap_or(u32::MAX),
+        novelty_rate: peer_observations
+            .values()
+            .map(|state| state.recent_novelty_count)
+            .sum::<u32>(),
+        diversity_score,
+        resource_pressure_permille: resource_pressure_permille(local_node),
+        encounter_rate: u32::try_from(peer_observations.len()).unwrap_or(u32::MAX),
+        scope_encounter_rate: 0,
+        bridge_score: diversity_score,
+        scope_bridge_score: diversity_score,
+        mobility_score: u32::from(topology.value.environment.churn_permille.get()),
+    }
+}
+
+fn regime_for_summary(
+    local_node: &Node,
+    summary: &ScatterLocalSummary,
+    config: &ScatterEngineConfig,
+) -> ScatterRegime {
+    if u64::from(hold_capacity_available_bytes(local_node))
+        <= config.regime.constrained_hold_capacity_floor_bytes.0
+        || relay_utilization_permille(local_node)
+            >= config.regime.constrained_relay_utilization_floor_permille
+    {
+        return ScatterRegime::Constrained;
+    }
+    if summary.diversity_score >= config.regime.bridging_diversity_floor
+        && summary.contact_rate > config.regime.sparse_neighbor_count_max
+    {
+        return ScatterRegime::Bridging;
+    }
+    if summary.contact_rate <= config.regime.sparse_neighbor_count_max {
+        return ScatterRegime::Sparse;
+    }
+    if summary.contact_rate >= config.regime.dense_neighbor_count_min {
+        return ScatterRegime::Dense;
+    }
+    ScatterRegime::Dense
+}
+
 pub(crate) fn classify_regime(
     topology: &Observation<Configuration>,
     local_node_id: NodeId,
@@ -236,60 +317,14 @@ pub(crate) fn classify_regime(
     peer_observations: &std::collections::BTreeMap<NodeId, PeerObservationState>,
     config: &ScatterEngineConfig,
 ) -> (ScatterRegime, ScatterLocalSummary) {
-    let neighbors = direct_neighbors(topology, local_node_id)
-        .into_iter()
-        .filter(|(_, link)| link_is_usable(link))
-        .collect::<Vec<_>>();
-    let distinct_peer_rate = peer_observations
-        .values()
-        .filter_map(|state| state.last_seen_tick)
-        .filter(|tick| {
-            topology.observed_at_tick.0.saturating_sub(tick.0) <= config.regime.history_window_ticks
-        })
-        .count();
-    let novelty_rate = peer_observations
-        .values()
-        .map(|state| state.recent_novelty_count)
-        .sum::<u32>();
-    let resource_pressure_permille = if local_node.profile.hold_capacity_bytes_max.0 == 0 {
-        relay_utilization_permille(local_node)
-    } else {
-        let remaining = u64::from(hold_capacity_available_bytes(local_node));
-        let max = local_node.profile.hold_capacity_bytes_max.0.max(1);
-        let used = max.saturating_sub(remaining.min(max));
-        u16::try_from(used.saturating_mul(1000) / max).unwrap_or(1000)
-    };
-    let summary = ScatterLocalSummary {
-        contact_rate: u32::try_from(neighbors.len()).unwrap_or(u32::MAX),
-        distinct_peer_rate: u32::try_from(distinct_peer_rate).unwrap_or(u32::MAX),
-        novelty_rate,
-        diversity_score: diversity_score(topology, local_node_id),
-        resource_pressure_permille,
-        encounter_rate: u32::try_from(peer_observations.len()).unwrap_or(u32::MAX),
-        scope_encounter_rate: 0,
-        bridge_score: diversity_score(topology, local_node_id),
-        scope_bridge_score: diversity_score(topology, local_node_id),
-        mobility_score: u32::from(topology.value.environment.churn_permille.get()),
-    };
-    if u64::from(hold_capacity_available_bytes(local_node))
-        <= config.regime.constrained_hold_capacity_floor_bytes.0
-        || relay_utilization_permille(local_node)
-            >= config.regime.constrained_relay_utilization_floor_permille
-    {
-        return (ScatterRegime::Constrained, summary);
-    }
-    if summary.diversity_score >= config.regime.bridging_diversity_floor
-        && summary.contact_rate > config.regime.sparse_neighbor_count_max
-    {
-        return (ScatterRegime::Bridging, summary);
-    }
-    if summary.contact_rate <= config.regime.sparse_neighbor_count_max {
-        return (ScatterRegime::Sparse, summary);
-    }
-    if summary.contact_rate >= config.regime.dense_neighbor_count_min {
-        return (ScatterRegime::Dense, summary);
-    }
-    (ScatterRegime::Dense, summary)
+    let summary = local_summary(
+        topology,
+        local_node_id,
+        local_node,
+        peer_observations,
+        config,
+    );
+    (regime_for_summary(local_node, &summary, config), summary)
 }
 
 pub(crate) fn candidate_summary(
@@ -380,26 +415,19 @@ pub(crate) fn candidate_for(
     })
 }
 
-pub(crate) fn admission_for(
-    topology: &Observation<Configuration>,
-    objective: &RoutingObjective,
-    profile: &SelectedRoutingParameters,
-    candidate: RouteCandidate,
-    config: &ScatterEngineConfig,
-) -> RouteAdmission {
-    let delivered_connectivity = candidate.summary.connectivity;
-    let degradation = if delivered_connectivity.partition < objective.target_connectivity.partition
-    {
-        RouteDegradation::Degraded(DegradationReason::PartitionRisk)
-    } else {
-        RouteDegradation::None
-    };
-    let density = match topology.value.environment.reachable_neighbor_count {
+fn admission_density_class(topology: &Observation<Configuration>) -> NodeDensityClass {
+    match topology.value.environment.reachable_neighbor_count {
         0..=1 => NodeDensityClass::Sparse,
         2..=4 => NodeDensityClass::Moderate,
         _ => NodeDensityClass::Dense,
-    };
-    let admission_profile = AdmissionAssumptions {
+    }
+}
+
+fn admission_profile_for(
+    delivered_connectivity: ConnectivityPosture,
+    density: NodeDensityClass,
+) -> AdmissionAssumptions {
+    AdmissionAssumptions {
         message_flow_assumption: MessageFlowAssumptionClass::BestEffort,
         failure_model: FailureModelClass::Benign,
         runtime_envelope: RuntimeEnvelopeClass::Canonical,
@@ -413,7 +441,50 @@ pub(crate) fn admission_for(
         },
         adversary_regime: AdversaryRegime::Cooperative,
         claim_strength: ClaimStrength::ConservativeUnderProfile,
-    };
+    }
+}
+
+fn route_cost_for(
+    delivered_connectivity: ConnectivityPosture,
+    config: &ScatterEngineConfig,
+) -> RouteCost {
+    RouteCost {
+        message_count_max: Limit::Bounded(config.bounds.message_count_max),
+        byte_count_max: Limit::Bounded(config.bounds.byte_count_max),
+        hop_count: if delivered_connectivity.partition
+            == jacquard_core::RoutePartitionClass::ConnectedOnly
+        {
+            1
+        } else {
+            2
+        },
+        repair_attempt_count_max: Limit::Bounded(1),
+        hold_bytes_reserved: Limit::Bounded(config.bounds.hold_bytes_reserved),
+        work_step_count_max: Limit::Bounded(config.bounds.work_step_count_max),
+    }
+}
+
+fn degradation_for_connectivity(
+    objective: &RoutingObjective,
+    delivered_connectivity: ConnectivityPosture,
+) -> RouteDegradation {
+    if delivered_connectivity.partition < objective.target_connectivity.partition {
+        RouteDegradation::Degraded(DegradationReason::PartitionRisk)
+    } else {
+        RouteDegradation::None
+    }
+}
+
+pub(crate) fn admission_for(
+    topology: &Observation<Configuration>,
+    objective: &RoutingObjective,
+    profile: &SelectedRoutingParameters,
+    candidate: RouteCandidate,
+    config: &ScatterEngineConfig,
+) -> RouteAdmission {
+    let delivered_connectivity = candidate.summary.connectivity;
+    let admission_profile =
+        admission_profile_for(delivered_connectivity, admission_density_class(topology));
     RouteAdmission {
         backend_ref: candidate.backend_ref,
         objective: objective.clone(),
@@ -423,20 +494,7 @@ pub(crate) fn admission_for(
             profile: admission_profile.clone(),
             productive_step_bound: Limit::Bounded(1),
             total_step_bound: Limit::Bounded(config.bounds.work_step_count_max),
-            route_cost: RouteCost {
-                message_count_max: Limit::Bounded(config.bounds.message_count_max),
-                byte_count_max: Limit::Bounded(config.bounds.byte_count_max),
-                hop_count: if delivered_connectivity.partition
-                    == jacquard_core::RoutePartitionClass::ConnectedOnly
-                {
-                    1
-                } else {
-                    2
-                },
-                repair_attempt_count_max: Limit::Bounded(1),
-                hold_bytes_reserved: Limit::Bounded(config.bounds.hold_bytes_reserved),
-                work_step_count_max: Limit::Bounded(config.bounds.work_step_count_max),
-            },
+            route_cost: route_cost_for(delivered_connectivity, config),
         },
         summary: candidate.summary,
         witness: RouteWitness {
@@ -450,7 +508,7 @@ pub(crate) fn admission_for(
             },
             admission_profile,
             topology_epoch: topology.value.epoch,
-            degradation,
+            degradation: degradation_for_connectivity(objective, delivered_connectivity),
         },
     }
 }

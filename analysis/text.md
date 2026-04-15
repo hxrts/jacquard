@@ -1,10 +1,10 @@
-# Jacquard Routing: Tuning and Analysis
+# Jacquard Router: Tuning and Analysis
 
 ## Executive Summary
 
 ### Executive Summary Intro
 
-This report studies Jacquard routing behavior across seven engines, `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `pathway`, and `field`, using a common simulator corpus and analysis pipeline. The goal is to understand where each engine works well, where performance degrades, what kind of failures arise, and to compare engines under the same network conditions. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
+This report studies Jacquard routing behavior across seven engines using a common simulator corpus and analysis pipeline. The engines in scope are `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `pathway`, and `field`. The goal is to understand where each engine works well, where performance degrades, what kind of failures arise, and to compare engines under the same network conditions. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
 
 The report is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles. Part IV evaluates these calibrated profiles under message-diffusion scenarios where node movement and intermittent contact opportunities carry messages, and end-to-end paths may not exist.
 
@@ -19,6 +19,10 @@ The report is organized in four parts. Part I covers tuning: recommended configu
 This table condenses the highest-ranked configurations for each engine family.
 
 Column guide: Score is the composite ranking value; Activation is the share of runs that installed a route; Route Presence is the average fraction of rounds with a live route; Max Stress is the highest sustained stress level survived before the first maintained breakdown.
+
+#### Recommendation Detail Note
+
+Detailed transition, failure-boundary, profile, and field-regime tables are collected in Appendix A so the main report can stay focused on the key recommendations and figures.
 
 #### Transition Behavior
 
@@ -46,7 +50,7 @@ The report scores observable replay output: whether a route appears, when it is 
 
 #### Matrix Design
 
-The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-classic`, `batman-bellman`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. `scatter` is held to one bounded baseline profile in this first corpus. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
+The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-classic`, `batman-bellman`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. For `scatter`, the route-visible sweep compares the maintained `balanced`, `conservative`, and `degraded-network` profiles. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
 
 The recommendations are meant to be good defaults for this modeled corpus, not single winners from one scenario.
 
@@ -126,6 +130,10 @@ Profile-specific recommendations allow different operational priorities. Conserv
 `field` is calibrated on two surfaces in Part I: the generic route-visible recommendation surface and a separate regime-specific surface that explicitly scores corridor continuity, bootstrap upgrade quality, service continuity, and transition health.
 
 When several nearby settings score about the same, the report prefers the middle of the acceptable range.
+
+#### Tuning Reference Material
+
+Appendix A contains the detailed transition, failure-boundary, profile, and field-specific calibration tables that support the main tuning recommendation.
 
 #### Profile Recommendation Logic
 
@@ -293,7 +301,7 @@ Field corridor reconfiguration by search budget. Lower values are generally bett
 
 @figure comparison_dominant_engine
 
-Mixed-engine router arbitration by comparison regime. Tile color marks the engine the deterministic router selected most often in the mixed stack, while the overlaid percentage shows how dominant that choice was. This is an arbitration view, not a standalone performance comparison: values near 100% mean the router effectively stuck with one engine for that regime, while lower percentages mean arbitration was more split.
+Mixed-engine router arbitration by comparison regime. Bar color marks the engine the deterministic router selected most often in the mixed stack, while the in-bar label shows that leader's share of active-route rounds. This is an arbitration view, not a standalone performance comparison: values near 100% mean the router effectively stuck with one engine for that regime, while lower percentages mean arbitration was more split.
 
 #### Figure 16
 
@@ -329,6 +337,14 @@ Selected-round leader per maintained comparison family. Column guide: Selected-R
 
 The mixed comparison surface is a single-router arbitration benchmark, not an oracle ensemble. The router gathers candidates across engines, publishes one canonical route per objective, and only reselects when maintenance or expiry requires it. Figure 15 therefore answers “which engine does the router actually use?” rather than “which engine is intrinsically best?” A mixed stack can legitimately underperform the best standalone engine in a family if the first durable admissible route comes from a weaker constituent engine.
 
+#### Mixed-Engine Selected-Round Breakdown
+
+@table comparison-engine-round-breakdown
+
+Each row reports the best maintained mixed comparison config for that family. The per-engine columns show average selected-route rounds under one shared router policy, so this table explains why the mixed stack leader is not an oracle best-of-engines result.
+
+Column guide: Family is the comparison regime. Leader is the selected-round leader. Active Route is active-window route presence. Handoffs is mean engine handoff count. The remaining columns show mean selected-route rounds per engine under the shared router policy.
+
 #### Head-To-Head Results
 
 @table head-to-head-summary
@@ -350,6 +366,7 @@ The head-to-head regimes are:
 - `connected-low-loss`: easy connected route where all engines should establish a route.
 - `connected-high-loss`: repairable connected route over a lossy bridge.
 - `bridge-transition`: bridge that degrades, partitions, and restores.
+- `medium-bridge-repair`: moderate bridge degradation with a repair window rewarding durable recovery without needing a fully mixed workload.
 - `partial-observability-bridge`: bridge case with Field bootstrap summaries for corridor-style routing under incomplete evidence.
 - `corridor-continuity-uncertainty`: intermittent degradation and restoration rewarding corridor continuity.
 - `concurrent-mixed`: multiple active objectives testing mixed-workload behavior.
@@ -358,12 +375,16 @@ The head-to-head regimes are:
 
 These rows show what each stack does when it is the only available routing surface for that host set. This is a fixed representative-profile benchmark surface, not the calibrated-best profile surface from Part I.
 
+#### Comparison Detail Note
+
+The full mixed-engine and head-to-head tables are collected in Appendix B. The main body keeps the figures and takeaways.
+
 #### Head-To-Head Takeaways
 
 - `connected-low-loss` is mostly a tie regime.
 - The hard route-visible bridge families are the clearest separators: `connected-high-loss` is led by `{connected_high_loss_engine_set}` at {connected_high_loss_route_presence} permille, `bridge-transition` by `{bridge_transition_engine_set}` at {bridge_transition_route_presence} permille.
 - Mixed workloads favor explicit search: `concurrent-mixed` is led by `{concurrent_mixed_engine_set}` at {concurrent_mixed_route_presence} permille.
-- `field` reaches {connected_high_loss_route_presence} permille in `connected-high-loss`, {bridge_transition_route_presence} permille in `bridge-transition`, and {partial_bridge_route_presence} permille in `partial-observability-bridge`, while staying strong at {corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`.
+- `field` reaches {field_connected_high_loss_route_presence} permille in `connected-high-loss`, {field_bridge_transition_route_presence} permille in `bridge-transition`, and {partial_bridge_route_presence} permille in `partial-observability-bridge`, while staying strong at {corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`.
 
 #### Head-To-Head Findings Empty
 
@@ -419,6 +440,22 @@ This table calibrates `field` on its own diffusion success surface instead of on
 
 Column guide: Regime names the diffusion posture regime; Success Criteria states what `field` is supposed to optimize there; Configuration is the accepted field diffusion profile for that regime, or an explicit no-acceptable-candidate marker if every field candidate still fails; Posture is the dominant field posture; State is the dominant boundedness class; Transition summarizes either the posture transition count or the first scarcity / congestion transition round; Delivery is mean delivery success; Tx is mean transmission count; Fit is the regime-specific field fitness score. The CSV export also includes protected-budget use, bridge-opportunity capture, cluster-seeding use, coverage-starvation counts, and deterministic suppression counts for the winning profile or best attempt.
 
+### Diffusion Baseline Audit
+
+@table diffusion-baseline-audit
+
+These rows summarize the maintained non-field diffusion baselines. They are representative benchmark configs, not a calibrated-best sweep, so the generic winner tables should be read with that scope in mind.
+
+Column guide: Config is the baseline configuration. Rep is the replication budget. TTL is the time-to-live in rounds. Forward is the forward probability. Bridge is the bridge bias. Delivery, Coverage, and Cluster are mean delivery, coverage, and cluster-coverage scores. State is the boundedness classification.
+
+### Diffusion Winner Sensitivity
+
+@table diffusion-weight-sensitivity
+
+This table re-scores the generic Part IV family winners under delivery-heavy and boundedness-heavy weights. A `no` in Stable means the family-level winner is sensitive to generic weighting and should be read as provisional relative to the regime-specific tables.
+
+Column guide: Family is the diffusion scenario. Balanced, Delivery-Heavy, and Boundedness-Heavy show the winning configuration under each weighting. Stable indicates whether the winner is consistent across all three weightings.
+
 ## Part IV. Diffusion Engine Comparison
 
 ### Diffusion Analysis Introduction
@@ -428,6 +465,10 @@ This part evaluates the calibrated profiles directly. The emphasis shifts from a
 The comparison surface here is regime-aware rather than purely family-by-family. Continuity, scarcity, congestion, privacy, and balanced regimes reward different behaviors, so the first summary table reports the best engine set per regime before the full family matrix.
 
 The generic family-by-family winner table is a representative weighted surface, not a universal truth. Appendix C includes both the maintained non-field baseline audit and a winner-sensitivity table showing where delivery-heavy and boundedness-heavy generic weights keep or change the family winner.
+
+### Diffusion Calibration Detail Note
+
+Detailed diffusion calibration, field-calibration, and boundary tables are collected in Appendix C so the main comparison can stay focused on regime winners and the figure-level differences.
 
 ### Diffusion Regime Comparison
 
@@ -463,11 +504,15 @@ Diffusion delivery and coverage by scenario family. Longer bars are better becau
 
 Diffusion transmission load and boundedness by scenario family. Lower transmission bars are better when delivery remains competitive because they indicate cheaper diffusion. The `R=` and bounded-state annotations show whether that load is staying inside the intended bounded operating regime or drifting toward over-spread.
 
+### Diffusion Appendix Note
+
+Appendix C contains the full diffusion family matrix and the field-versus-best-alternative regime table.
+
 ### Diffusion Takeaways
 
 - The diffusion track is an engine comparison, but the regime summary is the right top-level view because continuity, scarcity, congestion, and privacy reward different tradeoffs.
-- The conservative stacks are strongest when scarce relays and bounded forwarding matter most.
-- `field` shows clearer regime specialization: field configurations lead the balanced and congestion regimes, while `batman-classic` leads continuity, privacy, and scarcity.
+- Scarcity rewards conservative bounded forwarding, but the regime winners still split: `field` leads the balanced and scarcity regimes, `pathway-batman-bellman` leads congestion, and `batman-classic` leads continuity and privacy.
+- `field` shows clear regime specialization without being universal: it wins balanced and scarcity outright, matches the best alternative in privacy, and falls short in congestion where no acceptable field candidate clears the regime gate.
 - The harsher families are boundary finders: `bridge-drought` tests rare-opportunity carry, `energy-starved-relay` tests efficiency under scarcity, and `congestion-cascade` tests whether broad forwarding remains bounded without starving first-arrival cluster coverage.
 
 ### Field Diffusion Posture
@@ -477,6 +522,18 @@ The artifact set exposes posture-aware `field` diffusion behavior:
 - In `bridge-drought`, `field` ends with dominant posture `{bridge_drought_posture}` after {bridge_drought_transitions} posture transitions, using {bridge_drought_protected_budget} protected budget units and converting {bridge_drought_bridge_use} of {bridge_drought_bridge_opportunities} protected bridge opportunities.
 - In `energy-starved-relay`, `field` ends with dominant posture `{energy_starved_posture}`, first enters scarcity-conservative behavior at round {energy_starved_first_scarcity}, and suppresses {energy_starved_expensive_suppressions} expensive transport attempts.
 - In `congestion-cascade`, `field` ends with dominant posture `{congestion_posture}`, first enters congestion control at round {congestion_first_transition}, seeds {congestion_cluster_seed_uses} first-arrival cluster transfers, records {congestion_cluster_starvation} cluster-coverage starvation events, and records {congestion_redundant_suppressions} redundant-forward suppressions plus {congestion_same_cluster_suppressions} same-cluster suppressions.
+
+### Tuning Reference Tables Intro
+
+These tables provide the detailed tuning reference material behind the main recommendation and analysis sections.
+
+### Route-Visible Reference Tables Intro
+
+These tables collect the exhaustive mixed-engine, mixed-engine selected-round breakdown, and head-to-head route-visible results referenced by the main comparison section.
+
+### Diffusion Reference Tables Intro
+
+These tables hold the exhaustive diffusion calibration and comparison material that supports the shorter regime-level discussion in the main body.
 
 ### Data-Driven Templates
 

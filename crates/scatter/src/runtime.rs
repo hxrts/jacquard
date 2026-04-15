@@ -14,7 +14,7 @@ use jacquard_core::{
 use jacquard_traits::{RouterManagedEngine, RoutingEngine, TimeEffects, TransportSenderEffects};
 
 use crate::{
-    public_state::{ScatterAction, ScatterRegime},
+    public_state::{ScatterAction, ScatterRegime, ScatterRouteProgress},
     support::{
         action_for_delta, classify_regime, contact_supports_payload, decode_backend_token,
         decode_packet, direct_neighbors, encode_packet, expiry_for_urgency,
@@ -151,13 +151,11 @@ where
         Ok(())
     }
 
-    fn run_diffusion_round(
+    fn refresh_local_regime(
         &mut self,
         topology: &jacquard_core::Observation<Configuration>,
-    ) -> Result<bool, RouteError> {
-        let Some(local_node) = self.local_node(topology) else {
-            return Ok(false);
-        };
+    ) -> Option<ScatterRegime> {
+        let local_node = self.local_node(topology)?;
         let (regime, local_summary) = classify_regime(
             topology,
             self.local_node_id,
@@ -167,80 +165,211 @@ where
         );
         self.current_regime = regime;
         self.last_local_summary = local_summary;
+        Some(regime)
+    }
 
+    fn process_diffusion_message(
+        &mut self,
+        topology: &jacquard_core::Observation<Configuration>,
+        regime: ScatterRegime,
+        message_id: &ScatterMessageId,
+        now: Tick,
+    ) -> Result<bool, RouteError> {
+        let Some(stored) = self.stored_messages.get(message_id).cloned() else {
+            return Ok(false);
+        };
+        if crate::support::packet_expired(&stored.packet, now) {
+            self.stored_messages.remove(message_id);
+            return Ok(true);
+        }
+        if stored.delivered_locally {
+            return Ok(false);
+        }
+
+        let local_score = peer_score(
+            topology,
+            self.local_node_id,
+            self.local_node_id,
+            &stored.packet.destination,
+            stored.packet.service_kind,
+        );
+        let mut progressed = false;
+        for (neighbor, link) in direct_neighbors(topology, self.local_node_id) {
+            if self.skip_diffusion_neighbor(topology, regime, &stored, neighbor, link) {
+                continue;
+            }
+            if self.forward_scatter_action(
+                topology,
+                regime,
+                &stored,
+                local_score,
+                neighbor,
+                link,
+            )? {
+                progressed = true;
+            }
+        }
+        Ok(progressed)
+    }
+
+    fn skip_diffusion_neighbor(
+        &self,
+        topology: &jacquard_core::Observation<Configuration>,
+        regime: ScatterRegime,
+        stored: &StoredScatterMessage,
+        neighbor: NodeId,
+        link: &jacquard_core::Link,
+    ) -> bool {
+        !link_is_usable(link)
+            || stored.known_holder_nodes.contains(&neighbor)
+            || !contact_supports_payload(link, stored.packet.payload.len(), &self.config)
+            || (regime == ScatterRegime::Dense
+                && !crate::support::diversity_gate(topology, self.local_node_id, neighbor))
+    }
+
+    fn forward_scatter_action(
+        &mut self,
+        topology: &jacquard_core::Observation<Configuration>,
+        regime: ScatterRegime,
+        stored: &StoredScatterMessage,
+        local_score: i32,
+        neighbor: NodeId,
+        link: &jacquard_core::Link,
+    ) -> Result<bool, RouteError> {
+        let delta = peer_score(
+            topology,
+            self.local_node_id,
+            neighbor,
+            &stored.packet.destination,
+            stored.packet.service_kind,
+        ) - local_score;
+        match action_for_delta(regime, delta, &stored.packet, &self.config) {
+            ScatterAction::KeepCarrying => Ok(false),
+            ScatterAction::Replicate => self.replicate_packet(stored, neighbor, link),
+            ScatterAction::PreferentialHandoff => self.preferential_handoff(stored, neighbor, link),
+        }
+    }
+
+    fn replicate_packet(
+        &mut self,
+        stored: &StoredScatterMessage,
+        neighbor: NodeId,
+        link: &jacquard_core::Link,
+    ) -> Result<bool, RouteError> {
+        let peer_budget = stored.packet.copy_budget / 2;
+        if peer_budget == 0 {
+            return Ok(false);
+        }
+
+        let mut packet = stored.packet.clone();
+        packet.copy_budget = peer_budget;
+        self.forward_packet_to_neighbor(neighbor, link, &packet)?;
+        let now = self.effects.now_tick();
+        if let Some(local) = self.stored_messages.get_mut(&stored.packet.message_id) {
+            local.packet.copy_budget = local.packet.copy_budget.saturating_sub(peer_budget);
+            local.last_action = ScatterAction::Replicate;
+            local.last_progress_at_tick = now;
+        }
+        Ok(true)
+    }
+
+    fn preferential_handoff(
+        &mut self,
+        stored: &StoredScatterMessage,
+        neighbor: NodeId,
+        link: &jacquard_core::Link,
+    ) -> Result<bool, RouteError> {
+        self.forward_packet_to_neighbor(neighbor, link, &stored.packet)?;
+        let now = self.effects.now_tick();
+        if let Some(local) = self.stored_messages.get_mut(&stored.packet.message_id) {
+            local.preferential_handoff_target = Some(neighbor);
+            local.last_action = ScatterAction::PreferentialHandoff;
+            local.last_progress_at_tick = now;
+        }
+        Ok(true)
+    }
+
+    fn run_diffusion_round(
+        &mut self,
+        topology: &jacquard_core::Observation<Configuration>,
+    ) -> Result<bool, RouteError> {
+        let Some(regime) = self.refresh_local_regime(topology) else {
+            return Ok(false);
+        };
         let now = self.effects.now_tick();
         let message_ids = self.stored_messages.keys().cloned().collect::<Vec<_>>();
         let mut progressed = false;
         for message_id in message_ids {
-            let Some(stored) = self.stored_messages.get(&message_id).cloned() else {
-                continue;
-            };
-            if crate::support::packet_expired(&stored.packet, now) {
-                self.stored_messages.remove(&message_id);
+            if self.process_diffusion_message(topology, regime, &message_id, now)? {
                 progressed = true;
-                continue;
-            }
-            if stored.delivered_locally {
-                continue;
-            }
-            let local_score = peer_score(
-                topology,
-                self.local_node_id,
-                self.local_node_id,
-                &stored.packet.destination,
-                stored.packet.service_kind,
-            );
-            for (neighbor, link) in direct_neighbors(topology, self.local_node_id) {
-                if !link_is_usable(link)
-                    || stored.known_holder_nodes.contains(&neighbor)
-                    || !contact_supports_payload(link, stored.packet.payload.len(), &self.config)
-                {
-                    continue;
-                }
-                if regime == ScatterRegime::Dense
-                    && !crate::support::diversity_gate(topology, self.local_node_id, neighbor)
-                {
-                    continue;
-                }
-                let delta = peer_score(
-                    topology,
-                    self.local_node_id,
-                    neighbor,
-                    &stored.packet.destination,
-                    stored.packet.service_kind,
-                ) - local_score;
-                let action = action_for_delta(regime, delta, &stored.packet, &self.config);
-                match action {
-                    ScatterAction::KeepCarrying => continue,
-                    ScatterAction::Replicate => {
-                        let peer_budget = stored.packet.copy_budget / 2;
-                        if peer_budget == 0 {
-                            continue;
-                        }
-                        let mut packet = stored.packet.clone();
-                        packet.copy_budget = peer_budget;
-                        self.forward_packet_to_neighbor(neighbor, link, &packet)?;
-                        if let Some(local) = self.stored_messages.get_mut(&message_id) {
-                            local.packet.copy_budget =
-                                local.packet.copy_budget.saturating_sub(peer_budget);
-                            local.last_action = ScatterAction::Replicate;
-                            local.last_progress_at_tick = now;
-                        }
-                        progressed = true;
-                    }
-                    ScatterAction::PreferentialHandoff => {
-                        self.forward_packet_to_neighbor(neighbor, link, &stored.packet)?;
-                        if let Some(local) = self.stored_messages.get_mut(&message_id) {
-                            local.preferential_handoff_target = Some(neighbor);
-                            local.last_action = ScatterAction::PreferentialHandoff;
-                            local.last_progress_at_tick = now;
-                        }
-                        progressed = true;
-                    }
-                }
             }
         }
         Ok(progressed)
+    }
+
+    fn route_objective(
+        identity: &PublishedRouteRecord,
+        destination: DestinationId,
+        service_kind: jacquard_core::RouteServiceKind,
+    ) -> jacquard_core::RoutingObjective {
+        jacquard_core::RoutingObjective {
+            destination,
+            service_kind,
+            target_protection: identity.admission.objective.target_protection,
+            protection_floor: identity.admission.objective.protection_floor,
+            target_connectivity: identity.admission.objective.target_connectivity,
+            hold_fallback_policy: identity.admission.objective.hold_fallback_policy,
+            latency_budget_ms: identity.admission.objective.latency_budget_ms,
+            protection_priority: identity.admission.objective.protection_priority,
+            connectivity_priority: identity.admission.objective.connectivity_priority,
+        }
+    }
+
+    fn refresh_route_progress(
+        &mut self,
+        route_id: &RouteId,
+        destination: &DestinationId,
+        service_kind: jacquard_core::RouteServiceKind,
+        runtime: &mut RouteRuntimeState,
+        has_direct: bool,
+    ) -> ScatterRouteProgress {
+        let progress = self.progress_for_route(destination, service_kind);
+        if let Some(active) = self.active_routes.get_mut(route_id) {
+            active.progress = progress;
+        }
+        runtime.progress.last_progress_at_tick = self.effects.now_tick();
+        runtime.health.last_validated_at_tick = self.effects.now_tick();
+        runtime.health.reachability_state = if has_direct {
+            ReachabilityState::Reachable
+        } else {
+            ReachabilityState::Unreachable
+        };
+        progress
+    }
+
+    fn maintenance_result(
+        has_direct: bool,
+        progress: ScatterRouteProgress,
+    ) -> RouteMaintenanceResult {
+        if !has_direct && progress.retained_message_count > 0 {
+            return RouteMaintenanceResult {
+                event: RouteLifecycleEvent::EnteredPartitionMode,
+                outcome: RouteMaintenanceOutcome::HoldFallback {
+                    trigger: RouteMaintenanceTrigger::PartitionDetected,
+                    retained_object_count: HoldItemCount(progress.retained_message_count),
+                },
+            };
+        }
+        if has_direct && progress.last_action == ScatterAction::PreferentialHandoff {
+            return RouteMaintenanceResult {
+                event: RouteLifecycleEvent::RecoveredFromPartition,
+                outcome: RouteMaintenanceOutcome::Repaired,
+            };
+        }
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Activated,
+            outcome: RouteMaintenanceOutcome::Continued,
+        }
     }
 }
 
@@ -333,17 +462,7 @@ where
         let Some(topology) = self.latest_topology.as_ref() else {
             return Err(RouteRuntimeError::Invalidated.into());
         };
-        let objective = jacquard_core::RoutingObjective {
-            destination: destination.clone(),
-            service_kind,
-            target_protection: identity.admission.objective.target_protection,
-            protection_floor: identity.admission.objective.protection_floor,
-            target_connectivity: identity.admission.objective.target_connectivity,
-            hold_fallback_policy: identity.admission.objective.hold_fallback_policy,
-            latency_budget_ms: identity.admission.objective.latency_budget_ms,
-            protection_priority: identity.admission.objective.protection_priority,
-            connectivity_priority: identity.admission.objective.connectivity_priority,
-        };
+        let objective = Self::route_objective(identity, destination.clone(), service_kind);
         if !objective_supported(topology, &objective, topology.observed_at_tick) {
             return Ok(RouteMaintenanceResult {
                 event: RouteLifecycleEvent::Expired,
@@ -351,36 +470,14 @@ where
             });
         }
         let has_direct = crate::support::has_direct_match(topology, self.local_node_id, &objective);
-        let progress = self.progress_for_route(&destination, service_kind);
-        if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
-            active.progress = progress;
-        }
-        runtime.progress.last_progress_at_tick = self.effects.now_tick();
-        runtime.health.last_validated_at_tick = self.effects.now_tick();
-        runtime.health.reachability_state = if has_direct {
-            ReachabilityState::Reachable
-        } else {
-            ReachabilityState::Unreachable
-        };
-        if !has_direct && progress.retained_message_count > 0 {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::EnteredPartitionMode,
-                outcome: RouteMaintenanceOutcome::HoldFallback {
-                    trigger: RouteMaintenanceTrigger::PartitionDetected,
-                    retained_object_count: HoldItemCount(progress.retained_message_count),
-                },
-            });
-        }
-        if has_direct && progress.last_action == ScatterAction::PreferentialHandoff {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::RecoveredFromPartition,
-                outcome: RouteMaintenanceOutcome::Repaired,
-            });
-        }
-        Ok(RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Activated,
-            outcome: RouteMaintenanceOutcome::Continued,
-        })
+        let progress = self.refresh_route_progress(
+            identity.route_id(),
+            &destination,
+            service_kind,
+            runtime,
+            has_direct,
+        );
+        Ok(Self::maintenance_result(has_direct, progress))
     }
 
     fn teardown(&mut self, route_id: &RouteId) {
@@ -441,6 +538,7 @@ where
         };
         self.store_packet(packet, Some(*route_id), self.effects.now_tick());
         if let Some(topology) = self.latest_topology.clone() {
+            // allow-ignored-result: submit needs diffusion-side errors only; the progress flag is local bookkeeping.
             let _ = self.run_diffusion_round(&topology)?;
         }
         Ok(())

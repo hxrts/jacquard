@@ -2,7 +2,12 @@
 
 #![allow(clippy::wildcard_imports)]
 
+mod comparative;
+
 use super::*;
+use comparative::{
+    build_comparison_runs, build_head_to_head_runs, build_scatter_runs, ComparativeSuiteScale,
+};
 
 #[must_use]
 pub fn smoke_suite() -> ExperimentSuite {
@@ -73,15 +78,20 @@ where
 
 fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
     let mut runs = Vec::new();
+    let comparative_scale = if smoke {
+        ComparativeSuiteScale::Smoke
+    } else {
+        ComparativeSuiteScale::Full
+    };
     runs.extend(build_batman_bellman_runs(suite_id, seeds, smoke));
     runs.extend(build_batman_classic_runs(suite_id, seeds, smoke));
     runs.extend(build_babel_runs(suite_id, seeds, smoke));
     runs.extend(build_olsrv2_runs(suite_id, seeds, smoke));
-    runs.extend(build_scatter_runs(suite_id, seeds, smoke));
+    runs.extend(build_scatter_runs(suite_id, seeds, comparative_scale));
     runs.extend(build_pathway_runs(suite_id, seeds, smoke));
     runs.extend(build_field_runs(suite_id, seeds, smoke));
-    runs.extend(build_comparison_runs(suite_id, seeds, smoke));
-    runs.extend(build_head_to_head_runs(suite_id, seeds, smoke));
+    runs.extend(build_comparison_runs(suite_id, seeds, comparative_scale));
+    runs.extend(build_head_to_head_runs(suite_id, seeds, comparative_scale));
     ExperimentSuite {
         suite_id: suite_id.to_string(),
         runs,
@@ -433,122 +443,6 @@ fn build_olsrv2_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
     expand_runs(suite_id, "olsrv2", seeds, &parameter_sets, &families)
 }
 
-fn build_scatter_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
-    let parameter_sets = if smoke {
-        vec![
-            ExperimentParameterSet::scatter("balanced"),
-            ExperimentParameterSet::scatter("degraded-network"),
-        ]
-    } else {
-        vec![
-            ExperimentParameterSet::scatter("balanced"),
-            ExperimentParameterSet::scatter("conservative"),
-            ExperimentParameterSet::scatter("degraded-network"),
-        ]
-    };
-    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
-        (
-            "scatter-connected-low-loss",
-            regime((
-                "medium-ring",
-                "low",
-                "low",
-                "none",
-                "static",
-                "none",
-                "connected-only",
-                18,
-            )),
-            build_comparison_connected_low_loss,
-        ),
-        (
-            "scatter-connected-high-loss",
-            regime((
-                "bridge-cluster",
-                "high",
-                "medium",
-                "mild",
-                "relink-and-replace",
-                "mixed",
-                "repairable-connected",
-                54,
-            )),
-            build_comparison_connected_high_loss,
-        ),
-        (
-            "scatter-bridge-transition",
-            regime((
-                "bridge-cluster",
-                "moderate",
-                "medium",
-                "moderate",
-                "partial-recovery",
-                "none",
-                "repairable-connected",
-                42,
-            )),
-            build_comparison_bridge_transition,
-        ),
-        (
-            "scatter-partial-observability-bridge",
-            regime((
-                "bridge-cluster",
-                "moderate",
-                "medium",
-                "mild",
-                "partial-recovery",
-                "none",
-                "repairable-connected",
-                46,
-            )),
-            build_comparison_partial_observability_bridge,
-        ),
-        (
-            "scatter-concurrent-mixed",
-            regime((
-                "medium-mesh",
-                "moderate",
-                "medium",
-                "none",
-                "partial-recovery",
-                "tight-connection",
-                "concurrent-mixed",
-                48,
-            )),
-            build_comparison_concurrent_mixed,
-        ),
-        (
-            "scatter-corridor-continuity-uncertainty",
-            regime((
-                "bridge-cluster",
-                "moderate",
-                "medium",
-                "moderate",
-                "intermittent-recovery",
-                "none",
-                "repairable-connected",
-                50,
-            )),
-            build_comparison_corridor_continuity_uncertainty,
-        ),
-        (
-            "scatter-medium-bridge-repair",
-            regime((
-                "medium-bridge-chain",
-                "moderate",
-                "medium",
-                "mild",
-                "partial-recovery",
-                "none",
-                "repairable-connected",
-                58,
-            )),
-            build_comparison_medium_bridge_repair,
-        ),
-    ];
-    expand_runs(suite_id, "scatter", seeds, &parameter_sets, &families)
-}
-
 // long-block-exception: the Pathway family catalog is kept in one function so the
 // full coarse/fine sweep roster stays reviewable in one place.
 fn build_pathway_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
@@ -833,251 +727,6 @@ fn build_field_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experimen
     ];
 
     expand_runs(suite_id, "field", seeds, &parameter_sets, &families)
-}
-
-// long-block-exception: the comparison family catalog is kept together so the
-// cross-engine route-visible sweep remains reviewable in one place.
-fn build_comparison_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
-    let configs = if smoke {
-        vec![ExperimentParameterSet::comparison(
-            4,
-            2,
-            3,
-            PathwaySearchHeuristicMode::Zero,
-        )]
-    } else {
-        vec![
-            ExperimentParameterSet::comparison(4, 2, 3, PathwaySearchHeuristicMode::Zero),
-            ExperimentParameterSet::comparison(6, 3, 4, PathwaySearchHeuristicMode::HopLowerBound),
-        ]
-    };
-    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
-        (
-            "comparison-connected-low-loss",
-            regime((
-                "medium-ring",
-                "low",
-                "low",
-                "none",
-                "static",
-                "none",
-                "connected-only",
-                18,
-            )),
-            build_comparison_connected_low_loss,
-        ),
-        (
-            "comparison-connected-high-loss",
-            regime((
-                "bridge-cluster",
-                "high",
-                "medium",
-                "mild",
-                "relink-and-replace",
-                "mixed",
-                "repairable-connected",
-                54,
-            )),
-            build_comparison_connected_high_loss,
-        ),
-        (
-            "comparison-bridge-transition",
-            regime((
-                "bridge-cluster",
-                "moderate",
-                "medium",
-                "moderate",
-                "partial-recovery",
-                "none",
-                "repairable-connected",
-                42,
-            )),
-            build_comparison_bridge_transition,
-        ),
-        (
-            "comparison-partial-observability-bridge",
-            regime((
-                "bridge-cluster",
-                "moderate",
-                "medium",
-                "mild",
-                "partial-recovery",
-                "none",
-                "repairable-connected",
-                46,
-            )),
-            build_comparison_partial_observability_bridge,
-        ),
-        (
-            "comparison-concurrent-mixed",
-            regime((
-                "medium-mesh",
-                "moderate",
-                "medium",
-                "none",
-                "partial-recovery",
-                "tight-connection",
-                "concurrent-mixed",
-                48,
-            )),
-            build_comparison_concurrent_mixed,
-        ),
-        (
-            "comparison-corridor-continuity-uncertainty",
-            regime((
-                "bridge-cluster",
-                "moderate",
-                "medium",
-                "moderate",
-                "intermittent-recovery",
-                "none",
-                "repairable-connected",
-                50,
-            )),
-            build_comparison_corridor_continuity_uncertainty,
-        ),
-        (
-            "comparison-medium-bridge-repair",
-            regime((
-                "medium-bridge-chain",
-                "moderate",
-                "medium",
-                "mild",
-                "partial-recovery",
-                "none",
-                "repairable-connected",
-                58,
-            )),
-            build_comparison_medium_bridge_repair,
-        ),
-    ];
-    expand_runs(suite_id, "comparison", seeds, &configs, &families)
-}
-
-// long-block-exception: the head-to-head family catalog is kept together so the
-// per-engine comparison matrix stays auditable as one scenario surface.
-fn build_head_to_head_runs(suite_id: &str, seeds: &[u64], _smoke: bool) -> Vec<ExperimentRunSpec> {
-    let configs = vec![
-        ExperimentParameterSet::head_to_head("batman-bellman", Some((1, 1)), None, None),
-        ExperimentParameterSet::head_to_head("batman-classic", Some((4, 2)), None, None),
-        ExperimentParameterSet::head_to_head("babel", Some((4, 2)), None, None),
-        ExperimentParameterSet::head_to_head("olsrv2", Some((4, 2)), None, None),
-        ExperimentParameterSet::head_to_head("scatter", None, None, None),
-        ExperimentParameterSet::head_to_head(
-            "pathway",
-            None,
-            Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
-            None,
-        ),
-        ExperimentParameterSet::head_to_head_field_low_churn(),
-        ExperimentParameterSet::head_to_head(
-            "pathway-batman-bellman",
-            Some((6, 3)),
-            Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
-            None,
-        ),
-    ];
-    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
-        (
-            "head-to-head-connected-low-loss",
-            regime((
-                "medium-ring",
-                "low",
-                "low",
-                "none",
-                "static",
-                "none",
-                "connected-only",
-                18,
-            )),
-            build_comparison_connected_low_loss,
-        ),
-        (
-            "head-to-head-connected-high-loss",
-            regime((
-                "bridge-cluster",
-                "high",
-                "medium",
-                "mild",
-                "relink-and-replace",
-                "mixed",
-                "repairable-connected",
-                54,
-            )),
-            build_comparison_connected_high_loss,
-        ),
-        (
-            "head-to-head-bridge-transition",
-            regime((
-                "bridge-cluster",
-                "moderate",
-                "medium",
-                "moderate",
-                "partial-recovery",
-                "none",
-                "repairable-connected",
-                42,
-            )),
-            build_comparison_bridge_transition,
-        ),
-        (
-            "head-to-head-partial-observability-bridge",
-            regime((
-                "bridge-cluster",
-                "moderate",
-                "medium",
-                "mild",
-                "partial-recovery",
-                "none",
-                "repairable-connected",
-                46,
-            )),
-            build_comparison_partial_observability_bridge,
-        ),
-        (
-            "head-to-head-concurrent-mixed",
-            regime((
-                "medium-mesh",
-                "moderate",
-                "medium",
-                "none",
-                "partial-recovery",
-                "tight-connection",
-                "concurrent-mixed",
-                48,
-            )),
-            build_comparison_concurrent_mixed,
-        ),
-        (
-            "head-to-head-corridor-continuity-uncertainty",
-            regime((
-                "bridge-cluster",
-                "moderate",
-                "medium",
-                "moderate",
-                "intermittent-recovery",
-                "none",
-                "repairable-connected",
-                50,
-            )),
-            build_comparison_corridor_continuity_uncertainty,
-        ),
-        (
-            "head-to-head-medium-bridge-repair",
-            regime((
-                "medium-bridge-chain",
-                "moderate",
-                "medium",
-                "mild",
-                "partial-recovery",
-                "none",
-                "repairable-connected",
-                58,
-            )),
-            build_comparison_medium_bridge_repair,
-        ),
-    ];
-    expand_runs(suite_id, "head-to-head", seeds, &configs, &families)
 }
 
 type FamilyBuilder =

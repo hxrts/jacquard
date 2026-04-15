@@ -69,7 +69,7 @@ Transport ownership is split deliberately:
 
 `jacquard-simulator` is the scenario/replay harness above the shared boundaries. It reuses reference-client bridge ownership and round advancement; it does not maintain a simulator-only stack. The `tuning_matrix` binary runs experiment suites and automatically generates analysis reports via `python3 -m analysis.report`. Artifacts are written to `artifacts/analysis/{suite}/{timestamp}/` with a `latest` symlink.
 
-The `analysis/` directory contains a Python pipeline (polars + matplotlib + reportlab) that reads simulator artifacts and generates a PDF report with per-engine recommendations, transition metrics, failure boundaries, cross-engine comparisons, and diffusion analysis.
+The `analysis/` directory contains a Python pipeline (polars + Altair + reportlab) that reads simulator artifacts and generates a PDF report with per-engine recommendations, transition metrics, failure boundaries, cross-engine comparisons, and diffusion analysis.
 
 The canonical host wiring reference is `crates/reference-client/tests/e2e_multi_layer_routing.rs`.
 

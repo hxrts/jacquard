@@ -20,6 +20,7 @@ BODY_PATH = Path(__file__).with_name("text.md")
 @dataclass(frozen=True)
 class AssetBlock:
     kind: str
+    section_title: str
     asset_id: str
     lines: list[str]
     description_lines: list[str]
@@ -103,6 +104,12 @@ def _parsed_body() -> tuple[dict[str, list[str]], dict[str, tuple[str, ...]]]:
 
 
 def section_lines(section: str) -> list[str]:
+    sections, _ = _parsed_body()
+    key = _section_key(section)
+    return list(sections[key])
+
+
+def _section_key(section: str) -> str:
     sections, headings = _parsed_body()
     if "/" in section:
         key = _slugify(section.rsplit("/", 1)[-1])
@@ -113,7 +120,7 @@ def section_lines(section: str) -> list[str]:
         key = _slugify(section)
     if key not in sections:
         raise KeyError(f"missing report body section: {section}")
-    return list(sections[key])
+    return key
 
 
 def section_lines_formatted(section: str, **kwargs: object) -> list[str]:
@@ -122,7 +129,9 @@ def section_lines_formatted(section: str, **kwargs: object) -> list[str]:
 
 
 def asset_block(section: str, expected_kind: str | None = None) -> AssetBlock:
-    lines = section_lines(section)
+    sections, headings = _parsed_body()
+    key = _section_key(section)
+    lines = list(sections[key])
     if not lines:
         raise ValueError(f"report body section has no content: {section}")
     marker = lines[0].strip()
@@ -158,7 +167,44 @@ def asset_block(section: str, expected_kind: str | None = None) -> AssetBlock:
             intro_lines.append(line)
     while intro_lines and intro_lines[-1] == "":
         intro_lines.pop()
-    return AssetBlock(kind=kind, asset_id=match.group("asset_id"), lines=intro_lines, description_lines=description_lines)
+    return AssetBlock(
+        kind=kind,
+        section_title=headings[key][-1],
+        asset_id=match.group("asset_id"),
+        lines=intro_lines,
+        description_lines=description_lines,
+    )
+
+
+@lru_cache(maxsize=1)
+def _asset_block_index() -> dict[str, AssetBlock]:
+    sections, headings = _parsed_body()
+    blocks: dict[str, AssetBlock] = {}
+    for key, lines in sections.items():
+        if not lines:
+            continue
+        marker = lines[0].strip()
+        match = re.fullmatch(r"@(?P<kind>table|figure)\s+(?P<asset_id>[a-z0-9_-]+)", marker)
+        if match is None:
+            continue
+        block = asset_block("/".join(headings[key]))
+        asset_id = match.group("asset_id")
+        if asset_id in blocks:
+            raise ValueError(f"duplicate asset id in {BODY_PATH}: {asset_id!r}")
+        blocks[asset_id] = block
+    return blocks
+
+
+def asset_block_by_id(asset_id: str, expected_kind: str | None = None) -> AssetBlock:
+    blocks = _asset_block_index()
+    if asset_id not in blocks:
+        raise KeyError(f"missing report asset: {asset_id}")
+    block = blocks[asset_id]
+    if expected_kind is not None and block.kind != expected_kind:
+        raise ValueError(
+            f"report asset {asset_id!r} expected @{expected_kind}, found @{block.kind}"
+        )
+    return block
 
 
 def comparison_findings_lines(comparison_summary: pl.DataFrame) -> list[str]:
@@ -254,6 +300,16 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
     connected_high_loss = rows.get("head-to-head-connected-high-loss")
     bridge_transition = rows.get("head-to-head-bridge-transition")
     concurrent_mixed = rows.get("head-to-head-concurrent-mixed")
+    field_connected_high_loss = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-connected-high-loss",
+        "field",
+    )
+    field_bridge_transition = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-bridge-transition",
+        "field",
+    )
     corridor_uncertainty = head_to_head_row_for_engine(
         head_to_head_summary,
         "head-to-head-corridor-continuity-uncertainty",
@@ -269,6 +325,8 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
         or connected_high_loss is None
         or bridge_transition is None
         or concurrent_mixed is None
+        or field_connected_high_loss is None
+        or field_bridge_transition is None
         or corridor_uncertainty is None
         or partial_bridge is None
     ):
@@ -286,6 +344,12 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
         ],
         concurrent_mixed_engine_set=concurrent_mixed["comparison_engine_set"] or "none",
         concurrent_mixed_route_presence=concurrent_mixed[
+            "route_present_active_window_permille_mean"
+        ],
+        field_connected_high_loss_route_presence=field_connected_high_loss[
+            "route_present_active_window_permille_mean"
+        ],
+        field_bridge_transition_route_presence=field_bridge_transition[
             "route_present_active_window_permille_mean"
         ],
         corridor_uncertainty_route_presence=corridor_uncertainty[

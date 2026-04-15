@@ -48,7 +48,8 @@
         pythonEnv = pkgs.python3.withPackages (
           ps: with ps; [
             polars
-            matplotlib
+            altair
+            vl-convert-python
             reportlab
             svglib
           ]

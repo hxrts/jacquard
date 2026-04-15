@@ -4,7 +4,7 @@
 engines. The harness runs deterministic scenario matrices, sweeps maintained
 public parameters, writes stable artifacts under `artifacts/analysis/`, and
 generates CSV tables plus a PDF report with vector plots through the repo-local
-Python, Polars, matplotlib, and ReportLab toolchain. It also includes a
+Python, Polars, Altair, and ReportLab toolchain. It also includes a
 dedicated head-to-head corpus that runs the same regimes under explicit
 engine sets: `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `scatter`,
 `pathway`, `field`, and `pathway-batman-bellman`.
@@ -35,8 +35,8 @@ nix develop --command python3 -m analysis.report artifacts/analysis/local/latest
 ```
 
 The local report is written to `artifacts/analysis/{suite}/latest/report.pdf`.
-On `main`, GitHub Pages also publishes the latest CI-built PDF at
-`reports/routing-tuning-report.pdf` under the docs site root.
+On `main`, GitHub Pages also publishes the latest CI-built routing report PDF
+under the docs site root.
 
 ## Matrix Structure
 
@@ -113,8 +113,7 @@ cargo run --bin tuning_matrix -- local
 
 The report is generated automatically at
 `artifacts/analysis/local/latest/report.pdf`.
-On `main`, the latest CI-built copy is also published with the docs site at
-`reports/routing-tuning-report.pdf`.
+On `main`, the latest CI-built copy is also published with the docs site.
 
 ### BATMAN Bellman
 

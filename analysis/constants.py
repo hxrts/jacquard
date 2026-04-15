@@ -1,4 +1,4 @@
-"""Plot dimensions, per-engine color palettes, heuristic line styles, and recommendation-profile scoring weights."""
+"""Plot dimensions, shared color palettes, and recommendation-profile scoring weights."""
 
 from __future__ import annotations
 
@@ -26,86 +26,91 @@ PLOT_SPECS = {
     "diffusion_resource_boundedness": (18.0, 20.0),
 }
 
+ENGINE_COLORS = {
+    "batman-classic": "#58A7D8",
+    "batman-bellman": "#0D6E9E",
+    "babel": "#7B3D57",
+    "olsrv2": "#167C72",
+    "pathway": "#31976D",
+    "scatter": "#C46A1B",
+    "field": "#C45E8B",
+    "pathway-batman-bellman": "#C7A21A",
+}
+
+HEURISTIC_COLORS = {
+    "zero": "#2563EB",
+    "hop-lower-bound": "#C46A1B",
+}
+
 BATMAN_BELLMAN_FAMILY_COLORS = {
-    "batman-bellman-decay-window-pressure": "#0072B2",
-    "batman-bellman-partition-recovery": "#009E73",
-    "batman-bellman-asymmetry-relink-transition": "#D55E00",
+    "batman-bellman-decay-window-pressure": "#0D6E9E",
+    "batman-bellman-partition-recovery": "#2A89B6",
+    "batman-bellman-asymmetry-relink-transition": "#63A9C8",
 }
 
 PATHWAY_FAMILY_COLORS = {
-    "pathway-search-budget-pressure": "#0072B2",
-    "pathway-high-fanout-budget-pressure": "#E69F00",
-    "pathway-bridge-failure-service": "#009E73",
+    "pathway-search-budget-pressure": "#1F7B57",
+    "pathway-high-fanout-budget-pressure": "#31976D",
+    "pathway-bridge-failure-service": "#64B68E",
 }
 
 BATMAN_CLASSIC_FAMILY_COLORS = {
-    "batman-classic-decay-window-pressure": "#1D4ED8",
-    "batman-classic-partition-recovery": "#B45309",
-    "batman-classic-asymmetry-relink-transition": "#059669",
+    "batman-classic-decay-window-pressure": "#58A7D8",
+    "batman-classic-partition-recovery": "#7BBCE2",
+    "batman-classic-asymmetry-relink-transition": "#A6D3EC",
 }
 
 BABEL_FAMILY_COLORS = {
-    "babel-decay-window-pressure": "#7A1F4D",
-    "babel-asymmetry-cost-penalty": "#A23B72",
-    "babel-partition-feasibility-recovery": "#8A6F00",
+    "babel-decay-window-pressure": "#7B3D57",
+    "babel-asymmetry-cost-penalty": "#9B5872",
+    "babel-partition-feasibility-recovery": "#B67A92",
 }
 
 OLSRV2_FAMILY_COLORS = {
-    "olsrv2-topology-propagation-latency": "#0F766E",
-    "olsrv2-partition-recovery": "#0EA5A4",
-    "olsrv2-mpr-flooding-stability": "#0891B2",
-    "olsrv2-asymmetric-relink-transition": "#155E75",
+    "olsrv2-topology-propagation-latency": "#167C72",
+    "olsrv2-partition-recovery": "#28968B",
+    "olsrv2-mpr-flooding-stability": "#4EB1A5",
+    "olsrv2-asymmetric-relink-transition": "#7AC9BF",
 }
 
 SCATTER_FAMILY_COLORS = {
-    "scatter-connected-low-loss": "#C2410C",
-    "scatter-connected-high-loss": "#EA580C",
-    "scatter-bridge-transition": "#9A3412",
-    "scatter-partial-observability-bridge": "#B45309",
-    "scatter-concurrent-mixed": "#F97316",
-    "scatter-corridor-continuity-uncertainty": "#C2410C",
-    "scatter-medium-bridge-repair": "#7C2D12",
+    "scatter-connected-low-loss": "#C46A1B",
+    "scatter-connected-high-loss": "#D8832D",
+    "scatter-bridge-transition": "#A85717",
+    "scatter-partial-observability-bridge": "#B86018",
+    "scatter-concurrent-mixed": "#E69C4D",
+    "scatter-corridor-continuity-uncertainty": "#C46A1B",
+    "scatter-medium-bridge-repair": "#8E4A15",
 }
 
 SCATTER_PROFILE_COLORS = {
-    "balanced": "#C2410C",
-    "conservative": "#9A3412",
-    "degraded-network": "#F97316",
+    "balanced": "#C46A1B",
+    "conservative": "#A85717",
+    "degraded-network": "#E69C4D",
 }
 
 FIELD_FAMILY_COLORS = {
-    "field-partial-observability-bridge": "#0072B2",
-    "field-reconfiguration-recovery": "#009E73",
-    "field-asymmetric-envelope-shift": "#D55E00",
-    "field-uncertain-service-fanout": "#CC79A7",
-    "field-service-overlap-reselection": "#7C3AED",
-    "field-service-freshness-inversion": "#C2410C",
-    "field-service-publication-pressure": "#0F766E",
-    "field-bridge-anti-entropy-continuity": "#56B4E9",
-    "field-bootstrap-upgrade-window": "#F0E442",
+    "field-partial-observability-bridge": "#C45E8B",
+    "field-reconfiguration-recovery": "#D2769D",
+    "field-asymmetric-envelope-shift": "#B44E7D",
+    "field-uncertain-service-fanout": "#DD97B8",
+    "field-service-overlap-reselection": "#A53F6F",
+    "field-service-freshness-inversion": "#EAB6CD",
+    "field-service-publication-pressure": "#8E315F",
+    "field-bridge-anti-entropy-continuity": "#F1C8D9",
+    "field-bootstrap-upgrade-window": "#F7DCE7",
 }
 
 COMPARISON_ENGINE_COLORS = {
-    "batman-bellman": "#0072B2",
-    "batman-classic": "#56B4E9",
-    "babel": "#882255",
-    "olsrv2": "#0F766E",
-    "pathway": "#009E73",
-    "scatter": "#C2410C",
-    "field": "#CC79A7",
+    **ENGINE_COLORS,
     "tie": "#6B7280",
     "none": "#999999",
 }
 
 HEAD_TO_HEAD_SET_COLORS = {
-    "batman-bellman": "#0072B2",
-    "batman-classic": "#56B4E9",
-    "babel": "#882255",
-    "olsrv2": "#0F766E",
-    "pathway": "#009E73",
-    "scatter": "#C2410C",
-    "field": "#CC79A7",
-    "pathway-batman-bellman": "#E69F00",
+    **ENGINE_COLORS,
+    "tie": "#6B7280",
+    "none": "#999999",
 }
 
 ROUTE_VISIBLE_ENGINE_SET_ORDER = [

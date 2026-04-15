@@ -122,7 +122,8 @@ fn batman_classic_decay_window_changes_route_loss_timing() {
 
     let slow_loss = slow.first_round_without_route_after_presence(owner, &destination);
     let fast_loss = fast.first_round_without_route_after_presence(owner, &destination);
-    assert!(slow_loss.is_some() && fast_loss.is_some());
+    assert!(slow_loss.is_some());
+    assert!(fast_loss.is_some());
     assert_ne!(
         slow_loss, fast_loss,
         "expected classic decay windows to change route loss timing; slow={slow_loss:?}, fast={fast_loss:?}"
