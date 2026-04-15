@@ -105,7 +105,7 @@ Pathway explores candidate continuations and chooses a full routing decision for
 
 #### Field Algorithm
 
-Field maintains a continuously updated field model, searches over frozen snapshots, and publishes one corridor-style routing claim while allowing the concrete realization to move inside that corridor. It has an explicit bootstrap phase where weaker corridor claims can be published when evidence is coherent but not yet strong enough for steady admission. The main tuning questions are how much search budget Field needs, how often it reconfigures or shifts continuation, and how often bootstrap routes successfully upgrade. Field does carry forward bounded routing and service evidence, but that carry-forward supports corridor and service continuity rather than acting as a general payload store-and-forward cache.
+Field maintains a continuously updated field model, searches over frozen snapshots, and publishes one corridor-style routing claim while allowing the concrete realization to move inside that corridor. It has an explicit bootstrap phase where weaker corridor claims can be published when evidence is coherent but not yet strong enough for steady admission. The tuning surface is now split deliberately: search breadth still lives in `FieldSearchConfig`, while continuation, promotion, continuity, and evidence behavior sit behind a separate internal operational policy surface that the experiments can sweep more cleanly. Field does carry forward bounded routing and service evidence, but that carry-forward supports corridor and service continuity rather than acting as a general payload store-and-forward cache.
 
 #### Recommendation Logic
 
