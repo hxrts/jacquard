@@ -1,22 +1,17 @@
-//! End-to-end routing tests over one `SharedInMemoryNetwork`.
+//! Shared reference-client routing scenarios over one `SharedInMemoryNetwork`.
 //!
-//! Two tests exercise the full host-side composition stack: topology fixtures,
-//! client builders, bridge-driven round advancement, outbound flush, and
-//! receiver-side ingress stamping.
+//! These scenarios exercise the full host-side composition stack: topology
+//! fixtures, client builders, bridge-driven round advancement, outbound flush,
+//! and receiver-side ingress stamping.
 //!
-//! `pathway_forwarding_across_shared_network` uses a four-node pathway-only
-//! topology (A, B, C, D) and forwards a payload two hops from A to C through B,
-//! asserting route activation, bridge flush, and receiver tick consistency.
-//!
-//! `routing_spans_batman_then_pathway` uses a three-node mixed-engine topology
-//! where A and B run both batman and pathway engines and C is pathway-only.
-//! A forwards over batman to B; B re-forwards over pathway to C. The test
-//! verifies that the router selects the expected engine per hop, that batman
-//! relays bytes verbatim, and that pathway hex-encodes the payload on this
-//! carrier.
+//! The coverage spans four route realizations:
+//! - pathway-only forwarding across a shared network
+//! - batman-to-pathway multi-engine handoff
+//! - OLSRv2-only forwarding across a shared network
+//! - OLSRv2-to-pathway multi-engine handoff
 //!
 //! Reading order is bottom-up: world topologies, routing parameters, client
-//! builders, observation helpers, then the two tests at the end.
+//! builders, observation helpers, then the exported scenario runners at the end.
 
 use std::collections::BTreeMap;
 
@@ -31,10 +26,12 @@ use jacquard_core::{
 use jacquard_olsrv2::OLSRV2_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
-    topology, BoundHostBridge, BridgeRoundProgress, ClientBuilder, ReferenceClient,
-    ReferenceRouter, SharedInMemoryNetwork,
+    BoundHostBridge, BridgeRoundProgress, ClientBuilder, ReferenceClient, ReferenceRouter,
+    SharedInMemoryNetwork,
 };
 use jacquard_traits::{Router, RoutingDataPlane};
+
+use crate::topology;
 
 const NODE_A: NodeId = NodeId([1; 32]);
 const NODE_B: NodeId = NodeId([2; 32]);
@@ -519,8 +516,7 @@ fn hex_bytes(bytes: &[u8]) -> String {
 
 // -- Tests -------------------------------------------------------------
 
-#[test]
-fn pathway_forwarding_across_shared_network() {
+pub fn pathway_forwarding_across_shared_network() {
     // 1. World. A four-node topology that every client will observe.
     let topology = sample_configuration();
 
@@ -570,8 +566,7 @@ fn pathway_forwarding_across_shared_network() {
 // long-block-exception: end-to-end scenario traces a single linear routing
 // narrative across two engines; splitting would obscure the hop-by-hop
 // sequence.
-#[test]
-fn routing_spans_batman_then_pathway() {
+pub fn routing_spans_batman_then_pathway() {
     // 1. World. A three-node topology where A is BATMAN-only, B can hand off
     //    from BATMAN to Pathway, and C is pathway-only.
     let topology = mixed_engine_configuration();
@@ -649,8 +644,7 @@ fn routing_spans_batman_then_pathway() {
     }
 }
 
-#[test]
-fn olsrv2_forwarding_across_shared_network() {
+pub fn olsrv2_forwarding_across_shared_network() {
     let topology = olsrv2_line_configuration();
     let network = SharedInMemoryNetwork::default();
     let (mut client_a, mut client_b, mut client_c) = olsrv2_triplet(&topology, network);
@@ -708,8 +702,7 @@ fn olsrv2_forwarding_across_shared_network() {
     assert_eq!(received_by_c, payload);
 }
 
-#[test]
-fn routing_spans_olsrv2_then_pathway() {
+pub fn routing_spans_olsrv2_then_pathway() {
     let topology = olsrv2_pathway_configuration();
     let network = SharedInMemoryNetwork::default();
     let (mut client_a, mut client_b, mut client_c) = olsrv2_pathway_triplet(&topology, network);

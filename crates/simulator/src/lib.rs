@@ -32,6 +32,7 @@ mod harness;
 mod reduced_replay;
 mod replay;
 mod scenario;
+mod topology;
 
 pub mod presets;
 

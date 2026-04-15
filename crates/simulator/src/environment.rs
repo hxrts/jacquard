@@ -231,10 +231,10 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{Configuration, Environment, RatioPermille, RouteEpoch, Tick};
-    use jacquard_reference_client::topology;
     use jacquard_traits::RoutingEnvironmentModel;
 
     use super::{EnvironmentHook, ScriptedEnvironmentModel};
+    use crate::topology;
 
     fn node(byte: u8) -> jacquard_core::NodeId {
         jacquard_core::NodeId([byte; 32])

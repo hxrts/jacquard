@@ -9,7 +9,7 @@ use jacquard_mem_link_profile::{
 use jacquard_pathway::{
     DeterministicPathwayTopologyModel, PathwayEngine, PATHWAY_CAPABILITIES, PATHWAY_ENGINE_ID,
 };
-use jacquard_reference_client::router_integration::{
+use jacquard_testkit::router_integration::{
     activate_route_within_rounds, admitted_single_candidate, build_router,
 };
 use jacquard_traits::Blake3Hashing;

@@ -7,9 +7,11 @@ use jacquard_core::{
     AdmissionDecision, Configuration, Environment, Observation, RatioPermille, Tick,
 };
 use jacquard_mem_link_profile::{InMemoryRuntimeEffects, SharedInMemoryNetwork};
-use jacquard_reference_client::router_integration::{
-    connected_objective, connected_profile, lossy_link, node, route_capable_node,
-    RouterIntegrationHost,
+use jacquard_testkit::{
+    homogeneous_router_integration_hosts,
+    router_integration::{
+        connected_objective, connected_profile, lossy_link, node, route_capable_node,
+    },
 };
 
 fn topology() -> Observation<Configuration> {
@@ -80,88 +82,23 @@ fn babel_selects_etx_favored_route_and_admits_it_within_bound() {
     let objective = connected_objective(node(4));
 
     let network = SharedInMemoryNetwork::default();
-    let mut hosts = BTreeMap::from([
-        (
-            node(1),
-            RouterIntegrationHost::new(
-                node(1),
-                topology(),
-                network.clone(),
-                connected_profile(),
-                1,
-                |sender, now| {
-                    Box::new(BabelEngine::new(
-                        node(1),
-                        sender,
-                        InMemoryRuntimeEffects {
-                            now,
-                            ..Default::default()
-                        },
-                    ))
+    let mut hosts = homogeneous_router_integration_hosts!(
+        network,
+        topology,
+        connected_profile(),
+        1,
+        [1, 2, 3, 4],
+        |local_node_id, sender, now| {
+            Box::new(BabelEngine::new(
+                local_node_id,
+                sender,
+                InMemoryRuntimeEffects {
+                    now,
+                    ..Default::default()
                 },
-            ),
-        ),
-        (
-            node(2),
-            RouterIntegrationHost::new(
-                node(2),
-                topology(),
-                network.clone(),
-                connected_profile(),
-                1,
-                |sender, now| {
-                    Box::new(BabelEngine::new(
-                        node(2),
-                        sender,
-                        InMemoryRuntimeEffects {
-                            now,
-                            ..Default::default()
-                        },
-                    ))
-                },
-            ),
-        ),
-        (
-            node(3),
-            RouterIntegrationHost::new(
-                node(3),
-                topology(),
-                network.clone(),
-                connected_profile(),
-                1,
-                |sender, now| {
-                    Box::new(BabelEngine::new(
-                        node(3),
-                        sender,
-                        InMemoryRuntimeEffects {
-                            now,
-                            ..Default::default()
-                        },
-                    ))
-                },
-            ),
-        ),
-        (
-            node(4),
-            RouterIntegrationHost::new(
-                node(4),
-                topology(),
-                network,
-                connected_profile(),
-                1,
-                |sender, now| {
-                    Box::new(BabelEngine::new(
-                        node(4),
-                        sender,
-                        InMemoryRuntimeEffects {
-                            now,
-                            ..Default::default()
-                        },
-                    ))
-                },
-            ),
-        ),
-    ]);
+            ))
+        }
+    );
 
     for _ in 0..8 {
         for host in hosts.values_mut() {

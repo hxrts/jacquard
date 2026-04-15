@@ -1,4 +1,4 @@
-//! Reusable topology fixture presets for reference-client tests.
+//! Reusable topology fixture presets for simulator scenarios.
 //!
 //! The intended path is builder-style:
 //! - `node(byte).pathway().build()`

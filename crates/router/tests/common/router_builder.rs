@@ -34,8 +34,8 @@ use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
 };
 use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
-use jacquard_reference_client::topology;
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
+use jacquard_testkit::topology;
 use jacquard_traits::Blake3Hashing;
 
 use super::{

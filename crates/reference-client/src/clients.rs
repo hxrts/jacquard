@@ -761,7 +761,8 @@ mod tests {
         batman_default_profile, default_profile, default_profile_for_engine_set, ClientBuilder,
         EngineKind,
     };
-    use crate::{topology, SharedInMemoryNetwork};
+    use crate::SharedInMemoryNetwork;
+    use jacquard_testkit::topology;
 
     fn sample_topology() -> Observation<Configuration> {
         Observation {

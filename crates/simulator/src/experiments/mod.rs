@@ -29,7 +29,6 @@ use jacquard_field::{
 };
 use jacquard_olsrv2::{DecayWindow as OlsrV2DecayWindow, OLSRV2_ENGINE_ID};
 use jacquard_pathway::{PathwaySearchConfig, PathwaySearchHeuristicMode, PATHWAY_ENGINE_ID};
-use jacquard_reference_client::topology;
 use jacquard_traits::{RoutingScenario, RoutingSimulator};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -38,7 +37,7 @@ use crate::{
     environment::{EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel},
     harness::{JacquardHostAdapter, JacquardSimulator, SimulationError},
     scenario::{BoundObjective, FieldBootstrapSummary, HostSpec, JacquardScenario},
-    ReducedReplayView,
+    topology, ReducedReplayView,
 };
 
 mod batman;

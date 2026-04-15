@@ -29,7 +29,7 @@ use jacquard_core::{
     RouteServiceKind, RoutingEngineFallbackPolicy, RoutingEvidenceClass, RoutingObjective,
     RoutingPolicyInputs, SelectedRoutingParameters, Tick,
 };
-use jacquard_reference_client::topology;
+use jacquard_testkit::topology;
 
 pub(crate) const LOCAL_NODE_ID: NodeId = NodeId([1; 32]);
 pub(crate) const PEER_NODE_ID: NodeId = NodeId([2; 32]);

@@ -15,12 +15,12 @@ use jacquard_core::{
     RoutingEvidenceClass, RoutingObjective, ServiceId, Tick,
 };
 use jacquard_pathway::PathwaySearchConfig;
-use jacquard_reference_client::topology;
 
 use crate::{
     environment::{EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel},
     harness::default_objective,
     scenario::{BoundObjective, FieldBootstrapSummary, HostSpec, JacquardScenario},
+    topology,
 };
 
 const NODE_A: jacquard_core::NodeId = jacquard_core::NodeId([1; 32]);

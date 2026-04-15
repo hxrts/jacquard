@@ -12,9 +12,10 @@ use jacquard_core::{
     RoutingEvidenceClass, RoutingObjective, Tick,
 };
 use jacquard_reference_client::{
-    topology, BridgeQueueConfig, BridgeRoundProgress, ClientBuilder, ObservedRouteShape,
+    BridgeQueueConfig, BridgeRoundProgress, ClientBuilder, ObservedRouteShape,
     SharedInMemoryNetwork, TopologyProjector,
 };
+use jacquard_testkit::topology;
 use jacquard_traits::Router;
 
 fn sample_topology(local_node_id: NodeId) -> Observation<Configuration> {

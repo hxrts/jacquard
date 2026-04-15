@@ -728,7 +728,7 @@ dependencies = [
  "jacquard-field",
  "jacquard-mem-link-profile",
  "jacquard-pathway",
- "jacquard-reference-client",
+ "jacquard-testkit",
  "jacquard-traits",
  "serde",
 ]
@@ -762,7 +762,9 @@ dependencies = [
  "jacquard-adapter",
  "jacquard-babel",
  "jacquard-batman-bellman",
+ "jacquard-batman-classic",
  "jacquard-core",
+ "jacquard-field",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-olsrv2",

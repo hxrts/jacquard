@@ -40,7 +40,12 @@ graph LR
   Router -- registers --> Engines
 ```
 
-The reference end-to-end example is the `reference-client` multi-layer routing test at [`crates/reference-client/tests/e2e_multi_layer_routing.rs`](../crates/reference-client/tests/e2e_multi_layer_routing.rs). It shows how to add a new client runtime to the same in-memory network without bypassing the bridge-owned ingress path or the router-owned canonical path.
+The reference end-to-end examples are the split `reference-client` tests in
+[`crates/reference-client/tests/`](../crates/reference-client/tests/) and the
+shared scenarios in
+[`crates/testkit/src/reference_client_scenarios.rs`](../crates/testkit/src/reference_client_scenarios.rs).
+They show how to add a new client runtime to the same in-memory network without
+bypassing the bridge-owned ingress path or the router-owned canonical path.
 
 ## Extension Guidance
 

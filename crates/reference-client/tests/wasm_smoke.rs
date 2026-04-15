@@ -14,9 +14,10 @@ use jacquard_core::{
     RoutingEvidenceClass, RoutingObjective, Tick,
 };
 use jacquard_reference_client::{
-    topology, BridgeRoundProgress, ClientBuilder, ObservedRouteShape, SharedInMemoryNetwork,
+    BridgeRoundProgress, ClientBuilder, ObservedRouteShape, SharedInMemoryNetwork,
     TopologyProjector,
 };
+use jacquard_testkit::topology;
 use jacquard_traits::Router;
 use wasm_bindgen_test::wasm_bindgen_test;
 

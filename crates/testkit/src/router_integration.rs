@@ -1,7 +1,8 @@
-//! Shared deterministic helpers for router-integration tests across engine crates.
+//! Shared deterministic helpers for cross-crate router-integration tests.
 
-use jacquard_adapter::opaque_endpoint;
-use jacquard_adapter::{dispatch_mailbox, DispatchReceiver, DispatchSender};
+#![allow(dead_code, unused_imports, unused_macros)]
+
+use jacquard_adapter::{dispatch_mailbox, opaque_endpoint, DispatchReceiver, DispatchSender};
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
     HealthScore, IdentityAssuranceClass, Link, LinkEndpoint, Node, NodeId, Observation,
@@ -19,7 +20,7 @@ use jacquard_traits::{
     TransportDriver, TransportSenderEffects,
 };
 
-use crate::{clients::policy_inputs_for, ReferenceRouter};
+pub type RouterIntegrationRouter = MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>;
 
 #[must_use]
 pub fn node(byte: u8) -> NodeId {
@@ -98,12 +99,30 @@ pub fn routing_policy_inputs(
     local_node_id: NodeId,
     routing_engine_count: usize,
 ) -> RoutingPolicyInputs {
-    let mut inputs = policy_inputs_for(topology, local_node_id);
-    inputs.routing_engine_count =
-        u32::try_from(routing_engine_count).expect("routing engine count fits in u32");
-    inputs.identity_assurance = IdentityAssuranceClass::ControllerBound;
-    inputs.direct_reachability_score = HealthScore(900);
-    inputs
+    RoutingPolicyInputs {
+        local_node: Observation {
+            value: topology.value.nodes[&local_node_id].clone(),
+            source_class: topology.source_class,
+            evidence_class: topology.evidence_class,
+            origin_authentication: topology.origin_authentication,
+            observed_at_tick: topology.observed_at_tick,
+        },
+        local_environment: Observation {
+            value: topology.value.environment.clone(),
+            source_class: topology.source_class,
+            evidence_class: topology.evidence_class,
+            origin_authentication: topology.origin_authentication,
+            observed_at_tick: topology.observed_at_tick,
+        },
+        routing_engine_count: u32::try_from(routing_engine_count)
+            .expect("routing engine count fits in u32"),
+        median_rtt_ms: DurationMs(40),
+        loss_permille: RatioPermille(50),
+        partition_risk_permille: RatioPermille(100),
+        adversary_pressure_permille: RatioPermille(0),
+        identity_assurance: IdentityAssuranceClass::ControllerBound,
+        direct_reachability_score: HealthScore(900),
+    }
 }
 
 #[must_use]
@@ -113,7 +132,7 @@ pub fn build_router(
     profile: SelectedRoutingParameters,
     now: Tick,
     routing_engine_count: usize,
-) -> ReferenceRouter {
+) -> RouterIntegrationRouter {
     MultiEngineRouter::new(
         local_node_id,
         FixedPolicyEngine::new(profile),
@@ -127,7 +146,7 @@ pub fn build_router(
 }
 
 pub fn activate_route_within_rounds(
-    router: &mut ReferenceRouter,
+    router: &mut RouterIntegrationRouter,
     objective: &RoutingObjective,
     max_rounds: usize,
 ) -> Result<jacquard_core::MaterializedRoute, RouteError> {
@@ -191,7 +210,7 @@ impl TransportSenderEffects for QueuedTransportSender {
 
 pub struct RouterIntegrationHost {
     topology: Observation<Configuration>,
-    router: ReferenceRouter,
+    router: RouterIntegrationRouter,
     driver: InMemoryTransport,
     outbound: DispatchReceiver<OutboundFrame>,
     next_tick: Tick,
@@ -273,12 +292,34 @@ impl RouterIntegrationHost {
         }
     }
 
-    #[must_use]
-    pub fn router(&self) -> &ReferenceRouter {
-        &self.router
-    }
-
-    pub fn router_mut(&mut self) -> &mut ReferenceRouter {
+    pub fn router_mut(&mut self) -> &mut RouterIntegrationRouter {
         &mut self.router
     }
+}
+
+#[macro_export]
+macro_rules! homogeneous_router_integration_hosts {
+    ($network:expr, $topology_fn:path, $profile:expr, $routing_engine_count:expr, [$($byte:expr),+ $(,)?], $builder:expr) => {{
+        let network = $network;
+        let profile = $profile;
+        std::collections::BTreeMap::from([
+            $(
+                (
+                    $crate::router_integration::node($byte),
+                    $crate::router_integration::RouterIntegrationHost::new(
+                        $crate::router_integration::node($byte),
+                        $topology_fn(),
+                        network.clone(),
+                        profile.clone(),
+                        $routing_engine_count,
+                        |sender, now| ($builder)(
+                            $crate::router_integration::node($byte),
+                            sender,
+                            now,
+                        ),
+                    ),
+                )
+            ),+
+        ])
+    }};
 }

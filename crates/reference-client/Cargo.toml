@@ -28,6 +28,7 @@ jacquard-traits = { path = "../traits", version = "0.4.0" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+jacquard-testkit = { path = "../testkit", features = ["reference-client-e2e", "topology-full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = { workspace = true }
