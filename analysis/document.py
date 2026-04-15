@@ -54,11 +54,15 @@ from .sections import (
     simulation_setup_lines,
 )
 from .tables import (
+    benchmark_profile_audit_table_rows,
+    comparison_engine_round_breakdown_table_rows,
     comparison_table_rows,
+    diffusion_baseline_audit_table_rows,
     diffusion_boundary_table_rows,
     diffusion_engine_comparison_table_rows,
     diffusion_regime_engine_summary_table_rows,
     diffusion_engine_summary_table_rows,
+    diffusion_weight_sensitivity_table_rows,
     field_vs_best_diffusion_alternative_table_rows,
     field_diffusion_regime_table_rows,
     field_profile_table_rows,
@@ -321,12 +325,11 @@ def make_table(column_labels: list[str], rows: list[list[str]], styles, col_widt
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4a4a4a")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#7a7a7a")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#ffffff")),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f0f0")]),
-                ("LINEBELOW", (0, 0), (-1, 0), 0.8, colors.HexColor("#333333")),
-                ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#999999")),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.8, colors.HexColor("#555555")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 6),
@@ -361,13 +364,17 @@ def write_pdf_report(
     recommendations,
     profile_recommendations,
     field_profile_recommendations,
+    benchmark_profile_audit,
     field_routing_regime_calibration,
     transition_metrics,
     boundary_summary,
     aggregates,
     comparison_summary,
+    comparison_engine_round_breakdown,
     head_to_head_summary,
     diffusion_engine_summary,
+    diffusion_baseline_audit,
+    diffusion_weight_sensitivity,
     diffusion_regime_engine_summary,
     diffusion_engine_comparison,
     diffusion_boundary_summary,
@@ -551,7 +558,7 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 9",
-        "Figure 9. Pathway route presence by search budget",
+        "Figure 9. Pathway active route presence by search budget",
         16.4 * cm,
         8.0 * cm,
     )
@@ -576,7 +583,7 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 11",
-        "Figure 11. Field route presence by search budget",
+        "Figure 11. Field active route presence by search budget",
         16.4 * cm,
         9.6 * cm,
     )
@@ -615,7 +622,7 @@ def write_pdf_report(
                 styles,
                 report_dir,
                 "Figure 13",
-                "Figure 13. Dominant engine by comparison regime",
+                "Figure 13. Selected-round leader by comparison regime",
                 14.8 * cm,
                 10.2 * cm,
             )
@@ -628,7 +635,7 @@ def write_pdf_report(
                 styles,
                 report_dir,
                 "Figure 14",
-                "Figure 14. Head-to-head route presence by engine set",
+                "Figure 14. Head-to-head active route presence by engine set",
                 16.4 * cm,
                 10.2 * cm,
             )
@@ -771,7 +778,7 @@ def write_pdf_report(
         story,
         styles,
         [
-            "These tables collect the exhaustive mixed-engine and head-to-head route-visible results referenced by the main comparison section.",
+            "These tables collect the exhaustive mixed-engine, mixed-engine selected-round breakdown, and head-to-head route-visible results referenced by the main comparison section.",
         ],
     )
     add_table_section(
@@ -779,16 +786,47 @@ def write_pdf_report(
         styles,
         "Mixed-Engine Regime Split",
         asset_block("Mixed-Engine Regime Split", "table").lines,
-        ["Family", "Dominant Engine", "Activation", "Route Presence", "Stress"],
+        ["Family", "Selected-Round Leader", "Activation", "Active Route", "Stress"],
         comparison_table_rows(comparison_summary),
         [6.4 * cm, 3.1 * cm, 2.2 * cm, 3.0 * cm, 1.8 * cm],
     )
     add_table_section(
         story,
         styles,
+        "Mixed-Engine Selected-Round Breakdown",
+        [
+            "Each row reports the best maintained mixed comparison config for that family. The per-engine columns show average selected-route rounds under one shared router policy, so this table explains why the mixed stack leader is not an oracle best-of-engines result.",
+        ],
+        [
+            "Family",
+            "Leader",
+            "Active Route",
+            "Handoffs",
+            "Batman Classic",
+            "Batman Bellman",
+            "Babel",
+            "OLSRv2",
+            "Pathway",
+            "Field",
+        ],
+        comparison_engine_round_breakdown_table_rows(comparison_engine_round_breakdown),
+        [3.2 * cm, 1.6 * cm, 1.3 * cm, 1.1 * cm, 1.2 * cm, 1.2 * cm, 1.0 * cm, 1.0 * cm, 1.0 * cm, 0.9 * cm],
+    )
+    add_table_section(
+        story,
+        styles,
+        "Benchmark Profile Audit",
+        asset_block("Benchmark Profile Audit", "table").lines,
+        ["Engine Set", "Representative", "Benchmark Config", "Calibrated Profile", "Calibrated Config", "Match"],
+        benchmark_profile_audit_table_rows(benchmark_profile_audit),
+        [2.6 * cm, 2.8 * cm, 4.0 * cm, 2.8 * cm, 4.0 * cm, 1.4 * cm],
+    )
+    add_table_section(
+        story,
+        styles,
         "Head-To-Head Results",
         asset_block("Head-To-Head Results", "table").lines,
-        ["Regime", "Engine Set", "Activation", "Route", "Dominant", "Stress"],
+        ["Regime", "Engine Set", "Activation", "Active Route", "Selected Leader", "Stress"],
         head_to_head_table_rows(head_to_head_summary),
         [5.6 * cm, 3.2 * cm, 2.0 * cm, 1.8 * cm, 2.1 * cm, 1.4 * cm],
     )
@@ -811,6 +849,27 @@ def write_pdf_report(
             ["Family", "Engine Set", "Delivery", "Coverage", "Latency", "State", "Stress"],
             diffusion_engine_summary_table_rows(diffusion_engine_summary),
             [4.0 * cm, 4.6 * cm, 1.6 * cm, 1.6 * cm, 1.5 * cm, 2.0 * cm, 1.4 * cm],
+        )
+        add_table_section(
+            story,
+            styles,
+            "Diffusion Baseline Audit",
+            [
+                "These rows summarize the maintained non-field diffusion baselines. They are representative benchmark configs, not a calibrated-best sweep, so the generic winner tables should be read with that scope in mind.",
+            ],
+            [
+                "Config",
+                "Rep",
+                "TTL",
+                "Forward",
+                "Bridge",
+                "Delivery",
+                "Coverage",
+                "Cluster",
+                "State",
+            ],
+            diffusion_baseline_audit_table_rows(diffusion_baseline_audit),
+            [3.6 * cm, 0.9 * cm, 0.9 * cm, 1.2 * cm, 1.1 * cm, 1.2 * cm, 1.2 * cm, 1.2 * cm, 1.3 * cm],
         )
         add_table_section(
             story,
@@ -840,6 +899,17 @@ def write_pdf_report(
                 field_vs_best_diffusion_alternative
             ),
             [1.5 * cm, 3.0 * cm, 0.8 * cm, 1.3 * cm, 3.0 * cm, 1.5 * cm, 1.0 * cm, 1.0 * cm, 1.1 * cm, 0.9 * cm, 1.1 * cm],
+        )
+        add_table_section(
+            story,
+            styles,
+            "Diffusion Winner Sensitivity",
+            [
+                "This table re-scores the generic Part IV family winners under delivery-heavy and boundedness-heavy weights. A `no` in Stable means the family-level winner is sensitive to generic weighting and should be read as provisional relative to the regime-specific tables.",
+            ],
+            ["Family", "Balanced", "Delivery-Heavy", "Boundedness-Heavy", "Stable"],
+            diffusion_weight_sensitivity_table_rows(diffusion_weight_sensitivity),
+            [4.3 * cm, 3.3 * cm, 3.3 * cm, 3.5 * cm, 1.2 * cm],
         )
         add_table_section(
             story,
