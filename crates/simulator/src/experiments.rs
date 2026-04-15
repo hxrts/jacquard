@@ -46,6 +46,7 @@ const NODE_B: NodeId = NodeId([2; 32]);
 const NODE_C: NodeId = NodeId([3; 32]);
 const NODE_D: NodeId = NodeId([4; 32]);
 const NODE_E: NodeId = NodeId([5; 32]);
+type FieldBootstrapSeed = (NodeId, u16, u8, u8, Option<u16>);
 
 #[derive(Debug, Error)]
 pub enum ExperimentError {
@@ -75,6 +76,32 @@ pub struct RegimeDescriptor {
     pub stress_score: u32,
 }
 
+type RegimeFields<'a> = (
+    &'a str,
+    &'a str,
+    &'a str,
+    &'a str,
+    &'a str,
+    &'a str,
+    &'a str,
+    u32,
+);
+
+fn regime(
+    (density, loss, interference, asymmetry, churn, node_pressure, objective_regime, stress_score): RegimeFields<'_>,
+) -> RegimeDescriptor {
+    RegimeDescriptor {
+        density: density.to_string(),
+        loss: loss.to_string(),
+        interference: interference.to_string(),
+        asymmetry: asymmetry.to_string(),
+        churn: churn.to_string(),
+        node_pressure: node_pressure.to_string(),
+        objective_regime: objective_regime.to_string(),
+        stress_score,
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ExperimentParameterSet {
     pub engine_family: String,
@@ -101,7 +128,138 @@ pub struct ExperimentParameterSet {
     pub field_node_discovery_enabled: Option<bool>,
 }
 
+fn optional_decay_fields(decay_window: Option<(u32, u32)>) -> (Option<u32>, Option<u32>) {
+    decay_window.map_or((None, None), |(stale, refresh)| {
+        (Some(stale), Some(refresh))
+    })
+}
+
+fn optional_pathway_search_fields(
+    pathway_search: Option<(usize, PathwaySearchHeuristicMode)>,
+) -> (Option<usize>, Option<String>) {
+    pathway_search.map_or((None, None), |(budget, heuristic)| {
+        (
+            Some(budget),
+            Some(heuristic_mode_label(heuristic).to_string()),
+        )
+    })
+}
+
+fn optional_field_search_fields(
+    field_search: Option<(usize, FieldSearchHeuristicMode)>,
+) -> FieldSearchFields {
+    let (field_query_budget, field_heuristic_mode) =
+        field_search.map_or((None, None), |(budget, heuristic)| {
+            (
+                Some(budget),
+                Some(field_heuristic_mode_label(heuristic).to_string()),
+            )
+        });
+    let (
+        field_service_publication_neighbor_limit,
+        field_service_freshness_weight,
+        field_service_narrowing_bias,
+        field_node_bootstrap_support_floor,
+        field_node_bootstrap_top_mass_floor,
+        field_node_bootstrap_entropy_ceiling,
+        field_node_discovery_enabled,
+    ) = if field_search.is_some() {
+        (
+            Some(1),
+            Some(120),
+            Some(190),
+            Some(180),
+            Some(180),
+            Some(970),
+            Some(true),
+        )
+    } else {
+        (None, None, None, None, None, None, None)
+    };
+    FieldSearchFields {
+        field_query_budget,
+        field_heuristic_mode,
+        field_service_publication_neighbor_limit,
+        field_service_freshness_weight,
+        field_service_narrowing_bias,
+        field_node_bootstrap_support_floor,
+        field_node_bootstrap_top_mass_floor,
+        field_node_bootstrap_entropy_ceiling,
+        field_node_discovery_enabled,
+    }
+}
+
+struct FieldSearchFields {
+    field_query_budget: Option<usize>,
+    field_heuristic_mode: Option<String>,
+    field_service_publication_neighbor_limit: Option<usize>,
+    field_service_freshness_weight: Option<u16>,
+    field_service_narrowing_bias: Option<u16>,
+    field_node_bootstrap_support_floor: Option<u16>,
+    field_node_bootstrap_top_mass_floor: Option<u16>,
+    field_node_bootstrap_entropy_ceiling: Option<u16>,
+    field_node_discovery_enabled: Option<bool>,
+}
+
 impl ExperimentParameterSet {
+    fn head_to_head_config_suffix(
+        comparison_engine_set: &str,
+        batman_bellman_decay_window: Option<(u32, u32)>,
+        pathway_search: Option<(usize, PathwaySearchHeuristicMode)>,
+        field_search: Option<(usize, FieldSearchHeuristicMode)>,
+    ) -> String {
+        match comparison_engine_set {
+            "batman-bellman" => {
+                let (stale_after_ticks, next_refresh_within_ticks) =
+                    batman_bellman_decay_window.unwrap_or((1, 1));
+                format!(
+                    "batman-bellman-{}-{}",
+                    stale_after_ticks, next_refresh_within_ticks
+                )
+            }
+            "batman-classic" | "babel" | "olsrv2" => {
+                let (stale_after_ticks, next_refresh_within_ticks) =
+                    batman_bellman_decay_window.unwrap_or((4, 2));
+                format!(
+                    "{}-{}-{}",
+                    comparison_engine_set, stale_after_ticks, next_refresh_within_ticks
+                )
+            }
+            "pathway" => {
+                let (budget, heuristic_mode) =
+                    pathway_search.unwrap_or((2, PathwaySearchHeuristicMode::Zero));
+                format!(
+                    "pathway-{}-{}",
+                    budget,
+                    heuristic_mode_label(heuristic_mode)
+                )
+            }
+            "field" => {
+                let (budget, heuristic_mode) =
+                    field_search.unwrap_or((4, FieldSearchHeuristicMode::HopLowerBound));
+                format!(
+                    "field-{}-{}",
+                    budget,
+                    field_heuristic_mode_label(heuristic_mode)
+                )
+            }
+            "pathway-batman-bellman" => {
+                let (stale_after_ticks, next_refresh_within_ticks) =
+                    batman_bellman_decay_window.unwrap_or((1, 1));
+                let (budget, heuristic_mode) =
+                    pathway_search.unwrap_or((2, PathwaySearchHeuristicMode::Zero));
+                format!(
+                    "pathway-batman-b{}-{}-p{}-{}",
+                    stale_after_ticks,
+                    next_refresh_within_ticks,
+                    budget,
+                    heuristic_mode_label(heuristic_mode)
+                )
+            }
+            other => other.to_string(),
+        }
+    }
+
     #[must_use]
     pub fn batman_bellman(stale_after_ticks: u32, next_refresh_within_ticks: u32) -> Self {
         Self {
@@ -265,85 +423,19 @@ impl ExperimentParameterSet {
         pathway_search: Option<(usize, PathwaySearchHeuristicMode)>,
         field_search: Option<(usize, FieldSearchHeuristicMode)>,
     ) -> Self {
-        let config_suffix = match comparison_engine_set {
-            "batman-bellman" => {
-                let (stale_after_ticks, next_refresh_within_ticks) =
-                    batman_bellman_decay_window.unwrap_or((1, 1));
-                format!(
-                    "batman-bellman-{}-{}",
-                    stale_after_ticks, next_refresh_within_ticks
-                )
-            }
-            "batman-classic" => {
-                let (stale_after_ticks, next_refresh_within_ticks) =
-                    batman_bellman_decay_window.unwrap_or((4, 2));
-                format!(
-                    "batman-classic-{}-{}",
-                    stale_after_ticks, next_refresh_within_ticks
-                )
-            }
-            "babel" => {
-                let (stale_after_ticks, next_refresh_within_ticks) =
-                    batman_bellman_decay_window.unwrap_or((4, 2));
-                format!("babel-{}-{}", stale_after_ticks, next_refresh_within_ticks)
-            }
-            "olsrv2" => {
-                let (stale_after_ticks, next_refresh_within_ticks) =
-                    batman_bellman_decay_window.unwrap_or((4, 2));
-                format!("olsrv2-{}-{}", stale_after_ticks, next_refresh_within_ticks)
-            }
-            "pathway" => {
-                let (budget, heuristic_mode) =
-                    pathway_search.unwrap_or((2, PathwaySearchHeuristicMode::Zero));
-                format!(
-                    "pathway-{}-{}",
-                    budget,
-                    heuristic_mode_label(heuristic_mode)
-                )
-            }
-            "field" => {
-                let (budget, heuristic_mode) =
-                    field_search.unwrap_or((4, FieldSearchHeuristicMode::HopLowerBound));
-                format!(
-                    "field-{}-{}",
-                    budget,
-                    field_heuristic_mode_label(heuristic_mode)
-                )
-            }
-            "pathway-batman-bellman" => {
-                let (stale_after_ticks, next_refresh_within_ticks) =
-                    batman_bellman_decay_window.unwrap_or((1, 1));
-                let (budget, heuristic_mode) =
-                    pathway_search.unwrap_or((2, PathwaySearchHeuristicMode::Zero));
-                format!(
-                    "pathway-batman-b{}-{}-p{}-{}",
-                    stale_after_ticks,
-                    next_refresh_within_ticks,
-                    budget,
-                    heuristic_mode_label(heuristic_mode)
-                )
-            }
-            other => other.to_string(),
-        };
+        let config_suffix = Self::head_to_head_config_suffix(
+            comparison_engine_set,
+            batman_bellman_decay_window,
+            pathway_search,
+            field_search,
+        );
         let (batman_bellman_stale_after_ticks, batman_bellman_next_refresh_within_ticks) =
-            batman_bellman_decay_window.map_or((None, None), |(stale, refresh)| {
-                (Some(stale), Some(refresh))
-            });
+            optional_decay_fields(batman_bellman_decay_window);
         let (pathway_query_budget, pathway_heuristic_mode) =
-            pathway_search.map_or((None, None), |(budget, heuristic)| {
-                (
-                    Some(budget),
-                    Some(heuristic_mode_label(heuristic).to_string()),
-                )
-            });
-        let (field_query_budget, field_heuristic_mode) =
-            field_search.map_or((None, None), |(budget, heuristic)| {
-                (
-                    Some(budget),
-                    Some(field_heuristic_mode_label(heuristic).to_string()),
-                )
-            });
-        let (
+            optional_pathway_search_fields(pathway_search);
+        let FieldSearchFields {
+            field_query_budget,
+            field_heuristic_mode,
             field_service_publication_neighbor_limit,
             field_service_freshness_weight,
             field_service_narrowing_bias,
@@ -351,19 +443,7 @@ impl ExperimentParameterSet {
             field_node_bootstrap_top_mass_floor,
             field_node_bootstrap_entropy_ceiling,
             field_node_discovery_enabled,
-        ) = if field_search.is_some() {
-            (
-                Some(1),
-                Some(120),
-                Some(190),
-                Some(180),
-                Some(180),
-                Some(970),
-                Some(true),
-            )
-        } else {
-            (None, None, None, None, None, None, None)
-        };
+        } = optional_field_search_fields(field_search);
         Self {
             engine_family: "head-to-head".to_string(),
             config_id: format!("head-to-head-{}", config_suffix),
@@ -1173,6 +1253,8 @@ fn build_babel_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experimen
     expand_runs(suite_id, "babel", seeds, &parameter_sets, &families)
 }
 
+// long-block-exception: the OLSRv2 family catalog is kept together so the full
+// sweep roster remains auditable as one tuning surface.
 fn build_olsrv2_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
     let coarse = vec![
         ExperimentParameterSet::olsrv2(2, 1),
@@ -1191,58 +1273,58 @@ fn build_olsrv2_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
     let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
         (
             "olsrv2-topology-propagation-latency",
-            RegimeDescriptor {
-                density: "sparse-line".to_string(),
-                loss: "moderate".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "partition-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 42,
-            },
+            regime((
+                "sparse-line",
+                "moderate",
+                "low",
+                "none",
+                "partition-recovery",
+                "none",
+                "connected-only",
+                42,
+            )),
             build_olsrv2_topology_propagation_latency,
         ),
         (
             "olsrv2-partition-recovery",
-            RegimeDescriptor {
-                density: "sparse-line".to_string(),
-                loss: "moderate".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "partition-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 38,
-            },
+            regime((
+                "sparse-line",
+                "moderate",
+                "low",
+                "none",
+                "partition-recovery",
+                "none",
+                "connected-only",
+                38,
+            )),
             build_olsrv2_partition_recovery,
         ),
         (
             "olsrv2-mpr-flooding-stability",
-            RegimeDescriptor {
-                density: "medium-ring".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "relink-and-replace".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 46,
-            },
+            regime((
+                "medium-ring",
+                "moderate",
+                "medium",
+                "none",
+                "relink-and-replace",
+                "none",
+                "connected-only",
+                46,
+            )),
             build_olsrv2_mpr_flooding_stability,
         ),
         (
             "olsrv2-asymmetric-relink-transition",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "severe".to_string(),
-                churn: "relink-and-replace".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 52,
-            },
+            regime((
+                "bridge-cluster",
+                "moderate",
+                "medium",
+                "severe",
+                "relink-and-replace",
+                "none",
+                "connected-only",
+                52,
+            )),
             build_olsrv2_asymmetric_relink_transition,
         ),
     ];
@@ -1535,6 +1617,8 @@ fn build_field_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experimen
     expand_runs(suite_id, "field", seeds, &parameter_sets, &families)
 }
 
+// long-block-exception: the comparison family catalog is kept together so the
+// cross-engine route-visible sweep remains reviewable in one place.
 fn build_comparison_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
     let configs = if smoke {
         vec![ExperimentParameterSet::comparison(
@@ -1552,92 +1636,94 @@ fn build_comparison_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Expe
     let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
         (
             "comparison-connected-low-loss",
-            RegimeDescriptor {
-                density: "medium-ring".to_string(),
-                loss: "low".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "static".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 18,
-            },
+            regime((
+                "medium-ring",
+                "low",
+                "low",
+                "none",
+                "static",
+                "none",
+                "connected-only",
+                18,
+            )),
             build_comparison_connected_low_loss,
         ),
         (
             "comparison-connected-high-loss",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "high".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "mild".to_string(),
-                churn: "relink-and-replace".to_string(),
-                node_pressure: "mixed".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 54,
-            },
+            regime((
+                "bridge-cluster",
+                "high",
+                "medium",
+                "mild",
+                "relink-and-replace",
+                "mixed",
+                "repairable-connected",
+                54,
+            )),
             build_comparison_connected_high_loss,
         ),
         (
             "comparison-bridge-transition",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "moderate".to_string(),
-                churn: "partial-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 42,
-            },
+            regime((
+                "bridge-cluster",
+                "moderate",
+                "medium",
+                "moderate",
+                "partial-recovery",
+                "none",
+                "repairable-connected",
+                42,
+            )),
             build_comparison_bridge_transition,
         ),
         (
             "comparison-partial-observability-bridge",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "mild".to_string(),
-                churn: "partial-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 46,
-            },
+            regime((
+                "bridge-cluster",
+                "moderate",
+                "medium",
+                "mild",
+                "partial-recovery",
+                "none",
+                "repairable-connected",
+                46,
+            )),
             build_comparison_partial_observability_bridge,
         ),
         (
             "comparison-concurrent-mixed",
-            RegimeDescriptor {
-                density: "medium-mesh".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "partial-recovery".to_string(),
-                node_pressure: "tight-connection".to_string(),
-                objective_regime: "concurrent-mixed".to_string(),
-                stress_score: 48,
-            },
+            regime((
+                "medium-mesh",
+                "moderate",
+                "medium",
+                "none",
+                "partial-recovery",
+                "tight-connection",
+                "concurrent-mixed",
+                48,
+            )),
             build_comparison_concurrent_mixed,
         ),
         (
             "comparison-corridor-continuity-uncertainty",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "moderate".to_string(),
-                churn: "intermittent-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 50,
-            },
+            regime((
+                "bridge-cluster",
+                "moderate",
+                "medium",
+                "moderate",
+                "intermittent-recovery",
+                "none",
+                "repairable-connected",
+                50,
+            )),
             build_comparison_corridor_continuity_uncertainty,
         ),
     ];
     expand_runs(suite_id, "comparison", seeds, &configs, &families)
 }
 
+// long-block-exception: the head-to-head family catalog is kept together so the
+// per-engine comparison matrix stays auditable as one scenario surface.
 fn build_head_to_head_runs(suite_id: &str, seeds: &[u64], _smoke: bool) -> Vec<ExperimentRunSpec> {
     let configs = vec![
         ExperimentParameterSet::head_to_head("batman-bellman", Some((1, 1)), None, None),
@@ -1666,86 +1752,86 @@ fn build_head_to_head_runs(suite_id: &str, seeds: &[u64], _smoke: bool) -> Vec<E
     let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
         (
             "head-to-head-connected-low-loss",
-            RegimeDescriptor {
-                density: "medium-ring".to_string(),
-                loss: "low".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "static".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 18,
-            },
+            regime((
+                "medium-ring",
+                "low",
+                "low",
+                "none",
+                "static",
+                "none",
+                "connected-only",
+                18,
+            )),
             build_comparison_connected_low_loss,
         ),
         (
             "head-to-head-connected-high-loss",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "high".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "mild".to_string(),
-                churn: "relink-and-replace".to_string(),
-                node_pressure: "mixed".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 54,
-            },
+            regime((
+                "bridge-cluster",
+                "high",
+                "medium",
+                "mild",
+                "relink-and-replace",
+                "mixed",
+                "repairable-connected",
+                54,
+            )),
             build_comparison_connected_high_loss,
         ),
         (
             "head-to-head-bridge-transition",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "moderate".to_string(),
-                churn: "partial-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 42,
-            },
+            regime((
+                "bridge-cluster",
+                "moderate",
+                "medium",
+                "moderate",
+                "partial-recovery",
+                "none",
+                "repairable-connected",
+                42,
+            )),
             build_comparison_bridge_transition,
         ),
         (
             "head-to-head-partial-observability-bridge",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "mild".to_string(),
-                churn: "partial-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 46,
-            },
+            regime((
+                "bridge-cluster",
+                "moderate",
+                "medium",
+                "mild",
+                "partial-recovery",
+                "none",
+                "repairable-connected",
+                46,
+            )),
             build_comparison_partial_observability_bridge,
         ),
         (
             "head-to-head-concurrent-mixed",
-            RegimeDescriptor {
-                density: "medium-mesh".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "partial-recovery".to_string(),
-                node_pressure: "tight-connection".to_string(),
-                objective_regime: "concurrent-mixed".to_string(),
-                stress_score: 48,
-            },
+            regime((
+                "medium-mesh",
+                "moderate",
+                "medium",
+                "none",
+                "partial-recovery",
+                "tight-connection",
+                "concurrent-mixed",
+                48,
+            )),
             build_comparison_concurrent_mixed,
         ),
         (
             "head-to-head-corridor-continuity-uncertainty",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "moderate".to_string(),
-                churn: "intermittent-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "repairable-connected".to_string(),
-                stress_score: 50,
-            },
+            regime((
+                "bridge-cluster",
+                "moderate",
+                "medium",
+                "moderate",
+                "intermittent-recovery",
+                "none",
+                "repairable-connected",
+                50,
+            )),
             build_comparison_corridor_continuity_uncertainty,
         ),
     ];
@@ -2770,47 +2856,24 @@ fn build_batman_bellman_asymmetry_relink_transition(
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
-            vec![
-                HostSpec::batman_bellman(NODE_A),
-                HostSpec::batman_bellman(NODE_B),
-                HostSpec::batman_bellman(NODE_C),
-                HostSpec::batman_bellman(NODE_D),
-            ],
+            host_specs(&[NODE_A, NODE_B, NODE_C, NODE_D], HostSpec::batman_bellman),
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
             24,
         ),
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(6),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                forward_confidence: RatioPermille(560),
-                forward_loss: RatioPermille(260),
-                reverse_confidence: RatioPermille(740),
-                reverse_loss: RatioPermille(140),
-            },
+        asymmetric_degradation_hook(
+            6,
+            NODE_B,
+            NODE_C,
+            RatioPermille(560),
+            RatioPermille(260),
+            RatioPermille(740),
+            RatioPermille(140),
         ),
-        ScheduledEnvironmentHook::new(
-            Tick(10),
-            EnvironmentHook::MobilityRelink {
-                left: NODE_A,
-                from_right: NODE_B,
-                to_right: NODE_C,
-                link: Box::new(topology::link(3).build()),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(15),
-            EnvironmentHook::MobilityRelink {
-                left: NODE_A,
-                from_right: NODE_C,
-                to_right: NODE_B,
-                link: Box::new(topology::link(2).build()),
-            },
-        ),
+        mobility_relink_hook(10, NODE_A, NODE_B, NODE_C, 3),
+        mobility_relink_hook(15, NODE_A, NODE_C, NODE_B, 2),
     ]);
     (scenario, environment)
 }
@@ -2835,44 +2898,16 @@ fn build_batman_bellman_churn_intrinsic_limit(
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
-            vec![
-                HostSpec::batman_bellman(NODE_A),
-                HostSpec::batman_bellman(NODE_B),
-                HostSpec::batman_bellman(NODE_C),
-                HostSpec::batman_bellman(NODE_D),
-            ],
+            host_specs(&[NODE_A, NODE_B, NODE_C, NODE_D], HostSpec::batman_bellman),
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(3)],
             24,
         ),
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(8),
-            EnvironmentHook::IntrinsicLimit {
-                node_id: NODE_B,
-                connection_count_max: 1,
-                hold_capacity_bytes_max: jacquard_core::ByteCount(256),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(10),
-            EnvironmentHook::MobilityRelink {
-                left: NODE_A,
-                from_right: NODE_B,
-                to_right: NODE_C,
-                link: Box::new(topology::link(3).build()),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(14),
-            EnvironmentHook::MobilityRelink {
-                left: NODE_A,
-                from_right: NODE_C,
-                to_right: NODE_B,
-                link: Box::new(topology::link(2).build()),
-            },
-        ),
+        intrinsic_limit_hook(8, NODE_B, 1, jacquard_core::ByteCount(256)),
+        mobility_relink_hook(10, NODE_A, NODE_B, NODE_C, 3),
+        mobility_relink_hook(14, NODE_A, NODE_C, NODE_B, 2),
     ]);
     (scenario, environment)
 }
@@ -2973,47 +3008,24 @@ fn build_batman_classic_asymmetry_relink_transition(
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
-            vec![
-                HostSpec::batman_classic(NODE_A),
-                HostSpec::batman_classic(NODE_B),
-                HostSpec::batman_classic(NODE_C),
-                HostSpec::batman_classic(NODE_D),
-            ],
+            host_specs(&[NODE_A, NODE_B, NODE_C, NODE_D], HostSpec::batman_classic),
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
             24,
         ),
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(6),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                forward_confidence: RatioPermille(560),
-                forward_loss: RatioPermille(260),
-                reverse_confidence: RatioPermille(740),
-                reverse_loss: RatioPermille(140),
-            },
+        asymmetric_degradation_hook(
+            6,
+            NODE_B,
+            NODE_C,
+            RatioPermille(560),
+            RatioPermille(260),
+            RatioPermille(740),
+            RatioPermille(140),
         ),
-        ScheduledEnvironmentHook::new(
-            Tick(10),
-            EnvironmentHook::MobilityRelink {
-                left: NODE_A,
-                from_right: NODE_B,
-                to_right: NODE_C,
-                link: Box::new(topology::link(3).build()),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(15),
-            EnvironmentHook::MobilityRelink {
-                left: NODE_A,
-                from_right: NODE_C,
-                to_right: NODE_B,
-                link: Box::new(topology::link(2).build()),
-            },
-        ),
+        mobility_relink_hook(10, NODE_A, NODE_B, NODE_C, 3),
+        mobility_relink_hook(15, NODE_A, NODE_C, NODE_B, 2),
     ]);
     (scenario, environment)
 }
@@ -3195,47 +3207,17 @@ fn build_olsrv2_topology_propagation_latency(
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
-            vec![
-                HostSpec::olsrv2(NODE_A),
-                HostSpec::olsrv2(NODE_B),
-                HostSpec::olsrv2(NODE_C),
-            ],
+            host_specs(&[NODE_A, NODE_B, NODE_C], HostSpec::olsrv2),
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
             24,
         ),
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(6),
-            EnvironmentHook::MediumDegradation {
-                left: NODE_A,
-                right: NODE_B,
-                confidence: RatioPermille(640),
-                loss: RatioPermille(200),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(10),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore.clone(),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(14),
-            EnvironmentHook::MediumDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                confidence: RatioPermille(600),
-                loss: RatioPermille(240),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(18),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore,
-            },
-        ),
+        medium_degradation_hook(6, NODE_A, NODE_B, RatioPermille(640), RatioPermille(200)),
+        replace_topology_hook(10, &restore),
+        medium_degradation_hook(14, NODE_B, NODE_C, RatioPermille(600), RatioPermille(240)),
+        replace_topology_hook(18, &restore),
     ]);
     (scenario, environment)
 }
@@ -3577,13 +3559,11 @@ fn build_pathway_high_fanout_budget_pressure(
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
-            vec![
+            host_specs_with_primary(
                 HostSpec::pathway(NODE_A).with_profile(best_effort_connected_profile()),
-                HostSpec::pathway(NODE_B),
-                HostSpec::pathway(NODE_C),
-                HostSpec::pathway(NODE_D),
-                HostSpec::pathway(NODE_E),
-            ],
+                &[NODE_B, NODE_C, NODE_D, NODE_E],
+                HostSpec::pathway,
+            ),
             vec![BoundObjective::new(NODE_A, service_objective(vec![15; 16]))
                 .with_activation_round(2)],
             12,
@@ -3591,30 +3571,9 @@ fn build_pathway_high_fanout_budget_pressure(
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(4),
-            EnvironmentHook::CascadePartition {
-                cuts: vec![(NODE_A, NODE_B), (NODE_B, NODE_A)],
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(5),
-            EnvironmentHook::MediumDegradation {
-                left: NODE_A,
-                right: NODE_C,
-                confidence: RatioPermille(680),
-                loss: RatioPermille(240),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(6),
-            EnvironmentHook::MediumDegradation {
-                left: NODE_A,
-                right: NODE_D,
-                confidence: RatioPermille(700),
-                loss: RatioPermille(180),
-            },
-        ),
+        cascade_partition_hook(4, &[(NODE_A, NODE_B), (NODE_B, NODE_A)]),
+        medium_degradation_hook(5, NODE_A, NODE_C, RatioPermille(680), RatioPermille(240)),
+        medium_degradation_hook(6, NODE_A, NODE_D, RatioPermille(700), RatioPermille(180)),
     ]);
     (scenario, environment)
 }
@@ -3736,6 +3695,11 @@ fn build_field_partial_observability_bridge(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let destination = DestinationId::Node(NODE_D);
+    let bootstrap = [
+        (NODE_B, 900, 2, 3, Some(860)),
+        (NODE_C, 780, 2, 4, Some(720)),
+    ];
     let mut topology = bridge_cluster_topology(
         topology::node(1).field().build(),
         topology::node(2).field().build(),
@@ -3753,28 +3717,7 @@ fn build_field_partial_observability_bridge(
             seed,
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
-            vec![
-                HostSpec::field(NODE_A)
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_D),
-                        NODE_B,
-                        900,
-                        2,
-                        3,
-                        Some(860),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_D),
-                        NODE_C,
-                        780,
-                        2,
-                        4,
-                        Some(720),
-                    )),
-                HostSpec::field(NODE_B),
-                HostSpec::field(NODE_C),
-                HostSpec::field(NODE_D),
-            ],
+            field_hosts_with_bootstrap(&destination, &bootstrap, &[NODE_B, NODE_C, NODE_D]),
             vec![BoundObjective::new(NODE_A, default_objective(NODE_D)).with_activation_round(3)],
             24,
         ),
@@ -3806,6 +3749,11 @@ fn build_field_reconfiguration_recovery(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let destination = DestinationId::Node(NODE_C);
+    let bootstrap = [
+        (NODE_B, 920, 1, 2, Some(880)),
+        (NODE_D, 840, 1, 2, Some(810)),
+    ];
     let mut topology = ring_topology(
         topology::node(1).field().build(),
         topology::node(2).field().build(),
@@ -3819,28 +3767,7 @@ fn build_field_reconfiguration_recovery(
             seed,
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
-            vec![
-                HostSpec::field(NODE_A)
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_C),
-                        NODE_B,
-                        920,
-                        1,
-                        2,
-                        Some(880),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_C),
-                        NODE_D,
-                        840,
-                        1,
-                        2,
-                        Some(810),
-                    )),
-                HostSpec::field(NODE_B),
-                HostSpec::field(NODE_C),
-                HostSpec::field(NODE_D),
-            ],
+            field_hosts_with_bootstrap(&destination, &bootstrap, &[NODE_B, NODE_C, NODE_D]),
             vec![BoundObjective::new(NODE_A, default_objective(NODE_C)).with_activation_round(3)],
             22,
         ),
@@ -3936,6 +3863,12 @@ fn build_field_uncertain_service_fanout(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let destination = DestinationId::Service(jacquard_core::ServiceId(vec![13; 16]));
+    let bootstrap = [
+        (NODE_B, 910, 1, 1, Some(860)),
+        (NODE_C, 840, 1, 1, Some(790)),
+        (NODE_D, 760, 1, 1, Some(730)),
+    ];
     let mut topology = full_mesh_topology(
         topology::node(1).field().build(),
         topology::node(2).field().build(),
@@ -3949,36 +3882,7 @@ fn build_field_uncertain_service_fanout(
             seed,
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
-            vec![
-                HostSpec::field(NODE_A)
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![13; 16])),
-                        NODE_B,
-                        910,
-                        1,
-                        1,
-                        Some(860),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![13; 16])),
-                        NODE_C,
-                        840,
-                        1,
-                        1,
-                        Some(790),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![13; 16])),
-                        NODE_D,
-                        760,
-                        1,
-                        1,
-                        Some(730),
-                    )),
-                HostSpec::field(NODE_B),
-                HostSpec::field(NODE_C),
-                HostSpec::field(NODE_D),
-            ],
+            field_hosts_with_bootstrap(&destination, &bootstrap, &[NODE_B, NODE_C, NODE_D]),
             vec![
                 BoundObjective::new(NODE_A, field_service_objective(vec![13; 16]))
                     .with_activation_round(3),
@@ -4002,6 +3906,13 @@ fn build_field_service_overlap_reselection(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let destination = DestinationId::Service(jacquard_core::ServiceId(vec![14; 16]));
+    let bootstrap = [
+        (NODE_B, 920, 1, 1, Some(880)),
+        (NODE_C, 860, 1, 1, Some(820)),
+        (NODE_D, 760, 1, 1, Some(730)),
+        (NODE_E, 720, 1, 1, Some(690)),
+    ];
     let mut topology = fanout_service_topology5(
         topology::node(1).field().build(),
         topology::node(2).field().build(),
@@ -4016,45 +3927,7 @@ fn build_field_service_overlap_reselection(
             seed,
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
-            vec![
-                HostSpec::field(NODE_A)
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![14; 16])),
-                        NODE_B,
-                        920,
-                        1,
-                        1,
-                        Some(880),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![14; 16])),
-                        NODE_C,
-                        860,
-                        1,
-                        1,
-                        Some(820),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![14; 16])),
-                        NODE_D,
-                        760,
-                        1,
-                        1,
-                        Some(730),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![14; 16])),
-                        NODE_E,
-                        720,
-                        1,
-                        1,
-                        Some(690),
-                    )),
-                HostSpec::field(NODE_B),
-                HostSpec::field(NODE_C),
-                HostSpec::field(NODE_D),
-                HostSpec::field(NODE_E),
-            ],
+            field_hosts_with_bootstrap(&destination, &bootstrap, &[NODE_B, NODE_C, NODE_D, NODE_E]),
             vec![
                 BoundObjective::new(NODE_A, field_service_objective(vec![14; 16]))
                     .with_activation_round(3),
@@ -4091,14 +3964,14 @@ fn build_field_service_freshness_inversion(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let mut topology = fanout_service_topology5(
-        topology::node(1).field().build(),
-        topology::node(2).field().build(),
-        topology::node(3).field().build(),
-        topology::node(4).field().build(),
-        topology::node(5).field().build(),
-    );
-    set_environment(&mut topology, 4, RatioPermille(130), RatioPermille(100));
+    let destination = DestinationId::Service(jacquard_core::ServiceId(vec![15; 16]));
+    let bootstrap = [
+        (NODE_B, 930, 1, 1, Some(900)),
+        (NODE_C, 860, 1, 1, Some(820)),
+        (NODE_D, 780, 1, 1, Some(740)),
+        (NODE_E, 720, 1, 1, Some(690)),
+    ];
+    let topology = field_fanout_service_topology5(RatioPermille(130), RatioPermille(100));
     let restore = topology.value.clone();
     let scenario = apply_overrides(
         &JacquardScenario::new(
@@ -4106,45 +3979,7 @@ fn build_field_service_freshness_inversion(
             seed,
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
-            vec![
-                HostSpec::field(NODE_A)
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![15; 16])),
-                        NODE_B,
-                        930,
-                        1,
-                        1,
-                        Some(900),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![15; 16])),
-                        NODE_C,
-                        860,
-                        1,
-                        1,
-                        Some(820),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![15; 16])),
-                        NODE_D,
-                        780,
-                        1,
-                        1,
-                        Some(740),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![15; 16])),
-                        NODE_E,
-                        720,
-                        1,
-                        1,
-                        Some(690),
-                    )),
-                HostSpec::field(NODE_B),
-                HostSpec::field(NODE_C),
-                HostSpec::field(NODE_D),
-                HostSpec::field(NODE_E),
-            ],
+            field_hosts_with_bootstrap(&destination, &bootstrap, &[NODE_B, NODE_C, NODE_D, NODE_E]),
             vec![
                 BoundObjective::new(NODE_A, field_service_objective(vec![15; 16]))
                     .with_activation_round(3),
@@ -4153,53 +3988,7 @@ fn build_field_service_freshness_inversion(
         ),
         parameters,
     );
-    let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(8),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_A,
-                right: NODE_B,
-                forward_confidence: RatioPermille(520),
-                forward_loss: RatioPermille(340),
-                reverse_confidence: RatioPermille(760),
-                reverse_loss: RatioPermille(120),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(11),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore.clone(),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(13),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_A,
-                right: NODE_C,
-                forward_confidence: RatioPermille(560),
-                forward_loss: RatioPermille(300),
-                reverse_confidence: RatioPermille(760),
-                reverse_loss: RatioPermille(130),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(16),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore.clone(),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(18),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_A,
-                right: NODE_D,
-                forward_confidence: RatioPermille(600),
-                forward_loss: RatioPermille(260),
-                reverse_confidence: RatioPermille(760),
-                reverse_loss: RatioPermille(140),
-            },
-        ),
-    ]);
+    let environment = field_service_freshness_inversion_environment(&restore);
     (scenario, environment)
 }
 
@@ -4207,6 +3996,13 @@ fn build_field_service_publication_pressure(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let destination = DestinationId::Service(jacquard_core::ServiceId(vec![16; 16]));
+    let bootstrap = [
+        (NODE_B, 910, 1, 1, Some(870)),
+        (NODE_C, 860, 1, 1, Some(820)),
+        (NODE_D, 790, 1, 1, Some(760)),
+        (NODE_E, 750, 1, 1, Some(700)),
+    ];
     let mut topology = fanout_service_topology5(
         topology::node(1).field().build(),
         topology::node(2).field().build(),
@@ -4225,45 +4021,7 @@ fn build_field_service_publication_pressure(
             seed,
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
-            vec![
-                HostSpec::field(NODE_A)
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![16; 16])),
-                        NODE_B,
-                        910,
-                        1,
-                        1,
-                        Some(870),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![16; 16])),
-                        NODE_C,
-                        860,
-                        1,
-                        1,
-                        Some(820),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![16; 16])),
-                        NODE_D,
-                        790,
-                        1,
-                        1,
-                        Some(760),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Service(jacquard_core::ServiceId(vec![16; 16])),
-                        NODE_E,
-                        750,
-                        1,
-                        1,
-                        Some(700),
-                    )),
-                HostSpec::field(NODE_B),
-                HostSpec::field(NODE_C),
-                HostSpec::field(NODE_D),
-                HostSpec::field(NODE_E),
-            ],
+            field_hosts_with_bootstrap(&destination, &bootstrap, &[NODE_B, NODE_C, NODE_D, NODE_E]),
             vec![
                 BoundObjective::new(NODE_A, field_service_objective(vec![16; 16]))
                     .with_activation_round(3),
@@ -4273,40 +4031,18 @@ fn build_field_service_publication_pressure(
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(8),
-            EnvironmentHook::MediumDegradation {
-                left: NODE_A,
-                right: NODE_D,
-                confidence: RatioPermille(600),
-                loss: RatioPermille(220),
-            },
+        medium_degradation_hook(8, NODE_A, NODE_D, RatioPermille(600), RatioPermille(220)),
+        asymmetric_degradation_hook(
+            10,
+            NODE_A,
+            NODE_E,
+            RatioPermille(520),
+            RatioPermille(320),
+            RatioPermille(760),
+            RatioPermille(150),
         ),
-        ScheduledEnvironmentHook::new(
-            Tick(10),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_A,
-                right: NODE_E,
-                forward_confidence: RatioPermille(520),
-                forward_loss: RatioPermille(320),
-                reverse_confidence: RatioPermille(760),
-                reverse_loss: RatioPermille(150),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(12),
-            EnvironmentHook::IntrinsicLimit {
-                node_id: NODE_C,
-                connection_count_max: 1,
-                hold_capacity_bytes_max: jacquard_core::ByteCount(288),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(17),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore,
-            },
-        ),
+        intrinsic_limit_hook(12, NODE_C, 1, jacquard_core::ByteCount(288)),
+        replace_topology_hook(17, &restore),
     ]);
     (scenario, environment)
 }
@@ -4315,6 +4051,11 @@ fn build_field_bridge_anti_entropy_continuity(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let destination = DestinationId::Node(NODE_D);
+    let bootstrap = [
+        (NODE_B, 900, 2, 3, Some(850)),
+        (NODE_C, 820, 2, 4, Some(760)),
+    ];
     let mut topology = bridge_cluster_topology(
         topology::node(1).field().build(),
         topology::node(2).field().build(),
@@ -4332,77 +4073,34 @@ fn build_field_bridge_anti_entropy_continuity(
             seed,
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
-            vec![
-                HostSpec::field(NODE_A)
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_D),
-                        NODE_B,
-                        900,
-                        2,
-                        3,
-                        Some(850),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_D),
-                        NODE_C,
-                        820,
-                        2,
-                        4,
-                        Some(760),
-                    )),
-                HostSpec::field(NODE_B),
-                HostSpec::field(NODE_C),
-                HostSpec::field(NODE_D),
-            ],
+            field_hosts_with_bootstrap(&destination, &bootstrap, &[NODE_B, NODE_C, NODE_D]),
             vec![BoundObjective::new(NODE_A, default_objective(NODE_D)).with_activation_round(3)],
             28,
         ),
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(7),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                forward_confidence: RatioPermille(560),
-                forward_loss: RatioPermille(260),
-                reverse_confidence: RatioPermille(760),
-                reverse_loss: RatioPermille(140),
-            },
+        asymmetric_degradation_hook(
+            7,
+            NODE_B,
+            NODE_C,
+            RatioPermille(560),
+            RatioPermille(260),
+            RatioPermille(760),
+            RatioPermille(140),
         ),
-        ScheduledEnvironmentHook::new(
-            Tick(11),
-            EnvironmentHook::MediumDegradation {
-                left: NODE_A,
-                right: NODE_B,
-                confidence: RatioPermille(640),
-                loss: RatioPermille(180),
-            },
+        medium_degradation_hook(11, NODE_A, NODE_B, RatioPermille(640), RatioPermille(180)),
+        replace_topology_hook(16, &restore),
+        asymmetric_degradation_hook(
+            19,
+            NODE_B,
+            NODE_C,
+            RatioPermille(610),
+            RatioPermille(220),
+            RatioPermille(760),
+            RatioPermille(150),
         ),
-        ScheduledEnvironmentHook::new(
-            Tick(16),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore.clone(),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(19),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                forward_confidence: RatioPermille(610),
-                forward_loss: RatioPermille(220),
-                reverse_confidence: RatioPermille(760),
-                reverse_loss: RatioPermille(150),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(23),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore,
-            },
-        ),
+        replace_topology_hook(23, &restore),
     ]);
     (scenario, environment)
 }
@@ -4411,6 +4109,11 @@ fn build_field_bootstrap_upgrade_window(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let destination = DestinationId::Node(NODE_C);
+    let bootstrap = [
+        (NODE_B, 830, 1, 2, Some(770)),
+        (NODE_D, 780, 1, 2, Some(730)),
+    ];
     let mut topology = ring_topology(
         topology::node(1).field().build(),
         topology::node(2).field().build(),
@@ -4425,68 +4128,33 @@ fn build_field_bootstrap_upgrade_window(
             seed,
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
-            vec![
-                HostSpec::field(NODE_A)
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_C),
-                        NODE_B,
-                        830,
-                        1,
-                        2,
-                        Some(770),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_C),
-                        NODE_D,
-                        780,
-                        1,
-                        2,
-                        Some(730),
-                    )),
-                HostSpec::field(NODE_B),
-                HostSpec::field(NODE_C),
-                HostSpec::field(NODE_D),
-            ],
+            field_hosts_with_bootstrap(&destination, &bootstrap, &[NODE_B, NODE_C, NODE_D]),
             vec![BoundObjective::new(NODE_A, default_objective(NODE_C)).with_activation_round(3)],
             26,
         ),
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(8),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                forward_confidence: RatioPermille(580),
-                forward_loss: RatioPermille(240),
-                reverse_confidence: RatioPermille(720),
-                reverse_loss: RatioPermille(150),
-            },
+        asymmetric_degradation_hook(
+            8,
+            NODE_B,
+            NODE_C,
+            RatioPermille(580),
+            RatioPermille(240),
+            RatioPermille(720),
+            RatioPermille(150),
         ),
-        ScheduledEnvironmentHook::new(
-            Tick(12),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore.clone(),
-            },
+        replace_topology_hook(12, &restore),
+        asymmetric_degradation_hook(
+            15,
+            NODE_D,
+            NODE_C,
+            RatioPermille(560),
+            RatioPermille(250),
+            RatioPermille(730),
+            RatioPermille(160),
         ),
-        ScheduledEnvironmentHook::new(
-            Tick(15),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_D,
-                right: NODE_C,
-                forward_confidence: RatioPermille(560),
-                forward_loss: RatioPermille(250),
-                reverse_confidence: RatioPermille(730),
-                reverse_loss: RatioPermille(160),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(20),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore,
-            },
-        ),
+        replace_topology_hook(20, &restore),
     ]);
     (scenario, environment)
 }
@@ -4529,6 +4197,11 @@ fn build_comparison_connected_high_loss(
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let destination = DestinationId::Node(NODE_D);
+    let bootstrap = [
+        (NODE_B, 760, 2, 4, Some(680)),
+        (NODE_C, 820, 2, 4, Some(760)),
+    ];
     let mut topology = bridge_cluster_topology(
         comparison_topology_node(1, comparison_engine_set),
         comparison_topology_node(2, comparison_engine_set),
@@ -4542,47 +4215,33 @@ fn build_comparison_connected_high_loss(
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
-            vec![
+            host_specs_with_primary(
                 seed_standalone_field_bootstrap(
                     comparison_host_spec(NODE_A, comparison_engine_set)
                         .with_profile(repairable_connected_profile()),
                     comparison_engine_set,
-                    &DestinationId::Node(NODE_D),
-                    &[
-                        (NODE_B, 760, 2, 4, Some(680)),
-                        (NODE_C, 820, 2, 4, Some(760)),
-                    ],
+                    &destination,
+                    &bootstrap,
                 ),
-                comparison_host_spec(NODE_B, comparison_engine_set),
-                comparison_host_spec(NODE_C, comparison_engine_set),
-                comparison_host_spec(NODE_D, comparison_engine_set),
-            ],
+                &[NODE_B, NODE_C, NODE_D],
+                |node_id| comparison_host_spec(node_id, comparison_engine_set),
+            ),
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
             24,
         ),
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(7),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                forward_confidence: RatioPermille(600),
-                forward_loss: RatioPermille(280),
-                reverse_confidence: RatioPermille(680),
-                reverse_loss: RatioPermille(220),
-            },
+        asymmetric_degradation_hook(
+            7,
+            NODE_B,
+            NODE_C,
+            RatioPermille(600),
+            RatioPermille(280),
+            RatioPermille(680),
+            RatioPermille(220),
         ),
-        ScheduledEnvironmentHook::new(
-            Tick(12),
-            EnvironmentHook::MobilityRelink {
-                left: NODE_A,
-                from_right: NODE_B,
-                to_right: NODE_C,
-                link: Box::new(topology::link(3).build()),
-            },
-        ),
+        mobility_relink_hook(12, NODE_A, NODE_B, NODE_C, 3),
     ]);
     (scenario, environment)
 }
@@ -4592,6 +4251,11 @@ fn build_comparison_bridge_transition(
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let destination = DestinationId::Node(NODE_D);
+    let bootstrap = [
+        (NODE_B, 820, 2, 4, Some(760)),
+        (NODE_C, 720, 2, 4, Some(680)),
+    ];
     let mut topology = bridge_cluster_topology(
         comparison_topology_node(1, comparison_engine_set),
         comparison_topology_node(2, comparison_engine_set),
@@ -4606,50 +4270,34 @@ fn build_comparison_bridge_transition(
             seed,
             jacquard_core::OperatingMode::DenseInteractive,
             topology,
-            vec![
+            host_specs_with_primary(
                 seed_standalone_field_bootstrap(
                     comparison_host_spec(NODE_A, comparison_engine_set)
                         .with_profile(repairable_connected_profile()),
                     comparison_engine_set,
-                    &DestinationId::Node(NODE_D),
-                    &[
-                        (NODE_B, 820, 2, 4, Some(760)),
-                        (NODE_C, 720, 2, 4, Some(680)),
-                    ],
+                    &destination,
+                    &bootstrap,
                 ),
-                comparison_host_spec(NODE_B, comparison_engine_set),
-                comparison_host_spec(NODE_C, comparison_engine_set),
-                comparison_host_spec(NODE_D, comparison_engine_set),
-            ],
+                &[NODE_B, NODE_C, NODE_D],
+                |node_id| comparison_host_spec(node_id, comparison_engine_set),
+            ),
             vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
             24,
         ),
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(7),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                forward_confidence: RatioPermille(620),
-                forward_loss: RatioPermille(220),
-                reverse_confidence: RatioPermille(720),
-                reverse_loss: RatioPermille(160),
-            },
+        asymmetric_degradation_hook(
+            7,
+            NODE_B,
+            NODE_C,
+            RatioPermille(620),
+            RatioPermille(220),
+            RatioPermille(720),
+            RatioPermille(160),
         ),
-        ScheduledEnvironmentHook::new(
-            Tick(11),
-            EnvironmentHook::CascadePartition {
-                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(16),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore,
-            },
-        ),
+        cascade_partition_hook(11, &[(NODE_B, NODE_C), (NODE_C, NODE_B)]),
+        replace_topology_hook(16, &restore),
     ]);
     (scenario, environment)
 }
@@ -4659,6 +4307,11 @@ fn build_comparison_partial_observability_bridge(
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let destination = DestinationId::Node(NODE_D);
+    let bootstrap = [
+        (NODE_B, 900, 2, 3, Some(860)),
+        (NODE_C, 780, 2, 4, Some(720)),
+    ];
     let mut topology = bridge_cluster_topology(
         comparison_topology_node(1, comparison_engine_set),
         comparison_topology_node(2, comparison_engine_set),
@@ -4676,52 +4329,30 @@ fn build_comparison_partial_observability_bridge(
             seed,
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
-            vec![
+            comparison_hosts_with_bootstrap(
+                comparison_engine_set,
+                &destination,
+                &bootstrap,
                 comparison_host_spec(NODE_A, comparison_engine_set)
-                    .with_profile(repairable_connected_profile())
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_D),
-                        NODE_B,
-                        900,
-                        2,
-                        3,
-                        Some(860),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_D),
-                        NODE_C,
-                        780,
-                        2,
-                        4,
-                        Some(720),
-                    )),
-                comparison_host_spec(NODE_B, comparison_engine_set),
-                comparison_host_spec(NODE_C, comparison_engine_set),
-                comparison_host_spec(NODE_D, comparison_engine_set),
-            ],
+                    .with_profile(repairable_connected_profile()),
+                &[NODE_B, NODE_C, NODE_D],
+            ),
             vec![BoundObjective::new(NODE_A, default_objective(NODE_D)).with_activation_round(3)],
             24,
         ),
         parameters,
     );
     let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(8),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                forward_confidence: RatioPermille(640),
-                forward_loss: RatioPermille(210),
-                reverse_confidence: RatioPermille(780),
-                reverse_loss: RatioPermille(130),
-            },
+        asymmetric_degradation_hook(
+            8,
+            NODE_B,
+            NODE_C,
+            RatioPermille(640),
+            RatioPermille(210),
+            RatioPermille(780),
+            RatioPermille(130),
         ),
-        ScheduledEnvironmentHook::new(
-            Tick(16),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore,
-            },
-        ),
+        replace_topology_hook(16, &restore),
     ]);
     (scenario, environment)
 }
@@ -4785,13 +4416,16 @@ fn build_comparison_corridor_continuity_uncertainty(
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
     let comparison_engine_set = parameters.comparison_engine_set.as_deref();
-    let mut topology = bridge_cluster_topology(
-        comparison_topology_node(1, comparison_engine_set),
-        comparison_topology_node(2, comparison_engine_set),
-        comparison_topology_node(3, comparison_engine_set),
-        comparison_topology_node(4, comparison_engine_set),
+    let destination = DestinationId::Node(NODE_D);
+    let bootstrap = [
+        (NODE_B, 900, 2, 3, Some(850)),
+        (NODE_C, 820, 2, 4, Some(760)),
+    ];
+    let topology = comparison_bridge_topology(
+        comparison_engine_set,
+        RatioPermille(130),
+        RatioPermille(130),
     );
-    set_environment(&mut topology, 1, RatioPermille(130), RatioPermille(130));
     let restore = topology.value.clone();
     let scenario = apply_overrides(
         &JacquardScenario::new(
@@ -4802,79 +4436,20 @@ fn build_comparison_corridor_continuity_uncertainty(
             seed,
             jacquard_core::OperatingMode::FieldPartitionTolerant,
             topology,
-            vec![
+            comparison_hosts_with_bootstrap(
+                comparison_engine_set,
+                &destination,
+                &bootstrap,
                 comparison_host_spec(NODE_A, comparison_engine_set)
-                    .with_profile(repairable_connected_profile())
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_D),
-                        NODE_B,
-                        900,
-                        2,
-                        3,
-                        Some(850),
-                    ))
-                    .with_field_bootstrap_summary(field_bootstrap_summary(
-                        DestinationId::Node(NODE_D),
-                        NODE_C,
-                        820,
-                        2,
-                        4,
-                        Some(760),
-                    )),
-                comparison_host_spec(NODE_B, comparison_engine_set),
-                comparison_host_spec(NODE_C, comparison_engine_set),
-                comparison_host_spec(NODE_D, comparison_engine_set),
-            ],
+                    .with_profile(repairable_connected_profile()),
+                &[NODE_B, NODE_C, NODE_D],
+            ),
             vec![BoundObjective::new(NODE_A, default_objective(NODE_D)).with_activation_round(3)],
             28,
         ),
         parameters,
     );
-    let environment = ScriptedEnvironmentModel::new(vec![
-        ScheduledEnvironmentHook::new(
-            Tick(7),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                forward_confidence: RatioPermille(560),
-                forward_loss: RatioPermille(250),
-                reverse_confidence: RatioPermille(760),
-                reverse_loss: RatioPermille(140),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(11),
-            EnvironmentHook::MediumDegradation {
-                left: NODE_A,
-                right: NODE_B,
-                confidence: RatioPermille(650),
-                loss: RatioPermille(170),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(16),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore.clone(),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(19),
-            EnvironmentHook::AsymmetricDegradation {
-                left: NODE_B,
-                right: NODE_C,
-                forward_confidence: RatioPermille(610),
-                forward_loss: RatioPermille(220),
-                reverse_confidence: RatioPermille(760),
-                reverse_loss: RatioPermille(150),
-            },
-        ),
-        ScheduledEnvironmentHook::new(
-            Tick(23),
-            EnvironmentHook::ReplaceTopology {
-                configuration: restore,
-            },
-        ),
-    ]);
+    let environment = comparison_corridor_continuity_uncertainty_environment(&restore);
     (scenario, environment)
 }
 
@@ -4948,15 +4523,11 @@ fn comparison_host_spec(local_node_id: NodeId, comparison_engine_set: Option<&st
     }
 }
 
-fn seed_standalone_field_bootstrap(
+fn with_field_bootstrap_summaries(
     host: HostSpec,
-    comparison_engine_set: Option<&str>,
     destination: &DestinationId,
-    summaries: &[(NodeId, u16, u8, u8, Option<u16>)],
+    summaries: &[FieldBootstrapSeed],
 ) -> HostSpec {
-    if comparison_engine_set != Some("field") {
-        return host;
-    }
     summaries.iter().fold(host, |host, summary| {
         host.with_field_bootstrap_summary(field_bootstrap_summary(
             destination.clone(),
@@ -4967,6 +4538,73 @@ fn seed_standalone_field_bootstrap(
             summary.4,
         ))
     })
+}
+
+fn field_hosts_with_bootstrap(
+    destination: &DestinationId,
+    summaries: &[FieldBootstrapSeed],
+    peer_node_ids: &[NodeId],
+) -> Vec<HostSpec> {
+    std::iter::once(with_field_bootstrap_summaries(
+        HostSpec::field(NODE_A),
+        destination,
+        summaries,
+    ))
+    .chain(peer_node_ids.iter().copied().map(HostSpec::field))
+    .collect()
+}
+
+fn comparison_hosts_with_bootstrap(
+    comparison_engine_set: Option<&str>,
+    destination: &DestinationId,
+    summaries: &[FieldBootstrapSeed],
+    primary_host: HostSpec,
+    peer_node_ids: &[NodeId],
+) -> Vec<HostSpec> {
+    std::iter::once(with_field_bootstrap_summaries(
+        primary_host,
+        destination,
+        summaries,
+    ))
+    .chain(
+        peer_node_ids
+            .iter()
+            .copied()
+            .map(|node_id| comparison_host_spec(node_id, comparison_engine_set)),
+    )
+    .collect()
+}
+
+fn host_specs<F>(node_ids: &[NodeId], host_builder: F) -> Vec<HostSpec>
+where
+    F: Fn(NodeId) -> HostSpec,
+{
+    node_ids.iter().copied().map(host_builder).collect()
+}
+
+fn host_specs_with_primary<F>(
+    primary_host: HostSpec,
+    peer_node_ids: &[NodeId],
+    host_builder: F,
+) -> Vec<HostSpec>
+where
+    F: Fn(NodeId) -> HostSpec,
+{
+    std::iter::once(primary_host)
+        .chain(peer_node_ids.iter().copied().map(host_builder))
+        .collect()
+}
+
+fn seed_standalone_field_bootstrap(
+    host: HostSpec,
+    comparison_engine_set: Option<&str>,
+    destination: &DestinationId,
+    summaries: &[FieldBootstrapSeed],
+) -> HostSpec {
+    if comparison_engine_set != Some("field") {
+        return host;
+    }
+    with_field_bootstrap_summaries(host, destination, summaries)
 }
 
 fn ratio_permille(numerator: u32, denominator: u32) -> u32 {
@@ -5114,6 +4752,165 @@ fn set_environment(
             topology.observed_at_tick,
         );
     }
+}
+
+fn replace_topology_hook(
+    round_index: u64,
+    configuration: &Configuration,
+) -> ScheduledEnvironmentHook {
+    ScheduledEnvironmentHook::new(
+        Tick(round_index),
+        EnvironmentHook::ReplaceTopology {
+            configuration: configuration.clone(),
+        },
+    )
+}
+
+fn mobility_relink_hook(
+    round_index: u64,
+    left: NodeId,
+    from_right: NodeId,
+    to_right: NodeId,
+    link_byte: u8,
+) -> ScheduledEnvironmentHook {
+    ScheduledEnvironmentHook::new(
+        Tick(round_index),
+        EnvironmentHook::MobilityRelink {
+            left,
+            from_right,
+            to_right,
+            link: Box::new(topology::link(link_byte).build()),
+        },
+    )
+}
+
+fn intrinsic_limit_hook(
+    round_index: u64,
+    node_id: NodeId,
+    connection_count_max: u32,
+    hold_capacity_bytes_max: jacquard_core::ByteCount,
+) -> ScheduledEnvironmentHook {
+    ScheduledEnvironmentHook::new(
+        Tick(round_index),
+        EnvironmentHook::IntrinsicLimit {
+            node_id,
+            connection_count_max,
+            hold_capacity_bytes_max,
+        },
+    )
+}
+
+fn medium_degradation_hook(
+    round_index: u64,
+    left: NodeId,
+    right: NodeId,
+    confidence: RatioPermille,
+    loss: RatioPermille,
+) -> ScheduledEnvironmentHook {
+    ScheduledEnvironmentHook::new(
+        Tick(round_index),
+        EnvironmentHook::MediumDegradation {
+            left,
+            right,
+            confidence,
+            loss,
+        },
+    )
+}
+
+fn asymmetric_degradation_hook(
+    round_index: u64,
+    left: NodeId,
+    right: NodeId,
+    forward_confidence: RatioPermille,
+    forward_loss: RatioPermille,
+    reverse_confidence: RatioPermille,
+    reverse_loss: RatioPermille,
+) -> ScheduledEnvironmentHook {
+    ScheduledEnvironmentHook::new(
+        Tick(round_index),
+        EnvironmentHook::AsymmetricDegradation {
+            left,
+            right,
+            forward_confidence,
+            forward_loss,
+            reverse_confidence,
+            reverse_loss,
+        },
+    )
+}
+
+fn cascade_partition_hook(round_index: u64, cuts: &[(NodeId, NodeId)]) -> ScheduledEnvironmentHook {
+    ScheduledEnvironmentHook::new(
+        Tick(round_index),
+        EnvironmentHook::CascadePartition {
+            cuts: cuts.to_vec(),
+        },
+    )
+}
+
+fn field_service_freshness_inversion_environment(
+    restore: &Configuration,
+) -> ScriptedEnvironmentModel {
+    ScriptedEnvironmentModel::new(vec![
+        asymmetric_degradation_hook(
+            8,
+            NODE_A,
+            NODE_B,
+            RatioPermille(520),
+            RatioPermille(340),
+            RatioPermille(760),
+            RatioPermille(120),
+        ),
+        replace_topology_hook(11, restore),
+        asymmetric_degradation_hook(
+            13,
+            NODE_A,
+            NODE_C,
+            RatioPermille(560),
+            RatioPermille(300),
+            RatioPermille(760),
+            RatioPermille(130),
+        ),
+        replace_topology_hook(16, restore),
+        asymmetric_degradation_hook(
+            18,
+            NODE_A,
+            NODE_D,
+            RatioPermille(600),
+            RatioPermille(260),
+            RatioPermille(760),
+            RatioPermille(140),
+        ),
+    ])
+}
+
+fn comparison_corridor_continuity_uncertainty_environment(
+    restore: &Configuration,
+) -> ScriptedEnvironmentModel {
+    ScriptedEnvironmentModel::new(vec![
+        asymmetric_degradation_hook(
+            7,
+            NODE_B,
+            NODE_C,
+            RatioPermille(560),
+            RatioPermille(250),
+            RatioPermille(760),
+            RatioPermille(140),
+        ),
+        medium_degradation_hook(11, NODE_A, NODE_B, RatioPermille(650), RatioPermille(170)),
+        replace_topology_hook(16, restore),
+        asymmetric_degradation_hook(
+            19,
+            NODE_B,
+            NODE_C,
+            RatioPermille(610),
+            RatioPermille(220),
+            RatioPermille(760),
+            RatioPermille(150),
+        ),
+        replace_topology_hook(23, restore),
+    ])
 }
 
 fn routing_observation(configuration: Configuration) -> Observation<Configuration> {
@@ -5308,6 +5105,36 @@ fn fanout_service_topology5(
             contention_permille: RatioPermille(0),
         },
     })
+}
+
+fn field_fanout_service_topology5(
+    contention_permille: RatioPermille,
+    loss_permille: RatioPermille,
+) -> Observation<Configuration> {
+    let mut topology = fanout_service_topology5(
+        topology::node(1).field().build(),
+        topology::node(2).field().build(),
+        topology::node(3).field().build(),
+        topology::node(4).field().build(),
+        topology::node(5).field().build(),
+    );
+    set_environment(&mut topology, 4, contention_permille, loss_permille);
+    topology
+}
+
+fn comparison_bridge_topology(
+    comparison_engine_set: Option<&str>,
+    contention_permille: RatioPermille,
+    loss_permille: RatioPermille,
+) -> Observation<Configuration> {
+    let mut topology = bridge_cluster_topology(
+        comparison_topology_node(1, comparison_engine_set),
+        comparison_topology_node(2, comparison_engine_set),
+        comparison_topology_node(3, comparison_engine_set),
+        comparison_topology_node(4, comparison_engine_set),
+    );
+    set_environment(&mut topology, 1, contention_permille, loss_permille);
+    topology
 }
 
 fn connected_objective(destination: NodeId) -> RoutingObjective {

@@ -38,8 +38,8 @@ use crate::{
     BabelEngine, BABEL_ENGINE_ID,
 };
 
-/// Tick interval between local sequence-number increments.
-const SEQNO_REFRESH_INTERVAL: Tick = Tick(16);
+/// Tick count between local sequence-number increments.
+const SEQNO_REFRESH_STEP: u64 = 16;
 
 fn health_scores_from_metric(tq: RatioPermille) -> (HealthScore, jacquard_core::PenaltyPoints) {
     let penalty = u16::try_from(PERMILLE_MAX)
@@ -194,12 +194,12 @@ where
     }
 
     fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
-        // Increment local_seqno every SEQNO_REFRESH_INTERVAL ticks.
+        // Increment local_seqno every SEQNO_REFRESH_STEP ticks.
         if tick
             .topology
             .observed_at_tick
             .0
-            .is_multiple_of(SEQNO_REFRESH_INTERVAL.0)
+            .is_multiple_of(SEQNO_REFRESH_STEP)
         {
             self.local_seqno = self.local_seqno.wrapping_add(1);
         }
@@ -445,6 +445,54 @@ mod tests {
         (engine, topology)
     }
 
+    fn materialized_route_record(
+        engine: &mut BabelEngine<InMemoryTransport, InMemoryRuntimeEffects>,
+        topology: &Observation<Configuration>,
+        admission: jacquard_core::RouteAdmission,
+        now: Tick,
+    ) -> (PublishedRouteRecord, RouteRuntimeState) {
+        let input = RouteMaterializationInput {
+            handle: jacquard_core::RouteHandle {
+                stamp: jacquard_core::RouteIdentityStamp {
+                    route_id: engine.route_id_for(node(2)),
+                    topology_epoch: topology.value.epoch,
+                    materialized_at_tick: now,
+                    publication_id: jacquard_core::PublicationId([1; 16]),
+                },
+            },
+            admission,
+            lease: jacquard_core::RouteLease {
+                owner_node_id: node(1),
+                lease_epoch: topology.value.epoch,
+                valid_for: TimeWindow::new(Tick(1), Tick(20)).expect("lease"),
+            },
+        };
+        let installation = engine.materialize_route(input.clone()).expect("install");
+        (
+            PublishedRouteRecord {
+                stamp: input.handle.stamp.clone(),
+                proof: installation.materialization_proof,
+                admission: input.admission,
+                lease: input.lease,
+            },
+            RouteRuntimeState {
+                last_lifecycle_event: RouteLifecycleEvent::Activated,
+                health: RouteHealth {
+                    reachability_state: ReachabilityState::Reachable,
+                    stability_score: HealthScore(1000),
+                    congestion_penalty_points: jacquard_core::PenaltyPoints(0),
+                    last_validated_at_tick: now,
+                },
+                progress: RouteProgressContract {
+                    productive_step_count_max: Limit::Bounded(1),
+                    total_step_count_max: Limit::Bounded(1),
+                    last_progress_at_tick: now,
+                    state: RouteProgressState::Pending,
+                },
+            },
+        )
+    }
+
     #[test]
     fn materialize_route_succeeds_after_update_received() {
         let (mut engine, topology) = engine_with_update_state(Tick(5));
@@ -476,44 +524,8 @@ mod tests {
         let admission = engine
             .admit_route(&objective, &profile, candidates[0].clone(), &topology)
             .expect("admission");
-        let input = RouteMaterializationInput {
-            handle: jacquard_core::RouteHandle {
-                stamp: jacquard_core::RouteIdentityStamp {
-                    route_id: engine.route_id_for(node(2)),
-                    topology_epoch: topology.value.epoch,
-                    materialized_at_tick: now,
-                    publication_id: jacquard_core::PublicationId([1; 16]),
-                },
-            },
-            admission,
-            lease: jacquard_core::RouteLease {
-                owner_node_id: node(1),
-                lease_epoch: topology.value.epoch,
-                valid_for: TimeWindow::new(Tick(1), Tick(20)).expect("lease"),
-            },
-        };
-        let installation = engine.materialize_route(input.clone()).expect("install");
-        let identity = PublishedRouteRecord {
-            stamp: input.handle.stamp.clone(),
-            proof: installation.materialization_proof,
-            admission: input.admission,
-            lease: input.lease,
-        };
-        let mut runtime = RouteRuntimeState {
-            last_lifecycle_event: RouteLifecycleEvent::Activated,
-            health: RouteHealth {
-                reachability_state: ReachabilityState::Reachable,
-                stability_score: HealthScore(1000),
-                congestion_penalty_points: jacquard_core::PenaltyPoints(0),
-                last_validated_at_tick: now,
-            },
-            progress: RouteProgressContract {
-                productive_step_count_max: Limit::Bounded(1),
-                total_step_count_max: Limit::Bounded(1),
-                last_progress_at_tick: now,
-                state: RouteProgressState::Pending,
-            },
-        };
+        let (identity, mut runtime) =
+            materialized_route_record(&mut engine, &topology, admission, now);
 
         // Clear all links and advance time to decay windows.
         let mut empty_topology = topology.clone();

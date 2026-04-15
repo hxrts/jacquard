@@ -3282,17 +3282,15 @@ mod tests {
         let topology = supported_topology();
         let mut engine = seeded_engine();
         let destination = crate::state::DestinationKey::from(&DestinationId::Node(node(2)));
-        {
-            let state = engine
-                .state
-                .destinations
-                .get_mut(&destination)
-                .expect("destination");
-            state.corridor_belief.delivery_support = SupportBucket::new(420);
-            state.corridor_belief.retention_affinity = SupportBucket::new(380);
-            state.posterior.top_corridor_mass = SupportBucket::new(360);
-            state.posterior.usability_entropy = crate::state::EntropyBucket::new(680);
-        }
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&destination)
+            .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(420);
+        state.corridor_belief.retention_affinity = SupportBucket::new(380);
+        state.posterior.top_corridor_mass = SupportBucket::new(360);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(680);
         let objective = sample_objective(node(2));
         let candidate = engine
             .candidate_routes(&objective, &sample_profile(), &topology)

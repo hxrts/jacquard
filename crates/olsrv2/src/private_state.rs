@@ -22,6 +22,31 @@ use crate::{
 };
 
 impl<Transport, Effects> OlsrV2Engine<Transport, Effects> {
+    fn tc_is_newer(&self, tc: &TcMessage) -> bool {
+        self.topology_latest_sequences
+            .get(&tc.originator)
+            .map(|(known_seq, _)| tc.sequence > *known_seq)
+            .unwrap_or(true)
+    }
+
+    fn replace_originator_tuples(&mut self, tc: &TcMessage, now: Tick) {
+        self.topology_latest_sequences
+            .insert(tc.originator, (tc.sequence, now));
+        self.topology_tuples
+            .retain(|(originator, _), _| *originator != tc.originator);
+        for advertised_neighbor in tc.advertised_neighbors.iter().copied() {
+            self.topology_tuples.insert(
+                (tc.originator, advertised_neighbor),
+                TopologyTuple {
+                    originator: tc.originator,
+                    advertised_neighbor,
+                    seqno: tc.sequence,
+                    observed_at_tick: now,
+                },
+            );
+        }
+    }
+
     pub(crate) fn refresh_private_state(
         &mut self,
         topology: &Observation<Configuration>,
@@ -109,29 +134,10 @@ impl<Transport, Effects> OlsrV2Engine<Transport, Effects> {
         if tc.originator == self.local_node_id {
             return;
         }
-        let replace = self
-            .topology_latest_sequences
-            .get(&tc.originator)
-            .map(|(known_seq, _)| tc.sequence > *known_seq)
-            .unwrap_or(true);
-        if !replace {
+        if !self.tc_is_newer(&tc) {
             return;
         }
-        self.topology_latest_sequences
-            .insert(tc.originator, (tc.sequence, now));
-        self.topology_tuples
-            .retain(|(originator, _), _| *originator != tc.originator);
-        for advertised_neighbor in tc.advertised_neighbors.iter().copied() {
-            self.topology_tuples.insert(
-                (tc.originator, advertised_neighbor),
-                TopologyTuple {
-                    originator: tc.originator,
-                    advertised_neighbor,
-                    seqno: tc.sequence,
-                    observed_at_tick: now,
-                },
-            );
-        }
+        self.replace_originator_tuples(&tc, now);
 
         let should_forward = self
             .neighbor_table
@@ -424,65 +430,36 @@ mod tests {
         opaque_endpoint(TransportKind::WifiAware, vec![byte], ByteCount(128))
     }
 
-    fn topology() -> Observation<Configuration> {
+    fn fixture_node(byte: u8) -> jacquard_core::Node {
+        NodePreset::route_capable(
+            NodePresetOptions::new(
+                NodeIdentity::new(node(byte), ControllerId([byte; 32])),
+                endpoint(byte),
+                Tick(1),
+            ),
+            &OLSRV2_ENGINE_ID,
+        )
+        .build()
+    }
+
+    fn fixture_link(byte: u8) -> jacquard_core::Link {
+        LinkPreset::active(LinkPresetOptions::new(endpoint(byte), Tick(1))).build()
+    }
+
+    fn sample_topology() -> Observation<Configuration> {
         Observation {
             value: Configuration {
                 epoch: RouteEpoch(2),
                 nodes: BTreeMap::from([
-                    (
-                        node(1),
-                        NodePreset::route_capable(
-                            NodePresetOptions::new(
-                                NodeIdentity::new(node(1), ControllerId([1; 32])),
-                                endpoint(1),
-                                Tick(1),
-                            ),
-                            &OLSRV2_ENGINE_ID,
-                        )
-                        .build(),
-                    ),
-                    (
-                        node(2),
-                        NodePreset::route_capable(
-                            NodePresetOptions::new(
-                                NodeIdentity::new(node(2), ControllerId([2; 32])),
-                                endpoint(2),
-                                Tick(1),
-                            ),
-                            &OLSRV2_ENGINE_ID,
-                        )
-                        .build(),
-                    ),
-                    (
-                        node(3),
-                        NodePreset::route_capable(
-                            NodePresetOptions::new(
-                                NodeIdentity::new(node(3), ControllerId([3; 32])),
-                                endpoint(3),
-                                Tick(1),
-                            ),
-                            &OLSRV2_ENGINE_ID,
-                        )
-                        .build(),
-                    ),
+                    (node(1), fixture_node(1)),
+                    (node(2), fixture_node(2)),
+                    (node(3), fixture_node(3)),
                 ]),
                 links: BTreeMap::from([
-                    (
-                        (node(1), node(2)),
-                        LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1))).build(),
-                    ),
-                    (
-                        (node(2), node(1)),
-                        LinkPreset::active(LinkPresetOptions::new(endpoint(1), Tick(1))).build(),
-                    ),
-                    (
-                        (node(2), node(3)),
-                        LinkPreset::active(LinkPresetOptions::new(endpoint(3), Tick(1))).build(),
-                    ),
-                    (
-                        (node(3), node(2)),
-                        LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1))).build(),
-                    ),
+                    ((node(1), node(2)), fixture_link(2)),
+                    ((node(2), node(1)), fixture_link(1)),
+                    ((node(2), node(3)), fixture_link(3)),
+                    ((node(3), node(2)), fixture_link(2)),
                 ]),
                 environment: Environment {
                     reachable_neighbor_count: 2,
@@ -499,7 +476,7 @@ mod tests {
 
     #[test]
     fn hello_ingestion_promotes_symmetric_neighbor() {
-        let topology = topology();
+        let topology = sample_topology();
         let mut engine = OlsrV2Engine::new(
             node(1),
             InMemoryTransport::new(),
@@ -528,7 +505,7 @@ mod tests {
 
     #[test]
     fn tc_ingestion_replaces_older_topology_for_originator() {
-        let topology = topology();
+        let topology = sample_topology();
         let mut engine = OlsrV2Engine::new(
             node(1),
             InMemoryTransport::new(),
@@ -564,7 +541,7 @@ mod tests {
 
     #[test]
     fn refresh_prunes_stale_hello_state() {
-        let topology = topology();
+        let topology = sample_topology();
         let mut engine = OlsrV2Engine::with_decay_window(
             node(1),
             InMemoryTransport::new(),
@@ -597,7 +574,7 @@ mod tests {
 
     #[test]
     fn refresh_updates_best_next_hop_from_topology_tuples() {
-        let topology = topology();
+        let topology = sample_topology();
         let mut engine = OlsrV2Engine::new(
             node(1),
             InMemoryTransport::new(),

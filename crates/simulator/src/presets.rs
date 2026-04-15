@@ -1039,21 +1039,14 @@ pub fn olsrv2_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)
         topology::node(3).olsrv2().build(),
         topology::node(4).olsrv2().build(),
     );
+    let slow_decay = jacquard_olsrv2::DecayWindow::new(8, 4);
+    let fast_decay = jacquard_olsrv2::DecayWindow::new(1, 1);
     let slow = JacquardScenario::new(
         "olsrv2-decay-slow",
         jacquard_core::SimulationSeed(51),
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
-        vec![
-            HostSpec::olsrv2(NODE_A)
-                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(8, 4)),
-            HostSpec::olsrv2(NODE_B)
-                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(8, 4)),
-            HostSpec::olsrv2(NODE_C)
-                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(8, 4)),
-            HostSpec::olsrv2(NODE_D)
-                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(8, 4)),
-        ],
+        olsrv2_decay_hosts(slow_decay),
         vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
         26,
     );
@@ -1062,16 +1055,7 @@ pub fn olsrv2_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)
         jacquard_core::SimulationSeed(52),
         jacquard_core::OperatingMode::DenseInteractive,
         topology.clone(),
-        vec![
-            HostSpec::olsrv2(NODE_A)
-                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(1, 1)),
-            HostSpec::olsrv2(NODE_B)
-                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(1, 1)),
-            HostSpec::olsrv2(NODE_C)
-                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(1, 1)),
-            HostSpec::olsrv2(NODE_D)
-                .with_olsrv2_decay_window(jacquard_olsrv2::DecayWindow::new(1, 1)),
-        ],
+        olsrv2_decay_hosts(fast_decay),
         vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
         26,
     );
@@ -1101,6 +1085,13 @@ pub fn olsrv2_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)
         ),
     ]);
     vec![(slow, environment.clone()), (fast, environment)]
+}
+
+fn olsrv2_decay_hosts(decay_window: jacquard_olsrv2::DecayWindow) -> Vec<HostSpec> {
+    [NODE_A, NODE_B, NODE_C, NODE_D]
+        .into_iter()
+        .map(|node_id| HostSpec::olsrv2(node_id).with_olsrv2_decay_window(decay_window))
+        .collect()
 }
 
 #[must_use]

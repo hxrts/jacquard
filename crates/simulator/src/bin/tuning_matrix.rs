@@ -45,25 +45,25 @@ fn print_diffusion_summary(artifacts: &jacquard_simulator::DiffusionArtifacts) {
 }
 
 fn run_single_diffusion_suite(
-    suite: jacquard_simulator::DiffusionSuite,
+    suite: &jacquard_simulator::DiffusionSuite,
     output_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let artifacts = run_diffusion_suite(&suite, output_dir)?;
+    let artifacts = run_diffusion_suite(suite, output_dir)?;
     print_diffusion_summary(&artifacts);
     update_latest_symlink(output_dir);
     Ok(())
 }
 
 fn run_tuning_mode(
-    suite: jacquard_simulator::ExperimentSuite,
-    diffusion_suite: jacquard_simulator::DiffusionSuite,
+    suite: &jacquard_simulator::ExperimentSuite,
+    diffusion_suite: &jacquard_simulator::DiffusionSuite,
     output_dir: &Path,
     generate_report: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-    let artifacts = run_tuning_suite(&mut simulator, &suite, output_dir)?;
+    let artifacts = run_tuning_suite(&mut simulator, suite, output_dir)?;
     print_tuning_summary(&artifacts);
-    let diffusion_artifacts = run_diffusion_suite(&diffusion_suite, output_dir)?;
+    let diffusion_artifacts = run_diffusion_suite(diffusion_suite, output_dir)?;
     print_diffusion_summary(&diffusion_artifacts);
     update_latest_symlink(output_dir);
     if generate_report {
@@ -85,17 +85,17 @@ fn run_default_smoke_tuning(output_dir: &Path) -> Result<(), Box<dyn std::error:
 
 fn run_selected_suite(suite: &str, output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     match suite {
-        "diffusion-local" => run_single_diffusion_suite(diffusion_local_suite(), output_dir),
-        "diffusion-smoke" => run_single_diffusion_suite(diffusion_smoke_suite(), output_dir),
+        "diffusion-local" => run_single_diffusion_suite(&diffusion_local_suite(), output_dir),
+        "diffusion-smoke" => run_single_diffusion_suite(&diffusion_smoke_suite(), output_dir),
         "local" => run_tuning_mode(
-            tuning_local_suite(),
-            diffusion_local_suite(),
+            &tuning_local_suite(),
+            &diffusion_local_suite(),
             output_dir,
             true,
         ),
         "smoke" => run_tuning_mode(
-            tuning_smoke_suite(),
-            diffusion_smoke_suite(),
+            &tuning_smoke_suite(),
+            &diffusion_smoke_suite(),
             output_dir,
             false,
         ),

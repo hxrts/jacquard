@@ -30,7 +30,7 @@ use jacquard_core::{
     Observation, RatioPermille, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost,
     RouteDegradation, RouteError, RouteEstimate, RouteId, RouteSelectionError, RouteSummary,
     RouteWitness, RoutingTickChange, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick,
-    TimeWindow,
+    TimeWindow, TransportKind,
 };
 
 use crate::{
@@ -43,6 +43,76 @@ use crate::{
 };
 
 impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
+    fn direct_neighbor_observations(
+        &self,
+        topology: &Observation<Configuration>,
+    ) -> Vec<DirectNeighborObservation> {
+        topology
+            .value
+            .links
+            .iter()
+            .filter(|((from, _), link)| {
+                *from == self.local_node_id && link_is_usable(link.state.state)
+            })
+            .map(|((_, neighbor), link)| {
+                let (tq, degradation, protocol) = scoring::derive_tq(link);
+                DirectNeighborObservation {
+                    neighbor: *neighbor,
+                    tq,
+                    degradation,
+                    transport_kind: protocol,
+                }
+            })
+            .collect()
+    }
+
+    fn observation_via_neighbor(
+        &self,
+        topology: &Observation<Configuration>,
+        originator: NodeId,
+        neighbor: &DirectNeighborObservation,
+        now: Tick,
+    ) -> Option<OriginatorObservation> {
+        let (path_tq, remote_hops) =
+            self.best_path_from(neighbor.neighbor, originator, topology)?;
+        let is_bidirectional = self.bidirectional_neighbor_valid(topology, neighbor.neighbor, now);
+        if !is_bidirectional {
+            return None;
+        }
+        let (tq, receive_quality) =
+            self.combined_quality(originator, neighbor.neighbor, neighbor.tq, path_tq)?;
+        let degradation = degraded_route(neighbor.degradation, tq);
+        Some(OriginatorObservation {
+            originator,
+            via_neighbor: neighbor.neighbor,
+            tq,
+            receive_quality,
+            hop_count: remote_hops.saturating_add(1),
+            observed_at_tick: now,
+            transport_kind: neighbor.transport_kind.clone(),
+            degradation,
+            is_bidirectional,
+        })
+    }
+
+    fn combined_quality(
+        &self,
+        originator: NodeId,
+        via_neighbor: NodeId,
+        local_tq: RatioPermille,
+        path_tq: RatioPermille,
+    ) -> Option<(RatioPermille, RatioPermille)> {
+        if self.has_window_for(originator, via_neighbor) {
+            let receive_quality = self.window_quality_for(originator, via_neighbor)?;
+            let combined_tq =
+                scoring::tq_product(scoring::tq_product(local_tq, path_tq), receive_quality);
+            return Some((combined_tq, receive_quality));
+        }
+
+        let bootstrap_tq = scoring::tq_product(local_tq, path_tq);
+        Some((bootstrap_tq, path_tq))
+    }
+
     // long-block-exception: one refresh pass derives observations, rankings,
     // and best-next-hop state in a single bounded state update.
     pub(crate) fn refresh_private_state(
@@ -134,26 +204,12 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
         }
     }
 
-    // long-block-exception: one pass derives classic BATMAN originator
-    // observations by combining direct-neighbor transport quality, downstream
-    // path quality, and receive-window occupancy in a single auditable loop.
     fn derive_originator_observations(
         &self,
         topology: &Observation<Configuration>,
         now: Tick,
     ) -> OriginatorObservationTable {
-        let direct_neighbors = topology
-            .value
-            .links
-            .iter()
-            .filter(|((from, _), link)| {
-                *from == self.local_node_id && link_is_usable(link.state.state)
-            })
-            .map(|((_, neighbor), link)| {
-                let (tq, degradation, protocol) = scoring::derive_tq(link);
-                (*neighbor, tq, degradation, protocol)
-            })
-            .collect::<Vec<_>>();
+        let direct_neighbors = self.direct_neighbor_observations(topology);
 
         topology
             .value
@@ -162,68 +218,13 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
             .copied()
             .filter(|originator| *originator != self.local_node_id)
             .filter_map(|originator| {
-                let mut per_neighbor = BTreeMap::new();
-                for (neighbor, local_tq, local_degradation, local_protocol) in &direct_neighbors {
-                    let Some((path_tq, remote_hops)) =
-                        self.best_path_from(*neighbor, originator, topology)
-                    else {
-                        continue;
-                    };
-                    let is_bidirectional =
-                        self.bidirectional_neighbor_valid(topology, *neighbor, now);
-                    if !is_bidirectional {
-                        continue;
-                    }
-                    // Per-originator-per-neighbor bootstrap: if no receive
-                    // window exists for THIS (originator, neighbor) pair, use
-                    // the Bellman-Ford path TQ directly as the combined TQ
-                    // (without double-counting it as both path and receive
-                    // quality). Once a window exists, use the standard
-                    // three-factor formula.
-                    let has_window = self.has_window_for(originator, *neighbor);
-                    let (tq, receive_quality) = if has_window {
-                        let rq = self
-                            .window_quality_for(originator, *neighbor)
-                            .unwrap_or(RatioPermille(0));
-                        if rq.0 == 0 {
-                            continue;
-                        }
-                        (
-                            scoring::tq_product(scoring::tq_product(*local_tq, path_tq), rq),
-                            rq,
-                        )
-                    } else {
-                        // Bootstrap: local_tq * path_tq only. No receive
-                        // quality factor — the Bellman-Ford path already
-                        // captures the multi-hop quality estimate.
-                        let bootstrap_tq = scoring::tq_product(*local_tq, path_tq);
-                        (bootstrap_tq, path_tq)
-                    };
-                    let degradation = max_degradation(
-                        *local_degradation,
-                        if tq.0 < scoring::TQ_DEGRADED_BELOW {
-                            RouteDegradation::Degraded(
-                                jacquard_core::DegradationReason::LinkInstability,
-                            )
-                        } else {
-                            RouteDegradation::None
-                        },
-                    );
-                    per_neighbor.insert(
-                        *neighbor,
-                        OriginatorObservation {
-                            originator,
-                            via_neighbor: *neighbor,
-                            tq,
-                            receive_quality,
-                            hop_count: remote_hops.saturating_add(1),
-                            observed_at_tick: now,
-                            transport_kind: local_protocol.clone(),
-                            degradation,
-                            is_bidirectional,
-                        },
-                    );
-                }
+                let per_neighbor = direct_neighbors
+                    .iter()
+                    .filter_map(|neighbor| {
+                        self.observation_via_neighbor(topology, originator, neighbor, now)
+                    })
+                    .map(|observation| (observation.via_neighbor, observation))
+                    .collect::<BTreeMap<_, _>>();
                 (!per_neighbor.is_empty()).then_some((originator, per_neighbor))
             })
             .collect()
@@ -461,6 +462,25 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
             .and_then(|node| node.profile.endpoints.first().cloned())
             .ok_or(RouteSelectionError::NoCandidate.into())
     }
+}
+
+#[derive(Clone)]
+struct DirectNeighborObservation {
+    neighbor: NodeId,
+    tq: RatioPermille,
+    degradation: RouteDegradation,
+    transport_kind: TransportKind,
+}
+
+fn degraded_route(base: RouteDegradation, tq: RatioPermille) -> RouteDegradation {
+    max_degradation(
+        base,
+        if tq.0 < scoring::TQ_DEGRADED_BELOW {
+            RouteDegradation::Degraded(jacquard_core::DegradationReason::LinkInstability)
+        } else {
+            RouteDegradation::None
+        },
+    )
 }
 
 fn prune_receive_windows(

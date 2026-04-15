@@ -293,65 +293,36 @@ mod tests {
         opaque_endpoint(TransportKind::WifiAware, vec![byte], ByteCount(128))
     }
 
-    fn topology() -> Observation<Configuration> {
+    fn fixture_node(byte: u8) -> jacquard_core::Node {
+        NodePreset::route_capable(
+            NodePresetOptions::new(
+                NodeIdentity::new(node(byte), ControllerId([byte; 32])),
+                endpoint(byte),
+                Tick(1),
+            ),
+            &OLSRV2_ENGINE_ID,
+        )
+        .build()
+    }
+
+    fn fixture_link(byte: u8) -> jacquard_core::Link {
+        LinkPreset::active(LinkPresetOptions::new(endpoint(byte), Tick(1))).build()
+    }
+
+    fn sample_topology() -> Observation<Configuration> {
         Observation {
             value: Configuration {
                 epoch: RouteEpoch(3),
                 nodes: BTreeMap::from([
-                    (
-                        node(1),
-                        NodePreset::route_capable(
-                            NodePresetOptions::new(
-                                NodeIdentity::new(node(1), ControllerId([1; 32])),
-                                endpoint(1),
-                                Tick(1),
-                            ),
-                            &OLSRV2_ENGINE_ID,
-                        )
-                        .build(),
-                    ),
-                    (
-                        node(2),
-                        NodePreset::route_capable(
-                            NodePresetOptions::new(
-                                NodeIdentity::new(node(2), ControllerId([2; 32])),
-                                endpoint(2),
-                                Tick(1),
-                            ),
-                            &OLSRV2_ENGINE_ID,
-                        )
-                        .build(),
-                    ),
-                    (
-                        node(3),
-                        NodePreset::route_capable(
-                            NodePresetOptions::new(
-                                NodeIdentity::new(node(3), ControllerId([3; 32])),
-                                endpoint(3),
-                                Tick(1),
-                            ),
-                            &OLSRV2_ENGINE_ID,
-                        )
-                        .build(),
-                    ),
+                    (node(1), fixture_node(1)),
+                    (node(2), fixture_node(2)),
+                    (node(3), fixture_node(3)),
                 ]),
                 links: BTreeMap::from([
-                    (
-                        (node(1), node(2)),
-                        LinkPreset::active(LinkPresetOptions::new(endpoint(2), Tick(1))).build(),
-                    ),
-                    (
-                        (node(2), node(1)),
-                        LinkPreset::active(LinkPresetOptions::new(endpoint(1), Tick(1))).build(),
-                    ),
-                    (
-                        (node(1), node(3)),
-                        LinkPreset::active(LinkPresetOptions::new(endpoint(3), Tick(1))).build(),
-                    ),
-                    (
-                        (node(3), node(1)),
-                        LinkPreset::active(LinkPresetOptions::new(endpoint(1), Tick(1))).build(),
-                    ),
+                    ((node(1), node(2)), fixture_link(2)),
+                    ((node(2), node(1)), fixture_link(1)),
+                    ((node(1), node(3)), fixture_link(3)),
+                    ((node(3), node(1)), fixture_link(1)),
                 ]),
                 environment: Environment {
                     reachable_neighbor_count: 2,
@@ -364,6 +335,77 @@ mod tests {
             origin_authentication: OriginAuthenticationClass::Controlled,
             observed_at_tick: Tick(1),
         }
+    }
+
+    fn sample_objective() -> jacquard_core::RoutingObjective {
+        jacquard_core::RoutingObjective {
+            destination: jacquard_core::DestinationId::Node(node(2)),
+            service_kind: jacquard_core::RouteServiceKind::Move,
+            target_protection: jacquard_core::RouteProtectionClass::LinkProtected,
+            protection_floor: jacquard_core::RouteProtectionClass::LinkProtected,
+            target_connectivity: jacquard_core::ConnectivityPosture {
+                repair: jacquard_core::RouteRepairClass::Repairable,
+                partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
+            },
+            hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Forbidden,
+            latency_budget_ms: jacquard_core::Limit::Bounded(jacquard_core::DurationMs(100)),
+            protection_priority: jacquard_core::PriorityPoints(10),
+            connectivity_priority: jacquard_core::PriorityPoints(10),
+        }
+    }
+
+    fn sample_profile() -> jacquard_core::SelectedRoutingParameters {
+        jacquard_core::SelectedRoutingParameters {
+            selected_protection: jacquard_core::RouteProtectionClass::LinkProtected,
+            selected_connectivity: jacquard_core::ConnectivityPosture {
+                repair: jacquard_core::RouteRepairClass::Repairable,
+                partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
+            },
+            deployment_profile: jacquard_core::OperatingMode::SparseLowPower,
+            diversity_floor: jacquard_core::DiversityFloor(1),
+            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
+        }
+    }
+
+    fn materialized_route_record(
+        engine: &mut OlsrV2Engine<InMemoryTransport, InMemoryRuntimeEffects>,
+        topology: &Observation<Configuration>,
+        admission: jacquard_core::RouteAdmission,
+        now: Tick,
+    ) -> (PublishedRouteRecord, RouteRuntimeState) {
+        let input = jacquard_core::RouteMaterializationInput {
+            handle: jacquard_core::RouteHandle {
+                stamp: jacquard_core::RouteIdentityStamp {
+                    route_id: jacquard_core::RouteId(*b"olsr-route-00001"),
+                    topology_epoch: topology.value.epoch,
+                    materialized_at_tick: now,
+                    publication_id: jacquard_core::PublicationId(*b"publication-0001"),
+                },
+            },
+            admission,
+            lease: jacquard_core::RouteLease {
+                owner_node_id: node(1),
+                lease_epoch: topology.value.epoch,
+                valid_for: jacquard_core::TimeWindow::new(now, Tick(10)).expect("lease window"),
+            },
+        };
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("materialize route");
+        (
+            PublishedRouteRecord {
+                stamp: input.handle.stamp,
+                proof: installation.materialization_proof,
+                admission: input.admission,
+                lease: input.lease,
+            },
+            RouteRuntimeState {
+                last_lifecycle_event: installation.last_lifecycle_event,
+                health: installation.health,
+                progress: installation.progress,
+            },
+        )
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -394,7 +436,7 @@ mod tests {
 
     #[test]
     fn engine_tick_sets_latest_topology_and_emits_no_error() {
-        let topology = topology();
+        let topology = sample_topology();
         let mut engine = OlsrV2Engine::new(
             node(1),
             InMemoryTransport::new(),
@@ -414,7 +456,7 @@ mod tests {
 
     #[test]
     fn engine_tick_emits_hello_and_tc_when_symmetric_neighbors_exist() {
-        let topology = topology();
+        let topology = sample_topology();
         let frames = Arc::new(Mutex::new(Vec::new()));
         let mut engine = OlsrV2Engine::new(
             node(1),
@@ -447,7 +489,7 @@ mod tests {
 
     #[test]
     fn tc_forward_requires_mpr_selector_state() {
-        let topology = topology();
+        let topology = sample_topology();
         let frames = Arc::new(Mutex::new(Vec::new()));
         let mut engine = OlsrV2Engine::new(
             node(1),
@@ -501,12 +543,13 @@ mod tests {
 
     #[test]
     fn maintain_route_requests_replacement_when_next_hop_changes() {
-        let topology = topology();
+        let topology = sample_topology();
+        let now = Tick(2);
         let mut engine = OlsrV2Engine::new(
             node(1),
             InMemoryTransport::new(),
             InMemoryRuntimeEffects {
-                now: Tick(2),
+                now,
                 ..Default::default()
             },
         );
@@ -520,70 +563,17 @@ mod tests {
                 path_cost: 1,
                 degradation: jacquard_core::RouteDegradation::None,
                 transport_kind: TransportKind::WifiAware,
-                updated_at_tick: Tick(2),
+                updated_at_tick: now,
                 topology_epoch: topology.value.epoch,
                 backend_route_id: jacquard_core::BackendRouteId(vec![1]),
             },
         );
-        let objective = jacquard_core::RoutingObjective {
-            destination: jacquard_core::DestinationId::Node(node(2)),
-            service_kind: jacquard_core::RouteServiceKind::Move,
-            target_protection: jacquard_core::RouteProtectionClass::LinkProtected,
-            protection_floor: jacquard_core::RouteProtectionClass::LinkProtected,
-            target_connectivity: jacquard_core::ConnectivityPosture {
-                repair: jacquard_core::RouteRepairClass::Repairable,
-                partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
-            },
-            hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Forbidden,
-            latency_budget_ms: jacquard_core::Limit::Bounded(jacquard_core::DurationMs(100)),
-            protection_priority: jacquard_core::PriorityPoints(10),
-            connectivity_priority: jacquard_core::PriorityPoints(10),
-        };
-        let profile = jacquard_core::SelectedRoutingParameters {
-            selected_protection: jacquard_core::RouteProtectionClass::LinkProtected,
-            selected_connectivity: jacquard_core::ConnectivityPosture {
-                repair: jacquard_core::RouteRepairClass::Repairable,
-                partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
-            },
-            deployment_profile: jacquard_core::OperatingMode::SparseLowPower,
-            diversity_floor: jacquard_core::DiversityFloor(1),
-            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
-            route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
-        };
+        let objective = sample_objective();
+        let profile = sample_profile();
         let candidate = engine.candidate_for(&objective, &engine.best_next_hops[&node(2)]);
         let admission = engine.admission_for(&objective, &profile, &candidate);
-        let stamp = jacquard_core::RouteIdentityStamp {
-            route_id: jacquard_core::RouteId(*b"olsr-route-00001"),
-            topology_epoch: topology.value.epoch,
-            materialized_at_tick: Tick(2),
-            publication_id: jacquard_core::PublicationId(*b"publication-0001"),
-        };
-        let handle = jacquard_core::RouteHandle {
-            stamp: stamp.clone(),
-        };
-        let lease = jacquard_core::RouteLease {
-            owner_node_id: node(1),
-            lease_epoch: topology.value.epoch,
-            valid_for: jacquard_core::TimeWindow::new(Tick(2), Tick(10)).expect("lease window"),
-        };
-        let installation = engine
-            .materialize_route(jacquard_core::RouteMaterializationInput {
-                handle: handle.clone(),
-                admission: admission.clone(),
-                lease: lease.clone(),
-            })
-            .expect("materialize route");
-        let mut runtime_state = jacquard_core::RouteRuntimeState {
-            last_lifecycle_event: installation.last_lifecycle_event,
-            health: installation.health,
-            progress: installation.progress,
-        };
-        let published = jacquard_core::PublishedRouteRecord {
-            stamp,
-            proof: installation.materialization_proof,
-            admission: admission.clone(),
-            lease,
-        };
+        let (published, mut runtime_state) =
+            materialized_route_record(&mut engine, &topology, admission.clone(), now);
         engine.best_next_hops.insert(
             node(2),
             crate::public_state::OlsrBestNextHop {

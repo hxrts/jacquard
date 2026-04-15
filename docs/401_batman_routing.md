@@ -35,7 +35,7 @@ No per-link state is included. Quality information travels as the `tq` scalar, w
 
 ### Flooding and TTL
 
-`flood_gossip` runs each tick. It sends the local originator OGM (`tq=1000`, `ttl=DEFAULT_OGM_TTL=50`) to every direct neighbor. It also sends a re-broadcast copy of each learned OGM whose TTL has not reached zero.
+`flood_gossip` runs each tick. It sends the local originator OGM (`tq=1000`, `ttl=DEFAULT_OGM_HOP_LIMIT=50`) to every direct neighbor. It also sends a re-broadcast copy of each learned OGM whose TTL has not reached zero.
 
 Before forwarding a learned OGM, the engine computes its path quality to the originator and encodes it in the outgoing advertisement:
 
@@ -44,7 +44,7 @@ rebroadcast_tq = tq_product(link_state_tq_to_sender, received_tq)
 rebroadcast_ttl = received_ttl - 1
 ```
 
-OGMs with `ttl=0` are discarded and not forwarded. This bounds propagation to at most `DEFAULT_OGM_TTL` relay hops from the originator. Stale OGMs cannot circulate without bound in large meshes.
+OGMs with `ttl=0` are discarded and not forwarded. This bounds propagation to at most `DEFAULT_OGM_HOP_LIMIT` relay hops from the originator. Stale OGMs cannot circulate without bound in large meshes.
 
 ### TQ Propagation
 
@@ -54,7 +54,7 @@ TQ degrades multiplicatively as an OGM hops through the network. An originator X
 received_tq_via_B = link_B_to_prev × ... × link_Y_to_X × 1000 / 1000^n
 ```
 
-A stores `received_ogm_info[X][B]` with the received TQ and a hop count derived from `DEFAULT_OGM_TTL - received_ttl + 1`. This data drives A's local routing decision for X without any local path computation.
+A stores `received_ogm_info[X][B]` with the received TQ and a hop count derived from `DEFAULT_OGM_HOP_LIMIT - received_ttl + 1`. This data drives A's local routing decision for X without any local path computation.
 
 This is the classic distributed implicit computation. Each node contributes its local link observation. The flood assembles an end-to-end quality estimate without any node building a full topology graph.
 
@@ -214,7 +214,7 @@ Both engines declare the same capability envelope:
 | Receive-window occupancy as route quality | `occupancy_permille = received / window_span` |
 | TQ product formula | `(left × right) / 1000` |
 | TQ propagated via OGM | `tq` field updated at each relay hop |
-| TTL-bounded propagation | `DEFAULT_OGM_TTL=50`, decremented at each hop |
+| TTL-bounded propagation | `DEFAULT_OGM_HOP_LIMIT=50`, decremented at each hop |
 | Bidirectionality via echo | Echo window required. No topology fallback. |
 | Proactive flood | OGMs sent to all direct neighbors each tick |
 | Staleness window pruning | Sequences outside window are dropped |
