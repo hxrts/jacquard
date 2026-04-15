@@ -91,6 +91,27 @@ impl OgmReceiveWindow {
         }
     }
 
+    pub(crate) fn would_be_live_after_prune(
+        &self,
+        now: Tick,
+        stale_after_ticks: u64,
+        window_span: u64,
+    ) -> bool {
+        if let Some(last_seen) = self.last_observed_at_tick {
+            if now.0.saturating_sub(last_seen.0) > stale_after_ticks {
+                return false;
+            }
+        }
+        if let Some(latest_sequence) = self.latest_sequence {
+            let lower_bound = latest_sequence.saturating_sub(window_span.saturating_sub(1));
+            self.received_sequences
+                .iter()
+                .any(|seq| *seq >= lower_bound)
+        } else {
+            false
+        }
+    }
+
     pub(crate) fn packet_count(&self) -> usize {
         self.received_sequences.len()
     }

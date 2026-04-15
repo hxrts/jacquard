@@ -292,9 +292,11 @@ impl<Transport, Effects> BatmanClassicEngine<Transport, Effects> {
     }
 
     fn window_is_live(&self, window: &OgmReceiveWindow, now: Tick) -> bool {
-        let mut clone = window.clone();
-        clone.prune(now, self.decay_window.stale_after_ticks, self.window_span());
-        clone.is_live()
+        window.would_be_live_after_prune(
+            now,
+            self.decay_window.stale_after_ticks,
+            self.window_span(),
+        )
     }
 
     fn window_span(&self) -> u64 {

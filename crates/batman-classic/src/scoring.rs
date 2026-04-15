@@ -54,12 +54,17 @@ pub(crate) fn tq_product(left: RatioPermille, right: RatioPermille) -> RatioPerm
 /// score comparison between the two engines. They do not change when Jacquard
 /// link beliefs are absent.
 #[must_use]
+const OGM_TQ_ACTIVE: u16 = 900;
+const OGM_TQ_DEGRADED: u16 = 650;
+const OGM_TQ_SUSPENDED: u16 = 250;
+const OGM_TQ_FAULTED: u16 = 0;
+
 pub(crate) fn ogm_equivalent_tq(state: LinkRuntimeState) -> RatioPermille {
     match state {
-        LinkRuntimeState::Active => RatioPermille(900),
-        LinkRuntimeState::Degraded => RatioPermille(650),
-        LinkRuntimeState::Suspended => RatioPermille(250),
-        LinkRuntimeState::Faulted => RatioPermille(0),
+        LinkRuntimeState::Active => RatioPermille(OGM_TQ_ACTIVE),
+        LinkRuntimeState::Degraded => RatioPermille(OGM_TQ_DEGRADED),
+        LinkRuntimeState::Suspended => RatioPermille(OGM_TQ_SUSPENDED),
+        LinkRuntimeState::Faulted => RatioPermille(OGM_TQ_FAULTED),
     }
 }
 
