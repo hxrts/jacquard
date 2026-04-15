@@ -1,6 +1,6 @@
 # Router Control Plane
 
-`jacquard-router` is a generic middleware layer that owns the canonical control plane above the routing-engine boundary. The router registers one or more routing engines, orchestrates cross-engine candidate selection, and publishes the selected engine result as canonical route truth. Routing engines plan, admit, and maintain route-private runtime state without touching canonical route identity or publication. This includes proactive engines: the router does not own proactive routing tables, it only owns canonical publication over the evidence those engines return.
+`jacquard-router` is a generic middleware layer that owns the canonical control plane above the routing-engine boundary. The router registers one or more routing engines, orchestrates cross-engine candidate selection, and publishes the selected engine result as canonical. Routing engines plan, admit, and maintain route-private runtime state without touching canonical route identity or publication. This includes proactive engines: the router does not own proactive routing tables, it only owns canonical publication over the evidence those engines return.
 
 ## Ownership
 
@@ -10,7 +10,7 @@ Routing engines remain the owners of route-private runtime state and proof-beari
 
 ## Cross-Engine Orchestration
 
-The router coordinates multiple registered routing engines without depending on their internals. Engines are registered once and queried during activation and maintenance. Each engine returns candidates, evidence, and proofs through shared trait boundaries.
+The router coordinates multiple registered routing engines while keeping engine internals encapsulated. Engines are registered once and queried during activation and maintenance. Each engine returns candidates, evidence, and proofs through shared trait boundaries.
 
 A policy engine computes the routing profile (protection class, connectivity posture, mode) from the current routing objective and local state. The router passes that profile to all registered engines. Engines return candidates ordered by cost and evidence. The router selects the best candidate, asks that engine to admit and materialize the route, and only then publishes canonical state.
 
@@ -46,11 +46,11 @@ The route lifecycle is owned by the control plane above the engine boundary.
 4. The router publishes canonical route state and commitments.
 5. Later rounds drive maintenance, replacement, handoff, expiry, or teardown.
 
-Maintenance is still typed. Engines report proof-bearing maintenance outcomes such as continued health, repair, handoff, replacement pressure, or expiry. The router decides whether that engine result implies canonical mutation.
+Engines report proof-bearing maintenance outcomes such as continued health, repair, handoff, replacement pressure, or expiry. The router decides whether that engine result implies canonical mutation.
 
 ## Tick and Maintenance
 
-The router advances through explicit synchronous rounds. Hosts feed topology, policy inputs, and transport observations into `RoutingMiddleware`, then call `advance_round` on the control plane. During that round the router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize previously ingested observations. They may run engine-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
+The router advances through synchronous rounds. Hosts feed topology, policy inputs, and transport observations into `RoutingMiddleware`, then call `advance_round` on the control plane. During that round the router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize previously ingested observations. They may run engine-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
 
 `RoutingTickOutcome.next_tick_hint` lets proactive engines report scheduling pressure without taking ownership of cadence. The router or host may honor that hint, clamp it, or ignore it, but the cadence decision remains router/host owned.
 
@@ -69,7 +69,7 @@ typed engine evidence
   -> in-memory canonical publication
 ```
 
-Pathway may still checkpoint route-private runtime payloads, but canonical route publication and canonical route-event emission now happen in the router.
+Pathway may still checkpoint route-private runtime payloads, but canonical route publication and canonical route-event emission happen in the router.
 
 ## Configuration and State Updates
 
@@ -85,13 +85,21 @@ If a future engine needs stronger bilateral terms, add service-specific negotiat
 
 ## Multi-Device Composition
 
-A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-reference-client` now shows the minimum host bridge wiring for a new device target: one bridge-owned transport driver, one or more queue-backed transport senders handed to engines, explicit ingress stamping, and explicit synchronous router rounds. The end-to-end multi-device test exercises `reference-client`, `router`, `pathway`, `batman`, and `mem-link-profile` across multiple runtimes.
+A direct host/runtime composition harness exists outside the simulator. `jacquard-mem-link-profile` provides the shared in-memory carrier and effect adapters. `jacquard-reference-client` now shows the minimum host bridge wiring for a new device target: one bridge-owned transport driver, one or more queue-backed transport senders handed to engines, explicit ingress stamping, and explicit synchronous router rounds. The end-to-end multi-device test exercises `reference-client`, `router`, `pathway`, `batman-bellman`, `batman-classic`, `babel`, and `mem-link-profile` across multiple runtimes.
 
 This harness proves crate-boundary composition. It does not replace the simulator. The simulator remains the scenario/replay layer above these shared boundaries.
 
 ## Minimal Host Wiring
 
-The reference example for a new deployment target is in `crates/reference-client/tests/e2e_multi_layer_routing.rs`.
+The reference examples for a new deployment target are the split
+`reference-client` end-to-end tests in
+[`crates/reference-client/tests/e2e_pathway_shared_network.rs`](../crates/reference-client/tests/e2e_pathway_shared_network.rs),
+[`crates/reference-client/tests/e2e_batman_pathway_handoff.rs`](../crates/reference-client/tests/e2e_batman_pathway_handoff.rs),
+[`crates/reference-client/tests/e2e_olsrv2_shared_network.rs`](../crates/reference-client/tests/e2e_olsrv2_shared_network.rs),
+and
+[`crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs`](../crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs),
+backed by the shared scenarios in
+[`crates/testkit/src/reference_client_scenarios.rs`](../crates/testkit/src/reference_client_scenarios.rs).
 
 1. build a shared `Observation<Configuration>` with ordinary `ServiceDescriptor` values
 2. attach one bridge-owned `TransportDriver` per device runtime

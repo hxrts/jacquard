@@ -1,0 +1,412 @@
+"""CLI entry point: load artifacts, compute tables and plots, and write the PDF report and CSV exports."""
+
+from __future__ import annotations
+
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+import polars as pl
+
+from .data import (
+    cleanup_report_dir,
+    ensure_dir,
+    load_csv,
+    load_json_array,
+    load_ndjson,
+    load_optional_json_array,
+    load_optional_csv,
+    load_optional_ndjson,
+    write_csv,
+)
+from .document import write_pdf_report
+from .plots import (
+    render_babel_decay_loss,
+    render_babel_decay_stability,
+    render_batman_bellman_transition_loss,
+    render_batman_bellman_transition_stability,
+    render_batman_classic_transition_loss,
+    render_batman_classic_transition_stability,
+    render_comparison_summary,
+    render_diffusion_delivery_coverage,
+    render_diffusion_resource_boundedness,
+    render_field_budget_reconfiguration,
+    render_field_budget_route_presence,
+    render_head_to_head_timing_profile,
+    render_head_to_head_route_presence,
+    render_mixed_vs_standalone_divergence,
+    render_olsrv2_decay_loss,
+    render_olsrv2_decay_stability,
+    render_pathway_budget_activation,
+    render_pathway_budget_route_presence,
+    render_recommended_engine_robustness,
+    render_scatter_profile_startup,
+    render_scatter_profile_route_presence,
+    save_plot_artifact,
+)
+from .scoring import (
+    baseline_comparison_table,
+    benchmark_profile_audit_table,
+    comparison_engine_round_breakdown_table,
+    boundary_summary_table,
+    comparison_summary_table,
+    diffusion_baseline_audit_table,
+    diffusion_boundary_table,
+    diffusion_regime_engine_summary_table,
+    diffusion_engine_comparison_table,
+    diffusion_engine_summary_table,
+    diffusion_family_weight_sensitivity_table,
+    field_vs_best_diffusion_alternative_table,
+    field_diffusion_regime_calibration_table,
+    field_profile_recommendation_table,
+    field_routing_regime_calibration_table,
+    head_to_head_summary_table,
+    profile_recommendation_table,
+    recommendation_table,
+    transition_metrics_table,
+    write_recommendations,
+)
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if len(argv) != 1:
+        print("usage: python -m analysis.report <artifact-dir>", file=sys.stderr)
+        return 1
+
+    artifact_arg = Path(argv[0]).resolve()
+    artifact_dir = artifact_arg.parent if artifact_arg.name == "report" else artifact_arg
+    report_dir = artifact_arg if artifact_arg.name == "report" else artifact_dir / "report"
+    pdf_path = artifact_dir / "report.pdf"
+
+    def load_required_frame(raw_name: str, csv_name: str) -> tuple[Path | None, object]:
+        raw_path = artifact_dir / raw_name
+        if raw_path.exists():
+            if raw_name.endswith(".jsonl"):
+                return raw_path, load_ndjson(raw_path)
+            return raw_path, load_json_array(raw_path)
+        csv_path = report_dir / csv_name
+        if csv_path.exists():
+            return csv_path, load_csv(csv_path)
+        return None, load_csv(csv_path) if csv_path.exists() else load_optional_csv(csv_path)
+
+    def load_optional_frame(raw_name: str, csv_name: str) -> object:
+        raw_path = artifact_dir / raw_name
+        if raw_path.exists():
+            if raw_name.endswith(".jsonl"):
+                return load_optional_ndjson(raw_path)
+            return load_optional_json_array(raw_path)
+        return load_optional_csv(report_dir / csv_name)
+
+    runs_source, runs = load_required_frame("runs.jsonl", "runs.csv")
+    aggregates_source, aggregates = load_required_frame("aggregates.json", "aggregates.csv")
+    breakdowns_source, breakdowns = load_required_frame("breakdowns.json", "breakdowns.csv")
+    diffusion_runs = load_optional_frame("diffusion_runs.jsonl", "diffusion_runs.csv")
+    diffusion_aggregates = load_optional_frame(
+        "diffusion_aggregates.json", "diffusion_aggregates.csv"
+    )
+    diffusion_boundaries = load_optional_frame(
+        "diffusion_boundaries.json", "diffusion_boundaries.csv"
+    )
+    if runs.is_empty() or aggregates.is_empty():
+        print(
+            "no tuning data found in "
+            f"{artifact_dir} (expected raw artifacts or report CSVs such as "
+            f"{runs_source or report_dir / 'runs.csv'} and "
+            f"{aggregates_source or report_dir / 'aggregates.csv'})",
+            file=sys.stderr,
+        )
+        return 1
+
+    with tempfile.TemporaryDirectory(
+        dir=artifact_dir, prefix=".report-staging-"
+    ) as staging_root:
+        staging_root_path = Path(staging_root)
+        output_report_dir = staging_root_path / "report"
+        output_pdf_path = staging_root_path / "report.pdf"
+        ensure_dir(output_report_dir)
+        cleanup_report_dir(output_report_dir)
+
+        recommendations = recommendation_table(aggregates, breakdowns)
+        profile_recommendations = profile_recommendation_table(aggregates, breakdowns)
+        field_profile_recommendations = field_profile_recommendation_table(
+            aggregates, breakdowns
+        )
+        benchmark_profile_audit = benchmark_profile_audit_table(
+            aggregates, profile_recommendations
+        )
+        field_routing_regime_calibration = field_routing_regime_calibration_table(aggregates)
+        transition_metrics = transition_metrics_table(runs, recommendations)
+        recommended_engine_robustness = (
+            recommendations.sort(["engine_family", "mean_score", "config_id"], descending=[False, True, False])
+            .group_by("engine_family")
+            .agg(
+                pl.first("config_id").alias("config_id"),
+                pl.first("max_sustained_stress_score").alias("max_sustained_stress_score"),
+            )
+            .join(transition_metrics, on=["engine_family", "config_id"], how="left")
+            .with_columns(
+                (pl.col("route_present_mean") / 1000.0).alias("route_present_mean_permille"),
+                (pl.col("route_present_stddev") / 1000.0).alias("route_present_stddev_permille"),
+            )
+            .sort("engine_family")
+        )
+        boundary_summary = boundary_summary_table(recommendations, breakdowns)
+        baseline_comparison, baseline_dir = baseline_comparison_table(
+            artifact_dir, recommendations
+        )
+        comparison_summary = comparison_summary_table(aggregates)
+        comparison_engine_round_breakdown = comparison_engine_round_breakdown_table(
+            aggregates
+        )
+        head_to_head_summary = head_to_head_summary_table(aggregates)
+        diffusion_engine_summary = diffusion_engine_summary_table(diffusion_aggregates)
+        diffusion_baseline_audit = diffusion_baseline_audit_table(diffusion_aggregates)
+        diffusion_weight_sensitivity = diffusion_family_weight_sensitivity_table(
+            diffusion_aggregates
+        )
+        diffusion_regime_engine_summary = diffusion_regime_engine_summary_table(
+            diffusion_aggregates
+        )
+        diffusion_engine_comparison = diffusion_engine_comparison_table(diffusion_aggregates)
+        diffusion_boundary_summary = diffusion_boundary_table(diffusion_boundaries)
+        field_diffusion_regime_calibration = field_diffusion_regime_calibration_table(
+            diffusion_aggregates
+        )
+        field_vs_best_diffusion_alternative = (
+            field_vs_best_diffusion_alternative_table(
+                diffusion_aggregates, field_diffusion_regime_calibration
+            )
+        )
+
+        write_csv(runs, output_report_dir / "runs.csv")
+        write_csv(aggregates, output_report_dir / "aggregates.csv")
+        write_csv(breakdowns, output_report_dir / "breakdowns.csv")
+        write_csv(recommendations, output_report_dir / "recommendations.csv")
+        write_csv(
+            profile_recommendations, output_report_dir / "profile_recommendations.csv"
+        )
+        write_csv(
+            field_profile_recommendations,
+            output_report_dir / "field_profile_recommendations.csv",
+        )
+        write_csv(
+            benchmark_profile_audit,
+            output_report_dir / "benchmark_profile_audit.csv",
+        )
+        write_csv(
+            field_routing_regime_calibration,
+            output_report_dir / "field_routing_regime_calibration.csv",
+        )
+        write_csv(transition_metrics, output_report_dir / "transition_metrics.csv")
+        write_csv(boundary_summary, output_report_dir / "boundary_summary.csv")
+        write_csv(baseline_comparison, output_report_dir / "baseline_comparison.csv")
+        write_csv(comparison_summary, output_report_dir / "comparison_summary.csv")
+        write_csv(
+            comparison_engine_round_breakdown,
+            output_report_dir / "comparison_engine_round_breakdown.csv",
+        )
+        write_csv(head_to_head_summary, output_report_dir / "head_to_head_summary.csv")
+        write_csv(diffusion_runs, output_report_dir / "diffusion_runs.csv")
+        write_csv(diffusion_aggregates, output_report_dir / "diffusion_aggregates.csv")
+        write_csv(diffusion_boundaries, output_report_dir / "diffusion_boundaries.csv")
+        write_csv(
+            diffusion_engine_summary, output_report_dir / "diffusion_engine_summary.csv"
+        )
+        write_csv(
+            diffusion_baseline_audit,
+            output_report_dir / "diffusion_baseline_audit.csv",
+        )
+        write_csv(
+            diffusion_weight_sensitivity,
+            output_report_dir / "diffusion_weight_sensitivity.csv",
+        )
+        write_csv(
+            diffusion_regime_engine_summary,
+            output_report_dir / "diffusion_regime_engine_summary.csv",
+        )
+        write_csv(
+            diffusion_engine_comparison,
+            output_report_dir / "diffusion_engine_comparison.csv",
+        )
+        write_csv(
+            diffusion_boundary_summary,
+            output_report_dir / "diffusion_boundary_summary.csv",
+        )
+        write_csv(
+            field_diffusion_regime_calibration,
+            output_report_dir / "field_diffusion_regime_calibration.csv",
+        )
+        write_csv(
+            field_vs_best_diffusion_alternative,
+            output_report_dir / "field_vs_best_diffusion_alternative.csv",
+        )
+        write_recommendations(output_report_dir / "recommendations.md", recommendations)
+
+        save_plot_artifact(
+            output_report_dir,
+            "batman_bellman_transition_stability",
+            render_batman_bellman_transition_stability,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "batman_bellman_transition_loss",
+            render_batman_bellman_transition_loss,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "batman_classic_transition_stability",
+            render_batman_classic_transition_stability,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "batman_classic_transition_loss",
+            render_batman_classic_transition_loss,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "babel_decay_stability",
+            render_babel_decay_stability,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "babel_decay_loss",
+            render_babel_decay_loss,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "olsrv2_decay_stability",
+            render_olsrv2_decay_stability,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "olsrv2_decay_loss",
+            render_olsrv2_decay_loss,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "scatter_profile_route_presence",
+            render_scatter_profile_route_presence,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "scatter_profile_startup",
+            render_scatter_profile_startup,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "pathway_budget_route_presence",
+            render_pathway_budget_route_presence,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "pathway_budget_activation",
+            render_pathway_budget_activation,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "field_budget_route_presence",
+            render_field_budget_route_presence,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "field_budget_reconfiguration",
+            render_field_budget_reconfiguration,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "comparison_dominant_engine",
+            render_comparison_summary,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "head_to_head_route_presence",
+            render_head_to_head_route_presence,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "head_to_head_timing_profile",
+            render_head_to_head_timing_profile,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "recommended_engine_robustness",
+            render_recommended_engine_robustness,
+            recommended_engine_robustness,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "mixed_vs_standalone_divergence",
+            render_mixed_vs_standalone_divergence,
+            aggregates,
+        )
+        if not diffusion_engine_comparison.is_empty():
+            save_plot_artifact(
+                output_report_dir,
+                "diffusion_delivery_coverage",
+                render_diffusion_delivery_coverage,
+                diffusion_engine_comparison,
+            )
+            save_plot_artifact(
+                output_report_dir,
+                "diffusion_resource_boundedness",
+                render_diffusion_resource_boundedness,
+                diffusion_engine_comparison,
+            )
+
+        write_pdf_report(
+            artifact_dir,
+            output_report_dir,
+            output_pdf_path,
+            recommendations,
+            profile_recommendations,
+            field_profile_recommendations,
+            benchmark_profile_audit,
+            field_routing_regime_calibration,
+            transition_metrics,
+            boundary_summary,
+            aggregates,
+            comparison_summary,
+            comparison_engine_round_breakdown,
+            head_to_head_summary,
+            diffusion_engine_summary,
+            diffusion_baseline_audit,
+            diffusion_weight_sensitivity,
+            diffusion_regime_engine_summary,
+            diffusion_engine_comparison,
+            diffusion_boundary_summary,
+            field_diffusion_regime_calibration,
+            field_vs_best_diffusion_alternative,
+            baseline_comparison,
+            baseline_dir,
+        )
+        if report_dir.exists():
+            shutil.rmtree(report_dir)
+        shutil.move(str(output_report_dir), str(report_dir))
+        if pdf_path.exists():
+            pdf_path.unlink()
+        shutil.move(str(output_pdf_path), str(pdf_path))
+    print(f"Analysis report artifacts: {report_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

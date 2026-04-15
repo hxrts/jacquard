@@ -45,6 +45,7 @@ pub(crate) struct ObserverInputs {
     pub(crate) local_origin_trace: LocalOriginTrace,
     pub(crate) regime: OperatingRegime,
     pub(crate) control_state: ControlState,
+    pub(crate) service_freshness_weight: u16,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,6 +77,7 @@ pub(crate) fn update_destination_observer(
         divergence,
         has_evidence(inputs),
         !inputs.reverse_feedback.is_empty(),
+        coherent_service_branch_metrics(inputs),
     );
     let clamped = clamp_corridor_envelope(&fused_summary, inputs.regime, &inputs.control_state);
     let corridor_envelope = project_posterior_to_claim(&posterior, &clamped);
@@ -183,12 +185,15 @@ fn fuse_evidence(predicted_summary: &FieldSummary, inputs: &ObserverInputs) -> F
     fused
 }
 
+// long-block-exception: posterior correction keeps the fused summary,
+// divergence, and service-branch adjustments in one Bayesian-style update.
 fn correct_posterior(
     previous: &DestinationPosterior,
     fused_summary: &FieldSummary,
     divergence: DivergenceBucket,
     has_any_evidence: bool,
     has_reverse_feedback: bool,
+    service_branch_metrics: Option<ServiceBranchMetrics>,
 ) -> DestinationPosterior {
     let mut entropy = previous
         .usability_entropy
@@ -201,6 +206,20 @@ fn correct_posterior(
     }
     if has_reverse_feedback {
         entropy = entropy.saturating_sub(125);
+    }
+    if let Some(metrics) = service_branch_metrics {
+        let corroboration_discount = u16::try_from(
+            metrics
+                .branch_count
+                .saturating_sub(1)
+                .saturating_mul(40)
+                .min(120),
+        )
+        .expect("bounded service corroboration discount fits u16");
+        let freshness_bonus = metrics.freshness_bonus.min(60);
+        entropy = entropy
+            .saturating_sub(corroboration_discount)
+            .saturating_sub(freshness_bonus);
     }
     let observation_class = if has_reverse_feedback {
         ObservationClass::ReverseValidated
@@ -217,14 +236,30 @@ fn correct_posterior(
             }
         }
     };
+    let mut top_corridor_mass = fused_summary
+        .delivery_support
+        .value()
+        .saturating_sub(EntropyBucket::new(entropy).value() / 2);
+    if let Some(metrics) = service_branch_metrics {
+        let corroboration_bonus = u16::try_from(
+            metrics
+                .branch_count
+                .saturating_sub(1)
+                .saturating_mul(70)
+                .min(220),
+        )
+        .expect("bounded service corroboration bonus fits u16");
+        let diversity_bonus = u16::try_from((metrics.diversity_score / 4).min(120))
+            .expect("bounded diversity bonus fits u16");
+        top_corridor_mass = top_corridor_mass
+            .saturating_add(corroboration_bonus)
+            .saturating_add(diversity_bonus)
+            .saturating_sub(metrics.freshness_penalty.min(80))
+            .min(1000);
+    }
     DestinationPosterior {
         usability_entropy: EntropyBucket::new(entropy),
-        top_corridor_mass: SupportBucket::new(
-            fused_summary
-                .delivery_support
-                .value()
-                .saturating_sub(EntropyBucket::new(entropy).value() / 2),
-        ),
+        top_corridor_mass: SupportBucket::new(top_corridor_mass),
         regime_belief: previous.regime_belief.clone(),
         predicted_observation_class: observation_class,
     }
@@ -254,6 +289,70 @@ fn progress_belief_from_envelope(
 
 fn has_evidence(inputs: &ObserverInputs) -> bool {
     !(inputs.direct_evidence.is_empty() && inputs.forward_evidence.is_empty())
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ServiceBranchMetrics {
+    branch_count: usize,
+    freshness_bonus: u16,
+    freshness_penalty: u16,
+    diversity_score: u32,
+}
+
+fn coherent_service_branch_metrics(inputs: &ObserverInputs) -> Option<ServiceBranchMetrics> {
+    if !matches!(inputs.destination, DestinationId::Service(_)) {
+        return None;
+    }
+    let mut per_neighbor = std::collections::BTreeMap::new();
+    let mut freshness_gaps = Vec::new();
+    let freshness_weight = u32::from(inputs.service_freshness_weight.clamp(25, 200));
+    for evidence in &inputs.forward_evidence {
+        if evidence.summary.retention_support.value() >= 140
+            && evidence.summary.delivery_support.value() >= 120
+            && evidence.summary.uncertainty_penalty.value() <= 900
+        {
+            let freshness_gap = inputs
+                .now_tick
+                .0
+                .saturating_sub(evidence.observed_at_tick.0);
+            freshness_gaps.push(freshness_gap);
+            let freshness_penalty = u32::try_from(freshness_gap.min(5))
+                .expect("bounded freshness gap fits")
+                * (freshness_weight / 4).max(1);
+            let score = u32::from(evidence.summary.delivery_support.value())
+                .saturating_add(u32::from(evidence.summary.retention_support.value()))
+                .saturating_sub(u32::from(evidence.summary.uncertainty_penalty.value()) / 3)
+                .saturating_sub(freshness_penalty);
+            per_neighbor
+                .entry(evidence.from_neighbor)
+                .and_modify(|current: &mut u32| *current = (*current).max(score))
+                .or_insert(score);
+        }
+    }
+    if per_neighbor.len() < 2 {
+        return None;
+    }
+    let mut scores: Vec<u32> = per_neighbor.into_values().collect();
+    scores.sort_unstable_by(|left: &u32, right: &u32| right.cmp(left));
+    let diversity_score = scores.get(1).copied().unwrap_or(0);
+    let average_gap = freshness_gaps.iter().copied().sum::<u64>()
+        / u64::try_from(freshness_gaps.len()).expect("freshness gap length fits");
+    let freshness_bonus = u16::try_from(
+        80_u64
+            .saturating_sub(average_gap.saturating_mul(u64::from((freshness_weight / 10).max(6))))
+            .min(80),
+    )
+    .expect("bounded freshness bonus fits u16");
+    let freshness_penalty = u16::try_from(
+        (average_gap.saturating_mul(u64::from((freshness_weight / 8).max(8)))).min(80),
+    )
+    .expect("bounded penalty fits");
+    Some(ServiceBranchMetrics {
+        branch_count: scores.len(),
+        freshness_bonus,
+        freshness_penalty,
+        diversity_score,
+    })
 }
 
 fn uncertainty_class_for(value: u16) -> SummaryUncertaintyClass {
@@ -348,6 +447,45 @@ mod tests {
             },
             regime: OperatingRegime::Sparse,
             control_state: ControlState::default(),
+            service_freshness_weight: 100,
+        }
+    }
+
+    fn service_state(now: Tick) -> DestinationFieldState {
+        DestinationFieldState::new(DestinationKey::Service(vec![7; 16]), now)
+    }
+
+    fn service_forward_summary(support: u16, retention: u16, now: Tick) -> FieldSummary {
+        let destination = DestinationId::Service(jacquard_core::ServiceId(vec![7; 16]));
+        FieldSummary {
+            destination: SummaryDestinationKey::from(&destination),
+            topology_epoch: RouteEpoch(1),
+            freshness_tick: now,
+            hop_band: HopBand::new(1, 2),
+            delivery_support: SupportBucket::new(support),
+            congestion_penalty: EntropyBucket::new(80),
+            retention_support: SupportBucket::new(retention),
+            uncertainty_penalty: EntropyBucket::new(240),
+            evidence_class: EvidenceContributionClass::ForwardPropagated,
+            uncertainty_class: SummaryUncertaintyClass::Low,
+        }
+    }
+
+    fn service_inputs(now: Tick) -> ObserverInputs {
+        ObserverInputs {
+            destination: DestinationId::Service(jacquard_core::ServiceId(vec![7; 16])),
+            topology_epoch: RouteEpoch(1),
+            now_tick: now,
+            direct_evidence: Vec::new(),
+            forward_evidence: Vec::new(),
+            reverse_feedback: Vec::new(),
+            local_origin_trace: LocalOriginTrace {
+                local_node_id: node(1),
+                topology_epoch: RouteEpoch(1),
+            },
+            regime: OperatingRegime::Sparse,
+            control_state: ControlState::default(),
+            service_freshness_weight: 100,
         }
     }
 
@@ -438,6 +576,139 @@ mod tests {
         assert_eq!(
             outcome.posterior.predicted_observation_class,
             ObservationClass::ForwardPropagated
+        );
+    }
+
+    #[test]
+    fn service_fanout_corroboration_boosts_posterior_mass() {
+        let mut destination_state = service_state(Tick(4));
+        let mut inputs = service_inputs(Tick(5));
+        inputs.forward_evidence.push(ForwardPropagatedEvidence {
+            from_neighbor: node(2),
+            summary: service_forward_summary(640, 360, Tick(4)),
+            observed_at_tick: Tick(5),
+        });
+        inputs.forward_evidence.push(ForwardPropagatedEvidence {
+            from_neighbor: node(3),
+            summary: service_forward_summary(610, 340, Tick(4)),
+            observed_at_tick: Tick(5),
+        });
+        let corroborated = update_destination_observer(&mut destination_state, &inputs);
+
+        let mut single_state = service_state(Tick(4));
+        let mut single_inputs = service_inputs(Tick(5));
+        single_inputs
+            .forward_evidence
+            .push(ForwardPropagatedEvidence {
+                from_neighbor: node(2),
+                summary: service_forward_summary(640, 360, Tick(4)),
+                observed_at_tick: Tick(5),
+            });
+        let single = update_destination_observer(&mut single_state, &single_inputs);
+
+        assert!(
+            corroborated.posterior.top_corridor_mass.value()
+                > single.posterior.top_corridor_mass.value()
+        );
+        assert!(
+            corroborated.posterior.usability_entropy.value()
+                <= single.posterior.usability_entropy.value()
+        );
+    }
+
+    #[test]
+    fn fresh_service_fanout_beats_stale_service_fanout() {
+        let mut fresh_state = service_state(Tick(8));
+        let mut fresh_inputs = service_inputs(Tick(8));
+        fresh_inputs
+            .forward_evidence
+            .push(ForwardPropagatedEvidence {
+                from_neighbor: node(2),
+                summary: service_forward_summary(620, 360, Tick(8)),
+                observed_at_tick: Tick(8),
+            });
+        fresh_inputs
+            .forward_evidence
+            .push(ForwardPropagatedEvidence {
+                from_neighbor: node(3),
+                summary: service_forward_summary(600, 350, Tick(8)),
+                observed_at_tick: Tick(8),
+            });
+        let fresh = update_destination_observer(&mut fresh_state, &fresh_inputs);
+
+        let mut stale_state = service_state(Tick(8));
+        let mut stale_inputs = service_inputs(Tick(8));
+        stale_inputs
+            .forward_evidence
+            .push(ForwardPropagatedEvidence {
+                from_neighbor: node(2),
+                summary: service_forward_summary(620, 360, Tick(2)),
+                observed_at_tick: Tick(2),
+            });
+        stale_inputs
+            .forward_evidence
+            .push(ForwardPropagatedEvidence {
+                from_neighbor: node(3),
+                summary: service_forward_summary(600, 350, Tick(2)),
+                observed_at_tick: Tick(2),
+            });
+        let stale = update_destination_observer(&mut stale_state, &stale_inputs);
+
+        assert!(
+            fresh.posterior.top_corridor_mass.value() > stale.posterior.top_corridor_mass.value()
+        );
+        assert!(
+            fresh.posterior.usability_entropy.value() <= stale.posterior.usability_entropy.value()
+        );
+    }
+
+    #[test]
+    fn higher_service_freshness_weight_penalizes_stale_corroboration_more() {
+        let mut strict_state = service_state(Tick(8));
+        let mut strict_inputs = service_inputs(Tick(8));
+        strict_inputs.service_freshness_weight = 180;
+        strict_inputs
+            .forward_evidence
+            .push(ForwardPropagatedEvidence {
+                from_neighbor: node(2),
+                summary: service_forward_summary(620, 360, Tick(3)),
+                observed_at_tick: Tick(3),
+            });
+        strict_inputs
+            .forward_evidence
+            .push(ForwardPropagatedEvidence {
+                from_neighbor: node(3),
+                summary: service_forward_summary(600, 350, Tick(3)),
+                observed_at_tick: Tick(3),
+            });
+        let strict = update_destination_observer(&mut strict_state, &strict_inputs);
+
+        let mut relaxed_state = service_state(Tick(8));
+        let mut relaxed_inputs = service_inputs(Tick(8));
+        relaxed_inputs.service_freshness_weight = 60;
+        relaxed_inputs
+            .forward_evidence
+            .push(ForwardPropagatedEvidence {
+                from_neighbor: node(2),
+                summary: service_forward_summary(620, 360, Tick(3)),
+                observed_at_tick: Tick(3),
+            });
+        relaxed_inputs
+            .forward_evidence
+            .push(ForwardPropagatedEvidence {
+                from_neighbor: node(3),
+                summary: service_forward_summary(600, 350, Tick(3)),
+                observed_at_tick: Tick(3),
+            });
+        let relaxed = update_destination_observer(&mut relaxed_state, &relaxed_inputs);
+
+        assert!(
+            strict.posterior.top_corridor_mass.value()
+                < relaxed.posterior.top_corridor_mass.value()
+        );
+        assert!(
+            strict.posterior.usability_entropy.value()
+                >= relaxed.posterior.usability_entropy.value()
         );
     }
 }

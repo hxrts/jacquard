@@ -52,11 +52,36 @@ This module owns only the runtime projection / adequacy-reduction side. -/
 
 /-! ## Runtime Artifact Vocabulary -/
 
+inductive BootstrapTransition
+  | activated
+  | held
+  | narrowed
+  | upgraded
+  | withdrawn
+  deriving Repr, DecidableEq, BEq
+
+inductive ContinuityTransition
+  | enteredDegradedSteady
+  | recoveredSteady
+  | downgradedToBootstrap
+  deriving Repr, DecidableEq, BEq
+
+structure RuntimeRecoveryArtifact where
+  bootstrapActive : Bool
+  continuityBand : Option ContinuityBand
+  lastContinuityTransition : Option ContinuityTransition
+  lastBootstrapTransition : Option BootstrapTransition
+  lastPromotionDecision : Option BootstrapDecision
+  lastPromotionBlocker : Option PromotionBlocker
+  deriving Repr, DecidableEq, BEq
+
 /-- Reduced router-facing runtime projection carried by one runtime artifact.
 This is still only an extracted observational/runtime view, not a new owner of
 router truth. -/
 structure RuntimeRouterArtifact where
   lifecycleRoute : LifecycleRoute
+  bootstrapClass : BootstrapClass
+  continuityBand : ContinuityBand
   deriving Repr, DecidableEq, BEq
 
 structure RuntimeSearchLinkage where
@@ -76,6 +101,7 @@ structure RuntimeRoundArtifact where
   stepBudgetRemaining : Nat
   searchLinkage : RuntimeSearchLinkage
   routerArtifact : Option RuntimeRouterArtifact
+  recoveryArtifact : Option RuntimeRecoveryArtifact
   deriving Repr, DecidableEq, BEq
 
 def runtimeLifecycleRouteOfArtifact
@@ -93,6 +119,10 @@ artifact. -/
 def runtimeProjectionSupportOfArtifact
     (artifact : RuntimeRoundArtifact) : Option Nat :=
   (runtimeLifecycleRouteOfArtifact artifact).map fun route => route.candidate.support
+
+def runtimeBootstrapClassOfArtifact
+    (artifact : RuntimeRoundArtifact) : Option BootstrapClass :=
+  artifact.routerArtifact.map RuntimeRouterArtifact.bootstrapClass
 
 structure RuntimeProbabilisticSlice where
   disposition : HostDisposition
@@ -117,6 +147,33 @@ def RuntimeRouterArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
   | none => True
   | some route => LifecycleHonest route
 
+def RuntimeBootstrapArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
+  match artifact.routerArtifact with
+  | none => True
+  | some routerArtifact =>
+      routerArtifact.bootstrapClass = .steady ∨
+        (routerArtifact.bootstrapClass = .bootstrap ∧
+          (runtimeLifecycleRouteOfArtifact artifact).isSome)
+
+def RuntimeContinuityArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
+  match artifact.routerArtifact with
+  | none => True
+  | some routerArtifact =>
+      match routerArtifact.continuityBand with
+      | .steady => True
+      | .degradedSteady => runtimeLifecycleRouteOfArtifact artifact |>.isSome
+      | .bootstrap => runtimeLifecycleRouteOfArtifact artifact |>.isSome
+
+def RuntimeRecoveryArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
+  match artifact.recoveryArtifact with
+  | none => True
+  | some recoveryArtifact =>
+      match recoveryArtifact.lastPromotionDecision with
+      | some .promote => recoveryArtifact.lastBootstrapTransition = some .upgraded
+      | some .narrow => recoveryArtifact.lastBootstrapTransition = some .narrowed
+      | some .withdraw => recoveryArtifact.lastBootstrapTransition = some .withdrawn
+      | _ => True
+
 /-- Envelope expected from the Rust private runtime before we claim any
 adequacy bridge. -/
 def RuntimeArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
@@ -131,7 +188,10 @@ def RuntimeArtifactAdmitted (artifact : RuntimeRoundArtifact) : Prop :=
         artifact.blockedReceive = none) ∧
     (artifact.disposition = HostDisposition.blocked →
       artifact.blockedReceive.isSome) ∧
-    RuntimeRouterArtifactAdmitted artifact
+    RuntimeRouterArtifactAdmitted artifact ∧
+    RuntimeBootstrapArtifactAdmitted artifact ∧
+    RuntimeContinuityArtifactAdmitted artifact ∧
+    RuntimeRecoveryArtifactAdmitted artifact
 
 /-- Execution-level admission: every runtime artifact stays inside the reduced
 private protocol envelope. -/

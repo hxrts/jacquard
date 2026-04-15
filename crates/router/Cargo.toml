@@ -19,8 +19,8 @@ jacquard-traits = { path = "../traits", version = "0.4.0" }
 serde = { workspace = true, default-features = false }
 
 [dev-dependencies]
-jacquard-batman = { path = "../batman" }
+jacquard-batman-bellman = { path = "../batman-bellman" }
 jacquard-field = { path = "../field" }
 jacquard-pathway = { path = "../pathway" }
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
-jacquard-reference-client = { path = "../reference-client" }
+jacquard-testkit = { path = "../testkit", features = ["topology-full"] }

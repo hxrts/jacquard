@@ -45,8 +45,19 @@
 
         toolkitPackages = toolkit.packages.${system};
 
+        pythonEnv = pkgs.python3.withPackages (
+          ps: with ps; [
+            polars
+            altair
+            vl-convert-python
+            reportlab
+            svglib
+          ]
+        );
+
         nativeBuildInputs = with pkgs; [
           rustToolchain
+          pythonEnv
           pkg-config
           just
           mdbook

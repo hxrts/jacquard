@@ -24,24 +24,45 @@
 
 #![forbid(unsafe_code)]
 
+mod assertions;
+mod diffusion;
 mod environment;
+mod experiments;
 mod harness;
+mod reduced_replay;
 mod replay;
 mod scenario;
+mod topology;
 
 pub mod presets;
 
+pub use assertions::{AssertionFailure, ScenarioAssertions};
+pub use diffusion::{
+    diffusion_local_suite, diffusion_smoke_suite, run_diffusion_suite, DiffusionAggregateSummary,
+    DiffusionArtifacts, DiffusionBoundarySummary, DiffusionManifest, DiffusionPolicyConfig,
+    DiffusionRegimeDescriptor, DiffusionRunSummary, DiffusionSuite,
+};
 pub use environment::{
     AppliedEnvironmentHook, EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel,
+};
+pub use experiments::{
+    local_suite as tuning_local_suite, run_suite as run_tuning_suite,
+    smoke_suite as tuning_smoke_suite, ExperimentAggregateSummary, ExperimentArtifacts,
+    ExperimentBreakdownSummary, ExperimentError, ExperimentManifest, ExperimentParameterSet,
+    ExperimentRunSummary, ExperimentSuite, RegimeDescriptor,
 };
 pub use harness::{
     JacquardHostAdapter, JacquardSimulationHarness, JacquardSimulator, ReferenceClientAdapter,
     SimulationError,
 };
+pub use reduced_replay::{
+    ReducedEnvironmentHookCounts, ReducedFailureClassCounts, ReducedReplayRound, ReducedReplayView,
+    ReducedRouteKey, ReducedRouteObservation,
+};
 pub use replay::{
-    DriverStatusEvent, HostCheckpointSnapshot, HostRoundArtifact, HostRoundStatus,
-    IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
+    ActiveRouteSummary, DriverStatusEvent, HostCheckpointSnapshot, HostRoundArtifact,
+    HostRoundStatus, IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
     JacquardRoundArtifact, JacquardSimulationStats, SimulationFailureSummary,
     TelltaleNativeArtifactRef,
 };
-pub use scenario::{BoundObjective, EngineLane, HostSpec, JacquardScenario};
+pub use scenario::{BoundObjective, EngineLane, FieldBootstrapSummary, HostSpec, JacquardScenario};

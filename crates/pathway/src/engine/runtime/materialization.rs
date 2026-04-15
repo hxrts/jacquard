@@ -218,7 +218,7 @@ where
                 jacquard_core::RoutePolicyError::BudgetExceeded,
             ));
         }
-        let now = self.effects.now_tick();
+        let now = self.current_tick();
         let latest_topology = self
             .latest_topology
             .as_ref()

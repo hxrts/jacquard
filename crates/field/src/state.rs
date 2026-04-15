@@ -32,7 +32,7 @@ pub(crate) const MAX_ACTIVE_DESTINATIONS: usize = 8;
 pub(crate) const MAX_FRONTIER_SLOTS: usize = 4;
 pub(crate) const MAX_CONTINUATION_NEIGHBOR_COUNT: usize = MAX_FRONTIER_SLOTS.saturating_sub(1);
 pub(crate) const OBSERVER_CACHE_REFRESH_TICKS: u64 = 2;
-pub(crate) const SUMMARY_HEARTBEAT_TICKS: u64 = 4;
+pub(crate) const SUMMARY_HEARTBEAT_TICKS: u64 = 1;
 const BUCKET_MAX: u16 = 1000;
 
 macro_rules! bounded_bucket {

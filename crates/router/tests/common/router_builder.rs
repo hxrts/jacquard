@@ -27,15 +27,15 @@
 
 use std::sync::{Arc, Mutex};
 
-use jacquard_batman::BatmanEngine;
-use jacquard_core::Tick;
+use jacquard_batman_bellman::BatmanBellmanEngine;
+use jacquard_core::{RoutePartitionClass, Tick};
 use jacquard_field::FieldEngine;
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
 };
 use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine};
-use jacquard_reference_client::topology;
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
+use jacquard_testkit::topology;
 use jacquard_traits::Blake3Hashing;
 
 use super::{
@@ -326,16 +326,16 @@ pub(crate) fn build_router_with_pathway_and_batman(
             nodes: std::collections::BTreeMap::from([
                 (
                     LOCAL_NODE_ID,
-                    topology::node(1).pathway_and_batman().build(),
+                    topology::node(1).pathway_and_batman_bellman().build(),
                 ),
                 (
                     super::fixtures::PEER_NODE_ID,
-                    topology::node(2).pathway_and_batman().build(),
+                    topology::node(2).pathway_and_batman_bellman().build(),
                 ),
                 (
                     super::fixtures::FAR_NODE_ID,
                     topology::node(3)
-                        .for_engine(&jacquard_batman::BATMAN_ENGINE_ID)
+                        .for_engine(&jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID)
                         .build(),
                 ),
                 (
@@ -349,8 +349,16 @@ pub(crate) fn build_router_with_pathway_and_batman(
                     topology::link(2).build(),
                 ),
                 (
+                    (super::fixtures::PEER_NODE_ID, LOCAL_NODE_ID),
+                    topology::link(1).build(),
+                ),
+                (
                     (super::fixtures::PEER_NODE_ID, super::fixtures::FAR_NODE_ID),
                     topology::link(3).build(),
+                ),
+                (
+                    (super::fixtures::FAR_NODE_ID, super::fixtures::PEER_NODE_ID),
+                    topology::link(2).build(),
                 ),
                 (
                     (
@@ -372,7 +380,9 @@ pub(crate) fn build_router_with_pathway_and_batman(
         observed_at_tick: now,
     };
     let policy_inputs = sample_policy_inputs(&topology);
-    let policy_engine = FixedPolicyEngine::new(profile());
+    let mut mixed_profile = profile();
+    mixed_profile.selected_connectivity.partition = RoutePartitionClass::ConnectedOnly;
+    let policy_engine = FixedPolicyEngine::new(mixed_profile);
     let network = SharedInMemoryNetwork::default();
     let endpoints = topology.value.nodes[&LOCAL_NODE_ID]
         .profile
@@ -392,7 +402,7 @@ pub(crate) fn build_router_with_pathway_and_batman(
         },
         Blake3Hashing,
     );
-    let batman_engine = BatmanEngine::new(
+    let batman_engine = BatmanBellmanEngine::new(
         LOCAL_NODE_ID,
         batman_transport,
         InMemoryRuntimeEffects {

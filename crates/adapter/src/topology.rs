@@ -304,10 +304,8 @@ mod tests {
 
     const LOCAL_NODE_ID: NodeId = NodeId([1; 32]);
     const REMOTE_NODE_ID: NodeId = NodeId([2; 32]);
-    const PATHWAY_ENGINE_ID: RoutingEngineId =
-        RoutingEngineId::from_contract_bytes(*b"jacquard.path.v1");
-    const BATMAN_ENGINE_ID: RoutingEngineId =
-        RoutingEngineId::from_contract_bytes(*b"jacquard.batman.");
+    const ENGINE_A: RoutingEngineId = RoutingEngineId::from_contract_bytes(*b"test.engine.a...");
+    const ENGINE_B: RoutingEngineId = RoutingEngineId::from_contract_bytes(*b"test.engine.b...");
 
     fn topology() -> Observation<Configuration> {
         Observation {
@@ -344,7 +342,7 @@ mod tests {
         let endpoint = endpoint(controller_byte);
         let service = ServiceDescriptorBuilder::new(node_id, controller_id, RouteServiceKind::Move)
             .with_endpoint(endpoint.clone())
-            .with_routing_engine(&PATHWAY_ENGINE_ID)
+            .with_routing_engine(&ENGINE_A)
             .with_valid_for(TimeWindow::new(Tick(1), Tick(10)).expect("window"))
             .with_capacity(
                 CapacityHint::new(RatioPermille(200))
@@ -620,7 +618,7 @@ mod tests {
     #[test]
     fn materialized_route_defaults_to_opaque_until_capabilities_are_known() {
         let mut projector = TopologyProjector::new(LOCAL_NODE_ID, topology());
-        let route = materialized_route(PATHWAY_ENGINE_ID, 9);
+        let route = materialized_route(ENGINE_A, 9);
 
         projector.ingest_materialized_route(&route);
 
@@ -629,7 +627,7 @@ mod tests {
             .active_routes
             .get(route.identity.route_id())
             .expect("projected route");
-        assert_eq!(projected.engine_id, PATHWAY_ENGINE_ID);
+        assert_eq!(projected.engine_id, ENGINE_A);
         assert_eq!(projected.route_shape, ObservedRouteShape::Opaque);
         assert_eq!(projected.hop_count_hint, Belief::certain(2, Tick(5)));
     }
@@ -637,12 +635,10 @@ mod tests {
     #[test]
     fn capabilities_upgrade_existing_route_shape_projection() {
         let mut projector = TopologyProjector::new(LOCAL_NODE_ID, topology());
-        let route = materialized_route(PATHWAY_ENGINE_ID, 9);
+        let route = materialized_route(ENGINE_A, 9);
         projector.ingest_materialized_route(&route);
-        projector.ingest_engine_capabilities(capabilities(
-            PATHWAY_ENGINE_ID,
-            RouteShapeVisibility::ExplicitPath,
-        ));
+        projector
+            .ingest_engine_capabilities(capabilities(ENGINE_A, RouteShapeVisibility::ExplicitPath));
 
         let projected = projector
             .snapshot()
@@ -656,12 +652,10 @@ mod tests {
     #[test]
     fn maintenance_events_update_projected_lifecycle_and_health() {
         let mut projector = TopologyProjector::new(LOCAL_NODE_ID, topology());
-        let route = materialized_route(BATMAN_ENGINE_ID, 9);
+        let route = materialized_route(ENGINE_B, 9);
         projector.ingest_materialized_route(&route);
-        projector.ingest_engine_capabilities(capabilities(
-            BATMAN_ENGINE_ID,
-            RouteShapeVisibility::NextHopOnly,
-        ));
+        projector
+            .ingest_engine_capabilities(capabilities(ENGINE_B, RouteShapeVisibility::NextHopOnly));
 
         projector.ingest_route_event(&RouteEventStamped {
             order_stamp: OrderStamp(2),
@@ -711,8 +705,8 @@ mod tests {
     // lifecycle in one sequence so lease transfer and expiry stay legible.
     fn round_outcomes_apply_router_owned_canonical_mutations() {
         let mut projector = TopologyProjector::new(LOCAL_NODE_ID, topology());
-        let route = materialized_route(PATHWAY_ENGINE_ID, 9);
-        let replacement = materialized_route(BATMAN_ENGINE_ID, 10);
+        let route = materialized_route(ENGINE_A, 9);
+        let replacement = materialized_route(ENGINE_B, 10);
         projector.ingest_materialized_route(&route);
 
         projector.ingest_round_outcome(&RouterRoundOutcome {

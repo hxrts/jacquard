@@ -19,7 +19,7 @@ use crate::util::{
     collect_rust_files, layer_for_rel_path, normalize_rel_path, workspace_root, Violation,
 };
 
-const HARNESS_FILE: &str = "crates/simulator/src/harness.rs";
+const HARNESS_FILE: &str = "crates/simulator/src/harness/mod.rs";
 const REQUIRED_TOKENS: &[&str] = &[
     "pub trait JacquardHostAdapter",
     "pub struct JacquardSimulationHarness",

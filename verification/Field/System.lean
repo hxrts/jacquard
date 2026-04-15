@@ -10,5 +10,6 @@ import Field.System.Calibration
 import Field.System.Optimality
 import Field.System.CanonicalStrong
 import Field.System.Resilience
+import Field.System.Retention
 
 /-! # System — end-to-end system composition and convergence -/

@@ -2,6 +2,7 @@
 target/
 result
 artifacts/
+artifacts/tuning/
 policy/lints/Cargo.lock
 
 # nix
@@ -16,6 +17,12 @@ theme/
 
 # os
 .DS_Store
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
 
 # editors
 *.swp

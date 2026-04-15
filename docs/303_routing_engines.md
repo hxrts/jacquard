@@ -1,10 +1,10 @@
 # Routing Engines
 
-This page describes the trait surface for adding a routing algorithm to Jacquard. It also captures the host capability boundary that engines consume and the in-tree engine shapes. See [Pathway Routing](401_pathway_routing.md) for the in-tree explicit-path implementation, [Field Routing](403_field_routing.md) for the corridor-envelope engine over the continuously updated field model, and [Batman Routing](402_batman_routing.md) for the next-hop reference engine.
+This page describes the trait surface for adding a routing algorithm to Jacquard. It also captures the host capability boundary that engines consume and the in-tree engine shapes. See [Pathway Routing](404_pathway_routing.md) for the explicit-path engine, [Batman Routing](401_batman_routing.md) for the batman-bellman and batman-classic next-hop engines, [Field Routing](405_field_routing.md) for the corridor-envelope engine, [Babel Routing](402_babel_routing.md) for the RFC 8966 distance-vector engine, [OLSRv2 Routing](403_olsrv2_routing.md) for the deterministic link-state engine, and [Scatter Routing](406_scatter_routing.md) for the bounded deferred-delivery diffusion engine.
 
 ## Routing Engine Contract
 
-A routing engine is a routing algorithm that consumes the shared world picture and realizes routes under router-provided identity. Pathway is the first-party explicit-path engine. External engines such as onion routing plug into the same contract without depending on pathway internals.
+A routing engine is a routing algorithm that consumes the shared world picture and realizes routes under router-provided identity. Jacquard ships seven in-tree engines: `pathway` (explicit-path), `field` (corridor-envelope), `batman-bellman` (Bellman-Ford-enhanced next-hop), `batman-classic` (spec-faithful BATMAN IV next-hop), `babel` (RFC 8966 distance-vector), `olsrv2` (OLSRv2 link-state), and `scatter` (bounded deferred-delivery diffusion). External engines such as onion routing plug into the same contract without depending on any in-tree engine's internals.
 
 ```rust
 pub trait RoutingEnginePlanner {
@@ -114,13 +114,11 @@ Jacquard does not require every routing engine to expose a full hop-by-hop path.
 - `NextHopOnly` - engine only claims best-next-hop visibility toward the destination
 - `Opaque` - engine does not expose useful route shape beyond viability
 
-This matters for proactive engines. Pathway remains `ExplicitPath`, a Babel-like
-engine would typically be `CorridorEnvelope`, and a BATMAN-like engine would
-honestly report `NextHopOnly`.
+This matters for proactive engines. Pathway is `ExplicitPath`. Field is `CorridorEnvelope`. The batman engines (bellman and classic), babel, and olsrv2 are `NextHopOnly`. Scatter is `Opaque`: it can claim bounded deferred-delivery viability without claiming a stable next hop or explicit path shape.
 
-## In-Tree BATMAN Engine
+## In-Tree Engines
 
-`jacquard-batman` is the in-tree proactive next-hop reference engine; see [Batman Routing](402_batman_routing.md) for the engine-specific model, capability assumptions, and maintenance behavior.
+See [Pathway Routing](404_pathway_routing.md), [Batman Routing](401_batman_routing.md), [Field Routing](405_field_routing.md), [Babel Routing](402_babel_routing.md), [OLSRv2 Routing](403_olsrv2_routing.md), and [Scatter Routing](406_scatter_routing.md) for engine-specific models, capability assumptions, and maintenance behavior.
 
 ## Policy And Coordination
 

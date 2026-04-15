@@ -29,3 +29,4 @@ telltale-search = { workspace = true }
 
 [dev-dependencies]
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
+jacquard-testkit = { path = "../testkit" }

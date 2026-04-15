@@ -3,17 +3,21 @@ resolver = "2"
 members = [
   "toolkit/xtask",
   "crates/adapter",
-  "crates/batman",
+  "crates/babel",
+  "crates/batman-bellman",
+  "crates/batman-classic",
   "crates/core",
   "crates/field",
-  "crates/field-client",
   "crates/macros",
   "crates/mem-link-profile",
   "crates/mem-node-profile",
+  "crates/olsrv2",
   "crates/pathway",
   "crates/reference-client",
   "crates/router",
+  "crates/scatter",
   "crates/simulator",
+  "crates/testkit",
   "crates/traits",
 ]
 
@@ -45,12 +49,12 @@ wildcard_imports = "warn"
 
 [workspace.dependencies]
 # choreography/runtime
-telltale = "13.0.0"
-telltale-search = "13.0.0"
-telltale-types = "13.0.0"
-telltale-macros = "13.0.0"
-telltale-runtime = "13.0.0"
-telltale-simulator = "13.0.0"
+telltale = "14.0.0"
+telltale-search = "14.0.0"
+telltale-types = "14.0.0"
+telltale-macros = "14.0.0"
+telltale-runtime = "14.0.0"
+telltale-simulator = "14.0.0"
 
 # async
 futures     = "0.3"
@@ -77,5 +81,5 @@ cfg-if = "1"
 wasm-bindgen-test = "0.3"
 
 # toolkit
-rust-toolkit-effects = "0.2.0"
-rust-toolkit-trait-contracts = "0.2.0"
+rust-toolkit-effects = "0.3.0"
+rust-toolkit-trait-contracts = "0.3.0"

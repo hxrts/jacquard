@@ -55,6 +55,14 @@ This layer does not prove full Rust runtime correctness. It does not prove sched
 
 It now also proves a small runtime/system safety story on top of the stuttering refinement layer, and it includes proof-facing fixture cases so the canonical theorems are pinned to concrete reduced runtime examples rather than only prose descriptions.
 
+Deferred payload retention currently stays outside this adequacy boundary. The
+new reduced retention layer in `Field/Retention/*` and
+`Field/System/Retention.lean` reasons about payload custody below router-owned
+truth, but it does not yet flow through `FieldReplaySnapshot` or the reduced
+runtime replay projection. That omission is explicit: retention is modeled as a
+runtime/system execution surface, not as a replay-derived owner of canonical
+truth.
+
 ## Refinement Ladder
 
 The adequacy layer now sits inside one explicit refinement ladder:
@@ -123,6 +131,17 @@ This is intentionally much smaller than the real Rust choreography runtime. It m
 - remaining step budget
 
 The new `routerArtifact` field is still reduced. It carries at most one reduced lifecycle-route projection for the round artifact. It does not make the adequacy layer the owner of canonical route truth.
+
+The reduced adequacy boundary now also carries the runtime continuity band
+explicitly. A reduced runtime route can therefore be:
+
+- `steady`
+- `degraded-steady`
+- `bootstrap`
+
+without promoting adequacy into a new owner of route truth. This band is only
+the reduced runtime-facing continuity classification that the Rust runtime now
+exports through replay.
 
 The reduced runtime artifact now also carries reduced search linkage metadata:
 
@@ -205,6 +224,20 @@ The runtime artifact admission condition currently requires:
 - complete or failed-closed states must not claim a blocked receive
 - blocked states must carry a blocked receive marker
 - any reduced router-facing runtime projection must stay lifecycle-honest
+
+It also now requires degraded-steady and bootstrap runtime projections to keep
+an actual reduced lifecycle route. In other words, adequacy is allowed to
+observe that the runtime entered a degraded continuity band, but it is not
+allowed to treat that as a route that exists without a lifecycle projection.
+
+The reduced recovery artifact now carries:
+
+- optional continuity band
+- optional last continuity transition
+- bootstrap transition / decision / blocker
+
+That keeps the new degraded-before-bootstrap semantics explicit at the proof
+boundary rather than forcing proofs to infer them from bootstrap counts alone.
 
 The reduced trace envelope is:
 
@@ -656,10 +689,19 @@ Concretely, the Rust surfaces that currently need this review discipline are:
 - `FieldEngine::protocol_artifacts()`
 - `FieldRuntimeRoundArtifact`
 - `FieldRuntimeRouteArtifact`
+- `FieldRouteRecoveryState` when bootstrap or recovery linkage changes
 
 Route commitments and planner search records are intentionally outside this
 adequacy object today. They are runtime diagnostics and router-facing runtime
 surfaces, not part of the current artifact-to-trace reduction theorem.
+
+Bootstrap is inside the reduced adequacy boundary. The reduced runtime route
+artifact now carries a bootstrap class, and the replay-derived recovery fixture
+tracks bootstrap hold, narrowing, upgrade, and withdrawal, along with the last
+promotion decision and the dominant blocker. That means the adequacy layer
+explicitly acknowledges the semantic gap between no route, a weak but coherent
+bootstrap corridor, and a fully steady corridor rather than leaving bootstrap
+as an implementation-only threshold decision.
 
 When any of these change, the adequacy layer must be reviewed first. The key questions are:
 

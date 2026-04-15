@@ -15,7 +15,7 @@
 //! - canonical route mutations and registry-level engine dispatch happen here
 //! - registered engines return typed evidence and opaque private runtime state
 
-use std::{cmp::Reverse, collections::BTreeMap};
+use std::{any::Any, cmp::Reverse, collections::BTreeMap};
 
 use jacquard_core::{
     AdmissionDecision, Belief, CapabilityError, Configuration, FactSourceClass, MaterializedRoute,
@@ -206,6 +206,26 @@ where
         self.active_routes.len()
     }
 
+    #[must_use]
+    pub fn active_routes_snapshot(&self) -> Vec<MaterializedRoute> {
+        let mut routes = self.active_routes.values().cloned().collect::<Vec<_>>();
+        routes.sort_by_key(|route| route.identity.stamp.route_id);
+        routes
+    }
+
+    #[must_use]
+    pub fn engine_analysis_snapshot(&self, engine_id: &RoutingEngineId) -> Option<Box<dyn Any>> {
+        let entry = self.registered_engines.get(engine_id)?;
+        let mut routes = self
+            .active_routes
+            .values()
+            .filter(|route| route.identity.admission.summary.engine == *engine_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        routes.sort_by_key(|route| route.identity.stamp.route_id);
+        entry.engine.analysis_snapshot_for_router(&routes)
+    }
+
     fn current_policy_inputs(&self) -> RoutingPolicyInputs {
         let mut inputs = self.policy_inputs.clone();
         inputs.routing_engine_count =
@@ -301,60 +321,90 @@ where
         profile: &SelectedRoutingParameters,
     ) -> Result<MaterializedRoute, RouteError> {
         self.advance_all_engines()?;
-        let candidate = self
-            .ordered_candidates(objective, profile)
-            .into_iter()
-            .next()
-            .ok_or(RouteSelectionError::NoCandidate)?;
-        let route_id = candidate.route_id;
-        let engine_id = candidate.backend_ref.engine.clone();
-        let admission = self.engine_for_id(&engine_id)?.admit_route(
-            objective,
-            profile,
-            candidate,
-            &self.topology,
-        )?;
-        if admission.admission_check.decision != AdmissionDecision::Admissible {
-            return Err(RouteSelectionError::Inadmissible(
-                match admission.admission_check.decision {
-                    AdmissionDecision::Rejected(reason) => reason,
-                    AdmissionDecision::Admissible => unreachable!(),
-                },
-            )
-            .into());
-        }
+        self.activate_with_profile_without_tick(objective, profile)
+    }
 
-        let input = self.materialization_input(route_id, &admission)?;
-        let route_id = *input.handle.route_id();
-        let installation = self
-            .engine_for_id_mut(&engine_id)?
-            .materialize_route(input.clone())?;
-        let route = MaterializedRoute::from_installation(input, installation);
-        let commitments = self.route_commitments_for(&route)?;
-        let record = RouterCheckpointRecord {
-            route: route.clone(),
-            commitments: commitments.clone(),
-        };
-        if let Err(error) = self
-            .runtime_adapter()
-            .persist_route(&record)
-            .and_then(|()| {
-                self.runtime_adapter().record_route_event(
-                    jacquard_core::RouteEvent::RouteMaterialized {
-                        handle: jacquard_core::RouteHandle {
-                            stamp: route.identity.stamp.clone(),
+    // long-block-exception: fail-closed activation keeps candidate selection,
+    // admission, materialization, and checkpoint publication in one path.
+    fn activate_with_profile_without_tick(
+        &mut self,
+        objective: &RoutingObjective,
+        profile: &SelectedRoutingParameters,
+    ) -> Result<MaterializedRoute, RouteError> {
+        let mut first_inadmissible = None;
+        for candidate in self.ordered_candidates(objective, profile) {
+            let route_id = candidate.route_id;
+            let engine_id = candidate.backend_ref.engine.clone();
+            let admission = match self.engine_for_id(&engine_id)?.admit_route(
+                objective,
+                profile,
+                candidate,
+                &self.topology,
+            ) {
+                Ok(admission) => admission,
+                Err(RouteError::Selection(RouteSelectionError::Inadmissible(reason))) => {
+                    first_inadmissible.get_or_insert(reason);
+                    continue;
+                }
+                Err(RouteError::Selection(RouteSelectionError::NoCandidate)) => continue,
+                Err(error) => return Err(error),
+            };
+            if admission.admission_check.decision != AdmissionDecision::Admissible {
+                if let AdmissionDecision::Rejected(reason) = admission.admission_check.decision {
+                    first_inadmissible.get_or_insert(reason);
+                }
+                continue;
+            }
+
+            let input = self.materialization_input(route_id, &admission)?;
+            let route_id = *input.handle.route_id();
+            let installation = self
+                .engine_for_id_mut(&engine_id)?
+                .materialize_route(input.clone())?;
+            let route = MaterializedRoute::from_installation(input, installation);
+            let commitments = self.route_commitments_for(&route)?;
+            let record = RouterCheckpointRecord {
+                route: route.clone(),
+                commitments: commitments.clone(),
+            };
+            if let Err(error) = self
+                .runtime_adapter()
+                .persist_route(&record)
+                .and_then(|()| {
+                    self.runtime_adapter().record_route_event(
+                        jacquard_core::RouteEvent::RouteMaterialized {
+                            handle: jacquard_core::RouteHandle {
+                                stamp: route.identity.stamp.clone(),
+                            },
+                            proof: route.identity.proof.clone(),
                         },
-                        proof: route.identity.proof.clone(),
-                    },
-                )
-            })
-        {
-            self.engine_for_id_mut(&engine_id)?.teardown(&route_id);
-            return Err(error);
+                    )
+                })
+            {
+                self.engine_for_id_mut(&engine_id)?.teardown(&route_id);
+                return Err(error);
+            }
+            self.active_routes.insert(route_id, route.clone());
+            self.published_commitments.insert(route_id, commitments);
+            return Ok(route);
         }
-        self.active_routes.insert(route_id, route.clone());
-        self.published_commitments.insert(route_id, commitments);
-        Ok(route)
+        if let Some(reason) = first_inadmissible {
+            Err(RouteSelectionError::Inadmissible(reason).into())
+        } else {
+            Err(RouteSelectionError::NoCandidate.into())
+        }
+    }
+
+    /// Proof-bearing action: selects, admits, materializes, and publishes one
+    /// canonical route using the current policy inputs without advancing time.
+    pub fn activate_route_without_tick(
+        &mut self,
+        objective: &RoutingObjective,
+    ) -> Result<MaterializedRoute, RouteError> {
+        let profile = self
+            .policy_engine
+            .compute_profile(objective, &self.current_policy_inputs());
+        self.activate_with_profile_without_tick(objective, &profile)
     }
 
     fn materialization_input(
@@ -398,7 +448,7 @@ where
                     .candidate_routes(objective, profile, &self.topology)
             })
             .collect::<Vec<_>>();
-        candidates.sort_by_key(candidate_ordering_key);
+        candidates.sort_by_key(|candidate| candidate_ordering_key(candidate, profile));
         candidates
     }
 
@@ -760,6 +810,9 @@ fn publication_id(order: OrderStamp) -> PublicationId {
 }
 
 type CandidateOrderingKey = (
+    Reverse<bool>,
+    Reverse<bool>,
+    Reverse<bool>,
     Reverse<RouteProtectionClass>,
     Reverse<RouteRepairClass>,
     Reverse<RoutePartitionClass>,
@@ -770,8 +823,16 @@ type CandidateOrderingKey = (
     Vec<u8>,
 );
 
-fn candidate_ordering_key(candidate: &RouteCandidate) -> CandidateOrderingKey {
+fn candidate_ordering_key(
+    candidate: &RouteCandidate,
+    profile: &SelectedRoutingParameters,
+) -> CandidateOrderingKey {
     (
+        Reverse(candidate.summary.protection == profile.selected_protection),
+        Reverse(candidate.summary.connectivity.repair == profile.selected_connectivity.repair),
+        Reverse(
+            candidate.summary.connectivity.partition == profile.selected_connectivity.partition,
+        ),
         Reverse(candidate.summary.protection),
         Reverse(candidate.summary.connectivity.repair),
         Reverse(candidate.summary.connectivity.partition),

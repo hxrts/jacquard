@@ -32,7 +32,7 @@ use std::{
 use jacquard_core::{
     Blake3Digest, Configuration, ConnectivityPosture, ContentId, NodeId, Observation, ReceiptId,
     RouteCommitmentId, RouteEpoch, RouteError, RouteId, RoutePartitionClass, RouteRuntimeError,
-    RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId, TransportObservation,
+    RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId, Tick, TransportObservation,
 };
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngine};
 pub use planner::{
@@ -330,6 +330,27 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         self.control_state.as_ref()
     }
 
+    #[must_use]
+    pub(crate) fn current_tick(&self) -> Tick
+    where
+        Effects: PathwayEffectsBounds,
+    {
+        self.current_tick_with_effects()
+    }
+
+    #[must_use]
+    fn current_tick_with_effects(&self) -> Tick
+    where
+        Effects: PathwayEffectsBounds,
+    {
+        let effects_now = self.effects.now_tick();
+        self.latest_topology
+            .as_ref()
+            .map_or(effects_now, |topology| {
+                effects_now.max(topology.observed_at_tick)
+            })
+    }
+
     pub fn checkpointed_topology_epoch(&self) -> Result<Option<RouteEpoch>, RouteError>
     where
         Effects: PathwayEffectsBounds,
@@ -412,6 +433,7 @@ where
             next_segment.endpoint,
             payload,
         )?;
+        let now_tick = self.current_tick();
         // Re-borrow mutably after send: the earlier shared borrow for
         // `next_segment` must be fully released before taking &mut.
         let active_route = self
@@ -420,7 +442,7 @@ where
             .ok_or(RouteSelectionError::NoCandidate)?;
         active_route.forwarding.in_flight_frames =
             active_route.forwarding.in_flight_frames.saturating_add(1);
-        active_route.forwarding.last_ack_at_tick = Some(self.effects.now_tick());
+        active_route.forwarding.last_ack_at_tick = Some(now_tick);
         Ok(())
     }
 }

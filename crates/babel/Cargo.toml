@@ -1,0 +1,25 @@
+[package]
+name = "jacquard-babel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+description = "RFC 8966 Babel distance-vector routing engine for Jacquard"
+
+[lints]
+workspace = true
+
+[dependencies]
+bincode = { workspace = true }
+jacquard-core = { path = "../core", version = "0.4.0" }
+jacquard-traits = { path = "../traits", version = "0.4.0" }
+serde = { workspace = true, default-features = false }
+
+[dev-dependencies]
+jacquard-adapter = { path = "../adapter" }
+jacquard-mem-link-profile = { path = "../mem-link-profile" }
+jacquard-mem-node-profile = { path = "../mem-node-profile" }
+jacquard-testkit = { path = "../testkit" }

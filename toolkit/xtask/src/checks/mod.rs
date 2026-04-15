@@ -1,5 +1,7 @@
 #[path = "../../../checks/rust/adapter_boundary.rs"]
 pub mod adapter_boundary;
+#[path = "../../../checks/rust/annotation_semantics.rs"]
+pub mod annotation_semantics;
 #[path = "../../../checks/rust/checkpoint_namespacing.rs"]
 pub mod checkpoint_namespacing;
 #[path = "../../../checks/rust/crate_boundary.rs"]
@@ -58,6 +60,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
     let rest = &args[1..];
     match name {
         "adapter-boundary" => adapter_boundary::run(),
+        "annotation-semantics" => annotation_semantics::run(),
         "checkpoint-namespacing" => checkpoint_namespacing::run(),
         "crate-boundary" => crate_boundary::run(),
         "dx-surface" => dx_surface::run(),

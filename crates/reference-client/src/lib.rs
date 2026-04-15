@@ -1,7 +1,7 @@
 //! Reference host bridge for Jacquard integration tests and examples.
 //!
 //! This crate demonstrates the intended host-side composition:
-//! - choose or construct a small topology
+//! - construct a small `Observation<Configuration>`
 //! - build one router plus one or more engines through [`ClientBuilder`]
 //! - attach one bridge-owned transport driver
 //! - queue outbound transport commands during synchronous routing work
@@ -9,13 +9,12 @@
 //! - advance the router through explicit synchronous rounds
 //!
 //! `clients` contains client builders. `bridge` contains the host-bridge
-//! surface. `topology` contains reusable route-capable `Node` and `Link`
-//! builders for tests and examples. In-memory profile types from
-//! `mem-link-profile` and `mem-node-profile` are re-exported so downstream test
-//! crates only depend on this crate.
+//! surface. In-memory profile types from `mem-link-profile` and
+//! `mem-node-profile` are re-exported so downstream examples can compose the
+//! reference bridge without reaching into the lower-level profile crates.
 //!
 //! Starter path:
-//! 1. Build a small topology with [`topology::node`] and [`topology::link`].
+//! 1. Build a small `Observation<Configuration>`.
 //! 2. Use [`ClientBuilder`] to choose engines and queue configuration.
 //! 3. Bind the resulting [`HostBridge`] and drive explicit rounds.
 //! 4. Optionally project host-readable topology and route state with
@@ -29,7 +28,10 @@
 //!     OriginAuthenticationClass, RatioPermille, RouteEpoch, RoutingEvidenceClass,
 //!     Tick,
 //! };
-//! use jacquard_reference_client::{topology, ClientBuilder, SharedInMemoryNetwork};
+//! use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
+//! use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
+//! use jacquard_pathway::PATHWAY_ENGINE_ID;
+//! use jacquard_reference_client::{ClientBuilder, SharedInMemoryNetwork};
 //!
 //! let topology = Observation {
 //!     value: Configuration {
@@ -37,11 +39,41 @@
 //!         nodes: BTreeMap::from([
 //!             (
 //!                 jacquard_core::NodeId([1; 32]),
-//!                 topology::node(1).pathway().build(),
+//!                 NodePreset::route_capable(
+//!                     NodePresetOptions::new(
+//!                         NodeIdentity::new(
+//!                             jacquard_core::NodeId([1; 32]),
+//!                             jacquard_core::ControllerId([1; 32]),
+//!                         ),
+//!                         jacquard_adapter::opaque_endpoint(
+//!                             jacquard_core::TransportKind::WifiAware,
+//!                             vec![1],
+//!                             jacquard_core::ByteCount(256),
+//!                         ),
+//!                         Tick(1),
+//!                     ),
+//!                     &PATHWAY_ENGINE_ID,
+//!                 )
+//!                 .build(),
 //!             ),
 //!             (
 //!                 jacquard_core::NodeId([2; 32]),
-//!                 topology::node(2).pathway().build(),
+//!                 NodePreset::route_capable(
+//!                     NodePresetOptions::new(
+//!                         NodeIdentity::new(
+//!                             jacquard_core::NodeId([2; 32]),
+//!                             jacquard_core::ControllerId([2; 32]),
+//!                         ),
+//!                         jacquard_adapter::opaque_endpoint(
+//!                             jacquard_core::TransportKind::WifiAware,
+//!                             vec![2],
+//!                             jacquard_core::ByteCount(256),
+//!                         ),
+//!                         Tick(1),
+//!                     ),
+//!                     &PATHWAY_ENGINE_ID,
+//!                 )
+//!                 .build(),
 //!             ),
 //!         ]),
 //!         links: BTreeMap::from([(
@@ -49,7 +81,15 @@
 //!                 jacquard_core::NodeId([1; 32]),
 //!                 jacquard_core::NodeId([2; 32]),
 //!             ),
-//!             topology::link(2).build(),
+//!             LinkPreset::lossy(LinkPresetOptions::new(
+//!                 jacquard_adapter::opaque_endpoint(
+//!                     jacquard_core::TransportKind::WifiAware,
+//!                     vec![2],
+//!                     jacquard_core::ByteCount(256),
+//!                 ),
+//!                 Tick(1),
+//!             ))
+//!             .build(),
 //!         )]),
 //!         environment: Environment {
 //!             reachable_neighbor_count: 1,
@@ -70,7 +110,8 @@
 //!     network,
 //!     Tick(1),
 //! )
-//! .build();
+//! .build()
+//! .expect("build reference client");
 //! let mut bound = client.bind();
 //! bound.advance_round().expect("advance round");
 //! ```
@@ -85,13 +126,15 @@
 
 mod bridge;
 mod clients;
-pub mod topology;
 
 pub use bridge::{
     BoundHostBridge, BridgeQueueConfig, BridgeRoundProgress, BridgeRoundReport, BridgeWaitState,
     HostBridge,
 };
-pub use clients::{ClientBuilder, PathwayClient, PathwayRouter};
+pub use clients::{
+    ClientBuilder, EngineKind, FieldBootstrapSummary, ReferenceClient, ReferenceClientBuildError,
+    ReferenceRouter,
+};
 pub use jacquard_adapter::{
     ObservedLink, ObservedNode, ObservedRoute, ObservedRouteShape, TopologyProjector,
     TopologySnapshot,

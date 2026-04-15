@@ -89,6 +89,13 @@ pub struct FieldSearchConfig {
     per_objective_query_budget: usize,
     heuristic_mode: FieldSearchHeuristicMode,
     reseeding_policy: SearchReseedingPolicy,
+    service_publication_neighbor_limit: usize,
+    service_freshness_weight: u16,
+    service_narrowing_bias: u16,
+    node_bootstrap_support_floor: u16,
+    node_bootstrap_top_mass_floor: u16,
+    node_bootstrap_entropy_ceiling: u16,
+    node_discovery_enabled: bool,
 }
 
 impl FieldSearchConfig {
@@ -127,6 +134,13 @@ impl FieldSearchConfig {
             per_objective_query_budget,
             heuristic_mode,
             reseeding_policy,
+            service_publication_neighbor_limit: 3,
+            service_freshness_weight: 100,
+            service_narrowing_bias: 100,
+            node_bootstrap_support_floor: 220,
+            node_bootstrap_top_mass_floor: 260,
+            node_bootstrap_entropy_ceiling: 950,
+            node_discovery_enabled: false,
         })
     }
 
@@ -237,6 +251,41 @@ impl FieldSearchConfig {
     }
 
     #[must_use]
+    pub fn service_publication_neighbor_limit(&self) -> usize {
+        self.service_publication_neighbor_limit
+    }
+
+    #[must_use]
+    pub fn service_freshness_weight(&self) -> u16 {
+        self.service_freshness_weight
+    }
+
+    #[must_use]
+    pub fn service_narrowing_bias(&self) -> u16 {
+        self.service_narrowing_bias
+    }
+
+    #[must_use]
+    pub fn node_bootstrap_support_floor(&self) -> u16 {
+        self.node_bootstrap_support_floor
+    }
+
+    #[must_use]
+    pub fn node_bootstrap_top_mass_floor(&self) -> u16 {
+        self.node_bootstrap_top_mass_floor
+    }
+
+    #[must_use]
+    pub fn node_bootstrap_entropy_ceiling(&self) -> u16 {
+        self.node_bootstrap_entropy_ceiling
+    }
+
+    #[must_use]
+    pub fn node_discovery_enabled(&self) -> bool {
+        self.node_discovery_enabled
+    }
+
+    #[must_use]
     pub fn with_per_objective_query_budget(mut self, budget: usize) -> Self {
         assert!(budget != 0, "field search budget must be non-zero");
         self.per_objective_query_budget = budget;
@@ -263,6 +312,75 @@ impl FieldSearchConfig {
     #[must_use]
     pub fn with_reseeding_policy(mut self, reseeding_policy: SearchReseedingPolicy) -> Self {
         self.reseeding_policy = reseeding_policy;
+        self
+    }
+
+    #[must_use]
+    pub fn with_service_publication_neighbor_limit(mut self, limit: usize) -> Self {
+        assert!(
+            limit != 0,
+            "field service publication limit must be non-zero"
+        );
+        self.service_publication_neighbor_limit = limit;
+        self
+    }
+
+    #[must_use]
+    pub fn with_service_freshness_weight(mut self, weight: u16) -> Self {
+        assert!(
+            weight != 0,
+            "field service freshness weight must be non-zero"
+        );
+        self.service_freshness_weight = weight;
+        self
+    }
+
+    #[must_use]
+    pub fn with_service_narrowing_bias(mut self, bias: u16) -> Self {
+        assert!(bias != 0, "field service narrowing bias must be non-zero");
+        self.service_narrowing_bias = bias;
+        self
+    }
+
+    #[must_use]
+    pub fn with_node_bootstrap_support_floor(mut self, floor: u16) -> Self {
+        assert!(
+            floor != 0,
+            "field node bootstrap support floor must be non-zero"
+        );
+        self.node_bootstrap_support_floor = floor;
+        self
+    }
+
+    #[must_use]
+    pub fn with_node_bootstrap_top_mass_floor(mut self, floor: u16) -> Self {
+        assert!(
+            floor != 0,
+            "field node bootstrap top corridor mass floor must be non-zero"
+        );
+        self.node_bootstrap_top_mass_floor = floor;
+        self
+    }
+
+    #[must_use]
+    pub fn with_node_bootstrap_entropy_ceiling(mut self, ceiling: u16) -> Self {
+        assert!(
+            ceiling != 0,
+            "field node bootstrap entropy ceiling must be non-zero"
+        );
+        self.node_bootstrap_entropy_ceiling = ceiling;
+        self
+    }
+
+    #[must_use]
+    pub fn enable_node_discovery(mut self) -> Self {
+        self.node_discovery_enabled = true;
+        self
+    }
+
+    #[must_use]
+    pub fn disable_node_discovery(mut self) -> Self {
+        self.node_discovery_enabled = false;
         self
     }
 

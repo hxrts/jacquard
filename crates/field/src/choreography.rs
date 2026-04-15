@@ -32,7 +32,7 @@ pub(crate) const FIELD_PROTOCOL_QUEUE_MAX: usize = 8;
 pub(crate) const FIELD_PROTOCOL_ARTIFACT_LIMIT: usize = 64;
 pub(crate) const FIELD_PROTOCOL_ARTIFACT_RETENTION_MAX: usize = 8;
 pub(crate) const FIELD_PROTOCOL_RECONFIGURATION_RETENTION_MAX: usize = 8;
-pub(crate) const FIELD_PROTOCOL_SESSION_MAX: usize = 8;
+pub(crate) const FIELD_PROTOCOL_SESSION_MAX: usize = 16;
 pub(crate) const FIELD_PROTOCOL_STEP_BUDGET: u8 = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

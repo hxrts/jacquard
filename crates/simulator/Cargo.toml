@@ -10,19 +10,24 @@ documentation.workspace = true
 
 [dependencies]
 jacquard-adapter = { version = "0.4.0", path = "../adapter" }
-jacquard-batman = { version = "0.4.0", path = "../batman" }
+jacquard-babel = { version = "0.4.0", path = "../babel" }
+jacquard-batman-bellman = { version = "0.4.0", path = "../batman-bellman" }
+jacquard-batman-classic = { version = "0.4.0", path = "../batman-classic" }
 jacquard-core = { version = "0.4.0", path = "../core" }
+jacquard-field = { version = "0.4.0", path = "../field" }
 jacquard-mem-link-profile = { version = "0.4.0", path = "../mem-link-profile" }
+jacquard-mem-node-profile = { version = "0.4.0", path = "../mem-node-profile" }
+jacquard-olsrv2 = { version = "0.4.0", path = "../olsrv2" }
+jacquard-pathway = { version = "0.4.0", path = "../pathway" }
 jacquard-reference-client = { version = "0.4.0", path = "../reference-client" }
 jacquard-router = { version = "0.4.0", path = "../router" }
+jacquard-scatter = { version = "0.4.0", path = "../scatter" }
 jacquard-traits = { version = "0.4.0", path = "../traits" }
 
 serde = { workspace = true, default-features = false }
+serde_json.workspace = true
 telltale-simulator.workspace = true
 thiserror.workspace = true
-
-[dev-dependencies]
-jacquard-pathway = { path = "../pathway" }
 
 [lints]
 workspace = true

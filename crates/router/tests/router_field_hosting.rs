@@ -18,7 +18,7 @@ use jacquard_core::{
     RatioPermille, RouteMaintenanceTrigger, RouteShapeVisibility, RouterCanonicalMutation,
     RoutingEvidenceClass, RoutingTickChange, Tick,
 };
-use jacquard_reference_client::topology;
+use jacquard_testkit::topology;
 use jacquard_traits::{Router, RoutingControlPlane, RoutingDataPlane};
 
 fn topology_without_direct_link(

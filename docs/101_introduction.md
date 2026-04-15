@@ -1,16 +1,16 @@
 # Introduction
 
-Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and three in-tree routing engines: `Pathway` for explicit-path routing, `field` for corridor-envelope routing over a continuously updated field model, and `batman` for next-hop routing. It is designed so a host can add external routing engines through the same contract.
+Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and six in-tree routing engines: `pathway` for explicit-path routing, `field` for corridor-envelope routing over a continuously updated field model, `batman-bellman` for Bellman-Ford-enhanced next-hop routing, `batman-classic` for spec-faithful BATMAN IV next-hop routing, `babel` for RFC 8966 distance-vector routing with bidirectional ETX and feasibility distances, and `olsrv2` for OLSRv2 link-state routing. It is designed so a host can add external routing engines through the same contract.
 
-See [Core Types](201_core_types.md) for the model objects, pipeline, observation, and world-extension surfaces that carry the system. See [Time Model](202_time.md) for the deterministic time rules. See [Routing Engines](303_routing_engines.md) for the engine contract, host runtime-effect boundary, and in-tree BATMAN notes. See [Router Control Plane](304_router_control_plane.md) for how a route moves from objective through materialization, maintenance, and teardown. See [Crate Architecture](999_crate_architecture.md) for separation of concerns and implementation policies.
+See [Core Types](201_core_types.md) for the model objects, pipeline, observation, and world-extension surfaces that carry the system. See [Time Model](202_time.md) for the deterministic time rules. See [Routing Engines](303_routing_engines.md) for the engine contract, host runtime-effect boundary, and links to the in-tree engine pages. See [Router Control Plane](304_router_control_plane.md) for how a route moves from objective through materialization, maintenance, and teardown. See [Crate Architecture](999_crate_architecture.md) for separation of concerns and implementation policies.
 
 ## Scope
 
-Jacquard owns the shared routing contract and the first-party pathway routing engine today. The top-level router, runtime adapters, and simulation harness are planned future crates that land alongside the router control plane and simulator work. Protection-versus-connectivity policy may be supplied by a host, but Jacquard itself stays routing-engine-neutral at the contract layer.
+Jacquard owns the shared routing contract and six in-tree routing engines. The router control plane, runtime adapters, and simulation harness are implemented crates. Protection-versus-connectivity policy may be supplied by a host, but Jacquard itself stays routing-engine-neutral at the contract layer.
 
 The central split is between shared facts and local runtime state. Service descriptors, topology observations, admission checks, and route witnesses are explicit shared objects. Adaptive policy, selected routing actions, installed-route ownership, and engine-private runtime state stay local.
 
-The routing model is shaped so admission, installation, maintenance, and replay remain explicit. The codebase is organized around shared model types, abstract trait boundaries, and a first-party explicit-path engine, with router orchestration and simulation reserved as future crates.
+The routing model is shaped so admission, installation, maintenance, and replay remain explicit.
 
 ## Problem
 
@@ -38,8 +38,8 @@ Jacquard is intentionally not opinionated about engine-local scoring, committee 
 
 ### Lifecycle and Integration
 
-The system is committed to one explicit service lifecycle: observation to candidate to admission to router-owned canonical identity allocation to engine realization to materialized route to maintenance, replacement, or teardown. Major transitions stay typed and explicit. Data-plane health stays observational until the control plane publishes a canonical change.
+The system is committed to one explicit service lifecycle: observation → candidate → admission → router-owned canonical identity allocation → engine realization → materialized route → maintenance, replacement, or teardown. Major transitions stay typed and explicit. Data-plane health stays observational until the control plane publishes a canonical change.
 
-It is equally committed to a composition boundary that stays narrow. The shared layer may expose substrate requirements, substrate leases, and layer parameters. It should not let one routing engine leak its internals into another, and it should not standardize one host policy for gradual migration.
+The composition boundary is intentionally narrow. The shared layer exposes substrate requirements, substrate leases, and layer parameters, but does not let routing engines leak their internals into one another.
 
-Jacquard is also meant to be the integration point where multiple teams can contribute device-specific expertise without forking the routing model. One team may contribute a BLE node world extension, another a Wi-Fi link world extension, and another a platform-specific transport or service world extension. The cooperative effect comes from merging those self-describing observations into one shared world picture above the routing-engine boundary, then letting routing engines incorporate observed nodes and links when their own criteria are met.
+Jacquard is also meant to be the integration point where multiple teams can contribute device-specific expertise without forking the routing model. One team may contribute a BLE node extension, another a Wi-Fi link extension, and another a platform-specific transport or service extension. The cooperative effect comes from merging those self-describing observations into one shared world picture above the routing-engine boundary, then letting routing engines incorporate observed nodes and links when their own criteria are met.

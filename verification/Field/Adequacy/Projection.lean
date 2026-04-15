@@ -47,7 +47,11 @@ def runtimeArtifactOfLifecycleRoute
         snapshotEpoch := none
         selectedResultPresent := false
         reconfigurationPresent := false }
-    routerArtifact := some { lifecycleRoute := route } }
+    routerArtifact := some
+      { lifecycleRoute := route
+        bootstrapClass := .steady
+        continuityBand := .steady }
+    recoveryArtifact := none }
 
 def runtimeArtifactsOfRoutes
     (routes : List LifecycleRoute) : List RuntimeRoundArtifact :=
@@ -126,7 +130,7 @@ theorem runtimeArtifactOfLifecycleRoute_admitted
     (route : LifecycleRoute)
     (hHonest : LifecycleHonest route) :
     RuntimeArtifactAdmitted (runtimeArtifactOfLifecycleRoute route) := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [runtimeArtifactOfLifecycleRoute]
   · simp [runtimeArtifactOfLifecycleRoute]
   · intro hReconfigured
@@ -138,6 +142,9 @@ theorem runtimeArtifactOfLifecycleRoute_admitted
   · intro hBlocked
     simp [runtimeArtifactOfLifecycleRoute] at hBlocked
   · simpa [RuntimeRouterArtifactAdmitted, runtimeArtifactOfLifecycleRoute] using hHonest
+  · simp [RuntimeBootstrapArtifactAdmitted, runtimeArtifactOfLifecycleRoute]
+  · simp [RuntimeContinuityArtifactAdmitted, runtimeArtifactOfLifecycleRoute]
+  · simp [RuntimeRecoveryArtifactAdmitted, runtimeArtifactOfLifecycleRoute]
 
 theorem runtimeArtifactsOfRoutes_admitted
     (routes : List LifecycleRoute)

@@ -20,13 +20,14 @@ use jacquard_core::{
     BackendRouteId, GatewayId, NodeId, RouteDegradation, RouteEpoch, RouteId, Tick,
 };
 use jacquard_traits::{Blake3Hashing, Hashing};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     choreography::FieldSessionCapability,
     recovery::StoredFieldRouteRecovery,
     state::{
-        CorridorBeliefEnvelope, DestinationKey, OperatingRegime, RoutingPosture,
-        MAX_CONTINUATION_NEIGHBOR_COUNT,
+        CorridorBeliefEnvelope, DestinationKey, EntropyBucket, OperatingRegime, RoutingPosture,
+        SupportBucket, MAX_CONTINUATION_NEIGHBOR_COUNT,
     },
     summary::{EvidenceContributionClass, SummaryUncertaintyClass},
 };
@@ -34,10 +35,30 @@ use crate::{
 const FIELD_BACKEND_TOKEN_VERSION: u8 = 2;
 const FIELD_ROUTE_ID_DOMAIN: &[u8] = b"field-route-id";
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldBootstrapClass {
+    Bootstrap,
+    Steady,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub enum FieldContinuityBand {
+    Steady,
+    DegradedSteady,
+    Bootstrap,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FieldWitnessDetail {
     pub(crate) evidence_class: EvidenceContributionClass,
     pub(crate) uncertainty_class: SummaryUncertaintyClass,
+    pub(crate) bootstrap_class: FieldBootstrapClass,
+    pub(crate) continuity_band: FieldContinuityBand,
+    pub(crate) corridor_support: SupportBucket,
+    pub(crate) retention_support: SupportBucket,
+    pub(crate) usability_entropy: EntropyBucket,
+    pub(crate) top_corridor_mass: SupportBucket,
+    pub(crate) frontier_width: u8,
     pub(crate) regime: OperatingRegime,
     pub(crate) posture: RoutingPosture,
     pub(crate) degradation: RouteDegradation,
@@ -60,9 +81,13 @@ pub(crate) struct ActiveFieldRoute {
     pub(crate) continuation_neighbors: Vec<NodeId>,
     pub(crate) corridor_envelope: CorridorBeliefEnvelope,
     pub(crate) witness_detail: FieldWitnessDetail,
+    pub(crate) bootstrap_class: FieldBootstrapClass,
+    pub(crate) continuity_band: FieldContinuityBand,
     pub(crate) backend_route_id: BackendRouteId,
     pub(crate) topology_epoch: RouteEpoch,
     pub(crate) installed_at_tick: Tick,
+    pub(crate) bootstrap_confirmation_streak: u8,
+    pub(crate) promotion_window_score: u8,
     pub(crate) coordination_capability: Option<FieldSessionCapability>,
     pub(crate) recovery: StoredFieldRouteRecovery,
 }

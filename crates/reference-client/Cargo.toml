@@ -14,15 +14,22 @@ workspace = true
 
 [dependencies]
 jacquard-adapter = { path = "../adapter", version = "0.4.0" }
-jacquard-batman = { path = "../batman", version = "0.4.0" }
+jacquard-babel = { path = "../babel", version = "0.4.0" }
+jacquard-batman-bellman = { path = "../batman-bellman", version = "0.4.0" }
+jacquard-batman-classic = { path = "../batman-classic", version = "0.4.0" }
 jacquard-core = { path = "../core", version = "0.4.0" }
+jacquard-field = { path = "../field", version = "0.4.0" }
 jacquard-mem-link-profile = { path = "../mem-link-profile", version = "0.4.0" }
 jacquard-mem-node-profile = { path = "../mem-node-profile", version = "0.4.0" }
+jacquard-olsrv2 = { path = "../olsrv2", version = "0.4.0" }
 jacquard-pathway = { path = "../pathway", version = "0.4.0" }
 jacquard-router = { path = "../router", version = "0.4.0" }
+jacquard-scatter = { path = "../scatter", version = "0.4.0" }
 jacquard-traits = { path = "../traits", version = "0.4.0" }
+thiserror = { workspace = true }
 
 [dev-dependencies]
+jacquard-testkit = { path = "../testkit", features = ["reference-client-e2e", "topology-full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = { workspace = true }

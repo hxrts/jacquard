@@ -14,9 +14,10 @@ use jacquard_core::{
     RoutingEvidenceClass, RoutingObjective, Tick,
 };
 use jacquard_reference_client::{
-    topology, BridgeRoundProgress, ClientBuilder, ObservedRouteShape, SharedInMemoryNetwork,
+    BridgeRoundProgress, ClientBuilder, ObservedRouteShape, SharedInMemoryNetwork,
     TopologyProjector,
 };
+use jacquard_testkit::topology;
 use jacquard_traits::Router;
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -104,8 +105,9 @@ fn reference_client_executes_bridge_round_and_projects_active_route_on_wasm() {
         alternate_node_id,
     );
     let network = SharedInMemoryNetwork::default();
-    let mut client =
-        ClientBuilder::pathway(local_node_id, topology.clone(), network, Tick(2)).build();
+    let mut client = ClientBuilder::pathway(local_node_id, topology.clone(), network, Tick(2))
+        .build()
+        .expect("build wasm client");
     let mut bound = client.bind();
 
     let route = Router::activate_route(

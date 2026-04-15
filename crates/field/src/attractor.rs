@@ -17,6 +17,7 @@
 
 use jacquard_core::NodeId;
 
+use crate::policy::{FieldAttractorPolicy, DEFAULT_FIELD_POLICY};
 use crate::state::{
     ControlState, DestinationFieldState, DestinationKey, FieldEngineState, MeanFieldState,
     NeighborContinuation, OperatingRegime, RoutingPosture, SupportBucket,
@@ -39,12 +40,32 @@ pub(crate) struct LocalAttractorView {
 }
 
 #[must_use]
+#[allow(dead_code)]
 pub(crate) fn rank_frontier_by_attractor(
     destination_state: &DestinationFieldState,
     mean_field: &MeanFieldState,
     regime: OperatingRegime,
     posture: RoutingPosture,
     control: &ControlState,
+) -> Vec<(NeighborContinuation, SupportBucket)> {
+    rank_frontier_by_attractor_with_policy(
+        destination_state,
+        mean_field,
+        regime,
+        posture,
+        control,
+        &DEFAULT_FIELD_POLICY.evidence.attractor,
+    )
+}
+
+#[must_use]
+pub(crate) fn rank_frontier_by_attractor_with_policy(
+    destination_state: &DestinationFieldState,
+    mean_field: &MeanFieldState,
+    regime: OperatingRegime,
+    posture: RoutingPosture,
+    control: &ControlState,
+    policy: &FieldAttractorPolicy,
 ) -> Vec<(NeighborContinuation, SupportBucket)> {
     let mut ranked = destination_state
         .frontier
@@ -59,6 +80,7 @@ pub(crate) fn rank_frontier_by_attractor(
                 regime,
                 posture,
                 control,
+                policy,
             );
             (continuation, score)
         })
@@ -73,15 +95,25 @@ pub(crate) fn rank_frontier_by_attractor(
 }
 
 #[must_use]
+#[allow(dead_code)]
 pub(crate) fn derive_local_attractor_view(state: &FieldEngineState) -> LocalAttractorView {
+    derive_local_attractor_view_with_policy(state, &DEFAULT_FIELD_POLICY.evidence.attractor)
+}
+
+#[must_use]
+pub(crate) fn derive_local_attractor_view_with_policy(
+    state: &FieldEngineState,
+    policy: &FieldAttractorPolicy,
+) -> LocalAttractorView {
     let mut entries = Vec::new();
     for (destination, destination_state) in &state.destinations {
-        let ranked = rank_frontier_by_attractor(
+        let ranked = rank_frontier_by_attractor_with_policy(
             destination_state,
             &state.mean_field,
             state.regime.current,
             state.posture.current,
             &state.controller,
+            policy,
         );
         let Some((leading, primary_score)) = ranked.first() else {
             continue;
@@ -125,6 +157,7 @@ fn attractor_score_for(
     regime: OperatingRegime,
     posture: RoutingPosture,
     control: &ControlState,
+    policy: &FieldAttractorPolicy,
 ) -> SupportBucket {
     let base = average_u16(&[
         continuation.net_value.value(),
@@ -134,22 +167,35 @@ fn attractor_score_for(
         mean_field.field_strength.value(),
     ]);
     let regime_bonus = match regime {
-        OperatingRegime::Sparse => mean_field.relay_alignment.value() / 4,
-        OperatingRegime::Congested => mean_field.congestion_alignment.value() / 3,
+        OperatingRegime::Sparse => {
+            mean_field.relay_alignment.value() / policy.sparse_relay_alignment_divisor
+        }
+        OperatingRegime::Congested => {
+            mean_field.congestion_alignment.value() / policy.congested_alignment_divisor
+        }
         OperatingRegime::RetentionFavorable => {
-            destination_state.corridor_belief.retention_affinity.value() / 2
+            destination_state.corridor_belief.retention_affinity.value()
+                / policy.retention_affinity_divisor
         }
         OperatingRegime::Unstable | OperatingRegime::Adversarial => {
-            mean_field.risk_alignment.value() / 3
+            mean_field.risk_alignment.value() / policy.unstable_risk_alignment_divisor
         }
     };
     let posture_bonus = match posture {
-        RoutingPosture::Opportunistic => 1000_u16.saturating_sub(control.risk_price.value()) / 4,
-        RoutingPosture::Structured => mean_field.relay_alignment.value() / 4,
-        RoutingPosture::RetentionBiased => {
-            destination_state.corridor_belief.retention_affinity.value() / 3
+        RoutingPosture::Opportunistic => {
+            1000_u16.saturating_sub(control.risk_price.value())
+                / policy.opportunistic_risk_relief_divisor
         }
-        RoutingPosture::RiskSuppressed => mean_field.risk_alignment.value() / 3,
+        RoutingPosture::Structured => {
+            mean_field.relay_alignment.value() / policy.structured_alignment_divisor
+        }
+        RoutingPosture::RetentionBiased => {
+            destination_state.corridor_belief.retention_affinity.value()
+                / policy.retention_biased_affinity_divisor
+        }
+        RoutingPosture::RiskSuppressed => {
+            mean_field.risk_alignment.value() / policy.risk_suppressed_alignment_divisor
+        }
     };
     let penalty = average_u16(&[
         control.congestion_price.value(),
@@ -159,7 +205,7 @@ fn attractor_score_for(
     SupportBucket::new(
         base.saturating_add(regime_bonus)
             .saturating_add(posture_bonus)
-            .saturating_sub(penalty / 3),
+            .saturating_sub(penalty / policy.penalty_divisor),
     )
 }
 

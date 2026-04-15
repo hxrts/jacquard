@@ -1,6 +1,10 @@
 use std::collections::BTreeMap;
 
-use jacquard_core::{NodeId, Observation, RouteEvent, RouteEventStamped, RouterRoundOutcome, Tick};
+use jacquard_core::{
+    DestinationId, HealthScore, NodeId, Observation, ReachabilityState, RouteEvent,
+    RouteEventStamped, RouteId, RouteLifecycleEvent, RouterRoundOutcome, RoutingEngineId, Tick,
+};
+use jacquard_field::FieldExportedReplayBundle;
 use jacquard_mem_link_profile::InMemoryRuntimeEffects;
 
 use crate::{
@@ -29,6 +33,56 @@ pub struct HostRoundArtifact {
     pub local_node_id: NodeId,
     pub ingress_batch_boundary: IngressBatchBoundary,
     pub status: HostRoundStatus,
+    pub active_routes: Vec<ActiveRouteSummary>,
+    pub field_replay: Option<FieldReplaySummary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActiveRouteSummary {
+    pub owner_node_id: NodeId,
+    pub route_id: RouteId,
+    pub destination: DestinationId,
+    pub engine_id: RoutingEngineId,
+    pub last_lifecycle_event: RouteLifecycleEvent,
+    pub reachability_state: ReachabilityState,
+    pub stability_score: HealthScore,
+    pub commitment_resolution: Option<String>,
+    pub field_continuity_band: Option<String>,
+    pub field_last_outcome: Option<String>,
+    pub field_last_promotion_decision: Option<String>,
+    pub field_last_promotion_blocker: Option<String>,
+    pub field_continuation_shift_count: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldReplaySummary {
+    pub bundle: FieldExportedReplayBundle,
+    pub selected_result_present: bool,
+    pub search_reconfiguration_present: bool,
+    pub execution_policy: Option<String>,
+    pub bootstrap_active: bool,
+    pub continuity_band: Option<String>,
+    pub last_continuity_transition: Option<String>,
+    pub last_promotion_decision: Option<String>,
+    pub last_promotion_blocker: Option<String>,
+    pub bootstrap_activation_count: u32,
+    pub bootstrap_hold_count: u32,
+    pub bootstrap_narrow_count: u32,
+    pub bootstrap_upgrade_count: u32,
+    pub bootstrap_withdraw_count: u32,
+    pub degraded_steady_entry_count: u32,
+    pub degraded_steady_recovery_count: u32,
+    pub degraded_to_bootstrap_count: u32,
+    pub degraded_steady_round_count: u32,
+    pub service_retention_carry_forward_count: u32,
+    pub asymmetric_shift_success_count: u32,
+    pub protocol_reconfiguration_count: usize,
+    pub route_bound_reconfiguration_count: usize,
+    pub continuation_shift_count: u32,
+    pub corridor_narrow_count: u32,
+    pub checkpoint_capture_count: u32,
+    pub checkpoint_restore_count: u32,
+    pub reconfiguration_causes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
