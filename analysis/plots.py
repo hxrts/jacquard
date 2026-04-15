@@ -1557,17 +1557,26 @@ def render_mixed_vs_standalone_divergence(
         best_route_presence = float(best["route_present_total_window_permille_mean"].item() or 0)
         mixed_route_presence = float(row["mixed_route_presence"] or 0)
         delta = (best_route_presence - mixed_route_presence) / 10.0
+        matched_best = best_route_presence == mixed_route_presence
         rows.append(
             {
                 "family_label": wrapped_family_label(str(row["family_id"])),
                 "engine_key": (
-                    best_engine if best_engine in HEAD_TO_HEAD_SET_COLORS else "none"
+                    "tie"
+                    if matched_best
+                    else best_engine if best_engine in HEAD_TO_HEAD_SET_COLORS else "none"
                 ),
-                "engine_legend": engine_display_label(best_engine),
+                "engine_legend": (
+                    "Matched best" if matched_best else engine_display_label(best_engine)
+                ),
                 "delta": delta,
                 "transition_label": (
-                    f"{compact_engine_label(row['mixed_engine'])}"
-                    f" -> {compact_engine_label(best_engine)}"
+                    "Matched best"
+                    if matched_best
+                    else (
+                        f"{compact_engine_label(row['mixed_engine'])}"
+                        f" -> {compact_engine_label(best_engine)}"
+                    )
                 ),
                 "value_label": f"{delta:.1f} pts",
             }
@@ -1575,9 +1584,8 @@ def render_mixed_vs_standalone_divergence(
     if not rows:
         return None
 
-    min_delta = min(float(row["delta"]) for row in rows)
     max_delta = max(float(row["delta"]) for row in rows)
-    x_min = min(-2.0, min_delta - 3.0)
+    x_min = 0.0
     x_max = max(2.0, max_delta + 12.0)
     for row in rows:
         delta = float(row["delta"])

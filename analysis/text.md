@@ -38,7 +38,7 @@ Column guide: Route Mean and Route Stddev are average and spread of route presen
 
 This table shows how much sustained stress each leading configuration survives before the first maintained failure.
 
-Column guide: Max Stress is the highest stress level cleared; First Failed Family is the regime that breaks it; Fail Stress is the stress level at that failure; Reason is the dominant failure mode. A `-` means no failure was observed.
+Column guide: Max Stress is the highest stress level cleared; First Failed Family is the regime that breaks it; Fail Stress is the stress level at that failure; Reason is the dominant failure mode. `not observed` means no failure was observed.
 
 ### Setup And Method
 

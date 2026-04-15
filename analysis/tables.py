@@ -67,11 +67,11 @@ def boundary_table_rows(boundary_summary: pl.DataFrame) -> list[list[str]]:
                 row["engine_family"],
                 f"`{row['config_id']}`",
                 str(row["max_sustained_stress_score"]),
-                row["first_failed_family_id"] or "-",
+                row["first_failed_family_id"] or "not observed",
                 str(row["first_failed_stress_score"])
                 if row["first_failed_stress_score"] is not None
-                else "-",
-                row["breakdown_reason"] or "-",
+                else "not observed",
+                row["breakdown_reason"] or "not observed",
             ]
         )
     return rows
