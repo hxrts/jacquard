@@ -49,6 +49,7 @@ from .sections import (
     recommendation_rationale_lines,
     regime_assumption_lines,
     regime_characterization_lines,
+    scatter_algorithm_lines,
     section_lines,
     scoring_lines,
     simulation_setup_lines,
@@ -82,6 +83,7 @@ def codeify_known_terms(text: str) -> str:
         "batman-bellman",
         "babel",
         "olsrv2",
+        "scatter",
         "pathway",
         "field",
     ]
@@ -308,7 +310,13 @@ def figure_flowables(
     return flowables
 
 
+TABLE_WIDTH = 16.6 * cm
+
+
 def make_table(column_labels: list[str], rows: list[list[str]], styles, col_widths: list[float]) -> Table:
+    total = sum(col_widths)
+    if total > 0:
+        col_widths = [w * TABLE_WIDTH / total for w in col_widths]
     data = [[Paragraph(markup(label), styles["TableHeader"]) for label in column_labels]]
     for row in rows:
         converted = []
@@ -429,6 +437,7 @@ def write_pdf_report(
         ("BATMAN Bellman Algorithm", batman_bellman_algorithm_lines()),
         ("Babel Algorithm", babel_algorithm_lines()),
         ("OLSRv2 Algorithm", olsrv2_algorithm_lines()),
+        ("Scatter Algorithm", scatter_algorithm_lines()),
         ("Pathway Algorithm", pathway_algorithm_lines()),
         ("Field Algorithm", field_algorithm_lines()),
         ("Recommendation Logic", scoring_lines()),
@@ -547,7 +556,12 @@ def write_pdf_report(
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("7. Pathway Analysis", styles["Section"]))
+    story.append(Paragraph("7. Scatter Analysis", styles["Section"]))
+    story.append(Paragraph("Findings", styles["Subsection"]))
+    add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "scatter"))
+    story.append(PageBreak())
+
+    story.append(Paragraph("8. Pathway Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "pathway"))
     story.append(Paragraph("Budget Figures", styles["Subsection"]))
@@ -572,7 +586,7 @@ def write_pdf_report(
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("8. Field Analysis", styles["Section"]))
+    story.append(Paragraph("9. Field Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "field"))
     story.append(Paragraph("Corridor Figures", styles["Subsection"]))
@@ -597,7 +611,7 @@ def write_pdf_report(
     )
     story.append(PageBreak())
 
-    story.append(Paragraph("9. Comparative Analysis", styles["Section"]))
+    story.append(Paragraph("10. Comparative Analysis", styles["Section"]))
     story.append(Paragraph("Mixed-Engine Comparison", styles["Subsection"]))
     add_paragraphs(story, styles, comparison_findings_lines(comparison_summary))
     story.append(Spacer(1, 0.12 * cm))
@@ -805,11 +819,12 @@ def write_pdf_report(
             "Batman Bellman",
             "Babel",
             "OLSRv2",
+            "Scatter",
             "Pathway",
             "Field",
         ],
         comparison_engine_round_breakdown_table_rows(comparison_engine_round_breakdown),
-        [3.2 * cm, 1.6 * cm, 1.3 * cm, 1.1 * cm, 1.2 * cm, 1.2 * cm, 1.0 * cm, 1.0 * cm, 1.0 * cm, 0.9 * cm],
+        [3.0 * cm, 1.5 * cm, 1.2 * cm, 1.0 * cm, 1.1 * cm, 1.1 * cm, 0.9 * cm, 0.9 * cm, 0.9 * cm, 0.9 * cm, 0.9 * cm],
     )
     add_table_section(
         story,
