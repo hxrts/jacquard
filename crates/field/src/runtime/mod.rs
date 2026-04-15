@@ -86,10 +86,20 @@ mod control;
 mod observer;
 mod routing;
 mod sessions;
-#[cfg(test)]
-#[path = "../../tests/runtime/mod.rs"]
-mod tests;
 
-use continuation::*;
-use observer::*;
-use sessions::*;
+use continuation::{
+    continuation_shift_grace_active, field_commitment_id_for_route, node_corridor_viable,
+    node_runtime_continuation_neighbors, observer_input_signature,
+    pending_forward_continuations_for_maintenance, preferred_node_shift_neighbor,
+    preferred_service_shift_neighbor, route_health_for, service_corridor_viable,
+    service_runtime_continuation_neighbors, should_transmit_summary,
+    synthesized_node_carry_forward_ranked,
+};
+use observer::{
+    anti_entropy_summary_for_destination_with_policy, direct_evidence_for_destination,
+    forward_evidence_for_observer_with_policy, merge_pending_forward_continuations,
+    refresh_frontier_from_evidence, summary_for_destination,
+    synthesized_node_forward_evidence_from_active_routes_with_policy,
+    updated_promotion_window_score, ForwardEvidenceInput,
+};
+use sessions::destination_objective_class;

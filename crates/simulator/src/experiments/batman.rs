@@ -1,5 +1,7 @@
 //! BATMAN-Bellman scenario builders: sparse line, ring, bridge, and degradation families.
 
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(super) fn build_batman_bellman_sparse_line_low_loss(

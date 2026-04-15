@@ -1,3 +1,5 @@
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(super) fn direct_evidence_for_destination(
@@ -44,6 +46,8 @@ pub(super) fn forward_evidence_for_observer(
     )
 }
 
+// long-block-exception: observer evidence synthesis keeps the bounded
+// carry-forward and anti-entropy branch ladder aligned with the policy surface.
 pub(super) fn forward_evidence_for_observer_with_policy(
     destination_state: &crate::state::DestinationFieldState,
     now_tick: Tick,
@@ -190,6 +194,8 @@ pub(super) fn synthesized_node_forward_evidence_from_active_routes(
     )
 }
 
+// long-block-exception: node forward-evidence synthesis intentionally keeps
+// ranking, continuation filtering, and summary shaping in one helper.
 pub(super) fn synthesized_node_forward_evidence_from_active_routes_with_policy(
     destination_state: &crate::state::DestinationFieldState,
     active_routes: &[&ActiveFieldRoute],
@@ -353,6 +359,8 @@ pub(super) fn anti_entropy_summary_for_destination(
     )
 }
 
+// long-block-exception: anti-entropy summary shaping keeps the replay/evidence
+// heuristics in one deterministic transformation.
 pub(super) fn anti_entropy_summary_for_destination_with_policy(
     destination_state: &crate::state::DestinationFieldState,
     summary: &FieldSummary,
@@ -458,7 +466,7 @@ pub(super) fn updated_promotion_window_score(
     current_score: u8,
     assessment: &crate::planner::promotion::FieldPromotionAssessment,
     destination_state: &crate::state::DestinationFieldState,
-    service_bias: bool,
+    destination_context: &crate::operational::FieldDestinationDecisionContext,
 ) -> u8 {
     let mut next_score = current_score.saturating_sub(if assessment.continuation_coherent {
         0
@@ -475,7 +483,11 @@ pub(super) fn updated_promotion_window_score(
         next_score = next_score.saturating_add(1);
     }
     if assessment.degraded_but_coherent(destination_state) {
-        next_score = next_score.saturating_add(if service_bias { 2 } else { 1 });
+        next_score = next_score.saturating_add(if destination_context.service_bias() {
+            2
+        } else {
+            1
+        });
     }
     next_score.min(6)
 }

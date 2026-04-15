@@ -1,5 +1,7 @@
 //! Suite assembly and execution: builds run matrices and drives the simulator loop.
 
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 #[must_use]

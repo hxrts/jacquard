@@ -1,3 +1,5 @@
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 impl<Transport, Effects> FieldEngine<Transport, Effects> {

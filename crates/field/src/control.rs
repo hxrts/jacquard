@@ -15,6 +15,9 @@
 //! `advance_control_plane` is the entry point called from `engine_tick`; it
 //! runs all four phases and returns a `ControlTickOutcome` carrying the new
 //! regime, posture, and price vector for use by the attractor and observer.
+// long-file-exception: control policy, regime scoring, posture selection, and
+// PI update logic currently form one cohesive controller surface; splitting
+// before the next controller/module pass would obscure the shared state flow.
 
 use jacquard_core::{Configuration, NodeId, Tick};
 
@@ -229,6 +232,8 @@ where
 }
 
 #[must_use]
+// long-block-exception: mean-field compression intentionally keeps the bounded
+// accumulator pass and zero-destination fallback in one helper.
 pub(crate) fn compress_mean_field_with_policy<'a, I>(
     destinations: I,
     measurements: ControlMeasurements,
@@ -406,6 +411,8 @@ pub(crate) fn observe_regime(
 }
 
 #[must_use]
+// long-block-exception: regime observation keeps the hysteresis, dwell, and
+// residual accounting in one deterministic transition function.
 pub(crate) fn observe_regime_with_policy(
     previous: &RegimeObserverState,
     mean_field: &MeanFieldState,
@@ -503,6 +510,8 @@ pub(crate) fn choose_posture(
 }
 
 #[must_use]
+// long-block-exception: posture selection keeps the dwell, hysteresis, and
+// regime-aligned scoring rules in one deterministic controller step.
 pub(crate) fn choose_posture_with_policy(
     previous: &PostureControllerState,
     regime: &RegimeObserverState,
@@ -697,6 +706,8 @@ fn preferred_posture(
         .expect("at least one posture")
 }
 
+// long-block-exception: posture scoring intentionally keeps the full
+// regime/control weighting table in one local evaluator.
 fn posture_score(
     posture: RoutingPosture,
     regime: OperatingRegime,

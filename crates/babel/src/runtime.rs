@@ -131,7 +131,7 @@ where
             Some(t) => t,
             None => return,
         };
-        self.ingest_update(from_node_id, update, &topology, observed_at_tick);
+        self.ingest_update(from_node_id, &update, &topology, observed_at_tick);
     }
 }
 
@@ -440,7 +440,7 @@ mod tests {
             seqno: 1,
             metric: 0,
         };
-        engine.ingest_update(node(2), update, &topology, now);
+        engine.ingest_update(node(2), &update, &topology, now);
         engine.refresh_private_state(&topology, now);
         (engine, topology)
     }

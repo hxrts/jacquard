@@ -15,6 +15,8 @@ use jacquard_testkit::router_integration::{
 use jacquard_traits::Blake3Hashing;
 
 #[test]
+// long-block-exception: this integration test keeps candidate admission,
+// router wiring, and activation assertions in one end-to-end scenario.
 fn pathway_materializes_explicit_path_route_within_bound() {
     let topology = common::fixtures::sample_configuration();
     let objective =
@@ -41,7 +43,7 @@ fn pathway_materializes_explicit_path_route_within_bound() {
 
     let mut router = build_router(
         common::LOCAL_NODE_ID,
-        topology.clone(),
+        &topology,
         profile,
         topology.observed_at_tick,
         1,

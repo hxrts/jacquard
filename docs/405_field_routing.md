@@ -20,9 +20,9 @@ identity, publication, and cross-engine selection.
 
 The current Rust implementation now makes the operational layer more explicit:
 
-- `policy.rs` centralizes calibrated regime, posture, continuity, promotion,
+- [`crates/field/src/policy.rs`](../crates/field/src/policy.rs) centralizes calibrated regime, posture, continuity, promotion,
   and evidence thresholds as one deterministic `FieldPolicy` surface
-- `operational.rs` derives a reduced `FieldOperationalView` with support,
+- [`crates/field/src/operational.rs`](../crates/field/src/operational.rs) derives a reduced `FieldOperationalView` with support,
   retention, entropy, and freshness bands for decision code
 - those operational surfaces remain runtime-private and do not become
   posterior truth or canonical route truth

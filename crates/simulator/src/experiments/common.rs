@@ -1,5 +1,7 @@
 //! Shared topology builders, environment helpers, and parameter override application.
 
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(super) fn apply_overrides(

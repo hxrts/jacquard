@@ -41,8 +41,13 @@ graph LR
 ```
 
 The reference end-to-end examples are the split `reference-client` tests in
-[`crates/reference-client/tests/`](../crates/reference-client/tests/) and the
-shared scenarios in
+[`crates/reference-client/tests/client_builder.rs`](../crates/reference-client/tests/client_builder.rs),
+[`crates/reference-client/tests/e2e_pathway_shared_network.rs`](../crates/reference-client/tests/e2e_pathway_shared_network.rs),
+[`crates/reference-client/tests/e2e_batman_pathway_handoff.rs`](../crates/reference-client/tests/e2e_batman_pathway_handoff.rs),
+[`crates/reference-client/tests/e2e_olsrv2_shared_network.rs`](../crates/reference-client/tests/e2e_olsrv2_shared_network.rs),
+and
+[`crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs`](../crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs),
+plus the shared scenarios in
 [`crates/testkit/src/reference_client_scenarios.rs`](../crates/testkit/src/reference_client_scenarios.rs).
 They show how to add a new client runtime to the same in-memory network without
 bypassing the bridge-owned ingress path or the router-owned canonical path.

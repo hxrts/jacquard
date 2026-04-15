@@ -1,5 +1,7 @@
 //! Cross-engine comparison scenario builders: connected, partitioned, and asymmetric families.
 
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(super) fn build_comparison_connected_low_loss(

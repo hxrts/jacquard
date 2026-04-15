@@ -166,7 +166,7 @@ fn scan_public_signature_lengths(root: &Path) -> Result<Vec<Violation>> {
         "crates/mem-link-profile/src/authoring.rs",
         "crates/mem-node-profile/src/authoring.rs",
         "crates/reference-client/src/clients.rs",
-        "crates/reference-client/src/topology.rs",
+        "crates/reference-client/src/clients.rs",
     ] {
         let path = root.join(rel);
         let contents = std::fs::read_to_string(&path)

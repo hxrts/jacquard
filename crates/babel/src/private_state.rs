@@ -211,7 +211,7 @@ impl<Transport, Effects> BabelEngine<Transport, Effects> {
     pub(crate) fn ingest_update(
         &mut self,
         from_neighbor: NodeId,
-        update: BabelUpdate,
+        update: &BabelUpdate,
         topology: &Observation<Configuration>,
         now: Tick,
     ) {
@@ -555,7 +555,7 @@ mod tests {
             seqno: 1,
             metric: 0,
         };
-        engine.ingest_update(node(2), update, &topology, Tick(1));
+        engine.ingest_update(node(2), &update, &topology, Tick(1));
         engine.refresh_private_state(&topology, Tick(1));
         assert!(!engine.route_table.is_empty());
 
@@ -609,7 +609,7 @@ mod tests {
             seqno: 5,
             metric: 0,
         };
-        engine.ingest_update(node(2), update, &topology, Tick(1));
+        engine.ingest_update(node(2), &update, &topology, Tick(1));
         engine.refresh_private_state(&topology, Tick(1));
 
         let fd = engine.feasibility_distances.get(&node(3)).copied();
@@ -645,7 +645,7 @@ mod tests {
             seqno: 1,
             metric: 0,
         };
-        engine.ingest_update(node(2), good, &topology, Tick(1));
+        engine.ingest_update(node(2), &good, &topology, Tick(1));
         engine.refresh_private_state(&topology, Tick(1));
 
         let good_fd = engine
@@ -710,7 +710,7 @@ mod tests {
             seqno: 1,
             metric: 0,
         };
-        engine.ingest_update(node(2), update, &topology, Tick(1));
+        engine.ingest_update(node(2), &update, &topology, Tick(1));
         engine.refresh_private_state(&topology, Tick(1));
         assert!(
             engine.feasibility_distances.contains_key(&node(3)),

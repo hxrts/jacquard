@@ -5,6 +5,8 @@
 //! - `node(byte).for_engines(&[...]).build()`
 //! - `link(byte).with_confidence(...).build()`
 
+#![allow(dead_code)]
+
 use jacquard_adapter::opaque_endpoint;
 use jacquard_babel::BABEL_ENGINE_ID;
 use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
@@ -26,7 +28,7 @@ fn reference_endpoint(byte: u8) -> jacquard_core::LinkEndpoint {
 }
 
 #[must_use]
-pub fn node(node_byte: u8) -> TopologyNodePreset {
+pub(crate) fn node(node_byte: u8) -> TopologyNodePreset {
     TopologyNodePreset {
         node_byte,
         routing_engines: vec![PATHWAY_ENGINE_ID],
@@ -35,7 +37,7 @@ pub fn node(node_byte: u8) -> TopologyNodePreset {
 }
 
 #[must_use]
-pub fn link(node_byte: u8) -> TopologyLinkPreset {
+pub(crate) fn link(node_byte: u8) -> TopologyLinkPreset {
     TopologyLinkPreset {
         endpoint_byte: node_byte,
         confidence: RatioPermille(950),
@@ -44,7 +46,7 @@ pub fn link(node_byte: u8) -> TopologyLinkPreset {
 }
 
 #[derive(Clone, Debug)]
-pub struct TopologyNodePreset {
+pub(crate) struct TopologyNodePreset {
     node_byte: u8,
     routing_engines: Vec<RoutingEngineId>,
     observed_at_tick: Tick,
@@ -52,84 +54,84 @@ pub struct TopologyNodePreset {
 
 impl TopologyNodePreset {
     #[must_use]
-    pub fn for_engine(mut self, engine: &RoutingEngineId) -> Self {
+    pub(crate) fn for_engine(mut self, engine: &RoutingEngineId) -> Self {
         self.routing_engines = vec![engine.clone()];
         self
     }
 
     #[must_use]
-    pub fn for_engines(mut self, engines: &[RoutingEngineId]) -> Self {
+    pub(crate) fn for_engines(mut self, engines: &[RoutingEngineId]) -> Self {
         self.routing_engines = engines.to_vec();
         self
     }
 
     #[must_use]
-    pub fn pathway(self) -> Self {
+    pub(crate) fn pathway(self) -> Self {
         self.for_engine(&PATHWAY_ENGINE_ID)
     }
 
     #[must_use]
-    pub fn batman_bellman(self) -> Self {
+    pub(crate) fn batman_bellman(self) -> Self {
         self.for_engine(&BATMAN_BELLMAN_ENGINE_ID)
     }
 
     #[must_use]
-    pub fn babel(self) -> Self {
+    pub(crate) fn babel(self) -> Self {
         self.for_engine(&BABEL_ENGINE_ID)
     }
 
     #[must_use]
-    pub fn batman_classic(self) -> Self {
+    pub(crate) fn batman_classic(self) -> Self {
         self.for_engine(&BATMAN_CLASSIC_ENGINE_ID)
     }
 
     #[must_use]
-    pub fn olsrv2(self) -> Self {
+    pub(crate) fn olsrv2(self) -> Self {
         self.for_engine(&OLSRV2_ENGINE_ID)
     }
 
     #[must_use]
-    pub fn pathway_and_batman_bellman(self) -> Self {
+    pub(crate) fn pathway_and_batman_bellman(self) -> Self {
         self.for_engines(&[PATHWAY_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
     }
 
     #[must_use]
-    pub fn pathway_and_babel(self) -> Self {
+    pub(crate) fn pathway_and_babel(self) -> Self {
         self.for_engines(&[PATHWAY_ENGINE_ID, BABEL_ENGINE_ID])
     }
 
     #[must_use]
-    pub fn babel_and_batman_bellman(self) -> Self {
+    pub(crate) fn babel_and_batman_bellman(self) -> Self {
         self.for_engines(&[BABEL_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
     }
 
     #[must_use]
-    pub fn pathway_and_olsrv2(self) -> Self {
+    pub(crate) fn pathway_and_olsrv2(self) -> Self {
         self.for_engines(&[PATHWAY_ENGINE_ID, OLSRV2_ENGINE_ID])
     }
 
     #[must_use]
-    pub fn olsrv2_and_batman_bellman(self) -> Self {
+    pub(crate) fn olsrv2_and_batman_bellman(self) -> Self {
         self.for_engines(&[OLSRV2_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
     }
 
     #[must_use]
-    pub fn field(self) -> Self {
+    pub(crate) fn field(self) -> Self {
         self.for_engine(&FIELD_ENGINE_ID)
     }
 
     #[must_use]
-    pub fn pathway_and_field(self) -> Self {
+    pub(crate) fn pathway_and_field(self) -> Self {
         self.for_engines(&[PATHWAY_ENGINE_ID, FIELD_ENGINE_ID])
     }
 
     #[must_use]
-    pub fn field_and_batman_bellman(self) -> Self {
+    pub(crate) fn field_and_batman_bellman(self) -> Self {
         self.for_engines(&[FIELD_ENGINE_ID, BATMAN_BELLMAN_ENGINE_ID])
     }
 
     #[must_use]
-    pub fn all_engines(self) -> Self {
+    pub(crate) fn all_engines(self) -> Self {
         self.for_engines(&[
             PATHWAY_ENGINE_ID,
             FIELD_ENGINE_ID,
@@ -141,13 +143,13 @@ impl TopologyNodePreset {
     }
 
     #[must_use]
-    pub fn observed_at(mut self, observed_at_tick: Tick) -> Self {
+    pub(crate) fn observed_at(mut self, observed_at_tick: Tick) -> Self {
         self.observed_at_tick = observed_at_tick;
         self
     }
 
     #[must_use]
-    pub fn build(self) -> Node {
+    pub(crate) fn build(self) -> Node {
         NodePreset::route_capable_for_engines(
             NodePresetOptions::new(
                 NodeIdentity::new(
@@ -164,7 +166,7 @@ impl TopologyNodePreset {
 }
 
 #[derive(Clone, Debug)]
-pub struct TopologyLinkPreset {
+pub(crate) struct TopologyLinkPreset {
     endpoint_byte: u8,
     confidence: RatioPermille,
     observed_at_tick: Tick,
@@ -172,19 +174,19 @@ pub struct TopologyLinkPreset {
 
 impl TopologyLinkPreset {
     #[must_use]
-    pub fn with_confidence(mut self, confidence: RatioPermille) -> Self {
+    pub(crate) fn with_confidence(mut self, confidence: RatioPermille) -> Self {
         self.confidence = confidence;
         self
     }
 
     #[must_use]
-    pub fn observed_at(mut self, observed_at_tick: Tick) -> Self {
+    pub(crate) fn observed_at(mut self, observed_at_tick: Tick) -> Self {
         self.observed_at_tick = observed_at_tick;
         self
     }
 
     #[must_use]
-    pub fn build(self) -> Link {
+    pub(crate) fn build(self) -> Link {
         LinkPreset::lossy(
             LinkPresetOptions::new(
                 reference_endpoint(self.endpoint_byte),

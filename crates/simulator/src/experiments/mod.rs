@@ -7,6 +7,8 @@
 //! - `common` owns shared topology/objective/environment helpers
 //! - engine-family builder modules own concrete scenario families
 
+#![allow(clippy::wildcard_imports)]
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs::{self, File},

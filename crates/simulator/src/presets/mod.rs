@@ -6,6 +6,8 @@
 //! - `composition`: engine-composition scenarios
 //! - `tuning`: small preset matrices used by tuning-oriented tests
 
+#![allow(clippy::wildcard_imports)]
+
 use std::collections::BTreeMap;
 
 use jacquard_core::{

@@ -37,7 +37,7 @@ pub fn endpoint(byte: u8) -> LinkEndpoint {
 }
 
 #[must_use]
-pub fn route_capable_node(byte: u8, engine_id: &jacquard_core::RoutingEngineId, now: Tick) -> Node {
+pub fn fixture_route_node(byte: u8, engine_id: &jacquard_core::RoutingEngineId, now: Tick) -> Node {
     NodePreset::route_capable(
         NodePresetOptions::new(
             NodeIdentity::new(node(byte), ControllerId([byte; 32])),
@@ -50,7 +50,7 @@ pub fn route_capable_node(byte: u8, engine_id: &jacquard_core::RoutingEngineId, 
 }
 
 #[must_use]
-pub fn active_link(byte: u8, now: Tick) -> Link {
+pub fn fixture_link(byte: u8, now: Tick) -> Link {
     LinkPreset::active(LinkPresetOptions::new(endpoint(byte), now)).build()
 }
 
@@ -128,7 +128,7 @@ pub fn routing_policy_inputs(
 #[must_use]
 pub fn build_router(
     local_node_id: NodeId,
-    topology: Observation<Configuration>,
+    topology: &Observation<Configuration>,
     profile: SelectedRoutingParameters,
     now: Tick,
     routing_engine_count: usize,
@@ -141,7 +141,7 @@ pub fn build_router(
             ..Default::default()
         },
         topology.clone(),
-        routing_policy_inputs(&topology, local_node_id, routing_engine_count),
+        routing_policy_inputs(topology, local_node_id, routing_engine_count),
     )
 }
 
@@ -217,6 +217,7 @@ pub struct RouterIntegrationHost {
 }
 
 impl RouterIntegrationHost {
+    #[must_use]
     pub fn new<F>(
         local_node_id: NodeId,
         topology: Observation<Configuration>,
@@ -240,7 +241,7 @@ impl RouterIntegrationHost {
         let (outbound_tx, outbound_rx) = dispatch_mailbox(64);
         let mut router = build_router(
             local_node_id,
-            topology.clone(),
+            &topology,
             profile,
             topology.observed_at_tick,
             routing_engine_count,

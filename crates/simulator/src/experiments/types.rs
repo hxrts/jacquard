@@ -1,5 +1,7 @@
 //! Run/config/result schema: error types, node constants, and shared data structures.
 
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(super) const NODE_A: NodeId = NodeId([1; 32]);

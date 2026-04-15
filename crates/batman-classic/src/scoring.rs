@@ -53,7 +53,6 @@ pub(crate) fn tq_product(left: RatioPermille, right: RatioPermille) -> RatioPerm
 /// These values match the enhanced batman engine's baseline to allow direct
 /// score comparison between the two engines. They do not change when Jacquard
 /// link beliefs are absent.
-#[must_use]
 const OGM_TQ_ACTIVE: u16 = 900;
 const OGM_TQ_DEGRADED: u16 = 650;
 const OGM_TQ_SUSPENDED: u16 = 250;

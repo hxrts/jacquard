@@ -271,7 +271,7 @@ mod tests {
             seqno: 1,
             metric: 0,
         };
-        engine.ingest_update(node(2), update, &topology, Tick(1));
+        engine.ingest_update(node(2), &update, &topology, Tick(1));
         engine
             .engine_tick(&RoutingTickContext::new(unsupported.clone()))
             .expect("populate table");

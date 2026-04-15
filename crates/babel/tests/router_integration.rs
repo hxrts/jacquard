@@ -10,7 +10,7 @@ use jacquard_mem_link_profile::{InMemoryRuntimeEffects, SharedInMemoryNetwork};
 use jacquard_testkit::{
     homogeneous_router_integration_hosts,
     router_integration::{
-        connected_objective, connected_profile, lossy_link, node, route_capable_node,
+        connected_objective, connected_profile, fixture_route_node, lossy_link, node,
     },
 };
 
@@ -19,10 +19,10 @@ fn topology() -> Observation<Configuration> {
         value: Configuration {
             epoch: jacquard_core::RouteEpoch(2),
             nodes: BTreeMap::from([
-                (node(1), route_capable_node(1, &BABEL_ENGINE_ID, Tick(1))),
-                (node(2), route_capable_node(2, &BABEL_ENGINE_ID, Tick(1))),
-                (node(3), route_capable_node(3, &BABEL_ENGINE_ID, Tick(1))),
-                (node(4), route_capable_node(4, &BABEL_ENGINE_ID, Tick(1))),
+                (node(1), fixture_route_node(1, &BABEL_ENGINE_ID, Tick(1))),
+                (node(2), fixture_route_node(2, &BABEL_ENGINE_ID, Tick(1))),
+                (node(3), fixture_route_node(3, &BABEL_ENGINE_ID, Tick(1))),
+                (node(4), fixture_route_node(4, &BABEL_ENGINE_ID, Tick(1))),
             ]),
             links: BTreeMap::from([
                 (

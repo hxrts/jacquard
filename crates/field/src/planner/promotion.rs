@@ -136,6 +136,8 @@ pub(crate) fn promotion_assessment_for_route(
 }
 
 #[must_use]
+// long-block-exception: promotion assessment keeps the bootstrap,
+// anti-entropy, and continuation-coherence signals in one decision record.
 pub(crate) fn promotion_assessment_for_route_with_policy(
     active_route: &ActiveFieldRoute,
     destination_state: &DestinationFieldState,

@@ -19,5 +19,7 @@ jacquard-traits = { path = "../traits", version = "0.4.0" }
 serde = { workspace = true, default-features = false }
 
 [dev-dependencies]
+jacquard-adapter = { path = "../adapter" }
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
+jacquard-mem-node-profile = { path = "../mem-node-profile" }
 jacquard-testkit = { path = "../testkit" }

@@ -1,3 +1,8 @@
+#![allow(clippy::wildcard_imports)]
+// long-file-exception: runtime route materialization, maintenance evaluation,
+// and transition application are still one cohesive runtime surface pending the
+// next routing/runtime split pass.
+
 use super::*;
 
 #[derive(Clone, Debug)]
@@ -542,6 +547,8 @@ fn commitment_support_floor(
 }
 
 impl<Transport, Effects> FieldEngine<Transport, Effects> {
+    // long-block-exception: route maintenance preparation has to assemble the
+    // full reduced decision context in one pass over the active route snapshot.
     fn prepare_maintenance(
         &self,
         active_route: ActiveFieldRoute,
@@ -620,6 +627,8 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         }))
     }
 
+    // long-block-exception: route maintenance apply keeps the branch-for-branch
+    // runtime mutation sequence aligned with the evaluated transition result.
     fn apply_transition(
         &mut self,
         route_id: &RouteId,
@@ -635,167 +644,231 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let mut pending_coordination_shift = None;
         let mut maintenance_outcome = RouteMaintenanceOutcome::Continued;
         let mut pending_policy_events = Vec::new();
-        let active = self
-            .active_routes
-            .get_mut(route_id)
-            .expect("active route remains present during maintenance");
-        let previous_posture = active.witness_detail.posture;
-        let previous_bootstrap_class = active.bootstrap_class;
-        let previous_continuity_band = active.continuity_band;
+        let previous_posture;
+        {
+            let active = self
+                .active_routes
+                .get_mut(route_id)
+                .expect("active route remains present during maintenance");
+            previous_posture = active.witness_detail.posture;
+            let previous_bootstrap_class = active.bootstrap_class;
+            let previous_continuity_band = active.continuity_band;
 
-        active.corridor_envelope = prepared.current_corridor_envelope.clone();
-        active.witness_detail = prepared.current_witness_detail.clone();
-        active.bootstrap_class = match (previous_bootstrap_class, evaluation.bootstrap_decision) {
-            (FieldBootstrapClass::Bootstrap, FieldBootstrapDecision::Promote) => {
-                FieldBootstrapClass::Steady
-            }
-            (FieldBootstrapClass::Bootstrap, _)
-                if prepared.current_bootstrap_class == FieldBootstrapClass::Steady
-                    && evaluation.effective_continuity_band != FieldContinuityBand::Bootstrap =>
+            active.corridor_envelope = prepared.current_corridor_envelope.clone();
+            active.witness_detail = prepared.current_witness_detail.clone();
+            active.bootstrap_class = match (previous_bootstrap_class, evaluation.bootstrap_decision)
             {
-                FieldBootstrapClass::Steady
-            }
-            (FieldBootstrapClass::Bootstrap, _) => FieldBootstrapClass::Bootstrap,
-            (_, _) => prepared.current_bootstrap_class,
-        };
-        active.witness_detail.bootstrap_class = active.bootstrap_class;
-        active.continuity_band = evaluation.effective_continuity_band;
-        active.witness_detail.continuity_band = evaluation.effective_continuity_band;
-        active.promotion_window_score = evaluation.projected_promotion_window_score;
-
-        match (previous_continuity_band, active.continuity_band) {
-            (FieldContinuityBand::Steady, FieldContinuityBand::DegradedSteady)
-            | (FieldContinuityBand::Bootstrap, FieldContinuityBand::DegradedSteady) => {
-                active.recovery.note_degraded_steady_entered();
-            }
-            (FieldContinuityBand::DegradedSteady, FieldContinuityBand::Steady) => {
-                active.recovery.note_degraded_steady_recovered();
-            }
-            (FieldContinuityBand::DegradedSteady, FieldContinuityBand::Bootstrap) => {
-                active.recovery.note_degraded_to_bootstrap();
-            }
-            (_, band) => active.recovery.note_continuity_band(band),
-        }
-
-        match (
-            previous_bootstrap_class,
-            active.bootstrap_class,
-            evaluation.bootstrap_decision,
-        ) {
-            (FieldBootstrapClass::Steady, FieldBootstrapClass::Bootstrap, _) => {
-                active.recovery.note_bootstrap_activated();
-            }
-            (
-                FieldBootstrapClass::Bootstrap,
-                FieldBootstrapClass::Bootstrap,
-                FieldBootstrapDecision::Narrow,
-            ) => {
-                active.recovery.note_bootstrap_narrowed(blocker);
-                active.bootstrap_confirmation_streak = 0;
-                active.promotion_window_score = active.promotion_window_score.saturating_sub(1);
-            }
-            (
-                FieldBootstrapClass::Bootstrap,
-                FieldBootstrapClass::Bootstrap,
-                FieldBootstrapDecision::Hold,
-            ) => {
-                active.recovery.note_bootstrap_held(blocker);
-                if evaluation.promotion_assessment.anti_entropy_confirmed
-                    && evaluation.promotion_assessment.continuation_coherent
+                (FieldBootstrapClass::Bootstrap, FieldBootstrapDecision::Promote) => {
+                    FieldBootstrapClass::Steady
+                }
+                (FieldBootstrapClass::Bootstrap, _)
+                    if prepared.current_bootstrap_class == FieldBootstrapClass::Steady
+                        && evaluation.effective_continuity_band
+                            != FieldContinuityBand::Bootstrap =>
                 {
-                    active.bootstrap_confirmation_streak = evaluation.projected_confirmation_streak;
-                } else {
+                    FieldBootstrapClass::Steady
+                }
+                (FieldBootstrapClass::Bootstrap, _) => FieldBootstrapClass::Bootstrap,
+                (_, _) => prepared.current_bootstrap_class,
+            };
+            active.witness_detail.bootstrap_class = active.bootstrap_class;
+            active.continuity_band = evaluation.effective_continuity_band;
+            active.witness_detail.continuity_band = evaluation.effective_continuity_band;
+            active.promotion_window_score = evaluation.projected_promotion_window_score;
+
+            match (previous_continuity_band, active.continuity_band) {
+                (FieldContinuityBand::Steady, FieldContinuityBand::DegradedSteady)
+                | (FieldContinuityBand::Bootstrap, FieldContinuityBand::DegradedSteady) => {
+                    active.recovery.note_degraded_steady_entered();
+                }
+                (FieldContinuityBand::DegradedSteady, FieldContinuityBand::Steady) => {
+                    active.recovery.note_degraded_steady_recovered();
+                }
+                (FieldContinuityBand::DegradedSteady, FieldContinuityBand::Bootstrap) => {
+                    active.recovery.note_degraded_to_bootstrap();
+                }
+                (_, band) => active.recovery.note_continuity_band(band),
+            }
+
+            match (
+                previous_bootstrap_class,
+                active.bootstrap_class,
+                evaluation.bootstrap_decision,
+            ) {
+                (FieldBootstrapClass::Steady, FieldBootstrapClass::Bootstrap, _) => {
+                    active.recovery.note_bootstrap_activated();
+                }
+                (
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapDecision::Narrow,
+                ) => {
+                    active.recovery.note_bootstrap_narrowed(blocker);
                     active.bootstrap_confirmation_streak = 0;
+                    active.promotion_window_score = active.promotion_window_score.saturating_sub(1);
+                }
+                (
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapDecision::Hold,
+                ) => {
+                    active.recovery.note_bootstrap_held(blocker);
+                    if evaluation.promotion_assessment.anti_entropy_confirmed
+                        && evaluation.promotion_assessment.continuation_coherent
+                    {
+                        active.bootstrap_confirmation_streak =
+                            evaluation.projected_confirmation_streak;
+                    } else {
+                        active.bootstrap_confirmation_streak = 0;
+                    }
+                }
+                (FieldBootstrapClass::Bootstrap, FieldBootstrapClass::Steady, _) => {
+                    active.recovery.note_bootstrap_upgraded();
+                    active.bootstrap_confirmation_streak = 0;
+                    active.promotion_window_score = 0;
+                }
+                (
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapDecision::Withdraw,
+                ) => {
+                    active.recovery.note_bootstrap_withdrawn(blocker);
+                    active.bootstrap_confirmation_streak = 0;
+                    active.promotion_window_score = 0;
+                }
+                (FieldBootstrapClass::Steady, FieldBootstrapClass::Steady, _) => {}
+                (
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapClass::Bootstrap,
+                    FieldBootstrapDecision::Promote,
+                ) => {
+                    active
+                        .recovery
+                        .note_bootstrap_held(FieldPromotionBlocker::SupportTrend);
                 }
             }
-            (FieldBootstrapClass::Bootstrap, FieldBootstrapClass::Steady, _) => {
-                active.recovery.note_bootstrap_upgraded();
-                active.bootstrap_confirmation_streak = 0;
-                active.promotion_window_score = 0;
-            }
-            (
-                FieldBootstrapClass::Bootstrap,
-                FieldBootstrapClass::Bootstrap,
-                FieldBootstrapDecision::Withdraw,
-            ) => {
-                active.recovery.note_bootstrap_withdrawn(blocker);
-                active.bootstrap_confirmation_streak = 0;
-                active.promotion_window_score = 0;
-            }
-            (FieldBootstrapClass::Steady, FieldBootstrapClass::Steady, _) => {}
-            (
-                FieldBootstrapClass::Bootstrap,
-                FieldBootstrapClass::Bootstrap,
-                FieldBootstrapDecision::Promote,
-            ) => {
-                active
-                    .recovery
-                    .note_bootstrap_held(FieldPromotionBlocker::SupportTrend);
-            }
-        }
 
-        if !active
-            .continuation_neighbors
-            .contains(&prepared.best.neighbor_id)
-        {
-            let selected_entry = prepared
-                .ranked
-                .iter()
-                .find(|(entry, _)| entry.neighbor_id == active.selected_neighbor)
-                .map(|(entry, _)| entry);
-            let degraded_continuity = matches!(
-                active.continuity_band,
-                FieldContinuityBand::DegradedSteady | FieldContinuityBand::Bootstrap
-            ) && evaluation
-                .promotion_assessment
-                .degraded_but_coherent(&prepared.destination_state);
-            let support_delta = selected_entry
-                .map(|entry| {
-                    prepared
-                        .best
-                        .net_value
-                        .value()
-                        .abs_diff(entry.net_value.value())
-                })
-                .unwrap_or(0);
-            let shift_delta_max = runtime_shift_delta_max(
-                &prepared.policy.continuity.runtime,
-                runtime_context.service_bias,
-                runtime_context.discovery_node_route,
-                active.continuity_band,
-            );
-            let support_floor = runtime_shift_support_floor(
-                &prepared.policy.continuity.runtime,
-                runtime_context.service_bias,
-                runtime_context.discovery_node_route,
-                active.continuity_band,
-            );
-            if prepared.corridor_support >= support_floor && support_delta <= shift_delta_max {
-                active.continuation_neighbors = if runtime_context.service_bias {
-                    service_runtime_continuation_neighbors(
-                        &prepared.ranked,
-                        &prepared.destination_state,
-                        prepared.best.neighbor_id,
-                        &prepared.search_config,
-                    )
-                } else if runtime_context.discovery_node_route {
-                    node_runtime_continuation_neighbors(
-                        &prepared.ranked,
-                        &prepared.destination_state,
-                        prepared.best.neighbor_id,
-                        &prepared.search_config,
-                    )
+            if !active
+                .continuation_neighbors
+                .contains(&prepared.best.neighbor_id)
+            {
+                let selected_entry = prepared
+                    .ranked
+                    .iter()
+                    .find(|(entry, _)| entry.neighbor_id == active.selected_neighbor)
+                    .map(|(entry, _)| entry);
+                let degraded_continuity = matches!(
+                    active.continuity_band,
+                    FieldContinuityBand::DegradedSteady | FieldContinuityBand::Bootstrap
+                ) && evaluation
+                    .promotion_assessment
+                    .degraded_but_coherent(&prepared.destination_state);
+                let support_delta = selected_entry
+                    .map(|entry| {
+                        prepared
+                            .best
+                            .net_value
+                            .value()
+                            .abs_diff(entry.net_value.value())
+                    })
+                    .unwrap_or(0);
+                let shift_delta_max = runtime_shift_delta_max(
+                    &prepared.policy.continuity.runtime,
+                    runtime_context.service_bias,
+                    runtime_context.discovery_node_route,
+                    active.continuity_band,
+                );
+                let support_floor = runtime_shift_support_floor(
+                    &prepared.policy.continuity.runtime,
+                    runtime_context.service_bias,
+                    runtime_context.discovery_node_route,
+                    active.continuity_band,
+                );
+                if prepared.corridor_support >= support_floor && support_delta <= shift_delta_max {
+                    active.continuation_neighbors = if runtime_context.service_bias {
+                        service_runtime_continuation_neighbors(
+                            &prepared.ranked,
+                            &prepared.destination_state,
+                            prepared.best.neighbor_id,
+                            &prepared.search_config,
+                        )
+                    } else if runtime_context.discovery_node_route {
+                        node_runtime_continuation_neighbors(
+                            &prepared.ranked,
+                            &prepared.destination_state,
+                            prepared.best.neighbor_id,
+                            &prepared.search_config,
+                        )
+                    } else {
+                        prepared
+                            .ranked
+                            .iter()
+                            .take(crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT + 1)
+                            .map(|(entry, _)| entry.neighbor_id)
+                            .collect()
+                    };
+                    active.selected_neighbor = prepared.best.neighbor_id;
+                    pending_coordination_shift = Some(prepared.best.neighbor_id);
+                    if runtime_context.service_bias {
+                        active.recovery.note_service_retention_carry_forward();
+                        pending_policy_events.push(route_policy_event(
+                            route_id,
+                            &prepared.destination_context.destination,
+                            FieldPolicyGate::CarryForward,
+                            FieldPolicyReason::EmittedByContinuityGate,
+                            self.state.last_tick_processed,
+                        ));
+                    }
+                    if degraded_continuity {
+                        active.recovery.note_asymmetric_shift_success();
+                    }
+                } else if degraded_continuity || runtime_context.discovery_node_route {
+                    active.continuation_neighbors = if runtime_context.discovery_node_route {
+                        node_runtime_continuation_neighbors(
+                            &prepared.ranked,
+                            &prepared.destination_state,
+                            active.selected_neighbor,
+                            &prepared.search_config,
+                        )
+                    } else {
+                        prepared
+                            .ranked
+                            .iter()
+                            .take(2)
+                            .map(|(entry, _)| entry.neighbor_id)
+                            .collect()
+                    };
+                    if let Some(first) = active.continuation_neighbors.first().copied() {
+                        active.selected_neighbor = first;
+                    }
+                    active.recovery.note_corridor_narrowed();
+                    active.recovery.note_bootstrap_narrowed(blocker);
+                    maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
+                        trigger,
+                        retained_object_count: jacquard_core::HoldItemCount(1),
+                    };
                 } else {
-                    prepared
-                        .ranked
-                        .iter()
-                        .take(crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT + 1)
-                        .map(|(entry, _)| entry.neighbor_id)
-                        .collect()
-                };
-                active.selected_neighbor = prepared.best.neighbor_id;
-                pending_coordination_shift = Some(prepared.best.neighbor_id);
+                    return Ok(AppliedTransition {
+                        previous_posture,
+                        pending_coordination_shift: None,
+                        maintenance_outcome: RouteMaintenanceOutcome::ReplacementRequired {
+                            trigger,
+                        },
+                    });
+                }
+            }
+
+            if active.selected_neighbor != prepared.best.neighbor_id {
+                if active.continuity_band == FieldContinuityBand::DegradedSteady {
+                    active.recovery.note_asymmetric_shift_success();
+                }
                 if runtime_context.service_bias {
+                    active.continuation_neighbors = service_runtime_continuation_neighbors(
+                        &prepared.ranked,
+                        &prepared.destination_state,
+                        prepared.best.neighbor_id,
+                        &prepared.search_config,
+                    );
                     active.recovery.note_service_retention_carry_forward();
                     pending_policy_events.push(route_policy_event(
                         route_id,
@@ -804,79 +877,22 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                         FieldPolicyReason::EmittedByContinuityGate,
                         self.state.last_tick_processed,
                     ));
-                }
-                if degraded_continuity {
-                    active.recovery.note_asymmetric_shift_success();
-                }
-            } else if degraded_continuity || runtime_context.discovery_node_route {
-                active.continuation_neighbors = if runtime_context.discovery_node_route {
-                    node_runtime_continuation_neighbors(
+                } else if runtime_context.discovery_node_route {
+                    active.continuation_neighbors = node_runtime_continuation_neighbors(
                         &prepared.ranked,
                         &prepared.destination_state,
-                        active.selected_neighbor,
+                        prepared.best.neighbor_id,
                         &prepared.search_config,
-                    )
-                } else {
-                    prepared
-                        .ranked
-                        .iter()
-                        .take(2)
-                        .map(|(entry, _)| entry.neighbor_id)
-                        .collect()
-                };
-                if let Some(first) = active.continuation_neighbors.first().copied() {
-                    active.selected_neighbor = first;
+                    );
                 }
-                active.recovery.note_corridor_narrowed();
-                active.recovery.note_bootstrap_narrowed(blocker);
-                maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
-                    trigger,
-                    retained_object_count: jacquard_core::HoldItemCount(1),
-                };
-            } else {
-                return Ok(AppliedTransition {
-                    previous_posture,
-                    pending_coordination_shift: None,
-                    maintenance_outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
-                });
+                active.selected_neighbor = prepared.best.neighbor_id;
+                pending_coordination_shift = Some(prepared.best.neighbor_id);
             }
-        }
-
-        if active.selected_neighbor != prepared.best.neighbor_id {
-            if active.continuity_band == FieldContinuityBand::DegradedSteady {
-                active.recovery.note_asymmetric_shift_success();
-            }
-            if runtime_context.service_bias {
-                active.continuation_neighbors = service_runtime_continuation_neighbors(
-                    &prepared.ranked,
-                    &prepared.destination_state,
-                    prepared.best.neighbor_id,
-                    &prepared.search_config,
-                );
-                active.recovery.note_service_retention_carry_forward();
-                pending_policy_events.push(route_policy_event(
-                    route_id,
-                    &prepared.destination_context.destination,
-                    FieldPolicyGate::CarryForward,
-                    FieldPolicyReason::EmittedByContinuityGate,
-                    self.state.last_tick_processed,
-                ));
-            } else if runtime_context.discovery_node_route {
-                active.continuation_neighbors = node_runtime_continuation_neighbors(
-                    &prepared.ranked,
-                    &prepared.destination_state,
-                    prepared.best.neighbor_id,
-                    &prepared.search_config,
-                );
-            }
-            active.selected_neighbor = prepared.best.neighbor_id;
-            pending_coordination_shift = Some(prepared.best.neighbor_id);
         }
 
         for event in &evaluation.policy_events {
             pending_policy_events.push(event.clone());
         }
-        let _ = active;
         for event in pending_policy_events {
             self.record_policy_event(event);
         }
@@ -889,6 +905,8 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
     }
 }
 
+// long-block-exception: transition evaluation keeps bootstrap, degraded, and
+// continuation outcomes in one fail-closed decision ladder.
 fn evaluate_transition(
     route_id: &RouteId,
     prepared: &PreparedMaintenance,
@@ -907,7 +925,7 @@ fn evaluate_transition(
         prepared.active_route.promotion_window_score,
         &promotion_assessment,
         &prepared.destination_state,
-        prepared.destination_context.service_bias(),
+        &prepared.destination_context,
     );
     let projected_confirmation_streak = if prepared.current_bootstrap_class
         == FieldBootstrapClass::Bootstrap

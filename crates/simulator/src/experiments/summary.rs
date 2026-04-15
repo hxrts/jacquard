@@ -1,5 +1,7 @@
 //! Replay reduction: folds per-round events into the stable per-run summary schema.
 
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 // long-block-exception: one reducer intentionally computes the stable per-run

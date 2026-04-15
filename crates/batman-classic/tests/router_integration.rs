@@ -10,10 +10,12 @@ use jacquard_mem_link_profile::{InMemoryRuntimeEffects, SharedInMemoryNetwork};
 use jacquard_testkit::{
     homogeneous_router_integration_hosts,
     router_integration::{
-        connected_objective, connected_profile, lossy_link, node, route_capable_node,
+        connected_objective, connected_profile, fixture_route_node, lossy_link, node,
     },
 };
 
+// long-block-exception: this integration fixture keeps the full four-node
+// topology inline so the router-selection regression stays readable as one case.
 fn topology() -> Observation<Configuration> {
     Observation {
         value: Configuration {
@@ -21,19 +23,19 @@ fn topology() -> Observation<Configuration> {
             nodes: BTreeMap::from([
                 (
                     node(1),
-                    route_capable_node(1, &BATMAN_CLASSIC_ENGINE_ID, Tick(1)),
+                    fixture_route_node(1, &BATMAN_CLASSIC_ENGINE_ID, Tick(1)),
                 ),
                 (
                     node(2),
-                    route_capable_node(2, &BATMAN_CLASSIC_ENGINE_ID, Tick(1)),
+                    fixture_route_node(2, &BATMAN_CLASSIC_ENGINE_ID, Tick(1)),
                 ),
                 (
                     node(3),
-                    route_capable_node(3, &BATMAN_CLASSIC_ENGINE_ID, Tick(1)),
+                    fixture_route_node(3, &BATMAN_CLASSIC_ENGINE_ID, Tick(1)),
                 ),
                 (
                     node(4),
-                    route_capable_node(4, &BATMAN_CLASSIC_ENGINE_ID, Tick(1)),
+                    fixture_route_node(4, &BATMAN_CLASSIC_ENGINE_ID, Tick(1)),
                 ),
             ]),
             links: BTreeMap::from([

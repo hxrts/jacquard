@@ -352,6 +352,8 @@ pub(crate) fn promoted_corridor_admissible(
     )
 }
 
+// long-block-exception: promoted-corridor admission keeps the steady,
+// bootstrap, and discovery-biased gates in one bounded policy check.
 pub(crate) fn promoted_corridor_admissible_with_config(
     destination_state: &DestinationFieldState,
     confirmation_streak: u8,

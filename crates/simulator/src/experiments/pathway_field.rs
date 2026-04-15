@@ -1,5 +1,7 @@
 //! Pathway and Field scenario builders: service fanout, budget stress, and bootstrap families.
 
+#![allow(clippy::wildcard_imports)]
+
 use super::*;
 
 pub(super) fn build_pathway_sparse_service_fanout(

@@ -92,10 +92,14 @@ This harness proves crate-boundary composition. It does not replace the simulato
 ## Minimal Host Wiring
 
 The reference examples for a new deployment target are the split
-`reference-client` end-to-end tests in `crates/reference-client/tests/`
-(`e2e_pathway_shared_network.rs`, `e2e_batman_pathway_handoff.rs`,
-`e2e_olsrv2_shared_network.rs`, and `e2e_olsrv2_pathway_handoff.rs`), backed by
-the shared scenarios in `crates/testkit/src/reference_client_scenarios.rs`.
+`reference-client` end-to-end tests in
+[`crates/reference-client/tests/e2e_pathway_shared_network.rs`](../crates/reference-client/tests/e2e_pathway_shared_network.rs),
+[`crates/reference-client/tests/e2e_batman_pathway_handoff.rs`](../crates/reference-client/tests/e2e_batman_pathway_handoff.rs),
+[`crates/reference-client/tests/e2e_olsrv2_shared_network.rs`](../crates/reference-client/tests/e2e_olsrv2_shared_network.rs),
+and
+[`crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs`](../crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs),
+backed by the shared scenarios in
+[`crates/testkit/src/reference_client_scenarios.rs`](../crates/testkit/src/reference_client_scenarios.rs).
 
 1. build a shared `Observation<Configuration>` with ordinary `ServiceDescriptor` values
 2. attach one bridge-owned `TransportDriver` per device runtime
