@@ -46,6 +46,7 @@ pub struct FieldRuntimeReplaySurface {
     pub schema_version: u16,
     pub surface_class: FieldReplaySurfaceClass,
     pub artifacts: Vec<FieldRuntimeRoundArtifact>,
+    pub policy_events: Vec<FieldPolicyEvent>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -87,6 +88,7 @@ pub struct FieldExportedRuntimeSearchReplay {
     pub schema_version: u16,
     pub search: Option<FieldExportedSearchProjection>,
     pub runtime_artifacts: Vec<FieldExportedRuntimeRoundArtifact>,
+    pub policy_events: Vec<FieldExportedPolicyEvent>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -161,6 +163,15 @@ pub struct FieldExportedRuntimeRouteArtifact {
     pub continuity_band: String,
     pub route_support: u16,
     pub topology_epoch: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldExportedPolicyEvent {
+    pub gate: String,
+    pub reason: String,
+    pub destination: Option<DestinationId>,
+    pub route_id: Option<RouteId>,
+    pub observed_at_tick: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -348,6 +359,7 @@ pub struct FieldReducedRuntimeSearchReplay {
     pub schema_version: u16,
     pub search: Option<FieldReducedSearchProjection>,
     pub runtime_artifacts: Vec<FieldRuntimeRoundArtifact>,
+    pub policy_events: Vec<FieldPolicyEvent>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -409,6 +421,37 @@ pub struct FieldRuntimeRoundArtifact {
     pub search_selected_result_present: bool,
     pub search_reconfiguration_present: bool,
     pub router_artifact: Option<FieldRuntimeRouteArtifact>,
+    pub observed_at_tick: Tick,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum FieldPolicyGate {
+    Posture,
+    Promotion,
+    Continuity,
+    CarryForward,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum FieldPolicyReason {
+    BlockedByDwell,
+    BlockedBySupportTrend,
+    BlockedByUncertainty,
+    BlockedByAntiEntropyConfirmation,
+    BlockedByContinuationCoherence,
+    BlockedByFreshness,
+    SoftenedBySupport,
+    SoftenedByEntropy,
+    EmittedByContinuityGate,
+    EmittedByEvidenceGate,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct FieldPolicyEvent {
+    pub gate: FieldPolicyGate,
+    pub reason: FieldPolicyReason,
+    pub destination: Option<DestinationId>,
+    pub route_id: Option<RouteId>,
     pub observed_at_tick: Tick,
 }
 
@@ -587,6 +630,7 @@ impl FieldReplaySnapshot {
             schema_version: self.schema_version,
             search: self.search.record.as_ref().map(reduced_search_projection),
             runtime_artifacts: self.runtime.artifacts.clone(),
+            policy_events: self.runtime.policy_events.clone(),
         }
     }
 
@@ -732,6 +776,11 @@ fn exported_runtime_search_replay(
             .iter()
             .map(exported_runtime_round_artifact)
             .collect(),
+        policy_events: replay
+            .policy_events
+            .iter()
+            .map(exported_policy_event)
+            .collect(),
     }
 }
 
@@ -823,6 +872,16 @@ fn exported_runtime_round_artifact(
             }
         }),
         observed_at_tick: artifact.observed_at_tick.0,
+    }
+}
+
+fn exported_policy_event(event: &FieldPolicyEvent) -> FieldExportedPolicyEvent {
+    FieldExportedPolicyEvent {
+        gate: format!("{:?}", event.gate),
+        reason: format!("{:?}", event.reason),
+        destination: event.destination.clone(),
+        route_id: event.route_id,
+        observed_at_tick: event.observed_at_tick.0,
     }
 }
 

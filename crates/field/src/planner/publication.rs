@@ -9,6 +9,7 @@ pub(super) fn service_publication_neighbors(
     selected_neighbor: jacquard_core::NodeId,
     search_config: &crate::FieldSearchConfig,
 ) -> Vec<jacquard_core::NodeId> {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.evidence.publication;
     let mut scores: std::collections::BTreeMap<jacquard_core::NodeId, u32> =
         std::collections::BTreeMap::new();
     let freshest_forward_tick = destination_state
@@ -25,20 +26,25 @@ pub(super) fn service_publication_neighbors(
         .max()
         .unwrap_or(0);
     for evidence in &destination_state.pending_forward_evidence {
-        if evidence.summary.retention_support.value() >= 120
-            && evidence.summary.delivery_support.value() >= 80
-            && evidence.summary.uncertainty_penalty.value() <= 900
+        if evidence.summary.retention_support.value()
+            >= policy.service_neighbor_retention_floor_permille
+            && evidence.summary.delivery_support.value()
+                >= policy.service_neighbor_support_floor_permille
+            && evidence.summary.uncertainty_penalty.value()
+                <= policy.service_neighbor_uncertainty_ceiling_permille
         {
             let freshness_gap = freshest_forward_tick.saturating_sub(evidence.observed_at_tick.0);
             let freshness_penalty =
                 u32::try_from(freshness_gap.min(4)).expect("bounded freshness gap fits u32");
-            let freshness_weight =
-                u32::from(search_config.service_freshness_weight().clamp(25, 200));
+            let freshness_weight = u32::from(search_config.service_freshness_weight().clamp(
+                policy.service_freshness_weight_min_permille,
+                policy.service_freshness_weight_max_permille,
+            ));
             let score = u32::from(evidence.summary.retention_support.value())
                 .saturating_add(u32::from(evidence.summary.delivery_support.value()))
                 .saturating_sub(u32::from(evidence.summary.uncertainty_penalty.value()) / 2);
             let score = score
-                .saturating_add(160)
+                .saturating_add(u32::from(policy.service_evidence_score_bonus_permille))
                 .saturating_sub((freshness_penalty * freshness_weight) / 4);
             scores
                 .entry(evidence.from_neighbor)
@@ -50,11 +56,14 @@ pub(super) fn service_publication_neighbors(
         let freshness_gap = freshest_frontier_tick.saturating_sub(entry.freshness.0);
         let freshness_penalty =
             u32::try_from(freshness_gap.min(4)).expect("bounded freshness gap fits u32");
-        let freshness_weight = u32::from(search_config.service_freshness_weight().clamp(25, 200));
+        let freshness_weight = u32::from(search_config.service_freshness_weight().clamp(
+            policy.service_freshness_weight_min_permille,
+            policy.service_freshness_weight_max_permille,
+        ));
         let score = u32::from(entry.downstream_support.value())
             .saturating_add(u32::from(entry.net_value.value()));
         let score = score
-            .saturating_add(120)
+            .saturating_add(u32::from(policy.service_frontier_score_bonus_permille))
             .saturating_sub((freshness_penalty * freshness_weight) / 5);
         scores
             .entry(entry.neighbor_id)
@@ -85,10 +94,11 @@ pub(super) fn node_publication_neighbors(
     selected_neighbor: jacquard_core::NodeId,
     search_config: &crate::FieldSearchConfig,
 ) -> Vec<jacquard_core::NodeId> {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.evidence.publication;
     let support_floor = search_config
         .node_bootstrap_support_floor()
         .saturating_sub(20)
-        .max(140);
+        .max(policy.node_support_floor_min_permille);
     let mut scores: std::collections::BTreeMap<jacquard_core::NodeId, u32> =
         std::collections::BTreeMap::new();
     for evidence in &destination_state.pending_forward_evidence {
@@ -98,7 +108,7 @@ pub(super) fn node_publication_neighbors(
         {
             let score = u32::from(evidence.summary.delivery_support.value())
                 .saturating_add(u32::from(evidence.summary.retention_support.value()))
-                .saturating_add(120);
+                .saturating_add(u32::from(policy.node_evidence_score_bonus_permille));
             scores
                 .entry(evidence.from_neighbor)
                 .and_modify(|current| *current = (*current).max(score))
@@ -112,7 +122,7 @@ pub(super) fn node_publication_neighbors(
         {
             let score = u32::from(entry.downstream_support.value())
                 .saturating_add(u32::from(entry.net_value.value()))
-                .saturating_add(80);
+                .saturating_add(u32::from(policy.node_frontier_score_bonus_permille));
             scores
                 .entry(entry.neighbor_id)
                 .and_modify(|current| *current = (*current).max(score))
@@ -150,19 +160,27 @@ pub(crate) fn corroborated_node_forward_support(
 pub(super) fn service_corroborating_branch_count(
     destination_state: &DestinationFieldState,
 ) -> usize {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.evidence.publication;
     if !matches!(destination_state.destination, DestinationKey::Service(_)) {
         return 0;
     }
     let mut neighbors = std::collections::BTreeSet::new();
     for entry in destination_state.frontier.as_slice() {
-        if entry.downstream_support.value() >= 140 && entry.net_value.value() >= 180 {
+        if entry.downstream_support.value()
+            >= policy.service_corroborating_frontier_support_floor_permille
+            && entry.net_value.value()
+                >= policy.service_corroborating_frontier_net_value_floor_permille
+        {
             neighbors.insert(entry.neighbor_id);
         }
     }
     for evidence in &destination_state.pending_forward_evidence {
-        if evidence.summary.retention_support.value() >= 120
-            && evidence.summary.delivery_support.value() >= 80
-            && evidence.summary.uncertainty_penalty.value() <= 900
+        if evidence.summary.retention_support.value()
+            >= policy.service_neighbor_retention_floor_permille
+            && evidence.summary.delivery_support.value()
+                >= policy.service_neighbor_support_floor_permille
+            && evidence.summary.uncertainty_penalty.value()
+                <= policy.service_neighbor_uncertainty_ceiling_permille
         {
             neighbors.insert(evidence.from_neighbor);
         }
@@ -176,6 +194,7 @@ pub(super) fn service_corroborated_support_score(
     destination_state: &DestinationFieldState,
     search_config: &crate::FieldSearchConfig,
 ) -> u16 {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.evidence.publication;
     let mut per_neighbor: std::collections::BTreeMap<jacquard_core::NodeId, u32> =
         std::collections::BTreeMap::new();
     let freshest_forward_tick = destination_state
@@ -195,7 +214,11 @@ pub(super) fn service_corroborated_support_score(
         let freshness_gap = freshest_frontier_tick.saturating_sub(entry.freshness.0);
         let freshness_penalty = u32::try_from(freshness_gap.min(5))
             .expect("bounded freshness gap fits u32")
-            * (u32::from(search_config.service_freshness_weight().clamp(25, 200)) / 10).max(1);
+            * (u32::from(search_config.service_freshness_weight().clamp(
+                policy.service_freshness_weight_min_permille,
+                policy.service_freshness_weight_max_permille,
+            )) / 10)
+                .max(1);
         let score = u32::from(entry.downstream_support.value())
             .saturating_add(u32::from(entry.net_value.value()))
             .saturating_sub(freshness_penalty);
@@ -208,7 +231,11 @@ pub(super) fn service_corroborated_support_score(
         let freshness_gap = freshest_forward_tick.saturating_sub(evidence.observed_at_tick.0);
         let freshness_penalty = u32::try_from(freshness_gap.min(5))
             .expect("bounded freshness gap fits u32")
-            * (u32::from(search_config.service_freshness_weight().clamp(25, 200)) / 8).max(1);
+            * (u32::from(search_config.service_freshness_weight().clamp(
+                policy.service_freshness_weight_min_permille,
+                policy.service_freshness_weight_max_permille,
+            )) / 8)
+                .max(1);
         let score = u32::from(evidence.summary.delivery_support.value())
             .saturating_add(u32::from(evidence.summary.retention_support.value()))
             .saturating_sub(u32::from(evidence.summary.uncertainty_penalty.value()) / 3)
@@ -236,7 +263,7 @@ pub(super) fn service_corroborated_support_score(
         .saturating_add(
             u32::try_from(corroborating_count.saturating_sub(1))
                 .expect("branch count fits")
-                .saturating_mul(70),
+                .saturating_mul(u32::from(policy.corroboration_branch_bonus_permille)),
         );
     u16::try_from(score.min(1000)).expect("service support score capped to bucket max")
 }

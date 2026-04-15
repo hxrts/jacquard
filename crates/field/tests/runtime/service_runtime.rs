@@ -209,6 +209,12 @@ fn service_maintenance_prefers_shift_within_existing_corridor() {
         active.recovery.state.service_retention_carry_forward_count,
         1
     );
+    let exported = engine
+        .replay_snapshot(std::slice::from_ref(&route))
+        .exported_bundle();
+    assert!(exported.runtime_search.policy_events.iter().any(|event| {
+        event.gate == "CarryForward" && event.reason == "EmittedByContinuityGate"
+    }));
 }
 
 #[test]

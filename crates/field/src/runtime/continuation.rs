@@ -3,6 +3,7 @@ use super::*;
 pub(super) fn pending_forward_continuations_for_maintenance(
     destination_state: &crate::state::DestinationFieldState,
 ) -> Vec<NeighborContinuation> {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity.continuation;
     let service_bias = matches!(
         destination_state.destination,
         crate::state::DestinationKey::Service(_)
@@ -11,10 +12,24 @@ pub(super) fn pending_forward_continuations_for_maintenance(
         .pending_forward_evidence
         .iter()
         .filter(|evidence| {
-            evidence.summary.retention_support.value() >= if service_bias { 140 } else { 220 }
-                && evidence.summary.delivery_support.value() >= if service_bias { 80 } else { 120 }
+            evidence.summary.retention_support.value()
+                >= if service_bias {
+                    policy.service_pending_retention_floor_permille
+                } else {
+                    policy.node_pending_retention_floor_permille
+                }
+                && evidence.summary.delivery_support.value()
+                    >= if service_bias {
+                        policy.service_pending_support_floor_permille
+                    } else {
+                        policy.node_pending_support_floor_permille
+                    }
                 && evidence.summary.uncertainty_penalty.value()
-                    <= if service_bias { 880 } else { 780 }
+                    <= if service_bias {
+                        policy.service_pending_uncertainty_ceiling_permille
+                    } else {
+                        policy.node_pending_uncertainty_ceiling_permille
+                    }
         })
         .map(|evidence| NeighborContinuation {
             neighbor_id: evidence.from_neighbor,
@@ -42,8 +57,13 @@ pub(super) fn preferred_service_shift_neighbor(
     ranked_best: &NeighborContinuation,
     search_config: &crate::FieldSearchConfig,
 ) -> Option<NodeId> {
-    let quality_margin = 240_u16.saturating_sub(search_config.service_narrowing_bias() / 2);
-    let downstream_margin = 180_u16.saturating_sub(search_config.service_narrowing_bias() / 3);
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity.continuation;
+    let quality_margin = policy
+        .service_shift_quality_margin_permille
+        .saturating_sub(search_config.service_narrowing_bias() / 2);
+    let downstream_margin = policy
+        .service_shift_downstream_margin_permille
+        .saturating_sub(search_config.service_narrowing_bias() / 3);
     ranked
         .iter()
         .find(|(entry, _)| {
@@ -71,7 +91,10 @@ pub(super) fn service_runtime_continuation_neighbors(
     selected_neighbor: NodeId,
     search_config: &crate::FieldSearchConfig,
 ) -> Vec<NodeId> {
-    let support_floor = 120_u16.saturating_add(search_config.service_narrowing_bias() / 5);
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity.continuation;
+    let support_floor = policy
+        .service_runtime_support_floor_permille
+        .saturating_add(search_config.service_narrowing_bias() / 5);
     let max_neighbors = search_config
         .service_publication_neighbor_limit()
         .clamp(1, crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT)
@@ -119,10 +142,11 @@ pub(super) fn preferred_node_shift_neighbor(
     neighbor_endpoints: &std::collections::BTreeMap<NodeId, jacquard_core::LinkEndpoint>,
     search_config: &crate::FieldSearchConfig,
 ) -> Option<NodeId> {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity.continuation;
     let support_floor = search_config
         .node_bootstrap_support_floor()
         .saturating_sub(20)
-        .max(140);
+        .max(policy.node_selection_support_floor_permille);
     ranked
         .iter()
         .find(|(entry, _)| {
@@ -144,10 +168,11 @@ pub(super) fn node_runtime_continuation_neighbors(
     selected_neighbor: NodeId,
     search_config: &crate::FieldSearchConfig,
 ) -> Vec<NodeId> {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity.continuation;
     let support_floor = search_config
         .node_bootstrap_support_floor()
         .saturating_sub(20)
-        .max(140);
+        .max(policy.node_runtime_support_floor_permille);
     let max_neighbors = 2usize.min(crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT);
     let mut node_ranked: Vec<_> = ranked
         .iter()
@@ -195,6 +220,8 @@ pub(super) fn synthesized_node_carry_forward_ranked(
     now_tick: Tick,
     search_config: &crate::FieldSearchConfig,
 ) -> Vec<(NeighborContinuation, SupportBucket)> {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity.continuation;
+    let observer_policy = &crate::policy::DEFAULT_FIELD_POLICY.evidence.observer;
     let Some(last_summary) = destination_state.publication.last_summary.as_ref() else {
         return Vec::new();
     };
@@ -202,14 +229,15 @@ pub(super) fn synthesized_node_carry_forward_ranked(
         return Vec::new();
     };
     if now_tick.0.saturating_sub(last_sent_at.0)
-        > FIELD_DEGRADED_STEADY_STALE_TICKS_MAX.saturating_add(6)
+        > FIELD_DEGRADED_STEADY_STALE_TICKS_MAX
+            .saturating_add(observer_policy.synthesized_node_publication_staleness_slack_ticks)
     {
         return Vec::new();
     }
     let support_floor = search_config
         .node_bootstrap_support_floor()
         .saturating_sub(40)
-        .max(120);
+        .max(observer_policy.synthesized_node_support_floor_min_permille);
     let base_delivery = destination_state
         .corridor_belief
         .delivery_support
@@ -237,10 +265,16 @@ pub(super) fn synthesized_node_carry_forward_ranked(
             if !reachable && corroborated < support_floor {
                 return None;
             }
-            let rank_penalty = u16::try_from(index).unwrap_or(u16::MAX).saturating_mul(20);
-            let reachability_bonus = if reachable { 100 } else { 0 };
+            let rank_penalty = u16::try_from(index)
+                .unwrap_or(u16::MAX)
+                .saturating_mul(policy.synthesized_rank_penalty_permille);
+            let reachability_bonus = if reachable {
+                policy.synthesized_reachability_bonus_permille
+            } else {
+                0
+            };
             let selection_bonus = if *neighbor_id == active.selected_neighbor {
-                20
+                policy.synthesized_selected_neighbor_bonus_permille
             } else {
                 0
             };
@@ -251,7 +285,11 @@ pub(super) fn synthesized_node_carry_forward_ranked(
                 .saturating_sub(rank_penalty)
                 .min(1000);
             let retention = base_retention
-                .saturating_add(if reachable { 60 } else { 0 })
+                .saturating_add(if reachable {
+                    policy.synthesized_retention_bonus_permille
+                } else {
+                    0
+                })
                 .saturating_sub(rank_penalty / 2)
                 .min(1000);
             Some((
@@ -336,14 +374,17 @@ pub(super) fn service_corridor_viable(
     active: &ActiveFieldRoute,
     destination_state: &crate::state::DestinationFieldState,
 ) -> bool {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity.continuation;
     let viable_frontier_branches = destination_state
         .frontier
         .as_slice()
         .iter()
         .filter(|entry| {
             active.continuation_neighbors.contains(&entry.neighbor_id)
-                && entry.downstream_support.value() >= 120
-                && entry.net_value.value() >= 180
+                && entry.downstream_support.value()
+                    >= policy.service_frontier_viability_support_floor_permille
+                && entry.net_value.value()
+                    >= policy.service_frontier_viability_retention_floor_permille
         })
         .count();
     let viable_forward_branches = destination_state
@@ -353,26 +394,32 @@ pub(super) fn service_corridor_viable(
             active
                 .continuation_neighbors
                 .contains(&evidence.from_neighbor)
-                && evidence.summary.delivery_support.value() >= 100
-                && evidence.summary.retention_support.value() >= 180
-                && evidence.summary.uncertainty_penalty.value() <= 860
+                && evidence.summary.delivery_support.value()
+                    >= policy.service_forward_viability_support_floor_permille
+                && evidence.summary.retention_support.value()
+                    >= policy.service_forward_viability_retention_floor_permille
+                && evidence.summary.uncertainty_penalty.value()
+                    <= policy.service_forward_viability_uncertainty_ceiling_permille
         })
         .count();
-    viable_frontier_branches + viable_forward_branches >= 2
+    viable_frontier_branches + viable_forward_branches >= policy.service_viable_branch_count_min
 }
 
 pub(super) fn node_corridor_viable(
     active: &ActiveFieldRoute,
     destination_state: &crate::state::DestinationFieldState,
 ) -> bool {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity.continuation;
     let viable_frontier_branches = destination_state
         .frontier
         .as_slice()
         .iter()
         .filter(|entry| {
             active.continuation_neighbors.contains(&entry.neighbor_id)
-                && entry.downstream_support.value() >= 140
-                && entry.net_value.value() >= 180
+                && entry.downstream_support.value()
+                    >= policy.node_frontier_viability_support_floor_permille
+                && entry.net_value.value()
+                    >= policy.node_frontier_viability_retention_floor_permille
         })
         .count();
     let viable_forward_branches = destination_state
@@ -382,12 +429,15 @@ pub(super) fn node_corridor_viable(
             active
                 .continuation_neighbors
                 .contains(&evidence.from_neighbor)
-                && evidence.summary.delivery_support.value() >= 120
-                && evidence.summary.retention_support.value() >= 160
-                && evidence.summary.uncertainty_penalty.value() <= 920
+                && evidence.summary.delivery_support.value()
+                    >= policy.node_forward_viability_support_floor_permille
+                && evidence.summary.retention_support.value()
+                    >= policy.node_forward_viability_retention_floor_permille
+                && evidence.summary.uncertainty_penalty.value()
+                    <= policy.node_forward_viability_uncertainty_ceiling_permille
         })
         .count();
-    viable_frontier_branches + viable_forward_branches >= 1
+    viable_frontier_branches + viable_forward_branches >= policy.node_viable_branch_count_min
 }
 
 pub(super) fn observer_input_signature(
@@ -422,6 +472,7 @@ pub(super) fn should_transmit_summary(
     summary: &FieldSummary,
     now_tick: Tick,
 ) -> bool {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity.continuation;
     let Some(previous_summary) = destination_state.publication.last_summary.as_ref() else {
         return true;
     };
@@ -431,11 +482,15 @@ pub(super) fn should_transmit_summary(
     if now_tick.0.saturating_sub(last_sent_at.0) >= SUMMARY_HEARTBEAT_TICKS {
         return true;
     }
-    if summary_divergence(previous_summary, summary).value() >= 100 {
+    if summary_divergence(previous_summary, summary).value()
+        >= policy.transmission_divergence_trigger_permille
+    {
         return true;
     }
-    destination_state.corridor_belief.delivery_support.value() < 320
-        && destination_state.corridor_belief.retention_affinity.value() >= 260
+    destination_state.corridor_belief.delivery_support.value()
+        < policy.transmission_weak_support_floor_permille
+        && destination_state.corridor_belief.retention_affinity.value()
+            >= policy.transmission_retention_affinity_floor_permille
         && now_tick.0.saturating_sub(last_sent_at.0) >= SUMMARY_HEARTBEAT_TICKS.saturating_sub(1)
 }
 

@@ -40,7 +40,9 @@ mod choreography;
 mod control;
 mod engine;
 mod observer;
+mod operational;
 mod planner;
+mod policy;
 mod recovery;
 mod route;
 mod runtime;
@@ -56,7 +58,7 @@ pub use choreography::{
 };
 pub use engine::{
     FieldCommitmentReplayEntry, FieldCommitmentReplaySurface, FieldEngine,
-    FieldExportedProtocolArtifact, FieldExportedProtocolReconfiguration,
+    FieldExportedPolicyEvent, FieldExportedProtocolArtifact, FieldExportedProtocolReconfiguration,
     FieldExportedProtocolReplay, FieldExportedRecoveryEntry, FieldExportedRecoveryReplay,
     FieldExportedReplayBundle, FieldExportedRuntimeRoundArtifact,
     FieldExportedRuntimeRouteArtifact, FieldExportedRuntimeSearchReplay, FieldExportedSearchEpoch,
@@ -64,14 +66,15 @@ pub use engine::{
     FieldExportedSearchReconfiguration, FieldExportedSelectedResult,
     FieldForwardSummaryObservation, FieldLeanProtocolFixture, FieldLeanRecoveryFixture,
     FieldLeanReplayFixture, FieldLeanRuntimeLinkageFixture, FieldLeanSearchFixture,
-    FieldProtocolReplaySurface, FieldRecoveryReplayEntry, FieldRecoveryReplaySurface,
-    FieldReducedObjectiveClass, FieldReducedProtocolArtifact, FieldReducedProtocolReconfiguration,
-    FieldReducedProtocolReplay, FieldReducedProtocolSession, FieldReducedQueryKind,
-    FieldReducedRuntimeSearchReplay, FieldReducedSearchExecutionPolicy,
-    FieldReducedSearchProjection, FieldReducedSearchQuery, FieldReducedSelectedResult,
-    FieldReplaySnapshot, FieldReplaySurfaceClass, FieldRuntimeReplaySurface,
-    FieldRuntimeRoundArtifact, FieldRuntimeRouteArtifact, FieldSearchReplaySurface,
-    FIELD_CAPABILITIES, FIELD_ENGINE_ID, FIELD_REPLAY_SURFACE_VERSION,
+    FieldPolicyEvent, FieldPolicyGate, FieldPolicyReason, FieldProtocolReplaySurface,
+    FieldRecoveryReplayEntry, FieldRecoveryReplaySurface, FieldReducedObjectiveClass,
+    FieldReducedProtocolArtifact, FieldReducedProtocolReconfiguration, FieldReducedProtocolReplay,
+    FieldReducedProtocolSession, FieldReducedQueryKind, FieldReducedRuntimeSearchReplay,
+    FieldReducedSearchExecutionPolicy, FieldReducedSearchProjection, FieldReducedSearchQuery,
+    FieldReducedSelectedResult, FieldReplaySnapshot, FieldReplaySurfaceClass,
+    FieldRuntimeReplaySurface, FieldRuntimeRoundArtifact, FieldRuntimeRouteArtifact,
+    FieldSearchReplaySurface, FIELD_CAPABILITIES, FIELD_ENGINE_ID,
+    FIELD_POLICY_EVENT_RETENTION_MAX, FIELD_REPLAY_SURFACE_VERSION,
     FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
 };
 pub use recovery::{

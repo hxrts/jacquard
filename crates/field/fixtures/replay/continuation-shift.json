@@ -196,7 +196,8 @@
       "reconfiguration": null,
       "planning_failure": null
     },
-    "runtime_artifacts": []
+    "runtime_artifacts": [],
+    "policy_events": []
   },
   "protocol": {
     "schema_version": 1,

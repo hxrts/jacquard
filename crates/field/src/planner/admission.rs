@@ -76,6 +76,7 @@ pub(super) fn selected_neighbor_publishable(
 }
 
 pub(super) fn admission_check_for(inputs: AdmissionInputs<'_>) -> RouteAdmissionCheck {
+    let continuity_policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity;
     let AdmissionInputs {
         objective,
         profile,
@@ -100,7 +101,10 @@ pub(super) fn admission_check_for(inputs: AdmissionInputs<'_>) -> RouteAdmission
             > if search_config.node_discovery_enabled() {
                 search_config.node_bootstrap_entropy_ceiling()
             } else {
-                925
+                continuity_policy
+                    .bootstrap
+                    .service_entropy_ceiling_permille
+                    .saturating_sub(25)
             }
     {
         AdmissionDecision::Rejected(RouteAdmissionRejection::DeliveryAssumptionUnsupported)
@@ -170,6 +174,7 @@ pub(crate) fn bootstrap_corridor_admissible_with_config(
     destination_state: &DestinationFieldState,
     search_config: &crate::FieldSearchConfig,
 ) -> bool {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity;
     let support = destination_state.corridor_belief.delivery_support.value();
     let entropy = destination_state.posterior.usability_entropy.value();
     let retention = destination_state.corridor_belief.retention_affinity.value();
@@ -178,17 +183,17 @@ pub(crate) fn bootstrap_corridor_admissible_with_config(
     let service_bias = matches!(destination_state.destination, DestinationKey::Service(_));
     let discovery_enabled = !service_bias && search_config.node_discovery_enabled();
     let support_floor = if service_bias {
-        130
+        policy.bootstrap.service_support_floor_permille
     } else {
         search_config.node_bootstrap_support_floor()
     };
     let top_mass_floor = if service_bias {
-        260
+        policy.bootstrap.service_top_mass_floor_permille
     } else {
         search_config.node_bootstrap_top_mass_floor()
     };
     let entropy_ceiling = if service_bias {
-        950
+        policy.bootstrap.service_entropy_ceiling_permille
     } else {
         search_config.node_bootstrap_entropy_ceiling()
     };
@@ -205,12 +210,24 @@ pub(crate) fn bootstrap_corridor_admissible_with_config(
     }
 
     if service_bias
-        && service_branch_count >= 2
-        && support >= 130
-        && retention >= 140
-        && top_mass >= 140
-        && entropy <= 970
-        && service_support_score >= 380
+        && service_branch_count >= policy.bootstrap.service_corroborated_branch_count_min
+        && support >= policy.bootstrap.service_corroborated_support_floor_permille
+        && retention
+            >= policy
+                .bootstrap
+                .service_corroborated_retention_floor_permille
+        && top_mass
+            >= policy
+                .bootstrap
+                .service_corroborated_top_mass_floor_permille
+        && entropy
+            <= policy
+                .bootstrap
+                .service_corroborated_entropy_ceiling_permille
+        && service_support_score
+            >= policy
+                .bootstrap
+                .service_corroborated_support_score_floor_permille
     {
         return true;
     }
@@ -219,7 +236,12 @@ pub(crate) fn bootstrap_corridor_admissible_with_config(
         EvidenceContributionClass::Direct => {
             top_mass
                 >= if discovery_enabled {
-                    top_mass_floor.saturating_sub(80)
+                    top_mass_floor.saturating_sub(
+                        policy
+                            .bootstrap
+                            .forward_propagated_discovery_top_mass_relief_permille
+                            .saturating_sub(10),
+                    )
                 } else {
                     top_mass_floor
                 }
@@ -227,32 +249,93 @@ pub(crate) fn bootstrap_corridor_admissible_with_config(
         EvidenceContributionClass::ReverseFeedback => {
             top_mass
                 >= if discovery_enabled {
-                    top_mass_floor.saturating_sub(100)
+                    top_mass_floor.saturating_sub(
+                        policy
+                            .bootstrap
+                            .reverse_feedback_discovery_top_mass_relief_permille,
+                    )
                 } else {
-                    180
+                    policy
+                        .bootstrap
+                        .reverse_feedback_node_top_mass_floor_permille
                 }
-                && (support >= support_floor.saturating_sub(40)
-                    || retention >= if discovery_enabled { 140 } else { 180 }
-                    || coherent_source_count >= if discovery_enabled { 1 } else { 2 })
+                && (support
+                    >= support_floor
+                        .saturating_sub(policy.bootstrap.reverse_feedback_support_relief_permille)
+                    || retention
+                        >= if discovery_enabled {
+                            policy
+                                .bootstrap
+                                .reverse_feedback_discovery_retention_floor_permille
+                        } else {
+                            policy.bootstrap.reverse_feedback_retention_floor_permille
+                        }
+                    || coherent_source_count
+                        >= if discovery_enabled {
+                            policy
+                                .bootstrap
+                                .reverse_feedback_discovery_coherent_sources_min
+                        } else {
+                            policy.bootstrap.reverse_feedback_coherent_sources_min
+                        })
         }
         EvidenceContributionClass::ForwardPropagated => {
-            (top_mass >= 260 && retention >= 220 && support.saturating_add(retention) >= 520)
-                || (coherent_source_count >= 2
-                    && top_mass >= 180
-                    && retention >= 160
-                    && support.saturating_add(retention) >= 420)
+            (top_mass
+                >= policy
+                    .bootstrap
+                    .forward_propagated_service_top_mass_floor_permille
+                && retention
+                    >= policy
+                        .bootstrap
+                        .forward_propagated_service_retention_floor_permille
+                && support.saturating_add(retention)
+                    >= policy
+                        .bootstrap
+                        .forward_propagated_service_combined_support_floor_permille)
+                || (coherent_source_count
+                    >= policy
+                        .bootstrap
+                        .forward_propagated_shared_coherent_sources_min
+                    && top_mass
+                        >= policy
+                            .bootstrap
+                            .forward_propagated_shared_top_mass_floor_permille
+                    && retention
+                        >= policy
+                            .bootstrap
+                            .forward_propagated_shared_retention_floor_permille
+                    && support.saturating_add(retention)
+                        >= policy
+                            .bootstrap
+                            .forward_propagated_shared_combined_support_floor_permille)
                 || (discovery_enabled
                     && coherent_source_count >= 1
-                    && top_mass >= top_mass_floor.saturating_sub(90)
-                    && retention >= 140
-                    && support.saturating_add(retention) >= support_floor.saturating_add(160))
+                    && top_mass
+                        >= top_mass_floor.saturating_sub(
+                            policy
+                                .bootstrap
+                                .forward_propagated_discovery_top_mass_relief_permille,
+                        )
+                    && retention
+                        >= policy
+                            .bootstrap
+                            .forward_propagated_discovery_retention_floor_permille
+                    && support.saturating_add(retention)
+                        >= support_floor.saturating_add(
+                            policy
+                                .bootstrap
+                                .forward_propagated_discovery_combined_support_bonus_permille,
+                        ))
         }
     }
 }
 
 pub(crate) fn steady_corridor_admissible(destination_state: &DestinationFieldState) -> bool {
-    destination_state.corridor_belief.delivery_support.value() >= 300
-        && destination_state.posterior.usability_entropy.value() <= 850
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity;
+    destination_state.corridor_belief.delivery_support.value()
+        >= policy.steady_support_floor_permille
+        && destination_state.posterior.usability_entropy.value()
+            <= policy.steady_entropy_ceiling_permille
 }
 
 #[cfg(test)]
@@ -275,6 +358,7 @@ pub(crate) fn promoted_corridor_admissible_with_config(
     promotion_window_score: u8,
     search_config: &crate::FieldSearchConfig,
 ) -> bool {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.promotion;
     if steady_corridor_admissible(destination_state) {
         return true;
     }
@@ -285,8 +369,13 @@ pub(crate) fn promoted_corridor_admissible_with_config(
         service_corroborated_support_score(destination_state, &crate::FieldSearchConfig::default());
     if service_bias
         && service_branch_count >= 2
-        && destination_state.corridor_belief.delivery_support.value() >= 150
-        && destination_state.posterior.usability_entropy.value() <= 950
+        && destination_state.corridor_belief.delivery_support.value()
+            >= policy.stable_support_floor_permille.saturating_sub(30)
+        && destination_state.posterior.usability_entropy.value()
+            <= crate::policy::DEFAULT_FIELD_POLICY
+                .continuity
+                .bootstrap
+                .service_entropy_ceiling_permille
         && destination_state.corridor_belief.retention_affinity.value() >= 160
         && service_support_score >= if window_confirmed { 420 } else { 460 }
     {
@@ -299,7 +388,7 @@ pub(crate) fn promoted_corridor_admissible_with_config(
                 .saturating_sub(20)
                 .max(180)
         } else {
-            180
+            policy.stable_support_floor_permille
         }
         && destination_state.posterior.usability_entropy.value()
             <= if search_config.node_discovery_enabled() {
@@ -310,10 +399,14 @@ pub(crate) fn promoted_corridor_admissible_with_config(
             } else if window_confirmed {
                 940
             } else {
-                925
+                policy.stable_entropy_ceiling_permille
             }
         && destination_state.corridor_belief.retention_affinity.value()
-            >= if window_confirmed { 220 } else { 240 }
+            >= if window_confirmed {
+                policy.stable_top_mass_floor_permille
+            } else {
+                policy.stable_retention_floor_permille
+            }
         && destination_state.posterior.top_corridor_mass.value()
             >= if search_config.node_discovery_enabled() {
                 search_config
@@ -323,7 +416,7 @@ pub(crate) fn promoted_corridor_admissible_with_config(
             } else if window_confirmed {
                 200
             } else {
-                220
+                policy.stable_top_mass_floor_permille
             }
 }
 
@@ -358,24 +451,32 @@ fn degraded_steady_band_admissible_with_config(
     destination_state: &DestinationFieldState,
     search_config: &crate::FieldSearchConfig,
 ) -> bool {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity;
+    let promotion_policy = &crate::policy::DEFAULT_FIELD_POLICY.promotion;
     let service_bias = matches!(destination_state.destination, DestinationKey::Service(_));
     let discovery_node_route = !service_bias && search_config.node_discovery_enabled();
     let support_floor = if service_bias || discovery_node_route {
-        180
+        promotion_policy.stable_support_floor_permille
     } else {
-        220
+        policy.runtime.route_weak_support_floor_permille
     };
     let retention_floor = if service_bias {
-        240
+        crate::policy::DEFAULT_FIELD_POLICY
+            .promotion
+            .stable_retention_floor_permille
     } else if discovery_node_route {
-        180
+        crate::policy::DEFAULT_FIELD_POLICY
+            .promotion
+            .stable_support_floor_permille
     } else {
-        220
+        policy.runtime.route_weak_support_floor_permille
     };
     let top_mass_floor = if service_bias || discovery_node_route {
         160
     } else {
-        180
+        crate::policy::DEFAULT_FIELD_POLICY
+            .promotion
+            .stable_support_floor_permille
     };
     destination_state.corridor_belief.delivery_support.value() >= support_floor
         && destination_state.corridor_belief.retention_affinity.value() >= retention_floor
@@ -388,6 +489,7 @@ fn steady_route_softening_needed_with_config(
     destination_state: &DestinationFieldState,
     search_config: &crate::FieldSearchConfig,
 ) -> bool {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.promotion;
     let service_bias = matches!(destination_state.destination, DestinationKey::Service(_));
     let discovery_node_route = !service_bias && search_config.node_discovery_enabled();
     let support = destination_state.corridor_belief.delivery_support.value();
@@ -397,7 +499,14 @@ fn steady_route_softening_needed_with_config(
     support < if discovery_node_route { 320 } else { 360 }
         || retention < if discovery_node_route { 260 } else { 320 }
         || top_mass < if discovery_node_route { 220 } else { 280 }
-        || entropy > if discovery_node_route { 820 } else { 760 }
+        || entropy
+            > if discovery_node_route {
+                policy.strong_entropy_ceiling_permille.saturating_add(45)
+            } else {
+                crate::policy::DEFAULT_FIELD_POLICY
+                    .posture
+                    .risk_suppressed_hold_risk_price_ceiling_permille
+            }
 }
 
 pub(crate) fn continuity_band_for_state(

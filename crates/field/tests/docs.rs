@@ -57,9 +57,17 @@ fn field_docs_keep_the_current_proof_boundary_explicit() {
 fn field_surfaces_ban_stale_route_vocabulary() {
     let sources = [
         repo_text("crates/field/src/attractor.rs"),
-        repo_text("crates/field/src/planner.rs"),
+        repo_text("crates/field/src/planner/mod.rs"),
+        repo_text("crates/field/src/planner/admission.rs"),
+        repo_text("crates/field/src/planner/publication.rs"),
+        repo_text("crates/field/src/planner/promotion.rs"),
         repo_text("crates/field/src/route.rs"),
-        repo_text("crates/field/src/runtime.rs"),
+        repo_text("crates/field/src/runtime/mod.rs"),
+        repo_text("crates/field/src/runtime/control.rs"),
+        repo_text("crates/field/src/runtime/observer.rs"),
+        repo_text("crates/field/src/runtime/continuation.rs"),
+        repo_text("crates/field/src/runtime/routing.rs"),
+        repo_text("crates/field/src/runtime/sessions.rs"),
         repo_text("crates/field/src/state.rs"),
         repo_text("docs/405_field_routing.md"),
     ];

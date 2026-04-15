@@ -744,6 +744,7 @@ dependencies = [
  "jacquard-core",
  "jacquard-field",
  "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
  "jacquard-olsrv2",
  "jacquard-pathway",
  "jacquard-reference-client",

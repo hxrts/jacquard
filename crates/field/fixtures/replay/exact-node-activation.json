@@ -510,7 +510,8 @@
         },
         "observed_at_tick": 2
       }
-    ]
+    ],
+    "policy_events": []
   },
   "protocol": {
     "schema_version": 1,

@@ -205,44 +205,53 @@ pub(crate) fn evidence_classification(evidence: &FieldEvidence) -> EvidenceContr
 // long-block-exception: summary decay keeps the support and uncertainty
 // transforms in one audited mapping from encoded evidence to aged evidence.
 pub(crate) fn decay_summary(summary: &FieldSummary, now_tick: Tick) -> FieldSummary {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.evidence.summary_decay;
     let age = now_tick.0.saturating_sub(summary.freshness_tick.0);
     let age_u16 = u16::try_from(age).unwrap_or(u16::MAX);
     let service_bias = matches!(summary.destination, SummaryDestinationKey::Service(_));
-    let retention_bias = if summary.retention_support.value() >= 320 {
-        summary.retention_support.value().min(480) / 6
-    } else {
-        0
-    };
+    let retention_bias =
+        if summary.retention_support.value() >= policy.retention_bias_floor_permille {
+            summary
+                .retention_support
+                .value()
+                .min(policy.retention_bias_cap_permille)
+                / 6
+        } else {
+            0
+        };
     let coherent_forward_bias = if summary.evidence_class != EvidenceContributionClass::Direct
-        && summary.uncertainty_penalty.value() <= 600
+        && summary.uncertainty_penalty.value() <= policy.sparse_relief_uncertainty_ceiling_permille
     {
-        70
+        policy.sparse_relief_bonus_permille
     } else {
         0
     };
     let bridge_continuity_bias = if !service_bias
         && summary.evidence_class == EvidenceContributionClass::ForwardPropagated
         && summary.hop_band.max_hops >= 2
-        && summary.retention_support.value() >= 260
-        && summary.uncertainty_penalty.value() <= 760
+        && summary.retention_support.value() >= policy.reverse_feedback_retention_floor_permille
+        && summary.uncertainty_penalty.value()
+            <= policy.reverse_feedback_uncertainty_ceiling_permille
     {
-        90
+        policy.reverse_feedback_bonus_permille
     } else {
         0
     };
-    let service_coherence_bias =
-        if service_bias && summary.evidence_class != EvidenceContributionClass::Direct {
-            if summary.retention_support.value() >= 260
-                && summary.delivery_support.value() >= 180
-                && summary.uncertainty_penalty.value() <= 760
-            {
-                110
-            } else {
-                60
-            }
+    let service_coherence_bias = if service_bias
+        && summary.evidence_class != EvidenceContributionClass::Direct
+    {
+        if summary.retention_support.value() >= policy.forward_propagated_retention_floor_permille
+            && summary.delivery_support.value() >= policy.forward_propagated_support_floor_permille
+            && summary.uncertainty_penalty.value()
+                <= policy.forward_propagated_uncertainty_ceiling_permille
+        {
+            policy.forward_propagated_bonus_permille
         } else {
-            0
-        };
+            policy.fallback_bonus_permille
+        }
+    } else {
+        0
+    };
     let support_decay = age_u16
         .min(200)
         .saturating_sub(retention_bias / 2)
@@ -499,6 +508,7 @@ pub(crate) fn discount_reflected_evidence(
     summary: &FieldSummary,
     local_origin_trace: LocalOriginTrace,
 ) -> FieldSummary {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.evidence.summary_decay;
     let reflected = matches!(
         summary.destination,
         SummaryDestinationKey::Node(node_id) if node_id == local_origin_trace.local_node_id
@@ -513,11 +523,17 @@ pub(crate) fn discount_reflected_evidence(
         hop_band: summary.hop_band,
         delivery_support: SupportBucket::new(summary.delivery_support.value() / 2),
         congestion_penalty: EntropyBucket::new(
-            summary.uncertainty_penalty.value().saturating_add(150),
+            summary
+                .uncertainty_penalty
+                .value()
+                .saturating_add(policy.reflected_uncertainty_penalty_permille),
         ),
         retention_support: summary.retention_support,
         uncertainty_penalty: EntropyBucket::new(
-            summary.uncertainty_penalty.value().saturating_add(200),
+            summary
+                .uncertainty_penalty
+                .value()
+                .saturating_add(policy.reverse_feedback_uncertainty_penalty_permille),
         ),
         evidence_class: summary.evidence_class,
         uncertainty_class: SummaryUncertaintyClass::High,
@@ -530,12 +546,15 @@ pub(crate) fn clamp_corridor_envelope(
     regime: OperatingRegime,
     control_state: &ControlState,
 ) -> CorridorBeliefEnvelope {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.evidence.summary_decay;
     let regime_penalty = match regime {
-        OperatingRegime::Sparse => 50,
-        OperatingRegime::Congested => 200,
-        OperatingRegime::RetentionFavorable => 100,
-        OperatingRegime::Unstable => 250,
-        OperatingRegime::Adversarial => 300,
+        OperatingRegime::Sparse => policy.sparse_regime_uncertainty_penalty_permille,
+        OperatingRegime::Congested => policy.congested_regime_uncertainty_penalty_permille,
+        OperatingRegime::RetentionFavorable => {
+            policy.retention_favorable_regime_uncertainty_penalty_permille
+        }
+        OperatingRegime::Unstable => policy.unstable_regime_uncertainty_penalty_permille,
+        OperatingRegime::Adversarial => policy.adversarial_regime_uncertainty_penalty_permille,
     };
     let congestion = summary
         .congestion_penalty
