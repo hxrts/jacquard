@@ -127,16 +127,17 @@ class SvgPlot(Flowable):
 
 
 def figure_flowable(report_dir: Path, asset_id: str, max_width: float, max_height: float):
+    svg_path = report_dir / f"{asset_id}.svg"
+    if svg_path.exists():
+        return SvgPlot(svg_path, max_width, max_height)
     png_path = report_dir / f"{asset_id}.png"
-    if png_path.exists():
-        reader = ImageReader(str(png_path))
-        width_px, height_px = reader.getSize()
-        scale = min(max_width / width_px, max_height / height_px)
-        image = Image(str(png_path))
-        image.drawWidth = width_px * scale
-        image.drawHeight = height_px * scale
-        return image
-    return SvgPlot(report_dir / f"{asset_id}.svg", max_width, max_height)
+    reader = ImageReader(str(png_path))
+    width_px, height_px = reader.getSize()
+    scale = min(max_width / width_px, max_height / height_px)
+    image = Image(str(png_path))
+    image.drawWidth = width_px * scale
+    image.drawHeight = height_px * scale
+    return image
 
 
 def build_styles():
