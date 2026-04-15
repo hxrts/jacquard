@@ -161,7 +161,7 @@ def build_styles():
             fontName="Helvetica-Bold",
             fontSize=13,
             leading=16,
-            textColor=colors.HexColor("#0f172a"),
+            textColor=colors.HexColor("#000000"),
             spaceBefore=8,
             spaceAfter=8,
         )
@@ -173,7 +173,7 @@ def build_styles():
             fontName="Helvetica-Bold",
             fontSize=11.2,
             leading=14,
-            textColor=colors.HexColor("#1e293b"),
+            textColor=colors.HexColor("#000000"),
             spaceBefore=8,
             spaceAfter=4,
         )
@@ -186,7 +186,7 @@ def build_styles():
             fontSize=18,
             leading=22,
             alignment=TA_LEFT,
-            textColor=colors.HexColor("#0f172a"),
+            textColor=colors.HexColor("#000000"),
             spaceAfter=14,
         )
     )
@@ -229,7 +229,7 @@ def build_styles():
             fontName="Helvetica-Bold",
             fontSize=9.2,
             leading=11,
-            textColor=colors.HexColor("#1e293b"),
+            textColor=colors.HexColor("#000000"),
             spaceBefore=0,
             spaceAfter=0,
         )
@@ -322,7 +322,7 @@ def make_table(column_labels: list[str], rows: list[list[str]], styles, col_widt
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e2e8f0")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#000000")),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("LINEBELOW", (0, 0), (-1, 0), 0.7, colors.HexColor("#94a3b8")),
                 ("GRID", (0, 1), (-1, -1), 0.35, colors.HexColor("#cbd5e1")),
