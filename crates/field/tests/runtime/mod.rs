@@ -16,7 +16,8 @@ use jacquard_traits::{
 
 use super::*;
 use crate::state::{
-    DestinationInterestClass, HopBand, NeighborContinuation, SupportBucket, MAX_ACTIVE_DESTINATIONS,
+    DestinationInterestClass, HopBand, NeighborContinuation, ObservationClass, SupportBucket,
+    MAX_ACTIVE_DESTINATIONS,
 };
 use crate::summary::{
     EvidenceContributionClass, FieldSummary, SummaryDestinationKey, SummaryUncertaintyClass,
@@ -24,6 +25,89 @@ use crate::summary::{
 
 fn node(byte: u8) -> NodeId {
     NodeId([byte; 32])
+}
+
+#[derive(Clone, Debug)]
+struct TestDestinationSeed {
+    destination: DestinationId,
+    interest_class: DestinationInterestClass,
+    observed_at_tick: Tick,
+    top_corridor_mass: u16,
+    usability_entropy: u16,
+    observation_class: ObservationClass,
+    hop_band: HopBand,
+    delivery_support: u16,
+    retention_affinity: u16,
+    frontier: Vec<NeighborContinuation>,
+    endpoint_neighbors: Vec<NodeId>,
+}
+
+impl TestDestinationSeed {
+    fn node_destination(node_id: NodeId) -> Self {
+        Self {
+            destination: DestinationId::Node(node_id),
+            interest_class: DestinationInterestClass::Transit,
+            observed_at_tick: Tick(4),
+            top_corridor_mass: 850,
+            usability_entropy: 200,
+            observation_class: ObservationClass::DirectOnly,
+            hop_band: HopBand::new(1, 2),
+            delivery_support: 800,
+            retention_affinity: 300,
+            frontier: Vec::new(),
+            endpoint_neighbors: Vec::new(),
+        }
+    }
+
+    fn with_frontier_neighbor(
+        mut self,
+        neighbor_id: NodeId,
+        net_value: u16,
+        downstream_support: u16,
+        freshness: Tick,
+    ) -> Self {
+        self.frontier.push(NeighborContinuation {
+            neighbor_id,
+            net_value: SupportBucket::new(net_value),
+            downstream_support: SupportBucket::new(downstream_support),
+            expected_hop_band: self.hop_band,
+            freshness,
+        });
+        self
+    }
+
+    fn with_endpoint_neighbor(mut self, neighbor_id: NodeId) -> Self {
+        self.endpoint_neighbors.push(neighbor_id);
+        self
+    }
+
+    fn apply<Transport>(&self, engine: &mut FieldEngine<Transport, ()>) {
+        let state = engine.state.upsert_destination_interest(
+            &self.destination,
+            self.interest_class,
+            self.observed_at_tick,
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(self.top_corridor_mass);
+        state.posterior.usability_entropy =
+            crate::state::EntropyBucket::new(self.usability_entropy);
+        state.posterior.predicted_observation_class = self.observation_class;
+        state.corridor_belief.expected_hop_band = self.hop_band;
+        state.corridor_belief.delivery_support = SupportBucket::new(self.delivery_support);
+        state.corridor_belief.retention_affinity = SupportBucket::new(self.retention_affinity);
+        for continuation in &self.frontier {
+            state.frontier = state.frontier.clone().insert(continuation.clone());
+        }
+        for neighbor_id in &self.endpoint_neighbors {
+            engine.state.neighbor_endpoints.insert(
+                *neighbor_id,
+                jacquard_adapter::opaque_endpoint(
+                    jacquard_core::TransportKind::WifiAware,
+                    vec![neighbor_id.0[0]],
+                    ByteCount(128),
+                ),
+            );
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -125,62 +209,19 @@ fn supported_topology() -> Observation<Configuration> {
 
 fn seeded_engine() -> FieldEngine<NoopTransport, ()> {
     let mut engine = FieldEngine::new(node(1), NoopTransport, ());
-    let state = engine.state.upsert_destination_interest(
-        &DestinationId::Node(node(2)),
-        DestinationInterestClass::Transit,
-        Tick(4),
-    );
-    state.posterior.top_corridor_mass = SupportBucket::new(850);
-    state.posterior.usability_entropy = crate::state::EntropyBucket::new(200);
-    state.posterior.predicted_observation_class = crate::state::ObservationClass::DirectOnly;
-    state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
-    state.corridor_belief.delivery_support = SupportBucket::new(800);
-    state.corridor_belief.retention_affinity = SupportBucket::new(300);
-    state.frontier = state.frontier.clone().insert(NeighborContinuation {
-        neighbor_id: node(2),
-        net_value: SupportBucket::new(900),
-        downstream_support: SupportBucket::new(850),
-        expected_hop_band: HopBand::new(1, 2),
-        freshness: Tick(4),
-    });
-    engine.state.neighbor_endpoints.insert(
-        node(2),
-        jacquard_adapter::opaque_endpoint(
-            jacquard_core::TransportKind::WifiAware,
-            vec![2],
-            ByteCount(128),
-        ),
-    );
+    TestDestinationSeed::node_destination(node(2))
+        .with_frontier_neighbor(node(2), 900, 850, Tick(4))
+        .with_endpoint_neighbor(node(2))
+        .apply(&mut engine);
     engine
 }
 
 fn seeded_transport_engine() -> FieldEngine<InMemoryTransport, ()> {
     let mut engine = FieldEngine::new(node(1), InMemoryTransport::default(), ());
-    let state = engine.state.upsert_destination_interest(
-        &DestinationId::Node(node(2)),
-        DestinationInterestClass::Transit,
-        Tick(4),
-    );
-    state.posterior.top_corridor_mass = SupportBucket::new(850);
-    state.posterior.usability_entropy = crate::state::EntropyBucket::new(200);
-    state.posterior.predicted_observation_class = crate::state::ObservationClass::DirectOnly;
-    state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
-    state.corridor_belief.delivery_support = SupportBucket::new(800);
-    state.frontier = state.frontier.clone().insert(NeighborContinuation {
-        neighbor_id: node(2),
-        net_value: SupportBucket::new(900),
-        downstream_support: SupportBucket::new(850),
-        expected_hop_band: HopBand::new(1, 2),
-        freshness: Tick(4),
-    });
-    engine.state.neighbor_endpoints.insert(
-        node(2),
-        jacquard_adapter::opaque_endpoint(
-            jacquard_core::TransportKind::WifiAware,
-            vec![2],
-            ByteCount(128),
-        ),
-    );
+    TestDestinationSeed::node_destination(node(2))
+        .with_frontier_neighbor(node(2), 900, 850, Tick(4))
+        .with_endpoint_neighbor(node(2))
+        .apply(&mut engine);
     engine
 }
 

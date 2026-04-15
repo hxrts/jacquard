@@ -44,7 +44,8 @@ use jacquard_core::{
 use jacquard_traits::RoutingEnginePlanner;
 
 use crate::{
-    attractor::rank_frontier_by_attractor,
+    attractor::rank_frontier_by_attractor_with_policy,
+    operational::FieldDestinationDecisionContext,
     route::{encode_backend_token, route_id_for_backend, FieldBackendToken, FieldWitnessDetail},
     state::{DestinationFieldState, DestinationKey, MAX_CONTINUATION_NEIGHBOR_COUNT},
     summary::{derive_degradation_class, FieldSummary, SummaryDestinationKey},
@@ -152,12 +153,13 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         }
 
         let search_record = self.search_record_for_objective(objective, topology);
-        let ranked = rank_frontier_by_attractor(
+        let ranked = rank_frontier_by_attractor_with_policy(
             destination_state,
             &self.state.mean_field,
             self.state.regime.current,
             self.state.posture.current,
             &self.state.controller,
+            &self.policy().evidence.attractor,
         );
         let Some(selected_continuation) = search_record.selected_continuation.as_ref() else {
             return Err(RouteSelectionError::NoCandidate.into());
@@ -175,7 +177,9 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let mut continuation_set = std::collections::BTreeSet::new();
         continuation_neighbors.push(selected_neighbor);
         continuation_set.insert(selected_neighbor);
-        if matches!(objective.destination, DestinationId::Service(_)) {
+        let destination_context =
+            FieldDestinationDecisionContext::new(&destination_key, &self.search_config);
+        if destination_context.service_bias() {
             continuation_neighbors.extend(
                 service_publication_neighbors(
                     destination_state,
@@ -185,7 +189,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 .into_iter()
                 .filter(|neighbor_id| continuation_set.insert(*neighbor_id)),
             );
-        } else if self.search_config.node_discovery_enabled() {
+        } else if destination_context.discovery_node_route() {
             continuation_neighbors.extend(
                 node_publication_neighbors(
                     destination_state,

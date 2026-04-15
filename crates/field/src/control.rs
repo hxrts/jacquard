@@ -23,6 +23,10 @@ use crate::state::{
     MeanFieldState, OperatingRegime, PostureControllerState, RegimeObserverState, ResidualBucket,
     RoutingPosture, SupportBucket,
 };
+use crate::{
+    policy::{FieldPolicy, FieldPosturePolicy, FieldRegimePolicy, DEFAULT_FIELD_POLICY},
+    FieldPolicyEvent, FieldPolicyGate, FieldPolicyReason,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ControlMeasurements {
@@ -55,11 +59,12 @@ impl ControlMeasurements {
     // long-block-exception: this is one bounded projection from topology
     // observations into the control-plane pressure vector.
     pub(crate) fn from_topology(topology: &Configuration, local_node_id: NodeId) -> Self {
+        let policy = &DEFAULT_FIELD_POLICY.regime;
         let congestion_pressure = topology.environment.contention_permille.0;
         let churn_pressure = topology.environment.churn_permille.0;
         let fallback_risk =
             if topology.environment.reachable_neighbor_count == 0 && topology.nodes.len() > 1 {
-                800
+                policy.fallback_risk_pressure_permille
             } else {
                 0
             };
@@ -119,29 +124,52 @@ impl ControlMeasurements {
 pub(crate) struct ControlTickOutcome {
     pub(crate) changed: bool,
     pub(crate) measurements: ControlMeasurements,
+    pub(crate) policy_event: Option<FieldPolicyEvent>,
 }
 
 #[must_use]
+#[allow(dead_code)]
 pub(crate) fn advance_control_plane(
     state: &mut FieldEngineState,
     measurements: ControlMeasurements,
     now_tick: Tick,
 ) -> ControlTickOutcome {
-    let next_mean_field = compress_mean_field(state.destinations.values(), measurements);
+    advance_control_plane_with_policy(state, measurements, now_tick, &DEFAULT_FIELD_POLICY)
+}
+
+#[must_use]
+pub(crate) fn advance_control_plane_with_policy(
+    state: &mut FieldEngineState,
+    measurements: ControlMeasurements,
+    now_tick: Tick,
+    policy: &FieldPolicy,
+) -> ControlTickOutcome {
+    let next_mean_field =
+        compress_mean_field_with_policy(state.destinations.values(), measurements, &policy.regime);
     let next_control = update_control_state(&state.controller, &next_mean_field, measurements);
-    let next_regime = observe_regime(
+    let next_regime = observe_regime_with_policy(
         &state.regime,
         &next_mean_field,
         &next_control,
         measurements,
         now_tick,
+        &policy.regime,
     );
-    let next_posture = choose_posture(
+    let next_posture = choose_posture_with_policy(
         &state.posture,
         &next_regime,
         &next_mean_field,
         &next_control,
         now_tick,
+        &policy.posture,
+    );
+    let policy_event = posture_dwell_block_event(
+        &state.posture,
+        &next_regime,
+        &next_mean_field,
+        &next_control,
+        now_tick,
+        &policy.posture,
     );
 
     let changed = state.mean_field != next_mean_field
@@ -158,15 +186,53 @@ pub(crate) fn advance_control_plane(
     ControlTickOutcome {
         changed,
         measurements,
+        policy_event,
     }
 }
 
+fn posture_dwell_block_event(
+    previous: &PostureControllerState,
+    regime: &RegimeObserverState,
+    mean_field: &MeanFieldState,
+    control: &ControlState,
+    now_tick: Tick,
+    policy: &FieldPosturePolicy,
+) -> Option<FieldPolicyEvent> {
+    let preferred = preferred_posture(regime.current, mean_field, control);
+    let dwell_until_tick = Tick(
+        previous
+            .last_transition_tick
+            .0
+            .saturating_add(policy.dwell_ticks),
+    );
+    (now_tick < dwell_until_tick && preferred != previous.current).then_some(FieldPolicyEvent {
+        gate: FieldPolicyGate::Posture,
+        reason: FieldPolicyReason::BlockedByDwell,
+        destination: None,
+        route_id: None,
+        observed_at_tick: now_tick,
+    })
+}
+
 #[must_use]
+#[allow(dead_code)]
 // long-block-exception: mean-field compression is one projection pass from
 // bounded destination observations into the low-order control state.
 pub(crate) fn compress_mean_field<'a, I>(
     destinations: I,
     measurements: ControlMeasurements,
+) -> MeanFieldState
+where
+    I: IntoIterator<Item = &'a DestinationFieldState>,
+{
+    compress_mean_field_with_policy(destinations, measurements, &DEFAULT_FIELD_POLICY.regime)
+}
+
+#[must_use]
+pub(crate) fn compress_mean_field_with_policy<'a, I>(
+    destinations: I,
+    measurements: ControlMeasurements,
+    policy: &FieldRegimePolicy,
 ) -> MeanFieldState
 where
     I: IntoIterator<Item = &'a DestinationFieldState>,
@@ -249,7 +315,9 @@ where
         congestion_alignment.value(),
         retention_alignment.value(),
         risk_alignment.value(),
-        destination_count_u16.saturating_mul(20).min(1000),
+        destination_count_u16
+            .saturating_mul(policy.destination_count_strength_step_permille)
+            .min(1000),
     ]));
 
     MeanFieldState {
@@ -317,6 +385,7 @@ pub(crate) fn update_control_state(
 }
 
 #[must_use]
+#[allow(dead_code)]
 // long-block-exception: regime observation intentionally keeps residual,
 // evidence, and switching logic in one deterministic evaluation pass.
 pub(crate) fn observe_regime(
@@ -325,6 +394,25 @@ pub(crate) fn observe_regime(
     control: &ControlState,
     measurements: ControlMeasurements,
     now_tick: Tick,
+) -> RegimeObserverState {
+    observe_regime_with_policy(
+        previous,
+        mean_field,
+        control,
+        measurements,
+        now_tick,
+        &DEFAULT_FIELD_POLICY.regime,
+    )
+}
+
+#[must_use]
+pub(crate) fn observe_regime_with_policy(
+    previous: &RegimeObserverState,
+    mean_field: &MeanFieldState,
+    control: &ControlState,
+    measurements: ControlMeasurements,
+    now_tick: Tick,
+    policy: &FieldRegimePolicy,
 ) -> RegimeObserverState {
     let scored = scored_regimes(mean_field, control, measurements);
     let candidate = scored[0];
@@ -378,7 +466,7 @@ pub(crate) fn observe_regime(
             log_likelihood_margin: DivergenceBucket::new(margin),
             regime_change_threshold: previous.regime_change_threshold,
             regime_hysteresis_threshold: previous.regime_hysteresis_threshold,
-            dwell_until_tick: Tick(now_tick.0.saturating_add(3)),
+            dwell_until_tick: Tick(now_tick.0.saturating_add(policy.dwell_ticks)),
         };
     }
 
@@ -394,6 +482,7 @@ pub(crate) fn observe_regime(
 }
 
 #[must_use]
+#[allow(dead_code)]
 // long-block-exception: posture choice keeps hysteresis, dwell, and
 // regime-primary preference in one deterministic transition rule.
 pub(crate) fn choose_posture(
@@ -403,16 +492,42 @@ pub(crate) fn choose_posture(
     control: &ControlState,
     now_tick: Tick,
 ) -> PostureControllerState {
+    choose_posture_with_policy(
+        previous,
+        regime,
+        mean_field,
+        control,
+        now_tick,
+        &DEFAULT_FIELD_POLICY.posture,
+    )
+}
+
+#[must_use]
+pub(crate) fn choose_posture_with_policy(
+    previous: &PostureControllerState,
+    regime: &RegimeObserverState,
+    mean_field: &MeanFieldState,
+    control: &ControlState,
+    now_tick: Tick,
+    policy: &FieldPosturePolicy,
+) -> PostureControllerState {
     let preferred = preferred_posture(regime.current, mean_field, control);
     let preferred_score = posture_score(preferred, regime.current, mean_field, control);
     let current_score = posture_score(previous.current, regime.current, mean_field, control);
-    let in_dwell = now_tick < Tick(previous.last_transition_tick.0.saturating_add(2));
+    let in_dwell = now_tick
+        < Tick(
+            previous
+                .last_transition_tick
+                .0
+                .saturating_add(policy.dwell_ticks),
+        );
     let primary_posture = primary_posture_for_regime(regime.current);
     let effective_threshold = if preferred == primary_posture
         && previous.current != primary_posture
-        && regime.current_regime_score.value() >= 850
+        && regime.current_regime_score.value()
+            >= policy.primary_fast_path_regime_score_floor_permille
     {
-        previous.posture_switch_threshold.value() / 4
+        previous.posture_switch_threshold.value() / policy.primary_fast_path_threshold_divisor
     } else {
         previous.posture_switch_threshold.value()
     };
@@ -423,10 +538,13 @@ pub(crate) fn choose_posture(
 
     if preferred == RoutingPosture::RiskSuppressed
         && previous.current != RoutingPosture::RiskSuppressed
-        && mean_field.field_strength.value() >= 260
-        && mean_field.retention_alignment.value() >= 340
-        && mean_field.relay_alignment.value() >= 300
-        && control.risk_price.value() <= 760
+        && mean_field.field_strength.value()
+            >= policy.risk_suppressed_hold_field_strength_floor_permille
+        && mean_field.retention_alignment.value()
+            >= policy.risk_suppressed_hold_retention_alignment_floor_permille
+        && mean_field.relay_alignment.value()
+            >= policy.risk_suppressed_hold_relay_alignment_floor_permille
+        && control.risk_price.value() <= policy.risk_suppressed_hold_risk_price_ceiling_permille
         && regime.current != OperatingRegime::Adversarial
     {
         return PostureControllerState {
@@ -585,14 +703,31 @@ fn posture_score(
     mean_field: &MeanFieldState,
     control: &ControlState,
 ) -> u16 {
+    let policy = &DEFAULT_FIELD_POLICY.posture;
     let regime_bonus = match (regime, posture) {
-        (OperatingRegime::Sparse, RoutingPosture::Opportunistic) => 250,
-        (OperatingRegime::Sparse, RoutingPosture::Structured) => 150,
-        (OperatingRegime::Congested, RoutingPosture::Structured) => 200,
-        (OperatingRegime::Congested, RoutingPosture::RetentionBiased) => 250,
-        (OperatingRegime::RetentionFavorable, RoutingPosture::RetentionBiased) => 350,
+        (OperatingRegime::Sparse, RoutingPosture::Opportunistic) => {
+            policy.sparse_opportunistic_bonus_permille
+        }
+        (OperatingRegime::Sparse, RoutingPosture::Structured) => {
+            policy.sparse_structured_bonus_permille
+        }
+        (OperatingRegime::Congested, RoutingPosture::Structured) => {
+            policy.congested_structured_bonus_permille
+        }
+        (OperatingRegime::Congested, RoutingPosture::RetentionBiased) => {
+            policy.congested_retention_biased_bonus_permille
+        }
+        (OperatingRegime::RetentionFavorable, RoutingPosture::RetentionBiased) => {
+            policy.retention_favorable_retention_biased_bonus_permille
+        }
         (OperatingRegime::Unstable, RoutingPosture::RiskSuppressed)
-        | (OperatingRegime::Adversarial, RoutingPosture::RiskSuppressed) => 350,
+        | (OperatingRegime::Adversarial, RoutingPosture::RiskSuppressed) => {
+            if regime == OperatingRegime::Unstable {
+                policy.unstable_risk_suppressed_bonus_permille
+            } else {
+                policy.adversarial_risk_suppressed_bonus_permille
+            }
+        }
         _ => 0,
     };
 

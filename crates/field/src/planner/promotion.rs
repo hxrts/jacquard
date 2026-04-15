@@ -3,6 +3,7 @@
 use jacquard_core::{DestinationId, Tick};
 
 use crate::{
+    policy::{FieldPromotionPolicy, DEFAULT_FIELD_POLICY},
     recovery::FieldPromotionBlocker,
     route::ActiveFieldRoute,
     runtime::FIELD_ROUTE_WEAK_SUPPORT_FLOOR,
@@ -116,6 +117,7 @@ impl FieldPromotionAssessment {
 }
 
 #[must_use]
+#[allow(dead_code)]
 // long-block-exception: promotion assessment keeps the bootstrap, degraded,
 // and anti-entropy upgrade rules in one coherent route-state evaluation.
 pub(crate) fn promotion_assessment_for_route(
@@ -124,6 +126,25 @@ pub(crate) fn promotion_assessment_for_route(
     best_neighbor: &crate::state::NeighborContinuation,
     now_tick: Tick,
 ) -> FieldPromotionAssessment {
+    promotion_assessment_for_route_with_policy(
+        active_route,
+        destination_state,
+        best_neighbor,
+        now_tick,
+        &DEFAULT_FIELD_POLICY.promotion,
+    )
+}
+
+#[must_use]
+pub(crate) fn promotion_assessment_for_route_with_policy(
+    active_route: &ActiveFieldRoute,
+    destination_state: &DestinationFieldState,
+    best_neighbor: &crate::state::NeighborContinuation,
+    now_tick: Tick,
+    policy: &FieldPromotionPolicy,
+) -> FieldPromotionAssessment {
+    let destination_view = crate::operational::destination_operational_view(destination_state);
+    let route_view = crate::operational::route_operational_view(now_tick, best_neighbor.freshness);
     let confirmation_streak = active_route.bootstrap_confirmation_streak;
     let corridor_support = destination_state.corridor_belief.delivery_support.value();
     let corridor_entropy = destination_state.posterior.usability_entropy.value();
@@ -135,8 +156,8 @@ pub(crate) fn promotion_assessment_for_route(
             .witness_detail
             .corridor_support
             .value()
-            .saturating_add(40)
-        || destination_state.corridor_belief.delivery_support.value() >= 320
+            .saturating_add(policy.support_growth_delta_permille)
+        || destination_view.support_band >= crate::operational::SupportBand::Strong
         || (promotion_window_score >= 2
             && corridor_support.saturating_add(25)
                 >= active_route.witness_detail.corridor_support.value()
@@ -150,9 +171,10 @@ pub(crate) fn promotion_assessment_for_route(
         .posterior
         .usability_entropy
         .value()
-        .saturating_add(50)
+        .saturating_add(policy.uncertainty_reduction_delta_permille)
         <= active_route.witness_detail.usability_entropy.value()
-        || destination_state.posterior.usability_entropy.value() <= 775
+        || destination_state.posterior.usability_entropy.value()
+            <= policy.strong_entropy_ceiling_permille
         || (promotion_window_score >= 2
             && corridor_entropy <= 860
             && corridor_retention >= 280
@@ -189,44 +211,57 @@ pub(crate) fn promotion_assessment_for_route(
                     .last_sent_at
                     .is_some_and(|tick| {
                         now_tick.0.saturating_sub(tick.0)
-                            <= if promotion_window_score >= 2 { 8 } else { 6 }
+                            <= if promotion_window_score >= 2 {
+                                policy.anti_entropy_relaxed_recent_publication_ticks
+                            } else {
+                                policy.anti_entropy_recent_publication_ticks
+                            }
                     });
             recent_publication
                 && divergence
                     <= if confirmation_streak >= 1 || promotion_window_score >= 2 {
-                        260
+                        policy.anti_entropy_relaxed_divergence_ceiling_permille
                     } else {
-                        180
+                        policy.anti_entropy_divergence_ceiling_permille
                     }
                 && previous_summary.retention_support.value()
                     >= if confirmation_streak >= 1 || promotion_window_score >= 2 {
-                        210
+                        policy.anti_entropy_relaxed_retention_floor_permille
                     } else {
-                        260
+                        policy.anti_entropy_retention_floor_permille
                     }
                 && previous_summary.delivery_support.value().saturating_add(
                     if confirmation_streak >= 1 || promotion_window_score >= 2 {
-                        140
+                        policy.anti_entropy_relaxed_delivery_bonus_permille
                     } else {
-                        80
+                        policy.anti_entropy_delivery_bonus_permille
                     },
                 ) >= destination_state.corridor_belief.delivery_support.value()
-                && (confirmation_streak == 0 || (corridor_retention >= 300 && corridor_mass >= 300))
+                && (confirmation_streak == 0
+                    || (corridor_retention >= policy.strong_retention_floor_permille
+                        && corridor_mass >= policy.strong_top_mass_floor_permille))
         });
     let continuation_coherent = active_route
         .continuation_neighbors
         .contains(&best_neighbor.neighbor_id)
         || destination_state.frontier.len() <= 2
-        || best_neighbor.net_value.value().saturating_add(120)
+        || best_neighbor
+            .net_value
+            .value()
+            .saturating_add(policy.coherence_best_neighbor_bonus_permille)
             >= destination_state.corridor_belief.delivery_support.value()
         || (promotion_window_score >= 2 && corridor_mass >= 260)
         || (confirmation_streak >= 1
-            && best_neighbor.downstream_support.value().saturating_add(140) >= corridor_support);
-    let fresh_enough = now_tick.0.saturating_sub(best_neighbor.freshness.0)
+            && best_neighbor
+                .downstream_support
+                .value()
+                .saturating_add(policy.coherence_relaxed_downstream_bonus_permille)
+                >= corridor_support);
+    let fresh_enough = route_view.freshness_age_ticks
         <= if confirmation_streak >= 1 || promotion_window_score >= 2 {
-            7
+            policy.relaxed_fresh_neighbor_ticks
         } else {
-            4
+            policy.fresh_neighbor_ticks
         };
 
     FieldPromotionAssessment {

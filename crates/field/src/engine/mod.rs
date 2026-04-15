@@ -28,6 +28,7 @@ use jacquard_traits::RoutingEngine;
 use crate::{
     choreography::FieldProtocolRuntime,
     planner::admission::{bootstrap_class_for_state, continuity_band_for_state},
+    policy::FieldPolicy,
     route::ActiveFieldRoute,
     search::{FieldPlannerSearchRecord, FieldSearchConfig, FieldSearchSnapshotState},
     state::{
@@ -60,6 +61,7 @@ pub const FIELD_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabilit
 };
 
 pub const FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX: usize = 16;
+pub const FIELD_POLICY_EVENT_RETENTION_MAX: usize = 32;
 pub const FIELD_REPLAY_SURFACE_VERSION: u16 = 1;
 
 pub struct FieldEngine<Transport, Effects> {
@@ -75,8 +77,10 @@ pub struct FieldEngine<Transport, Effects> {
     pub(crate) search_snapshot_state: RefCell<Option<FieldSearchSnapshotState>>,
     pub(crate) last_search_record: RefCell<Option<FieldPlannerSearchRecord>>,
     pub(crate) runtime_round_artifacts: RefCell<VecDeque<FieldRuntimeRoundArtifact>>,
+    pub(crate) policy_events: RefCell<VecDeque<FieldPolicyEvent>>,
     pub(crate) protocol_runtime: FieldProtocolRuntime,
     pub(crate) active_routes: std::collections::BTreeMap<RouteId, ActiveFieldRoute>,
+    pub(crate) policy: FieldPolicy,
 }
 
 impl<Transport, Effects> FieldEngine<Transport, Effects> {
@@ -91,8 +95,10 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             search_snapshot_state: RefCell::new(None),
             last_search_record: RefCell::new(None),
             runtime_round_artifacts: RefCell::new(VecDeque::new()),
+            policy_events: RefCell::new(VecDeque::new()),
             protocol_runtime: FieldProtocolRuntime::default(),
             active_routes: std::collections::BTreeMap::new(),
+            policy: FieldPolicy::default(),
         }
     }
 
@@ -105,6 +111,21 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
     #[must_use]
     pub fn search_config(&self) -> &FieldSearchConfig {
         &self.search_config
+    }
+
+    #[must_use]
+    pub(crate) fn policy(&self) -> &FieldPolicy {
+        &self.policy
+    }
+
+    #[must_use]
+    #[expect(
+        dead_code,
+        reason = "phase-5 experimental surface; profile wiring will consume this policy hook"
+    )]
+    pub(crate) fn with_policy(mut self, policy: FieldPolicy) -> Self {
+        self.policy = policy;
+        self
     }
 
     #[must_use]
@@ -136,6 +157,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .iter()
             .cloned()
             .collect()
+    }
+
+    #[must_use]
+    pub fn policy_events(&self) -> Vec<FieldPolicyEvent> {
+        self.policy_events.borrow().iter().cloned().collect()
     }
 
     #[must_use]
@@ -331,6 +357,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 schema_version: FIELD_REPLAY_SURFACE_VERSION,
                 surface_class: FieldReplaySurfaceClass::Reduced,
                 artifacts: self.runtime_round_artifacts(),
+                policy_events: self.policy_events(),
             },
             recovery: FieldRecoveryReplaySurface {
                 schema_version: FIELD_REPLAY_SURFACE_VERSION,
@@ -399,6 +426,14 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             retained.pop_front();
         }
         retained.push_back(artifact);
+    }
+
+    pub(crate) fn record_policy_event(&self, event: FieldPolicyEvent) {
+        let mut retained = self.policy_events.borrow_mut();
+        if retained.len() >= FIELD_POLICY_EVENT_RETENTION_MAX {
+            retained.pop_front();
+        }
+        retained.push_back(event);
     }
 }
 
@@ -548,6 +583,7 @@ mod tests {
             engine.protocol_runtime.reconfigurations()
         );
         assert_eq!(snapshot.runtime.artifacts, engine.runtime_round_artifacts());
+        assert_eq!(snapshot.runtime.policy_events, engine.policy_events());
         assert_eq!(snapshot.recovery.entries, engine.route_recovery_entries());
         assert!(snapshot.commitments.entries.is_empty());
     }
@@ -578,6 +614,26 @@ mod tests {
         assert_eq!(
             snapshot.runtime.artifacts.len(),
             FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX
+        );
+    }
+
+    #[test]
+    fn replay_snapshot_policy_event_surface_stays_bounded() {
+        let engine = FieldEngine::new(node(1), NoopTransport, ());
+        for index in 0..(FIELD_POLICY_EVENT_RETENTION_MAX + 4) {
+            engine.record_policy_event(FieldPolicyEvent {
+                gate: FieldPolicyGate::Promotion,
+                reason: FieldPolicyReason::BlockedBySupportTrend,
+                destination: None,
+                route_id: None,
+                observed_at_tick: Tick(u64::try_from(index).expect("test index fits")),
+            });
+        }
+
+        let snapshot = engine.replay_snapshot(&[]);
+        assert_eq!(
+            snapshot.runtime.policy_events.len(),
+            FIELD_POLICY_EVENT_RETENTION_MAX
         );
     }
 

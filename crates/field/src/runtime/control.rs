@@ -83,9 +83,14 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
     where
         Transport: jacquard_traits::TransportSenderEffects,
     {
-        let attractor_view = derive_local_attractor_view(&self.state);
-        let low_coherence =
-            !attractor_view.entries.is_empty() && attractor_view.coherence_score.value() < 200;
+        let replay_policy = self.policy().evidence.replay;
+        let attractor_policy = self.policy().evidence.attractor;
+        let observer_policy = self.policy().evidence.observer;
+        let attractor_view =
+            derive_local_attractor_view_with_policy(&self.state, &attractor_policy);
+        let low_coherence = !attractor_view.entries.is_empty()
+            && attractor_view.coherence_score.value()
+                < replay_policy.low_coherence_score_floor_permille;
         let mut changed = false;
 
         let active_keys = self.state.active_destination_keys();
@@ -116,8 +121,12 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                         now_tick,
                         &destination,
                     );
-                    let anti_entropy_summary =
-                        anti_entropy_summary_for_destination(destination_state, &summary, now_tick);
+                    let anti_entropy_summary = anti_entropy_summary_for_destination_with_policy(
+                        destination_state,
+                        &summary,
+                        now_tick,
+                        &observer_policy,
+                    );
                     Some((
                         SummaryDestinationKey::from(&destination),
                         summary.clone(),
@@ -125,7 +134,8 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                         should_transmit_summary(destination_state, &summary, now_tick),
                         primary.neighbor_id,
                         destination_state.corridor_belief.delivery_support.value(),
-                        now_tick.0.saturating_sub(primary.freshness.0) > 4,
+                        now_tick.0.saturating_sub(primary.freshness.0)
+                            > replay_policy.stale_primary_ticks,
                         self.runtime_route_artifact_for_destination(
                             &destination,
                             destination_state,
@@ -240,8 +250,12 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
             let should_replay_retention = (self.state.posture.current
                 == crate::state::RoutingPosture::RetentionBiased
-                && (delivery_support < 450 || is_stale))
-                || (delivery_support < 520 && summary.uncertainty_penalty.value() >= 350);
+                && (delivery_support < replay_policy.retention_replay_support_floor_permille
+                    || is_stale))
+                || (delivery_support
+                    < replay_policy.retention_replay_relaxed_support_floor_permille
+                    && summary.uncertainty_penalty.value()
+                        >= replay_policy.retention_replay_uncertainty_floor_permille);
             if should_replay_retention {
                 let replay_key = FieldProtocolSessionKey {
                     protocol: FieldProtocolKind::RetentionReplay,
@@ -382,6 +396,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let regime = self.state.regime.current;
         let control_state = self.state.controller.clone();
         let search_config = self.search_config().clone();
+        let observer_policy = self.policy().evidence.observer;
         let service_freshness_weight = search_config.service_freshness_weight();
         let local_origin_trace = LocalOriginTrace {
             local_node_id: self.local_node_id,
@@ -406,15 +421,21 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 &destination,
                 now_tick,
             );
-            let mut forward_input = forward_evidence_for_observer(destination_state, now_tick);
+            let mut forward_input = forward_evidence_for_observer_with_policy(
+                destination_state,
+                now_tick,
+                &observer_policy,
+            );
             if forward_input.evidence.is_empty() {
-                let carry_forward = synthesized_node_forward_evidence_from_active_routes(
-                    destination_state,
-                    &destination_active_routes,
-                    &self.state.neighbor_endpoints,
-                    now_tick,
-                    &search_config,
-                );
+                let carry_forward =
+                    synthesized_node_forward_evidence_from_active_routes_with_policy(
+                        destination_state,
+                        &destination_active_routes,
+                        &self.state.neighbor_endpoints,
+                        now_tick,
+                        &search_config,
+                        &observer_policy,
+                    );
                 if !carry_forward.is_empty() {
                     forward_input = ForwardEvidenceInput {
                         evidence: carry_forward,

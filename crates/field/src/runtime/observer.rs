@@ -32,9 +32,22 @@ pub(super) struct ForwardEvidenceInput {
 
 // long-block-exception: observer evidence synthesis keeps pending, published,
 // and carry-forward evidence in one deterministic fallback order.
+#[allow(dead_code)]
 pub(super) fn forward_evidence_for_observer(
     destination_state: &crate::state::DestinationFieldState,
     now_tick: Tick,
+) -> ForwardEvidenceInput {
+    forward_evidence_for_observer_with_policy(
+        destination_state,
+        now_tick,
+        &crate::policy::DEFAULT_FIELD_POLICY.evidence.observer,
+    )
+}
+
+pub(super) fn forward_evidence_for_observer_with_policy(
+    destination_state: &crate::state::DestinationFieldState,
+    now_tick: Tick,
+    policy: &crate::policy::FieldObserverEvidencePolicy,
 ) -> ForwardEvidenceInput {
     if !destination_state.pending_forward_evidence.is_empty() {
         return ForwardEvidenceInput {
@@ -61,15 +74,29 @@ pub(super) fn forward_evidence_for_observer(
         destination_state.destination,
         crate::state::DestinationKey::Service(_)
     );
-    if now_tick.0.saturating_sub(last_sent_at.0) > if service_bias { 5 } else { 3 } {
+    if now_tick.0.saturating_sub(last_sent_at.0)
+        > if service_bias {
+            policy.service_carry_forward_freshness_ticks
+        } else {
+            policy.node_carry_forward_freshness_ticks
+        }
+    {
         return ForwardEvidenceInput {
             evidence: Vec::new(),
             synthesized: false,
             service_carry_forward: false,
         };
     }
-    let retention_floor = if service_bias { 140 } else { 180 };
-    let support_floor = if service_bias { 140 } else { 180 };
+    let retention_floor = if service_bias {
+        policy.service_carry_forward_retention_floor_permille
+    } else {
+        policy.node_carry_forward_retention_floor_permille
+    };
+    let support_floor = if service_bias {
+        policy.service_carry_forward_support_floor_permille
+    } else {
+        policy.node_carry_forward_support_floor_permille
+    };
     if last_summary.retention_support.value() < retention_floor
         || last_summary.delivery_support.value() < support_floor
     {
@@ -98,14 +125,18 @@ pub(super) fn forward_evidence_for_observer(
             .map(|(index, continuation)| {
                 let decay_rank = u16::try_from(index).unwrap_or(u16::MAX);
                 let delivery_bonus = if service_bias {
-                    80_u16.saturating_sub(decay_rank.saturating_mul(20))
+                    policy.service_delivery_bonus_permille.saturating_sub(
+                        decay_rank.saturating_mul(policy.service_delivery_decay_step_permille),
+                    )
                 } else {
-                    20
+                    policy.node_delivery_bonus_permille
                 };
                 let retention_bonus = if service_bias {
-                    120_u16.saturating_sub(decay_rank.saturating_mul(25))
+                    policy.service_retention_bonus_permille.saturating_sub(
+                        decay_rank.saturating_mul(policy.service_retention_decay_step_permille),
+                    )
                 } else {
-                    40
+                    policy.node_retention_bonus_permille
                 };
                 crate::summary::ForwardPropagatedEvidence {
                     from_neighbor: continuation.neighbor_id,
@@ -141,12 +172,31 @@ pub(super) fn forward_evidence_for_observer(
 
 // long-block-exception: synthesized node evidence keeps degraded carry-forward
 // ranking and publication replay in one audited reconstruction path.
+#[allow(dead_code)]
 pub(super) fn synthesized_node_forward_evidence_from_active_routes(
     destination_state: &crate::state::DestinationFieldState,
     active_routes: &[&ActiveFieldRoute],
     neighbor_endpoints: &std::collections::BTreeMap<NodeId, jacquard_core::LinkEndpoint>,
     now_tick: Tick,
     search_config: &crate::FieldSearchConfig,
+) -> Vec<crate::summary::ForwardPropagatedEvidence> {
+    synthesized_node_forward_evidence_from_active_routes_with_policy(
+        destination_state,
+        active_routes,
+        neighbor_endpoints,
+        now_tick,
+        search_config,
+        &crate::policy::DEFAULT_FIELD_POLICY.evidence.observer,
+    )
+}
+
+pub(super) fn synthesized_node_forward_evidence_from_active_routes_with_policy(
+    destination_state: &crate::state::DestinationFieldState,
+    active_routes: &[&ActiveFieldRoute],
+    neighbor_endpoints: &std::collections::BTreeMap<NodeId, jacquard_core::LinkEndpoint>,
+    now_tick: Tick,
+    search_config: &crate::FieldSearchConfig,
+    policy: &crate::policy::FieldObserverEvidencePolicy,
 ) -> Vec<crate::summary::ForwardPropagatedEvidence> {
     if !search_config.node_discovery_enabled() {
         return Vec::new();
@@ -161,73 +211,81 @@ pub(super) fn synthesized_node_forward_evidence_from_active_routes(
         return Vec::new();
     };
     if now_tick.0.saturating_sub(last_sent_at.0)
-        > FIELD_DEGRADED_STEADY_STALE_TICKS_MAX.saturating_add(6)
+        > FIELD_DEGRADED_STEADY_STALE_TICKS_MAX
+            .saturating_add(policy.synthesized_node_publication_staleness_slack_ticks)
     {
         return Vec::new();
     }
     if last_summary.delivery_support.value()
         < search_config
             .node_bootstrap_support_floor()
-            .saturating_sub(60)
-            .max(120)
-        || last_summary.retention_support.value() < 140
+            .saturating_sub(policy.synthesized_node_support_relief_permille)
+            .max(policy.synthesized_node_support_floor_min_permille)
+        || last_summary.retention_support.value() < policy.synthesized_node_retention_floor_permille
     {
         return Vec::new();
     }
-    let mut synthesized = active_routes
-        .iter()
-        .filter(|active| {
-            active.continuity_band == FieldContinuityBand::DegradedSteady
-                || active.bootstrap_class == FieldBootstrapClass::Bootstrap
-        })
-        .flat_map(|active| {
-            active
-                .continuation_neighbors
-                .iter()
-                .enumerate()
-                .filter_map(|(index, neighbor_id)| {
-                    let reachable = neighbor_endpoints.contains_key(neighbor_id);
-                    if !reachable && *neighbor_id != active.selected_neighbor {
-                        return None;
-                    }
-                    let rank_penalty = u16::try_from(index).unwrap_or(u16::MAX).saturating_mul(20);
-                    let selection_bonus = if *neighbor_id == active.selected_neighbor {
-                        40
-                    } else {
-                        0
-                    };
-                    let reachability_bonus = if reachable { 80 } else { 0 };
-                    Some(crate::summary::ForwardPropagatedEvidence {
-                        from_neighbor: *neighbor_id,
-                        summary: FieldSummary {
-                            freshness_tick: now_tick,
-                            hop_band: active.corridor_envelope.expected_hop_band,
-                            delivery_support: SupportBucket::new(
-                                last_summary
-                                    .delivery_support
-                                    .value()
-                                    .max(active.corridor_envelope.delivery_support.value())
-                                    .saturating_add(reachability_bonus)
-                                    .saturating_add(selection_bonus)
-                                    .saturating_sub(rank_penalty)
-                                    .min(1000),
-                            ),
-                            retention_support: SupportBucket::new(
-                                last_summary
-                                    .retention_support
-                                    .value()
-                                    .max(active.corridor_envelope.retention_affinity.value())
-                                    .saturating_add(60)
-                                    .saturating_sub(rank_penalty / 2)
-                                    .min(1000),
-                            ),
-                            ..last_summary.clone()
-                        },
-                        observed_at_tick: now_tick,
-                    })
-                })
-        })
-        .collect::<Vec<_>>();
+    let mut synthesized =
+        active_routes
+            .iter()
+            .filter(|active| {
+                active.continuity_band == FieldContinuityBand::DegradedSteady
+                    || active.bootstrap_class == FieldBootstrapClass::Bootstrap
+            })
+            .flat_map(|active| {
+                active.continuation_neighbors.iter().enumerate().filter_map(
+                    |(index, neighbor_id)| {
+                        let reachable = neighbor_endpoints.contains_key(neighbor_id);
+                        if !reachable && *neighbor_id != active.selected_neighbor {
+                            return None;
+                        }
+                        let rank_penalty = u16::try_from(index)
+                            .unwrap_or(u16::MAX)
+                            .saturating_mul(policy.synthesized_node_rank_penalty_permille);
+                        let selection_bonus = if *neighbor_id == active.selected_neighbor {
+                            policy.synthesized_node_selected_neighbor_bonus_permille
+                        } else {
+                            0
+                        };
+                        let reachability_bonus = if reachable {
+                            policy.synthesized_node_reachability_bonus_permille
+                        } else {
+                            0
+                        };
+                        Some(crate::summary::ForwardPropagatedEvidence {
+                            from_neighbor: *neighbor_id,
+                            summary: FieldSummary {
+                                freshness_tick: now_tick,
+                                hop_band: active.corridor_envelope.expected_hop_band,
+                                delivery_support: SupportBucket::new(
+                                    last_summary
+                                        .delivery_support
+                                        .value()
+                                        .max(active.corridor_envelope.delivery_support.value())
+                                        .saturating_add(reachability_bonus)
+                                        .saturating_add(selection_bonus)
+                                        .saturating_sub(rank_penalty)
+                                        .min(1000),
+                                ),
+                                retention_support: SupportBucket::new(
+                                    last_summary
+                                        .retention_support
+                                        .value()
+                                        .max(active.corridor_envelope.retention_affinity.value())
+                                        .saturating_add(
+                                            policy.synthesized_node_retention_bonus_permille,
+                                        )
+                                        .saturating_sub(rank_penalty / 2)
+                                        .min(1000),
+                                ),
+                                ..last_summary.clone()
+                            },
+                            observed_at_tick: now_tick,
+                        })
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
     synthesized.sort_by(|left, right| {
         right
             .summary
@@ -281,10 +339,25 @@ pub(super) fn summary_for_destination(
 
 // long-block-exception: anti-entropy replay keeps the publication, posterior,
 // and bridge-retention floors in one auditable summary synthesis path.
+#[allow(dead_code)]
 pub(super) fn anti_entropy_summary_for_destination(
     destination_state: &crate::state::DestinationFieldState,
     summary: &FieldSummary,
     now_tick: Tick,
+) -> FieldSummary {
+    anti_entropy_summary_for_destination_with_policy(
+        destination_state,
+        summary,
+        now_tick,
+        &crate::policy::DEFAULT_FIELD_POLICY.evidence.observer,
+    )
+}
+
+pub(super) fn anti_entropy_summary_for_destination_with_policy(
+    destination_state: &crate::state::DestinationFieldState,
+    summary: &FieldSummary,
+    now_tick: Tick,
+    policy: &crate::policy::FieldObserverEvidencePolicy,
 ) -> FieldSummary {
     let publication_support = destination_state
         .publication
@@ -325,7 +398,11 @@ pub(super) fn anti_entropy_summary_for_destination(
                 .saturating_add(publication_retention / 6)
                 .min(1000),
         )
-        .saturating_add(if bridge_bias { 80 } else { 0 })
+        .saturating_add(if bridge_bias {
+            policy.replay_bridge_support_bonus_permille
+        } else {
+            0
+        })
         .min(1000);
     let replay_retention = summary
         .retention_support
@@ -340,19 +417,29 @@ pub(super) fn anti_entropy_summary_for_destination(
                 .saturating_add(replay_support)
                 / 2,
         )
-        .saturating_add(if bridge_bias { 100 } else { 0 })
+        .saturating_add(if bridge_bias {
+            policy.replay_bridge_retention_bonus_permille
+        } else {
+            0
+        })
         .min(1000);
     let replay_uncertainty = summary
         .uncertainty_penalty
         .value()
-        .saturating_sub(if replay_retention >= 700 {
-            190
-        } else if replay_retention >= 560 {
-            150
+        .saturating_sub(
+            if replay_retention >= policy.replay_high_retention_floor_permille {
+                policy.replay_high_uncertainty_relief_permille
+            } else if replay_retention >= policy.replay_medium_retention_floor_permille {
+                policy.replay_medium_uncertainty_relief_permille
+            } else {
+                policy.replay_low_uncertainty_relief_permille
+            },
+        )
+        .saturating_sub(if publication_retention >= 320 {
+            policy.replay_publication_retention_relief_permille
         } else {
-            100
-        })
-        .saturating_sub(if publication_retention >= 320 { 40 } else { 0 });
+            0
+        });
     FieldSummary {
         freshness_tick: now_tick,
         delivery_support: SupportBucket::new(replay_support),
@@ -402,9 +489,13 @@ pub(super) fn refresh_frontier_from_evidence(
     forward_evidence: &[crate::summary::ForwardPropagatedEvidence],
     now_tick: Tick,
 ) -> crate::state::ContinuationFrontier {
-    let prune_horizon = if corridor_retention.value() >= 300 && corridor_support.value() >= 220 {
+    let policy = &crate::policy::DEFAULT_FIELD_POLICY.evidence.observer;
+    let prune_horizon = if corridor_retention.value()
+        >= policy.prune_extended_retention_floor_permille
+        && corridor_support.value() >= policy.prune_extended_support_floor_permille
+    {
         8
-    } else if corridor_retention.value() >= 240 {
+    } else if corridor_retention.value() >= policy.prune_moderate_retention_floor_permille {
         6
     } else {
         4

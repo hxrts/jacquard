@@ -25,34 +25,38 @@ use jacquard_core::{
 use jacquard_traits::{Blake3Hashing, Hashing, RouterManagedEngine, RoutingEngine};
 
 use crate::{
-    attractor::{derive_local_attractor_view, rank_frontier_by_attractor},
+    attractor::{derive_local_attractor_view_with_policy, rank_frontier_by_attractor_with_policy},
     choreography::{
         FieldChoreographyAdvance, FieldHostWaitStatus, FieldProtocolCheckpoint, FieldProtocolKind,
         FieldProtocolReconfigurationCause, FieldProtocolSessionKey, QueuedProtocolSend,
         FIELD_PROTOCOL_SESSION_MAX,
     },
-    control::{advance_control_plane, ControlMeasurements},
+    control::{advance_control_plane_with_policy, ControlMeasurements},
     engine::FieldRuntimeRoundArtifact,
     observer::{update_destination_observer, ObserverInputs},
+    operational::{FieldDestinationDecisionContext, FieldRuntimeDecisionContext},
     planner::{
         admission::continuity_band_for_state_with_config,
-        promotion::{promotion_assessment_for_route, FieldBootstrapDecision},
+        promotion::{promotion_assessment_for_route_with_policy, FieldBootstrapDecision},
     },
     recovery::{
         FieldPromotionBlocker, FieldRouteRecoveryOutcome, FieldRouteRecoveryTrigger,
         StoredFieldRouteRecovery,
     },
-    route::{decode_backend_token, ActiveFieldRoute, FieldBootstrapClass, FieldContinuityBand},
+    route::{
+        decode_backend_token, ActiveFieldRoute, FieldBootstrapClass, FieldContinuityBand,
+        FieldWitnessDetail,
+    },
     state::{
-        HopBand, NeighborContinuation, ObserverInputSignature, SupportBucket,
-        SUMMARY_HEARTBEAT_TICKS,
+        CorridorBeliefEnvelope, HopBand, NeighborContinuation, ObserverInputSignature,
+        SupportBucket, SUMMARY_HEARTBEAT_TICKS,
     },
     summary::{
         summary_divergence, DirectEvidence, EvidenceContributionClass, FieldSummary,
         LocalOriginTrace, SummaryDestinationKey, SummaryUncertaintyClass,
         FIELD_SUMMARY_ENCODING_BYTES,
     },
-    FieldEngine,
+    FieldEngine, FieldPolicyEvent, FieldPolicyGate, FieldPolicyReason,
 };
 
 const FIELD_COMMITMENT_ATTEMPT_COUNT_MAX: u32 = 2;
@@ -60,13 +64,22 @@ const FIELD_COMMITMENT_INITIAL_BACKOFF_MS: u32 = 25;
 const FIELD_COMMITMENT_BACKOFF_MS_MAX: u32 = 25;
 const FIELD_COMMITMENT_OVERALL_TIMEOUT_MS: u32 = 50;
 const FIELD_COMMITMENT_ID_DOMAIN: &[u8] = b"field-route-commitment";
-pub(crate) const FIELD_ROUTE_FAILURE_SUPPORT_FLOOR: u16 = 180;
 pub(crate) const FIELD_ROUTE_WEAK_SUPPORT_FLOOR: u16 = 220;
-const FIELD_BOOTSTRAP_FAILURE_SUPPORT_FLOOR: u16 = 140;
-const FIELD_DEGRADED_STEADY_FAILURE_SUPPORT_FLOOR: u16 = 160;
-const FIELD_BOOTSTRAP_STALE_TICKS_MAX: u64 = 6;
 const FIELD_DEGRADED_STEADY_STALE_TICKS_MAX: u64 = 5;
-const FIELD_ENVELOPE_SHIFT_SUPPORT_DELTA_MAX: u16 = 180;
+const FIELD_COMMITMENT_BOOTSTRAP_SUPPORT_FLOOR: u16 = 140;
+const FIELD_COMMITMENT_BOOTSTRAP_SERVICE_RELIEF_PERMILLE: u16 = 20;
+const FIELD_COMMITMENT_DEGRADED_SUPPORT_FLOOR: u16 = 160;
+const FIELD_COMMITMENT_DEGRADED_SERVICE_RELIEF_PERMILLE: u16 = 20;
+const FIELD_COMMITMENT_DISCOVERY_SUPPORT_FLOOR: u16 = 220;
+const FIELD_COMMITMENT_STEADY_SUPPORT_FLOOR: u16 = 250;
+const FIELD_FAILURE_POST_SHIFT_GRACE_RELIEF_PERMILLE: u16 = 30;
+const FIELD_FAILURE_DISCOVERY_RELIEF_PERMILLE: u16 = 40;
+const FIELD_STALE_SERVICE_RELIEF_TICKS: u64 = 2;
+const FIELD_STALE_DISCOVERY_RELIEF_TICKS: u64 = 5;
+const FIELD_STALE_STEADY_DISCOVERY_TICKS_MAX: u64 = 8;
+const FIELD_STALE_STEADY_TICKS_MAX: u64 = 4;
+const FIELD_STALE_POST_SHIFT_GRACE_TICKS: u64 = 2;
+const FIELD_WEAK_SUPPORT_DISCOVERY_RELIEF_PERMILLE: u16 = 50;
 
 mod continuation;
 mod control;
