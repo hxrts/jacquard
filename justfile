@@ -26,28 +26,35 @@ lint:
 
 # run the small tuning matrix without generating the analysis report
 tuning-smoke:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    run_id="$(date +%Y%m%d-%H%M%S)"
-    output_dir="${PWD}/artifacts/analysis/smoke/${run_id}"
-    cargo run -p jacquard-simulator --bin tuning_matrix -- smoke --output "$output_dir"
-    echo "Tuning smoke artifacts: $output_dir"
+    cargo run -p jacquard-simulator --bin tuning_matrix -- smoke
+    @echo "Tuning smoke artifacts: artifacts/analysis/smoke/latest"
 
 # run the full local tuning matrix and generate the analysis report
 tuning-local:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    run_id="$(date +%Y%m%d-%H%M%S)"
-    output_dir="${PWD}/artifacts/analysis/local/${run_id}"
-    cargo run -p jacquard-simulator --bin tuning_matrix -- local --output "$output_dir"
-    nix develop --command python3 -m analysis.report "$output_dir"
-    echo "Tuning local artifacts: $output_dir"
+    cargo run -p jacquard-simulator --bin tuning_matrix -- local
+    @echo "Tuning local artifacts: artifacts/analysis/local/latest"
+    @echo "Report: artifacts/analysis/local/latest/report.pdf"
 
 # regenerate CSVs, plots, and the analysis report for one existing tuning artifact directory
-tuning-report artifact_dir:
+tuning-report artifact_dir='artifacts/analysis/local/latest':
     #!/usr/bin/env bash
     set -euo pipefail
     nix develop --command python3 -m analysis.report "{{artifact_dir}}"
+
+# run the benchmark-audit regression surface without the full tuning matrix
+benchmark-audit:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo test -p jacquard-simulator comparison_families_document_activation_rounds_and_active_windows
+    cargo test -p jacquard-simulator mixed_comparison_high_loss_prefers_the_next_hop_engine_that_keeps_the_route_up
+    cargo test -p jacquard-simulator mixed_comparison_partial_observability_is_not_masked_by_batman_bellman
+    cargo test -p jacquard-simulator mixed_comparison_concurrent_family_records_a_real_engine_handoff
+    cargo test -p jacquard-simulator comparison_connected_high_loss_is_seed_stable_under_scripted_hooks
+    cargo test -p jacquard-simulator congestion_cascade_tracks_cluster_coverage_separately_from_node_coverage
+    cargo test -p jacquard-simulator adversarial_observation_reports_non_zero_leakage_for_broad_baseline
+    cargo test -p jacquard-simulator bounded_state_classifies_regions
+    cargo test -p jacquard-simulator energy_starved_relay_separates_conservative_and_broad_profiles
+    nix develop --command python3 -m unittest analysis.tests.test_scoring
 
 # format code (uses the toolkit-owned nightly rustfmt policy)
 fmt:
@@ -173,6 +180,7 @@ ci-dry-run:
     add_step "Generate Summary"           "./scripts/gen-summary.sh"
     add_step "Clippy"                     "cargo clippy --workspace --all-targets -- -D warnings"
     add_step "Tests"                      "cargo test --workspace"
+    add_step "Benchmark Audit"           "just benchmark-audit"
     add_step "Lean Style"                 "just lean-style"
     add_step "Wasm Check"                 "just wasm-check"
     add_step "Wasm Reference Client Test" "just wasm-test-reference-client"

@@ -442,6 +442,25 @@ pub(super) fn node_corridor_viable(
     viable_frontier_branches + viable_forward_branches >= policy.node_viable_branch_count_min
 }
 
+pub(super) fn node_corridor_publishable(
+    active: &ActiveFieldRoute,
+    destination_state: &crate::state::DestinationFieldState,
+) -> bool {
+    destination_state
+        .frontier
+        .as_slice()
+        .iter()
+        .any(|entry| active.continuation_neighbors.contains(&entry.neighbor_id))
+        || destination_state
+            .pending_forward_evidence
+            .iter()
+            .any(|evidence| {
+                active
+                    .continuation_neighbors
+                    .contains(&evidence.from_neighbor)
+            })
+}
+
 pub(super) fn observer_input_signature(
     topology_epoch: jacquard_core::RouteEpoch,
     regime: crate::state::OperatingRegime,

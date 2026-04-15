@@ -23,6 +23,7 @@ use jacquard_mem_link_profile::{
 use jacquard_olsrv2::{DecayWindow as OlsrV2DecayWindow, OlsrV2Engine};
 use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine, PathwaySearchConfig};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
+use jacquard_scatter::{ScatterEngine, ScatterEngineConfig};
 use jacquard_traits::Blake3Hashing;
 use thiserror::Error;
 
@@ -42,16 +43,18 @@ pub enum EngineKind {
     OlsrV2,
     Babel,
     Field,
+    Scatter,
 }
 
 impl EngineKind {
-    const CANONICAL_REGISTRATION_ORDER: [Self; 6] = [
+    const CANONICAL_REGISTRATION_ORDER: [Self; 7] = [
         Self::Pathway,
         Self::BatmanBellman,
         Self::BatmanClassic,
         Self::OlsrV2,
         Self::Babel,
         Self::Field,
+        Self::Scatter,
     ];
 
     fn label(self) -> &'static str {
@@ -62,6 +65,7 @@ impl EngineKind {
             Self::OlsrV2 => "olsrv2",
             Self::Babel => "babel",
             Self::Field => "field",
+            Self::Scatter => "scatter",
         }
     }
 }
@@ -97,6 +101,7 @@ pub struct ClientBuilder {
     olsrv2_decay_window: Option<OlsrV2DecayWindow>,
     pathway_search_config: Option<PathwaySearchConfig>,
     field_search_config: Option<FieldSearchConfig>,
+    scatter_config: Option<ScatterEngineConfig>,
     field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
     babel_decay_window: Option<BabelDecayWindow>,
     queue_config: BridgeQueueConfig,
@@ -124,6 +129,7 @@ impl ClientBuilder {
             babel_decay_window: None,
             pathway_search_config: None,
             field_search_config: None,
+            scatter_config: None,
             field_bootstrap_summaries: Vec::new(),
             queue_config: DEFAULT_BRIDGE_QUEUE_CONFIG,
             engines,
@@ -213,6 +219,22 @@ impl ClientBuilder {
     }
 
     #[must_use]
+    pub fn scatter(
+        local_node_id: NodeId,
+        topology: Observation<Configuration>,
+        network: SharedInMemoryNetwork,
+        now: Tick,
+    ) -> Self {
+        Self::with_engine_set(
+            local_node_id,
+            topology,
+            network,
+            now,
+            singleton_engine(EngineKind::Scatter),
+        )
+    }
+
+    #[must_use]
     pub fn olsrv2(
         local_node_id: NodeId,
         topology: Observation<Configuration>,
@@ -271,7 +293,8 @@ impl ClientBuilder {
             .with_batman_classic()
             .with_babel()
             .with_olsrv2()
-            .with_queue_config(BridgeQueueConfig::new(256, 256))
+            .with_scatter()
+            .with_queue_config(BridgeQueueConfig::new(320, 320))
     }
 
     #[must_use]
@@ -295,6 +318,12 @@ impl ClientBuilder {
     #[must_use]
     pub fn with_field_search_config(mut self, search_config: FieldSearchConfig) -> Self {
         self.field_search_config = Some(search_config);
+        self
+    }
+
+    #[must_use]
+    pub fn with_scatter_config(mut self, scatter_config: ScatterEngineConfig) -> Self {
+        self.scatter_config = Some(scatter_config);
         self
     }
 
@@ -401,6 +430,12 @@ impl ClientBuilder {
     #[must_use]
     pub fn with_field(mut self) -> Self {
         self.engines.insert(EngineKind::Field);
+        self
+    }
+
+    #[must_use]
+    pub fn with_scatter(mut self) -> Self {
+        self.engines.insert(EngineKind::Scatter);
         self
     }
 
@@ -535,6 +570,34 @@ impl ClientBuilder {
                     };
                     router
                         .register_engine(Box::new(olsrv2_engine))
+                        .map_err(|source| ReferenceClientBuildError::EngineRegistration {
+                            engine: engine.label(),
+                            source,
+                        })?;
+                }
+                EngineKind::Scatter => {
+                    let scatter_engine = if let Some(scatter_config) = self.scatter_config {
+                        ScatterEngine::with_config(
+                            self.local_node_id,
+                            transport.sender(),
+                            InMemoryRuntimeEffects {
+                                now: self.now,
+                                ..Default::default()
+                            },
+                            scatter_config,
+                        )
+                    } else {
+                        ScatterEngine::new(
+                            self.local_node_id,
+                            transport.sender(),
+                            InMemoryRuntimeEffects {
+                                now: self.now,
+                                ..Default::default()
+                            },
+                        )
+                    };
+                    router
+                        .register_engine(Box::new(scatter_engine))
                         .map_err(|source| ReferenceClientBuildError::EngineRegistration {
                             engine: engine.label(),
                             source,
@@ -756,6 +819,7 @@ mod tests {
     use jacquard_field::FIELD_ENGINE_ID;
     use jacquard_olsrv2::OLSRV2_ENGINE_ID;
     use jacquard_pathway::PATHWAY_ENGINE_ID;
+    use jacquard_scatter::SCATTER_ENGINE_ID;
 
     use super::{
         batman_default_profile, default_profile, default_profile_for_engine_set, ClientBuilder,
@@ -830,5 +894,6 @@ mod tests {
         assert!(registered.contains(&BABEL_ENGINE_ID));
         assert!(registered.contains(&OLSRV2_ENGINE_ID));
         assert!(registered.contains(&FIELD_ENGINE_ID));
+        assert!(registered.contains(&SCATTER_ENGINE_ID));
     }
 }

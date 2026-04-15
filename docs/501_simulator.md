@@ -44,4 +44,4 @@ For the `pathway` lane, checkpoints carry `InMemoryRuntimeEffects` snapshots per
 1. Build a `JacquardScenario` and `ScriptedEnvironmentModel` with `jacquard_simulator::presets`.
 2. Pass them to `JacquardSimulator::run_scenario()`.
 3. Inspect the returned `JacquardReplayArtifact` for round, event, and checkpoint data.
-4. For matrix sweeps, run `cargo run --bin tuning_matrix -- local` and review the generated report at `artifacts/analysis/local/latest/report/report.pdf`.
+4. For matrix sweeps, run `cargo run --bin tuning_matrix -- local` and review the generated report at `artifacts/analysis/local/latest/report.pdf`.

@@ -686,7 +686,7 @@ mod tests {
 
     #[test]
     fn standalone_scatter_medium_bridge_repair_activates_with_scatter_engine() {
-        let parameters = ExperimentParameterSet::scatter();
+        let parameters = ExperimentParameterSet::scatter("balanced");
         let (scenario, environment) =
             build_comparison_medium_bridge_repair(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);

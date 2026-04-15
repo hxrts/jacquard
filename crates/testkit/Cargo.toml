@@ -15,7 +15,7 @@ workspace = true
 [features]
 default = []
 reference-client-e2e = ["dep:jacquard-reference-client"]
-topology-full = ["dep:jacquard-batman-classic", "dep:jacquard-field"]
+topology-full = ["dep:jacquard-batman-classic", "dep:jacquard-field", "dep:jacquard-scatter"]
 
 [dependencies]
 jacquard-adapter = { path = "../adapter", version = "0.4.0" }
@@ -30,4 +30,5 @@ jacquard-olsrv2 = { path = "../olsrv2", version = "0.4.0" }
 jacquard-pathway = { path = "../pathway", version = "0.4.0" }
 jacquard-batman-classic = { path = "../batman-classic", version = "0.4.0", optional = true }
 jacquard-field = { path = "../field", version = "0.4.0", optional = true }
+jacquard-scatter = { path = "../scatter", version = "0.4.0", optional = true }
 jacquard-reference-client = { path = "../reference-client", version = "0.4.0", optional = true }

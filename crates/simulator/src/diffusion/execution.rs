@@ -3,8 +3,8 @@ use super::{
     covered_target_clusters, desired_field_posture, diffusion_bridge_candidate,
     dominant_field_posture_name, field_budget_kind, field_forwarding_suppressed, forwarding_score,
     holder_count_in_cluster, initial_field_budget, initial_field_posture, mean_option_u32,
-    mean_u32, mode_option_string, mode_string, sender_energy_ratio_permille, BTreeMap, BTreeSet,
-    DiffusionAggregateSummary, DiffusionBoundarySummary, DiffusionContactEvent,
+    mean_u32, min_max_spread_u32, mode_option_string, mode_string, sender_energy_ratio_permille,
+    BTreeMap, BTreeSet, DiffusionAggregateSummary, DiffusionBoundarySummary, DiffusionContactEvent,
     DiffusionFieldPosture, DiffusionMessageMode, DiffusionMobilityProfile, DiffusionNodeSpec,
     DiffusionRunSpec, DiffusionRunSummary, DiffusionScenarioSpec, DiffusionTransportKind,
     FieldBudgetKind, FieldBudgetState, FieldExecutionMetrics, FieldPostureMetrics,
@@ -514,6 +514,11 @@ pub(super) fn aggregate_diffusion_runs(
         let first = group[0];
         let run_count = u32::try_from(group.len()).unwrap_or(u32::MAX);
         let mode = mode_string(group.iter().map(|row| row.bounded_state.clone()));
+        let (
+            delivery_probability_permille_min,
+            delivery_probability_permille_max,
+            delivery_probability_permille_spread,
+        ) = min_max_spread_u32(group.iter().map(|row| row.delivery_probability_permille));
         aggregates.push(DiffusionAggregateSummary {
             suite_id: first.suite_id.clone(),
             family_id: first.family_id.clone(),
@@ -532,6 +537,9 @@ pub(super) fn aggregate_diffusion_runs(
             delivery_probability_permille_mean: mean_u32(
                 group.iter().map(|row| row.delivery_probability_permille),
             ),
+            delivery_probability_permille_min,
+            delivery_probability_permille_max,
+            delivery_probability_permille_spread,
             delivery_delay_mean: mean_option_u32(group.iter().map(|row| row.delivery_delay)),
             coverage_permille_mean: mean_u32(group.iter().map(|row| row.coverage_permille)),
             cluster_coverage_permille_mean: mean_u32(

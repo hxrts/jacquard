@@ -57,6 +57,19 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - run: nix develop --command just book
+      - name: Build routing report
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: nix develop --command just tuning-local
+      - name: Copy routing report into Pages output
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          book_output=docs/book
+          mkdir -p "$book_output"/reports
+          cp artifacts/analysis/local/latest/report.pdf \
+            "$book_output"/reports/routing-tuning-report.pdf
+      - name: Setup Pages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/configure-pages@v4
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3

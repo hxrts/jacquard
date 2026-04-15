@@ -31,6 +31,9 @@ pub(super) fn apply_overrides(
             if let Some(search_config) = parameters.field_search_config() {
                 host = host.with_field_search_config(search_config);
             }
+            if let Some(scatter_config) = parameters.scatter_config() {
+                host = host.with_scatter_config(scatter_config);
+            }
             host
         })
         .collect::<Vec<_>>();
@@ -54,6 +57,7 @@ pub(super) fn comparison_topology_node(node_byte: u8, comparison_engine_set: Opt
         "olsrv2" => topology::node(node_byte).olsrv2().build(),
         "pathway" => topology::node(node_byte).pathway().build(),
         "field" => topology::node(node_byte).field().build(),
+        "scatter" => topology::node(node_byte).scatter().build(),
         "pathway-batman-bellman" => topology::node(node_byte)
             .pathway_and_batman_bellman()
             .build(),
@@ -72,6 +76,7 @@ pub(super) fn comparison_host_spec(
         "olsrv2" => HostSpec::olsrv2(local_node_id),
         "pathway" => HostSpec::pathway(local_node_id),
         "field" => HostSpec::field(local_node_id),
+        "scatter" => HostSpec::scatter(local_node_id),
         "pathway-batman-bellman" => HostSpec::pathway_and_batman_bellman(local_node_id),
         _ => HostSpec::all_engines(local_node_id),
     }
@@ -236,10 +241,15 @@ pub(super) fn engine_round_counts(reduced: &ReducedReplayView) -> BTreeMap<Strin
 }
 
 pub(super) fn dominant_engine(engine_counts: &BTreeMap<String, u32>) -> Option<String> {
-    engine_counts
+    let max_count = engine_counts.values().copied().max()?;
+    let leaders = engine_counts
         .iter()
-        .max_by_key(|(engine, count)| (**count, engine.as_str()))
-        .map(|(engine, _)| engine.clone())
+        .filter_map(|(engine, count)| (*count == max_count).then_some(engine.as_str()))
+        .collect::<Vec<_>>();
+    if leaders.len() > 1 {
+        return Some("tie".to_string());
+    }
+    leaders.first().map(|engine| (*engine).to_string())
 }
 
 pub(super) fn heuristic_mode_label(mode: PathwaySearchHeuristicMode) -> &'static str {
@@ -281,6 +291,8 @@ pub(super) fn normalized_engine_id(engine_id: &jacquard_core::RoutingEngineId) -
         "olsrv2"
     } else if engine_id == &PATHWAY_ENGINE_ID {
         "pathway"
+    } else if engine_id == &SCATTER_ENGINE_ID {
+        "scatter"
     } else if engine_id == &FIELD_ENGINE_ID {
         "field"
     } else {
@@ -600,6 +612,44 @@ pub(super) fn bridge_cluster_topology(
     })
 }
 
+pub(super) fn medium_bridge_repair_topology(
+    node_a: Node,
+    node_b: Node,
+    node_c: Node,
+    node_d: Node,
+    node_e: Node,
+    node_f: Node,
+) -> Observation<Configuration> {
+    routing_observation(Configuration {
+        epoch: RouteEpoch(1),
+        nodes: BTreeMap::from([
+            (NODE_A, node_a),
+            (NODE_B, node_b),
+            (NODE_C, node_c),
+            (NODE_D, node_d),
+            (NODE_E, node_e),
+            (NODE_F, node_f),
+        ]),
+        links: BTreeMap::from([
+            ((NODE_A, NODE_B), topology::link(2).build()),
+            ((NODE_B, NODE_A), topology::link(1).build()),
+            ((NODE_B, NODE_C), topology::link(3).build()),
+            ((NODE_C, NODE_B), topology::link(2).build()),
+            ((NODE_C, NODE_D), topology::link(4).build()),
+            ((NODE_D, NODE_C), topology::link(3).build()),
+            ((NODE_D, NODE_E), topology::link(5).build()),
+            ((NODE_E, NODE_D), topology::link(4).build()),
+            ((NODE_E, NODE_F), topology::link(6).build()),
+            ((NODE_F, NODE_E), topology::link(5).build()),
+        ]),
+        environment: Environment {
+            reachable_neighbor_count: 2,
+            churn_permille: RatioPermille(0),
+            contention_permille: RatioPermille(0),
+        },
+    })
+}
+
 pub(super) fn fanout_service_topology4(
     node_a: Node,
     node_b: Node,
@@ -810,5 +860,35 @@ pub(super) fn repairable_connected_profile() -> SelectedRoutingParameters {
         diversity_floor: jacquard_core::DiversityFloor(1),
         routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
         route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
+    }
+}
+
+pub(super) fn repairable_partition_tolerant_profile() -> SelectedRoutingParameters {
+    SelectedRoutingParameters {
+        selected_protection: RouteProtectionClass::LinkProtected,
+        selected_connectivity: ConnectivityPosture {
+            repair: RouteRepairClass::Repairable,
+            partition: RoutePartitionClass::PartitionTolerant,
+        },
+        deployment_profile: jacquard_core::OperatingMode::FieldPartitionTolerant,
+        diversity_floor: jacquard_core::DiversityFloor(1),
+        routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+        route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dominant_engine_reports_tie_for_equal_selected_rounds() {
+        let counts = BTreeMap::from([
+            ("babel".to_string(), 6),
+            ("batman-classic".to_string(), 6),
+            ("pathway".to_string(), 3),
+        ]);
+
+        assert_eq!(dominant_engine(&counts).as_deref(), Some("tie"));
     }
 }

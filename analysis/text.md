@@ -4,7 +4,7 @@
 
 ### Executive Summary Intro
 
-This report studies Jacquard routing behavior across six engines, `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `pathway`, and `field`, using a common simulator corpus and analysis pipeline. The goal is to understand where each engine works well, where performance degrades, what kind of failures arise, and to compare engines under the same network conditions. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
+This report studies Jacquard routing behavior across seven engines, `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `pathway`, and `field`, using a common simulator corpus and analysis pipeline. The goal is to understand where each engine works well, where performance degrades, what kind of failures arise, and to compare engines under the same network conditions. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
 
 The report is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles. Part IV evaluates these calibrated profiles under message-diffusion scenarios where node movement and intermittent contact opportunities carry messages, and end-to-end paths may not exist.
 
@@ -46,7 +46,7 @@ The report scores observable replay output: whether a route appears, when it is 
 
 #### Matrix Design
 
-The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-classic`, `batman-bellman`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
+The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-classic`, `batman-bellman`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. `scatter` is held to one bounded baseline profile in this first corpus. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
 
 The recommendations are meant to be good defaults for this modeled corpus, not single winners from one scenario.
 
@@ -103,9 +103,15 @@ Babel implements the RFC 8966 distance-vector protocol. Link cost uses bidirecti
 
 The Jacquard engine intentionally simplifies the full RFC surface: it keeps one deterministic link-state view, one MPR election policy, and next-hop-only route publication. The tuning sweep therefore focuses on the decay window that controls how long HELLO and TC evidence stays live and how quickly the engine requests another synchronous round. That retained state is topology and freshness metadata only; `olsrv2` is not a deferred-delivery payload buffer.
 
+#### Scatter Algorithm
+
+`scatter` is Jacquard's bounded deferred-delivery diffusion engine. It publishes an opaque, partition-tolerant route claim when the objective is supportable, then performs engine-private store-carry-forward movement with hard copy budgets, scope-relative carrier scoring, local regime selection, and contact-feasibility gates.
+
+Unlike an acknowledgement-driven custody protocol, `scatter` does not assume authoritative transfer. It retains bounded payload custody locally, can split copy budget conservatively across better carriers, and may prefer a better carrier without claiming globally reliable handoff semantics. Its retained state is payload custody plus local diffusion metadata, not a topology graph or explicit path.
+
 #### Pathway Algorithm
 
-Pathway explores candidate continuations and chooses a full routing decision for the requested destination or service. The main tuning question is how much search budget it needs before it reliably finds good candidates. It is also the one in-tree routing engine that supports bounded deferred delivery of payloads: when a route enters partition mode, payloads can be retained through the shared retention boundary and later replayed on recovery or handoff.
+Pathway explores candidate continuations and chooses a full routing decision for the requested destination or service. The main tuning question is how much search budget it needs before it reliably finds good candidates. It is also one of the in-tree routing engines that supports bounded deferred delivery of payloads: when a route enters partition mode, payloads can be retained through the shared retention boundary and later replayed on recovery or handoff.
 
 #### Field Algorithm
 
@@ -155,39 +161,53 @@ Column guide: Regime names the field-specific operating regime; Success Criteria
 
 ## Part II. Analysis
 
+### Part II Reading Guide
+
+Part II uses one repeated figure grammar across the engine sections:
+
+- panels are scenario families
+- the x-axis is the tuned control surface for that engine section
+- solid lines with circle markers show the primary outcome view
+- dashed lines with square markers show the cost, fragility, or startup view
+- route-visible presence and activation are displayed as percentages
+
+This makes the paired figures easier to compare: the first figure in a section
+shows how well the engine performs, and the second shows the cost, fragility,
+or control-motion price associated with that behavior.
+
 ### Figure Context
-
-#### BATMAN Bellman Transition Analysis
-
-These two plots form an analytical pair: the first shows where stability accumulates across the transition families, and the second shows when those same settings first lose a route.
-
-#### Figure 1
-
-@figure batman_bellman_transition_stability
-
-Stale-after ticks on the x-axis, transition-family lines showing accumulated stability. Point annotations mark the paired refresh setting.
-
-#### Figure 2
-
-@figure batman_bellman_transition_loss
-
-When routes are first lost under the same transition families. The clearest view of whether a shorter or longer decay window helps near relink and asymmetric bridge boundaries.
 
 #### BATMAN Classic Transition Analysis
 
 These two plots form an analytical pair: the first shows where stability accumulates across the transition families, and the second shows when those same settings first lose a route. The classic engine converges more slowly than other BATMAN variants due to its echo-only bidirectionality requirement.
 
-#### Figure 3
+#### Figure 1
 
 @figure batman_classic_transition_stability
 
-Same stale-after-ticks axis as Figure 1 but for the spec-faithful engine.
+BATMAN Classic stability across transition families. Higher values are better: they indicate more sustained route quality across the scenario. Flatter high lines indicate a decay setting that stays robust as transition stress changes.
 
-#### Figure 4
+#### Figure 2
 
 @figure batman_classic_transition_loss
 
-When routes are first lost under the batman-classic transition families. Compare against Figure 2 to isolate the Bellman-Ford enhancement contribution.
+BATMAN Classic loss timing across transition families. Higher values mean the first route loss happens later, which is usually better. Sharp drops indicate settings that become brittle under the corresponding transition family.
+
+#### BATMAN Bellman Transition Analysis
+
+These two plots form an analytical pair: the first shows where stability accumulates across the transition families, and the second shows when those same settings first lose a route.
+
+#### Figure 3
+
+@figure batman_bellman_transition_stability
+
+BATMAN Bellman stability across transition families. Higher values are better: they indicate more sustained route quality across the scenario. A broad plateau implies the stale-window setting is forgiving rather than narrowly tuned.
+
+#### Figure 4
+
+@figure batman_bellman_transition_loss
+
+BATMAN Bellman loss timing across transition families. Higher values mean route loss is delayed further into the scenario, which is better. Early collapses indicate settings that cannot ride through the corresponding transition stress.
 
 #### Babel Decay Analysis
 
@@ -197,13 +217,13 @@ The asymmetry-cost-penalty family is the primary differentiator: Babel's ETX for
 
 @figure babel_decay_stability
 
-Accumulated stability across the three Babel decay families.
+Babel stability across decay families. Higher values are better: they indicate more sustained feasible routing across the family. If the curve stays high as stale ticks increase, Babel is not very sensitive to the decay setting there.
 
 #### Figure 6
 
 @figure babel_decay_loss
 
-When routes are first lost under the Babel decay families. The partition-feasibility-recovery family shows the FD table's infeasible-fallback window.
+Babel loss timing across decay families. Higher values mean the first loss happens later, which is better. Downward bends show where stale-state retention starts to hurt feasibility recovery rather than help it.
 
 #### OLSRv2 Decay Analysis
 
@@ -213,57 +233,91 @@ These plots answer the missing proactive link-state question directly: how quick
 
 @figure olsrv2_decay_stability
 
-Accumulated stability across the four maintained OLSRv2 topology and churn families.
+OLSRv2 stability across topology and churn families. Higher values are better: they indicate more sustained route quality through churn and relink events. A high flat region suggests the control-state lifetime is long enough to cover one topology-change cycle without overfitting.
 
 #### Figure 8
 
 @figure olsrv2_decay_loss
 
-When routes are first lost under the same OLSRv2 families. Compare against the BATMAN and Babel figures to separate link-state freshness from distance-vector decay effects.
+OLSRv2 loss timing across topology and churn families. Higher values mean the first loss occurs later, which is better. Lower or falling values indicate churn windows where stale symmetric-link or TC state leaves the engine exposed.
 
-#### Pathway Budget Figures Intro
+#### Scatter Profile Figures Intro
 
-These two figures show the budget question from two angles: how much route presence extra budget buys, and where activation collapses outright.
+These two figures put `scatter` on the same tuning-sweep footing as the other engines. The first figure is the outcome view, and the second is the startup-cost view for the same maintained `balanced`, `conservative`, and `degraded-network` profiles.
 
 #### Figure 9
 
-@figure pathway_budget_route_presence
+@figure scatter_profile_route_presence
 
-Route presence under the Pathway pressure families by search budget.
+Scatter active route presence by maintained profile. Higher values are better because the route stays present for more of the objective-active window. Each panel uses the same profile order so the scatter sweep can be compared directly across families.
 
 #### Figure 10
 
-@figure pathway_budget_activation
+@figure scatter_profile_startup
 
-Activation success by search budget. The clearest view of minimum viable Pathway search breadth.
+Scatter startup timing by maintained profile. Lower values are better because routes materialize earlier. The dashed family lines use the same profile order as Figure 9 so startup cost can be compared directly across families.
 
-#### Field Corridor Figures Intro
+#### Pathway Budget Figures Intro
 
-The first figure shows route-visible continuity across corridor-oriented families. The second shows search and continuation churn. Together they distinguish a healthy corridor default from an unstable bootstrap regime.
+These two figures show the budget question from two angles: how much route-visible outcome extra budget buys, and what startup or fragility cost remains.
 
 #### Figure 11
 
-@figure field_budget_route_presence
+@figure pathway_budget_route_presence
 
-Field route-visible success by budget across corridor-oriented families.
+Pathway active route presence by search budget. Higher values are better: they indicate the route is present for more of the objective-active window. The y-axis is shown as a percentage so the budget sweep can be read directly against the other route-visible outcome figures in Part II.
 
 #### Figure 12
 
-@figure field_budget_reconfiguration
+@figure pathway_budget_activation
 
-Continuation shifts and search reconfiguration rounds combined into one reconfiguration load signal.
+Pathway activation by search budget. Higher values are better: they indicate objectives activate successfully more often. The y-axis is shown as a percentage, and step changes reveal the budget threshold where Pathway moves from under-search to reliable activation.
+
+#### Field Corridor Figures Intro
+
+The first figure shows route-visible continuity across corridor-oriented families. The second shows the control-motion cost paid to preserve that continuity. Together they distinguish a healthy corridor default from an unstable bootstrap regime.
 
 #### Figure 13
 
-@figure comparison_dominant_engine
+@figure field_budget_route_presence
 
-Which engine leads by selected route rounds in each maintained mixed-engine comparison family. A `tie` means the mixed stack split selected-route rounds evenly at the top.
+Field active route presence by search budget. Higher values are better: they indicate the admitted corridor stays available for more of the active window. The y-axis is shown as a percentage so the continuity outcome can be compared directly against the other Part II route-visible figures.
 
 #### Figure 14
 
+@figure field_budget_reconfiguration
+
+Field corridor reconfiguration by search budget. Lower values are generally better because they indicate less continuation churn and fewer search-driven reconfigurations. Rising lines mean the engine is paying more control-motion cost to maintain continuity.
+
+#### Figure 15
+
+@figure comparison_dominant_engine
+
+Mixed-engine router arbitration by comparison regime. Tile color marks the engine the deterministic router selected most often in the mixed stack, while the overlaid percentage shows how dominant that choice was. This is an arbitration view, not a standalone performance comparison: values near 100% mean the router effectively stuck with one engine for that regime, while lower percentages mean arbitration was more split.
+
+#### Figure 16
+
 @figure head_to_head_route_presence
 
-Direct comparison of explicit engine sets over the same regime families using active-window route presence.
+Head-to-head standalone capability by comparison regime. Longer bars are better: they mark the engine with the highest total-window route presence when run alone, and bar width encodes that route-presence level directly. This is the standalone capability view for the same regime families, so a small `next lower gap` means the engines cluster tightly at the top while a large gap means the scenario cleanly separates the leading tier from the rest.
+
+#### Figure 17
+
+@figure head_to_head_timing_profile
+
+Timing view for the same head-to-head families. The left panel shows who gets a route up first; the right panel shows who keeps that route longest before the first observed loss.
+
+#### Figure 18
+
+@figure recommended_engine_robustness
+
+Robustness view for the current recommended defaults. This figure shows which engines combine high route presence with lower regime-to-regime spread, rather than only maximizing the mean.
+
+#### Figure 19
+
+@figure mixed_vs_standalone_divergence
+
+Direct gap between what the mixed router achieved and what the best standalone engine would have achieved in the same regime. Longer bars are larger gaps, and bar color identifies the standalone winner defining that gap. This is the explicit bridge between the arbitration story in Figure 15 and the capability story in Figure 16.
 
 ### Comparison And Head-To-Head
 
@@ -273,19 +327,21 @@ Direct comparison of explicit engine sets over the same regime families using ac
 
 Selected-round leader per maintained comparison family. Column guide: Selected-Round Leader means the engine selected for the most active-route rounds in one shared mixed stack, not necessarily the best standalone performer. Activation is objective activation success, Active Route is active-window route presence, and Stress is the scenario stress score.
 
-The mixed comparison surface is a single-router arbitration benchmark, not an oracle ensemble. The router gathers candidates across engines, publishes one canonical route per objective, and only reselects when maintenance or expiry requires it. That means a mixed stack can legitimately underperform the best standalone engine in a family if the first durable admissible route comes from a weaker constituent engine.
+The mixed comparison surface is a single-router arbitration benchmark, not an oracle ensemble. The router gathers candidates across engines, publishes one canonical route per objective, and only reselects when maintenance or expiry requires it. Figure 15 therefore answers “which engine does the router actually use?” rather than “which engine is intrinsically best?” A mixed stack can legitimately underperform the best standalone engine in a family if the first durable admissible route comes from a weaker constituent engine.
 
 #### Head-To-Head Results
 
 @table head-to-head-summary
 
-Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `pathway`, `pathway-batman-bellman`, and `field`. Column guide: Engine Set is the only stack enabled; Activation is objective activation success; Active Route is active-window route presence; Selected Leader is the selected-round leader for that run and may be `tie`; Stress is the regime stress score.
+Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `pathway`, `pathway-batman-bellman`, and `field`. Column guide: Engine Set is the only stack enabled; Activation is objective activation success; Active Route is active-window route presence; Selected Leader is the selected-round leader for that run and may be `tie`; Stress is the regime stress score.
 
 #### Benchmark Profile Audit
 
 @table benchmark-profile-audit
 
 This appendix table separates the fixed representative benchmark configs used in the head-to-head surface from the calibrated-best profile recommendations in Part I. A `Match` row means the representative benchmark config and the current calibrated-best config happen to be the same.
+
+Column guide: Engine Set is the evaluated stack; Representative is the surface kind; Benchmark Config is the fixed benchmark configuration; Calibrated Profile is the calibrated-best profile; Calibrated Config is the calibrated-best configuration; Match indicates whether the benchmark and calibrated configurations are the same.
 
 #### Head-To-Head Regimes
 
@@ -395,17 +451,17 @@ Full maintained diffusion engine surface. Column guide: Family, Engine Set, Deli
 
 These two figures separate delivery success from resource boundedness across the most discriminating maintained diffusion families.
 
-#### Figure 15
+#### Figure 20
 
 @figure diffusion_delivery_coverage
 
-Delivery and coverage by engine set.
+Diffusion delivery and coverage by scenario family. Longer bars are better because they indicate more successful delivery; the dot shows coverage, so a wider gap between bar and dot means delivery is lagging behind spread. Strong performers keep both high rather than trading one off against the other.
 
-#### Figure 16
+#### Figure 21
 
 @figure diffusion_resource_boundedness
 
-Transmission load and boundedness by engine set.
+Diffusion transmission load and boundedness by scenario family. Lower transmission bars are better when delivery remains competitive because they indicate cheaper diffusion. The `R=` and bounded-state annotations show whether that load is staying inside the intended bounded operating regime or drifting toward over-spread.
 
 ### Diffusion Takeaways
 
@@ -523,6 +579,14 @@ Pathway budget 1 is the cliff edge: activation={activation} permille.
 #### Engine Section Pathway Floor
 
 Budgets at and above `{config_id}` form the stable floor.
+
+#### Engine Section Scatter Best
+
+Scatter separates most clearly in `{family_id}`, where its bounded carry and hold fallback keep route presence at {route_presence} permille without pretending to expose an explicit path.
+
+#### Engine Section Scatter Closing
+
+The key Scatter contrast is architectural rather than path-optimal: it is the opaque, partition-tolerant baseline that keeps payload custody local and bounded instead of searching a full path or publishing a corridor envelope.
 
 #### Engine Section Field Best
 

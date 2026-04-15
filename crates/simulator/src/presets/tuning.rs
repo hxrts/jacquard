@@ -114,10 +114,131 @@ pub fn olsrv2_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)
     vec![(slow, environment.clone()), (fast, environment)]
 }
 
+#[must_use]
+pub fn batman_classic_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)> {
+    let topology = bidirectional_line_topology(
+        topology::node(1).batman_classic().build(),
+        topology::node(2).batman_classic().build(),
+        topology::node(3).batman_classic().build(),
+    );
+    let slow_decay = jacquard_batman_classic::DecayWindow::new(8, 4);
+    let fast_decay = jacquard_batman_classic::DecayWindow::new(1, 1);
+    let slow = JacquardScenario::new(
+        "batman-classic-decay-slow",
+        jacquard_core::SimulationSeed(53),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        batman_classic_decay_hosts(slow_decay),
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(6)],
+        36,
+    );
+    let fast = JacquardScenario::new(
+        "batman-classic-decay-fast",
+        jacquard_core::SimulationSeed(54),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        batman_classic_decay_hosts(fast_decay),
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(6)],
+        36,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(14),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(26),
+            EnvironmentHook::ReplaceTopology {
+                configuration: topology.value.clone(),
+            },
+        ),
+    ]);
+    vec![(slow, environment.clone()), (fast, environment)]
+}
+
+#[must_use]
+pub fn babel_decay_tuning() -> Vec<(JacquardScenario, ScriptedEnvironmentModel)> {
+    let mut topology = bidirectional_line_topology(
+        topology::node(1).babel().build(),
+        topology::node(2).babel().build(),
+        topology::node(3).babel().build(),
+    );
+    topology.value.environment.reachable_neighbor_count = 2;
+    topology.value.environment.contention_permille = RatioPermille(40);
+    for link in topology.value.links.values_mut() {
+        link.state.loss_permille = RatioPermille(100);
+        link.state.delivery_confidence_permille =
+            jacquard_core::Belief::certain(RatioPermille(900), topology.observed_at_tick);
+    }
+    let slow_decay = jacquard_babel::DecayWindow::new(8, 4);
+    let fast_decay = jacquard_babel::DecayWindow::new(1, 1);
+    let restore = topology.value.clone();
+    let slow = JacquardScenario::new(
+        "babel-decay-slow",
+        jacquard_core::SimulationSeed(55),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        babel_decay_hosts(slow_decay),
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+        26,
+    );
+    let fast = JacquardScenario::new(
+        "babel-decay-fast",
+        jacquard_core::SimulationSeed(56),
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology.clone(),
+        babel_decay_hosts(fast_decay),
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+        26,
+    );
+    let environment = ScriptedEnvironmentModel::new(vec![
+        ScheduledEnvironmentHook::new(
+            Tick(8),
+            EnvironmentHook::MediumDegradation {
+                left: NODE_B,
+                right: NODE_C,
+                confidence: RatioPermille(600),
+                loss: RatioPermille(250),
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(12),
+            EnvironmentHook::CascadePartition {
+                cuts: vec![(NODE_B, NODE_C), (NODE_C, NODE_B)],
+            },
+        ),
+        ScheduledEnvironmentHook::new(
+            Tick(20),
+            EnvironmentHook::ReplaceTopology {
+                configuration: restore,
+            },
+        ),
+    ]);
+    vec![(slow, environment.clone()), (fast, environment)]
+}
+
 fn olsrv2_decay_hosts(decay_window: jacquard_olsrv2::DecayWindow) -> Vec<HostSpec> {
     [NODE_A, NODE_B, NODE_C, NODE_D]
         .into_iter()
         .map(|node_id| HostSpec::olsrv2(node_id).with_olsrv2_decay_window(decay_window))
+        .collect()
+}
+
+fn batman_classic_decay_hosts(decay_window: jacquard_batman_classic::DecayWindow) -> Vec<HostSpec> {
+    [NODE_A, NODE_B, NODE_C]
+        .into_iter()
+        .map(|node_id| {
+            HostSpec::batman_classic(node_id).with_batman_classic_decay_window(decay_window)
+        })
+        .collect()
+}
+
+fn babel_decay_hosts(decay_window: jacquard_babel::DecayWindow) -> Vec<HostSpec> {
+    [NODE_A, NODE_B, NODE_C]
+        .into_iter()
+        .map(|node_id| HostSpec::babel(node_id).with_babel_decay_window(decay_window))
         .collect()
 }
 

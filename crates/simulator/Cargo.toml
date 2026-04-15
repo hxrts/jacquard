@@ -21,6 +21,7 @@ jacquard-olsrv2 = { version = "0.4.0", path = "../olsrv2" }
 jacquard-pathway = { version = "0.4.0", path = "../pathway" }
 jacquard-reference-client = { version = "0.4.0", path = "../reference-client" }
 jacquard-router = { version = "0.4.0", path = "../router" }
+jacquard-scatter = { version = "0.4.0", path = "../scatter" }
 jacquard-traits = { version = "0.4.0", path = "../traits" }
 
 serde = { workspace = true, default-features = false }

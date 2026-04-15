@@ -170,6 +170,12 @@ fn update_latest_symlink(output_dir: &Path) {
     let Some(run_name) = output_dir.file_name() else {
         return;
     };
+    let Some(run_name_str) = run_name.to_str() else {
+        return;
+    };
+    if !run_name_str.starts_with("run-") {
+        return;
+    }
     let latest = base.join("latest");
     if latest.is_symlink() || latest.exists() {
         if let Err(error) = std::fs::remove_file(&latest) {

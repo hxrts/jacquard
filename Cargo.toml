@@ -15,6 +15,7 @@ members = [
   "crates/pathway",
   "crates/reference-client",
   "crates/router",
+  "crates/scatter",
   "crates/simulator",
   "crates/testkit",
   "crates/traits",

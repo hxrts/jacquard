@@ -716,6 +716,7 @@ dependencies = [
  "jacquard-olsrv2",
  "jacquard-pathway",
  "jacquard-router",
+ "jacquard-scatter",
  "jacquard-testkit",
  "jacquard-traits",
  "thiserror",
@@ -738,6 +739,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-scatter"
+version = "0.4.0"
+dependencies = [
+ "bincode",
+ "jacquard-adapter",
+ "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
+ "jacquard-router",
+ "jacquard-traits",
+ "serde",
+]
+
+[[package]]
 name = "jacquard-simulator"
 version = "0.4.0"
 dependencies = [
@@ -753,6 +768,7 @@ dependencies = [
  "jacquard-pathway",
  "jacquard-reference-client",
  "jacquard-router",
+ "jacquard-scatter",
  "jacquard-traits",
  "serde",
  "serde_json",
@@ -776,6 +792,7 @@ dependencies = [
  "jacquard-pathway",
  "jacquard-reference-client",
  "jacquard-router",
+ "jacquard-scatter",
  "jacquard-traits",
 ]
 

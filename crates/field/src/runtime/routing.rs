@@ -304,6 +304,8 @@ where
             if degraded_continuity {
                 if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
                     if active.continuity_band == FieldContinuityBand::DegradedSteady {
+                        active.continuity_band = FieldContinuityBand::DegradedSteady;
+                        active.witness_detail.continuity_band = FieldContinuityBand::DegradedSteady;
                         active.recovery.note_corridor_narrowed();
                     } else {
                         active
@@ -950,10 +952,32 @@ fn evaluate_transition(
         } else {
             FieldBootstrapDecision::Hold
         };
+    let recent_discovery_publication = prepared.destination_context.discovery_node_route()
+        && prepared
+            .destination_state
+            .publication
+            .last_summary
+            .is_some()
+        && prepared
+            .destination_state
+            .publication
+            .last_sent_at
+            .is_some_and(|tick| {
+                now_tick.0.saturating_sub(tick.0)
+                    <= FIELD_DEGRADED_STEADY_STALE_TICKS_MAX
+                        .saturating_add(FIELD_STALE_DISCOVERY_RELIEF_TICKS)
+            });
+    let publishable_discovery_corridor = prepared.destination_context.discovery_node_route()
+        && node_corridor_publishable(&prepared.active_route, &prepared.destination_state);
+    let stable_discovery_corridor = prepared.destination_context.discovery_node_route()
+        && prepared.best.neighbor_id == prepared.active_route.selected_neighbor;
     if prepared.destination_context.discovery_node_route()
-        && previous_continuity_band == FieldContinuityBand::DegradedSteady
         && bootstrap_decision == FieldBootstrapDecision::Withdraw
-        && node_corridor_viable(&prepared.active_route, &prepared.destination_state)
+        && recent_discovery_publication
+        && (previous_continuity_band == FieldContinuityBand::DegradedSteady
+            || node_corridor_viable(&prepared.active_route, &prepared.destination_state)
+            || publishable_discovery_corridor
+            || stable_discovery_corridor)
     {
         bootstrap_decision = FieldBootstrapDecision::Hold;
     }
@@ -987,6 +1011,19 @@ fn evaluate_transition(
         ) if prepared.destination_context.discovery_node_route()
             && bootstrap_decision == FieldBootstrapDecision::Hold
             && node_corridor_viable(&prepared.active_route, &prepared.destination_state) =>
+        {
+            FieldContinuityBand::DegradedSteady
+        }
+        (
+            FieldContinuityBand::Bootstrap,
+            FieldContinuityBand::Bootstrap,
+            FieldBootstrapClass::Bootstrap,
+        ) if prepared.destination_context.discovery_node_route()
+            && recent_discovery_publication
+            && bootstrap_decision == FieldBootstrapDecision::Hold
+            && (node_corridor_viable(&prepared.active_route, &prepared.destination_state)
+                || publishable_discovery_corridor
+                || stable_discovery_corridor) =>
         {
             FieldContinuityBand::DegradedSteady
         }

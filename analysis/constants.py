@@ -7,16 +7,21 @@ PLOT_SPECS = {
     "batman_bellman_transition_loss": (11.0, 4.8),
     "pathway_budget_route_presence": (11.0, 4.8),
     "pathway_budget_activation": (11.0, 4.8),
-    "field_budget_route_presence": (11.0, 7.6),
-    "field_budget_reconfiguration": (11.0, 9.0),
-    "batman_classic_transition_stability": (11.0, 4.0),
-    "batman_classic_transition_loss": (11.0, 4.0),
+    "field_budget_route_presence": (11.0, 8.4),
+    "field_budget_reconfiguration": (11.0, 8.4),
+    "batman_classic_transition_stability": (11.0, 4.8),
+    "batman_classic_transition_loss": (11.0, 4.8),
     "babel_decay_stability": (11.0, 4.8),
     "babel_decay_loss": (11.0, 4.8),
-    "olsrv2_decay_stability": (11.0, 4.8),
-    "olsrv2_decay_loss": (11.0, 4.8),
+    "olsrv2_decay_stability": (11.0, 6.2),
+    "olsrv2_decay_loss": (11.0, 6.2),
+    "scatter_profile_route_presence": (11.0, 6.8),
+    "scatter_profile_startup": (11.0, 6.8),
     "comparison_dominant_engine": (8.1, 4.8),
     "head_to_head_route_presence": (9.2, 5.0),
+    "head_to_head_timing_profile": (12.2, 5.2),
+    "recommended_engine_robustness": (9.2, 5.2),
+    "mixed_vs_standalone_divergence": (10.0, 5.2),
     "diffusion_delivery_coverage": (18.0, 20.0),
     "diffusion_resource_boundedness": (18.0, 20.0),
 }
@@ -52,6 +57,22 @@ OLSRV2_FAMILY_COLORS = {
     "olsrv2-asymmetric-relink-transition": "#155E75",
 }
 
+SCATTER_FAMILY_COLORS = {
+    "scatter-connected-low-loss": "#C2410C",
+    "scatter-connected-high-loss": "#EA580C",
+    "scatter-bridge-transition": "#9A3412",
+    "scatter-partial-observability-bridge": "#B45309",
+    "scatter-concurrent-mixed": "#F97316",
+    "scatter-corridor-continuity-uncertainty": "#C2410C",
+    "scatter-medium-bridge-repair": "#7C2D12",
+}
+
+SCATTER_PROFILE_COLORS = {
+    "balanced": "#C2410C",
+    "conservative": "#9A3412",
+    "degraded-network": "#F97316",
+}
+
 FIELD_FAMILY_COLORS = {
     "field-partial-observability-bridge": "#0072B2",
     "field-reconfiguration-recovery": "#009E73",
@@ -70,7 +91,9 @@ COMPARISON_ENGINE_COLORS = {
     "babel": "#882255",
     "olsrv2": "#0F766E",
     "pathway": "#009E73",
+    "scatter": "#C2410C",
     "field": "#CC79A7",
+    "tie": "#6B7280",
     "none": "#999999",
 }
 
@@ -80,9 +103,21 @@ HEAD_TO_HEAD_SET_COLORS = {
     "babel": "#882255",
     "olsrv2": "#0F766E",
     "pathway": "#009E73",
+    "scatter": "#C2410C",
     "field": "#CC79A7",
     "pathway-batman-bellman": "#E69F00",
 }
+
+ROUTE_VISIBLE_ENGINE_SET_ORDER = [
+    "batman-classic",
+    "batman-bellman",
+    "babel",
+    "olsrv2",
+    "pathway",
+    "scatter",
+    "pathway-batman-bellman",
+    "field",
+]
 
 DIFFUSION_BOUND_STATE_COLORS = {
     "viable": "#0F766E",

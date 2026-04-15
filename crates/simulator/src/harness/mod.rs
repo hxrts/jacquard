@@ -203,6 +203,9 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
             if let Some(field_search_config) = host.overrides.field_search_config.clone() {
                 builder = builder.with_field_search_config(field_search_config);
             }
+            if let Some(scatter_config) = host.overrides.scatter_config {
+                builder = builder.with_scatter_config(scatter_config);
+            }
             for bootstrap in &host.overrides.field_bootstrap_summaries {
                 builder = builder.with_field_bootstrap_summary(ClientFieldBootstrapSummary {
                     destination: bootstrap.destination.clone(),

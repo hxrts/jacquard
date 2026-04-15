@@ -52,6 +52,6 @@ pub use regressions::{
     dense_saturation_regression, partition_regression,
 };
 pub use tuning::{
-    batman_decay_tuning, olsrv2_decay_tuning, pathway_search_budget_tuning,
-    profile_driven_engine_selection,
+    babel_decay_tuning, batman_classic_decay_tuning, batman_decay_tuning, olsrv2_decay_tuning,
+    pathway_search_budget_tuning, profile_driven_engine_selection,
 };

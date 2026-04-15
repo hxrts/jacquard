@@ -9,6 +9,7 @@ use jacquard_core::{DestinationId, Tick};
 use jacquard_field::{FieldForwardSummaryObservation, FieldSearchConfig};
 use jacquard_olsrv2::DecayWindow as OlsrV2DecayWindow;
 use jacquard_pathway::PathwaySearchConfig;
+use jacquard_scatter::ScatterEngineConfig;
 use jacquard_traits::RoutingScenario;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -19,6 +20,7 @@ pub enum EngineLane {
     Babel,
     OlsrV2,
     Field,
+    Scatter,
     PathwayAndBatmanBellman,
     PathwayAndBabel,
     PathwayAndOlsrV2,
@@ -46,6 +48,7 @@ pub struct HostOverrides {
     pub olsrv2_decay_window: Option<OlsrV2DecayWindow>,
     pub pathway_search_config: Option<PathwaySearchConfig>,
     pub field_search_config: Option<FieldSearchConfig>,
+    pub scatter_config: Option<ScatterEngineConfig>,
     pub field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
 }
 
@@ -130,6 +133,15 @@ impl HostSpec {
         Self {
             local_node_id,
             lane: EngineLane::Field,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn scatter(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::Scatter,
             overrides: HostOverrides::default(),
         }
     }
@@ -260,6 +272,12 @@ impl HostSpec {
     #[must_use]
     pub fn with_field_search_config(mut self, field_search_config: FieldSearchConfig) -> Self {
         self.overrides.field_search_config = Some(field_search_config);
+        self
+    }
+
+    #[must_use]
+    pub fn with_scatter_config(mut self, scatter_config: ScatterEngineConfig) -> Self {
+        self.overrides.scatter_config = Some(scatter_config);
         self
     }
 

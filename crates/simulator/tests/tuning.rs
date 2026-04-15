@@ -103,6 +103,61 @@ fn olsrv2_decay_window_tuning_scenarios_materialize_routes() {
 }
 
 #[test]
+fn batman_classic_decay_window_changes_route_loss_timing() {
+    let scenarios = presets::batman_classic_decay_tuning();
+    assert_eq!(scenarios.len(), 2);
+    let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+    let owner = jacquard_core::NodeId([1; 32]);
+    let destination = jacquard_core::DestinationId::Node(jacquard_core::NodeId([3; 32]));
+
+    let (slow_replay, _) = simulator
+        .run_scenario(&scenarios[0].0, &scenarios[0].1)
+        .expect("run slow BATMAN Classic decay scenario");
+    let (fast_replay, _) = simulator
+        .run_scenario(&scenarios[1].0, &scenarios[1].1)
+        .expect("run fast BATMAN Classic decay scenario");
+
+    let slow = ReducedReplayView::from_replay(&slow_replay);
+    let fast = ReducedReplayView::from_replay(&fast_replay);
+
+    let slow_loss = slow.first_round_without_route_after_presence(owner, &destination);
+    let fast_loss = fast.first_round_without_route_after_presence(owner, &destination);
+    assert!(slow_loss.is_some() && fast_loss.is_some());
+    assert_ne!(
+        slow_loss, fast_loss,
+        "expected classic decay windows to change route loss timing; slow={slow_loss:?}, fast={fast_loss:?}"
+    );
+}
+
+#[test]
+fn babel_decay_window_changes_route_loss_timing() {
+    let scenarios = presets::babel_decay_tuning();
+    assert_eq!(scenarios.len(), 2);
+    let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+    let owner = jacquard_core::NodeId([1; 32]);
+    let destination = jacquard_core::DestinationId::Node(jacquard_core::NodeId([3; 32]));
+
+    let (slow_replay, _) = simulator
+        .run_scenario(&scenarios[0].0, &scenarios[0].1)
+        .expect("run slow Babel decay scenario");
+    let (fast_replay, _) = simulator
+        .run_scenario(&scenarios[1].0, &scenarios[1].1)
+        .expect("run fast Babel decay scenario");
+
+    let slow = ReducedReplayView::from_replay(&slow_replay);
+    let fast = ReducedReplayView::from_replay(&fast_replay);
+
+    let slow_rounds = slow.route_present_rounds(owner, &destination);
+    let fast_rounds = fast.route_present_rounds(owner, &destination);
+    let slow_stability = slow.route_stability_scores(owner, &destination);
+    let fast_stability = fast.route_stability_scores(owner, &destination);
+    assert!(
+        slow_rounds != fast_rounds || slow_stability != fast_stability,
+        "expected Babel decay windows to change replay-visible behavior; slow rounds={slow_rounds:?}, fast rounds={fast_rounds:?}, slow stability={slow_stability:?}, fast stability={fast_stability:?}"
+    );
+}
+
+#[test]
 fn routing_profile_changes_selected_engine() {
     let scenarios = presets::profile_driven_engine_selection();
     assert_eq!(scenarios.len(), 2);

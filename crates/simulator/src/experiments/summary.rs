@@ -4,6 +4,33 @@
 
 use super::*;
 
+fn objective_active_round_count(round_count: u32, activate_at_round: u32) -> u32 {
+    round_count.saturating_sub(activate_at_round)
+}
+
+fn active_window_route_presence_permille(
+    present_rounds: &[u32],
+    activate_at_round: u32,
+    round_count: u32,
+) -> u32 {
+    let active_rounds = objective_active_round_count(round_count, activate_at_round);
+    let active_present_rounds = u32::try_from(
+        present_rounds
+            .iter()
+            .filter(|round| **round >= activate_at_round)
+            .count(),
+    )
+    .unwrap_or(u32::MAX);
+    ratio_permille(active_present_rounds, active_rounds)
+}
+
+fn min_max_spread_u32(values: impl Iterator<Item = u32>) -> (u32, u32, u32) {
+    let collected = values.collect::<Vec<_>>();
+    let min = collected.iter().copied().min().unwrap_or(0);
+    let max = collected.iter().copied().max().unwrap_or(0);
+    (min, max, max.saturating_sub(min))
+}
+
 // long-block-exception: one reducer intentionally computes the stable per-run
 // summary schema directly from the replay view in one auditable pass.
 pub(super) fn summarize_run(
@@ -13,6 +40,7 @@ pub(super) fn summarize_run(
     let mut objective_count = 0u32;
     let mut activation_successes = 0u32;
     let mut present_round_total = 0u32;
+    let mut present_round_total_window_total = 0u32;
     let mut first_route_rounds = Vec::new();
     let mut first_loss_rounds = Vec::new();
     let mut recovery_rounds = Vec::new();
@@ -29,17 +57,19 @@ pub(super) fn summarize_run(
 
     for binding in spec.scenario.bound_objectives() {
         objective_count = objective_count.saturating_add(1);
+        let present_rounds =
+            reduced.route_present_rounds(binding.owner_node_id, &binding.objective.destination);
         if reduced.route_seen(binding.owner_node_id, &binding.objective.destination) {
             activation_successes = activation_successes.saturating_add(1);
         }
-        present_round_total = present_round_total.saturating_add(
-            u32::try_from(
-                reduced
-                    .route_present_rounds(binding.owner_node_id, &binding.objective.destination)
-                    .len(),
-            )
-            .unwrap_or(u32::MAX),
-        );
+        present_round_total =
+            present_round_total.saturating_add(active_window_route_presence_permille(
+                &present_rounds,
+                binding.activate_at_round,
+                reduced.round_count,
+            ));
+        present_round_total_window_total = present_round_total_window_total
+            .saturating_add(u32::try_from(present_rounds.len()).unwrap_or(u32::MAX));
         first_route_rounds.push(
             reduced.first_round_with_route(binding.owner_node_id, &binding.objective.destination),
         );
@@ -333,6 +363,7 @@ pub(super) fn summarize_run(
         olsrv2_next_refresh_within_ticks: spec.parameters.olsrv2_next_refresh_within_ticks,
         pathway_query_budget: spec.parameters.pathway_query_budget,
         pathway_heuristic_mode: spec.parameters.pathway_heuristic_mode.clone(),
+        scatter_profile_id: spec.parameters.scatter_profile_id.clone(),
         field_query_budget: spec.parameters.field_query_budget,
         field_heuristic_mode: spec.parameters.field_heuristic_mode.clone(),
         field_service_publication_neighbor_limit: spec
@@ -355,8 +386,9 @@ pub(super) fn summarize_run(
         stress_score: spec.regime.stress_score,
         objective_count,
         activation_success_permille: ratio_permille(activation_successes, objective_count),
-        route_present_permille: ratio_permille(
-            present_round_total,
+        route_present_permille: ratio_permille(present_round_total, objective_count.max(1)),
+        route_present_total_window_permille: ratio_permille(
+            present_round_total_window_total,
             objective_count.saturating_mul(reduced.round_count.max(1)),
         ),
         first_materialization_round_mean: average_option_u32(&first_route_rounds),
@@ -370,6 +402,7 @@ pub(super) fn summarize_run(
         babel_selected_rounds: *engine_round_counts.get("babel").unwrap_or(&0),
         olsrv2_selected_rounds: *engine_round_counts.get("olsrv2").unwrap_or(&0),
         pathway_selected_rounds: *engine_round_counts.get("pathway").unwrap_or(&0),
+        scatter_selected_rounds: *engine_round_counts.get("scatter").unwrap_or(&0),
         field_selected_rounds: *engine_round_counts.get("field").unwrap_or(&0),
         field_selected_result_rounds,
         field_search_reconfiguration_rounds,
@@ -489,8 +522,23 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
             let engine_mode = mode(group.iter().filter_map(|run| run.dominant_engine.clone()));
             let activation_success_permille_mean =
                 average_u32(group.iter().map(|run| run.activation_success_permille));
+            let (
+                activation_success_permille_min,
+                activation_success_permille_max,
+                activation_success_permille_spread,
+            ) = min_max_spread_u32(group.iter().map(|run| run.activation_success_permille));
             let route_present_permille_mean =
                 average_u32(group.iter().map(|run| run.route_present_permille));
+            let (
+                route_present_permille_min,
+                route_present_permille_max,
+                route_present_permille_spread,
+            ) = min_max_spread_u32(group.iter().map(|run| run.route_present_permille));
+            let route_present_total_window_permille_mean = average_u32(
+                group
+                    .iter()
+                    .map(|run| run.route_present_total_window_permille),
+            );
             let first_materialization_round_mean = average_option_u32_from_iter(
                 group.iter().map(|run| run.first_materialization_round_mean),
             );
@@ -512,10 +560,22 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
                 average_u32(group.iter().map(|run| run.maintenance_failure_count));
             let failure_summary_count_mean =
                 average_u32(group.iter().map(|run| run.failure_summary_count));
+            let batman_bellman_selected_rounds_mean =
+                average_u32(group.iter().map(|run| run.batman_bellman_selected_rounds));
+            let batman_classic_selected_rounds_mean =
+                average_u32(group.iter().map(|run| run.batman_classic_selected_rounds));
+            let babel_selected_rounds_mean =
+                average_u32(group.iter().map(|run| run.babel_selected_rounds));
             let field_selected_result_rounds_mean =
                 average_u32(group.iter().map(|run| run.field_selected_result_rounds));
             let olsrv2_selected_rounds_mean =
                 average_u32(group.iter().map(|run| run.olsrv2_selected_rounds));
+            let pathway_selected_rounds_mean =
+                average_u32(group.iter().map(|run| run.pathway_selected_rounds));
+            let scatter_selected_rounds_mean =
+                average_u32(group.iter().map(|run| run.scatter_selected_rounds));
+            let field_selected_rounds_mean =
+                average_u32(group.iter().map(|run| run.field_selected_rounds));
             let field_search_reconfiguration_rounds_mean = average_u32(
                 group
                     .iter()
@@ -648,6 +708,7 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
                 olsrv2_next_refresh_within_ticks: first.olsrv2_next_refresh_within_ticks,
                 pathway_query_budget: first.pathway_query_budget,
                 pathway_heuristic_mode: first.pathway_heuristic_mode.clone(),
+                scatter_profile_id: first.scatter_profile_id.clone(),
                 field_query_budget: first.field_query_budget,
                 field_heuristic_mode: first.field_heuristic_mode.clone(),
                 field_service_publication_neighbor_limit: first
@@ -668,14 +729,27 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
                 stress_score: first.stress_score,
                 run_count,
                 activation_success_permille_mean,
+                activation_success_permille_min,
+                activation_success_permille_max,
+                activation_success_permille_spread,
                 route_present_permille_mean,
+                route_present_permille_min,
+                route_present_permille_max,
+                route_present_permille_spread,
+                route_present_total_window_permille_mean,
                 first_materialization_round_mean,
                 first_loss_round_mean,
                 recovery_round_mean,
                 route_churn_count_mean,
                 engine_handoff_count_mean,
                 dominant_engine: engine_mode,
+                batman_bellman_selected_rounds_mean,
+                batman_classic_selected_rounds_mean,
+                babel_selected_rounds_mean,
                 olsrv2_selected_rounds_mean,
+                pathway_selected_rounds_mean,
+                scatter_selected_rounds_mean,
+                field_selected_rounds_mean,
                 field_selected_result_rounds_mean,
                 field_search_reconfiguration_rounds_mean,
                 field_bootstrap_active_rounds_mean,
@@ -768,4 +842,30 @@ pub(super) fn summarize_breakdowns(
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn active_window_route_presence_reaches_full_score_after_delayed_activation() {
+        let present_rounds = (2..18).collect::<Vec<_>>();
+
+        assert_eq!(
+            active_window_route_presence_permille(&present_rounds, 2, 18),
+            1000
+        );
+        assert_eq!(ratio_permille(16, 18), 888);
+    }
+
+    #[test]
+    fn active_window_route_presence_ignores_pre_activation_dead_time() {
+        let present_rounds = vec![3, 4, 5, 6, 7];
+
+        assert_eq!(
+            active_window_route_presence_permille(&present_rounds, 3, 8),
+            1000
+        );
+    }
 }

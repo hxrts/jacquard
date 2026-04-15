@@ -17,6 +17,13 @@ pub(super) fn mean_option_u32(values: impl Iterator<Item = Option<u32>>) -> Opti
     Some(mean_u32(collected.into_iter()))
 }
 
+pub(super) fn min_max_spread_u32(values: impl Iterator<Item = u32>) -> (u32, u32, u32) {
+    let collected = values.collect::<Vec<_>>();
+    let min = collected.iter().copied().min().unwrap_or(0);
+    let max = collected.iter().copied().max().unwrap_or(0);
+    (min, max, max.saturating_sub(min))
+}
+
 pub(super) fn mode_string(values: impl Iterator<Item = String>) -> String {
     let mut counts = BTreeMap::<String, u32>::new();
     for value in values {

@@ -20,6 +20,7 @@ use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_olsrv2::OLSRV2_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
+use jacquard_scatter::SCATTER_ENGINE_ID;
 
 // Stable WifiAware endpoint keyed by a single byte — used as a compact,
 // collision-free node identity in fixture topologies (byte 1 → node 1, etc.).
@@ -131,6 +132,11 @@ impl TopologyNodePreset {
     }
 
     #[must_use]
+    pub(crate) fn scatter(self) -> Self {
+        self.for_engine(&SCATTER_ENGINE_ID)
+    }
+
+    #[must_use]
     pub(crate) fn all_engines(self) -> Self {
         self.for_engines(&[
             PATHWAY_ENGINE_ID,
@@ -139,6 +145,7 @@ impl TopologyNodePreset {
             BATMAN_CLASSIC_ENGINE_ID,
             BABEL_ENGINE_ID,
             OLSRV2_ENGINE_ID,
+            SCATTER_ENGINE_ID,
         ])
     }
 

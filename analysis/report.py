@@ -7,6 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import polars as pl
+
 from .data import (
     cleanup_report_dir,
     ensure_dir,
@@ -31,21 +33,30 @@ from .plots import (
     render_diffusion_resource_boundedness,
     render_field_budget_reconfiguration,
     render_field_budget_route_presence,
+    render_head_to_head_timing_profile,
     render_head_to_head_route_presence,
+    render_mixed_vs_standalone_divergence,
     render_olsrv2_decay_loss,
     render_olsrv2_decay_stability,
     render_pathway_budget_activation,
     render_pathway_budget_route_presence,
+    render_recommended_engine_robustness,
+    render_scatter_profile_startup,
+    render_scatter_profile_route_presence,
     save_plot_artifact,
 )
 from .scoring import (
     baseline_comparison_table,
+    benchmark_profile_audit_table,
+    comparison_engine_round_breakdown_table,
     boundary_summary_table,
     comparison_summary_table,
+    diffusion_baseline_audit_table,
     diffusion_boundary_table,
     diffusion_regime_engine_summary_table,
     diffusion_engine_comparison_table,
     diffusion_engine_summary_table,
+    diffusion_family_weight_sensitivity_table,
     field_vs_best_diffusion_alternative_table,
     field_diffusion_regime_calibration_table,
     field_profile_recommendation_table,
@@ -122,15 +133,39 @@ def main(argv: list[str] | None = None) -> int:
         field_profile_recommendations = field_profile_recommendation_table(
             aggregates, breakdowns
         )
+        benchmark_profile_audit = benchmark_profile_audit_table(
+            aggregates, profile_recommendations
+        )
         field_routing_regime_calibration = field_routing_regime_calibration_table(aggregates)
         transition_metrics = transition_metrics_table(runs, recommendations)
+        recommended_engine_robustness = (
+            recommendations.sort(["engine_family", "mean_score", "config_id"], descending=[False, True, False])
+            .group_by("engine_family")
+            .agg(
+                pl.first("config_id").alias("config_id"),
+                pl.first("max_sustained_stress_score").alias("max_sustained_stress_score"),
+            )
+            .join(transition_metrics, on=["engine_family", "config_id"], how="left")
+            .with_columns(
+                (pl.col("route_present_mean") / 1000.0).alias("route_present_mean_permille"),
+                (pl.col("route_present_stddev") / 1000.0).alias("route_present_stddev_permille"),
+            )
+            .sort("engine_family")
+        )
         boundary_summary = boundary_summary_table(recommendations, breakdowns)
         baseline_comparison, baseline_dir = baseline_comparison_table(
             artifact_dir, recommendations
         )
         comparison_summary = comparison_summary_table(aggregates)
+        comparison_engine_round_breakdown = comparison_engine_round_breakdown_table(
+            aggregates
+        )
         head_to_head_summary = head_to_head_summary_table(aggregates)
         diffusion_engine_summary = diffusion_engine_summary_table(diffusion_aggregates)
+        diffusion_baseline_audit = diffusion_baseline_audit_table(diffusion_aggregates)
+        diffusion_weight_sensitivity = diffusion_family_weight_sensitivity_table(
+            diffusion_aggregates
+        )
         diffusion_regime_engine_summary = diffusion_regime_engine_summary_table(
             diffusion_aggregates
         )
@@ -157,6 +192,10 @@ def main(argv: list[str] | None = None) -> int:
             output_report_dir / "field_profile_recommendations.csv",
         )
         write_csv(
+            benchmark_profile_audit,
+            output_report_dir / "benchmark_profile_audit.csv",
+        )
+        write_csv(
             field_routing_regime_calibration,
             output_report_dir / "field_routing_regime_calibration.csv",
         )
@@ -164,12 +203,24 @@ def main(argv: list[str] | None = None) -> int:
         write_csv(boundary_summary, output_report_dir / "boundary_summary.csv")
         write_csv(baseline_comparison, output_report_dir / "baseline_comparison.csv")
         write_csv(comparison_summary, output_report_dir / "comparison_summary.csv")
+        write_csv(
+            comparison_engine_round_breakdown,
+            output_report_dir / "comparison_engine_round_breakdown.csv",
+        )
         write_csv(head_to_head_summary, output_report_dir / "head_to_head_summary.csv")
         write_csv(diffusion_runs, output_report_dir / "diffusion_runs.csv")
         write_csv(diffusion_aggregates, output_report_dir / "diffusion_aggregates.csv")
         write_csv(diffusion_boundaries, output_report_dir / "diffusion_boundaries.csv")
         write_csv(
             diffusion_engine_summary, output_report_dir / "diffusion_engine_summary.csv"
+        )
+        write_csv(
+            diffusion_baseline_audit,
+            output_report_dir / "diffusion_baseline_audit.csv",
+        )
+        write_csv(
+            diffusion_weight_sensitivity,
+            output_report_dir / "diffusion_weight_sensitivity.csv",
         )
         write_csv(
             diffusion_regime_engine_summary,
@@ -243,6 +294,18 @@ def main(argv: list[str] | None = None) -> int:
         )
         save_plot_artifact(
             output_report_dir,
+            "scatter_profile_route_presence",
+            render_scatter_profile_route_presence,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "scatter_profile_startup",
+            render_scatter_profile_startup,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
             "pathway_budget_route_presence",
             render_pathway_budget_route_presence,
             aggregates,
@@ -277,6 +340,24 @@ def main(argv: list[str] | None = None) -> int:
             render_head_to_head_route_presence,
             aggregates,
         )
+        save_plot_artifact(
+            output_report_dir,
+            "head_to_head_timing_profile",
+            render_head_to_head_timing_profile,
+            aggregates,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "recommended_engine_robustness",
+            render_recommended_engine_robustness,
+            recommended_engine_robustness,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "mixed_vs_standalone_divergence",
+            render_mixed_vs_standalone_divergence,
+            aggregates,
+        )
         if not diffusion_engine_comparison.is_empty():
             save_plot_artifact(
                 output_report_dir,
@@ -298,13 +379,17 @@ def main(argv: list[str] | None = None) -> int:
             recommendations,
             profile_recommendations,
             field_profile_recommendations,
+            benchmark_profile_audit,
             field_routing_regime_calibration,
             transition_metrics,
             boundary_summary,
             aggregates,
             comparison_summary,
+            comparison_engine_round_breakdown,
             head_to_head_summary,
             diffusion_engine_summary,
+            diffusion_baseline_audit,
+            diffusion_weight_sensitivity,
             diffusion_regime_engine_summary,
             diffusion_engine_comparison,
             diffusion_boundary_summary,

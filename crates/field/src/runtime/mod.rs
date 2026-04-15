@@ -88,8 +88,8 @@ mod routing;
 mod sessions;
 
 use continuation::{
-    continuation_shift_grace_active, field_commitment_id_for_route, node_corridor_viable,
-    node_runtime_continuation_neighbors, observer_input_signature,
+    continuation_shift_grace_active, field_commitment_id_for_route, node_corridor_publishable,
+    node_corridor_viable, node_runtime_continuation_neighbors, observer_input_signature,
     pending_forward_continuations_for_maintenance, preferred_node_shift_neighbor,
     preferred_service_shift_neighbor, route_health_for, service_corridor_viable,
     service_runtime_continuation_neighbors, should_transmit_summary,

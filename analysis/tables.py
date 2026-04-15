@@ -17,6 +17,7 @@ def recommendation_table_rows(
         "babel",
         "olsrv2",
         "pathway",
+        "scatter",
         "comparison",
         "field",
     ]:
@@ -111,6 +112,22 @@ def field_profile_table_rows(field_profile_recommendations: pl.DataFrame) -> lis
     return rows
 
 
+def benchmark_profile_audit_table_rows(benchmark_profile_audit: pl.DataFrame) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in benchmark_profile_audit.iter_rows(named=True):
+        rows.append(
+            [
+                row["engine_set"],
+                row["representative_surface_kind"],
+                f"`{row['representative_config_id']}`",
+                row["calibrated_profile_id"] or "-",
+                f"`{row['calibrated_config_id']}`" if row["calibrated_config_id"] else "-",
+                "yes" if row["configs_match"] else "no",
+            ]
+        )
+    return rows
+
+
 def field_routing_regime_table_rows(field_routing_regime_calibration: pl.DataFrame) -> list[list[str]]:
     rows: list[list[str]] = []
     for row in field_routing_regime_calibration.iter_rows(named=True):
@@ -150,7 +167,7 @@ def comparison_table_rows(comparison_summary: pl.DataFrame) -> list[list[str]]:
     for family_id in comparison_summary["family_id"].unique().sort().to_list():
         family = (
             comparison_summary.filter(pl.col("family_id") == family_id)
-            .sort("route_present_permille_mean", descending=True)
+            .sort("route_present_active_window_permille_mean", descending=True)
             .head(1)
         )
         if family.is_empty():
@@ -161,8 +178,31 @@ def comparison_table_rows(comparison_summary: pl.DataFrame) -> list[list[str]]:
                 break_tick_label(family_id).replace("\n", " / "),
                 str(row["dominant_engine"] or "none"),
                 str(row["activation_success_permille_mean"]),
-                str(row["route_present_permille_mean"]),
+                str(row["route_present_active_window_permille_mean"]),
                 str(row["stress_score"]),
+            ]
+        )
+    return rows
+
+
+def comparison_engine_round_breakdown_table_rows(
+    comparison_engine_round_breakdown: pl.DataFrame,
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in comparison_engine_round_breakdown.iter_rows(named=True):
+        rows.append(
+            [
+                break_tick_label(row["family_id"]).replace("\n", " / "),
+                str(row["dominant_engine"] or "none"),
+                str(row["route_present_active_window_permille_mean"]),
+                str(row["engine_handoff_count_mean"]),
+                str(row["batman_classic_selected_rounds_mean"]),
+                str(row["batman_bellman_selected_rounds_mean"]),
+                str(row["babel_selected_rounds_mean"]),
+                str(row["olsrv2_selected_rounds_mean"]),
+                str(row["pathway_selected_rounds_mean"]),
+                str(row["scatter_selected_rounds_mean"]),
+                str(row["field_selected_rounds_mean"]),
             ]
         )
     return rows
@@ -172,7 +212,10 @@ def head_to_head_table_rows(head_to_head_summary: pl.DataFrame) -> list[list[str
     rows: list[list[str]] = []
     for family_id in head_to_head_summary["family_id"].unique().sort().to_list():
         family_rows = head_to_head_summary.filter(pl.col("family_id") == family_id).sort(
-            ["route_present_permille_mean", "activation_success_permille_mean"],
+            [
+                "route_present_active_window_permille_mean",
+                "activation_success_permille_mean",
+            ],
             descending=[True, True],
         )
         for index, row in enumerate(family_rows.iter_rows(named=True)):
@@ -182,7 +225,7 @@ def head_to_head_table_rows(head_to_head_summary: pl.DataFrame) -> list[list[str
                     break_tick_label(family_id).replace("\n", " / ") if index == 0 else "",
                     f"`{engine_set}`",
                     str(row["activation_success_permille_mean"]),
-                    str(row["route_present_permille_mean"]),
+                    str(row["route_present_active_window_permille_mean"]),
                     str(row["dominant_engine"] or "none"),
                     str(row["stress_score"]),
                 ]
@@ -204,6 +247,42 @@ def diffusion_engine_summary_table_rows(diffusion_engine_summary: pl.DataFrame) 
                 else "-",
                 str(row["bounded_state_mode"]),
                 str(row["stress_score"]),
+            ]
+        )
+    return rows
+
+
+def diffusion_baseline_audit_table_rows(diffusion_baseline_audit: pl.DataFrame) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in diffusion_baseline_audit.iter_rows(named=True):
+        rows.append(
+            [
+                f"`{row['config_id']}`",
+                str(row["replication_budget"]),
+                str(row["ttl_rounds"]),
+                str(row["forward_probability_permille"]),
+                str(row["bridge_bias_permille"]),
+                f"{row['delivery_probability_mean']:.1f}",
+                f"{row['coverage_mean']:.1f}",
+                f"{row['cluster_coverage_mean']:.1f}",
+                str(row["bounded_state_mode"]),
+            ]
+        )
+    return rows
+
+
+def diffusion_weight_sensitivity_table_rows(
+    diffusion_weight_sensitivity: pl.DataFrame,
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in diffusion_weight_sensitivity.iter_rows(named=True):
+        rows.append(
+            [
+                break_tick_label(row["family_id"]).replace("\n", " / "),
+                f"`{row['balanced_winner_config_id']}`",
+                f"`{row['delivery_heavy_winner_config_id']}`",
+                f"`{row['boundedness_heavy_winner_config_id']}`",
+                "yes" if row["winner_stable"] else "no",
             ]
         )
     return rows

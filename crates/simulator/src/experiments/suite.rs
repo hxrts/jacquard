@@ -11,7 +11,7 @@ pub fn smoke_suite() -> ExperimentSuite {
 
 #[must_use]
 pub fn local_suite() -> ExperimentSuite {
-    build_suite("local", &[41, 43], false)
+    build_suite("local", &[41, 43, 47, 53], false)
 }
 
 pub fn run_suite<A>(
@@ -77,6 +77,7 @@ fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
     runs.extend(build_batman_classic_runs(suite_id, seeds, smoke));
     runs.extend(build_babel_runs(suite_id, seeds, smoke));
     runs.extend(build_olsrv2_runs(suite_id, seeds, smoke));
+    runs.extend(build_scatter_runs(suite_id, seeds, smoke));
     runs.extend(build_pathway_runs(suite_id, seeds, smoke));
     runs.extend(build_field_runs(suite_id, seeds, smoke));
     runs.extend(build_comparison_runs(suite_id, seeds, smoke));
@@ -430,6 +431,122 @@ fn build_olsrv2_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
         ),
     ];
     expand_runs(suite_id, "olsrv2", seeds, &parameter_sets, &families)
+}
+
+fn build_scatter_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<ExperimentRunSpec> {
+    let parameter_sets = if smoke {
+        vec![
+            ExperimentParameterSet::scatter("balanced"),
+            ExperimentParameterSet::scatter("degraded-network"),
+        ]
+    } else {
+        vec![
+            ExperimentParameterSet::scatter("balanced"),
+            ExperimentParameterSet::scatter("conservative"),
+            ExperimentParameterSet::scatter("degraded-network"),
+        ]
+    };
+    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
+        (
+            "scatter-connected-low-loss",
+            regime((
+                "medium-ring",
+                "low",
+                "low",
+                "none",
+                "static",
+                "none",
+                "connected-only",
+                18,
+            )),
+            build_comparison_connected_low_loss,
+        ),
+        (
+            "scatter-connected-high-loss",
+            regime((
+                "bridge-cluster",
+                "high",
+                "medium",
+                "mild",
+                "relink-and-replace",
+                "mixed",
+                "repairable-connected",
+                54,
+            )),
+            build_comparison_connected_high_loss,
+        ),
+        (
+            "scatter-bridge-transition",
+            regime((
+                "bridge-cluster",
+                "moderate",
+                "medium",
+                "moderate",
+                "partial-recovery",
+                "none",
+                "repairable-connected",
+                42,
+            )),
+            build_comparison_bridge_transition,
+        ),
+        (
+            "scatter-partial-observability-bridge",
+            regime((
+                "bridge-cluster",
+                "moderate",
+                "medium",
+                "mild",
+                "partial-recovery",
+                "none",
+                "repairable-connected",
+                46,
+            )),
+            build_comparison_partial_observability_bridge,
+        ),
+        (
+            "scatter-concurrent-mixed",
+            regime((
+                "medium-mesh",
+                "moderate",
+                "medium",
+                "none",
+                "partial-recovery",
+                "tight-connection",
+                "concurrent-mixed",
+                48,
+            )),
+            build_comparison_concurrent_mixed,
+        ),
+        (
+            "scatter-corridor-continuity-uncertainty",
+            regime((
+                "bridge-cluster",
+                "moderate",
+                "medium",
+                "moderate",
+                "intermittent-recovery",
+                "none",
+                "repairable-connected",
+                50,
+            )),
+            build_comparison_corridor_continuity_uncertainty,
+        ),
+        (
+            "scatter-medium-bridge-repair",
+            regime((
+                "medium-bridge-chain",
+                "moderate",
+                "medium",
+                "mild",
+                "partial-recovery",
+                "none",
+                "repairable-connected",
+                58,
+            )),
+            build_comparison_medium_bridge_repair,
+        ),
+    ];
+    expand_runs(suite_id, "scatter", seeds, &parameter_sets, &families)
 }
 
 // long-block-exception: the Pathway family catalog is kept in one function so the
@@ -819,6 +936,20 @@ fn build_comparison_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Expe
             )),
             build_comparison_corridor_continuity_uncertainty,
         ),
+        (
+            "comparison-medium-bridge-repair",
+            regime((
+                "medium-bridge-chain",
+                "moderate",
+                "medium",
+                "mild",
+                "partial-recovery",
+                "none",
+                "repairable-connected",
+                58,
+            )),
+            build_comparison_medium_bridge_repair,
+        ),
     ];
     expand_runs(suite_id, "comparison", seeds, &configs, &families)
 }
@@ -831,18 +962,14 @@ fn build_head_to_head_runs(suite_id: &str, seeds: &[u64], _smoke: bool) -> Vec<E
         ExperimentParameterSet::head_to_head("batman-classic", Some((4, 2)), None, None),
         ExperimentParameterSet::head_to_head("babel", Some((4, 2)), None, None),
         ExperimentParameterSet::head_to_head("olsrv2", Some((4, 2)), None, None),
+        ExperimentParameterSet::head_to_head("scatter", None, None, None),
         ExperimentParameterSet::head_to_head(
             "pathway",
             None,
             Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
             None,
         ),
-        ExperimentParameterSet::head_to_head(
-            "field",
-            None,
-            None,
-            Some((8, FieldSearchHeuristicMode::HopLowerBound)),
-        ),
+        ExperimentParameterSet::head_to_head_field_low_churn(),
         ExperimentParameterSet::head_to_head(
             "pathway-batman-bellman",
             Some((6, 3)),
@@ -934,6 +1061,20 @@ fn build_head_to_head_runs(suite_id: &str, seeds: &[u64], _smoke: bool) -> Vec<E
                 50,
             )),
             build_comparison_corridor_continuity_uncertainty,
+        ),
+        (
+            "head-to-head-medium-bridge-repair",
+            regime((
+                "medium-bridge-chain",
+                "moderate",
+                "medium",
+                "mild",
+                "partial-recovery",
+                "none",
+                "repairable-connected",
+                58,
+            )),
+            build_comparison_medium_bridge_repair,
         ),
     ];
     expand_runs(suite_id, "head-to-head", seeds, &configs, &families)

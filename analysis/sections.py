@@ -22,6 +22,7 @@ class AssetBlock:
     kind: str
     asset_id: str
     lines: list[str]
+    description_lines: list[str]
 
 
 def _slugify(title: str) -> str:
@@ -133,7 +134,31 @@ def asset_block(section: str, expected_kind: str | None = None) -> AssetBlock:
         raise ValueError(
             f"report body section {section!r} expected @{expected_kind}, found @{kind}"
         )
-    return AssetBlock(kind=kind, asset_id=match.group("asset_id"), lines=lines[1:])
+    raw_lines = lines[1:]
+    intro_lines: list[str] = []
+    description_lines: list[str] = []
+    guide_prefixes = ["Column guide: ", "Interpretation guide: "]
+    for line in raw_lines:
+        if not line:
+            intro_lines.append(line)
+            continue
+        extracted = False
+        for prefix in guide_prefixes:
+            idx = line.find(prefix)
+            if idx >= 0:
+                before = line[:idx].rstrip()
+                after = line[idx + len(prefix):]
+                if before:
+                    intro_lines.append(before)
+                if after:
+                    description_lines.append(after)
+                extracted = True
+                break
+        if not extracted:
+            intro_lines.append(line)
+    while intro_lines and intro_lines[-1] == "":
+        intro_lines.pop()
+    return AssetBlock(kind=kind, asset_id=match.group("asset_id"), lines=intro_lines, description_lines=description_lines)
 
 
 def comparison_findings_lines(comparison_summary: pl.DataFrame) -> list[str]:
@@ -141,7 +166,7 @@ def comparison_findings_lines(comparison_summary: pl.DataFrame) -> list[str]:
     for family_id in comparison_summary["family_id"].unique().sort().to_list():
         family = (
             comparison_summary.filter(pl.col("family_id") == family_id)
-            .sort("route_present_permille_mean", descending=True)
+            .sort("route_present_active_window_permille_mean", descending=True)
             .head(1)
         )
         if family.is_empty():
@@ -149,9 +174,9 @@ def comparison_findings_lines(comparison_summary: pl.DataFrame) -> list[str]:
         row = family.iter_rows(named=True).__next__()
         dominant = row["dominant_engine"] if row["dominant_engine"] is not None else "none"
         lines.append(
-            f"`{family_id}`: dominant_engine={dominant}, "
+            f"`{family_id}`: selected_rounds_leader={dominant}, "
             f"activation={row['activation_success_permille_mean']}, "
-            f"route_presence={row['route_present_permille_mean']}"
+            f"active_route_presence={row['route_present_active_window_permille_mean']}"
         )
     return lines
 
@@ -164,7 +189,10 @@ def head_to_head_findings_lines(head_to_head_summary: pl.DataFrame) -> list[str]
         family = (
             head_to_head_summary.filter(pl.col("family_id") == family_id)
             .sort(
-                ["route_present_permille_mean", "activation_success_permille_mean"],
+                [
+                    "route_present_active_window_permille_mean",
+                    "activation_success_permille_mean",
+                ],
                 descending=[True, True],
             )
             .head(1)
@@ -173,7 +201,7 @@ def head_to_head_findings_lines(head_to_head_summary: pl.DataFrame) -> list[str]
             continue
         row = family.iter_rows(named=True).__next__()
         lines.append(
-            f"`{family_id}`: best engine set=`{row['comparison_engine_set'] or 'none'}`, activation={row['activation_success_permille_mean']} permille, route presence={row['route_present_permille_mean']} permille."
+            f"`{family_id}`: best engine set=`{row['comparison_engine_set'] or 'none'}`, activation={row['activation_success_permille_mean']} permille, active route presence={row['route_present_active_window_permille_mean']} permille."
         )
     return lines
 
@@ -188,7 +216,10 @@ def best_head_to_head_rows(head_to_head_summary: pl.DataFrame) -> dict[str, dict
         family = (
             head_to_head_summary.filter(pl.col("family_id") == family_id)
             .sort(
-                ["route_present_permille_mean", "activation_success_permille_mean"],
+                [
+                    "route_present_active_window_permille_mean",
+                    "activation_success_permille_mean",
+                ],
                 descending=[True, True],
             )
             .head(1)
@@ -246,13 +277,23 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
     return section_lines_formatted(
         "Head-To-Head Takeaways",
         connected_high_loss_engine_set=connected_high_loss["comparison_engine_set"] or "none",
-        connected_high_loss_route_presence=connected_high_loss["route_present_permille_mean"],
+        connected_high_loss_route_presence=connected_high_loss[
+            "route_present_active_window_permille_mean"
+        ],
         bridge_transition_engine_set=bridge_transition["comparison_engine_set"] or "none",
-        bridge_transition_route_presence=bridge_transition["route_present_permille_mean"],
+        bridge_transition_route_presence=bridge_transition[
+            "route_present_active_window_permille_mean"
+        ],
         concurrent_mixed_engine_set=concurrent_mixed["comparison_engine_set"] or "none",
-        concurrent_mixed_route_presence=concurrent_mixed["route_present_permille_mean"],
-        corridor_uncertainty_route_presence=corridor_uncertainty["route_present_permille_mean"],
-        partial_bridge_route_presence=partial_bridge["route_present_permille_mean"],
+        concurrent_mixed_route_presence=concurrent_mixed[
+            "route_present_active_window_permille_mean"
+        ],
+        corridor_uncertainty_route_presence=corridor_uncertainty[
+            "route_present_active_window_permille_mean"
+        ],
+        partial_bridge_route_presence=partial_bridge[
+            "route_present_active_window_permille_mean"
+        ],
     )
 
 
@@ -301,8 +342,12 @@ def analysis_takeaway_lines(
         babel_config=babel["config_id"],
         olsrv2_config=olsrv2["config_id"],
         concurrent_mixed_engine_set=concurrent_mixed["comparison_engine_set"] or "none",
-        concurrent_mixed_route_presence=concurrent_mixed["route_present_permille_mean"],
-        corridor_uncertainty_route_presence=corridor_uncertainty["route_present_permille_mean"],
+        concurrent_mixed_route_presence=concurrent_mixed[
+            "route_present_active_window_permille_mean"
+        ],
+        corridor_uncertainty_route_presence=corridor_uncertainty[
+            "route_present_active_window_permille_mean"
+        ],
     )
 
 
@@ -500,6 +545,10 @@ def olsrv2_algorithm_lines() -> list[str]:
     return section_lines("OLSRv2 Algorithm")
 
 
+def scatter_algorithm_lines() -> list[str]:
+    return section_lines("Scatter Algorithm")
+
+
 def pathway_algorithm_lines() -> list[str]:
     return section_lines("Pathway Algorithm")
 
@@ -695,6 +744,32 @@ def engine_section_lines(
                         config_id=stable_row["config_id"],
                     )
                 )
+    if engine_family == "scatter":
+        pressure = family_rows.filter(
+            pl.col("family_id").is_in(
+                [
+                    "scatter-connected-high-loss",
+                    "scatter-bridge-transition",
+                    "scatter-partial-observability-bridge",
+                    "scatter-concurrent-mixed",
+                    "scatter-corridor-continuity-uncertainty",
+                ]
+            )
+        )
+        if not pressure.is_empty():
+            best = pressure.sort(
+                ["route_present_permille_mean", "activation_success_permille_mean"],
+                descending=[True, True],
+            ).head(1)
+            best_row = best.iter_rows(named=True).__next__()
+            lines.extend(
+                section_lines_formatted(
+                    "Engine Section Scatter Best",
+                    family_id=best_row["family_id"],
+                    route_presence=best_row["route_present_permille_mean"],
+                )
+            )
+        lines.extend(section_lines("Engine Section Scatter Closing"))
     if engine_family == "field":
         pressure = family_rows.filter(
             pl.col("family_id").is_in(

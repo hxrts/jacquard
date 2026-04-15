@@ -31,6 +31,7 @@ use jacquard_field::{
 };
 use jacquard_olsrv2::{DecayWindow as OlsrV2DecayWindow, OLSRV2_ENGINE_ID};
 use jacquard_pathway::{PathwaySearchConfig, PathwaySearchHeuristicMode, PATHWAY_ENGINE_ID};
+use jacquard_scatter::SCATTER_ENGINE_ID;
 use jacquard_traits::{RoutingScenario, RoutingSimulator};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
