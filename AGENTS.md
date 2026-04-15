@@ -117,7 +117,7 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-macros`: proc-macro compile checks and trybuild UI regression tests for annotation contracts.
 - `jacquard-mem-link-profile`: transport, retention, and runtime-effect adapter integration.
 - `jacquard-mem-node-profile`: node profile and capability modeling.
-- `jacquard-simulator`: scenario smoke tests (all five engines), composition tests, regression tests, tuning parameter sweeps, and replay round-trip.
+- `jacquard-simulator`: scenario smoke tests (all seven engines), composition tests, regression tests, tuning parameter sweeps, and replay round-trip.
 
 ## Telltale dependency
 
