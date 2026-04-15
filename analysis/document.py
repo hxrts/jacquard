@@ -34,6 +34,7 @@ from .sections import (
     batman_bellman_algorithm_lines,
     batman_classic_algorithm_lines,
     comparison_findings_lines,
+    document_title,
     diffusion_field_posture_lines,
     engine_section_lines,
     executive_summary_lines,
@@ -264,7 +265,6 @@ def add_paragraphs(story: list, styles, lines: list[str]) -> None:
         else:
             story.append(Paragraph(markup(line), styles["Body"]))
 
-REPORT_TITLE = "Jacquard Router: Tuning and Analysis"
 PAGE_MARGIN_LEFT = 2.5 * cm
 PAGE_MARGIN_RIGHT = 2.5 * cm
 PAGE_MARGIN_TOP = 2.2 * cm
@@ -579,6 +579,7 @@ def write_pdf_report(
     baseline_dir,
 ) -> None:
     styles = build_styles()
+    report_title = document_title()
     doc = SimpleDocTemplate(
         str(pdf_path),
         pagesize=A4,
@@ -586,12 +587,12 @@ def write_pdf_report(
         rightMargin=PAGE_MARGIN_RIGHT,
         topMargin=PAGE_MARGIN_TOP,
         bottomMargin=PAGE_MARGIN_BOTTOM,
-        title=REPORT_TITLE,
+        title=report_title,
     )
     story: list = []
     table_counter = [0]
 
-    story.append(Paragraph(REPORT_TITLE, styles["TitleCustom"]))
+    story.append(Paragraph(report_title, styles["TitleCustom"]))
     add_paragraphs(story, styles, executive_summary_lines(recommendations, aggregates, comparison_summary))
     story.append(Spacer(1, TITLE_SPACER))
     story.append(Paragraph("Part I. Tuning", styles["Section"]))

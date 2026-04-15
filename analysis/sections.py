@@ -109,6 +109,14 @@ def section_lines(section: str) -> list[str]:
     return list(sections[key])
 
 
+def document_title() -> str:
+    _, headings = _parsed_body()
+    try:
+        return next(iter(headings.values()))[0]
+    except StopIteration as exc:
+        raise ValueError(f"missing document title in {BODY_PATH}") from exc
+
+
 def _section_key(section: str) -> str:
     sections, headings = _parsed_body()
     if "/" in section:
