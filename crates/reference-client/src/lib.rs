@@ -70,7 +70,8 @@
 //!     network,
 //!     Tick(1),
 //! )
-//! .build();
+//! .build()
+//! .expect("build reference client");
 //! let mut bound = client.bind();
 //! bound.advance_round().expect("advance round");
 //! ```
@@ -85,13 +86,17 @@
 
 mod bridge;
 mod clients;
+pub mod router_integration;
 pub mod topology;
 
 pub use bridge::{
     BoundHostBridge, BridgeQueueConfig, BridgeRoundProgress, BridgeRoundReport, BridgeWaitState,
     HostBridge,
 };
-pub use clients::{ClientBuilder, FieldBootstrapSummary, ReferenceClient, ReferenceRouter};
+pub use clients::{
+    ClientBuilder, EngineKind, FieldBootstrapSummary, ReferenceClient, ReferenceClientBuildError,
+    ReferenceRouter,
+};
 pub use jacquard_adapter::{
     ObservedLink, ObservedNode, ObservedRoute, ObservedRouteShape, TopologyProjector,
     TopologySnapshot,

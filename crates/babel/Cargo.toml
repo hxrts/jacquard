@@ -22,4 +22,5 @@ serde = { workspace = true, default-features = false }
 jacquard-adapter = { path = "../adapter" }
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
 jacquard-mem-node-profile = { path = "../mem-node-profile" }
+jacquard-reference-client = { path = "../reference-client" }
 jacquard-router = { path = "../router" }

@@ -579,6 +579,7 @@ dependencies = [
  "jacquard-core",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
+ "jacquard-reference-client",
  "jacquard-router",
  "jacquard-traits",
  "serde",
@@ -607,6 +608,7 @@ dependencies = [
  "jacquard-core",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
+ "jacquard-reference-client",
  "jacquard-router",
  "jacquard-traits",
  "serde",
@@ -705,6 +707,9 @@ dependencies = [
  "cfg-if",
  "jacquard-core",
  "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
+ "jacquard-reference-client",
+ "jacquard-router",
  "jacquard-traits",
  "serde",
  "serde_json",
@@ -728,6 +733,7 @@ dependencies = [
  "jacquard-pathway",
  "jacquard-router",
  "jacquard-traits",
+ "thiserror",
  "wasm-bindgen-test",
 ]
 

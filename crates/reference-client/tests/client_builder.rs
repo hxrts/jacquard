@@ -112,7 +112,9 @@ fn client_builder_constructs_waiting_pathway_bridge() {
     let local_node_id = NodeId([1; 32]);
     let topology = sample_topology(local_node_id);
     let network = SharedInMemoryNetwork::default();
-    let mut client = ClientBuilder::pathway(local_node_id, topology, network, Tick(1)).build();
+    let mut client = ClientBuilder::pathway(local_node_id, topology, network, Tick(1))
+        .build()
+        .expect("build pathway client");
     let mut bound = client.bind();
 
     let progress = bound.advance_round().expect("advance initial round");
@@ -136,7 +138,8 @@ fn client_builder_accepts_explicit_queue_config_and_profile() {
     )
     .with_queue_config(BridgeQueueConfig::new(1, 1))
     .with_batman_bellman()
-    .build();
+    .build()
+    .expect("build configured client");
     let mut bound = client.bind();
 
     let progress = bound.advance_round().expect("advance initial round");
@@ -162,8 +165,9 @@ fn topology_projector_reads_stable_snapshot_from_reference_client_surfaces() {
         alternate_node_id,
     );
     let network = SharedInMemoryNetwork::default();
-    let mut client =
-        ClientBuilder::pathway(local_node_id, topology.clone(), network, Tick(1)).build();
+    let mut client = ClientBuilder::pathway(local_node_id, topology.clone(), network, Tick(1))
+        .build()
+        .expect("build routed client");
     let mut bound = client.bind();
     let mut projector = TopologyProjector::new(local_node_id, bound.topology().clone());
 

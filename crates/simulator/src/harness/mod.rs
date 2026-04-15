@@ -9,7 +9,8 @@ use jacquard_mem_link_profile::SharedInMemoryNetwork;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
     BridgeRoundProgress, BridgeRoundReport, ClientBuilder,
-    FieldBootstrapSummary as ClientFieldBootstrapSummary, ReferenceClient, ReferenceRouter,
+    FieldBootstrapSummary as ClientFieldBootstrapSummary, ReferenceClient,
+    ReferenceClientBuildError, ReferenceRouter,
 };
 use jacquard_traits::{
     purity, Router, RoutingControlPlane, RoutingEnvironmentModel, RoutingReplayView,
@@ -49,6 +50,8 @@ pub enum SimulationError {
     MissingBridge(NodeId),
     #[error("router error: {0}")]
     Route(#[from] jacquard_core::RouteError),
+    #[error("reference client build error: {0}")]
+    Build(#[from] ReferenceClientBuildError),
 }
 
 #[purity(pure)]
@@ -202,7 +205,7 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
                     reverse_feedback: bootstrap.reverse_feedback,
                 });
             }
-            let client = builder.build();
+            let client = builder.build()?;
             hosts.insert(host.local_node_id, client);
         }
 

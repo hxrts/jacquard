@@ -65,8 +65,30 @@ where
         candidate: &RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
-        self.admit_route(objective, profile, candidate.clone(), topology)
-            .map(|admission| admission.admission_check)
+        let DestinationId::Node(destination) = objective.destination else {
+            return Err(RouteSelectionError::NoCandidate.into());
+        };
+        if !destination_supports_objective(topology, destination, objective.service_kind) {
+            return Err(RouteSelectionError::Inadmissible(
+                RouteAdmissionRejection::BackendUnavailable,
+            )
+            .into());
+        }
+        let Some(best) = self.best_next_hops.get(&destination) else {
+            return Err(RouteSelectionError::NoCandidate.into());
+        };
+        let expected = self.candidate_for(objective, best);
+        if expected.backend_ref != candidate.backend_ref {
+            return Err(RouteSelectionError::Inadmissible(
+                RouteAdmissionRejection::BackendUnavailable,
+            )
+            .into());
+        }
+        let admission = self.admission_for(objective, profile, &expected);
+        if let AdmissionDecision::Rejected(reason) = admission.admission_check.decision {
+            return Err(RouteSelectionError::Inadmissible(reason).into());
+        }
+        Ok(admission.admission_check)
     }
 
     fn admit_route(

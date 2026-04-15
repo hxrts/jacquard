@@ -315,12 +315,16 @@ fn client_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
 ) -> (ReferenceClient, ReferenceClient, ReferenceClient) {
-    let client_a =
-        ClientBuilder::pathway(NODE_A, topology.clone(), network.clone(), Tick(2)).build();
+    let client_a = ClientBuilder::pathway(NODE_A, topology.clone(), network.clone(), Tick(2))
+        .build()
+        .expect("build client");
     let client_b = ClientBuilder::pathway(NODE_B, topology.clone(), network.clone(), Tick(2))
         .with_profile(relay_profile())
-        .build();
-    let client_c = ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2)).build();
+        .build()
+        .expect("build client");
+    let client_c = ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2))
+        .build()
+        .expect("build client");
     (client_a, client_b, client_c)
 }
 
@@ -333,7 +337,8 @@ fn mixed_engine_triplet(
     let client_a =
         ClientBuilder::batman_bellman(NODE_A, topology.clone(), network.clone(), Tick(2))
             .with_profile(relay_profile())
-            .build();
+            .build()
+            .expect("build client");
     let client_b = ClientBuilder::pathway_and_batman_bellman(
         NODE_B,
         topology.clone(),
@@ -341,8 +346,11 @@ fn mixed_engine_triplet(
         Tick(2),
     )
     .with_profile(relay_profile())
-    .build();
-    let client_c = ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2)).build();
+    .build()
+    .expect("build client");
+    let client_c = ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2))
+        .build()
+        .expect("build client");
 
     (client_a, client_b, client_c)
 }
@@ -351,12 +359,16 @@ fn olsrv2_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
 ) -> (ReferenceClient, ReferenceClient, ReferenceClient) {
-    let client_a =
-        ClientBuilder::olsrv2(NODE_A, topology.clone(), network.clone(), Tick(2)).build();
+    let client_a = ClientBuilder::olsrv2(NODE_A, topology.clone(), network.clone(), Tick(2))
+        .build()
+        .expect("build client");
     let client_b = ClientBuilder::olsrv2(NODE_B, topology.clone(), network.clone(), Tick(2))
         .with_profile(relay_profile())
-        .build();
-    let client_c = ClientBuilder::olsrv2(NODE_C, topology.clone(), network, Tick(2)).build();
+        .build()
+        .expect("build client");
+    let client_c = ClientBuilder::olsrv2(NODE_C, topology.clone(), network, Tick(2))
+        .build()
+        .expect("build client");
     (client_a, client_b, client_c)
 }
 
@@ -364,13 +376,17 @@ fn olsrv2_pathway_triplet(
     topology: &Observation<Configuration>,
     network: SharedInMemoryNetwork,
 ) -> (ReferenceClient, ReferenceClient, ReferenceClient) {
-    let client_a =
-        ClientBuilder::olsrv2(NODE_A, topology.clone(), network.clone(), Tick(2)).build();
+    let client_a = ClientBuilder::olsrv2(NODE_A, topology.clone(), network.clone(), Tick(2))
+        .build()
+        .expect("build client");
     let client_b =
         ClientBuilder::pathway_and_olsrv2(NODE_B, topology.clone(), network.clone(), Tick(2))
             .with_profile(relay_profile())
-            .build();
-    let client_c = ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2)).build();
+            .build()
+            .expect("build client");
+    let client_c = ClientBuilder::pathway(NODE_C, topology.clone(), network, Tick(2))
+        .build()
+        .expect("build client");
     (client_a, client_b, client_c)
 }
 

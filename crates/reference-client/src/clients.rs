@@ -4,14 +4,17 @@
 //! BATMAN, Babel, or override queue/policy settings, then build one bridge-owned
 //! client.
 
+use std::collections::BTreeSet;
+
 use jacquard_babel::{BabelEngine, DecayWindow as BabelDecayWindow};
 use jacquard_batman_bellman::{BatmanBellmanEngine, DecayWindow};
 use jacquard_batman_classic::{BatmanClassicEngine, DecayWindow as ClassicDecayWindow};
 use jacquard_core::{
     Configuration, ConnectivityPosture, DestinationId, DiversityFloor, DurationMs, HealthScore,
     IdentityAssuranceClass, LinkEndpoint, NodeId, Observation, OperatingMode, RatioPermille,
-    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteReplacementPolicy,
-    RoutingEngineFallbackPolicy, RoutingPolicyInputs, SelectedRoutingParameters, Tick,
+    RouteError, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+    RouteReplacementPolicy, RoutingEngineFallbackPolicy, RoutingPolicyInputs,
+    SelectedRoutingParameters, Tick,
 };
 use jacquard_field::{FieldEngine, FieldForwardSummaryObservation, FieldSearchConfig};
 use jacquard_mem_link_profile::{
@@ -21,6 +24,7 @@ use jacquard_olsrv2::{DecayWindow as OlsrV2DecayWindow, OlsrV2Engine};
 use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine, PathwaySearchConfig};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
 use jacquard_traits::Blake3Hashing;
+use thiserror::Error;
 
 use crate::{
     bridge::{BridgeQueueConfig, BridgeTransport, DEFAULT_BRIDGE_QUEUE_CONFIG},
@@ -29,6 +33,48 @@ use crate::{
 
 pub type ReferenceRouter = MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>;
 pub type ReferenceClient = HostBridge<ReferenceRouter>;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EngineKind {
+    Pathway,
+    BatmanBellman,
+    BatmanClassic,
+    OlsrV2,
+    Babel,
+    Field,
+}
+
+impl EngineKind {
+    const CANONICAL_REGISTRATION_ORDER: [Self; 6] = [
+        Self::Pathway,
+        Self::BatmanBellman,
+        Self::BatmanClassic,
+        Self::OlsrV2,
+        Self::Babel,
+        Self::Field,
+    ];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Pathway => "pathway",
+            Self::BatmanBellman => "batman-bellman",
+            Self::BatmanClassic => "batman-classic",
+            Self::OlsrV2 => "olsrv2",
+            Self::Babel => "babel",
+            Self::Field => "field",
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ReferenceClientBuildError {
+    #[error("failed to register {engine} engine in reference client builder: {source}")]
+    EngineRegistration {
+        engine: &'static str,
+        #[source]
+        source: RouteError,
+    },
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldBootstrapSummary {
@@ -54,40 +100,23 @@ pub struct ClientBuilder {
     field_bootstrap_summaries: Vec<FieldBootstrapSummary>,
     babel_decay_window: Option<BabelDecayWindow>,
     queue_config: BridgeQueueConfig,
-    include_pathway: bool,
-    include_batman_bellman: bool,
-    include_batman_classic: bool,
-    include_olsrv2: bool,
-    include_babel: bool,
-    include_field: bool,
+    engines: BTreeSet<EngineKind>,
 }
 
 impl ClientBuilder {
-    #[allow(clippy::too_many_arguments)]
     fn with_engine_set(
         local_node_id: NodeId,
         topology: Observation<Configuration>,
         network: SharedInMemoryNetwork,
         now: Tick,
-        include_pathway: bool,
-        include_batman_bellman: bool,
-        include_olsrv2: bool,
-        include_babel: bool,
-        include_field: bool,
+        engines: BTreeSet<EngineKind>,
     ) -> Self {
         Self {
             local_node_id,
             topology,
             network,
             now,
-            profile: default_profile_for_engine_set(
-                include_pathway,
-                include_batman_bellman,
-                false, // include_batman_classic set after construction
-                include_olsrv2,
-                include_babel,
-                include_field,
-            ),
+            profile: default_profile_for_engine_set(&engines),
             policy_inputs: None,
             batman_bellman_decay_window: None,
             batman_classic_decay_window: None,
@@ -97,12 +126,7 @@ impl ClientBuilder {
             field_search_config: None,
             field_bootstrap_summaries: Vec::new(),
             queue_config: DEFAULT_BRIDGE_QUEUE_CONFIG,
-            include_pathway,
-            include_batman_bellman,
-            include_batman_classic: false,
-            include_olsrv2,
-            include_babel,
-            include_field,
+            engines,
         }
     }
 
@@ -118,11 +142,7 @@ impl ClientBuilder {
             topology,
             network,
             now,
-            true,
-            false,
-            false,
-            false,
-            false,
+            singleton_engine(EngineKind::Pathway),
         )
     }
 
@@ -138,11 +158,7 @@ impl ClientBuilder {
             topology,
             network,
             now,
-            false,
-            true,
-            false,
-            false,
-            false,
+            singleton_engine(EngineKind::BatmanBellman),
         )
     }
 
@@ -158,13 +174,8 @@ impl ClientBuilder {
             topology,
             network,
             now,
-            false,
-            false,
-            false,
-            false,
-            false,
+            singleton_engine(EngineKind::BatmanClassic),
         );
-        builder.include_batman_classic = true;
         builder.profile = batman_default_profile();
         builder
     }
@@ -181,11 +192,7 @@ impl ClientBuilder {
             topology,
             network,
             now,
-            false,
-            false,
-            false,
-            true,
-            false,
+            singleton_engine(EngineKind::Babel),
         )
     }
 
@@ -201,11 +208,7 @@ impl ClientBuilder {
             topology,
             network,
             now,
-            false,
-            false,
-            false,
-            false,
-            true,
+            singleton_engine(EngineKind::Field),
         )
     }
 
@@ -221,11 +224,7 @@ impl ClientBuilder {
             topology,
             network,
             now,
-            false,
-            false,
-            true,
-            false,
-            false,
+            singleton_engine(EngineKind::OlsrV2),
         )
     }
 
@@ -371,13 +370,13 @@ impl ClientBuilder {
 
     #[must_use]
     pub fn with_batman_bellman(mut self) -> Self {
-        self.include_batman_bellman = true;
+        self.engines.insert(EngineKind::BatmanBellman);
         self
     }
 
     #[must_use]
     pub fn with_batman_classic(mut self) -> Self {
-        self.include_batman_classic = true;
+        self.engines.insert(EngineKind::BatmanClassic);
         self
     }
 
@@ -389,27 +388,26 @@ impl ClientBuilder {
 
     #[must_use]
     pub fn with_babel(mut self) -> Self {
-        self.include_babel = true;
+        self.engines.insert(EngineKind::Babel);
         self
     }
 
     #[must_use]
     pub fn with_olsrv2(mut self) -> Self {
-        self.include_olsrv2 = true;
+        self.engines.insert(EngineKind::OlsrV2);
         self
     }
 
     #[must_use]
     pub fn with_field(mut self) -> Self {
-        self.include_field = true;
+        self.engines.insert(EngineKind::Field);
         self
     }
 
-    #[must_use]
     // long-block-exception: the reference client builder wires a single
     // bridge-owned host from the chosen engine set in one place so mixed-engine
     // simulator and test setups stay deterministic.
-    pub fn build(self) -> ReferenceClient {
+    pub fn build(self) -> Result<ReferenceClient, ReferenceClientBuildError> {
         let local_endpoint = local_endpoint(&self.topology, self.local_node_id);
         let driver = InMemoryTransport::attach(self.local_node_id, [local_endpoint], self.network);
         let transport = BridgeTransport::with_queue_config(driver, self.queue_config);
@@ -426,168 +424,203 @@ impl ClientBuilder {
             self.policy_inputs
                 .unwrap_or_else(|| policy_inputs_for(&self.topology, self.local_node_id)),
         );
-        if self.include_pathway {
-            let pathway_engine = PathwayEngine::without_committee_selector(
-                self.local_node_id,
-                DeterministicPathwayTopologyModel::new(),
-                pathway_sender,
-                InMemoryRetentionStore::default(),
-                InMemoryRuntimeEffects {
-                    now: self.now,
-                    ..Default::default()
-                },
-                Blake3Hashing,
-            );
-            let pathway_engine = if let Some(search_config) = self.pathway_search_config.clone() {
-                pathway_engine.with_search_config(search_config)
-            } else {
-                pathway_engine
-            };
-            router
-                .register_engine(Box::new(pathway_engine))
-                .expect("register pathway engine");
-        }
-
-        if self.include_batman_bellman {
-            let batman_engine = if let Some(decay_window) = self.batman_bellman_decay_window {
-                BatmanBellmanEngine::with_decay_window(
-                    self.local_node_id,
-                    transport.sender(),
-                    InMemoryRuntimeEffects {
-                        now: self.now,
-                        ..Default::default()
-                    },
-                    decay_window,
-                )
-            } else {
-                BatmanBellmanEngine::new(
-                    self.local_node_id,
-                    transport.sender(),
-                    InMemoryRuntimeEffects {
-                        now: self.now,
-                        ..Default::default()
-                    },
-                )
-            };
-            router
-                .register_engine(Box::new(batman_engine))
-                .expect("register batman engine");
-        }
-
-        if self.include_batman_classic {
-            let classic_engine = if let Some(decay_window) = self.batman_classic_decay_window {
-                BatmanClassicEngine::with_decay_window(
-                    self.local_node_id,
-                    transport.sender(),
-                    InMemoryRuntimeEffects {
-                        now: self.now,
-                        ..Default::default()
-                    },
-                    decay_window,
-                )
-            } else {
-                BatmanClassicEngine::new(
-                    self.local_node_id,
-                    transport.sender(),
-                    InMemoryRuntimeEffects {
-                        now: self.now,
-                        ..Default::default()
-                    },
-                )
-            };
-            router
-                .register_engine(Box::new(classic_engine))
-                .expect("register batman-classic engine");
-        }
-
-        if self.include_babel {
-            let babel_engine = if let Some(decay_window) = self.babel_decay_window {
-                BabelEngine::with_decay_window(
-                    self.local_node_id,
-                    transport.sender(),
-                    InMemoryRuntimeEffects {
-                        now: self.now,
-                        ..Default::default()
-                    },
-                    decay_window,
-                )
-            } else {
-                BabelEngine::new(
-                    self.local_node_id,
-                    transport.sender(),
-                    InMemoryRuntimeEffects {
-                        now: self.now,
-                        ..Default::default()
-                    },
-                )
-            };
-            router
-                .register_engine(Box::new(babel_engine))
-                .expect("register babel engine");
-        }
-
-        if self.include_olsrv2 {
-            let olsrv2_engine = if let Some(decay_window) = self.olsrv2_decay_window {
-                OlsrV2Engine::with_decay_window(
-                    self.local_node_id,
-                    transport.sender(),
-                    InMemoryRuntimeEffects {
-                        now: self.now,
-                        ..Default::default()
-                    },
-                    decay_window,
-                )
-            } else {
-                OlsrV2Engine::new(
-                    self.local_node_id,
-                    transport.sender(),
-                    InMemoryRuntimeEffects {
-                        now: self.now,
-                        ..Default::default()
-                    },
-                )
-            };
-            router
-                .register_engine(Box::new(olsrv2_engine))
-                .expect("register olsrv2 engine");
-        }
-
-        if self.include_field {
-            let field_engine = FieldEngine::new(
-                self.local_node_id,
-                transport.sender(),
-                InMemoryRuntimeEffects {
-                    now: self.now,
-                    ..Default::default()
-                },
-            );
-            let mut field_engine = if let Some(search_config) = self.field_search_config.clone() {
-                field_engine.with_search_config(search_config)
-            } else {
-                field_engine
-            };
-            for bootstrap in &self.field_bootstrap_summaries {
-                field_engine.record_forward_summary(
-                    &bootstrap.destination,
-                    bootstrap.from_neighbor,
-                    bootstrap.forward_observation,
-                );
-                if let Some((delivery_feedback, observed_at_tick)) = bootstrap.reverse_feedback {
-                    field_engine.record_reverse_feedback(
-                        &bootstrap.destination,
-                        bootstrap.from_neighbor,
-                        delivery_feedback,
-                        observed_at_tick,
+        for engine in EngineKind::CANONICAL_REGISTRATION_ORDER {
+            if !self.engines.contains(&engine) {
+                continue;
+            }
+            match engine {
+                EngineKind::Pathway => {
+                    let pathway_engine = PathwayEngine::without_committee_selector(
+                        self.local_node_id,
+                        DeterministicPathwayTopologyModel::new(),
+                        pathway_sender.clone(),
+                        InMemoryRetentionStore::default(),
+                        InMemoryRuntimeEffects {
+                            now: self.now,
+                            ..Default::default()
+                        },
+                        Blake3Hashing,
                     );
+                    let pathway_engine =
+                        if let Some(search_config) = self.pathway_search_config.clone() {
+                            pathway_engine.with_search_config(search_config)
+                        } else {
+                            pathway_engine
+                        };
+                    router
+                        .register_engine(Box::new(pathway_engine))
+                        .map_err(|source| ReferenceClientBuildError::EngineRegistration {
+                            engine: engine.label(),
+                            source,
+                        })?;
+                }
+                EngineKind::BatmanBellman => {
+                    let batman_engine = if let Some(decay_window) = self.batman_bellman_decay_window
+                    {
+                        BatmanBellmanEngine::with_decay_window(
+                            self.local_node_id,
+                            transport.sender(),
+                            InMemoryRuntimeEffects {
+                                now: self.now,
+                                ..Default::default()
+                            },
+                            decay_window,
+                        )
+                    } else {
+                        BatmanBellmanEngine::new(
+                            self.local_node_id,
+                            transport.sender(),
+                            InMemoryRuntimeEffects {
+                                now: self.now,
+                                ..Default::default()
+                            },
+                        )
+                    };
+                    router
+                        .register_engine(Box::new(batman_engine))
+                        .map_err(|source| ReferenceClientBuildError::EngineRegistration {
+                            engine: engine.label(),
+                            source,
+                        })?;
+                }
+                EngineKind::BatmanClassic => {
+                    let classic_engine =
+                        if let Some(decay_window) = self.batman_classic_decay_window {
+                            BatmanClassicEngine::with_decay_window(
+                                self.local_node_id,
+                                transport.sender(),
+                                InMemoryRuntimeEffects {
+                                    now: self.now,
+                                    ..Default::default()
+                                },
+                                decay_window,
+                            )
+                        } else {
+                            BatmanClassicEngine::new(
+                                self.local_node_id,
+                                transport.sender(),
+                                InMemoryRuntimeEffects {
+                                    now: self.now,
+                                    ..Default::default()
+                                },
+                            )
+                        };
+                    router
+                        .register_engine(Box::new(classic_engine))
+                        .map_err(|source| ReferenceClientBuildError::EngineRegistration {
+                            engine: engine.label(),
+                            source,
+                        })?;
+                }
+                EngineKind::OlsrV2 => {
+                    let olsrv2_engine = if let Some(decay_window) = self.olsrv2_decay_window {
+                        OlsrV2Engine::with_decay_window(
+                            self.local_node_id,
+                            transport.sender(),
+                            InMemoryRuntimeEffects {
+                                now: self.now,
+                                ..Default::default()
+                            },
+                            decay_window,
+                        )
+                    } else {
+                        OlsrV2Engine::new(
+                            self.local_node_id,
+                            transport.sender(),
+                            InMemoryRuntimeEffects {
+                                now: self.now,
+                                ..Default::default()
+                            },
+                        )
+                    };
+                    router
+                        .register_engine(Box::new(olsrv2_engine))
+                        .map_err(|source| ReferenceClientBuildError::EngineRegistration {
+                            engine: engine.label(),
+                            source,
+                        })?;
+                }
+                EngineKind::Babel => {
+                    let babel_engine = if let Some(decay_window) = self.babel_decay_window {
+                        BabelEngine::with_decay_window(
+                            self.local_node_id,
+                            transport.sender(),
+                            InMemoryRuntimeEffects {
+                                now: self.now,
+                                ..Default::default()
+                            },
+                            decay_window,
+                        )
+                    } else {
+                        BabelEngine::new(
+                            self.local_node_id,
+                            transport.sender(),
+                            InMemoryRuntimeEffects {
+                                now: self.now,
+                                ..Default::default()
+                            },
+                        )
+                    };
+                    router
+                        .register_engine(Box::new(babel_engine))
+                        .map_err(|source| ReferenceClientBuildError::EngineRegistration {
+                            engine: engine.label(),
+                            source,
+                        })?;
+                }
+                EngineKind::Field => {
+                    let field_engine = FieldEngine::new(
+                        self.local_node_id,
+                        transport.sender(),
+                        InMemoryRuntimeEffects {
+                            now: self.now,
+                            ..Default::default()
+                        },
+                    );
+                    let mut field_engine =
+                        if let Some(search_config) = self.field_search_config.clone() {
+                            field_engine.with_search_config(search_config)
+                        } else {
+                            field_engine
+                        };
+                    for bootstrap in &self.field_bootstrap_summaries {
+                        field_engine.record_forward_summary(
+                            &bootstrap.destination,
+                            bootstrap.from_neighbor,
+                            bootstrap.forward_observation,
+                        );
+                        if let Some((delivery_feedback, observed_at_tick)) =
+                            bootstrap.reverse_feedback
+                        {
+                            field_engine.record_reverse_feedback(
+                                &bootstrap.destination,
+                                bootstrap.from_neighbor,
+                                delivery_feedback,
+                                observed_at_tick,
+                            );
+                        }
+                    }
+                    router
+                        .register_engine(Box::new(field_engine))
+                        .map_err(|source| ReferenceClientBuildError::EngineRegistration {
+                            engine: engine.label(),
+                            source,
+                        })?;
                 }
             }
-            router
-                .register_engine(Box::new(field_engine))
-                .expect("register field engine");
         }
 
-        HostBridge::from_transport(self.topology, router, transport, self.queue_config)
+        Ok(HostBridge::from_transport(
+            self.topology,
+            router,
+            transport,
+            self.queue_config,
+        ))
     }
+}
+
+fn singleton_engine(engine: EngineKind) -> BTreeSet<EngineKind> {
+    BTreeSet::from([engine])
 }
 
 fn local_endpoint(topology: &Observation<Configuration>, local_node_id: NodeId) -> LinkEndpoint {
@@ -695,20 +728,106 @@ fn batman_default_profile() -> SelectedRoutingParameters {
     }
 }
 
-fn default_profile_for_engine_set(
-    include_pathway: bool,
-    include_batman_bellman: bool,
-    include_batman_classic: bool,
-    include_olsrv2: bool,
-    include_babel: bool,
-    include_field: bool,
-) -> SelectedRoutingParameters {
-    if (include_batman_bellman || include_batman_classic || include_babel || include_olsrv2)
-        && !include_pathway
-        && !include_field
-    {
+fn default_profile_for_engine_set(engines: &BTreeSet<EngineKind>) -> SelectedRoutingParameters {
+    let next_hop_only = engines.contains(&EngineKind::BatmanBellman)
+        || engines.contains(&EngineKind::BatmanClassic)
+        || engines.contains(&EngineKind::Babel)
+        || engines.contains(&EngineKind::OlsrV2);
+    let mixed_or_corridor =
+        engines.contains(&EngineKind::Pathway) || engines.contains(&EngineKind::Field);
+    if next_hop_only && !mixed_or_corridor {
         batman_default_profile()
     } else {
         default_profile()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use jacquard_babel::BABEL_ENGINE_ID;
+    use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
+    use jacquard_batman_classic::BATMAN_CLASSIC_ENGINE_ID;
+    use jacquard_core::{
+        Configuration, Environment, FactSourceClass, Observation, OriginAuthenticationClass,
+        RatioPermille, RouteEpoch, RoutingEvidenceClass, Tick,
+    };
+    use jacquard_field::FIELD_ENGINE_ID;
+    use jacquard_olsrv2::OLSRV2_ENGINE_ID;
+    use jacquard_pathway::PATHWAY_ENGINE_ID;
+
+    use super::{
+        batman_default_profile, default_profile, default_profile_for_engine_set, ClientBuilder,
+        EngineKind,
+    };
+    use crate::{topology, SharedInMemoryNetwork};
+
+    fn sample_topology() -> Observation<Configuration> {
+        Observation {
+            value: Configuration {
+                epoch: RouteEpoch(1),
+                nodes: BTreeMap::from([(
+                    jacquard_core::NodeId([1; 32]),
+                    topology::node(1).all_engines().build(),
+                )]),
+                links: BTreeMap::new(),
+                environment: Environment {
+                    reachable_neighbor_count: 0,
+                    churn_permille: RatioPermille(0),
+                    contention_permille: RatioPermille(0),
+                },
+            },
+            source_class: FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::DirectObservation,
+            origin_authentication: OriginAuthenticationClass::Controlled,
+            observed_at_tick: Tick(1),
+        }
+    }
+
+    #[test]
+    fn default_profile_prefers_next_hop_defaults_only_for_pure_next_hop_sets() {
+        assert_eq!(
+            default_profile_for_engine_set(&BTreeSet::from([EngineKind::BatmanBellman])),
+            batman_default_profile()
+        );
+        assert_eq!(
+            default_profile_for_engine_set(&BTreeSet::from([
+                EngineKind::BatmanClassic,
+                EngineKind::Babel,
+            ])),
+            batman_default_profile()
+        );
+        assert_eq!(
+            default_profile_for_engine_set(&BTreeSet::from([
+                EngineKind::Pathway,
+                EngineKind::BatmanBellman,
+            ])),
+            default_profile()
+        );
+        assert_eq!(
+            default_profile_for_engine_set(&BTreeSet::from([EngineKind::Field])),
+            default_profile()
+        );
+    }
+
+    #[test]
+    fn all_engines_builder_registers_full_membership_without_workarounds() {
+        let mut client = ClientBuilder::all_engines(
+            jacquard_core::NodeId([1; 32]),
+            sample_topology(),
+            SharedInMemoryNetwork::default(),
+            Tick(1),
+        )
+        .build()
+        .expect("build all-engines client");
+        let registered = client.bind().router().registered_engine_ids();
+
+        assert!(registered.contains(&PATHWAY_ENGINE_ID));
+        assert!(registered.contains(&BATMAN_BELLMAN_ENGINE_ID));
+        assert!(registered.contains(&BATMAN_CLASSIC_ENGINE_ID));
+        assert!(registered.contains(&BABEL_ENGINE_ID));
+        assert!(registered.contains(&OLSRV2_ENGINE_ID));
+        assert!(registered.contains(&FIELD_ENGINE_ID));
     }
 }

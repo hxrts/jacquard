@@ -29,3 +29,6 @@ telltale-search = { workspace = true }
 
 [dev-dependencies]
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
+jacquard-mem-node-profile = { path = "../mem-node-profile" }
+jacquard-reference-client = { path = "../reference-client" }
+jacquard-router = { path = "../router" }
