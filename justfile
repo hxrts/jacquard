@@ -197,6 +197,7 @@ ci-dry-run:
     add_step "Workspace Hygiene"          "{{toolkit_cmd}} check workspace-hygiene --repo-root . --config toolkit/toolkit.toml"
     add_step "Workflow Actions"           "{{toolkit_cmd}} check workflow-actions --repo-root . --config toolkit/toolkit.toml"
     add_step "Trait Purity"               "{{policy_cmd}} check trait-purity"
+    add_step "Annotation Semantics"       "{{policy_cmd}} check annotation-semantics"
     add_step "Crate Boundary"             "{{policy_cmd}} check crate-boundary"
     add_step "Adapter Boundary"           "{{policy_cmd}} check adapter-boundary"
     add_step "DX Surface"                "{{policy_cmd}} check dx-surface"
