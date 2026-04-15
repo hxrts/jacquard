@@ -329,7 +329,6 @@ def make_table(column_labels: list[str], rows: list[list[str]], styles, col_widt
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#ffffff")),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f0f0")]),
-                ("LINEBELOW", (0, 0), (-1, 0), 0.8, colors.HexColor("#555555")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 6),
