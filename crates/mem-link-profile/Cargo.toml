@@ -13,9 +13,9 @@ description = "In-memory link profile and carrier implementations for Jacquard t
 workspace = true
 
 [dependencies]
-jacquard-adapter = { path = "../adapter", version = "0.4.0" }
-jacquard-core = { path = "../core", version = "0.4.0" }
-jacquard-traits = { path = "../traits", version = "0.4.0" }
+jacquard-adapter = { path = "../adapter", version = "0.5.0" }
+jacquard-core = { path = "../core", version = "0.5.0" }
+jacquard-traits = { path = "../traits", version = "0.5.0" }
 serde = { workspace = true, default-features = false }
 
 [dev-dependencies]
