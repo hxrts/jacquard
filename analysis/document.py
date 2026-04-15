@@ -425,7 +425,6 @@ def write_pdf_report(
             "Detailed transition, failure-boundary, profile, and field-regime tables are collected in Appendix A so the main report can stay focused on the key recommendations and figures.",
         ],
     )
-    story.append(PageBreak())
 
     story.append(Paragraph("2. Tuning Setup And Scoring", styles["Section"]))
     for heading, lines in [
@@ -453,7 +452,6 @@ def write_pdf_report(
         ],
     )
 
-    story.append(PageBreak())
     story.append(Paragraph("Part II. Analysis", styles["Section"]))
 
     story.append(Paragraph("3. BATMAN Classic Analysis", styles["Section"]))
@@ -466,7 +464,7 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 1",
-        "Figure 1. BATMAN Classic stability across transition families",
+        "Figure 1. BATMAN Classic stability across transition families. Higher values are better: they indicate more sustained route quality across the scenario. Flatter high lines indicate a decay setting that stays robust as transition stress changes.",
         16.4 * cm,
         7.0 * cm,
     )
@@ -475,11 +473,10 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 2",
-        "Figure 2. BATMAN Classic loss timing across transition families",
+        "Figure 2. BATMAN Classic loss timing across transition families. Higher values mean the first route loss happens later, which is usually better. Sharp drops indicate settings that become brittle under the corresponding transition family.",
         16.4 * cm,
         7.0 * cm,
     )
-    story.append(PageBreak())
 
     story.append(Paragraph("4. BATMAN Bellman Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
@@ -491,7 +488,7 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 3",
-        "Figure 3. BATMAN Bellman stability across transition families",
+        "Figure 3. BATMAN Bellman stability across transition families. Higher values are better: they indicate more sustained route quality across the scenario. A broad plateau implies the stale-window setting is forgiving rather than narrowly tuned.",
         16.4 * cm,
         8.2 * cm,
     )
@@ -500,11 +497,10 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 4",
-        "Figure 4. BATMAN Bellman loss timing across transition families",
+        "Figure 4. BATMAN Bellman loss timing across transition families. Higher values mean route loss is delayed further into the scenario, which is better. Early collapses indicate settings that cannot ride through the corresponding transition stress.",
         16.4 * cm,
         7.4 * cm,
     )
-    story.append(PageBreak())
 
     story.append(Paragraph("5. Babel Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
@@ -516,7 +512,7 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 5",
-        "Figure 5. Babel stability across decay families",
+        "Figure 5. Babel stability across decay families. Higher values are better: they indicate more sustained feasible routing across the family. If the curve stays high as stale ticks increase, Babel is not very sensitive to the decay setting there.",
         16.4 * cm,
         8.2 * cm,
     )
@@ -525,11 +521,10 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 6",
-        "Figure 6. Babel loss timing across decay families",
+        "Figure 6. Babel loss timing across decay families. Higher values mean the first loss happens later, which is better. Downward bends show where stale-state retention starts to hurt feasibility recovery rather than help it.",
         16.4 * cm,
         8.2 * cm,
     )
-    story.append(PageBreak())
 
     story.append(Paragraph("6. OLSRv2 Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
@@ -541,7 +536,7 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 7",
-        "Figure 7. OLSRv2 stability across topology and churn families",
+        "Figure 7. OLSRv2 stability across topology and churn families. Higher values are better: they indicate more sustained route quality through churn and relink events. A high flat region suggests the control-state lifetime is long enough to cover one topology-change cycle without overfitting.",
         16.4 * cm,
         8.2 * cm,
     )
@@ -550,16 +545,14 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 8",
-        "Figure 8. OLSRv2 loss timing across topology and churn families",
+        "Figure 8. OLSRv2 loss timing across topology and churn families. Higher values mean the first loss occurs later, which is better. Lower or falling values indicate churn windows where stale symmetric-link or TC state leaves the engine exposed.",
         16.4 * cm,
         8.2 * cm,
     )
-    story.append(PageBreak())
 
     story.append(Paragraph("7. Scatter Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
     add_paragraphs(story, styles, engine_section_lines(recommendations, aggregates, "scatter"))
-    story.append(PageBreak())
 
     story.append(Paragraph("8. Pathway Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
@@ -571,7 +564,7 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 9",
-        "Figure 9. Pathway active route presence by search budget",
+        "Figure 9. Pathway active route presence by search budget. Higher values are better: they indicate the route is present for more of the objective-active window. Upward trends show budgets where additional search is still buying useful coverage; plateaus show diminishing returns.",
         16.4 * cm,
         8.0 * cm,
     )
@@ -580,11 +573,10 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 10",
-        "Figure 10. Pathway activation cliffs by search budget",
+        "Figure 10. Pathway activation cliffs by search budget. Higher values are better: they indicate objectives activate successfully more often. Step changes reveal the budget threshold where Pathway moves from under-search to reliable activation.",
         16.4 * cm,
         7.2 * cm,
     )
-    story.append(PageBreak())
 
     story.append(Paragraph("9. Field Analysis", styles["Section"]))
     story.append(Paragraph("Findings", styles["Subsection"]))
@@ -596,7 +588,7 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 11",
-        "Figure 11. Field active route presence by search budget",
+        "Figure 11. Field active route presence by search budget. Higher values are better: they indicate the admitted corridor stays available for more of the active window. Rising curves show where additional search or heuristic guidance is still improving continuity; flat curves show the stable operating floor.",
         16.4 * cm,
         9.6 * cm,
     )
@@ -605,11 +597,10 @@ def write_pdf_report(
         styles,
         report_dir,
         "Figure 12",
-        "Figure 12. Field corridor reconfiguration by search budget",
+        "Figure 12. Field corridor reconfiguration by search budget. Lower values are generally better because they indicate less continuation churn and fewer search-driven reconfigurations. Rising lines mean the engine is paying more control-motion cost to maintain continuity.",
         16.4 * cm,
         9.6 * cm,
     )
-    story.append(PageBreak())
 
     story.append(Paragraph("10. Comparative Analysis", styles["Section"]))
     story.append(Paragraph("Mixed-Engine Comparison", styles["Subsection"]))
@@ -635,7 +626,7 @@ def write_pdf_report(
                 styles,
                 report_dir,
                 "Figure 13",
-                "Figure 13. Selected-round leader by comparison regime",
+                "Figure 13. Mixed-engine selected rounds by comparison regime. Higher bars mean the router chose that engine for more rounds in the mixed stack. A single dominant bar indicates clear arbitration; a split regime indicates the router is switching engines materially within that family.",
                 14.8 * cm,
                 10.2 * cm,
             )
@@ -648,7 +639,7 @@ def write_pdf_report(
                 styles,
                 report_dir,
                 "Figure 14",
-                "Figure 14. Head-to-head active route presence by engine set",
+                "Figure 14. Head-to-head total-window route presence by engine set. Higher bars are better: they indicate routes remain present for more of the full scenario window, not just the active slice. Small gaps mean the regime is close to a tie; large gaps mean the scenario cleanly separates the engine sets.",
                 16.4 * cm,
                 10.2 * cm,
             )
@@ -664,7 +655,6 @@ def write_pdf_report(
     )
 
     if not diffusion_engine_summary.is_empty():
-        story.append(PageBreak())
         story.append(Paragraph("Part III. Diffusion Calibration", styles["Section"]))
         story.append(Paragraph("10. Diffusion Calibration", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Calibration Introduction"))
@@ -675,7 +665,6 @@ def write_pdf_report(
                 "Detailed diffusion calibration, field-calibration, and boundary tables are collected in Appendix C so the main comparison can stay focused on regime winners and the figure-level differences.",
             ],
         )
-        story.append(PageBreak())
         story.append(Paragraph("Part IV. Diffusion Engine Comparison", styles["Section"]))
         story.append(Paragraph("11. Diffusion Engine Comparison", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Analysis Introduction"))
@@ -713,7 +702,7 @@ def write_pdf_report(
             styles,
             report_dir,
             "Figure 15",
-            "Figure 15. Diffusion delivery and coverage by scenario family",
+            "Figure 15. Diffusion delivery and coverage by scenario family. Longer bars are better because they indicate more successful delivery; the dot shows coverage, so a wider gap between bar and dot means delivery is lagging behind spread. Strong performers keep both high rather than trading one off against the other.",
             18.0 * cm,
             22.0 * cm,
         )
@@ -722,7 +711,7 @@ def write_pdf_report(
             styles,
             report_dir,
             "Figure 16",
-            "Figure 16. Diffusion transmission load and boundedness by scenario family",
+            "Figure 16. Diffusion transmission load and boundedness by scenario family. Lower transmission bars are better when delivery remains competitive because they indicate cheaper diffusion. The `R=` and bounded-state annotations show whether that load is staying inside the intended bounded operating regime or drifting toward over-spread.",
             18.0 * cm,
             22.0 * cm,
         )
@@ -730,7 +719,6 @@ def write_pdf_report(
         add_paragraphs(story, styles, section_lines("Diffusion Takeaways"))
         add_paragraphs(story, styles, diffusion_field_posture_lines(diffusion_engine_comparison))
 
-    story.append(PageBreak())
     story.append(Paragraph("Appendix A. Tuning Reference Tables", styles["Section"]))
     add_paragraphs(
         story,
@@ -785,7 +773,6 @@ def write_pdf_report(
         [2.2 * cm, 5.1 * cm, 3.6 * cm, 1.2 * cm, 1.4 * cm, 1.2 * cm, 1.4 * cm, 1.1 * cm],
     )
 
-    story.append(PageBreak())
     story.append(Paragraph("Appendix B. Route-Visible Reference Tables", styles["Section"]))
     add_paragraphs(
         story,
@@ -846,7 +833,6 @@ def write_pdf_report(
     )
 
     if not diffusion_engine_summary.is_empty():
-        story.append(PageBreak())
         story.append(Paragraph("Appendix C. Diffusion Reference Tables", styles["Section"]))
         add_paragraphs(
             story,
