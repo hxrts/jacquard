@@ -1,35 +1,35 @@
 # Scatter Routing
 
 `jacquard-scatter` is Jacquard's bounded deferred-delivery diffusion engine.
-Unlike the proactive next-hop engines, it does not maintain a topology graph or
-publish a best next hop. Unlike `pathway`, it does not compute an explicit
-end-to-end path. Unlike `field`, it does not publish a corridor envelope.
+It does not maintain a topology graph.
+It does not publish a best next hop.
+It does not compute an explicit end-to-end path or corridor envelope.
 
-Its public router claim is deliberately narrow: `scatter` can publish an
-opaque, partition-tolerant, hold-capable route viability claim for an objective
-that is supportable somewhere in the current world model. After the router
-materializes that claim, the engine performs bounded store-carry-forward data
-movement through engine-private transport packets under the standard
-`RoutingEngine` / `RouterManagedEngine` boundary.
+`scatter` publishes a narrow router claim.
+The claim states that an objective is supportable somewhere in the current world model.
+The claim is opaque, partition-tolerant, and hold-capable.
+After materialization, the engine moves data through engine-private transport packets under the standard `RoutingEngine` and `RouterManagedEngine` boundary.
+
+See [Crate Architecture](999_crate_architecture.md) for the shared ownership and boundary rules that constrain this engine.
 
 ## Core Model
 
-The first in-tree `scatter` implementation is intentionally small:
+The first in-tree `scatter` implementation keeps a small deterministic model.
+The engine retains messages, summarizes peer observations, and tracks per-route progress.
+It does not assume stable endpoint identity beyond the router objective vocabulary already present in Jacquard.
 
-- payloads are tagged with a stable local message id
-- expiry is local and typed: `created_tick` plus bounded `DurationMs`
+- payloads carry a stable local message id
+- expiry is local and typed through `created_tick` plus bounded `DurationMs`
 - replication is bounded by hard copy budgets
-- forwarding is local and opportunistic only
-- handoff is preferential, not ack-driven custody transfer
-- route shape visibility is `Opaque`
-
-The engine keeps a bounded retained-message store, peer observation summaries,
-and per-route progress. It does not assume stable endpoint identity beyond the
-router objective vocabulary already present in Jacquard.
+- forwarding is local and opportunistic
+- handoff is preferential rather than ack-driven custody transfer
+- published route shape visibility is `Opaque`
 
 ## Policy Surface
 
-`ScatterEngineConfig` centralizes the first deterministic policy surface:
+`ScatterEngineConfig` defines the deterministic policy surface for the engine.
+It keeps the behavior-critical constants named and typed.
+It avoids anonymous literals in the runtime.
 
 - `ScatterExpiryPolicy`
 - `ScatterBudgetPolicy`
@@ -38,62 +38,50 @@ router objective vocabulary already present in Jacquard.
 - `ScatterTransportPolicy`
 - `ScatterOperationalBounds`
 
-These cover message lifetime, replication budgets, regime detection,
-scope-relative carrier thresholds, contact-feasibility limits, and bounded
-runtime storage/work ceilings. All behavior-critical constants are named and
-typed rather than buried as anonymous literals.
+These policies cover message lifetime, replication budgets, regime detection, carrier thresholds, contact feasibility, and bounded runtime work.
 
 ## Route Lifecycle
 
-Planner behavior is conservative. `candidate_routes` emits at most one
-candidate for a supportable objective. The admission/runtime story is:
+Planner behavior is conservative.
+`candidate_routes` emits at most one candidate for a supportable objective.
+The router remains the owner of canonical route truth.
 
-1. planner confirms the destination or service objective is supportable in the
-   current topology observation
-2. router admits an opaque, partition-tolerant Scatter claim
-3. runtime materializes a route-local progress surface
-4. payloads entering that route are retained, carried, replicated, or
-   preferentially handed off according to local regime and peer score
-5. maintenance can report hold-fallback viability even when no direct next hop
-   exists
+1. the planner confirms that the destination or service objective is supportable in the current observation
+2. the router admits an opaque and partition-tolerant `scatter` claim
+3. the runtime materializes a route-local progress surface
+4. payloads are retained, carried, replicated, or handed off according to local regime and peer score
+5. maintenance can report hold-fallback viability even when no direct next hop exists
 
-That keeps canonical route truth router-owned while allowing the engine to own
-its private deferred-delivery mechanics.
+This split keeps route publication router-owned.
+It lets `scatter` own its private deferred-delivery mechanics.
 
 ## Transport Boundary
 
-Scatter obeys the standard Jacquard ownership split:
+`scatter` follows the standard Jacquard ownership split.
+The engine consumes explicit `TransportObservation`.
+The engine sends only through `TransportSenderEffects`.
+The engine does not own async transport streams or assign `Tick`.
 
-- host bridges own ingress draining and time attachment
-- the engine consumes explicit `TransportObservation`
-- the engine sends only through `TransportSenderEffects`
-- the engine does not own async transport streams or assign `Tick`
-
-Transport choice is a local contact-feasibility judgment. The first
-implementation keeps that judgment reduced and deterministic rather than
-building separate routing models per transport.
+Host bridges own ingress draining and time attachment.
+Transport choice stays a local contact-feasibility judgment.
+The first implementation keeps that judgment reduced and deterministic.
+It does not build separate routing models per transport.
 
 ## Contrast With Other Engines
 
-- `batman-bellman`, `batman-classic`, `babel`, and `olsrv2` retain routing
-  control state but do not buffer payloads for deferred delivery
-- `pathway` supports deferred delivery through explicit path / retention
-  boundaries and full-route search
-- `field` carries forward bounded routing and service evidence, not general
-  payload custody
-- `scatter` is the in-tree opaque deferred-delivery baseline: payload custody
-  is local, bounded, and diffusion-oriented rather than path- or
-  corridor-oriented
+- `batman-bellman`, `batman-classic`, `babel`, and `olsrv2` retain routing control state but do not buffer payloads for deferred delivery
+- `pathway` supports deferred delivery through explicit path and retention boundaries plus full-route search
+- `field` carries forward bounded routing and service evidence rather than general payload custody
+- `scatter` is the in-tree opaque deferred-delivery baseline, so payload custody stays local, bounded, and diffusion-oriented
 
 ## Current Non-Goals
 
-The current engine does not attempt to provide:
+The current engine does not attempt to provide a full DTN control plane.
+It keeps the surface intentionally narrow.
 
 - topology reconstruction
 - stable semantic identity routing beyond Jacquard objectives
 - ack-driven authoritative custody transfer
 - multipath planning
-- distributed time agreement or remote-clock freshness claims
-
-The point of `scatter` is to be a true router engine with bounded local-only
-deferred delivery, not to become a full DTN control plane.
+- distributed time agreement
+- remote-clock freshness claims
