@@ -227,9 +227,9 @@ def build_styles():
             name="TableHeader",
             parent=styles["Heading2"],
             fontName="Helvetica-Bold",
-            fontSize=9.2,
-            leading=11,
-            textColor=colors.HexColor("#000000"),
+            fontSize=8.5,
+            leading=10,
+            textColor=colors.HexColor("#ffffff"),
             spaceBefore=0,
             spaceAfter=0,
         )
@@ -321,17 +321,17 @@ def make_table(column_labels: list[str], rows: list[list[str]], styles, col_widt
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e2e8f0")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#000000")),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4a4a4a")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#ffffff")),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("LINEBELOW", (0, 0), (-1, 0), 0.7, colors.HexColor("#94a3b8")),
-                ("GRID", (0, 1), (-1, -1), 0.35, colors.HexColor("#cbd5e1")),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f0f0")]),
+                ("LINEBELOW", (0, 0), (-1, 0), 0.8, colors.HexColor("#333333")),
+                ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#999999")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
             ]
         )
