@@ -30,6 +30,19 @@ def load_optional_json_array(path: Path) -> pl.DataFrame:
     return load_json_array(path)
 
 
+def load_csv(path: Path) -> pl.DataFrame:
+    text = path.read_text()
+    if not text.strip():
+        return pl.DataFrame()
+    return pl.read_csv(path, infer_schema_length=None, null_values=[""])
+
+
+def load_optional_csv(path: Path) -> pl.DataFrame:
+    if not path.exists():
+        return pl.DataFrame()
+    return load_csv(path)
+
+
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 

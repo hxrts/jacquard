@@ -4,11 +4,9 @@
 
 ### Executive Summary Intro
 
-This report studies Jacquard routing behavior across six engines, `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `pathway`, and `field`, using a common simulator corpus and a shared analysis pipeline.
+This report studies Jacquard routing behavior across six engines, `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `pathway`, and `field`, using a common simulator corpus and analysis pipeline. The goal is to understand where each engine works well, where performance degrades, what kind of failures arise, and to compare engines under the same network conditions. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
 
-The goal is to understand where each engine works cleanly, where it begins to degrade, what kinds of failures appear first, and compare engines under the same network regimes. Routing quality is regime-dependent: a setting that works well in an easy connected network may break down under asymmetry, bridge loss, candidate pressure, or uncertainty.
-
-The document is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles. Part IV evaluates these calibrated profiles under message-diffusion scenarios where node movement and intermittent contact opportunities carry messages, and end-to-end paths may not exist.
+The report is organized in four parts. Part I covers tuning: recommended configurations, transition behavior, failure boundaries, and simulator assumptions. Part II covers engine-specific analysis and cross-engine comparisons. Part III calibrates diffusion-oriented engine profiles. Part IV evaluates these calibrated profiles under message-diffusion scenarios where node movement and intermittent contact opportunities carry messages, and end-to-end paths may not exist.
 
 ## Part I. Tuning
 
