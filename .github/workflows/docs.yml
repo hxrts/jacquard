@@ -65,8 +65,8 @@ jobs:
         run: |
           book_output=docs/book
           mkdir -p "$book_output"/reports
-          cp artifacts/analysis/local/latest/report.pdf \
-            "$book_output"/reports/routing-tuning-report.pdf
+          cp artifacts/analysis/local/latest/router-tuning-report.pdf \
+            "$book_output"/reports/router-tuning-report.pdf
       - name: Setup Pages
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/configure-pages@v4

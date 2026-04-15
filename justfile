@@ -33,7 +33,7 @@ tuning-smoke:
 tuning-local:
     cargo run -p jacquard-simulator --bin tuning_matrix -- local
     @echo "Tuning local artifacts: artifacts/analysis/local/latest"
-    @echo "Report: artifacts/analysis/local/latest/report.pdf"
+    @echo "Report: artifacts/analysis/local/latest/router-tuning-report.pdf"
 
 # regenerate CSVs, plots, and the analysis report for one existing tuning artifact directory
 tuning-report artifact_dir='artifacts/analysis/local/latest':

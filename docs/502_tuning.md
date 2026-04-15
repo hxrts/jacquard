@@ -58,7 +58,8 @@ Regenerate the report for an existing artifact directory:
 nix develop --command python3 -m analysis.report artifacts/analysis/local/latest
 ```
 
-The local report is written to `artifacts/analysis/{suite}/latest/report.pdf`.
+The local report is written to
+`artifacts/analysis/{suite}/latest/router-tuning-report.pdf`.
 On `main`, GitHub Pages also publishes the latest CI-built routing report PDF
 under the docs site root.
 
@@ -136,7 +137,7 @@ cargo run --bin tuning_matrix -- local
 ```
 
 The report is generated automatically at
-`artifacts/analysis/local/latest/report.pdf`.
+`artifacts/analysis/local/latest/router-tuning-report.pdf`.
 On `main`, the latest CI-built copy is also published with the docs site.
 
 ### BATMAN Bellman

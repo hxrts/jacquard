@@ -68,6 +68,9 @@ from .scoring import (
     write_recommendations,
 )
 
+REPORT_PDF_NAME = "router-tuning-report.pdf"
+LEGACY_REPORT_PDF_NAMES = ("report.pdf", "tuning_report.pdf", "routing-tuning-report.pdf")
+
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
@@ -78,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     artifact_arg = Path(argv[0]).resolve()
     artifact_dir = artifact_arg.parent if artifact_arg.name == "report" else artifact_arg
     report_dir = artifact_arg if artifact_arg.name == "report" else artifact_dir / "report"
-    pdf_path = artifact_dir / "report.pdf"
+    pdf_path = artifact_dir / REPORT_PDF_NAME
 
     def load_required_frame(raw_name: str, csv_name: str) -> tuple[Path | None, object]:
         raw_path = artifact_dir / raw_name
@@ -401,6 +404,10 @@ def main(argv: list[str] | None = None) -> int:
         if report_dir.exists():
             shutil.rmtree(report_dir)
         shutil.move(str(output_report_dir), str(report_dir))
+        for legacy_name in LEGACY_REPORT_PDF_NAMES:
+            legacy_path = artifact_dir / legacy_name
+            if legacy_path.exists():
+                legacy_path.unlink()
         if pdf_path.exists():
             pdf_path.unlink()
         shutil.move(str(output_pdf_path), str(pdf_path))

@@ -74,6 +74,8 @@ def cleanup_report_dir(report_dir: Path) -> None:
         "diffusion_resource_boundedness.png",
         "report.pdf",
         "tuning_report.pdf",
+        "routing-tuning-report.pdf",
+        "router-tuning-report.pdf",
     ]:
         stale = report_dir / name
         if stale.exists():
