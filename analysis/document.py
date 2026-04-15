@@ -162,7 +162,7 @@ def build_styles():
             fontSize=13,
             leading=16,
             textColor=colors.HexColor("#000000"),
-            spaceBefore=8,
+            spaceBefore=16,
             spaceAfter=8,
         )
     )
@@ -174,7 +174,7 @@ def build_styles():
             fontSize=11.2,
             leading=14,
             textColor=colors.HexColor("#000000"),
-            spaceBefore=8,
+            spaceBefore=12,
             spaceAfter=4,
         )
     )
