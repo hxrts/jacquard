@@ -14,6 +14,30 @@ artifact directory. That second track models mobility-driven contacts,
 message persistence, bounded replication, resource cost, and observer leakage
 for partition-tolerant delivery scenarios.
 
+## Design Setting
+
+The maintained corpus is designed for disrupted and mobility-driven mesh
+environments. In that setting, end-to-end paths are often absent. Connectivity
+appears through short contact windows, weak bridges, and repeated partial
+recovery rather than through one stable connected graph. Nodes are also
+resource-constrained, so routing quality depends on bounded state, bounded
+work, and disciplined use of transmissions and custody.
+
+The route-visible matrix gives useful evidence for this setting because it
+stresses the conditions that determine whether a router-facing engine remains
+usable at all. The maintained families vary bridge pressure, asymmetry, loss,
+relink events, partitions, recovery, contention, and local node pressure.
+Those are the same forces that determine whether a proactive engine keeps a
+route, whether a search-driven engine finds one, and where each approach
+breaks down.
+
+The diffusion track adds the second half of the picture. It models cases where
+movement is the transport mechanism and messages must persist across
+disconnection. Its mobility-driven contacts, bounded replication, energy and
+transmission accounting, storage utilization, and observer-leakage measures
+give insight into whether a deferred-delivery policy remains viable in the
+population-level setting described above, not only in easy connected regimes.
+
 ## Commands
 
 Run the smaller smoke sweep:
