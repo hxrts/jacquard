@@ -1,12 +1,12 @@
 # Introduction
 
-Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and six in-tree routing engines: `pathway` for explicit-path routing, `field` for corridor-envelope routing over a continuously updated field model, `batman-bellman` for Bellman-Ford-enhanced next-hop routing, `batman-classic` for spec-faithful BATMAN IV next-hop routing, `babel` for RFC 8966 distance-vector routing with bidirectional ETX and feasibility distances, and `olsrv2` for OLSRv2 link-state routing. It is designed so a host can add external routing engines through the same contract.
+Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and seven in-tree routing engines: `pathway` for explicit-path routing, `field` for corridor-envelope routing over a continuously updated field model, `batman-bellman` for Bellman-Ford-enhanced next-hop routing, `batman-classic` for spec-faithful BATMAN IV next-hop routing, `babel` for RFC 8966 distance-vector routing with bidirectional ETX and feasibility distances, `olsrv2` for OLSRv2 link-state routing, and `scatter` for bounded deferred-delivery diffusion routing. It is designed so a host can add external routing engines through the same contract.
 
 See [Core Types](201_core_types.md) for the model objects, pipeline, observation, and world-extension surfaces that carry the system. See [Time Model](202_time.md) for the deterministic time rules. See [Routing Engines](303_routing_engines.md) for the engine contract, host runtime-effect boundary, and links to the in-tree engine pages. See [Router Control Plane](304_router_control_plane.md) for how a route moves from objective through materialization, maintenance, and teardown. See [Crate Architecture](999_crate_architecture.md) for separation of concerns and implementation policies.
 
 ## Scope
 
-Jacquard owns the shared routing contract and six in-tree routing engines. The router control plane, runtime adapters, and simulation harness are implemented crates. Protection-versus-connectivity policy may be supplied by a host, but Jacquard itself stays routing-engine-neutral at the contract layer.
+Jacquard owns the shared routing contract and seven in-tree routing engines. The router control plane, runtime adapters, and simulation harness are implemented crates. Protection-versus-connectivity policy may be supplied by a host, but Jacquard itself stays routing-engine-neutral at the contract layer.
 
 The central split is between shared facts and local runtime state. Service descriptors, topology observations, admission checks, and route witnesses are explicit shared objects. Adaptive policy, selected routing actions, installed-route ownership, and engine-private runtime state stay local.
 

@@ -4,7 +4,7 @@
 
 Hosts own transport drivers. The bridge stamps ingress with Jacquard `Tick`. The router advances through explicit synchronous rounds. Engines keep private runtime state below the shared routing boundary.
 
-The simulator selects engines per host through `EngineLane`. Available lanes include single-engine variants (`Pathway`, `BatmanBellman`, `BatmanClassic`, `Babel`, `OlsrV2`, `Field`) and mixed-engine variants (`PathwayAndBatmanBellman`, `PathwayAndBabel`, `PathwayAndField`, `BabelAndBatmanBellman`, `FieldAndBatmanBellman`, `AllEngines`). All engines share one host bridge per node.
+The simulator selects engines per host through `EngineLane`. Available lanes include single-engine variants (`Pathway`, `BatmanBellman`, `BatmanClassic`, `Babel`, `OlsrV2`, `Scatter`, `Field`) and mixed-engine variants (`PathwayAndBatmanBellman`, `PathwayAndBabel`, `PathwayAndOlsrV2`, `PathwayAndField`, `BabelAndBatmanBellman`, `OlsrV2AndBatmanBellman`, `FieldAndBatmanBellman`, `AllEngines`). All engines share one host bridge per node.
 
 The simulator also owns the maintained tuning and diffusion harnesses. The `tuning_matrix` binary runs scenario sweeps, writes deterministic artifacts under `artifacts/analysis/`, and automatically generates the analysis report. The tuning methodology and current recommendations live in [Routing Tuning](502_tuning.md).
 
