@@ -7,6 +7,7 @@ authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
 documentation.workspace = true
+description = "Scenario and replay harness for deterministic Jacquard routing analysis"
 
 [dependencies]
 jacquard-adapter = { version = "0.5.0", path = "../adapter" }
