@@ -1146,6 +1146,8 @@ mod tests {
         let early = generate_contacts(41, &scenario, 6).len();
         let middle = generate_contacts(41, &scenario, scenario.round_count / 2).len();
         let late = generate_contacts(41, &scenario, scenario.round_count - 4).len();
-        assert!(early != middle || middle != late);
+        let distinct: std::collections::HashSet<usize> =
+            [early, middle, late].into_iter().collect();
+        assert!(distinct.len() > 1);
     }
 }
