@@ -770,6 +770,7 @@ dependencies = [
  "jacquard-router",
  "jacquard-scatter",
  "jacquard-traits",
+ "rayon",
  "serde",
  "serde_json",
  "telltale-simulator",

@@ -1,14 +1,14 @@
 use super::{
     classify_field_transfer, compute_field_posture_signals, count_field_posture_round,
-    covered_target_clusters, desired_field_posture, diffusion_bridge_candidate,
-    dominant_field_posture_name, field_budget_kind, field_forwarding_suppressed, forwarding_score,
-    holder_count_in_cluster, initial_field_budget, initial_field_posture, mean_option_u32,
-    mean_u32, min_max_spread_u32, mode_option_string, mode_string, sender_energy_ratio_permille,
-    BTreeMap, BTreeSet, DiffusionAggregateSummary, DiffusionBoundarySummary, DiffusionContactEvent,
-    DiffusionFieldPosture, DiffusionMessageMode, DiffusionMobilityProfile, DiffusionNodeSpec,
-    DiffusionRunSpec, DiffusionRunSummary, DiffusionScenarioSpec, DiffusionTransportKind,
-    FieldBudgetKind, FieldBudgetState, FieldExecutionMetrics, FieldPostureMetrics,
-    FieldSuppressionState, FieldTransferFeatures, HolderState, PendingTransfer,
+    covered_target_clusters, desired_field_posture, dominant_field_posture_name, field_budget_kind,
+    field_forwarding_suppressed, forwarding_score, holder_count_in_cluster, initial_field_budget,
+    initial_field_posture, mean_option_u32, mean_u32, min_max_spread_u32, mode_option_string,
+    mode_string, sender_energy_ratio_permille, BTreeMap, BTreeSet, DiffusionAggregateSummary,
+    DiffusionBoundarySummary, DiffusionContactEvent, DiffusionFieldPosture, DiffusionMessageMode,
+    DiffusionMobilityProfile, DiffusionNodeSpec, DiffusionPairDescriptor, DiffusionRunSpec,
+    DiffusionRunSummary, DiffusionScenarioSpec, DiffusionTransportKind, FieldBudgetKind,
+    FieldBudgetState, FieldExecutionMetrics, FieldPostureMetrics, FieldSuppressionState,
+    FieldTransferFeatures, HolderState, PendingTransfer,
 };
 
 // long-block-exception: the deterministic round loop keeps contact generation,
@@ -752,39 +752,65 @@ pub(super) fn generate_contacts(
     round: u32,
 ) -> Vec<DiffusionContactEvent> {
     let mut contacts = Vec::new();
-    for index in 0..scenario.nodes.len() {
-        for peer_index in index + 1..scenario.nodes.len() {
-            let left = &scenario.nodes[index];
-            let right = &scenario.nodes[peer_index];
-            let probability = contact_probability_permille(scenario, left, right, round);
-            if probability
-                <= permille_hash(
-                    seed,
-                    scenario.family_id.as_str(),
-                    round,
-                    left.node_id,
-                    right.node_id,
-                    1,
-                )
-            {
-                continue;
-            }
-            let transport_kind = choose_transport(left, right, round);
-            let (bandwidth_bytes, energy_cost_per_byte, connection_delay) =
-                transport_properties(transport_kind);
-            contacts.push(DiffusionContactEvent {
-                round_index: round,
-                node_a: left.node_id,
-                node_b: right.node_id,
-                contact_window: 1,
-                bandwidth_bytes,
-                transport_kind,
-                connection_delay,
-                energy_cost_per_byte,
-            });
+    for pair in &scenario.pair_descriptors {
+        let left = &scenario.nodes[pair.left_index];
+        let right = &scenario.nodes[pair.right_index];
+        let probability = contact_probability_permille_for_pair(scenario, pair, round);
+        if probability
+            <= permille_hash(
+                seed,
+                scenario.family_id.as_str(),
+                round,
+                pair.left_node_id,
+                pair.right_node_id,
+                1,
+            )
+        {
+            continue;
         }
+        let transport_kind = choose_transport(left, right, round);
+        let (bandwidth_bytes, energy_cost_per_byte, connection_delay) =
+            transport_properties(transport_kind);
+        contacts.push(DiffusionContactEvent {
+            round_index: round,
+            node_a: pair.left_node_id,
+            node_b: pair.right_node_id,
+            contact_window: 1,
+            bandwidth_bytes,
+            transport_kind,
+            connection_delay,
+            energy_cost_per_byte,
+        });
     }
     contacts
+}
+
+fn contact_probability_permille_for_pair(
+    scenario: &DiffusionScenarioSpec,
+    pair: &DiffusionPairDescriptor,
+    round: u32,
+) -> u32 {
+    match scenario.family_id.as_str() {
+        "diffusion-mobility-shift" => {
+            if round < scenario.round_count / 2 {
+                if pair.same_cluster {
+                    650
+                } else if pair.bridged {
+                    140
+                } else {
+                    30
+                }
+            } else if pair.same_cluster {
+                380
+            } else if pair.bridged {
+                460
+            } else {
+                140
+            }
+        }
+        family_id => same_cluster_bridged_probability(family_id, pair.same_cluster, pair.bridged)
+            .unwrap_or(0),
+    }
 }
 
 fn same_cluster_bridged_probability(
@@ -815,38 +841,6 @@ pub(super) fn family_cluster_probabilities(family_id: &str) -> Option<(u32, u32,
         "diffusion-energy-starved-relay" => Some((260, 110, 20)),
         "diffusion-congestion-cascade" => Some((960, 700, 480)),
         _ => None,
-    }
-}
-
-pub(super) fn contact_probability_permille(
-    scenario: &DiffusionScenarioSpec,
-    left: &DiffusionNodeSpec,
-    right: &DiffusionNodeSpec,
-    round: u32,
-) -> u32 {
-    let same_cluster = left.cluster_id == right.cluster_id;
-    let bridged = diffusion_bridge_candidate(left) || diffusion_bridge_candidate(right);
-    match scenario.family_id.as_str() {
-        "diffusion-mobility-shift" => {
-            if round < scenario.round_count / 2 {
-                if same_cluster {
-                    650
-                } else if bridged {
-                    140
-                } else {
-                    30
-                }
-            } else if same_cluster {
-                380
-            } else if bridged {
-                460
-            } else {
-                140
-            }
-        }
-        family_id => {
-            same_cluster_bridged_probability(family_id, same_cluster, bridged).unwrap_or(0)
-        }
     }
 }
 
@@ -960,7 +954,8 @@ pub(super) fn node_by_id(
     scenario: &DiffusionScenarioSpec,
     node_id: u32,
 ) -> Option<&DiffusionNodeSpec> {
-    scenario.nodes.iter().find(|node| node.node_id == node_id)
+    let index = *scenario.node_index_by_id.get(&node_id)?;
+    scenario.nodes.get(index)
 }
 
 pub(super) fn normalized_edge(left: u32, right: u32) -> (u32, u32) {

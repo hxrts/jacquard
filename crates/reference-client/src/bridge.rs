@@ -10,7 +10,7 @@
 //! drive the router through that owner rather than mutating transport drivers
 //! or calling `advance_round` on the router directly.
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
 use jacquard_adapter::{dispatch_mailbox, DispatchOverflow, DispatchReceiver, DispatchSender};
 use jacquard_core::{
@@ -152,7 +152,7 @@ pub enum BridgeRoundProgress {
 }
 
 pub struct HostBridge<Router> {
-    topology: Observation<Configuration>,
+    topology: Arc<Observation<Configuration>>,
     router: Router,
     transport: BridgeTransport,
     pending_transport_observations: VecDeque<TransportObservation>,
@@ -184,7 +184,7 @@ impl<Router> HostBridge<Router> {
     ) -> Self {
         let next_tick = Tick(topology.observed_at_tick.0.saturating_add(1));
         Self {
-            topology,
+            topology: Arc::new(topology),
             router,
             transport: BridgeTransport::with_queue_config(transport, queue_config),
             pending_transport_observations: VecDeque::new(),
@@ -203,7 +203,7 @@ impl<Router> HostBridge<Router> {
     ) -> Self {
         let next_tick = Tick(topology.observed_at_tick.0.saturating_add(1));
         Self {
-            topology,
+            topology: Arc::new(topology),
             router,
             transport,
             pending_transport_observations: VecDeque::new(),
@@ -215,7 +215,7 @@ impl<Router> HostBridge<Router> {
 
     #[must_use]
     pub fn topology(&self) -> &Observation<Configuration> {
-        &self.topology
+        self.topology.as_ref()
     }
 
     pub fn bind(&mut self) -> BoundHostBridge<'_, Router> {
@@ -271,11 +271,15 @@ impl BoundHostBridge<'_, ReferenceRouter> {
         &mut self.bridge.router
     }
 
-    pub fn replace_shared_topology(&mut self, topology: Observation<Configuration>) {
+    pub fn replace_shared_topology_shared(&mut self, topology: Arc<Observation<Configuration>>) {
         self.bridge
             .router
-            .ingest_topology_observation(topology.clone());
+            .ingest_shared_topology_observation(topology.clone());
         self.bridge.topology = topology;
+    }
+
+    pub fn replace_shared_topology(&mut self, topology: Observation<Configuration>) {
+        self.replace_shared_topology_shared(Arc::new(topology));
     }
 
     pub fn advance_round(&mut self) -> Result<BridgeRoundProgress, RouteError> {

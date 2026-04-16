@@ -53,7 +53,7 @@ pub use experiments::{
 };
 pub use harness::{
     JacquardHostAdapter, JacquardSimulationHarness, JacquardSimulator, ReferenceClientAdapter,
-    SimulationError,
+    SimulationCaptureArtifact, SimulationCaptureLevel, SimulationError,
 };
 pub use reduced_replay::{
     ReducedEnvironmentHookCounts, ReducedFailureClassCounts, ReducedReplayRound, ReducedReplayView,

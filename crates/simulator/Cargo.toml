@@ -27,6 +27,7 @@ jacquard-traits = { version = "0.5.0", path = "../traits" }
 
 serde = { workspace = true, default-features = false }
 serde_json.workspace = true
+rayon.workspace = true
 telltale-simulator.workspace = true
 thiserror.workspace = true
 

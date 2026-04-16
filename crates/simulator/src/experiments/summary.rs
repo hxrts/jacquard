@@ -3,6 +3,7 @@
 #![allow(clippy::wildcard_imports)]
 
 use super::*;
+use crate::ReducedRouteObservation;
 
 fn objective_active_round_count(round_count: u32, activate_at_round: u32) -> u32 {
     round_count.saturating_sub(activate_at_round)
@@ -31,6 +32,38 @@ fn min_max_spread_u32(values: impl Iterator<Item = u32>) -> (u32, u32, u32) {
     (min, max, max.saturating_sub(min))
 }
 
+fn route_observations_for<'a>(
+    observations: &'a [ReducedRouteObservation],
+    owner_node_id: NodeId,
+    destination: &DestinationId,
+) -> impl Iterator<Item = &'a ReducedRouteObservation> + 'a {
+    let destination = destination.clone();
+    observations.iter().filter(move |observation| {
+        observation.key.owner_node_id == owner_node_id && observation.key.destination == destination
+    })
+}
+
+fn route_churn_count_for(
+    observations: &[ReducedRouteObservation],
+    owner_node_id: NodeId,
+    destination: &DestinationId,
+) -> u32 {
+    let count = route_observations_for(observations, owner_node_id, destination).count();
+    u32::try_from(count.saturating_sub(1)).unwrap_or(u32::MAX)
+}
+
+fn engine_handoff_count_for(
+    observations: &[ReducedRouteObservation],
+    owner_node_id: NodeId,
+    destination: &DestinationId,
+) -> u32 {
+    let distinct = route_observations_for(observations, owner_node_id, destination)
+        .map(|observation| observation.engine_id.clone())
+        .collect::<BTreeSet<_>>()
+        .len();
+    u32::try_from(distinct.saturating_sub(1)).unwrap_or(u32::MAX)
+}
+
 // long-block-exception: one reducer intentionally computes the stable per-run
 // summary schema directly from the replay view in one auditable pass.
 pub(super) fn summarize_run(
@@ -54,6 +87,7 @@ pub(super) fn summarize_run(
         .iter()
         .map(|binding| binding.owner_node_id)
         .collect::<BTreeSet<_>>();
+    let route_observations = reduced.route_observations();
 
     for binding in spec.scenario.bound_objectives() {
         objective_count = objective_count.saturating_add(1);
@@ -80,22 +114,24 @@ pub(super) fn summarize_run(
         recovery_rounds.push(
             reduced.recovery_delta_rounds(binding.owner_node_id, &binding.objective.destination),
         );
-        churn_count = churn_count.saturating_add(
-            reduced.route_churn_count(binding.owner_node_id, &binding.objective.destination),
-        );
-        handoff_count = handoff_count.saturating_add(
-            reduced.engine_handoff_count(binding.owner_node_id, &binding.objective.destination),
-        );
+        churn_count = churn_count.saturating_add(route_churn_count_for(
+            &route_observations,
+            binding.owner_node_id,
+            &binding.objective.destination,
+        ));
+        handoff_count = handoff_count.saturating_add(engine_handoff_count_for(
+            &route_observations,
+            binding.owner_node_id,
+            &binding.objective.destination,
+        ));
         route_observation_count = route_observation_count.saturating_add(
             u32::try_from(
-                reduced
-                    .route_observations()
-                    .into_iter()
-                    .filter(|observation| {
-                        observation.key.owner_node_id == binding.owner_node_id
-                            && observation.key.destination == binding.objective.destination
-                    })
-                    .count(),
+                route_observations_for(
+                    &route_observations,
+                    binding.owner_node_id,
+                    &binding.objective.destination,
+                )
+                .count(),
             )
             .unwrap_or(u32::MAX),
         );

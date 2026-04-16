@@ -21,7 +21,10 @@ pub(super) fn build_partitioned_clusters_scenario() -> DiffusionScenarioSpec {
         source_node_id: 1,
         destination_node_id: Some(12),
         nodes: clustered_nodes(12, 3, false),
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
     }
+    .with_runtime_indexes()
 }
 
 pub(super) fn build_random_waypoint_sanity_scenario() -> DiffusionScenarioSpec {
@@ -42,7 +45,10 @@ pub(super) fn build_random_waypoint_sanity_scenario() -> DiffusionScenarioSpec {
         source_node_id: 1,
         destination_node_id: Some(8),
         nodes: clustered_nodes(8, 2, false),
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
     }
+    .with_runtime_indexes()
 }
 
 pub(super) fn build_disaster_broadcast_scenario() -> DiffusionScenarioSpec {
@@ -65,7 +71,10 @@ pub(super) fn build_disaster_broadcast_scenario() -> DiffusionScenarioSpec {
         source_node_id: 1,
         destination_node_id: None,
         nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
     }
+    .with_runtime_indexes()
 }
 
 pub(super) fn build_sparse_long_delay_scenario() -> DiffusionScenarioSpec {
@@ -93,7 +102,10 @@ pub(super) fn build_sparse_long_delay_scenario() -> DiffusionScenarioSpec {
         source_node_id: 1,
         destination_node_id: Some(10),
         nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
     }
+    .with_runtime_indexes()
 }
 
 pub(super) fn build_high_density_overload_scenario() -> DiffusionScenarioSpec {
@@ -114,7 +126,10 @@ pub(super) fn build_high_density_overload_scenario() -> DiffusionScenarioSpec {
         source_node_id: 1,
         destination_node_id: None,
         nodes: clustered_nodes(18, 3, false),
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
     }
+    .with_runtime_indexes()
 }
 
 pub(super) fn build_mobility_shift_scenario() -> DiffusionScenarioSpec {
@@ -135,7 +150,10 @@ pub(super) fn build_mobility_shift_scenario() -> DiffusionScenarioSpec {
         source_node_id: 1,
         destination_node_id: Some(12),
         nodes: clustered_nodes(12, 3, false),
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
     }
+    .with_runtime_indexes()
 }
 
 pub(super) fn build_adversarial_observation_scenario() -> DiffusionScenarioSpec {
@@ -156,7 +174,10 @@ pub(super) fn build_adversarial_observation_scenario() -> DiffusionScenarioSpec 
         source_node_id: 1,
         destination_node_id: Some(12),
         nodes: clustered_nodes(12, 3, true),
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
     }
+    .with_runtime_indexes()
 }
 
 pub(super) fn build_bridge_drought_scenario() -> DiffusionScenarioSpec {
@@ -188,7 +209,10 @@ pub(super) fn build_bridge_drought_scenario() -> DiffusionScenarioSpec {
         source_node_id: 1,
         destination_node_id: Some(14),
         nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
     }
+    .with_runtime_indexes()
 }
 
 pub(super) fn build_energy_starved_relay_scenario() -> DiffusionScenarioSpec {
@@ -218,7 +242,10 @@ pub(super) fn build_energy_starved_relay_scenario() -> DiffusionScenarioSpec {
         source_node_id: 1,
         destination_node_id: Some(12),
         nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
     }
+    .with_runtime_indexes()
 }
 
 pub(super) fn build_congestion_cascade_scenario() -> DiffusionScenarioSpec {
@@ -244,7 +271,10 @@ pub(super) fn build_congestion_cascade_scenario() -> DiffusionScenarioSpec {
         source_node_id: 1,
         destination_node_id: None,
         nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
     }
+    .with_runtime_indexes()
 }
 
 fn clustered_nodes(

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use jacquard_core::{
     ConnectivityPosture, DestinationId, DurationMs, HoldFallbackPolicy, NodeId, PriorityPoints,
@@ -21,6 +21,7 @@ use thiserror::Error;
 
 use crate::{
     environment::ScriptedEnvironmentModel,
+    reduced_replay::{ReducedFieldReplayObservation, ReducedReplayRound, ReducedReplayView},
     replay::{
         ActiveRouteSummary, DriverStatusEvent, FieldReplaySummary, HostCheckpointSnapshot,
         HostRoundArtifact, HostRoundStatus, IngressBatchBoundary, JacquardCheckpointArtifact,
@@ -39,6 +40,20 @@ use replay_support::{
     stitch_replay_from_checkpoint, summarize_active_routes, summarize_field_replay,
     TopologyAdvance,
 };
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SimulationCaptureLevel {
+    FullReplay,
+    ReducedReplay,
+    SummaryOnly,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SimulationCaptureArtifact {
+    FullReplay(Box<JacquardReplayArtifact>),
+    ReducedReplay(Box<ReducedReplayView>),
+    SummaryOnly,
+}
 
 #[derive(Debug, Error)]
 pub enum SimulationError {
@@ -250,7 +265,30 @@ where
         scenario: &JacquardScenario,
         environment: &ScriptedEnvironmentModel,
     ) -> Result<(JacquardReplayArtifact, JacquardSimulationStats), SimulationError> {
-        self.run_from_state(scenario, environment, None)
+        match self.run_with_capture(scenario, environment, SimulationCaptureLevel::FullReplay)? {
+            (SimulationCaptureArtifact::FullReplay(replay), stats) => Ok((*replay, stats)),
+            _ => unreachable!("full replay capture must return a full replay artifact"),
+        }
+    }
+
+    pub fn run_reduced(
+        &self,
+        scenario: &JacquardScenario,
+        environment: &ScriptedEnvironmentModel,
+    ) -> Result<(ReducedReplayView, JacquardSimulationStats), SimulationError> {
+        match self.run_with_capture(scenario, environment, SimulationCaptureLevel::ReducedReplay)? {
+            (SimulationCaptureArtifact::ReducedReplay(replay), stats) => Ok((*replay, stats)),
+            _ => unreachable!("reduced capture must return a reduced replay artifact"),
+        }
+    }
+
+    pub fn run_with_capture(
+        &self,
+        scenario: &JacquardScenario,
+        environment: &ScriptedEnvironmentModel,
+        capture_level: SimulationCaptureLevel,
+    ) -> Result<(SimulationCaptureArtifact, JacquardSimulationStats), SimulationError> {
+        self.run_from_state(scenario, environment, None, capture_level)
     }
 
     pub fn resume_from_checkpoint(
@@ -263,7 +301,7 @@ where
         if !replay.scenario.all_hosts_pathway() {
             return self.run(&replay.scenario, &replay.environment_model);
         }
-        let (suffix_replay, suffix_stats) = self.run_from_state(
+        let (suffix_artifact, suffix_stats) = self.run_from_state(
             &replay
                 .scenario
                 .clone()
@@ -276,11 +314,15 @@ where
                 ),
             &replay.environment_model,
             Some(checkpoint),
+            SimulationCaptureLevel::FullReplay,
         )?;
+        let SimulationCaptureArtifact::FullReplay(suffix_replay) = suffix_artifact else {
+            unreachable!("checkpoint resume must return a full replay artifact");
+        };
         Ok(stitch_replay_from_checkpoint(
             replay,
             checkpoint.completed_rounds,
-            suffix_replay,
+            *suffix_replay,
             suffix_stats,
         ))
     }
@@ -293,7 +335,8 @@ where
         scenario: &JacquardScenario,
         environment: &ScriptedEnvironmentModel,
         resume_from: Option<&JacquardCheckpointArtifact>,
-    ) -> Result<(JacquardReplayArtifact, JacquardSimulationStats), SimulationError> {
+        capture_level: SimulationCaptureLevel,
+    ) -> Result<(SimulationCaptureArtifact, JacquardSimulationStats), SimulationError> {
         let mut _rng = SimRng::new(scenario.seed().0);
         let mut topology = match resume_from {
             Some(checkpoint) => checkpoint.topology.clone(),
@@ -319,10 +362,14 @@ where
         let mut all_stamped_route_events = Vec::new();
         let mut driver_status_events = Vec::new();
         let mut failure_summaries = Vec::new();
-        let mut rounds = Vec::new();
+        let mut full_rounds = Vec::new();
+        let mut reduced_rounds = Vec::new();
         let mut checkpoints = Vec::new();
+        let mut checkpoint_count = 0usize;
+        let mut route_event_count = 0usize;
         let mut advanced_round_count = 0u32;
         let mut waiting_round_count = 0u32;
+        let mut completed_round_count = 0u32;
 
         let mut activated_objectives =
             vec![resume_from.is_some(); scenario.bound_objectives().len()];
@@ -336,6 +383,7 @@ where
                 environment.advance_environment(&topology.value, at_tick);
             topology = next_topology;
             let topology_advanced = topology.value.epoch != prior_topology_epoch;
+            let shared_topology = Arc::new(topology.clone());
 
             let mut host_rounds = Vec::new();
             let mut all_waiting = true;
@@ -344,7 +392,7 @@ where
                     .get_mut(&host.local_node_id)
                     .ok_or(SimulationError::MissingBridge(host.local_node_id))?;
                 let mut bound = bridge.bind();
-                bound.replace_shared_topology(topology.clone());
+                bound.replace_shared_topology_shared(shared_topology.clone());
                 let progress = bound.advance_round()?;
                 maintain_active_routes(
                     bound.router_mut(),
@@ -356,43 +404,51 @@ where
                     checkpoint_round_offset + round_index,
                     &mut failure_summaries,
                 );
-                let active_routes = summarize_active_routes(host.local_node_id, bound.router());
-                let field_replay = summarize_field_replay(bound.router());
-                let artifact = host_artifact(
-                    host.local_node_id,
-                    at_tick,
-                    &progress,
-                    active_routes,
-                    field_replay,
-                );
-                if matches!(artifact.status, HostRoundStatus::Advanced { .. }) {
-                    all_waiting = false;
-                    advanced_round_count = advanced_round_count.saturating_add(1);
-                } else {
-                    waiting_round_count = waiting_round_count.saturating_add(1);
-                }
-                if let HostRoundStatus::Advanced {
-                    dropped_transport_observations,
-                    ..
-                } = artifact.status
-                {
-                    if dropped_transport_observations > 0 {
-                        driver_status_events.push(DriverStatusEvent::IngressDropped {
-                            local_node_id: host.local_node_id,
-                            at_tick,
-                            dropped_transport_observations,
-                        });
+                let dropped_transport_observations = match &progress {
+                    BridgeRoundProgress::Advanced(report) => {
+                        advanced_round_count = advanced_round_count.saturating_add(1);
+                        all_waiting = false;
+                        report.dropped_transport_observations
                     }
+                    BridgeRoundProgress::Waiting(waiting) => {
+                        waiting_round_count = waiting_round_count.saturating_add(1);
+                        waiting.dropped_transport_observations
+                    }
+                };
+                if dropped_transport_observations > 0 {
+                    driver_status_events.push(DriverStatusEvent::IngressDropped {
+                        local_node_id: host.local_node_id,
+                        at_tick,
+                        dropped_transport_observations,
+                    });
                 }
-                host_rounds.push(artifact);
+                if !matches!(capture_level, SimulationCaptureLevel::SummaryOnly) {
+                    let active_routes = summarize_active_routes(host.local_node_id, bound.router());
+                    let field_replay = summarize_field_replay(bound.router());
+                    host_rounds.push(host_artifact(
+                        host.local_node_id,
+                        at_tick,
+                        &progress,
+                        active_routes,
+                        field_replay,
+                    ));
+                }
             }
 
-            collect_route_events(
-                &mut hosts,
-                &mut route_event_cursors,
-                &mut all_route_events,
-                &mut all_stamped_route_events,
-            );
+            route_event_count = route_event_count.saturating_add(match capture_level {
+                SimulationCaptureLevel::FullReplay => collect_route_events(
+                    &mut hosts,
+                    &mut route_event_cursors,
+                    &mut all_route_events,
+                    &mut all_stamped_route_events,
+                ),
+                SimulationCaptureLevel::ReducedReplay | SimulationCaptureLevel::SummaryOnly => {
+                    replay_support::advance_route_event_cursors(
+                        &mut hosts,
+                        &mut route_event_cursors,
+                    )
+                }
+            });
 
             if activate_ready_objectives(
                 scenario.bound_objectives(),
@@ -401,37 +457,78 @@ where
                 &mut hosts,
                 &mut failure_summaries,
             ) {
-                refresh_host_round_routes(&mut host_rounds, &mut hosts);
-                collect_route_events(
-                    &mut hosts,
-                    &mut route_event_cursors,
-                    &mut all_route_events,
-                    &mut all_stamped_route_events,
-                );
+                if !matches!(capture_level, SimulationCaptureLevel::SummaryOnly) {
+                    refresh_host_round_routes(&mut host_rounds, &mut hosts);
+                }
+                route_event_count = route_event_count.saturating_add(match capture_level {
+                    SimulationCaptureLevel::FullReplay => collect_route_events(
+                        &mut hosts,
+                        &mut route_event_cursors,
+                        &mut all_route_events,
+                        &mut all_stamped_route_events,
+                    ),
+                    SimulationCaptureLevel::ReducedReplay | SimulationCaptureLevel::SummaryOnly => {
+                        replay_support::advance_route_event_cursors(
+                            &mut hosts,
+                            &mut route_event_cursors,
+                        )
+                    }
+                });
             }
 
             if let Some(interval) = scenario.checkpoint_interval() {
                 if interval > 0 && (round_index + 1) % interval == 0 {
-                    checkpoints.push(JacquardCheckpointArtifact {
-                        completed_rounds: checkpoint_round_offset + round_index + 1,
-                        topology: topology.clone(),
-                        host_snapshots: capture_host_snapshots(&mut hosts),
-                        telltale_native: scenario.all_hosts_pathway().then_some(
-                            TelltaleNativeArtifactRef::PathwayCheckpointRecovery {
-                                completed_rounds: checkpoint_round_offset + round_index + 1,
-                                host_count: hosts.len(),
-                            },
-                        ),
-                    });
+                    checkpoint_count = checkpoint_count.saturating_add(1);
+                    if matches!(capture_level, SimulationCaptureLevel::FullReplay) {
+                        checkpoints.push(JacquardCheckpointArtifact {
+                            completed_rounds: checkpoint_round_offset + round_index + 1,
+                            topology: shared_topology.as_ref().clone(),
+                            host_snapshots: capture_host_snapshots(&mut hosts),
+                            telltale_native: scenario.all_hosts_pathway().then_some(
+                                TelltaleNativeArtifactRef::PathwayCheckpointRecovery {
+                                    completed_rounds: checkpoint_round_offset + round_index + 1,
+                                    host_count: hosts.len(),
+                                },
+                            ),
+                        });
+                    }
                 }
             }
 
-            rounds.push(JacquardRoundArtifact {
-                round_index: checkpoint_round_offset + round_index,
-                topology: topology.clone(),
-                environment_artifacts,
-                host_rounds,
-            });
+            match capture_level {
+                SimulationCaptureLevel::FullReplay => {
+                    full_rounds.push(JacquardRoundArtifact {
+                        round_index: checkpoint_round_offset + round_index,
+                        topology: shared_topology.as_ref().clone(),
+                        environment_artifacts,
+                        host_rounds,
+                    });
+                }
+                SimulationCaptureLevel::ReducedReplay => {
+                    reduced_rounds.push(ReducedReplayRound {
+                        round_index: checkpoint_round_offset + round_index,
+                        active_routes: host_rounds
+                            .iter()
+                            .flat_map(|host| host.active_routes.iter().cloned())
+                            .collect(),
+                        environment_hooks: environment_artifacts,
+                        field_replays: host_rounds
+                            .iter()
+                            .filter_map(|host| {
+                                host.field_replay.clone().map(|summary| {
+                                    ReducedFieldReplayObservation {
+                                        local_node_id: host.local_node_id,
+                                        summary,
+                                    }
+                                })
+                            })
+                            .collect(),
+                    });
+                }
+                SimulationCaptureLevel::SummaryOnly => {}
+            }
+
+            completed_round_count = completed_round_count.saturating_add(1);
 
             if all_waiting
                 && scenario.bound_objectives().is_empty()
@@ -441,41 +538,67 @@ where
             }
         }
 
-        let total_completed_rounds =
-            checkpoint_round_offset.saturating_add(u32::try_from(rounds.len()).unwrap_or(u32::MAX));
+        let total_completed_rounds = checkpoint_round_offset.saturating_add(completed_round_count);
         failure_summaries.extend(failure_summaries_for(
-            &checkpoints,
-            &route_event_cursors,
+            checkpoint_count,
+            route_event_count,
             &driver_status_events,
         ));
-        let replay = JacquardReplayArtifact {
-            scenario: scenario.clone(),
-            environment_model: environment.clone(),
-            rounds,
-            route_events: all_route_events,
-            stamped_route_events: all_stamped_route_events,
-            driver_status_events,
-            failure_summaries,
-            checkpoints,
-            telltale_native: scenario.all_hosts_pathway().then_some(
-                TelltaleNativeArtifactRef::PathwayCheckpointRecovery {
-                    completed_rounds: total_completed_rounds,
-                    host_count: hosts.len(),
-                },
-            ),
-        };
         let stats = JacquardSimulationStats {
-            executed_round_count: u32::try_from(replay.rounds.len())
-                .expect("simulation rounds must fit in u32"),
+            executed_round_count: completed_round_count,
             advanced_round_count,
             waiting_round_count,
-            route_event_count: replay.route_events.len(),
-            checkpoint_count: replay.checkpoints.len(),
-            driver_status_event_count: replay.driver_status_events.len(),
-            failure_summary_count: replay.failure_summaries.len(),
+            route_event_count,
+            checkpoint_count,
+            driver_status_event_count: driver_status_events.len(),
+            failure_summary_count: failure_summaries.len(),
         };
-        self.adapter.validate_result(scenario, &replay, &stats)?;
-        Ok((replay, stats))
+
+        let artifact = match capture_level {
+            SimulationCaptureLevel::FullReplay => {
+                let replay = JacquardReplayArtifact {
+                    scenario: scenario.clone(),
+                    environment_model: environment.clone(),
+                    rounds: full_rounds,
+                    route_events: all_route_events,
+                    stamped_route_events: all_stamped_route_events,
+                    driver_status_events,
+                    failure_summaries,
+                    checkpoints,
+                    telltale_native: scenario.all_hosts_pathway().then_some(
+                        TelltaleNativeArtifactRef::PathwayCheckpointRecovery {
+                            completed_rounds: total_completed_rounds,
+                            host_count: hosts.len(),
+                        },
+                    ),
+                };
+                self.adapter.validate_result(scenario, &replay, &stats)?;
+                SimulationCaptureArtifact::FullReplay(Box::new(replay))
+            }
+            SimulationCaptureLevel::ReducedReplay => {
+                let distinct_engine_ids = reduced_rounds
+                    .iter()
+                    .flat_map(|round| {
+                        round
+                            .active_routes
+                            .iter()
+                            .map(|route| route.engine_id.clone())
+                    })
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .collect();
+                SimulationCaptureArtifact::ReducedReplay(Box::new(ReducedReplayView {
+                    scenario_name: scenario.name().to_owned(),
+                    round_count: completed_round_count,
+                    rounds: reduced_rounds,
+                    distinct_engine_ids,
+                    driver_status_events,
+                    failure_summaries,
+                }))
+            }
+            SimulationCaptureLevel::SummaryOnly => SimulationCaptureArtifact::SummaryOnly,
+        };
+        Ok((artifact, stats))
     }
 }
 
@@ -492,6 +615,29 @@ where
         Self {
             harness: JacquardSimulationHarness::new(adapter),
         }
+    }
+
+    #[must_use]
+    pub fn host_adapter(&self) -> &A {
+        &self.harness.adapter
+    }
+
+    pub fn run_scenario_with_capture(
+        &self,
+        scenario: &JacquardScenario,
+        environment: &ScriptedEnvironmentModel,
+        capture_level: SimulationCaptureLevel,
+    ) -> Result<(SimulationCaptureArtifact, JacquardSimulationStats), SimulationError> {
+        self.harness
+            .run_with_capture(scenario, environment, capture_level)
+    }
+
+    pub fn run_scenario_reduced(
+        &self,
+        scenario: &JacquardScenario,
+        environment: &ScriptedEnvironmentModel,
+    ) -> Result<(ReducedReplayView, JacquardSimulationStats), SimulationError> {
+        self.harness.run_reduced(scenario, environment)
     }
 }
 

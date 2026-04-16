@@ -252,17 +252,38 @@ pub(super) fn collect_route_events(
     cursors: &mut BTreeMap<NodeId, usize>,
     route_events: &mut Vec<jacquard_core::RouteEvent>,
     stamped_route_events: &mut Vec<jacquard_core::RouteEventStamped>,
-) {
+) -> usize {
+    let mut new_event_count = 0usize;
     for (node_id, host) in hosts {
         let cursor = cursors.entry(*node_id).or_insert(0);
         let new_events = {
             let owner = host.bind();
             owner.router().effects().events[*cursor..].to_vec()
         };
+        new_event_count = new_event_count.saturating_add(new_events.len());
         route_events.extend(new_events.iter().map(|event| event.event.clone()));
         stamped_route_events.extend(new_events.iter().cloned());
         *cursor = cursor.saturating_add(new_events.len());
     }
+    new_event_count
+}
+
+pub(super) fn advance_route_event_cursors(
+    hosts: &mut BTreeMap<NodeId, ReferenceClient>,
+    cursors: &mut BTreeMap<NodeId, usize>,
+) -> usize {
+    let mut new_event_count = 0usize;
+    for (node_id, host) in hosts {
+        let cursor = cursors.entry(*node_id).or_insert(0);
+        let next_len = {
+            let owner = host.bind();
+            owner.router().effects().events.len()
+        };
+        let delta = next_len.saturating_sub(*cursor);
+        new_event_count = new_event_count.saturating_add(delta);
+        *cursor = next_len;
+    }
+    new_event_count
 }
 
 pub(super) fn summarize_active_routes(
@@ -408,18 +429,18 @@ pub(super) fn restore_pathway_hosts(
 }
 
 pub(super) fn failure_summaries_for(
-    checkpoints: &[JacquardCheckpointArtifact],
-    route_event_cursors: &BTreeMap<NodeId, usize>,
+    checkpoint_count: usize,
+    route_event_count: usize,
     driver_status_events: &[DriverStatusEvent],
 ) -> Vec<SimulationFailureSummary> {
     let mut summaries = Vec::new();
-    if checkpoints.is_empty() {
+    if checkpoint_count == 0 {
         summaries.push(SimulationFailureSummary {
             round_index: None,
             detail: "no deterministic checkpoints were emitted during the run".to_string(),
         });
     }
-    if route_event_cursors.values().all(|count| *count == 0) {
+    if route_event_count == 0 {
         summaries.push(SimulationFailureSummary {
             round_index: None,
             detail: "run completed without any route lifecycle events".to_string(),

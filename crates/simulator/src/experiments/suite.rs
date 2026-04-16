@@ -19,31 +19,83 @@ pub fn local_suite() -> ExperimentSuite {
     build_suite("local", &[41, 43, 47, 53], false)
 }
 
+use rayon::prelude::*;
+
+#[cfg(test)]
+fn execute_suite_runs_serial<A>(
+    adapter: &A,
+    suite: &ExperimentSuite,
+) -> Result<Vec<ExperimentRunSummary>, ExperimentError>
+where
+    A: JacquardHostAdapter + Clone,
+{
+    suite
+        .runs
+        .iter()
+        .map(|spec| {
+            let simulator = JacquardSimulator::new(adapter.clone());
+            let (reduced, _) = simulator
+                .run_scenario_reduced(&spec.scenario, &spec.environment)
+                .map_err(|source| ExperimentError::SimulationRun {
+                    run_id: spec.run_id.clone(),
+                    source,
+                })?;
+            Ok(summarize_run(spec, &reduced))
+        })
+        .collect()
+}
+
+fn execute_suite_runs_parallel<A>(
+    adapter: &A,
+    suite: &ExperimentSuite,
+) -> Result<Vec<ExperimentRunSummary>, ExperimentError>
+where
+    A: JacquardHostAdapter + Clone + Send + Sync,
+{
+    let mut indexed = suite
+        .runs
+        .par_iter()
+        .enumerate()
+        .map(|(index, spec)| {
+            let simulator = JacquardSimulator::new(adapter.clone());
+            let reduced = simulator
+                .run_scenario_reduced(&spec.scenario, &spec.environment)
+                .map_err(|source| ExperimentError::SimulationRun {
+                    run_id: spec.run_id.clone(),
+                    source,
+                })?
+                .0;
+            Ok::<_, ExperimentError>((index, summarize_run(spec, &reduced)))
+        })
+        .collect::<Vec<_>>();
+    let mut runs = Vec::with_capacity(indexed.len());
+    indexed.sort_by_key(|result| match result {
+        Ok((index, _)) => *index,
+        Err(_) => usize::MAX,
+    });
+    for result in indexed {
+        let (_, summary) = result?;
+        runs.push(summary);
+    }
+    Ok(runs)
+}
+
 pub fn run_suite<A>(
     simulator: &mut JacquardSimulator<A>,
     suite: &ExperimentSuite,
     output_dir: &Path,
 ) -> Result<ExperimentArtifacts, ExperimentError>
 where
-    A: JacquardHostAdapter,
+    A: JacquardHostAdapter + Clone + Send + Sync,
 {
     fs::create_dir_all(output_dir)?;
-    let mut runs = Vec::new();
+    let runs = execute_suite_runs_parallel(simulator.host_adapter(), suite)?;
     let run_path = output_dir.join("runs.jsonl");
     let mut writer = BufWriter::new(File::create(&run_path)?);
 
-    for spec in &suite.runs {
-        let (replay, _) = simulator
-            .run_scenario(&spec.scenario, &spec.environment)
-            .map_err(|source| ExperimentError::SimulationRun {
-                run_id: spec.run_id.clone(),
-                source,
-            })?;
-        let reduced = ReducedReplayView::from_replay(&replay);
-        let summary = summarize_run(spec, &reduced);
-        serde_json::to_writer(&mut writer, &summary)?;
+    for summary in &runs {
+        serde_json::to_writer(&mut writer, summary)?;
         writer.write_all(b"\n")?;
-        runs.push(summary);
     }
     writer.flush()?;
 
@@ -74,28 +126,6 @@ where
         aggregates,
         breakdowns,
     })
-}
-
-fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
-    let mut runs = Vec::new();
-    let comparative_scale = if smoke {
-        ComparativeSuiteScale::Smoke
-    } else {
-        ComparativeSuiteScale::Full
-    };
-    runs.extend(build_batman_bellman_runs(suite_id, seeds, smoke));
-    runs.extend(build_batman_classic_runs(suite_id, seeds, smoke));
-    runs.extend(build_babel_runs(suite_id, seeds, smoke));
-    runs.extend(build_olsrv2_runs(suite_id, seeds, smoke));
-    runs.extend(build_scatter_runs(suite_id, seeds, comparative_scale));
-    runs.extend(build_pathway_runs(suite_id, seeds, smoke));
-    runs.extend(build_field_runs(suite_id, seeds, smoke));
-    runs.extend(build_comparison_runs(suite_id, seeds, comparative_scale));
-    runs.extend(build_head_to_head_runs(suite_id, seeds, comparative_scale));
-    ExperimentSuite {
-        suite_id: suite_id.to_string(),
-        runs,
-    }
 }
 
 // long-block-exception: the BATMAN family catalog is kept in one function so the
@@ -763,4 +793,44 @@ fn expand_runs(
         }
     }
     runs
+}
+
+fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
+    let mut runs = Vec::new();
+    let comparative_scale = if smoke {
+        ComparativeSuiteScale::Smoke
+    } else {
+        ComparativeSuiteScale::Full
+    };
+    runs.extend(build_batman_bellman_runs(suite_id, seeds, smoke));
+    runs.extend(build_batman_classic_runs(suite_id, seeds, smoke));
+    runs.extend(build_babel_runs(suite_id, seeds, smoke));
+    runs.extend(build_olsrv2_runs(suite_id, seeds, smoke));
+    runs.extend(build_scatter_runs(suite_id, seeds, comparative_scale));
+    runs.extend(build_pathway_runs(suite_id, seeds, smoke));
+    runs.extend(build_field_runs(suite_id, seeds, smoke));
+    runs.extend(build_comparison_runs(suite_id, seeds, comparative_scale));
+    runs.extend(build_head_to_head_runs(suite_id, seeds, comparative_scale));
+    ExperimentSuite {
+        suite_id: suite_id.to_string(),
+        runs,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{execute_suite_runs_parallel, execute_suite_runs_serial, smoke_suite};
+    use crate::ReferenceClientAdapter;
+
+    #[test]
+    fn route_visible_parallel_suite_matches_serial_ordered_runs() {
+        let suite = smoke_suite();
+        let adapter = ReferenceClientAdapter;
+        let serial = execute_suite_runs_serial(&adapter, &suite)
+            .expect("serial route-visible smoke suite should run");
+        let parallel = execute_suite_runs_parallel(&adapter, &suite)
+            .expect("parallel route-visible smoke suite should run");
+
+        assert_eq!(serial, parallel);
+    }
 }

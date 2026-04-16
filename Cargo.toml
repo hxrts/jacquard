@@ -76,6 +76,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # utilities
 rand = "0.8"
+rayon = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 cfg-if = "1"
 wasm-bindgen-test = "0.3"

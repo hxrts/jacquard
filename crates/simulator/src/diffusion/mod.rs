@@ -5,6 +5,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use rayon::prelude::*;
+
 use serde::{Deserialize, Serialize};
 
 use crate::experiments::ExperimentError;
@@ -144,6 +146,41 @@ pub(crate) struct DiffusionScenarioSpec {
     pub source_node_id: u32,
     pub destination_node_id: Option<u32>,
     pub nodes: Vec<DiffusionNodeSpec>,
+    #[serde(skip)]
+    pub node_index_by_id: BTreeMap<u32, usize>,
+    #[serde(skip)]
+    pub pair_descriptors: Vec<DiffusionPairDescriptor>,
+}
+
+impl DiffusionScenarioSpec {
+    fn rebuild_runtime_indexes(&mut self) {
+        self.node_index_by_id = self
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(index, node)| (node.node_id, index))
+            .collect();
+        self.pair_descriptors = Vec::new();
+        for left_index in 0..self.nodes.len() {
+            for right_index in left_index + 1..self.nodes.len() {
+                let left = &self.nodes[left_index];
+                let right = &self.nodes[right_index];
+                self.pair_descriptors.push(DiffusionPairDescriptor {
+                    left_index,
+                    right_index,
+                    left_node_id: left.node_id,
+                    right_node_id: right.node_id,
+                    same_cluster: left.cluster_id == right.cluster_id,
+                    bridged: diffusion_bridge_candidate(left) || diffusion_bridge_candidate(right),
+                });
+            }
+        }
+    }
+
+    fn with_runtime_indexes(mut self) -> Self {
+        self.rebuild_runtime_indexes();
+        self
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -165,6 +202,16 @@ pub(crate) struct DiffusionContactEvent {
     pub transport_kind: DiffusionTransportKind,
     pub connection_delay: u32,
     pub energy_cost_per_byte: u32,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct DiffusionPairDescriptor {
+    pub left_index: usize,
+    pub right_index: usize,
+    pub left_node_id: u32,
+    pub right_node_id: u32,
+    pub same_cluster: bool,
+    pub bridged: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -459,19 +506,33 @@ pub fn diffusion_local_suite() -> DiffusionSuite {
     build_diffusion_suite("diffusion-local", &[41, 43, 47, 53], false)
 }
 
+#[cfg(test)]
+fn execute_diffusion_runs_serial(suite: &DiffusionSuite) -> Vec<DiffusionRunSummary> {
+    suite.runs.iter().map(simulate_diffusion_run).collect()
+}
+
+fn execute_diffusion_runs_parallel(suite: &DiffusionSuite) -> Vec<DiffusionRunSummary> {
+    let mut indexed = suite
+        .runs
+        .par_iter()
+        .enumerate()
+        .map(|(index, spec)| (index, simulate_diffusion_run(spec)))
+        .collect::<Vec<_>>();
+    indexed.sort_by_key(|(index, _)| *index);
+    indexed.into_iter().map(|(_, summary)| summary).collect()
+}
+
 pub fn run_diffusion_suite(
     suite: &DiffusionSuite,
     output_dir: &Path,
 ) -> Result<DiffusionArtifacts, ExperimentError> {
     fs::create_dir_all(output_dir)?;
-    let mut runs = Vec::new();
+    let runs = execute_diffusion_runs_parallel(suite);
     let run_path = output_dir.join("diffusion_runs.jsonl");
     let mut writer = BufWriter::new(File::create(&run_path)?);
-    for spec in &suite.runs {
-        let summary = simulate_diffusion_run(spec);
-        serde_json::to_writer(&mut writer, &summary)?;
+    for summary in &runs {
+        serde_json::to_writer(&mut writer, summary)?;
         writer.write_all(b"\n")?;
-        runs.push(summary);
     }
     writer.flush()?;
     let aggregates = aggregate_diffusion_runs(&runs);
@@ -897,5 +958,31 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
                 DiffusionForwardingStyle::BalancedDistanceVector,
             ),
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        diffusion_smoke_suite, execute_diffusion_runs_parallel, execute_diffusion_runs_serial,
+        simulate_diffusion_run,
+    };
+
+    #[test]
+    fn diffusion_parallel_suite_matches_serial_ordered_runs() {
+        let suite = diffusion_smoke_suite();
+        let serial = execute_diffusion_runs_serial(&suite);
+        let parallel = execute_diffusion_runs_parallel(&suite);
+
+        assert_eq!(serial, parallel);
+    }
+
+    #[test]
+    fn diffusion_runs_are_repeatable() {
+        let suite = diffusion_smoke_suite();
+        let first = simulate_diffusion_run(&suite.runs[0]);
+        let second = simulate_diffusion_run(&suite.runs[0]);
+
+        assert_eq!(first, second);
     }
 }

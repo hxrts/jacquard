@@ -15,7 +15,7 @@
 //! - canonical route mutations and registry-level engine dispatch happen here
 //! - registered engines return typed evidence and opaque private runtime state
 
-use std::{any::Any, cmp::Reverse, collections::BTreeMap};
+use std::{any::Any, cmp::Reverse, collections::BTreeMap, sync::Arc};
 
 use jacquard_core::{
     AdmissionDecision, Belief, CapabilityError, Configuration, FactSourceClass, MaterializedRoute,
@@ -71,7 +71,7 @@ pub struct MultiEngineRouter<Policy, Effects> {
     registered_engines: BTreeMap<RoutingEngineId, RegisteredEngine>,
     policy_engine: Policy,
     effects: Effects,
-    topology: Observation<Configuration>,
+    topology: Arc<Observation<Configuration>>,
     policy_inputs: RoutingPolicyInputs,
     active_routes: BTreeMap<RouteId, MaterializedRoute>,
     published_commitments: BTreeMap<RouteId, Vec<RouteCommitment>>,
@@ -95,7 +95,7 @@ where
             registered_engines: BTreeMap::new(),
             policy_engine,
             effects,
-            topology,
+            topology: Arc::new(topology),
             policy_inputs,
             active_routes: BTreeMap::new(),
             published_commitments: BTreeMap::new(),
@@ -124,8 +124,15 @@ where
         Ok(())
     }
 
-    pub fn ingest_topology_observation(&mut self, topology: Observation<Configuration>) {
+    pub fn ingest_shared_topology_observation(
+        &mut self,
+        topology: Arc<Observation<Configuration>>,
+    ) {
         self.topology = topology;
+    }
+
+    pub fn ingest_topology_observation(&mut self, topology: Observation<Configuration>) {
+        self.ingest_shared_topology_observation(Arc::new(topology));
     }
 
     pub fn ingest_policy_inputs(&mut self, inputs: RoutingPolicyInputs) {
@@ -277,7 +284,7 @@ where
     }
 
     fn advance_all_engines(&mut self) -> Result<(RoutingTickChange, RoutingTickHint), RouteError> {
-        let tick = RoutingTickContext::new(self.topology.clone());
+        let tick = RoutingTickContext::new(self.topology.as_ref().clone());
         let mut aggregate = RoutingTickChange::NoChange;
         let mut hint = RoutingTickHint::HostDefault;
         for entry in self.registered_engines.values_mut() {
