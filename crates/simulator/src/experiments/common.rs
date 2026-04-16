@@ -1,8 +1,15 @@
 //! Shared topology builders, environment helpers, and parameter override application.
+// long-file-exception: the maintained topology and environment helper surface is
+// still centralized here until the next experiment-common extraction pass.
 
 #![allow(clippy::wildcard_imports)]
 
 use super::*;
+use crate::util::stats::{
+    average_option_u32 as util_average_option_u32, average_u32 as util_average_u32,
+    median_u32 as util_median_u32, mode_string as util_mode_string,
+    ratio_permille as util_ratio_permille,
+};
 
 pub(super) fn apply_overrides(
     scenario: &JacquardScenario,
@@ -49,36 +56,41 @@ pub(super) fn apply_overrides(
     .with_seed(scenario.seed())
 }
 
-pub(super) fn comparison_topology_node(node_byte: u8, comparison_engine_set: Option<&str>) -> Node {
-    match comparison_engine_set.unwrap_or("all-engines") {
-        "batman-bellman" => topology::node(node_byte).batman_bellman().build(),
-        "batman-classic" => topology::node(node_byte).batman_classic().build(),
-        "babel" => topology::node(node_byte).babel().build(),
-        "olsrv2" => topology::node(node_byte).olsrv2().build(),
-        "pathway" => topology::node(node_byte).pathway().build(),
-        "field" => topology::node(node_byte).field().build(),
-        "scatter" => topology::node(node_byte).scatter().build(),
-        "pathway-batman-bellman" => topology::node(node_byte)
+pub(super) fn comparison_topology_node(
+    node_byte: u8,
+    comparison_engine_set: Option<ComparisonEngineSet>,
+) -> Node {
+    match comparison_engine_set.unwrap_or(ComparisonEngineSet::AllEngines) {
+        ComparisonEngineSet::BatmanBellman => topology::node(node_byte).batman_bellman().build(),
+        ComparisonEngineSet::BatmanClassic => topology::node(node_byte).batman_classic().build(),
+        ComparisonEngineSet::Babel => topology::node(node_byte).babel().build(),
+        ComparisonEngineSet::OlsrV2 => topology::node(node_byte).olsrv2().build(),
+        ComparisonEngineSet::Pathway => topology::node(node_byte).pathway().build(),
+        ComparisonEngineSet::Field => topology::node(node_byte).field().build(),
+        ComparisonEngineSet::Scatter => topology::node(node_byte).scatter().build(),
+        ComparisonEngineSet::PathwayAndBatmanBellman => topology::node(node_byte)
             .pathway_and_batman_bellman()
             .build(),
-        _ => topology::node(node_byte).all_engines().build(),
+        ComparisonEngineSet::AllEngines => topology::node(node_byte).all_engines().build(),
     }
 }
 
 pub(super) fn comparison_host_spec(
     local_node_id: NodeId,
-    comparison_engine_set: Option<&str>,
+    comparison_engine_set: Option<ComparisonEngineSet>,
 ) -> HostSpec {
-    match comparison_engine_set.unwrap_or("all-engines") {
-        "batman-bellman" => HostSpec::batman_bellman(local_node_id),
-        "batman-classic" => HostSpec::batman_classic(local_node_id),
-        "babel" => HostSpec::babel(local_node_id),
-        "olsrv2" => HostSpec::olsrv2(local_node_id),
-        "pathway" => HostSpec::pathway(local_node_id),
-        "field" => HostSpec::field(local_node_id),
-        "scatter" => HostSpec::scatter(local_node_id),
-        "pathway-batman-bellman" => HostSpec::pathway_and_batman_bellman(local_node_id),
-        _ => HostSpec::all_engines(local_node_id),
+    match comparison_engine_set.unwrap_or(ComparisonEngineSet::AllEngines) {
+        ComparisonEngineSet::BatmanBellman => HostSpec::batman_bellman(local_node_id),
+        ComparisonEngineSet::BatmanClassic => HostSpec::batman_classic(local_node_id),
+        ComparisonEngineSet::Babel => HostSpec::babel(local_node_id),
+        ComparisonEngineSet::OlsrV2 => HostSpec::olsrv2(local_node_id),
+        ComparisonEngineSet::Pathway => HostSpec::pathway(local_node_id),
+        ComparisonEngineSet::Field => HostSpec::field(local_node_id),
+        ComparisonEngineSet::Scatter => HostSpec::scatter(local_node_id),
+        ComparisonEngineSet::PathwayAndBatmanBellman => {
+            HostSpec::pathway_and_batman_bellman(local_node_id)
+        }
+        ComparisonEngineSet::AllEngines => HostSpec::all_engines(local_node_id),
     }
 }
 
@@ -114,7 +126,7 @@ pub(super) fn field_hosts_with_bootstrap(
 }
 
 pub(super) fn comparison_hosts_with_bootstrap(
-    comparison_engine_set: Option<&str>,
+    comparison_engine_set: Option<ComparisonEngineSet>,
     destination: &DestinationId,
     summaries: &[FieldBootstrapSeed],
     primary_host: HostSpec,
@@ -156,35 +168,25 @@ where
 
 pub(super) fn seed_standalone_field_bootstrap(
     host: HostSpec,
-    comparison_engine_set: Option<&str>,
+    comparison_engine_set: Option<ComparisonEngineSet>,
     destination: &DestinationId,
     summaries: &[FieldBootstrapSeed],
 ) -> HostSpec {
-    if comparison_engine_set != Some("field") {
+    if comparison_engine_set != Some(ComparisonEngineSet::Field) {
         return host;
     }
     with_field_bootstrap_summaries(host, destination, summaries)
 }
 
 pub(super) fn ratio_permille(numerator: u32, denominator: u32) -> u32 {
-    if denominator == 0 {
-        return 0;
-    }
-    numerator.saturating_mul(1000) / denominator
+    util_ratio_permille(numerator, denominator)
 }
 
 pub(super) fn average_u32<I>(iter: I) -> u32
 where
     I: Iterator<Item = u32>,
 {
-    let values = iter.collect::<Vec<_>>();
-    if values.is_empty() {
-        return 0;
-    }
-    let sum = values
-        .iter()
-        .fold(0u64, |acc, value| acc.saturating_add(u64::from(*value)));
-    u32::try_from(sum / u64::try_from(values.len()).unwrap_or(1)).unwrap_or(u32::MAX)
+    util_average_u32(iter)
 }
 
 pub(super) fn average_option_u32(values: &[Option<u32>]) -> Option<u32> {
@@ -195,34 +197,18 @@ pub(super) fn average_option_u32_from_iter<I>(iter: I) -> Option<u32>
 where
     I: Iterator<Item = Option<u32>>,
 {
-    let values = iter.flatten().collect::<Vec<_>>();
-    if values.is_empty() {
-        return None;
-    }
-    Some(average_u32(values.into_iter()))
+    util_average_option_u32(iter)
 }
 
 pub(super) fn median_u32(values: &[u32]) -> Option<u32> {
-    if values.is_empty() {
-        return None;
-    }
-    let mut sorted = values.to_vec();
-    sorted.sort_unstable();
-    Some(sorted[sorted.len() / 2])
+    util_median_u32(values)
 }
 
 pub(super) fn mode<I>(iter: I) -> Option<String>
 where
     I: Iterator<Item = String>,
 {
-    let mut counts = BTreeMap::new();
-    for value in iter {
-        *counts.entry(value).or_insert(0u32) += 1;
-    }
-    counts
-        .into_iter()
-        .max_by_key(|(value, count)| (*count, value.clone()))
-        .map(|(value, _)| value)
+    util_mode_string(iter)
 }
 
 pub(super) fn engine_round_counts(reduced: &ReducedReplayView) -> BTreeMap<String, u32> {
@@ -710,7 +696,7 @@ fn topology_from_byte_nodes_and_edges(
 
 fn comparison_topology_nodes_for_bytes(
     bytes: &[u8],
-    comparison_engine_set: Option<&str>,
+    comparison_engine_set: Option<ComparisonEngineSet>,
 ) -> Vec<(u8, Node)> {
     bytes
         .iter()
@@ -758,7 +744,7 @@ const LARGE_CORE_PERIPHERY_HIGH_EDGES: &[(u8, u8)] = &[
     (13, 14),
 ];
 
-const LARGE_BOTTLENECK_MODERATE_EDGES: &[(u8, u8)] = &[
+const LARGE_MULTI_BRIDGE_TEN_NODES_EDGE_SET: &[(u8, u8)] = &[
     (1, 2),
     (1, 3),
     (2, 3),
@@ -775,7 +761,7 @@ const LARGE_BOTTLENECK_MODERATE_EDGES: &[(u8, u8)] = &[
     (9, 10),
 ];
 
-const LARGE_BOTTLENECK_HIGH_EDGES: &[(u8, u8)] = &[
+const LARGE_MULTI_BRIDGE_FOURTEEN_NODES_EDGE_SET: &[(u8, u8)] = &[
     (1, 2),
     (1, 3),
     (2, 3),
@@ -802,7 +788,7 @@ const LARGE_BOTTLENECK_HIGH_EDGES: &[(u8, u8)] = &[
 ];
 
 pub(super) fn large_population_core_periphery_topology(
-    comparison_engine_set: Option<&str>,
+    comparison_engine_set: Option<ComparisonEngineSet>,
     size_band: LargePopulationSizeBand,
 ) -> Observation<Configuration> {
     let (edges, reachable_neighbor_count) = match size_band {
@@ -817,12 +803,12 @@ pub(super) fn large_population_core_periphery_topology(
 }
 
 pub(super) fn large_population_bottleneck_topology(
-    comparison_engine_set: Option<&str>,
+    comparison_engine_set: Option<ComparisonEngineSet>,
     size_band: LargePopulationSizeBand,
 ) -> Observation<Configuration> {
     let (edges, reachable_neighbor_count) = match size_band {
-        LargePopulationSizeBand::Moderate => (LARGE_BOTTLENECK_MODERATE_EDGES, 3),
-        LargePopulationSizeBand::High => (LARGE_BOTTLENECK_HIGH_EDGES, 4),
+        LargePopulationSizeBand::Moderate => (LARGE_MULTI_BRIDGE_TEN_NODES_EDGE_SET, 3),
+        LargePopulationSizeBand::High => (LARGE_MULTI_BRIDGE_FOURTEEN_NODES_EDGE_SET, 4),
     };
     topology_from_byte_nodes_and_edges(
         comparison_topology_nodes_for_bytes(size_band.node_bytes(), comparison_engine_set),
@@ -911,7 +897,7 @@ pub(super) fn field_fanout_service_topology5(
 }
 
 pub(super) fn comparison_bridge_topology(
-    comparison_engine_set: Option<&str>,
+    comparison_engine_set: Option<ComparisonEngineSet>,
     contention_permille: RatioPermille,
     loss_permille: RatioPermille,
 ) -> Observation<Configuration> {

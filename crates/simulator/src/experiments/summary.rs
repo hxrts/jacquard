@@ -3,6 +3,7 @@
 #![allow(clippy::wildcard_imports)]
 
 use super::*;
+use crate::util::stats::min_max_spread_u32;
 use crate::ReducedRouteObservation;
 
 fn objective_active_round_count(round_count: u32, activate_at_round: u32) -> u32 {
@@ -23,13 +24,6 @@ fn active_window_route_presence_permille(
     )
     .unwrap_or(u32::MAX);
     ratio_permille(active_present_rounds, active_rounds)
-}
-
-fn min_max_spread_u32(values: impl Iterator<Item = u32>) -> (u32, u32, u32) {
-    let collected = values.collect::<Vec<_>>();
-    let min = collected.iter().copied().min().unwrap_or(0);
-    let max = collected.iter().copied().max().unwrap_or(0);
-    (min, max, max.saturating_sub(min))
 }
 
 fn route_observations_for<'a>(
@@ -384,7 +378,10 @@ pub(super) fn summarize_run(
         scenario_name: spec.scenario.name().to_string(),
         engine_family: spec.engine_family.clone(),
         config_id: spec.parameters.config_id.clone(),
-        comparison_engine_set: spec.parameters.comparison_engine_set.clone(),
+        comparison_engine_set: spec
+            .parameters
+            .comparison_engine_set_label()
+            .map(str::to_string),
         batman_bellman_stale_after_ticks: spec.parameters.batman_bellman_stale_after_ticks,
         batman_bellman_next_refresh_within_ticks: spec
             .parameters

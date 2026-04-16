@@ -1,4 +1,6 @@
 //! Cross-engine comparison scenario builders: connected, partitioned, and asymmetric families.
+// long-file-exception: the maintained comparison family catalog is still kept in
+// one file so scenario variants and their tests remain auditable together.
 
 #![allow(clippy::wildcard_imports)]
 
@@ -8,7 +10,7 @@ pub(super) fn build_comparison_connected_low_loss(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let comparison_engine_set = parameters.comparison_engine_set;
     let mut topology = ring_topology(
         comparison_topology_node(1, comparison_engine_set),
         comparison_topology_node(2, comparison_engine_set),
@@ -16,24 +18,22 @@ pub(super) fn build_comparison_connected_low_loss(
         comparison_topology_node(4, comparison_engine_set),
     );
     set_environment(&mut topology, 2, RatioPermille(30), RatioPermille(20));
-    let scenario = apply_overrides(
-        &JacquardScenario::new(
-            format!("comparison-connected-low-loss-{}", parameters.config_id),
-            seed,
-            jacquard_core::OperatingMode::DenseInteractive,
-            topology,
-            vec![
-                comparison_host_spec(NODE_A, comparison_engine_set)
-                    .with_profile(best_effort_connected_profile()),
-                comparison_host_spec(NODE_B, comparison_engine_set),
-                comparison_host_spec(NODE_C, comparison_engine_set),
-                comparison_host_spec(NODE_D, comparison_engine_set),
-            ],
-            vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
-            18,
-        ),
-        parameters,
-    );
+    let scenario = route_visible_template(
+        format!("comparison-connected-low-loss-{}", parameters.config_id),
+        seed,
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        vec![
+            comparison_host_spec(NODE_A, comparison_engine_set)
+                .with_profile(best_effort_connected_profile()),
+            comparison_host_spec(NODE_B, comparison_engine_set),
+            comparison_host_spec(NODE_C, comparison_engine_set),
+            comparison_host_spec(NODE_D, comparison_engine_set),
+        ],
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_C)).with_activation_round(2)],
+        18,
+    )
+    .into_scenario(parameters);
     (scenario, ScriptedEnvironmentModel::default())
 }
 
@@ -41,7 +41,7 @@ pub(super) fn build_comparison_connected_high_loss(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let comparison_engine_set = parameters.comparison_engine_set;
     let destination = DestinationId::Node(NODE_D);
     let bootstrap = [
         (NODE_B, 760, 2, 4, Some(680)),
@@ -54,28 +54,26 @@ pub(super) fn build_comparison_connected_high_loss(
         comparison_topology_node(4, comparison_engine_set),
     );
     set_environment(&mut topology, 1, RatioPermille(220), RatioPermille(220));
-    let scenario = apply_overrides(
-        &JacquardScenario::new(
-            format!("comparison-connected-high-loss-{}", parameters.config_id),
-            seed,
-            jacquard_core::OperatingMode::DenseInteractive,
-            topology,
-            host_specs_with_primary(
-                seed_standalone_field_bootstrap(
-                    comparison_host_spec(NODE_A, comparison_engine_set)
-                        .with_profile(repairable_connected_profile()),
-                    comparison_engine_set,
-                    &destination,
-                    &bootstrap,
-                ),
-                &[NODE_B, NODE_C, NODE_D],
-                |node_id| comparison_host_spec(node_id, comparison_engine_set),
+    let scenario = route_visible_template(
+        format!("comparison-connected-high-loss-{}", parameters.config_id),
+        seed,
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        host_specs_with_primary(
+            seed_standalone_field_bootstrap(
+                comparison_host_spec(NODE_A, comparison_engine_set)
+                    .with_profile(repairable_connected_profile()),
+                comparison_engine_set,
+                &destination,
+                &bootstrap,
             ),
-            vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
-            24,
+            &[NODE_B, NODE_C, NODE_D],
+            |node_id| comparison_host_spec(node_id, comparison_engine_set),
         ),
-        parameters,
-    );
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
+        24,
+    )
+    .into_scenario(parameters);
     let environment = ScriptedEnvironmentModel::new(vec![
         asymmetric_degradation_hook(
             7,
@@ -95,7 +93,7 @@ pub(super) fn build_comparison_bridge_transition(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let comparison_engine_set = parameters.comparison_engine_set;
     let destination = DestinationId::Node(NODE_D);
     let bootstrap = [
         (NODE_B, 820, 2, 4, Some(760)),
@@ -109,28 +107,26 @@ pub(super) fn build_comparison_bridge_transition(
     );
     set_environment(&mut topology, 1, RatioPermille(140), RatioPermille(140));
     let restore = topology.value.clone();
-    let scenario = apply_overrides(
-        &JacquardScenario::new(
-            format!("comparison-bridge-transition-{}", parameters.config_id),
-            seed,
-            jacquard_core::OperatingMode::DenseInteractive,
-            topology,
-            host_specs_with_primary(
-                seed_standalone_field_bootstrap(
-                    comparison_host_spec(NODE_A, comparison_engine_set)
-                        .with_profile(repairable_connected_profile()),
-                    comparison_engine_set,
-                    &destination,
-                    &bootstrap,
-                ),
-                &[NODE_B, NODE_C, NODE_D],
-                |node_id| comparison_host_spec(node_id, comparison_engine_set),
+    let scenario = route_visible_template(
+        format!("comparison-bridge-transition-{}", parameters.config_id),
+        seed,
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        host_specs_with_primary(
+            seed_standalone_field_bootstrap(
+                comparison_host_spec(NODE_A, comparison_engine_set)
+                    .with_profile(repairable_connected_profile()),
+                comparison_engine_set,
+                &destination,
+                &bootstrap,
             ),
-            vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
-            24,
+            &[NODE_B, NODE_C, NODE_D],
+            |node_id| comparison_host_spec(node_id, comparison_engine_set),
         ),
-        parameters,
-    );
+        vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
+        24,
+    )
+    .into_scenario(parameters);
     let environment = ScriptedEnvironmentModel::new(vec![
         asymmetric_degradation_hook(
             7,
@@ -151,7 +147,7 @@ pub(super) fn build_comparison_partial_observability_bridge(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let comparison_engine_set = parameters.comparison_engine_set;
     let destination = DestinationId::Node(NODE_D);
     let bootstrap = [
         (NODE_B, 900, 2, 3, Some(860)),
@@ -165,28 +161,26 @@ pub(super) fn build_comparison_partial_observability_bridge(
     );
     set_environment(&mut topology, 1, RatioPermille(120), RatioPermille(150));
     let restore = topology.value.clone();
-    let scenario = apply_overrides(
-        &JacquardScenario::new(
-            format!(
-                "comparison-partial-observability-bridge-{}",
-                parameters.config_id
-            ),
-            seed,
-            jacquard_core::OperatingMode::FieldPartitionTolerant,
-            topology,
-            comparison_hosts_with_bootstrap(
-                comparison_engine_set,
-                &destination,
-                &bootstrap,
-                comparison_host_spec(NODE_A, comparison_engine_set)
-                    .with_profile(repairable_connected_profile()),
-                &[NODE_B, NODE_C, NODE_D],
-            ),
-            vec![BoundObjective::new(NODE_A, default_objective(NODE_D)).with_activation_round(3)],
-            24,
+    let scenario = route_visible_template(
+        format!(
+            "comparison-partial-observability-bridge-{}",
+            parameters.config_id
         ),
-        parameters,
-    );
+        seed,
+        jacquard_core::OperatingMode::FieldPartitionTolerant,
+        topology,
+        comparison_hosts_with_bootstrap(
+            comparison_engine_set,
+            &destination,
+            &bootstrap,
+            comparison_host_spec(NODE_A, comparison_engine_set)
+                .with_profile(repairable_connected_profile()),
+            &[NODE_B, NODE_C, NODE_D],
+        ),
+        vec![BoundObjective::new(NODE_A, default_objective(NODE_D)).with_activation_round(3)],
+        24,
+    )
+    .into_scenario(parameters);
     let environment = ScriptedEnvironmentModel::new(vec![
         asymmetric_degradation_hook(
             8,
@@ -203,7 +197,7 @@ pub(super) fn build_comparison_partial_observability_bridge(
 }
 
 fn comparison_concurrent_mixed_hosts(
-    comparison_engine_set: Option<&str>,
+    comparison_engine_set: Option<ComparisonEngineSet>,
     service_destination: &DestinationId,
     service_bootstrap: &[FieldBootstrapSeed],
 ) -> Vec<HostSpec> {
@@ -245,7 +239,7 @@ pub(super) fn build_comparison_concurrent_mixed(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let comparison_engine_set = parameters.comparison_engine_set;
     let service_destination = DestinationId::Service(jacquard_core::ServiceId(vec![13; 16]));
     let service_bootstrap = [
         (NODE_C, 860, 1, 1, Some(810)),
@@ -286,7 +280,7 @@ pub(super) fn build_comparison_corridor_continuity_uncertainty(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let comparison_engine_set = parameters.comparison_engine_set;
     let destination = DestinationId::Node(NODE_D);
     let bootstrap = [
         (NODE_B, 940, 2, 3, Some(900)),
@@ -338,7 +332,7 @@ fn medium_bridge_repair_alternate(topology: &Observation<Configuration>) -> Conf
 }
 
 fn medium_bridge_repair_hosts(
-    comparison_engine_set: Option<&str>,
+    comparison_engine_set: Option<ComparisonEngineSet>,
     destination: &DestinationId,
     bootstrap: &[FieldBootstrapSeed],
 ) -> Vec<HostSpec> {
@@ -359,7 +353,7 @@ pub(super) fn build_comparison_medium_bridge_repair(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let comparison_engine_set = parameters.comparison_engine_set;
     let destination = DestinationId::Node(NODE_F);
     let bootstrap = [
         (NODE_B, 920, 4, 4, Some(860)),
@@ -467,7 +461,7 @@ fn large_population_bootstrap(
 
 fn large_population_hosts(
     size_band: LargePopulationSizeBand,
-    comparison_engine_set: Option<&str>,
+    comparison_engine_set: Option<ComparisonEngineSet>,
     destination: &DestinationId,
     bootstrap: &[FieldBootstrapSeed],
 ) -> Vec<HostSpec> {
@@ -607,6 +601,8 @@ fn large_bottleneck_alternate(
     alternate
 }
 
+// long-block-exception: the scripted hook schedule is easiest to audit as one
+// explicit per-band mapping rather than several tiny indirections.
 fn large_bottleneck_environment(
     size_band: LargePopulationSizeBand,
     alternate: &Configuration,
@@ -676,7 +672,7 @@ fn build_large_core_periphery(
     seed: SimulationSeed,
     size_band: LargePopulationSizeBand,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let comparison_engine_set = parameters.comparison_engine_set;
     let destination = DestinationId::Node(node_id(large_population_destination_byte(size_band)));
     let bootstrap = large_population_bootstrap("core-periphery", size_band);
     let mut topology = large_population_core_periphery_topology(comparison_engine_set, size_band);
@@ -718,7 +714,7 @@ fn build_large_bottleneck(
     seed: SimulationSeed,
     size_band: LargePopulationSizeBand,
 ) -> (JacquardScenario, ScriptedEnvironmentModel) {
-    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let comparison_engine_set = parameters.comparison_engine_set;
     let destination = DestinationId::Node(node_id(large_population_destination_byte(size_band)));
     let bootstrap = large_population_bootstrap("multi-bottleneck", size_band);
     let mut topology = large_population_bottleneck_topology(comparison_engine_set, size_band);
@@ -796,6 +792,8 @@ pub(super) fn build_comparison_large_multi_bottleneck_high(
 }
 
 #[cfg(test)]
+// long-block-exception: the test matrix is a single maintained roster of
+// comparison cases and activation windows.
 fn comparison_activation_window_cases(
     parameters: &ExperimentParameterSet,
     seed: SimulationSeed,
@@ -870,7 +868,7 @@ mod tests {
     use crate::{JacquardSimulator, ReducedReplayView, ReferenceClientAdapter};
 
     fn sample_parameters() -> ExperimentParameterSet {
-        ExperimentParameterSet::head_to_head("babel", Some((4, 2)), None, None)
+        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Babel, Some((4, 2)), None, None)
     }
 
     fn applied_hook_labels(
@@ -944,6 +942,8 @@ mod tests {
     }
 
     #[test]
+    // long-block-exception: this is a single exhaustive hook-round contract for
+    // the maintained comparison families and is clearer as one assertion block.
     fn comparison_family_environment_hooks_fire_on_documented_rounds() {
         let parameters = sample_parameters();
         let seed = SimulationSeed(41);
@@ -959,9 +959,10 @@ mod tests {
             build_comparison_large_core_periphery_moderate(&parameters, seed);
         let large_core_periphery_high =
             build_comparison_large_core_periphery_high(&parameters, seed);
-        let large_bottleneck_moderate =
+        let large_multi_bridge_ten_nodes_scenario =
             build_comparison_large_multi_bottleneck_moderate(&parameters, seed);
-        let large_bottleneck_high = build_comparison_large_multi_bottleneck_high(&parameters, seed);
+        let large_multi_bridge_fourteen_nodes_scenario =
+            build_comparison_large_multi_bottleneck_high(&parameters, seed);
 
         assert_eq!(
             applied_hook_labels(&connected_high_loss.0, &connected_high_loss.1),
@@ -1017,7 +1018,10 @@ mod tests {
             ]
         );
         assert_eq!(
-            applied_hook_labels(&large_bottleneck_moderate.0, &large_bottleneck_moderate.1),
+            applied_hook_labels(
+                &large_multi_bridge_ten_nodes_scenario.0,
+                &large_multi_bridge_ten_nodes_scenario.1,
+            ),
             vec![
                 (8, "asymmetric-degradation"),
                 (10, "intrinsic-limit"),
@@ -1027,7 +1031,10 @@ mod tests {
             ]
         );
         assert_eq!(
-            applied_hook_labels(&large_bottleneck_high.0, &large_bottleneck_high.1),
+            applied_hook_labels(
+                &large_multi_bridge_fourteen_nodes_scenario.0,
+                &large_multi_bridge_fourteen_nodes_scenario.1,
+            ),
             vec![
                 (8, "asymmetric-degradation"),
                 (9, "intrinsic-limit"),
@@ -1266,7 +1273,8 @@ mod tests {
 
     #[test]
     fn head_to_head_scatter_connected_low_loss_activates_route() {
-        let parameters = ExperimentParameterSet::head_to_head("scatter", None, None, None);
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Scatter, None, None, None);
         let (scenario, environment) =
             build_comparison_connected_low_loss(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);

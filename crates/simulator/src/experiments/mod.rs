@@ -2,7 +2,8 @@
 //!
 //! The experiment subsystem is grouped by responsibility:
 //! - `types` defines the run/config/result schema
-//! - `suite` assembles run matrices and executes them
+//! - `suite` assembles run matrices
+//! - `runner` executes suites and writes artifacts
 //! - `summary` reduces replays into stable JSON/report surfaces
 //! - `common` owns shared topology/objective/environment helpers
 //! - engine-family builder modules own concrete scenario families
@@ -11,9 +12,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::{self, File},
-    io::{BufWriter, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use jacquard_babel::BABEL_ENGINE_ID;
@@ -44,11 +43,14 @@ use crate::{
 };
 
 mod batman;
+mod catalog;
 mod common;
 mod comparison;
 mod pathway_field;
+mod runner;
 mod suite;
 mod summary;
+mod templates;
 mod types;
 
 use batman::*;
@@ -56,9 +58,11 @@ use common::*;
 use comparison::*;
 use pathway_field::*;
 use summary::*;
+use templates::*;
 use types::*;
 
-pub use suite::{local_suite, run_suite, smoke_suite};
+pub use runner::run_suite;
+pub use suite::{local_suite, smoke_suite};
 pub use types::{
     ExperimentAggregateSummary, ExperimentArtifacts, ExperimentBreakdownSummary, ExperimentError,
     ExperimentManifest, ExperimentParameterSet, ExperimentRunSummary, ExperimentSuite,

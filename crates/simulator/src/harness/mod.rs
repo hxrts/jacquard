@@ -8,9 +8,8 @@ use jacquard_field::{FieldExportedReplayBundle, FIELD_ENGINE_ID};
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
-    BridgeQueueConfig, BridgeRoundProgress, BridgeRoundReport, ClientBuilder,
-    FieldBootstrapSummary as ClientFieldBootstrapSummary, ReferenceClient,
-    ReferenceClientBuildError, ReferenceRouter,
+    BridgeRoundProgress, BridgeRoundReport, ReferenceClient, ReferenceClientBuildError,
+    ReferenceRouter,
 };
 use jacquard_traits::{
     purity, Router, RoutingControlPlane, RoutingEnvironmentModel, RoutingReplayView,
@@ -28,13 +27,13 @@ use crate::{
         JacquardReplayArtifact, JacquardRoundArtifact, JacquardSimulationStats,
         SimulationFailureSummary, TelltaleNativeArtifactRef,
     },
-    scenario::{BoundObjective, EngineLane, JacquardScenario},
+    scenario::{BoundObjective, JacquardScenario},
 };
 
+mod build_plan;
 mod replay_support;
 
-const SIMULATOR_BRIDGE_QUEUE_CONFIG: BridgeQueueConfig = BridgeQueueConfig::new(320, 320);
-
+use build_plan::host_build_plans;
 pub(crate) use replay_support::default_objective;
 use replay_support::{
     activate_ready_objectives, capture_host_snapshots, collect_route_events, failure_summaries_for,
@@ -92,9 +91,6 @@ pub trait JacquardHostAdapter {
 pub struct ReferenceClientAdapter;
 
 impl JacquardHostAdapter for ReferenceClientAdapter {
-    // long-block-exception: host construction keeps lane selection and override
-    // threading together so simulator scenarios build deterministic mixed-engine
-    // hosts from one auditable adapter path.
     fn build_hosts(
         &self,
         scenario: &JacquardScenario,
@@ -103,137 +99,12 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
         let network = SharedInMemoryNetwork::default();
         let mut hosts = BTreeMap::new();
 
-        for host in scenario.hosts() {
-            let mut builder = match host.lane {
-                EngineLane::Pathway => ClientBuilder::pathway(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::Field => ClientBuilder::field(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::Scatter => ClientBuilder::scatter(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::PathwayAndBatmanBellman => ClientBuilder::pathway_and_batman_bellman(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::PathwayAndField => ClientBuilder::pathway_and_field(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::FieldAndBatmanBellman => ClientBuilder::field_and_batman_bellman(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::AllEngines => ClientBuilder::all_engines(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::BatmanBellman => ClientBuilder::batman_bellman(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::BatmanClassic => ClientBuilder::batman_classic(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::Babel => ClientBuilder::babel(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::OlsrV2 => ClientBuilder::olsrv2(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::PathwayAndBabel => ClientBuilder::pathway_and_babel(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::PathwayAndOlsrV2 => ClientBuilder::pathway_and_olsrv2(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::BabelAndBatmanBellman => ClientBuilder::babel_and_batman_bellman(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-                EngineLane::OlsrV2AndBatmanBellman => ClientBuilder::olsrv2_and_batman_bellman(
-                    host.local_node_id,
-                    topology.clone(),
-                    network.clone(),
-                    topology.observed_at_tick,
-                ),
-            };
-            builder = builder.with_queue_config(SIMULATOR_BRIDGE_QUEUE_CONFIG);
-            if let Some(routing_profile) = host.overrides.routing_profile.clone() {
-                builder = builder.with_profile(routing_profile);
-            }
-            if let Some(policy_inputs) = host.overrides.policy_inputs.clone() {
-                builder = builder.with_policy_inputs(policy_inputs);
-            }
-            if let Some(batman_bellman_decay_window) = host.overrides.batman_bellman_decay_window {
-                builder = builder.with_batman_bellman_decay_window(batman_bellman_decay_window);
-            }
-            if let Some(batman_classic_decay_window) = host.overrides.batman_classic_decay_window {
-                builder = builder.with_batman_classic_decay_window(batman_classic_decay_window);
-            }
-            if let Some(babel_decay_window) = host.overrides.babel_decay_window {
-                builder = builder.with_babel_decay_window(babel_decay_window);
-            }
-            if let Some(olsrv2_decay_window) = host.overrides.olsrv2_decay_window {
-                builder = builder.with_olsrv2_decay_window(olsrv2_decay_window);
-            }
-            if let Some(pathway_search_config) = host.overrides.pathway_search_config.clone() {
-                builder = builder.with_pathway_search_config(pathway_search_config);
-            }
-            if let Some(field_search_config) = host.overrides.field_search_config.clone() {
-                builder = builder.with_field_search_config(field_search_config);
-            }
-            if let Some(scatter_config) = host.overrides.scatter_config {
-                builder = builder.with_scatter_config(scatter_config);
-            }
-            for bootstrap in &host.overrides.field_bootstrap_summaries {
-                builder = builder.with_field_bootstrap_summary(ClientFieldBootstrapSummary {
-                    destination: bootstrap.destination.clone(),
-                    from_neighbor: bootstrap.from_neighbor,
-                    forward_observation: bootstrap.forward_observation,
-                    reverse_feedback: bootstrap.reverse_feedback,
-                });
-            }
+        for plan in host_build_plans(scenario) {
+            let local_node_id = plan.local_node_id();
+            let builder =
+                plan.into_builder(topology.clone(), network.clone(), topology.observed_at_tick);
             let client = builder.build()?;
-            hosts.insert(host.local_node_id, client);
+            hosts.insert(local_node_id, client);
         }
 
         Ok(hosts)

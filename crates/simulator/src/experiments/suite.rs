@@ -1,12 +1,15 @@
-//! Suite assembly and execution: builds run matrices and drives the simulator loop.
+//! Suite assembly for route-visible experiment matrices.
 
 #![allow(clippy::wildcard_imports)]
 
-mod comparative;
-
 use super::*;
-use comparative::{
-    build_comparison_runs, build_head_to_head_runs, build_scatter_runs, ComparativeSuiteScale,
+use crate::experiments::catalog::{
+    batman::{BABEL_FAMILIES, BATMAN_BELLMAN_FAMILIES, BATMAN_CLASSIC_FAMILIES, OLSRV2_FAMILIES},
+    comparative::{
+        comparison_family_descriptors, head_to_head_family_descriptors, scatter_family_descriptors,
+        ComparativeSuiteScale,
+    },
+    materialize_families, FamilyBuilder,
 };
 
 #[must_use]
@@ -17,115 +20,6 @@ pub fn smoke_suite() -> ExperimentSuite {
 #[must_use]
 pub fn local_suite() -> ExperimentSuite {
     build_suite("local", &[41, 43, 47, 53], false)
-}
-
-use rayon::prelude::*;
-
-#[cfg(test)]
-fn execute_suite_runs_serial<A>(
-    adapter: &A,
-    suite: &ExperimentSuite,
-) -> Result<Vec<ExperimentRunSummary>, ExperimentError>
-where
-    A: JacquardHostAdapter + Clone,
-{
-    suite
-        .runs
-        .iter()
-        .map(|spec| {
-            let simulator = JacquardSimulator::new(adapter.clone());
-            let (reduced, _) = simulator
-                .run_scenario_reduced(&spec.scenario, &spec.environment)
-                .map_err(|source| ExperimentError::SimulationRun {
-                    run_id: spec.run_id.clone(),
-                    source,
-                })?;
-            Ok(summarize_run(spec, &reduced))
-        })
-        .collect()
-}
-
-fn execute_suite_runs_parallel<A>(
-    adapter: &A,
-    suite: &ExperimentSuite,
-) -> Result<Vec<ExperimentRunSummary>, ExperimentError>
-where
-    A: JacquardHostAdapter + Clone + Send + Sync,
-{
-    let mut indexed = suite
-        .runs
-        .par_iter()
-        .enumerate()
-        .map(|(index, spec)| {
-            let simulator = JacquardSimulator::new(adapter.clone());
-            let reduced = simulator
-                .run_scenario_reduced(&spec.scenario, &spec.environment)
-                .map_err(|source| ExperimentError::SimulationRun {
-                    run_id: spec.run_id.clone(),
-                    source,
-                })?
-                .0;
-            Ok::<_, ExperimentError>((index, summarize_run(spec, &reduced)))
-        })
-        .collect::<Vec<_>>();
-    let mut runs = Vec::with_capacity(indexed.len());
-    indexed.sort_by_key(|result| match result {
-        Ok((index, _)) => *index,
-        Err(_) => usize::MAX,
-    });
-    for result in indexed {
-        let (_, summary) = result?;
-        runs.push(summary);
-    }
-    Ok(runs)
-}
-
-pub fn run_suite<A>(
-    simulator: &mut JacquardSimulator<A>,
-    suite: &ExperimentSuite,
-    output_dir: &Path,
-) -> Result<ExperimentArtifacts, ExperimentError>
-where
-    A: JacquardHostAdapter + Clone + Send + Sync,
-{
-    fs::create_dir_all(output_dir)?;
-    let runs = execute_suite_runs_parallel(simulator.host_adapter(), suite)?;
-    let run_path = output_dir.join("runs.jsonl");
-    let mut writer = BufWriter::new(File::create(&run_path)?);
-
-    for summary in &runs {
-        serde_json::to_writer(&mut writer, summary)?;
-        writer.write_all(b"\n")?;
-    }
-    writer.flush()?;
-
-    let aggregates = aggregate_runs(&runs);
-    let breakdowns = summarize_breakdowns(&aggregates);
-    let manifest = ExperimentManifest {
-        suite_id: suite.suite_id.clone(),
-        generated_at_unix_seconds: 0,
-        run_count: u32::try_from(runs.len()).unwrap_or(u32::MAX),
-        aggregate_count: u32::try_from(aggregates.len()).unwrap_or(u32::MAX),
-        breakdown_count: u32::try_from(breakdowns.len()).unwrap_or(u32::MAX),
-    };
-
-    serde_json::to_writer_pretty(File::create(output_dir.join("manifest.json"))?, &manifest)?;
-    serde_json::to_writer_pretty(
-        File::create(output_dir.join("aggregates.json"))?,
-        &aggregates,
-    )?;
-    serde_json::to_writer_pretty(
-        File::create(output_dir.join("breakdowns.json"))?,
-        &breakdowns,
-    )?;
-
-    Ok(ExperimentArtifacts {
-        output_dir: output_dir.to_path_buf(),
-        manifest,
-        runs,
-        aggregates,
-        breakdowns,
-    })
 }
 
 // long-block-exception: the BATMAN family catalog is kept in one function so the
@@ -150,106 +44,7 @@ fn build_batman_bellman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<
         coarse.into_iter().chain(fine).collect()
     };
 
-    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
-        (
-            "batman-bellman-sparse-line-low-loss",
-            RegimeDescriptor {
-                density: "sparse-line".to_string(),
-                loss: "low".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "static".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 12,
-            },
-            build_batman_bellman_sparse_line_low_loss,
-        ),
-        (
-            "batman-bellman-decay-window-pressure",
-            RegimeDescriptor {
-                density: "sparse-line".to_string(),
-                loss: "moderate".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "partition-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 44,
-            },
-            build_batman_bellman_decay_window_pressure,
-        ),
-        (
-            "batman-bellman-partition-recovery",
-            RegimeDescriptor {
-                density: "sparse-line".to_string(),
-                loss: "moderate".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "partition-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 38,
-            },
-            build_batman_bellman_partition_recovery,
-        ),
-        (
-            "batman-bellman-medium-ring-contention",
-            RegimeDescriptor {
-                density: "medium-ring".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "static".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 28,
-            },
-            build_batman_bellman_medium_ring_contention,
-        ),
-        (
-            "batman-bellman-asymmetric-bridge",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "severe".to_string(),
-                churn: "static".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 52,
-            },
-            build_batman_bellman_asymmetric_bridge,
-        ),
-        (
-            "batman-bellman-asymmetry-relink-transition",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "moderate".to_string(),
-                churn: "repeated-relink".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 48,
-            },
-            build_batman_bellman_asymmetry_relink_transition,
-        ),
-        (
-            "batman-bellman-churn-intrinsic-limit",
-            RegimeDescriptor {
-                density: "medium-ring".to_string(),
-                loss: "low".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "repeated-relink".to_string(),
-                node_pressure: "mixed".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 56,
-            },
-            build_batman_bellman_churn_intrinsic_limit,
-        ),
-    ];
+    let families = materialize_families(&BATMAN_BELLMAN_FAMILIES);
 
     expand_runs(
         suite_id,
@@ -278,50 +73,7 @@ fn build_batman_classic_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<
     } else {
         coarse.into_iter().chain(fine).collect()
     };
-    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
-        (
-            "batman-classic-decay-window-pressure",
-            RegimeDescriptor {
-                density: "sparse-line".to_string(),
-                loss: "moderate".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "partition-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 44,
-            },
-            build_batman_classic_decay_window_pressure,
-        ),
-        (
-            "batman-classic-partition-recovery",
-            RegimeDescriptor {
-                density: "sparse-line".to_string(),
-                loss: "moderate".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "partition-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 38,
-            },
-            build_batman_classic_partition_recovery,
-        ),
-        (
-            "batman-classic-asymmetry-relink-transition",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "moderate".to_string(),
-                churn: "repeated-relink".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 48,
-            },
-            build_batman_classic_asymmetry_relink_transition,
-        ),
-    ];
+    let families = materialize_families(&BATMAN_CLASSIC_FAMILIES);
     expand_runs(
         suite_id,
         "batman-classic",
@@ -348,50 +100,7 @@ fn build_babel_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experimen
     } else {
         coarse.into_iter().chain(fine).collect()
     };
-    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
-        (
-            "babel-decay-window-pressure",
-            RegimeDescriptor {
-                density: "sparse-line".to_string(),
-                loss: "moderate".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "partition-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 44,
-            },
-            build_babel_decay_window_pressure,
-        ),
-        (
-            "babel-asymmetry-cost-penalty",
-            RegimeDescriptor {
-                density: "bridge-cluster".to_string(),
-                loss: "moderate".to_string(),
-                interference: "medium".to_string(),
-                asymmetry: "severe".to_string(),
-                churn: "static".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 52,
-            },
-            build_babel_asymmetry_cost_penalty,
-        ),
-        (
-            "babel-partition-feasibility-recovery",
-            RegimeDescriptor {
-                density: "sparse-line".to_string(),
-                loss: "moderate".to_string(),
-                interference: "low".to_string(),
-                asymmetry: "none".to_string(),
-                churn: "partition-recovery".to_string(),
-                node_pressure: "none".to_string(),
-                objective_regime: "connected-only".to_string(),
-                stress_score: 38,
-            },
-            build_babel_partition_feasibility_recovery,
-        ),
-    ];
+    let families = materialize_families(&BABEL_FAMILIES);
     expand_runs(suite_id, "babel", seeds, &parameter_sets, &families)
 }
 
@@ -412,64 +121,7 @@ fn build_olsrv2_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
     } else {
         coarse.into_iter().chain(fine).collect()
     };
-    let families: Vec<(&str, RegimeDescriptor, FamilyBuilder)> = vec![
-        (
-            "olsrv2-topology-propagation-latency",
-            regime((
-                "sparse-line",
-                "moderate",
-                "low",
-                "none",
-                "partition-recovery",
-                "none",
-                "connected-only",
-                42,
-            )),
-            build_olsrv2_topology_propagation_latency,
-        ),
-        (
-            "olsrv2-partition-recovery",
-            regime((
-                "sparse-line",
-                "moderate",
-                "low",
-                "none",
-                "partition-recovery",
-                "none",
-                "connected-only",
-                38,
-            )),
-            build_olsrv2_partition_recovery,
-        ),
-        (
-            "olsrv2-mpr-flooding-stability",
-            regime((
-                "medium-ring",
-                "moderate",
-                "medium",
-                "none",
-                "relink-and-replace",
-                "none",
-                "connected-only",
-                46,
-            )),
-            build_olsrv2_mpr_flooding_stability,
-        ),
-        (
-            "olsrv2-asymmetric-relink-transition",
-            regime((
-                "bridge-cluster",
-                "moderate",
-                "medium",
-                "severe",
-                "relink-and-replace",
-                "none",
-                "connected-only",
-                52,
-            )),
-            build_olsrv2_asymmetric_relink_transition,
-        ),
-    ];
+    let families = materialize_families(&OLSRV2_FAMILIES);
     expand_runs(suite_id, "olsrv2", seeds, &parameter_sets, &families)
 }
 
@@ -759,8 +411,97 @@ fn build_field_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experimen
     expand_runs(suite_id, "field", seeds, &parameter_sets, &families)
 }
 
-type FamilyBuilder =
-    fn(&ExperimentParameterSet, SimulationSeed) -> (JacquardScenario, ScriptedEnvironmentModel);
+fn scatter_parameter_sets(scale: ComparativeSuiteScale) -> Vec<ExperimentParameterSet> {
+    match scale {
+        ComparativeSuiteScale::Smoke => vec![
+            ExperimentParameterSet::scatter("balanced"),
+            ExperimentParameterSet::scatter("degraded-network"),
+        ],
+        ComparativeSuiteScale::Full => vec![
+            ExperimentParameterSet::scatter("balanced"),
+            ExperimentParameterSet::scatter("conservative"),
+            ExperimentParameterSet::scatter("degraded-network"),
+        ],
+    }
+}
+
+fn comparison_configs(scale: ComparativeSuiteScale) -> Vec<ExperimentParameterSet> {
+    match scale {
+        ComparativeSuiteScale::Smoke => vec![ExperimentParameterSet::comparison(
+            4,
+            2,
+            3,
+            PathwaySearchHeuristicMode::Zero,
+        )],
+        ComparativeSuiteScale::Full => vec![
+            ExperimentParameterSet::comparison(4, 2, 3, PathwaySearchHeuristicMode::Zero),
+            ExperimentParameterSet::comparison(6, 3, 4, PathwaySearchHeuristicMode::HopLowerBound),
+        ],
+    }
+}
+
+fn head_to_head_configs() -> Vec<ExperimentParameterSet> {
+    vec![
+        ExperimentParameterSet::head_to_head(
+            ComparisonEngineSet::BatmanBellman,
+            Some((1, 1)),
+            None,
+            None,
+        ),
+        ExperimentParameterSet::head_to_head(
+            ComparisonEngineSet::BatmanClassic,
+            Some((4, 2)),
+            None,
+            None,
+        ),
+        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Babel, Some((4, 2)), None, None),
+        ExperimentParameterSet::head_to_head(ComparisonEngineSet::OlsrV2, Some((4, 2)), None, None),
+        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Scatter, None, None, None),
+        ExperimentParameterSet::head_to_head(
+            ComparisonEngineSet::Pathway,
+            None,
+            Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
+            None,
+        ),
+        ExperimentParameterSet::head_to_head_field_low_churn(),
+        ExperimentParameterSet::head_to_head(
+            ComparisonEngineSet::PathwayAndBatmanBellman,
+            Some((6, 3)),
+            Some((6, PathwaySearchHeuristicMode::HopLowerBound)),
+            None,
+        ),
+    ]
+}
+
+fn build_scatter_runs(
+    suite_id: &str,
+    seeds: &[u64],
+    scale: ComparativeSuiteScale,
+) -> Vec<ExperimentRunSpec> {
+    let parameter_sets = scatter_parameter_sets(scale);
+    let families = scatter_family_descriptors(scale);
+    expand_runs(suite_id, "scatter", seeds, &parameter_sets, &families)
+}
+
+fn build_comparison_runs(
+    suite_id: &str,
+    seeds: &[u64],
+    scale: ComparativeSuiteScale,
+) -> Vec<ExperimentRunSpec> {
+    let configs = comparison_configs(scale);
+    let families = comparison_family_descriptors(scale);
+    expand_runs(suite_id, "comparison", seeds, &configs, &families)
+}
+
+fn build_head_to_head_runs(
+    suite_id: &str,
+    seeds: &[u64],
+    scale: ComparativeSuiteScale,
+) -> Vec<ExperimentRunSpec> {
+    let configs = head_to_head_configs();
+    let families = head_to_head_family_descriptors(scale);
+    expand_runs(suite_id, "head-to-head", seeds, &configs, &families)
+}
 
 fn expand_runs(
     suite_id: &str,
@@ -819,7 +560,8 @@ fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
 
 #[cfg(test)]
 mod tests {
-    use super::{execute_suite_runs_parallel, execute_suite_runs_serial, smoke_suite};
+    use super::smoke_suite;
+    use crate::experiments::runner::{execute_suite_runs_parallel, execute_suite_runs_serial};
     use crate::ReferenceClientAdapter;
 
     #[test]

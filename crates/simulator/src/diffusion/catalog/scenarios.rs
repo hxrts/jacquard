@@ -1,3 +1,5 @@
+// long-file-exception: the maintained diffusion scenario catalog is kept as one
+// explicit roster so regime definitions stay easy to review together.
 use super::{
     DiffusionMessageMode, DiffusionMobilityProfile, DiffusionNodeSpec, DiffusionRegimeDescriptor,
     DiffusionScenarioSpec, DiffusionTransportKind,
@@ -575,22 +577,27 @@ fn clustered_nodes(
 mod tests {
     use std::collections::BTreeSet;
 
-    use crate::diffusion::{
+    use super::super::{
+        diffusion_engine_profile, diffusion_smoke_suite, field_diffusion_profiles,
+        transition_diffusion_profiles,
+    };
+    use super::{
         build_adversarial_observation_scenario, build_bridge_drought_scenario,
         build_congestion_cascade_scenario, build_energy_starved_relay_scenario,
         build_large_congestion_threshold_high_scenario,
         build_large_congestion_threshold_moderate_scenario,
         build_large_regional_shift_high_scenario, build_large_regional_shift_moderate_scenario,
         build_large_sparse_threshold_high_scenario, build_large_sparse_threshold_moderate_scenario,
-        build_partitioned_clusters_scenario, diffusion_engine_profile, diffusion_smoke_suite,
-        execution::{
+        build_partitioned_clusters_scenario,
+    };
+    use crate::diffusion::{
+        posture::{field_budget_kind, field_forwarding_suppressed},
+        runtime::execution::{
             aggregate_diffusion_runs, bounded_state, generate_contacts, simulate_diffusion_run,
         },
-        field_diffusion_profiles,
-        posture::{field_budget_kind, field_forwarding_suppressed},
-        transition_diffusion_profiles, DiffusionFieldPosture, DiffusionForwardingStyle,
-        DiffusionPolicyConfig, DiffusionRunSpec, FieldBudgetState, FieldExecutionMetrics,
-        FieldSuppressionState, FieldTransferFeatures,
+        runtime::DiffusionRunSpec,
+        DiffusionFieldPosture, DiffusionForwardingStyle, DiffusionPolicyConfig, FieldBudgetState,
+        FieldExecutionMetrics, FieldSuppressionState, FieldTransferFeatures,
     };
 
     fn transition_profile(config_id: &str) -> DiffusionPolicyConfig {

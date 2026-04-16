@@ -1,3 +1,5 @@
+// long-file-exception: the deterministic diffusion round executor is one
+// cohesive state machine and splitting it further would obscure round ordering.
 use super::{
     classify_field_transfer, compute_field_posture_signals, count_field_posture_round,
     covered_target_clusters, desired_field_posture, dominant_field_posture_name, field_budget_kind,
@@ -11,9 +13,177 @@ use super::{
     FieldTransferFeatures, HolderState, PendingTransfer,
 };
 
+fn apply_pending_arrivals(
+    round: u32,
+    scenario: &DiffusionScenarioSpec,
+    pending: &mut Vec<PendingTransfer>,
+    holders: &mut BTreeMap<u32, HolderState>,
+    delivered_targets: &mut BTreeSet<u32>,
+    delivery_rounds: &mut Vec<u32>,
+) -> u32 {
+    let mut arrivals = Vec::new();
+    pending.retain(|transfer| {
+        if transfer.arrival_round <= round {
+            arrivals.push(transfer.target_node_id);
+            false
+        } else {
+            true
+        }
+    });
+    let mut new_copies_this_round = 0_u32;
+    for node_id in arrivals {
+        if holders.contains_key(&node_id) {
+            continue;
+        }
+        holders.insert(node_id, HolderState { first_round: round });
+        new_copies_this_round = new_copies_this_round.saturating_add(1);
+        if is_target_node(scenario, node_id) {
+            delivered_targets.insert(node_id);
+            delivery_rounds.push(round.saturating_sub(scenario.creation_round));
+        }
+    }
+    new_copies_this_round
+}
+
+fn round_is_outside_message_window(
+    round: u32,
+    scenario: &DiffusionScenarioSpec,
+    policy: &super::DiffusionPolicyConfig,
+) -> bool {
+    round < scenario.creation_round
+        || round
+            > scenario
+                .creation_round
+                .saturating_add(policy.message_horizon)
+}
+
+struct FieldPostureRoundContext<'a> {
+    round: u32,
+    scenario: &'a DiffusionScenarioSpec,
+    target_count: usize,
+    holders: &'a BTreeMap<u32, HolderState>,
+    remaining_energy: &'a BTreeMap<u32, u32>,
+    contacts: &'a [DiffusionContactEvent],
+    delivered_targets: &'a BTreeSet<u32>,
+    total_transmissions: u32,
+    observer_touches: u32,
+    round_new_copies: &'a [u32],
+}
+
+struct FieldPostureTransitionState<'a> {
+    field_posture: &'a mut Option<DiffusionFieldPosture>,
+    field_pending_posture: &'a mut Option<DiffusionFieldPosture>,
+    field_pending_rounds: &'a mut u32,
+    field_posture_metrics: &'a mut FieldPostureMetrics,
+}
+
+// long-block-exception: posture updates keep the hysteresis state machine in one helper so the
+// transition rules remain auditable without fragmenting the deterministic sequence.
+fn update_field_posture_for_round(
+    context: &FieldPostureRoundContext<'_>,
+    state: FieldPostureTransitionState<'_>,
+) {
+    let FieldPostureRoundContext {
+        round,
+        scenario,
+        target_count,
+        holders,
+        remaining_energy,
+        contacts,
+        delivered_targets,
+        total_transmissions,
+        observer_touches,
+        round_new_copies,
+    } = *context;
+    let FieldPostureTransitionState {
+        field_posture,
+        field_pending_posture,
+        field_pending_rounds,
+        field_posture_metrics,
+    } = state;
+    let Some(current_posture) = *field_posture else {
+        return;
+    };
+    let covered_clusters = covered_target_clusters(scenario, delivered_targets, &[]);
+    let posture_signals = compute_field_posture_signals(
+        scenario,
+        holders,
+        remaining_energy,
+        contacts,
+        target_count,
+        delivered_targets.len(),
+        scenario_target_cluster_count(scenario),
+        covered_clusters.len(),
+        *round_new_copies.last().unwrap_or(&0),
+        total_transmissions,
+        observer_touches,
+    );
+    let desired_posture = desired_field_posture(scenario, &posture_signals);
+    if desired_posture == current_posture {
+        *field_pending_posture = None;
+        *field_pending_rounds = 0;
+    } else if *field_pending_posture == Some(desired_posture) {
+        *field_pending_rounds = field_pending_rounds.saturating_add(1);
+        if *field_pending_rounds >= 2 {
+            *field_posture = Some(desired_posture);
+            *field_pending_posture = None;
+            *field_pending_rounds = 0;
+            field_posture_metrics.transitions = field_posture_metrics.transitions.saturating_add(1);
+            match desired_posture {
+                DiffusionFieldPosture::ScarcityConservative => {
+                    field_posture_metrics
+                        .first_scarcity_transition_round
+                        .get_or_insert(round);
+                }
+                DiffusionFieldPosture::ClusterSeeding
+                | DiffusionFieldPosture::DuplicateSuppressed => {
+                    field_posture_metrics
+                        .first_congestion_transition_round
+                        .get_or_insert(round);
+                }
+                _ => {}
+            }
+        }
+    } else {
+        *field_pending_posture = Some(desired_posture);
+        *field_pending_rounds = 1;
+    }
+    count_field_posture_round(
+        field_posture_metrics,
+        field_posture.unwrap_or(current_posture),
+    );
+}
+
+fn record_round_idle_metrics(
+    new_copies_this_round: u32,
+    round_new_copies: &mut Vec<u32>,
+    dominant_edge_by_round: &mut Vec<Option<(u32, u32)>>,
+) {
+    round_new_copies.push(new_copies_this_round);
+    dominant_edge_by_round.push(None);
+}
+
+fn record_round_transfer_metrics(
+    holders: &BTreeMap<u32, HolderState>,
+    new_copies_this_round: u32,
+    round_edge_counts: BTreeMap<(u32, u32), u32>,
+    peak_holders: &mut u32,
+    round_new_copies: &mut Vec<u32>,
+    dominant_edge_by_round: &mut Vec<Option<(u32, u32)>>,
+) {
+    dominant_edge_by_round.push(
+        round_edge_counts
+            .into_iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(edge, _)| edge),
+    );
+    *peak_holders = (*peak_holders).max(u32::try_from(holders.len()).unwrap_or(u32::MAX));
+    round_new_copies.push(new_copies_this_round);
+}
+
 // long-block-exception: the deterministic round loop keeps contact generation,
 // posture transitions, forwarding, and metric accounting in one ordered state machine.
-pub(super) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
+pub(crate) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSummary {
     let scenario = &spec.scenario;
     let policy = &spec.policy;
     let target_count = scenario_target_count(scenario);
@@ -56,91 +226,46 @@ pub(super) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
     let mut field_suppression_state = FieldSuppressionState::default();
 
     for round in 0..scenario.round_count {
-        let mut arrivals = Vec::new();
-        pending.retain(|transfer| {
-            if transfer.arrival_round <= round {
-                arrivals.push(transfer.target_node_id);
-                false
-            } else {
-                true
-            }
-        });
-        let mut new_copies_this_round = 0_u32;
-        for node_id in arrivals {
-            if holders.contains_key(&node_id) {
-                continue;
-            }
-            holders.insert(node_id, HolderState { first_round: round });
-            new_copies_this_round = new_copies_this_round.saturating_add(1);
-            if is_target_node(scenario, node_id) {
-                delivered_targets.insert(node_id);
-                delivery_rounds.push(round.saturating_sub(scenario.creation_round));
-            }
-        }
+        let new_copies_this_round = apply_pending_arrivals(
+            round,
+            scenario,
+            &mut pending,
+            &mut holders,
+            &mut delivered_targets,
+            &mut delivery_rounds,
+        );
 
-        if round < scenario.creation_round
-            || round
-                > scenario
-                    .creation_round
-                    .saturating_add(policy.message_horizon)
-        {
-            round_new_copies.push(new_copies_this_round);
-            dominant_edge_by_round.push(None);
+        if round_is_outside_message_window(round, scenario, policy) {
+            record_round_idle_metrics(
+                new_copies_this_round,
+                &mut round_new_copies,
+                &mut dominant_edge_by_round,
+            );
             continue;
         }
 
         let contacts = generate_contacts(spec.seed, scenario, round);
-        let covered_clusters = covered_target_clusters(scenario, &delivered_targets, &pending);
-        if let Some(current_posture) = field_posture {
-            let posture_signals = compute_field_posture_signals(
+        update_field_posture_for_round(
+            &FieldPostureRoundContext {
+                round,
                 scenario,
-                &holders,
-                &remaining_energy,
-                &contacts,
                 target_count,
-                delivered_targets.len(),
-                scenario_target_cluster_count(scenario),
-                covered_clusters.len(),
-                *round_new_copies.last().unwrap_or(&0),
+                holders: &holders,
+                remaining_energy: &remaining_energy,
+                contacts: &contacts,
+                delivered_targets: &delivered_targets,
                 total_transmissions,
                 observer_touches,
-            );
-            let desired_posture = desired_field_posture(scenario, &posture_signals);
-            if desired_posture == current_posture {
-                field_pending_posture = None;
-                field_pending_rounds = 0;
-            } else if field_pending_posture == Some(desired_posture) {
-                field_pending_rounds = field_pending_rounds.saturating_add(1);
-                if field_pending_rounds >= 2 {
-                    field_posture = Some(desired_posture);
-                    field_pending_posture = None;
-                    field_pending_rounds = 0;
-                    field_posture_metrics.transitions =
-                        field_posture_metrics.transitions.saturating_add(1);
-                    match desired_posture {
-                        DiffusionFieldPosture::ScarcityConservative => {
-                            field_posture_metrics
-                                .first_scarcity_transition_round
-                                .get_or_insert(round);
-                        }
-                        DiffusionFieldPosture::ClusterSeeding
-                        | DiffusionFieldPosture::DuplicateSuppressed => {
-                            field_posture_metrics
-                                .first_congestion_transition_round
-                                .get_or_insert(round);
-                        }
-                        _ => {}
-                    }
-                }
-            } else {
-                field_pending_posture = Some(desired_posture);
-                field_pending_rounds = 1;
-            }
-            count_field_posture_round(
-                &mut field_posture_metrics,
-                field_posture.unwrap_or(current_posture),
-            );
-        }
+                round_new_copies: &round_new_copies,
+            },
+            FieldPostureTransitionState {
+                field_posture: &mut field_posture,
+                field_pending_posture: &mut field_pending_posture,
+                field_pending_rounds: &mut field_pending_rounds,
+                field_posture_metrics: &mut field_posture_metrics,
+            },
+        );
+        let covered_clusters = covered_target_clusters(scenario, &delivered_targets, &pending);
         let mut round_edge_counts = BTreeMap::<(u32, u32), u32>::new();
         let mut planned_covered_clusters = covered_clusters.clone();
         for contact in contacts {
@@ -318,14 +443,14 @@ pub(super) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
                 }
             }
         }
-        dominant_edge_by_round.push(
-            round_edge_counts
-                .into_iter()
-                .max_by_key(|(_, count)| *count)
-                .map(|(edge, _)| edge),
+        record_round_transfer_metrics(
+            &holders,
+            new_copies_this_round,
+            round_edge_counts,
+            &mut peak_holders,
+            &mut round_new_copies,
+            &mut dominant_edge_by_round,
         );
-        peak_holders = peak_holders.max(u32::try_from(holders.len()).unwrap_or(u32::MAX));
-        round_new_copies.push(new_copies_this_round);
     }
 
     let delivery_probability_permille = match scenario.message_mode {
@@ -499,7 +624,7 @@ pub(super) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
 
 // long-block-exception: the diffusion aggregate reducer keeps the full summary-to-report
 // mapping in one pass so the emitted analysis schema remains reviewable as one unit.
-pub(super) fn aggregate_diffusion_runs(
+pub(crate) fn aggregate_diffusion_runs(
     runs: &[DiffusionRunSummary],
 ) -> Vec<DiffusionAggregateSummary> {
     let mut grouped = BTreeMap::<(String, String), Vec<&DiffusionRunSummary>>::new();
@@ -746,7 +871,7 @@ pub(super) fn record_field_forward(
     }
 }
 
-pub(super) fn generate_contacts(
+pub(crate) fn generate_contacts(
     seed: u64,
     scenario: &DiffusionScenarioSpec,
     round: u32,
@@ -785,6 +910,8 @@ pub(super) fn generate_contacts(
     contacts
 }
 
+// long-block-exception: the scenario-family match keeps pairwise contact
+// semantics explicit and deterministic without scattering family policy.
 fn contact_probability_permille_for_pair(
     scenario: &DiffusionScenarioSpec,
     pair: &DiffusionPairDescriptor,
@@ -934,7 +1061,7 @@ pub(super) fn transport_properties(kind: DiffusionTransportKind) -> (u32, u32, u
     }
 }
 
-pub(super) fn bounded_state(
+pub(crate) fn bounded_state(
     delivery_probability_permille: u32,
     coverage_permille: u32,
     reproduction_permille: u32,

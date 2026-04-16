@@ -1,10 +1,15 @@
 //! Run/config/result schema: error types, node constants, and shared data structures.
+// long-file-exception: this file remains the single schema surface for
+// experiment ids, parameter encodings, and shared result types.
 
 #![allow(clippy::wildcard_imports)]
 
-mod scatter;
-
 use super::*;
+use jacquard_core::ByteCount;
+use jacquard_scatter::{
+    ScatterBudgetPolicy, ScatterDecisionThresholds, ScatterEngineConfig, ScatterExpiryPolicy,
+    ScatterOperationalBounds, ScatterRegimeThresholds, ScatterTransportPolicy,
+};
 
 pub(super) const NODE_A: NodeId = NodeId([1; 32]);
 pub(super) const NODE_B: NodeId = NodeId([2; 32]);
@@ -68,11 +73,50 @@ pub(super) fn regime(
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ComparisonEngineSet {
+    #[serde(rename = "all-engines")]
+    AllEngines,
+    #[serde(rename = "batman-bellman")]
+    BatmanBellman,
+    #[serde(rename = "batman-classic")]
+    BatmanClassic,
+    #[serde(rename = "babel")]
+    Babel,
+    #[serde(rename = "olsrv2")]
+    OlsrV2,
+    #[serde(rename = "pathway")]
+    Pathway,
+    #[serde(rename = "field")]
+    Field,
+    #[serde(rename = "scatter")]
+    Scatter,
+    #[serde(rename = "pathway-batman-bellman")]
+    PathwayAndBatmanBellman,
+}
+
+impl ComparisonEngineSet {
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::AllEngines => "all-engines",
+            Self::BatmanBellman => "batman-bellman",
+            Self::BatmanClassic => "batman-classic",
+            Self::Babel => "babel",
+            Self::OlsrV2 => "olsrv2",
+            Self::Pathway => "pathway",
+            Self::Field => "field",
+            Self::Scatter => "scatter",
+            Self::PathwayAndBatmanBellman => "pathway-batman-bellman",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ExperimentParameterSet {
     pub engine_family: String,
     pub config_id: String,
-    pub comparison_engine_set: Option<String>,
+    pub comparison_engine_set: Option<ComparisonEngineSet>,
     pub batman_bellman_stale_after_ticks: Option<u32>,
     pub batman_bellman_next_refresh_within_ticks: Option<u32>,
     pub batman_classic_stale_after_ticks: Option<u32>,
@@ -169,14 +213,16 @@ struct FieldSearchFields {
 }
 
 impl ExperimentParameterSet {
+    // long-block-exception: the suffix mapping is a compact canonical encoding
+    // table for all maintained head-to-head engine configurations.
     fn head_to_head_config_suffix(
-        comparison_engine_set: &str,
+        comparison_engine_set: ComparisonEngineSet,
         batman_bellman_decay_window: Option<(u32, u32)>,
         pathway_search: Option<(usize, PathwaySearchHeuristicMode)>,
         field_search: Option<(usize, FieldSearchHeuristicMode)>,
     ) -> String {
         match comparison_engine_set {
-            "batman-bellman" => {
+            ComparisonEngineSet::BatmanBellman => {
                 let (stale_after_ticks, next_refresh_within_ticks) =
                     batman_bellman_decay_window.unwrap_or((1, 1));
                 format!(
@@ -184,15 +230,19 @@ impl ExperimentParameterSet {
                     stale_after_ticks, next_refresh_within_ticks
                 )
             }
-            "batman-classic" | "babel" | "olsrv2" => {
+            ComparisonEngineSet::BatmanClassic
+            | ComparisonEngineSet::Babel
+            | ComparisonEngineSet::OlsrV2 => {
                 let (stale_after_ticks, next_refresh_within_ticks) =
                     batman_bellman_decay_window.unwrap_or((4, 2));
                 format!(
                     "{}-{}-{}",
-                    comparison_engine_set, stale_after_ticks, next_refresh_within_ticks
+                    comparison_engine_set.label(),
+                    stale_after_ticks,
+                    next_refresh_within_ticks
                 )
             }
-            "pathway" => {
+            ComparisonEngineSet::Pathway => {
                 let (budget, heuristic_mode) =
                     pathway_search.unwrap_or((2, PathwaySearchHeuristicMode::Zero));
                 format!(
@@ -201,7 +251,7 @@ impl ExperimentParameterSet {
                     heuristic_mode_label(heuristic_mode)
                 )
             }
-            "field" => {
+            ComparisonEngineSet::Field => {
                 let (budget, heuristic_mode) =
                     field_search.unwrap_or((4, FieldSearchHeuristicMode::HopLowerBound));
                 format!(
@@ -210,7 +260,7 @@ impl ExperimentParameterSet {
                     field_heuristic_mode_label(heuristic_mode)
                 )
             }
-            "pathway-batman-bellman" => {
+            ComparisonEngineSet::PathwayAndBatmanBellman => {
                 let (stale_after_ticks, next_refresh_within_ticks) =
                     batman_bellman_decay_window.unwrap_or((1, 1));
                 let (budget, heuristic_mode) =
@@ -223,7 +273,9 @@ impl ExperimentParameterSet {
                     heuristic_mode_label(heuristic_mode)
                 )
             }
-            other => other.to_string(),
+            ComparisonEngineSet::Scatter | ComparisonEngineSet::AllEngines => {
+                comparison_engine_set.label().to_string()
+            }
         }
     }
 
@@ -232,7 +284,7 @@ impl ExperimentParameterSet {
         Self {
             engine_family: "head-to-head".to_string(),
             config_id: "head-to-head-field-6-zero-p1-f140-n180".to_string(),
-            comparison_engine_set: Some("field".to_string()),
+            comparison_engine_set: Some(ComparisonEngineSet::Field),
             batman_bellman_stale_after_ticks: None,
             batman_bellman_next_refresh_within_ticks: None,
             pathway_query_budget: None,
@@ -420,7 +472,7 @@ impl ExperimentParameterSet {
 
     #[must_use]
     pub fn head_to_head(
-        comparison_engine_set: &str,
+        comparison_engine_set: ComparisonEngineSet,
         batman_bellman_decay_window: Option<(u32, u32)>,
         pathway_search: Option<(usize, PathwaySearchHeuristicMode)>,
         field_search: Option<(usize, FieldSearchHeuristicMode)>,
@@ -449,7 +501,7 @@ impl ExperimentParameterSet {
         Self {
             engine_family: "head-to-head".to_string(),
             config_id: format!("head-to-head-{}", config_suffix),
-            comparison_engine_set: Some(comparison_engine_set.to_string()),
+            comparison_engine_set: Some(comparison_engine_set),
             batman_bellman_stale_after_ticks,
             batman_bellman_next_refresh_within_ticks,
             batman_classic_stale_after_ticks: None,
@@ -471,6 +523,11 @@ impl ExperimentParameterSet {
             field_node_bootstrap_entropy_ceiling,
             field_node_discovery_enabled,
         }
+    }
+
+    #[must_use]
+    pub fn comparison_engine_set_label(&self) -> Option<&'static str> {
+        self.comparison_engine_set.map(ComparisonEngineSet::label)
     }
 
     #[must_use]
@@ -529,6 +586,45 @@ impl ExperimentParameterSet {
         } else {
             config.disable_node_discovery()
         })
+    }
+
+    #[must_use]
+    pub fn scatter(profile_id: &str) -> Self {
+        Self {
+            engine_family: "scatter".to_string(),
+            config_id: format!("scatter-{profile_id}"),
+            comparison_engine_set: Some(ComparisonEngineSet::Scatter),
+            batman_bellman_stale_after_ticks: None,
+            batman_bellman_next_refresh_within_ticks: None,
+            batman_classic_stale_after_ticks: None,
+            batman_classic_next_refresh_within_ticks: None,
+            babel_stale_after_ticks: None,
+            babel_next_refresh_within_ticks: None,
+            olsrv2_stale_after_ticks: None,
+            olsrv2_next_refresh_within_ticks: None,
+            pathway_query_budget: None,
+            pathway_heuristic_mode: None,
+            scatter_profile_id: Some(profile_id.to_string()),
+            field_query_budget: None,
+            field_heuristic_mode: None,
+            field_service_publication_neighbor_limit: None,
+            field_service_freshness_weight: None,
+            field_service_narrowing_bias: None,
+            field_node_bootstrap_support_floor: None,
+            field_node_bootstrap_top_mass_floor: None,
+            field_node_bootstrap_entropy_ceiling: None,
+            field_node_discovery_enabled: None,
+        }
+    }
+
+    #[must_use]
+    pub fn scatter_config(&self) -> Option<ScatterEngineConfig> {
+        match self.scatter_profile_id.as_deref()? {
+            "balanced" => Some(ScatterEngineConfig::default()),
+            "conservative" => Some(conservative_scatter_config()),
+            "degraded-network" => Some(degraded_network_scatter_config()),
+            _ => None,
+        }
     }
 
     #[must_use]
@@ -660,6 +756,92 @@ impl ExperimentParameterSet {
             }
             _ => None,
         }
+    }
+}
+
+fn conservative_scatter_config() -> ScatterEngineConfig {
+    ScatterEngineConfig {
+        expiry: ScatterExpiryPolicy {
+            emergency_expiry_ms: DurationMs(10_000),
+            normal_expiry_ms: DurationMs(30_000),
+            background_expiry_ms: DurationMs(60_000),
+        },
+        budget: ScatterBudgetPolicy {
+            emergency_copy_budget: 6,
+            normal_copy_budget: 3,
+            background_copy_budget: 1,
+        },
+        regime: ScatterRegimeThresholds {
+            sparse_neighbor_count_max: 1,
+            dense_neighbor_count_min: 5,
+            constrained_hold_capacity_floor_bytes: ByteCount(2_048),
+            constrained_relay_utilization_floor_permille: 650,
+            bridging_diversity_floor: 2,
+            history_window_ticks: 8,
+        },
+        decision: ScatterDecisionThresholds {
+            sparse_delta_floor: 220,
+            dense_delta_floor: 160,
+            bridging_delta_floor: 100,
+            constrained_delta_floor: 260,
+            preferential_handoff_delta_floor: 300,
+        },
+        transport: ScatterTransportPolicy {
+            min_transfer_rate_bytes_per_sec: 96,
+            min_stability_horizon_ms: DurationMs(350),
+            low_rate_payload_bytes_max: ByteCount(96),
+        },
+        bounds: ScatterOperationalBounds {
+            message_count_max: 24,
+            byte_count_max: ByteCount(12_288),
+            hold_bytes_reserved: ByteCount(2_048),
+            work_step_count_max: 6,
+            validity_window_ticks: 10,
+            engine_tick_within_ticks: 2,
+        },
+    }
+}
+
+fn degraded_network_scatter_config() -> ScatterEngineConfig {
+    ScatterEngineConfig {
+        expiry: ScatterExpiryPolicy {
+            emergency_expiry_ms: DurationMs(25_000),
+            normal_expiry_ms: DurationMs(60_000),
+            background_expiry_ms: DurationMs(120_000),
+        },
+        budget: ScatterBudgetPolicy {
+            emergency_copy_budget: 10,
+            normal_copy_budget: 5,
+            background_copy_budget: 3,
+        },
+        regime: ScatterRegimeThresholds {
+            sparse_neighbor_count_max: 2,
+            dense_neighbor_count_min: 3,
+            constrained_hold_capacity_floor_bytes: ByteCount(384),
+            constrained_relay_utilization_floor_permille: 800,
+            bridging_diversity_floor: 1,
+            history_window_ticks: 12,
+        },
+        decision: ScatterDecisionThresholds {
+            sparse_delta_floor: 140,
+            dense_delta_floor: 90,
+            bridging_delta_floor: 40,
+            constrained_delta_floor: 170,
+            preferential_handoff_delta_floor: 220,
+        },
+        transport: ScatterTransportPolicy {
+            min_transfer_rate_bytes_per_sec: 48,
+            min_stability_horizon_ms: DurationMs(180),
+            low_rate_payload_bytes_max: ByteCount(192),
+        },
+        bounds: ScatterOperationalBounds {
+            message_count_max: 48,
+            byte_count_max: ByteCount(24_576),
+            hold_bytes_reserved: ByteCount(768),
+            work_step_count_max: 10,
+            validity_window_ticks: 16,
+            engine_tick_within_ticks: 2,
+        },
     }
 }
 

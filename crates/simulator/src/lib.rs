@@ -33,14 +33,15 @@ mod reduced_replay;
 mod replay;
 mod scenario;
 mod topology;
+mod util;
 
 pub mod presets;
 
 pub use assertions::{AssertionFailure, ScenarioAssertions};
 pub use diffusion::{
     diffusion_local_suite, diffusion_smoke_suite, run_diffusion_suite, DiffusionAggregateSummary,
-    DiffusionArtifacts, DiffusionBoundarySummary, DiffusionManifest, DiffusionPolicyConfig,
-    DiffusionRegimeDescriptor, DiffusionRunSummary, DiffusionSuite,
+    DiffusionArtifacts, DiffusionBoundarySummary, DiffusionForwardingStyle, DiffusionManifest,
+    DiffusionPolicyConfig, DiffusionRegimeDescriptor, DiffusionRunSummary, DiffusionSuite,
 };
 pub use environment::{
     AppliedEnvironmentHook, EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel,
