@@ -8,7 +8,7 @@ pub(super) enum ComparativeSuiteScale {
 
 type ComparativeFamilySpec = (&'static str, RegimeFields<'static>, FamilyBuilder);
 
-const SCATTER_FAMILY_SPECS: [ComparativeFamilySpec; 7] = [
+const SCATTER_FAMILY_SPECS: [ComparativeFamilySpec; 11] = [
     (
         "scatter-connected-low-loss",
         (
@@ -107,9 +107,65 @@ const SCATTER_FAMILY_SPECS: [ComparativeFamilySpec; 7] = [
         ),
         build_comparison_medium_bridge_repair,
     ),
+    (
+        "scatter-large-core-periphery-moderate",
+        (
+            "large-core-periphery-moderate",
+            "moderate",
+            "high",
+            "mild",
+            "reroute-shift",
+            "moderate",
+            "repairable-connected",
+            66,
+        ),
+        build_comparison_large_core_periphery_moderate,
+    ),
+    (
+        "scatter-large-core-periphery-high",
+        (
+            "large-core-periphery-high",
+            "moderate",
+            "high",
+            "moderate",
+            "reroute-shift",
+            "high",
+            "repairable-connected",
+            76,
+        ),
+        build_comparison_large_core_periphery_high,
+    ),
+    (
+        "scatter-large-multi-bottleneck-moderate",
+        (
+            "large-multi-bottleneck-moderate",
+            "high",
+            "high",
+            "moderate",
+            "staggered-bottlenecks",
+            "high",
+            "repairable-connected",
+            82,
+        ),
+        build_comparison_large_multi_bottleneck_moderate,
+    ),
+    (
+        "scatter-large-multi-bottleneck-high",
+        (
+            "large-multi-bottleneck-high",
+            "high",
+            "high",
+            "severe",
+            "staggered-bottlenecks",
+            "high",
+            "repairable-connected",
+            90,
+        ),
+        build_comparison_large_multi_bottleneck_high,
+    ),
 ];
 
-const COMPARISON_FAMILY_SPECS: [ComparativeFamilySpec; 7] = [
+const COMPARISON_FAMILY_SPECS: [ComparativeFamilySpec; 11] = [
     (
         "comparison-connected-low-loss",
         (
@@ -208,9 +264,65 @@ const COMPARISON_FAMILY_SPECS: [ComparativeFamilySpec; 7] = [
         ),
         build_comparison_medium_bridge_repair,
     ),
+    (
+        "comparison-large-core-periphery-moderate",
+        (
+            "large-core-periphery-moderate",
+            "moderate",
+            "high",
+            "mild",
+            "reroute-shift",
+            "moderate",
+            "repairable-connected",
+            66,
+        ),
+        build_comparison_large_core_periphery_moderate,
+    ),
+    (
+        "comparison-large-core-periphery-high",
+        (
+            "large-core-periphery-high",
+            "moderate",
+            "high",
+            "moderate",
+            "reroute-shift",
+            "high",
+            "repairable-connected",
+            76,
+        ),
+        build_comparison_large_core_periphery_high,
+    ),
+    (
+        "comparison-large-multi-bottleneck-moderate",
+        (
+            "large-multi-bottleneck-moderate",
+            "high",
+            "high",
+            "moderate",
+            "staggered-bottlenecks",
+            "high",
+            "repairable-connected",
+            82,
+        ),
+        build_comparison_large_multi_bottleneck_moderate,
+    ),
+    (
+        "comparison-large-multi-bottleneck-high",
+        (
+            "large-multi-bottleneck-high",
+            "high",
+            "high",
+            "severe",
+            "staggered-bottlenecks",
+            "high",
+            "repairable-connected",
+            90,
+        ),
+        build_comparison_large_multi_bottleneck_high,
+    ),
 ];
 
-const HEAD_TO_HEAD_FAMILY_SPECS: [ComparativeFamilySpec; 7] = [
+const HEAD_TO_HEAD_FAMILY_SPECS: [ComparativeFamilySpec; 11] = [
     (
         "head-to-head-connected-low-loss",
         (
@@ -309,6 +421,62 @@ const HEAD_TO_HEAD_FAMILY_SPECS: [ComparativeFamilySpec; 7] = [
         ),
         build_comparison_medium_bridge_repair,
     ),
+    (
+        "head-to-head-large-core-periphery-moderate",
+        (
+            "large-core-periphery-moderate",
+            "moderate",
+            "high",
+            "mild",
+            "reroute-shift",
+            "moderate",
+            "repairable-connected",
+            66,
+        ),
+        build_comparison_large_core_periphery_moderate,
+    ),
+    (
+        "head-to-head-large-core-periphery-high",
+        (
+            "large-core-periphery-high",
+            "moderate",
+            "high",
+            "moderate",
+            "reroute-shift",
+            "high",
+            "repairable-connected",
+            76,
+        ),
+        build_comparison_large_core_periphery_high,
+    ),
+    (
+        "head-to-head-large-multi-bottleneck-moderate",
+        (
+            "large-multi-bottleneck-moderate",
+            "high",
+            "high",
+            "moderate",
+            "staggered-bottlenecks",
+            "high",
+            "repairable-connected",
+            82,
+        ),
+        build_comparison_large_multi_bottleneck_moderate,
+    ),
+    (
+        "head-to-head-large-multi-bottleneck-high",
+        (
+            "large-multi-bottleneck-high",
+            "high",
+            "high",
+            "severe",
+            "staggered-bottlenecks",
+            "high",
+            "repairable-connected",
+            90,
+        ),
+        build_comparison_large_multi_bottleneck_high,
+    ),
 ];
 
 fn family_descriptors(
@@ -318,6 +486,20 @@ fn family_descriptors(
         .iter()
         .map(|(family_id, fields, builder)| (*family_id, regime(*fields), *builder))
         .collect()
+}
+
+fn scaled_family_descriptors(
+    specs: &[ComparativeFamilySpec],
+    scale: ComparativeSuiteScale,
+) -> Vec<(&'static str, RegimeDescriptor, FamilyBuilder)> {
+    let filtered = specs
+        .iter()
+        .copied()
+        .filter(|(family_id, _, _)| {
+            scale == ComparativeSuiteScale::Full || !family_id.ends_with("-high")
+        })
+        .collect::<Vec<_>>();
+    family_descriptors(&filtered)
 }
 
 fn scatter_parameter_sets(scale: ComparativeSuiteScale) -> Vec<ExperimentParameterSet> {
@@ -378,7 +560,7 @@ pub(super) fn build_scatter_runs(
     scale: ComparativeSuiteScale,
 ) -> Vec<ExperimentRunSpec> {
     let parameter_sets = scatter_parameter_sets(scale);
-    let families = family_descriptors(&SCATTER_FAMILY_SPECS);
+    let families = scaled_family_descriptors(&SCATTER_FAMILY_SPECS, scale);
     expand_runs(suite_id, "scatter", seeds, &parameter_sets, &families)
 }
 
@@ -388,7 +570,7 @@ pub(super) fn build_comparison_runs(
     scale: ComparativeSuiteScale,
 ) -> Vec<ExperimentRunSpec> {
     let configs = comparison_configs(scale);
-    let families = family_descriptors(&COMPARISON_FAMILY_SPECS);
+    let families = scaled_family_descriptors(&COMPARISON_FAMILY_SPECS, scale);
     expand_runs(suite_id, "comparison", seeds, &configs, &families)
 }
 
@@ -398,6 +580,6 @@ pub(super) fn build_head_to_head_runs(
     _scale: ComparativeSuiteScale,
 ) -> Vec<ExperimentRunSpec> {
     let configs = head_to_head_configs();
-    let families = family_descriptors(&HEAD_TO_HEAD_FAMILY_SPECS);
+    let families = scaled_family_descriptors(&HEAD_TO_HEAD_FAMILY_SPECS, _scale);
     expand_runs(suite_id, "head-to-head", seeds, &configs, &families)
 }

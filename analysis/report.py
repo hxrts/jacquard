@@ -31,6 +31,9 @@ from .plots import (
     render_comparison_summary,
     render_diffusion_delivery_coverage,
     render_diffusion_resource_boundedness,
+    render_large_population_diffusion_transitions,
+    render_large_population_route_fragility,
+    render_large_population_route_scaling,
     render_field_budget_reconfiguration,
     render_field_budget_route_presence,
     render_head_to_head_timing_profile,
@@ -57,6 +60,9 @@ from .scoring import (
     diffusion_engine_comparison_table,
     diffusion_engine_summary_table,
     diffusion_family_weight_sensitivity_table,
+    large_population_diffusion_state_points_table,
+    large_population_diffusion_transition_table,
+    large_population_route_summary_table,
     field_vs_best_diffusion_alternative_table,
     field_diffusion_regime_calibration_table,
     field_profile_recommendation_table,
@@ -174,6 +180,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         diffusion_engine_comparison = diffusion_engine_comparison_table(diffusion_aggregates)
         diffusion_boundary_summary = diffusion_boundary_table(diffusion_boundaries)
+        large_population_route_summary = large_population_route_summary_table(aggregates)
+        large_population_diffusion_points = large_population_diffusion_state_points_table(
+            diffusion_aggregates
+        )
+        large_population_diffusion_transitions = large_population_diffusion_transition_table(
+            diffusion_aggregates
+        )
         field_diffusion_regime_calibration = field_diffusion_regime_calibration_table(
             diffusion_aggregates
         )
@@ -236,6 +249,18 @@ def main(argv: list[str] | None = None) -> int:
         write_csv(
             diffusion_boundary_summary,
             output_report_dir / "diffusion_boundary_summary.csv",
+        )
+        write_csv(
+            large_population_route_summary,
+            output_report_dir / "large_population_route_summary.csv",
+        )
+        write_csv(
+            large_population_diffusion_points,
+            output_report_dir / "large_population_diffusion_points.csv",
+        )
+        write_csv(
+            large_population_diffusion_transitions,
+            output_report_dir / "large_population_diffusion_transitions.csv",
         )
         write_csv(
             field_diffusion_regime_calibration,
@@ -374,6 +399,24 @@ def main(argv: list[str] | None = None) -> int:
                 render_diffusion_resource_boundedness,
                 diffusion_engine_comparison,
             )
+        save_plot_artifact(
+            output_report_dir,
+            "large_population_route_scaling",
+            render_large_population_route_scaling,
+            large_population_route_summary,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "large_population_route_fragility",
+            render_large_population_route_fragility,
+            large_population_route_summary,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "large_population_diffusion_transitions",
+            render_large_population_diffusion_transitions,
+            large_population_diffusion_points,
+        )
 
         write_pdf_report(
             artifact_dir,
@@ -396,6 +439,8 @@ def main(argv: list[str] | None = None) -> int:
             diffusion_regime_engine_summary,
             diffusion_engine_comparison,
             diffusion_boundary_summary,
+            large_population_route_summary,
+            large_population_diffusion_transitions,
             field_diffusion_regime_calibration,
             field_vs_best_diffusion_alternative,
             baseline_comparison,

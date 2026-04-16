@@ -650,6 +650,187 @@ pub(super) fn medium_bridge_repair_topology(
     })
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum LargePopulationSizeBand {
+    Moderate,
+    High,
+}
+
+impl LargePopulationSizeBand {
+    #[must_use]
+    pub(super) fn node_bytes(self) -> &'static [u8] {
+        match self {
+            Self::Moderate => &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            Self::High => &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+        }
+    }
+}
+
+#[must_use]
+pub(super) fn node_id(node_byte: u8) -> NodeId {
+    NodeId([node_byte; 32])
+}
+
+#[must_use]
+pub(super) fn node_ids(bytes: &[u8]) -> Vec<NodeId> {
+    bytes.iter().copied().map(node_id).collect()
+}
+
+fn topology_from_byte_nodes_and_edges(
+    byte_nodes: Vec<(u8, Node)>,
+    undirected_edges: &[(u8, u8)],
+    reachable_neighbor_count: u32,
+) -> Observation<Configuration> {
+    let nodes = byte_nodes
+        .into_iter()
+        .map(|(byte, node)| (node_id(byte), node))
+        .collect::<BTreeMap<_, _>>();
+    let mut links = BTreeMap::new();
+    for (left, right) in undirected_edges {
+        links.insert(
+            (node_id(*left), node_id(*right)),
+            topology::link(*right).build(),
+        );
+        links.insert(
+            (node_id(*right), node_id(*left)),
+            topology::link(*left).build(),
+        );
+    }
+    routing_observation(Configuration {
+        epoch: RouteEpoch(1),
+        nodes,
+        links,
+        environment: Environment {
+            reachable_neighbor_count,
+            churn_permille: RatioPermille(0),
+            contention_permille: RatioPermille(0),
+        },
+    })
+}
+
+fn comparison_topology_nodes_for_bytes(
+    bytes: &[u8],
+    comparison_engine_set: Option<&str>,
+) -> Vec<(u8, Node)> {
+    bytes
+        .iter()
+        .copied()
+        .map(|byte| (byte, comparison_topology_node(byte, comparison_engine_set)))
+        .collect()
+}
+
+const LARGE_CORE_PERIPHERY_MODERATE_EDGES: &[(u8, u8)] = &[
+    (1, 2),
+    (2, 3),
+    (2, 4),
+    (2, 5),
+    (3, 4),
+    (3, 5),
+    (4, 5),
+    (4, 6),
+    (5, 6),
+    (6, 7),
+    (7, 8),
+    (8, 9),
+    (9, 10),
+];
+
+const LARGE_CORE_PERIPHERY_HIGH_EDGES: &[(u8, u8)] = &[
+    (1, 2),
+    (2, 3),
+    (2, 4),
+    (2, 5),
+    (2, 6),
+    (3, 4),
+    (3, 5),
+    (3, 6),
+    (4, 5),
+    (4, 6),
+    (5, 6),
+    (5, 7),
+    (6, 7),
+    (7, 8),
+    (8, 9),
+    (9, 10),
+    (10, 11),
+    (11, 12),
+    (12, 13),
+    (13, 14),
+];
+
+const LARGE_BOTTLENECK_MODERATE_EDGES: &[(u8, u8)] = &[
+    (1, 2),
+    (1, 3),
+    (2, 3),
+    (2, 4),
+    (3, 4),
+    (4, 5),
+    (4, 6),
+    (5, 6),
+    (5, 7),
+    (6, 7),
+    (7, 8),
+    (7, 9),
+    (8, 9),
+    (9, 10),
+];
+
+const LARGE_BOTTLENECK_HIGH_EDGES: &[(u8, u8)] = &[
+    (1, 2),
+    (1, 3),
+    (2, 3),
+    (2, 4),
+    (3, 4),
+    (4, 5),
+    (4, 6),
+    (4, 7),
+    (5, 6),
+    (5, 7),
+    (6, 7),
+    (6, 8),
+    (7, 8),
+    (8, 9),
+    (8, 10),
+    (8, 11),
+    (9, 10),
+    (9, 11),
+    (10, 11),
+    (10, 12),
+    (11, 12),
+    (12, 13),
+    (13, 14),
+];
+
+pub(super) fn large_population_core_periphery_topology(
+    comparison_engine_set: Option<&str>,
+    size_band: LargePopulationSizeBand,
+) -> Observation<Configuration> {
+    let (edges, reachable_neighbor_count) = match size_band {
+        LargePopulationSizeBand::Moderate => (LARGE_CORE_PERIPHERY_MODERATE_EDGES, 4),
+        LargePopulationSizeBand::High => (LARGE_CORE_PERIPHERY_HIGH_EDGES, 5),
+    };
+    topology_from_byte_nodes_and_edges(
+        comparison_topology_nodes_for_bytes(size_band.node_bytes(), comparison_engine_set),
+        edges,
+        reachable_neighbor_count,
+    )
+}
+
+pub(super) fn large_population_bottleneck_topology(
+    comparison_engine_set: Option<&str>,
+    size_band: LargePopulationSizeBand,
+) -> Observation<Configuration> {
+    let (edges, reachable_neighbor_count) = match size_band {
+        LargePopulationSizeBand::Moderate => (LARGE_BOTTLENECK_MODERATE_EDGES, 3),
+        LargePopulationSizeBand::High => (LARGE_BOTTLENECK_HIGH_EDGES, 4),
+    };
+    topology_from_byte_nodes_and_edges(
+        comparison_topology_nodes_for_bytes(size_band.node_bytes(), comparison_engine_set),
+        edges,
+        reachable_neighbor_count,
+    )
+}
+
 pub(super) fn fanout_service_topology4(
     node_a: Node,
     node_b: Node,

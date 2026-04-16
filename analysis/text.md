@@ -389,10 +389,11 @@ The full mixed-engine and head-to-head tables are collected in Appendix B. The m
 
 #### Head-To-Head Takeaways
 
-- `connected-low-loss` is mostly a tie regime.
-- The hard route-visible bridge families are the clearest separators: `connected-high-loss` is led by `{connected_high_loss_engine_set}` at {connected_high_loss_route_presence} permille, `bridge-transition` by `{bridge_transition_engine_set}` at {bridge_transition_route_presence} permille.
-- Mixed workloads favor explicit search: `concurrent-mixed` is led by `{concurrent_mixed_engine_set}` at {concurrent_mixed_route_presence} permille.
-- `field` reaches {field_connected_high_loss_route_presence} permille in `connected-high-loss`, {field_bridge_transition_route_presence} permille in `bridge-transition`, and {partial_bridge_route_presence} permille in `partial-observability-bridge`, while staying strong at {corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`.
+- `connected-low-loss` and `partial-observability-bridge` are broad tie regimes; in the latter, {partial_bridge_engine_sets} all reach {partial_bridge_route_presence} permille active-window route presence.
+- The hard route-visible bridge families are the clearest separators: `connected-high-loss` is led by {connected_high_loss_engine_sets} at {connected_high_loss_route_presence} permille, while `bridge-transition` is shared by {bridge_transition_engine_sets} at {bridge_transition_route_presence} permille.
+- `medium-bridge-repair` also stays broad at the top: {medium_bridge_repair_engine_sets} all reach {medium_bridge_repair_route_presence} permille.
+- Mixed workloads still favor explicit search: `concurrent-mixed` is led by {concurrent_mixed_engine_sets} at {concurrent_mixed_route_presence} permille.
+- `field` stays competitive in the hard bridge families at {field_connected_high_loss_route_presence} permille in `connected-high-loss` and {field_bridge_transition_route_presence} permille in `bridge-transition`, but it drops to {field_corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`.
 
 #### Head-To-Head Findings Empty
 
@@ -402,8 +403,62 @@ No head-to-head summary is available for this artifact set.
 
 - The routing comparison does not collapse to one universal winner. In the mixed-engine matrix, `connected-low-loss` is led by `{connected_low_loss_engine}`, `connected-high-loss` by `{connected_high_loss_engine}`, and `concurrent-mixed` by `{comparison_concurrent_mixed_engine}`.
 - Among the maintained proactive next-hop defaults, `babel` and `olsrv2` are the strongest contrasting baselines: `{babel_config}` captures the asymmetry-sensitive distance-vector case, while `{olsrv2_config}` is the full-topology baseline when HELLO and TC propagation have time to pay off.
-- Explicit search still matters when the workload is mixed rather than purely hop-by-hop. In the head-to-head matrix, `concurrent-mixed` is led by `{concurrent_mixed_engine_set}` at {concurrent_mixed_route_presence} permille route presence.
-- `field` is corridor-oriented rather than universal, but it stays competitive across the hard repairable-connected bridge families while preserving its strongest corridor-continuity behavior at {corridor_uncertainty_route_presence} permille.
+- Explicit search still matters when the workload is mixed rather than purely hop-by-hop. In the head-to-head matrix, `concurrent-mixed` is led by {concurrent_mixed_engine_sets} at {concurrent_mixed_route_presence} permille route presence.
+- The mixed router leaves large performance on the table in the hardest bridge families: `connected-high-loss` settles on `{mixed_connected_high_loss_engine}` at {mixed_connected_high_loss_route_presence} permille while standalone {head_to_head_connected_high_loss_engines} {head_to_head_connected_high_loss_route_verb} {head_to_head_connected_high_loss_route_presence}, and `bridge-transition` settles on `{mixed_bridge_transition_engine}` at {mixed_bridge_transition_route_presence} while standalone {head_to_head_bridge_transition_engines} {head_to_head_bridge_transition_route_verb} {head_to_head_bridge_transition_route_presence}.
+- `field` is corridor-oriented rather than universal: it stays competitive in `connected-high-loss` at {field_connected_high_loss_route_presence} permille and in `bridge-transition` at {field_bridge_transition_route_presence} permille, but in `corridor-continuity-uncertainty` it drops to {field_corridor_uncertainty_route_presence} permille while {corridor_best_engines} lead at {corridor_best_route_presence}.
+
+## Large-Population Findings
+
+### Large-Population Introduction
+
+These additions extend the maintained corpus beyond the small connected and single-bridge families so the report can ask three larger-network questions directly: control-plane scaling under fanout and diameter, multi-bottleneck fragility under overlapping repair pressure, and diffusion phase transitions in larger clustered populations.
+
+The route-visible track adds moderate and high large-pop bands for a mixed-density core-periphery family and a multi-bottleneck repair family. The diffusion track adds sparse-threshold, congestion-threshold, and regional-shift continuity families at moderate and high bands.
+
+### Large-Population Route Summary
+
+@table large-population-route-summary
+
+Compact route-visible large-population surface by topology class and engine set. Column guide: Topology is the analytical question family. Engine Set is the standalone routing stack. Small, Moderate, and High are total-window route-presence means for the maintained size bands. `dHigh` is the high-band minus small-band route-presence delta. High Loss is the mean first-loss round in the high-band family.
+
+### Large-Population Diffusion Transitions
+
+@table large-population-diffusion-transitions
+
+Representative collapse, viable, and explosive profiles for each maintained large-population diffusion family. Column guide: Question is the diffusion question family. Size is the maintained population band. Collapse / Viable / Explosive show the representative configuration for that boundedness state when one was observed.
+
+### Large-Population Figure Context
+
+These figures separate route-visible scaling, route-visible fragility, and diffusion transition behavior across the maintained large-population corpus.
+
+#### Figure 22
+
+@figure large_population_route_scaling
+
+Route-visible performance by size band for the maintained large-population families. Each panel fixes one topology class and traces how each standalone engine set moves from the small baseline into the moderate and high bands.
+Read the slope more than the starting point: flatter lines mean the engine keeps its route-visible behavior as the population grows, while steep drops mean scaling pressure is exposing a control or search limit. An engine that stays high across all three bands is scaling cleanly in that topology class rather than winning only in the smallest case.
+
+#### Figure 23
+
+@figure large_population_route_fragility
+
+Small-to-high route-presence drop for the maintained large-population route-visible classes. More negative bars mean stronger degradation as the graph grows or bottlenecks multiply. The inline loss label gives the mean first-loss round in the high band.
+Use this as a degradation summary rather than a raw performance chart: bars near zero mean the engine preserved most of its small-band behavior, while large negative bars mean the larger graph is causing material fragility. Earlier high-band loss labels indicate that the engine is not only degrading more, but also failing sooner under the larger-population regime.
+
+#### Figure 24
+
+@figure large_population_diffusion_transitions
+
+Representative bounded-state points for the maintained large-population diffusion families. Each panel shows delivery versus estimated reproduction for the best observed collapse, viable, and explosive representatives in that family, making the transition surface visible without scanning the full raw matrix.
+Interpret the point positions by quadrant: the useful region is high delivery with bounded reproduction, while low-delivery collapse points and high-`R` explosive points show the two ways an engine can fail at scale. Engines that keep their viable representative well separated from both failure modes are handling larger-population diffusion pressure more cleanly.
+
+### Large-Population Takeaways
+
+- In the high large-pop route-visible bands, the core-periphery family is shared by {scaling_best_engines} at {scaling_high_route} permille, while the high multi-bottleneck family is shared by {bottleneck_best_engines} at {bottleneck_high_route} permille.
+- The steepest diameter / fanout drop is `{diameter_sensitive_engine}` at {diameter_delta} permille from the small baseline to the high band, and the steepest multi-bottleneck drop is `{bottleneck_fragile_engine}` at {bottleneck_delta} permille.
+- `scatter` and `field` are the clearest route-visible large-population losers: in the high core-periphery band they fall to {core_periphery_scatter_route} and {core_periphery_field_route} permille, and in the high multi-bottleneck band they reach only {multi_bottleneck_scatter_route} and {multi_bottleneck_field_route} permille.
+- The combined `pathway-batman-bellman` stack materially closes the multi-bottleneck gap versus plain `pathway`, reaching {multi_bottleneck_pathway_batman_route} permille in the high band versus {multi_bottleneck_pathway_route} for `pathway` alone.
+- The sparse-threshold high band still shows viable `{sparse_viable}` against explosive `{sparse_explosive}`, the congestion-threshold moderate band separates viable `{congestion_viable}` from collapse `{congestion_collapse}`, the congestion-threshold high band is currently only `{congestion_high_states}`, and the regional-shift high band still spans `{regional_states}`.
 
 ## Part III. Diffusion Calibration
 
@@ -519,8 +574,9 @@ Appendix C contains the full diffusion family matrix and the field-versus-best-a
 ### Diffusion Takeaways
 
 - The diffusion track is an engine comparison, but the regime summary is the right top-level view because continuity, scarcity, congestion, and privacy reward different tradeoffs.
-- Scarcity rewards conservative bounded forwarding, but the regime winners still split: `field` leads the balanced and scarcity regimes, `pathway-batman-bellman` leads congestion, and `batman-classic` leads continuity and privacy.
-- `field` shows clear regime specialization without being universal: it wins balanced and scarcity outright, matches the best alternative in privacy, and falls short in congestion where no acceptable field candidate clears the regime gate.
+- The regime winners currently split across concrete profiles rather than one family winner: `{balanced_winner}` leads balanced, `{scarcity_winner}` leads scarcity, `{congestion_winner}` leads congestion, and {continuity_privacy_winners} {continuity_privacy_verb} continuity and privacy.
+- `field` shows clear regime specialization without being universal: it is `{field_balanced_status}` in balanced despite a regime-score delta of {field_balanced_score_delta}, beats the best alternative in scarcity by {field_scarcity_score_delta}, matches privacy exactly at {field_privacy_score_delta}, remains acceptable but secondary in continuity at {field_continuity_score_delta}, and still has `{field_congestion_status}` in congestion.
+- One under-represented point is that even the balanced regime currently prefers the privacy-tuned `{balanced_winner}` profile, which suggests the maintained corpus is still rewarding bounded suppression-heavy behavior outside the explicit privacy regime.
 - The harsher families are boundary finders: `bridge-drought` tests rare-opportunity carry, `energy-starved-relay` tests efficiency under scarcity, and `congestion-cascade` tests whether broad forwarding remains bounded without starving first-arrival cluster coverage.
 
 ### Field Diffusion Posture

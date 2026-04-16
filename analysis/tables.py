@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from .plots import break_tick_label
+from .plots import break_tick_label, engine_display_label
 
 
 def recommendation_table_rows(
@@ -397,6 +397,48 @@ def field_diffusion_regime_table_rows(
                 f"{row['delivery_probability_mean']:.1f}",
                 f"{row['total_transmissions_mean']:.1f}",
                 f"{row['regime_fit_score']:.1f}",
+            ]
+        )
+    return rows
+
+
+def _format_table_number(value: float | None) -> str:
+    if value is None:
+        return "-"
+    return f"{value:.0f}"
+
+
+def large_population_route_summary_table_rows(
+    large_population_route_summary: pl.DataFrame,
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in large_population_route_summary.iter_rows(named=True):
+        rows.append(
+            [
+                row["topology_label"],
+                engine_display_label(row["comparison_engine_set"]),
+                _format_table_number(row["small_route_present"]),
+                _format_table_number(row["moderate_route_present"]),
+                _format_table_number(row["high_route_present"]),
+                _format_table_number(row["small_to_high_route_delta"]),
+                _format_table_number(row["high_first_loss_round"]),
+            ]
+        )
+    return rows
+
+
+def large_population_diffusion_transition_table_rows(
+    large_population_diffusion_transitions: pl.DataFrame,
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in large_population_diffusion_transitions.iter_rows(named=True):
+        rows.append(
+            [
+                row["question_label"],
+                row["size_band"].capitalize(),
+                engine_display_label(row["collapse_config_id"]) if row["collapse_config_id"] else "-",
+                engine_display_label(row["viable_config_id"]) if row["viable_config_id"] else "-",
+                engine_display_label(row["explosive_config_id"]) if row["explosive_config_id"] else "-",
             ]
         )
     return rows

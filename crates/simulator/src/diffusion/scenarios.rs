@@ -277,21 +277,201 @@ pub(super) fn build_congestion_cascade_scenario() -> DiffusionScenarioSpec {
     .with_runtime_indexes()
 }
 
-fn clustered_nodes(
+// Analytical question: where does bounded unicast diffusion cross from
+// under-seeded collapse into viable or explosive spread when a larger clustered
+// population depends on scarce bridgers?
+pub(super) fn build_large_sparse_threshold_moderate_scenario() -> DiffusionScenarioSpec {
+    let mut nodes = clustered_nodes_with_strides(24, 6, false, 9, 13);
+    set_uniform_resources(&mut nodes, 9_000, 224);
+    boost_bridge_resources(&mut nodes, 11_000, 256);
+    DiffusionScenarioSpec {
+        family_id: "diffusion-large-sparse-threshold-moderate".to_string(),
+        regime: DiffusionRegimeDescriptor {
+            density: "large-sparse".to_string(),
+            mobility_model: "scarce-bridgers".to_string(),
+            transport_mix: "ble-wifi-lora".to_string(),
+            pressure: "threshold".to_string(),
+            objective_regime: "store-carry-unicast".to_string(),
+            stress_score: 84,
+        },
+        round_count: 72,
+        creation_round: 2,
+        payload_bytes: 80,
+        message_mode: DiffusionMessageMode::Unicast,
+        source_node_id: 1,
+        destination_node_id: Some(24),
+        nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
+    }
+    .with_runtime_indexes()
+}
+
+// Analytical question: does the same sparse bridger regime sharpen the
+// collapse / viable / explosive boundary further at the high large-population
+// band?
+pub(super) fn build_large_sparse_threshold_high_scenario() -> DiffusionScenarioSpec {
+    let mut nodes = clustered_nodes_with_strides(36, 8, false, 12, 17);
+    set_uniform_resources(&mut nodes, 8_400, 192);
+    boost_bridge_resources(&mut nodes, 10_500, 224);
+    DiffusionScenarioSpec {
+        family_id: "diffusion-large-sparse-threshold-high".to_string(),
+        regime: DiffusionRegimeDescriptor {
+            density: "large-sparse".to_string(),
+            mobility_model: "scarce-bridgers".to_string(),
+            transport_mix: "ble-wifi-lora".to_string(),
+            pressure: "threshold".to_string(),
+            objective_regime: "store-carry-unicast".to_string(),
+            stress_score: 92,
+        },
+        round_count: 96,
+        creation_round: 2,
+        payload_bytes: 84,
+        message_mode: DiffusionMessageMode::Unicast,
+        source_node_id: 1,
+        destination_node_id: Some(36),
+        nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
+    }
+    .with_runtime_indexes()
+}
+
+// Analytical question: where does larger-population broadcast diffusion tip
+// from viable bounded spread into overload collapse once dense clusters and
+// bridge brokers saturate?
+pub(super) fn build_large_congestion_threshold_moderate_scenario() -> DiffusionScenarioSpec {
+    let mut nodes = clustered_nodes_with_strides(28, 5, false, 6, 11);
+    set_uniform_resources(&mut nodes, 7_000, 160);
+    boost_bridge_resources(&mut nodes, 9_000, 192);
+    DiffusionScenarioSpec {
+        family_id: "diffusion-large-congestion-threshold-moderate".to_string(),
+        regime: DiffusionRegimeDescriptor {
+            density: "large-dense".to_string(),
+            mobility_model: "clustered".to_string(),
+            transport_mix: "ble-wifi".to_string(),
+            pressure: "overload-threshold".to_string(),
+            objective_regime: "broadcast".to_string(),
+            stress_score: 88,
+        },
+        round_count: 34,
+        creation_round: 1,
+        payload_bytes: 96,
+        message_mode: DiffusionMessageMode::Broadcast,
+        source_node_id: 1,
+        destination_node_id: None,
+        nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
+    }
+    .with_runtime_indexes()
+}
+
+// Analytical question: does the overload boundary stay stable or fail earlier
+// once the same dense congestion family is pushed to the high population band?
+pub(super) fn build_large_congestion_threshold_high_scenario() -> DiffusionScenarioSpec {
+    let mut nodes = clustered_nodes_with_strides(40, 6, false, 7, 13);
+    set_uniform_resources(&mut nodes, 8_000, 160);
+    boost_bridge_resources(&mut nodes, 10_000, 192);
+    DiffusionScenarioSpec {
+        family_id: "diffusion-large-congestion-threshold-high".to_string(),
+        regime: DiffusionRegimeDescriptor {
+            density: "large-dense".to_string(),
+            mobility_model: "clustered".to_string(),
+            transport_mix: "ble-wifi".to_string(),
+            pressure: "overload-threshold".to_string(),
+            objective_regime: "broadcast".to_string(),
+            stress_score: 96,
+        },
+        round_count: 38,
+        creation_round: 1,
+        payload_bytes: 104,
+        message_mode: DiffusionMessageMode::Broadcast,
+        source_node_id: 1,
+        destination_node_id: None,
+        nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
+    }
+    .with_runtime_indexes()
+}
+
+// Analytical question: how robust is store-carry diffusion when contact
+// opportunities shift by region and only a few brokers preserve continuity
+// across the larger population?
+pub(super) fn build_large_regional_shift_moderate_scenario() -> DiffusionScenarioSpec {
+    let mut nodes = regional_shift_nodes(24, 4);
+    set_uniform_resources(&mut nodes, 7_500, 224);
+    boost_bridge_resources(&mut nodes, 9_000, 256);
+    DiffusionScenarioSpec {
+        family_id: "diffusion-large-regional-shift-moderate".to_string(),
+        regime: DiffusionRegimeDescriptor {
+            density: "large-clustered".to_string(),
+            mobility_model: "regional-shift".to_string(),
+            transport_mix: "ble-wifi-lora".to_string(),
+            pressure: "reconfiguration".to_string(),
+            objective_regime: "store-carry-unicast".to_string(),
+            stress_score: 76,
+        },
+        round_count: 60,
+        creation_round: 3,
+        payload_bytes: 72,
+        message_mode: DiffusionMessageMode::Unicast,
+        source_node_id: 1,
+        destination_node_id: Some(24),
+        nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
+    }
+    .with_runtime_indexes()
+}
+
+// Analytical question: does the same regional-shift mobility surface remain
+// deterministic and viable once the broker and cluster count both grow?
+pub(super) fn build_large_regional_shift_high_scenario() -> DiffusionScenarioSpec {
+    let mut nodes = regional_shift_nodes(36, 6);
+    set_uniform_resources(&mut nodes, 7_000, 192);
+    boost_bridge_resources(&mut nodes, 8_600, 224);
+    DiffusionScenarioSpec {
+        family_id: "diffusion-large-regional-shift-high".to_string(),
+        regime: DiffusionRegimeDescriptor {
+            density: "large-clustered".to_string(),
+            mobility_model: "regional-shift".to_string(),
+            transport_mix: "ble-wifi-lora".to_string(),
+            pressure: "reconfiguration".to_string(),
+            objective_regime: "store-carry-unicast".to_string(),
+            stress_score: 84,
+        },
+        round_count: 76,
+        creation_round: 3,
+        payload_bytes: 80,
+        message_mode: DiffusionMessageMode::Unicast,
+        source_node_id: 1,
+        destination_node_id: Some(36),
+        nodes,
+        node_index_by_id: std::collections::BTreeMap::new(),
+        pair_descriptors: Vec::new(),
+    }
+    .with_runtime_indexes()
+}
+
+fn clustered_nodes_with_strides(
     node_count: u32,
     cluster_count: u8,
     with_observers: bool,
+    bridger_stride: u32,
+    long_range_stride: u32,
 ) -> Vec<DiffusionNodeSpec> {
     let mut nodes = Vec::new();
     for node_id in 1..=node_count {
         let cluster_id = u8::try_from((node_id - 1) % u32::from(cluster_count)).unwrap_or(0);
         let mobility_profile = if with_observers && node_id % 6 == 0 {
             DiffusionMobilityProfile::Observer
-        } else if node_id % 5 == 0 {
-            DiffusionMobilityProfile::Bridger
-        } else if node_id % 7 == 0 {
+        } else if node_id % long_range_stride == 0 {
             DiffusionMobilityProfile::LongRangeMover
-        } else if node_id % 2 == 0 {
+        } else if node_id % bridger_stride == 0 {
+            DiffusionMobilityProfile::Bridger
+        } else if (node_id + u32::from(cluster_id)).is_multiple_of(2) {
             DiffusionMobilityProfile::LocalMover
         } else {
             DiffusionMobilityProfile::Static
@@ -321,6 +501,76 @@ fn clustered_nodes(
     nodes
 }
 
+fn regional_shift_nodes(node_count: u32, cluster_count: u8) -> Vec<DiffusionNodeSpec> {
+    let mut nodes = clustered_nodes_with_strides(node_count, cluster_count, false, 8, 13);
+    for node in &mut nodes {
+        node.mobility_profile = match node.cluster_id % 3 {
+            0 => DiffusionMobilityProfile::Static,
+            1 => {
+                if node.node_id % 4 == 0 {
+                    DiffusionMobilityProfile::Bridger
+                } else {
+                    DiffusionMobilityProfile::LocalMover
+                }
+            }
+            _ => {
+                if node.node_id % 3 == 0 {
+                    DiffusionMobilityProfile::LongRangeMover
+                } else {
+                    DiffusionMobilityProfile::LocalMover
+                }
+            }
+        };
+        node.transport_capabilities = match node.mobility_profile {
+            DiffusionMobilityProfile::LongRangeMover => vec![
+                DiffusionTransportKind::Ble,
+                DiffusionTransportKind::WifiAware,
+                DiffusionTransportKind::LoRa,
+            ],
+            _ => vec![
+                DiffusionTransportKind::Ble,
+                DiffusionTransportKind::WifiAware,
+            ],
+        };
+    }
+    nodes
+}
+
+fn set_uniform_resources(
+    nodes: &mut [DiffusionNodeSpec],
+    energy_budget: u32,
+    storage_capacity: u32,
+) {
+    for node in nodes {
+        node.energy_budget = energy_budget;
+        node.storage_capacity = storage_capacity;
+    }
+}
+
+fn boost_bridge_resources(
+    nodes: &mut [DiffusionNodeSpec],
+    bridge_energy_budget: u32,
+    bridge_storage_capacity: u32,
+) {
+    for node in nodes {
+        if matches!(
+            node.mobility_profile,
+            DiffusionMobilityProfile::Bridger | DiffusionMobilityProfile::LongRangeMover
+        ) {
+            node.energy_budget = bridge_energy_budget;
+            node.storage_capacity = bridge_storage_capacity;
+        }
+    }
+}
+
+fn clustered_nodes(
+    node_count: u32,
+    cluster_count: u8,
+    with_observers: bool,
+) -> Vec<DiffusionNodeSpec> {
+    clustered_nodes_with_strides(node_count, cluster_count, with_observers, 5, 7)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -328,15 +578,27 @@ mod tests {
     use crate::diffusion::{
         build_adversarial_observation_scenario, build_bridge_drought_scenario,
         build_congestion_cascade_scenario, build_energy_starved_relay_scenario,
+        build_large_congestion_threshold_high_scenario,
+        build_large_congestion_threshold_moderate_scenario,
+        build_large_regional_shift_high_scenario, build_large_regional_shift_moderate_scenario,
+        build_large_sparse_threshold_high_scenario, build_large_sparse_threshold_moderate_scenario,
         build_partitioned_clusters_scenario, diffusion_engine_profile, diffusion_smoke_suite,
         execution::{
             aggregate_diffusion_runs, bounded_state, generate_contacts, simulate_diffusion_run,
         },
         field_diffusion_profiles,
         posture::{field_budget_kind, field_forwarding_suppressed},
-        DiffusionFieldPosture, DiffusionForwardingStyle, DiffusionPolicyConfig, DiffusionRunSpec,
-        FieldBudgetState, FieldExecutionMetrics, FieldSuppressionState, FieldTransferFeatures,
+        transition_diffusion_profiles, DiffusionFieldPosture, DiffusionForwardingStyle,
+        DiffusionPolicyConfig, DiffusionRunSpec, FieldBudgetState, FieldExecutionMetrics,
+        FieldSuppressionState, FieldTransferFeatures,
     };
+
+    fn transition_profile(config_id: &str) -> DiffusionPolicyConfig {
+        transition_diffusion_profiles(false)
+            .into_iter()
+            .find(|profile| profile.config_id == config_id)
+            .expect("transition profile present")
+    }
 
     #[test]
     fn contact_generation_is_deterministic() {
@@ -756,5 +1018,134 @@ mod tests {
             scenario,
         });
         assert!(adaptive.total_transmissions <= static_summary.total_transmissions);
+    }
+
+    #[test]
+    fn diffusion_smoke_suite_includes_large_population_moderate_families() {
+        let suite = diffusion_smoke_suite();
+        let families = suite
+            .runs
+            .iter()
+            .map(|run| run.family_id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert!(families.contains("diffusion-large-sparse-threshold-moderate"));
+        assert!(families.contains("diffusion-large-congestion-threshold-moderate"));
+        assert!(families.contains("diffusion-large-regional-shift-moderate"));
+    }
+
+    #[test]
+    fn large_sparse_threshold_high_spans_collapse_and_viable_regions() {
+        let scenario = build_large_sparse_threshold_high_scenario();
+        let summaries = transition_diffusion_profiles(false)
+            .into_iter()
+            .map(|policy| {
+                simulate_diffusion_run(&DiffusionRunSpec {
+                    suite_id: "test".to_string(),
+                    family_id: scenario.family_id.clone(),
+                    seed: 41,
+                    policy,
+                    scenario: scenario.clone(),
+                })
+            })
+            .collect::<Vec<_>>();
+        let states = summaries
+            .iter()
+            .map(|summary| summary.bounded_state.clone())
+            .collect::<BTreeSet<_>>();
+        assert!(states.contains("explosive"), "states: {:?}", states);
+        assert!(states.contains("viable"), "states: {:?}", states);
+    }
+
+    #[test]
+    fn large_population_diffusion_families_are_deterministic_and_aggregate() {
+        let scenarios = vec![
+            build_large_sparse_threshold_moderate_scenario(),
+            build_large_sparse_threshold_high_scenario(),
+            build_large_congestion_threshold_moderate_scenario(),
+            build_large_congestion_threshold_high_scenario(),
+            build_large_regional_shift_moderate_scenario(),
+            build_large_regional_shift_high_scenario(),
+        ];
+        let mut summaries = Vec::new();
+        for scenario in scenarios {
+            let policy =
+                if scenario.message_mode == crate::diffusion::DiffusionMessageMode::Broadcast {
+                    transition_profile("transition-balanced")
+                } else {
+                    transition_profile("transition-bridge-biased")
+                };
+            let first = simulate_diffusion_run(&DiffusionRunSpec {
+                suite_id: "test".to_string(),
+                family_id: scenario.family_id.clone(),
+                seed: 41,
+                policy: policy.clone(),
+                scenario: scenario.clone(),
+            });
+            let second = simulate_diffusion_run(&DiffusionRunSpec {
+                suite_id: "test".to_string(),
+                family_id: scenario.family_id.clone(),
+                seed: 41,
+                policy,
+                scenario,
+            });
+            assert_eq!(first, second);
+            summaries.push(first);
+        }
+        assert!(!aggregate_diffusion_runs(&summaries).is_empty());
+    }
+
+    #[test]
+    fn large_congestion_threshold_moderate_spans_collapse_and_viable_regions() {
+        let scenario = build_large_congestion_threshold_moderate_scenario();
+        let profiles = vec![
+            transition_profile("transition-balanced"),
+            transition_profile("transition-broad"),
+            diffusion_engine_profile("field-congestion"),
+        ];
+        let states = profiles
+            .into_iter()
+            .map(|policy| {
+                simulate_diffusion_run(&DiffusionRunSpec {
+                    suite_id: "test".to_string(),
+                    family_id: scenario.family_id.clone(),
+                    seed: 41,
+                    policy,
+                    scenario: scenario.clone(),
+                })
+                .bounded_state
+            })
+            .collect::<BTreeSet<_>>();
+        assert!(states.contains("collapse"), "states: {:?}", states);
+        assert!(states.contains("viable"), "states: {:?}", states);
+    }
+
+    #[test]
+    fn large_regional_shift_high_is_deterministic_for_transition_bridge_bias() {
+        let scenario = build_large_regional_shift_high_scenario();
+        let policy = transition_profile("transition-bridge-biased");
+        let first = simulate_diffusion_run(&DiffusionRunSpec {
+            suite_id: "test".to_string(),
+            family_id: scenario.family_id.clone(),
+            seed: 41,
+            policy: policy.clone(),
+            scenario: scenario.clone(),
+        });
+        let second = simulate_diffusion_run(&DiffusionRunSpec {
+            suite_id: "test".to_string(),
+            family_id: scenario.family_id.clone(),
+            seed: 41,
+            policy,
+            scenario,
+        });
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn large_regional_shift_moderate_changes_contact_shape_by_phase() {
+        let scenario = build_large_regional_shift_moderate_scenario();
+        let early = generate_contacts(41, &scenario, 6).len();
+        let middle = generate_contacts(41, &scenario, scenario.round_count / 2).len();
+        let late = generate_contacts(41, &scenario, scenario.round_count - 4).len();
+        assert!(early != middle || middle != late);
     }
 }

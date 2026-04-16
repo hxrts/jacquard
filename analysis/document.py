@@ -36,6 +36,7 @@ from .sections import (
     comparison_findings_lines,
     document_title,
     diffusion_field_posture_lines,
+    diffusion_takeaway_lines,
     engine_section_lines,
     executive_summary_lines,
     field_algorithm_lines,
@@ -43,6 +44,7 @@ from .sections import (
     head_to_head_regime_lines,
     head_to_head_takeaway_lines,
     limitations_lines,
+    large_population_takeaway_lines,
     methodology_lines,
     olsrv2_algorithm_lines,
     pathway_algorithm_lines,
@@ -68,6 +70,8 @@ from .tables import (
     field_profile_table_rows,
     field_routing_regime_table_rows,
     head_to_head_table_rows,
+    large_population_diffusion_transition_table_rows,
+    large_population_route_summary_table_rows,
     profile_table_rows,
     recommendation_table_rows,
     transition_table_rows,
@@ -295,6 +299,8 @@ FIGURE_LAYOUT_COMPARISON_HEATMAP = FigureLayout(17.2 * cm, 9.6 * cm, keep_togeth
 FIGURE_LAYOUT_COMPARISON_SCATTER = FigureLayout(15.4 * cm, 9.0 * cm, keep_together=True)
 FIGURE_LAYOUT_COMPARISON_DIVERGENCE = FigureLayout(16.8 * cm, 9.2 * cm, keep_together=True)
 FIGURE_LAYOUT_DIFFUSION = FigureLayout(18.0 * cm, 22.0 * cm)
+FIGURE_LAYOUT_LARGE_POP_ROUTE = FigureLayout(16.6 * cm, 9.8 * cm, keep_together=True)
+FIGURE_LAYOUT_LARGE_POP_DIFFUSION = FigureLayout(17.2 * cm, 10.8 * cm, keep_together=True)
 
 FIGURE_LAYOUTS: dict[str, FigureLayout] = {
     "batman_classic_transition_stability": FIGURE_LAYOUT_STANDARD,
@@ -318,6 +324,9 @@ FIGURE_LAYOUTS: dict[str, FigureLayout] = {
     "mixed_vs_standalone_divergence": FIGURE_LAYOUT_COMPARISON_DIVERGENCE,
     "diffusion_delivery_coverage": FIGURE_LAYOUT_DIFFUSION,
     "diffusion_resource_boundedness": FIGURE_LAYOUT_DIFFUSION,
+    "large_population_route_scaling": FIGURE_LAYOUT_LARGE_POP_ROUTE,
+    "large_population_route_fragility": FIGURE_LAYOUT_LARGE_POP_ROUTE,
+    "large_population_diffusion_transitions": FIGURE_LAYOUT_LARGE_POP_DIFFUSION,
 }
 
 PART_I_SETUP_SECTIONS = [
@@ -404,6 +413,12 @@ COMPARISON_FIGURE_IDS = [
 DIFFUSION_FIGURE_IDS = [
     "diffusion_delivery_coverage",
     "diffusion_resource_boundedness",
+]
+
+LARGE_POPULATION_FIGURE_IDS = [
+    "large_population_route_scaling",
+    "large_population_route_fragility",
+    "large_population_diffusion_transitions",
 ]
 
 
@@ -573,6 +588,8 @@ def write_pdf_report(
     diffusion_regime_engine_summary,
     diffusion_engine_comparison,
     diffusion_boundary_summary,
+    large_population_route_summary,
+    large_population_diffusion_transitions,
     field_diffusion_regime_calibration,
     field_vs_best_diffusion_alternative,
     baseline_comparison,
@@ -666,6 +683,50 @@ def write_pdf_report(
         analysis_takeaway_lines(recommendations, comparison_summary, head_to_head_summary),
     )
 
+    if not large_population_route_summary.is_empty() or not large_population_diffusion_transitions.is_empty():
+        story.append(Paragraph("11. Large-Population Findings", styles["Section"]))
+        add_paragraphs(story, styles, section_lines("Large-Population Introduction"))
+        if not large_population_route_summary.is_empty():
+            large_route_block = asset_block("Large-Population Route Summary", "table")
+            add_table_section(
+                story,
+                styles,
+                "Large-Population Route Summary",
+                large_route_block.lines,
+                ["Topology", "Engine Set", "Small", "Moderate", "High", "dHigh", "High Loss"],
+                large_population_route_summary_table_rows(large_population_route_summary),
+                [4.2 * cm, 3.5 * cm, 1.5 * cm, 1.8 * cm, 1.5 * cm, 1.7 * cm, 1.6 * cm],
+                table_counter,
+                large_route_block.description_lines,
+            )
+        if not large_population_diffusion_transitions.is_empty():
+            large_diffusion_block = asset_block("Large-Population Diffusion Transitions", "table")
+            add_table_section(
+                story,
+                styles,
+                "Large-Population Diffusion Transitions",
+                large_diffusion_block.lines,
+                ["Question", "Size", "Collapse", "Viable", "Explosive"],
+                large_population_diffusion_transition_table_rows(
+                    large_population_diffusion_transitions
+                ),
+                [4.0 * cm, 1.7 * cm, 3.4 * cm, 3.4 * cm, 3.4 * cm],
+                table_counter,
+                large_diffusion_block.description_lines,
+            )
+        story.append(Paragraph("Large-Population Figure Context", styles["Subsection"]))
+        add_paragraphs(story, styles, section_lines("Large-Population Figure Context"))
+        for asset_id in LARGE_POPULATION_FIGURE_IDS:
+            add_figure_asset(story, styles, report_dir, asset_id)
+        story.append(Paragraph("Large-Population Takeaways", styles["Subsection"]))
+        add_paragraphs(
+            story,
+            styles,
+            large_population_takeaway_lines(
+                large_population_route_summary, large_population_diffusion_transitions
+            ),
+        )
+
     if not diffusion_engine_summary.is_empty():
         story.append(Paragraph("Part III. Diffusion Calibration", styles["Section"]))
         story.append(Paragraph("10. Diffusion Calibration", styles["Section"]))
@@ -700,7 +761,14 @@ def write_pdf_report(
         for asset_id in DIFFUSION_FIGURE_IDS:
             add_figure_asset(story, styles, report_dir, asset_id)
         story.append(Paragraph("Diffusion Takeaways", styles["Subsection"]))
-        add_paragraphs(story, styles, section_lines("Diffusion Takeaways"))
+        add_paragraphs(
+            story,
+            styles,
+            diffusion_takeaway_lines(
+                diffusion_regime_engine_summary,
+                field_vs_best_diffusion_alternative,
+            ),
+        )
         add_paragraphs(story, styles, diffusion_field_posture_lines(diffusion_engine_comparison))
 
     story.append(Paragraph("Appendix A. Tuning Reference Tables", styles["Section"]))

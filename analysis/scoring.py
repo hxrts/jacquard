@@ -7,7 +7,12 @@ from pathlib import Path
 
 import polars as pl
 
-from .constants import RECOMMENDATION_PROFILES, ROUTE_VISIBLE_ENGINE_SET_ORDER
+from .constants import (
+    LARGE_POPULATION_DIFFUSION_FAMILIES,
+    LARGE_POPULATION_ROUTE_FAMILIES,
+    RECOMMENDATION_PROFILES,
+    ROUTE_VISIBLE_ENGINE_SET_ORDER,
+)
 
 
 def score_expression(profile_id: str) -> pl.Expr:
@@ -1722,6 +1727,165 @@ def field_vs_best_diffusion_alternative_table(
         "tx_delta",
         "regime_score_delta",
     ).sort("field_regime")
+
+
+
+def _large_population_route_metadata() -> pl.DataFrame:
+    return pl.from_dicts(LARGE_POPULATION_ROUTE_FAMILIES)
+
+
+def _large_population_diffusion_metadata() -> pl.DataFrame:
+    return pl.from_dicts(LARGE_POPULATION_DIFFUSION_FAMILIES)
+
+
+def large_population_route_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
+    if aggregates.is_empty():
+        return pl.DataFrame()
+    aggregates = _ensure_optional_columns(aggregates)
+    metadata = _large_population_route_metadata()
+    engine_order = {engine: index for index, engine in enumerate(ROUTE_VISIBLE_ENGINE_SET_ORDER)}
+    families = metadata["family_id"].to_list()
+    filtered = aggregates.filter(
+        (pl.col("engine_family") == "head-to-head") & pl.col("family_id").is_in(families)
+    )
+    if filtered.is_empty():
+        return pl.DataFrame()
+    return (
+        filtered.join(metadata, on="family_id", how="inner")
+        .with_columns(
+            pl.col("comparison_engine_set")
+            .replace_strict(engine_order, default=len(engine_order))
+            .alias("engine_order")
+        )
+        .group_by("topology_class", "topology_label", "comparison_engine_set", "engine_order")
+        .agg(
+            pl.when(pl.col("size_band") == "small")
+            .then(pl.coalesce([pl.col("route_present_total_window_permille_mean"), pl.col("route_present_permille_mean")]))
+            .otherwise(None)
+            .max()
+            .alias("small_route_present"),
+            pl.when(pl.col("size_band") == "moderate")
+            .then(pl.coalesce([pl.col("route_present_total_window_permille_mean"), pl.col("route_present_permille_mean")]))
+            .otherwise(None)
+            .max()
+            .alias("moderate_route_present"),
+            pl.when(pl.col("size_band") == "high")
+            .then(pl.coalesce([pl.col("route_present_total_window_permille_mean"), pl.col("route_present_permille_mean")]))
+            .otherwise(None)
+            .max()
+            .alias("high_route_present"),
+            pl.when(pl.col("size_band") == "high")
+            .then(pl.col("first_loss_round_mean"))
+            .otherwise(None)
+            .max()
+            .alias("high_first_loss_round"),
+            pl.when(pl.col("size_band") == "high")
+            .then(pl.col("recovery_round_mean"))
+            .otherwise(None)
+            .max()
+            .alias("high_recovery_round"),
+            pl.when(pl.col("size_band") == "high")
+            .then(pl.col("activation_success_permille_mean"))
+            .otherwise(None)
+            .max()
+            .alias("high_activation_success"),
+        )
+        .with_columns(
+            (pl.col("high_route_present") - pl.col("small_route_present")).alias(
+                "small_to_high_route_delta"
+            )
+        )
+        .sort(["topology_label", "engine_order"])
+        .drop("engine_order")
+    )
+
+
+def large_population_diffusion_state_points_table(
+    diffusion_aggregates: pl.DataFrame,
+) -> pl.DataFrame:
+    if diffusion_aggregates.is_empty():
+        return pl.DataFrame()
+    metadata = _large_population_diffusion_metadata()
+    families = metadata["family_id"].to_list()
+    filtered = diffusion_aggregates.filter(pl.col("family_id").is_in(families)).filter(
+        pl.col("bounded_state_mode").is_not_null()
+    )
+    if filtered.is_empty():
+        return pl.DataFrame()
+    return (
+        filtered.join(metadata, on="family_id", how="inner")
+        .sort(
+            [
+                "question_label",
+                "size_order",
+                "bounded_state_mode",
+                "delivery_probability_permille_mean",
+                "coverage_permille_mean",
+                "cluster_coverage_permille_mean",
+                "total_transmissions_mean",
+                "config_id",
+            ],
+            descending=[False, False, False, True, True, True, False, False],
+        )
+        .group_by("family_id", "question", "question_label", "family_label", "size_band", "size_order", "bounded_state_mode")
+        .agg(
+            pl.first("config_id").alias("config_id"),
+            pl.first("delivery_probability_permille_mean").alias(
+                "delivery_probability_permille_mean"
+            ),
+            pl.first("coverage_permille_mean").alias("coverage_permille_mean"),
+            pl.first("cluster_coverage_permille_mean").alias(
+                "cluster_coverage_permille_mean"
+            ),
+            pl.first("total_transmissions_mean").alias("total_transmissions_mean"),
+            pl.first("estimated_reproduction_permille_mean").alias(
+                "estimated_reproduction_permille_mean"
+            ),
+        )
+        .sort(["question_label", "size_order", "bounded_state_mode"])
+    )
+
+
+def large_population_diffusion_transition_table(
+    diffusion_aggregates: pl.DataFrame,
+) -> pl.DataFrame:
+    points = large_population_diffusion_state_points_table(diffusion_aggregates)
+    if points.is_empty():
+        return pl.DataFrame()
+    metadata = _large_population_diffusion_metadata()
+    collapse = points.filter(pl.col("bounded_state_mode") == "collapse").rename(
+        {"config_id": "collapse_config_id"}
+    ).select("family_id", "collapse_config_id")
+    viable = points.filter(pl.col("bounded_state_mode") == "viable").rename(
+        {"config_id": "viable_config_id"}
+    ).select("family_id", "viable_config_id")
+    explosive = points.filter(pl.col("bounded_state_mode") == "explosive").rename(
+        {"config_id": "explosive_config_id"}
+    ).select("family_id", "explosive_config_id")
+    states = (
+        points.group_by("family_id")
+        .agg(pl.col("bounded_state_mode").sort().str.join(", ").alias("observed_states"))
+    )
+    return (
+        metadata.join(states, on="family_id", how="left")
+        .join(collapse, on="family_id", how="left")
+        .join(viable, on="family_id", how="left")
+        .join(explosive, on="family_id", how="left")
+        .select(
+            "family_id",
+            "question",
+            "question_label",
+            "family_label",
+            "size_band",
+            "size_order",
+            "observed_states",
+            "collapse_config_id",
+            "viable_config_id",
+            "explosive_config_id",
+        )
+        .sort(["question_label", "size_order"])
+    )
+
 
 
 def diffusion_boundary_table(diffusion_boundaries: pl.DataFrame) -> pl.DataFrame:

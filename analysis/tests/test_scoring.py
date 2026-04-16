@@ -13,6 +13,9 @@ from analysis.scoring import (
     field_profile_recommendation_table,
     field_vs_best_diffusion_alternative_table,
     head_to_head_summary_table,
+    large_population_diffusion_state_points_table,
+    large_population_diffusion_transition_table,
+    large_population_route_summary_table,
     recommendation_table,
 )
 
@@ -259,6 +262,151 @@ def _diffusion_regime_aggregates() -> pl.DataFrame:
     )
 
 
+def _large_population_route_aggregates() -> pl.DataFrame:
+    return pl.from_dicts(
+        [
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-connected-low-loss",
+                "comparison_engine_set": "field",
+                "route_present_permille_mean": 920.0,
+                "activation_success_permille_mean": 1000.0,
+                "first_loss_round_mean": None,
+                "recovery_round_mean": None,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-large-core-periphery-moderate",
+                "comparison_engine_set": "field",
+                "route_present_permille_mean": 760.0,
+                "activation_success_permille_mean": 1000.0,
+                "first_loss_round_mean": 18.0,
+                "recovery_round_mean": None,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-large-core-periphery-high",
+                "comparison_engine_set": "field",
+                "route_present_permille_mean": 640.0,
+                "activation_success_permille_mean": 1000.0,
+                "first_loss_round_mean": 14.0,
+                "recovery_round_mean": None,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-connected-low-loss",
+                "comparison_engine_set": "batman-classic",
+                "route_present_permille_mean": 900.0,
+                "activation_success_permille_mean": 1000.0,
+                "first_loss_round_mean": None,
+                "recovery_round_mean": None,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-large-core-periphery-moderate",
+                "comparison_engine_set": "batman-classic",
+                "route_present_permille_mean": 600.0,
+                "activation_success_permille_mean": 1000.0,
+                "first_loss_round_mean": 12.0,
+                "recovery_round_mean": None,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-large-core-periphery-high",
+                "comparison_engine_set": "batman-classic",
+                "route_present_permille_mean": 380.0,
+                "activation_success_permille_mean": 1000.0,
+                "first_loss_round_mean": 8.0,
+                "recovery_round_mean": None,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-medium-bridge-repair",
+                "comparison_engine_set": "field",
+                "route_present_permille_mean": 880.0,
+                "activation_success_permille_mean": 1000.0,
+                "first_loss_round_mean": 20.0,
+                "recovery_round_mean": 4.0,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-large-multi-bottleneck-moderate",
+                "comparison_engine_set": "field",
+                "route_present_permille_mean": 700.0,
+                "activation_success_permille_mean": 1000.0,
+                "first_loss_round_mean": 16.0,
+                "recovery_round_mean": None,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-large-multi-bottleneck-high",
+                "comparison_engine_set": "field",
+                "route_present_permille_mean": 520.0,
+                "activation_success_permille_mean": 1000.0,
+                "first_loss_round_mean": 10.0,
+                "recovery_round_mean": None,
+            },
+        ]
+    )
+
+
+def _large_population_diffusion_aggregates() -> pl.DataFrame:
+    return pl.from_dicts(
+        [
+            {
+                "family_id": "diffusion-large-sparse-threshold-high",
+                "config_id": "transition-tight",
+                "delivery_probability_permille_mean": 420.0,
+                "coverage_permille_mean": 390.0,
+                "cluster_coverage_permille_mean": 360.0,
+                "total_transmissions_mean": 9.0,
+                "estimated_reproduction_permille_mean": 280.0,
+                "bounded_state_mode": "collapse",
+            },
+            {
+                "family_id": "diffusion-large-sparse-threshold-high",
+                "config_id": "transition-balanced",
+                "delivery_probability_permille_mean": 760.0,
+                "coverage_permille_mean": 700.0,
+                "cluster_coverage_permille_mean": 660.0,
+                "total_transmissions_mean": 16.0,
+                "estimated_reproduction_permille_mean": 620.0,
+                "bounded_state_mode": "viable",
+            },
+            {
+                "family_id": "diffusion-large-sparse-threshold-high",
+                "config_id": "transition-broad",
+                "delivery_probability_permille_mean": 920.0,
+                "coverage_permille_mean": 910.0,
+                "cluster_coverage_permille_mean": 880.0,
+                "total_transmissions_mean": 32.0,
+                "estimated_reproduction_permille_mean": 1320.0,
+                "bounded_state_mode": "explosive",
+            },
+            {
+                "family_id": "diffusion-large-congestion-threshold-moderate",
+                "config_id": "transition-tight",
+                "delivery_probability_permille_mean": 360.0,
+                "coverage_permille_mean": 340.0,
+                "cluster_coverage_permille_mean": 300.0,
+                "total_transmissions_mean": 8.0,
+                "estimated_reproduction_permille_mean": 260.0,
+                "bounded_state_mode": "collapse",
+            },
+            {
+                "family_id": "diffusion-large-congestion-threshold-moderate",
+                "config_id": "field-congestion",
+                "delivery_probability_permille_mean": 710.0,
+                "coverage_permille_mean": 660.0,
+                "cluster_coverage_permille_mean": 640.0,
+                "total_transmissions_mean": 14.0,
+                "estimated_reproduction_permille_mean": 540.0,
+                "bounded_state_mode": "viable",
+            },
+        ]
+    )
+
+
 class FieldRoutingRecommendationTests(unittest.TestCase):
     def test_balanced_recommendation_prefers_low_churn_when_route_presence_ties(self) -> None:
         recommendations = recommendation_table(
@@ -386,6 +534,38 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(row["balanced_winner_config_id"], "fast-but-expensive")
         self.assertEqual(row["boundedness_heavy_winner_config_id"], "bounded")
         self.assertFalse(row["winner_stable"])
+
+
+    def test_large_population_route_summary_tracks_small_to_high_drop(self) -> None:
+        summary = large_population_route_summary_table(_large_population_route_aggregates())
+        row = summary.filter(
+            (pl.col("topology_class") == "diameter-fanout")
+            & (pl.col("comparison_engine_set") == "field")
+        ).row(0, named=True)
+        self.assertEqual(row["small_route_present"], 920.0)
+        self.assertEqual(row["moderate_route_present"], 760.0)
+        self.assertEqual(row["high_route_present"], 640.0)
+        self.assertEqual(row["small_to_high_route_delta"], -280.0)
+        self.assertEqual(row["high_first_loss_round"], 14.0)
+
+    def test_large_population_diffusion_tables_select_state_representatives(self) -> None:
+        points = large_population_diffusion_state_points_table(
+            _large_population_diffusion_aggregates()
+        )
+        transitions = large_population_diffusion_transition_table(
+            _large_population_diffusion_aggregates()
+        )
+        sparse_viable = points.filter(
+            (pl.col("family_id") == "diffusion-large-sparse-threshold-high")
+            & (pl.col("bounded_state_mode") == "viable")
+        ).row(0, named=True)
+        self.assertEqual(sparse_viable["config_id"], "transition-balanced")
+        sparse_row = transitions.filter(
+            pl.col("family_id") == "diffusion-large-sparse-threshold-high"
+        ).row(0, named=True)
+        self.assertEqual(sparse_row["collapse_config_id"], "transition-tight")
+        self.assertEqual(sparse_row["viable_config_id"], "transition-balanced")
+        self.assertEqual(sparse_row["explosive_config_id"], "transition-broad")
 
 
 if __name__ == "__main__":

@@ -33,8 +33,12 @@ use scenarios::{
     build_adversarial_observation_scenario, build_bridge_drought_scenario,
     build_congestion_cascade_scenario, build_disaster_broadcast_scenario,
     build_energy_starved_relay_scenario, build_high_density_overload_scenario,
-    build_mobility_shift_scenario, build_partitioned_clusters_scenario,
-    build_random_waypoint_sanity_scenario, build_sparse_long_delay_scenario,
+    build_large_congestion_threshold_high_scenario,
+    build_large_congestion_threshold_moderate_scenario, build_large_regional_shift_high_scenario,
+    build_large_regional_shift_moderate_scenario, build_large_sparse_threshold_high_scenario,
+    build_large_sparse_threshold_moderate_scenario, build_mobility_shift_scenario,
+    build_partitioned_clusters_scenario, build_random_waypoint_sanity_scenario,
+    build_sparse_long_delay_scenario,
 };
 use scoring::forwarding_score;
 use stats::{mean_option_u32, mean_u32, min_max_spread_u32, mode_option_string, mode_string};
@@ -564,7 +568,7 @@ pub fn run_diffusion_suite(
     })
 }
 
-fn build_diffusion_suite(suite_id: &str, seeds: &[u64], _smoke: bool) -> DiffusionSuite {
+fn build_diffusion_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> DiffusionSuite {
     let mut configs = vec![
         diffusion_engine_profile("batman-bellman"),
         diffusion_engine_profile("batman-classic"),
@@ -574,19 +578,9 @@ fn build_diffusion_suite(suite_id: &str, seeds: &[u64], _smoke: bool) -> Diffusi
         diffusion_engine_profile("pathway"),
         diffusion_engine_profile("pathway-batman-bellman"),
     ];
+    configs.extend(transition_diffusion_profiles(smoke));
     configs.extend(field_diffusion_profiles());
-    let scenarios = vec![
-        build_random_waypoint_sanity_scenario(),
-        build_partitioned_clusters_scenario(),
-        build_disaster_broadcast_scenario(),
-        build_sparse_long_delay_scenario(),
-        build_high_density_overload_scenario(),
-        build_mobility_shift_scenario(),
-        build_adversarial_observation_scenario(),
-        build_bridge_drought_scenario(),
-        build_energy_starved_relay_scenario(),
-        build_congestion_cascade_scenario(),
-    ];
+    let scenarios = diffusion_scenarios(smoke);
     let mut runs = Vec::new();
     for seed in seeds {
         for scenario in &scenarios {
@@ -605,6 +599,106 @@ fn build_diffusion_suite(suite_id: &str, seeds: &[u64], _smoke: bool) -> Diffusi
         suite_id: suite_id.to_string(),
         runs,
     }
+}
+
+fn diffusion_scenarios(smoke: bool) -> Vec<DiffusionScenarioSpec> {
+    let mut scenarios = vec![
+        build_random_waypoint_sanity_scenario(),
+        build_partitioned_clusters_scenario(),
+        build_disaster_broadcast_scenario(),
+        build_sparse_long_delay_scenario(),
+        build_high_density_overload_scenario(),
+        build_mobility_shift_scenario(),
+        build_adversarial_observation_scenario(),
+        build_bridge_drought_scenario(),
+        build_energy_starved_relay_scenario(),
+        build_congestion_cascade_scenario(),
+        build_large_sparse_threshold_moderate_scenario(),
+        build_large_congestion_threshold_moderate_scenario(),
+        build_large_regional_shift_moderate_scenario(),
+    ];
+    if !smoke {
+        scenarios.extend([
+            build_large_sparse_threshold_high_scenario(),
+            build_large_congestion_threshold_high_scenario(),
+            build_large_regional_shift_high_scenario(),
+        ]);
+    }
+    scenarios
+}
+
+fn transition_diffusion_profiles(smoke: bool) -> Vec<DiffusionPolicyConfig> {
+    let mut profiles = vec![
+        diffusion_policy_profile(
+            "transition-tight",
+            (
+                1,
+                10,
+                140,
+                40,
+                40,
+                180,
+                180,
+                -220,
+                520,
+                420,
+                DiffusionForwardingStyle::ConservativeLocal,
+            ),
+        ),
+        diffusion_policy_profile(
+            "transition-balanced",
+            (
+                3,
+                24,
+                420,
+                160,
+                110,
+                20,
+                130,
+                -40,
+                160,
+                140,
+                DiffusionForwardingStyle::BalancedDistanceVector,
+            ),
+        ),
+    ];
+    if !smoke {
+        profiles.extend([
+            diffusion_policy_profile(
+                "transition-broad",
+                (
+                    10,
+                    44,
+                    900,
+                    260,
+                    180,
+                    -80,
+                    60,
+                    120,
+                    10,
+                    10,
+                    DiffusionForwardingStyle::ServiceDirected,
+                ),
+            ),
+            diffusion_policy_profile(
+                "transition-bridge-biased",
+                (
+                    4,
+                    30,
+                    520,
+                    360,
+                    180,
+                    -20,
+                    140,
+                    40,
+                    120,
+                    110,
+                    DiffusionForwardingStyle::CorridorAware,
+                ),
+            ),
+        ]);
+    }
+    profiles
 }
 
 fn field_diffusion_profiles() -> Vec<DiffusionPolicyConfig> {

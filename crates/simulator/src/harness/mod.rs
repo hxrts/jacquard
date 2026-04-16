@@ -8,7 +8,7 @@ use jacquard_field::{FieldExportedReplayBundle, FIELD_ENGINE_ID};
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
-    BridgeRoundProgress, BridgeRoundReport, ClientBuilder,
+    BridgeQueueConfig, BridgeRoundProgress, BridgeRoundReport, ClientBuilder,
     FieldBootstrapSummary as ClientFieldBootstrapSummary, ReferenceClient,
     ReferenceClientBuildError, ReferenceRouter,
 };
@@ -32,6 +32,8 @@ use crate::{
 };
 
 mod replay_support;
+
+const SIMULATOR_BRIDGE_QUEUE_CONFIG: BridgeQueueConfig = BridgeQueueConfig::new(320, 320);
 
 pub(crate) use replay_support::default_objective;
 use replay_support::{
@@ -194,6 +196,7 @@ impl JacquardHostAdapter for ReferenceClientAdapter {
                     topology.observed_at_tick,
                 ),
             };
+            builder = builder.with_queue_config(SIMULATOR_BRIDGE_QUEUE_CONFIG);
             if let Some(routing_profile) = host.overrides.routing_profile.clone() {
                 builder = builder.with_profile(routing_profile);
             }

@@ -403,6 +403,398 @@ pub(super) fn build_comparison_medium_bridge_repair(
     (scenario, environment)
 }
 
+fn size_band_label(size_band: LargePopulationSizeBand) -> &'static str {
+    match size_band {
+        LargePopulationSizeBand::Moderate => "moderate",
+        LargePopulationSizeBand::High => "high",
+    }
+}
+
+fn large_population_destination_byte(size_band: LargePopulationSizeBand) -> u8 {
+    match size_band {
+        LargePopulationSizeBand::Moderate => 10,
+        LargePopulationSizeBand::High => 14,
+    }
+}
+
+fn large_population_activation_round(size_band: LargePopulationSizeBand) -> u32 {
+    match size_band {
+        LargePopulationSizeBand::Moderate => 3,
+        LargePopulationSizeBand::High => 4,
+    }
+}
+
+fn large_population_round_limit(family: &str, size_band: LargePopulationSizeBand) -> u32 {
+    match (family, size_band) {
+        ("core-periphery", LargePopulationSizeBand::Moderate) => 36,
+        ("core-periphery", LargePopulationSizeBand::High) => 44,
+        ("multi-bottleneck", LargePopulationSizeBand::Moderate) => 42,
+        ("multi-bottleneck", LargePopulationSizeBand::High) => 50,
+        _ => 36,
+    }
+}
+
+fn large_population_bootstrap(
+    family: &str,
+    size_band: LargePopulationSizeBand,
+) -> Vec<FieldBootstrapSeed> {
+    match (family, size_band) {
+        ("core-periphery", LargePopulationSizeBand::Moderate) => vec![
+            (node_id(4), 920, 4, 5, Some(860)),
+            (node_id(6), 820, 3, 4, Some(780)),
+            (node_id(8), 720, 2, 3, Some(680)),
+        ],
+        ("core-periphery", LargePopulationSizeBand::High) => vec![
+            (node_id(5), 940, 5, 6, Some(900)),
+            (node_id(7), 860, 4, 5, Some(820)),
+            (node_id(10), 760, 3, 4, Some(720)),
+            (node_id(12), 700, 2, 3, Some(660)),
+        ],
+        ("multi-bottleneck", LargePopulationSizeBand::Moderate) => vec![
+            (node_id(4), 900, 4, 4, Some(840)),
+            (node_id(7), 780, 3, 3, Some(740)),
+            (node_id(9), 700, 2, 2, Some(660)),
+        ],
+        ("multi-bottleneck", LargePopulationSizeBand::High) => vec![
+            (node_id(4), 920, 5, 5, Some(860)),
+            (node_id(8), 820, 4, 4, Some(780)),
+            (node_id(12), 720, 3, 3, Some(680)),
+            (node_id(13), 660, 2, 2, Some(620)),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+fn large_population_hosts(
+    size_band: LargePopulationSizeBand,
+    comparison_engine_set: Option<&str>,
+    destination: &DestinationId,
+    bootstrap: &[FieldBootstrapSeed],
+) -> Vec<HostSpec> {
+    let bytes = size_band.node_bytes();
+    let node_ids = node_ids(bytes);
+    let primary = seed_standalone_field_bootstrap(
+        comparison_host_spec(node_ids[0], comparison_engine_set)
+            .with_profile(repairable_connected_profile()),
+        comparison_engine_set,
+        destination,
+        bootstrap,
+    );
+    host_specs_with_primary(primary, &node_ids[1..], |node_id| {
+        comparison_host_spec(node_id, comparison_engine_set)
+    })
+}
+
+fn large_core_periphery_alternate(
+    topology: &Observation<Configuration>,
+    size_band: LargePopulationSizeBand,
+) -> Configuration {
+    let mut alternate = topology.value.clone();
+    match size_band {
+        LargePopulationSizeBand::Moderate => {
+            alternate.links.remove(&(node_id(5), node_id(6)));
+            alternate.links.remove(&(node_id(6), node_id(5)));
+            alternate
+                .links
+                .insert((node_id(3), node_id(6)), crate::topology::link(6).build());
+            alternate
+                .links
+                .insert((node_id(6), node_id(3)), crate::topology::link(3).build());
+        }
+        LargePopulationSizeBand::High => {
+            alternate.links.remove(&(node_id(6), node_id(7)));
+            alternate.links.remove(&(node_id(7), node_id(6)));
+            alternate
+                .links
+                .insert((node_id(4), node_id(7)), crate::topology::link(7).build());
+            alternate
+                .links
+                .insert((node_id(7), node_id(4)), crate::topology::link(4).build());
+        }
+    }
+    alternate
+}
+
+fn large_core_periphery_environment(
+    size_band: LargePopulationSizeBand,
+    alternate: &Configuration,
+) -> ScriptedEnvironmentModel {
+    match size_band {
+        LargePopulationSizeBand::Moderate => ScriptedEnvironmentModel::new(vec![
+            asymmetric_degradation_hook(
+                9,
+                node_id(5),
+                node_id(6),
+                RatioPermille(560),
+                RatioPermille(260),
+                RatioPermille(720),
+                RatioPermille(150),
+            ),
+            replace_topology_hook(16, alternate),
+            medium_degradation_hook(
+                22,
+                node_id(8),
+                node_id(9),
+                RatioPermille(620),
+                RatioPermille(180),
+            ),
+        ]),
+        LargePopulationSizeBand::High => ScriptedEnvironmentModel::new(vec![
+            asymmetric_degradation_hook(
+                10,
+                node_id(6),
+                node_id(7),
+                RatioPermille(540),
+                RatioPermille(280),
+                RatioPermille(720),
+                RatioPermille(150),
+            ),
+            replace_topology_hook(18, alternate),
+            medium_degradation_hook(
+                26,
+                node_id(10),
+                node_id(11),
+                RatioPermille(600),
+                RatioPermille(210),
+            ),
+        ]),
+    }
+}
+
+fn large_bottleneck_alternate(
+    topology: &Observation<Configuration>,
+    size_band: LargePopulationSizeBand,
+) -> Configuration {
+    let mut alternate = topology.value.clone();
+    match size_band {
+        LargePopulationSizeBand::Moderate => {
+            alternate
+                .links
+                .insert((node_id(3), node_id(5)), crate::topology::link(5).build());
+            alternate
+                .links
+                .insert((node_id(5), node_id(3)), crate::topology::link(3).build());
+            alternate
+                .links
+                .insert((node_id(6), node_id(8)), crate::topology::link(8).build());
+            alternate
+                .links
+                .insert((node_id(8), node_id(6)), crate::topology::link(6).build());
+        }
+        LargePopulationSizeBand::High => {
+            alternate
+                .links
+                .insert((node_id(3), node_id(6)), crate::topology::link(6).build());
+            alternate
+                .links
+                .insert((node_id(6), node_id(3)), crate::topology::link(3).build());
+            alternate
+                .links
+                .insert((node_id(7), node_id(10)), crate::topology::link(10).build());
+            alternate
+                .links
+                .insert((node_id(10), node_id(7)), crate::topology::link(7).build());
+            alternate.links.insert(
+                (node_id(11), node_id(13)),
+                crate::topology::link(13).build(),
+            );
+            alternate.links.insert(
+                (node_id(13), node_id(11)),
+                crate::topology::link(11).build(),
+            );
+        }
+    }
+    alternate
+}
+
+fn large_bottleneck_environment(
+    size_band: LargePopulationSizeBand,
+    alternate: &Configuration,
+) -> ScriptedEnvironmentModel {
+    match size_band {
+        LargePopulationSizeBand::Moderate => ScriptedEnvironmentModel::new(vec![
+            asymmetric_degradation_hook(
+                8,
+                node_id(4),
+                node_id(5),
+                RatioPermille(520),
+                RatioPermille(310),
+                RatioPermille(700),
+                RatioPermille(180),
+            ),
+            intrinsic_limit_hook(10, node_id(4), 2, jacquard_core::ByteCount(320)),
+            asymmetric_degradation_hook(
+                13,
+                node_id(7),
+                node_id(8),
+                RatioPermille(500),
+                RatioPermille(340),
+                RatioPermille(680),
+                RatioPermille(190),
+            ),
+            intrinsic_limit_hook(15, node_id(7), 2, jacquard_core::ByteCount(320)),
+            replace_topology_hook(18, alternate),
+        ]),
+        LargePopulationSizeBand::High => ScriptedEnvironmentModel::new(vec![
+            asymmetric_degradation_hook(
+                8,
+                node_id(4),
+                node_id(5),
+                RatioPermille(520),
+                RatioPermille(320),
+                RatioPermille(700),
+                RatioPermille(180),
+            ),
+            intrinsic_limit_hook(9, node_id(4), 2, jacquard_core::ByteCount(320)),
+            asymmetric_degradation_hook(
+                12,
+                node_id(8),
+                node_id(9),
+                RatioPermille(500),
+                RatioPermille(340),
+                RatioPermille(670),
+                RatioPermille(190),
+            ),
+            intrinsic_limit_hook(13, node_id(8), 2, jacquard_core::ByteCount(256)),
+            asymmetric_degradation_hook(
+                16,
+                node_id(12),
+                node_id(13),
+                RatioPermille(480),
+                RatioPermille(360),
+                RatioPermille(650),
+                RatioPermille(220),
+            ),
+            replace_topology_hook(21, alternate),
+            intrinsic_limit_hook(22, node_id(12), 1, jacquard_core::ByteCount(256)),
+        ]),
+    }
+}
+
+fn build_large_core_periphery(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+    size_band: LargePopulationSizeBand,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let destination = DestinationId::Node(node_id(large_population_destination_byte(size_band)));
+    let bootstrap = large_population_bootstrap("core-periphery", size_band);
+    let mut topology = large_population_core_periphery_topology(comparison_engine_set, size_band);
+    match size_band {
+        LargePopulationSizeBand::Moderate => {
+            set_environment(&mut topology, 4, RatioPermille(180), RatioPermille(120));
+        }
+        LargePopulationSizeBand::High => {
+            set_environment(&mut topology, 5, RatioPermille(220), RatioPermille(140));
+        }
+    }
+    let alternate = large_core_periphery_alternate(&topology, size_band);
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!(
+                "comparison-large-core-periphery-{}-{}",
+                size_band_label(size_band),
+                parameters.config_id
+            ),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            large_population_hosts(size_band, comparison_engine_set, &destination, &bootstrap),
+            vec![BoundObjective::new(
+                NODE_A,
+                connected_objective(node_id(large_population_destination_byte(size_band))),
+            )
+            .with_activation_round(large_population_activation_round(size_band))],
+            large_population_round_limit("core-periphery", size_band),
+        ),
+        parameters,
+    );
+    let environment = large_core_periphery_environment(size_band, &alternate);
+    (scenario, environment)
+}
+
+fn build_large_bottleneck(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+    size_band: LargePopulationSizeBand,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let comparison_engine_set = parameters.comparison_engine_set.as_deref();
+    let destination = DestinationId::Node(node_id(large_population_destination_byte(size_band)));
+    let bootstrap = large_population_bootstrap("multi-bottleneck", size_band);
+    let mut topology = large_population_bottleneck_topology(comparison_engine_set, size_band);
+    match size_band {
+        LargePopulationSizeBand::Moderate => {
+            set_environment(&mut topology, 3, RatioPermille(200), RatioPermille(150));
+        }
+        LargePopulationSizeBand::High => {
+            set_environment(&mut topology, 4, RatioPermille(240), RatioPermille(180));
+        }
+    }
+    let alternate = large_bottleneck_alternate(&topology, size_band);
+    let scenario = apply_overrides(
+        &JacquardScenario::new(
+            format!(
+                "comparison-large-multi-bottleneck-{}-{}",
+                size_band_label(size_band),
+                parameters.config_id
+            ),
+            seed,
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            large_population_hosts(size_band, comparison_engine_set, &destination, &bootstrap),
+            vec![BoundObjective::new(
+                NODE_A,
+                connected_objective(node_id(large_population_destination_byte(size_band))),
+            )
+            .with_activation_round(large_population_activation_round(size_band))],
+            large_population_round_limit("multi-bottleneck", size_band),
+        ),
+        parameters,
+    );
+    let environment = large_bottleneck_environment(size_band, &alternate);
+    (scenario, environment)
+}
+
+// Analytical question: how do the connected-route engines behave when a dense
+// local core feeds a long sparse tail and the core-to-corridor egress changes
+// mid-run, forcing larger-diameter stale-state cleanup?
+pub(super) fn build_comparison_large_core_periphery_moderate(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    build_large_core_periphery(parameters, seed, LargePopulationSizeBand::Moderate)
+}
+
+// Analytical question: does the same mixed-density route-visible family stay
+// legible when both diameter and local fanout grow further into the maintained
+// high large-population band?
+pub(super) fn build_comparison_large_core_periphery_high(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    build_large_core_periphery(parameters, seed, LargePopulationSizeBand::High)
+}
+
+// Analytical question: which engines remain viable when several articulation
+// points and corridor links degrade in staggered windows and reroute pressure
+// accumulates across more than one bottleneck at a time?
+pub(super) fn build_comparison_large_multi_bottleneck_moderate(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    build_large_bottleneck(parameters, seed, LargePopulationSizeBand::Moderate)
+}
+
+// Analytical question: which single-engine and mixed-engine combinations fail
+// first when the maintained bottleneck family scales into a higher node-count
+// corridor with three serial broker points under overlapping stress?
+pub(super) fn build_comparison_large_multi_bottleneck_high(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    build_large_bottleneck(parameters, seed, LargePopulationSizeBand::High)
+}
+
 #[cfg(test)]
 fn comparison_activation_window_cases(
     parameters: &ExperimentParameterSet,
@@ -443,6 +835,26 @@ fn comparison_activation_window_cases(
             build_comparison_medium_bridge_repair(parameters, seed).0,
             vec![2u32],
             30u32,
+        ),
+        (
+            build_comparison_large_core_periphery_moderate(parameters, seed).0,
+            vec![3u32],
+            36u32,
+        ),
+        (
+            build_comparison_large_core_periphery_high(parameters, seed).0,
+            vec![4u32],
+            44u32,
+        ),
+        (
+            build_comparison_large_multi_bottleneck_moderate(parameters, seed).0,
+            vec![3u32],
+            42u32,
+        ),
+        (
+            build_comparison_large_multi_bottleneck_high(parameters, seed).0,
+            vec![4u32],
+            50u32,
         ),
     ]
 }
@@ -543,6 +955,13 @@ mod tests {
         let corridor_uncertainty =
             build_comparison_corridor_continuity_uncertainty(&parameters, seed);
         let medium_bridge_repair = build_comparison_medium_bridge_repair(&parameters, seed);
+        let large_core_periphery_moderate =
+            build_comparison_large_core_periphery_moderate(&parameters, seed);
+        let large_core_periphery_high =
+            build_comparison_large_core_periphery_high(&parameters, seed);
+        let large_bottleneck_moderate =
+            build_comparison_large_multi_bottleneck_moderate(&parameters, seed);
+        let large_bottleneck_high = build_comparison_large_multi_bottleneck_high(&parameters, seed);
 
         assert_eq!(
             applied_hook_labels(&connected_high_loss.0, &connected_high_loss.1),
@@ -577,6 +996,47 @@ mod tests {
         assert_eq!(
             applied_hook_labels(&medium_bridge_repair.0, &medium_bridge_repair.1),
             vec![(8, "asymmetric-degradation"), (14, "replace-topology")]
+        );
+        assert_eq!(
+            applied_hook_labels(
+                &large_core_periphery_moderate.0,
+                &large_core_periphery_moderate.1,
+            ),
+            vec![
+                (9, "asymmetric-degradation"),
+                (16, "replace-topology"),
+                (22, "medium-degradation"),
+            ]
+        );
+        assert_eq!(
+            applied_hook_labels(&large_core_periphery_high.0, &large_core_periphery_high.1),
+            vec![
+                (10, "asymmetric-degradation"),
+                (18, "replace-topology"),
+                (26, "medium-degradation"),
+            ]
+        );
+        assert_eq!(
+            applied_hook_labels(&large_bottleneck_moderate.0, &large_bottleneck_moderate.1),
+            vec![
+                (8, "asymmetric-degradation"),
+                (10, "intrinsic-limit"),
+                (13, "asymmetric-degradation"),
+                (15, "intrinsic-limit"),
+                (18, "replace-topology"),
+            ]
+        );
+        assert_eq!(
+            applied_hook_labels(&large_bottleneck_high.0, &large_bottleneck_high.1),
+            vec![
+                (8, "asymmetric-degradation"),
+                (9, "intrinsic-limit"),
+                (12, "asymmetric-degradation"),
+                (13, "intrinsic-limit"),
+                (16, "asymmetric-degradation"),
+                (21, "replace-topology"),
+                (22, "intrinsic-limit"),
+            ]
         );
     }
 
@@ -616,6 +1076,77 @@ mod tests {
         assert_eq!(restore.len(), 1);
         assert!(after_restore.value.links.contains_key(&(NODE_B, NODE_C)));
         assert!(after_restore.value.links.contains_key(&(NODE_C, NODE_B)));
+    }
+
+    #[test]
+    fn large_core_periphery_reassigns_the_dense_core_egress() {
+        let parameters = sample_parameters();
+        let seed = SimulationSeed(41);
+        let (scenario, environment) =
+            build_comparison_large_core_periphery_moderate(&parameters, seed);
+        let mut configuration = scenario.initial_configuration().value.clone();
+
+        let (after_shift, _) = environment.advance_environment(&configuration, Tick(16));
+        assert!(!after_shift
+            .value
+            .links
+            .contains_key(&(node_id(5), node_id(6))));
+        assert!(!after_shift
+            .value
+            .links
+            .contains_key(&(node_id(6), node_id(5))));
+        assert!(after_shift
+            .value
+            .links
+            .contains_key(&(node_id(3), node_id(6))));
+        assert!(after_shift
+            .value
+            .links
+            .contains_key(&(node_id(6), node_id(3))));
+        configuration = after_shift.value;
+
+        let (after_tail_pressure, applied) =
+            environment.advance_environment(&configuration, Tick(22));
+        assert_eq!(applied.len(), 1);
+        assert!(after_tail_pressure
+            .value
+            .links
+            .contains_key(&(node_id(8), node_id(9))));
+    }
+
+    #[test]
+    fn large_multi_bottleneck_adds_bypass_links_during_repair() {
+        let parameters = sample_parameters();
+        let seed = SimulationSeed(41);
+        let (scenario, environment) =
+            build_comparison_large_multi_bottleneck_moderate(&parameters, seed);
+        let mut configuration = scenario.initial_configuration().value.clone();
+
+        let (after_repair, applied) = environment.advance_environment(&configuration, Tick(18));
+        assert_eq!(applied.len(), 1);
+        assert!(after_repair
+            .value
+            .links
+            .contains_key(&(node_id(3), node_id(5))));
+        assert!(after_repair
+            .value
+            .links
+            .contains_key(&(node_id(5), node_id(3))));
+        assert!(after_repair
+            .value
+            .links
+            .contains_key(&(node_id(6), node_id(8))));
+        assert!(after_repair
+            .value
+            .links
+            .contains_key(&(node_id(8), node_id(6))));
+        configuration = after_repair.value;
+
+        let (after_follow_on, _) = environment.advance_environment(&configuration, Tick(20));
+        assert!(after_follow_on
+            .value
+            .links
+            .contains_key(&(node_id(6), node_id(8))));
     }
 
     #[test]
@@ -773,6 +1304,69 @@ mod tests {
         let destination = DestinationId::Node(NODE_F);
         assert!(reduced.route_seen(NODE_A, &destination));
         assert!(reduced.route_present_rounds(NODE_A, &destination).len() >= 10);
+    }
+
+    #[test]
+    fn comparison_large_core_periphery_high_is_more_diameter_sensitive_than_connected_low_loss() {
+        let parameters =
+            ExperimentParameterSet::comparison(4, 2, 3, PathwaySearchHeuristicMode::Zero);
+        let baseline = build_comparison_connected_low_loss(&parameters, SimulationSeed(41));
+        let large = build_comparison_large_core_periphery_high(&parameters, SimulationSeed(41));
+        let baseline_reduced = run_reduced_replay(&baseline.0, &baseline.1);
+        let large_reduced = run_reduced_replay(&large.0, &large.1);
+        let baseline_destination = DestinationId::Node(NODE_C);
+        let large_destination = DestinationId::Node(node_id(14));
+
+        assert!(large_reduced.route_seen(NODE_A, &large_destination));
+        assert!(
+            large_reduced.first_round_with_route(NODE_A, &large_destination)
+                > baseline_reduced.first_round_with_route(NODE_A, &baseline_destination)
+        );
+    }
+
+    #[test]
+    fn comparison_large_multi_bottleneck_high_records_route_fragility() {
+        let parameters =
+            ExperimentParameterSet::comparison(4, 2, 3, PathwaySearchHeuristicMode::Zero);
+        let (scenario, environment) =
+            build_comparison_large_multi_bottleneck_high(&parameters, SimulationSeed(41));
+        let reduced = run_reduced_replay(&scenario, &environment);
+        let destination = DestinationId::Node(node_id(14));
+        let _present_rounds = reduced.route_present_rounds(NODE_A, &destination);
+
+        assert!(reduced.route_seen(NODE_A, &destination));
+        assert!(
+            reduced
+                .first_round_without_route_after_presence(NODE_A, &destination)
+                .is_some()
+                || !reduced.failure_summaries.is_empty()
+        );
+    }
+
+    #[test]
+    fn head_to_head_field_large_core_periphery_high_materializes_route() {
+        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
+        let (scenario, environment) =
+            build_comparison_large_core_periphery_high(&parameters, SimulationSeed(41));
+        let reduced = run_reduced_replay(&scenario, &environment);
+        let destination = DestinationId::Node(node_id(14));
+
+        assert!(reduced.route_seen(NODE_A, &destination));
+        assert!(!reduced
+            .route_present_rounds(NODE_A, &destination)
+            .is_empty());
+    }
+
+    #[test]
+    fn head_to_head_field_large_multi_bottleneck_moderate_materializes_route() {
+        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
+        let (scenario, environment) =
+            build_comparison_large_multi_bottleneck_moderate(&parameters, SimulationSeed(41));
+        let reduced = run_reduced_replay(&scenario, &environment);
+        let destination = DestinationId::Node(node_id(10));
+
+        assert!(reduced.route_seen(NODE_A, &destination));
+        assert!(reduced.route_present_rounds(NODE_A, &destination).len() >= 8);
     }
 
     #[test]

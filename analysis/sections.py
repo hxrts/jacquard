@@ -298,16 +298,104 @@ def head_to_head_row_for_engine(
     return row.iter_rows(named=True).__next__()
 
 
+def _join_code_names(names: list[str]) -> str:
+    quoted = [f"`{name}`" for name in names]
+    if not quoted:
+        return "`none`"
+    if len(quoted) == 1:
+        return quoted[0]
+    if len(quoted) == 2:
+        return f"{quoted[0]} and {quoted[1]}"
+    return ", ".join(quoted[:-1]) + f", and {quoted[-1]}"
+
+
+def _top_head_to_head_rows(
+    head_to_head_summary: pl.DataFrame,
+    family_id: str,
+) -> list[dict]:
+    family = head_to_head_summary.filter(pl.col("family_id") == family_id)
+    if family.is_empty():
+        return []
+    best = (
+        family.sort(
+            [
+                "route_present_active_window_permille_mean",
+                "activation_success_permille_mean",
+                "comparison_engine_set",
+            ],
+            descending=[True, True, False],
+        )
+        .head(1)
+        .row(0, named=True)
+    )
+    return list(
+        family.filter(
+            (
+                pl.col("route_present_active_window_permille_mean")
+                == best["route_present_active_window_permille_mean"]
+            )
+            & (
+                pl.col("activation_success_permille_mean")
+                == best["activation_success_permille_mean"]
+            )
+        )
+        .sort("comparison_engine_set")
+        .iter_rows(named=True)
+    )
+
+
+def _route_summary_row(
+    route_summary: pl.DataFrame,
+    topology_class: str,
+    comparison_engine_set: str,
+) -> dict | None:
+    row = route_summary.filter(
+        (pl.col("topology_class") == topology_class)
+        & (pl.col("comparison_engine_set") == comparison_engine_set)
+    ).head(1)
+    if row.is_empty():
+        return None
+    return row.row(0, named=True)
+
+
+def _top_large_population_rows(
+    route_summary: pl.DataFrame,
+    topology_class: str,
+) -> list[dict]:
+    family = route_summary.filter(pl.col("topology_class") == topology_class)
+    if family.is_empty():
+        return []
+    best = (
+        family.sort(["high_route_present", "comparison_engine_set"], descending=[True, False])
+        .head(1)
+        .row(0, named=True)
+    )
+    return list(
+        family.filter(pl.col("high_route_present") == best["high_route_present"])
+        .sort("comparison_engine_set")
+        .iter_rows(named=True)
+    )
+
+
 def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]:
     if head_to_head_summary.is_empty():
         return []
 
-    rows = best_head_to_head_rows(head_to_head_summary)
-
-    connected_low_loss = rows.get("head-to-head-connected-low-loss")
-    connected_high_loss = rows.get("head-to-head-connected-high-loss")
-    bridge_transition = rows.get("head-to-head-bridge-transition")
-    concurrent_mixed = rows.get("head-to-head-concurrent-mixed")
+    connected_high_loss_rows = _top_head_to_head_rows(
+        head_to_head_summary, "head-to-head-connected-high-loss"
+    )
+    bridge_transition_rows = _top_head_to_head_rows(
+        head_to_head_summary, "head-to-head-bridge-transition"
+    )
+    medium_bridge_repair_rows = _top_head_to_head_rows(
+        head_to_head_summary, "head-to-head-medium-bridge-repair"
+    )
+    partial_bridge_rows = _top_head_to_head_rows(
+        head_to_head_summary, "head-to-head-partial-observability-bridge"
+    )
+    concurrent_mixed_rows = _top_head_to_head_rows(
+        head_to_head_summary, "head-to-head-concurrent-mixed"
+    )
     field_connected_high_loss = head_to_head_row_for_engine(
         head_to_head_summary,
         "head-to-head-connected-high-loss",
@@ -318,39 +406,57 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
         "head-to-head-bridge-transition",
         "field",
     )
-    corridor_uncertainty = head_to_head_row_for_engine(
+    field_corridor_uncertainty = head_to_head_row_for_engine(
         head_to_head_summary,
         "head-to-head-corridor-continuity-uncertainty",
         "field",
     )
-    partial_bridge = head_to_head_row_for_engine(
-        head_to_head_summary,
-        "head-to-head-partial-observability-bridge",
-        "field",
-    )
     if (
-        connected_low_loss is None
-        or connected_high_loss is None
-        or bridge_transition is None
-        or concurrent_mixed is None
+        not connected_high_loss_rows
+        or not bridge_transition_rows
+        or not medium_bridge_repair_rows
+        or not partial_bridge_rows
+        or not concurrent_mixed_rows
         or field_connected_high_loss is None
         or field_bridge_transition is None
-        or corridor_uncertainty is None
-        or partial_bridge is None
+        or field_corridor_uncertainty is None
     ):
         return []
 
+    connected_high_loss = connected_high_loss_rows[0]
+    bridge_transition = bridge_transition_rows[0]
+    medium_bridge_repair = medium_bridge_repair_rows[0]
+    partial_bridge = partial_bridge_rows[0]
+    concurrent_mixed = concurrent_mixed_rows[0]
     return section_lines_formatted(
         "Head-To-Head Takeaways",
-        connected_high_loss_engine_set=connected_high_loss["comparison_engine_set"] or "none",
+        connected_high_loss_engine_sets=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in connected_high_loss_rows]
+        ),
         connected_high_loss_route_presence=connected_high_loss[
             "route_present_active_window_permille_mean"
         ],
-        bridge_transition_engine_set=bridge_transition["comparison_engine_set"] or "none",
+        bridge_transition_engine_sets=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in bridge_transition_rows]
+        ),
         bridge_transition_route_presence=bridge_transition[
             "route_present_active_window_permille_mean"
         ],
-        concurrent_mixed_engine_set=concurrent_mixed["comparison_engine_set"] or "none",
+        medium_bridge_repair_engine_sets=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in medium_bridge_repair_rows]
+        ),
+        medium_bridge_repair_route_presence=medium_bridge_repair[
+            "route_present_active_window_permille_mean"
+        ],
+        partial_bridge_engine_sets=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in partial_bridge_rows]
+        ),
+        partial_bridge_route_presence=partial_bridge[
+            "route_present_active_window_permille_mean"
+        ],
+        concurrent_mixed_engine_sets=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in concurrent_mixed_rows]
+        ),
         concurrent_mixed_route_presence=concurrent_mixed[
             "route_present_active_window_permille_mean"
         ],
@@ -360,10 +466,7 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
         field_bridge_transition_route_presence=field_bridge_transition[
             "route_present_active_window_permille_mean"
         ],
-        corridor_uncertainty_route_presence=corridor_uncertainty[
-            "route_present_active_window_permille_mean"
-        ],
-        partial_bridge_route_presence=partial_bridge[
+        field_corridor_uncertainty_route_presence=field_corridor_uncertainty[
             "route_present_active_window_permille_mean"
         ],
     )
@@ -384,26 +487,62 @@ def analysis_takeaway_lines(
 
     connected_low_loss = comparison_rows.get("comparison-connected-low-loss")
     connected_high_loss = comparison_rows.get("comparison-connected-high-loss")
+    bridge_transition = comparison_rows.get("comparison-bridge-transition")
     corridor = comparison_rows.get("comparison-corridor-continuity-uncertainty")
     partial_bridge = comparison_rows.get("comparison-partial-observability-bridge")
-    concurrent_mixed = head_to_head_rows.get("head-to-head-concurrent-mixed")
+    concurrent_mixed_rows = _top_head_to_head_rows(
+        head_to_head_summary, "head-to-head-concurrent-mixed"
+    )
     comparison_concurrent_mixed = comparison_rows.get("comparison-concurrent-mixed")
-    corridor_uncertainty = head_to_head_rows.get("head-to-head-corridor-continuity-uncertainty")
+    head_to_head_connected_high_loss_rows = _top_head_to_head_rows(
+        head_to_head_summary, "head-to-head-connected-high-loss"
+    )
+    head_to_head_bridge_transition_rows = _top_head_to_head_rows(
+        head_to_head_summary, "head-to-head-bridge-transition"
+    )
+    head_to_head_corridor_rows = _top_head_to_head_rows(
+        head_to_head_summary, "head-to-head-corridor-continuity-uncertainty"
+    )
+    field_connected_high_loss = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-connected-high-loss",
+        "field",
+    )
+    field_bridge_transition = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-bridge-transition",
+        "field",
+    )
+    field_corridor_uncertainty = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-corridor-continuity-uncertainty",
+        "field",
+    )
     babel = top_recommendation_row(recommendations, "babel")
     olsrv2 = top_recommendation_row(recommendations, "olsrv2")
     if (
         connected_low_loss is None
         or connected_high_loss is None
+        or bridge_transition is None
         or corridor is None
         or partial_bridge is None
-        or concurrent_mixed is None
+        or not concurrent_mixed_rows
         or comparison_concurrent_mixed is None
-        or corridor_uncertainty is None
+        or not head_to_head_connected_high_loss_rows
+        or not head_to_head_bridge_transition_rows
+        or not head_to_head_corridor_rows
+        or field_connected_high_loss is None
+        or field_bridge_transition is None
+        or field_corridor_uncertainty is None
         or babel is None
         or olsrv2 is None
     ):
         return []
 
+    concurrent_mixed = concurrent_mixed_rows[0]
+    head_to_head_connected_high_loss = head_to_head_connected_high_loss_rows[0]
+    head_to_head_bridge_transition = head_to_head_bridge_transition_rows[0]
+    head_to_head_corridor = head_to_head_corridor_rows[0]
     return section_lines_formatted(
         "Part II Takeaways",
         connected_low_loss_engine=connected_low_loss["dominant_engine"] or "none",
@@ -413,15 +552,237 @@ def analysis_takeaway_lines(
         partial_bridge_engine=partial_bridge["dominant_engine"] or "none",
         babel_config=babel["config_id"],
         olsrv2_config=olsrv2["config_id"],
-        concurrent_mixed_engine_set=concurrent_mixed["comparison_engine_set"] or "none",
+        concurrent_mixed_engine_sets=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in concurrent_mixed_rows]
+        ),
         concurrent_mixed_route_presence=concurrent_mixed[
             "route_present_active_window_permille_mean"
         ],
-        corridor_uncertainty_route_presence=corridor_uncertainty[
+        mixed_connected_high_loss_engine=connected_high_loss["dominant_engine"] or "none",
+        mixed_connected_high_loss_route_presence=connected_high_loss[
+            "route_present_active_window_permille_mean"
+        ],
+        head_to_head_connected_high_loss_engines=_join_code_names(
+            [
+                row["comparison_engine_set"] or "none"
+                for row in head_to_head_connected_high_loss_rows
+            ]
+        ),
+        head_to_head_connected_high_loss_route_presence=head_to_head_connected_high_loss[
+            "route_present_active_window_permille_mean"
+        ],
+        head_to_head_connected_high_loss_route_verb=(
+            "reaches" if len(head_to_head_connected_high_loss_rows) == 1 else "reach"
+        ),
+        mixed_bridge_transition_engine=bridge_transition["dominant_engine"] or "none",
+        mixed_bridge_transition_route_presence=bridge_transition[
+            "route_present_active_window_permille_mean"
+        ],
+        head_to_head_bridge_transition_engines=_join_code_names(
+            [
+                row["comparison_engine_set"] or "none"
+                for row in head_to_head_bridge_transition_rows
+            ]
+        ),
+        head_to_head_bridge_transition_route_presence=head_to_head_bridge_transition[
+            "route_present_active_window_permille_mean"
+        ],
+        head_to_head_bridge_transition_route_verb=(
+            "reaches" if len(head_to_head_bridge_transition_rows) == 1 else "reach"
+        ),
+        field_connected_high_loss_route_presence=field_connected_high_loss[
+            "route_present_active_window_permille_mean"
+        ],
+        field_bridge_transition_route_presence=field_bridge_transition[
+            "route_present_active_window_permille_mean"
+        ],
+        field_corridor_uncertainty_route_presence=field_corridor_uncertainty[
+            "route_present_active_window_permille_mean"
+        ],
+        corridor_best_engines=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in head_to_head_corridor_rows]
+        ),
+        corridor_best_route_presence=head_to_head_corridor[
             "route_present_active_window_permille_mean"
         ],
     )
 
+
+def diffusion_takeaway_lines(
+    diffusion_regime_engine_summary: pl.DataFrame,
+    field_vs_best_diffusion_alternative: pl.DataFrame,
+) -> list[str]:
+    if diffusion_regime_engine_summary.is_empty() or field_vs_best_diffusion_alternative.is_empty():
+        return []
+
+    regime_rows = {
+        row["diffusion_regime"]: row
+        for row in diffusion_regime_engine_summary.iter_rows(named=True)
+    }
+    field_rows = {
+        row["field_regime"]: row
+        for row in field_vs_best_diffusion_alternative.iter_rows(named=True)
+    }
+    balanced = regime_rows.get("balanced")
+    congestion = regime_rows.get("congestion")
+    continuity = regime_rows.get("continuity")
+    privacy = regime_rows.get("privacy")
+    scarcity = regime_rows.get("scarcity")
+    field_balanced = field_rows.get("balanced")
+    field_congestion = field_rows.get("congestion")
+    field_continuity = field_rows.get("continuity")
+    field_privacy = field_rows.get("privacy")
+    field_scarcity = field_rows.get("scarcity")
+    if (
+        balanced is None
+        or congestion is None
+        or continuity is None
+        or privacy is None
+        or scarcity is None
+        or field_balanced is None
+        or field_congestion is None
+        or field_continuity is None
+        or field_privacy is None
+        or field_scarcity is None
+    ):
+        return []
+
+    return section_lines_formatted(
+        "Diffusion Takeaways",
+        balanced_winner=balanced["config_id"],
+        scarcity_winner=scarcity["config_id"],
+        congestion_winner=congestion["config_id"],
+        continuity_privacy_winners=_join_code_names(
+            list(dict.fromkeys([continuity["config_id"], privacy["config_id"]]))
+        ),
+        continuity_privacy_verb=(
+            "leads" if continuity["config_id"] == privacy["config_id"] else "lead"
+        ),
+        field_balanced_status=field_balanced["selection_status"],
+        field_balanced_score_delta=f"{field_balanced['regime_score_delta']:.1f}",
+        field_scarcity_score_delta=f"{field_scarcity['regime_score_delta']:.1f}",
+        field_privacy_score_delta=f"{field_privacy['regime_score_delta']:.1f}",
+        field_continuity_score_delta=f"{field_continuity['regime_score_delta']:.1f}",
+        field_congestion_status=field_congestion["selection_status"],
+    )
+
+
+def large_population_takeaway_lines(
+    large_population_route_summary: pl.DataFrame,
+    large_population_diffusion_transitions: pl.DataFrame,
+) -> list[str]:
+    if large_population_route_summary.is_empty() or large_population_diffusion_transitions.is_empty():
+        return []
+
+    scaling_rows = _top_large_population_rows(large_population_route_summary, "diameter-fanout")
+    bottleneck_rows = _top_large_population_rows(
+        large_population_route_summary, "multi-bottleneck"
+    )
+    diameter_sensitive = (
+        large_population_route_summary.filter(pl.col("topology_class") == "diameter-fanout")
+        .sort(["small_to_high_route_delta", "comparison_engine_set"], descending=[False, False])
+        .head(1)
+    )
+    bottleneck_fragile = (
+        large_population_route_summary.filter(pl.col("topology_class") == "multi-bottleneck")
+        .sort(["small_to_high_route_delta", "comparison_engine_set"], descending=[False, False])
+        .head(1)
+    )
+    sparse_high = large_population_diffusion_transitions.filter(
+        pl.col("family_id") == "diffusion-large-sparse-threshold-high"
+    ).head(1)
+    congestion_moderate = large_population_diffusion_transitions.filter(
+        pl.col("family_id") == "diffusion-large-congestion-threshold-moderate"
+    ).head(1)
+    congestion_high = large_population_diffusion_transitions.filter(
+        pl.col("family_id") == "diffusion-large-congestion-threshold-high"
+    ).head(1)
+    regional_high = large_population_diffusion_transitions.filter(
+        pl.col("family_id") == "diffusion-large-regional-shift-high"
+    ).head(1)
+    core_periphery_field = _route_summary_row(
+        large_population_route_summary,
+        "diameter-fanout",
+        "field",
+    )
+    core_periphery_scatter = _route_summary_row(
+        large_population_route_summary,
+        "diameter-fanout",
+        "scatter",
+    )
+    multi_bottleneck_field = _route_summary_row(
+        large_population_route_summary,
+        "multi-bottleneck",
+        "field",
+    )
+    multi_bottleneck_scatter = _route_summary_row(
+        large_population_route_summary,
+        "multi-bottleneck",
+        "scatter",
+    )
+    multi_bottleneck_pathway = _route_summary_row(
+        large_population_route_summary,
+        "multi-bottleneck",
+        "pathway",
+    )
+    multi_bottleneck_pathway_batman = _route_summary_row(
+        large_population_route_summary,
+        "multi-bottleneck",
+        "pathway-batman-bellman",
+    )
+    if (
+        not scaling_rows
+        or not bottleneck_rows
+        or diameter_sensitive.is_empty()
+        or bottleneck_fragile.is_empty()
+        or sparse_high.is_empty()
+        or congestion_moderate.is_empty()
+        or congestion_high.is_empty()
+        or regional_high.is_empty()
+        or core_periphery_field is None
+        or core_periphery_scatter is None
+        or multi_bottleneck_field is None
+        or multi_bottleneck_scatter is None
+        or multi_bottleneck_pathway is None
+        or multi_bottleneck_pathway_batman is None
+    ):
+        return []
+
+    scaling_row = scaling_rows[0]
+    bottleneck_row = bottleneck_rows[0]
+    diameter_row = diameter_sensitive.row(0, named=True)
+    bottleneck_fragile_row = bottleneck_fragile.row(0, named=True)
+    sparse_row = sparse_high.row(0, named=True)
+    congestion_row = congestion_moderate.row(0, named=True)
+    congestion_high_row = congestion_high.row(0, named=True)
+    regional_row = regional_high.row(0, named=True)
+    return section_lines_formatted(
+        "Large-Population Takeaways",
+        scaling_best_engines=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in scaling_rows]
+        ),
+        scaling_high_route=int(round(scaling_row["high_route_present"] or 0)),
+        bottleneck_best_engines=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in bottleneck_rows]
+        ),
+        bottleneck_high_route=int(round(bottleneck_row["high_route_present"] or 0)),
+        diameter_sensitive_engine=diameter_row["comparison_engine_set"],
+        diameter_delta=int(round(diameter_row["small_to_high_route_delta"] or 0)),
+        bottleneck_fragile_engine=bottleneck_fragile_row["comparison_engine_set"],
+        bottleneck_delta=int(round(bottleneck_fragile_row["small_to_high_route_delta"] or 0)),
+        core_periphery_scatter_route=int(round(core_periphery_scatter["high_route_present"] or 0)),
+        core_periphery_field_route=int(round(core_periphery_field["high_route_present"] or 0)),
+        multi_bottleneck_scatter_route=int(round(multi_bottleneck_scatter["high_route_present"] or 0)),
+        multi_bottleneck_field_route=int(round(multi_bottleneck_field["high_route_present"] or 0)),
+        multi_bottleneck_pathway_route=int(round(multi_bottleneck_pathway["high_route_present"] or 0)),
+        multi_bottleneck_pathway_batman_route=int(round(multi_bottleneck_pathway_batman["high_route_present"] or 0)),
+        sparse_viable=sparse_row.get("viable_config_id") or "none",
+        sparse_explosive=sparse_row.get("explosive_config_id") or "none",
+        congestion_viable=congestion_row.get("viable_config_id") or "none",
+        congestion_collapse=congestion_row.get("collapse_config_id") or "none",
+        congestion_high_states=congestion_high_row.get("observed_states") or "none",
+        regional_states=regional_row.get("observed_states") or "none",
+    )
 
 def diffusion_field_posture_lines(diffusion_engine_comparison: pl.DataFrame) -> list[str]:
     if diffusion_engine_comparison.is_empty():

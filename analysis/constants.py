@@ -24,6 +24,9 @@ PLOT_SPECS = {
     "mixed_vs_standalone_divergence": (10.0, 5.2),
     "diffusion_delivery_coverage": (18.0, 20.0),
     "diffusion_resource_boundedness": (18.0, 20.0),
+    "large_population_route_scaling": (16.4, 8.8),
+    "large_population_route_fragility": (16.4, 8.8),
+    "large_population_diffusion_transitions": (17.0, 10.6),
 }
 
 ENGINE_COLORS = {
@@ -122,6 +125,111 @@ ROUTE_VISIBLE_ENGINE_SET_ORDER = [
     "scatter",
     "pathway-batman-bellman",
     "field",
+]
+
+LARGE_POPULATION_SIZE_ORDER = ["small", "moderate", "high"]
+LARGE_POPULATION_STATE_ORDER = ["collapse", "viable", "explosive"]
+
+LARGE_POPULATION_ROUTE_FAMILIES = [
+    {
+        "family_id": "head-to-head-connected-low-loss",
+        "topology_class": "diameter-fanout",
+        "topology_label": "Diameter / fanout scaling",
+        "family_label": "Connected low loss",
+        "size_band": "small",
+        "size_order": 0,
+    },
+    {
+        "family_id": "head-to-head-large-core-periphery-moderate",
+        "topology_class": "diameter-fanout",
+        "topology_label": "Diameter / fanout scaling",
+        "family_label": "Large core-periphery",
+        "size_band": "moderate",
+        "size_order": 1,
+    },
+    {
+        "family_id": "head-to-head-large-core-periphery-high",
+        "topology_class": "diameter-fanout",
+        "topology_label": "Diameter / fanout scaling",
+        "family_label": "Large core-periphery",
+        "size_band": "high",
+        "size_order": 2,
+    },
+    {
+        "family_id": "head-to-head-medium-bridge-repair",
+        "topology_class": "multi-bottleneck",
+        "topology_label": "Multi-bottleneck repair",
+        "family_label": "Medium bridge repair",
+        "size_band": "small",
+        "size_order": 0,
+    },
+    {
+        "family_id": "head-to-head-large-multi-bottleneck-moderate",
+        "topology_class": "multi-bottleneck",
+        "topology_label": "Multi-bottleneck repair",
+        "family_label": "Large multi-bottleneck",
+        "size_band": "moderate",
+        "size_order": 1,
+    },
+    {
+        "family_id": "head-to-head-large-multi-bottleneck-high",
+        "topology_class": "multi-bottleneck",
+        "topology_label": "Multi-bottleneck repair",
+        "family_label": "Large multi-bottleneck",
+        "size_band": "high",
+        "size_order": 2,
+    },
+]
+
+LARGE_POPULATION_DIFFUSION_FAMILIES = [
+    {
+        "family_id": "diffusion-large-sparse-threshold-moderate",
+        "question": "subcritical-threshold",
+        "question_label": "Sparse threshold",
+        "family_label": "Sparse threshold",
+        "size_band": "moderate",
+        "size_order": 1,
+    },
+    {
+        "family_id": "diffusion-large-sparse-threshold-high",
+        "question": "subcritical-threshold",
+        "question_label": "Sparse threshold",
+        "family_label": "Sparse threshold",
+        "size_band": "high",
+        "size_order": 2,
+    },
+    {
+        "family_id": "diffusion-large-congestion-threshold-moderate",
+        "question": "congestion-threshold",
+        "question_label": "Congestion threshold",
+        "family_label": "Congestion threshold",
+        "size_band": "moderate",
+        "size_order": 1,
+    },
+    {
+        "family_id": "diffusion-large-congestion-threshold-high",
+        "question": "congestion-threshold",
+        "question_label": "Congestion threshold",
+        "family_label": "Congestion threshold",
+        "size_band": "high",
+        "size_order": 2,
+    },
+    {
+        "family_id": "diffusion-large-regional-shift-moderate",
+        "question": "broker-shift",
+        "question_label": "Regional shift continuity",
+        "family_label": "Regional shift continuity",
+        "size_band": "moderate",
+        "size_order": 1,
+    },
+    {
+        "family_id": "diffusion-large-regional-shift-high",
+        "question": "broker-shift",
+        "question_label": "Regional shift continuity",
+        "family_label": "Regional shift continuity",
+        "size_band": "high",
+        "size_order": 2,
+    },
 ]
 
 DIFFUSION_BOUND_STATE_COLORS = {

@@ -808,6 +808,56 @@ fn contact_probability_permille_for_pair(
                 140
             }
         }
+        "diffusion-large-regional-shift-moderate" => {
+            if round < scenario.round_count / 3 {
+                if pair.same_cluster {
+                    620
+                } else if pair.bridged {
+                    120
+                } else {
+                    22
+                }
+            } else if round < (scenario.round_count * 2) / 3 {
+                if pair.same_cluster {
+                    360
+                } else if pair.bridged {
+                    380
+                } else {
+                    74
+                }
+            } else if pair.same_cluster {
+                240
+            } else if pair.bridged {
+                520
+            } else {
+                130
+            }
+        }
+        "diffusion-large-regional-shift-high" => {
+            if round < scenario.round_count / 3 {
+                if pair.same_cluster {
+                    600
+                } else if pair.bridged {
+                    96
+                } else {
+                    16
+                }
+            } else if round < (scenario.round_count * 2) / 3 {
+                if pair.same_cluster {
+                    320
+                } else if pair.bridged {
+                    360
+                } else {
+                    68
+                }
+            } else if pair.same_cluster {
+                220
+            } else if pair.bridged {
+                500
+            } else {
+                140
+            }
+        }
         family_id => same_cluster_bridged_probability(family_id, pair.same_cluster, pair.bridged)
             .unwrap_or(0),
     }
@@ -840,6 +890,10 @@ pub(super) fn family_cluster_probabilities(family_id: &str) -> Option<(u32, u32,
         "diffusion-bridge-drought" => Some((190, 72, 6)),
         "diffusion-energy-starved-relay" => Some((260, 110, 20)),
         "diffusion-congestion-cascade" => Some((960, 700, 480)),
+        "diffusion-large-sparse-threshold-moderate" => Some((220, 82, 4)),
+        "diffusion-large-sparse-threshold-high" => Some((180, 60, 2)),
+        "diffusion-large-congestion-threshold-moderate" => Some((940, 720, 360)),
+        "diffusion-large-congestion-threshold-high" => Some((980, 800, 520)),
         _ => None,
     }
 }

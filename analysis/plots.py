@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from pathlib import Path
 
 import altair as alt
@@ -16,6 +17,7 @@ from .constants import (
     ENGINE_COLORS,
     HEAD_TO_HEAD_SET_COLORS,
     HEURISTIC_COLORS,
+    LARGE_POPULATION_STATE_ORDER,
     PLOT_SPECS,
     ROUTE_VISIBLE_ENGINE_SET_ORDER,
 )
@@ -113,6 +115,10 @@ def engine_display_label(engine_id: str | None) -> str:
         "field-scarcity": "Field scarcity",
         "field-congestion": "Field congestion",
         "field-privacy": "Field privacy",
+        "transition-tight": "Transition tight",
+        "transition-balanced": "Transition balanced",
+        "transition-bridge-biased": "Transition bridge-biased",
+        "transition-broad": "Transition broad",
     }
     if engine_id in canonical:
         return canonical[engine_id]
@@ -1861,6 +1867,292 @@ def render_diffusion_resource_boundedness(
             ),
             columns=columns,
         )
+    )
+    return _configure_chart(chart)
+
+
+def render_large_population_route_scaling(
+    large_population_route_summary: pl.DataFrame, total_width: int, total_height: int
+) -> alt.TopLevelMixin | None:
+    if large_population_route_summary.is_empty():
+        return None
+    engine_order = {
+        engine: index for index, engine in enumerate(ROUTE_VISIBLE_ENGINE_SET_ORDER)
+    }
+    rows: list[dict[str, object]] = []
+    for row in large_population_route_summary.iter_rows(named=True):
+        for size_band, column in [
+            ("small", "small_route_present"),
+            ("moderate", "moderate_route_present"),
+            ("high", "high_route_present"),
+        ]:
+            value = row[column]
+            if value is None:
+                continue
+            rows.append(
+                {
+                    "topology_label": row["topology_label"],
+                    "size_band": size_band.capitalize(),
+                    "engine_key": row["comparison_engine_set"],
+                    "engine_label": engine_display_label(row["comparison_engine_set"]),
+                    "route_present": float(value),
+                    "display_route_present": float(value),
+                }
+            )
+    if not rows:
+        return None
+    tied_groups: dict[tuple[str, str, float], list[dict[str, object]]] = {}
+    for row in rows:
+        tied_groups.setdefault(
+            (row["topology_label"], row["size_band"], row["route_present"]),
+            [],
+        ).append(row)
+    dodge_step = 8.0
+    for group_rows in tied_groups.values():
+        if len(group_rows) <= 1:
+            continue
+        ordered_rows = sorted(
+            group_rows,
+            key=lambda row: engine_order.get(str(row["engine_key"]), len(engine_order)),
+        )
+        midpoint = (len(ordered_rows) - 1) / 2.0
+        for index, row in enumerate(ordered_rows):
+            row["display_route_present"] = row["route_present"] + (index - midpoint) * dodge_step
+    engine_domain = [
+        engine
+        for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER
+        if engine in {row["engine_key"] for row in rows}
+    ]
+    size_order = ["Small", "Moderate", "High"]
+    dataset = alt.InlineData(values=rows)
+    base = alt.Chart(dataset).encode(
+        x=alt.X("size_band:N", sort=size_order, title="Size band"),
+        y=alt.Y(
+            "display_route_present:Q",
+            title="Total-window route presence (permille)",
+            scale=alt.Scale(domain=[0, 1000]),
+        ),
+        color=_engine_color_scale(
+            engine_domain,
+            HEAD_TO_HEAD_SET_COLORS,
+            field="engine_label:N",
+            field_domain=[engine_display_label(engine) for engine in engine_domain],
+            legend_title="Engine set",
+        ),
+        tooltip=[
+            alt.Tooltip("topology_label:N", title="Topology"),
+            alt.Tooltip("engine_label:N", title="Engine set"),
+            alt.Tooltip("size_band:N", title="Size band"),
+            alt.Tooltip("route_present:Q", title="Route presence", format=".0f"),
+        ],
+    )
+    chart = alt.layer(
+        base.mark_line(point=False, strokeWidth=2.2),
+        base.mark_point(filled=True, size=80, stroke="white", strokeWidth=1),
+    ).properties(width=(total_width - 30) // 2, height=total_height - 54).facet(
+        facet=alt.Facet(
+            "topology_label:N",
+            sort=[
+                "Diameter / fanout scaling",
+                "Multi-bottleneck repair",
+            ],
+            header=alt.Header(title=None),
+        ),
+        columns=2,
+    )
+    return _configure_chart(chart)
+
+
+def render_large_population_route_fragility(
+    large_population_route_summary: pl.DataFrame, total_width: int, total_height: int
+) -> alt.TopLevelMixin | None:
+    if large_population_route_summary.is_empty():
+        return None
+    rows: list[dict[str, object]] = []
+    for row in large_population_route_summary.iter_rows(named=True):
+        delta = row["small_to_high_route_delta"]
+        if delta is None:
+            continue
+        loss_round = row["high_first_loss_round"]
+        loss_label = "no loss" if loss_round is None else f"loss r{int(round(loss_round))}"
+        rows.append(
+            {
+                "topology_label": row["topology_label"],
+                "engine_key": row["comparison_engine_set"],
+                "engine_label": engine_display_label(row["comparison_engine_set"]),
+                "route_delta": float(delta),
+                "label_x": float(delta),
+                "loss_label": loss_label,
+            }
+        )
+    if not rows:
+        return None
+    engine_domain = [
+        engine
+        for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER
+        if engine in {row["engine_key"] for row in rows}
+    ]
+    min_delta = min(float(row["route_delta"]) for row in rows)
+    max_delta = max(float(row["route_delta"]) for row in rows)
+    x_min = min(-850.0, min_delta - 80.0)
+    x_max = max(120.0, max_delta + 80.0)
+    dataset = alt.InlineData(values=rows)
+    base = alt.Chart(dataset).encode(
+        y=alt.Y(
+            "engine_label:N",
+            sort=[engine_display_label(engine) for engine in engine_domain],
+            title="Engine set",
+        ),
+        color=_engine_color_scale(
+            engine_domain,
+            HEAD_TO_HEAD_SET_COLORS,
+            field="engine_label:N",
+            field_domain=[engine_display_label(engine) for engine in engine_domain],
+            legend_title="Engine set",
+        ),
+    )
+    chart = alt.layer(
+        base.mark_rule(color=PLOT_BORDER_COLOR, strokeWidth=1).encode(x=alt.datum(0)),
+        base.mark_bar(height=18, cornerRadiusEnd=2, cornerRadiusTopLeft=2, cornerRadiusBottomLeft=2).encode(
+            x=alt.X(
+                "route_delta:Q",
+                title="High-band total-window route presence minus small baseline (permille)",
+                scale=alt.Scale(domain=[x_min, x_max]),
+            ),
+        ),
+        base.mark_text(
+            baseline="middle",
+            dx=6,
+            font=PLOT_FONT,
+            fontSize=8,
+            color="#000000",
+            clip=False,
+        ).encode(
+            x=alt.X("label_x:Q", scale=alt.Scale(domain=[x_min, x_max])),
+            text="loss_label:N",
+        ),
+    ).properties(width=(total_width - 30) // 2, height=total_height - 54).facet(
+        facet=alt.Facet(
+            "topology_label:N",
+            sort=[
+                "Diameter / fanout scaling",
+                "Multi-bottleneck repair",
+            ],
+            header=alt.Header(title=None),
+        ),
+        columns=2,
+    )
+    return _configure_chart(chart)
+
+
+def render_large_population_diffusion_transitions(
+    large_population_diffusion_points: pl.DataFrame, total_width: int, total_height: int
+) -> alt.TopLevelMixin | None:
+    if large_population_diffusion_points.is_empty():
+        return None
+    rows: list[dict[str, object]] = []
+    for row in large_population_diffusion_points.iter_rows(named=True):
+        rows.append(
+            {
+                "panel_label": f"{row['question_label']} ({row['size_band']})",
+                "question_label": row["question_label"],
+                "size_band": row["size_band"].capitalize(),
+                "config_label": compact_engine_label(row["config_id"]),
+                "delivery": float(row["delivery_probability_permille_mean"]),
+                "reproduction": float(row["estimated_reproduction_permille_mean"]),
+                "bounded_state": row["bounded_state_mode"],
+            }
+        )
+    max_reproduction = max(float(row["reproduction"]) for row in rows)
+    x_domain_max = max(1000.0, max_reproduction + 120.0)
+
+    # Nudge label y positions apart within each panel so labels for nearby
+    # points do not stack on top of each other.
+    panel_indices: dict[str, list[int]] = defaultdict(list)
+    for idx, row in enumerate(rows):
+        panel_indices[row["panel_label"]].append(idx)
+    for row in rows:
+        row["label_y"] = row["delivery"]
+    text_height_y = 90.0
+    overlap_x_threshold = x_domain_max * 0.45
+    for indices in panel_indices.values():
+        if len(indices) <= 1:
+            continue
+        for _ in range(30):
+            moved = False
+            for a in range(len(indices)):
+                for b in range(a + 1, len(indices)):
+                    i, j = indices[a], indices[b]
+                    if abs(rows[i]["reproduction"] - rows[j]["reproduction"]) > overlap_x_threshold:
+                        continue
+                    dy = rows[j]["label_y"] - rows[i]["label_y"]
+                    if abs(dy) < text_height_y:
+                        nudge = (text_height_y - abs(dy)) / 2 + 1.0
+                        if dy >= 0:
+                            rows[i]["label_y"] -= nudge
+                            rows[j]["label_y"] += nudge
+                        else:
+                            rows[i]["label_y"] += nudge
+                            rows[j]["label_y"] -= nudge
+                        moved = True
+            if not moved:
+                break
+        for idx in indices:
+            rows[idx]["label_y"] = max(40.0, min(960.0, rows[idx]["label_y"]))
+
+    dataset = alt.InlineData(values=rows)
+    base = alt.Chart(dataset).encode(
+        x=alt.X(
+            "reproduction:Q",
+            title="Estimated reproduction (permille)",
+            scale=alt.Scale(domain=[0, x_domain_max]),
+        ),
+        y=alt.Y(
+            "delivery:Q",
+            title="Delivery (permille)",
+            scale=alt.Scale(domain=[0, 1000]),
+        ),
+    )
+    chart = alt.layer(
+        base.mark_line(color=PLOT_BORDER_COLOR, strokeWidth=1.2).encode(
+            detail="panel_label:N",
+            order="reproduction:Q",
+        ),
+        base.mark_point(filled=True, size=95, stroke="white", strokeWidth=1).encode(
+            color=alt.Color(
+                "bounded_state:N",
+                scale=alt.Scale(
+                    domain=LARGE_POPULATION_STATE_ORDER,
+                    range=[DIFFUSION_BOUND_STATE_COLORS[state] for state in LARGE_POPULATION_STATE_ORDER],
+                ),
+                legend=alt.Legend(title="Bounded state"),
+            ),
+            shape=alt.Shape("bounded_state:N", legend=None),
+        ),
+        base.mark_text(
+            align="left",
+            baseline="middle",
+            dx=7,
+            font=PLOT_FONT,
+            fontSize=8,
+            color=PLOT_TEXT_COLOR,
+            clip=False,
+        ).encode(
+            text="config_label:N",
+            y=alt.Y(
+                "label_y:Q",
+                scale=alt.Scale(domain=[0, 1000]),
+                title=None,
+                axis=None,
+            ),
+        ),
+    ).properties(width=(total_width - 42) // 3, height=(total_height - 74) // 2).facet(
+        facet=alt.Facet(
+            "panel_label:N",
+            sort=[row["panel_label"] for row in rows],
+            header=alt.Header(title=None, labelOrient="bottom"),
+        ),
+        columns=3,
     )
     return _configure_chart(chart)
 
