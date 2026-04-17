@@ -1,3 +1,5 @@
+//! Field posture classification and signal computation for diffusion strategies.
+
 use super::{
     coverage_permille_for, is_target_node, is_terminal_target, node_by_id,
     scenario_target_cluster_count, BTreeMap, BTreeSet, DiffusionContactEvent,

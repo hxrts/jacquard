@@ -1,3 +1,5 @@
+//! Host build plans with engine configuration and bootstrap state management.
+
 use jacquard_core::{Configuration, Observation, Tick};
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
 use jacquard_reference_client::{

@@ -1,3 +1,5 @@
+//! CLI binary for running tuning and diffusion experiment suites.
+
 use std::{
     env,
     path::{Path, PathBuf},

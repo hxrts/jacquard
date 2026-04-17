@@ -1,3 +1,5 @@
+//! Scenario definition: topology, hosts, objectives, engine lanes, and overrides.
+
 use jacquard_babel::DecayWindow as BabelDecayWindow;
 use jacquard_batman_bellman::DecayWindow;
 use jacquard_batman_classic::DecayWindow as ClassicDecayWindow;

@@ -1,3 +1,5 @@
+//! Diffusion message-delivery simulation with posture, scoring, and statistics.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 mod catalog;

@@ -1,3 +1,5 @@
+//! Pre-configured diffusion scenario families and policy parameter variations.
+
 use super::model::{
     DiffusionForwardingStyle, DiffusionPolicyConfig, DiffusionRunSpec, DiffusionScenarioSpec,
     DiffusionSuite,

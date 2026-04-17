@@ -1,3 +1,5 @@
+//! Shared topology builders and parameter helpers for preset scenarios.
+
 #![allow(clippy::wildcard_imports)]
 
 use super::*;

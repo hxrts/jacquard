@@ -1,3 +1,5 @@
+//! Route event collection, host snapshots, and simulation artifact assembly.
+
 use super::{
     ActiveRouteSummary, BTreeMap, BoundObjective, BridgeRoundProgress, BridgeRoundReport,
     ConnectivityPosture, DestinationId, DriverStatusEvent, DurationMs, FieldExportedReplayBundle,

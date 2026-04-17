@@ -1,3 +1,5 @@
+//! Diffusion policy config, forwarding styles, field postures, and scenario specs.
+
 use std::{collections::BTreeMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};

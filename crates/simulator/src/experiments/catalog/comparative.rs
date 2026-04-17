@@ -1,3 +1,5 @@
+//! Comparative and head-to-head scenario family definitions.
+
 use super::{materialize_families, FamilyBuilder, FamilyDescriptor};
 use crate::experiments::{
     build_comparison_bridge_transition, build_comparison_concurrent_mixed,

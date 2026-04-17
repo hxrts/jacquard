@@ -1,3 +1,5 @@
+//! Multi-engine routing scenarios for engine composition and coordination testing.
+
 #![allow(clippy::wildcard_imports)]
 
 use super::*;

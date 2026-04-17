@@ -1,3 +1,5 @@
+//! Deterministic simulator harness orchestrating scenario execution and round advancement.
+
 use std::{collections::BTreeMap, sync::Arc};
 
 use jacquard_core::{

@@ -1,3 +1,5 @@
+//! Statistical aggregation helpers for diffusion run analysis.
+
 use crate::util::stats::{average_option_u32, average_u32, mode_string as util_mode_string};
 
 pub(super) use crate::util::stats::min_max_spread_u32;

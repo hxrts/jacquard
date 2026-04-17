@@ -1,3 +1,5 @@
+//! Basic scenario fixtures: line topologies and single-engine host configurations.
+
 #![allow(clippy::wildcard_imports)]
 
 use super::*;

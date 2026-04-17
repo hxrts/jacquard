@@ -1,3 +1,5 @@
+//! Condensed replay view: per-route presence, materialization, and loss summaries.
+
 use std::collections::BTreeSet;
 
 use jacquard_core::{DestinationId, NodeId, RouteLifecycleEvent, RoutingEngineId};

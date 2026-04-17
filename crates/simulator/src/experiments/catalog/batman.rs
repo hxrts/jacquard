@@ -1,3 +1,5 @@
+//! Batman-Bellman, Batman-Classic, Babel, and OLSRv2 scenario family definitions.
+
 use super::FamilyDescriptor;
 use crate::experiments::{
     build_babel_asymmetry_cost_penalty, build_babel_decay_window_pressure,

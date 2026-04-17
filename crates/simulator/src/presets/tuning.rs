@@ -1,3 +1,5 @@
+//! Parameter tuning scenarios with varied decay windows and search budgets.
+
 #![allow(clippy::wildcard_imports)]
 
 use super::*;

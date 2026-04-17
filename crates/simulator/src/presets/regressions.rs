@@ -1,3 +1,5 @@
+//! Regression test scenarios for churn, relay stability, and edge cases.
+
 #![allow(clippy::wildcard_imports)]
 
 use super::*;

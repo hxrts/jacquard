@@ -1,3 +1,5 @@
+//! Simulation replay artifacts: host rounds, route events, checkpoints, and statistics.
+
 use std::collections::BTreeMap;
 
 use jacquard_core::{

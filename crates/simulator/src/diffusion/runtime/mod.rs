@@ -1,3 +1,5 @@
+//! Diffusion execution engine with round-level state management and transfer scoring.
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs::{self, File},

@@ -1,3 +1,5 @@
+//! Statistical computation: averages, medians, modes, and ratio calculations.
+
 use std::collections::BTreeMap;
 
 #[must_use]

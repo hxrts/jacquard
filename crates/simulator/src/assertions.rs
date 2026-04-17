@@ -1,3 +1,5 @@
+//! Scenario assertion builders and validation helpers for routing outcomes.
+
 use std::{error::Error, fmt};
 
 use jacquard_core::{DestinationId, NodeId, RoutingEngineId};

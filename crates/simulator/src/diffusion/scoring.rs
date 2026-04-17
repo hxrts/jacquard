@@ -1,3 +1,5 @@
+//! Forwarding score computation for diffusion routing decisions.
+
 use super::{
     diffusion_bridge_candidate, diffusion_destination_cluster, diffusion_source_cluster,
     is_target_node, node_by_id, sender_energy_ratio_permille, DiffusionContactEvent,

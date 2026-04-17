@@ -1,3 +1,5 @@
+//! Environment hooks: topology changes, degradation, partitions, and mobility events.
+
 use std::collections::BTreeMap;
 
 use jacquard_core::{
