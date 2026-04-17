@@ -249,6 +249,26 @@ impl TransportSenderEffects for QueuedTransportSender {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+struct RecordingSender {
+    sent: Vec<OutboundFrame>,
+}
+
+#[effect_handler]
+impl TransportSenderEffects for RecordingSender {
+    fn send_transport(
+        &mut self,
+        endpoint: &LinkEndpoint,
+        payload: &[u8],
+    ) -> Result<(), TransportError> {
+        self.sent.push(OutboundFrame {
+            endpoint: endpoint.clone(),
+            payload: payload.to_vec(),
+        });
+        Ok(())
+    }
+}
+
 struct BatmanHost {
     topology: Observation<Configuration>,
     router: MultiEngineRouter<FixedPolicyEngine, InMemoryRuntimeEffects>,
@@ -651,4 +671,65 @@ fn batman_router_activates_a_five_node_route_from_direct_neighbor_observations()
         }),
         "next-hop ingress: {delivered:?}"
     );
+}
+
+#[test]
+fn batman_router_checkpoint_round_trip_restores_forwarding() {
+    let topology = sample_topology();
+    let mut router = MultiEngineRouter::new(
+        node(1),
+        FixedPolicyEngine::new(sample_profile()),
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
+        topology.clone(),
+        sample_policy_inputs(&topology),
+    );
+    router
+        .register_engine(Box::new(BatmanBellmanEngine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        )))
+        .expect("register BATMAN engine");
+
+    router.advance_round().expect("seed BATMAN route state");
+    let route = Router::activate_route(&mut router, sample_objective())
+        .expect("activate route before checkpoint recovery");
+    let persisted_effects = router.effects().clone();
+
+    let mut recovered = MultiEngineRouter::new(
+        node(1),
+        FixedPolicyEngine::new(sample_profile()),
+        InMemoryRuntimeEffects {
+            now: Tick(1),
+            ..Default::default()
+        },
+        topology.clone(),
+        sample_policy_inputs(&topology),
+    );
+    *recovered.effects_mut() = persisted_effects;
+    recovered
+        .register_engine(Box::new(BatmanBellmanEngine::new(
+            node(1),
+            RecordingSender::default(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        )))
+        .expect("register recovered BATMAN engine");
+
+    let restored = recovered
+        .recover_checkpointed_routes()
+        .expect("recover checkpointed BATMAN route");
+    assert_eq!(restored, 1);
+    recovered
+        .forward_payload(route.identity.route_id(), b"restored")
+        .expect("forward on recovered BATMAN router");
+    assert!(recovered.active_route(route.identity.route_id()).is_some());
 }

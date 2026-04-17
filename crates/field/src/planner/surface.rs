@@ -1,8 +1,7 @@
 use jacquard_core::{
-    AdmissionDecision, BackendRouteRef, Belief, Configuration, DestinationId, Estimate,
-    ObjectiveVsDelivered, Observation, RouteAdmission, RouteAdmissionCheck,
-    RouteAdmissionRejection, RouteCandidate, RouteDegradation, RouteError, RouteEstimate,
-    RouteSelectionError, RouteSummary, RouteWitness, RoutingEngineCapabilities, RoutingEngineId,
+    AdmissionDecision, BackendRouteRef, Configuration, Estimate, ObjectiveVsDelivered, Observation,
+    RouteAdmission, RouteAdmissionCheck, RouteAdmissionRejection, RouteCandidate, RouteError,
+    RouteEstimate, RouteSelectionError, RouteWitness, RoutingEngineCapabilities, RoutingEngineId,
     SelectedRoutingParameters,
 };
 use jacquard_traits::RoutingEnginePlanner;
@@ -12,27 +11,24 @@ use super::admission::{bootstrap_corridor_admissible, promoted_corridor_admissib
 use super::{
     admission::{
         admission_assumptions, admission_check_for, admission_class_for_state_with_config,
-        bootstrap_class_for_state_with_config, continuity_band_for_state_with_config,
-        delivered_connectivity, delivered_protection, evidence_class_from_state, rejected_check,
-        route_cost_for, selected_neighbor_publishable, uncertainty_class_for, AdmissionInputs,
+        delivered_connectivity, delivered_protection, rejected_check, route_cost_for,
+        selected_neighbor_publishable, AdmissionInputs,
     },
-    publication::{
-        node_publication_neighbors, publication_confidence_for, service_publication_neighbors,
-    },
+    publication::{node_publication_neighbors, service_publication_neighbors},
+    FieldPlannerSnapshot,
 };
 use crate::{
     attractor::rank_frontier_by_attractor_with_policy,
     operational::FieldDestinationDecisionContext,
     route::{encode_backend_token, route_id_for_backend, FieldBackendToken, FieldWitnessDetail},
     state::{DestinationFieldState, DestinationKey, MAX_CONTINUATION_NEIGHBOR_COUNT},
-    summary::{derive_degradation_class, FieldSummary, SummaryDestinationKey},
     FieldEngine, FIELD_CAPABILITIES, FIELD_ENGINE_ID,
 };
 
-struct PlanningArtifacts {
-    candidate: RouteCandidate,
-    admission_check: RouteAdmissionCheck,
-    witness: RouteWitness,
+pub(crate) struct PlanningArtifacts {
+    pub(crate) candidate: RouteCandidate,
+    pub(crate) admission_check: RouteAdmissionCheck,
+    pub(crate) witness: RouteWitness,
 }
 
 impl<Transport, Effects> RoutingEnginePlanner for FieldEngine<Transport, Effects> {
@@ -50,7 +46,8 @@ impl<Transport, Effects> RoutingEnginePlanner for FieldEngine<Transport, Effects
         profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
-        self.planning_artifacts(objective, profile, topology)
+        let snapshot = self.planner_snapshot();
+        self.planning_artifacts(&snapshot, objective, profile, topology)
             .map(|artifacts| vec![artifacts.candidate])
             .unwrap_or_default()
     }
@@ -62,7 +59,8 @@ impl<Transport, Effects> RoutingEnginePlanner for FieldEngine<Transport, Effects
         candidate: &RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
-        let Ok(artifacts) = self.planning_artifacts(objective, profile, topology) else {
+        let snapshot = self.planner_snapshot();
+        let Ok(artifacts) = self.planning_artifacts(&snapshot, objective, profile, topology) else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
         if artifacts.candidate.backend_ref != candidate.backend_ref {
@@ -81,7 +79,8 @@ impl<Transport, Effects> RoutingEnginePlanner for FieldEngine<Transport, Effects
         candidate: RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError> {
-        let artifacts = self.planning_artifacts(objective, profile, topology)?;
+        let snapshot = self.planner_snapshot();
+        let artifacts = self.planning_artifacts(&snapshot, objective, profile, topology)?;
         if artifacts.candidate.backend_ref != candidate.backend_ref {
             return Err(RouteSelectionError::Inadmissible(
                 RouteAdmissionRejection::BackendUnavailable,
@@ -107,36 +106,47 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         &self,
         destination: &DestinationKey,
     ) -> Option<FieldWitnessDetail> {
-        self.state
+        let snapshot = self.planner_snapshot();
+        snapshot
             .destinations
             .get(destination)
-            .map(|state| self.witness_detail_from_state(state))
+            .map(|state| snapshot.witness_detail_from_state(state))
+    }
+
+    pub(crate) fn witness_detail_from_state(
+        &self,
+        destination_state: &DestinationFieldState,
+    ) -> FieldWitnessDetail {
+        self.planner_snapshot()
+            .witness_detail_from_state(destination_state)
     }
 
     // long-block-exception: candidate, admission, witness, and route-id
     // derivation form one coherent planning pipeline with shared intermediates.
-    fn planning_artifacts(
+    pub(crate) fn planning_artifacts(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &jacquard_core::RoutingObjective,
         profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Result<PlanningArtifacts, RouteError> {
         let destination_key = DestinationKey::from(&objective.destination);
-        let Some(destination_state) = self.state.destinations.get(&destination_key) else {
+        let Some(destination_state) = snapshot.destinations.get(&destination_key) else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
-        if !self.destination_supports_objective(topology, objective) {
+        if !snapshot.destination_supports_objective(topology, objective) {
             return Err(RouteSelectionError::NoCandidate.into());
         }
 
-        let search_record = self.search_record_for_objective(objective, topology);
+        let search_record =
+            self.search_record_for_objective_from_snapshot(snapshot, objective, topology);
         let ranked = rank_frontier_by_attractor_with_policy(
             destination_state,
-            &self.state.mean_field,
-            self.state.regime.current,
-            self.state.posture.current,
-            &self.state.controller,
-            &self.policy().evidence.attractor,
+            &snapshot.mean_field,
+            snapshot.regime,
+            snapshot.posture,
+            &snapshot.controller,
+            &snapshot.policy.evidence.attractor,
         );
         let Some(selected_continuation) = search_record.selected_continuation.as_ref() else {
             return Err(RouteSelectionError::NoCandidate.into());
@@ -145,7 +155,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         if !selected_neighbor_publishable(
             destination_state,
             topology,
-            self.local_node_id,
+            snapshot.local_node_id,
             selected_neighbor,
         ) {
             return Err(RouteSelectionError::NoCandidate.into());
@@ -155,13 +165,13 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         continuation_neighbors.push(selected_neighbor);
         continuation_set.insert(selected_neighbor);
         let destination_context =
-            FieldDestinationDecisionContext::new(&destination_key, &self.search_config);
+            FieldDestinationDecisionContext::new(&destination_key, &snapshot.search_config);
         if destination_context.service_bias() {
             continuation_neighbors.extend(
                 service_publication_neighbors(
                     destination_state,
                     selected_neighbor,
-                    &self.search_config,
+                    &snapshot.search_config,
                 )
                 .into_iter()
                 .filter(|neighbor_id| continuation_set.insert(*neighbor_id)),
@@ -171,7 +181,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 node_publication_neighbors(
                     destination_state,
                     selected_neighbor,
-                    &self.search_config,
+                    &snapshot.search_config,
                 )
                 .into_iter()
                 .filter(|neighbor_id| continuation_set.insert(*neighbor_id)),
@@ -188,32 +198,30 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         continuation_neighbors.truncate(MAX_CONTINUATION_NEIGHBOR_COUNT + 1);
 
         let admission_class =
-            admission_class_for_state_with_config(destination_state, &self.search_config);
-        let witness_detail = self.witness_detail_from_state(destination_state);
+            admission_class_for_state_with_config(destination_state, &snapshot.search_config);
+        let witness_detail = snapshot.witness_detail_from_state(destination_state);
         let backend_token = FieldBackendToken {
             destination: destination_key,
             selected_neighbor,
             continuation_neighbors: continuation_neighbors.clone(),
             topology_epoch: topology.value.epoch,
-            regime: self.state.regime.current,
-            posture: self.state.posture.current,
+            regime: snapshot.regime,
+            posture: snapshot.posture,
         };
         let backend_route_id = encode_backend_token(&backend_token);
         let route_id = route_id_for_backend(&backend_route_id);
-        let route_summary = self.route_summary_for(destination_state, selected_neighbor, topology);
-        let degradation = self.route_degradation_for(destination_state, topology.value.epoch);
-        let delivered_protection = delivered_protection(destination_state, &self.search_config);
-        let delivered_connectivity = delivered_connectivity(
-            self.state.posture.current,
-            destination_state,
-            &self.search_config,
-        );
+        let route_summary =
+            snapshot.route_summary_for(destination_state, selected_neighbor, topology);
+        let degradation = snapshot.route_degradation_for(destination_state, topology.value.epoch);
+        let delivered_protection = delivered_protection(destination_state, &snapshot.search_config);
+        let delivered_connectivity =
+            delivered_connectivity(snapshot.posture, destination_state, &snapshot.search_config);
         let admission_profile =
-            admission_assumptions(&witness_detail, self.state.regime.current, admission_class);
+            admission_assumptions(&witness_detail, snapshot.regime, admission_class);
         let route_cost = route_cost_for(
             &destination_state.corridor_belief,
             continuation_neighbors.len().saturating_sub(1),
-            self.state.posture.current,
+            snapshot.posture,
         );
         let admission_check = admission_check_for(AdmissionInputs {
             objective,
@@ -224,7 +232,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             delivered_connectivity,
             assumptions: admission_profile.clone(),
             route_cost,
-            search_config: &self.search_config,
+            search_config: &snapshot.search_config,
         });
         let witness = RouteWitness {
             protection: ObjectiveVsDelivered {
@@ -265,131 +273,6 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             witness,
         })
     }
-
-    pub(crate) fn witness_detail_from_state(
-        &self,
-        destination_state: &DestinationFieldState,
-    ) -> FieldWitnessDetail {
-        FieldWitnessDetail {
-            evidence_class: evidence_class_from_state(destination_state),
-            uncertainty_class: uncertainty_class_for(
-                destination_state.posterior.usability_entropy.value(),
-            ),
-            bootstrap_class: bootstrap_class_for_state_with_config(
-                destination_state,
-                &self.search_config,
-            ),
-            continuity_band: continuity_band_for_state_with_config(
-                destination_state,
-                &self.search_config,
-            ),
-            corridor_support: destination_state.corridor_belief.delivery_support,
-            retention_support: destination_state.corridor_belief.retention_affinity,
-            usability_entropy: destination_state.posterior.usability_entropy,
-            top_corridor_mass: destination_state.posterior.top_corridor_mass,
-            frontier_width: u8::try_from(destination_state.frontier.len()).unwrap_or(u8::MAX),
-            regime: self.state.regime.current,
-            posture: self.state.posture.current,
-            degradation: self
-                .route_degradation_for(destination_state, jacquard_core::RouteEpoch(0)),
-        }
-    }
-
-    fn route_summary_for(
-        &self,
-        destination_state: &DestinationFieldState,
-        summary_neighbor: jacquard_core::NodeId,
-        topology: &Observation<Configuration>,
-    ) -> RouteSummary {
-        let hop_midpoint = destination_state
-            .corridor_belief
-            .expected_hop_band
-            .min_hops
-            .saturating_add(
-                destination_state
-                    .corridor_belief
-                    .expected_hop_band
-                    .max_hops
-                    .saturating_sub(destination_state.corridor_belief.expected_hop_band.min_hops)
-                    / 2,
-            );
-        let protocol_mix = topology
-            .value
-            .links
-            .get(&(self.local_node_id, summary_neighbor))
-            .map(|link| vec![link.endpoint.transport_kind.clone()])
-            .unwrap_or_default();
-        RouteSummary {
-            engine: FIELD_ENGINE_ID,
-            protection: delivered_protection(destination_state, &self.search_config),
-            connectivity: delivered_connectivity(
-                self.state.posture.current,
-                destination_state,
-                &self.search_config,
-            ),
-            protocol_mix,
-            hop_count_hint: Belief::estimated(
-                hop_midpoint,
-                jacquard_core::RatioPermille(publication_confidence_for(
-                    destination_state,
-                    &self.search_config,
-                )),
-                topology.observed_at_tick,
-            ),
-            valid_for: destination_state.corridor_belief.validity_window,
-        }
-    }
-
-    fn route_degradation_for(
-        &self,
-        destination_state: &DestinationFieldState,
-        topology_epoch: jacquard_core::RouteEpoch,
-    ) -> RouteDegradation {
-        let summary = FieldSummary {
-            destination: SummaryDestinationKey::from(&DestinationId::from(
-                &destination_state.destination,
-            )),
-            topology_epoch,
-            freshness_tick: destination_state
-                .corridor_belief
-                .validity_window
-                .start_tick(),
-            hop_band: destination_state.corridor_belief.expected_hop_band,
-            delivery_support: destination_state.corridor_belief.delivery_support,
-            congestion_penalty: destination_state.corridor_belief.congestion_penalty,
-            retention_support: destination_state.corridor_belief.retention_affinity,
-            uncertainty_penalty: destination_state.posterior.usability_entropy,
-            evidence_class: evidence_class_from_state(destination_state),
-            uncertainty_class: uncertainty_class_for(
-                destination_state.posterior.usability_entropy.value(),
-            ),
-        };
-        derive_degradation_class(&summary, self.state.regime.current, &self.state.controller)
-    }
-
-    pub(crate) fn destination_supports_objective(
-        &self,
-        topology: &Observation<Configuration>,
-        objective: &jacquard_core::RoutingObjective,
-    ) -> bool {
-        match objective.destination {
-            DestinationId::Node(destination) => topology
-                .value
-                .nodes
-                .get(&destination)
-                .map(|node| {
-                    node.profile.services.iter().any(|service| {
-                        service.service_kind == objective.service_kind
-                            && service.routing_engines.contains(&FIELD_ENGINE_ID)
-                    })
-                })
-                .unwrap_or(false),
-            DestinationId::Gateway(_) | DestinationId::Service(_) => self
-                .state
-                .destinations
-                .contains_key(&DestinationKey::from(&objective.destination)),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -400,16 +283,20 @@ mod tests {
     use jacquard_core::{
         ByteCount, ClaimStrength, Configuration, ConnectivityPosture, ControllerId, DestinationId,
         Environment, FactSourceClass, Limit, Observation, OriginAuthenticationClass, RatioPermille,
-        RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
-        RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick,
+        RouteDegradation, RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+        RouteServiceKind, RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick,
     };
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
     use jacquard_traits::RoutingEnginePlanner;
 
     use super::*;
-    use crate::planner::admission::steady_corridor_admissible;
+    use crate::planner::{
+        admission::steady_corridor_admissible, publication::publication_confidence_for,
+    };
     use crate::state::{DestinationInterestClass, HopBand, NeighborContinuation, SupportBucket};
-    use crate::summary::{EvidenceContributionClass, SummaryUncertaintyClass};
+    use crate::summary::{
+        EvidenceContributionClass, FieldSummary, SummaryDestinationKey, SummaryUncertaintyClass,
+    };
 
     fn node(byte: u8) -> jacquard_core::NodeId {
         jacquard_core::NodeId([byte; 32])
@@ -673,6 +560,43 @@ mod tests {
         assert_eq!(detail.regime, engine.state.regime.current);
         assert_eq!(detail.posture, engine.state.posture.current);
         assert_eq!(detail.uncertainty_class, SummaryUncertaintyClass::Low);
+    }
+
+    #[test]
+    fn planner_snapshot_projects_destination_route_choice_state() {
+        let engine = seeded_engine();
+        let snapshot = engine.planner_snapshot();
+        let destination = snapshot
+            .destinations
+            .get(&DestinationKey::from(&DestinationId::Node(node(2))))
+            .expect("snapshot destination");
+        assert_eq!(snapshot.local_node_id, node(1));
+        assert_eq!(snapshot.regime, engine.state.regime.current);
+        assert_eq!(snapshot.posture, engine.state.posture.current);
+        assert_eq!(
+            destination.corridor_belief.delivery_support,
+            SupportBucket::new(800)
+        );
+        assert_eq!(destination.frontier.len(), 1);
+    }
+
+    #[test]
+    fn snapshot_driven_planning_matches_wrapper_candidate_projection() {
+        let engine = seeded_engine();
+        let topology = supported_topology();
+        let objective = sample_objective(node(2));
+        let profile = sample_profile();
+        let snapshot = engine.planner_snapshot();
+
+        let from_snapshot = engine
+            .planning_artifacts(&snapshot, &objective, &profile, &topology)
+            .expect("snapshot-driven planning artifacts");
+        let from_wrapper = engine
+            .candidate_routes(&objective, &profile, &topology)
+            .pop()
+            .expect("wrapper candidate");
+
+        assert_eq!(from_wrapper, from_snapshot.candidate);
     }
 
     #[test]

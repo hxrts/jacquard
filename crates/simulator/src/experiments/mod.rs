@@ -62,9 +62,13 @@ use templates::*;
 use types::*;
 
 pub use runner::run_suite;
-pub use suite::{local_suite, smoke_suite};
+pub use suite::{
+    babel_equivalence_smoke_suite, babel_model_smoke_suite, batman_bellman_model_smoke_suite,
+    batman_classic_model_smoke_suite, field_model_smoke_suite, local_suite,
+    olsrv2_model_smoke_suite, pathway_model_smoke_suite, scatter_model_smoke_suite, smoke_suite,
+};
 pub use types::{
     ExperimentAggregateSummary, ExperimentArtifacts, ExperimentBreakdownSummary, ExperimentError,
-    ExperimentManifest, ExperimentParameterSet, ExperimentRunSummary, ExperimentSuite,
-    RegimeDescriptor,
+    ExperimentManifest, ExperimentModelArtifact, ExperimentParameterSet, ExperimentRunSummary,
+    ExperimentSuite, RegimeDescriptor,
 };

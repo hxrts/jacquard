@@ -219,7 +219,6 @@ pub struct FieldExportedRecoveryEntry {
     pub bootstrap_active: bool,
     pub continuity_band: Option<String>,
     pub last_continuity_transition: Option<String>,
-    pub last_bootstrap_transition: Option<String>,
     pub last_promotion_decision: Option<String>,
     pub last_promotion_blocker: Option<String>,
     pub bootstrap_activation_count: u32,
@@ -278,7 +277,6 @@ pub struct FieldLeanRecoveryFixture {
     pub bootstrap_active: bool,
     pub continuity_band: Option<String>,
     pub last_continuity_transition: Option<String>,
-    pub last_bootstrap_transition: Option<String>,
     pub last_promotion_decision: Option<String>,
     pub last_promotion_blocker: Option<String>,
     pub bootstrap_activation_count: u32,
@@ -682,7 +680,6 @@ impl FieldExportedReplayBundle {
                 bootstrap_active: entry.bootstrap_active,
                 continuity_band: entry.continuity_band.clone(),
                 last_continuity_transition: entry.last_continuity_transition.clone(),
-                last_bootstrap_transition: entry.last_bootstrap_transition.clone(),
                 last_promotion_decision: entry.last_promotion_decision.clone(),
                 last_promotion_blocker: entry.last_promotion_blocker.clone(),
                 bootstrap_activation_count: entry.bootstrap_activation_count,
@@ -940,10 +937,6 @@ fn exported_recovery_replay(replay: &FieldRecoveryReplaySurface) -> FieldExporte
                 last_continuity_transition: entry
                     .state
                     .last_continuity_transition
-                    .map(|transition| format!("{transition:?}")),
-                last_bootstrap_transition: entry
-                    .state
-                    .last_bootstrap_transition
                     .map(|transition| format!("{transition:?}")),
                 last_promotion_decision: entry
                     .state

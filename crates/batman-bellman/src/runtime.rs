@@ -19,9 +19,9 @@
 //!   `TransportSenderEffects`), and `restore_route_runtime_for_router`.
 
 use jacquard_core::{
-    Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, LinkEndpoint, NodeId,
-    Observation, PublishedRouteRecord, RatioPermille, ReachabilityState, RouteCommitment,
-    RouteError, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
+    Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, LinkEndpoint,
+    MaterializedRoute, NodeId, Observation, PublishedRouteRecord, RatioPermille, ReachabilityState,
+    RouteCommitment, RouteError, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
     RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
     RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
     RouteProgressContract, RouteProgressState, RouteRuntimeError, RouteRuntimeState,
@@ -34,8 +34,8 @@ use crate::{
     gossip::{
         decode_advertisement, encode_advertisement, local_advertisement, LearnedAdvertisement,
     },
-    private_state::link_is_usable,
-    public_state::ActiveBatmanRoute,
+    private_state::{backend_route_id_for, link_is_usable},
+    public_state::{ActiveBatmanRoute, BestNextHop},
     scoring, BatmanBellmanEngine, BATMAN_BELLMAN_ENGINE_ID,
 };
 
@@ -47,6 +47,93 @@ fn health_scores_from_tq(tq: RatioPermille) -> (HealthScore, jacquard_core::Pena
         HealthScore(u32::from(tq.0)),
         jacquard_core::PenaltyPoints(u32::from(penalty)),
     )
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BatmanBellmanMaintenanceInput {
+    runtime: RouteRuntimeState,
+    active_route: ActiveBatmanRoute,
+    best_next_hop: Option<BestNextHop>,
+    now_tick: Tick,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BatmanBellmanMaintenanceTransition {
+    next_runtime: RouteRuntimeState,
+    result: RouteMaintenanceResult,
+}
+
+fn reduce_maintenance(input: BatmanBellmanMaintenanceInput) -> BatmanBellmanMaintenanceTransition {
+    let mut next_runtime = input.runtime;
+    let Some(best) = input.best_next_hop else {
+        return BatmanBellmanMaintenanceTransition {
+            next_runtime,
+            result: RouteMaintenanceResult {
+                event: RouteLifecycleEvent::Expired,
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
+            },
+        };
+    };
+    if !best.is_bidirectional {
+        return BatmanBellmanMaintenanceTransition {
+            next_runtime,
+            result: RouteMaintenanceResult {
+                event: RouteLifecycleEvent::Expired,
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
+            },
+        };
+    }
+    let (stability_score, congestion_penalty_points) = health_scores_from_tq(best.tq);
+    next_runtime.health.last_validated_at_tick = input.now_tick;
+    next_runtime.health.stability_score = stability_score;
+    next_runtime.health.congestion_penalty_points = congestion_penalty_points;
+    next_runtime.health.reachability_state = ReachabilityState::Reachable;
+    let result = if best.next_hop != input.active_route.next_hop {
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Replaced,
+            outcome: RouteMaintenanceOutcome::ReplacementRequired {
+                trigger: RouteMaintenanceTrigger::LinkDegraded,
+            },
+        }
+    } else {
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Activated,
+            outcome: RouteMaintenanceOutcome::Continued,
+        }
+    };
+    BatmanBellmanMaintenanceTransition {
+        next_runtime,
+        result,
+    }
+}
+
+pub(crate) fn restored_active_route(route: &MaterializedRoute) -> Option<ActiveBatmanRoute> {
+    let DestinationId::Node(destination) = route.identity.admission.objective.destination else {
+        return None;
+    };
+    let backend_route_id = &route.identity.admission.backend_ref.backend_route_id.0;
+    if backend_route_id.len() != 64 {
+        return None;
+    }
+    let mut next_hop = [0_u8; 32];
+    next_hop.copy_from_slice(&backend_route_id[32..64]);
+    let next_hop = NodeId(next_hop);
+    if route.identity.admission.backend_ref.backend_route_id
+        != backend_route_id_for(destination, next_hop)
+    {
+        return None;
+    }
+    Some(ActiveBatmanRoute {
+        destination,
+        next_hop,
+        backend_route_id: route
+            .identity
+            .admission
+            .backend_ref
+            .backend_route_id
+            .clone(),
+        installed_at_tick: route.identity.stamp.materialized_at_tick,
+    })
 }
 
 impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects>
@@ -219,38 +306,20 @@ where
         runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
-        let Some(active_route) = self.active_routes.get(identity.route_id()) else {
+        let Some(active_route) = self.active_routes.get(identity.route_id()).cloned() else {
             return Err(RouteRuntimeError::Invalidated.into());
         };
-        let Some(best) = self.best_next_hops.get(&active_route.destination) else {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
-            });
+        let DestinationId::Node(destination) = identity.admission.objective.destination else {
+            return Err(RouteSelectionError::NoCandidate.into());
         };
-        if !best.is_bidirectional {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
-            });
-        }
-        let (stability_score, congestion_penalty_points) = health_scores_from_tq(best.tq);
-        runtime.health.last_validated_at_tick = self.effects.now_tick();
-        runtime.health.stability_score = stability_score;
-        runtime.health.congestion_penalty_points = congestion_penalty_points;
-        runtime.health.reachability_state = ReachabilityState::Reachable;
-        if best.next_hop != active_route.next_hop {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Replaced,
-                outcome: RouteMaintenanceOutcome::ReplacementRequired {
-                    trigger: RouteMaintenanceTrigger::LinkDegraded,
-                },
-            });
-        }
-        Ok(RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Activated,
-            outcome: RouteMaintenanceOutcome::Continued,
-        })
+        let transition = reduce_maintenance(BatmanBellmanMaintenanceInput {
+            runtime: runtime.clone(),
+            active_route,
+            best_next_hop: self.best_next_hops.get(&destination).cloned(),
+            now_tick: self.effects.now_tick(),
+        });
+        *runtime = transition.next_runtime;
+        Ok(transition.result)
     }
 
     fn teardown(&mut self, route_id: &RouteId) {
@@ -300,6 +369,20 @@ where
     fn restore_route_runtime_for_router(&mut self, route_id: &RouteId) -> Result<bool, RouteError> {
         Ok(self.active_routes.contains_key(route_id))
     }
+
+    fn restore_route_runtime_with_record_for_router(
+        &mut self,
+        route: &MaterializedRoute,
+        topology: &Observation<Configuration>,
+    ) -> Result<bool, RouteError> {
+        let Some(active_route) = restored_active_route(route) else {
+            return Ok(false);
+        };
+        self.latest_topology = Some(topology.clone());
+        self.active_routes
+            .insert(route.identity.stamp.route_id, active_route);
+        Ok(true)
+    }
 }
 
 #[cfg(test)]
@@ -311,16 +394,16 @@ mod tests {
     use jacquard_core::{
         Belief, ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
         DurationMs, Environment, Link, LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState,
-        Node, Observation, RatioPermille, RepairCapability, RouteEpoch, RouteMaintenanceTrigger,
-        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RoutingTickContext,
-        SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
+        MaterializedRoute, Node, Observation, RatioPermille, RepairCapability, RouteEpoch,
+        RouteMaintenanceTrigger, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
+        RoutingTickContext, SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
     };
     use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
     use jacquard_traits::{RoutingEngine, RoutingEnginePlanner};
 
     use super::*;
-    use crate::public_state::DecayWindow;
+    use crate::{private_state::route_id_for, public_state::DecayWindow};
 
     fn node(byte: u8) -> NodeId {
         NodeId([byte; 32])
@@ -457,7 +540,7 @@ mod tests {
         let input = RouteMaterializationInput {
             handle: jacquard_core::RouteHandle {
                 stamp: jacquard_core::RouteIdentityStamp {
-                    route_id: engine.route_id_for(node(4)),
+                    route_id: route_id_for(node(1), node(4)),
                     topology_epoch: topology.value.epoch,
                     materialized_at_tick: Tick(1),
                     publication_id: jacquard_core::PublicationId([1; 16]),
@@ -532,6 +615,44 @@ mod tests {
     }
 
     #[test]
+    fn maintenance_reducer_matches_wrapper_projection() {
+        let mut engine = BatmanBellmanEngine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        let topology = sample_topology();
+        engine
+            .engine_tick(&RoutingTickContext::new(topology.clone()))
+            .expect("populate table");
+        let (identity, mut runtime) = install_route(&mut engine, &topology);
+        let reduced = reduce_maintenance(BatmanBellmanMaintenanceInput {
+            runtime: runtime.clone(),
+            active_route: engine
+                .active_routes
+                .get(identity.route_id())
+                .cloned()
+                .expect("active route"),
+            best_next_hop: engine.best_next_hops.get(&node(4)).cloned(),
+            now_tick: Tick(1),
+        });
+
+        let wrapper_result = engine
+            .maintain_route(
+                &identity,
+                &mut runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintenance");
+
+        assert_eq!(runtime, reduced.next_runtime);
+        assert_eq!(wrapper_result, reduced.result);
+    }
+
+    #[test]
     fn maintain_route_expires_when_originator_disappears() {
         let mut engine = BatmanBellmanEngine::with_decay_window(
             node(1),
@@ -570,5 +691,47 @@ mod tests {
             result.outcome,
             RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability)
         );
+    }
+
+    #[test]
+    fn restore_reconstructs_active_route_from_materialized_route() {
+        let mut engine = BatmanBellmanEngine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        let topology = sample_topology();
+        engine
+            .engine_tick(&RoutingTickContext::new(topology.clone()))
+            .expect("populate table");
+        let (identity, runtime) = install_route(&mut engine, &topology);
+        let route = MaterializedRoute { identity, runtime };
+
+        engine.active_routes.clear();
+        let restored = engine
+            .restore_route_runtime_with_record_for_router(&route, &topology)
+            .expect("restore route");
+
+        assert!(restored);
+        assert_eq!(
+            engine.active_routes.get(&route.identity.stamp.route_id),
+            Some(&ActiveBatmanRoute {
+                destination: node(4),
+                next_hop: node(2),
+                backend_route_id: route
+                    .identity
+                    .admission
+                    .backend_ref
+                    .backend_route_id
+                    .clone(),
+                installed_at_tick: Tick(1),
+            })
+        );
+        engine
+            .forward_payload_for_router(&route.identity.stamp.route_id, b"restored")
+            .expect("forward after restore");
     }
 }

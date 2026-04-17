@@ -8,7 +8,11 @@ use std::{
 
 use jacquard_simulator::{
     diffusion_local_suite, diffusion_smoke_suite, run_diffusion_suite, run_tuning_suite,
-    tuning_local_suite, tuning_smoke_suite, JacquardSimulator, ReferenceClientAdapter,
+    tuning_babel_equivalence_smoke_suite, tuning_babel_model_smoke_suite,
+    tuning_batman_bellman_model_smoke_suite, tuning_batman_classic_model_smoke_suite,
+    tuning_field_model_smoke_suite, tuning_local_suite, tuning_olsrv2_model_smoke_suite,
+    tuning_pathway_model_smoke_suite, tuning_scatter_model_smoke_suite, tuning_smoke_suite,
+    JacquardSimulator, ReferenceClientAdapter,
 };
 
 fn parse_args() -> (String, Option<PathBuf>) {
@@ -26,11 +30,12 @@ fn parse_args() -> (String, Option<PathBuf>) {
 
 fn print_tuning_summary(artifacts: &jacquard_simulator::ExperimentArtifacts) {
     println!(
-        "Tuning suite '{}' wrote {} runs, {} aggregates, {} breakdowns to {}",
+        "Tuning suite '{}' wrote {} runs, {} aggregates, {} breakdowns, and {} model artifacts to {}",
         artifacts.manifest.suite_id,
         artifacts.manifest.run_count,
         artifacts.manifest.aggregate_count,
         artifacts.manifest.breakdown_count,
+        artifacts.manifest.model_artifact_count,
         artifacts.output_dir.display()
     );
 }
@@ -85,6 +90,8 @@ fn run_default_smoke_tuning(output_dir: &Path) -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
+// long-block-exception: one CLI dispatch table keeps the maintained suite ids,
+// output handling, and report-generation behavior aligned in one place.
 fn run_selected_suite(suite: &str, output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     match suite {
         "diffusion-local" => run_single_diffusion_suite(&diffusion_local_suite(), output_dir),
@@ -95,6 +102,102 @@ fn run_selected_suite(suite: &str, output_dir: &Path) -> Result<(), Box<dyn std:
             output_dir,
             true,
         ),
+        "babel-model-smoke" => {
+            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+            let artifacts = run_tuning_suite(
+                &mut simulator,
+                &tuning_babel_model_smoke_suite(),
+                output_dir,
+            )?;
+            print_tuning_summary(&artifacts);
+            remove_report_dir(output_dir);
+            update_latest_symlink(output_dir);
+            Ok(())
+        }
+        "babel-equivalence-smoke" => {
+            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+            let artifacts = run_tuning_suite(
+                &mut simulator,
+                &tuning_babel_equivalence_smoke_suite(),
+                output_dir,
+            )?;
+            print_tuning_summary(&artifacts);
+            remove_report_dir(output_dir);
+            update_latest_symlink(output_dir);
+            Ok(())
+        }
+        "field-model-smoke" => {
+            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+            let artifacts = run_tuning_suite(
+                &mut simulator,
+                &tuning_field_model_smoke_suite(),
+                output_dir,
+            )?;
+            print_tuning_summary(&artifacts);
+            remove_report_dir(output_dir);
+            update_latest_symlink(output_dir);
+            Ok(())
+        }
+        "batman-bellman-model-smoke" => {
+            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+            let artifacts = run_tuning_suite(
+                &mut simulator,
+                &tuning_batman_bellman_model_smoke_suite(),
+                output_dir,
+            )?;
+            print_tuning_summary(&artifacts);
+            remove_report_dir(output_dir);
+            update_latest_symlink(output_dir);
+            Ok(())
+        }
+        "batman-classic-model-smoke" => {
+            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+            let artifacts = run_tuning_suite(
+                &mut simulator,
+                &tuning_batman_classic_model_smoke_suite(),
+                output_dir,
+            )?;
+            print_tuning_summary(&artifacts);
+            remove_report_dir(output_dir);
+            update_latest_symlink(output_dir);
+            Ok(())
+        }
+        "olsrv2-model-smoke" => {
+            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+            let artifacts = run_tuning_suite(
+                &mut simulator,
+                &tuning_olsrv2_model_smoke_suite(),
+                output_dir,
+            )?;
+            print_tuning_summary(&artifacts);
+            remove_report_dir(output_dir);
+            update_latest_symlink(output_dir);
+            Ok(())
+        }
+        "pathway-model-smoke" => {
+            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+            let artifacts = run_tuning_suite(
+                &mut simulator,
+                &tuning_pathway_model_smoke_suite(),
+                output_dir,
+            )?;
+            print_tuning_summary(&artifacts);
+            remove_report_dir(output_dir);
+            update_latest_symlink(output_dir);
+            Ok(())
+        }
+        "scatter-model-smoke" => {
+            let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+            let artifacts = run_tuning_suite(
+                &mut simulator,
+                &tuning_scatter_model_smoke_suite(),
+                output_dir,
+            )?;
+            print_tuning_summary(&artifacts);
+            remove_report_dir(output_dir);
+            update_latest_symlink(output_dir);
+            Ok(())
+        }
         "smoke" => run_tuning_mode(
             &tuning_smoke_suite(),
             &diffusion_smoke_suite(),

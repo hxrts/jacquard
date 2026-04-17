@@ -1,7 +1,7 @@
 //! `RoutingEngine` and `RouterManagedEngine` impls for `OlsrV2Engine`.
 
 use jacquard_core::{
-    Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, NodeId,
+    Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, MaterializedRoute, NodeId,
     PublishedRouteRecord, ReachabilityState, RouteCommitment, RouteError, RouteHealth, RouteId,
     RouteInstallation, RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
     RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
@@ -23,6 +23,79 @@ fn health_scores_from_cost(path_cost: u32) -> (HealthScore, jacquard_core::Penal
         HealthScore(quality),
         jacquard_core::PenaltyPoints(1000_u32.saturating_sub(quality)),
     )
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OlsrMaintenanceInput {
+    runtime: RouteRuntimeState,
+    active_route: ActiveOlsrRoute,
+    best_next_hop: Option<crate::public_state::OlsrBestNextHop>,
+    now_tick: Tick,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OlsrMaintenanceTransition {
+    next_runtime: RouteRuntimeState,
+    result: RouteMaintenanceResult,
+}
+
+fn reduce_maintenance(input: OlsrMaintenanceInput) -> OlsrMaintenanceTransition {
+    let mut next_runtime = input.runtime;
+    let Some(best) = input.best_next_hop else {
+        return OlsrMaintenanceTransition {
+            next_runtime,
+            result: RouteMaintenanceResult {
+                event: RouteLifecycleEvent::Expired,
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
+            },
+        };
+    };
+    let (stability_score, congestion_penalty_points) = health_scores_from_cost(best.path_cost);
+    next_runtime.health.last_validated_at_tick = input.now_tick;
+    next_runtime.health.stability_score = stability_score;
+    next_runtime.health.congestion_penalty_points = congestion_penalty_points;
+    next_runtime.health.reachability_state = ReachabilityState::Reachable;
+    let result = if best.next_hop != input.active_route.next_hop {
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Replaced,
+            outcome: RouteMaintenanceOutcome::ReplacementRequired {
+                trigger: RouteMaintenanceTrigger::LinkDegraded,
+            },
+        }
+    } else {
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Activated,
+            outcome: RouteMaintenanceOutcome::Continued,
+        }
+    };
+    OlsrMaintenanceTransition {
+        next_runtime,
+        result,
+    }
+}
+
+pub(crate) fn restored_active_route(route: &MaterializedRoute) -> Option<ActiveOlsrRoute> {
+    let DestinationId::Node(destination) = route.identity.admission.objective.destination else {
+        return None;
+    };
+    let backend = &route.identity.admission.backend_ref.backend_route_id.0;
+    if backend.len() != 68 {
+        return None;
+    }
+    let mut next_hop = [0_u8; 32];
+    next_hop.copy_from_slice(&backend[32..64]);
+    let next_hop = NodeId(next_hop);
+    Some(ActiveOlsrRoute {
+        destination,
+        next_hop,
+        backend_route_id: route
+            .identity
+            .admission
+            .backend_ref
+            .backend_route_id
+            .clone(),
+        installed_at_tick: route.identity.stamp.materialized_at_tick,
+    })
 }
 
 impl<Transport, Effects> OlsrV2Engine<Transport, Effects>
@@ -186,32 +259,20 @@ where
         runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
-        let Some(active) = self.active_routes.get(identity.route_id()) else {
+        let Some(active) = self.active_routes.get(identity.route_id()).cloned() else {
             return Err(RouteRuntimeError::Invalidated.into());
         };
-        let Some(best) = self.best_next_hops.get(&active.destination) else {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
-            });
-        };
-        let (stability_score, congestion_penalty_points) = health_scores_from_cost(best.path_cost);
-        runtime.health.last_validated_at_tick = self.effects.now_tick();
-        runtime.health.stability_score = stability_score;
-        runtime.health.congestion_penalty_points = congestion_penalty_points;
-        runtime.health.reachability_state = ReachabilityState::Reachable;
-        if best.next_hop != active.next_hop {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Replaced,
-                outcome: RouteMaintenanceOutcome::ReplacementRequired {
-                    trigger: RouteMaintenanceTrigger::LinkDegraded,
-                },
-            });
-        }
-        Ok(RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Activated,
-            outcome: RouteMaintenanceOutcome::Continued,
-        })
+        let transition = reduce_maintenance(OlsrMaintenanceInput {
+            runtime: runtime.clone(),
+            active_route: active,
+            best_next_hop: match identity.admission.objective.destination {
+                DestinationId::Node(destination) => self.best_next_hops.get(&destination).cloned(),
+                _ => None,
+            },
+            now_tick: self.effects.now_tick(),
+        });
+        *runtime = transition.next_runtime;
+        Ok(transition.result)
     }
 
     fn teardown(&mut self, route_id: &RouteId) {
@@ -260,6 +321,20 @@ where
 
     fn restore_route_runtime_for_router(&mut self, route_id: &RouteId) -> Result<bool, RouteError> {
         Ok(self.active_routes.contains_key(route_id))
+    }
+
+    fn restore_route_runtime_with_record_for_router(
+        &mut self,
+        route: &MaterializedRoute,
+        topology: &jacquard_core::Observation<Configuration>,
+    ) -> Result<bool, RouteError> {
+        let Some(active_route) = restored_active_route(route) else {
+            return Ok(false);
+        };
+        self.latest_topology = Some(topology.clone());
+        self.active_routes
+            .insert(route.identity.stamp.route_id, active_route);
+        Ok(true)
     }
 }
 
@@ -570,8 +645,14 @@ mod tests {
         );
         let objective = sample_objective();
         let profile = sample_profile();
-        let candidate = engine.candidate_for(&objective, &engine.best_next_hops[&node(2)]);
-        let admission = engine.admission_for(&objective, &profile, &candidate);
+        let snapshot = engine.planner_snapshot();
+        let candidate = crate::private_state::candidate_for_snapshot(
+            &snapshot,
+            &objective,
+            &engine.best_next_hops[&node(2)],
+        );
+        let admission =
+            crate::private_state::admission_for_candidate(&objective, &profile, &candidate);
         let (published, mut runtime_state) =
             materialized_route_record(&mut engine, &topology, admission.clone(), now);
         engine.best_next_hops.insert(
@@ -594,5 +675,145 @@ mod tests {
             result.outcome,
             jacquard_core::RouteMaintenanceOutcome::ReplacementRequired { .. }
         ));
+    }
+
+    #[test]
+    // long-block-exception: the parity test keeps the full reduced-vs-wrapper
+    // maintenance setup in one place so route-state comparisons stay explicit.
+    fn maintenance_reducer_matches_wrapper_projection() {
+        let topology = sample_topology();
+        let now = Tick(3);
+        let mut engine = OlsrV2Engine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now,
+                ..Default::default()
+            },
+        );
+        engine.latest_topology = Some(topology.clone());
+        engine.best_next_hops.insert(
+            node(2),
+            crate::public_state::OlsrBestNextHop {
+                destination: node(2),
+                next_hop: node(2),
+                hop_count: 1,
+                path_cost: 1,
+                degradation: jacquard_core::RouteDegradation::None,
+                transport_kind: TransportKind::WifiAware,
+                updated_at_tick: now,
+                topology_epoch: topology.value.epoch,
+                backend_route_id: jacquard_core::BackendRouteId(vec![1]),
+            },
+        );
+        let objective = sample_objective();
+        let profile = sample_profile();
+        let snapshot = engine.planner_snapshot();
+        let candidate = crate::private_state::candidate_for_snapshot(
+            &snapshot,
+            &objective,
+            &engine.best_next_hops[&node(2)],
+        );
+        let admission =
+            crate::private_state::admission_for_candidate(&objective, &profile, &candidate);
+        let (published, mut runtime_state) =
+            materialized_route_record(&mut engine, &topology, admission.clone(), now);
+        let reduced = reduce_maintenance(OlsrMaintenanceInput {
+            runtime: runtime_state.clone(),
+            active_route: engine
+                .active_routes
+                .get(published.route_id())
+                .cloned()
+                .expect("active route"),
+            best_next_hop: engine.best_next_hops.get(&node(2)).cloned(),
+            now_tick: now,
+        });
+
+        let wrapper_result = engine
+            .maintain_route(
+                &published,
+                &mut runtime_state,
+                jacquard_core::RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintain route");
+
+        assert_eq!(runtime_state, reduced.next_runtime);
+        assert_eq!(wrapper_result, reduced.result);
+    }
+
+    #[test]
+    // long-block-exception: the restore test keeps route reconstruction,
+    // router-led restore, and forward-after-restore checks together.
+    fn restore_reconstructs_active_route_from_materialized_route() {
+        let topology = sample_topology();
+        let now = Tick(3);
+        let backend_route_id = jacquard_core::BackendRouteId({
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&node(2).0);
+            bytes.extend_from_slice(&node(2).0);
+            bytes.extend_from_slice(&7_u32.to_le_bytes());
+            bytes
+        });
+        let mut engine = OlsrV2Engine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now,
+                ..Default::default()
+            },
+        );
+        engine.latest_topology = Some(topology.clone());
+        engine.best_next_hops.insert(
+            node(2),
+            crate::public_state::OlsrBestNextHop {
+                destination: node(2),
+                next_hop: node(2),
+                hop_count: 1,
+                path_cost: 7,
+                degradation: jacquard_core::RouteDegradation::None,
+                transport_kind: TransportKind::WifiAware,
+                updated_at_tick: now,
+                topology_epoch: topology.value.epoch,
+                backend_route_id: backend_route_id.clone(),
+            },
+        );
+        let objective = sample_objective();
+        let profile = sample_profile();
+        let snapshot = engine.planner_snapshot();
+        let candidate = crate::private_state::candidate_for_snapshot(
+            &snapshot,
+            &objective,
+            &engine.best_next_hops[&node(2)],
+        );
+        let mut admission =
+            crate::private_state::admission_for_candidate(&objective, &profile, &candidate);
+        admission.backend_ref.backend_route_id = backend_route_id;
+        let (identity, runtime_state) =
+            materialized_route_record(&mut engine, &topology, admission, now);
+        let route = MaterializedRoute {
+            identity,
+            runtime: runtime_state,
+        };
+
+        engine.active_routes.clear();
+        let restored = engine
+            .restore_route_runtime_with_record_for_router(&route, &topology)
+            .expect("restore route");
+
+        assert!(restored);
+        assert_eq!(
+            engine.active_routes.get(&route.identity.stamp.route_id),
+            Some(&ActiveOlsrRoute {
+                destination: node(2),
+                next_hop: node(2),
+                backend_route_id: route
+                    .identity
+                    .admission
+                    .backend_ref
+                    .backend_route_id
+                    .clone(),
+                installed_at_tick: now,
+            })
+        );
     }
 }

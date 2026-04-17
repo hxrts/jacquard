@@ -1,10 +1,10 @@
 //! Route quality scoring for the classic BATMAN engine.
 //!
-//! In contrast to the enhanced batman engine, this module derives TQ solely
-//! from the `LinkRuntimeState` baseline — no Jacquard-specific beliefs
-//! (delivery confidence, symmetry, transfer rate, stability horizon) are
-//! incorporated. This matches the spec's purely receive-ratio-based quality
-//! model where the only per-link input is the coarse reachability state.
+//! This module derives TQ solely from the `LinkRuntimeState` baseline — no
+//! Jacquard-specific beliefs (delivery confidence, symmetry, transfer rate,
+//! stability horizon) are incorporated. This matches the spec's purely
+//! receive-ratio-based quality model where the only per-link input is the
+//! coarse reachability state.
 //!
 //! - `derive_tq` — maps `LinkRuntimeState` to a permille TQ score using the
 //!   OGM-equivalent baseline and classifies links below 700 permille as

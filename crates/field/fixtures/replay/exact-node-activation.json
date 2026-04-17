@@ -676,7 +676,6 @@
         "bootstrap_active": false,
         "continuity_band": "Bootstrap",
         "last_continuity_transition": null,
-        "last_bootstrap_transition": null,
         "last_promotion_decision": null,
         "last_promotion_blocker": null,
         "bootstrap_activation_count": 0,

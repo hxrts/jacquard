@@ -17,9 +17,9 @@ mod materialization;
 mod tick;
 
 use jacquard_core::{
-    Configuration, MaterializedRoute, Observation, PublishedRouteRecord, RouteCommitment,
-    RouteError, RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
-    RouteMaterializationInput, RouteSelectionError, RoutingTickContext, RoutingTickOutcome,
+    MaterializedRoute, PublishedRouteRecord, RouteCommitment, RouteError, RouteId,
+    RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+    RouteSelectionError, RoutingTickContext, RoutingTickOutcome,
 };
 use jacquard_traits::{CommitteeCoordinatedEngine, RoutingEngine};
 
@@ -35,8 +35,6 @@ use crate::{
 struct MaintenanceContext<'a> {
     identity: &'a PublishedRouteRecord,
     now: jacquard_core::Tick,
-    handoff_receipt_id: jacquard_core::ReceiptId,
-    latest_topology: Observation<Configuration>,
 }
 impl<Topology, Transport, Retention, Effects, Hasher, Selector> RoutingEngine
     for PathwayEngine<Topology, Transport, Retention, Effects, Hasher, Selector>
@@ -129,18 +127,26 @@ where
             .get(&identity.stamp.route_id)
             .cloned()
             .ok_or(RouteSelectionError::NoCandidate)?;
-        let mut next_active_route = original_active_route.clone();
-        let mut next_runtime = runtime.clone();
-        let result = self.apply_maintenance_trigger(
-            &mut next_active_route,
-            &mut next_runtime,
-            trigger,
-            &MaintenanceContext {
-                identity,
+        let transition = maintenance::reduce_maintenance_transition(
+            &original_active_route,
+            runtime,
+            &maintenance::NormalizedMaintenanceInput {
+                trigger,
                 now,
                 handoff_receipt_id,
-                latest_topology,
+                latest_topology_epoch: latest_topology.value.epoch,
+                repaired_active_route: match trigger {
+                    jacquard_core::RouteMaintenanceTrigger::LinkDegraded
+                    | jacquard_core::RouteMaintenanceTrigger::EpochAdvanced => self
+                        .prepared_repair_projection(&original_active_route, &latest_topology.value),
+                    _ => None,
+                },
             },
+        )?;
+        let (next_active_route, mut next_runtime, result) = self.execute_maintenance_transition(
+            &original_active_route,
+            transition,
+            &MaintenanceContext { identity, now },
         )?;
 
         next_runtime.health = self.current_route_health(Some(&next_active_route), now);

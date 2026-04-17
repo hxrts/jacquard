@@ -22,9 +22,9 @@ use bincode::Options;
 #[allow(unused_imports)]
 use jacquard_core::{
     BackendRouteId, Belief, ByteCount, CommitteeSelection, Configuration, DegradationReason,
-    DestinationId, DeterministicOrderKey, DiversityFloor, Limit, NodeId, OrderStamp,
-    QuorumThreshold, RatioPermille, RouteCost, RouteDegradation, RouteEpoch, RouteError, RouteId,
-    RouteRuntimeError, TimeWindow,
+    DestinationId, DeterministicOrderKey, DiversityFloor, Limit, MaterializedRoute, NodeId,
+    OrderStamp, QuorumThreshold, RatioPermille, RouteCost, RouteDegradation, RouteEpoch,
+    RouteError, RouteId, RouteRuntimeError, TimeWindow,
 };
 use jacquard_traits::{HashDigestBytes, Hashing};
 
@@ -60,7 +60,8 @@ impl<T, E> MaintenanceResultExt<T> for Result<T, E> {
 use serde::{Deserialize, Serialize};
 
 use super::{
-    types::PathwayCommitteeStatus, ActivePathwayRoute, PathwayRouteClass, PathwayRouteSegment,
+    types::{PathwayCommitteeStatus, PathwayRouteCheckpoint},
+    ActivePathwayRoute, PathwayRouteClass, PathwayRouteSegment, PATHWAY_ENGINE_ID,
     PATHWAY_HOLD_RESERVED_BYTES, PATHWAY_PER_HOP_BYTE_COST,
 };
 use crate::topology::{adjacent_link_between, adjacent_node_ids, belief_into_estimate};
@@ -268,6 +269,13 @@ pub(super) fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<
     decode_versioned(&backend_route_id.0, PLAN_TOKEN_ENCODING_VERSION)
 }
 
+pub(crate) fn first_hop_node_id_from_backend_route_id(
+    backend_route_id: &BackendRouteId,
+) -> Option<NodeId> {
+    let plan = decode_backend_token(backend_route_id)?;
+    node_path_from_plan_token(&plan).get(1).copied()
+}
+
 /// Extract the first `N` bytes of a digest's byte slice as a fixed-size array.
 /// Used to derive typed ID newtypes and tie-break keys from tagged hash
 /// outputs.
@@ -426,12 +434,61 @@ pub(crate) fn current_segment(route: &ActivePathwayRoute) -> Option<&PathwayRout
         .get(usize::from(route.forwarding.next_hop_index))
 }
 
-pub(super) fn checkpoint_bytes(active_route: &ActivePathwayRoute) -> Vec<u8> {
-    encode_versioned(CHECKPOINT_ENCODING_VERSION, active_route)
+pub(super) fn route_checkpoint(active_route: &ActivePathwayRoute) -> PathwayRouteCheckpoint {
+    PathwayRouteCheckpoint {
+        current_epoch: active_route.current_epoch,
+        forwarding: active_route.forwarding.clone(),
+        repair: active_route.repair.clone(),
+        handoff: active_route.handoff.clone(),
+        anti_entropy: active_route.anti_entropy.clone(),
+    }
 }
 
-pub(super) fn decode_checkpoint_bytes(bytes: &[u8]) -> Option<ActivePathwayRoute> {
+pub(super) fn checkpoint_bytes(active_route: &ActivePathwayRoute) -> Vec<u8> {
+    encode_versioned(CHECKPOINT_ENCODING_VERSION, &route_checkpoint(active_route))
+}
+
+pub(super) fn decode_checkpoint_bytes(bytes: &[u8]) -> Option<PathwayRouteCheckpoint> {
     decode_versioned(bytes, CHECKPOINT_ENCODING_VERSION)
+}
+
+pub(super) fn restored_active_route<H: Hashing>(
+    route: &MaterializedRoute,
+    checkpoint: &PathwayRouteCheckpoint,
+    hashing: &H,
+) -> Option<ActivePathwayRoute> {
+    if route.identity.admission.backend_ref.engine != PATHWAY_ENGINE_ID {
+        return None;
+    }
+    let plan = decode_backend_token(&route.identity.admission.backend_ref.backend_route_id)?;
+    let route_id = route.identity.stamp.route_id;
+    let path_bytes = encode_path_bytes(&node_path_from_plan_token(&plan), &plan.segments);
+    let ordering_key = deterministic_order_key(route_id, hashing, &path_bytes);
+    let committee = match plan.committee_status {
+        CommitteeStatus::Selected(selection) => Some(selection),
+        CommitteeStatus::NotApplicable => None,
+        CommitteeStatus::SelectorFailed => return None,
+    };
+    Some(ActivePathwayRoute {
+        path: super::PathwayPath {
+            route_id,
+            epoch: plan.epoch,
+            source: plan.source,
+            destination: plan.destination,
+            segments: plan.segments,
+            valid_for: plan.valid_for,
+            route_class: plan.route_class,
+        },
+        committee,
+        current_epoch: checkpoint.current_epoch,
+        last_lifecycle_event: route.runtime.last_lifecycle_event,
+        route_cost: route.identity.admission.admission_check.route_cost.clone(),
+        ordering_key,
+        forwarding: checkpoint.forwarding.clone(),
+        repair: checkpoint.repair.clone(),
+        handoff: checkpoint.handoff.clone(),
+        anti_entropy: checkpoint.anti_entropy.clone(),
+    })
 }
 
 pub(super) fn route_storage_key(local_node_id: &NodeId, route_id: &RouteId) -> Vec<u8> {
@@ -800,7 +857,7 @@ mod tests {
         let checkpoint = checkpoint_bytes(&checkpointed_route);
         assert_eq!(
             decode_checkpoint_bytes(&checkpoint),
-            Some(checkpointed_route)
+            Some(route_checkpoint(&checkpointed_route))
         );
     }
 
@@ -837,7 +894,7 @@ mod tests {
         assert_eq!(hex(route_id), "1e935e11a0b1c424705ee0d6502f47ee");
         assert_eq!(
             hex(&checkpoint_bytes(&checkpointed_route)),
-            "0107070707070707070707070707070707020000000000000001010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000010000000300000000000000626c6511000000000000000202020202020202020202020202020202400000000000000003030303030303030303030303030303030303030303030303030303030303030300000000000000070000000000000072656c61792d33c80f780500000000000002000000000000000e000000000000000300000001090909090909090909090909090909090200000000000000020000000000000002000000000000000a00000000000000010000000100000001000000010100000000000000020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020000000002000000000000000000000001000000010000000100000000040000000000000101000000010000000100000000000000000000000100000002000000070707070707070707070707070707071100000000000000010101010101010101010101010101010101010101010101010101010101010101020000000103000000000000000300000001040000000000000001050505050505050505050505050505050105000000000000000101000000000000000606060606060606060606060606060606060606060606060606060606060606010600000000000000"
+            "010200000000000000010101010101010101010101010101010101010101010101010101010101010101020000000103000000000000000300000001040000000000000001050505050505050505050505050505050105000000000000000101000000000000000606060606060606060606060606060606060606060606060606060606060606010600000000000000"
         );
     }
 

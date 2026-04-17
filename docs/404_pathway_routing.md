@@ -196,6 +196,9 @@ Protocol checkpoints follow the same fail-closed rule. Pathway writes or updates
 
 Maintenance is expressed through the shared `RouteMaintenanceResult` surface. Repair means a bounded local suffix-repair algorithm over the latest observed topology. `LinkDegraded` and `EpochAdvanced` attempt to recompute the remaining suffix from the current owner to the final destination, consume one repair step on success, and escalate to typed replacement when no bounded patch is available or the repair budget is exhausted.
 
+The maintenance path follows the same reducer split as the other engines. Pathway first normalizes one maintenance input from the active route, latest topology epoch, trigger, and handoff receipt. A pure transition planner then returns the next route/runtime projection plus ordered effect requests such as repair exchange, retained-payload flush, handoff exchange, and anti-entropy
+pressure consumption. The runtime wrapper executes those requested effects fail-closed and only checkpoints or publishes the projected route state after every requested effect succeeds.
+
 `CapacityExceeded` returns `ReplacementRequired` without flipping partition mode, since it indicates replacement pressure rather than partition evidence. `PartitionDetected` enters partition mode and reports the current retained-object count through `HoldFallback`. `PolicyShift` performs handoff and `AntiEntropyRequired` flushes retained payloads to recover. Pathway exposes one current commitment per route, so repair, handoff, and deferred-delivery posture stay inside the route runtime state rather than becoming separate concurrent commitments.
 
 ### Forwarding

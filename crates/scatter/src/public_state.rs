@@ -1,6 +1,6 @@
 //! Engine-public policy and state types for `ScatterEngine`.
 
-use jacquard_core::{ByteCount, DurationMs, Tick};
+use jacquard_core::{ByteCount, DurationMs, NodeId, Tick};
 use serde::{Deserialize, Serialize};
 
 pub(crate) const DEFAULT_EMERGENCY_EXPIRY_MS: u32 = 15_000;
@@ -215,4 +215,12 @@ pub struct ScatterRouteProgress {
     pub last_regime: ScatterRegime,
     pub last_action: ScatterAction,
     pub last_progress_at_tick: Option<Tick>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ScatterPlannerSnapshot {
+    pub local_node_id: NodeId,
+    pub config: ScatterEngineConfig,
+    pub current_regime: ScatterRegime,
+    pub last_local_summary: ScatterLocalSummary,
 }

@@ -24,6 +24,7 @@ mod choreography;
 mod committee;
 mod contracts;
 mod engine;
+pub mod simulator;
 mod topology;
 
 pub use committee::*;

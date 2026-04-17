@@ -3,6 +3,8 @@
 //! These types represent the Babel-specific route state: route table entries,
 //! selected routes, best next-hops, and active (materialized) routes.
 
+use std::collections::BTreeMap;
+
 use jacquard_core::{
     BackendRouteId, NodeId, RatioPermille, RouteDegradation, RouteEpoch, Tick, TransportKind,
 };
@@ -86,6 +88,14 @@ pub(crate) struct BabelBestNextHop {
     pub updated_at_tick: Tick,
     pub topology_epoch: RouteEpoch,
     pub backend_route_id: BackendRouteId,
+}
+
+/// Read-only route-choice view projected from Babel runtime state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BabelPlannerSnapshot {
+    pub local_node_id: NodeId,
+    pub stale_after_ticks: u64,
+    pub best_next_hops: BTreeMap<NodeId, BabelBestNextHop>,
 }
 
 /// An active (materialized) route entry, keyed by `RouteId`.

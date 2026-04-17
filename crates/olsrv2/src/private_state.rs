@@ -15,11 +15,39 @@ use crate::{
     gossip::{HelloMessage, TcMessage},
     mpr::select_mprs,
     public_state::{
-        HoldWindow, NeighborLinkState, OlsrBestNextHop, TopologyTuple, TwoHopReachability,
+        HoldWindow, NeighborLinkState, OlsrBestNextHop, OlsrPlannerSnapshot, SelectedOlsrRoute,
+        TopologyTuple, TwoHopReachability,
     },
     spf::derive_routes,
     OlsrV2Engine, OLSRV2_CAPABILITIES, OLSRV2_ENGINE_ID,
 };
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct OlsrRoundState {
+    pub neighbor_table: BTreeMap<NodeId, NeighborLinkState>,
+    pub two_hop_reachability: BTreeMap<NodeId, TwoHopReachability>,
+    pub local_mpr_selection: crate::public_state::MprSelection,
+    pub topology_tuples: BTreeMap<(NodeId, NodeId), TopologyTuple>,
+    pub topology_latest_sequences: BTreeMap<NodeId, (u64, Tick)>,
+    pub last_originated_tc_neighbors: BTreeSet<NodeId>,
+    pub selected_routes: BTreeMap<NodeId, SelectedOlsrRoute>,
+    pub best_next_hops: BTreeMap<NodeId, OlsrBestNextHop>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct OlsrRoundInput {
+    pub local_node_id: NodeId,
+    pub stale_after_ticks: u64,
+    pub topology: Observation<Configuration>,
+    pub now: Tick,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct OlsrRoundTransition {
+    pub next_state: OlsrRoundState,
+    pub planner_snapshot: OlsrPlannerSnapshot,
+    pub changed: RoutingTickChange,
+}
 
 impl<Transport, Effects> OlsrV2Engine<Transport, Effects> {
     fn tc_is_newer(&self, tc: &TcMessage) -> bool {
@@ -52,30 +80,36 @@ impl<Transport, Effects> OlsrV2Engine<Transport, Effects> {
         topology: &Observation<Configuration>,
         now: Tick,
     ) -> RoutingTickChange {
-        self.prune_neighbor_table(now);
-        self.prune_topology_tuples(now);
-        self.two_hop_reachability = self.derive_two_hop_reachability();
-        self.local_mpr_selection =
-            select_mprs(&self.neighbor_table, &self.two_hop_reachability, now);
-        let (next_selected, next_best) = derive_routes(
-            self.local_node_id,
-            &self.neighbor_table,
-            &self.topology_tuples,
-            topology.value.epoch,
-            now,
+        let transition = reduce_round_state(
+            OlsrRoundState {
+                neighbor_table: std::mem::take(&mut self.neighbor_table),
+                two_hop_reachability: std::mem::take(&mut self.two_hop_reachability),
+                local_mpr_selection: std::mem::take(&mut self.local_mpr_selection),
+                topology_tuples: std::mem::take(&mut self.topology_tuples),
+                topology_latest_sequences: std::mem::take(&mut self.topology_latest_sequences),
+                last_originated_tc_neighbors: std::mem::take(
+                    &mut self.last_originated_tc_neighbors,
+                ),
+                selected_routes: std::mem::take(&mut self.selected_routes),
+                best_next_hops: std::mem::take(&mut self.best_next_hops),
+            },
+            &OlsrRoundInput {
+                local_node_id: self.local_node_id,
+                stale_after_ticks: self.decay_window.stale_after_ticks,
+                topology: topology.clone(),
+                now,
+            },
         );
-        let changed = self.selected_routes != next_selected
-            || self.best_next_hops != next_best
-            || self.latest_topology.as_ref() != Some(topology)
-            || self.last_originated_tc_neighbors != self.local_tc_advertised_neighbors(topology);
         self.latest_topology = Some(topology.clone());
-        self.selected_routes = next_selected;
-        self.best_next_hops = next_best;
-        if changed {
-            RoutingTickChange::PrivateStateUpdated
-        } else {
-            RoutingTickChange::NoChange
-        }
+        self.neighbor_table = transition.next_state.neighbor_table;
+        self.two_hop_reachability = transition.next_state.two_hop_reachability;
+        self.local_mpr_selection = transition.next_state.local_mpr_selection;
+        self.topology_tuples = transition.next_state.topology_tuples;
+        self.topology_latest_sequences = transition.next_state.topology_latest_sequences;
+        self.last_originated_tc_neighbors = transition.next_state.last_originated_tc_neighbors;
+        self.selected_routes = transition.next_state.selected_routes;
+        self.best_next_hops = transition.next_state.best_next_hops;
+        transition.changed
     }
 
     pub(crate) fn ingest_hello(
@@ -88,7 +122,7 @@ impl<Transport, Effects> OlsrV2Engine<Transport, Effects> {
         if hello.originator != from_neighbor || hello.originator == self.local_node_id {
             return;
         }
-        let direct_symmetric = self.direct_symmetric_neighbors(topology);
+        let direct_symmetric = direct_symmetric_neighbors(self.local_node_id, topology);
         let link_cost = direct_symmetric.get(&from_neighbor).map(|(_, cost)| *cost);
         let transport_kind = topology
             .value
@@ -162,107 +196,12 @@ impl<Transport, Effects> OlsrV2Engine<Transport, Effects> {
         // Keep local direct-neighbor knowledge aligned with the latest topology
         // snapshot so route derivation never uses a first hop the topology no
         // longer exposes as usable.
-        for (neighbor, (_, link_cost)) in self.direct_symmetric_neighbors(topology) {
+        for (neighbor, (_, link_cost)) in direct_symmetric_neighbors(self.local_node_id, topology) {
             if let Some(state) = self.neighbor_table.get_mut(&neighbor) {
                 state.link_cost = link_cost;
                 state.is_symmetric = true;
             }
         }
-    }
-
-    pub(crate) fn candidate_for(
-        &self,
-        objective: &jacquard_core::RoutingObjective,
-        best: &OlsrBestNextHop,
-    ) -> RouteCandidate {
-        RouteCandidate {
-            route_id: self.route_id_for(best.destination),
-            summary: RouteSummary {
-                engine: OLSRV2_ENGINE_ID,
-                protection: objective.target_protection,
-                connectivity: OLSRV2_CAPABILITIES.max_connectivity,
-                protocol_mix: vec![best.transport_kind.clone()],
-                hop_count_hint: Belief::certain(best.hop_count, best.updated_at_tick),
-                valid_for: TimeWindow::new(
-                    best.updated_at_tick,
-                    Tick(
-                        best.updated_at_tick
-                            .0
-                            .saturating_add(self.decay_window.stale_after_ticks),
-                    ),
-                )
-                .expect("valid OLSRv2 candidate window"),
-            },
-            estimate: jacquard_core::Estimate::certain(
-                RouteEstimate {
-                    estimated_protection: objective.target_protection,
-                    estimated_connectivity: OLSRV2_CAPABILITIES.max_connectivity,
-                    topology_epoch: best.topology_epoch,
-                    degradation: best.degradation,
-                },
-                best.updated_at_tick,
-            ),
-            backend_ref: BackendRouteRef {
-                engine: OLSRV2_ENGINE_ID,
-                backend_route_id: best.backend_route_id.clone(),
-            },
-        }
-    }
-
-    pub(crate) fn admission_for(
-        &self,
-        objective: &jacquard_core::RoutingObjective,
-        profile: &SelectedRoutingParameters,
-        candidate: &RouteCandidate,
-    ) -> RouteAdmission {
-        let decision = if profile.selected_connectivity.partition
-            > OLSRV2_CAPABILITIES.max_connectivity.partition
-            || profile.selected_connectivity.repair > OLSRV2_CAPABILITIES.max_connectivity.repair
-        {
-            AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::BackendUnavailable)
-        } else {
-            AdmissionDecision::Admissible
-        };
-        RouteAdmission {
-            backend_ref: candidate.backend_ref.clone(),
-            objective: objective.clone(),
-            profile: profile.clone(),
-            admission_check: RouteAdmissionCheck {
-                decision,
-                profile: olsrv2_assumptions(),
-                productive_step_bound: Limit::Bounded(1),
-                total_step_bound: Limit::Bounded(1),
-                route_cost: RouteCost {
-                    message_count_max: Limit::Bounded(1),
-                    byte_count_max: Limit::Bounded(ByteCount(256)),
-                    hop_count: candidate.summary.hop_count_hint.value_or(1),
-                    repair_attempt_count_max: Limit::Bounded(0),
-                    hold_bytes_reserved: Limit::Bounded(ByteCount(0)),
-                    work_step_count_max: Limit::Bounded(1),
-                },
-            },
-            summary: candidate.summary.clone(),
-            witness: RouteWitness {
-                protection: ObjectiveVsDelivered {
-                    objective: objective.target_protection,
-                    delivered: objective.target_protection,
-                },
-                connectivity: ObjectiveVsDelivered {
-                    objective: objective.target_connectivity,
-                    delivered: OLSRV2_CAPABILITIES.max_connectivity,
-                },
-                admission_profile: olsrv2_assumptions(),
-                topology_epoch: candidate.estimate.value.topology_epoch,
-                degradation: candidate.estimate.value.degradation,
-            },
-        }
-    }
-
-    pub(crate) fn route_id_for(&self, destination: NodeId) -> RouteId {
-        let mut bytes = [0_u8; 16];
-        bytes[..8].copy_from_slice(&self.local_node_id.0[..8]);
-        bytes[8..].copy_from_slice(&destination.0[..8]);
-        RouteId(bytes)
     }
 
     pub(crate) fn endpoint_for_next_hop(
@@ -280,7 +219,7 @@ impl<Transport, Effects> OlsrV2Engine<Transport, Effects> {
         &self,
         topology: &Observation<Configuration>,
     ) -> BTreeSet<NodeId> {
-        self.direct_symmetric_neighbors(topology)
+        direct_symmetric_neighbors(self.local_node_id, topology)
             .into_keys()
             .collect()
     }
@@ -303,73 +242,229 @@ impl<Transport, Effects> OlsrV2Engine<Transport, Effects> {
             .map(|((_, neighbor), link)| (*neighbor, link.endpoint.clone()))
             .collect()
     }
+}
 
-    fn direct_symmetric_neighbors(
-        &self,
-        topology: &Observation<Configuration>,
-    ) -> BTreeMap<NodeId, (LinkEndpoint, u32)> {
-        topology
-            .value
-            .links
-            .iter()
-            .filter_map(|((from_node_id, neighbor), link)| {
-                (*from_node_id == self.local_node_id
-                    && link_is_usable(link.state.state)
-                    && topology
-                        .value
-                        .links
-                        .get(&(*neighbor, self.local_node_id))
-                        .is_some_and(|reverse| link_is_usable(reverse.state.state)))
-                .then_some((*neighbor, (link.endpoint.clone(), link_metric(link))))
-            })
-            .collect()
+pub(crate) fn reduce_round_state(
+    mut state: OlsrRoundState,
+    input: &OlsrRoundInput,
+) -> OlsrRoundTransition {
+    prune_neighbor_table(&mut state.neighbor_table, input.now);
+    prune_topology_tuples(
+        &mut state.topology_latest_sequences,
+        &mut state.topology_tuples,
+        input.stale_after_ticks,
+        input.now,
+    );
+    let next_two_hop = derive_two_hop_reachability(input.local_node_id, &state.neighbor_table);
+    let next_mprs = select_mprs(&state.neighbor_table, &next_two_hop, input.now);
+    let (next_selected, next_best) = derive_routes(
+        input.local_node_id,
+        &state.neighbor_table,
+        &state.topology_tuples,
+        input.topology.value.epoch,
+        input.now,
+    );
+    let next_last_originated = local_tc_advertised_neighbors(input.local_node_id, &input.topology);
+    let changed = if state.selected_routes != next_selected
+        || state.best_next_hops != next_best
+        || state.last_originated_tc_neighbors != next_last_originated
+    {
+        RoutingTickChange::PrivateStateUpdated
+    } else {
+        RoutingTickChange::NoChange
+    };
+    let planner_snapshot = OlsrPlannerSnapshot {
+        local_node_id: input.local_node_id,
+        stale_after_ticks: input.stale_after_ticks,
+        best_next_hops: next_best.clone(),
+    };
+    OlsrRoundTransition {
+        next_state: OlsrRoundState {
+            neighbor_table: state.neighbor_table,
+            two_hop_reachability: next_two_hop,
+            local_mpr_selection: next_mprs,
+            topology_tuples: state.topology_tuples,
+            topology_latest_sequences: state.topology_latest_sequences,
+            last_originated_tc_neighbors: next_last_originated,
+            selected_routes: next_selected,
+            best_next_hops: next_best,
+        },
+        planner_snapshot,
+        changed,
     }
+}
 
-    fn derive_two_hop_reachability(&self) -> BTreeMap<NodeId, TwoHopReachability> {
-        let direct_neighbors: BTreeSet<NodeId> = self
-            .neighbor_table
-            .iter()
-            .filter_map(|(neighbor, state)| state.is_symmetric.then_some(*neighbor))
-            .collect();
-        let mut reachability = BTreeMap::new();
-        for (neighbor, state) in &self.neighbor_table {
-            if !state.is_symmetric {
+pub(crate) fn candidate_for_snapshot(
+    snapshot: &OlsrPlannerSnapshot,
+    objective: &jacquard_core::RoutingObjective,
+    best: &OlsrBestNextHop,
+) -> RouteCandidate {
+    RouteCandidate {
+        route_id: route_id_for(snapshot.local_node_id, best.destination),
+        summary: RouteSummary {
+            engine: OLSRV2_ENGINE_ID,
+            protection: objective.target_protection,
+            connectivity: OLSRV2_CAPABILITIES.max_connectivity,
+            protocol_mix: vec![best.transport_kind.clone()],
+            hop_count_hint: Belief::certain(best.hop_count, best.updated_at_tick),
+            valid_for: TimeWindow::new(
+                best.updated_at_tick,
+                Tick(
+                    best.updated_at_tick
+                        .0
+                        .saturating_add(snapshot.stale_after_ticks),
+                ),
+            )
+            .expect("valid OLSRv2 candidate window"),
+        },
+        estimate: jacquard_core::Estimate::certain(
+            RouteEstimate {
+                estimated_protection: objective.target_protection,
+                estimated_connectivity: OLSRV2_CAPABILITIES.max_connectivity,
+                topology_epoch: best.topology_epoch,
+                degradation: best.degradation,
+            },
+            best.updated_at_tick,
+        ),
+        backend_ref: BackendRouteRef {
+            engine: OLSRV2_ENGINE_ID,
+            backend_route_id: best.backend_route_id.clone(),
+        },
+    }
+}
+
+pub(crate) fn admission_for_candidate(
+    objective: &jacquard_core::RoutingObjective,
+    profile: &SelectedRoutingParameters,
+    candidate: &RouteCandidate,
+) -> RouteAdmission {
+    let decision = if profile.selected_connectivity.partition
+        > OLSRV2_CAPABILITIES.max_connectivity.partition
+        || profile.selected_connectivity.repair > OLSRV2_CAPABILITIES.max_connectivity.repair
+    {
+        AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::BackendUnavailable)
+    } else {
+        AdmissionDecision::Admissible
+    };
+    RouteAdmission {
+        backend_ref: candidate.backend_ref.clone(),
+        objective: objective.clone(),
+        profile: profile.clone(),
+        admission_check: RouteAdmissionCheck {
+            decision,
+            profile: olsrv2_assumptions(),
+            productive_step_bound: Limit::Bounded(1),
+            total_step_bound: Limit::Bounded(1),
+            route_cost: RouteCost {
+                message_count_max: Limit::Bounded(1),
+                byte_count_max: Limit::Bounded(ByteCount(256)),
+                hop_count: candidate.summary.hop_count_hint.value_or(1),
+                repair_attempt_count_max: Limit::Bounded(0),
+                hold_bytes_reserved: Limit::Bounded(ByteCount(0)),
+                work_step_count_max: Limit::Bounded(1),
+            },
+        },
+        summary: candidate.summary.clone(),
+        witness: RouteWitness {
+            protection: ObjectiveVsDelivered {
+                objective: objective.target_protection,
+                delivered: objective.target_protection,
+            },
+            connectivity: ObjectiveVsDelivered {
+                objective: objective.target_connectivity,
+                delivered: OLSRV2_CAPABILITIES.max_connectivity,
+            },
+            admission_profile: olsrv2_assumptions(),
+            topology_epoch: candidate.estimate.value.topology_epoch,
+            degradation: candidate.estimate.value.degradation,
+        },
+    }
+}
+
+pub(crate) fn route_id_for(local_node_id: NodeId, destination: NodeId) -> RouteId {
+    let mut bytes = [0_u8; 16];
+    bytes[..8].copy_from_slice(&local_node_id.0[..8]);
+    bytes[8..].copy_from_slice(&destination.0[..8]);
+    RouteId(bytes)
+}
+
+fn direct_symmetric_neighbors(
+    local_node_id: NodeId,
+    topology: &Observation<Configuration>,
+) -> BTreeMap<NodeId, (LinkEndpoint, u32)> {
+    topology
+        .value
+        .links
+        .iter()
+        .filter_map(|((from_node_id, neighbor), link)| {
+            (*from_node_id == local_node_id
+                && link_is_usable(link.state.state)
+                && topology
+                    .value
+                    .links
+                    .get(&(*neighbor, local_node_id))
+                    .is_some_and(|reverse| link_is_usable(reverse.state.state)))
+            .then_some((*neighbor, (link.endpoint.clone(), link_metric(link))))
+        })
+        .collect()
+}
+
+fn local_tc_advertised_neighbors(
+    local_node_id: NodeId,
+    topology: &Observation<Configuration>,
+) -> BTreeSet<NodeId> {
+    direct_symmetric_neighbors(local_node_id, topology)
+        .into_keys()
+        .collect()
+}
+
+fn derive_two_hop_reachability(
+    local_node_id: NodeId,
+    neighbor_table: &BTreeMap<NodeId, NeighborLinkState>,
+) -> BTreeMap<NodeId, TwoHopReachability> {
+    let direct_neighbors: BTreeSet<NodeId> = neighbor_table
+        .iter()
+        .filter_map(|(neighbor, state)| state.is_symmetric.then_some(*neighbor))
+        .collect();
+    let mut reachability = BTreeMap::new();
+    for (neighbor, state) in neighbor_table {
+        if !state.is_symmetric {
+            continue;
+        }
+        for two_hop in &state.advertised_symmetric_neighbors {
+            if *two_hop == local_node_id || direct_neighbors.contains(two_hop) {
                 continue;
             }
-            for two_hop in &state.advertised_symmetric_neighbors {
-                if *two_hop == self.local_node_id || direct_neighbors.contains(two_hop) {
-                    continue;
-                }
-                reachability
-                    .entry(*two_hop)
-                    .or_insert_with(|| TwoHopReachability {
-                        two_hop: *two_hop,
-                        via_neighbors: BTreeSet::new(),
-                    })
-                    .via_neighbors
-                    .insert(*neighbor);
-            }
+            reachability
+                .entry(*two_hop)
+                .or_insert_with(|| TwoHopReachability {
+                    two_hop: *two_hop,
+                    via_neighbors: BTreeSet::new(),
+                })
+                .via_neighbors
+                .insert(*neighbor);
         }
-        reachability
     }
+    reachability
+}
 
-    fn prune_neighbor_table(&mut self, now: Tick) {
-        self.neighbor_table
-            .retain(|_, state| state.hold_window.is_live(now));
-    }
+fn prune_neighbor_table(neighbor_table: &mut BTreeMap<NodeId, NeighborLinkState>, now: Tick) {
+    neighbor_table.retain(|_, state| state.hold_window.is_live(now));
+}
 
-    fn prune_topology_tuples(&mut self, now: Tick) {
-        self.topology_latest_sequences
-            .retain(|originator, (_, observed_at_tick)| {
-                let live =
-                    now.0.saturating_sub(observed_at_tick.0) <= self.decay_window.stale_after_ticks;
-                if !live {
-                    self.topology_tuples
-                        .retain(|(tuple_originator, _), _| tuple_originator != originator);
-                }
-                live
-            });
-    }
+fn prune_topology_tuples(
+    topology_latest_sequences: &mut BTreeMap<NodeId, (u64, Tick)>,
+    topology_tuples: &mut BTreeMap<(NodeId, NodeId), TopologyTuple>,
+    stale_after_ticks: u64,
+    now: Tick,
+) {
+    topology_latest_sequences.retain(|originator, (_, observed_at_tick)| {
+        let live = now.0.saturating_sub(observed_at_tick.0) <= stale_after_ticks;
+        if !live {
+            topology_tuples.retain(|(tuple_originator, _), _| tuple_originator != originator);
+        }
+        live
+    });
 }
 
 pub(crate) fn olsrv2_assumptions() -> AdmissionAssumptions {
@@ -471,6 +566,21 @@ mod tests {
             evidence_class: RoutingEvidenceClass::DirectObservation,
             origin_authentication: OriginAuthenticationClass::Controlled,
             observed_at_tick: Tick(1),
+        }
+    }
+
+    fn engine_round_state(
+        engine: &OlsrV2Engine<InMemoryTransport, InMemoryRuntimeEffects>,
+    ) -> OlsrRoundState {
+        OlsrRoundState {
+            neighbor_table: engine.neighbor_table.clone(),
+            two_hop_reachability: engine.two_hop_reachability.clone(),
+            local_mpr_selection: engine.local_mpr_selection.clone(),
+            topology_tuples: engine.topology_tuples.clone(),
+            topology_latest_sequences: engine.topology_latest_sequences.clone(),
+            last_originated_tc_neighbors: engine.last_originated_tc_neighbors.clone(),
+            selected_routes: engine.selected_routes.clone(),
+            best_next_hops: engine.best_next_hops.clone(),
         }
     }
 
@@ -610,5 +720,104 @@ mod tests {
         let best = engine.best_next_hops.get(&node(3)).expect("best next hop");
         assert_eq!(best.next_hop, node(2));
         assert_eq!(best.hop_count, 2);
+    }
+
+    #[test]
+    fn planner_snapshot_tracks_route_choice_projection() {
+        let topology = sample_topology();
+        let mut engine = OlsrV2Engine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        engine.ingest_hello(
+            node(2),
+            HelloMessage {
+                originator: node(2),
+                sequence: 1,
+                symmetric_neighbors: vec![node(1), node(3)],
+                mprs: vec![node(1)],
+            },
+            &topology,
+            Tick(2),
+        );
+        engine.ingest_tc(
+            node(2),
+            TcMessage {
+                originator: node(2),
+                sequence: 1,
+                advertised_neighbors: vec![node(3)],
+            },
+            &topology,
+            Tick(2),
+        );
+        engine.refresh_private_state(&topology, Tick(2));
+
+        let snapshot = engine.planner_snapshot();
+        assert_eq!(snapshot.local_node_id, node(1));
+        assert_eq!(
+            snapshot.stale_after_ticks,
+            engine.decay_window.stale_after_ticks
+        );
+        assert_eq!(
+            snapshot
+                .best_next_hops
+                .get(&node(3))
+                .map(|best| best.next_hop),
+            Some(node(2))
+        );
+    }
+
+    #[test]
+    fn round_reducer_matches_wrapper_refresh_projection() {
+        let topology = sample_topology();
+        let mut engine = OlsrV2Engine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        engine.ingest_hello(
+            node(2),
+            HelloMessage {
+                originator: node(2),
+                sequence: 1,
+                symmetric_neighbors: vec![node(1), node(3)],
+                mprs: vec![node(1)],
+            },
+            &topology,
+            Tick(2),
+        );
+        engine.ingest_tc(
+            node(2),
+            TcMessage {
+                originator: node(2),
+                sequence: 1,
+                advertised_neighbors: vec![node(3)],
+            },
+            &topology,
+            Tick(2),
+        );
+
+        let reduced = reduce_round_state(
+            engine_round_state(&engine),
+            &OlsrRoundInput {
+                local_node_id: node(1),
+                stale_after_ticks: engine.decay_window.stale_after_ticks,
+                topology: topology.clone(),
+                now: Tick(2),
+            },
+        );
+
+        let wrapper_change = engine.refresh_private_state(&topology, Tick(2));
+
+        assert_eq!(wrapper_change, reduced.changed);
+        assert_eq!(engine_round_state(&engine), reduced.next_state);
+        assert_eq!(engine.planner_snapshot(), reduced.planner_snapshot);
     }
 }

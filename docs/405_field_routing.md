@@ -49,15 +49,12 @@ That refresh updates:
 - corridor belief
 - continuation frontier
 
-The resulting frontier is the local admissible continuation surface that the
-planner and runtime consume.
+The resulting frontier is the local admissible continuation surface that the planner and runtime consume.
 
-Field projects that route-choice state into an explicit planner snapshot
-before candidate generation runs. The snapshot carries the destination belief
-map, bounded mean-field state, bounded control state, the current regime and
-posture, and the effective search config chosen for that posture. Candidate
-generation and admission read that snapshot plus explicit topology input rather
-than consulting live mutable engine state directly.
+Field projects that route-choice state into an explicit planner snapshot before candidate generation runs. The snapshot carries the destination belief map, bounded mean-field state, bounded control state, the current regime and posture, and the effective search config chosen for that posture. Candidate generation and admission read that snapshot plus explicit topology input rather than consulting live mutable engine state directly.
+
+Field route maintenance follows the same split. The runtime first prepares one explicit maintenance view from the active route and destination state, then a pure reducer computes the next active-route state, policy events, and any pending continuation shift. The effectful wrapper only commits that result and applies route-scoped protocol-session reconfiguration when the reducer asks for
+it.
 
 ## Regime Detection
 

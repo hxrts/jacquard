@@ -39,7 +39,7 @@ use build_plan::host_build_plans;
 pub(crate) use replay_support::default_objective;
 use replay_support::{
     activate_ready_objectives, capture_host_snapshots, collect_route_events, failure_summaries_for,
-    host_artifact, maintain_active_routes, refresh_host_round_routes, restore_pathway_hosts,
+    host_artifact, maintain_active_routes, refresh_host_round_routes, restore_checkpointed_hosts,
     stitch_replay_from_checkpoint, summarize_active_routes, summarize_field_replay,
     TopologyAdvance,
 };
@@ -174,9 +174,6 @@ where
         let Some(checkpoint) = replay.checkpoints.last() else {
             return self.run(&replay.scenario, &replay.environment_model);
         };
-        if !replay.scenario.all_hosts_pathway() {
-            return self.run(&replay.scenario, &replay.environment_model);
-        }
         let (suffix_artifact, suffix_stats) = self.run_from_state(
             &replay
                 .scenario
@@ -220,7 +217,7 @@ where
         };
         let mut hosts = self.adapter.build_hosts(scenario)?;
         if let Some(checkpoint) = resume_from {
-            restore_pathway_hosts(&mut hosts, checkpoint)?;
+            restore_checkpointed_hosts(&mut hosts, checkpoint)?;
         }
         let mut route_event_cursors = match resume_from {
             Some(checkpoint) => checkpoint

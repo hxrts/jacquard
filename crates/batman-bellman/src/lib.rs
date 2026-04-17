@@ -20,6 +20,7 @@ mod private_state;
 mod public_state;
 mod runtime;
 mod scoring;
+pub mod simulator;
 
 use std::collections::BTreeMap;
 
@@ -31,7 +32,8 @@ use jacquard_core::{
 };
 pub use public_state::DecayWindow;
 use public_state::{
-    ActiveBatmanRoute, BestNextHop, NeighborRanking, OgmReceiveWindow, OriginatorObservationTable,
+    ActiveBatmanRoute, BatmanBellmanPlannerSnapshot, BestNextHop, NeighborRanking,
+    OgmReceiveWindow, OriginatorObservationTable,
 };
 
 pub const BATMAN_BELLMAN_ENGINE_ID: RoutingEngineId =
@@ -93,6 +95,14 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
             neighbor_rankings: BTreeMap::new(),
             best_next_hops: BTreeMap::new(),
             active_routes: BTreeMap::new(),
+        }
+    }
+
+    pub(crate) fn planner_snapshot(&self) -> BatmanBellmanPlannerSnapshot {
+        BatmanBellmanPlannerSnapshot {
+            local_node_id: self.local_node_id,
+            stale_after_ticks: self.decay_window.stale_after_ticks,
+            best_next_hops: self.best_next_hops.clone(),
         }
     }
 }

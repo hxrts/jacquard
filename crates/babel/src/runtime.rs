@@ -19,9 +19,9 @@
 //! thus never appear in `best_next_hops`.
 
 use jacquard_core::{
-    Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, LinkEndpoint, NodeId,
-    Observation, PublishedRouteRecord, RatioPermille, ReachabilityState, RouteCommitment,
-    RouteError, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
+    Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit, LinkEndpoint,
+    MaterializedRoute, NodeId, Observation, PublishedRouteRecord, RatioPermille, ReachabilityState,
+    RouteCommitment, RouteError, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
     RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
     RouteMaintenanceTrigger, RouteMaterializationInput, RouteMaterializationProof,
     RouteProgressContract, RouteProgressState, RouteRuntimeError, RouteRuntimeState,
@@ -32,8 +32,8 @@ use jacquard_traits::{RouterManagedEngine, RoutingEngine, TimeEffects, Transport
 
 use crate::{
     gossip::{decode_update, encode_update, originated_update, BabelUpdate},
-    private_state::link_is_usable,
-    public_state::ActiveBabelRoute,
+    private_state::{backend_route_id_for, link_is_usable},
+    public_state::{ActiveBabelRoute, BabelBestNextHop},
     scoring::PERMILLE_MAX,
     BabelEngine, BABEL_ENGINE_ID,
 };
@@ -49,6 +49,86 @@ fn health_scores_from_metric(tq: RatioPermille) -> (HealthScore, jacquard_core::
         HealthScore(u32::from(tq.0)),
         jacquard_core::PenaltyPoints(u32::from(penalty)),
     )
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BabelMaintenanceInput {
+    runtime: RouteRuntimeState,
+    active_route: ActiveBabelRoute,
+    best_next_hop: Option<BabelBestNextHop>,
+    now_tick: Tick,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BabelMaintenanceTransition {
+    next_runtime: RouteRuntimeState,
+    result: RouteMaintenanceResult,
+}
+
+fn reduce_maintenance(input: BabelMaintenanceInput) -> BabelMaintenanceTransition {
+    let mut next_runtime = input.runtime;
+    let Some(best) = input.best_next_hop else {
+        return BabelMaintenanceTransition {
+            next_runtime,
+            result: RouteMaintenanceResult {
+                event: RouteLifecycleEvent::Expired,
+                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
+            },
+        };
+    };
+    let (stability_score, congestion_penalty_points) = health_scores_from_metric(best.tq);
+    next_runtime.health.last_validated_at_tick = input.now_tick;
+    next_runtime.health.stability_score = stability_score;
+    next_runtime.health.congestion_penalty_points = congestion_penalty_points;
+    next_runtime.health.reachability_state = ReachabilityState::Reachable;
+
+    let result = if best.next_hop != input.active_route.next_hop {
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Replaced,
+            outcome: RouteMaintenanceOutcome::ReplacementRequired {
+                trigger: RouteMaintenanceTrigger::LinkDegraded,
+            },
+        }
+    } else {
+        RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Activated,
+            outcome: RouteMaintenanceOutcome::Continued,
+        }
+    };
+
+    BabelMaintenanceTransition {
+        next_runtime,
+        result,
+    }
+}
+
+pub(crate) fn restored_active_route(route: &MaterializedRoute) -> Option<ActiveBabelRoute> {
+    let DestinationId::Node(destination) = route.identity.admission.objective.destination else {
+        return None;
+    };
+    let backend_route_id = &route.identity.admission.backend_ref.backend_route_id.0;
+    if backend_route_id.len() != 64 {
+        return None;
+    }
+    let mut next_hop = [0_u8; 32];
+    next_hop.copy_from_slice(&backend_route_id[32..64]);
+    let next_hop = NodeId(next_hop);
+    if route.identity.admission.backend_ref.backend_route_id
+        != backend_route_id_for(destination, next_hop)
+    {
+        return None;
+    }
+    Some(ActiveBabelRoute {
+        destination,
+        next_hop,
+        backend_route_id: route
+            .identity
+            .admission
+            .backend_ref
+            .backend_route_id
+            .clone(),
+        installed_at_tick: route.identity.stamp.materialized_at_tick,
+    })
 }
 
 impl<Transport, Effects> BabelEngine<Transport, Effects>
@@ -222,37 +302,17 @@ where
         runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
-        let Some(active_route) = self.active_routes.get(identity.route_id()) else {
+        let Some(active_route) = self.active_routes.get(identity.route_id()).cloned() else {
             return Err(RouteRuntimeError::Invalidated.into());
         };
-        let destination = active_route.destination;
-        let active_next_hop = active_route.next_hop;
-        let Some(best) = self.best_next_hops.get(&destination) else {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
-            });
-        };
-        // NOTE: No is_bidirectional check here. Babel encodes bidirectionality
-        // in the link cost: a route with an absent or Faulted reverse link will
-        // have BABEL_INFINITY metric and will not appear in best_next_hops.
-        let (stability_score, congestion_penalty_points) = health_scores_from_metric(best.tq);
-        runtime.health.last_validated_at_tick = self.effects.now_tick();
-        runtime.health.stability_score = stability_score;
-        runtime.health.congestion_penalty_points = congestion_penalty_points;
-        runtime.health.reachability_state = ReachabilityState::Reachable;
-        if best.next_hop != active_next_hop {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Replaced,
-                outcome: RouteMaintenanceOutcome::ReplacementRequired {
-                    trigger: RouteMaintenanceTrigger::LinkDegraded,
-                },
-            });
-        }
-        Ok(RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Activated,
-            outcome: RouteMaintenanceOutcome::Continued,
-        })
+        let transition = reduce_maintenance(BabelMaintenanceInput {
+            runtime: runtime.clone(),
+            best_next_hop: self.best_next_hops.get(&active_route.destination).cloned(),
+            active_route,
+            now_tick: self.effects.now_tick(),
+        });
+        *runtime = transition.next_runtime;
+        Ok(transition.result)
     }
 
     fn teardown(&mut self, route_id: &RouteId) {
@@ -302,6 +362,20 @@ where
     fn restore_route_runtime_for_router(&mut self, route_id: &RouteId) -> Result<bool, RouteError> {
         Ok(self.active_routes.contains_key(route_id))
     }
+
+    fn restore_route_runtime_with_record_for_router(
+        &mut self,
+        route: &MaterializedRoute,
+        topology: &Observation<Configuration>,
+    ) -> Result<bool, RouteError> {
+        let Some(active_route) = restored_active_route(route) else {
+            return Ok(false);
+        };
+        self.latest_topology = Some(topology.clone());
+        self.active_routes
+            .insert(route.identity.stamp.route_id, active_route);
+        Ok(true)
+    }
 }
 
 #[cfg(test)]
@@ -322,7 +396,7 @@ mod tests {
     use jacquard_traits::{RoutingEngine, RoutingEnginePlanner};
 
     use super::*;
-    use crate::{BabelEngine, BABEL_ENGINE_ID};
+    use crate::{private_state::route_id_for, BabelEngine, BABEL_ENGINE_ID};
 
     fn node(byte: u8) -> NodeId {
         NodeId([byte; 32])
@@ -454,7 +528,7 @@ mod tests {
         let input = RouteMaterializationInput {
             handle: jacquard_core::RouteHandle {
                 stamp: jacquard_core::RouteIdentityStamp {
-                    route_id: engine.route_id_for(node(2)),
+                    route_id: route_id_for(node(1), node(2)),
                     topology_epoch: topology.value.epoch,
                     materialized_at_tick: now,
                     publication_id: jacquard_core::PublicationId([1; 16]),
@@ -545,6 +619,89 @@ mod tests {
             result.outcome,
             RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
         );
+    }
+
+    #[test]
+    fn maintenance_reducer_matches_wrapper_projection() {
+        let now = Tick(1);
+        let (mut engine, topology) = engine_with_update_state(now);
+        engine
+            .engine_tick(&RoutingTickContext::new(topology.clone()))
+            .expect("first tick");
+
+        let objective = sample_objective();
+        let profile = sample_profile();
+        let candidates = engine.candidate_routes(&objective, &profile, &topology);
+        let admission = engine
+            .admit_route(&objective, &profile, candidates[0].clone(), &topology)
+            .expect("admission");
+        let (identity, mut runtime) =
+            materialized_route_record(&mut engine, &topology, admission, now);
+        let reduced = reduce_maintenance(BabelMaintenanceInput {
+            runtime: runtime.clone(),
+            active_route: engine
+                .active_routes
+                .get(identity.route_id())
+                .cloned()
+                .expect("active route"),
+            best_next_hop: engine.best_next_hops.get(&node(2)).cloned(),
+            now_tick: now,
+        });
+
+        let wrapper_result = engine
+            .maintain_route(
+                &identity,
+                &mut runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("maintenance");
+
+        assert_eq!(runtime, reduced.next_runtime);
+        assert_eq!(wrapper_result, reduced.result);
+    }
+
+    #[test]
+    fn restore_reconstructs_active_route_from_materialized_route() {
+        let now = Tick(1);
+        let (mut engine, topology) = engine_with_update_state(now);
+        engine
+            .engine_tick(&RoutingTickContext::new(topology.clone()))
+            .expect("first tick");
+
+        let objective = sample_objective();
+        let profile = sample_profile();
+        let candidates = engine.candidate_routes(&objective, &profile, &topology);
+        let admission = engine
+            .admit_route(&objective, &profile, candidates[0].clone(), &topology)
+            .expect("admission");
+        let (identity, runtime) = materialized_route_record(&mut engine, &topology, admission, now);
+        let route = MaterializedRoute { identity, runtime };
+
+        engine.active_routes.clear();
+        let sent_before_restore = engine.transport.sent_frames.len();
+        let restored = engine
+            .restore_route_runtime_with_record_for_router(&route, &topology)
+            .expect("restore");
+
+        assert!(restored);
+        assert_eq!(
+            engine.active_routes.get(&route.identity.stamp.route_id),
+            Some(&ActiveBabelRoute {
+                destination: node(2),
+                next_hop: node(2),
+                backend_route_id: route
+                    .identity
+                    .admission
+                    .backend_ref
+                    .backend_route_id
+                    .clone(),
+                installed_at_tick: now,
+            })
+        );
+        engine
+            .forward_payload_for_router(&route.identity.stamp.route_id, b"restored")
+            .expect("forward after topology-aware restore");
+        assert_eq!(engine.transport.sent_frames.len(), sent_before_restore + 1);
     }
 
     #[test]

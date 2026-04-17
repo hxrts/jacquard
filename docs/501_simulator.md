@@ -45,9 +45,9 @@ Checkpoints carry `InMemoryRuntimeEffects` snapshots per host. These snapshots a
 
 Model-lane runs use their own fixture outputs instead of host-round replay artifacts. They record explicit planner snapshots, candidate counts, reducer summaries, restore outputs, and equivalence results in `model_artifacts.jsonl`. This makes equivalence checks against full-stack runs possible without introducing a simulator-only engine stack.
 
-That file is additive. The maintained full-stack artifact contract is `runs.jsonl`, `aggregates.json`, and `breakdowns.json` for route-visible tuning, plus the diffusion artifact set for deferred-delivery analysis. The current report pipeline does not score `model_artifacts.jsonl`; it uses it for model-lane inspection and equivalence debugging only.
+That file is additive. The maintained full-stack artifact contract remains the full-stack run log plus the aggregate and breakdown JSON outputs for route-visible tuning, plus the diffusion artifact set for deferred-delivery analysis. The report pipeline does not score `model_artifacts.jsonl`; it uses it for model-lane inspection and equivalence debugging only.
 
-The current model-lane selectors are `babel-model-smoke`, `babel-equivalence-smoke`, and `field-model-smoke` in the `tuning_matrix` binary. They exercise the real `jacquard-babel` planner snapshot, round reducer, and checkpoint restore surfaces, plus the real `jacquard-field` snapshot-driven planner surface, through the simulator's model and equivalence paths.
+The model-lane selectors are `babel-model-smoke`, `babel-equivalence-smoke`, `batman-bellman-model-smoke`, `batman-classic-model-smoke`, `olsrv2-model-smoke`, `field-model-smoke`, `pathway-model-smoke`, and `scatter-model-smoke` in the `tuning_matrix` binary. They exercise the real `jacquard-babel` planner snapshot, round reducer, and checkpoint restore surfaces, plus crate-owned planner fixtures for the other in-tree engines, through the simulator's model and equivalence paths.
 
 ## Starter Path
 

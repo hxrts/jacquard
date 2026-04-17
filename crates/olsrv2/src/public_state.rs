@@ -1,6 +1,5 @@
 //! Engine-public state types for `OlsrV2Engine`.
-
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use jacquard_core::{BackendRouteId, NodeId, RouteDegradation, RouteEpoch, Tick, TransportKind};
 
@@ -98,6 +97,13 @@ pub(crate) struct OlsrBestNextHop {
     pub updated_at_tick: Tick,
     pub topology_epoch: RouteEpoch,
     pub backend_route_id: BackendRouteId,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct OlsrPlannerSnapshot {
+    pub local_node_id: NodeId,
+    pub stale_after_ticks: u64,
+    pub best_next_hops: BTreeMap<NodeId, OlsrBestNextHop>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

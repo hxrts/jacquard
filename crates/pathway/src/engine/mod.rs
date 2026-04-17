@@ -30,9 +30,10 @@ use std::{
 };
 
 use jacquard_core::{
-    Blake3Digest, Configuration, ConnectivityPosture, ContentId, NodeId, Observation, ReceiptId,
-    RouteCommitmentId, RouteEpoch, RouteError, RouteId, RoutePartitionClass, RouteRuntimeError,
-    RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId, Tick, TransportObservation,
+    Blake3Digest, Configuration, ConnectivityPosture, ContentId, MaterializedRoute, NodeId,
+    Observation, ReceiptId, RouteCommitmentId, RouteEpoch, RouteError, RouteId,
+    RoutePartitionClass, RouteRuntimeError, RouteSelectionError, RoutingEngineCapabilities,
+    RoutingEngineId, Tick, TransportObservation,
 };
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing, RouterManagedEngine};
 pub use planner::{
@@ -42,7 +43,8 @@ pub use planner::{
     PathwaySearchTransitionClass,
 };
 pub(crate) use support::{
-    current_segment, digest_prefix, MaintenanceResultExt, StorageResultExt, DOMAIN_TAG_COMMITTEE_ID,
+    current_segment, digest_prefix, first_hop_node_id_from_backend_route_id, MaintenanceResultExt,
+    StorageResultExt, DOMAIN_TAG_COMMITTEE_ID,
 };
 use trait_bounds::{
     PathwayEffectsBounds, PathwayHasherBounds, PathwayRetentionBounds, PathwaySelectorBounds,
@@ -197,7 +199,23 @@ where
     }
 
     fn restore_route_runtime_for_router(&mut self, route_id: &RouteId) -> Result<bool, RouteError> {
-        Ok(self.restore_checkpointed_route(route_id)?.is_some())
+        if self.active_routes.contains_key(route_id) {
+            return Ok(true);
+        }
+        let key = support::route_storage_key(&self.local_node_id, route_id);
+        let checkpoint_exists = self.effects.load_bytes(&key).storage_invalid()?.is_some();
+        if checkpoint_exists {
+            return Err(RouteError::Runtime(RouteRuntimeError::Invalidated));
+        }
+        Ok(false)
+    }
+
+    fn restore_route_runtime_with_record_for_router(
+        &mut self,
+        route: &MaterializedRoute,
+        _topology: &Observation<Configuration>,
+    ) -> Result<bool, RouteError> {
+        Ok(self.restore_checkpointed_route(route)?.is_some())
     }
 }
 
@@ -371,18 +389,22 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
 
     pub(crate) fn restore_checkpointed_route(
         &mut self,
-        route_id: &RouteId,
+        route: &MaterializedRoute,
     ) -> Result<Option<ActivePathwayRoute>, RouteError>
     where
+        Hasher: PathwayHasherBounds,
         Effects: PathwayEffectsBounds,
     {
-        let key = support::route_storage_key(&self.local_node_id, route_id);
+        let route_id = route.identity.stamp.route_id;
+        let key = support::route_storage_key(&self.local_node_id, &route_id);
         let Some(bytes) = self.effects.load_bytes(&key).storage_invalid()? else {
             return Ok(None);
         };
-        let active_route = support::decode_checkpoint_bytes(&bytes)
+        let checkpoint = support::decode_checkpoint_bytes(&bytes)
             .ok_or(RouteError::Runtime(RouteRuntimeError::Invalidated))?;
-        self.active_routes.insert(*route_id, active_route.clone());
+        let active_route = support::restored_active_route(route, &checkpoint, &self.hashing)
+            .ok_or(RouteError::Runtime(RouteRuntimeError::Invalidated))?;
+        self.active_routes.insert(route_id, active_route.clone());
         Ok(Some(active_route))
     }
 }
@@ -570,16 +592,5 @@ where
         self.effects
             .remove_bytes(&support::route_storage_key(&self.local_node_id, route_id))
             .storage_invalid()
-    }
-
-    // Handoff target is the next owner in the owner-relative path view.
-    // Once the cursor reaches the end of the path, no further handoff
-    // is valid and the caller must fail closed.
-    fn handoff_target(active_route: &ActivePathwayRoute) -> Option<NodeId> {
-        active_route
-            .path
-            .segments
-            .get(usize::from(active_route.forwarding.next_hop_index))
-            .map(|segment| segment.node_id)
     }
 }

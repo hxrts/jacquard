@@ -21,6 +21,7 @@
 mod planner;
 mod public_state;
 mod runtime;
+pub mod simulator;
 mod support;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,6 +30,7 @@ use jacquard_core::{
     Configuration, ConnectivityPosture, NodeId, Observation, RouteId, RoutePartitionClass,
     RouteProtectionClass, RouteShapeVisibility, RoutingEngineCapabilities, RoutingEngineId,
 };
+use public_state::ScatterPlannerSnapshot;
 pub use public_state::{
     ScatterAction, ScatterBudgetPolicy, ScatterDecisionThresholds, ScatterEngineConfig,
     ScatterExpiryPolicy, ScatterLocalSummary, ScatterOperationalBounds, ScatterRegime,
@@ -122,5 +124,14 @@ impl<Transport, Effects> ScatterEngine<Transport, Effects> {
     #[must_use]
     pub fn retained_message_count(&self) -> usize {
         self.stored_messages.len()
+    }
+
+    pub(crate) fn planner_snapshot(&self) -> ScatterPlannerSnapshot {
+        ScatterPlannerSnapshot {
+            local_node_id: self.local_node_id,
+            config: self.config,
+            current_regime: self.current_regime,
+            last_local_summary: self.last_local_summary,
+        }
     }
 }

@@ -5,7 +5,11 @@
 #![allow(clippy::wildcard_imports)]
 
 use super::*;
-use jacquard_core::ByteCount;
+use crate::SimulationExecutionLane;
+use jacquard_babel::simulator::{
+    BabelPlannerSnapshotView, BabelRoundInputView, BabelRoundStateView,
+};
+use jacquard_core::{ByteCount, RoutingTickChange};
 use jacquard_scatter::{
     ScatterBudgetPolicy, ScatterDecisionThresholds, ScatterEngineConfig, ScatterExpiryPolicy,
     ScatterOperationalBounds, ScatterRegimeThresholds, ScatterTransportPolicy,
@@ -33,6 +37,12 @@ pub enum ExperimentError {
     Io(#[from] std::io::Error),
     #[error("json failed: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("model execution is not configured for {run_id}")]
+    MissingModelCase { run_id: String },
+    #[error("model expectation failed for {run_id}: {detail}")]
+    ModelExpectationFailed { run_id: String, detail: String },
+    #[error("equivalence mismatch for {run_id}: {detail}")]
+    EquivalenceMismatch { run_id: String, detail: String },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -846,16 +856,128 @@ fn degraded_network_scatter_config() -> ScatterEngineConfig {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) enum ExperimentModelCase {
+    BatmanBellmanPlannerDecision(BatmanBellmanPlannerDecisionCase),
+    BatmanClassicPlannerDecision(BatmanClassicPlannerDecisionCase),
+    BabelPlannerDecision(BabelPlannerDecisionCase),
+    BabelRoundRefresh(BabelRoundRefreshCase),
+    BabelCheckpointRestore(Box<BabelCheckpointRestoreCase>),
+    FieldPlannerDecision(FieldPlannerDecisionCase),
+    OlsrPlannerDecision(OlsrPlannerDecisionCase),
+    PathwayPlannerDecision(PathwayPlannerDecisionCase),
+    ScatterPlannerDecision(ScatterPlannerDecisionCase),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct BatmanBellmanPlannerDecisionCase {
+    pub fixture_id: String,
+    pub owner_node_id: NodeId,
+    pub destination: NodeId,
+    pub expected_next_hop: NodeId,
+    pub objective: RoutingObjective,
+    pub profile: SelectedRoutingParameters,
+    pub topology: Observation<Configuration>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct BatmanClassicPlannerDecisionCase {
+    pub fixture_id: String,
+    pub owner_node_id: NodeId,
+    pub destination: NodeId,
+    pub expected_next_hop: NodeId,
+    pub objective: RoutingObjective,
+    pub profile: SelectedRoutingParameters,
+    pub topology: Observation<Configuration>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct BabelPlannerDecisionCase {
+    pub fixture_id: String,
+    pub owner_node_id: NodeId,
+    pub destination: NodeId,
+    pub expected_next_hop: NodeId,
+    pub expected_visible_round: u32,
+    pub objective: RoutingObjective,
+    pub profile: SelectedRoutingParameters,
+    pub topology: Observation<Configuration>,
+    pub snapshot: BabelPlannerSnapshotView,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct BabelRoundRefreshCase {
+    pub fixture_id: String,
+    pub expected_change: RoutingTickChange,
+    pub expected_destinations: Vec<(NodeId, NodeId)>,
+    pub prior_state: BabelRoundStateView,
+    pub input: BabelRoundInputView,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct BabelCheckpointRestoreCase {
+    pub fixture_id: String,
+    pub owner_node_id: NodeId,
+    pub destination: NodeId,
+    pub expected_next_hop: NodeId,
+    pub expected_visible_round: u32,
+    pub route: jacquard_core::MaterializedRoute,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct FieldPlannerDecisionCase {
+    pub fixture_id: String,
+    pub owner_node_id: NodeId,
+    pub destination: NodeId,
+    pub expected_next_hop: NodeId,
+    pub objective: RoutingObjective,
+    pub profile: SelectedRoutingParameters,
+    pub topology: Observation<Configuration>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PathwayPlannerDecisionCase {
+    pub fixture_id: String,
+    pub owner_node_id: NodeId,
+    pub destination: NodeId,
+    pub expected_next_hop: NodeId,
+    pub objective: RoutingObjective,
+    pub profile: SelectedRoutingParameters,
+    pub topology: Observation<Configuration>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct OlsrPlannerDecisionCase {
+    pub fixture_id: String,
+    pub owner_node_id: NodeId,
+    pub destination: NodeId,
+    pub expected_next_hop: NodeId,
+    pub objective: RoutingObjective,
+    pub profile: SelectedRoutingParameters,
+    pub topology: Observation<Configuration>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ScatterPlannerDecisionCase {
+    pub fixture_id: String,
+    pub owner_node_id: NodeId,
+    pub destination: NodeId,
+    pub objective: RoutingObjective,
+    pub profile: SelectedRoutingParameters,
+    pub topology: Observation<Configuration>,
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct ExperimentRunSpec {
     pub run_id: String,
     pub suite_id: String,
     pub family_id: String,
     pub engine_family: String,
+    pub execution_lane: SimulationExecutionLane,
     pub seed: SimulationSeed,
     pub regime: RegimeDescriptor,
     pub parameters: ExperimentParameterSet,
     pub scenario: JacquardScenario,
     pub environment: ScriptedEnvironmentModel,
+    pub model_case: Option<ExperimentModelCase>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -865,6 +987,7 @@ pub struct ExperimentRunSummary {
     pub family_id: String,
     pub scenario_name: String,
     pub engine_family: String,
+    pub execution_lane: String,
     pub config_id: String,
     pub comparison_engine_set: Option<String>,
     pub batman_bellman_stale_after_ticks: Option<u32>,
@@ -962,6 +1085,8 @@ pub struct ExperimentRunSummary {
     pub cascade_partition_count: u32,
     pub mobility_relink_count: u32,
     pub intrinsic_limit_count: u32,
+    pub model_artifact_count: u32,
+    pub equivalence_passed: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -969,6 +1094,7 @@ pub struct ExperimentAggregateSummary {
     pub suite_id: String,
     pub family_id: String,
     pub engine_family: String,
+    pub execution_lane: String,
     pub config_id: String,
     pub comparison_engine_set: Option<String>,
     pub batman_bellman_stale_after_ticks: Option<u32>,
@@ -1058,6 +1184,8 @@ pub struct ExperimentAggregateSummary {
     pub lost_reachability_count_mean: u32,
     pub replacement_loop_count_mean: u32,
     pub persistent_degraded_count_mean: u32,
+    pub model_artifact_count_mean: u32,
+    pub equivalence_pass_count: u32,
     pub acceptable: bool,
 }
 
@@ -1065,6 +1193,7 @@ pub struct ExperimentAggregateSummary {
 pub struct ExperimentBreakdownSummary {
     pub suite_id: String,
     pub engine_family: String,
+    pub execution_lane: String,
     pub config_id: String,
     pub max_sustained_stress_score: u32,
     pub first_failed_family_id: Option<String>,
@@ -1079,6 +1208,7 @@ pub struct ExperimentManifest {
     pub run_count: u32,
     pub aggregate_count: u32,
     pub breakdown_count: u32,
+    pub model_artifact_count: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -1106,4 +1236,26 @@ pub struct ExperimentArtifacts {
     pub runs: Vec<ExperimentRunSummary>,
     pub aggregates: Vec<ExperimentAggregateSummary>,
     pub breakdowns: Vec<ExperimentBreakdownSummary>,
+    pub model_artifacts: Vec<ExperimentModelArtifact>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ExperimentModelArtifact {
+    pub run_id: String,
+    pub suite_id: String,
+    pub engine_family: String,
+    pub execution_lane: String,
+    pub fixture_id: String,
+    pub artifact_kind: String,
+    pub owner_node_id: Option<String>,
+    pub destination_node_id: Option<String>,
+    pub next_hop_node_id: Option<String>,
+    pub topology_epoch: Option<u64>,
+    pub candidate_count: Option<u32>,
+    pub reducer_route_entry_count: Option<u32>,
+    pub reducer_best_next_hop_count: Option<u32>,
+    pub reducer_change: Option<String>,
+    pub backend_route_id_hex: Option<String>,
+    pub visible_round: Option<u32>,
+    pub equivalence_passed: Option<bool>,
 }

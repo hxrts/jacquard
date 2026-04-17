@@ -29,6 +29,7 @@ mod diffusion;
 mod environment;
 mod experiments;
 mod harness;
+mod model;
 mod reduced_replay;
 mod replay;
 mod scenario;
@@ -47,14 +48,26 @@ pub use environment::{
     AppliedEnvironmentHook, EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel,
 };
 pub use experiments::{
-    local_suite as tuning_local_suite, run_suite as run_tuning_suite,
+    babel_equivalence_smoke_suite as tuning_babel_equivalence_smoke_suite,
+    babel_model_smoke_suite as tuning_babel_model_smoke_suite,
+    batman_bellman_model_smoke_suite as tuning_batman_bellman_model_smoke_suite,
+    batman_classic_model_smoke_suite as tuning_batman_classic_model_smoke_suite,
+    field_model_smoke_suite as tuning_field_model_smoke_suite, local_suite as tuning_local_suite,
+    olsrv2_model_smoke_suite as tuning_olsrv2_model_smoke_suite,
+    pathway_model_smoke_suite as tuning_pathway_model_smoke_suite, run_suite as run_tuning_suite,
+    scatter_model_smoke_suite as tuning_scatter_model_smoke_suite,
     smoke_suite as tuning_smoke_suite, ExperimentAggregateSummary, ExperimentArtifacts,
-    ExperimentBreakdownSummary, ExperimentError, ExperimentManifest, ExperimentParameterSet,
-    ExperimentRunSummary, ExperimentSuite, RegimeDescriptor,
+    ExperimentBreakdownSummary, ExperimentError, ExperimentManifest, ExperimentModelArtifact,
+    ExperimentParameterSet, ExperimentRunSummary, ExperimentSuite, RegimeDescriptor,
 };
 pub use harness::{
     JacquardHostAdapter, JacquardSimulationHarness, JacquardSimulator, ReferenceClientAdapter,
     SimulationCaptureArtifact, SimulationCaptureLevel, SimulationError,
+};
+pub use model::{
+    run_checkpoint_fixture, run_maintenance_transition_fixture, run_planner_fixture,
+    run_round_transition_fixture, CheckpointFixture, MaintenanceTransitionFixture, PlannerModelRun,
+    PlannerSnapshotFixture, RoundTransitionFixture, SimulationExecutionLane, TransitionModelRun,
 };
 pub use reduced_replay::{
     ReducedEnvironmentHookCounts, ReducedFailureClassCounts, ReducedReplayRound, ReducedReplayView,

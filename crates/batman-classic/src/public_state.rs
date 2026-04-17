@@ -1,14 +1,13 @@
 //! Engine-public state types for `BatmanClassicEngine`.
 //!
-//! Identical in structure to the enhanced batman engine's public state. The
-//! routing observation, ranking, and best-next-hop types are unchanged; only
-//! the engine that populates them differs.
+//! The routing observation, ranking, and best-next-hop types follow the shared
+//! next-hop shape used across Jacquard's proactive engines.
 //!
 //! Additional type for the classic engine:
 //! - `ReceivedOgmInfo` — stores the TQ and derived hop count from a received
 //!   OGM, keyed by `(originator, via_neighbor)` in the engine's
-//!   `received_ogm_info` table. Replaces the Bellman-Ford path computation used
-//!   by the enhanced engine.
+//!   `received_ogm_info` table. Carries the path-quality signal that classic
+//!   BATMAN propagates through the OGM itself rather than computing locally.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -170,6 +169,13 @@ pub(crate) struct BestNextHop {
     pub backend_route_id: BackendRouteId,
     pub topology_epoch: RouteEpoch,
     pub is_bidirectional: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BatmanClassicPlannerSnapshot {
+    pub local_node_id: NodeId,
+    pub stale_after_ticks: u64,
+    pub best_next_hops: BTreeMap<NodeId, BestNextHop>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

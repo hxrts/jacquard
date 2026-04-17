@@ -415,7 +415,7 @@ pub(super) fn capture_host_snapshots(
         .collect()
 }
 
-pub(super) fn restore_pathway_hosts(
+pub(super) fn restore_checkpointed_hosts(
     hosts: &mut BTreeMap<NodeId, ReferenceClient>,
     checkpoint: &JacquardCheckpointArtifact,
 ) -> Result<(), SimulationError> {

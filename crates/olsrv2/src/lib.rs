@@ -26,6 +26,7 @@ mod planner;
 mod private_state;
 mod public_state;
 mod runtime;
+pub mod simulator;
 mod spf;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -38,8 +39,8 @@ use jacquard_core::{
 };
 pub use public_state::DecayWindow;
 use public_state::{
-    ActiveOlsrRoute, MprSelection, NeighborLinkState, OlsrBestNextHop, SelectedOlsrRoute,
-    TopologyTuple, TwoHopReachability,
+    ActiveOlsrRoute, MprSelection, NeighborLinkState, OlsrBestNextHop, OlsrPlannerSnapshot,
+    SelectedOlsrRoute, TopologyTuple, TwoHopReachability,
 };
 
 pub const OLSRV2_ENGINE_ID: RoutingEngineId =
@@ -119,6 +120,14 @@ impl<Transport, Effects> OlsrV2Engine<Transport, Effects> {
             selected_routes: BTreeMap::new(),
             best_next_hops: BTreeMap::new(),
             active_routes: BTreeMap::new(),
+        }
+    }
+
+    pub(crate) fn planner_snapshot(&self) -> OlsrPlannerSnapshot {
+        OlsrPlannerSnapshot {
+            local_node_id: self.local_node_id,
+            stale_after_ticks: self.decay_window.stale_after_ticks,
+            best_next_hops: self.best_next_hops.clone(),
         }
     }
 }

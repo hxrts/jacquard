@@ -21,4 +21,7 @@
 pub(crate) mod admission;
 pub(crate) mod promotion;
 pub(crate) mod publication;
+pub(crate) mod snapshot;
 mod surface;
+
+pub(crate) use snapshot::FieldPlannerSnapshot;

@@ -1,8 +1,7 @@
 //! Spec-faithful classic BATMAN next-hop routing engine.
 //!
 //! This engine implements the BATMAN protocol as described in the BATMAN IV
-//! specification, without the structural departures present in the enhanced
-//! `jacquard-batman` engine. The key behavioural properties:
+//! specification. The key behavioural properties:
 //!
 //! - **TQ carried in OGM** — each `OriginatorAdvertisement` encodes a `tq`
 //!   field. Originators initialise it to 1000; re-broadcasting nodes apply
@@ -19,17 +18,16 @@
 //!   (delivery confidence, symmetry, transfer rate, stability horizon) are not
 //!   incorporated.
 //! - **Echo-only bidirectionality** — a neighbor is confirmed bidirectional
-//!   only by receiving a local OGM echoed back via that neighbor. The topology
-//!   fallback present in the enhanced engine is absent.
+//!   only by receiving a local OGM echoed back via that neighbor. There is no
+//!   topology fallback.
 //! - **No bootstrap shortcut** — if no OGM receive-window data exists for a
 //!   path, no route candidate is produced. The engine starts silent and becomes
 //!   active only after OGMs have accumulated window data.
 //!
 //! These properties make `BatmanClassicEngine` a faithful baseline for
-//! comparing against the enhanced batman engine and against Babel (which was
-//! designed to fix exactly the weaknesses of classic DV-gossip protocols:
-//! asymmetric-link handling, loop-freedom under topology change, and triggered
-//! rather than periodic-only updates).
+//! comparison against Babel (which was designed to fix exactly the weaknesses
+//! of classic DV-gossip protocols: asymmetric-link handling, loop-freedom under
+//! topology change, and triggered rather than periodic-only updates).
 
 #![forbid(unsafe_code)]
 
@@ -39,6 +37,7 @@ mod private_state;
 mod public_state;
 mod runtime;
 mod scoring;
+pub mod simulator;
 
 use std::collections::BTreeMap;
 
@@ -50,8 +49,8 @@ use jacquard_core::{
 };
 pub use public_state::DecayWindow;
 use public_state::{
-    ActiveBatmanClassicRoute, BestNextHop, NeighborRanking, OgmReceiveWindow,
-    OriginatorObservationTable, ReceivedOgmInfo,
+    ActiveBatmanClassicRoute, BatmanClassicPlannerSnapshot, BestNextHop, NeighborRanking,
+    OgmReceiveWindow, OriginatorObservationTable, ReceivedOgmInfo,
 };
 
 pub const BATMAN_CLASSIC_ENGINE_ID: RoutingEngineId =
@@ -125,6 +124,14 @@ impl<Transport, Effects> BatmanClassicEngine<Transport, Effects> {
             neighbor_rankings: BTreeMap::new(),
             best_next_hops: BTreeMap::new(),
             active_routes: BTreeMap::new(),
+        }
+    }
+
+    pub(crate) fn planner_snapshot(&self) -> BatmanClassicPlannerSnapshot {
+        BatmanClassicPlannerSnapshot {
+            local_node_id: self.local_node_id,
+            stale_after_ticks: self.decay_window.stale_after_ticks,
+            best_next_hops: self.best_next_hops.clone(),
         }
     }
 }

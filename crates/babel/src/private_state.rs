@@ -62,10 +62,36 @@ use jacquard_core::{
 
 use crate::{
     gossip::{BabelUpdate, BABEL_INFINITY},
-    public_state::{BabelBestNextHop, FeasibilityEntry, RouteEntry, SelectedBabelRoute},
+    public_state::{
+        BabelBestNextHop, BabelPlannerSnapshot, FeasibilityEntry, RouteEntry, SelectedBabelRoute,
+    },
     scoring::{self, link_cost, metric_degradation, metric_to_ratio, seqno_is_newer},
-    BabelEngine, BABEL_CAPABILITIES, BABEL_ENGINE_ID,
+    BabelEngine, DecayWindow, BABEL_CAPABILITIES, BABEL_ENGINE_ID,
 };
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BabelRoundState {
+    pub route_table: BTreeMap<NodeId, BTreeMap<NodeId, RouteEntry>>,
+    pub selected_routes: BTreeMap<NodeId, SelectedBabelRoute>,
+    pub best_next_hops: BTreeMap<NodeId, BabelBestNextHop>,
+    pub feasibility_distances: BTreeMap<NodeId, FeasibilityEntry>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BabelRoundInput {
+    pub topology: Observation<Configuration>,
+    pub now: Tick,
+    pub local_node_id: NodeId,
+    pub decay_window: DecayWindow,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BabelRoundTransition {
+    pub next_state: BabelRoundState,
+    pub planner_snapshot: BabelPlannerSnapshot,
+    pub latest_topology: Observation<Configuration>,
+    pub change: RoutingTickChange,
+}
 
 impl<Transport, Effects> BabelEngine<Transport, Effects> {
     // long-block-exception: one refresh pass prunes stale entries, enforces
@@ -76,131 +102,29 @@ impl<Transport, Effects> BabelEngine<Transport, Effects> {
         topology: &Observation<Configuration>,
         now: Tick,
     ) -> RoutingTickChange {
-        let stale_after_ticks = self.decay_window.stale_after_ticks;
+        let prior_state = BabelRoundState {
+            route_table: std::mem::take(&mut self.route_table),
+            selected_routes: std::mem::take(&mut self.selected_routes),
+            best_next_hops: std::mem::take(&mut self.best_next_hops),
+            feasibility_distances: std::mem::take(&mut self.feasibility_distances),
+        };
+        let transition = reduce_round_state(
+            prior_state,
+            &BabelRoundInput {
+                topology: topology.clone(),
+                now,
+                local_node_id: self.local_node_id,
+                decay_window: self.decay_window,
+            },
+        );
 
-        // Prune stale route entries from the route table.
-        self.route_table.retain(|_, by_neighbor| {
-            by_neighbor.retain(|_, entry| {
-                now.0.saturating_sub(entry.observed_at_tick.0) <= stale_after_ticks
-            });
-            !by_neighbor.is_empty()
-        });
+        self.route_table = transition.next_state.route_table;
+        self.selected_routes = transition.next_state.selected_routes;
+        self.best_next_hops = transition.next_state.best_next_hops;
+        self.feasibility_distances = transition.next_state.feasibility_distances;
+        self.latest_topology = Some(transition.latest_topology);
 
-        // Clear FD for destinations whose route table entries all expired.
-        // Absent FD = ∞: any finite-metric route for that destination is
-        // treated as feasible when new updates arrive.
-        {
-            let route_table = &self.route_table;
-            self.feasibility_distances
-                .retain(|dest, _| route_table.contains_key(dest));
-        }
-
-        // Rebuild selected_routes using the RFC 8966 feasibility condition.
-        // For each destination: prefer the feasible candidate with the lowest
-        // metric. If no feasible route exists, fall back to the best infeasible
-        // route (without updating FD) to preserve connectivity until the next
-        // seqno epoch from the originator restores feasibility.
-        let mut next_feasibility = self.feasibility_distances.clone();
-        let mut next_selected: BTreeMap<NodeId, SelectedBabelRoute> = BTreeMap::new();
-
-        for (dest, by_neighbor) in &self.route_table {
-            if *dest == self.local_node_id {
-                continue;
-            }
-            let candidates: Vec<(NodeId, RouteEntry)> = by_neighbor
-                .iter()
-                .filter(|(_, entry)| entry.metric < BABEL_INFINITY)
-                .map(|(n, e)| (*n, *e))
-                .collect();
-            if candidates.is_empty() {
-                continue;
-            }
-            let fd = self.feasibility_distances.get(dest);
-            let feasible_best = candidates
-                .iter()
-                .filter(|(_, entry)| route_is_feasible(entry, fd))
-                .min_by_key(|(_, entry)| entry.metric);
-
-            let (via_neighbor, entry, is_feasible) = if let Some((n, e)) = feasible_best {
-                (*n, *e, true)
-            } else {
-                // Infeasible fallback: use best-metric route without updating FD.
-                let (n, e) = candidates
-                    .iter()
-                    .min_by_key(|(_, entry)| entry.metric)
-                    .expect("candidates non-empty");
-                (*n, *e, false)
-            };
-
-            // Update FD only on feasible selections. Infeasible fallback
-            // selections leave FD at its prior value so that the periodic
-            // seqno increment can restore feasibility on the next epoch.
-            if is_feasible {
-                next_feasibility.insert(
-                    *dest,
-                    FeasibilityEntry {
-                        seqno: entry.seqno,
-                        metric: entry.metric,
-                    },
-                );
-            }
-
-            let transport_kind = topology
-                .value
-                .links
-                .get(&(self.local_node_id, via_neighbor))
-                .map(|link| link.endpoint.transport_kind.clone())
-                .unwrap_or_else(|| jacquard_core::TransportKind::Custom("unknown".into()));
-
-            next_selected.insert(
-                *dest,
-                SelectedBabelRoute {
-                    destination: *dest,
-                    via_neighbor,
-                    metric: entry.metric,
-                    seqno: entry.seqno,
-                    router_id: entry.router_id,
-                    tq: metric_to_ratio(entry.metric),
-                    degradation: metric_degradation(entry.metric),
-                    transport_kind,
-                    observed_at_tick: entry.observed_at_tick,
-                },
-            );
-        }
-
-        // Rebuild best_next_hops from selected_routes.
-        let next_best: BTreeMap<NodeId, BabelBestNextHop> = next_selected
-            .iter()
-            .map(|(dest, selected)| {
-                (
-                    *dest,
-                    BabelBestNextHop {
-                        destination: *dest,
-                        next_hop: selected.via_neighbor,
-                        metric: selected.metric,
-                        tq: selected.tq,
-                        degradation: selected.degradation,
-                        transport_kind: selected.transport_kind.clone(),
-                        updated_at_tick: selected.observed_at_tick,
-                        topology_epoch: topology.value.epoch,
-                        backend_route_id: self.backend_route_id_for(*dest, selected.via_neighbor),
-                    },
-                )
-            })
-            .collect();
-
-        let changed = self.selected_routes != next_selected || self.best_next_hops != next_best;
-
-        self.latest_topology = Some(topology.clone());
-        self.selected_routes = next_selected;
-        self.best_next_hops = next_best;
-        self.feasibility_distances = next_feasibility;
-
-        if changed {
-            RoutingTickChange::PrivateStateUpdated
-        } else {
-            RoutingTickChange::NoChange
-        }
+        transition.change
     }
 
     /// Ingest a received Babel update from `from_neighbor`.
@@ -253,120 +177,6 @@ impl<Transport, Effects> BabelEngine<Transport, Effects> {
             );
     }
 
-    pub(crate) fn candidate_for(
-        &self,
-        objective: &jacquard_core::RoutingObjective,
-        best: &BabelBestNextHop,
-    ) -> RouteCandidate {
-        // hop_count_hint: estimate hops from metric. Each hop adds ~256 (one
-        // perfect ETX hop), so metric/256 approximates hop count. Clamp to 1..=255.
-        let hop_estimate = u8::try_from(
-            (u32::from(best.metric) / 256)
-                .max(1)
-                .min(u32::from(u8::MAX)),
-        )
-        .unwrap_or(1);
-        RouteCandidate {
-            route_id: self.route_id_for(best.destination),
-            summary: RouteSummary {
-                engine: BABEL_ENGINE_ID,
-                protection: objective.target_protection,
-                connectivity: BABEL_CAPABILITIES.max_connectivity,
-                protocol_mix: vec![best.transport_kind.clone()],
-                hop_count_hint: Belief::certain(hop_estimate, best.updated_at_tick),
-                valid_for: TimeWindow::new(
-                    best.updated_at_tick,
-                    Tick(
-                        best.updated_at_tick
-                            .0
-                            .saturating_add(self.decay_window.stale_after_ticks),
-                    ),
-                )
-                .expect("valid Babel candidate window"),
-            },
-            estimate: jacquard_core::Estimate::certain(
-                RouteEstimate {
-                    estimated_protection: objective.target_protection,
-                    estimated_connectivity: BABEL_CAPABILITIES.max_connectivity,
-                    topology_epoch: best.topology_epoch,
-                    degradation: best.degradation,
-                },
-                best.updated_at_tick,
-            ),
-            backend_ref: BackendRouteRef {
-                engine: BABEL_ENGINE_ID,
-                backend_route_id: best.backend_route_id.clone(),
-            },
-        }
-    }
-
-    pub(crate) fn admission_for(
-        &self,
-        objective: &jacquard_core::RoutingObjective,
-        profile: &SelectedRoutingParameters,
-        candidate: &RouteCandidate,
-    ) -> RouteAdmission {
-        let decision = if profile.selected_connectivity.partition
-            > BABEL_CAPABILITIES.max_connectivity.partition
-            || profile.selected_connectivity.repair > BABEL_CAPABILITIES.max_connectivity.repair
-        {
-            AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::BackendUnavailable)
-        } else {
-            AdmissionDecision::Admissible
-        };
-        RouteAdmission {
-            backend_ref: candidate.backend_ref.clone(),
-            objective: objective.clone(),
-            profile: profile.clone(),
-            admission_check: RouteAdmissionCheck {
-                decision,
-                profile: babel_assumptions(),
-                productive_step_bound: Limit::Bounded(1),
-                total_step_bound: Limit::Bounded(1),
-                route_cost: RouteCost {
-                    message_count_max: Limit::Bounded(1),
-                    byte_count_max: Limit::Bounded(ByteCount(256)),
-                    hop_count: candidate.summary.hop_count_hint.value_or(1),
-                    repair_attempt_count_max: Limit::Bounded(0),
-                    hold_bytes_reserved: Limit::Bounded(ByteCount(0)),
-                    work_step_count_max: Limit::Bounded(1),
-                },
-            },
-            summary: candidate.summary.clone(),
-            witness: RouteWitness {
-                protection: ObjectiveVsDelivered {
-                    objective: objective.target_protection,
-                    delivered: objective.target_protection,
-                },
-                connectivity: ObjectiveVsDelivered {
-                    objective: objective.target_connectivity,
-                    delivered: BABEL_CAPABILITIES.max_connectivity,
-                },
-                admission_profile: babel_assumptions(),
-                topology_epoch: candidate.estimate.value.topology_epoch,
-                degradation: candidate.estimate.value.degradation,
-            },
-        }
-    }
-
-    pub(crate) fn route_id_for(&self, destination: NodeId) -> RouteId {
-        let mut bytes = [0_u8; 16];
-        bytes[..8].copy_from_slice(&self.local_node_id.0[..8]);
-        bytes[8..].copy_from_slice(&destination.0[..8]);
-        RouteId(bytes)
-    }
-
-    pub(crate) fn backend_route_id_for(
-        &self,
-        destination: NodeId,
-        next_hop: NodeId,
-    ) -> BackendRouteId {
-        let mut bytes = Vec::with_capacity(64);
-        bytes.extend_from_slice(&destination.0);
-        bytes.extend_from_slice(&next_hop.0);
-        BackendRouteId(bytes)
-    }
-
     pub(crate) fn endpoint_for_next_hop(
         &self,
         next_hop: NodeId,
@@ -376,6 +186,247 @@ impl<Transport, Effects> BabelEngine<Transport, Effects> {
             .and_then(|topology| topology.value.nodes.get(&next_hop))
             .and_then(|node| node.profile.endpoints.first().cloned())
             .ok_or(RouteSelectionError::NoCandidate.into())
+    }
+}
+
+pub(crate) fn candidate_for_snapshot(
+    snapshot: &BabelPlannerSnapshot,
+    objective: &jacquard_core::RoutingObjective,
+    best: &BabelBestNextHop,
+) -> RouteCandidate {
+    // hop_count_hint: estimate hops from metric. Each hop adds ~256 (one
+    // perfect ETX hop), so metric/256 approximates hop count. Clamp to 1..=255.
+    let hop_estimate = u8::try_from(
+        (u32::from(best.metric) / 256)
+            .max(1)
+            .min(u32::from(u8::MAX)),
+    )
+    .unwrap_or(1);
+    RouteCandidate {
+        route_id: route_id_for(snapshot.local_node_id, best.destination),
+        summary: RouteSummary {
+            engine: BABEL_ENGINE_ID,
+            protection: objective.target_protection,
+            connectivity: BABEL_CAPABILITIES.max_connectivity,
+            protocol_mix: vec![best.transport_kind.clone()],
+            hop_count_hint: Belief::certain(hop_estimate, best.updated_at_tick),
+            valid_for: TimeWindow::new(
+                best.updated_at_tick,
+                Tick(
+                    best.updated_at_tick
+                        .0
+                        .saturating_add(snapshot.stale_after_ticks),
+                ),
+            )
+            .expect("valid Babel candidate window"),
+        },
+        estimate: jacquard_core::Estimate::certain(
+            RouteEstimate {
+                estimated_protection: objective.target_protection,
+                estimated_connectivity: BABEL_CAPABILITIES.max_connectivity,
+                topology_epoch: best.topology_epoch,
+                degradation: best.degradation,
+            },
+            best.updated_at_tick,
+        ),
+        backend_ref: BackendRouteRef {
+            engine: BABEL_ENGINE_ID,
+            backend_route_id: best.backend_route_id.clone(),
+        },
+    }
+}
+
+pub(crate) fn admission_for_candidate(
+    objective: &jacquard_core::RoutingObjective,
+    profile: &SelectedRoutingParameters,
+    candidate: &RouteCandidate,
+) -> RouteAdmission {
+    let decision = if profile.selected_connectivity.partition
+        > BABEL_CAPABILITIES.max_connectivity.partition
+        || profile.selected_connectivity.repair > BABEL_CAPABILITIES.max_connectivity.repair
+    {
+        AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::BackendUnavailable)
+    } else {
+        AdmissionDecision::Admissible
+    };
+    RouteAdmission {
+        backend_ref: candidate.backend_ref.clone(),
+        objective: objective.clone(),
+        profile: profile.clone(),
+        admission_check: RouteAdmissionCheck {
+            decision,
+            profile: babel_assumptions(),
+            productive_step_bound: Limit::Bounded(1),
+            total_step_bound: Limit::Bounded(1),
+            route_cost: RouteCost {
+                message_count_max: Limit::Bounded(1),
+                byte_count_max: Limit::Bounded(ByteCount(256)),
+                hop_count: candidate.summary.hop_count_hint.value_or(1),
+                repair_attempt_count_max: Limit::Bounded(0),
+                hold_bytes_reserved: Limit::Bounded(ByteCount(0)),
+                work_step_count_max: Limit::Bounded(1),
+            },
+        },
+        summary: candidate.summary.clone(),
+        witness: RouteWitness {
+            protection: ObjectiveVsDelivered {
+                objective: objective.target_protection,
+                delivered: objective.target_protection,
+            },
+            connectivity: ObjectiveVsDelivered {
+                objective: objective.target_connectivity,
+                delivered: BABEL_CAPABILITIES.max_connectivity,
+            },
+            admission_profile: babel_assumptions(),
+            topology_epoch: candidate.estimate.value.topology_epoch,
+            degradation: candidate.estimate.value.degradation,
+        },
+    }
+}
+
+pub(crate) fn route_id_for(local_node_id: NodeId, destination: NodeId) -> RouteId {
+    let mut bytes = [0_u8; 16];
+    bytes[..8].copy_from_slice(&local_node_id.0[..8]);
+    bytes[8..].copy_from_slice(&destination.0[..8]);
+    RouteId(bytes)
+}
+
+pub(crate) fn backend_route_id_for(destination: NodeId, next_hop: NodeId) -> BackendRouteId {
+    let mut bytes = Vec::with_capacity(64);
+    bytes.extend_from_slice(&destination.0);
+    bytes.extend_from_slice(&next_hop.0);
+    BackendRouteId(bytes)
+}
+
+// long-block-exception: Babel round reduction mirrors the full table-update and
+// route-selection state machine in one fail-closed pass.
+pub(crate) fn reduce_round_state(
+    mut state: BabelRoundState,
+    input: &BabelRoundInput,
+) -> BabelRoundTransition {
+    let stale_after_ticks = input.decay_window.stale_after_ticks;
+
+    state.route_table.retain(|_, by_neighbor| {
+        by_neighbor.retain(|_, entry| {
+            input.now.0.saturating_sub(entry.observed_at_tick.0) <= stale_after_ticks
+        });
+        !by_neighbor.is_empty()
+    });
+
+    {
+        let route_table = &state.route_table;
+        state
+            .feasibility_distances
+            .retain(|dest, _| route_table.contains_key(dest));
+    }
+
+    let mut next_feasibility = state.feasibility_distances.clone();
+    let mut next_selected: BTreeMap<NodeId, SelectedBabelRoute> = BTreeMap::new();
+
+    for (dest, by_neighbor) in &state.route_table {
+        if *dest == input.local_node_id {
+            continue;
+        }
+        let candidates: Vec<(NodeId, RouteEntry)> = by_neighbor
+            .iter()
+            .filter(|(_, entry)| entry.metric < BABEL_INFINITY)
+            .map(|(n, e)| (*n, *e))
+            .collect();
+        if candidates.is_empty() {
+            continue;
+        }
+        let fd = state.feasibility_distances.get(dest);
+        let feasible_best = candidates
+            .iter()
+            .filter(|(_, entry)| route_is_feasible(entry, fd))
+            .min_by_key(|(_, entry)| entry.metric);
+
+        let (via_neighbor, entry, is_feasible) = if let Some((n, e)) = feasible_best {
+            (*n, *e, true)
+        } else {
+            let (n, e) = candidates
+                .iter()
+                .min_by_key(|(_, entry)| entry.metric)
+                .expect("candidates non-empty");
+            (*n, *e, false)
+        };
+
+        if is_feasible {
+            next_feasibility.insert(
+                *dest,
+                FeasibilityEntry {
+                    seqno: entry.seqno,
+                    metric: entry.metric,
+                },
+            );
+        }
+
+        let transport_kind = input
+            .topology
+            .value
+            .links
+            .get(&(input.local_node_id, via_neighbor))
+            .map(|link| link.endpoint.transport_kind.clone())
+            .unwrap_or_else(|| jacquard_core::TransportKind::Custom("unknown".into()));
+
+        next_selected.insert(
+            *dest,
+            SelectedBabelRoute {
+                destination: *dest,
+                via_neighbor,
+                metric: entry.metric,
+                seqno: entry.seqno,
+                router_id: entry.router_id,
+                tq: metric_to_ratio(entry.metric),
+                degradation: metric_degradation(entry.metric),
+                transport_kind,
+                observed_at_tick: entry.observed_at_tick,
+            },
+        );
+    }
+
+    let next_best: BTreeMap<NodeId, BabelBestNextHop> = next_selected
+        .iter()
+        .map(|(dest, selected)| {
+            (
+                *dest,
+                BabelBestNextHop {
+                    destination: *dest,
+                    next_hop: selected.via_neighbor,
+                    metric: selected.metric,
+                    tq: selected.tq,
+                    degradation: selected.degradation,
+                    transport_kind: selected.transport_kind.clone(),
+                    updated_at_tick: selected.observed_at_tick,
+                    topology_epoch: input.topology.value.epoch,
+                    backend_route_id: backend_route_id_for(*dest, selected.via_neighbor),
+                },
+            )
+        })
+        .collect();
+
+    let change = if state.selected_routes != next_selected || state.best_next_hops != next_best {
+        RoutingTickChange::PrivateStateUpdated
+    } else {
+        RoutingTickChange::NoChange
+    };
+
+    let planner_snapshot = BabelPlannerSnapshot {
+        local_node_id: input.local_node_id,
+        stale_after_ticks,
+        best_next_hops: next_best.clone(),
+    };
+
+    BabelRoundTransition {
+        next_state: BabelRoundState {
+            route_table: state.route_table,
+            selected_routes: next_selected,
+            best_next_hops: next_best,
+            feasibility_distances: next_feasibility,
+        },
+        planner_snapshot,
+        latest_topology: input.topology.clone(),
+        change,
     }
 }
 
@@ -568,6 +619,102 @@ mod tests {
 
         assert!(engine.route_table.is_empty());
         assert!(engine.best_next_hops.is_empty());
+    }
+
+    #[test]
+    fn planner_snapshot_tracks_route_choice_projection() {
+        let mut engine = BabelEngine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        let topology = sample_topology();
+        engine.ingest_update(
+            node(2),
+            &BabelUpdate {
+                destination: node(3),
+                router_id: node(3),
+                seqno: 1,
+                metric: 0,
+            },
+            &topology,
+            Tick(1),
+        );
+
+        engine.refresh_private_state(&topology, Tick(1));
+        let snapshot = engine.planner_snapshot();
+
+        assert_eq!(snapshot.local_node_id, node(1));
+        assert_eq!(
+            snapshot.stale_after_ticks,
+            DecayWindow::default().stale_after_ticks
+        );
+        assert_eq!(snapshot.best_next_hops.len(), 1);
+        assert_eq!(
+            snapshot
+                .best_next_hops
+                .get(&node(3))
+                .map(|hop| hop.next_hop),
+            Some(node(2))
+        );
+    }
+
+    #[test]
+    fn round_reducer_matches_wrapper_refresh_projection() {
+        let mut engine = BabelEngine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        let topology = sample_topology();
+        engine.ingest_update(
+            node(2),
+            &BabelUpdate {
+                destination: node(3),
+                router_id: node(3),
+                seqno: 1,
+                metric: 0,
+            },
+            &topology,
+            Tick(1),
+        );
+        let prior_state = BabelRoundState {
+            route_table: engine.route_table.clone(),
+            selected_routes: engine.selected_routes.clone(),
+            best_next_hops: engine.best_next_hops.clone(),
+            feasibility_distances: engine.feasibility_distances.clone(),
+        };
+
+        let reduced = reduce_round_state(
+            prior_state,
+            &BabelRoundInput {
+                topology: topology.clone(),
+                now: Tick(1),
+                local_node_id: node(1),
+                decay_window: DecayWindow::default(),
+            },
+        );
+        let wrapper_change = engine.refresh_private_state(&topology, Tick(1));
+
+        assert_eq!(wrapper_change, reduced.change);
+        assert_eq!(engine.route_table, reduced.next_state.route_table);
+        assert_eq!(engine.selected_routes, reduced.next_state.selected_routes);
+        assert_eq!(engine.best_next_hops, reduced.next_state.best_next_hops);
+        assert_eq!(
+            engine.feasibility_distances,
+            reduced.next_state.feasibility_distances
+        );
+        assert_eq!(
+            engine.latest_topology,
+            Some(reduced.latest_topology.clone())
+        );
+        assert_eq!(engine.planner_snapshot(), reduced.planner_snapshot);
     }
 
     #[test]

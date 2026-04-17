@@ -350,7 +350,6 @@ fn rust_lean_replay_fixture_vocabulary_stays_aligned_with_lean_surface() {
         "structure RustReplayRecoveryFixture",
         "bootstrapRouteArtifactCount",
         "bootstrapActive",
-        "lastBootstrapTransition",
         "lastPromotionDecision",
         "lastPromotionBlocker",
         "bootstrapHoldCount",

@@ -47,6 +47,7 @@ mod recovery;
 mod route;
 mod runtime;
 mod search;
+pub mod simulator;
 mod state;
 mod summary;
 

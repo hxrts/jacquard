@@ -13,7 +13,10 @@ use jacquard_core::{
 };
 use jacquard_traits::{RoutingEnginePlanner, TimeEffects, TransportSenderEffects};
 
-use crate::{BabelEngine, BABEL_CAPABILITIES, BABEL_ENGINE_ID};
+use crate::{
+    private_state::{admission_for_candidate, candidate_for_snapshot},
+    BabelEngine, BABEL_CAPABILITIES, BABEL_ENGINE_ID,
+};
 
 impl<Transport, Effects> RoutingEnginePlanner for BabelEngine<Transport, Effects>
 where
@@ -40,9 +43,11 @@ where
         if !destination_supports_objective(topology, destination, objective.service_kind) {
             return Vec::new();
         }
-        self.best_next_hops
+        let snapshot = self.planner_snapshot();
+        snapshot
+            .best_next_hops
             .get(&destination)
-            .map(|best| vec![self.candidate_for(objective, best)])
+            .map(|best| vec![candidate_for_snapshot(&snapshot, objective, best)])
             .unwrap_or_default()
     }
 
@@ -53,26 +58,8 @@ where
         candidate: &RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
-        let DestinationId::Node(destination) = objective.destination else {
-            return Err(RouteSelectionError::NoCandidate.into());
-        };
-        if !destination_supports_objective(topology, destination, objective.service_kind) {
-            return Err(RouteSelectionError::Inadmissible(
-                RouteAdmissionRejection::BackendUnavailable,
-            )
-            .into());
-        }
-        let Some(best) = self.best_next_hops.get(&destination) else {
-            return Err(RouteSelectionError::NoCandidate.into());
-        };
-        let expected = self.candidate_for(objective, best);
-        if expected.backend_ref != candidate.backend_ref {
-            return Err(RouteSelectionError::Inadmissible(
-                RouteAdmissionRejection::BackendUnavailable,
-            )
-            .into());
-        }
-        let admission = self.admission_for(objective, profile, &expected);
+        let admission =
+            self.current_candidate_admission(objective, profile, candidate, topology)?;
         if let AdmissionDecision::Rejected(reason) = admission.admission_check.decision {
             return Err(RouteSelectionError::Inadmissible(reason).into());
         }
@@ -86,6 +73,27 @@ where
         candidate: RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError> {
+        let admission =
+            self.current_candidate_admission(objective, profile, &candidate, topology)?;
+        if let AdmissionDecision::Rejected(reason) = admission.admission_check.decision {
+            return Err(RouteSelectionError::Inadmissible(reason).into());
+        }
+        Ok(admission)
+    }
+}
+
+impl<Transport, Effects> BabelEngine<Transport, Effects>
+where
+    Transport: TransportSenderEffects,
+    Effects: TimeEffects,
+{
+    fn current_candidate_admission(
+        &self,
+        objective: &jacquard_core::RoutingObjective,
+        profile: &SelectedRoutingParameters,
+        candidate: &RouteCandidate,
+        topology: &Observation<Configuration>,
+    ) -> Result<RouteAdmission, RouteError> {
         let DestinationId::Node(destination) = objective.destination else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
@@ -95,25 +103,23 @@ where
             )
             .into());
         }
-        let Some(best) = self.best_next_hops.get(&destination) else {
+        let snapshot = self.planner_snapshot();
+        let Some(best) = snapshot.best_next_hops.get(&destination) else {
             return Err(RouteSelectionError::NoCandidate.into());
         };
-        let expected = self.candidate_for(objective, best);
+        let expected = candidate_for_snapshot(&snapshot, objective, best);
         if expected.backend_ref != candidate.backend_ref {
             return Err(RouteSelectionError::Inadmissible(
                 RouteAdmissionRejection::BackendUnavailable,
             )
             .into());
         }
-        let admission = self.admission_for(objective, profile, &expected);
-        if let AdmissionDecision::Rejected(reason) = admission.admission_check.decision {
-            return Err(RouteSelectionError::Inadmissible(reason).into());
-        }
+        let admission = admission_for_candidate(objective, profile, &expected);
         Ok(admission)
     }
 }
 
-fn destination_supports_objective(
+pub(crate) fn destination_supports_objective(
     topology: &Observation<Configuration>,
     destination: jacquard_core::NodeId,
     service_kind: jacquard_core::RouteServiceKind,

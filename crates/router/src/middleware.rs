@@ -158,7 +158,10 @@ where
         for (route_id, record) in records {
             let engine_id = record.route.identity.admission.summary.engine.clone();
             let restored = match self.registered_engines.get_mut(&engine_id) {
-                Some(entry) => entry.engine.restore_route_runtime_for_router(&route_id)?,
+                Some(entry) => entry.engine.restore_route_runtime_with_record_for_router(
+                    &record.route,
+                    self.topology.as_ref(),
+                )?,
                 None => false,
             };
             if !restored {

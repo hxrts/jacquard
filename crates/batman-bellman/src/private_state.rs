@@ -3,6 +3,9 @@
 //! Refreshes per-originator observations from the latest topology, ranks
 //! neighbors by transmit quality and hop count, and derives the best next-hop
 //! table consumed by the planner and runtime modules.
+// long-file-exception: the BATMAN Bellman private-state module keeps the full
+// originator observation, ranking, and best-next-hop machinery co-located so
+// the branch-for-branch protocol mapping stays auditable.
 //!
 //! The main entry point is `refresh_private_state`, which runs on each engine
 //! tick and performs three passes:
@@ -20,7 +23,6 @@
 //! Also exposes helper methods used by the planner and runtime:
 //! `candidate_for`, `admission_for`, `route_id_for`, `backend_route_id_for`,
 //! and `is_stale`.
-
 use std::collections::BTreeMap;
 
 use jacquard_core::{
@@ -36,11 +38,38 @@ use jacquard_core::{
 use crate::{
     gossip::merge_advertisements,
     public_state::{
-        BestNextHop, NeighborRanking, OgmReceiveWindow, OriginatorObservation,
-        OriginatorObservationTable,
+        BatmanBellmanPlannerSnapshot, BestNextHop, NeighborRanking, OgmReceiveWindow,
+        OriginatorObservation, OriginatorObservationTable,
     },
-    scoring, BatmanBellmanEngine, BATMAN_BELLMAN_CAPABILITIES, BATMAN_BELLMAN_ENGINE_ID,
+    scoring, BatmanBellmanEngine, DecayWindow, BATMAN_BELLMAN_CAPABILITIES,
+    BATMAN_BELLMAN_ENGINE_ID,
 };
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BatmanBellmanRoundState {
+    pub learned_advertisements: BTreeMap<NodeId, crate::gossip::LearnedAdvertisement>,
+    pub originator_receive_windows: BTreeMap<NodeId, BTreeMap<NodeId, OgmReceiveWindow>>,
+    pub bidirectional_receive_windows: BTreeMap<NodeId, OgmReceiveWindow>,
+    pub originator_observations: OriginatorObservationTable,
+    pub neighbor_rankings: BTreeMap<NodeId, NeighborRanking>,
+    pub best_next_hops: BTreeMap<NodeId, BestNextHop>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BatmanBellmanRoundInput {
+    pub topology: Observation<Configuration>,
+    pub now: Tick,
+    pub local_node_id: NodeId,
+    pub decay_window: DecayWindow,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BatmanBellmanRoundTransition {
+    pub next_state: BatmanBellmanRoundState,
+    pub planner_snapshot: BatmanBellmanPlannerSnapshot,
+    pub latest_topology: Observation<Configuration>,
+    pub change: RoutingTickChange,
+}
 
 impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
     fn direct_neighbor_observations(
@@ -120,88 +149,33 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
         topology: &Observation<Configuration>,
         now: Tick,
     ) -> RoutingTickChange {
-        let stale_after_ticks = self.decay_window.stale_after_ticks;
-        let window_span = self.window_span();
-        self.learned_advertisements.retain(|_, learned| {
-            now.0.saturating_sub(learned.observed_at_tick.0) <= stale_after_ticks
-        });
-        prune_receive_windows(
-            &mut self.originator_receive_windows,
-            now,
-            stale_after_ticks,
-            window_span,
+        let prior_state = BatmanBellmanRoundState {
+            learned_advertisements: std::mem::take(&mut self.learned_advertisements),
+            originator_receive_windows: std::mem::take(&mut self.originator_receive_windows),
+            bidirectional_receive_windows: std::mem::take(&mut self.bidirectional_receive_windows),
+            originator_observations: std::mem::take(&mut self.originator_observations),
+            neighbor_rankings: std::mem::take(&mut self.neighbor_rankings),
+            best_next_hops: std::mem::take(&mut self.best_next_hops),
+        };
+        let transition = reduce_round_state(
+            prior_state,
+            &BatmanBellmanRoundInput {
+                topology: topology.clone(),
+                now,
+                local_node_id: self.local_node_id,
+                decay_window: self.decay_window,
+            },
         );
-        self.bidirectional_receive_windows.retain(|_, window| {
-            window.prune(now, stale_after_ticks, window_span);
-            window.is_live()
-        });
-        let merged_topology = merge_advertisements(
-            topology,
-            &self.learned_advertisements,
-            now,
-            stale_after_ticks,
-        );
-        let next_observations = self.derive_originator_observations(&merged_topology, now);
-        let next_rankings = next_observations
-            .iter()
-            .map(|(originator, observations)| {
-                let mut ranked = observations.values().cloned().collect::<Vec<_>>();
-                ranked.sort_by(|left, right| {
-                    right
-                        .receive_quality
-                        .cmp(&left.receive_quality)
-                        .then_with(|| right.tq.cmp(&left.tq))
-                        .then_with(|| right.is_bidirectional.cmp(&left.is_bidirectional))
-                        .then_with(|| right.observed_at_tick.cmp(&left.observed_at_tick))
-                        .then_with(|| left.hop_count.cmp(&right.hop_count))
-                        .then_with(|| left.via_neighbor.cmp(&right.via_neighbor))
-                });
-                (
-                    *originator,
-                    NeighborRanking {
-                        originator: *originator,
-                        ranked_neighbors: ranked,
-                    },
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let next_best = next_rankings
-            .iter()
-            .filter_map(|(originator, ranking)| {
-                ranking.ranked_neighbors.first().map(|best| {
-                    (
-                        *originator,
-                        BestNextHop {
-                            originator: *originator,
-                            next_hop: best.via_neighbor,
-                            tq: best.tq,
-                            receive_quality: best.receive_quality,
-                            hop_count: best.hop_count,
-                            updated_at_tick: best.observed_at_tick,
-                            transport_kind: best.transport_kind.clone(),
-                            degradation: best.degradation,
-                            backend_route_id: self
-                                .backend_route_id_for(*originator, best.via_neighbor),
-                            topology_epoch: merged_topology.value.epoch,
-                            is_bidirectional: best.is_bidirectional,
-                        },
-                    )
-                })
-            })
-            .collect::<BTreeMap<_, _>>();
 
-        let changed = self.originator_observations != next_observations
-            || self.neighbor_rankings != next_rankings
-            || self.best_next_hops != next_best;
-        self.latest_topology = Some(merged_topology);
-        self.originator_observations = next_observations;
-        self.neighbor_rankings = next_rankings;
-        self.best_next_hops = next_best;
-        if changed {
-            RoutingTickChange::PrivateStateUpdated
-        } else {
-            RoutingTickChange::NoChange
-        }
+        self.learned_advertisements = transition.next_state.learned_advertisements;
+        self.originator_receive_windows = transition.next_state.originator_receive_windows;
+        self.bidirectional_receive_windows = transition.next_state.bidirectional_receive_windows;
+        self.originator_observations = transition.next_state.originator_observations;
+        self.neighbor_rankings = transition.next_state.neighbor_rankings;
+        self.best_next_hops = transition.next_state.best_next_hops;
+        self.latest_topology = Some(transition.latest_topology);
+
+        transition.change
     }
 
     fn derive_originator_observations(
@@ -347,113 +321,6 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
         best.get(&destination).copied()
     }
 
-    pub(crate) fn candidate_for(
-        &self,
-        objective: &jacquard_core::RoutingObjective,
-        best: &BestNextHop,
-    ) -> RouteCandidate {
-        RouteCandidate {
-            route_id: self.route_id_for(best.originator),
-            summary: RouteSummary {
-                engine: BATMAN_BELLMAN_ENGINE_ID,
-                protection: objective.target_protection,
-                connectivity: BATMAN_BELLMAN_CAPABILITIES.max_connectivity,
-                protocol_mix: vec![best.transport_kind.clone()],
-                hop_count_hint: Belief::certain(best.hop_count, best.updated_at_tick),
-                valid_for: TimeWindow::new(
-                    best.updated_at_tick,
-                    Tick(
-                        best.updated_at_tick
-                            .0
-                            .saturating_add(self.decay_window.stale_after_ticks),
-                    ),
-                )
-                .expect("valid BATMAN candidate window"),
-            },
-            estimate: jacquard_core::Estimate::certain(
-                RouteEstimate {
-                    estimated_protection: objective.target_protection,
-                    estimated_connectivity: BATMAN_BELLMAN_CAPABILITIES.max_connectivity,
-                    topology_epoch: best.topology_epoch,
-                    degradation: best.degradation,
-                },
-                best.updated_at_tick,
-            ),
-            backend_ref: BackendRouteRef {
-                engine: BATMAN_BELLMAN_ENGINE_ID,
-                backend_route_id: best.backend_route_id.clone(),
-            },
-        }
-    }
-
-    pub(crate) fn admission_for(
-        &self,
-        objective: &jacquard_core::RoutingObjective,
-        profile: &SelectedRoutingParameters,
-        candidate: &RouteCandidate,
-    ) -> RouteAdmission {
-        let decision = if profile.selected_connectivity.partition
-            > BATMAN_BELLMAN_CAPABILITIES.max_connectivity.partition
-            || profile.selected_connectivity.repair
-                > BATMAN_BELLMAN_CAPABILITIES.max_connectivity.repair
-        {
-            AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::BackendUnavailable)
-        } else {
-            AdmissionDecision::Admissible
-        };
-        RouteAdmission {
-            backend_ref: candidate.backend_ref.clone(),
-            objective: objective.clone(),
-            profile: profile.clone(),
-            admission_check: RouteAdmissionCheck {
-                decision,
-                profile: batman_assumptions(),
-                productive_step_bound: Limit::Bounded(1),
-                total_step_bound: Limit::Bounded(1),
-                route_cost: RouteCost {
-                    message_count_max: Limit::Bounded(1),
-                    byte_count_max: Limit::Bounded(ByteCount(256)),
-                    hop_count: candidate.summary.hop_count_hint.value_or(1),
-                    repair_attempt_count_max: Limit::Bounded(0),
-                    hold_bytes_reserved: Limit::Bounded(ByteCount(0)),
-                    work_step_count_max: Limit::Bounded(1),
-                },
-            },
-            summary: candidate.summary.clone(),
-            witness: RouteWitness {
-                protection: ObjectiveVsDelivered {
-                    objective: objective.target_protection,
-                    delivered: objective.target_protection,
-                },
-                connectivity: ObjectiveVsDelivered {
-                    objective: objective.target_connectivity,
-                    delivered: BATMAN_BELLMAN_CAPABILITIES.max_connectivity,
-                },
-                admission_profile: batman_assumptions(),
-                topology_epoch: candidate.estimate.value.topology_epoch,
-                degradation: candidate.estimate.value.degradation,
-            },
-        }
-    }
-
-    pub(crate) fn route_id_for(&self, destination: NodeId) -> RouteId {
-        let mut bytes = [0_u8; 16];
-        bytes[..8].copy_from_slice(&self.local_node_id.0[..8]);
-        bytes[8..].copy_from_slice(&destination.0[..8]);
-        RouteId(bytes)
-    }
-
-    pub(crate) fn backend_route_id_for(
-        &self,
-        destination: NodeId,
-        next_hop: NodeId,
-    ) -> BackendRouteId {
-        let mut bytes = Vec::with_capacity(64);
-        bytes.extend_from_slice(&destination.0);
-        bytes.extend_from_slice(&next_hop.0);
-        BackendRouteId(bytes)
-    }
-
     pub(crate) fn endpoint_for_next_hop(
         &self,
         next_hop: NodeId,
@@ -463,6 +330,231 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
             .and_then(|topology| topology.value.nodes.get(&next_hop))
             .and_then(|node| node.profile.endpoints.first().cloned())
             .ok_or(RouteSelectionError::NoCandidate.into())
+    }
+}
+
+pub(crate) fn candidate_for_snapshot(
+    snapshot: &BatmanBellmanPlannerSnapshot,
+    objective: &jacquard_core::RoutingObjective,
+    best: &BestNextHop,
+) -> RouteCandidate {
+    RouteCandidate {
+        route_id: route_id_for(snapshot.local_node_id, best.originator),
+        summary: RouteSummary {
+            engine: BATMAN_BELLMAN_ENGINE_ID,
+            protection: objective.target_protection,
+            connectivity: BATMAN_BELLMAN_CAPABILITIES.max_connectivity,
+            protocol_mix: vec![best.transport_kind.clone()],
+            hop_count_hint: Belief::certain(best.hop_count, best.updated_at_tick),
+            valid_for: TimeWindow::new(
+                best.updated_at_tick,
+                Tick(
+                    best.updated_at_tick
+                        .0
+                        .saturating_add(snapshot.stale_after_ticks),
+                ),
+            )
+            .expect("valid BATMAN candidate window"),
+        },
+        estimate: jacquard_core::Estimate::certain(
+            RouteEstimate {
+                estimated_protection: objective.target_protection,
+                estimated_connectivity: BATMAN_BELLMAN_CAPABILITIES.max_connectivity,
+                topology_epoch: best.topology_epoch,
+                degradation: best.degradation,
+            },
+            best.updated_at_tick,
+        ),
+        backend_ref: BackendRouteRef {
+            engine: BATMAN_BELLMAN_ENGINE_ID,
+            backend_route_id: best.backend_route_id.clone(),
+        },
+    }
+}
+
+pub(crate) fn admission_for_candidate(
+    objective: &jacquard_core::RoutingObjective,
+    profile: &SelectedRoutingParameters,
+    candidate: &RouteCandidate,
+) -> RouteAdmission {
+    let decision = if profile.selected_connectivity.partition
+        > BATMAN_BELLMAN_CAPABILITIES.max_connectivity.partition
+        || profile.selected_connectivity.repair
+            > BATMAN_BELLMAN_CAPABILITIES.max_connectivity.repair
+    {
+        AdmissionDecision::Rejected(jacquard_core::RouteAdmissionRejection::BackendUnavailable)
+    } else {
+        AdmissionDecision::Admissible
+    };
+    RouteAdmission {
+        backend_ref: candidate.backend_ref.clone(),
+        objective: objective.clone(),
+        profile: profile.clone(),
+        admission_check: RouteAdmissionCheck {
+            decision,
+            profile: batman_assumptions(),
+            productive_step_bound: Limit::Bounded(1),
+            total_step_bound: Limit::Bounded(1),
+            route_cost: RouteCost {
+                message_count_max: Limit::Bounded(1),
+                byte_count_max: Limit::Bounded(ByteCount(256)),
+                hop_count: candidate.summary.hop_count_hint.value_or(1),
+                repair_attempt_count_max: Limit::Bounded(0),
+                hold_bytes_reserved: Limit::Bounded(ByteCount(0)),
+                work_step_count_max: Limit::Bounded(1),
+            },
+        },
+        summary: candidate.summary.clone(),
+        witness: RouteWitness {
+            protection: ObjectiveVsDelivered {
+                objective: objective.target_protection,
+                delivered: objective.target_protection,
+            },
+            connectivity: ObjectiveVsDelivered {
+                objective: objective.target_connectivity,
+                delivered: BATMAN_BELLMAN_CAPABILITIES.max_connectivity,
+            },
+            admission_profile: batman_assumptions(),
+            topology_epoch: candidate.estimate.value.topology_epoch,
+            degradation: candidate.estimate.value.degradation,
+        },
+    }
+}
+
+pub(crate) fn route_id_for(local_node_id: NodeId, destination: NodeId) -> RouteId {
+    let mut bytes = [0_u8; 16];
+    bytes[..8].copy_from_slice(&local_node_id.0[..8]);
+    bytes[8..].copy_from_slice(&destination.0[..8]);
+    RouteId(bytes)
+}
+
+pub(crate) fn backend_route_id_for(destination: NodeId, next_hop: NodeId) -> BackendRouteId {
+    let mut bytes = Vec::with_capacity(64);
+    bytes.extend_from_slice(&destination.0);
+    bytes.extend_from_slice(&next_hop.0);
+    BackendRouteId(bytes)
+}
+
+pub(crate) fn reduce_round_state(
+    state: BatmanBellmanRoundState,
+    input: &BatmanBellmanRoundInput,
+) -> BatmanBellmanRoundTransition {
+    let mut engine = BatmanBellmanEngine {
+        local_node_id: input.local_node_id,
+        transport: (),
+        effects: (),
+        latest_topology: None,
+        decay_window: input.decay_window,
+        learned_advertisements: state.learned_advertisements,
+        originator_receive_windows: state.originator_receive_windows,
+        bidirectional_receive_windows: state.bidirectional_receive_windows,
+        originator_observations: state.originator_observations,
+        neighbor_rankings: state.neighbor_rankings,
+        best_next_hops: state.best_next_hops,
+        active_routes: BTreeMap::new(),
+    };
+    compute_round_transition(&mut engine, &input.topology, input.now)
+}
+
+// long-block-exception: the BATMAN refresh reducer keeps the ranking and
+// best-next-hop derivation together so the state transition remains auditable.
+fn compute_round_transition(
+    engine: &mut BatmanBellmanEngine<(), ()>,
+    topology: &Observation<Configuration>,
+    now: Tick,
+) -> BatmanBellmanRoundTransition {
+    let stale_after_ticks = engine.decay_window.stale_after_ticks;
+    let window_span = engine.window_span();
+    engine
+        .learned_advertisements
+        .retain(|_, learned| now.0.saturating_sub(learned.observed_at_tick.0) <= stale_after_ticks);
+    prune_receive_windows(
+        &mut engine.originator_receive_windows,
+        now,
+        stale_after_ticks,
+        window_span,
+    );
+    engine.bidirectional_receive_windows.retain(|_, window| {
+        window.prune(now, stale_after_ticks, window_span);
+        window.is_live()
+    });
+    let merged_topology = merge_advertisements(
+        topology,
+        &engine.learned_advertisements,
+        now,
+        stale_after_ticks,
+    );
+    let next_observations = engine.derive_originator_observations(&merged_topology, now);
+    let next_rankings = next_observations
+        .iter()
+        .map(|(originator, observations)| {
+            let mut ranked = observations.values().cloned().collect::<Vec<_>>();
+            ranked.sort_by(|left, right| {
+                right
+                    .receive_quality
+                    .cmp(&left.receive_quality)
+                    .then_with(|| right.tq.cmp(&left.tq))
+                    .then_with(|| right.is_bidirectional.cmp(&left.is_bidirectional))
+                    .then_with(|| right.observed_at_tick.cmp(&left.observed_at_tick))
+                    .then_with(|| left.hop_count.cmp(&right.hop_count))
+                    .then_with(|| left.via_neighbor.cmp(&right.via_neighbor))
+            });
+            (
+                *originator,
+                NeighborRanking {
+                    originator: *originator,
+                    ranked_neighbors: ranked,
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let next_best = next_rankings
+        .iter()
+        .filter_map(|(originator, ranking)| {
+            ranking.ranked_neighbors.first().map(|best| {
+                (
+                    *originator,
+                    BestNextHop {
+                        originator: *originator,
+                        next_hop: best.via_neighbor,
+                        tq: best.tq,
+                        receive_quality: best.receive_quality,
+                        hop_count: best.hop_count,
+                        updated_at_tick: best.observed_at_tick,
+                        transport_kind: best.transport_kind.clone(),
+                        degradation: best.degradation,
+                        backend_route_id: backend_route_id_for(*originator, best.via_neighbor),
+                        topology_epoch: merged_topology.value.epoch,
+                        is_bidirectional: best.is_bidirectional,
+                    },
+                )
+            })
+        })
+        .collect::<BTreeMap<_, _>>();
+    let changed = engine.originator_observations != next_observations
+        || engine.neighbor_rankings != next_rankings
+        || engine.best_next_hops != next_best;
+    let next_state = BatmanBellmanRoundState {
+        learned_advertisements: engine.learned_advertisements.clone(),
+        originator_receive_windows: engine.originator_receive_windows.clone(),
+        bidirectional_receive_windows: engine.bidirectional_receive_windows.clone(),
+        originator_observations: next_observations.clone(),
+        neighbor_rankings: next_rankings.clone(),
+        best_next_hops: next_best.clone(),
+    };
+    BatmanBellmanRoundTransition {
+        planner_snapshot: BatmanBellmanPlannerSnapshot {
+            local_node_id: engine.local_node_id,
+            stale_after_ticks: engine.decay_window.stale_after_ticks,
+            best_next_hops: next_best,
+        },
+        latest_topology: merged_topology,
+        next_state,
+        change: if changed {
+            RoutingTickChange::PrivateStateUpdated
+        } else {
+            RoutingTickChange::NoChange
+        },
     }
 }
 
@@ -642,6 +734,19 @@ mod tests {
         }
     }
 
+    fn engine_round_state(
+        engine: &BatmanBellmanEngine<InMemoryTransport, InMemoryRuntimeEffects>,
+    ) -> BatmanBellmanRoundState {
+        BatmanBellmanRoundState {
+            learned_advertisements: engine.learned_advertisements.clone(),
+            originator_receive_windows: engine.originator_receive_windows.clone(),
+            bidirectional_receive_windows: engine.bidirectional_receive_windows.clone(),
+            originator_observations: engine.originator_observations.clone(),
+            neighbor_rankings: engine.neighbor_rankings.clone(),
+            best_next_hops: engine.best_next_hops.clone(),
+        }
+    }
+
     #[test]
     fn ranking_table_prefers_higher_tq_neighbor() {
         let mut engine = BatmanBellmanEngine::new(
@@ -660,6 +765,64 @@ mod tests {
 
         assert_eq!(outcome.change, RoutingTickChange::PrivateStateUpdated);
         assert_eq!(engine.best_next_hops[&node(4)].next_hop, node(2));
+    }
+
+    #[test]
+    fn planner_snapshot_tracks_route_choice_projection() {
+        let mut engine = BatmanBellmanEngine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        let topology = sample_topology();
+
+        engine.refresh_private_state(&topology, Tick(1));
+        let snapshot = engine.planner_snapshot();
+
+        assert_eq!(snapshot.local_node_id, node(1));
+        assert_eq!(
+            snapshot.stale_after_ticks,
+            engine.decay_window.stale_after_ticks
+        );
+        assert_eq!(
+            snapshot
+                .best_next_hops
+                .get(&node(4))
+                .map(|best| best.next_hop),
+            Some(node(2))
+        );
+    }
+
+    #[test]
+    fn round_reducer_matches_wrapper_refresh_projection() {
+        let mut engine = BatmanBellmanEngine::new(
+            node(1),
+            InMemoryTransport::new(),
+            InMemoryRuntimeEffects {
+                now: Tick(1),
+                ..Default::default()
+            },
+        );
+        let topology = sample_topology();
+        let reduced = reduce_round_state(
+            engine_round_state(&engine),
+            &BatmanBellmanRoundInput {
+                topology: topology.clone(),
+                now: Tick(1),
+                local_node_id: node(1),
+                decay_window: engine.decay_window,
+            },
+        );
+
+        let wrapper_change = engine.refresh_private_state(&topology, Tick(1));
+
+        assert_eq!(wrapper_change, reduced.change);
+        assert_eq!(engine_round_state(&engine), reduced.next_state);
+        assert_eq!(engine.planner_snapshot(), reduced.planner_snapshot);
+        assert_eq!(engine.latest_topology, Some(reduced.latest_topology));
     }
 
     #[test]

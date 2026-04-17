@@ -1,7 +1,6 @@
 #![allow(clippy::wildcard_imports)]
 // long-file-exception: runtime route materialization, maintenance evaluation,
-// and transition application are still one cohesive runtime surface pending the
-// next routing/runtime split pass.
+// and transition application remain one fail-closed runtime surface.
 
 use super::*;
 
@@ -33,9 +32,30 @@ struct TransitionEvaluation {
 
 #[derive(Clone, Debug)]
 struct AppliedTransition {
+    next_active_route: ActiveFieldRoute,
     previous_posture: crate::state::RoutingPosture,
     pending_coordination_shift: Option<NodeId>,
     maintenance_outcome: RouteMaintenanceOutcome,
+    policy_events: Vec<FieldPolicyEvent>,
+}
+
+#[derive(Clone, Debug)]
+struct MaintenanceProjection {
+    next_active_route: ActiveFieldRoute,
+    pending_coordination_shift: Option<NodeId>,
+    apply_coordination_shift: bool,
+    commit_projection: bool,
+    event: RouteLifecycleEvent,
+    maintenance_outcome: RouteMaintenanceOutcome,
+    policy_events: Vec<FieldPolicyEvent>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MaintenanceContext {
+    trigger: RouteMaintenanceTrigger,
+    now_tick: Tick,
+    current_posture: crate::state::RoutingPosture,
+    current_congestion_price: u16,
 }
 
 impl<Transport, Effects> RoutingEngine for FieldEngine<Transport, Effects>
@@ -235,281 +255,22 @@ where
                 outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
             });
         };
-        let service_bias = prepared.destination_context.service_bias();
-        let discovery_node_route = prepared.destination_context.discovery_node_route();
-
         runtime.health = route_health_for(
             &prepared.destination_state.corridor_belief,
             self.state.last_tick_processed,
         );
         runtime.progress.last_progress_at_tick = self.state.last_tick_processed;
-        let evaluation = evaluate_transition(
-            identity.route_id(),
-            &prepared,
-            self.state.last_tick_processed,
-        );
-
-        if self.state.controller.congestion_price.value()
-            >= self
-                .policy()
-                .continuity
-                .runtime
-                .retention_biased_hold_congestion_price_floor_permille
-            && self.state.posture.current == crate::state::RoutingPosture::RetentionBiased
-        {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::EnteredPartitionMode,
-                outcome: RouteMaintenanceOutcome::HoldFallback {
-                    trigger: RouteMaintenanceTrigger::CapacityExceeded,
-                    retained_object_count: jacquard_core::HoldItemCount(1),
-                },
-            });
-        }
-        let transition =
-            self.apply_transition(identity.route_id(), &prepared, &evaluation, trigger)?;
-        if matches!(
-            transition.maintenance_outcome,
-            RouteMaintenanceOutcome::ReplacementRequired { .. }
-        ) {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Replaced,
-                outcome: transition.maintenance_outcome,
-            });
-        }
-        let mut maintenance_outcome = transition.maintenance_outcome;
-
-        let degraded_continuity = matches!(
-            evaluation.effective_continuity_band,
-            FieldContinuityBand::DegradedSteady | FieldContinuityBand::Bootstrap
-        ) && evaluation
-            .promotion_assessment
-            .degraded_but_coherent(&prepared.destination_state);
-        let post_shift_grace = self
-            .active_routes
-            .get(identity.route_id())
-            .is_some_and(|active| {
-                continuation_shift_grace_active(active, &evaluation.promotion_assessment)
-            });
-        let failure_support_floor = maintenance_failure_support_floor(
-            &prepared.policy.continuity.runtime,
-            prepared.current_bootstrap_class,
-            evaluation.effective_continuity_band,
-            degraded_continuity,
-            service_bias,
-            discovery_node_route,
-            post_shift_grace,
-        );
-
-        if prepared.corridor_support < failure_support_floor {
-            if degraded_continuity {
-                if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
-                    if active.continuity_band == FieldContinuityBand::DegradedSteady {
-                        active.continuity_band = FieldContinuityBand::DegradedSteady;
-                        active.witness_detail.continuity_band = FieldContinuityBand::DegradedSteady;
-                        active.recovery.note_corridor_narrowed();
-                    } else {
-                        active
-                            .recovery
-                            .note_bootstrap_narrowed(FieldPromotionBlocker::SupportTrend);
-                    }
-                }
-                self.record_policy_event(route_policy_event(
-                    identity.route_id(),
-                    &prepared.destination_context.destination,
-                    FieldPolicyGate::CarryForward,
-                    FieldPolicyReason::EmittedByEvidenceGate,
-                    self.state.last_tick_processed,
-                ));
-                return Ok(RouteMaintenanceResult {
-                    event: RouteLifecycleEvent::Activated,
-                    outcome: RouteMaintenanceOutcome::HoldFallback {
-                        trigger,
-                        retained_object_count: jacquard_core::HoldItemCount(1),
-                    },
-                });
-            }
-            if post_shift_grace {
-                if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
-                    active.recovery.note_continuation_retained();
-                }
-                self.record_policy_event(route_policy_event(
-                    identity.route_id(),
-                    &prepared.destination_context.destination,
-                    FieldPolicyGate::CarryForward,
-                    FieldPolicyReason::EmittedByEvidenceGate,
-                    self.state.last_tick_processed,
-                ));
-                return Ok(RouteMaintenanceResult {
-                    event: RouteLifecycleEvent::Activated,
-                    outcome: RouteMaintenanceOutcome::HoldFallback {
-                        trigger,
-                        retained_object_count: jacquard_core::HoldItemCount(1),
-                    },
-                });
-            }
-            if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
-                if active.bootstrap_class == FieldBootstrapClass::Bootstrap
-                    && active.recovery.state.last_bootstrap_transition
-                        != Some(crate::FieldBootstrapTransition::Withdrawn)
-                {
-                    active
-                        .recovery
-                        .note_bootstrap_withdrawn(FieldPromotionBlocker::SupportTrend);
-                }
-            }
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Expired,
-                outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::CapacityExceeded),
-            });
-        }
-
-        if self.state.controller.congestion_price.value()
-            >= self
-                .policy()
-                .continuity
-                .runtime
-                .retention_biased_hold_congestion_price_floor_permille
-        {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Replaced,
-                outcome: RouteMaintenanceOutcome::ReplacementRequired {
-                    trigger: RouteMaintenanceTrigger::CapacityExceeded,
-                },
-            });
-        }
-
-        if self.state.posture.current != transition.previous_posture
-            && self.state.posture.current == crate::state::RoutingPosture::RiskSuppressed
-        {
-            return Ok(RouteMaintenanceResult {
-                event: RouteLifecycleEvent::Replaced,
-                outcome: RouteMaintenanceOutcome::ReplacementRequired {
-                    trigger: RouteMaintenanceTrigger::PolicyShift,
-                },
-            });
-        }
-
-        if let Some(new_neighbor) = transition.pending_coordination_shift {
-            self.reconfigure_route_protocol_session(
-                identity.route_id(),
-                new_neighbor,
-                FieldProtocolReconfigurationCause::ContinuationShift,
-                self.state.last_tick_processed,
-            )?;
-        }
-
-        let is_stale = self
-            .state
-            .last_tick_processed
-            .0
-            .saturating_sub(prepared.best.freshness.0)
-            > maintenance_stale_ticks_max(
-                &prepared.policy.continuity.runtime,
-                prepared.current_bootstrap_class,
-                evaluation.effective_continuity_band,
-                degraded_continuity,
-                service_bias,
-                discovery_node_route,
-                post_shift_grace,
-            );
-        if is_stale {
-            if prepared.corridor_support
-                < weak_support_hold_floor(&prepared.policy.continuity.runtime, discovery_node_route)
-            {
-                if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
-                    if active.bootstrap_class == FieldBootstrapClass::Bootstrap
-                        || active.continuity_band == FieldContinuityBand::DegradedSteady
-                    {
-                        if degraded_continuity {
-                            active
-                                .recovery
-                                .note_bootstrap_narrowed(FieldPromotionBlocker::Freshness);
-                            active.recovery.note_corridor_narrowed();
-                        } else {
-                            if active.recovery.state.last_bootstrap_transition
-                                != Some(crate::FieldBootstrapTransition::Withdrawn)
-                            {
-                                active
-                                    .recovery
-                                    .note_bootstrap_withdrawn(FieldPromotionBlocker::Freshness);
-                            }
-                        }
-                    }
-                }
-                if degraded_continuity {
-                    self.record_policy_event(route_policy_event(
-                        identity.route_id(),
-                        &prepared.destination_context.destination,
-                        FieldPolicyGate::CarryForward,
-                        FieldPolicyReason::EmittedByEvidenceGate,
-                        self.state.last_tick_processed,
-                    ));
-                    maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
-                        trigger: RouteMaintenanceTrigger::AntiEntropyRequired,
-                        retained_object_count: jacquard_core::HoldItemCount(1),
-                    };
-                } else if post_shift_grace {
-                    self.record_policy_event(route_policy_event(
-                        identity.route_id(),
-                        &prepared.destination_context.destination,
-                        FieldPolicyGate::CarryForward,
-                        FieldPolicyReason::EmittedByEvidenceGate,
-                        self.state.last_tick_processed,
-                    ));
-                    maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
-                        trigger,
-                        retained_object_count: jacquard_core::HoldItemCount(1),
-                    };
-                } else {
-                    return Ok(RouteMaintenanceResult {
-                        event: RouteLifecycleEvent::Activated,
-                        outcome: RouteMaintenanceOutcome::ReplacementRequired {
-                            trigger: RouteMaintenanceTrigger::AntiEntropyRequired,
-                        },
-                    });
-                }
-            }
-            if maintenance_outcome == RouteMaintenanceOutcome::Continued {
-                self.record_policy_event(route_policy_event(
-                    identity.route_id(),
-                    &prepared.destination_context.destination,
-                    FieldPolicyGate::CarryForward,
-                    FieldPolicyReason::EmittedByEvidenceGate,
-                    self.state.last_tick_processed,
-                ));
-                maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
-                    trigger: RouteMaintenanceTrigger::AntiEntropyRequired,
-                    retained_object_count: jacquard_core::HoldItemCount(1),
-                };
-            }
-        }
-
+        let context = MaintenanceContext {
+            trigger,
+            now_tick: self.state.last_tick_processed,
+            current_posture: self.state.posture.current,
+            current_congestion_price: self.state.controller.congestion_price.value(),
+        };
+        let projection = reduce_maintenance_projection(identity.route_id(), &prepared, context);
+        self.apply_maintenance_projection(identity.route_id(), &projection)?;
         Ok(RouteMaintenanceResult {
-            event: RouteLifecycleEvent::Activated,
-            outcome: if prepared.corridor_support
-                < weak_support_hold_floor(&prepared.policy.continuity.runtime, discovery_node_route)
-            {
-                if let Some(active) = self.active_routes.get_mut(identity.route_id()) {
-                    if active.bootstrap_class == FieldBootstrapClass::Bootstrap {
-                        active
-                            .recovery
-                            .note_bootstrap_held(evaluation.promotion_assessment.primary_blocker());
-                    }
-                }
-                self.record_policy_event(route_policy_event(
-                    identity.route_id(),
-                    &prepared.destination_context.destination,
-                    FieldPolicyGate::CarryForward,
-                    FieldPolicyReason::EmittedByEvidenceGate,
-                    self.state.last_tick_processed,
-                ));
-                RouteMaintenanceOutcome::HoldFallback {
-                    trigger,
-                    retained_object_count: jacquard_core::HoldItemCount(1),
-                }
-            } else {
-                maintenance_outcome
-            },
+            event: projection.event,
+            outcome: projection.maintenance_outcome,
         })
     }
 
@@ -629,281 +390,616 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         }))
     }
 
-    // long-block-exception: route maintenance apply keeps the branch-for-branch
-    // runtime mutation sequence aligned with the evaluated transition result.
-    fn apply_transition(
+    fn commit_maintenance_projection(
         &mut self,
         route_id: &RouteId,
-        prepared: &PreparedMaintenance,
-        evaluation: &TransitionEvaluation,
-        trigger: RouteMaintenanceTrigger,
-    ) -> Result<AppliedTransition, RouteError> {
-        let runtime_context = FieldRuntimeDecisionContext::new(
-            &prepared.destination_context,
-            evaluation.effective_continuity_band,
-        );
-        let blocker = evaluation.promotion_assessment.primary_blocker();
-        let mut pending_coordination_shift = None;
-        let mut maintenance_outcome = RouteMaintenanceOutcome::Continued;
-        let mut pending_policy_events = Vec::new();
-        let previous_posture;
-        {
-            let active = self
-                .active_routes
-                .get_mut(route_id)
-                .expect("active route remains present during maintenance");
-            previous_posture = active.witness_detail.posture;
-            let previous_bootstrap_class = active.bootstrap_class;
-            let previous_continuity_band = active.continuity_band;
-
-            active.corridor_envelope = prepared.current_corridor_envelope.clone();
-            active.witness_detail = prepared.current_witness_detail.clone();
-            active.bootstrap_class = match (previous_bootstrap_class, evaluation.bootstrap_decision)
-            {
-                (FieldBootstrapClass::Bootstrap, FieldBootstrapDecision::Promote) => {
-                    FieldBootstrapClass::Steady
-                }
-                (FieldBootstrapClass::Bootstrap, _)
-                    if prepared.current_bootstrap_class == FieldBootstrapClass::Steady
-                        && evaluation.effective_continuity_band
-                            != FieldContinuityBand::Bootstrap =>
-                {
-                    FieldBootstrapClass::Steady
-                }
-                (FieldBootstrapClass::Bootstrap, _) => FieldBootstrapClass::Bootstrap,
-                (_, _) => prepared.current_bootstrap_class,
-            };
-            active.witness_detail.bootstrap_class = active.bootstrap_class;
-            active.continuity_band = evaluation.effective_continuity_band;
-            active.witness_detail.continuity_band = evaluation.effective_continuity_band;
-            active.promotion_window_score = evaluation.projected_promotion_window_score;
-
-            match (previous_continuity_band, active.continuity_band) {
-                (FieldContinuityBand::Steady, FieldContinuityBand::DegradedSteady)
-                | (FieldContinuityBand::Bootstrap, FieldContinuityBand::DegradedSteady) => {
-                    active.recovery.note_degraded_steady_entered();
-                }
-                (FieldContinuityBand::DegradedSteady, FieldContinuityBand::Steady) => {
-                    active.recovery.note_degraded_steady_recovered();
-                }
-                (FieldContinuityBand::DegradedSteady, FieldContinuityBand::Bootstrap) => {
-                    active.recovery.note_degraded_to_bootstrap();
-                }
-                (_, band) => active.recovery.note_continuity_band(band),
-            }
-
-            match (
-                previous_bootstrap_class,
-                active.bootstrap_class,
-                evaluation.bootstrap_decision,
-            ) {
-                (FieldBootstrapClass::Steady, FieldBootstrapClass::Bootstrap, _) => {
-                    active.recovery.note_bootstrap_activated();
-                }
-                (
-                    FieldBootstrapClass::Bootstrap,
-                    FieldBootstrapClass::Bootstrap,
-                    FieldBootstrapDecision::Narrow,
-                ) => {
-                    active.recovery.note_bootstrap_narrowed(blocker);
-                    active.bootstrap_confirmation_streak = 0;
-                    active.promotion_window_score = active.promotion_window_score.saturating_sub(1);
-                }
-                (
-                    FieldBootstrapClass::Bootstrap,
-                    FieldBootstrapClass::Bootstrap,
-                    FieldBootstrapDecision::Hold,
-                ) => {
-                    active.recovery.note_bootstrap_held(blocker);
-                    if evaluation.promotion_assessment.anti_entropy_confirmed
-                        && evaluation.promotion_assessment.continuation_coherent
-                    {
-                        active.bootstrap_confirmation_streak =
-                            evaluation.projected_confirmation_streak;
-                    } else {
-                        active.bootstrap_confirmation_streak = 0;
-                    }
-                }
-                (FieldBootstrapClass::Bootstrap, FieldBootstrapClass::Steady, _) => {
-                    active.recovery.note_bootstrap_upgraded();
-                    active.bootstrap_confirmation_streak = 0;
-                    active.promotion_window_score = 0;
-                }
-                (
-                    FieldBootstrapClass::Bootstrap,
-                    FieldBootstrapClass::Bootstrap,
-                    FieldBootstrapDecision::Withdraw,
-                ) => {
-                    active.recovery.note_bootstrap_withdrawn(blocker);
-                    active.bootstrap_confirmation_streak = 0;
-                    active.promotion_window_score = 0;
-                }
-                (FieldBootstrapClass::Steady, FieldBootstrapClass::Steady, _) => {}
-                (
-                    FieldBootstrapClass::Bootstrap,
-                    FieldBootstrapClass::Bootstrap,
-                    FieldBootstrapDecision::Promote,
-                ) => {
-                    active
-                        .recovery
-                        .note_bootstrap_held(FieldPromotionBlocker::SupportTrend);
-                }
-            }
-
-            if !active
-                .continuation_neighbors
-                .contains(&prepared.best.neighbor_id)
-            {
-                let selected_entry = prepared
-                    .ranked
-                    .iter()
-                    .find(|(entry, _)| entry.neighbor_id == active.selected_neighbor)
-                    .map(|(entry, _)| entry);
-                let degraded_continuity = matches!(
-                    active.continuity_band,
-                    FieldContinuityBand::DegradedSteady | FieldContinuityBand::Bootstrap
-                ) && evaluation
-                    .promotion_assessment
-                    .degraded_but_coherent(&prepared.destination_state);
-                let support_delta = selected_entry
-                    .map(|entry| {
-                        prepared
-                            .best
-                            .net_value
-                            .value()
-                            .abs_diff(entry.net_value.value())
-                    })
-                    .unwrap_or(0);
-                let shift_delta_max = runtime_shift_delta_max(
-                    &prepared.policy.continuity.runtime,
-                    runtime_context.service_bias,
-                    runtime_context.discovery_node_route,
-                    active.continuity_band,
-                );
-                let support_floor = runtime_shift_support_floor(
-                    &prepared.policy.continuity.runtime,
-                    runtime_context.service_bias,
-                    runtime_context.discovery_node_route,
-                    active.continuity_band,
-                );
-                if prepared.corridor_support >= support_floor && support_delta <= shift_delta_max {
-                    active.continuation_neighbors = if runtime_context.service_bias {
-                        service_runtime_continuation_neighbors(
-                            &prepared.ranked,
-                            &prepared.destination_state,
-                            prepared.best.neighbor_id,
-                            &prepared.search_config,
-                        )
-                    } else if runtime_context.discovery_node_route {
-                        node_runtime_continuation_neighbors(
-                            &prepared.ranked,
-                            &prepared.destination_state,
-                            prepared.best.neighbor_id,
-                            &prepared.search_config,
-                        )
-                    } else {
-                        prepared
-                            .ranked
-                            .iter()
-                            .take(crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT + 1)
-                            .map(|(entry, _)| entry.neighbor_id)
-                            .collect()
-                    };
-                    active.selected_neighbor = prepared.best.neighbor_id;
-                    pending_coordination_shift = Some(prepared.best.neighbor_id);
-                    if runtime_context.service_bias {
-                        active.recovery.note_service_retention_carry_forward();
-                        pending_policy_events.push(route_policy_event(
-                            route_id,
-                            &prepared.destination_context.destination,
-                            FieldPolicyGate::CarryForward,
-                            FieldPolicyReason::EmittedByContinuityGate,
-                            self.state.last_tick_processed,
-                        ));
-                    }
-                    if degraded_continuity {
-                        active.recovery.note_asymmetric_shift_success();
-                    }
-                } else if degraded_continuity || runtime_context.discovery_node_route {
-                    active.continuation_neighbors = if runtime_context.discovery_node_route {
-                        node_runtime_continuation_neighbors(
-                            &prepared.ranked,
-                            &prepared.destination_state,
-                            active.selected_neighbor,
-                            &prepared.search_config,
-                        )
-                    } else {
-                        prepared
-                            .ranked
-                            .iter()
-                            .take(2)
-                            .map(|(entry, _)| entry.neighbor_id)
-                            .collect()
-                    };
-                    if let Some(first) = active.continuation_neighbors.first().copied() {
-                        active.selected_neighbor = first;
-                    }
-                    active.recovery.note_corridor_narrowed();
-                    active.recovery.note_bootstrap_narrowed(blocker);
-                    maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
-                        trigger,
-                        retained_object_count: jacquard_core::HoldItemCount(1),
-                    };
-                } else {
-                    return Ok(AppliedTransition {
-                        previous_posture,
-                        pending_coordination_shift: None,
-                        maintenance_outcome: RouteMaintenanceOutcome::ReplacementRequired {
-                            trigger,
-                        },
-                    });
-                }
-            }
-
-            if active.selected_neighbor != prepared.best.neighbor_id {
-                if active.continuity_band == FieldContinuityBand::DegradedSteady {
-                    active.recovery.note_asymmetric_shift_success();
-                }
-                if runtime_context.service_bias {
-                    active.continuation_neighbors = service_runtime_continuation_neighbors(
-                        &prepared.ranked,
-                        &prepared.destination_state,
-                        prepared.best.neighbor_id,
-                        &prepared.search_config,
-                    );
-                    active.recovery.note_service_retention_carry_forward();
-                    pending_policy_events.push(route_policy_event(
-                        route_id,
-                        &prepared.destination_context.destination,
-                        FieldPolicyGate::CarryForward,
-                        FieldPolicyReason::EmittedByContinuityGate,
-                        self.state.last_tick_processed,
-                    ));
-                } else if runtime_context.discovery_node_route {
-                    active.continuation_neighbors = node_runtime_continuation_neighbors(
-                        &prepared.ranked,
-                        &prepared.destination_state,
-                        prepared.best.neighbor_id,
-                        &prepared.search_config,
-                    );
-                }
-                active.selected_neighbor = prepared.best.neighbor_id;
-                pending_coordination_shift = Some(prepared.best.neighbor_id);
-            }
-        }
-
-        for event in &evaluation.policy_events {
-            pending_policy_events.push(event.clone());
-        }
-        for event in pending_policy_events {
+        next_active_route: ActiveFieldRoute,
+        policy_events: Vec<FieldPolicyEvent>,
+    ) {
+        self.active_routes.insert(*route_id, next_active_route);
+        for event in policy_events {
             self.record_policy_event(event);
         }
+    }
 
-        Ok(AppliedTransition {
-            previous_posture,
-            pending_coordination_shift,
-            maintenance_outcome,
-        })
+    fn apply_maintenance_projection(
+        &mut self,
+        route_id: &RouteId,
+        projection: &MaintenanceProjection,
+    ) -> Result<(), RouteError> {
+        if !projection.commit_projection {
+            return Ok(());
+        }
+        self.commit_maintenance_projection(
+            route_id,
+            projection.next_active_route.clone(),
+            projection.policy_events.clone(),
+        );
+        if projection.apply_coordination_shift {
+            if let Some(new_neighbor) = projection.pending_coordination_shift {
+                self.reconfigure_route_protocol_session(
+                    route_id,
+                    new_neighbor,
+                    FieldProtocolReconfigurationCause::ContinuationShift,
+                    self.state.last_tick_processed,
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn reduce_maintenance_projection(
+    route_id: &RouteId,
+    prepared: &PreparedMaintenance,
+    context: MaintenanceContext,
+) -> MaintenanceProjection {
+    if context.current_congestion_price
+        >= prepared
+            .policy
+            .continuity
+            .runtime
+            .retention_biased_hold_congestion_price_floor_permille
+        && context.current_posture == crate::state::RoutingPosture::RetentionBiased
+    {
+        return MaintenanceProjection {
+            next_active_route: prepared.active_route.clone(),
+            pending_coordination_shift: None,
+            apply_coordination_shift: false,
+            commit_projection: false,
+            event: RouteLifecycleEvent::EnteredPartitionMode,
+            maintenance_outcome: RouteMaintenanceOutcome::HoldFallback {
+                trigger: RouteMaintenanceTrigger::CapacityExceeded,
+                retained_object_count: jacquard_core::HoldItemCount(1),
+            },
+            policy_events: Vec::new(),
+        };
+    }
+    let evaluation = evaluate_transition(route_id, prepared, context.now_tick);
+    let transition = reduce_transition(
+        route_id,
+        prepared,
+        &evaluation,
+        context.trigger,
+        context.now_tick,
+    );
+    finalize_transition(route_id, prepared, &evaluation, transition, context)
+}
+
+// long-block-exception: route maintenance reduction keeps the branch-for-branch
+// runtime mutation sequence aligned with the evaluated transition result.
+fn reduce_transition(
+    route_id: &RouteId,
+    prepared: &PreparedMaintenance,
+    evaluation: &TransitionEvaluation,
+    trigger: RouteMaintenanceTrigger,
+    now_tick: Tick,
+) -> AppliedTransition {
+    let runtime_context = FieldRuntimeDecisionContext::new(
+        &prepared.destination_context,
+        evaluation.effective_continuity_band,
+    );
+    let blocker = evaluation.promotion_assessment.primary_blocker();
+    let mut active = prepared.active_route.clone();
+    let mut pending_coordination_shift = None;
+    let mut maintenance_outcome = RouteMaintenanceOutcome::Continued;
+    let mut pending_policy_events = Vec::new();
+    let previous_posture = active.witness_detail.posture;
+    let previous_bootstrap_class = active.bootstrap_class;
+    let previous_continuity_band = active.continuity_band;
+
+    active.corridor_envelope = prepared.current_corridor_envelope.clone();
+    active.witness_detail = prepared.current_witness_detail.clone();
+    active.bootstrap_class = match (previous_bootstrap_class, evaluation.bootstrap_decision) {
+        (FieldBootstrapClass::Bootstrap, FieldBootstrapDecision::Promote) => {
+            FieldBootstrapClass::Steady
+        }
+        (FieldBootstrapClass::Bootstrap, _)
+            if prepared.current_bootstrap_class == FieldBootstrapClass::Steady
+                && evaluation.effective_continuity_band != FieldContinuityBand::Bootstrap =>
+        {
+            FieldBootstrapClass::Steady
+        }
+        (FieldBootstrapClass::Bootstrap, _) => FieldBootstrapClass::Bootstrap,
+        (_, _) => prepared.current_bootstrap_class,
+    };
+    active.witness_detail.bootstrap_class = active.bootstrap_class;
+    active.continuity_band = evaluation.effective_continuity_band;
+    active.witness_detail.continuity_band = evaluation.effective_continuity_band;
+    active.promotion_window_score = evaluation.projected_promotion_window_score;
+
+    match (previous_continuity_band, active.continuity_band) {
+        (FieldContinuityBand::Steady, FieldContinuityBand::DegradedSteady)
+        | (FieldContinuityBand::Bootstrap, FieldContinuityBand::DegradedSteady) => {
+            active.recovery.note_degraded_steady_entered();
+        }
+        (FieldContinuityBand::DegradedSteady, FieldContinuityBand::Steady) => {
+            active.recovery.note_degraded_steady_recovered();
+        }
+        (FieldContinuityBand::DegradedSteady, FieldContinuityBand::Bootstrap) => {
+            active.recovery.note_degraded_to_bootstrap();
+        }
+        (_, band) => active.recovery.note_continuity_band(band),
+    }
+
+    match (
+        previous_bootstrap_class,
+        active.bootstrap_class,
+        evaluation.bootstrap_decision,
+    ) {
+        (FieldBootstrapClass::Steady, FieldBootstrapClass::Bootstrap, _) => {
+            active.recovery.note_bootstrap_activated();
+        }
+        (
+            FieldBootstrapClass::Bootstrap,
+            FieldBootstrapClass::Bootstrap,
+            FieldBootstrapDecision::Narrow,
+        ) => {
+            active.recovery.note_bootstrap_narrowed(blocker);
+            active.bootstrap_confirmation_streak = 0;
+            active.promotion_window_score = active.promotion_window_score.saturating_sub(1);
+        }
+        (
+            FieldBootstrapClass::Bootstrap,
+            FieldBootstrapClass::Bootstrap,
+            FieldBootstrapDecision::Hold,
+        ) => {
+            active.recovery.note_bootstrap_held(blocker);
+            if evaluation.promotion_assessment.anti_entropy_confirmed
+                && evaluation.promotion_assessment.continuation_coherent
+            {
+                active.bootstrap_confirmation_streak = evaluation.projected_confirmation_streak;
+            } else {
+                active.bootstrap_confirmation_streak = 0;
+            }
+        }
+        (FieldBootstrapClass::Bootstrap, FieldBootstrapClass::Steady, _) => {
+            active.recovery.note_bootstrap_upgraded();
+            active.bootstrap_confirmation_streak = 0;
+            active.promotion_window_score = 0;
+        }
+        (
+            FieldBootstrapClass::Bootstrap,
+            FieldBootstrapClass::Bootstrap,
+            FieldBootstrapDecision::Withdraw,
+        ) => {
+            active.recovery.note_bootstrap_withdrawn(blocker);
+            active.bootstrap_confirmation_streak = 0;
+            active.promotion_window_score = 0;
+        }
+        (FieldBootstrapClass::Steady, FieldBootstrapClass::Steady, _) => {}
+        (
+            FieldBootstrapClass::Bootstrap,
+            FieldBootstrapClass::Bootstrap,
+            FieldBootstrapDecision::Promote,
+        ) => {
+            active
+                .recovery
+                .note_bootstrap_held(FieldPromotionBlocker::SupportTrend);
+        }
+    }
+
+    if !active
+        .continuation_neighbors
+        .contains(&prepared.best.neighbor_id)
+    {
+        let selected_entry = prepared
+            .ranked
+            .iter()
+            .find(|(entry, _)| entry.neighbor_id == active.selected_neighbor)
+            .map(|(entry, _)| entry);
+        let degraded_continuity = matches!(
+            active.continuity_band,
+            FieldContinuityBand::DegradedSteady | FieldContinuityBand::Bootstrap
+        ) && evaluation
+            .promotion_assessment
+            .degraded_but_coherent(&prepared.destination_state);
+        let support_delta = selected_entry
+            .map(|entry| {
+                prepared
+                    .best
+                    .net_value
+                    .value()
+                    .abs_diff(entry.net_value.value())
+            })
+            .unwrap_or(0);
+        let shift_delta_max = runtime_shift_delta_max(
+            &prepared.policy.continuity.runtime,
+            runtime_context.service_bias,
+            runtime_context.discovery_node_route,
+            active.continuity_band,
+        );
+        let support_floor = runtime_shift_support_floor(
+            &prepared.policy.continuity.runtime,
+            runtime_context.service_bias,
+            runtime_context.discovery_node_route,
+            active.continuity_band,
+        );
+        if prepared.corridor_support >= support_floor && support_delta <= shift_delta_max {
+            active.continuation_neighbors = if runtime_context.service_bias {
+                service_runtime_continuation_neighbors(
+                    &prepared.ranked,
+                    &prepared.destination_state,
+                    prepared.best.neighbor_id,
+                    &prepared.search_config,
+                )
+            } else if runtime_context.discovery_node_route {
+                node_runtime_continuation_neighbors(
+                    &prepared.ranked,
+                    &prepared.destination_state,
+                    prepared.best.neighbor_id,
+                    &prepared.search_config,
+                )
+            } else {
+                prepared
+                    .ranked
+                    .iter()
+                    .take(crate::state::MAX_CONTINUATION_NEIGHBOR_COUNT + 1)
+                    .map(|(entry, _)| entry.neighbor_id)
+                    .collect()
+            };
+            active.selected_neighbor = prepared.best.neighbor_id;
+            pending_coordination_shift = Some(prepared.best.neighbor_id);
+            if runtime_context.service_bias {
+                active.recovery.note_service_retention_carry_forward();
+                pending_policy_events.push(route_policy_event(
+                    route_id,
+                    &prepared.destination_context.destination,
+                    FieldPolicyGate::CarryForward,
+                    FieldPolicyReason::EmittedByContinuityGate,
+                    now_tick,
+                ));
+            }
+            if degraded_continuity {
+                active.recovery.note_asymmetric_shift_success();
+            }
+        } else if degraded_continuity || runtime_context.discovery_node_route {
+            active.continuation_neighbors = if runtime_context.discovery_node_route {
+                node_runtime_continuation_neighbors(
+                    &prepared.ranked,
+                    &prepared.destination_state,
+                    active.selected_neighbor,
+                    &prepared.search_config,
+                )
+            } else {
+                prepared
+                    .ranked
+                    .iter()
+                    .take(2)
+                    .map(|(entry, _)| entry.neighbor_id)
+                    .collect()
+            };
+            if let Some(first) = active.continuation_neighbors.first().copied() {
+                active.selected_neighbor = first;
+            }
+            active.recovery.note_corridor_narrowed();
+            active.recovery.note_bootstrap_narrowed(blocker);
+            maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
+                trigger,
+                retained_object_count: jacquard_core::HoldItemCount(1),
+            };
+        } else {
+            return AppliedTransition {
+                next_active_route: active,
+                previous_posture,
+                pending_coordination_shift: None,
+                maintenance_outcome: RouteMaintenanceOutcome::ReplacementRequired { trigger },
+                policy_events: Vec::new(),
+            };
+        }
+    }
+
+    if active.selected_neighbor != prepared.best.neighbor_id {
+        if active.continuity_band == FieldContinuityBand::DegradedSteady {
+            active.recovery.note_asymmetric_shift_success();
+        }
+        if runtime_context.service_bias {
+            active.continuation_neighbors = service_runtime_continuation_neighbors(
+                &prepared.ranked,
+                &prepared.destination_state,
+                prepared.best.neighbor_id,
+                &prepared.search_config,
+            );
+            active.recovery.note_service_retention_carry_forward();
+            pending_policy_events.push(route_policy_event(
+                route_id,
+                &prepared.destination_context.destination,
+                FieldPolicyGate::CarryForward,
+                FieldPolicyReason::EmittedByContinuityGate,
+                now_tick,
+            ));
+        } else if runtime_context.discovery_node_route {
+            active.continuation_neighbors = node_runtime_continuation_neighbors(
+                &prepared.ranked,
+                &prepared.destination_state,
+                prepared.best.neighbor_id,
+                &prepared.search_config,
+            );
+        }
+        active.selected_neighbor = prepared.best.neighbor_id;
+        pending_coordination_shift = Some(prepared.best.neighbor_id);
+    }
+
+    pending_policy_events.extend(evaluation.policy_events.iter().cloned());
+
+    AppliedTransition {
+        next_active_route: active,
+        previous_posture,
+        pending_coordination_shift,
+        maintenance_outcome,
+        policy_events: pending_policy_events,
+    }
+}
+
+// long-block-exception: maintenance finalization keeps the remaining
+// fail-closed support, freshness, and posture decisions in one pure
+// projection so the wrapper only applies the result.
+fn finalize_transition(
+    route_id: &RouteId,
+    prepared: &PreparedMaintenance,
+    evaluation: &TransitionEvaluation,
+    transition: AppliedTransition,
+    context: MaintenanceContext,
+) -> MaintenanceProjection {
+    let service_bias = prepared.destination_context.service_bias();
+    let discovery_node_route = prepared.destination_context.discovery_node_route();
+    let degraded_continuity = matches!(
+        evaluation.effective_continuity_band,
+        FieldContinuityBand::DegradedSteady | FieldContinuityBand::Bootstrap
+    ) && evaluation
+        .promotion_assessment
+        .degraded_but_coherent(&prepared.destination_state);
+    let mut next_active_route = transition.next_active_route;
+    let mut pending_policy_events = transition.policy_events;
+    if matches!(
+        transition.maintenance_outcome,
+        RouteMaintenanceOutcome::ReplacementRequired { .. }
+    ) {
+        return MaintenanceProjection {
+            next_active_route,
+            pending_coordination_shift: transition.pending_coordination_shift,
+            apply_coordination_shift: false,
+            commit_projection: true,
+            event: RouteLifecycleEvent::Replaced,
+            maintenance_outcome: transition.maintenance_outcome,
+            policy_events: pending_policy_events,
+        };
+    }
+    let post_shift_grace =
+        continuation_shift_grace_active(&next_active_route, &evaluation.promotion_assessment);
+    let failure_support_floor = maintenance_failure_support_floor(
+        &prepared.policy.continuity.runtime,
+        prepared.current_bootstrap_class,
+        evaluation.effective_continuity_band,
+        degraded_continuity,
+        service_bias,
+        discovery_node_route,
+        post_shift_grace,
+    );
+
+    if prepared.corridor_support < failure_support_floor {
+        if degraded_continuity {
+            if next_active_route.continuity_band == FieldContinuityBand::DegradedSteady {
+                next_active_route.continuity_band = FieldContinuityBand::DegradedSteady;
+                next_active_route.witness_detail.continuity_band =
+                    FieldContinuityBand::DegradedSteady;
+                next_active_route.recovery.note_corridor_narrowed();
+            } else {
+                next_active_route
+                    .recovery
+                    .note_bootstrap_narrowed(FieldPromotionBlocker::SupportTrend);
+            }
+            pending_policy_events.push(route_policy_event(
+                route_id,
+                &prepared.destination_context.destination,
+                FieldPolicyGate::CarryForward,
+                FieldPolicyReason::EmittedByEvidenceGate,
+                context.now_tick,
+            ));
+            return MaintenanceProjection {
+                next_active_route,
+                pending_coordination_shift: transition.pending_coordination_shift,
+                apply_coordination_shift: false,
+                commit_projection: true,
+                event: RouteLifecycleEvent::Activated,
+                maintenance_outcome: RouteMaintenanceOutcome::HoldFallback {
+                    trigger: context.trigger,
+                    retained_object_count: jacquard_core::HoldItemCount(1),
+                },
+                policy_events: pending_policy_events,
+            };
+        }
+        if post_shift_grace {
+            next_active_route.recovery.note_continuation_retained();
+            pending_policy_events.push(route_policy_event(
+                route_id,
+                &prepared.destination_context.destination,
+                FieldPolicyGate::CarryForward,
+                FieldPolicyReason::EmittedByEvidenceGate,
+                context.now_tick,
+            ));
+            return MaintenanceProjection {
+                next_active_route,
+                pending_coordination_shift: transition.pending_coordination_shift,
+                apply_coordination_shift: false,
+                commit_projection: true,
+                event: RouteLifecycleEvent::Activated,
+                maintenance_outcome: RouteMaintenanceOutcome::HoldFallback {
+                    trigger: context.trigger,
+                    retained_object_count: jacquard_core::HoldItemCount(1),
+                },
+                policy_events: pending_policy_events,
+            };
+        }
+        if next_active_route.bootstrap_class == FieldBootstrapClass::Bootstrap
+            && next_active_route.recovery.state.last_bootstrap_transition
+                != Some(crate::FieldBootstrapTransition::Withdrawn)
+        {
+            next_active_route
+                .recovery
+                .note_bootstrap_withdrawn(FieldPromotionBlocker::SupportTrend);
+        }
+        return MaintenanceProjection {
+            next_active_route,
+            pending_coordination_shift: transition.pending_coordination_shift,
+            apply_coordination_shift: false,
+            commit_projection: true,
+            event: RouteLifecycleEvent::Expired,
+            maintenance_outcome: RouteMaintenanceOutcome::Failed(
+                RouteMaintenanceFailure::CapacityExceeded,
+            ),
+            policy_events: pending_policy_events,
+        };
+    }
+
+    if context.current_congestion_price
+        >= prepared
+            .policy
+            .continuity
+            .runtime
+            .retention_biased_hold_congestion_price_floor_permille
+    {
+        return MaintenanceProjection {
+            next_active_route,
+            pending_coordination_shift: transition.pending_coordination_shift,
+            apply_coordination_shift: false,
+            commit_projection: false,
+            event: RouteLifecycleEvent::Replaced,
+            maintenance_outcome: RouteMaintenanceOutcome::ReplacementRequired {
+                trigger: RouteMaintenanceTrigger::CapacityExceeded,
+            },
+            policy_events: pending_policy_events,
+        };
+    }
+
+    if context.current_posture != transition.previous_posture
+        && context.current_posture == crate::state::RoutingPosture::RiskSuppressed
+    {
+        return MaintenanceProjection {
+            next_active_route,
+            pending_coordination_shift: transition.pending_coordination_shift,
+            apply_coordination_shift: false,
+            commit_projection: false,
+            event: RouteLifecycleEvent::Replaced,
+            maintenance_outcome: RouteMaintenanceOutcome::ReplacementRequired {
+                trigger: RouteMaintenanceTrigger::PolicyShift,
+            },
+            policy_events: pending_policy_events,
+        };
+    }
+
+    let is_stale = context.now_tick.0.saturating_sub(prepared.best.freshness.0)
+        > maintenance_stale_ticks_max(
+            &prepared.policy.continuity.runtime,
+            prepared.current_bootstrap_class,
+            evaluation.effective_continuity_band,
+            degraded_continuity,
+            service_bias,
+            discovery_node_route,
+            post_shift_grace,
+        );
+    let weak_support_floor =
+        weak_support_hold_floor(&prepared.policy.continuity.runtime, discovery_node_route);
+    let mut maintenance_outcome = transition.maintenance_outcome;
+    if is_stale {
+        if prepared.corridor_support < weak_support_floor {
+            if next_active_route.bootstrap_class == FieldBootstrapClass::Bootstrap
+                || next_active_route.continuity_band == FieldContinuityBand::DegradedSteady
+            {
+                if degraded_continuity {
+                    next_active_route
+                        .recovery
+                        .note_bootstrap_narrowed(FieldPromotionBlocker::Freshness);
+                    next_active_route.recovery.note_corridor_narrowed();
+                } else if next_active_route.recovery.state.last_bootstrap_transition
+                    != Some(crate::FieldBootstrapTransition::Withdrawn)
+                {
+                    next_active_route
+                        .recovery
+                        .note_bootstrap_withdrawn(FieldPromotionBlocker::Freshness);
+                }
+            }
+            if degraded_continuity {
+                pending_policy_events.push(route_policy_event(
+                    route_id,
+                    &prepared.destination_context.destination,
+                    FieldPolicyGate::CarryForward,
+                    FieldPolicyReason::EmittedByEvidenceGate,
+                    context.now_tick,
+                ));
+                maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
+                    trigger: RouteMaintenanceTrigger::AntiEntropyRequired,
+                    retained_object_count: jacquard_core::HoldItemCount(1),
+                };
+            } else if post_shift_grace {
+                pending_policy_events.push(route_policy_event(
+                    route_id,
+                    &prepared.destination_context.destination,
+                    FieldPolicyGate::CarryForward,
+                    FieldPolicyReason::EmittedByEvidenceGate,
+                    context.now_tick,
+                ));
+                maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
+                    trigger: context.trigger,
+                    retained_object_count: jacquard_core::HoldItemCount(1),
+                };
+            } else {
+                return MaintenanceProjection {
+                    next_active_route,
+                    pending_coordination_shift: transition.pending_coordination_shift,
+                    apply_coordination_shift: false,
+                    commit_projection: true,
+                    event: RouteLifecycleEvent::Activated,
+                    maintenance_outcome: RouteMaintenanceOutcome::ReplacementRequired {
+                        trigger: RouteMaintenanceTrigger::AntiEntropyRequired,
+                    },
+                    policy_events: pending_policy_events,
+                };
+            }
+        }
+        if maintenance_outcome == RouteMaintenanceOutcome::Continued {
+            pending_policy_events.push(route_policy_event(
+                route_id,
+                &prepared.destination_context.destination,
+                FieldPolicyGate::CarryForward,
+                FieldPolicyReason::EmittedByEvidenceGate,
+                context.now_tick,
+            ));
+            maintenance_outcome = RouteMaintenanceOutcome::HoldFallback {
+                trigger: RouteMaintenanceTrigger::AntiEntropyRequired,
+                retained_object_count: jacquard_core::HoldItemCount(1),
+            };
+        }
+    }
+
+    let final_outcome = if prepared.corridor_support < weak_support_floor {
+        if next_active_route.bootstrap_class == FieldBootstrapClass::Bootstrap {
+            next_active_route
+                .recovery
+                .note_bootstrap_held(evaluation.promotion_assessment.primary_blocker());
+        }
+        pending_policy_events.push(route_policy_event(
+            route_id,
+            &prepared.destination_context.destination,
+            FieldPolicyGate::CarryForward,
+            FieldPolicyReason::EmittedByEvidenceGate,
+            context.now_tick,
+        ));
+        RouteMaintenanceOutcome::HoldFallback {
+            trigger: context.trigger,
+            retained_object_count: jacquard_core::HoldItemCount(1),
+        }
+    } else {
+        maintenance_outcome
+    };
+    MaintenanceProjection {
+        next_active_route,
+        pending_coordination_shift: transition.pending_coordination_shift,
+        apply_coordination_shift: true,
+        commit_projection: true,
+        event: RouteLifecycleEvent::Activated,
+        maintenance_outcome: final_outcome,
+        policy_events: pending_policy_events,
     }
 }
 
@@ -1243,5 +1339,429 @@ fn route_policy_event(
         destination: Some(DestinationId::from(destination_key)),
         route_id: Some(*route_id),
         observed_at_tick,
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::wildcard_imports)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use jacquard_core::{
+        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, Environment,
+        FactSourceClass, LinkEndpoint, Observation, OriginAuthenticationClass, PublicationId,
+        RatioPermille, RouteEpoch, RouteHandle, RouteLease, RouteMaterializationInput,
+        RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
+        RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
+        TransportError,
+    };
+    use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
+    use jacquard_traits::{
+        effect_handler, RoutingEngine, RoutingEnginePlanner, TransportSenderEffects,
+    };
+
+    use super::*;
+    use crate::state::{DestinationInterestClass, HopBand, ObservationClass};
+
+    fn node(byte: u8) -> NodeId {
+        NodeId([byte; 32])
+    }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    struct NoopTransport;
+
+    #[effect_handler]
+    impl TransportSenderEffects for NoopTransport {
+        fn send_transport(
+            &mut self,
+            _endpoint: &LinkEndpoint,
+            _payload: &[u8],
+        ) -> Result<(), TransportError> {
+            Ok(())
+        }
+    }
+
+    fn sample_objective(destination: NodeId) -> RoutingObjective {
+        RoutingObjective {
+            destination: DestinationId::Node(destination),
+            service_kind: RouteServiceKind::Move,
+            target_protection: RouteProtectionClass::LinkProtected,
+            protection_floor: RouteProtectionClass::LinkProtected,
+            target_connectivity: ConnectivityPosture {
+                repair: RouteRepairClass::Repairable,
+                partition: RoutePartitionClass::ConnectedOnly,
+            },
+            hold_fallback_policy: jacquard_core::HoldFallbackPolicy::Allowed,
+            latency_budget_ms: jacquard_core::Limit::Bounded(jacquard_core::DurationMs(100)),
+            protection_priority: jacquard_core::PriorityPoints(10),
+            connectivity_priority: jacquard_core::PriorityPoints(10),
+        }
+    }
+
+    fn sample_profile() -> SelectedRoutingParameters {
+        SelectedRoutingParameters {
+            selected_protection: RouteProtectionClass::LinkProtected,
+            selected_connectivity: ConnectivityPosture {
+                repair: RouteRepairClass::Repairable,
+                partition: RoutePartitionClass::ConnectedOnly,
+            },
+            deployment_profile: jacquard_core::OperatingMode::SparseLowPower,
+            diversity_floor: jacquard_core::DiversityFloor(1),
+            routing_engine_fallback_policy: jacquard_core::RoutingEngineFallbackPolicy::Allowed,
+            route_replacement_policy: jacquard_core::RouteReplacementPolicy::Allowed,
+        }
+    }
+
+    // long-block-exception: the supported topology fixture keeps one complete
+    // deterministic field corridor sample in one place for runtime tests.
+    fn supported_topology() -> Observation<Configuration> {
+        Observation {
+            value: Configuration {
+                epoch: RouteEpoch(4),
+                nodes: BTreeMap::from([
+                    (
+                        node(1),
+                        NodePreset::route_capable(
+                            NodePresetOptions::new(
+                                NodeIdentity::new(node(1), ControllerId([1; 32])),
+                                jacquard_adapter::opaque_endpoint(
+                                    jacquard_core::TransportKind::WifiAware,
+                                    vec![1],
+                                    ByteCount(128),
+                                ),
+                                Tick(1),
+                            ),
+                            &crate::FIELD_ENGINE_ID,
+                        )
+                        .build(),
+                    ),
+                    (
+                        node(2),
+                        NodePreset::route_capable(
+                            NodePresetOptions::new(
+                                NodeIdentity::new(node(2), ControllerId([2; 32])),
+                                jacquard_adapter::opaque_endpoint(
+                                    jacquard_core::TransportKind::WifiAware,
+                                    vec![2],
+                                    ByteCount(128),
+                                ),
+                                Tick(1),
+                            ),
+                            &crate::FIELD_ENGINE_ID,
+                        )
+                        .build(),
+                    ),
+                    (
+                        node(3),
+                        NodePreset::route_capable(
+                            NodePresetOptions::new(
+                                NodeIdentity::new(node(3), ControllerId([3; 32])),
+                                jacquard_adapter::opaque_endpoint(
+                                    jacquard_core::TransportKind::WifiAware,
+                                    vec![3],
+                                    ByteCount(128),
+                                ),
+                                Tick(1),
+                            ),
+                            &crate::FIELD_ENGINE_ID,
+                        )
+                        .build(),
+                    ),
+                ]),
+                links: BTreeMap::new(),
+                environment: Environment {
+                    reachable_neighbor_count: 1,
+                    churn_permille: RatioPermille(100),
+                    contention_permille: RatioPermille(100),
+                },
+            },
+            source_class: FactSourceClass::Local,
+            evidence_class: RoutingEvidenceClass::DirectObservation,
+            origin_authentication: OriginAuthenticationClass::Controlled,
+            observed_at_tick: Tick(4),
+        }
+    }
+
+    fn seeded_engine() -> FieldEngine<NoopTransport, ()> {
+        let mut engine = FieldEngine::new(node(1), NoopTransport, ());
+        let state = engine.state.upsert_destination_interest(
+            &DestinationId::Node(node(2)),
+            DestinationInterestClass::Transit,
+            Tick(4),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(850);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(200);
+        state.posterior.predicted_observation_class = ObservationClass::DirectOnly;
+        state.corridor_belief.expected_hop_band = HopBand::new(1, 2);
+        state.corridor_belief.delivery_support = SupportBucket::new(800);
+        state.corridor_belief.retention_affinity = SupportBucket::new(300);
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(2),
+            net_value: SupportBucket::new(900),
+            downstream_support: SupportBucket::new(850),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(4),
+        });
+        engine.state.neighbor_endpoints.insert(
+            node(2),
+            jacquard_adapter::opaque_endpoint(
+                jacquard_core::TransportKind::WifiAware,
+                vec![2],
+                ByteCount(128),
+            ),
+        );
+        engine.state.neighbor_endpoints.insert(
+            node(3),
+            jacquard_adapter::opaque_endpoint(
+                jacquard_core::TransportKind::WifiAware,
+                vec![3],
+                ByteCount(128),
+            ),
+        );
+        engine
+    }
+
+    fn lease() -> RouteLease {
+        RouteLease {
+            owner_node_id: node(1),
+            lease_epoch: RouteEpoch(4),
+            valid_for: TimeWindow::new(Tick(4), Tick(10)).expect("lease window"),
+        }
+    }
+
+    fn materialization_input(
+        route_id: RouteId,
+        admission: jacquard_core::RouteAdmission,
+    ) -> RouteMaterializationInput {
+        let lease = lease();
+        RouteMaterializationInput {
+            handle: RouteHandle {
+                stamp: jacquard_core::RouteIdentityStamp {
+                    route_id,
+                    topology_epoch: lease.lease_epoch,
+                    materialized_at_tick: lease.valid_for.start_tick(),
+                    publication_id: PublicationId([7; 16]),
+                },
+            },
+            admission,
+            lease,
+        }
+    }
+
+    fn materialized_route(
+        engine: &mut FieldEngine<NoopTransport, ()>,
+    ) -> (jacquard_core::MaterializedRoute, RouteId) {
+        let topology = supported_topology();
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let route_id = candidate.route_id;
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("admission");
+        let input = materialization_input(route_id, admission);
+        let installation = engine
+            .materialize_route(input.clone())
+            .expect("installation");
+        (
+            jacquard_core::MaterializedRoute::from_installation(input, installation),
+            route_id,
+        )
+    }
+
+    #[test]
+    fn maintenance_reducer_selects_stronger_neighbor_as_data() {
+        let mut engine = seeded_engine();
+        let (_, route_id) = materialized_route(&mut engine);
+        engine.state.note_tick(Tick(5));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&crate::state::DestinationKey::from(&DestinationId::Node(
+                node(2),
+            )))
+            .expect("destination");
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(3),
+            net_value: SupportBucket::new(950),
+            downstream_support: SupportBucket::new(900),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(5),
+        });
+
+        let active = engine
+            .active_routes
+            .get(&route_id)
+            .cloned()
+            .expect("active");
+        let prepared = engine
+            .prepare_maintenance(active)
+            .expect("prepare maintenance")
+            .expect("prepared");
+        let evaluation =
+            evaluate_transition(&route_id, &prepared, engine.state.last_tick_processed);
+        let transition = reduce_transition(
+            &route_id,
+            &prepared,
+            &evaluation,
+            RouteMaintenanceTrigger::LinkDegraded,
+            engine.state.last_tick_processed,
+        );
+
+        assert_eq!(
+            transition.pending_coordination_shift,
+            Some(node(3)),
+            "reducer should surface the planned continuation shift as data",
+        );
+        assert_eq!(transition.next_active_route.selected_neighbor, node(3));
+        assert!(transition
+            .next_active_route
+            .continuation_neighbors
+            .contains(&node(3)));
+    }
+
+    #[test]
+    // long-block-exception: the no-shift parity test keeps the full
+    // projection-vs-wrapper setup and assertions together for auditability.
+    fn maintenance_projection_matches_wrapper_projection_without_shift() {
+        let mut reducer_engine = seeded_engine();
+        let mut wrapper_engine = seeded_engine();
+        let (_, route_id) = materialized_route(&mut reducer_engine);
+        let (mut wrapper_route, _) = materialized_route(&mut wrapper_engine);
+
+        reducer_engine.state.note_tick(Tick(5));
+        wrapper_engine.state.note_tick(Tick(5));
+        for engine in [&mut reducer_engine, &mut wrapper_engine] {
+            let state = engine
+                .state
+                .destinations
+                .get_mut(&crate::state::DestinationKey::from(&DestinationId::Node(
+                    node(2),
+                )))
+                .expect("destination");
+            state.corridor_belief.delivery_support = SupportBucket::new(780);
+            state.frontier = state.frontier.clone().insert(NeighborContinuation {
+                neighbor_id: node(2),
+                net_value: SupportBucket::new(910),
+                downstream_support: SupportBucket::new(860),
+                expected_hop_band: HopBand::new(1, 2),
+                freshness: Tick(5),
+            });
+        }
+
+        let active = reducer_engine
+            .active_routes
+            .get(&route_id)
+            .cloned()
+            .expect("active");
+        let prepared = reducer_engine
+            .prepare_maintenance(active)
+            .expect("prepare maintenance")
+            .expect("prepared");
+        let projection = reduce_maintenance_projection(
+            &route_id,
+            &prepared,
+            MaintenanceContext {
+                trigger: RouteMaintenanceTrigger::LinkDegraded,
+                now_tick: reducer_engine.state.last_tick_processed,
+                current_posture: reducer_engine.state.posture.current,
+                current_congestion_price: reducer_engine.state.controller.congestion_price.value(),
+            },
+        );
+
+        assert_eq!(projection.pending_coordination_shift, None);
+        let wrapper_result = wrapper_engine
+            .maintain_route(
+                &wrapper_route.identity,
+                &mut wrapper_route.runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("wrapper maintenance");
+
+        assert_eq!(wrapper_result.event, projection.event);
+        assert_eq!(wrapper_result.outcome, projection.maintenance_outcome);
+        assert_eq!(
+            wrapper_engine.active_routes.get(&route_id),
+            Some(&projection.next_active_route)
+        );
+        assert_eq!(wrapper_engine.policy_events(), projection.policy_events);
+    }
+
+    #[test]
+    // long-block-exception: the shift parity test keeps the full
+    // projection-vs-wrapper setup and deterministic route assertions together.
+    fn maintenance_projection_matches_wrapper_projection_with_shift() {
+        let mut reducer_engine = seeded_engine();
+        let mut wrapper_engine = seeded_engine();
+        let (_, route_id) = materialized_route(&mut reducer_engine);
+        let (mut wrapper_route, _) = materialized_route(&mut wrapper_engine);
+
+        reducer_engine.state.note_tick(Tick(5));
+        wrapper_engine.state.note_tick(Tick(5));
+        for engine in [&mut reducer_engine, &mut wrapper_engine] {
+            let state = engine
+                .state
+                .destinations
+                .get_mut(&crate::state::DestinationKey::from(&DestinationId::Node(
+                    node(2),
+                )))
+                .expect("destination");
+            state.frontier = state.frontier.clone().insert(NeighborContinuation {
+                neighbor_id: node(3),
+                net_value: SupportBucket::new(950),
+                downstream_support: SupportBucket::new(900),
+                expected_hop_band: HopBand::new(1, 2),
+                freshness: Tick(5),
+            });
+        }
+
+        let active = reducer_engine
+            .active_routes
+            .get(&route_id)
+            .cloned()
+            .expect("active");
+        let prepared = reducer_engine
+            .prepare_maintenance(active)
+            .expect("prepare maintenance")
+            .expect("prepared");
+        let projection = reduce_maintenance_projection(
+            &route_id,
+            &prepared,
+            MaintenanceContext {
+                trigger: RouteMaintenanceTrigger::LinkDegraded,
+                now_tick: reducer_engine.state.last_tick_processed,
+                current_posture: reducer_engine.state.posture.current,
+                current_congestion_price: reducer_engine.state.controller.congestion_price.value(),
+            },
+        );
+
+        assert_eq!(projection.pending_coordination_shift, Some(node(3)));
+        let wrapper_result = wrapper_engine
+            .maintain_route(
+                &wrapper_route.identity,
+                &mut wrapper_route.runtime,
+                RouteMaintenanceTrigger::LinkDegraded,
+            )
+            .expect("wrapper maintenance");
+
+        assert_eq!(wrapper_result.event, projection.event);
+        assert_eq!(wrapper_result.outcome, projection.maintenance_outcome);
+        let active_route = wrapper_engine.active_routes.get(&route_id).expect("active");
+        assert_eq!(active_route.selected_neighbor, node(3));
+        assert_eq!(
+            active_route.continuation_neighbors,
+            projection.next_active_route.continuation_neighbors
+        );
+        assert_eq!(
+            active_route.continuity_band,
+            projection.next_active_route.continuity_band
+        );
+        assert_eq!(
+            active_route.bootstrap_class,
+            projection.next_active_route.bootstrap_class
+        );
+        assert_eq!(wrapper_engine.policy_events(), projection.policy_events);
     }
 }

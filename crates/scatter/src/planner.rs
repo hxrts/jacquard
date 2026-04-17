@@ -8,7 +8,9 @@ use jacquard_core::{
 use jacquard_traits::{RoutingEnginePlanner, TimeEffects, TransportSenderEffects};
 
 use crate::{
-    support::{admission_for, candidate_for, decode_backend_token, objective_supported},
+    support::{
+        admission_for_snapshot, candidate_for_snapshot, decode_backend_token, objective_supported,
+    },
     ScatterEngine, SCATTER_CAPABILITIES, SCATTER_ENGINE_ID,
 };
 
@@ -34,7 +36,8 @@ where
         if !objective_supported(topology, objective, topology.observed_at_tick) {
             return Vec::new();
         }
-        candidate_for(topology, self.local_node_id, objective, &self.config)
+        let snapshot = self.planner_snapshot();
+        candidate_for_snapshot(topology, objective, &snapshot)
             .map(|candidate| vec![candidate])
             .unwrap_or_default()
     }
@@ -68,15 +71,16 @@ where
             )
             .into());
         }
-        let expected = candidate_for(topology, self.local_node_id, objective, &self.config)
-            .map_err(RouteError::from)?;
+        let snapshot = self.planner_snapshot();
+        let expected =
+            candidate_for_snapshot(topology, objective, &snapshot).map_err(RouteError::from)?;
         if expected.backend_ref != candidate.backend_ref {
             return Err(RouteSelectionError::Inadmissible(
                 RouteAdmissionRejection::BackendUnavailable,
             )
             .into());
         }
-        let admission = admission_for(topology, objective, profile, expected, &self.config);
+        let admission = admission_for_snapshot(topology, objective, profile, expected, &snapshot);
         if let AdmissionDecision::Rejected(reason) = admission.admission_check.decision {
             return Err(RouteSelectionError::Inadmissible(reason).into());
         }
@@ -112,20 +116,17 @@ where
             )
             .into());
         }
-        let expected = candidate_for(topology, self.local_node_id, objective, &self.config)
-            .map_err(RouteError::from)?;
+        let snapshot = self.planner_snapshot();
+        let expected =
+            candidate_for_snapshot(topology, objective, &snapshot).map_err(RouteError::from)?;
         if expected.backend_ref != candidate.backend_ref {
             return Err(RouteSelectionError::Inadmissible(
                 RouteAdmissionRejection::BackendUnavailable,
             )
             .into());
         }
-        Ok(admission_for(
-            topology,
-            objective,
-            profile,
-            expected,
-            &self.config,
+        Ok(admission_for_snapshot(
+            topology, objective, profile, expected, &snapshot,
         ))
     }
 }

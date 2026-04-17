@@ -24,6 +24,7 @@ use super::{
     FieldSearchTransitionClass, FieldSelectedContinuation,
 };
 use crate::{
+    planner::FieldPlannerSnapshot,
     state::{DestinationKey, NeighborContinuation},
     FieldEngine,
 };
@@ -49,6 +50,8 @@ type FieldSearchSuccessors = BTreeMap<NodeId, Vec<(NodeId, FieldSearchEdgeMeta, 
 pub(crate) struct FieldSearchSnapshotState {
     pub epoch: FieldSearchEpoch,
     pub topology: Observation<Configuration>,
+    pub accepted_node_ids: Vec<NodeId>,
+    pub heuristic_mode: crate::FieldSearchHeuristicMode,
 }
 
 impl FieldSearchSnapshotState {
@@ -68,21 +71,26 @@ impl FieldSearchSnapshotState {
         Self {
             epoch,
             topology: topology.clone(),
+            accepted_node_ids: accepted_node_ids.to_vec(),
+            heuristic_mode: search_config.heuristic_mode(),
         }
     }
 }
 
 impl<Transport, Effects> FieldEngine<Transport, Effects> {
-    pub(crate) fn search_record_for_objective(
+    pub(crate) fn search_record_for_objective_from_snapshot(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
     ) -> FieldPlannerSearchRecord {
-        let effective_config = self.effective_search_config();
-        let query = self.resolve_query_for_objective(objective, topology, &effective_config);
+        let effective_config = snapshot.effective_search_config.clone();
+        let query =
+            self.resolve_query_for_objective(snapshot, objective, topology, &effective_config);
         let prior_state = self.search_snapshot_state.borrow().clone();
         let run = query.as_ref().map(|query| {
             self.run_search_for_query(
+                snapshot,
                 objective,
                 topology,
                 query,
@@ -92,7 +100,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         });
 
         if let Some(query) = query.as_ref() {
-            let successors = self.freeze_successors_for_search(objective, topology);
+            let successors = self.freeze_successors_for_search(snapshot, objective, topology);
             *self.search_snapshot_state.borrow_mut() =
                 Some(FieldSearchSnapshotState::from_topology_and_config(
                     topology,
@@ -119,50 +127,60 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn resolve_query_for_objective(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
         search_config: &FieldSearchConfig,
     ) -> Option<SearchQuery<NodeId>> {
-        if !self.destination_supports_objective(topology, objective) {
+        if !snapshot.destination_supports_objective(topology, objective) {
             return None;
         }
         let destination_key = DestinationKey::from(&objective.destination);
-        self.state.destinations.get(&destination_key)?;
+        snapshot.destinations.get(&destination_key)?;
         match objective.destination {
             jacquard_core::DestinationId::Node(goal_node_id) => {
-                if goal_node_id == self.local_node_id {
+                if goal_node_id == snapshot.local_node_id {
                     return None;
                 }
-                Some(SearchQuery::single_goal(self.local_node_id, goal_node_id))
+                Some(SearchQuery::single_goal(
+                    snapshot.local_node_id,
+                    goal_node_id,
+                ))
             }
             jacquard_core::DestinationId::Gateway(_) | jacquard_core::DestinationId::Service(_) => {
-                let mut accepted_nodes = self.local_search_neighbor_ids(objective, topology);
+                let mut accepted_nodes =
+                    self.local_search_neighbor_ids(snapshot, objective, topology);
                 accepted_nodes.truncate(search_config.per_objective_query_budget());
-                SearchQuery::try_candidate_set(self.local_node_id, accepted_nodes, None).ok()
+                SearchQuery::try_candidate_set(snapshot.local_node_id, accepted_nodes, None).ok()
             }
         }
     }
 
     fn run_search_for_query(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
         query: &SearchQuery<NodeId>,
         prior_state: Option<&FieldSearchSnapshotState>,
         search_config: &FieldSearchConfig,
     ) -> FieldSearchRun {
-        let (current_state, current_successors) =
-            self.current_search_state_for_query(objective, topology, query, search_config);
+        let (current_state, current_successors) = self.current_search_state_for_query(
+            snapshot,
+            objective,
+            topology,
+            query,
+            search_config,
+        );
         let (topology_transition, reconfiguration) =
             self.reconfiguration_for_states(prior_state, &current_state, search_config);
 
         let domain = self.domain_for_query(
+            snapshot,
             objective,
-            topology,
-            query.accepted_nodes(),
             prior_state,
+            &current_state,
             current_successors,
-            search_config,
         );
         let mut machine = self.machine_for_query(
             domain,
@@ -186,12 +204,13 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn current_search_state_for_query(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
         query: &SearchQuery<NodeId>,
         search_config: &FieldSearchConfig,
     ) -> (FieldSearchSnapshotState, FieldSearchSuccessors) {
-        let current_successors = self.freeze_successors_for_search(objective, topology);
+        let current_successors = self.freeze_successors_for_search(snapshot, objective, topology);
         let current_state = FieldSearchSnapshotState::from_topology_and_config(
             topology,
             query.accepted_nodes(),
@@ -253,35 +272,29 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn domain_for_query(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
-        topology: &Observation<Configuration>,
-        accepted_node_ids: &[NodeId],
         prior_state: Option<&FieldSearchSnapshotState>,
+        current_state: &FieldSearchSnapshotState,
         current_successors: BTreeMap<NodeId, Vec<(NodeId, FieldSearchEdgeMeta, u32)>>,
-        search_config: &FieldSearchConfig,
     ) -> FieldSearchDomain {
-        let current_state = FieldSearchSnapshotState::from_topology_and_config(
-            topology,
-            accepted_node_ids,
-            current_successors.clone(),
-            search_config,
-        );
         let mut snapshots = BTreeMap::new();
         if let Some(state) = prior_state.filter(|state| state.epoch != current_state.epoch) {
-            let prior_successors = self.freeze_successors_for_search(objective, &state.topology);
+            let prior_successors =
+                self.freeze_successors_for_search(snapshot, objective, &state.topology);
             let (prior_epoch, prior_snapshot) = freeze_snapshot_for_search(
                 &state.topology,
                 prior_successors,
-                accepted_node_ids,
-                search_config.heuristic_mode(),
+                &state.accepted_node_ids,
+                state.heuristic_mode,
             );
             snapshots.insert(prior_epoch, prior_snapshot);
         }
         let (current_epoch, current_snapshot) = freeze_snapshot_for_search(
-            topology,
+            &current_state.topology,
             current_successors,
-            accepted_node_ids,
-            search_config.heuristic_mode(),
+            &current_state.accepted_node_ids,
+            current_state.heuristic_mode,
         );
         snapshots.insert(current_epoch, current_snapshot);
         FieldSearchDomain::new(snapshots)
@@ -289,11 +302,12 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn freeze_successors_for_search(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
     ) -> FieldSearchSuccessors {
         let frontier_neighbor_ids = self
-            .local_search_neighbor_ids(objective, topology)
+            .local_search_neighbor_ids(snapshot, objective, topology)
             .into_iter()
             .collect::<BTreeSet<_>>();
         let node_ids = topology
@@ -301,7 +315,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .nodes
             .keys()
             .copied()
-            .chain([self.local_node_id])
+            .chain([snapshot.local_node_id])
             .chain(frontier_neighbor_ids.iter().copied())
             .collect::<BTreeSet<_>>();
         let mut successors = BTreeMap::new();
@@ -309,15 +323,25 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             let mut edges = adjacent_node_ids(
                 &from_node_id,
                 &topology.value,
-                self.local_node_id,
+                snapshot.local_node_id,
                 &frontier_neighbor_ids,
             )
             .into_iter()
             .filter_map(|to_node_id| {
-                let edge_cost =
-                    self.edge_cost_for_search(objective, topology, &from_node_id, &to_node_id)?;
-                let support_hint =
-                    self.support_hint_for_edge(objective, topology, &from_node_id, &to_node_id);
+                let edge_cost = self.edge_cost_for_search(
+                    snapshot,
+                    objective,
+                    topology,
+                    &from_node_id,
+                    &to_node_id,
+                )?;
+                let support_hint = self.support_hint_for_edge(
+                    snapshot,
+                    objective,
+                    topology,
+                    &from_node_id,
+                    &to_node_id,
+                );
                 Some((
                     to_node_id,
                     FieldSearchEdgeMeta {
@@ -337,17 +361,20 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn edge_cost_for_search(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
         from_node_id: &NodeId,
         to_node_id: &NodeId,
     ) -> Option<u32> {
-        if *from_node_id == self.local_node_id {
+        if *from_node_id == snapshot.local_node_id {
             return self
-                .frontier_continuation_for_search(objective, to_node_id)
-                .or_else(|| self.weak_forward_continuation_for_search(objective, to_node_id))
+                .frontier_continuation_for_search(snapshot, objective, to_node_id)
+                .or_else(|| {
+                    self.weak_forward_continuation_for_search(snapshot, objective, to_node_id)
+                })
                 .map(|continuation| continuation_edge_cost(&continuation))
-                .or_else(|| self.inferred_direct_edge_cost(topology, to_node_id));
+                .or_else(|| self.inferred_direct_edge_cost(snapshot, topology, to_node_id));
         }
         if !nodes_are_adjacent(&topology.value, from_node_id, to_node_id) {
             return None;
@@ -357,17 +384,24 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn support_hint_for_edge(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
         from_node_id: &NodeId,
         to_node_id: &NodeId,
     ) -> u16 {
-        if *from_node_id == self.local_node_id {
+        if *from_node_id == snapshot.local_node_id {
             return self
-                .frontier_continuation_for_search(objective, to_node_id)
-                .or_else(|| self.weak_forward_continuation_for_search(objective, to_node_id))
+                .frontier_continuation_for_search(snapshot, objective, to_node_id)
+                .or_else(|| {
+                    self.weak_forward_continuation_for_search(snapshot, objective, to_node_id)
+                })
                 .map(|entry| entry.net_value.value())
-                .or_else(|| self.inferred_direct_edge_support_hint(topology, objective, to_node_id))
+                .or_else(|| {
+                    self.inferred_direct_edge_support_hint(
+                        snapshot, topology, objective, to_node_id,
+                    )
+                })
                 .unwrap_or(0);
         }
         0
@@ -375,6 +409,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn local_search_neighbor_ids(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
     ) -> Vec<NodeId> {
@@ -383,8 +418,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             objective.destination,
             jacquard_core::DestinationId::Service(_)
         );
-        let mut neighbors = self
-            .state
+        let mut neighbors = snapshot
             .destinations
             .get(&destination_key)
             .map(|destination_state| {
@@ -398,19 +432,19 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .unwrap_or_default();
         neighbors.extend(
             adjacent_node_ids(
-                &self.local_node_id,
+                &snapshot.local_node_id,
                 &topology.value,
-                self.local_node_id,
+                snapshot.local_node_id,
                 &BTreeSet::new(),
             )
             .into_iter()
             .filter(|neighbor| {
-                self.inferred_direct_edge_support_hint(topology, objective, neighbor)
+                self.inferred_direct_edge_support_hint(snapshot, topology, objective, neighbor)
                     .is_some_and(|support| support >= FIELD_DIRECT_EDGE_SUPPORT_FLOOR)
             }),
         );
         neighbors.extend(
-            self.state
+            snapshot
                 .destinations
                 .get(&destination_key)
                 .into_iter()
@@ -430,10 +464,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn frontier_continuation_for_search(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
         to_node_id: &NodeId,
     ) -> Option<NeighborContinuation> {
-        self.state
+        snapshot
             .destinations
             .get(&DestinationKey::from(&objective.destination))
             .and_then(|destination_state| {
@@ -448,14 +483,20 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn inferred_direct_edge_cost(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         topology: &Observation<Configuration>,
         to_node_id: &NodeId,
     ) -> Option<u32> {
         let link = topology
             .value
             .links
-            .get(&(self.local_node_id, *to_node_id))
-            .or_else(|| topology.value.links.get(&(*to_node_id, self.local_node_id)))?;
+            .get(&(snapshot.local_node_id, *to_node_id))
+            .or_else(|| {
+                topology
+                    .value
+                    .links
+                    .get(&(*to_node_id, snapshot.local_node_id))
+            })?;
         let support = u32::from(self.inferred_direct_edge_support_hint_for_link(link));
         if support < u32::from(FIELD_DIRECT_EDGE_SUPPORT_FLOOR) {
             return None;
@@ -473,6 +514,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn inferred_direct_edge_support_hint(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         topology: &Observation<Configuration>,
         objective: &RoutingObjective,
         to_node_id: &NodeId,
@@ -480,10 +522,14 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let link = topology
             .value
             .links
-            .get(&(self.local_node_id, *to_node_id))
-            .or_else(|| topology.value.links.get(&(*to_node_id, self.local_node_id)))?;
-        let destination_support = self
-            .state
+            .get(&(snapshot.local_node_id, *to_node_id))
+            .or_else(|| {
+                topology
+                    .value
+                    .links
+                    .get(&(*to_node_id, snapshot.local_node_id))
+            })?;
+        let destination_support = snapshot
             .destinations
             .get(&DestinationKey::from(&objective.destination))
             .map(|destination_state| {
@@ -523,6 +569,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
 
     fn weak_forward_continuation_for_search(
         &self,
+        snapshot: &FieldPlannerSnapshot,
         objective: &RoutingObjective,
         to_node_id: &NodeId,
     ) -> Option<NeighborContinuation> {
@@ -530,8 +577,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             objective.destination,
             jacquard_core::DestinationId::Service(_)
         );
-        let destination_state = self
-            .state
+        let destination_state = snapshot
             .destinations
             .get(&DestinationKey::from(&objective.destination))?;
         let evidence = destination_state

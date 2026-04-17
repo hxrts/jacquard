@@ -1,10 +1,10 @@
 //! Classic BATMAN OGM encoding: originator ID, sequence, TQ scalar, and hop limit.
 //!
-//! Unlike the enhanced batman engine, `OriginatorAdvertisement` carries no link
-//! state. Quality is represented entirely by the `tq` field — a permille scalar
-//! that the originator initialises to 1000 and each re-broadcasting node
-//! updates via `tq_product` before forwarding. The `remaining_hop_limit` field
-//! decrements at each hop; OGMs with zero remaining hops are not re-broadcast.
+//! `OriginatorAdvertisement` carries no link state. Quality is represented
+//! entirely by the `tq` field — a permille scalar that the originator
+//! initialises to 1000 and each re-broadcasting node updates via `tq_product`
+//! before forwarding. The `remaining_hop_limit` field decrements at each hop;
+//! OGMs with zero remaining hops are not re-broadcast.
 //!
 //! Key functions:
 //! - `local_advertisement` — builds the originator's own OGM (tq=1000,

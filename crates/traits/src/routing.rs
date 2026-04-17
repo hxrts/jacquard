@@ -325,6 +325,16 @@ pub trait RouterManagedEngine: RoutingEngine {
         ) -> Result<bool, RouteError>;
     );
 
+    must_use_evidence!("restore_route_runtime_with_record_for_router", "restoration status";
+        fn restore_route_runtime_with_record_for_router(
+            &mut self,
+            route: &MaterializedRoute,
+            _topology: &Observation<Configuration>,
+        ) -> Result<bool, RouteError> {
+            self.restore_route_runtime_for_router(&route.identity.stamp.route_id)
+        }
+    );
+
     #[must_use]
     fn analysis_snapshot_for_router(
         &self,

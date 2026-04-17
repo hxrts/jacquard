@@ -171,6 +171,13 @@ pub(crate) struct BestNextHop {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BatmanBellmanPlannerSnapshot {
+    pub local_node_id: NodeId,
+    pub stale_after_ticks: u64,
+    pub best_next_hops: BTreeMap<NodeId, BestNextHop>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ActiveBatmanRoute {
     pub destination: NodeId,
     pub next_hop: NodeId,

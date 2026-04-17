@@ -377,6 +377,7 @@ pub(super) fn summarize_run(
         family_id: spec.family_id.clone(),
         scenario_name: spec.scenario.name().to_string(),
         engine_family: spec.engine_family.clone(),
+        execution_lane: spec.execution_lane.label().to_string(),
         config_id: spec.parameters.config_id.clone(),
         comparison_engine_set: spec
             .parameters
@@ -521,21 +522,24 @@ pub(super) fn summarize_run(
         cascade_partition_count: hook_counts.cascade_partition,
         mobility_relink_count: hook_counts.mobility_relink,
         intrinsic_limit_count: hook_counts.intrinsic_limit,
+        model_artifact_count: 0,
+        equivalence_passed: None,
     }
 }
 
 // long-block-exception: the aggregate summary intentionally stays in one grouped
 // reduction so the output schema remains easy to audit against the run schema.
 pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSummary> {
-    let mut grouped: BTreeMap<
-        (String, String, Option<String>, String),
-        Vec<&ExperimentRunSummary>,
-    > = BTreeMap::new();
+    type AggregateGroupKey = (String, String, String, Option<String>, String);
+    type AggregateGroup<'a> = Vec<&'a ExperimentRunSummary>;
+
+    let mut grouped: BTreeMap<AggregateGroupKey, AggregateGroup<'_>> = BTreeMap::new();
     for run in runs {
         grouped
             .entry((
                 run.engine_family.clone(),
                 run.family_id.clone(),
+                run.execution_lane.clone(),
                 run.comparison_engine_set.clone(),
                 run.config_id.clone(),
             ))
@@ -593,6 +597,15 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
                 average_u32(group.iter().map(|run| run.maintenance_failure_count));
             let failure_summary_count_mean =
                 average_u32(group.iter().map(|run| run.failure_summary_count));
+            let model_artifact_count_mean =
+                average_u32(group.iter().map(|run| run.model_artifact_count));
+            let equivalence_pass_count = u32::try_from(
+                group
+                    .iter()
+                    .filter(|run| run.equivalence_passed == Some(true))
+                    .count(),
+            )
+            .unwrap_or(u32::MAX);
             let batman_bellman_selected_rounds_mean =
                 average_u32(group.iter().map(|run| run.batman_bellman_selected_rounds));
             let batman_classic_selected_rounds_mean =
@@ -727,6 +740,7 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
                 suite_id: first.suite_id.clone(),
                 family_id: first.family_id.clone(),
                 engine_family: first.engine_family.clone(),
+                execution_lane: first.execution_lane.clone(),
                 config_id: first.config_id.clone(),
                 comparison_engine_set: first.comparison_engine_set.clone(),
                 batman_bellman_stale_after_ticks: first.batman_bellman_stale_after_ticks,
@@ -819,6 +833,8 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
                 lost_reachability_count_mean,
                 replacement_loop_count_mean,
                 persistent_degraded_count_mean,
+                model_artifact_count_mean,
+                equivalence_pass_count,
                 acceptable,
             }
         })
@@ -828,17 +844,22 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
 pub(super) fn summarize_breakdowns(
     aggregates: &[ExperimentAggregateSummary],
 ) -> Vec<ExperimentBreakdownSummary> {
-    let mut grouped: BTreeMap<(String, String), Vec<&ExperimentAggregateSummary>> = BTreeMap::new();
+    let mut grouped: BTreeMap<(String, String, String), Vec<&ExperimentAggregateSummary>> =
+        BTreeMap::new();
     for aggregate in aggregates {
         grouped
-            .entry((aggregate.engine_family.clone(), aggregate.config_id.clone()))
+            .entry((
+                aggregate.engine_family.clone(),
+                aggregate.execution_lane.clone(),
+                aggregate.config_id.clone(),
+            ))
             .or_default()
             .push(aggregate);
     }
 
     grouped
         .into_iter()
-        .map(|((engine_family, config_id), mut group)| {
+        .map(|((engine_family, execution_lane, config_id), mut group)| {
             group.sort_by_key(|aggregate| (aggregate.stress_score, aggregate.family_id.clone()));
             let max_sustained_stress_score = group
                 .iter()
@@ -867,6 +888,7 @@ pub(super) fn summarize_breakdowns(
                     .suite_id
                     .clone(),
                 engine_family,
+                execution_lane,
                 config_id,
                 max_sustained_stress_score,
                 first_failed_family_id: first_failed.map(|aggregate| aggregate.family_id.clone()),

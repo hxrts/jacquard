@@ -47,7 +47,6 @@ structure RustReplayRecoveryFixture where
   bootstrapActive : Bool
   continuityBand : Option String
   lastContinuityTransition : Option String
-  lastBootstrapTransition : Option String
   lastPromotionDecision : Option String
   lastPromotionBlocker : Option String
   bootstrapActivationCount : Nat
@@ -99,7 +98,6 @@ def exactNodeActivationFixture : RustReplayFixture :=
         bootstrapActive := false
         continuityBand := none
         lastContinuityTransition := none
-        lastBootstrapTransition := none
         lastPromotionDecision := none
         lastPromotionBlocker := none
         bootstrapActivationCount := 0
@@ -140,7 +138,6 @@ def candidateSetActivationFixture : RustReplayFixture :=
         bootstrapActive := false
         continuityBand := none
         lastContinuityTransition := none
-        lastBootstrapTransition := none
         lastPromotionDecision := none
         lastPromotionBlocker := none
         bootstrapActivationCount := 0
@@ -181,7 +178,6 @@ def continuationShiftFixture : RustReplayFixture :=
         bootstrapActive := false
         continuityBand := none
         lastContinuityTransition := none
-        lastBootstrapTransition := none
         lastPromotionDecision := none
         lastPromotionBlocker := none
         bootstrapActivationCount := 0
@@ -222,7 +218,6 @@ def checkpointRestoreFixture : RustReplayFixture :=
         bootstrapActive := false
         continuityBand := none
         lastContinuityTransition := none
-        lastBootstrapTransition := none
         lastPromotionDecision := none
         lastPromotionBlocker := none
         bootstrapActivationCount := 0

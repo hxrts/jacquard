@@ -105,6 +105,15 @@ impl ActivePathwayRoute {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct PathwayRouteCheckpoint {
+    pub current_epoch: jacquard_core::RouteEpoch,
+    pub forwarding: PathwayForwardingState,
+    pub repair: PathwayRepairState,
+    pub handoff: PathwayHandoffState,
+    pub anti_entropy: PathwayRouteAntiEntropyState,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PathwayObservedRemoteLink {
     pub last_observed_at_tick: Tick,

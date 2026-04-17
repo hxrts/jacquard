@@ -56,6 +56,8 @@ Each experiment run uses the Jacquard simulator to play out a fixed network scen
 
 The report scores observable replay output: whether a route appears, when it is first lost, whether it recovers, how often it changes, and what failures are recorded.
 
+The simulator now also records model-lane snapshot and reducer artifacts for validation, but the recommendation tables and figures in this report continue to score the maintained full-stack replay artifacts. The added model-lane output is there to check planner and reducer behavior, not to replace the router-visible outcome surface.
+
 #### Matrix Design
 
 The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-classic`, `batman-bellman`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. For `scatter`, the route-visible sweep compares the maintained `balanced`, `conservative`, and `degraded-network` profiles. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.

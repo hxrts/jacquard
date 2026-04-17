@@ -28,6 +28,7 @@ mod private_state;
 mod public_state;
 mod runtime;
 mod scoring;
+pub mod simulator;
 
 use std::collections::BTreeMap;
 
@@ -38,7 +39,8 @@ use jacquard_core::{
 };
 pub use public_state::DecayWindow;
 use public_state::{
-    ActiveBabelRoute, BabelBestNextHop, FeasibilityEntry, RouteEntry, SelectedBabelRoute,
+    ActiveBabelRoute, BabelBestNextHop, BabelPlannerSnapshot, FeasibilityEntry, RouteEntry,
+    SelectedBabelRoute,
 };
 
 pub const BABEL_ENGINE_ID: RoutingEngineId =
@@ -109,6 +111,14 @@ impl<Transport, Effects> BabelEngine<Transport, Effects> {
             best_next_hops: BTreeMap::new(),
             feasibility_distances: BTreeMap::new(),
             active_routes: BTreeMap::new(),
+        }
+    }
+
+    pub(crate) fn planner_snapshot(&self) -> BabelPlannerSnapshot {
+        BabelPlannerSnapshot {
+            local_node_id: self.local_node_id,
+            stale_after_ticks: self.decay_window.stale_after_ticks,
+            best_next_hops: self.best_next_hops.clone(),
         }
     }
 }

@@ -18,8 +18,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     public_state::{
         ScatterAction, ScatterBudgetPolicy, ScatterEngineConfig, ScatterExpiryPolicy,
-        ScatterLocalSummary, ScatterRegime, ScatterRouteProgress, ScatterSizeClass,
-        ScatterUrgencyClass,
+        ScatterLocalSummary, ScatterPlannerSnapshot, ScatterRegime, ScatterRouteProgress,
+        ScatterSizeClass, ScatterUrgencyClass,
     },
     SCATTER_CAPABILITIES, SCATTER_ENGINE_ID,
 };
@@ -415,6 +415,19 @@ pub(crate) fn candidate_for(
     })
 }
 
+pub(crate) fn candidate_for_snapshot(
+    topology: &Observation<Configuration>,
+    objective: &RoutingObjective,
+    snapshot: &ScatterPlannerSnapshot,
+) -> Result<RouteCandidate, RouteSelectionError> {
+    candidate_for(
+        topology,
+        snapshot.local_node_id,
+        objective,
+        &snapshot.config,
+    )
+}
+
 fn admission_density_class(topology: &Observation<Configuration>) -> NodeDensityClass {
     match topology.value.environment.reachable_neighbor_count {
         0..=1 => NodeDensityClass::Sparse,
@@ -511,6 +524,16 @@ pub(crate) fn admission_for(
             degradation: degradation_for_connectivity(objective, delivered_connectivity),
         },
     }
+}
+
+pub(crate) fn admission_for_snapshot(
+    topology: &Observation<Configuration>,
+    objective: &RoutingObjective,
+    profile: &SelectedRoutingParameters,
+    candidate: RouteCandidate,
+    snapshot: &ScatterPlannerSnapshot,
+) -> RouteAdmission {
+    admission_for(topology, objective, profile, candidate, &snapshot.config)
 }
 
 pub(crate) fn expiry_for_urgency(
