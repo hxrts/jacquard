@@ -8,6 +8,8 @@ Two BATMAN routing engines are provided. Each implements the proactive originato
 
 Both engines declare `RouteShapeVisibility::NextHopOnly` and the same capability envelope. They are transport-neutral and operate alongside other engines on a shared multi-engine router. The router retains canonical route publication, handle issuance, and lease management. Batman owns proactive originator observations, neighbor ranking, and best-next-hop state within its own crate boundary.
 
+Both BATMAN crates follow the same internal shape. Each projects a small planner snapshot from engine-private runtime state, runs candidate generation and admission against that snapshot, drives refresh and maintenance through pure reducers, and restores active route runtime from the router-owned `MaterializedRoute` record rather than from an engine-private checkpoint blob.
+
 ---
 
 ## Shared Inputs
@@ -45,6 +47,10 @@ rebroadcast_ttl = received_ttl - 1
 ```
 
 OGMs with `ttl=0` are discarded and not forwarded. This bounds propagation to at most `DEFAULT_OGM_HOP_LIMIT` relay hops from the originator. Stale OGMs cannot circulate without bound in large meshes.
+
+### Internal State Split
+
+`jacquard-batman-classic` keeps route-choice projection separate from convergence state. The planner snapshot carries only `local_node_id`, the staleness window, and the current `BestNextHop` table. The round reducer owns receive-window pruning, echo-window pruning, originator observation derivation, neighbor ranking, and best-next-hop projection. The runtime wrapper is left with transport send, ingress decode, and router integration.
 
 ### TQ Propagation
 
@@ -113,6 +119,10 @@ bootstrap_tq = tq_product(local_link_tq, bellman_ford_path_tq)
 
 This substitutes a deterministic local computation for the spec's distributed OGM-propagated TQ. The computation is reproducible from the topology snapshot. The spec's TQ reflects whatever the neighborhood has recently observed.
 
+### Internal State Split
+
+`jacquard-batman-bellman` uses the same snapshot-and-reducer structure as the classic engine. The planner sees only `BatmanBellmanPlannerSnapshot`. The pure round reducer owns OGM-window pruning, merged-topology route projection, ranking, and best-next-hop selection. The pure maintenance reducer owns route-health refresh and replacement decisions. The runtime wrapper owns transport send, ingress decode, and router-facing publication hooks.
+
 ### TQ Enrichment
 
 `derive_tq` starts from the same `ogm_equivalent_tq(LinkRuntimeState)` baseline as the classic engine. When richer Jacquard link beliefs are present, it incorporates up to four additional terms in a running average.
@@ -179,11 +189,13 @@ The top-ranked entry becomes `BestNextHop`. It carries the next-hop `NodeId`, TQ
 
 ## Planning, Admission, and Lifecycle
 
-Planning, admission, and route lifecycle use identical logic in both engines. The planner checks the destination's `ServiceDescriptor` for the engine-specific ID before emitting any candidate.
+Planning, admission, and route lifecycle use identical logic in both engines. The planner checks the destination's `ServiceDescriptor` for the engine-specific ID before emitting any candidate, then validates admission against the projected snapshot rather than against hidden mutable tables.
 
 `candidate_routes` emits at most one `RouteCandidate` per reachable destination. `admit_route` validates the candidate's `BackendRouteId` against the current `BestNextHop` table entry. A stale or superseded reference is inadmissible. `materialize_route` records an active route and derives health from TQ: `HealthScore = tq`, `PenaltyPoints = 1000 - tq`.
 
 `maintain_route` returns `ReplacementRequired` when the best next-hop has changed. It returns `Failed(LostReachability)` when the destination has no table entry or when `is_bidirectional` is false. Route replacement is the only reconfiguration path. Neither engine implements suffix repair or hold.
+
+Route restore is also shared. On recovery, the router passes the full `MaterializedRoute` record back into the engine. The BATMAN engine reconstructs its active route entry from the router-owned backend route record and rebuilds any derived forwarding view from the current topology rather than persisting a second engine-local checkpoint source of truth.
 
 ---
 

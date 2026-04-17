@@ -10,11 +10,17 @@ The claim states that an objective is supportable somewhere in the current world
 The claim is opaque, partition-tolerant, and hold-capable.
 After materialization, the engine moves data through engine-private transport packets under the standard `RoutingEngine` and `RouterManagedEngine` boundary.
 
+The crate follows the same internal split used across the other in-tree engines.
+`ScatterPlannerSnapshot` carries the planner surface.
+A pure diffusion-planning reducer decides which retained messages should expire, replicate, or hand off.
+A separate pure maintenance reducer owns route-health and hold-fallback decisions.
+The runtime wrapper is left with ingress decode, packet send, and router-facing installation and restore.
+
 See [Crate Architecture](999_crate_architecture.md) for the shared ownership and boundary rules that constrain this engine.
 
 ## Core Model
 
-The first in-tree `scatter` implementation keeps a small deterministic model.
+The in-tree `scatter` implementation keeps a small deterministic model.
 The engine retains messages, summarizes peer observations, and tracks per-route progress.
 It does not assume stable endpoint identity beyond the router objective vocabulary already present in Jacquard.
 
@@ -55,6 +61,11 @@ The router remains the owner of canonical route truth.
 This split keeps route publication router-owned.
 It lets `scatter` own its private deferred-delivery mechanics.
 
+Planner and admission run against the explicit planner snapshot rather than against hidden mutable runtime state.
+Route restore is router-led.
+On recovery, the router passes the full `MaterializedRoute` record back into the engine.
+`scatter` reconstructs its active route entry from the router-owned backend token and recomputes route progress from retained local messages.
+
 ## Transport Boundary
 
 `scatter` follows the standard Jacquard ownership split.
@@ -64,8 +75,12 @@ The engine does not own async transport streams or assign `Tick`.
 
 Host bridges own ingress draining and time attachment.
 Transport choice stays a local contact-feasibility judgment.
-The first implementation keeps that judgment reduced and deterministic.
+The implementation keeps that judgment reduced and deterministic.
 It does not build separate routing models per transport.
+
+Diffusion planning is pure up to the point where packets are actually sent.
+The reducer emits forward intents as data.
+The wrapper performs the real `TransportSenderEffects` calls and then commits the resulting local progress updates.
 
 ## Contrast With Other Engines
 

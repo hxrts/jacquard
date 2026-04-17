@@ -85,6 +85,9 @@ The harness writes:
   metrics
 - the generated breakdown summary file: first sustained breakdown boundary per
   config
+- `model_artifacts.jsonl`: optional model-lane and equivalence fixture outputs;
+  additive to the maintained full-stack report inputs rather than a replacement
+  for them
 - `head_to_head_summary.csv`: explicit engine-set comparisons over shared
   regimes
 - `diffusion_runs.jsonl`: one run-level summary per diffusion scenario seed and
@@ -113,6 +116,11 @@ transition and boundary tables:
 The default recommendations are intended to be robust centers of acceptable
 behavior for this maintained corpus, not one-off winners from a single easy
 scenario.
+
+Model-lane artifacts are a validation companion, not a second scoring corpus.
+They make planner and reducer decisions auditable and support equivalence checks
+against the full-stack lane, but the report and recommendation tables still
+derive from the maintained full-stack route-visible and diffusion summaries.
 
 The diffusion track adds a second set of metrics that are intentionally not
 route-centric:

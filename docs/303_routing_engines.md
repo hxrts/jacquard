@@ -1,10 +1,10 @@
 # Routing Engines
 
-This page describes the trait surface for adding a routing algorithm to Jacquard. It also captures the host capability boundary that engines consume and the in-tree engine shapes. See [Pathway Routing](404_pathway_routing.md) for the explicit-path engine, [Batman Routing](401_batman_routing.md) for the batman-bellman and batman-classic next-hop engines, [Field Routing](405_field_routing.md) for the corridor-envelope engine, [Babel Routing](402_babel_routing.md) for the RFC 8966 distance-vector engine, [OLSRv2 Routing](403_olsrv2_routing.md) for the deterministic link-state engine, and [Scatter Routing](406_scatter_routing.md) for the bounded deferred-delivery diffusion engine.
+This page describes the trait surface for adding a routing algorithm to Jacquard. It also captures the host capability boundary that engines consume and the in-tree engine shapes.
 
 ## Routing Engine Contract
 
-A routing engine is a routing algorithm that consumes the shared world picture and realizes routes under router-provided identity. Jacquard ships seven in-tree engines: `pathway` (explicit-path), `field` (corridor-envelope), `batman-bellman` (Bellman-Ford-enhanced next-hop), `batman-classic` (spec-faithful BATMAN IV next-hop), `babel` (RFC 8966 distance-vector), `olsrv2` (OLSRv2 link-state), and `scatter` (bounded deferred-delivery diffusion). External engines such as onion routing plug into the same contract without depending on any in-tree engine's internals.
+A routing engine is a routing algorithm that consumes the shared world picture and realizes routes under router-provided identity. Jacquard ships seven in-tree engines: `pathway` (explicit-path), `field` (corridor-envelope), `batman-bellman` (Bellman-Ford-enhanced next-hop), `batman-classic` (spec-faithful BATMAN IV next-hop), `babel` (RFC 8966 distance-vector), `olsrv2` (OLSRv2 link-state), and `scatter` (bounded deferred-delivery diffusion). External engines can plug into the same contract without depending on any in-tree engine's internals.
 
 ```rust
 pub trait RoutingEnginePlanner {
@@ -71,7 +71,9 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
 `RoutingEnginePlanner` is pure. `RoutingEngine` is effectful. The split keeps candidate production deterministic and keeps runtime mutation inside explicit realization and maintenance methods. The router allocates canonical route identity first. The engine realizes the admitted route under that identity and returns `RouteInstallation`. The final `MaterializedRoute` is assembled above the engine boundary as router-owned identity plus engine-owned runtime state, and maintenance only receives the mutable runtime portion.
 
-That activation step also enforces the shared control-plane invariants. The admission decision must still be admissible. The realized protection must satisfy the objective protection floor. Lease validity must be checked explicitly before maintenance or publication proceeds.
+Route choice and transition logic within a given engine is explicit and replayable. Engines project a small read-only planner snapshot from their private runtime state. Planner methods should read that snapshot rather than hidden mutable tables. Runtime methods should normalize inputs, call a pure reducer, then apply the reducer result through storage, transport, and logging effects.
+
+This activation step also enforces the shared control-plane invariants. The admission decision must still be admissible. The realized protection must satisfy the objective protection floor. Lease validity must be checked explicitly before maintenance or publication proceeds.
 
 ## Engine Tick
 
@@ -79,15 +81,17 @@ That activation step also enforces the shared control-plane invariants. The admi
 
 `RoutingTickOutcome.next_tick_hint` is advisory scheduling pressure, not self-scheduling authority. Proactive engines such as Babel- or BATMAN-style implementations can report that more work is due soon, but the host/router still owns final cadence.
 
-An engine may still use a richer internal runtime model behind that hook. First-party pathway, for example, now drives protocol-side ingress and bounded control-state refresh through a private choreography guest runtime while keeping the shared `engine_tick` signature unchanged.
+An engine may use a richer internal runtime model behind that hook. First-party pathway, for example, drives protocol-side ingress and bounded control-state refresh through a private choreography guest runtime while keeping the shared `engine_tick` signature unchanged.
 
-That private choreography runtime does not replace the shared Jacquard effect traits. Generated Telltale effect interfaces remain engine-private implementation details, and the pathway interpreter adapts them onto the stable `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `TransportSenderEffects` surfaces exposed by `jacquard-traits`. Host-owned `TransportDriver` implementations now stop at the router or bridge layer, which delivers explicit ingress before each synchronous router round.
+That private choreography runtime does not replace the shared Jacquard effect traits. Generated Telltale effect interfaces remain engine-private implementation details, and the pathway interpreter adapts them onto the stable `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `TransportSenderEffects` surfaces exposed by `jacquard-traits`. Host-owned `TransportDriver` implementations stop at the router or bridge layer, which delivers explicit ingress before each synchronous router round.
 
 First-party field follows the same ownership rule, but with a narrower proof
 boundary: the deterministic local observer-controller remains the semantic
 owner of corridor belief and posture choice, while any field-private
 choreography layer may provide only observational summary inputs. Canonical
 route publication remains router-owned.
+
+Router-led recovery follows the same split. The baseline engine hook restores route-private runtime from route identity. The router also supplies the current topology to a richer recovery hook so engines can rebuild topology-derived forwarding state without persisting that derived view in checkpoints.
 
 ## Runtime Effect Boundary
 

@@ -77,6 +77,8 @@ Signature design follows the same split. Use `&self` for pure and read-only meth
 
 That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `SubstratePlanner` from `SubstrateRuntime`, and `LayeredRoutingEnginePlanner` from `LayeredRoutingEngine`. Engine-specific read-only seams such as pathway topology access stay in the owning engine crate rather than leaking into `jacquard-traits`. The shared round lifecycle follows the same rule: router-owned cadence and explicit ingress live at the contract layer, while engine-specific control loops and control-state contents stay inside the owning engine crate.
 
+The same rule applies inside engine crates. Candidate generation and scoring should consume an explicit planner snapshot rather than hidden mutable state. Round and maintenance logic should move toward pure reducers over explicit runtime state plus normalized input. Checkpoints should persist only durable protocol facts, while derived caches are rebuilt during recovery.
+
 ## Enforcement
 
 Trait purity and routing invariants are enforced by the lint suite. The stable-toolchain check lane is split between the external toolkit runner and Jacquard's local `toolkit/xtask`, while nightly compiler-backed coverage lives in the external `toolkit` lint suite plus `toolkit/lints/model_policy` and `toolkit/lints/routing_invariants`. Public trait definitions in `jacquard-traits` also carry `#[purity(...)]` or `#[effect_trait]` annotations that the proc macros validate at compile time.
@@ -86,6 +88,8 @@ Trait purity and routing invariants are enforced by the lint suite. The stable-t
 The routing core does not call platform APIs directly. Hashing, storage, route-event logging, transport send capability, host-owned transport drivers, time, and ordering all cross explicit shared boundaries in `traits`. `jacquard-adapter` sits alongside that boundary, not inside it: reusable adapter-side ingress mailboxes, unresolved/resolved peer bookkeeping, claim guards, transport-neutral endpoint conveniences, and host-side topology projectors live there so `core` stays data-only and `traits` stays contract-only. The router consumes explicit ingress and advances through synchronous rounds rather than polling adapters ambiently. That is how native execution, tests, and simulation share one semantic model.
 
 The effect traits are narrower than the higher-level component traits. They model runtime capabilities, not whole subsystems. `RoutingEngine`, `Router`, and `RetentionStore` are larger behavioral contracts and should not be forced through the effect layer.
+
+Recovery follows the same ownership split. The router persists canonical `MaterializedRoute` records. Engines restore route-private runtime through router-managed hooks. When the current topology is needed to rebuild a derived forwarding view, the router provides that topology during recovery rather than forcing the engine to persist the derived view itself.
 
 First-party pathway keeps one additional internal layer above those shared effects: pathway-private choreography effect interfaces generated from Telltale protocols. Those generated interfaces are not promoted into `jacquard-traits`. Concrete host/runtime adapters implement the shared effect traits, and `jacquard-pathway` interprets its private choreography requests in terms of those stable shared boundaries.
 
@@ -121,7 +125,7 @@ Each crate owns a narrow slice of runtime state.
 | `jacquard-mem-node-profile` | In-memory node capability and node-state modeling only. No routing semantics. |
 | `jacquard-mem-link-profile` | In-memory link capability, carrier, retention, and runtime-effect adapter state only. No canonical routing truth. |
 | `jacquard-reference-client` | Narrow host-side bridge composition of profile implementations, bridge-owned drivers, router, and one or more in-tree engine instances for tests and examples. Observational with respect to canonical route truth, but owner of ingress queueing and round advancement in the reference harness. |
-| `jacquard-simulator` | Replay artifacts, scenario traces, post-run analysis. No canonical route truth during a live run. |
+| `jacquard-simulator` | Replay artifacts, scenario traces, post-run analysis, and model-lane fixture execution for pure planner and reducer tests. No canonical route truth during a live run. |
 
 A host-owned policy engine above the router may own cross-engine migration policy and substrate selection.
 

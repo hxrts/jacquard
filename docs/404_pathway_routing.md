@@ -104,6 +104,8 @@ Admission and witness generation operate on shared result objects. The pathway e
 
 Pathway route ids are path identities. The stable route id is derived from source, destination, route class, and concrete segment path. Epoch stays in the plan token and proof instead of becoming part of the stable route identity. Pathway-private plan tokens, route-identity bytes, ordering keys, and runtime checkpoints all use the same versioned canonical binary encoding policy so replay, hashing, and checkpoint recovery stay aligned.
 
+Planner cache state is advisory only. `candidate_routes` populates `candidate_cache` for reuse by `check_candidate` and `admit_route`, but cache misses re-derive the same candidate and admission result from the backend token plus explicit topology. Pathway does not let planner decisions depend on hidden mutable cache state.
+
 ## Engine Middleware
 
 `RoutingEngine::engine_tick` is the engine-wide progress hook for pathway. The router or host supplies a shared `RoutingTickContext`, and pathway returns a `RoutingTickOutcome` that reports whether the tick changed pathway-private state. Inside `jacquard-pathway`, this hook is the engine-internal middleware loop.
@@ -212,13 +214,13 @@ Committee eligibility is stricter than forwarding value alone. A member must be 
 
 ## Retention and Storage
 
-The pathway engine uses the shared `RetentionStore` boundary for deferred-delivery payloads. While a route is in partition mode, `forward_payload` buffers payloads into the retention store instead of sending them immediately. Pathway then flushes those retained payloads on recovery or before handoff when a next hop becomes available. The typed partition fallback surface remains `RouteMaintenanceOutcome::HoldFallback`, which now carries the retained-object count visible on the route at the time the fallback was entered.
+The pathway engine uses the shared `RetentionStore` boundary for deferred-delivery payloads. While a route is in partition mode, `forward_payload` buffers payloads into the retention store instead of sending them immediately. Pathway then flushes those retained payloads on recovery or before handoff when a next hop becomes available. The typed partition fallback surface is `RouteMaintenanceOutcome::HoldFallback`, which carries the retained-object count visible on the route at the time the fallback was entered.
 
 Retained payload identity flows through the shared `Hashing` boundary. Route and runtime checkpoints flow through the shared storage and route-event-log effects. Storage keys and runtime checkpoints are scoped by the local engine identity so multiple local pathway engines can share one backend without overwriting one another.
 
-V1 pathway supports a scoped checkpoint round-trip for pathway-private active-route state and the latest topology epoch. That recovery surface is intentionally narrow: it restores the pathway-owned runtime object keyed by `RouteId`, while canonical route identity and lease ownership remain on the router side.
+Pathway supports a scoped checkpoint round-trip for pathway-private route runtime and the latest topology epoch. The route checkpoint is intentionally narrower than the full active-route object: it stores the mutable forwarding, repair, handoff, anti-entropy, and current-epoch substate only. Path shape, committee selection, route cost, route identity, and lifecycle event are rebuilt from the router-owned `MaterializedRoute` record and the self-contained backend plan token during restore.
 
-The choreography layer adds a second scoped recovery surface: protocol checkpoints are keyed by protocol kind plus route session or tick session and round-trip through the same storage boundary. Route recovery still uses the active-route checkpoint; protocol recovery uses the protocol checkpoint catalog. Neither requires ambient hidden state outside the engine-owned checkpoint store.
+The choreography layer adds a second scoped recovery surface: protocol checkpoints are keyed by protocol kind plus route session or tick session and round-trip through the same storage boundary. Route recovery uses the reduced route checkpoint plus the router-owned materialized record; protocol recovery uses the protocol checkpoint catalog. Neither requires ambient hidden state outside engine-owned checkpoint storage and router-owned canonical route truth.
 
 ## Swappable Trait Surface
 
@@ -285,7 +287,7 @@ pub trait PathwayRoutingEngine: RoutingEngine {
 }
 ```
 
-`PathwayRoutingEngine` binds one concrete topology model and one retention store to a pathway engine instance. It stays narrow on purpose: hosts can inspect the read-only pathway subcomponents without gaining a mutation hook into pathway-private runtime state. Transport send capability and transport ingress ownership are now split cleanly: pathway consumes the shared `TransportSenderEffects` capability, while the host/router owns ingress supervision and delivers explicit observations before each round.
+`PathwayRoutingEngine` binds one concrete topology model and one retention store to a pathway engine instance. It stays narrow on purpose: hosts can inspect the read-only pathway subcomponents without gaining a mutation hook into pathway-private runtime state. Transport send capability and transport ingress ownership are split cleanly: pathway consumes the shared `TransportSenderEffects` capability, while the host/router owns ingress supervision and delivers explicit observations before each round.
 
 ### Shared Retention Boundary
 

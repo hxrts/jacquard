@@ -112,6 +112,12 @@ Planning, admission, and route lifecycle follow the shared contract used by all 
 
 `maintain_route` returns `ReplacementRequired` when the best next-hop has changed. It returns `Failed(LostReachability)` when the destination has no table entry. Route replacement is the only reconfiguration path. The engine does not implement suffix repair or hold.
 
+The internal design follows the same state-partitioning shape used across the other distance-vector engines. Babel projects a read-only planner snapshot from the best-next-hop table. Candidate generation and admission read that snapshot rather than hidden planner state. The refresh pass and maintenance path both reduce explicit state through pure helper functions before the runtime wrapper applies the result.
+
+Recovery keeps the same shape. The durable fact is the router-owned `MaterializedRoute` record, not a Babel-private route checkpoint blob. During router-led recovery, Babel reconstructs the active route entry from that record and rebuilds the topology-derived forwarding view from the router's current topology.
+
+Babel also exposes a narrow simulator-facing surface for this split. The simulator can drive Babel planner snapshots, explicit round-state reducers, and checkpoint restore views without reaching into crate-private tables. That surface is used by the simulator's `model` and `equivalence` suites rather than by a simulator-only Babel shim.
+
 ## Capabilities
 
 The Babel engine declares the same capability envelope as the batman engines:

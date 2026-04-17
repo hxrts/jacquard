@@ -4,6 +4,10 @@
 
 Hosts own transport drivers. The bridge stamps ingress with Jacquard `Tick`. The router advances through explicit synchronous rounds. Engines keep private runtime state below the shared routing boundary.
 
+The simulator has two internal lanes. The full-stack lane drives the reference-client bridge and the real router/runtime composition. The model lane runs explicit planner snapshots, pure round reducers, pure maintenance reducers, and checkpoint fixtures without a host bridge. The model lane does not replace the full-stack lane. It offers a cheaper path for deterministic planner and transition checks.
+
+Experiment execution also has three modes. `full-stack` runs the maintained tuning families. `model` runs explicit fixture-driven planner, reducer, and restore checks. `equivalence` runs a model fixture and a full-stack replay for the same case and asserts that the visible decision matches.
+
 The simulator selects engines per host through `EngineLane`. Available lanes include single-engine variants (`Pathway`, `BatmanBellman`, `BatmanClassic`, `Babel`, `OlsrV2`, `Scatter`, `Field`) and mixed-engine variants (`PathwayAndBatmanBellman`, `PathwayAndBabel`, `PathwayAndOlsrV2`, `PathwayAndField`, `BabelAndBatmanBellman`, `OlsrV2AndBatmanBellman`, `FieldAndBatmanBellman`, `AllEngines`). All engines share one host bridge per node.
 
 The simulator also owns the maintained tuning and diffusion harnesses. The `tuning_matrix` binary runs scenario sweeps, writes deterministic artifacts under `artifacts/analysis/`, and automatically generates the analysis report. The tuning methodology and current recommendations live in [Routing Tuning](502_tuning.md).
@@ -37,7 +41,13 @@ The simulator reuses existing Jacquard composition surfaces. It does not maintai
 - deterministic checkpoints with host snapshots
 - failure summaries for diagnostic inspection
 
-For the `pathway` lane, checkpoints carry `InMemoryRuntimeEffects` snapshots per host. These snapshots are needed to rebuild the bridge and recover checkpointed route state. Simulations can be resumed from the last checkpoint using `JacquardSimulator::resume_replay()`. Non-choreography engines do not expose Telltale-native internals to the simulation harness.
+Checkpoints carry `InMemoryRuntimeEffects` snapshots per host. These snapshots are needed to rebuild the bridge and recover checkpointed route state across all engines. Simulations can be resumed from the last checkpoint using `JacquardSimulator::resume_replay()`. `pathway` is the only lane that exposes Telltale-native replay references, but checkpoint resume works across all engines.
+
+Model-lane runs use their own fixture outputs instead of host-round replay artifacts. They record explicit planner snapshots, candidate counts, reducer summaries, restore outputs, and equivalence results in `model_artifacts.jsonl`. This makes equivalence checks against full-stack runs possible without introducing a simulator-only engine stack.
+
+That file is additive. The maintained full-stack artifact contract is `runs.jsonl`, `aggregates.json`, and `breakdowns.json` for route-visible tuning, plus the diffusion artifact set for deferred-delivery analysis. The current report pipeline does not score `model_artifacts.jsonl`; it uses it for model-lane inspection and equivalence debugging only.
+
+The current model-lane selectors are `babel-model-smoke`, `babel-equivalence-smoke`, and `field-model-smoke` in the `tuning_matrix` binary. They exercise the real `jacquard-babel` planner snapshot, round reducer, and checkpoint restore surfaces, plus the real `jacquard-field` snapshot-driven planner surface, through the simulator's model and equivalence paths.
 
 ## Starter Path
 

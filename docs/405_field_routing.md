@@ -18,7 +18,7 @@ Field owns four private layers:
 Those layers stay engine-private. The router still owns canonical route
 identity, publication, and cross-engine selection.
 
-The current Rust implementation now makes the operational layer more explicit:
+The Rust implementation makes the operational layer explicit:
 
 - [`crates/field/src/policy.rs`](../crates/field/src/policy.rs) centralizes calibrated regime, posture, continuity, promotion,
   and evidence thresholds as one deterministic `FieldPolicy` surface
@@ -51,6 +51,13 @@ That refresh updates:
 
 The resulting frontier is the local admissible continuation surface that the
 planner and runtime consume.
+
+Field projects that route-choice state into an explicit planner snapshot
+before candidate generation runs. The snapshot carries the destination belief
+map, bounded mean-field state, bounded control state, the current regime and
+posture, and the effective search config chosen for that posture. Candidate
+generation and admission read that snapshot plus explicit topology input rather
+than consulting live mutable engine state directly.
 
 ## Regime Detection
 
@@ -122,11 +129,20 @@ The search/publication boundary is explicit:
 - backend token and active-route state keep the richer private realization
   detail needed for runtime maintenance and forwarding
 
+The planning boundary is explicit as well:
+
+- `FieldPlannerSnapshot` is the read-only route-choice projection
+- search query construction and frozen-search successor derivation read that
+  snapshot and the observed topology only
+- planner wrapper methods still record the latest search record for replay, but
+  the route-choice result is derived from the projected snapshot rather than
+  hidden mutable engine state
+
 ## Experimental Surface
 
-Field now separates two different tuning surfaces:
+Field separates two different tuning surfaces:
 
-- `FieldSearchConfig` remains the search-substrate surface:
+- `FieldSearchConfig` is the search-substrate surface:
   - scheduler profile
   - batch-width / effort invariants
   - heuristic mode
@@ -283,7 +299,7 @@ just a second support threshold. The runtime evaluates five observable gates:
 - continuation coherence inside the installed corridor envelope
 - freshness of the leading continuation
 
-Between `Steady` and `Bootstrap`, runtime now also keeps one explicit
+Between `Steady` and `Bootstrap`, runtime keeps one explicit
 degraded-steady continuity band. A degraded-steady route is still a conservative
 steady corridor claim at the publication boundary, but the runtime has started
 preserving narrowed corridor structure, asymmetric continuation shifts, and

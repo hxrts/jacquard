@@ -16,6 +16,8 @@ The engine owns five pieces of runtime state:
 
 The router and host own ingress draining, tick cadence, and time attachment. `jacquard-olsrv2` consumes explicit ingress through the shared runtime hook and returns router-visible `NextHopOnly` candidates.
 
+Internally, the engine splits route choice from protocol progression. `OlsrPlannerSnapshot` carries the route-choice projection used by planning. A pure round reducer owns HELLO and TC expiry, two-hop reachability derivation, MPR selection, SPF refresh, and best-next-hop projection. A separate pure maintenance reducer owns route-health refresh and replacement decisions. The runtime wrapper is limited to ingress decode, transport emission, and router-facing integration.
+
 ## Jacquard-Specific Simplifications
 
 Jacquard keeps the OLSRv2 surface deterministic and auditable:
@@ -76,9 +78,11 @@ The engine keeps a full topology graph privately but does not claim explicit-pat
 
 ## Route Lifecycle And Maintenance
 
-Planning and admission follow the standard Jacquard route lifecycle. `candidate_routes` emits next-hop candidates from the derived best-next-hop table. `check_candidate` validates the candidate against current engine-private topology state. `admit_route` binds the candidate to router-owned identity. `materialize_route` installs the active next-hop record.
+Planning and admission follow the standard Jacquard route lifecycle. `candidate_routes` emits next-hop candidates from the projected best-next-hop snapshot. `check_candidate` validates the candidate against the current snapshot projection. `admit_route` binds the candidate to router-owned identity. `materialize_route` installs the active next-hop record.
 
 Maintenance returns `Continued` while the selected next hop remains valid. It returns `ReplacementRequired` when the shortest-path table selects a new next hop. It returns `Failed(LostReachability)` when no route remains. There is no suffix repair or engine-owned hold mode. Route replacement is the only reconfiguration path.
+
+Restore is router-led. On recovery, the router passes the full `MaterializedRoute` record back into the engine. `jacquard-olsrv2` reconstructs its active route entry from the router-owned backend route record and rebuilds derived SPF state from the current topology and refreshed control tables rather than from an engine-private checkpoint payload.
 
 ## Comparison Role
 

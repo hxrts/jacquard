@@ -6,7 +6,7 @@ This page focuses on the core primitives that other routing objects build on. Se
 
 `NodeId` identifies one running Jacquard client. `ControllerId` identifies the cryptographic actor that authenticates for that node. `NodeBinding` makes that relationship explicit instead of assuming one node identity is enough for every deployment.
 
-Jacquard now uses an explicit epistemic ladder. `Observation<T>` is raw local input or a received report with provenance attached. `Estimate<T>` is a belief update derived from one or more observations. `Fact<T>` is stronger: it is the value the system is willing to treat as established routing truth. This split matters because a recent topology sighting, a scored route candidate, and a published route witness are different kinds of claim.
+Jacquard uses an explicit epistemic ladder. `Observation<T>` is raw local input or a received report with provenance attached. `Estimate<T>` is a belief update derived from one or more observations. `Fact<T>` is stronger: it is the value the system is willing to treat as established routing truth. This split matters because a recent topology sighting, a scored route candidate, and a published route witness are different kinds of claim.
 
 ```rust
 pub struct NodeBinding {
