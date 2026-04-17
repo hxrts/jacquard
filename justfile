@@ -26,12 +26,12 @@ lint:
 
 # run the small tuning matrix without generating the analysis report
 tuning-smoke:
-    cargo run -p jacquard-simulator --bin tuning_matrix -- smoke
+    nix develop --command cargo run -p jacquard-simulator --bin tuning_matrix -- smoke
     @echo "Tuning smoke artifacts: artifacts/analysis/smoke/latest"
 
 # run the full local tuning matrix and generate the analysis report
 tuning-local:
-    cargo run -p jacquard-simulator --bin tuning_matrix -- local
+    nix develop --command cargo run -p jacquard-simulator --bin tuning_matrix -- local
     @echo "Tuning local artifacts: artifacts/analysis/local/latest"
     @echo "Report: artifacts/analysis/local/latest/router-tuning-report.pdf"
 
