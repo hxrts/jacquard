@@ -78,7 +78,9 @@ one aggregate stress score:
 - workload class: connected-only, repairable-connected, service, and concurrent
   mixed workloads
 
-The harness writes:
+A run produces, under `artifacts/analysis/{suite}/{timestamp}/`:
+
+Harness outputs (written by the Rust simulator):
 
 - `runs.jsonl`: one run-level summary per scenario seed and parameter setting
 - the generated aggregate summary file: grouped means and maintained field
@@ -88,14 +90,17 @@ The harness writes:
 - `model_artifacts.jsonl`: optional model-lane and equivalence fixture outputs;
   additive to the maintained full-stack report inputs rather than a replacement
   for them
-- `head_to_head_summary.csv`: explicit engine-set comparisons over shared
-  regimes
 - `diffusion_runs.jsonl`: one run-level summary per diffusion scenario seed and
   policy setting
 - the diffusion aggregate summary file: grouped means for delivery, coverage,
   transmissions, energy, boundedness, and leakage metrics
 - the diffusion boundary summary file: per-policy viability, collapse, and
   overload boundaries across maintained diffusion families
+
+Analysis outputs (written by the Python report pipeline):
+
+- `head_to_head_summary.csv`: explicit engine-set comparisons over shared
+  regimes
 - CSV tables for recommendations, transitions, boundaries, and profile variants
 - vector plot assets plus a generated PDF report
 

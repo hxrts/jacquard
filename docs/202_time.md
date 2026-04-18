@@ -35,7 +35,7 @@ Jacquard accesses time and deterministic ordering through abstract effects. `Tim
 pub struct TimeoutPolicy {
     pub attempt_count_max: u32,
     pub initial_backoff_ms: DurationMs,
-    pub backoff_multiplier_permille: RatioPermille,
+    pub retry_multiplier_permille: RatioPermille,
     pub backoff_ms_max: DurationMs,
     pub overall_timeout_ms: DurationMs,
 }

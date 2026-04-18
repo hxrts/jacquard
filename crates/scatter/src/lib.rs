@@ -21,8 +21,9 @@
 mod planner;
 mod public_state;
 mod runtime;
-pub mod simulator;
 mod support;
+#[cfg(test)]
+mod validation;
 
 use std::collections::{BTreeMap, BTreeSet};
 

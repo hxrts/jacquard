@@ -2,9 +2,9 @@
 
 Two BATMAN routing engines are provided. Each implements the proactive originator-message model over the shared Jacquard world picture.
 
-- `jacquard-batman-bellman` (engine ID `jacquard.batmanb`) is the Jacquard-enhanced engine. It replaces the spec's distributed TQ propagation with a local Bellman-Ford computation over a gossip-merged topology graph. It enriches TQ with Jacquard link beliefs and includes a bootstrap shortcut for tick-1 route availability. This is the engine measured in the tuning corpus.
-
 - `jacquard-batman-classic` (engine ID `jacquard.batmanc`) is a spec-faithful engine. It implements the BATMAN IV originator-message model without structural departures. TQ is carried in the OGM and updated by each re-broadcasting node. No candidate is emitted before receive-window data has accumulated.
+
+- `jacquard-batman-bellman` (engine ID `jacquard.batmanb`) replaces the spec's distributed TQ propagation with a local Bellman-Ford computation over a gossip-merged topology graph. It enriches TQ with Jacquard link beliefs and includes a bootstrap shortcut for tick-1 route availability. This is the engine measured in the tuning corpus.
 
 Both engines declare `RouteShapeVisibility::NextHopOnly` and the same capability envelope. They are transport-neutral and operate alongside other engines on a shared multi-engine router. The router retains canonical route publication, handle issuance, and lease management. Batman owns proactive originator observations, neighbor ranking, and best-next-hop state within its own crate boundary.
 
@@ -28,8 +28,8 @@ The classic engine's originator advertisement carries only the fields required b
 OriginatorAdvertisement {
     originator: NodeId,
     sequence: u64,
-    tq: RatioPermille,   // path quality from this node to originator; 1000 at source
-    ttl: u8,             // hops remaining; decremented at each relay
+    tq: RatioPermille,         // path quality from this node to originator; 1000 at source
+    remaining_hop_limit: u8,   // hops remaining; decremented at each relay
 }
 ```
 
@@ -37,16 +37,16 @@ No per-link state is included. Quality information travels as the `tq` scalar, w
 
 ### Flooding and TTL
 
-`flood_gossip` runs each tick. It sends the local originator OGM (`tq=1000`, `ttl=DEFAULT_OGM_HOP_LIMIT=50`) to every direct neighbor. It also sends a re-broadcast copy of each learned OGM whose TTL has not reached zero.
+`flood_gossip` runs each tick. It sends the local originator OGM (`tq=1000`, `remaining_hop_limit=DEFAULT_OGM_HOP_LIMIT=50`) to every direct neighbor. It also sends a re-broadcast copy of each learned OGM whose hop-limit has not reached zero.
 
 Before forwarding a learned OGM, the engine computes its path quality to the originator and encodes it in the outgoing advertisement:
 
 ```text
 rebroadcast_tq = tq_product(link_state_tq_to_sender, received_tq)
-rebroadcast_ttl = received_ttl - 1
+rebroadcast_remaining_hop_limit = received_remaining_hop_limit - 1
 ```
 
-OGMs with `ttl=0` are discarded and not forwarded. This bounds propagation to at most `DEFAULT_OGM_HOP_LIMIT` relay hops from the originator. Stale OGMs cannot circulate without bound in large meshes.
+OGMs with `remaining_hop_limit=0` are discarded and not forwarded. This bounds propagation to at most `DEFAULT_OGM_HOP_LIMIT` relay hops from the originator. Stale OGMs cannot circulate without bound in large meshes.
 
 ### Internal State Split
 
@@ -60,7 +60,7 @@ TQ degrades multiplicatively as an OGM hops through the network. An originator X
 received_tq_via_B = link_B_to_prev × ... × link_Y_to_X × 1000 / 1000^n
 ```
 
-A stores `received_ogm_info[X][B]` with the received TQ and a hop count derived from `DEFAULT_OGM_HOP_LIMIT - received_ttl + 1`. This data drives A's local routing decision for X without any local path computation.
+A stores `received_ogm_info[X][B]` with the received TQ and a hop count derived from `DEFAULT_OGM_HOP_LIMIT - received_remaining_hop_limit + 1`. This data drives A's local routing decision for X without any local path computation.
 
 This is the classic distributed implicit computation. Each node contributes its local link observation. The flood assembles an end-to-end quality estimate without any node building a full topology graph.
 

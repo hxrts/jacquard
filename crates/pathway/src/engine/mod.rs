@@ -42,9 +42,9 @@ pub use planner::{
     PathwaySearchReconfiguration, PathwaySearchRun, PathwaySearchSnapshotId,
     PathwaySearchTransitionClass,
 };
+pub use support::first_hop_node_id_from_backend_route_id;
 pub(crate) use support::{
-    current_segment, digest_prefix, first_hop_node_id_from_backend_route_id, MaintenanceResultExt,
-    StorageResultExt, DOMAIN_TAG_COMMITTEE_ID,
+    current_segment, digest_prefix, MaintenanceResultExt, StorageResultExt, DOMAIN_TAG_COMMITTEE_ID,
 };
 use trait_bounds::{
     PathwayEffectsBounds, PathwayHasherBounds, PathwayRetentionBounds, PathwaySelectorBounds,

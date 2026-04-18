@@ -12,9 +12,6 @@
 //! - `tq_product` — multiplies two TQ permille values (saturating at 1000) to
 //!   derive a compound end-to-end score over a two-hop path, matching the
 //!   classical BATMAN TQ propagation rule.
-//!
-//! All scoring is deterministic: no floating-point arithmetic is used and
-//! all inputs are fixed-width integers derived from the shared world model.
 
 use jacquard_core::{
     Belief, DurationMs, Link, LinkRuntimeState, RatioPermille, RouteDegradation, TransportKind,

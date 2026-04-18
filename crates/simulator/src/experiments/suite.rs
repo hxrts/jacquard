@@ -15,12 +15,22 @@ use crate::experiments::catalog::{
     materialize_families, FamilyBuilder,
 };
 use crate::SimulationExecutionLane;
-use jacquard_babel::simulator::{
-    materialized_route_from_snapshot, planner_snapshot_view, BabelPlannerChoiceView,
-    BabelRoundInputView, BabelRoundRouteEntryView, BabelRoundStateView,
+use jacquard_babel::{
+    simulator_support::{
+        materialize_route_from_view, BabelRoundInputView, BabelRoundRouteEntryView,
+        BabelRoundStateView,
+    },
+    BabelBestNextHop, BabelPlannerSnapshot,
 };
 use jacquard_core::OperatingMode;
-use jacquard_core::{RouteDegradation, RoutingTickChange, TransportKind};
+use jacquard_core::{
+    BackendRouteId, RatioPermille, RouteDegradation, RoutingTickChange, TransportKind,
+};
+use std::collections::BTreeMap;
+
+fn babel_backend_route_id(destination: NodeId, next_hop: NodeId) -> BackendRouteId {
+    BackendRouteId([destination.0.as_slice(), next_hop.0.as_slice()].concat())
+}
 
 #[must_use]
 pub fn smoke_suite() -> ExperimentSuite {
@@ -645,28 +655,27 @@ fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
 fn build_babel_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<ExperimentRunSpec> {
     let (scenario, environment, objective, profile, topology) =
         pilot_babel_line_scenario("babel-model-line", seed, false);
-    let snapshot = planner_snapshot_view(
-        NODE_A,
-        8,
-        vec![BabelPlannerChoiceView {
-            destination: NODE_C,
-            next_hop: NODE_B,
-            metric: 512,
-            degradation: RouteDegradation::None,
-            transport_kind: TransportKind::WifiAware,
-            updated_at_tick: Tick(4),
-            topology_epoch: topology.value.epoch,
-        }],
-    );
-    let checkpoint_route = materialized_route_from_snapshot(
-        NODE_A,
-        &snapshot,
-        &objective,
-        &profile,
-        &topology,
-        Tick(4),
-    )
-    .expect("pilot Babel planner fixture must materialize a checkpoint route");
+    let snapshot = BabelPlannerSnapshot {
+        local_node_id: NODE_A,
+        stale_after_ticks: 8,
+        best_next_hops: BTreeMap::from([(
+            NODE_C,
+            BabelBestNextHop {
+                destination: NODE_C,
+                next_hop: NODE_B,
+                metric: 512,
+                tq: RatioPermille(488),
+                degradation: RouteDegradation::None,
+                transport_kind: TransportKind::WifiAware,
+                updated_at_tick: Tick(4),
+                topology_epoch: topology.value.epoch,
+                backend_route_id: babel_backend_route_id(NODE_C, NODE_B),
+            },
+        )]),
+    };
+    let checkpoint_route =
+        materialize_route_from_view(NODE_A, &snapshot, &objective, &profile, &topology, Tick(4))
+            .expect("pilot Babel planner fixture must materialize a checkpoint route");
 
     vec![
         ExperimentRunSpec {
@@ -790,28 +799,27 @@ fn build_babel_pilot_equivalence_runs(
 ) -> Vec<ExperimentRunSpec> {
     let (scenario, environment, objective, profile, topology) =
         pilot_babel_line_scenario("babel-equivalence-line", seed, true);
-    let snapshot = planner_snapshot_view(
-        NODE_A,
-        8,
-        vec![BabelPlannerChoiceView {
-            destination: NODE_C,
-            next_hop: NODE_B,
-            metric: 512,
-            degradation: RouteDegradation::None,
-            transport_kind: TransportKind::WifiAware,
-            updated_at_tick: Tick(4),
-            topology_epoch: topology.value.epoch,
-        }],
-    );
-    let checkpoint_route = materialized_route_from_snapshot(
-        NODE_A,
-        &snapshot,
-        &objective,
-        &profile,
-        &topology,
-        Tick(4),
-    )
-    .expect("pilot Babel planner fixture must materialize a checkpoint route");
+    let snapshot = BabelPlannerSnapshot {
+        local_node_id: NODE_A,
+        stale_after_ticks: 8,
+        best_next_hops: BTreeMap::from([(
+            NODE_C,
+            BabelBestNextHop {
+                destination: NODE_C,
+                next_hop: NODE_B,
+                metric: 512,
+                tq: RatioPermille(488),
+                degradation: RouteDegradation::None,
+                transport_kind: TransportKind::WifiAware,
+                updated_at_tick: Tick(4),
+                topology_epoch: topology.value.epoch,
+                backend_route_id: babel_backend_route_id(NODE_C, NODE_B),
+            },
+        )]),
+    };
+    let checkpoint_route =
+        materialize_route_from_view(NODE_A, &snapshot, &objective, &profile, &topology, Tick(4))
+            .expect("pilot Babel planner fixture must materialize a checkpoint route");
 
     vec![
         ExperimentRunSpec {

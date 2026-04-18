@@ -51,11 +51,7 @@ pub trait RoutingEngine: RoutingEnginePlanner {
         &mut self,
         tick: &RoutingTickContext,
     ) -> Result<RoutingTickOutcome, RouteError> {
-        Ok(RoutingTickOutcome {
-            topology_epoch: tick.topology.value.epoch,
-            change: RoutingTickChange::NoChange,
-            next_tick_hint: RoutingTickHint::HostDefault,
-        })
+        Ok(RoutingTickOutcome::no_change_for(tick))
     }
 
     fn maintain_route(

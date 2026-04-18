@@ -28,7 +28,8 @@ mod private_state;
 mod public_state;
 mod runtime;
 mod scoring;
-pub mod simulator;
+#[cfg(any(test, feature = "simulator-support"))]
+mod validation;
 
 use std::collections::BTreeMap;
 
@@ -37,11 +38,19 @@ use jacquard_core::{
     RouteProtectionClass, RouteRepairClass, RouteShapeVisibility, RoutingEngineCapabilities,
     RoutingEngineId,
 };
-pub use public_state::DecayWindow;
-use public_state::{
-    ActiveBabelRoute, BabelBestNextHop, BabelPlannerSnapshot, FeasibilityEntry, RouteEntry,
-    SelectedBabelRoute,
-};
+pub use planner::{admit_route_from_snapshot, candidate_routes_from_snapshot};
+use public_state::{ActiveBabelRoute, FeasibilityEntry, RouteEntry, SelectedBabelRoute};
+pub use public_state::{BabelBestNextHop, BabelPlannerSnapshot, DecayWindow};
+#[cfg(any(test, feature = "simulator-support"))]
+#[doc(hidden)]
+pub mod simulator_support {
+    pub use super::validation::{
+        materialize_route_from_view, reduce_round_view, restore_route_view,
+        BabelFeasibilityEntryView, BabelPlannerChoiceView, BabelPlannerSnapshotView,
+        BabelRestoredRouteView, BabelRoundInputView, BabelRoundOutputView,
+        BabelRoundRouteEntryView, BabelRoundStateView,
+    };
+}
 
 pub const BABEL_ENGINE_ID: RoutingEngineId =
     RoutingEngineId::from_contract_bytes(*b"jacquard.babel..");

@@ -20,7 +20,8 @@ mod private_state;
 mod public_state;
 mod runtime;
 mod scoring;
-pub mod simulator;
+#[cfg(test)]
+mod validation;
 
 use std::collections::BTreeMap;
 
@@ -30,11 +31,11 @@ use jacquard_core::{
     RouteProtectionClass, RouteRepairClass, RouteShapeVisibility, RoutingEngineCapabilities,
     RoutingEngineId,
 };
-pub use public_state::DecayWindow;
+pub use planner::{admit_route_from_snapshot, candidate_routes_from_snapshot};
 use public_state::{
-    ActiveBatmanRoute, BatmanBellmanPlannerSnapshot, BestNextHop, NeighborRanking,
-    OgmReceiveWindow, OriginatorObservationTable,
+    ActiveBatmanRoute, NeighborRanking, OgmReceiveWindow, OriginatorObservationTable,
 };
+pub use public_state::{BatmanBellmanPlannerSnapshot, BestNextHop, DecayWindow};
 
 pub const BATMAN_BELLMAN_ENGINE_ID: RoutingEngineId =
     RoutingEngineId::from_contract_bytes(*b"jacquard.batmanb");

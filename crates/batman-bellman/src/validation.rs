@@ -1,13 +1,16 @@
-//! Simulator-facing fixture helpers for OLSRv2 model-lane checks.
+//! Engine-owned BATMAN Bellman model helpers for model-lane validation.
 
 use jacquard_core::{
-    BackendRouteId, Configuration, DestinationId, NodeId, Observation, RouteDegradation,
-    RouteError, RouteSelectionError, RoutingObjective, SelectedRoutingParameters, Tick,
-    TransportError, TransportKind,
+    BackendRouteId, Configuration, DestinationId, NodeId, Observation, RatioPermille,
+    RouteDegradation, RouteError, RouteSelectionError, RoutingObjective, SelectedRoutingParameters,
+    Tick, TransportError, TransportKind,
 };
 use jacquard_traits::{effect_handler, RoutingEnginePlanner, TimeEffects, TransportSenderEffects};
 
-use crate::{public_state::OlsrBestNextHop, DecayWindow, OlsrV2Engine};
+use crate::{
+    private_state::backend_route_id_for, public_state::BestNextHop, BatmanBellmanEngine,
+    DecayWindow,
+};
 
 struct NullTransport;
 
@@ -34,37 +37,28 @@ impl TimeEffects for FixedTime {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OlsrPlannerDecisionResult {
+struct BatmanBellmanPlannerDecisionResult {
     pub candidate_count: usize,
     pub backend_route_id: BackendRouteId,
     pub selected_neighbor: NodeId,
     pub admitted: bool,
 }
 
-fn backend_route_id_for(destination: NodeId, next_hop: NodeId, path_cost: u32) -> BackendRouteId {
-    let mut bytes = Vec::with_capacity(68);
-    bytes.extend_from_slice(&destination.0);
-    bytes.extend_from_slice(&next_hop.0);
-    bytes.extend_from_slice(&path_cost.to_le_bytes());
-    BackendRouteId(bytes)
-}
-
-pub fn run_planner_decision_fixture(
+fn run_planner_decision_fixture(
     local_node_id: NodeId,
     expected_next_hop: NodeId,
     objective: &RoutingObjective,
     profile: &SelectedRoutingParameters,
     topology: &Observation<Configuration>,
-) -> Result<OlsrPlannerDecisionResult, RouteError> {
+) -> Result<BatmanBellmanPlannerDecisionResult, RouteError> {
     let destination = match objective.destination {
         DestinationId::Node(destination) => destination,
         DestinationId::Gateway(_) | DestinationId::Service(_) => {
             return Err(RouteSelectionError::NoCandidate.into());
         }
     };
-    let path_cost = 10;
-    let backend_route_id = backend_route_id_for(destination, expected_next_hop, path_cost);
-    let mut engine = OlsrV2Engine::with_decay_window(
+    let backend_route_id = backend_route_id_for(destination, expected_next_hop);
+    let mut engine = BatmanBellmanEngine::with_decay_window(
         local_node_id,
         NullTransport,
         FixedTime {
@@ -74,16 +68,18 @@ pub fn run_planner_decision_fixture(
     );
     engine.best_next_hops.insert(
         destination,
-        OlsrBestNextHop {
-            destination,
+        BestNextHop {
+            originator: destination,
             next_hop: expected_next_hop,
+            tq: RatioPermille(950),
+            receive_quality: RatioPermille(950),
             hop_count: 1,
-            path_cost,
-            degradation: RouteDegradation::None,
-            transport_kind: TransportKind::WifiAware,
             updated_at_tick: topology.observed_at_tick,
-            topology_epoch: topology.value.epoch,
+            transport_kind: TransportKind::WifiAware,
+            degradation: RouteDegradation::None,
             backend_route_id: backend_route_id.clone(),
+            topology_epoch: topology.value.epoch,
+            is_bidirectional: true,
         },
     );
     let candidates = engine.candidate_routes(objective, profile, topology);
@@ -95,7 +91,7 @@ pub fn run_planner_decision_fixture(
         return Err(RouteSelectionError::NoCandidate.into());
     }
     let admission = engine.admit_route(objective, profile, candidate.clone(), topology)?;
-    Ok(OlsrPlannerDecisionResult {
+    Ok(BatmanBellmanPlannerDecisionResult {
         candidate_count: candidates.len(),
         backend_route_id: candidate.backend_ref.backend_route_id,
         selected_neighbor: expected_next_hop,
@@ -121,7 +117,7 @@ mod tests {
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 
     use super::run_planner_decision_fixture;
-    use crate::OLSRV2_ENGINE_ID;
+    use crate::BATMAN_BELLMAN_ENGINE_ID;
 
     fn node(byte: u8) -> NodeId {
         NodeId([byte; 32])
@@ -163,7 +159,7 @@ mod tests {
     }
 
     // long-block-exception: the test topology keeps one complete deterministic
-    // OLSRv2 control-state sample in one place for model fixtures.
+    // multi-hop sample in one place for planner-fixture coverage.
     fn topology() -> Observation<Configuration> {
         Observation {
             value: Configuration {
@@ -177,7 +173,7 @@ mod tests {
                                 endpoint(1),
                                 Tick(4),
                             ),
-                            &OLSRV2_ENGINE_ID,
+                            &BATMAN_BELLMAN_ENGINE_ID,
                         )
                         .build(),
                     ),
@@ -189,7 +185,7 @@ mod tests {
                                 endpoint(2),
                                 Tick(4),
                             ),
-                            &OLSRV2_ENGINE_ID,
+                            &BATMAN_BELLMAN_ENGINE_ID,
                         )
                         .build(),
                     ),
@@ -201,7 +197,7 @@ mod tests {
                                 endpoint(3),
                                 Tick(4),
                             ),
-                            &OLSRV2_ENGINE_ID,
+                            &BATMAN_BELLMAN_ENGINE_ID,
                         )
                         .build(),
                     ),
@@ -257,7 +253,7 @@ mod tests {
     fn planner_decision_fixture_selects_seeded_neighbor() {
         let result =
             run_planner_decision_fixture(node(1), node(2), &objective(), &profile(), &topology())
-                .expect("olsrv2 planner fixture should produce a candidate");
+                .expect("batman bellman planner fixture should produce a candidate");
         assert!(result.admitted);
         assert_eq!(result.selected_neighbor, node(2));
         assert_eq!(result.candidate_count, 1);

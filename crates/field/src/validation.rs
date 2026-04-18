@@ -1,4 +1,4 @@
-//! Simulator-facing fixture helpers for Field model-lane checks.
+//! Engine-owned Field model helpers for model-lane validation.
 
 use jacquard_core::{
     AdmissionDecision, BackendRouteId, Configuration, DestinationId, NodeId, Observation,
@@ -19,7 +19,7 @@ pub struct FieldPlannerDecisionResult {
     pub admitted: bool,
 }
 
-pub fn run_planner_decision_fixture(
+pub fn validate_planner_decision(
     local_node_id: NodeId,
     expected_next_hop: NodeId,
     objective: &RoutingObjective,
@@ -98,7 +98,7 @@ mod tests {
     use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 
-    use super::run_planner_decision_fixture;
+    use super::validate_planner_decision;
     use crate::FIELD_ENGINE_ID;
 
     fn node(byte: u8) -> NodeId {
@@ -270,8 +270,8 @@ mod tests {
     #[test]
     fn planner_decision_fixture_selects_seeded_neighbor() {
         let result =
-            run_planner_decision_fixture(node(1), node(2), &objective(), &profile(), &topology())
-                .expect("planner fixture should produce a candidate");
+            validate_planner_decision(node(1), node(2), &objective(), &profile(), &topology())
+                .expect("planner validation should produce a candidate");
         assert_eq!(result.candidate_count, 1);
         assert_eq!(result.selected_neighbor, node(2));
         assert!(result.admitted);

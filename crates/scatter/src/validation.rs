@@ -1,4 +1,4 @@
-//! Simulator-facing fixture helpers for Scatter model-lane checks.
+//! Engine-owned Scatter model helpers for model-lane validation.
 
 use jacquard_core::{
     BackendRouteId, Configuration, NodeId, Observation, RouteError, RouteSelectionError,
@@ -33,13 +33,13 @@ impl TimeEffects for FixedTime {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ScatterPlannerDecisionResult {
+struct ScatterPlannerDecisionResult {
     pub candidate_count: usize,
     pub backend_route_id: BackendRouteId,
     pub admitted: bool,
 }
 
-pub fn run_planner_decision_fixture(
+fn run_planner_decision_fixture(
     local_node_id: NodeId,
     objective: &RoutingObjective,
     profile: &SelectedRoutingParameters,

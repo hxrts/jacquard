@@ -23,7 +23,8 @@ The Rust implementation makes the operational layer explicit:
 - [`crates/field/src/policy.rs`](../crates/field/src/policy.rs) centralizes calibrated regime, posture, continuity, promotion,
   and evidence thresholds as one deterministic `FieldPolicy` surface
 - [`crates/field/src/operational.rs`](../crates/field/src/operational.rs) derives a reduced `FieldOperationalView` with support,
-  retention, entropy, and freshness bands for decision code
+  retention, and entropy bands for decision code, plus a per-route
+  `FieldRouteOperationalView` carrying a freshness class
 - those operational surfaces remain runtime-private and do not become
   posterior truth or canonical route truth
 

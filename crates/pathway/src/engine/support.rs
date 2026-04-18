@@ -269,7 +269,7 @@ pub(super) fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<
     decode_versioned(&backend_route_id.0, PLAN_TOKEN_ENCODING_VERSION)
 }
 
-pub(crate) fn first_hop_node_id_from_backend_route_id(
+pub fn first_hop_node_id_from_backend_route_id(
     backend_route_id: &BackendRouteId,
 ) -> Option<NodeId> {
     let plan = decode_backend_token(backend_route_id)?;

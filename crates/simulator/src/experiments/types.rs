@@ -6,8 +6,9 @@
 
 use super::*;
 use crate::SimulationExecutionLane;
-use jacquard_babel::simulator::{
-    BabelPlannerSnapshotView, BabelRoundInputView, BabelRoundStateView,
+use jacquard_babel::{
+    simulator_support::{BabelRoundInputView, BabelRoundStateView},
+    BabelPlannerSnapshot,
 };
 use jacquard_core::{ByteCount, RoutingTickChange};
 use jacquard_scatter::{
@@ -900,7 +901,7 @@ pub(crate) struct BabelPlannerDecisionCase {
     pub objective: RoutingObjective,
     pub profile: SelectedRoutingParameters,
     pub topology: Observation<Configuration>,
-    pub snapshot: BabelPlannerSnapshotView,
+    pub snapshot: BabelPlannerSnapshot,
 }
 
 #[derive(Clone, Debug)]

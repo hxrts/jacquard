@@ -1,4 +1,4 @@
-//! Simulator-facing fixture helpers for Pathway model-lane checks.
+//! Engine-owned Pathway model helpers for model-lane validation.
 
 use jacquard_core::{
     BackendRouteId, Configuration, NodeId, Observation, RouteError, RouteSelectionError,
@@ -12,14 +12,14 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PathwayPlannerDecisionResult {
+struct PathwayPlannerDecisionResult {
     pub candidate_count: usize,
     pub backend_route_id: BackendRouteId,
     pub first_hop_node_id: NodeId,
     pub admitted: bool,
 }
 
-pub fn run_planner_decision_fixture(
+fn run_planner_decision_fixture(
     local_node_id: NodeId,
     objective: &RoutingObjective,
     profile: &SelectedRoutingParameters,

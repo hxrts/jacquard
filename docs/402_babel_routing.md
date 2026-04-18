@@ -116,7 +116,7 @@ The internal design follows the same state-partitioning shape used across the ot
 
 Recovery keeps the same shape. The durable fact is the router-owned `MaterializedRoute` record, not a Babel-private route checkpoint blob. During router-led recovery, Babel reconstructs the active route entry from that record and rebuilds the topology-derived forwarding view from the router's current topology.
 
-Babel also exposes a narrow simulator-facing surface for this split. The simulator can drive Babel planner snapshots, explicit round-state reducers, and checkpoint restore views without reaching into crate-private tables. That surface is used by the simulator's `model` and `equivalence` suites rather than by a simulator-only Babel shim.
+Babel also exposes a narrow engine-owned model surface for this split. The simulator can drive Babel planner snapshots, explicit round-state reducers, and checkpoint restore views without reaching into crate-private tables. That surface is used by the simulator's `model` and `equivalence` suites rather than by a simulator-only Babel shim.
 
 ## Capabilities
 

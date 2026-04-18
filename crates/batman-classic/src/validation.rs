@@ -1,4 +1,4 @@
-//! Simulator-facing fixture helpers for BATMAN Bellman model-lane checks.
+//! Engine-owned BATMAN Classic model helpers for model-lane validation.
 
 use jacquard_core::{
     BackendRouteId, Configuration, DestinationId, NodeId, Observation, RatioPermille,
@@ -8,7 +8,7 @@ use jacquard_core::{
 use jacquard_traits::{effect_handler, RoutingEnginePlanner, TimeEffects, TransportSenderEffects};
 
 use crate::{
-    private_state::backend_route_id_for, public_state::BestNextHop, BatmanBellmanEngine,
+    private_state::backend_route_id_for, public_state::BestNextHop, BatmanClassicEngine,
     DecayWindow,
 };
 
@@ -37,20 +37,20 @@ impl TimeEffects for FixedTime {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BatmanBellmanPlannerDecisionResult {
+struct BatmanClassicPlannerDecisionResult {
     pub candidate_count: usize,
     pub backend_route_id: BackendRouteId,
     pub selected_neighbor: NodeId,
     pub admitted: bool,
 }
 
-pub fn run_planner_decision_fixture(
+fn run_planner_decision_fixture(
     local_node_id: NodeId,
     expected_next_hop: NodeId,
     objective: &RoutingObjective,
     profile: &SelectedRoutingParameters,
     topology: &Observation<Configuration>,
-) -> Result<BatmanBellmanPlannerDecisionResult, RouteError> {
+) -> Result<BatmanClassicPlannerDecisionResult, RouteError> {
     let destination = match objective.destination {
         DestinationId::Node(destination) => destination,
         DestinationId::Gateway(_) | DestinationId::Service(_) => {
@@ -58,7 +58,7 @@ pub fn run_planner_decision_fixture(
         }
     };
     let backend_route_id = backend_route_id_for(destination, expected_next_hop);
-    let mut engine = BatmanBellmanEngine::with_decay_window(
+    let mut engine = BatmanClassicEngine::with_decay_window(
         local_node_id,
         NullTransport,
         FixedTime {
@@ -91,7 +91,7 @@ pub fn run_planner_decision_fixture(
         return Err(RouteSelectionError::NoCandidate.into());
     }
     let admission = engine.admit_route(objective, profile, candidate.clone(), topology)?;
-    Ok(BatmanBellmanPlannerDecisionResult {
+    Ok(BatmanClassicPlannerDecisionResult {
         candidate_count: candidates.len(),
         backend_route_id: candidate.backend_ref.backend_route_id,
         selected_neighbor: expected_next_hop,
@@ -117,7 +117,7 @@ mod tests {
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 
     use super::run_planner_decision_fixture;
-    use crate::BATMAN_BELLMAN_ENGINE_ID;
+    use crate::BATMAN_CLASSIC_ENGINE_ID;
 
     fn node(byte: u8) -> NodeId {
         NodeId([byte; 32])
@@ -159,7 +159,7 @@ mod tests {
     }
 
     // long-block-exception: the test topology keeps one complete deterministic
-    // multi-hop sample in one place for planner-fixture coverage.
+    // OGM sample in one place for simulator planner fixtures.
     fn topology() -> Observation<Configuration> {
         Observation {
             value: Configuration {
@@ -173,7 +173,7 @@ mod tests {
                                 endpoint(1),
                                 Tick(4),
                             ),
-                            &BATMAN_BELLMAN_ENGINE_ID,
+                            &BATMAN_CLASSIC_ENGINE_ID,
                         )
                         .build(),
                     ),
@@ -185,7 +185,7 @@ mod tests {
                                 endpoint(2),
                                 Tick(4),
                             ),
-                            &BATMAN_BELLMAN_ENGINE_ID,
+                            &BATMAN_CLASSIC_ENGINE_ID,
                         )
                         .build(),
                     ),
@@ -197,7 +197,7 @@ mod tests {
                                 endpoint(3),
                                 Tick(4),
                             ),
-                            &BATMAN_BELLMAN_ENGINE_ID,
+                            &BATMAN_CLASSIC_ENGINE_ID,
                         )
                         .build(),
                     ),
@@ -253,7 +253,7 @@ mod tests {
     fn planner_decision_fixture_selects_seeded_neighbor() {
         let result =
             run_planner_decision_fixture(node(1), node(2), &objective(), &profile(), &topology())
-                .expect("batman bellman planner fixture should produce a candidate");
+                .expect("batman classic planner fixture should produce a candidate");
         assert!(result.admitted);
         assert_eq!(result.selected_neighbor, node(2));
         assert_eq!(result.candidate_count, 1);

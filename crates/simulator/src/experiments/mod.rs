@@ -46,6 +46,7 @@ mod batman;
 mod catalog;
 mod common;
 mod comparison;
+mod model_support;
 mod pathway_field;
 mod runner;
 mod suite;

@@ -78,7 +78,7 @@ pub(crate) struct SelectedBabelRoute {
 
 /// Best next-hop for a destination, derived from the selected route.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BabelBestNextHop {
+pub struct BabelBestNextHop {
     pub destination: NodeId,
     pub next_hop: NodeId,
     pub metric: u16,
@@ -92,7 +92,7 @@ pub(crate) struct BabelBestNextHop {
 
 /// Read-only route-choice view projected from Babel runtime state.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BabelPlannerSnapshot {
+pub struct BabelPlannerSnapshot {
     pub local_node_id: NodeId,
     pub stale_after_ticks: u64,
     pub best_next_hops: BTreeMap<NodeId, BabelBestNextHop>,

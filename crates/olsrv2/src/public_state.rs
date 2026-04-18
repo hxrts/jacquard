@@ -87,7 +87,7 @@ pub(crate) struct SelectedOlsrRoute {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct OlsrBestNextHop {
+pub struct OlsrBestNextHop {
     pub destination: NodeId,
     pub next_hop: NodeId,
     pub hop_count: u8,
@@ -100,7 +100,7 @@ pub(crate) struct OlsrBestNextHop {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct OlsrPlannerSnapshot {
+pub struct OlsrPlannerSnapshot {
     pub local_node_id: NodeId,
     pub stale_after_ticks: u64,
     pub best_next_hops: BTreeMap<NodeId, OlsrBestNextHop>,

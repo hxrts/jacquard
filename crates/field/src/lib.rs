@@ -47,9 +47,10 @@ mod recovery;
 mod route;
 mod runtime;
 mod search;
-pub mod simulator;
 mod state;
 mod summary;
+#[cfg(any(test, feature = "simulator-support"))]
+mod validation;
 
 pub use choreography::{
     BlockedReceiveMarker, FieldChoreographyRoundResult, FieldExecutionPolicyClass,
@@ -89,3 +90,8 @@ pub use search::{
     FieldSearchReconfiguration, FieldSearchRun, FieldSearchSnapshotId, FieldSearchTransitionClass,
     FieldSelectedContinuation,
 };
+#[cfg(any(test, feature = "simulator-support"))]
+#[doc(hidden)]
+pub mod simulator_support {
+    pub use super::validation::validate_planner_decision;
+}

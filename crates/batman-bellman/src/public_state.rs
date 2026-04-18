@@ -156,7 +156,7 @@ pub(crate) struct NeighborRanking {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BestNextHop {
+pub struct BestNextHop {
     pub originator: NodeId,
     pub next_hop: NodeId,
     pub tq: RatioPermille,
@@ -171,7 +171,7 @@ pub(crate) struct BestNextHop {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BatmanBellmanPlannerSnapshot {
+pub struct BatmanBellmanPlannerSnapshot {
     pub local_node_id: NodeId,
     pub stale_after_ticks: u64,
     pub best_next_hops: BTreeMap<NodeId, BestNextHop>,

@@ -9,7 +9,7 @@ use jacquard_traits::{RoutingEnginePlanner, TimeEffects, TransportSenderEffects}
 
 use crate::{
     private_state::{admission_for_candidate, candidate_for_snapshot},
-    OlsrV2Engine, OLSRV2_CAPABILITIES, OLSRV2_ENGINE_ID,
+    OlsrPlannerSnapshot, OlsrV2Engine, OLSRV2_CAPABILITIES, OLSRV2_ENGINE_ID,
 };
 
 impl<Transport, Effects> RoutingEnginePlanner for OlsrV2Engine<Transport, Effects>
@@ -37,12 +37,7 @@ where
         if !destination_supports_objective(topology, destination, objective.service_kind) {
             return Vec::new();
         }
-        let snapshot = self.planner_snapshot();
-        snapshot
-            .best_next_hops
-            .get(&destination)
-            .map(|best| vec![candidate_for_snapshot(&snapshot, objective, best)])
-            .unwrap_or_default()
+        candidate_routes_from_snapshot(&self.planner_snapshot(), objective, topology)
     }
 
     fn check_candidate(
@@ -97,20 +92,70 @@ where
             )
             .into());
         }
-        let snapshot = self.planner_snapshot();
-        let Some(best) = snapshot.best_next_hops.get(&destination) else {
-            return Err(RouteSelectionError::NoCandidate.into());
-        };
-        let expected = candidate_for_snapshot(&snapshot, objective, best);
-        if expected.backend_ref != candidate.backend_ref {
-            return Err(RouteSelectionError::Inadmissible(
-                RouteAdmissionRejection::BackendUnavailable,
-            )
-            .into());
-        }
-        let admission = admission_for_candidate(objective, profile, &expected);
-        Ok(admission)
+        current_candidate_admission_from_snapshot(
+            &self.planner_snapshot(),
+            objective,
+            profile,
+            candidate,
+            topology,
+        )
     }
+}
+
+#[must_use = "candidate projection from a planner snapshot must be consumed by simulator or planner checks"]
+pub fn candidate_routes_from_snapshot(
+    snapshot: &OlsrPlannerSnapshot,
+    objective: &jacquard_core::RoutingObjective,
+    topology: &Observation<Configuration>,
+) -> Vec<RouteCandidate> {
+    let DestinationId::Node(destination) = objective.destination else {
+        return Vec::new();
+    };
+    if !destination_supports_objective(topology, destination, objective.service_kind) {
+        return Vec::new();
+    }
+    snapshot
+        .best_next_hops
+        .get(&destination)
+        .map(|best| vec![candidate_for_snapshot(snapshot, objective, best)])
+        .unwrap_or_default()
+}
+
+pub fn admit_route_from_snapshot(
+    snapshot: &OlsrPlannerSnapshot,
+    objective: &jacquard_core::RoutingObjective,
+    profile: &SelectedRoutingParameters,
+    candidate: &RouteCandidate,
+    topology: &Observation<Configuration>,
+) -> Result<RouteAdmission, RouteError> {
+    current_candidate_admission_from_snapshot(snapshot, objective, profile, candidate, topology)
+}
+
+fn current_candidate_admission_from_snapshot(
+    snapshot: &OlsrPlannerSnapshot,
+    objective: &jacquard_core::RoutingObjective,
+    profile: &SelectedRoutingParameters,
+    candidate: &RouteCandidate,
+    topology: &Observation<Configuration>,
+) -> Result<RouteAdmission, RouteError> {
+    let DestinationId::Node(destination) = objective.destination else {
+        return Err(RouteSelectionError::NoCandidate.into());
+    };
+    if !destination_supports_objective(topology, destination, objective.service_kind) {
+        return Err(
+            RouteSelectionError::Inadmissible(RouteAdmissionRejection::BackendUnavailable).into(),
+        );
+    }
+    let Some(best) = snapshot.best_next_hops.get(&destination) else {
+        return Err(RouteSelectionError::NoCandidate.into());
+    };
+    let expected = candidate_for_snapshot(snapshot, objective, best);
+    if expected.backend_ref != candidate.backend_ref {
+        return Err(
+            RouteSelectionError::Inadmissible(RouteAdmissionRejection::BackendUnavailable).into(),
+        );
+    }
+    Ok(admission_for_candidate(objective, profile, &expected))
 }
 
 fn destination_supports_objective(
