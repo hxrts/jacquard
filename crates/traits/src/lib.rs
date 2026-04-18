@@ -58,6 +58,7 @@ mod drivers;
 mod effects;
 mod handler;
 mod hashing;
+mod model;
 mod routing;
 mod simulator;
 mod world;
@@ -70,6 +71,7 @@ pub use jacquard_core;
 pub use jacquard_macros::{
     bounded_value, effect_handler, effect_trait, id_type, must_use_handle, public_model, purity,
 };
+pub use model::*;
 pub use routing::*;
 pub use simulator::*;
 pub use world::*;

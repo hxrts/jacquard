@@ -3,19 +3,20 @@
 use std::collections::BTreeMap;
 
 use jacquard_core::{
-    BackendRouteId, Configuration, DestinationId, Fact, FactBasis, HealthScore, Limit,
-    MaterializedRoute, NodeId, Observation, PenaltyPoints, PublicationId, ReachabilityState,
-    RouteDegradation, RouteError, RouteHealth, RouteIdentityStamp, RouteLifecycleEvent,
-    RouteMaterializationProof, RouteProgressContract, RouteProgressState, RouteRuntimeState,
-    RouteSelectionError, RoutingObjective, RoutingTickChange, SelectedRoutingParameters, Tick,
-    TimeWindow, TransportKind,
+    BackendRouteId, Configuration, MaterializedRoute, NodeId, Observation, RouteDegradation,
+    RouteMaintenanceResult, RouteRuntimeState, RoutingTickChange, Tick, TransportKind,
 };
 
 use crate::{
-    private_state::{reduce_round_state, route_id_for, BabelRoundInput, BabelRoundState},
-    public_state::{BabelPlannerSnapshot, FeasibilityEntry, RouteEntry},
-    runtime::restored_active_route,
-    DecayWindow,
+    private_state::{reduce_round_state, BabelRoundInput, BabelRoundState},
+    public_state::{
+        ActiveBabelRoute, BabelBestNextHop, BabelPlannerSnapshot, FeasibilityEntry, RouteEntry,
+    },
+    runtime::{reduce_maintenance, restored_active_route, BabelMaintenanceInput},
+    BabelEngine, DecayWindow,
+};
+use jacquard_traits::{
+    RoutingEngineMaintenanceModel, RoutingEngineRestoreModel, RoutingEngineRoundModel,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -84,8 +85,39 @@ pub struct BabelRestoredRouteView {
     pub installed_at_tick: Tick,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BabelMaintenanceBestNextHopView {
+    pub destination: NodeId,
+    pub next_hop: NodeId,
+    pub metric: u16,
+    pub tq: jacquard_core::RatioPermille,
+    pub degradation: RouteDegradation,
+    pub transport_kind: TransportKind,
+    pub updated_at_tick: Tick,
+    pub topology_epoch: jacquard_core::RouteEpoch,
+    pub backend_route_id: BackendRouteId,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BabelMaintenanceStateView {
+    pub runtime: RouteRuntimeState,
+    pub active_route: BabelRestoredRouteView,
+    pub best_next_hop: Option<BabelMaintenanceBestNextHopView>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BabelMaintenanceInputView {
+    pub now_tick: Tick,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BabelMaintenanceOutputView {
+    pub next_runtime: RouteRuntimeState,
+    pub result: RouteMaintenanceResult,
+}
+
 #[must_use]
-pub fn reduce_round_view(
+pub(crate) fn reduce_round_view(
     state: &BabelRoundStateView,
     input: &BabelRoundInputView,
 ) -> BabelRoundOutputView {
@@ -108,7 +140,7 @@ pub fn reduce_round_view(
 }
 
 #[must_use]
-pub fn restore_route_view(route: &MaterializedRoute) -> Option<BabelRestoredRouteView> {
+pub(crate) fn restore_route_view(route: &MaterializedRoute) -> Option<BabelRestoredRouteView> {
     let restored = restored_active_route(route)?;
     Some(BabelRestoredRouteView {
         destination: restored.destination,
@@ -118,72 +150,59 @@ pub fn restore_route_view(route: &MaterializedRoute) -> Option<BabelRestoredRout
     })
 }
 
-// long-block-exception: the simulator helper assembles one fully materialized
-// Babel route fixture from snapshot data and router-owned runtime fields.
-pub fn materialize_route_from_view(
-    owner_node_id: NodeId,
-    snapshot: &BabelPlannerSnapshot,
-    objective: &RoutingObjective,
-    profile: &SelectedRoutingParameters,
-    topology: &Observation<Configuration>,
-    now: Tick,
-) -> Result<MaterializedRoute, RouteError> {
-    let candidate = crate::planner::candidate_routes_from_snapshot(snapshot, objective, topology)
-        .into_iter()
-        .next()
-        .ok_or(RouteSelectionError::NoCandidate)?;
-    let admission = crate::planner::admit_route_from_snapshot(
-        snapshot, objective, profile, &candidate, topology,
-    )?;
-    let DestinationId::Node(destination) = objective.destination else {
-        return Err(RouteSelectionError::NoCandidate.into());
-    };
-    let route_id = route_id_for(owner_node_id, destination);
-    Ok(MaterializedRoute {
-        identity: jacquard_core::PublishedRouteRecord {
-            stamp: RouteIdentityStamp {
-                route_id,
-                topology_epoch: topology.value.epoch,
-                materialized_at_tick: now,
-                publication_id: PublicationId([7; 16]),
+impl<Transport, Effects> RoutingEngineRoundModel for BabelEngine<Transport, Effects> {
+    type RoundState = BabelRoundStateView;
+    type RoundInput = BabelRoundInputView;
+    type RoundOutput = BabelRoundOutputView;
+
+    fn reduce_round_state(state: &Self::RoundState, input: &Self::RoundInput) -> Self::RoundOutput {
+        reduce_round_view(state, input)
+    }
+}
+
+impl<Transport, Effects> RoutingEngineMaintenanceModel for BabelEngine<Transport, Effects> {
+    type MaintenanceState = BabelMaintenanceStateView;
+    type MaintenanceInput = BabelMaintenanceInputView;
+    type MaintenanceOutput = BabelMaintenanceOutputView;
+
+    fn reduce_maintenance_state(
+        state: &Self::MaintenanceState,
+        input: &Self::MaintenanceInput,
+    ) -> Self::MaintenanceOutput {
+        let transition = reduce_maintenance(BabelMaintenanceInput {
+            runtime: state.runtime.clone(),
+            active_route: ActiveBabelRoute {
+                destination: state.active_route.destination,
+                next_hop: state.active_route.next_hop,
+                backend_route_id: state.active_route.backend_route_id.clone(),
+                installed_at_tick: state.active_route.installed_at_tick,
             },
-            proof: RouteMaterializationProof {
-                stamp: RouteIdentityStamp {
-                    route_id,
-                    topology_epoch: topology.value.epoch,
-                    materialized_at_tick: now,
-                    publication_id: PublicationId([7; 16]),
-                },
-                witness: Fact {
-                    basis: FactBasis::Admitted,
-                    value: admission.witness.clone(),
-                    established_at_tick: now,
-                },
-            },
-            admission,
-            lease: jacquard_core::RouteLease {
-                owner_node_id,
-                lease_epoch: topology.value.epoch,
-                valid_for: TimeWindow::new(Tick(1), Tick(20))
-                    .expect("babel simulator fixture lease window"),
-            },
-        },
-        runtime: RouteRuntimeState {
-            last_lifecycle_event: RouteLifecycleEvent::Activated,
-            health: RouteHealth {
-                reachability_state: ReachabilityState::Reachable,
-                stability_score: HealthScore(1000),
-                congestion_penalty_points: PenaltyPoints(0),
-                last_validated_at_tick: now,
-            },
-            progress: RouteProgressContract {
-                productive_step_count_max: Limit::Bounded(1),
-                total_step_count_max: Limit::Bounded(1),
-                last_progress_at_tick: now,
-                state: RouteProgressState::Pending,
-            },
-        },
-    })
+            best_next_hop: state.best_next_hop.as_ref().map(|best| BabelBestNextHop {
+                destination: best.destination,
+                next_hop: best.next_hop,
+                metric: best.metric,
+                tq: best.tq,
+                degradation: best.degradation,
+                transport_kind: best.transport_kind.clone(),
+                updated_at_tick: best.updated_at_tick,
+                topology_epoch: best.topology_epoch,
+                backend_route_id: best.backend_route_id.clone(),
+            }),
+            now_tick: input.now_tick,
+        });
+        BabelMaintenanceOutputView {
+            next_runtime: transition.next_runtime,
+            result: transition.result,
+        }
+    }
+}
+
+impl<Transport, Effects> RoutingEngineRestoreModel for BabelEngine<Transport, Effects> {
+    type RestoredRoute = BabelRestoredRouteView;
+
+    fn restore_route_runtime(route: &MaterializedRoute) -> Option<Self::RestoredRoute> {
+        restore_route_view(route)
+    }
 }
 
 fn private_round_state(state: &BabelRoundStateView) -> BabelRoundState {

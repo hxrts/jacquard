@@ -42,6 +42,7 @@ mod engine;
 mod observer;
 mod operational;
 mod planner;
+mod planner_model;
 mod policy;
 mod recovery;
 mod route;
@@ -49,7 +50,7 @@ mod runtime;
 mod search;
 mod state;
 mod summary;
-#[cfg(any(test, feature = "simulator-support"))]
+#[cfg(test)]
 mod validation;
 
 pub use choreography::{
@@ -79,6 +80,9 @@ pub use engine::{
     FIELD_POLICY_EVENT_RETENTION_MAX, FIELD_REPLAY_SURFACE_VERSION,
     FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
 };
+pub use planner_model::{
+    selected_neighbor_from_backend_route_id, FieldPlannerModel, FieldPlannerSeed,
+};
 pub use recovery::{
     FieldBootstrapTransition, FieldPromotionBlocker, FieldPromotionDecision,
     FieldRouteRecoveryOutcome, FieldRouteRecoveryState, FieldRouteRecoveryTrigger,
@@ -90,8 +94,3 @@ pub use search::{
     FieldSearchReconfiguration, FieldSearchRun, FieldSearchSnapshotId, FieldSearchTransitionClass,
     FieldSelectedContinuation,
 };
-#[cfg(any(test, feature = "simulator-support"))]
-#[doc(hidden)]
-pub mod simulator_support {
-    pub use super::validation::validate_planner_decision;
-}

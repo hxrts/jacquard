@@ -31,7 +31,7 @@ in `core` or the transport-neutral mem profile crates.
 
 ## Dependency Graph
 
-The workspace today contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-batman-bellman`, `jacquard-batman-classic`, `jacquard-babel`, `jacquard-olsrv2`, `jacquard-scatter`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-reference-client`, `jacquard-testkit`, and `jacquard-simulator`.
+The workspace contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-batman-bellman`, `jacquard-batman-classic`, `jacquard-babel`, `jacquard-olsrv2`, `jacquard-scatter`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-reference-client`, `jacquard-testkit`, and `jacquard-simulator`.
 
 ```
 jacquard-core
@@ -77,7 +77,9 @@ Signature design follows the same split. Use `&self` for pure and read-only meth
 
 That is why Jacquard separates `RoutingEnginePlanner` from `RoutingEngine`, `SubstratePlanner` from `SubstrateRuntime`, and `LayeredRoutingEnginePlanner` from `LayeredRoutingEngine`. Engine-specific read-only seams such as pathway topology access stay in the owning engine crate rather than leaking into `jacquard-traits`. The shared round lifecycle follows the same rule: router-owned cadence and explicit ingress live at the contract layer, while engine-specific control loops and control-state contents stay inside the owning engine crate.
 
-The same rule applies inside engine crates. Candidate generation and scoring should consume an explicit planner snapshot rather than hidden mutable state. Round and maintenance logic should move toward pure reducers over explicit runtime state plus normalized input. Checkpoints should persist only durable protocol facts, while derived caches are rebuilt during recovery.
+The same rule applies inside engine crates. Candidate generation and scoring consume an explicit planner snapshot rather than hidden mutable state. Round and maintenance logic run through pure reducers over explicit runtime state plus normalized input when an engine supports those transitions. Checkpoints persist only durable protocol facts, while derived caches are rebuilt during recovery.
+
+`jacquard-traits` also carries the shared engine-model contract that the simulator consumes. `RoutingEnginePlannerModel` standardizes planner execution over typed planner snapshots. `RoutingEngineRoundModel` and `RoutingEngineMaintenanceModel` standardize pure transition execution where an engine exposes those reducers. `RoutingEngineRestoreModel` standardizes route-private runtime reconstruction from router-owned route records. `jacquard-simulator` depends on that trait family rather than maintaining a separate engine-specific integration API.
 
 ## Enforcement
 
@@ -125,7 +127,7 @@ Each crate owns a narrow slice of runtime state.
 | `jacquard-mem-node-profile` | In-memory node capability and node-state modeling only. No routing semantics. |
 | `jacquard-mem-link-profile` | In-memory link capability, carrier, retention, and runtime-effect adapter state only. No canonical routing truth. |
 | `jacquard-reference-client` | Narrow host-side bridge composition of profile implementations, bridge-owned drivers, router, and one or more in-tree engine instances for tests and examples. Observational with respect to canonical route truth, but owner of ingress queueing and round advancement in the reference harness. |
-| `jacquard-simulator` | Replay artifacts, scenario traces, post-run analysis, and model-lane fixture execution for pure planner and reducer tests. No canonical route truth during a live run. |
+| `jacquard-simulator` | Replay artifacts, scenario traces, post-run analysis, and model-lane orchestration over engine-owned planner, reducer, and restore surfaces. No canonical route truth during a live run. |
 
 A host-owned policy engine above the router may own cross-engine migration policy and substrate selection.
 

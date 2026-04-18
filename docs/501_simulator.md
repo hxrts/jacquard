@@ -6,7 +6,7 @@ Hosts own transport drivers. The bridge stamps ingress with Jacquard `Tick`. The
 
 The simulator has two internal lanes. The full-stack lane drives the reference-client bridge and the real router/runtime composition. The model lane runs explicit planner snapshots, pure round reducers, pure maintenance reducers, and checkpoint fixtures without a host bridge. The model lane does not replace the full-stack lane. It offers a cheaper path for deterministic planner and transition checks.
 
-Experiment execution also has three modes. `full-stack` runs the maintained tuning families. `model` runs explicit fixture-driven planner, reducer, and restore checks. `equivalence` runs a model fixture and a full-stack replay for the same case and asserts that the visible decision matches.
+Experiment execution also has three modes. `full-stack` runs the maintained tuning families. `model` runs explicit fixture-driven planner, reducer, and restore checks. `equivalence` runs a model fixture and a full-stack replay for the same case and asserts that the visible decision matches. The model schema is operation-first: planner, round, and restore cases carry engine-owned seeds or explicit reducer state, and the simulator executes them through the shared `RoutingEngine*Model` traits from `jacquard-traits`.
 
 The simulator selects engines per host through `EngineLane`. Available lanes include single-engine variants (`Pathway`, `BatmanBellman`, `BatmanClassic`, `Babel`, `OlsrV2`, `Scatter`, `Field`) and mixed-engine variants (`PathwayAndBatmanBellman`, `PathwayAndBabel`, `PathwayAndOlsrV2`, `PathwayAndField`, `BabelAndBatmanBellman`, `OlsrV2AndBatmanBellman`, `FieldAndBatmanBellman`, `AllEngines`). All engines share one host bridge per node.
 
@@ -47,7 +47,7 @@ Model-lane runs use their own fixture outputs instead of host-round replay artif
 
 That file is additive. The maintained full-stack artifact contract remains the full-stack run log plus the aggregate and breakdown JSON outputs for route-visible tuning, plus the diffusion artifact set for deferred-delivery analysis. The report pipeline does not score `model_artifacts.jsonl`; it uses it for model-lane inspection and equivalence debugging only.
 
-The model-lane selectors are `babel-model-smoke`, `babel-equivalence-smoke`, `batman-bellman-model-smoke`, `batman-classic-model-smoke`, `olsrv2-model-smoke`, `field-model-smoke`, `pathway-model-smoke`, and `scatter-model-smoke` in the `tuning_matrix` binary. They exercise the real `jacquard-babel` planner snapshot, round reducer, and checkpoint restore surfaces, plus crate-owned planner fixtures for the other in-tree engines, through the simulator's model and equivalence paths.
+The model-lane selectors are `babel-model-smoke`, `babel-equivalence-smoke`, `batman-bellman-model-smoke`, `batman-classic-model-smoke`, `olsrv2-model-smoke`, `field-model-smoke`, `pathway-model-smoke`, and `scatter-model-smoke` in the `tuning_matrix` binary. They exercise engine-owned planner seeds, planner snapshots, reducer state, and restore inputs through the shared model-trait family. The simulator keeps orchestration and artifact writing local while each engine owns the translation from fixture facts to private protocol state.
 
 ## Starter Path
 

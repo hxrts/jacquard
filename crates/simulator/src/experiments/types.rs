@@ -7,13 +7,18 @@
 use super::*;
 use crate::SimulationExecutionLane;
 use jacquard_babel::{
-    simulator_support::{BabelRoundInputView, BabelRoundStateView},
-    BabelPlannerSnapshot,
+    BabelMaintenanceInputView, BabelMaintenanceStateView, BabelPlannerSeed, BabelRoundInputView,
+    BabelRoundStateView,
 };
+use jacquard_batman_bellman::BatmanBellmanPlannerSeed;
+use jacquard_batman_classic::BatmanClassicPlannerSeed;
 use jacquard_core::{ByteCount, RoutingTickChange};
+use jacquard_field::FieldPlannerSeed;
+use jacquard_olsrv2::OlsrPlannerSeed;
+use jacquard_pathway::PathwayPlannerSeed;
 use jacquard_scatter::{
     ScatterBudgetPolicy, ScatterDecisionThresholds, ScatterEngineConfig, ScatterExpiryPolicy,
-    ScatterOperationalBounds, ScatterRegimeThresholds, ScatterTransportPolicy,
+    ScatterOperationalBounds, ScatterPlannerSeed, ScatterRegimeThresholds, ScatterTransportPolicy,
 };
 
 pub(super) const NODE_A: NodeId = NodeId([1; 32]);
@@ -858,51 +863,71 @@ fn degraded_network_scatter_config() -> ScatterEngineConfig {
 
 #[derive(Clone, Debug)]
 pub(crate) enum ExperimentModelCase {
-    BatmanBellmanPlannerDecision(BatmanBellmanPlannerDecisionCase),
-    BatmanClassicPlannerDecision(BatmanClassicPlannerDecisionCase),
-    BabelPlannerDecision(BabelPlannerDecisionCase),
-    BabelRoundRefresh(BabelRoundRefreshCase),
-    BabelCheckpointRestore(Box<BabelCheckpointRestoreCase>),
-    FieldPlannerDecision(FieldPlannerDecisionCase),
-    OlsrPlannerDecision(OlsrPlannerDecisionCase),
-    PathwayPlannerDecision(PathwayPlannerDecisionCase),
-    ScatterPlannerDecision(ScatterPlannerDecisionCase),
+    Planner(PlannerModelCase),
+    Round(RoundModelCase),
+    Maintenance(MaintenanceModelCase),
+    Restore(RestoreModelCase),
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct BatmanBellmanPlannerDecisionCase {
+pub(crate) enum PlannerModelCase {
+    BatmanBellman(BatmanBellmanPlannerDecisionCase),
+    BatmanClassic(BatmanClassicPlannerDecisionCase),
+    Babel(BabelPlannerDecisionCase),
+    Field(FieldPlannerDecisionCase),
+    Olsr(OlsrPlannerDecisionCase),
+    Pathway(PathwayPlannerDecisionCase),
+    Scatter(ScatterPlannerDecisionCase),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum RoundModelCase {
+    Babel(BabelRoundRefreshCase),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum MaintenanceModelCase {
+    Babel(BabelMaintenanceCase),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum RestoreModelCase {
+    Babel(Box<BabelCheckpointRestoreCase>),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ExpectedNextHopPlannerDecisionCase<Seed> {
     pub fixture_id: String,
     pub owner_node_id: NodeId,
     pub destination: NodeId,
     pub expected_next_hop: NodeId,
+    pub expected_visible_round: Option<u32>,
     pub objective: RoutingObjective,
     pub profile: SelectedRoutingParameters,
     pub topology: Observation<Configuration>,
+    pub seed: Seed,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct BatmanClassicPlannerDecisionCase {
+pub(crate) struct PlannerDecisionCase<Seed> {
     pub fixture_id: String,
     pub owner_node_id: NodeId,
     pub destination: NodeId,
-    pub expected_next_hop: NodeId,
+    pub expected_visible_round: Option<u32>,
     pub objective: RoutingObjective,
     pub profile: SelectedRoutingParameters,
     pub topology: Observation<Configuration>,
+    pub seed: Seed,
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct BabelPlannerDecisionCase {
-    pub fixture_id: String,
-    pub owner_node_id: NodeId,
-    pub destination: NodeId,
-    pub expected_next_hop: NodeId,
-    pub expected_visible_round: u32,
-    pub objective: RoutingObjective,
-    pub profile: SelectedRoutingParameters,
-    pub topology: Observation<Configuration>,
-    pub snapshot: BabelPlannerSnapshot,
-}
+pub(crate) type BatmanBellmanPlannerDecisionCase =
+    ExpectedNextHopPlannerDecisionCase<BatmanBellmanPlannerSeed>;
+pub(crate) type BatmanClassicPlannerDecisionCase =
+    ExpectedNextHopPlannerDecisionCase<BatmanClassicPlannerSeed>;
+pub(crate) type BabelPlannerDecisionCase = ExpectedNextHopPlannerDecisionCase<BabelPlannerSeed>;
+pub(crate) type FieldPlannerDecisionCase = ExpectedNextHopPlannerDecisionCase<FieldPlannerSeed>;
+pub(crate) type PathwayPlannerDecisionCase = ExpectedNextHopPlannerDecisionCase<PathwayPlannerSeed>;
+pub(crate) type OlsrPlannerDecisionCase = ExpectedNextHopPlannerDecisionCase<OlsrPlannerSeed>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct BabelRoundRefreshCase {
@@ -911,6 +936,14 @@ pub(crate) struct BabelRoundRefreshCase {
     pub expected_destinations: Vec<(NodeId, NodeId)>,
     pub prior_state: BabelRoundStateView,
     pub input: BabelRoundInputView,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct BabelMaintenanceCase {
+    pub fixture_id: String,
+    pub expected_result: jacquard_core::RouteMaintenanceResult,
+    pub prior_state: BabelMaintenanceStateView,
+    pub input: BabelMaintenanceInputView,
 }
 
 #[derive(Clone, Debug)]
@@ -923,48 +956,7 @@ pub(crate) struct BabelCheckpointRestoreCase {
     pub route: jacquard_core::MaterializedRoute,
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct FieldPlannerDecisionCase {
-    pub fixture_id: String,
-    pub owner_node_id: NodeId,
-    pub destination: NodeId,
-    pub expected_next_hop: NodeId,
-    pub objective: RoutingObjective,
-    pub profile: SelectedRoutingParameters,
-    pub topology: Observation<Configuration>,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct PathwayPlannerDecisionCase {
-    pub fixture_id: String,
-    pub owner_node_id: NodeId,
-    pub destination: NodeId,
-    pub expected_next_hop: NodeId,
-    pub objective: RoutingObjective,
-    pub profile: SelectedRoutingParameters,
-    pub topology: Observation<Configuration>,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct OlsrPlannerDecisionCase {
-    pub fixture_id: String,
-    pub owner_node_id: NodeId,
-    pub destination: NodeId,
-    pub expected_next_hop: NodeId,
-    pub objective: RoutingObjective,
-    pub profile: SelectedRoutingParameters,
-    pub topology: Observation<Configuration>,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct ScatterPlannerDecisionCase {
-    pub fixture_id: String,
-    pub owner_node_id: NodeId,
-    pub destination: NodeId,
-    pub objective: RoutingObjective,
-    pub profile: SelectedRoutingParameters,
-    pub topology: Observation<Configuration>,
-}
+pub(crate) type ScatterPlannerDecisionCase = PlannerDecisionCase<ScatterPlannerSeed>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ExperimentRunSpec {

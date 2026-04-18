@@ -16,7 +16,7 @@ The engine owns five pieces of runtime state:
 
 The router and host own ingress draining, tick cadence, and time attachment. `jacquard-olsrv2` consumes explicit ingress through the shared runtime hook and returns router-visible `NextHopOnly` candidates.
 
-Internally, the engine splits route choice from protocol progression. `OlsrPlannerSnapshot` carries the route-choice projection used by planning. A pure round reducer owns HELLO and TC expiry, two-hop reachability derivation, MPR selection, SPF refresh, and best-next-hop projection. A separate pure maintenance reducer owns route-health refresh and replacement decisions. The runtime wrapper is limited to ingress decode, transport emission, and router-facing integration.
+Internally, the engine splits route choice from protocol progression. `OlsrPlannerSnapshot` carries the route-choice projection used by planning. A pure round reducer owns HELLO and TC expiry, two-hop reachability derivation, MPR selection, SPF refresh, and best-next-hop projection. A separate pure maintenance reducer owns route-health refresh and replacement decisions. The runtime wrapper is limited to ingress decode, transport emission, and router-facing integration. `jacquard-olsrv2` also implements the shared `RoutingEnginePlannerModel` surface, so the simulator executes OLSRv2 planner checks from engine-owned planner seeds instead of building OLSR control-state fixtures itself.
 
 ## Jacquard-Specific Simplifications
 

@@ -24,6 +24,7 @@ mod choreography;
 mod committee;
 mod contracts;
 mod engine;
+mod planner_model;
 mod topology;
 #[cfg(test)]
 mod validation;
@@ -31,4 +32,5 @@ mod validation;
 pub use committee::*;
 pub use contracts::*;
 pub use engine::*;
+pub use planner_model::{PathwayPlannerModel, PathwayPlannerSeed};
 pub use topology::*;

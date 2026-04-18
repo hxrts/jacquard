@@ -94,7 +94,7 @@ where
     A: JacquardHostAdapter + Clone,
 {
     let reduced = match spec.model_case.as_ref() {
-        Some(ExperimentModelCase::BabelCheckpointRestore(_)) => {
+        Some(ExperimentModelCase::Restore(_)) => {
             let mut resumed_simulator = JacquardSimulator::new(simulator.host_adapter().clone());
             let (replay, _) = resumed_simulator
                 .run_scenario(&spec.scenario, &spec.environment)
@@ -132,14 +132,14 @@ where
             && round.active_routes.iter().any(|route| {
                 route.owner_node_id == expectation.owner_node_id
                     && route.destination == expectation.destination
-                    && route.engine_id == jacquard_babel::BABEL_ENGINE_ID
+                    && route.engine_id == expectation.engine_id
             })
     });
     if !visible {
         return Err(ExperimentError::EquivalenceMismatch {
             run_id: spec.run_id.clone(),
             detail: format!(
-                "full-stack replay never showed a Babel route for {:?} after round {}",
+                "full-stack replay never showed route visibility for {:?} after round {}",
                 expectation.destination, expectation.visible_round
             ),
         });
@@ -327,14 +327,14 @@ mod tests {
         )
         .expect("babel model smoke suite should run");
 
-        assert!(artifacts.manifest.model_artifact_count >= 3);
+        assert!(artifacts.manifest.model_artifact_count >= 4);
         assert_eq!(
             artifacts
                 .runs
                 .iter()
                 .map(|run| run.execution_lane.as_str())
                 .collect::<Vec<_>>(),
-            vec!["model", "model", "model"]
+            vec!["model", "model", "model", "model"]
         );
 
         remove_temp_output_dir(&output_dir);

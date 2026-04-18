@@ -52,20 +52,20 @@ fn health_scores_from_metric(tq: RatioPermille) -> (HealthScore, jacquard_core::
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct BabelMaintenanceInput {
-    runtime: RouteRuntimeState,
-    active_route: ActiveBabelRoute,
-    best_next_hop: Option<BabelBestNextHop>,
-    now_tick: Tick,
+pub(crate) struct BabelMaintenanceInput {
+    pub(crate) runtime: RouteRuntimeState,
+    pub(crate) active_route: ActiveBabelRoute,
+    pub(crate) best_next_hop: Option<BabelBestNextHop>,
+    pub(crate) now_tick: Tick,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct BabelMaintenanceTransition {
-    next_runtime: RouteRuntimeState,
-    result: RouteMaintenanceResult,
+pub(crate) struct BabelMaintenanceTransition {
+    pub(crate) next_runtime: RouteRuntimeState,
+    pub(crate) result: RouteMaintenanceResult,
 }
 
-fn reduce_maintenance(input: BabelMaintenanceInput) -> BabelMaintenanceTransition {
+pub(crate) fn reduce_maintenance(input: BabelMaintenanceInput) -> BabelMaintenanceTransition {
     let mut next_runtime = input.runtime;
     let Some(best) = input.best_next_hop else {
         return BabelMaintenanceTransition {

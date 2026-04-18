@@ -66,6 +66,8 @@ Route restore is router-led.
 On recovery, the router passes the full `MaterializedRoute` record back into the engine.
 `scatter` reconstructs its active route entry from the router-owned backend token and recomputes route progress from retained local messages.
 
+The simulator consumes Scatter planning through the shared `RoutingEnginePlannerModel` contract. `jacquard-scatter` owns the planner seed, including the bounded policy surface, and keeps any reduced transport or time scaffolding inside the engine crate rather than in simulator-side helpers.
+
 ## Transport Boundary
 
 `scatter` follows the standard Jacquard ownership split.

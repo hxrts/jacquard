@@ -14,7 +14,6 @@ workspace = true
 
 [features]
 default = []
-simulator-support = []
 
 [dependencies]
 jacquard-core = { path = "../core", version = "0.6.0" }

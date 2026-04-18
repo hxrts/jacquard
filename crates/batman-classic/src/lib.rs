@@ -33,6 +33,7 @@
 
 mod gossip;
 mod planner;
+mod planner_model;
 mod private_state;
 mod public_state;
 mod runtime;
@@ -49,6 +50,10 @@ use jacquard_core::{
     RoutingEngineId,
 };
 pub use planner::{admit_route_from_snapshot, candidate_routes_from_snapshot};
+pub use planner_model::{
+    backend_route_id as batman_classic_backend_route_id, selected_neighbor_from_backend_route_id,
+    BatmanClassicPlannerModel, BatmanClassicPlannerSeed,
+};
 use public_state::{
     ActiveBatmanClassicRoute, NeighborRanking, OgmReceiveWindow, OriginatorObservationTable,
     ReceivedOgmInfo,

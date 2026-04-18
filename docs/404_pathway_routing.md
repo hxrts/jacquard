@@ -106,6 +106,8 @@ Pathway route ids are path identities. The stable route id is derived from sourc
 
 Planner cache state is advisory only. `candidate_routes` populates `candidate_cache` for reuse by `check_candidate` and `admit_route`, but cache misses re-derive the same candidate and admission result from the backend token plus explicit topology. Pathway does not let planner decisions depend on hidden mutable cache state.
 
+The simulator consumes Pathway planning through the shared `RoutingEnginePlannerModel` contract. `jacquard-pathway` owns the planner seed and the seed-to-private-state translation, so simulator fixtures describe route objectives and expected outcomes rather than pathway-private search or repair internals.
+
 ## Engine Middleware
 
 `RoutingEngine::engine_tick` is the engine-wide progress hook for pathway. The router or host supplies a shared `RoutingTickContext`, and pathway returns a `RoutingTickOutcome` that reports whether the tick changed pathway-private state. Inside `jacquard-pathway`, this hook is the engine-internal middleware loop.

@@ -10,7 +10,9 @@ use jacquard_core::{
     RouteAdmissionCheck, RouteAdmissionRejection, RouteCandidate, RouteError, RouteSelectionError,
     RoutingEngineCapabilities, RoutingEngineId, SelectedRoutingParameters,
 };
-use jacquard_traits::{RoutingEnginePlanner, TimeEffects, TransportSenderEffects};
+use jacquard_traits::{
+    RoutingEnginePlanner, RoutingEnginePlannerModel, TimeEffects, TransportSenderEffects,
+};
 
 use crate::{
     private_state::{admission_for_candidate, candidate_for_snapshot},
@@ -105,6 +107,31 @@ where
             candidate,
             topology,
         )
+    }
+}
+
+impl<Transport, Effects> RoutingEnginePlannerModel for BatmanClassicEngine<Transport, Effects> {
+    type PlannerSnapshot = BatmanClassicPlannerSnapshot;
+    type PlannerCandidate = RouteCandidate;
+    type PlannerAdmission = RouteAdmission;
+
+    fn candidate_routes_from_snapshot(
+        snapshot: &Self::PlannerSnapshot,
+        objective: &jacquard_core::RoutingObjective,
+        _profile: &SelectedRoutingParameters,
+        topology: &Observation<Configuration>,
+    ) -> Vec<Self::PlannerCandidate> {
+        candidate_routes_from_snapshot(snapshot, objective, topology)
+    }
+
+    fn admit_route_from_snapshot(
+        snapshot: &Self::PlannerSnapshot,
+        objective: &jacquard_core::RoutingObjective,
+        profile: &SelectedRoutingParameters,
+        candidate: &Self::PlannerCandidate,
+        topology: &Observation<Configuration>,
+    ) -> Result<Self::PlannerAdmission, RouteError> {
+        admit_route_from_snapshot(snapshot, objective, profile, candidate, topology)
     }
 }
 

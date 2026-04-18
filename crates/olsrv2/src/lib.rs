@@ -23,6 +23,7 @@
 mod gossip;
 mod mpr;
 mod planner;
+mod planner_model;
 mod private_state;
 mod public_state;
 mod runtime;
@@ -39,6 +40,10 @@ use jacquard_core::{
     RoutingEngineId,
 };
 pub use planner::{admit_route_from_snapshot, candidate_routes_from_snapshot};
+pub use planner_model::{
+    backend_route_id as olsr_backend_route_id, selected_neighbor_from_backend_route_id,
+    OlsrPlannerModel, OlsrPlannerSeed,
+};
 use public_state::{
     ActiveOlsrRoute, MprSelection, NeighborLinkState, SelectedOlsrRoute, TopologyTuple,
     TwoHopReachability,

@@ -12,14 +12,14 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FieldPlannerDecisionResult {
+pub(crate) struct FieldPlannerDecisionResult {
     pub candidate_count: usize,
     pub backend_route_id: BackendRouteId,
     pub selected_neighbor: NodeId,
     pub admitted: bool,
 }
 
-pub fn validate_planner_decision(
+pub(crate) fn validate_planner_decision(
     local_node_id: NodeId,
     expected_next_hop: NodeId,
     objective: &RoutingObjective,

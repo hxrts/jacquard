@@ -19,6 +19,7 @@
 #![forbid(unsafe_code)]
 
 mod planner;
+mod planner_model;
 mod public_state;
 mod runtime;
 mod support;
@@ -31,6 +32,7 @@ use jacquard_core::{
     Configuration, ConnectivityPosture, NodeId, Observation, RouteId, RoutePartitionClass,
     RouteProtectionClass, RouteShapeVisibility, RoutingEngineCapabilities, RoutingEngineId,
 };
+pub use planner_model::{ScatterPlannerModel, ScatterPlannerSeed};
 use public_state::ScatterPlannerSnapshot;
 pub use public_state::{
     ScatterAction, ScatterBudgetPolicy, ScatterDecisionThresholds, ScatterEngineConfig,

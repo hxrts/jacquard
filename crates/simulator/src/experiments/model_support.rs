@@ -1,53 +1,47 @@
 //! Model-lane fixture execution for route-visible experiment runs.
 
-use std::collections::BTreeMap;
-
 use jacquard_babel::{
-    admit_route_from_snapshot as admit_babel_route_from_snapshot,
-    candidate_routes_from_snapshot as babel_candidate_routes_from_snapshot,
-    simulator_support::{
-        reduce_round_view as reduce_babel_round_view,
-        restore_route_view as restore_babel_route_view,
-    },
-    BabelPlannerSnapshot,
+    selected_neighbor_from_backend_route_id as selected_babel_neighbor, BabelEngine,
+    BabelPlannerModel, BABEL_ENGINE_ID,
 };
 use jacquard_batman_bellman::{
-    admit_route_from_snapshot as admit_batman_bellman_route_from_snapshot,
-    candidate_routes_from_snapshot as batman_bellman_candidate_routes_from_snapshot,
-    BatmanBellmanPlannerSnapshot, BestNextHop as BatmanBellmanBestNextHop,
-    DecayWindow as BatmanBellmanDecayWindow,
+    selected_neighbor_from_backend_route_id as selected_batman_bellman_neighbor,
+    BatmanBellmanPlannerModel, BATMAN_BELLMAN_ENGINE_ID,
 };
 use jacquard_batman_classic::{
-    admit_route_from_snapshot as admit_batman_classic_route_from_snapshot,
-    candidate_routes_from_snapshot as batman_classic_candidate_routes_from_snapshot,
-    BatmanClassicPlannerSnapshot, BestNextHop as BatmanClassicBestNextHop,
-    DecayWindow as BatmanClassicDecayWindow,
+    selected_neighbor_from_backend_route_id as selected_batman_classic_neighbor,
+    BatmanClassicPlannerModel, BATMAN_CLASSIC_ENGINE_ID,
 };
 use jacquard_core::{
-    DestinationId, NodeId, RatioPermille, RouteDegradation, RouteError, RouteSelectionError,
-    RoutingTickChange, Tick, TransportError, TransportKind,
+    BackendRouteId, Configuration, DestinationId, NodeId, Observation, RouteAdmission,
+    RouteCandidate, RouteError, RouteSelectionError, RoutingEngineId, RoutingObjective,
+    RoutingTickChange, SelectedRoutingParameters,
 };
-use jacquard_field::simulator_support::validate_planner_decision as run_field_planner_decision_fixture;
+use jacquard_field::{
+    selected_neighbor_from_backend_route_id as selected_field_neighbor, FieldPlannerModel,
+    FIELD_ENGINE_ID,
+};
 use jacquard_olsrv2::{
-    admit_route_from_snapshot as admit_olsr_route_from_snapshot,
-    candidate_routes_from_snapshot as olsr_candidate_routes_from_snapshot,
-    DecayWindow as OlsrDecayWindow, OlsrBestNextHop, OlsrPlannerSnapshot,
+    selected_neighbor_from_backend_route_id as selected_olsr_neighbor, OlsrPlannerModel,
+    OLSRV2_ENGINE_ID,
 };
 use jacquard_pathway::{
-    first_hop_node_id_from_backend_route_id, DeterministicPathwayTopologyModel, PathwayEngine,
+    first_hop_node_id_from_backend_route_id, PathwayPlannerModel, PATHWAY_ENGINE_ID,
 };
-use jacquard_scatter::{ScatterEngine, ScatterEngineConfig};
+use jacquard_scatter::{ScatterPlannerModel, SCATTER_ENGINE_ID};
 use jacquard_traits::{
-    effect_handler, Blake3Hashing, RoutingEnginePlanner, TimeEffects, TransportSenderEffects,
+    RoutingEngineMaintenanceModel, RoutingEnginePlannerModel, RoutingEngineRestoreModel,
+    RoutingEngineRoundModel,
 };
 
 use super::{
-    BabelCheckpointRestoreCase, BabelPlannerDecisionCase, BabelRoundRefreshCase,
-    BatmanBellmanPlannerDecisionCase, BatmanClassicPlannerDecisionCase, ExperimentError,
-    ExperimentModelArtifact, ExperimentModelCase, ExperimentRunSpec, FieldPlannerDecisionCase,
-    OlsrPlannerDecisionCase, PathwayPlannerDecisionCase, ScatterPlannerDecisionCase,
+    BabelCheckpointRestoreCase, BabelMaintenanceCase, BabelRoundRefreshCase, ExperimentError,
+    ExperimentModelArtifact, ExperimentModelCase, ExperimentRunSpec, MaintenanceModelCase,
+    PlannerDecisionCase, PlannerModelCase, RestoreModelCase, RoundModelCase,
 };
+
 pub(super) struct VisibilityExpectation {
+    pub(super) engine_id: RoutingEngineId,
     pub(super) owner_node_id: NodeId,
     pub(super) destination: DestinationId,
     pub(super) visible_round: u32,
@@ -58,314 +52,39 @@ pub(super) struct ModelExecution {
     pub(super) expected_visibility: Option<VisibilityExpectation>,
 }
 
-struct ScatterNullTransport;
-
-#[effect_handler]
-impl TransportSenderEffects for ScatterNullTransport {
-    fn send_transport(
-        &mut self,
-        _endpoint: &jacquard_core::LinkEndpoint,
-        _payload: &[u8],
-    ) -> Result<(), TransportError> {
-        Ok(())
-    }
+struct PlannerCaseView<'a, Seed> {
+    fixture_id: &'a str,
+    owner_node_id: NodeId,
+    destination: NodeId,
+    expected_next_hop: Option<NodeId>,
+    expected_visible_round: Option<u32>,
+    objective: &'a RoutingObjective,
+    profile: &'a SelectedRoutingParameters,
+    topology: &'a Observation<Configuration>,
+    seed: &'a Seed,
 }
 
-struct ScatterFixedTime {
-    now: Tick,
-}
-
-#[effect_handler]
-impl TimeEffects for ScatterFixedTime {
-    fn now_tick(&self) -> Tick {
-        self.now
-    }
-}
-
-struct PathwayPlannerDecisionFixtureResult {
+struct PlannerFixtureResult {
     candidate_count: usize,
-    backend_route_id: jacquard_core::BackendRouteId,
-    first_hop_node_id: NodeId,
+    backend_route_id: BackendRouteId,
+    next_hop_node_id: Option<NodeId>,
     admitted: bool,
 }
 
-struct ScatterPlannerDecisionFixtureResult {
-    candidate_count: usize,
-    backend_route_id: jacquard_core::BackendRouteId,
-    admitted: bool,
-}
-
-struct BatmanBellmanPlannerDecisionFixtureResult {
-    candidate_count: usize,
-    backend_route_id: jacquard_core::BackendRouteId,
-    selected_neighbor: NodeId,
-    admitted: bool,
-}
-
-struct BatmanClassicPlannerDecisionFixtureResult {
-    candidate_count: usize,
-    backend_route_id: jacquard_core::BackendRouteId,
-    selected_neighbor: NodeId,
-    admitted: bool,
-}
-
-struct OlsrPlannerDecisionFixtureResult {
-    candidate_count: usize,
-    backend_route_id: jacquard_core::BackendRouteId,
-    selected_neighbor: NodeId,
-    admitted: bool,
-}
-
-struct BabelPlannerDecisionFixtureResult {
-    candidate_count: usize,
-    backend_route_id: jacquard_core::BackendRouteId,
-    admitted: bool,
-}
-
-fn route_id_bytes(destination: NodeId, next_hop: NodeId) -> jacquard_core::BackendRouteId {
-    let mut bytes = Vec::with_capacity(64);
-    bytes.extend_from_slice(&destination.0);
-    bytes.extend_from_slice(&next_hop.0);
-    jacquard_core::BackendRouteId(bytes)
-}
-
-fn run_babel_planner_decision_fixture(
-    snapshot: &BabelPlannerSnapshot,
-    objective: &jacquard_core::RoutingObjective,
-    profile: &jacquard_core::SelectedRoutingParameters,
-    topology: &jacquard_core::Observation<jacquard_core::Configuration>,
-) -> Result<BabelPlannerDecisionFixtureResult, RouteError> {
-    let candidates = babel_candidate_routes_from_snapshot(snapshot, objective, topology);
-    let candidate = candidates
-        .first()
-        .cloned()
-        .ok_or(RouteSelectionError::NoCandidate)?;
-    let admission =
-        admit_babel_route_from_snapshot(snapshot, objective, profile, &candidate, topology)?;
-    Ok(BabelPlannerDecisionFixtureResult {
-        candidate_count: candidates.len(),
-        backend_route_id: candidate.backend_ref.backend_route_id,
-        admitted: matches!(
-            admission.admission_check.decision,
-            jacquard_core::AdmissionDecision::Admissible
-        ),
-    })
-}
-
-fn run_batman_bellman_planner_decision_fixture(
-    local_node_id: NodeId,
-    expected_next_hop: NodeId,
-    objective: &jacquard_core::RoutingObjective,
-    profile: &jacquard_core::SelectedRoutingParameters,
-    topology: &jacquard_core::Observation<jacquard_core::Configuration>,
-) -> Result<BatmanBellmanPlannerDecisionFixtureResult, RouteError> {
-    let DestinationId::Node(destination) = objective.destination else {
-        return Err(RouteSelectionError::NoCandidate.into());
-    };
-    let snapshot = BatmanBellmanPlannerSnapshot {
-        local_node_id,
-        stale_after_ticks: BatmanBellmanDecayWindow::default().stale_after_ticks,
-        best_next_hops: BTreeMap::from([(
-            destination,
-            BatmanBellmanBestNextHop {
-                originator: destination,
-                next_hop: expected_next_hop,
-                tq: RatioPermille(950),
-                receive_quality: RatioPermille(950),
-                hop_count: 1,
-                updated_at_tick: topology.observed_at_tick,
-                transport_kind: TransportKind::WifiAware,
-                degradation: RouteDegradation::None,
-                backend_route_id: route_id_bytes(destination, expected_next_hop),
-                topology_epoch: topology.value.epoch,
-                is_bidirectional: true,
-            },
-        )]),
-    };
-    let candidates = batman_bellman_candidate_routes_from_snapshot(&snapshot, objective, topology);
-    let candidate = candidates
-        .first()
-        .cloned()
-        .ok_or(RouteSelectionError::NoCandidate)?;
-    let admission = admit_batman_bellman_route_from_snapshot(
-        &snapshot, objective, profile, &candidate, topology,
-    )?;
-    Ok(BatmanBellmanPlannerDecisionFixtureResult {
-        candidate_count: candidates.len(),
-        backend_route_id: candidate.backend_ref.backend_route_id,
-        selected_neighbor: expected_next_hop,
-        admitted: matches!(
-            admission.admission_check.decision,
-            jacquard_core::AdmissionDecision::Admissible
-        ),
-    })
-}
-
-fn run_batman_classic_planner_decision_fixture(
-    local_node_id: NodeId,
-    expected_next_hop: NodeId,
-    objective: &jacquard_core::RoutingObjective,
-    profile: &jacquard_core::SelectedRoutingParameters,
-    topology: &jacquard_core::Observation<jacquard_core::Configuration>,
-) -> Result<BatmanClassicPlannerDecisionFixtureResult, RouteError> {
-    let DestinationId::Node(destination) = objective.destination else {
-        return Err(RouteSelectionError::NoCandidate.into());
-    };
-    let snapshot = BatmanClassicPlannerSnapshot {
-        local_node_id,
-        stale_after_ticks: BatmanClassicDecayWindow::default().stale_after_ticks,
-        best_next_hops: BTreeMap::from([(
-            destination,
-            BatmanClassicBestNextHop {
-                originator: destination,
-                next_hop: expected_next_hop,
-                tq: RatioPermille(950),
-                receive_quality: RatioPermille(950),
-                hop_count: 1,
-                updated_at_tick: topology.observed_at_tick,
-                transport_kind: TransportKind::WifiAware,
-                degradation: RouteDegradation::None,
-                backend_route_id: route_id_bytes(destination, expected_next_hop),
-                topology_epoch: topology.value.epoch,
-                is_bidirectional: true,
-            },
-        )]),
-    };
-    let candidates = batman_classic_candidate_routes_from_snapshot(&snapshot, objective, topology);
-    let candidate = candidates
-        .first()
-        .cloned()
-        .ok_or(RouteSelectionError::NoCandidate)?;
-    let admission = admit_batman_classic_route_from_snapshot(
-        &snapshot, objective, profile, &candidate, topology,
-    )?;
-    Ok(BatmanClassicPlannerDecisionFixtureResult {
-        candidate_count: candidates.len(),
-        backend_route_id: candidate.backend_ref.backend_route_id,
-        selected_neighbor: expected_next_hop,
-        admitted: matches!(
-            admission.admission_check.decision,
-            jacquard_core::AdmissionDecision::Admissible
-        ),
-    })
-}
-
-fn run_olsr_planner_decision_fixture(
-    local_node_id: NodeId,
-    expected_next_hop: NodeId,
-    objective: &jacquard_core::RoutingObjective,
-    profile: &jacquard_core::SelectedRoutingParameters,
-    topology: &jacquard_core::Observation<jacquard_core::Configuration>,
-) -> Result<OlsrPlannerDecisionFixtureResult, RouteError> {
-    let DestinationId::Node(destination) = objective.destination else {
-        return Err(RouteSelectionError::NoCandidate.into());
-    };
-    let path_cost = 10;
-    let snapshot = OlsrPlannerSnapshot {
-        local_node_id,
-        stale_after_ticks: OlsrDecayWindow::default().stale_after_ticks,
-        best_next_hops: BTreeMap::from([(
-            destination,
-            OlsrBestNextHop {
-                destination,
-                next_hop: expected_next_hop,
-                hop_count: 1,
-                path_cost,
-                degradation: RouteDegradation::None,
-                transport_kind: TransportKind::WifiAware,
-                updated_at_tick: topology.observed_at_tick,
-                topology_epoch: topology.value.epoch,
-                backend_route_id: jacquard_core::BackendRouteId(
-                    [
-                        destination.0.as_slice(),
-                        expected_next_hop.0.as_slice(),
-                        path_cost.to_le_bytes().as_slice(),
-                    ]
-                    .concat(),
-                ),
-            },
-        )]),
-    };
-    let candidates = olsr_candidate_routes_from_snapshot(&snapshot, objective, topology);
-    let candidate = candidates
-        .first()
-        .cloned()
-        .ok_or(RouteSelectionError::NoCandidate)?;
-    let admission =
-        admit_olsr_route_from_snapshot(&snapshot, objective, profile, &candidate, topology)?;
-    Ok(OlsrPlannerDecisionFixtureResult {
-        candidate_count: candidates.len(),
-        backend_route_id: candidate.backend_ref.backend_route_id,
-        selected_neighbor: expected_next_hop,
-        admitted: matches!(
-            admission.admission_check.decision,
-            jacquard_core::AdmissionDecision::Admissible
-        ),
-    })
-}
-
-fn run_pathway_planner_decision_fixture(
-    local_node_id: NodeId,
-    objective: &jacquard_core::RoutingObjective,
-    profile: &jacquard_core::SelectedRoutingParameters,
-    topology: &jacquard_core::Observation<jacquard_core::Configuration>,
-) -> Result<PathwayPlannerDecisionFixtureResult, RouteError> {
-    let engine = PathwayEngine::without_committee_selector(
-        local_node_id,
-        DeterministicPathwayTopologyModel::new(),
-        (),
-        (),
-        (),
-        Blake3Hashing,
-    );
-    let candidates = engine.candidate_routes(objective, profile, topology);
-    let candidate = candidates
-        .first()
-        .cloned()
-        .ok_or(RouteSelectionError::NoCandidate)?;
-    let admission = engine.admit_route(objective, profile, candidate.clone(), topology)?;
-    let first_hop_node_id =
-        first_hop_node_id_from_backend_route_id(&candidate.backend_ref.backend_route_id)
-            .ok_or(RouteSelectionError::NoCandidate)?;
-    Ok(PathwayPlannerDecisionFixtureResult {
-        candidate_count: candidates.len(),
-        backend_route_id: candidate.backend_ref.backend_route_id,
-        first_hop_node_id,
-        admitted: matches!(
-            admission.admission_check.decision,
-            jacquard_core::AdmissionDecision::Admissible
-        ),
-    })
-}
-
-fn run_scatter_planner_decision_fixture(
-    local_node_id: NodeId,
-    objective: &jacquard_core::RoutingObjective,
-    profile: &jacquard_core::SelectedRoutingParameters,
-    topology: &jacquard_core::Observation<jacquard_core::Configuration>,
-) -> Result<ScatterPlannerDecisionFixtureResult, RouteError> {
-    let engine = ScatterEngine::with_config(
-        local_node_id,
-        ScatterNullTransport,
-        ScatterFixedTime {
-            now: topology.observed_at_tick,
-        },
-        ScatterEngineConfig::default(),
-    );
-    let candidates = engine.candidate_routes(objective, profile, topology);
-    let candidate = candidates
-        .first()
-        .cloned()
-        .ok_or(RouteSelectionError::NoCandidate)?;
-    let admission = engine.admit_route(objective, profile, candidate.clone(), topology)?;
-    Ok(ScatterPlannerDecisionFixtureResult {
-        candidate_count: candidates.len(),
-        backend_route_id: candidate.backend_ref.backend_route_id,
-        admitted: matches!(
-            admission.admission_check.decision,
-            jacquard_core::AdmissionDecision::Admissible
-        ),
-    })
+struct ModelArtifactData<'a> {
+    fixture_id: &'a str,
+    artifact_kind: &'a str,
+    owner_node_id: Option<NodeId>,
+    destination_node_id: Option<NodeId>,
+    next_hop_node_id: Option<NodeId>,
+    topology_epoch: Option<u64>,
+    candidate_count: Option<u32>,
+    reducer_route_entry_count: Option<u32>,
+    reducer_best_next_hop_count: Option<u32>,
+    reducer_change: Option<String>,
+    backend_route_id: Option<&'a BackendRouteId>,
+    visible_round: Option<u32>,
+    equivalence_passed: Option<bool>,
 }
 
 pub(super) fn execute_model_case(
@@ -377,172 +96,249 @@ pub(super) fn execute_model_case(
         .ok_or_else(|| ExperimentError::MissingModelCase {
             run_id: spec.run_id.clone(),
         })? {
-        ExperimentModelCase::BatmanBellmanPlannerDecision(case) => {
-            execute_batman_bellman_planner_case(spec, case)
-        }
-        ExperimentModelCase::BatmanClassicPlannerDecision(case) => {
-            execute_batman_classic_planner_case(spec, case)
-        }
-        ExperimentModelCase::BabelPlannerDecision(case) => execute_babel_planner_case(spec, case),
-        ExperimentModelCase::BabelRoundRefresh(case) => execute_babel_round_case(spec, case),
-        ExperimentModelCase::BabelCheckpointRestore(case) => {
-            execute_babel_checkpoint_case(spec, case.as_ref())
-        }
-        ExperimentModelCase::FieldPlannerDecision(case) => execute_field_planner_case(spec, case),
-        ExperimentModelCase::OlsrPlannerDecision(case) => execute_olsr_planner_case(spec, case),
-        ExperimentModelCase::PathwayPlannerDecision(case) => {
-            execute_pathway_planner_case(spec, case)
-        }
-        ExperimentModelCase::ScatterPlannerDecision(case) => {
-            execute_scatter_planner_case(spec, case)
-        }
+        ExperimentModelCase::Planner(case) => execute_planner_model_case(spec, case),
+        ExperimentModelCase::Round(case) => execute_round_model_case(spec, case),
+        ExperimentModelCase::Maintenance(case) => execute_maintenance_model_case(spec, case),
+        ExperimentModelCase::Restore(case) => execute_restore_model_case(spec, case),
     }
 }
 
-fn execute_batman_bellman_planner_case(
+// long-block-exception: planner model dispatch mirrors the shared planner-case
+// enum one-to-one, and splitting the match further would obscure that mapping.
+fn execute_planner_model_case(
     spec: &ExperimentRunSpec,
-    case: &BatmanBellmanPlannerDecisionCase,
+    case: &PlannerModelCase,
 ) -> Result<ModelExecution, ExperimentError> {
-    let result = run_batman_bellman_planner_decision_fixture(
-        case.owner_node_id,
-        case.expected_next_hop,
-        &case.objective,
-        &case.profile,
-        &case.topology,
-    )
-    .map_err(|error| ExperimentError::ModelExpectationFailed {
-        run_id: spec.run_id.clone(),
-        detail: format!("batman bellman planner fixture failed: {error}"),
-    })?;
-    if !result.admitted || result.selected_neighbor != case.expected_next_hop {
-        return Err(ExperimentError::ModelExpectationFailed {
-            run_id: spec.run_id.clone(),
-            detail: "batman bellman planner fixture produced the wrong next hop".to_string(),
-        });
+    match case {
+        PlannerModelCase::BatmanBellman(case) => {
+            execute_expected_next_hop_planner_case::<BatmanBellmanPlannerModel, _>(
+                spec,
+                BATMAN_BELLMAN_ENGINE_ID,
+                &expected_next_hop_case_view(case),
+                selected_batman_bellman_neighbor,
+            )
+        }
+        PlannerModelCase::BatmanClassic(case) => {
+            execute_expected_next_hop_planner_case::<BatmanClassicPlannerModel, _>(
+                spec,
+                BATMAN_CLASSIC_ENGINE_ID,
+                &expected_next_hop_case_view(case),
+                selected_batman_classic_neighbor,
+            )
+        }
+        PlannerModelCase::Babel(case) => {
+            execute_expected_next_hop_planner_case::<BabelPlannerModel, _>(
+                spec,
+                BABEL_ENGINE_ID,
+                &expected_next_hop_case_view(case),
+                selected_babel_neighbor,
+            )
+        }
+        PlannerModelCase::Field(case) => {
+            execute_expected_next_hop_planner_case::<FieldPlannerModel, _>(
+                spec,
+                FIELD_ENGINE_ID,
+                &expected_next_hop_case_view(case),
+                selected_field_neighbor,
+            )
+        }
+        PlannerModelCase::Olsr(case) => {
+            execute_expected_next_hop_planner_case::<OlsrPlannerModel, _>(
+                spec,
+                OLSRV2_ENGINE_ID,
+                &expected_next_hop_case_view(case),
+                selected_olsr_neighbor,
+            )
+        }
+        PlannerModelCase::Pathway(case) => {
+            execute_expected_next_hop_planner_case::<PathwayPlannerModel, _>(
+                spec,
+                PATHWAY_ENGINE_ID,
+                &expected_next_hop_case_view(case),
+                first_hop_node_id_from_backend_route_id,
+            )
+        }
+        PlannerModelCase::Scatter(case) => execute_planner_case::<ScatterPlannerModel, _>(
+            spec,
+            SCATTER_ENGINE_ID,
+            &planner_case_view(case),
+            |_| None,
+        ),
     }
-    Ok(ModelExecution {
-        artifacts: vec![ExperimentModelArtifact {
-            run_id: spec.run_id.clone(),
-            suite_id: spec.suite_id.clone(),
-            engine_family: spec.engine_family.clone(),
-            execution_lane: spec.execution_lane.label().to_string(),
-            fixture_id: case.fixture_id.clone(),
-            artifact_kind: "planner-decision".to_string(),
-            owner_node_id: Some(node_id_hex(case.owner_node_id)),
-            destination_node_id: Some(node_id_hex(case.destination)),
-            next_hop_node_id: Some(node_id_hex(result.selected_neighbor)),
-            topology_epoch: Some(case.topology.value.epoch.0),
-            candidate_count: Some(u32::try_from(result.candidate_count).unwrap_or(u32::MAX)),
-            reducer_route_entry_count: None,
-            reducer_best_next_hop_count: None,
-            reducer_change: None,
-            backend_route_id_hex: Some(bytes_to_hex(&result.backend_route_id.0)),
-            visible_round: None,
-            equivalence_passed: None,
-        }],
-        expected_visibility: None,
-    })
 }
 
-fn execute_batman_classic_planner_case(
+fn execute_round_model_case(
     spec: &ExperimentRunSpec,
-    case: &BatmanClassicPlannerDecisionCase,
+    case: &RoundModelCase,
 ) -> Result<ModelExecution, ExperimentError> {
-    let result = run_batman_classic_planner_decision_fixture(
-        case.owner_node_id,
-        case.expected_next_hop,
-        &case.objective,
-        &case.profile,
-        &case.topology,
-    )
-    .map_err(|error| ExperimentError::ModelExpectationFailed {
-        run_id: spec.run_id.clone(),
-        detail: format!("batman classic planner fixture failed: {error}"),
-    })?;
-    if !result.admitted || result.selected_neighbor != case.expected_next_hop {
-        return Err(ExperimentError::ModelExpectationFailed {
-            run_id: spec.run_id.clone(),
-            detail: "batman classic planner fixture produced the wrong next hop".to_string(),
-        });
+    match case {
+        RoundModelCase::Babel(case) => execute_babel_round_case(spec, case),
     }
-    Ok(ModelExecution {
-        artifacts: vec![ExperimentModelArtifact {
-            run_id: spec.run_id.clone(),
-            suite_id: spec.suite_id.clone(),
-            engine_family: spec.engine_family.clone(),
-            execution_lane: spec.execution_lane.label().to_string(),
-            fixture_id: case.fixture_id.clone(),
-            artifact_kind: "planner-decision".to_string(),
-            owner_node_id: Some(node_id_hex(case.owner_node_id)),
-            destination_node_id: Some(node_id_hex(case.destination)),
-            next_hop_node_id: Some(node_id_hex(result.selected_neighbor)),
-            topology_epoch: Some(case.topology.value.epoch.0),
-            candidate_count: Some(u32::try_from(result.candidate_count).unwrap_or(u32::MAX)),
-            reducer_route_entry_count: None,
-            reducer_best_next_hop_count: None,
-            reducer_change: None,
-            backend_route_id_hex: Some(bytes_to_hex(&result.backend_route_id.0)),
-            visible_round: None,
-            equivalence_passed: None,
-        }],
-        expected_visibility: None,
-    })
 }
 
-fn execute_babel_planner_case(
+fn execute_restore_model_case(
     spec: &ExperimentRunSpec,
-    case: &BabelPlannerDecisionCase,
+    case: &RestoreModelCase,
 ) -> Result<ModelExecution, ExperimentError> {
-    let result = run_babel_planner_decision_fixture(
-        &case.snapshot,
-        &case.objective,
-        &case.profile,
-        &case.topology,
-    )
-    .map_err(|error| ExperimentError::ModelExpectationFailed {
-        run_id: spec.run_id.clone(),
-        detail: format!("babel planner fixture failed: {error}"),
+    match case {
+        RestoreModelCase::Babel(case) => execute_babel_restore_case(spec, case),
+    }
+}
+
+fn execute_maintenance_model_case(
+    spec: &ExperimentRunSpec,
+    case: &MaintenanceModelCase,
+) -> Result<ModelExecution, ExperimentError> {
+    match case {
+        MaintenanceModelCase::Babel(case) => execute_babel_maintenance_case(spec, case),
+    }
+}
+
+fn execute_expected_next_hop_planner_case<Model, Decode>(
+    spec: &ExperimentRunSpec,
+    engine_id: RoutingEngineId,
+    case: &PlannerCaseView<'_, Model::PlannerSnapshot>,
+    decode_next_hop: Decode,
+) -> Result<ModelExecution, ExperimentError>
+where
+    Model: RoutingEnginePlannerModel<
+        PlannerCandidate = RouteCandidate,
+        PlannerAdmission = RouteAdmission,
+    >,
+    Decode: Fn(&BackendRouteId) -> Option<NodeId>,
+{
+    let result = run_planner_fixture::<Model, _>(case, decode_next_hop).map_err(|error| {
+        ExperimentError::ModelExpectationFailed {
+            run_id: spec.run_id.clone(),
+            detail: format!("planner fixture failed: {error}"),
+        }
     })?;
-    let expected_backend_route_id = route_id_bytes(case.destination, case.expected_next_hop);
-    if !result.admitted || result.backend_route_id != expected_backend_route_id {
+    let expected_next_hop =
+        case.expected_next_hop
+            .ok_or_else(|| ExperimentError::ModelExpectationFailed {
+                run_id: spec.run_id.clone(),
+                detail: "planner fixture is missing an expected next hop".to_string(),
+            })?;
+    if !result.admitted || result.next_hop_node_id != Some(expected_next_hop) {
         return Err(ExperimentError::ModelExpectationFailed {
             run_id: spec.run_id.clone(),
             detail: "planner fixture produced the wrong next hop".to_string(),
         });
     }
-    Ok(ModelExecution {
-        artifacts: vec![ExperimentModelArtifact {
+    Ok(planner_execution(spec, engine_id, case, &result))
+}
+
+fn execute_planner_case<Model, Decode>(
+    spec: &ExperimentRunSpec,
+    engine_id: RoutingEngineId,
+    case: &PlannerCaseView<'_, Model::PlannerSnapshot>,
+    decode_next_hop: Decode,
+) -> Result<ModelExecution, ExperimentError>
+where
+    Model: RoutingEnginePlannerModel<
+        PlannerCandidate = RouteCandidate,
+        PlannerAdmission = RouteAdmission,
+    >,
+    Decode: Fn(&BackendRouteId) -> Option<NodeId>,
+{
+    let result = run_planner_fixture::<Model, _>(case, decode_next_hop).map_err(|error| {
+        ExperimentError::ModelExpectationFailed {
             run_id: spec.run_id.clone(),
-            suite_id: spec.suite_id.clone(),
-            engine_family: spec.engine_family.clone(),
-            execution_lane: spec.execution_lane.label().to_string(),
-            fixture_id: case.fixture_id.clone(),
-            artifact_kind: "planner-decision".to_string(),
-            owner_node_id: Some(node_id_hex(case.owner_node_id)),
-            destination_node_id: Some(node_id_hex(case.destination)),
-            next_hop_node_id: Some(node_id_hex(case.expected_next_hop)),
-            topology_epoch: Some(case.topology.value.epoch.0),
-            candidate_count: Some(u32::try_from(result.candidate_count).unwrap_or(u32::MAX)),
-            reducer_route_entry_count: None,
-            reducer_best_next_hop_count: None,
-            reducer_change: None,
-            backend_route_id_hex: Some(bytes_to_hex(&result.backend_route_id.0)),
-            visible_round: Some(case.expected_visible_round),
-            equivalence_passed: None,
-        }],
-        expected_visibility: Some(VisibilityExpectation {
-            owner_node_id: case.owner_node_id,
-            destination: DestinationId::Node(case.destination),
-            visible_round: case.expected_visible_round,
-        }),
+            detail: format!("planner fixture failed: {error}"),
+        }
+    })?;
+    if !result.admitted {
+        return Err(ExperimentError::ModelExpectationFailed {
+            run_id: spec.run_id.clone(),
+            detail: "planner fixture candidate was not admissible".to_string(),
+        });
+    }
+    Ok(planner_execution(spec, engine_id, case, &result))
+}
+
+fn run_planner_fixture<Model, Decode>(
+    case: &PlannerCaseView<'_, Model::PlannerSnapshot>,
+    decode_next_hop: Decode,
+) -> Result<PlannerFixtureResult, RouteError>
+where
+    Model: RoutingEnginePlannerModel<
+        PlannerCandidate = RouteCandidate,
+        PlannerAdmission = RouteAdmission,
+    >,
+    Decode: Fn(&BackendRouteId) -> Option<NodeId>,
+{
+    let candidates = Model::candidate_routes_from_snapshot(
+        case.seed,
+        case.objective,
+        case.profile,
+        case.topology,
+    );
+    let candidate = candidates
+        .first()
+        .cloned()
+        .ok_or(RouteSelectionError::NoCandidate)?;
+    let admission = Model::admit_route_from_snapshot(
+        case.seed,
+        case.objective,
+        case.profile,
+        &candidate,
+        case.topology,
+    )?;
+    Ok(PlannerFixtureResult {
+        candidate_count: candidates.len(),
+        next_hop_node_id: decode_next_hop(&candidate.backend_ref.backend_route_id),
+        backend_route_id: candidate.backend_ref.backend_route_id,
+        admitted: matches!(
+            admission.admission_check.decision,
+            jacquard_core::AdmissionDecision::Admissible
+        ),
     })
+}
+
+fn planner_execution<Seed>(
+    spec: &ExperimentRunSpec,
+    engine_id: RoutingEngineId,
+    case: &PlannerCaseView<'_, Seed>,
+    result: &PlannerFixtureResult,
+) -> ModelExecution {
+    ModelExecution {
+        artifacts: vec![build_model_artifact(
+            spec,
+            ModelArtifactData {
+                fixture_id: case.fixture_id,
+                artifact_kind: "planner-decision",
+                owner_node_id: Some(case.owner_node_id),
+                destination_node_id: Some(case.destination),
+                next_hop_node_id: result.next_hop_node_id,
+                topology_epoch: Some(case.topology.value.epoch.0),
+                candidate_count: Some(u32::try_from(result.candidate_count).unwrap_or(u32::MAX)),
+                reducer_route_entry_count: None,
+                reducer_best_next_hop_count: None,
+                reducer_change: None,
+                backend_route_id: Some(&result.backend_route_id),
+                visible_round: case.expected_visible_round,
+                equivalence_passed: None,
+            },
+        )],
+        expected_visibility: case.expected_visible_round.map(|visible_round| {
+            VisibilityExpectation {
+                engine_id,
+                owner_node_id: case.owner_node_id,
+                destination: DestinationId::Node(case.destination),
+                visible_round,
+            }
+        }),
+    }
 }
 
 fn execute_babel_round_case(
     spec: &ExperimentRunSpec,
     case: &BabelRoundRefreshCase,
 ) -> Result<ModelExecution, ExperimentError> {
-    let output = reduce_babel_round_view(&case.prior_state, &case.input);
+    let output = <BabelEngine<(), ()> as RoutingEngineRoundModel>::reduce_round_state(
+        &case.prior_state,
+        &case.input,
+    );
     if output.change != case.expected_change {
         return Err(ExperimentError::ModelExpectationFailed {
             run_id: spec.run_id.clone(),
@@ -564,75 +360,73 @@ fn execute_babel_round_case(
             detail: "round reducer produced the wrong destination-to-next-hop mapping".to_string(),
         });
     }
+    let backend_route_id = observed.first().map(|(destination, next_hop)| {
+        jacquard_babel::babel_backend_route_id(*destination, *next_hop)
+    });
     Ok(ModelExecution {
-        artifacts: vec![ExperimentModelArtifact {
-            run_id: spec.run_id.clone(),
-            suite_id: spec.suite_id.clone(),
-            engine_family: spec.engine_family.clone(),
-            execution_lane: spec.execution_lane.label().to_string(),
-            fixture_id: case.fixture_id.clone(),
-            artifact_kind: "round-transition".to_string(),
-            owner_node_id: Some(node_id_hex(case.input.local_node_id)),
-            destination_node_id: observed
-                .first()
-                .map(|(destination, _)| node_id_hex(*destination)),
-            next_hop_node_id: observed.first().map(|(_, next_hop)| node_id_hex(*next_hop)),
-            topology_epoch: Some(case.input.topology.value.epoch.0),
-            candidate_count: None,
-            reducer_route_entry_count: Some(
-                u32::try_from(case.prior_state.route_entries.len()).unwrap_or(u32::MAX),
-            ),
-            reducer_best_next_hop_count: Some(
-                u32::try_from(output.best_next_hop_count).unwrap_or(u32::MAX),
-            ),
-            reducer_change: Some(routing_tick_change_label(output.change).to_string()),
-            backend_route_id_hex: observed.first().map(|(destination, next_hop)| {
-                bytes_to_hex(&route_id_bytes(*destination, *next_hop).0)
-            }),
-            visible_round: None,
-            equivalence_passed: None,
-        }],
+        artifacts: vec![build_model_artifact(
+            spec,
+            ModelArtifactData {
+                fixture_id: &case.fixture_id,
+                artifact_kind: "round-transition",
+                owner_node_id: Some(case.input.local_node_id),
+                destination_node_id: observed.first().map(|(destination, _)| *destination),
+                next_hop_node_id: observed.first().map(|(_, next_hop)| *next_hop),
+                topology_epoch: Some(case.input.topology.value.epoch.0),
+                candidate_count: None,
+                reducer_route_entry_count: Some(
+                    u32::try_from(case.prior_state.route_entries.len()).unwrap_or(u32::MAX),
+                ),
+                reducer_best_next_hop_count: Some(
+                    u32::try_from(output.best_next_hop_count).unwrap_or(u32::MAX),
+                ),
+                reducer_change: Some(routing_tick_change_label(output.change).to_string()),
+                backend_route_id: backend_route_id.as_ref(),
+                visible_round: None,
+                equivalence_passed: None,
+            },
+        )],
         expected_visibility: None,
     })
 }
 
-fn execute_babel_checkpoint_case(
+fn execute_babel_restore_case(
     spec: &ExperimentRunSpec,
     case: &BabelCheckpointRestoreCase,
 ) -> Result<ModelExecution, ExperimentError> {
-    let restored = restore_babel_route_view(&case.route).ok_or_else(|| {
-        ExperimentError::ModelExpectationFailed {
-            run_id: spec.run_id.clone(),
-            detail: "checkpoint restore fixture did not reconstruct a Babel route".to_string(),
-        }
-    })?;
+    let restored =
+        <BabelEngine<(), ()> as RoutingEngineRestoreModel>::restore_route_runtime(&case.route)
+            .ok_or_else(|| ExperimentError::ModelExpectationFailed {
+                run_id: spec.run_id.clone(),
+                detail: "restore fixture did not reconstruct a Babel route".to_string(),
+            })?;
     if restored.next_hop != case.expected_next_hop {
         return Err(ExperimentError::ModelExpectationFailed {
             run_id: spec.run_id.clone(),
-            detail: "checkpoint restore fixture reconstructed the wrong next hop".to_string(),
+            detail: "restore fixture reconstructed the wrong next hop".to_string(),
         });
     }
     Ok(ModelExecution {
-        artifacts: vec![ExperimentModelArtifact {
-            run_id: spec.run_id.clone(),
-            suite_id: spec.suite_id.clone(),
-            engine_family: spec.engine_family.clone(),
-            execution_lane: spec.execution_lane.label().to_string(),
-            fixture_id: case.fixture_id.clone(),
-            artifact_kind: "checkpoint-restore".to_string(),
-            owner_node_id: Some(node_id_hex(case.owner_node_id)),
-            destination_node_id: Some(node_id_hex(case.destination)),
-            next_hop_node_id: Some(node_id_hex(restored.next_hop)),
-            topology_epoch: Some(case.route.identity.stamp.topology_epoch.0),
-            candidate_count: None,
-            reducer_route_entry_count: None,
-            reducer_best_next_hop_count: None,
-            reducer_change: None,
-            backend_route_id_hex: Some(bytes_to_hex(&restored.backend_route_id.0)),
-            visible_round: Some(case.expected_visible_round),
-            equivalence_passed: None,
-        }],
+        artifacts: vec![build_model_artifact(
+            spec,
+            ModelArtifactData {
+                fixture_id: &case.fixture_id,
+                artifact_kind: "checkpoint-restore",
+                owner_node_id: Some(case.owner_node_id),
+                destination_node_id: Some(case.destination),
+                next_hop_node_id: Some(restored.next_hop),
+                topology_epoch: Some(case.route.identity.stamp.topology_epoch.0),
+                candidate_count: None,
+                reducer_route_entry_count: None,
+                reducer_best_next_hop_count: None,
+                reducer_change: None,
+                backend_route_id: Some(&restored.backend_route_id),
+                visible_round: Some(case.expected_visible_round),
+                equivalence_passed: None,
+            },
+        )],
         expected_visibility: Some(VisibilityExpectation {
+            engine_id: BABEL_ENGINE_ID,
             owner_node_id: case.owner_node_id,
             destination: DestinationId::Node(case.destination),
             visible_round: case.expected_visible_round,
@@ -640,194 +434,98 @@ fn execute_babel_checkpoint_case(
     })
 }
 
-fn execute_field_planner_case(
+fn execute_babel_maintenance_case(
     spec: &ExperimentRunSpec,
-    case: &FieldPlannerDecisionCase,
+    case: &BabelMaintenanceCase,
 ) -> Result<ModelExecution, ExperimentError> {
-    let result = run_field_planner_decision_fixture(
-        case.owner_node_id,
-        case.expected_next_hop,
-        &case.objective,
-        &case.profile,
-        &case.topology,
-    )
-    .map_err(|error| ExperimentError::ModelExpectationFailed {
-        run_id: spec.run_id.clone(),
-        detail: format!("field planner fixture failed: {error}"),
-    })?;
-    if !result.admitted {
+    let output = <BabelEngine<(), ()> as RoutingEngineMaintenanceModel>::reduce_maintenance_state(
+        &case.prior_state,
+        &case.input,
+    );
+    if output.result != case.expected_result {
         return Err(ExperimentError::ModelExpectationFailed {
             run_id: spec.run_id.clone(),
-            detail: "field planner fixture candidate was not admissible".to_string(),
-        });
-    }
-    if result.selected_neighbor != case.expected_next_hop {
-        return Err(ExperimentError::ModelExpectationFailed {
-            run_id: spec.run_id.clone(),
-            detail: "field planner fixture produced the wrong next hop".to_string(),
+            detail: "maintenance reducer produced the wrong result".to_string(),
         });
     }
     Ok(ModelExecution {
-        artifacts: vec![ExperimentModelArtifact {
-            run_id: spec.run_id.clone(),
-            suite_id: spec.suite_id.clone(),
-            engine_family: spec.engine_family.clone(),
-            execution_lane: spec.execution_lane.label().to_string(),
-            fixture_id: case.fixture_id.clone(),
-            artifact_kind: "planner-decision".to_string(),
-            owner_node_id: Some(node_id_hex(case.owner_node_id)),
-            destination_node_id: Some(node_id_hex(case.destination)),
-            next_hop_node_id: Some(node_id_hex(result.selected_neighbor)),
-            topology_epoch: Some(case.topology.value.epoch.0),
-            candidate_count: Some(u32::try_from(result.candidate_count).unwrap_or(u32::MAX)),
-            reducer_route_entry_count: None,
-            reducer_best_next_hop_count: None,
-            reducer_change: None,
-            backend_route_id_hex: Some(bytes_to_hex(&result.backend_route_id.0)),
-            visible_round: None,
-            equivalence_passed: None,
-        }],
+        artifacts: vec![build_model_artifact(
+            spec,
+            ModelArtifactData {
+                fixture_id: &case.fixture_id,
+                artifact_kind: "maintenance-transition",
+                owner_node_id: None,
+                destination_node_id: Some(case.prior_state.active_route.destination),
+                next_hop_node_id: Some(case.prior_state.active_route.next_hop),
+                topology_epoch: None,
+                candidate_count: None,
+                reducer_route_entry_count: None,
+                reducer_best_next_hop_count: Some(u32::from(
+                    case.prior_state.best_next_hop.is_some(),
+                )),
+                reducer_change: Some(format!("{:?}", output.result.event)),
+                backend_route_id: Some(&case.prior_state.active_route.backend_route_id),
+                visible_round: None,
+                equivalence_passed: None,
+            },
+        )],
         expected_visibility: None,
     })
 }
 
-fn execute_pathway_planner_case(
-    spec: &ExperimentRunSpec,
-    case: &PathwayPlannerDecisionCase,
-) -> Result<ModelExecution, ExperimentError> {
-    let result = run_pathway_planner_decision_fixture(
-        case.owner_node_id,
-        &case.objective,
-        &case.profile,
-        &case.topology,
-    )
-    .map_err(|error| ExperimentError::ModelExpectationFailed {
-        run_id: spec.run_id.clone(),
-        detail: format!("pathway planner fixture failed: {error}"),
-    })?;
-    if !result.admitted {
-        return Err(ExperimentError::ModelExpectationFailed {
-            run_id: spec.run_id.clone(),
-            detail: "pathway planner fixture candidate was not admissible".to_string(),
-        });
+fn expected_next_hop_case_view<Seed>(
+    case: &super::ExpectedNextHopPlannerDecisionCase<Seed>,
+) -> PlannerCaseView<'_, Seed> {
+    PlannerCaseView {
+        fixture_id: &case.fixture_id,
+        owner_node_id: case.owner_node_id,
+        destination: case.destination,
+        expected_next_hop: Some(case.expected_next_hop),
+        expected_visible_round: case.expected_visible_round,
+        objective: &case.objective,
+        profile: &case.profile,
+        topology: &case.topology,
+        seed: &case.seed,
     }
-    if result.first_hop_node_id != case.expected_next_hop {
-        return Err(ExperimentError::ModelExpectationFailed {
-            run_id: spec.run_id.clone(),
-            detail: "pathway planner fixture produced the wrong next hop".to_string(),
-        });
-    }
-    Ok(ModelExecution {
-        artifacts: vec![ExperimentModelArtifact {
-            run_id: spec.run_id.clone(),
-            suite_id: spec.suite_id.clone(),
-            engine_family: spec.engine_family.clone(),
-            execution_lane: spec.execution_lane.label().to_string(),
-            fixture_id: case.fixture_id.clone(),
-            artifact_kind: "planner-decision".to_string(),
-            owner_node_id: Some(node_id_hex(case.owner_node_id)),
-            destination_node_id: Some(node_id_hex(case.destination)),
-            next_hop_node_id: Some(node_id_hex(result.first_hop_node_id)),
-            topology_epoch: Some(case.topology.value.epoch.0),
-            candidate_count: Some(u32::try_from(result.candidate_count).unwrap_or(u32::MAX)),
-            reducer_route_entry_count: None,
-            reducer_best_next_hop_count: None,
-            reducer_change: None,
-            backend_route_id_hex: Some(bytes_to_hex(&result.backend_route_id.0)),
-            visible_round: None,
-            equivalence_passed: None,
-        }],
-        expected_visibility: None,
-    })
 }
 
-fn execute_olsr_planner_case(
-    spec: &ExperimentRunSpec,
-    case: &OlsrPlannerDecisionCase,
-) -> Result<ModelExecution, ExperimentError> {
-    let result = run_olsr_planner_decision_fixture(
-        case.owner_node_id,
-        case.expected_next_hop,
-        &case.objective,
-        &case.profile,
-        &case.topology,
-    )
-    .map_err(|error| ExperimentError::ModelExpectationFailed {
-        run_id: spec.run_id.clone(),
-        detail: format!("olsrv2 planner fixture failed: {error}"),
-    })?;
-    if !result.admitted || result.selected_neighbor != case.expected_next_hop {
-        return Err(ExperimentError::ModelExpectationFailed {
-            run_id: spec.run_id.clone(),
-            detail: "olsrv2 planner fixture produced the wrong next hop".to_string(),
-        });
+fn planner_case_view<Seed>(case: &PlannerDecisionCase<Seed>) -> PlannerCaseView<'_, Seed> {
+    PlannerCaseView {
+        fixture_id: &case.fixture_id,
+        owner_node_id: case.owner_node_id,
+        destination: case.destination,
+        expected_next_hop: None,
+        expected_visible_round: case.expected_visible_round,
+        objective: &case.objective,
+        profile: &case.profile,
+        topology: &case.topology,
+        seed: &case.seed,
     }
-    Ok(ModelExecution {
-        artifacts: vec![ExperimentModelArtifact {
-            run_id: spec.run_id.clone(),
-            suite_id: spec.suite_id.clone(),
-            engine_family: spec.engine_family.clone(),
-            execution_lane: spec.execution_lane.label().to_string(),
-            fixture_id: case.fixture_id.clone(),
-            artifact_kind: "planner-decision".to_string(),
-            owner_node_id: Some(node_id_hex(case.owner_node_id)),
-            destination_node_id: Some(node_id_hex(case.destination)),
-            next_hop_node_id: Some(node_id_hex(result.selected_neighbor)),
-            topology_epoch: Some(case.topology.value.epoch.0),
-            candidate_count: Some(u32::try_from(result.candidate_count).unwrap_or(u32::MAX)),
-            reducer_route_entry_count: None,
-            reducer_best_next_hop_count: None,
-            reducer_change: None,
-            backend_route_id_hex: Some(bytes_to_hex(&result.backend_route_id.0)),
-            visible_round: None,
-            equivalence_passed: None,
-        }],
-        expected_visibility: None,
-    })
 }
 
-fn execute_scatter_planner_case(
+fn build_model_artifact(
     spec: &ExperimentRunSpec,
-    case: &ScatterPlannerDecisionCase,
-) -> Result<ModelExecution, ExperimentError> {
-    let result = run_scatter_planner_decision_fixture(
-        case.owner_node_id,
-        &case.objective,
-        &case.profile,
-        &case.topology,
-    )
-    .map_err(|error| ExperimentError::ModelExpectationFailed {
+    data: ModelArtifactData<'_>,
+) -> ExperimentModelArtifact {
+    ExperimentModelArtifact {
         run_id: spec.run_id.clone(),
-        detail: format!("scatter planner fixture failed: {error}"),
-    })?;
-    if !result.admitted {
-        return Err(ExperimentError::ModelExpectationFailed {
-            run_id: spec.run_id.clone(),
-            detail: "scatter planner fixture candidate was not admissible".to_string(),
-        });
+        suite_id: spec.suite_id.clone(),
+        engine_family: spec.engine_family.clone(),
+        execution_lane: spec.execution_lane.label().to_string(),
+        fixture_id: data.fixture_id.to_string(),
+        artifact_kind: data.artifact_kind.to_string(),
+        owner_node_id: data.owner_node_id.map(node_id_hex),
+        destination_node_id: data.destination_node_id.map(node_id_hex),
+        next_hop_node_id: data.next_hop_node_id.map(node_id_hex),
+        topology_epoch: data.topology_epoch,
+        candidate_count: data.candidate_count,
+        reducer_route_entry_count: data.reducer_route_entry_count,
+        reducer_best_next_hop_count: data.reducer_best_next_hop_count,
+        reducer_change: data.reducer_change,
+        backend_route_id_hex: data.backend_route_id.map(|route| bytes_to_hex(&route.0)),
+        visible_round: data.visible_round,
+        equivalence_passed: data.equivalence_passed,
     }
-    Ok(ModelExecution {
-        artifacts: vec![ExperimentModelArtifact {
-            run_id: spec.run_id.clone(),
-            suite_id: spec.suite_id.clone(),
-            engine_family: spec.engine_family.clone(),
-            execution_lane: spec.execution_lane.label().to_string(),
-            fixture_id: case.fixture_id.clone(),
-            artifact_kind: "planner-decision".to_string(),
-            owner_node_id: Some(node_id_hex(case.owner_node_id)),
-            destination_node_id: Some(node_id_hex(case.destination)),
-            next_hop_node_id: None,
-            topology_epoch: Some(case.topology.value.epoch.0),
-            candidate_count: Some(u32::try_from(result.candidate_count).unwrap_or(u32::MAX)),
-            reducer_route_entry_count: None,
-            reducer_best_next_hop_count: None,
-            reducer_change: None,
-            backend_route_id_hex: Some(bytes_to_hex(&result.backend_route_id.0)),
-            visible_round: None,
-            equivalence_passed: None,
-        }],
-        expected_visibility: None,
-    })
 }
 
 fn node_id_hex(node_id: NodeId) -> String {

@@ -16,21 +16,21 @@ use crate::experiments::catalog::{
 };
 use crate::SimulationExecutionLane;
 use jacquard_babel::{
-    simulator_support::{
-        materialize_route_from_view, BabelRoundInputView, BabelRoundRouteEntryView,
-        BabelRoundStateView,
-    },
-    BabelBestNextHop, BabelPlannerSnapshot,
+    materialize_route_from_seed, BabelMaintenanceBestNextHopView, BabelMaintenanceInputView,
+    BabelMaintenanceStateView, BabelPlannerSeed, BabelRestoredRouteView, BabelRoundInputView,
+    BabelRoundRouteEntryView, BabelRoundStateView,
 };
+use jacquard_batman_bellman::BatmanBellmanPlannerSeed;
+use jacquard_batman_classic::BatmanClassicPlannerSeed;
 use jacquard_core::OperatingMode;
 use jacquard_core::{
-    BackendRouteId, RatioPermille, RouteDegradation, RoutingTickChange, TransportKind,
+    RatioPermille, RouteDegradation, RouteLifecycleEvent, RouteMaintenanceOutcome,
+    RouteMaintenanceResult, RoutingTickChange, TransportKind,
 };
-use std::collections::BTreeMap;
-
-fn babel_backend_route_id(destination: NodeId, next_hop: NodeId) -> BackendRouteId {
-    BackendRouteId([destination.0.as_slice(), next_hop.0.as_slice()].concat())
-}
+use jacquard_field::FieldPlannerSeed;
+use jacquard_olsrv2::OlsrPlannerSeed;
+use jacquard_pathway::PathwayPlannerSeed;
+use jacquard_scatter::{ScatterEngineConfig, ScatterPlannerSeed};
 
 #[must_use]
 pub fn smoke_suite() -> ExperimentSuite {
@@ -655,27 +655,19 @@ fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
 fn build_babel_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<ExperimentRunSpec> {
     let (scenario, environment, objective, profile, topology) =
         pilot_babel_line_scenario("babel-model-line", seed, false);
-    let snapshot = BabelPlannerSnapshot {
+    let planner_seed = BabelPlannerSeed {
         local_node_id: NODE_A,
-        stale_after_ticks: 8,
-        best_next_hops: BTreeMap::from([(
-            NODE_C,
-            BabelBestNextHop {
-                destination: NODE_C,
-                next_hop: NODE_B,
-                metric: 512,
-                tq: RatioPermille(488),
-                degradation: RouteDegradation::None,
-                transport_kind: TransportKind::WifiAware,
-                updated_at_tick: Tick(4),
-                topology_epoch: topology.value.epoch,
-                backend_route_id: babel_backend_route_id(NODE_C, NODE_B),
-            },
-        )]),
+        selected_neighbor: NODE_B,
     };
-    let checkpoint_route =
-        materialize_route_from_view(NODE_A, &snapshot, &objective, &profile, &topology, Tick(4))
-            .expect("pilot Babel planner fixture must materialize a checkpoint route");
+    let checkpoint_route = materialize_route_from_seed(
+        NODE_A,
+        &planner_seed,
+        &objective,
+        &profile,
+        &topology,
+        Tick(4),
+    )
+    .expect("pilot Babel planner fixture must materialize a checkpoint route");
 
     vec![
         ExperimentRunSpec {
@@ -698,19 +690,19 @@ fn build_babel_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Exp
             parameters: ExperimentParameterSet::babel(4, 2),
             scenario: scenario.clone(),
             environment: environment.clone(),
-            model_case: Some(ExperimentModelCase::BabelPlannerDecision(
+            model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Babel(
                 BabelPlannerDecisionCase {
                     fixture_id: "babel-planner-line".to_string(),
                     owner_node_id: NODE_A,
                     destination: NODE_C,
                     expected_next_hop: NODE_B,
-                    expected_visible_round: 2,
+                    expected_visible_round: Some(2),
                     objective: objective.clone(),
                     profile: profile.clone(),
                     topology: topology.clone(),
-                    snapshot: snapshot.clone(),
+                    seed: planner_seed,
                 },
-            )),
+            ))),
         },
         ExperimentRunSpec {
             run_id: format!("{suite_id}-round-{}", seed.0),
@@ -732,7 +724,7 @@ fn build_babel_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Exp
             parameters: ExperimentParameterSet::babel(4, 2),
             scenario: scenario.clone(),
             environment: environment.clone(),
-            model_case: Some(ExperimentModelCase::BabelRoundRefresh(
+            model_case: Some(ExperimentModelCase::Round(RoundModelCase::Babel(
                 BabelRoundRefreshCase {
                     fixture_id: "babel-round-refresh-line".to_string(),
                     expected_change: RoutingTickChange::PrivateStateUpdated,
@@ -755,6 +747,67 @@ fn build_babel_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Exp
                         decay_window: jacquard_babel::DecayWindow::new(8, 4),
                     },
                 },
+            ))),
+        },
+        ExperimentRunSpec {
+            run_id: format!("{suite_id}-maintenance-{}", seed.0),
+            suite_id: suite_id.to_string(),
+            family_id: "babel-maintenance-refresh".to_string(),
+            engine_family: "babel".to_string(),
+            execution_lane: SimulationExecutionLane::Model,
+            seed,
+            regime: regime((
+                "medium-line",
+                "low",
+                "low",
+                "none",
+                "static",
+                "none",
+                "repairable-connected",
+                12,
+            )),
+            parameters: ExperimentParameterSet::babel(4, 2),
+            scenario: scenario.clone(),
+            environment: environment.clone(),
+            model_case: Some(ExperimentModelCase::Maintenance(
+                MaintenanceModelCase::Babel(BabelMaintenanceCase {
+                    fixture_id: "babel-maintenance-line".to_string(),
+                    expected_result: RouteMaintenanceResult {
+                        event: RouteLifecycleEvent::Activated,
+                        outcome: RouteMaintenanceOutcome::Continued,
+                    },
+                    prior_state: BabelMaintenanceStateView {
+                        runtime: checkpoint_route.runtime.clone(),
+                        active_route: BabelRestoredRouteView {
+                            destination: NODE_C,
+                            next_hop: NODE_B,
+                            backend_route_id: checkpoint_route
+                                .identity
+                                .admission
+                                .backend_ref
+                                .backend_route_id
+                                .clone(),
+                            installed_at_tick: Tick(4),
+                        },
+                        best_next_hop: Some(BabelMaintenanceBestNextHopView {
+                            destination: NODE_C,
+                            next_hop: NODE_B,
+                            metric: 512,
+                            tq: RatioPermille(488),
+                            degradation: RouteDegradation::None,
+                            transport_kind: TransportKind::WifiAware,
+                            updated_at_tick: Tick(4),
+                            topology_epoch: topology.value.epoch,
+                            backend_route_id: checkpoint_route
+                                .identity
+                                .admission
+                                .backend_ref
+                                .backend_route_id
+                                .clone(),
+                        }),
+                    },
+                    input: BabelMaintenanceInputView { now_tick: Tick(4) },
+                }),
             )),
         },
         ExperimentRunSpec {
@@ -777,15 +830,15 @@ fn build_babel_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Exp
             parameters: ExperimentParameterSet::babel(4, 2),
             scenario,
             environment,
-            model_case: Some(ExperimentModelCase::BabelCheckpointRestore(Box::new(
-                BabelCheckpointRestoreCase {
+            model_case: Some(ExperimentModelCase::Restore(RestoreModelCase::Babel(
+                Box::new(BabelCheckpointRestoreCase {
                     fixture_id: "babel-checkpoint-line".to_string(),
                     owner_node_id: NODE_A,
                     destination: NODE_C,
                     expected_next_hop: NODE_B,
                     expected_visible_round: 2,
                     route: checkpoint_route,
-                },
+                }),
             ))),
         },
     ]
@@ -799,27 +852,19 @@ fn build_babel_pilot_equivalence_runs(
 ) -> Vec<ExperimentRunSpec> {
     let (scenario, environment, objective, profile, topology) =
         pilot_babel_line_scenario("babel-equivalence-line", seed, true);
-    let snapshot = BabelPlannerSnapshot {
+    let planner_seed = BabelPlannerSeed {
         local_node_id: NODE_A,
-        stale_after_ticks: 8,
-        best_next_hops: BTreeMap::from([(
-            NODE_C,
-            BabelBestNextHop {
-                destination: NODE_C,
-                next_hop: NODE_B,
-                metric: 512,
-                tq: RatioPermille(488),
-                degradation: RouteDegradation::None,
-                transport_kind: TransportKind::WifiAware,
-                updated_at_tick: Tick(4),
-                topology_epoch: topology.value.epoch,
-                backend_route_id: babel_backend_route_id(NODE_C, NODE_B),
-            },
-        )]),
+        selected_neighbor: NODE_B,
     };
-    let checkpoint_route =
-        materialize_route_from_view(NODE_A, &snapshot, &objective, &profile, &topology, Tick(4))
-            .expect("pilot Babel planner fixture must materialize a checkpoint route");
+    let checkpoint_route = materialize_route_from_seed(
+        NODE_A,
+        &planner_seed,
+        &objective,
+        &profile,
+        &topology,
+        Tick(4),
+    )
+    .expect("pilot Babel planner fixture must materialize a checkpoint route");
 
     vec![
         ExperimentRunSpec {
@@ -842,19 +887,19 @@ fn build_babel_pilot_equivalence_runs(
             parameters: ExperimentParameterSet::babel(4, 2),
             scenario: scenario.clone(),
             environment: environment.clone(),
-            model_case: Some(ExperimentModelCase::BabelPlannerDecision(
+            model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Babel(
                 BabelPlannerDecisionCase {
                     fixture_id: "babel-planner-equivalence-line".to_string(),
                     owner_node_id: NODE_A,
                     destination: NODE_C,
                     expected_next_hop: NODE_B,
-                    expected_visible_round: 2,
+                    expected_visible_round: Some(2),
                     objective: objective.clone(),
                     profile: profile.clone(),
                     topology: topology.clone(),
-                    snapshot: snapshot.clone(),
+                    seed: planner_seed,
                 },
-            )),
+            ))),
         },
         ExperimentRunSpec {
             run_id: format!("{suite_id}-checkpoint-{}", seed.0),
@@ -876,15 +921,15 @@ fn build_babel_pilot_equivalence_runs(
             parameters: ExperimentParameterSet::babel(4, 2),
             scenario,
             environment,
-            model_case: Some(ExperimentModelCase::BabelCheckpointRestore(Box::new(
-                BabelCheckpointRestoreCase {
+            model_case: Some(ExperimentModelCase::Restore(RestoreModelCase::Babel(
+                Box::new(BabelCheckpointRestoreCase {
                     fixture_id: "babel-checkpoint-equivalence-line".to_string(),
                     owner_node_id: NODE_A,
                     destination: NODE_C,
                     expected_next_hop: NODE_B,
                     expected_visible_round: 2,
                     route: checkpoint_route,
-                },
+                }),
             ))),
         },
     ]
@@ -913,17 +958,23 @@ fn build_field_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Exp
         parameters: ExperimentParameterSet::field(4, FieldSearchHeuristicMode::Zero),
         scenario,
         environment,
-        model_case: Some(ExperimentModelCase::FieldPlannerDecision(
+        model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Field(
             FieldPlannerDecisionCase {
                 fixture_id: "field-planner-line".to_string(),
                 owner_node_id: NODE_A,
                 destination: NODE_C,
                 expected_next_hop: NODE_B,
+                expected_visible_round: None,
                 objective,
                 profile,
-                topology,
+                topology: topology.clone(),
+                seed: FieldPlannerSeed {
+                    local_node_id: NODE_A,
+                    selected_neighbor: NODE_B,
+                    observed_at_tick: topology.observed_at_tick,
+                },
             },
-        )),
+        ))),
     }]
 }
 
@@ -950,17 +1001,21 @@ fn build_pathway_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<E
         parameters: ExperimentParameterSet::pathway(4, PathwaySearchHeuristicMode::Zero),
         scenario,
         environment,
-        model_case: Some(ExperimentModelCase::PathwayPlannerDecision(
+        model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Pathway(
             PathwayPlannerDecisionCase {
                 fixture_id: "pathway-planner-line".to_string(),
                 owner_node_id: NODE_A,
                 destination: NODE_C,
                 expected_next_hop: NODE_B,
+                expected_visible_round: None,
                 objective,
                 profile,
                 topology,
+                seed: PathwayPlannerSeed {
+                    local_node_id: NODE_A,
+                },
             },
-        )),
+        ))),
     }]
 }
 
@@ -990,16 +1045,21 @@ fn build_batman_bellman_pilot_model_runs(
         parameters: ExperimentParameterSet::batman_bellman(4, 2),
         scenario,
         environment,
-        model_case: Some(ExperimentModelCase::BatmanBellmanPlannerDecision(
-            BatmanBellmanPlannerDecisionCase {
+        model_case: Some(ExperimentModelCase::Planner(
+            PlannerModelCase::BatmanBellman(BatmanBellmanPlannerDecisionCase {
                 fixture_id: "batman-bellman-planner-line".to_string(),
                 owner_node_id: NODE_A,
                 destination: NODE_C,
                 expected_next_hop: NODE_B,
+                expected_visible_round: None,
                 objective,
                 profile,
                 topology,
-            },
+                seed: BatmanBellmanPlannerSeed {
+                    local_node_id: NODE_A,
+                    selected_neighbor: NODE_B,
+                },
+            }),
         )),
     }]
 }
@@ -1030,16 +1090,21 @@ fn build_batman_classic_pilot_model_runs(
         parameters: ExperimentParameterSet::batman_classic(4, 2),
         scenario,
         environment,
-        model_case: Some(ExperimentModelCase::BatmanClassicPlannerDecision(
-            BatmanClassicPlannerDecisionCase {
+        model_case: Some(ExperimentModelCase::Planner(
+            PlannerModelCase::BatmanClassic(BatmanClassicPlannerDecisionCase {
                 fixture_id: "batman-classic-planner-line".to_string(),
                 owner_node_id: NODE_A,
                 destination: NODE_C,
                 expected_next_hop: NODE_B,
+                expected_visible_round: None,
                 objective,
                 profile,
                 topology,
-            },
+                seed: BatmanClassicPlannerSeed {
+                    local_node_id: NODE_A,
+                    selected_neighbor: NODE_B,
+                },
+            }),
         )),
     }]
 }
@@ -1067,17 +1132,22 @@ fn build_olsrv2_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Ex
         parameters: ExperimentParameterSet::olsrv2(4, 2),
         scenario,
         environment,
-        model_case: Some(ExperimentModelCase::OlsrPlannerDecision(
+        model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Olsr(
             OlsrPlannerDecisionCase {
                 fixture_id: "olsrv2-planner-line".to_string(),
                 owner_node_id: NODE_A,
                 destination: NODE_C,
                 expected_next_hop: NODE_B,
+                expected_visible_round: None,
                 objective,
                 profile,
                 topology,
+                seed: OlsrPlannerSeed {
+                    local_node_id: NODE_A,
+                    selected_neighbor: NODE_B,
+                },
             },
-        )),
+        ))),
     }]
 }
 
@@ -1104,16 +1174,22 @@ fn build_scatter_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<E
         parameters: ExperimentParameterSet::scatter("balanced"),
         scenario,
         environment,
-        model_case: Some(ExperimentModelCase::ScatterPlannerDecision(
+        model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Scatter(
             ScatterPlannerDecisionCase {
                 fixture_id: "scatter-planner-line".to_string(),
                 owner_node_id: NODE_A,
                 destination: NODE_C,
+                expected_visible_round: None,
                 objective,
                 profile,
-                topology,
+                topology: topology.clone(),
+                seed: ScatterPlannerSeed {
+                    local_node_id: NODE_A,
+                    observed_at_tick: topology.observed_at_tick,
+                    config: ScatterEngineConfig::default(),
+                },
             },
-        )),
+        ))),
     }]
 }
 

@@ -69,6 +69,8 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 
 Route choice and transition logic within a given engine is explicit and replayable. Engines project a small read-only planner snapshot from their private runtime state. Planner methods should read that snapshot rather than hidden mutable tables. Runtime methods should normalize inputs, call a pure reducer, then apply the reducer result through storage, transport, and logging effects.
 
+The shared model-trait family in `jacquard-traits` captures that same split for deterministic model execution. `RoutingEnginePlannerModel` runs candidate generation and admission from an explicit planner snapshot. `RoutingEngineRoundModel` and `RoutingEngineMaintenanceModel` run pure reducers over explicit state and normalized input when an engine exposes those transitions. `RoutingEngineRestoreModel` reconstructs route-private runtime from the router-owned `MaterializedRoute` record. The simulator consumes those engine-owned model traits directly instead of maintaining a parallel simulator-specific engine API.
+
 This activation step also enforces the shared control-plane invariants. The admission decision must still be admissible. The realized protection must satisfy the objective protection floor. Lease validity must be checked explicitly before maintenance or publication proceeds.
 
 ## Engine Tick

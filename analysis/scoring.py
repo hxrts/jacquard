@@ -129,6 +129,10 @@ def _ensure_optional_columns(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
+def _stable_mode_expr(column: str) -> pl.Expr:
+    return pl.col(column).drop_nulls().mode().sort().first().alias(column)
+
+
 def recommendation_table(
     aggregates: pl.DataFrame, breakdowns: pl.DataFrame, profile_id: str = "balanced"
 ) -> pl.DataFrame:
@@ -193,36 +197,12 @@ def recommendation_table(
             pl.col("field_corridor_narrow_count_mean")
             .mean()
             .alias("field_corridor_narrow_mean"),
-            pl.col("field_continuity_band_mode")
-            .drop_nulls()
-            .mode()
-            .first()
-            .alias("field_continuity_band_mode"),
-            pl.col("field_commitment_resolution_mode")
-            .drop_nulls()
-            .mode()
-            .first()
-            .alias("field_commitment_resolution_mode"),
-            pl.col("field_last_outcome_mode")
-            .drop_nulls()
-            .mode()
-            .first()
-            .alias("field_last_outcome_mode"),
-            pl.col("field_last_continuity_transition_mode")
-            .drop_nulls()
-            .mode()
-            .first()
-            .alias("field_last_continuity_transition_mode"),
-            pl.col("field_last_promotion_decision_mode")
-            .drop_nulls()
-            .mode()
-            .first()
-            .alias("field_last_promotion_decision_mode"),
-            pl.col("field_last_promotion_blocker_mode")
-            .drop_nulls()
-            .mode()
-            .first()
-            .alias("field_last_promotion_blocker_mode"),
+            _stable_mode_expr("field_continuity_band_mode"),
+            _stable_mode_expr("field_commitment_resolution_mode"),
+            _stable_mode_expr("field_last_outcome_mode"),
+            _stable_mode_expr("field_last_continuity_transition_mode"),
+            _stable_mode_expr("field_last_promotion_decision_mode"),
+            _stable_mode_expr("field_last_promotion_blocker_mode"),
             pl.col("max_sustained_stress_score")
             .max()
             .alias("max_sustained_stress_score"),
@@ -412,16 +392,8 @@ def field_routing_regime_calibration_table(aggregates: pl.DataFrame) -> pl.DataF
         .mean()
         .alias("route_reconfiguration_mean"),
         pl.col("route_churn_count_mean").mean().alias("route_churn_mean"),
-        pl.col("field_continuity_band_mode")
-        .drop_nulls()
-        .mode()
-        .first()
-        .alias("field_continuity_band_mode"),
-        pl.col("field_last_continuity_transition_mode")
-        .drop_nulls()
-        .mode()
-        .first()
-        .alias("field_last_continuity_transition_mode"),
+        _stable_mode_expr("field_continuity_band_mode"),
+        _stable_mode_expr("field_last_continuity_transition_mode"),
     )
     scored = grouped.with_columns(
         pl.when(pl.col("field_regime") == "bootstrap-upgrade")
@@ -623,7 +595,7 @@ def _grouped_diffusion_regime_candidates(
     return diffusion_aggregates.with_columns(
         _field_diffusion_regime_expr().alias(regime_column)
     ).group_by(regime_column, "config_id").agg(
-        pl.col("field_posture_mode").drop_nulls().mode().first().alias("field_posture_mode"),
+        _stable_mode_expr("field_posture_mode"),
         pl.col("delivery_probability_permille_mean").mean().alias("delivery_probability_mean"),
         pl.col("coverage_permille_mean").mean().alias("coverage_mean"),
         pl.col("cluster_coverage_permille_mean").mean().alias("cluster_coverage_mean"),
@@ -681,7 +653,7 @@ def _grouped_diffusion_regime_candidates(
         pl.col("field_duplicate_suppressed_rounds_mean").mean().alias(
             "duplicate_suppressed_rounds_mean"
         ),
-        pl.col("bounded_state_mode").drop_nulls().mode().first().alias("bounded_state_mode"),
+        _stable_mode_expr("bounded_state_mode"),
     )
 
 
@@ -1524,7 +1496,7 @@ def diffusion_baseline_audit_table(diffusion_aggregates: pl.DataFrame) -> pl.Dat
             pl.col("observer_leakage_permille_mean")
             .mean()
             .alias("observer_leakage_mean"),
-            pl.col("bounded_state_mode").drop_nulls().mode().first().alias("bounded_state_mode"),
+            _stable_mode_expr("bounded_state_mode"),
         )
         .sort("config_id")
     )

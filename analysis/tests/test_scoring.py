@@ -11,6 +11,7 @@ from analysis.scoring import (
     diffusion_family_weight_sensitivity_table,
     field_diffusion_regime_calibration_table,
     field_profile_recommendation_table,
+    field_routing_regime_calibration_table,
     field_vs_best_diffusion_alternative_table,
     head_to_head_summary_table,
     large_population_diffusion_state_points_table,
@@ -427,6 +428,57 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         }
         self.assertEqual(rows["field-low-churn"], LOW_CHURN_CONFIG)
         self.assertEqual(rows["field-broad-reselection"], BROAD_RESELECTION_CONFIG)
+
+    def test_field_routing_regime_calibration_uses_stable_mode_tie_break(self) -> None:
+        calibration = field_routing_regime_calibration_table(
+            pl.from_dicts(
+                [
+                    {
+                        "engine_family": "field",
+                        "family_id": "field-bootstrap-upgrade-window",
+                        "config_id": LOW_CHURN_CONFIG,
+                        "route_present_permille_mean": 1000.0,
+                        "activation_success_permille_mean": 1000.0,
+                        "stress_score": 50,
+                        "field_bootstrap_upgrade_permille_mean": 1000.0,
+                        "field_bootstrap_withdraw_permille_mean": 0.0,
+                        "field_degraded_steady_recovery_permille_mean": 0.0,
+                        "field_degraded_to_bootstrap_permille_mean": 0.0,
+                        "field_service_retention_carry_forward_permille_mean": 0.0,
+                        "field_asymmetric_shift_success_permille_mean": 0.0,
+                        "field_continuation_shift_count_mean": 1.0,
+                        "field_route_bound_reconfiguration_count_mean": 0.0,
+                        "route_churn_count_mean": 0.0,
+                        "field_continuity_band_mode": "DegradedSteady",
+                        "field_last_continuity_transition_mode": "EnteredDegradedSteady",
+                    },
+                    {
+                        "engine_family": "field",
+                        "family_id": "field-partial-observability-bridge",
+                        "config_id": LOW_CHURN_CONFIG,
+                        "route_present_permille_mean": 1000.0,
+                        "activation_success_permille_mean": 1000.0,
+                        "stress_score": 50,
+                        "field_bootstrap_upgrade_permille_mean": 1000.0,
+                        "field_bootstrap_withdraw_permille_mean": 0.0,
+                        "field_degraded_steady_recovery_permille_mean": 0.0,
+                        "field_degraded_to_bootstrap_permille_mean": 0.0,
+                        "field_service_retention_carry_forward_permille_mean": 0.0,
+                        "field_asymmetric_shift_success_permille_mean": 0.0,
+                        "field_continuation_shift_count_mean": 1.0,
+                        "field_route_bound_reconfiguration_count_mean": 0.0,
+                        "route_churn_count_mean": 0.0,
+                        "field_continuity_band_mode": "Bootstrap",
+                        "field_last_continuity_transition_mode": "DowngradedToBootstrap",
+                    },
+                ]
+            )
+        )
+        row = calibration.row(0, named=True)
+        self.assertEqual(row["field_continuity_band_mode"], "Bootstrap")
+        self.assertEqual(
+            row["field_last_continuity_transition_mode"], "DowngradedToBootstrap"
+        )
 
     def test_head_to_head_summary_uses_consistent_engine_order_on_ties(self) -> None:
         summary = head_to_head_summary_table(_head_to_head_aggregates())

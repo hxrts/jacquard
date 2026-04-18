@@ -57,6 +57,8 @@ Field projects that route-choice state into an explicit planner snapshot before 
 Field route maintenance follows the same split. The runtime first prepares one explicit maintenance view from the active route and destination state, then a pure reducer computes the next active-route state, policy events, and any pending continuation shift. The effectful wrapper only commits that result and applies route-scoped protocol-session reconfiguration when the reducer asks for
 it.
 
+The simulator consumes Field planning through the shared `RoutingEnginePlannerModel` contract. `jacquard-field` owns the planner seed and the projection from that seed into corridor belief, continuation frontier, and route-choice policy state, so simulator fixtures stay objective-focused rather than control-state-oriented.
+
 ## Regime Detection
 
 Field runs a local control-plane pass on each engine tick before planning. That

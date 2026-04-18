@@ -12,10 +12,6 @@ description = "RFC 8966 Babel distance-vector routing engine for Jacquard"
 [lints]
 workspace = true
 
-[features]
-default = []
-simulator-support = []
-
 [dependencies]
 bincode = { workspace = true }
 jacquard-core = { path = "../core", version = "0.6.0" }

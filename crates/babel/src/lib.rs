@@ -24,11 +24,11 @@
 
 mod gossip;
 mod planner;
+mod planner_model;
 mod private_state;
 mod public_state;
 mod runtime;
 mod scoring;
-#[cfg(any(test, feature = "simulator-support"))]
 mod validation;
 
 use std::collections::BTreeMap;
@@ -39,18 +39,17 @@ use jacquard_core::{
     RoutingEngineId,
 };
 pub use planner::{admit_route_from_snapshot, candidate_routes_from_snapshot};
+pub use planner_model::{
+    backend_route_id as babel_backend_route_id, materialize_route_from_seed,
+    selected_neighbor_from_backend_route_id, BabelPlannerModel, BabelPlannerSeed,
+};
 use public_state::{ActiveBabelRoute, FeasibilityEntry, RouteEntry, SelectedBabelRoute};
 pub use public_state::{BabelBestNextHop, BabelPlannerSnapshot, DecayWindow};
-#[cfg(any(test, feature = "simulator-support"))]
-#[doc(hidden)]
-pub mod simulator_support {
-    pub use super::validation::{
-        materialize_route_from_view, reduce_round_view, restore_route_view,
-        BabelFeasibilityEntryView, BabelPlannerChoiceView, BabelPlannerSnapshotView,
-        BabelRestoredRouteView, BabelRoundInputView, BabelRoundOutputView,
-        BabelRoundRouteEntryView, BabelRoundStateView,
-    };
-}
+pub use validation::{
+    BabelFeasibilityEntryView, BabelMaintenanceBestNextHopView, BabelMaintenanceInputView,
+    BabelMaintenanceOutputView, BabelMaintenanceStateView, BabelRestoredRouteView,
+    BabelRoundInputView, BabelRoundOutputView, BabelRoundRouteEntryView, BabelRoundStateView,
+};
 
 pub const BABEL_ENGINE_ID: RoutingEngineId =
     RoutingEngineId::from_contract_bytes(*b"jacquard.babel..");

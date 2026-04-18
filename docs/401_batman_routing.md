@@ -8,7 +8,7 @@ Two BATMAN routing engines are provided. Each implements the proactive originato
 
 Both engines declare `RouteShapeVisibility::NextHopOnly` and the same capability envelope. They are transport-neutral and operate alongside other engines on a shared multi-engine router. The router retains canonical route publication, handle issuance, and lease management. Batman owns proactive originator observations, neighbor ranking, and best-next-hop state within its own crate boundary.
 
-Both BATMAN crates follow the same internal shape. Each projects a small planner snapshot from engine-private runtime state, runs candidate generation and admission against that snapshot, drives refresh and maintenance through pure reducers, and restores active route runtime from the router-owned `MaterializedRoute` record rather than from an engine-private checkpoint blob.
+Both BATMAN crates follow the same internal shape. Each projects a small planner snapshot from engine-private runtime state, runs candidate generation and admission against that snapshot, drives refresh and maintenance through pure reducers, and restores active route runtime from the router-owned `MaterializedRoute` record rather than from an engine-private checkpoint blob. Each crate also implements the shared `RoutingEnginePlannerModel` surface so the simulator can execute BATMAN planner cases from engine-owned seeds without assembling best-next-hop tables itself.
 
 ---
 
