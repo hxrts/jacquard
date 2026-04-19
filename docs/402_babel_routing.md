@@ -76,7 +76,9 @@ FD is updated to `(seqno, metric)` of the selected route only when the selection
 
 ### Infeasible Fallback
 
-When no feasible route exists for a destination, the engine selects the best infeasible route to preserve connectivity. This selection does not update FD. The periodic seqno increment (every 16 ticks) propagates a fresh seqno from the originator. When that update arrives, it satisfies the feasibility condition (newer seqno) and allows FD to be updated, ending the fallback period. This replaces the explicit SEQREQ mechanism from RFC 8966 with a bounded periodic refresh.
+When no feasible route exists for a destination, the engine selects the best infeasible route to preserve connectivity. This selection does not update FD. The periodic seqno increment (every 16 ticks) propagates a fresh seqno from the originator.
+
+When that update arrives, it satisfies the feasibility condition through the newer seqno and allows FD to be updated, ending the fallback period. This replaces the explicit SEQREQ mechanism from RFC 8966 with a bounded periodic refresh.
 
 ### FD Expiry
 
@@ -137,7 +139,11 @@ The Babel engine declares the same capability envelope as the batman engines:
 
 ### vs Batman-Classic
 
-Batman-classic is the correct comparison baseline for Babel. Both are pure distance-vector gossip protocols without local topology reconstruction. Babel addresses three gaps relative to batman-classic. Asymmetric-link handling: batman-classic's bidirectionality gate excludes poor-reverse paths entirely, while Babel's ETX cost encodes asymmetric quality as a finite metric. Loop freedom: batman-classic relies on sequence-number freshness, while Babel's feasibility condition provides a formal guarantee. Propagation: batman-classic re-broadcasts all received OGMs, while Babel forwards only the selected route.
+Batman-classic is the correct comparison baseline for Babel. Both are pure distance-vector gossip protocols without local topology reconstruction. Babel addresses three gaps relative to batman-classic.
+
+- Asymmetric-link handling. Batman-classic's bidirectionality gate excludes poor-reverse paths entirely. Babel's ETX cost encodes asymmetric quality as a finite metric.
+- Loop freedom. Batman-classic relies on sequence-number freshness. Babel's feasibility condition provides a formal guarantee.
+- Propagation. Batman-classic re-broadcasts all received OGMs. Babel forwards only the selected route.
 
 ### vs Batman-Bellman
 

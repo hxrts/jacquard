@@ -4,7 +4,9 @@
 
 Hosts own transport drivers. The bridge stamps ingress with Jacquard `Tick`. The router advances through explicit synchronous rounds. Engines keep private runtime state below the shared routing boundary.
 
-The simulator has two internal lanes. The full-stack lane drives the reference-client bridge and the real router/runtime composition. The model lane runs explicit planner snapshots, pure round reducers, pure maintenance reducers, and checkpoint fixtures without a host bridge. The model lane does not replace the full-stack lane. It offers a cheaper path for deterministic planner and transition checks.
+The simulator has two internal lanes. The full-stack lane drives the reference-client bridge and the real router and runtime composition. The model lane runs explicit planner snapshots, pure round reducers, pure maintenance reducers, and checkpoint fixtures without a host bridge.
+
+The model lane does not replace the full-stack lane. It offers a cheaper path for deterministic planner and transition checks.
 
 Experiment execution also has three modes. `full-stack` runs the maintained tuning families. `model` runs explicit fixture-driven planner, reducer, and restore checks. `equivalence` runs a model fixture and a full-stack replay for the same case and asserts that the visible decision matches. The model schema is operation-first: planner, round, and restore cases carry engine-owned seeds or explicit reducer state, and the simulator executes them through the shared `RoutingEngine*Model` traits from `jacquard-traits`.
 
@@ -41,11 +43,11 @@ The simulator reuses existing Jacquard composition surfaces. It does not maintai
 - deterministic checkpoints with host snapshots
 - failure summaries for diagnostic inspection
 
-Checkpoints carry `InMemoryRuntimeEffects` snapshots per host. These snapshots are needed to rebuild the bridge and recover checkpointed route state across all engines. Simulations can be resumed from the last checkpoint using `JacquardSimulator::resume_replay()`. `pathway` is the only lane that exposes Telltale-native replay references, but checkpoint resume works across all engines.
+Checkpoints carry `InMemoryRuntimeEffects` snapshots per host. These snapshots are needed to rebuild the bridge and recover checkpointed route state across all engines. Simulations can be resumed from the last checkpoint using `JacquardSimulator::resume_replay()`. `pathway` is the only lane that exposes Telltale-native replay references. Checkpoint resume works across all engines.
 
 Model-lane runs use their own fixture outputs instead of host-round replay artifacts. They record explicit planner snapshots, candidate counts, reducer summaries, restore outputs, and equivalence results in `model_artifacts.jsonl`. This makes equivalence checks against full-stack runs possible without introducing a simulator-only engine stack.
 
-That file is additive. The maintained full-stack artifact contract remains the full-stack run log plus the aggregate and breakdown JSON outputs for route-visible tuning, plus the diffusion artifact set for deferred-delivery analysis. The report pipeline does not score `model_artifacts.jsonl`; it uses it for model-lane inspection and equivalence debugging only.
+That file is additive. The maintained full-stack artifact contract remains the full-stack run log plus the aggregate and breakdown JSON outputs for route-visible tuning, plus the diffusion artifact set for deferred-delivery analysis. The report pipeline does not score `model_artifacts.jsonl`. It uses it for model-lane inspection and equivalence debugging only.
 
 The model-lane selectors are `babel-model-smoke`, `babel-equivalence-smoke`, `batman-bellman-model-smoke`, `batman-classic-model-smoke`, `olsrv2-model-smoke`, `field-model-smoke`, `pathway-model-smoke`, and `scatter-model-smoke` in the `tuning_matrix` binary. They exercise engine-owned planner seeds, planner snapshots, reducer state, and restore inputs through the shared model-trait family. The simulator keeps orchestration and artifact writing local while each engine owns the translation from fixture facts to private protocol state.
 

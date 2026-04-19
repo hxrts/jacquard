@@ -2,7 +2,13 @@
 
 Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and seven in-tree routing engines: `pathway` for explicit-path routing, `field` for corridor-envelope routing over a continuously updated field model, `batman-bellman` for Bellman-Ford-enhanced next-hop routing, `batman-classic` for spec-faithful BATMAN IV next-hop routing, `babel` for RFC 8966 distance-vector routing with bidirectional ETX and feasibility distances, `olsrv2` for OLSRv2 link-state routing, and `scatter` for bounded deferred-delivery diffusion routing. It is designed so a host can add external routing engines through the same contract.
 
-See [Core Types](201_core_types.md) for the model objects, pipeline, observation, and world-extension surfaces that carry the system. See [Time Model](202_time.md) for the deterministic time rules. See [Routing Engines](303_routing_engines.md) for the engine contract, host runtime-effect boundary, and links to the in-tree engine pages. See [Router Control Plane](304_router_control_plane.md) for how a route moves from objective through materialization, maintenance, and teardown. See [Crate Architecture](999_crate_architecture.md) for separation of concerns and implementation policies.
+Related documents cover the rest of the system:
+
+- [Core Types](201_core_types.md) describes the model objects, pipeline, observation, and world-extension surfaces.
+- [Time Model](202_time.md) defines the deterministic time rules.
+- [Routing Engines](303_routing_engines.md) specifies the engine contract, host runtime-effect boundary, and links to the in-tree engine pages.
+- [Router Control Plane](304_router_control_plane.md) explains how a route moves from objective through materialization, maintenance, and teardown.
+- [Crate Architecture](999_crate_architecture.md) lists the separation of concerns and implementation policies.
 
 ## Scope
 
@@ -16,7 +22,7 @@ The routing model is shaped so admission, installation, maintenance, and replay 
 
 Jacquard is aimed at networks that are unstable, capacity-constrained, and potentially adversarial. Nodes may churn, links may degrade quickly, identities may be weak or partially authenticated, and local coordination may be necessary without any reliable global authority.
 
-That creates two competing pressures. The system needs stronger coordination than naive flooding or purely local heuristics, but it also cannot afford to hard-code one routing doctrine such as GPS-based clique membership, singleton leaders, or full consensus on every routing transition.
+That creates two competing pressures. The system needs stronger coordination than naive flooding or purely local heuristics. It also cannot hard-code one routing doctrine such as GPS-based clique membership, singleton leaders, or full consensus on every routing transition.
 
 It also needs to support more than one routing engine being present at once. A host such as Aura may want to run onion and pathway side by side, migrate traffic gradually from one to the other, or use one engine as a limited lower-layer carrier for another. Those are different cases and should not be collapsed into one mechanism.
 

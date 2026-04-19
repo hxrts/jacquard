@@ -4,7 +4,9 @@ Jacquard uses a typed deterministic time model. It does not treat wall clock as 
 
 ## Time Domains
 
-`Tick` is local monotonic time. It is used for expiry, replay checks, scheduling, and publication timestamps. `DurationMs` is a bounded duration type for timeout and backoff policy. `OrderStamp` is a deterministic ordering token. `RouteEpoch` versions topology and reconfiguration state.
+`Tick` is local monotonic time. It is used for expiry, replay checks, scheduling, and publication timestamps. `DurationMs` is a bounded duration type for timeout and backoff policy.
+
+`OrderStamp` is a deterministic ordering token. `RouteEpoch` versions topology and reconfiguration state.
 
 These domains are not interchangeable. `Tick` is not wall clock. `OrderStamp` is not an expiry. `RouteEpoch` is not elapsed time. Field names should carry their domain when needed, such as `*_tick`, `*_ms`, and `*_epoch`.
 
@@ -29,7 +31,9 @@ Remote observation of another device clock must stay above the routing core. If 
 
 Jacquard accesses time and deterministic ordering through abstract effects. `TimeEffects` provides `Tick`. `OrderEffects` provides `OrderStamp`. This keeps production, tests, and simulation on one semantic model even when their underlying runtimes differ.
 
-`TimeWindow` and `TimeoutPolicy` are the main compound time objects in the model. `TimeWindow` is used for bounded validity. `TimeoutPolicy` is used for bounded retries and local waiting policy. Both stay in the deterministic time domain and avoid raw timestamp fields. `TimeWindow` is constructed through a validated constructor so invalid windows with `end_tick <= start_tick` are rejected at the type boundary instead of leaking into leases, service validity, or route admission.
+`TimeWindow` and `TimeoutPolicy` are the main compound time objects in the model. `TimeWindow` is used for bounded validity. `TimeoutPolicy` is used for bounded retries and local waiting policy. Both stay in the deterministic time domain and avoid raw timestamp fields.
+
+`TimeWindow` is constructed through a validated constructor. Invalid windows with `end_tick <= start_tick` are rejected at the type boundary. This prevents them from leaking into leases, service validity, or route admission.
 
 ```rust
 pub struct TimeoutPolicy {

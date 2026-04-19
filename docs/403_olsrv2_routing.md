@@ -16,7 +16,9 @@ The engine owns five pieces of runtime state:
 
 The router and host own ingress draining, tick cadence, and time attachment. `jacquard-olsrv2` consumes explicit ingress through the shared runtime hook and returns router-visible `NextHopOnly` candidates.
 
-Internally, the engine splits route choice from protocol progression. `OlsrPlannerSnapshot` carries the route-choice projection used by planning. A pure round reducer owns HELLO and TC expiry, two-hop reachability derivation, MPR selection, SPF refresh, and best-next-hop projection. A separate pure maintenance reducer owns route-health refresh and replacement decisions. The runtime wrapper is limited to ingress decode, transport emission, and router-facing integration. `jacquard-olsrv2` also implements the shared `RoutingEnginePlannerModel` surface, so the simulator executes OLSRv2 planner checks from engine-owned planner seeds instead of building OLSR control-state fixtures itself.
+Internally, the engine splits route choice from protocol progression. `OlsrPlannerSnapshot` carries the route-choice projection used by planning. A pure round reducer owns HELLO and TC expiry, two-hop reachability derivation, MPR selection, SPF refresh, and best-next-hop projection.
+
+A separate pure maintenance reducer owns route-health refresh and replacement decisions. The runtime wrapper is limited to ingress decode, transport emission, and router-facing integration. `jacquard-olsrv2` also implements the shared `RoutingEnginePlannerModel` surface. The simulator executes OLSRv2 planner checks from engine-owned planner seeds instead of building OLSR control-state fixtures itself.
 
 ## Jacquard-Specific Simplifications
 
@@ -74,19 +76,23 @@ The OLSRv2 engine declares the same conservative next-hop envelope used by the o
 | `reconfiguration_support` | `ReplaceOnly` |
 | `route_shape_visibility` | `NextHopOnly` |
 
-The engine keeps a full topology graph privately but does not claim explicit-path visibility at the shared contract boundary.
+The engine keeps a full topology graph privately. It does not claim explicit-path visibility at the shared contract boundary.
 
 ## Route Lifecycle And Maintenance
 
 Planning and admission follow the standard Jacquard route lifecycle. `candidate_routes` emits next-hop candidates from the projected best-next-hop snapshot. `check_candidate` validates the candidate against the current snapshot projection. `admit_route` binds the candidate to router-owned identity. `materialize_route` installs the active next-hop record.
 
-Maintenance returns `Continued` while the selected next hop remains valid. It returns `ReplacementRequired` when the shortest-path table selects a new next hop. It returns `Failed(LostReachability)` when no route remains. There is no suffix repair or engine-owned hold mode. Route replacement is the only reconfiguration path.
+Maintenance returns `Continued` while the selected next hop remains valid. It returns `ReplacementRequired` when the shortest-path table selects a new next hop. It returns `Failed(LostReachability)` when no route remains.
+
+There is no suffix repair or engine-owned hold mode. Route replacement is the only reconfiguration path.
 
 Restore is router-led. On recovery, the router passes the full `MaterializedRoute` record back into the engine. `jacquard-olsrv2` reconstructs its active route entry from the router-owned backend route record and rebuilds derived SPF state from the current topology and refreshed control tables rather than from an engine-private checkpoint payload.
 
 ## Comparison Role
 
-`jacquard-olsrv2` is the in-tree full-topology proactive baseline. It answers a different question from the batman and Babel engines. `batman-classic` and `babel` are distance-vector gossip baselines. `batman-bellman` is a topology-enriched BATMAN variant. OLSRv2 is the proactive link-state baseline with explicit topology flooding.
+`jacquard-olsrv2` is the in-tree full-topology proactive baseline. It answers a different question from the batman and Babel engines.
+
+`batman-classic` and `babel` are distance-vector gossip baselines. `batman-bellman` is a topology-enriched BATMAN variant. OLSRv2 is the proactive link-state baseline with explicit topology flooding.
 
 OLSRv2 is the primary comparison point for measuring how much full topology knowledge buys over gossip-style next-hop routing.
 

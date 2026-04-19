@@ -4,7 +4,9 @@
 
 ## Ownership Boundary
 
-Profile crates are `Observed`. They model capability advertisement, transport carriage, and link-level state. They do not plan routes, issue canonical handles, publish route truth, or interpret routing policy. Canonical route ownership remains on the router, and engine-private runtime state remains inside the routing engine. This keeps profile code reusable across routing engines and prevents observational fixtures from drifting into shadow control planes.
+Profile crates are `Observed`. They model capability advertisement, transport carriage, and link-level state. They do not plan routes, issue canonical handles, publish route truth, or interpret routing policy.
+
+Canonical route ownership remains on the router, and engine-private runtime state remains inside the routing engine. This keeps profile code reusable across routing engines and prevents observational fixtures from drifting into shadow control planes.
 
 `jacquard-core` types flow through these crates unchanged. `Node`, `NodeProfile`, `NodeState`, `Link`, `LinkEndpoint`, `LinkState`, and `ServiceDescriptor` keep their shared-model shape end to end. The `mem-*` crates wrap builders around those shared objects instead of replacing or reshaping them, and the reference client hands the constructed world picture to the router as a plain `Observation<Configuration>`.
 
@@ -12,12 +14,16 @@ Profile crates are `Observed`. They model capability advertisement, transport ca
 
 | Crate | Provides | Shared boundary it implements |
 | --- | --- | --- |
-| `jacquard-adapter` | `TransportIngressSender`, `TransportIngressReceiver`, `TransportIngressNotifier`, `TransportIngressDrain`, `PeerDirectory`, `PendingClaims`, `ClaimGuard` | none — it provides transport-neutral adapter support primitives over `jacquard-core` vocabulary |
-| `jacquard-mem-node-profile` | `SimulatedNodeProfile`, `NodeStateSnapshot`, `SimulatedServiceDescriptor` builders | none — it only emits `jacquard-core` model values |
+| `jacquard-adapter` | `TransportIngressSender`, `TransportIngressReceiver`, `TransportIngressNotifier`, `TransportIngressDrain`, `PeerDirectory`, `PendingClaims`, `ClaimGuard` | none. It provides transport-neutral adapter support primitives over `jacquard-core` vocabulary |
+| `jacquard-mem-node-profile` | `SimulatedNodeProfile`, `NodeStateSnapshot`, `SimulatedServiceDescriptor` builders | none. It only emits `jacquard-core` model values |
 | `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportSenderEffects`, `TransportDriver`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
-| `jacquard-reference-client` | `topology::{node, link}`, `ClientBuilder`, `HostBridge`, `ReferenceRouter`/`ReferenceClient` aliases | none — it is pure composition over the crates above |
+| `jacquard-reference-client` | `topology::{node, link}`, `ClientBuilder`, `HostBridge`, `ReferenceRouter`/`ReferenceClient` aliases | none. It is pure composition over the crates above |
 
-The `mem-*` crates stay routing-engine-neutral and transport-neutral: they carry frames, emit observations, and build shared model values, but they do not mint route truth, interpret routing policy, or own BLE/IP-specific authoring helpers. `jacquard-adapter` likewise stays transport-neutral: it owns generic ownership scaffolding only, not endpoint constructors, protocol state, or driver traits. Reference-client fixtures are the single place where a service descriptor picks up engine-specific routing-engine tags (e.g. `PATHWAY_ENGINE_ID`, `BATMAN_BELLMAN_ENGINE_ID`, `BABEL_ENGINE_ID`), because that decision is composition, not profile. The reference-client bridge is also the only sanctioned place where transport ingress is drained and stamped before delivery to the router.
+The `mem-*` crates stay routing-engine-neutral and transport-neutral. They carry frames, emit observations, and build shared model values. They do not mint route truth, interpret routing policy, or own BLE or IP-specific authoring helpers.
+
+`jacquard-adapter` likewise stays transport-neutral. It owns generic ownership scaffolding only, not endpoint constructors, protocol state, or driver traits.
+
+Reference-client fixtures are the single place where a service descriptor picks up engine-specific routing-engine tags such as `PATHWAY_ENGINE_ID`, `BATMAN_BELLMAN_ENGINE_ID`, or `BABEL_ENGINE_ID`. That decision is composition, not profile. The reference-client bridge is also the only sanctioned place where transport ingress is drained and stamped before delivery to the router.
 
 ## Composition
 
@@ -40,20 +46,12 @@ graph LR
   Router -- registers --> Engines
 ```
 
-The reference end-to-end examples are the split `reference-client` tests in
-[`crates/reference-client/tests/client_builder.rs`](../crates/reference-client/tests/client_builder.rs),
-[`crates/reference-client/tests/e2e_pathway_shared_network.rs`](../crates/reference-client/tests/e2e_pathway_shared_network.rs),
-[`crates/reference-client/tests/e2e_batman_pathway_handoff.rs`](../crates/reference-client/tests/e2e_batman_pathway_handoff.rs),
-[`crates/reference-client/tests/e2e_olsrv2_shared_network.rs`](../crates/reference-client/tests/e2e_olsrv2_shared_network.rs),
-and
-[`crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs`](../crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs),
-plus the shared scenarios in
-[`crates/testkit/src/reference_client_scenarios.rs`](../crates/testkit/src/reference_client_scenarios.rs).
-They show how to add a new client runtime to the same in-memory network without
-bypassing the bridge-owned ingress path or the router-owned canonical path.
+The reference end-to-end examples are the split `reference-client` tests in [`crates/reference-client/tests/client_builder.rs`](../crates/reference-client/tests/client_builder.rs), [`crates/reference-client/tests/e2e_pathway_shared_network.rs`](../crates/reference-client/tests/e2e_pathway_shared_network.rs), [`crates/reference-client/tests/e2e_batman_pathway_handoff.rs`](../crates/reference-client/tests/e2e_batman_pathway_handoff.rs), [`crates/reference-client/tests/e2e_olsrv2_shared_network.rs`](../crates/reference-client/tests/e2e_olsrv2_shared_network.rs), and [`crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs`](../crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs), plus the shared scenarios in [`crates/testkit/src/reference_client_scenarios.rs`](../crates/testkit/src/reference_client_scenarios.rs). They show how to add a new client runtime to the same in-memory network without bypassing the bridge-owned ingress path or the router-owned canonical path.
 
 ## Extension Guidance
 
-Mirror the existing layering when adding a new device or transport profile. Build node-side world inputs as builders over the shared `NodeProfile`, `NodeState`, and `ServiceDescriptor` types. Build link-side and transport behavior as adapters that implement the shared effect boundaries listed above. Reuse `jacquard-adapter` only for generic mailbox, peer, or claim ownership support. Compose the new profile with the router and a routing engine through a host harness that looks like `jacquard-reference-client`. Do not introduce a parallel node schema, a pathway-specific transport trait, or transport-specific endpoint constructors inside the mem/reference profile crates.
+Mirror the existing layering when adding a new device or transport profile. Build node-side world inputs as builders over the shared `NodeProfile`, `NodeState`, and `ServiceDescriptor` types. Build link-side and transport behavior as adapters that implement the shared effect boundaries listed above.
+
+Reuse `jacquard-adapter` only for generic mailbox, peer, or claim ownership support. Compose the new profile with the router and a routing engine through a host harness that looks like `jacquard-reference-client`. Do not introduce a parallel node schema, a pathway-specific transport trait, or transport-specific endpoint constructors inside the mem or reference profile crates.
 
 Keep the ownership boundary strict. Profile crates stay `Observed`. Routers stay the canonical `ActorOwned` route publisher. Routing engines own only route-private runtime state and typed evidence. The [Crate Architecture](999_crate_architecture.md) document has the full dependency graph and ownership rules these crates fit into.

@@ -28,9 +28,11 @@ The pathway engine implements the shared `RoutingEnginePlanner` contract, which 
 
 This algorithm produces a stable candidate ordering across replays. The search metric is integer-only and combines hop count, delivery confidence, loss-derived congestion, symmetry, pathway-private peer and neighborhood estimates, protocol-repeat penalties, protocol-diversity bonuses, and a deferred-delivery bonus when the destination is honestly hold-capable. The shared `RouteCost` surface then reflects the chosen path's hop count, confidence, symmetry, congestion, protocol diversity, and deferred-delivery hold reservation without exposing the pathway-private estimate internals that shaped the search.
 
-Concretely, the direct per-link reliability inputs are: `delivery_confidence_permille`, `symmetry_permille`, and `loss_permille`. Pathway turns these into weighted edge penalties during path search. Higher delivery confidence and better symmetry reduce path cost; higher loss increases it. These signals are then combined with pathway-private peer and neighborhood bonuses and penalties rather than collapsed into one shared "reliability" field.
+The direct per-link reliability inputs are `delivery_confidence_permille`, `symmetry_permille`, and `loss_permille`. Pathway turns these into weighted edge penalties during path search. Higher delivery confidence and better symmetry reduce path cost. Higher loss increases it.
 
-`median_rtt_ms` is part of the shared link observation surface, but pathway does not currently use it in path scoring.
+These signals are then combined with pathway-private peer and neighborhood bonuses and penalties rather than collapsed into one shared reliability field.
+
+`median_rtt_ms` is part of the shared link observation surface. Pathway does not currently use it in path scoring.
 
 Deferred-delivery classification is deliberately stricter than capability advertisement alone. A destination only qualifies for retention-biased routing when its `Hold` service advertisement is currently valid for pathway, the advertised capacity hint reports positive `hold_capacity_bytes`, and the node state separately reports positive `hold_capacity_available_bytes`. A stale advertisement, an empty capacity hint, or unknown live capacity is not enough.
 
@@ -56,7 +58,7 @@ Pathway owns:
 - admission policy, witness generation, and committee handling
 - opaque backend-token encoding and cache-miss re-derivation
 
-This split is intentional. Pathway uses the generic search machine as a deterministic planning substrate, while the published route semantics remain Pathway-owned.
+This split is intentional. Pathway uses the generic search machine as a deterministic planning substrate. The published route semantics remain Pathway-owned.
 
 ### Inherited Search Features
 
@@ -67,16 +69,13 @@ The Pathway engine inherits several capabilities directly from the v13 Telltale 
 - selected-result and witness semantics exported directly by the search runtime
 - explicit execution-policy control through `SearchExecutionPolicy` and `SearchRunConfig`
 - replay artifacts that preserve epoch trace, batch schedule, fairness bundle, and final authoritative state
-- explicit epoch reconfiguration with a real reseeding policy; Pathway currently uses `PreserveOpenAndIncons`
+- explicit epoch reconfiguration with a real reseeding policy, where Pathway currently uses `PreserveOpenAndIncons`
 
-Pathway currently uses `SearchQuery::SingleGoal` for exact node destinations and
-`SearchQuery::CandidateSet` for service/gateway objectives that select among
-multiple acceptable destinations. For exact queries, the runtime can also emit
-the optional path-problem helper surfaces. Candidate-set queries stay on the
-generic selected-result surface and intentionally do not rely on a
-distinguished goal anchor.
+Pathway currently uses `SearchQuery::SingleGoal` for exact node destinations and `SearchQuery::CandidateSet` for service or gateway objectives that select among multiple acceptable destinations. For exact queries, the runtime can also emit the optional path-problem helper surfaces. Candidate-set queries stay on the generic selected-result surface and intentionally do not rely on a distinguished goal anchor.
 
-Pathway currently exposes only exact run-to-completion profiles to the router. The supported public modes are canonical serial and threaded exact single-lane, both with `batch_width = 1`, `SearchCachingProfile::EphemeralPerStep`, and `SearchEffortProfile::RunToCompletion`. Budgeted or bounded execution contracts remain part of the generic Telltale runtime surface, but Pathway rejects them fail-closed for router-visible planning until it has a Pathway-owned policy for exposing them.
+Pathway currently exposes only exact run-to-completion profiles to the router. The supported public modes are canonical serial and threaded exact single-lane, both with `batch_width = 1`, `SearchCachingProfile::EphemeralPerStep`, and `SearchEffortProfile::RunToCompletion`.
+
+Budgeted or bounded execution contracts remain part of the generic Telltale runtime surface. Pathway rejects them fail-closed for router-visible planning until it has a Pathway-owned policy for exposing them.
 
 ### Proof and Assurance Surface
 
@@ -161,7 +160,9 @@ This is intentionally still pathway-private. The router should only observe shar
 
 The generated or protocol-local Telltale effect interfaces are not the shared Jacquard effect contract. They stay inside `jacquard-pathway` as implementation-facing protocol surfaces. Concrete host adapters still implement the shared traits from `jacquard-traits`, and the pathway choreography interpreter translates protocol-local requests onto those stable cross-engine traits instead of replacing them.
 
-At runtime, pathway entry points cross one private guest-runtime layer before touching transport send capability, retention, or route-event logging directly. `forward_payload`, materialization-side activation, maintenance-side repair and handoff, retained-payload replay, round-side ingress recording, route export, neighbor advertisement, and anti-entropy exchange all enter that pathway-local choreography boundary first. The guest runtime resolves stable inline protocol metadata for the protocol being entered, fails closed if that metadata is unavailable, and then records small protocol checkpoints keyed by protocol kind plus route or tick session so recovery does not depend on hidden in-memory sequencing state. Telltale session futures remain confined to choreography modules; the engine/runtime layer itself stays synchronous and driver-free.
+At runtime, pathway entry points cross one private guest-runtime layer before touching transport send capability, retention, or route-event logging directly. `forward_payload`, materialization-side activation, maintenance-side repair and handoff, retained-payload replay, round-side ingress recording, route export, neighbor advertisement, and anti-entropy exchange all enter that pathway-local choreography boundary first.
+
+The guest runtime resolves stable inline protocol metadata for the protocol being entered, fails closed if that metadata is unavailable, and then records small protocol checkpoints keyed by protocol kind plus route or tick session. Recovery does not depend on hidden in-memory sequencing state. Telltale session futures remain confined to choreography modules. The engine and runtime layer itself stays synchronous and driver-free.
 
 ## Runtime and Repair
 
@@ -184,9 +185,9 @@ The runtime route-health calculation currently combines three signal groups:
 
 | Signal group | Inputs |
 | --- | --- |
-| First-hop transport summary | remote-link stability score; remote-link congestion penalty |
-| Remaining-suffix topology view | delivery confidence; symmetry; loss-derived congestion penalty |
-| Pathway control state | transport stability score; anti-entropy pressure |
+| First-hop transport summary | remote-link stability score, remote-link congestion penalty |
+| Remaining-suffix topology view | delivery confidence, symmetry, loss-derived congestion penalty |
+| Pathway control state | transport stability score, anti-entropy pressure |
 
 As in planning, `median_rtt_ms` is not currently part of the published route-health calculation.
 
@@ -198,8 +199,7 @@ Protocol checkpoints follow the same fail-closed rule. Pathway writes or updates
 
 Maintenance is expressed through the shared `RouteMaintenanceResult` surface. Repair means a bounded local suffix-repair algorithm over the latest observed topology. `LinkDegraded` and `EpochAdvanced` attempt to recompute the remaining suffix from the current owner to the final destination, consume one repair step on success, and escalate to typed replacement when no bounded patch is available or the repair budget is exhausted.
 
-The maintenance path follows the same reducer split as the other engines. Pathway first normalizes one maintenance input from the active route, latest topology epoch, trigger, and handoff receipt. A pure transition planner then returns the next route/runtime projection plus ordered effect requests such as repair exchange, retained-payload flush, handoff exchange, and anti-entropy
-pressure consumption. The runtime wrapper executes those requested effects fail-closed and only checkpoints or publishes the projected route state after every requested effect succeeds.
+The maintenance path follows the same reducer split as the other engines. Pathway first normalizes one maintenance input from the active route, latest topology epoch, trigger, and handoff receipt. A pure transition planner then returns the next route or runtime projection plus ordered effect requests such as repair exchange, retained-payload flush, handoff exchange, and anti-entropy pressure consumption. The runtime wrapper executes those requested effects fail-closed and only checkpoints or publishes the projected route state after every requested effect succeeds.
 
 `CapacityExceeded` returns `ReplacementRequired` without flipping partition mode, since it indicates replacement pressure rather than partition evidence. `PartitionDetected` enters partition mode and reports the current retained-object count through `HoldFallback`. `PolicyShift` performs handoff and `AntiEntropyRequired` flushes retained payloads to recover. Pathway exposes one current commitment per route, so repair, handoff, and deferred-delivery posture stay inside the route runtime state rather than becoming separate concurrent commitments.
 
@@ -225,7 +225,9 @@ Retained payload identity flows through the shared `Hashing` boundary. Route and
 
 Pathway supports a scoped checkpoint round-trip for pathway-private route runtime and the latest topology epoch. The route checkpoint is intentionally narrower than the full active-route object: it stores the mutable forwarding, repair, handoff, anti-entropy, and current-epoch substate only. Path shape, committee selection, route cost, route identity, and lifecycle event are rebuilt from the router-owned `MaterializedRoute` record and the self-contained backend plan token during restore.
 
-The choreography layer adds a second scoped recovery surface: protocol checkpoints are keyed by protocol kind plus route session or tick session and round-trip through the same storage boundary. Route recovery uses the reduced route checkpoint plus the router-owned materialized record; protocol recovery uses the protocol checkpoint catalog. Neither requires ambient hidden state outside engine-owned checkpoint storage and router-owned canonical route truth.
+The choreography layer adds a second scoped recovery surface. Protocol checkpoints are keyed by protocol kind plus route session or tick session and round-trip through the same storage boundary.
+
+Route recovery uses the reduced route checkpoint plus the router-owned materialized record. Protocol recovery uses the protocol checkpoint catalog. Neither requires ambient hidden state outside engine-owned checkpoint storage and router-owned canonical route truth.
 
 ## Swappable Trait Surface
 
@@ -316,4 +318,4 @@ pub trait RetentionStore {
 }
 ```
 
-`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. It stays intentionally narrow so platform-specific persistence can substitute without forcing the rest of the pathway engine to know about it, and it is not treated as a pathway-specific trait surface.
+`RetentionStore` is the storage boundary for opaque deferred-delivery payloads during partitions. It stays intentionally narrow so platform-specific persistence can substitute without forcing the rest of the pathway engine to know about it. It is not treated as a pathway-specific trait surface.

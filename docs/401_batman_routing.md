@@ -121,7 +121,9 @@ This substitutes a deterministic local computation for the spec's distributed OG
 
 ### Internal State Split
 
-`jacquard-batman-bellman` uses the same snapshot-and-reducer structure as the classic engine. The planner sees only `BatmanBellmanPlannerSnapshot`. The pure round reducer owns OGM-window pruning, merged-topology route projection, ranking, and best-next-hop selection. The pure maintenance reducer owns route-health refresh and replacement decisions. The runtime wrapper owns transport send, ingress decode, and router-facing publication hooks.
+`jacquard-batman-bellman` uses the same snapshot-and-reducer structure as the classic engine. The planner sees only `BatmanBellmanPlannerSnapshot`. The pure round reducer owns OGM-window pruning, merged-topology route projection, ranking, and best-next-hop selection.
+
+The pure maintenance reducer owns route-health refresh and replacement decisions. The runtime wrapper owns transport send, ingress decode, and router-facing publication hooks.
 
 ### TQ Enrichment
 
@@ -253,9 +255,9 @@ The classic engine is the correct baseline when comparing against Babel (RFC 896
 
 Babel addresses three gaps relative to classic BATMAN:
 
-- **Asymmetric-link handling**: classic batman's bidirectionality gate excludes paths with poor incoming links entirely. Babel's feasibility condition handles asymmetric metrics without excluding those paths.
-- **Loop freedom**: classic batman relies on sequence-number freshness for loop prevention. Babel's feasibility condition provides a provable loop-freedom guarantee during transient topology changes.
-- **Triggered updates**: classic batman floods on a fixed tick schedule. Babel sends triggered updates immediately when a metric changes, reducing recovery latency.
+- Asymmetric-link handling. Classic batman's bidirectionality gate excludes paths with poor incoming links entirely. Babel's feasibility condition handles asymmetric metrics without excluding those paths.
+- Loop freedom. Classic batman relies on sequence-number freshness for loop prevention. Babel's feasibility condition provides a provable loop-freedom guarantee during transient topology changes.
+- Triggered updates. Classic batman floods on a fixed tick schedule. Babel sends triggered updates immediately when a metric changes, reducing recovery latency.
 
 Comparing classic batman against Babel measures what each mechanism contributes independently. Comparing the enhanced engine against Babel conflates the Bellman-Ford and topology-enrichment changes with the DV-gossip differences, making performance attribution unreliable.
 

@@ -1,6 +1,8 @@
 # Router Control Plane
 
-`jacquard-router` is a generic middleware layer that owns the canonical control plane above the routing-engine boundary. The router registers one or more routing engines, orchestrates cross-engine candidate selection, and publishes the selected engine result as canonical. Routing engines plan, admit, and maintain route-private runtime state without touching canonical route identity or publication. This includes proactive engines: the router does not own proactive routing tables, it only owns canonical publication over the evidence those engines return.
+`jacquard-router` is a generic middleware layer that owns the canonical control plane above the routing-engine boundary. The router registers one or more routing engines, orchestrates cross-engine candidate selection, and publishes the selected engine result as canonical. Routing engines plan, admit, and maintain route-private runtime state without touching canonical route identity or publication.
+
+This includes proactive engines. The router does not own proactive routing tables. It only owns canonical publication over the evidence those engines return.
 
 ## Ownership
 
@@ -50,9 +52,11 @@ Engines report proof-bearing maintenance outcomes such as continued health, repa
 
 ## Tick and Maintenance
 
-The router advances through synchronous rounds. Hosts feed topology, policy inputs, and transport observations into `RoutingMiddleware`, then call `advance_round` on the control plane. During that round the router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`. Engines may refresh private control state and summarize previously ingested observations. They may run engine-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
+The router advances through synchronous rounds. Hosts feed topology, policy inputs, and transport observations into `RoutingMiddleware`, then call `advance_round` on the control plane. During that round the router drives `RoutingTickContext` into each registered engine and consumes `RoutingTickOutcome`.
 
-`RoutingTickOutcome.next_tick_hint` lets proactive engines report scheduling pressure without taking ownership of cadence. The router or host may honor that hint, clamp it, or ignore it, but the cadence decision remains router/host owned.
+Engines may refresh private control state and summarize previously ingested observations. They may run engine-private choreographies. Engines do not publish canonical truth directly during `engine_tick`.
+
+`RoutingTickOutcome.next_tick_hint` lets proactive engines report scheduling pressure without taking ownership of cadence. The router or host may honor that hint, clamp it, or ignore it. The cadence decision remains router or host owned.
 
 When maintenance returns a typed engine result, the router decides whether that implies canonical mutation. `ReplacementRequired` triggers router-owned reselection and replacement. `HandedOff` triggers router-owned lease transfer. `LeaseExpired` or `Expired` removes the canonical route.
 
@@ -69,7 +73,7 @@ typed engine evidence
   -> in-memory canonical publication
 ```
 
-Pathway may checkpoint route-private runtime payloads, but canonical route publication and canonical route-event emission happen in the router.
+Pathway may checkpoint route-private runtime payloads. Canonical route publication and canonical route-event emission happen in the router.
 
 ## Configuration and State Updates
 

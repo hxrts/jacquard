@@ -65,11 +65,15 @@ pub trait RoutingEngine: RoutingEnginePlanner {
 }
 ```
 
-`RoutingEnginePlanner` is pure. `RoutingEngine` is effectful. The split keeps candidate production deterministic and keeps runtime mutation inside explicit realization and maintenance methods. The router allocates canonical route identity first. The engine realizes the admitted route under that identity and returns `RouteInstallation`. The final `MaterializedRoute` is assembled above the engine boundary as router-owned identity plus engine-owned runtime state, and maintenance only receives the mutable runtime portion.
+`RoutingEnginePlanner` is pure. `RoutingEngine` is effectful. The split keeps candidate production deterministic and keeps runtime mutation inside explicit realization and maintenance methods.
+
+The router allocates canonical route identity first. The engine realizes the admitted route under that identity and returns `RouteInstallation`. The final `MaterializedRoute` is assembled above the engine boundary as router-owned identity plus engine-owned runtime state. Maintenance only receives the mutable runtime portion.
 
 Route choice and transition logic within a given engine is explicit and replayable. Engines project a small read-only planner snapshot from their private runtime state. Planner methods should read that snapshot rather than hidden mutable tables. Runtime methods should normalize inputs, call a pure reducer, then apply the reducer result through storage, transport, and logging effects.
 
-The shared model-trait family in `jacquard-traits` captures that same split for deterministic model execution. `RoutingEnginePlannerModel` runs candidate generation and admission from an explicit planner snapshot. `RoutingEngineRoundModel` and `RoutingEngineMaintenanceModel` run pure reducers over explicit state and normalized input when an engine exposes those transitions. `RoutingEngineRestoreModel` reconstructs route-private runtime from the router-owned `MaterializedRoute` record. The simulator consumes those engine-owned model traits directly instead of maintaining a parallel simulator-specific engine API.
+The shared model-trait family in `jacquard-traits` captures that same split for deterministic model execution. `RoutingEnginePlannerModel` runs candidate generation and admission from an explicit planner snapshot. `RoutingEngineRoundModel` and `RoutingEngineMaintenanceModel` run pure reducers over explicit state and normalized input when an engine exposes those transitions. `RoutingEngineRestoreModel` reconstructs route-private runtime from the router-owned `MaterializedRoute` record.
+
+The simulator consumes those engine-owned model traits directly instead of maintaining a parallel simulator-specific engine API.
 
 This activation step also enforces the shared control-plane invariants. The admission decision must still be admissible. The realized protection must satisfy the objective protection floor. Lease validity must be checked explicitly before maintenance or publication proceeds.
 
@@ -77,17 +81,13 @@ This activation step also enforces the shared control-plane invariants. The admi
 
 `engine_tick` is the optional engine-wide bootstrap and convergence hook. The router or host owns cadence and passes a shared `RoutingTickContext` containing the authoritative merged topology observation for that step. The engine returns a small `RoutingTickOutcome` so the router can observe whether the tick changed engine-private state without standardizing engine internals. The hook itself does not publish canonical route truth directly.
 
-`RoutingTickOutcome.next_tick_hint` is advisory scheduling pressure, not self-scheduling authority. Proactive engines such as Babel- or BATMAN-style implementations can report that more work is due soon, but the host/router still owns final cadence.
+`RoutingTickOutcome.next_tick_hint` is advisory scheduling pressure, not self-scheduling authority. Proactive engines such as Babel- or BATMAN-style implementations can report that more work is due soon. The host or router still owns final cadence.
 
 An engine may use a richer internal runtime model behind that hook. First-party pathway, for example, drives protocol-side ingress and bounded control-state refresh through a private choreography guest runtime while keeping the shared `engine_tick` signature unchanged.
 
 That private choreography runtime does not replace the shared Jacquard effect traits. Generated Telltale effect interfaces remain engine-private implementation details, and the pathway interpreter adapts them onto the stable `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects`, and `TransportSenderEffects` surfaces exposed by `jacquard-traits`. Host-owned `TransportDriver` implementations stop at the router or bridge layer, which delivers explicit ingress before each synchronous router round.
 
-First-party field follows the same ownership rule, but with a narrower proof
-boundary: the deterministic local observer-controller remains the semantic
-owner of corridor belief and posture choice, while any field-private
-choreography layer may provide only observational summary inputs. Canonical
-route publication remains router-owned.
+First-party field follows the same ownership rule with a narrower proof boundary. The deterministic local observer-controller remains the semantic owner of corridor belief and posture choice. Any field-private choreography layer may provide only observational summary inputs. Canonical route publication remains router-owned.
 
 Router-led recovery follows the same split. The baseline engine hook restores route-private runtime from route identity. The router also supplies the current topology to a richer recovery hook so engines can rebuild topology-derived forwarding state without persisting that derived view in checkpoints.
 

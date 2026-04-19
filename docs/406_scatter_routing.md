@@ -1,28 +1,18 @@
 # Scatter Routing
 
-`jacquard-scatter` is Jacquard's bounded deferred-delivery diffusion engine.
-It does not maintain a topology graph.
-It does not publish a best next hop.
-It does not compute an explicit end-to-end path or corridor envelope.
+`jacquard-scatter` is Jacquard's bounded deferred-delivery diffusion engine. It does not maintain a topology graph. It does not publish a best next hop. It does not compute an explicit end-to-end path or corridor envelope.
 
-`scatter` publishes a narrow router claim.
-The claim states that an objective is supportable somewhere in the current world model.
-The claim is opaque, partition-tolerant, and hold-capable.
-After materialization, the engine moves data through engine-private transport packets under the standard `RoutingEngine` and `RouterManagedEngine` boundary.
+`scatter` publishes a narrow router claim. The claim states that an objective is supportable somewhere in the current world model. The claim is opaque, partition-tolerant, and hold-capable. After materialization, the engine moves data through engine-private transport packets under the standard `RoutingEngine` and `RouterManagedEngine` boundary.
 
-The crate follows the same internal split used across the other in-tree engines.
-`ScatterPlannerSnapshot` carries the planner surface.
-A pure diffusion-planning reducer decides which retained messages should expire, replicate, or hand off.
-A separate pure maintenance reducer owns route-health and hold-fallback decisions.
-The runtime wrapper is left with ingress decode, packet send, and router-facing installation and restore.
+The crate follows the same internal split used across the other in-tree engines. `ScatterPlannerSnapshot` carries the planner surface. A pure diffusion-planning reducer decides which retained messages should expire, replicate, or hand off.
+
+A separate pure maintenance reducer owns route-health and hold-fallback decisions. The runtime wrapper is left with ingress decode, packet send, and router-facing installation and restore.
 
 See [Crate Architecture](999_crate_architecture.md) for the shared ownership and boundary rules that constrain this engine.
 
 ## Core Model
 
-The in-tree `scatter` implementation keeps a small deterministic model.
-The engine retains messages, summarizes peer observations, and tracks per-route progress.
-It does not assume stable endpoint identity beyond the router objective vocabulary already present in Jacquard.
+The in-tree `scatter` implementation keeps a small deterministic model. The engine retains messages, summarizes peer observations, and tracks per-route progress. It does not assume stable endpoint identity beyond the router objective vocabulary already present in Jacquard.
 
 - payloads carry a stable local message id
 - expiry is local and typed through `created_tick` plus bounded `DurationMs`
@@ -33,9 +23,7 @@ It does not assume stable endpoint identity beyond the router objective vocabula
 
 ## Policy Surface
 
-`ScatterEngineConfig` defines the deterministic policy surface for the engine.
-It keeps the behavior-critical constants named and typed.
-It avoids anonymous literals in the runtime.
+`ScatterEngineConfig` defines the deterministic policy surface for the engine. It keeps the behavior-critical constants named and typed. It avoids anonymous literals in the runtime.
 
 - `ScatterExpiryPolicy`
 - `ScatterBudgetPolicy`
@@ -48,9 +36,7 @@ These policies cover message lifetime, replication budgets, regime detection, ca
 
 ## Route Lifecycle
 
-Planner behavior is conservative.
-`candidate_routes` emits at most one candidate for a supportable objective.
-The router remains the owner of canonical route truth.
+Planner behavior is conservative. `candidate_routes` emits at most one candidate for a supportable objective. The router remains the owner of canonical route truth.
 
 1. the planner confirms that the destination or service objective is supportable in the current observation
 2. the router admits an opaque and partition-tolerant `scatter` claim
@@ -58,31 +44,19 @@ The router remains the owner of canonical route truth.
 4. payloads are retained, carried, replicated, or handed off according to local regime and peer score
 5. maintenance can report hold-fallback viability even when no direct next hop exists
 
-This split keeps route publication router-owned.
-It lets `scatter` own its private deferred-delivery mechanics.
+This split keeps route publication router-owned. It lets `scatter` own its private deferred-delivery mechanics.
 
-Planner and admission run against the explicit planner snapshot rather than against hidden mutable runtime state.
-Route restore is router-led.
-On recovery, the router passes the full `MaterializedRoute` record back into the engine.
-`scatter` reconstructs its active route entry from the router-owned backend token and recomputes route progress from retained local messages.
+Planner and admission run against the explicit planner snapshot rather than against hidden mutable runtime state. Route restore is router-led. On recovery, the router passes the full `MaterializedRoute` record back into the engine. `scatter` reconstructs its active route entry from the router-owned backend token and recomputes route progress from retained local messages.
 
-The simulator consumes Scatter planning through the shared `RoutingEnginePlannerModel` contract. `jacquard-scatter` owns the planner seed, including the bounded policy surface, and keeps any reduced transport or time scaffolding inside the engine crate rather than in simulator-side helpers.
+The simulator consumes Scatter planning through the shared `RoutingEnginePlannerModel` contract. `jacquard-scatter` owns the planner seed, including the bounded policy surface. Any reduced transport or time scaffolding stays inside the engine crate rather than in simulator-side helpers.
 
 ## Transport Boundary
 
-`scatter` follows the standard Jacquard ownership split.
-The engine consumes explicit `TransportObservation`.
-The engine sends only through `TransportSenderEffects`.
-The engine does not own async transport streams or assign `Tick`.
+`scatter` follows the standard Jacquard ownership split. The engine consumes explicit `TransportObservation`. The engine sends only through `TransportSenderEffects`. The engine does not own async transport streams or assign `Tick`.
 
-Host bridges own ingress draining and time attachment.
-Transport choice stays a local contact-feasibility judgment.
-The implementation keeps that judgment reduced and deterministic.
-It does not build separate routing models per transport.
+Host bridges own ingress draining and time attachment. Transport choice stays a local contact-feasibility judgment. The implementation keeps that judgment reduced and deterministic. It does not build separate routing models per transport.
 
-Diffusion planning is pure up to the point where packets are actually sent.
-The reducer emits forward intents as data.
-The wrapper performs the real `TransportSenderEffects` calls and then commits the resulting local progress updates.
+Diffusion planning is pure up to the point where packets are actually sent. The reducer emits forward intents as data. The wrapper performs the real `TransportSenderEffects` calls and then commits the resulting local progress updates.
 
 ## Contrast With Other Engines
 
@@ -93,8 +67,7 @@ The wrapper performs the real `TransportSenderEffects` calls and then commits th
 
 ## Current Non-Goals
 
-The current engine does not attempt to provide a full DTN control plane.
-It keeps the surface intentionally narrow.
+The current engine does not attempt to provide a full DTN control plane. It keeps the surface intentionally narrow.
 
 - topology reconstruction
 - stable semantic identity routing beyond Jacquard objectives
