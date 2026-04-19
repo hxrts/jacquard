@@ -32,7 +32,7 @@ The direct per-link reliability inputs are `delivery_confidence_permille`, `symm
 
 These signals are then combined with pathway-private peer and neighborhood bonuses and penalties rather than collapsed into one shared reliability field.
 
-`median_rtt_ms` is part of the shared link observation surface. Pathway does not currently use it in path scoring.
+`median_rtt_ms` is a field on the shared link observation surface. No current observation source populates it, so pathway treats it as absent and does not use it in path scoring.
 
 Deferred-delivery classification is deliberately stricter than capability advertisement alone. A destination only qualifies for retention-biased routing when its `Hold` service advertisement is currently valid for pathway, the advertised capacity hint reports positive `hold_capacity_bytes`, and the node state separately reports positive `hold_capacity_available_bytes`. A stale advertisement, an empty capacity hint, or unknown live capacity is not enough.
 

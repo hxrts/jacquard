@@ -99,7 +99,7 @@ The search and publication boundary is explicit:
 
 The planning boundary is explicit as well:
 
-- `FieldPlannerSnapshot` is the read-only route-choice projection
+- the engine-internal `FieldPlannerSnapshot` is the read-only route-choice projection used by the pure planner reducer and the `RoutingEnginePlannerModel` impl
 - search query construction and frozen-search successor derivation read that snapshot and the observed topology only
 - planner wrapper methods still record the latest search record for replay. The route-choice result is derived from the projected snapshot rather than hidden mutable engine state
 

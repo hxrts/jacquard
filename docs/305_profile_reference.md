@@ -17,7 +17,7 @@ Canonical route ownership remains on the router, and engine-private runtime stat
 | `jacquard-adapter` | `TransportIngressSender`, `TransportIngressReceiver`, `TransportIngressNotifier`, `TransportIngressDrain`, `PeerDirectory`, `PendingClaims`, `ClaimGuard` | none. It provides transport-neutral adapter support primitives over `jacquard-core` vocabulary |
 | `jacquard-mem-node-profile` | `SimulatedNodeProfile`, `NodeStateSnapshot`, `SimulatedServiceDescriptor` builders | none. It only emits `jacquard-core` model values |
 | `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportSenderEffects`, `TransportDriver`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
-| `jacquard-reference-client` | `topology::{node, link}`, `ClientBuilder`, `HostBridge`, `ReferenceRouter`/`ReferenceClient` aliases | none. It is pure composition over the crates above |
+| `jacquard-reference-client` | `ClientBuilder`, `HostBridge`, `ReferenceRouter`/`ReferenceClient` aliases, plus `NodePreset`, `NodePresetOptions`, `NodeIdentity`, `LinkPreset`, and `LinkPresetOptions` re-exported from the mem profile crates | none. It is pure composition over the crates above |
 
 The `mem-*` crates stay routing-engine-neutral and transport-neutral. They carry frames, emit observations, and build shared model values. They do not mint route truth, interpret routing policy, or own BLE or IP-specific authoring helpers.
 

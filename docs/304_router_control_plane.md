@@ -58,9 +58,9 @@ Engines may refresh private control state and summarize previously ingested obse
 
 `RoutingTickOutcome.next_tick_hint` lets proactive engines report scheduling pressure without taking ownership of cadence. The router or host may honor that hint, clamp it, or ignore it. The cadence decision remains router or host owned.
 
-When maintenance returns a typed engine result, the router decides whether that implies canonical mutation. `ReplacementRequired` triggers router-owned reselection and replacement. `HandedOff` triggers router-owned lease transfer. `LeaseExpired` or `Expired` removes the canonical route.
+When maintenance returns a typed engine result, the router decides whether that implies canonical mutation. The outcome is a `RouteMaintenanceOutcome` variant. `ReplacementRequired` triggers router-owned reselection and replacement. `HandedOff` triggers router-owned lease transfer.
 
-Continued or repaired states update the router-published commitment view without changing canonical identity.
+`Continued` and `Repaired` update the router-published commitment view without changing canonical identity. `HoldFallback` records a partition-tolerant hold state with the retained-object count. `Failed(RouteMaintenanceFailure)` removes the canonical route, with the failure sub-variant distinguishing `LostReachability`, `CapacityExceeded`, `LeaseExpired`, `BackendUnavailable`, `InvalidEvidence`, or `PolicyRejected`.
 
 `RoutingControlPlane` returns typed router outcomes instead of collapsing everything to `Result<(), E>`.
 

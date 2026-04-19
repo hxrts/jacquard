@@ -86,7 +86,7 @@ When all routes to a destination expire from the route table, FD for that destin
 
 ## Sequence Number Management
 
-The originator seqno is incremented every `SEQNO_REFRESH_INTERVAL_TICKS` (16 ticks). This periodic increment serves as the mechanism for resolving infeasible-fallback states across the network. The seqno uses u16 with modular arithmetic and wraps at 2^16.
+The originator seqno is incremented every `SEQNO_REFRESH_STEP` ticks, which defaults to 16. This periodic increment serves as the mechanism for resolving infeasible-fallback states across the network. The seqno uses u16 with modular arithmetic and wraps at 2^16.
 
 No explicit seqno request mechanism is implemented. In the full RFC 8966 protocol, a node can send a SEQREQ to the originator asking it to bump its seqno immediately. In the Jacquard tick model, the periodic increment bounds the infeasible-fallback window to at most 16 ticks without requiring asynchronous request handling.
 
