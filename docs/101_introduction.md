@@ -2,6 +2,8 @@
 
 Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and seven in-tree routing engines: `pathway` for explicit-path routing, `field` for corridor-envelope routing over a continuously updated field model, `batman-bellman` for Bellman-Ford-enhanced next-hop routing, `batman-classic` for spec-faithful BATMAN IV next-hop routing, `babel` for RFC 8966 distance-vector routing with bidirectional ETX and feasibility distances, `olsrv2` for OLSRv2 link-state routing, and `scatter` for bounded deferred-delivery diffusion routing. It is designed so a host can add external routing engines through the same contract.
 
+These engines differ in what they publish. Pathway exposes an explicit path, field a corridor envelope, the proactive engines only next-hop visibility, and scatter an opaque viability claim. The shared routing contract carries canonical identity and lifecycle regardless of that published shape.
+
 Related documents cover the rest of the system:
 
 - [Core Types](201_core_types.md) describes the model objects, pipeline, observation, and world-extension surfaces.
@@ -28,7 +30,7 @@ It also needs to support more than one routing engine being present at once. A h
 
 ## System Shape
 
-The top-level routing contract is routing-engine-neutral. A routing engine produces observational candidates, checks admission, admits a route, realizes it under router-provided canonical identity, publishes commitments, and handles engine-local maintenance. The control plane owns canonical route truth. The data plane forwards over already admitted truth.
+The top-level routing contract is routing-engine-neutral. A routing engine produces observational candidates, checks admission, admits a routing result, realizes it under router-provided canonical identity, publishes commitments, and handles engine-local maintenance. The control plane owns canonical route truth. The data plane forwards over already admitted truth.
 
 When a routing engine needs local coordination, Jacquard allows it to expose a shared coordination result such as a committee selection. Jacquard does not require that every routing engine use committees, and it does not require that a committee have a distinguished leader. The shared layer standardizes the result shape, not the formation process. Formation may be engine-local, host-local, provisioned, or otherwise out of band.
 
