@@ -30,7 +30,7 @@ The workspace contains repo-local policy tooling in `jacquard-toolkit-xtask` plu
 
 ```
 jacquard-core
-    ↑          ↑
+    ↑             ↑
 jacquard-traits jacquard-adapter
     ↑             ↑
 jacquard-mem-node-profile
@@ -40,9 +40,9 @@ jacquard-mem-link-profile
 jacquard-pathway ─────────┐
 jacquard-field   ─────────┤
 jacquard-batman-bellman ──┤
-jacquard-batman-classic ──┼──→ jacquard-router ←── jacquard-reference-client
-jacquard-babel ───────────┤         │                ↑
-jacquard-olsrv2 ──────────┤         │
+jacquard-batman-classic ──┤
+jacquard-babel ───────────┼──→ jacquard-router ←── jacquard-reference-client
+jacquard-olsrv2 ──────────┤         │                ↑
 jacquard-scatter ─────────┘         └──→ jacquard-simulator
 
 jacquard-testkit provides shared test support (used by simulator and reference-client tests)
@@ -117,6 +117,7 @@ Each crate owns a narrow slice of runtime state.
 |---|---|
 | `jacquard-core` | Shared vocabulary. No live state. |
 | `jacquard-traits` | Compile-time boundaries. No runtime state. |
+| `jacquard-macros` | Annotation-site validation and syntax-local code generation for effect, handler, and purity attributes. No runtime state. |
 | `jacquard-adapter` | Generic adapter-side ingress mailboxes, peer identity bookkeeping, claim ownership helpers, transport-neutral endpoint conveniences, and host-side observational read models. No route truth, no transport-specific protocol logic, no router actions, no time/order stamping. |
 | `jacquard-pathway` | Pathway-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
 | `jacquard-field` | Field-private posterior state, mean-field compression, regime/posture control state, Telltale-backed frozen-snapshot search, bounded runtime-round diagnostics, continuation scoring, and any field-private choreography runtime used only for observational summary exchange. |
@@ -124,10 +125,12 @@ Each crate owns a narrow slice of runtime state.
 | `jacquard-batman-classic` | BATMAN Classic-private OGM-carried TQ state, receive windows, echo-based bidirectionality tables, learned advertisement state, next-hop ranking tables, and active next-hop forwarding records. |
 | `jacquard-babel` | Babel-private route table, feasibility-distance state, additive-metric scoring, seqno management, and active next-hop forwarding records. |
 | `jacquard-olsrv2` | OLSRv2-private HELLO state, symmetric-neighbor and two-hop reachability tables, deterministic MPR state, TC topology tuples, shortest-path derivation, and active next-hop forwarding records. |
+| `jacquard-scatter` | Scatter-private retained messages, peer observations, per-route progress, replication and handoff state, and deterministic regime, budget, and transport policy thresholds. |
 | `jacquard-router` | Canonical route identity, materialization inputs, leases, handle issuance, top-level route-health publication, and multi-engine orchestration state. |
 | `jacquard-mem-node-profile` | In-memory node capability and node-state modeling only. No routing semantics. |
 | `jacquard-mem-link-profile` | In-memory link capability, carrier, retention, and runtime-effect adapter state only. No canonical routing truth. |
 | `jacquard-reference-client` | Narrow host-side bridge composition of profile implementations, bridge-owned drivers, router, and one or more in-tree engine instances for tests and examples. Observational with respect to canonical route truth, but owner of ingress queueing and round advancement in the reference harness. |
+| `jacquard-testkit` | Shared test fixtures and scenario helpers consumed by the simulator and reference-client test suites. No canonical route truth. |
 | `jacquard-simulator` | Replay artifacts, scenario traces, post-run analysis, and model-lane orchestration over engine-owned planner, reducer, and restore surfaces. No canonical route truth during a live run. |
 
 A host-owned policy engine above the router may own cross-engine migration policy and substrate selection.
