@@ -32,15 +32,19 @@
 #![forbid(unsafe_code)]
 
 mod claims;
+mod decay_window;
 mod dispatch;
 mod endpoint;
 mod mailbox;
+mod ogm_receive_window;
 mod peers;
 mod topology;
 
 pub use claims::*;
+pub use decay_window::*;
 pub use dispatch::*;
 pub use endpoint::*;
 pub use mailbox::*;
+pub use ogm_receive_window::*;
 pub use peers::*;
 pub use topology::*;

@@ -1,4 +1,5 @@
 //! Replay reduction: folds per-round events into the stable per-run summary schema.
+// long-file-exception: this module keeps the simulator's per-run summary reduction and its audit fixtures together so the exported schema stays traceable to one implementation point.
 
 #![allow(clippy::wildcard_imports)]
 
@@ -58,56 +59,138 @@ fn engine_handoff_count_for(
     u32::try_from(distinct.saturating_sub(1)).unwrap_or(u32::MAX)
 }
 
+fn broker_observation_counts_for(
+    observations: &[&ReducedRouteObservation],
+    broker_nodes: &BTreeSet<NodeId>,
+) -> (u32, u32, BTreeMap<NodeId, u32>) {
+    let mut visible_count = 0u32;
+    let mut broker_count = 0u32;
+    let mut usage_counts = BTreeMap::new();
+
+    for observation in observations {
+        if let Some(next_hop_node_id) = observation.next_hop_node_id {
+            visible_count = visible_count.saturating_add(1);
+            if broker_nodes.contains(&next_hop_node_id) {
+                broker_count = broker_count.saturating_add(1);
+                *usage_counts.entry(next_hop_node_id).or_insert(0) += 1;
+            }
+        }
+    }
+
+    (visible_count, broker_count, usage_counts)
+}
+
+fn broker_route_churn_count_for(
+    observations: &[&ReducedRouteObservation],
+    broker_nodes: &BTreeSet<NodeId>,
+) -> u32 {
+    let count = observations
+        .windows(2)
+        .filter(|window| {
+            window.iter().any(|observation| {
+                observation
+                    .next_hop_node_id
+                    .is_some_and(|next_hop_node_id| broker_nodes.contains(&next_hop_node_id))
+            })
+        })
+        .count();
+    u32::try_from(count).unwrap_or(u32::MAX)
+}
+
 // long-block-exception: one reducer intentionally computes the stable per-run
 // summary schema directly from the replay view in one auditable pass.
 pub(super) fn summarize_run(
     spec: &ExperimentRunSpec,
+    scenario: &JacquardScenario,
     reduced: &ReducedReplayView,
 ) -> ExperimentRunSummary {
     let mut objective_count = 0u32;
     let mut activation_successes = 0u32;
     let mut present_round_total = 0u32;
     let mut present_round_total_window_total = 0u32;
+    let mut objective_route_presence_permille = Vec::new();
     let mut first_route_rounds = Vec::new();
+    let mut first_disruption_rounds = Vec::new();
     let mut first_loss_rounds = Vec::new();
+    let mut stale_persistence_rounds = Vec::new();
     let mut recovery_rounds = Vec::new();
+    let mut recovery_success_count = 0u32;
+    let mut unrecovered_after_loss_count = 0u32;
+    let mut objective_starvation_count = 0u32;
     let mut churn_count = 0u32;
     let mut handoff_count = 0u32;
     let mut route_observation_count = 0u32;
+    let broker_nodes = scenario
+        .broker_nodes()
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let mut broker_visible_observation_count = 0u32;
+    let mut broker_participating_observation_count = 0u32;
+    let mut broker_usage_counts = BTreeMap::new();
+    let mut broker_route_churn_count = 0u32;
+    let mut hop_counts = Vec::new();
     let mut stability_scores = Vec::new();
-    let owner_nodes = spec
-        .scenario
+    let owner_nodes = scenario
         .bound_objectives()
         .iter()
         .map(|binding| binding.owner_node_id)
         .collect::<BTreeSet<_>>();
     let route_observations = reduced.route_observations();
 
-    for binding in spec.scenario.bound_objectives() {
+    for binding in scenario.bound_objectives() {
         objective_count = objective_count.saturating_add(1);
+        let mut objective_route_observations = route_observations_for(
+            &route_observations,
+            binding.owner_node_id,
+            &binding.objective.destination,
+        )
+        .collect::<Vec<_>>();
+        objective_route_observations
+            .sort_by_key(|observation| (observation.first_seen_round, observation.last_seen_round));
         let present_rounds =
             reduced.route_present_rounds(binding.owner_node_id, &binding.objective.destination);
+        let objective_presence_permille = active_window_route_presence_permille(
+            &present_rounds,
+            binding.activate_at_round,
+            reduced.round_count,
+        );
         if reduced.route_seen(binding.owner_node_id, &binding.objective.destination) {
             activation_successes = activation_successes.saturating_add(1);
         }
-        present_round_total =
-            present_round_total.saturating_add(active_window_route_presence_permille(
-                &present_rounds,
-                binding.activate_at_round,
-                reduced.round_count,
-            ));
+        present_round_total = present_round_total.saturating_add(objective_presence_permille);
         present_round_total_window_total = present_round_total_window_total
             .saturating_add(u32::try_from(present_rounds.len()).unwrap_or(u32::MAX));
+        objective_route_presence_permille.push(objective_presence_permille);
+        if objective_presence_permille == 0 {
+            objective_starvation_count = objective_starvation_count.saturating_add(1);
+        }
         first_route_rounds.push(
             reduced.first_round_with_route(binding.owner_node_id, &binding.objective.destination),
         );
-        first_loss_rounds.push(reduced.first_round_without_route_after_presence(
+        let first_disruption_round =
+            reduced.first_round_with_environment_change_at_or_after(binding.activate_at_round);
+        first_disruption_rounds.push(first_disruption_round);
+        let first_loss_round = reduced.first_round_without_route_after_presence(
             binding.owner_node_id,
             &binding.objective.destination,
-        ));
-        recovery_rounds.push(
-            reduced.recovery_delta_rounds(binding.owner_node_id, &binding.objective.destination),
         );
+        first_loss_rounds.push(first_loss_round);
+        let recovery_round =
+            reduced.recovery_delta_rounds(binding.owner_node_id, &binding.objective.destination);
+        recovery_rounds.push(recovery_round);
+        if recovery_round.is_some() {
+            recovery_success_count = recovery_success_count.saturating_add(1);
+        } else if first_loss_round.is_some() {
+            unrecovered_after_loss_count = unrecovered_after_loss_count.saturating_add(1);
+        }
+        stale_persistence_rounds.push(match (first_disruption_round, first_loss_round) {
+            (Some(disruption), Some(loss_round)) if loss_round >= disruption => {
+                Some(loss_round.saturating_sub(disruption))
+            }
+            (Some(_), Some(_)) => Some(0),
+            _ => None,
+        });
         churn_count = churn_count.saturating_add(route_churn_count_for(
             &route_observations,
             binding.owner_node_id,
@@ -118,21 +201,70 @@ pub(super) fn summarize_run(
             binding.owner_node_id,
             &binding.objective.destination,
         ));
-        route_observation_count = route_observation_count.saturating_add(
-            u32::try_from(
-                route_observations_for(
-                    &route_observations,
-                    binding.owner_node_id,
-                    &binding.objective.destination,
-                )
-                .count(),
-            )
-            .unwrap_or(u32::MAX),
+        route_observation_count = route_observation_count
+            .saturating_add(u32::try_from(objective_route_observations.len()).unwrap_or(u32::MAX));
+        if !broker_nodes.is_empty() {
+            let (visible_count, participation_count, usage_counts) =
+                broker_observation_counts_for(&objective_route_observations, &broker_nodes);
+            broker_visible_observation_count =
+                broker_visible_observation_count.saturating_add(visible_count);
+            broker_participating_observation_count =
+                broker_participating_observation_count.saturating_add(participation_count);
+            for (broker_node_id, count) in usage_counts {
+                *broker_usage_counts.entry(broker_node_id).or_insert(0) += count;
+            }
+            broker_route_churn_count = broker_route_churn_count.saturating_add(
+                broker_route_churn_count_for(&objective_route_observations, &broker_nodes),
+            );
+        }
+        hop_counts.extend(
+            reduced.route_hop_counts(binding.owner_node_id, &binding.objective.destination),
         );
         stability_scores.extend(
             reduced.route_stability_scores(binding.owner_node_id, &binding.objective.destination),
         );
     }
+    let broker_metrics_observable =
+        !broker_nodes.is_empty() && broker_visible_observation_count > 0;
+    let broker_participation_permille = broker_metrics_observable.then(|| {
+        ratio_permille(
+            broker_participating_observation_count,
+            broker_visible_observation_count,
+        )
+    });
+    let broker_concentration_permille = broker_metrics_observable.then(|| {
+        ratio_permille(
+            broker_usage_counts.values().copied().max().unwrap_or(0),
+            broker_participating_observation_count.max(1),
+        )
+    });
+    let broker_route_churn_count = broker_metrics_observable.then_some(broker_route_churn_count);
+
+    let (
+        objective_route_presence_min_permille,
+        objective_route_presence_max_permille,
+        objective_route_presence_spread,
+    ) = min_max_spread_u32(objective_route_presence_permille.iter().copied());
+    let concurrent_route_round_count = u32::try_from(
+        reduced
+            .rounds
+            .iter()
+            .filter(|round| {
+                scenario
+                    .bound_objectives()
+                    .iter()
+                    .filter(|binding| {
+                        round.active_routes.iter().any(|route| {
+                            route.owner_node_id == binding.owner_node_id
+                                && route.destination == binding.objective.destination
+                        })
+                    })
+                    .count()
+                    >= 2
+            })
+            .count(),
+    )
+    .unwrap_or(u32::MAX);
 
     let engine_round_counts = engine_round_counts(reduced);
     let no_route_rounds = reduced
@@ -340,7 +472,7 @@ pub(super) fn summarize_run(
         );
     }
 
-    for binding in spec.scenario.bound_objectives() {
+    for binding in scenario.bound_objectives() {
         field_commitment_resolution = field_commitment_resolution.or_else(|| {
             reduced.last_field_commitment_resolution(
                 binding.owner_node_id,
@@ -375,7 +507,7 @@ pub(super) fn summarize_run(
         run_id: spec.run_id.clone(),
         suite_id: spec.suite_id.clone(),
         family_id: spec.family_id.clone(),
-        scenario_name: spec.scenario.name().to_string(),
+        scenario_name: scenario.name().to_string(),
         engine_family: spec.engine_family.clone(),
         execution_lane: spec.execution_lane.label().to_string(),
         config_id: spec.parameters.config_id.clone(),
@@ -425,9 +557,23 @@ pub(super) fn summarize_run(
             present_round_total_window_total,
             objective_count.saturating_mul(reduced.round_count.max(1)),
         ),
+        objective_route_presence_min_permille,
+        objective_route_presence_max_permille,
+        objective_route_presence_spread,
+        objective_starvation_count,
+        concurrent_route_round_count,
         first_materialization_round_mean: average_option_u32(&first_route_rounds),
+        first_disruption_round_mean: average_option_u32(&first_disruption_rounds),
         first_loss_round_mean: average_option_u32(&first_loss_rounds),
+        stale_persistence_round_mean: average_option_u32(&stale_persistence_rounds),
         recovery_round_mean: average_option_u32(&recovery_rounds),
+        recovery_success_permille: ratio_permille(recovery_success_count, objective_count.max(1)),
+        unrecovered_after_loss_count,
+        broker_participation_permille,
+        broker_concentration_permille,
+        broker_route_churn_count,
+        active_route_hop_count_mean: (!hop_counts.is_empty())
+            .then(|| average_u32(hop_counts.iter().copied())),
         route_churn_count: churn_count,
         engine_handoff_count: handoff_count,
         route_observation_count,
@@ -529,7 +675,8 @@ pub(super) fn summarize_run(
 
 // long-block-exception: the aggregate summary intentionally stays in one grouped
 // reduction so the output schema remains easy to audit against the run schema.
-pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSummary> {
+#[must_use]
+pub fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateSummary> {
     type AggregateGroupKey = (String, String, String, Option<String>, String);
     type AggregateGroup<'a> = Vec<&'a ExperimentRunSummary>;
 
@@ -576,16 +723,55 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
                     .iter()
                     .map(|run| run.route_present_total_window_permille),
             );
+            let objective_route_presence_min_permille_mean = average_u32(
+                group
+                    .iter()
+                    .map(|run| run.objective_route_presence_min_permille),
+            );
+            let objective_route_presence_max_permille_mean = average_u32(
+                group
+                    .iter()
+                    .map(|run| run.objective_route_presence_max_permille),
+            );
+            let objective_route_presence_spread_mean =
+                average_u32(group.iter().map(|run| run.objective_route_presence_spread));
+            let objective_starvation_count_mean =
+                average_u32(group.iter().map(|run| run.objective_starvation_count));
+            let concurrent_route_round_count_mean =
+                average_u32(group.iter().map(|run| run.concurrent_route_round_count));
             let first_materialization_round_mean = average_option_u32_from_iter(
                 group.iter().map(|run| run.first_materialization_round_mean),
             );
+            let first_disruption_round_mean = average_option_u32_from_iter(
+                group.iter().map(|run| run.first_disruption_round_mean),
+            );
             let first_loss_round_mean =
                 average_option_u32_from_iter(group.iter().map(|run| run.first_loss_round_mean));
+            let stale_persistence_round_mean = average_option_u32_from_iter(
+                group.iter().map(|run| run.stale_persistence_round_mean),
+            );
             let recovery_round_mean =
                 average_option_u32_from_iter(group.iter().map(|run| run.recovery_round_mean));
+            let recovery_success_permille_mean =
+                average_u32(group.iter().map(|run| run.recovery_success_permille));
+            let unrecovered_after_loss_count_mean =
+                average_u32(group.iter().map(|run| run.unrecovered_after_loss_count));
+            let broker_participation_permille_mean = average_option_u32_from_iter(
+                group.iter().map(|run| run.broker_participation_permille),
+            );
+            let broker_concentration_permille_mean = average_option_u32_from_iter(
+                group.iter().map(|run| run.broker_concentration_permille),
+            );
+            let broker_route_churn_count_mean =
+                average_option_u32_from_iter(group.iter().map(|run| run.broker_route_churn_count));
+            let active_route_hop_count_mean = average_option_u32_from_iter(
+                group.iter().map(|run| run.active_route_hop_count_mean),
+            );
             let route_churn_count_mean = average_u32(group.iter().map(|run| run.route_churn_count));
             let engine_handoff_count_mean =
                 average_u32(group.iter().map(|run| run.engine_handoff_count));
+            let route_observation_count_mean =
+                average_u32(group.iter().map(|run| run.route_observation_count));
             let stability_first_mean =
                 average_option_u32_from_iter(group.iter().map(|run| run.stability_first));
             let stability_last_mean =
@@ -784,11 +970,25 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
                 route_present_permille_max,
                 route_present_permille_spread,
                 route_present_total_window_permille_mean,
+                objective_route_presence_min_permille_mean,
+                objective_route_presence_max_permille_mean,
+                objective_route_presence_spread_mean,
+                objective_starvation_count_mean,
+                concurrent_route_round_count_mean,
                 first_materialization_round_mean,
+                first_disruption_round_mean,
                 first_loss_round_mean,
+                stale_persistence_round_mean,
                 recovery_round_mean,
+                recovery_success_permille_mean,
+                unrecovered_after_loss_count_mean,
+                broker_participation_permille_mean,
+                broker_concentration_permille_mean,
+                broker_route_churn_count_mean,
+                active_route_hop_count_mean,
                 route_churn_count_mean,
                 engine_handoff_count_mean,
+                route_observation_count_mean,
                 dominant_engine: engine_mode,
                 batman_bellman_selected_rounds_mean,
                 batman_classic_selected_rounds_mean,
@@ -841,7 +1041,8 @@ pub(super) fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAgg
         .collect()
 }
 
-pub(super) fn summarize_breakdowns(
+#[must_use]
+pub fn summarize_breakdowns(
     aggregates: &[ExperimentAggregateSummary],
 ) -> Vec<ExperimentBreakdownSummary> {
     let mut grouped: BTreeMap<(String, String, String), Vec<&ExperimentAggregateSummary>> =
@@ -902,6 +1103,155 @@ pub(super) fn summarize_breakdowns(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        environment::AppliedEnvironmentHook, ActiveRouteSummary, ReducedReplayRound,
+        SimulationExecutionLane,
+    };
+    use jacquard_core::{HealthScore, RouteId, RouteLifecycleEvent};
+
+    fn synthetic_summary_spec() -> ExperimentRunSpec {
+        let owner_node_id = node_id(1);
+        let destination_node_id = node_id(2);
+        let topology = topology_from_byte_nodes_and_edges(
+            comparison_topology_nodes_for_bytes(&[1, 2], None),
+            &[(1, 2)],
+            1,
+        );
+        let scenario = route_visible_template(
+            "summary-synthetic-recovery".to_string(),
+            SimulationSeed(41),
+            jacquard_core::OperatingMode::DenseInteractive,
+            topology,
+            vec![
+                HostSpec::pathway(owner_node_id).with_profile(best_effort_connected_profile()),
+                HostSpec::pathway(destination_node_id)
+                    .with_profile(best_effort_connected_profile()),
+            ],
+            vec![
+                BoundObjective::new(owner_node_id, connected_objective(destination_node_id))
+                    .with_activation_round(1),
+            ],
+            6,
+        )
+        .into_scenario(&ExperimentParameterSet::pathway(
+            4,
+            PathwaySearchHeuristicMode::Zero,
+        ))
+        .with_broker_nodes(vec![destination_node_id]);
+        ExperimentRunSpec {
+            run_id: "summary-synthetic-recovery".to_string(),
+            suite_id: "summary-tests".to_string(),
+            family_id: "summary-synthetic-recovery".to_string(),
+            engine_family: "pathway".to_string(),
+            execution_lane: SimulationExecutionLane::FullStack,
+            seed: SimulationSeed(41),
+            regime: regime((
+                "synthetic",
+                "low",
+                "low",
+                "none",
+                "single-repair",
+                "none",
+                "connected-only",
+                12,
+            )),
+            parameters: ExperimentParameterSet::pathway(4, PathwaySearchHeuristicMode::Zero),
+            world: ExperimentRunWorld::Prepared {
+                scenario: Box::new(scenario),
+                environment: ScriptedEnvironmentModel::default(),
+            },
+            model_case: None,
+        }
+    }
+
+    // long-block-exception: this synthetic replay fixture keeps the full reduced surface sample in one place for auditability.
+    fn synthetic_reduced_replay() -> ReducedReplayView {
+        let owner_node_id = node_id(1);
+        let destination_node_id = node_id(2);
+        let destination = DestinationId::Node(destination_node_id);
+        let route = ActiveRouteSummary {
+            owner_node_id,
+            route_id: RouteId([7; 16]),
+            destination: destination.clone(),
+            engine_id: PATHWAY_ENGINE_ID,
+            next_hop_node_id: Some(destination_node_id),
+            hop_count_hint: Some(1),
+            last_lifecycle_event: RouteLifecycleEvent::Activated,
+            reachability_state: jacquard_core::ReachabilityState::Reachable,
+            stability_score: HealthScore(900),
+            commitment_resolution: None,
+            field_continuity_band: None,
+            field_last_outcome: None,
+            field_last_promotion_decision: None,
+            field_last_promotion_blocker: None,
+            field_continuation_shift_count: None,
+        };
+        ReducedReplayView {
+            scenario_name: "summary-synthetic-recovery".to_string(),
+            round_count: 6,
+            rounds: vec![
+                ReducedReplayRound {
+                    round_index: 0,
+                    active_routes: Vec::new(),
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 1,
+                    active_routes: vec![route.clone()],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 2,
+                    active_routes: vec![route.clone()],
+                    environment_hooks: vec![AppliedEnvironmentHook {
+                        at_tick: Tick(2),
+                        hook: EnvironmentHook::ReplaceTopology {
+                            configuration: Observation {
+                                value: topology_from_byte_nodes_and_edges(
+                                    comparison_topology_nodes_for_bytes(&[1, 2], None),
+                                    &[(1, 2)],
+                                    1,
+                                )
+                                .value,
+                                source_class: FactSourceClass::Local,
+                                evidence_class: RoutingEvidenceClass::DirectObservation,
+                                origin_authentication: OriginAuthenticationClass::Controlled,
+                                observed_at_tick: Tick(2),
+                            }
+                            .value,
+                        },
+                    }],
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 3,
+                    active_routes: Vec::new(),
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 4,
+                    active_routes: Vec::new(),
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 5,
+                    active_routes: vec![ActiveRouteSummary {
+                        last_lifecycle_event: RouteLifecycleEvent::Repaired,
+                        ..route
+                    }],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+            ],
+            distinct_engine_ids: vec![PATHWAY_ENGINE_ID],
+            driver_status_events: Vec::new(),
+            failure_summaries: Vec::new(),
+        }
+    }
 
     #[test]
     fn active_window_route_presence_reaches_full_score_after_delayed_activation() {
@@ -922,5 +1272,26 @@ mod tests {
             active_window_route_presence_permille(&present_rounds, 3, 8),
             1000
         );
+    }
+
+    #[test]
+    fn summarize_run_reports_hand_checked_stale_repair_metrics() {
+        let spec = synthetic_summary_spec();
+        let scenario = spec
+            .prepared_scenario()
+            .expect("synthetic summary spec should retain a prepared scenario");
+        let summary = summarize_run(&spec, scenario, &synthetic_reduced_replay());
+
+        assert_eq!(summary.first_disruption_round_mean, Some(2));
+        assert_eq!(summary.first_loss_round_mean, Some(3));
+        assert_eq!(summary.stale_persistence_round_mean, Some(1));
+        assert_eq!(summary.recovery_round_mean, Some(2));
+        assert_eq!(summary.recovery_success_permille, 1000);
+        assert_eq!(summary.unrecovered_after_loss_count, 0);
+        assert_eq!(summary.broker_participation_permille, Some(1000));
+        assert_eq!(summary.broker_concentration_permille, Some(1000));
+        assert_eq!(summary.broker_route_churn_count, Some(0));
+        assert_eq!(summary.route_churn_count, 0);
+        assert_eq!(summary.route_observation_count, 1);
     }
 }

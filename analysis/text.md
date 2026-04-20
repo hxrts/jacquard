@@ -462,6 +462,66 @@ Interpret the point positions by quadrant: the useful region is high delivery wi
 - The combined `pathway-batman-bellman` stack materially closes the multi-bottleneck gap versus plain `pathway`, reaching {multi_bottleneck_pathway_batman_route} permille in the high band versus {multi_bottleneck_pathway_route} for `pathway` alone.
 - The sparse-threshold high band still shows viable `{sparse_viable}` against explosive `{sparse_explosive}`, the congestion-threshold moderate band separates viable `{congestion_viable}` from collapse `{congestion_collapse}`, the congestion-threshold high band is currently only `{congestion_high_states}`, and the regional-shift high band still spans `{regional_states}`.
 
+## Routing-Fitness Remaining Questions
+
+### Routing-Fitness Introduction
+
+The earlier route-visible and large-population sections were enough to choose a design direction, but not enough to close the remaining fitness-for-purpose questions. Three gaps remained: where explicit search stops being sufficient by itself, what shared-broker contention does to the weakest flow rather than the mean, and whether delayed or asymmetric observations cause the router to cling to dead routes after the ground truth changes.
+
+This section answers those questions directly. The crossover sweep reuses the maintained large-pop route-visible bands as a controlled search-burden versus maintenance-benefit surface. The multi-flow families force several simultaneous objectives through shared brokers. The stale-repair families inject host-specific lag windows so different regions act on delayed topology knowledge even though the underlying ground truth changes on one deterministic schedule.
+
+Across these summaries, route churn is the report-primary cost metric and the route-observation count is retained as a control-activity proxy in the generated CSVs and figure hover data. That keeps the tables compact while preserving one explicit cost surface beyond route presence alone.
+
+### Routing-Fitness Crossover Summary
+
+@table routing_fitness_crossover_summary
+
+Compact crossover view for the remaining route-visible design question. Column guide: Question is the analytical axis, Band is the maintained difficulty band, Engine Set is the standalone routing stack, Route is total-window route presence, Recov. is recovery success after a loss, Loss is the first-loss round, Churn is mean route churn, and Hop is the active-route hop-count proxy.
+
+### Routing-Fitness Multi-Flow Summary
+
+@table routing_fitness_multiflow_summary
+
+Compact fairness view for the shared-broker families. Column guide: Min and Max are the weakest and strongest per-flow route-presence means, Spread is the gap between them, Starved is the mean count of objectives with zero route presence, Broker reports broker participation and bottleneck concentration as `participation/concentration` percentages, Conc. is the mean number of rounds where multiple objectives are simultaneously live, and Churn is mean route churn.
+
+### Routing-Fitness Stale Repair Summary
+
+@table routing_fitness_stale_repair_summary
+
+Compact stale-information repair view. Column guide: Persist is the mean bad-route persistence after the first disruptive topology change, Recov. is recovery success, Unrec. is mean unrecovered-after-loss count, Loss is the first-loss round, and Churn is mean route churn.
+
+### Routing-Fitness Figure Context
+
+These figures isolate the last three decision questions directly: crossover under larger graph pressure, fairness under shared-broker contention, and stale-route persistence under delayed observations. They are meant to be read as envelope charts, not just winner charts.
+
+#### Figure 25
+
+@figure routing_fitness_crossover
+
+Crossover view for the remaining route-visible design boundary. Each panel fixes one analytical question and moves from low to high difficulty. Solid lines show total-window route presence and dashed lines show recovery success, so the useful operating envelope is where an engine keeps both high as the band hardens.
+
+#### Figure 26
+
+@figure routing_fitness_multiflow
+
+Multi-flow fairness under shared-broker contention. Each row spans the weakest-to-strongest per-flow route-presence results for one engine set in that family. Narrow spans with high left endpoints are good because they mean the weakest flow still gets service instead of the mean hiding a bad tail.
+The broker detail labels summarize how much of the visible route activity still traverses tagged brokers and how concentrated that load becomes on the hottest broker.
+
+#### Figure 27
+
+@figure routing_fitness_stale_repair
+
+Bad-route persistence after delayed or asymmetric observations. Shorter bars are better because they mean the engine stops trusting stale routing state quickly after disruption. The labels show recovery success and unrecovered counts so the figure separates fast cleanup from cleanup that still fails to recover.
+
+### Routing-Fitness Takeaways
+
+- In the high search-burden crossover band, {search_high_engines} lead at {search_high_route} permille total-window route presence with {search_high_recovery} permille recovery success.
+- In the high maintenance-benefit crossover band, {maintenance_high_engines} lead at {maintenance_high_route} permille total-window route presence with {maintenance_high_recovery} permille recovery success.
+- Under shared-broker contention, `Shared corridor` is best handled by {shared_corridor_engines} at {shared_corridor_min_route} permille minimum per-flow route presence, while `Detour choice` is best handled by {detour_choice_engines} at {detour_choice_min_route} permille.
+- The harshest fairness tail is currently `{worst_starvation_family}`, where `{worst_starvation_engine}` still records {worst_starvation_value} starved objectives on average.
+- In the stale-repair surface, `Recovery window` is best handled by {stale_best_engines} at {stale_best_persistence} rounds of stale persistence and {stale_best_recovery} permille recovery success, while the worst stale overcommit is `{worst_stale_family}` under `{worst_stale_engine}` at {worst_stale_persistence} rounds and only {worst_stale_recovery} permille recovery success.
+- Taken together, the new evidence says the candidate direction is {routing_fitness_envelope}.
+
 ## Part III. Diffusion Calibration
 
 ### Diffusion Calibration Introduction
@@ -557,13 +617,13 @@ Full maintained diffusion engine surface. Column guide: Family, Engine Set, Deli
 
 These two figures separate delivery success from resource boundedness across the most discriminating maintained diffusion families.
 
-#### Figure 20
+#### Figure 28
 
 @figure diffusion_delivery_coverage
 
 Diffusion delivery and coverage by scenario family. Longer bars are better because they indicate more successful delivery; the dot shows coverage, so a wider gap between bar and dot means delivery is lagging behind spread. Strong performers keep both high rather than trading one off against the other.
 
-#### Figure 21
+#### Figure 29
 
 @figure diffusion_resource_boundedness
 
@@ -595,7 +655,7 @@ These tables provide the detailed tuning reference material behind the main reco
 
 ### Route-Visible Reference Tables Intro
 
-These tables collect the exhaustive mixed-engine, mixed-engine selected-round breakdown, and head-to-head route-visible results referenced by the main comparison section.
+These tables collect the exhaustive mixed-engine, mixed-engine selected-round breakdown, head-to-head route-visible results, and the remaining routing-fitness summary tables referenced by the main comparison sections.
 
 ### Diffusion Reference Tables Intro
 
@@ -822,3 +882,5 @@ These recommendations are only as good as the simulated regime corpus. A flat cu
 The BATMAN Bellman corpus exposes recoverable transition differences, but asymmetry-plus-bridge families remain hard failures. The BATMAN Classic corpus confirms slower convergence and tight clustering of decay window settings. The Babel corpus shows measurably different behavior under asymmetric conditions, with the FD table visible in partition recovery, but decay window settings do not yet separate sharply. The OLSRv2 corpus separates most clearly on topology propagation, MPR flooding stability, and asymmetric relink timing, but the maintained window sweep is still narrow enough that several settings remain tied on route visibility. The Pathway corpus identifies the minimum viable budget floor with a wide plateau above it.
 
 The Field corpus reaches the route-visible boundary with an explicit bootstrap phase and working service-corridor path, but tested settings cluster tightly. The bridge anti-entropy and bootstrap-upgrade families allow the report to distinguish between underexercise and real weakness. The remaining limitation is that tested settings cluster closely, leaving room for more discriminating future regime design.
+
+The remaining routing-fitness experiments narrow the route-visible decision to one explicit envelope rather than several open questions. Within the tested search-burden, shared-broker, and stale-observation bands, the hybrid search-plus-maintenance direction is supported as fit for purpose; pure search degrades earlier once diameter and shared bottlenecks both rise. The remaining limitation is now extrapolation beyond this maintained envelope, not uncertainty about the basic direction inside it.

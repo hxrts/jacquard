@@ -5,6 +5,12 @@ import unittest
 import polars as pl
 
 from analysis.constants import ROUTE_VISIBLE_ENGINE_SET_ORDER
+from analysis.plots import (
+    render_routing_fitness_crossover,
+    render_routing_fitness_multiflow,
+    render_routing_fitness_stale_repair,
+)
+from analysis.sections import routing_fitness_takeaway_lines
 from analysis.scoring import (
     benchmark_profile_audit_table,
     diffusion_baseline_audit_table,
@@ -18,6 +24,9 @@ from analysis.scoring import (
     large_population_diffusion_transition_table,
     large_population_route_summary_table,
     recommendation_table,
+    routing_fitness_crossover_summary_table,
+    routing_fitness_multiflow_summary_table,
+    routing_fitness_stale_repair_summary_table,
 )
 
 
@@ -161,6 +170,119 @@ def _benchmark_profile_recommendations() -> pl.DataFrame:
                 "activation_success_mean": 1000.0,
                 "route_present_mean": 900.0,
                 "max_sustained_stress_score": 60,
+            },
+        ]
+    )
+
+
+def _routing_fitness_aggregates() -> pl.DataFrame:
+    return pl.from_dicts(
+        [
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-large-core-periphery-high",
+                "comparison_engine_set": "pathway",
+                "route_present_total_window_permille_mean": 720.0,
+                "route_present_permille_mean": 790.0,
+                "recovery_success_permille_mean": 780.0,
+                "first_loss_round_mean": 16.0,
+                "recovery_round_mean": 18.0,
+                "route_churn_count_mean": 2.0,
+                "active_route_hop_count_mean": 3.4,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-large-core-periphery-high",
+                "comparison_engine_set": "pathway-batman-bellman",
+                "route_present_total_window_permille_mean": 680.0,
+                "route_present_permille_mean": 760.0,
+                "recovery_success_permille_mean": 810.0,
+                "first_loss_round_mean": 18.0,
+                "recovery_round_mean": 19.0,
+                "route_churn_count_mean": 2.7,
+                "active_route_hop_count_mean": 3.1,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-large-multi-bottleneck-high",
+                "comparison_engine_set": "pathway",
+                "route_present_total_window_permille_mean": 640.0,
+                "route_present_permille_mean": 710.0,
+                "recovery_success_permille_mean": 520.0,
+                "first_loss_round_mean": 9.0,
+                "recovery_round_mean": 16.0,
+                "route_churn_count_mean": 4.8,
+                "active_route_hop_count_mean": 4.2,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-large-multi-bottleneck-high",
+                "comparison_engine_set": "pathway-batman-bellman",
+                "route_present_total_window_permille_mean": 920.0,
+                "route_present_permille_mean": 950.0,
+                "recovery_success_permille_mean": 910.0,
+                "first_loss_round_mean": 19.0,
+                "recovery_round_mean": 20.0,
+                "route_churn_count_mean": 1.9,
+                "active_route_hop_count_mean": 4.0,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-multi-flow-shared-corridor",
+                "comparison_engine_set": "pathway",
+                "route_present_total_window_permille_mean": 710.0,
+                "objective_route_presence_min_permille_mean": 410.0,
+                "objective_route_presence_max_permille_mean": 870.0,
+                "objective_route_presence_spread_mean": 460.0,
+                "objective_starvation_count_mean": 1.0,
+                "concurrent_route_round_count_mean": 6.0,
+                "broker_participation_permille_mean": 920.0,
+                "broker_concentration_permille_mean": 810.0,
+                "broker_route_churn_count_mean": 2.0,
+                "route_churn_count_mean": 3.2,
+                "active_route_hop_count_mean": 3.5,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-multi-flow-shared-corridor",
+                "comparison_engine_set": "pathway-batman-bellman",
+                "route_present_total_window_permille_mean": 900.0,
+                "objective_route_presence_min_permille_mean": 820.0,
+                "objective_route_presence_max_permille_mean": 930.0,
+                "objective_route_presence_spread_mean": 110.0,
+                "objective_starvation_count_mean": 0.0,
+                "concurrent_route_round_count_mean": 8.0,
+                "broker_participation_permille_mean": 870.0,
+                "broker_concentration_permille_mean": 640.0,
+                "broker_route_churn_count_mean": 1.0,
+                "route_churn_count_mean": 1.4,
+                "active_route_hop_count_mean": 3.1,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-stale-recovery-window",
+                "comparison_engine_set": "pathway",
+                "route_present_total_window_permille_mean": 620.0,
+                "first_disruption_round_mean": 7.0,
+                "first_loss_round_mean": 11.0,
+                "stale_persistence_round_mean": 4.0,
+                "recovery_round_mean": 17.0,
+                "recovery_success_permille_mean": 600.0,
+                "unrecovered_after_loss_count_mean": 1.0,
+                "route_churn_count_mean": 4.1,
+            },
+            {
+                "engine_family": "head-to-head",
+                "family_id": "head-to-head-stale-recovery-window",
+                "comparison_engine_set": "pathway-batman-bellman",
+                "route_present_total_window_permille_mean": 890.0,
+                "first_disruption_round_mean": 7.0,
+                "first_loss_round_mean": 9.0,
+                "stale_persistence_round_mean": 2.0,
+                "recovery_round_mean": 12.0,
+                "recovery_success_permille_mean": 900.0,
+                "unrecovered_after_loss_count_mean": 0.0,
+                "route_churn_count_mean": 1.8,
             },
         ]
     )
@@ -618,6 +740,256 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(sparse_row["collapse_config_id"], "transition-tight")
         self.assertEqual(sparse_row["viable_config_id"], "transition-balanced")
         self.assertEqual(sparse_row["explosive_config_id"], "transition-broad")
+
+    def test_routing_fitness_crossover_summary_keeps_high_band_ordering(self) -> None:
+        summary = routing_fitness_crossover_summary_table(_routing_fitness_aggregates())
+        high_rows = summary.filter(
+            (pl.col("question") == "maintenance-benefit") & (pl.col("band_label") == "high")
+        )
+        self.assertEqual(
+            high_rows["comparison_engine_set"].to_list(),
+            ["pathway", "pathway-batman-bellman"],
+        )
+        best = high_rows.sort(
+            ["route_present_total_window_permille_mean", "recovery_success_permille_mean"],
+            descending=[True, True],
+        ).row(0, named=True)
+        self.assertEqual(best["comparison_engine_set"], "pathway-batman-bellman")
+        self.assertEqual(best["route_present_total_window_permille_mean"], 920.0)
+
+    def test_routing_fitness_multiflow_summary_preserves_fairness_metrics(self) -> None:
+        summary = routing_fitness_multiflow_summary_table(_routing_fitness_aggregates())
+        row = summary.filter(
+            (pl.col("family_label") == "Shared corridor")
+            & (pl.col("comparison_engine_set") == "pathway-batman-bellman")
+        ).row(0, named=True)
+        self.assertEqual(row["objective_route_presence_min_permille_mean"], 820.0)
+        self.assertEqual(row["objective_route_presence_spread_mean"], 110.0)
+        self.assertEqual(row["objective_starvation_count_mean"], 0.0)
+        self.assertEqual(row["broker_participation_permille_mean"], 870.0)
+        self.assertEqual(row["broker_concentration_permille_mean"], 640.0)
+        self.assertEqual(row["broker_route_churn_count_mean"], 1.0)
+
+    def test_routing_fitness_stale_summary_preserves_repair_metrics(self) -> None:
+        summary = routing_fitness_stale_repair_summary_table(_routing_fitness_aggregates())
+        row = summary.filter(
+            (pl.col("family_label") == "Recovery window")
+            & (pl.col("comparison_engine_set") == "pathway-batman-bellman")
+        ).row(0, named=True)
+        self.assertEqual(row["stale_persistence_round_mean"], 2.0)
+        self.assertEqual(row["recovery_success_permille_mean"], 900.0)
+        self.assertEqual(row["unrecovered_after_loss_count_mean"], 0.0)
+
+    def test_routing_fitness_stale_summary_keeps_no_recovery_rows(self) -> None:
+        summary = routing_fitness_stale_repair_summary_table(
+            pl.from_dicts(
+                [
+                    {
+                        "engine_family": "head-to-head",
+                        "family_id": "head-to-head-stale-recovery-window",
+                        "comparison_engine_set": "pathway",
+                        "route_present_total_window_permille_mean": 410.0,
+                        "route_present_permille_mean": 410.0,
+                        "first_disruption_round_mean": 5.0,
+                        "first_loss_round_mean": 8.0,
+                        "stale_persistence_round_mean": 3.0,
+                        "recovery_round_mean": None,
+                        "recovery_success_permille_mean": 0.0,
+                        "unrecovered_after_loss_count_mean": 1.0,
+                        "route_churn_count_mean": 2.0,
+                    }
+                ]
+            )
+        )
+
+        row = summary.row(0, named=True)
+        self.assertEqual(row["stale_persistence_round_mean"], 3.0)
+        self.assertEqual(row["recovery_round_mean"], None)
+        self.assertEqual(row["unrecovered_after_loss_count_mean"], 1.0)
+
+    def test_routing_fitness_takeaways_close_with_tested_envelope(self) -> None:
+        lines = routing_fitness_takeaway_lines(
+            pl.from_dicts(
+                [
+                    {
+                        "question": "search-burden",
+                        "question_label": "Search burden crossover",
+                        "band_label": "high",
+                        "comparison_engine_set": "pathway",
+                        "route_present_total_window_permille_mean": 720.0,
+                        "recovery_success_permille_mean": 780.0,
+                    },
+                    {
+                        "question": "maintenance-benefit",
+                        "question_label": "Maintenance benefit crossover",
+                        "band_label": "high",
+                        "comparison_engine_set": "pathway-batman-bellman",
+                        "route_present_total_window_permille_mean": 920.0,
+                        "recovery_success_permille_mean": 910.0,
+                    },
+                ]
+            ),
+            pl.from_dicts(
+                [
+                    {
+                        "family_label": "Shared corridor",
+                        "comparison_engine_set": "pathway-batman-bellman",
+                        "objective_route_presence_min_permille_mean": 820.0,
+                        "objective_starvation_count_mean": 0.0,
+                    },
+                    {
+                        "family_label": "Detour choice",
+                        "comparison_engine_set": "pathway-batman-bellman",
+                        "objective_route_presence_min_permille_mean": 760.0,
+                        "objective_starvation_count_mean": 0.0,
+                    },
+                    {
+                        "family_label": "Asymmetric demand",
+                        "comparison_engine_set": "pathway",
+                        "objective_route_presence_min_permille_mean": 340.0,
+                        "objective_starvation_count_mean": 1.0,
+                    },
+                ]
+            ),
+            pl.from_dicts(
+                [
+                    {
+                        "family_label": "Recovery window",
+                        "comparison_engine_set": "pathway-batman-bellman",
+                        "stale_persistence_round_mean": 2.0,
+                        "recovery_success_permille_mean": 900.0,
+                    },
+                    {
+                        "family_label": "Delayed observation",
+                        "comparison_engine_set": "pathway",
+                        "stale_persistence_round_mean": 4.0,
+                        "recovery_success_permille_mean": 600.0,
+                    },
+                ]
+            ),
+        )
+
+        self.assertTrue(lines)
+        self.assertTrue(
+            any(
+                "fit-for-purpose inside the tested search-plus-maintenance envelope"
+                in line
+                for line in lines
+            )
+        )
+
+    def test_routing_fitness_takeaways_keep_tied_best_engine_labels_stable(self) -> None:
+        lines = routing_fitness_takeaway_lines(
+            pl.from_dicts(
+                [
+                    {
+                        "question": "search-burden",
+                        "question_label": "Search burden crossover",
+                        "band_label": "high",
+                        "comparison_engine_set": "field",
+                        "route_present_total_window_permille_mean": 720.0,
+                        "recovery_success_permille_mean": 780.0,
+                    },
+                    {
+                        "question": "search-burden",
+                        "question_label": "Search burden crossover",
+                        "band_label": "high",
+                        "comparison_engine_set": "pathway",
+                        "route_present_total_window_permille_mean": 720.0,
+                        "recovery_success_permille_mean": 780.0,
+                    },
+                    {
+                        "question": "search-burden",
+                        "question_label": "Search burden crossover",
+                        "band_label": "high",
+                        "comparison_engine_set": "pathway-batman-bellman",
+                        "route_present_total_window_permille_mean": 720.0,
+                        "recovery_success_permille_mean": 780.0,
+                    },
+                    {
+                        "question": "maintenance-benefit",
+                        "question_label": "Maintenance benefit crossover",
+                        "band_label": "high",
+                        "comparison_engine_set": "pathway-batman-bellman",
+                        "route_present_total_window_permille_mean": 920.0,
+                        "recovery_success_permille_mean": 910.0,
+                    },
+                ]
+            ),
+            pl.from_dicts(
+                [
+                    {
+                        "family_label": "Shared corridor",
+                        "comparison_engine_set": "pathway-batman-bellman",
+                        "objective_route_presence_min_permille_mean": 820.0,
+                        "objective_starvation_count_mean": 0.0,
+                    },
+                    {
+                        "family_label": "Detour choice",
+                        "comparison_engine_set": "pathway-batman-bellman",
+                        "objective_route_presence_min_permille_mean": 760.0,
+                        "objective_starvation_count_mean": 0.0,
+                    },
+                    {
+                        "family_label": "Asymmetric demand",
+                        "comparison_engine_set": "pathway",
+                        "objective_route_presence_min_permille_mean": 340.0,
+                        "objective_starvation_count_mean": 1.0,
+                    },
+                ]
+            ),
+            pl.from_dicts(
+                [
+                    {
+                        "family_label": "Recovery window",
+                        "comparison_engine_set": "pathway-batman-bellman",
+                        "stale_persistence_round_mean": 2.0,
+                        "recovery_success_permille_mean": 900.0,
+                    },
+                    {
+                        "family_label": "Delayed observation",
+                        "comparison_engine_set": "pathway",
+                        "stale_persistence_round_mean": 4.0,
+                        "recovery_success_permille_mean": 600.0,
+                    },
+                ]
+            ),
+        )
+
+        self.assertTrue(
+            any(
+                "`field`, `pathway`, and `pathway-batman-bellman`" in line
+                for line in lines
+            )
+        )
+
+    def test_routing_fitness_renderers_keep_deterministic_family_order(self) -> None:
+        crossover = render_routing_fitness_crossover(
+            routing_fitness_crossover_summary_table(_routing_fitness_aggregates()),
+            1200,
+            600,
+        ).to_dict()
+        crossover_rows = crossover["datasets"][crossover["data"]["name"]]
+        self.assertEqual(crossover_rows[0]["question_label"], "Maintenance benefit crossover")
+        self.assertEqual(crossover_rows[0]["band_label"], "High")
+
+        multiflow = render_routing_fitness_multiflow(
+            routing_fitness_multiflow_summary_table(_routing_fitness_aggregates()),
+            1200,
+            600,
+        ).to_dict()
+        multiflow_rows = multiflow["datasets"][multiflow["data"]["name"]]
+        self.assertEqual(multiflow_rows[0]["family_label"], "Shared corridor")
+        self.assertEqual(multiflow_rows[0]["engine_key"], "pathway")
+
+        stale = render_routing_fitness_stale_repair(
+            routing_fitness_stale_repair_summary_table(_routing_fitness_aggregates()),
+            1200,
+            600,
+        ).to_dict()
+        stale_rows = stale["datasets"][stale["data"]["name"]]
+        self.assertEqual(stale_rows[0]["family_label"], "Recovery window")
+        self.assertEqual(stale_rows[0]["engine_key"], "pathway")
 
 
 if __name__ == "__main__":

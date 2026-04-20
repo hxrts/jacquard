@@ -1,13 +1,11 @@
 //! Search runner: drives telltale-search for one field planning request.
 
-use std::collections::{BTreeMap, BTreeSet};
-
 use cfg_if::cfg_if;
 use jacquard_core::{Configuration, NodeId, Observation, RoutingObjective};
 use telltale_search::{
-    commit_epoch_reconfiguration, run_with_executor, validate_run_config,
-    EpochReconfigurationRequest, SearchMachine, SearchQuery, SearchSchedulerProfile,
-    SerialProposalExecutor,
+    commit_epoch_reconfiguration, run_with_executor, run_with_executor_report_only,
+    validate_run_config, EpochReconfigurationRequest, SearchMachine, SearchQuery,
+    SearchSchedulerProfile, SerialProposalExecutor,
 };
 
 cfg_if! {
@@ -41,10 +39,13 @@ type FieldSearchReplayArtifact = telltale_search::SearchReplayArtifact<
     u32,
 >;
 type FieldSearchRunResult = Result<
-    (FieldSearchExecutionReport, FieldSearchReplayArtifact),
+    (
+        FieldSearchExecutionReport,
+        Option<FieldSearchReplayArtifact>,
+    ),
     telltale_search::SearchRunError<&'static str>,
 >;
-type FieldSearchSuccessors = BTreeMap<NodeId, Vec<(NodeId, FieldSearchEdgeMeta, u32)>>;
+type FieldSearchSuccessors = Vec<(NodeId, Vec<(NodeId, FieldSearchEdgeMeta, u32)>)>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct FieldSearchSnapshotState {
@@ -59,7 +60,7 @@ impl FieldSearchSnapshotState {
     pub(crate) fn from_topology_and_config(
         topology: &Observation<Configuration>,
         accepted_node_ids: &[NodeId],
-        successors: BTreeMap<NodeId, Vec<(NodeId, FieldSearchEdgeMeta, u32)>>,
+        successors: FieldSearchSuccessors,
         search_config: &FieldSearchConfig,
     ) -> Self {
         let (epoch, _) = freeze_snapshot_for_search(
@@ -276,9 +277,9 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         objective: &RoutingObjective,
         prior_state: Option<&FieldSearchSnapshotState>,
         current_state: &FieldSearchSnapshotState,
-        current_successors: BTreeMap<NodeId, Vec<(NodeId, FieldSearchEdgeMeta, u32)>>,
+        current_successors: FieldSearchSuccessors,
     ) -> FieldSearchDomain {
-        let mut snapshots = BTreeMap::new();
+        let mut snapshots = Vec::new();
         if let Some(state) = prior_state.filter(|state| state.epoch != current_state.epoch) {
             let prior_successors =
                 self.freeze_successors_for_search(snapshot, objective, &state.topology);
@@ -288,7 +289,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 &state.accepted_node_ids,
                 state.heuristic_mode,
             );
-            snapshots.insert(prior_epoch, prior_snapshot);
+            snapshots.push((prior_epoch, prior_snapshot));
         }
         let (current_epoch, current_snapshot) = freeze_snapshot_for_search(
             &current_state.topology,
@@ -296,7 +297,8 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             &current_state.accepted_node_ids,
             current_state.heuristic_mode,
         );
-        snapshots.insert(current_epoch, current_snapshot);
+        snapshots.push((current_epoch, current_snapshot));
+        snapshots.sort_unstable_by(|left, right| left.0.cmp(&right.0));
         FieldSearchDomain::new(snapshots)
     }
 
@@ -306,19 +308,21 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
     ) -> FieldSearchSuccessors {
-        let frontier_neighbor_ids = self
-            .local_search_neighbor_ids(snapshot, objective, topology)
-            .into_iter()
-            .collect::<BTreeSet<_>>();
-        let node_ids = topology
+        let mut frontier_neighbor_ids =
+            self.local_search_neighbor_ids(snapshot, objective, topology);
+        frontier_neighbor_ids.sort_unstable();
+        frontier_neighbor_ids.dedup();
+        let mut node_ids = topology
             .value
             .nodes
             .keys()
             .copied()
             .chain([snapshot.local_node_id])
             .chain(frontier_neighbor_ids.iter().copied())
-            .collect::<BTreeSet<_>>();
-        let mut successors = BTreeMap::new();
+            .collect::<Vec<_>>();
+        node_ids.sort_unstable();
+        node_ids.dedup();
+        let mut successors = Vec::new();
         for from_node_id in node_ids {
             let mut edges = adjacent_node_ids(
                 &from_node_id,
@@ -354,7 +358,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             })
             .collect::<Vec<_>>();
             edges.sort_by(|left, right| left.0.cmp(&right.0));
-            successors.insert(from_node_id, edges);
+            successors.push((from_node_id, edges));
         }
         successors
     }
@@ -427,7 +431,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     .as_slice()
                     .iter()
                     .map(|entry| entry.neighbor_id)
-                    .collect::<BTreeSet<_>>()
+                    .collect::<Vec<_>>()
             })
             .unwrap_or_default();
         neighbors.extend(
@@ -435,7 +439,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 &snapshot.local_node_id,
                 &topology.value,
                 snapshot.local_node_id,
-                &BTreeSet::new(),
+                &[],
             )
             .into_iter()
             .filter(|neighbor| {
@@ -459,7 +463,9 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 })
                 .map(|evidence| evidence.from_neighbor),
         );
-        neighbors.into_iter().collect()
+        neighbors.sort_unstable();
+        neighbors.dedup();
+        neighbors
     }
 
     fn frontier_continuation_for_search(
@@ -625,22 +631,40 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         let run_config = config.run_config();
         cfg_if! {
             if #[cfg(target_arch = "wasm32")] {
-                validate_run_config::<FieldSearchDomain, _>(&SerialProposalExecutor, &run_config)
-                    .map_err(telltale_search::SearchRunError::InvalidConfig)?;
-                run_with_executor(machine, &SerialProposalExecutor, run_config)
+                if config.capture_replay_artifact() {
+                    validate_run_config::<FieldSearchDomain, _>(&SerialProposalExecutor, &run_config)
+                        .map_err(telltale_search::SearchRunError::InvalidConfig)?;
+                    run_with_executor(machine, &SerialProposalExecutor, run_config)
+                        .map(|(report, replay)| (report, Some(replay)))
+                } else {
+                    run_with_executor_report_only(machine, &SerialProposalExecutor, run_config)
+                        .map(|report| (report, None))
+                }
             } else {
                 if config.scheduler_profile() == SearchSchedulerProfile::ThreadedExactSingleLane {
                     let executor = NativeParallelExecutor::new(
                         NonZeroU64::new(config.batch_width()).expect("field batch width is non-zero"),
                     )
                     .expect("field threaded exact config requires native parallel executor support");
-                    validate_run_config::<FieldSearchDomain, _>(&executor, &run_config)
-                        .map_err(telltale_search::SearchRunError::InvalidConfig)?;
-                    run_with_executor(machine, &executor, run_config)
+                    if config.capture_replay_artifact() {
+                        validate_run_config::<FieldSearchDomain, _>(&executor, &run_config)
+                            .map_err(telltale_search::SearchRunError::InvalidConfig)?;
+                        run_with_executor(machine, &executor, run_config)
+                            .map(|(report, replay)| (report, Some(replay)))
+                    } else {
+                        run_with_executor_report_only(machine, &executor, run_config)
+                            .map(|report| (report, None))
+                    }
                 } else {
-                    validate_run_config::<FieldSearchDomain, _>(&SerialProposalExecutor, &run_config)
-                        .map_err(telltale_search::SearchRunError::InvalidConfig)?;
-                    run_with_executor(machine, &SerialProposalExecutor, run_config)
+                    if config.capture_replay_artifact() {
+                        validate_run_config::<FieldSearchDomain, _>(&SerialProposalExecutor, &run_config)
+                            .map_err(telltale_search::SearchRunError::InvalidConfig)?;
+                        run_with_executor(machine, &SerialProposalExecutor, run_config)
+                            .map(|(report, replay)| (report, Some(replay)))
+                    } else {
+                        run_with_executor_report_only(machine, &SerialProposalExecutor, run_config)
+                            .map(|report| (report, None))
+                    }
                 }
             }
         }
@@ -651,9 +675,9 @@ fn adjacent_node_ids(
     node_id: &NodeId,
     configuration: &Configuration,
     local_node_id: NodeId,
-    frontier_neighbor_ids: &BTreeSet<NodeId>,
+    frontier_neighbor_ids: &[NodeId],
 ) -> Vec<NodeId> {
-    configuration
+    let mut adjacent = configuration
         .links
         .keys()
         .filter_map(|(from_node_id, to_node_id)| {
@@ -671,9 +695,10 @@ fn adjacent_node_ids(
                 .into_iter()
                 .flatten(),
         )
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
+        .collect::<Vec<_>>();
+    adjacent.sort_unstable();
+    adjacent.dedup();
+    adjacent
 }
 
 fn nodes_are_adjacent(configuration: &Configuration, left: &NodeId, right: &NodeId) -> bool {

@@ -784,6 +784,170 @@ def large_population_takeaway_lines(
         regional_states=regional_row.get("observed_states") or "none",
     )
 
+
+def _top_rows(
+    table: pl.DataFrame,
+    *,
+    filters: list[tuple[str, object]],
+    sort_columns: list[str],
+    descending: list[bool],
+) -> list[dict]:
+    subset = table
+    for column, value in filters:
+        subset = subset.filter(pl.col(column) == value)
+    if subset.is_empty():
+        return []
+    best = subset.sort(sort_columns, descending=descending).head(1).row(0, named=True)
+    tied_best_filters = [
+        pl.col(column).is_null() if best[column] is None else pl.col(column) == best[column]
+        for column in sort_columns
+    ]
+    return list(
+        subset.filter(pl.all_horizontal(tied_best_filters))
+        .sort("comparison_engine_set")
+        .iter_rows(named=True)
+    )
+
+
+def routing_fitness_takeaway_lines(
+    routing_fitness_crossover_summary: pl.DataFrame,
+    routing_fitness_multiflow_summary: pl.DataFrame,
+    routing_fitness_stale_repair_summary: pl.DataFrame,
+) -> list[str]:
+    if (
+        routing_fitness_crossover_summary.is_empty()
+        or routing_fitness_multiflow_summary.is_empty()
+        or routing_fitness_stale_repair_summary.is_empty()
+    ):
+        return []
+
+    search_high_rows = _top_rows(
+        routing_fitness_crossover_summary,
+        filters=[("question", "search-burden"), ("band_label", "high")],
+        sort_columns=[
+            "route_present_total_window_permille_mean",
+            "recovery_success_permille_mean",
+        ],
+        descending=[True, True],
+    )
+    maintenance_high_rows = _top_rows(
+        routing_fitness_crossover_summary,
+        filters=[("question", "maintenance-benefit"), ("band_label", "high")],
+        sort_columns=[
+            "route_present_total_window_permille_mean",
+            "recovery_success_permille_mean",
+        ],
+        descending=[True, True],
+    )
+    shared_corridor_rows = _top_rows(
+        routing_fitness_multiflow_summary,
+        filters=[("family_label", "Shared corridor")],
+        sort_columns=[
+            "objective_route_presence_min_permille_mean",
+            "objective_starvation_count_mean",
+        ],
+        descending=[True, False],
+    )
+    detour_choice_rows = _top_rows(
+        routing_fitness_multiflow_summary,
+        filters=[("family_label", "Detour choice")],
+        sort_columns=[
+            "objective_route_presence_min_permille_mean",
+            "objective_starvation_count_mean",
+        ],
+        descending=[True, False],
+    )
+    stale_best_rows = _top_rows(
+        routing_fitness_stale_repair_summary,
+        filters=[("family_label", "Recovery window")],
+        sort_columns=[
+            "recovery_success_permille_mean",
+            "stale_persistence_round_mean",
+        ],
+        descending=[True, False],
+    )
+    if (
+        not search_high_rows
+        or not maintenance_high_rows
+        or not shared_corridor_rows
+        or not detour_choice_rows
+        or not stale_best_rows
+    ):
+        return []
+
+    search_high = search_high_rows[0]
+    maintenance_high = maintenance_high_rows[0]
+    shared_corridor = shared_corridor_rows[0]
+    detour_choice = detour_choice_rows[0]
+    stale_best = stale_best_rows[0]
+    worst_starvation = (
+        routing_fitness_multiflow_summary.sort(
+            [
+                "objective_starvation_count_mean",
+                "objective_route_presence_min_permille_mean",
+                "comparison_engine_set",
+            ],
+            descending=[True, False, False],
+        )
+        .head(1)
+        .row(0, named=True)
+    )
+    worst_stale = (
+        routing_fitness_stale_repair_summary.sort(
+            [
+                "stale_persistence_round_mean",
+                "recovery_success_permille_mean",
+                "comparison_engine_set",
+            ],
+            descending=[True, False, False],
+        )
+        .head(1)
+        .row(0, named=True)
+    )
+    envelope = (
+        "fit-for-purpose inside the tested search-plus-maintenance envelope"
+        if (
+            maintenance_high["comparison_engine_set"] == "pathway-batman-bellman"
+            and float(stale_best["recovery_success_permille_mean"] or 0.0) >= 700.0
+        )
+        else "directionally supported, but still carrying one unresolved routing-risk regime"
+    )
+    return section_lines_formatted(
+        "Routing-Fitness Takeaways",
+        search_high_engines=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in search_high_rows]
+        ),
+        search_high_route=search_high["route_present_total_window_permille_mean"],
+        search_high_recovery=search_high["recovery_success_permille_mean"],
+        maintenance_high_engines=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in maintenance_high_rows]
+        ),
+        maintenance_high_route=maintenance_high["route_present_total_window_permille_mean"],
+        maintenance_high_recovery=maintenance_high["recovery_success_permille_mean"],
+        shared_corridor_engines=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in shared_corridor_rows]
+        ),
+        shared_corridor_min_route=shared_corridor["objective_route_presence_min_permille_mean"],
+        detour_choice_engines=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in detour_choice_rows]
+        ),
+        detour_choice_min_route=detour_choice["objective_route_presence_min_permille_mean"],
+        worst_starvation_family=worst_starvation["family_label"],
+        worst_starvation_engine=worst_starvation["comparison_engine_set"] or "none",
+        worst_starvation_value=f"{float(worst_starvation['objective_starvation_count_mean'] or 0.0):.1f}",
+        stale_best_engines=_join_code_names(
+            [row["comparison_engine_set"] or "none" for row in stale_best_rows]
+        ),
+        stale_best_persistence=f"{float(stale_best['stale_persistence_round_mean'] or 0.0):.1f}",
+        stale_best_recovery=stale_best["recovery_success_permille_mean"],
+        worst_stale_family=worst_stale["family_label"],
+        worst_stale_engine=worst_stale["comparison_engine_set"] or "none",
+        worst_stale_persistence=f"{float(worst_stale['stale_persistence_round_mean'] or 0.0):.1f}",
+        worst_stale_recovery=worst_stale["recovery_success_permille_mean"],
+        routing_fitness_envelope=envelope,
+    )
+
+
 def diffusion_field_posture_lines(diffusion_engine_comparison: pl.DataFrame) -> list[str]:
     if diffusion_engine_comparison.is_empty():
         return []

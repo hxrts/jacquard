@@ -180,7 +180,8 @@ pub(super) fn build_comparison_partial_observability_bridge(
         vec![BoundObjective::new(NODE_A, default_objective(NODE_D)).with_activation_round(3)],
         24,
     )
-    .into_scenario(parameters);
+    .into_scenario(parameters)
+    .with_broker_nodes(vec![node_id(4), node_id(5)]);
     let environment = ScriptedEnvironmentModel::new(vec![
         asymmetric_degradation_hook(
             8,
@@ -791,6 +792,441 @@ pub(super) fn build_comparison_large_multi_bottleneck_high(
     build_large_bottleneck(parameters, seed, LargePopulationSizeBand::High)
 }
 
+fn comparison_hosts_for_bytes(
+    bytes: &[u8],
+    comparison_engine_set: Option<ComparisonEngineSet>,
+    destination: &DestinationId,
+    bootstrap: &[FieldBootstrapSeed],
+    primary_profile: SelectedRoutingParameters,
+) -> Vec<HostSpec> {
+    let node_ids = node_ids(bytes);
+    let primary = seed_standalone_field_bootstrap(
+        comparison_host_spec(node_ids[0], comparison_engine_set).with_profile(primary_profile),
+        comparison_engine_set,
+        destination,
+        bootstrap,
+    );
+    host_specs_with_primary(primary, &node_ids[1..], |node_id| {
+        comparison_host_spec(node_id, comparison_engine_set)
+    })
+}
+
+fn multi_flow_shared_corridor_topology(
+    comparison_engine_set: Option<ComparisonEngineSet>,
+) -> Observation<Configuration> {
+    let edges = &[(1, 4), (2, 4), (3, 4), (4, 5), (5, 6), (5, 7), (5, 8)];
+    topology_from_byte_nodes_and_edges(
+        comparison_topology_nodes_for_bytes(&[1, 2, 3, 4, 5, 6, 7, 8], comparison_engine_set),
+        edges,
+        3,
+    )
+}
+
+fn multi_flow_asymmetric_demand_topology(
+    comparison_engine_set: Option<ComparisonEngineSet>,
+) -> Observation<Configuration> {
+    let edges = &[
+        (1, 4),
+        (2, 4),
+        (3, 4),
+        (4, 5),
+        (5, 6),
+        (6, 9),
+        (5, 7),
+        (5, 8),
+    ];
+    topology_from_byte_nodes_and_edges(
+        comparison_topology_nodes_for_bytes(&[1, 2, 3, 4, 5, 6, 7, 8, 9], comparison_engine_set),
+        edges,
+        3,
+    )
+}
+
+fn multi_flow_detour_topology(
+    comparison_engine_set: Option<ComparisonEngineSet>,
+) -> Observation<Configuration> {
+    let edges = &[
+        (1, 4),
+        (2, 4),
+        (3, 4),
+        (4, 5),
+        (5, 6),
+        (5, 7),
+        (5, 8),
+        (2, 9),
+        (9, 10),
+        (10, 7),
+        (3, 10),
+    ];
+    topology_from_byte_nodes_and_edges(
+        comparison_topology_nodes_for_bytes(
+            &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            comparison_engine_set,
+        ),
+        edges,
+        3,
+    )
+}
+
+fn stale_bridge_topology(
+    comparison_engine_set: Option<ComparisonEngineSet>,
+) -> Observation<Configuration> {
+    let edges = &[(1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (3, 6)];
+    topology_from_byte_nodes_and_edges(
+        comparison_topology_nodes_for_bytes(&[1, 2, 3, 4, 5, 6], comparison_engine_set),
+        edges,
+        2,
+    )
+}
+
+fn stale_bridge_alternate(topology: &Observation<Configuration>) -> Configuration {
+    let mut alternate = topology.value.clone();
+    alternate.links.remove(&(node_id(3), node_id(6)));
+    alternate.links.remove(&(node_id(6), node_id(3)));
+    alternate
+        .links
+        .insert((node_id(2), node_id(5)), crate::topology::link(5).build());
+    alternate
+        .links
+        .insert((node_id(5), node_id(2)), crate::topology::link(2).build());
+    alternate
+}
+
+// Analytical question: when several equal-priority flows share the same narrow
+// broker corridor, which engine sets keep the worst-flow route presence high
+// instead of optimizing only the mean?
+pub(super) fn build_comparison_multi_flow_shared_corridor(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let comparison_engine_set = parameters.comparison_engine_set;
+    let destination = DestinationId::Node(node_id(8));
+    let bootstrap = [
+        (node_id(4), 860, 3, 4, Some(800)),
+        (node_id(5), 760, 2, 3, Some(700)),
+    ];
+    let mut topology = multi_flow_shared_corridor_topology(comparison_engine_set);
+    set_environment(&mut topology, 3, RatioPermille(180), RatioPermille(110));
+    let scenario = route_visible_template(
+        format!(
+            "comparison-multi-flow-shared-corridor-{}",
+            parameters.config_id
+        ),
+        seed,
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        comparison_hosts_for_bytes(
+            &[1, 2, 3, 4, 5, 6, 7, 8],
+            comparison_engine_set,
+            &destination,
+            &bootstrap,
+            repairable_connected_profile(),
+        ),
+        vec![
+            BoundObjective::new(node_id(1), connected_objective(node_id(6)))
+                .with_activation_round(2),
+            BoundObjective::new(node_id(2), connected_objective(node_id(7)))
+                .with_activation_round(2),
+            BoundObjective::new(node_id(3), connected_objective(node_id(8)))
+                .with_activation_round(3),
+        ],
+        16,
+    )
+    .into_scenario(parameters)
+    .with_broker_nodes(vec![node_id(4), node_id(5), node_id(6)]);
+    let environment = ScriptedEnvironmentModel::new(vec![
+        asymmetric_degradation_hook(
+            6,
+            node_id(4),
+            node_id(5),
+            RatioPermille(520),
+            RatioPermille(320),
+            RatioPermille(680),
+            RatioPermille(180),
+        ),
+        intrinsic_limit_hook(10, node_id(5), 2, jacquard_core::ByteCount(320)),
+    ]);
+    (scenario, environment)
+}
+
+// Analytical question: when one route is longer and more corridor-dependent
+// than the others, does the candidate stack preserve acceptable tail behavior
+// or let the hardest flow collapse first?
+pub(super) fn build_comparison_multi_flow_asymmetric_demand(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let comparison_engine_set = parameters.comparison_engine_set;
+    let destination = DestinationId::Node(node_id(9));
+    let bootstrap = [
+        (node_id(4), 900, 4, 4, Some(840)),
+        (node_id(5), 820, 3, 3, Some(760)),
+        (node_id(6), 720, 2, 2, Some(680)),
+    ];
+    let mut topology = multi_flow_asymmetric_demand_topology(comparison_engine_set);
+    set_environment(&mut topology, 3, RatioPermille(200), RatioPermille(140));
+    let scenario = route_visible_template(
+        format!(
+            "comparison-multi-flow-asymmetric-demand-{}",
+            parameters.config_id
+        ),
+        seed,
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        comparison_hosts_for_bytes(
+            &[1, 2, 3, 4, 5, 6, 7, 8, 9],
+            comparison_engine_set,
+            &destination,
+            &bootstrap,
+            repairable_connected_profile(),
+        ),
+        vec![
+            BoundObjective::new(node_id(1), connected_objective(node_id(9)))
+                .with_activation_round(2),
+            BoundObjective::new(node_id(2), connected_objective(node_id(8)))
+                .with_activation_round(2),
+            BoundObjective::new(node_id(3), connected_objective(node_id(7)))
+                .with_activation_round(4),
+        ],
+        32,
+    )
+    .into_scenario(parameters)
+    .with_broker_nodes(vec![node_id(4), node_id(5), node_id(9), node_id(10)]);
+    let environment = ScriptedEnvironmentModel::new(vec![
+        asymmetric_degradation_hook(
+            10,
+            node_id(5),
+            node_id(6),
+            RatioPermille(520),
+            RatioPermille(320),
+            RatioPermille(700),
+            RatioPermille(180),
+        ),
+        intrinsic_limit_hook(16, node_id(5), 2, jacquard_core::ByteCount(320)),
+    ]);
+    (scenario, environment)
+}
+
+// Analytical question: under shared-flow pressure with one viable detour path,
+// which engine sets keep the minimum per-flow service acceptable rather than
+// overcommitting to the stressed primary corridor?
+pub(super) fn build_comparison_multi_flow_detour_choice(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let comparison_engine_set = parameters.comparison_engine_set;
+    let destination = DestinationId::Node(node_id(8));
+    let bootstrap = [
+        (node_id(4), 860, 3, 4, Some(800)),
+        (node_id(5), 780, 2, 3, Some(720)),
+        (node_id(10), 720, 2, 2, Some(660)),
+    ];
+    let mut topology = multi_flow_detour_topology(comparison_engine_set);
+    set_environment(&mut topology, 3, RatioPermille(190), RatioPermille(120));
+    let scenario = route_visible_template(
+        format!(
+            "comparison-multi-flow-detour-choice-{}",
+            parameters.config_id
+        ),
+        seed,
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        comparison_hosts_for_bytes(
+            &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            comparison_engine_set,
+            &destination,
+            &bootstrap,
+            repairable_connected_profile(),
+        ),
+        vec![
+            BoundObjective::new(node_id(1), connected_objective(node_id(6)))
+                .with_activation_round(2),
+            BoundObjective::new(node_id(2), connected_objective(node_id(7)))
+                .with_activation_round(2),
+            BoundObjective::new(node_id(3), connected_objective(node_id(8)))
+                .with_activation_round(2),
+        ],
+        30,
+    )
+    .into_scenario(parameters);
+    let environment = ScriptedEnvironmentModel::new(vec![
+        asymmetric_degradation_hook(
+            9,
+            node_id(4),
+            node_id(5),
+            RatioPermille(500),
+            RatioPermille(340),
+            RatioPermille(680),
+            RatioPermille(190),
+        ),
+        intrinsic_limit_hook(12, node_id(5), 1, jacquard_core::ByteCount(256)),
+        medium_degradation_hook(
+            18,
+            node_id(9),
+            node_id(10),
+            RatioPermille(620),
+            RatioPermille(220),
+        ),
+    ]);
+    (scenario, environment)
+}
+
+fn stale_hosts(
+    comparison_engine_set: Option<ComparisonEngineSet>,
+    destination: &DestinationId,
+    bootstrap: &[FieldBootstrapSeed],
+) -> Vec<HostSpec> {
+    comparison_hosts_for_bytes(
+        &[1, 2, 3, 4, 5, 6],
+        comparison_engine_set,
+        destination,
+        bootstrap,
+        repairable_connected_profile(),
+    )
+}
+
+// Analytical question: how much repair lag appears when topology changes are
+// real but one side of the route sees them only after a deterministic delay?
+pub(super) fn build_comparison_stale_observation_delay(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let comparison_engine_set = parameters.comparison_engine_set;
+    let destination = DestinationId::Node(node_id(6));
+    let bootstrap = [
+        (node_id(2), 860, 3, 4, Some(800)),
+        (node_id(3), 760, 2, 3, Some(700)),
+    ];
+    let mut topology = stale_bridge_topology(comparison_engine_set);
+    set_environment(&mut topology, 2, RatioPermille(180), RatioPermille(120));
+    let alternate = stale_bridge_alternate(&topology);
+    let scenario = route_visible_template(
+        format!(
+            "comparison-stale-observation-delay-{}",
+            parameters.config_id
+        ),
+        seed,
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        stale_hosts(comparison_engine_set, &destination, &bootstrap),
+        vec![
+            BoundObjective::new(node_id(1), connected_objective(node_id(6)))
+                .with_activation_round(2),
+        ],
+        28,
+    )
+    .into_scenario(parameters)
+    .with_topology_lags(vec![
+        HostTopologyLag::new(node_id(1), 8, 12, 3),
+        HostTopologyLag::new(node_id(2), 8, 12, 3),
+        HostTopologyLag::new(node_id(3), 8, 12, 2),
+    ]);
+    let environment = ScriptedEnvironmentModel::new(vec![
+        replace_topology_hook(8, &alternate),
+        medium_degradation_hook(
+            16,
+            node_id(2),
+            node_id(5),
+            RatioPermille(620),
+            RatioPermille(180),
+        ),
+    ]);
+    (scenario, environment)
+}
+
+// Analytical question: when one region is operating on a stale topology while
+// the far side has already converged, which engines overcommit longest before
+// they repair or withdraw the route?
+pub(super) fn build_comparison_stale_asymmetric_region(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let comparison_engine_set = parameters.comparison_engine_set;
+    let destination = DestinationId::Node(node_id(6));
+    let bootstrap = [
+        (node_id(2), 900, 3, 4, Some(840)),
+        (node_id(3), 780, 2, 3, Some(720)),
+    ];
+    let mut topology = stale_bridge_topology(comparison_engine_set);
+    set_environment(&mut topology, 2, RatioPermille(190), RatioPermille(120));
+    let alternate = stale_bridge_alternate(&topology);
+    let scenario = route_visible_template(
+        format!(
+            "comparison-stale-asymmetric-region-{}",
+            parameters.config_id
+        ),
+        seed,
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        stale_hosts(comparison_engine_set, &destination, &bootstrap),
+        vec![
+            BoundObjective::new(node_id(1), connected_objective(node_id(6)))
+                .with_activation_round(2),
+        ],
+        28,
+    )
+    .into_scenario(parameters)
+    .with_topology_lags(vec![
+        HostTopologyLag::new(node_id(1), 8, 14, 4),
+        HostTopologyLag::new(node_id(2), 8, 14, 4),
+    ]);
+    let environment = ScriptedEnvironmentModel::new(vec![
+        replace_topology_hook(8, &alternate),
+        asymmetric_degradation_hook(
+            12,
+            node_id(2),
+            node_id(5),
+            RatioPermille(540),
+            RatioPermille(280),
+            RatioPermille(700),
+            RatioPermille(160),
+        ),
+    ]);
+    (scenario, environment)
+}
+
+// Analytical question: once stale-view pressure ends and the new corridor is
+// stable again, which engines recover cleanly and which remain trapped in the
+// stale decision longer than the topology warrants?
+pub(super) fn build_comparison_stale_recovery_window(
+    parameters: &ExperimentParameterSet,
+    seed: SimulationSeed,
+) -> (JacquardScenario, ScriptedEnvironmentModel) {
+    let comparison_engine_set = parameters.comparison_engine_set;
+    let destination = DestinationId::Node(node_id(6));
+    let bootstrap = [
+        (node_id(2), 900, 3, 4, Some(840)),
+        (node_id(3), 780, 2, 3, Some(720)),
+    ];
+    let mut topology = stale_bridge_topology(comparison_engine_set);
+    set_environment(&mut topology, 2, RatioPermille(180), RatioPermille(120));
+    let alternate = stale_bridge_alternate(&topology);
+    let restore = topology.value.clone();
+    let scenario = route_visible_template(
+        format!("comparison-stale-recovery-window-{}", parameters.config_id),
+        seed,
+        jacquard_core::OperatingMode::DenseInteractive,
+        topology,
+        stale_hosts(comparison_engine_set, &destination, &bootstrap),
+        vec![
+            BoundObjective::new(node_id(1), connected_objective(node_id(6)))
+                .with_activation_round(2),
+        ],
+        30,
+    )
+    .into_scenario(parameters)
+    .with_topology_lags(vec![
+        HostTopologyLag::new(node_id(1), 8, 11, 3),
+        HostTopologyLag::new(node_id(2), 8, 11, 3),
+        HostTopologyLag::new(node_id(3), 8, 11, 2),
+    ]);
+    let environment = ScriptedEnvironmentModel::new(vec![
+        replace_topology_hook(8, &alternate),
+        replace_topology_hook(18, &restore),
+    ]);
+    (scenario, environment)
+}
+
 #[cfg(test)]
 // long-block-exception: the test matrix is a single maintained roster of
 // comparison cases and activation windows.
@@ -854,18 +1290,52 @@ fn comparison_activation_window_cases(
             vec![4u32],
             50u32,
         ),
+        (
+            build_comparison_multi_flow_shared_corridor(parameters, seed).0,
+            vec![2u32, 2u32, 3u32],
+            16u32,
+        ),
+        (
+            build_comparison_multi_flow_asymmetric_demand(parameters, seed).0,
+            vec![2u32, 2u32, 4u32],
+            32u32,
+        ),
+        (
+            build_comparison_multi_flow_detour_choice(parameters, seed).0,
+            vec![2u32, 2u32, 2u32],
+            30u32,
+        ),
+        (
+            build_comparison_stale_observation_delay(parameters, seed).0,
+            vec![2u32],
+            28u32,
+        ),
+        (
+            build_comparison_stale_asymmetric_region(parameters, seed).0,
+            vec![2u32],
+            28u32,
+        ),
+        (
+            build_comparison_stale_recovery_window(parameters, seed).0,
+            vec![2u32],
+            30u32,
+        ),
     ]
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
     use jacquard_core::Tick;
     use jacquard_olsrv2::OLSRV2_ENGINE_ID;
     use jacquard_traits::{RoutingEnvironmentModel, RoutingScenario, RoutingSimulator};
 
     use super::*;
-    use crate::{JacquardSimulator, ReducedReplayView, ReferenceClientAdapter};
+    use crate::{
+        JacquardSimulator, ReducedReplayView, ReferenceClientAdapter, SimulationExecutionLane,
+    };
 
     fn sample_parameters() -> ExperimentParameterSet {
         ExperimentParameterSet::head_to_head(ComparisonEngineSet::Babel, Some((4, 2)), None, None)
@@ -906,6 +1376,89 @@ mod tests {
             .run_scenario(scenario, environment)
             .expect("run comparison scenario");
         ReducedReplayView::from_replay(&replay)
+    }
+
+    fn reordered_objectives(
+        scenario: &JacquardScenario,
+        indices: &[usize],
+        renamed_suffix: &str,
+    ) -> JacquardScenario {
+        let mut reordered = JacquardScenario::new(
+            format!("{}-{renamed_suffix}", scenario.name()),
+            scenario.seed(),
+            scenario.deployment_profile().clone(),
+            scenario.initial_configuration().clone(),
+            scenario.hosts().to_vec(),
+            indices
+                .iter()
+                .map(|index| scenario.bound_objectives()[*index].clone())
+                .collect(),
+            scenario.round_limit(),
+        )
+        .with_topology_lags(scenario.topology_lags().to_vec())
+        .with_broker_nodes(scenario.broker_nodes().to_vec());
+        if let Some(interval) = scenario.checkpoint_interval() {
+            reordered = reordered.with_checkpoint_interval(interval);
+        }
+        reordered
+    }
+
+    fn route_rounds_by_objective(
+        scenario: &JacquardScenario,
+        reduced: &ReducedReplayView,
+    ) -> BTreeMap<String, Vec<u32>> {
+        scenario
+            .bound_objectives()
+            .iter()
+            .map(|binding| {
+                (
+                    format!(
+                        "{:?}:{:?}",
+                        binding.owner_node_id, binding.objective.destination
+                    ),
+                    reduced.route_present_rounds(
+                        binding.owner_node_id,
+                        &binding.objective.destination,
+                    ),
+                )
+            })
+            .collect()
+    }
+
+    fn summarize_replay(
+        family_id: &str,
+        parameters: &ExperimentParameterSet,
+        scenario: &JacquardScenario,
+        reduced: &ReducedReplayView,
+    ) -> ExperimentRunSummary {
+        summarize_run(
+            &ExperimentRunSpec {
+                run_id: format!("summary-{family_id}-{}", scenario.seed().0),
+                suite_id: "comparison-tests".to_string(),
+                family_id: family_id.to_string(),
+                engine_family: "head-to-head".to_string(),
+                execution_lane: SimulationExecutionLane::FullStack,
+                seed: scenario.seed(),
+                regime: regime((
+                    "test",
+                    "low",
+                    "low",
+                    "none",
+                    "static",
+                    "none",
+                    "repairable-connected",
+                    0,
+                )),
+                parameters: parameters.clone(),
+                world: ExperimentRunWorld::Prepared {
+                    scenario: Box::new(scenario.clone()),
+                    environment: ScriptedEnvironmentModel::default(),
+                },
+                model_case: None,
+            },
+            scenario,
+            reduced,
+        )
     }
 
     #[test]
@@ -963,6 +1516,14 @@ mod tests {
             build_comparison_large_multi_bottleneck_moderate(&parameters, seed);
         let large_multi_bridge_fourteen_nodes_scenario =
             build_comparison_large_multi_bottleneck_high(&parameters, seed);
+        let multi_flow_shared_corridor =
+            build_comparison_multi_flow_shared_corridor(&parameters, seed);
+        let multi_flow_asymmetric_demand =
+            build_comparison_multi_flow_asymmetric_demand(&parameters, seed);
+        let multi_flow_detour_choice = build_comparison_multi_flow_detour_choice(&parameters, seed);
+        let stale_observation_delay = build_comparison_stale_observation_delay(&parameters, seed);
+        let stale_asymmetric_region = build_comparison_stale_asymmetric_region(&parameters, seed);
+        let stale_recovery_window = build_comparison_stale_recovery_window(&parameters, seed);
 
         assert_eq!(
             applied_hook_labels(&connected_high_loss.0, &connected_high_loss.1),
@@ -1043,6 +1604,94 @@ mod tests {
                 (16, "asymmetric-degradation"),
                 (21, "replace-topology"),
                 (22, "intrinsic-limit"),
+            ]
+        );
+        assert_eq!(
+            applied_hook_labels(&multi_flow_shared_corridor.0, &multi_flow_shared_corridor.1),
+            vec![(6, "asymmetric-degradation"), (10, "intrinsic-limit")]
+        );
+        assert_eq!(
+            applied_hook_labels(
+                &multi_flow_asymmetric_demand.0,
+                &multi_flow_asymmetric_demand.1
+            ),
+            vec![(10, "asymmetric-degradation"), (16, "intrinsic-limit")]
+        );
+        assert_eq!(
+            applied_hook_labels(&multi_flow_detour_choice.0, &multi_flow_detour_choice.1),
+            vec![
+                (9, "asymmetric-degradation"),
+                (12, "intrinsic-limit"),
+                (18, "medium-degradation"),
+            ]
+        );
+        assert_eq!(
+            applied_hook_labels(&stale_observation_delay.0, &stale_observation_delay.1),
+            vec![(8, "replace-topology"), (16, "medium-degradation")]
+        );
+        assert_eq!(
+            applied_hook_labels(&stale_asymmetric_region.0, &stale_asymmetric_region.1),
+            vec![(8, "replace-topology"), (12, "asymmetric-degradation")]
+        );
+        assert_eq!(
+            applied_hook_labels(&stale_recovery_window.0, &stale_recovery_window.1),
+            vec![(8, "replace-topology"), (18, "replace-topology")]
+        );
+    }
+
+    #[test]
+    fn stale_families_document_topology_lag_windows() {
+        let parameters = sample_parameters();
+        let seed = SimulationSeed(41);
+        let delay = build_comparison_stale_observation_delay(&parameters, seed).0;
+        let asymmetric = build_comparison_stale_asymmetric_region(&parameters, seed).0;
+        let recovery = build_comparison_stale_recovery_window(&parameters, seed).0;
+
+        assert_eq!(
+            delay
+                .topology_lags()
+                .iter()
+                .map(|lag| (
+                    lag.local_node_id,
+                    lag.start_round,
+                    lag.end_round_inclusive,
+                    lag.lag_rounds
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                (node_id(1), 8, 12, 3),
+                (node_id(2), 8, 12, 3),
+                (node_id(3), 8, 12, 2),
+            ]
+        );
+        assert_eq!(
+            asymmetric
+                .topology_lags()
+                .iter()
+                .map(|lag| (
+                    lag.local_node_id,
+                    lag.start_round,
+                    lag.end_round_inclusive,
+                    lag.lag_rounds
+                ))
+                .collect::<Vec<_>>(),
+            vec![(node_id(1), 8, 14, 4), (node_id(2), 8, 14, 4)]
+        );
+        assert_eq!(
+            recovery
+                .topology_lags()
+                .iter()
+                .map(|lag| (
+                    lag.local_node_id,
+                    lag.start_round,
+                    lag.end_round_inclusive,
+                    lag.lag_rounds
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                (node_id(1), 8, 11, 3),
+                (node_id(2), 8, 11, 3),
+                (node_id(3), 8, 11, 2),
             ]
         );
     }
@@ -1257,6 +1906,128 @@ mod tests {
             first_reduced.first_round_with_engine(NODE_A, &destination, &BATMAN_BELLMAN_ENGINE_ID),
             second_reduced.first_round_with_engine(NODE_A, &destination, &BATMAN_BELLMAN_ENGINE_ID),
         );
+    }
+
+    #[test]
+    fn crossover_large_population_families_are_seed_stable_under_scripted_hooks() {
+        let parameters = sample_parameters();
+        let core_first =
+            build_comparison_large_core_periphery_high(&parameters, SimulationSeed(41));
+        let core_second =
+            build_comparison_large_core_periphery_high(&parameters, SimulationSeed(43));
+        let multi_first =
+            build_comparison_large_multi_bottleneck_high(&parameters, SimulationSeed(41));
+        let multi_second =
+            build_comparison_large_multi_bottleneck_high(&parameters, SimulationSeed(43));
+        let core_destination = DestinationId::Node(node_id(14));
+        let multi_destination = DestinationId::Node(node_id(14));
+
+        let core_first_reduced = run_reduced_replay(&core_first.0, &core_first.1);
+        let core_second_reduced = run_reduced_replay(&core_second.0, &core_second.1);
+        let multi_first_reduced = run_reduced_replay(&multi_first.0, &multi_first.1);
+        let multi_second_reduced = run_reduced_replay(&multi_second.0, &multi_second.1);
+
+        assert_eq!(
+            applied_hook_labels(&core_first.0, &core_first.1),
+            applied_hook_labels(&core_second.0, &core_second.1),
+        );
+        assert_eq!(
+            core_first_reduced.route_present_rounds(NODE_A, &core_destination),
+            core_second_reduced.route_present_rounds(NODE_A, &core_destination),
+        );
+        assert_eq!(
+            applied_hook_labels(&multi_first.0, &multi_first.1),
+            applied_hook_labels(&multi_second.0, &multi_second.1),
+        );
+        assert_eq!(
+            multi_first_reduced.route_present_rounds(NODE_A, &multi_destination),
+            multi_second_reduced.route_present_rounds(NODE_A, &multi_destination),
+        );
+    }
+
+    // long-block-exception: this regression keeps the reordered-vs-original metric audit in one assertion flow.
+    #[test]
+    fn multi_flow_summary_metrics_are_stable_under_objective_reordering() {
+        let parameters = sample_parameters();
+        let (scenario, environment) =
+            build_comparison_multi_flow_shared_corridor(&parameters, SimulationSeed(41));
+        let reordered = reordered_objectives(&scenario, &[2, 1, 0], "reordered");
+        let reduced = run_reduced_replay(&scenario, &environment);
+        let reordered_reduced = run_reduced_replay(&reordered, &environment);
+        let summary = summarize_replay(
+            "head-to-head-multi-flow-shared-corridor",
+            &parameters,
+            &scenario,
+            &reduced,
+        );
+        let reordered_summary = summarize_replay(
+            "head-to-head-multi-flow-shared-corridor",
+            &parameters,
+            &reordered,
+            &reordered_reduced,
+        );
+
+        assert_eq!(
+            route_rounds_by_objective(&scenario, &reduced),
+            route_rounds_by_objective(&reordered, &reordered_reduced),
+        );
+        assert_eq!(
+            summary.objective_route_presence_min_permille,
+            reordered_summary.objective_route_presence_min_permille,
+        );
+        assert_eq!(
+            summary.objective_route_presence_max_permille,
+            reordered_summary.objective_route_presence_max_permille,
+        );
+        assert_eq!(
+            summary.objective_route_presence_spread,
+            reordered_summary.objective_route_presence_spread,
+        );
+        assert_eq!(
+            summary.objective_starvation_count,
+            reordered_summary.objective_starvation_count,
+        );
+        assert_eq!(
+            summary.concurrent_route_round_count,
+            reordered_summary.concurrent_route_round_count,
+        );
+        assert_eq!(
+            summary.broker_participation_permille,
+            reordered_summary.broker_participation_permille,
+        );
+        assert_eq!(
+            summary.broker_concentration_permille,
+            reordered_summary.broker_concentration_permille,
+        );
+        assert_eq!(
+            summary.broker_route_churn_count,
+            reordered_summary.broker_route_churn_count,
+        );
+        assert_eq!(
+            summary.route_observation_count,
+            reordered_summary.route_observation_count,
+        );
+    }
+
+    #[test]
+    fn stale_recovery_window_summary_matches_hand_checked_replay_metrics() {
+        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
+        let (scenario, environment) =
+            build_comparison_stale_recovery_window(&parameters, SimulationSeed(41));
+        let reduced = run_reduced_replay(&scenario, &environment);
+        let summary = summarize_replay(
+            "head-to-head-stale-recovery-window",
+            &parameters,
+            &scenario,
+            &reduced,
+        );
+
+        assert_eq!(summary.first_disruption_round_mean, Some(5));
+        assert_eq!(summary.first_loss_round_mean, None);
+        assert_eq!(summary.stale_persistence_round_mean, None);
+        assert_eq!(summary.recovery_round_mean, None);
+        assert_eq!(summary.recovery_success_permille, 0);
+        assert_eq!(summary.unrecovered_after_loss_count, 0);
     }
 
     #[test]

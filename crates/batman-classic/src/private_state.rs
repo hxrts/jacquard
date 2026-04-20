@@ -125,7 +125,7 @@ impl<Transport, Effects> BatmanClassicEngine<Transport, Effects> {
             .entry(via_neighbor)
             .or_default();
         let is_fresher = window.latest_sequence.is_none_or(|seq| sequence > seq);
-        window.observe(sequence, observed_at_tick, window_span);
+        window.observe(sequence, observed_at_tick.0, window_span);
         // Update TQ info only when the sequence is strictly newer so that the
         // stored TQ always corresponds to the most recent OGM from this neighbor.
         if is_fresher {
@@ -149,7 +149,7 @@ impl<Transport, Effects> BatmanClassicEngine<Transport, Effects> {
         self.bidirectional_receive_windows
             .entry(neighbor)
             .or_default()
-            .observe(sequence, observed_at_tick, window_span);
+            .observe(sequence, observed_at_tick.0, window_span);
     }
 
     fn window_span(&self) -> u64 {
@@ -204,7 +204,7 @@ fn derive_originator_observations(
                     bidirectional_receive_windows
                         .get(neighbor)
                         .is_some_and(|window| {
-                            window.would_be_live_after_prune(now, stale_after_ticks, window_span)
+                            window.would_be_live_after_prune(now.0, stale_after_ticks, window_span)
                         });
                 if !is_bidirectional {
                     continue;
@@ -267,7 +267,7 @@ pub(crate) fn reduce_round_state(
         window_span,
     );
     state.bidirectional_receive_windows.retain(|_, window| {
-        window.prune(input.now, input.stale_after_ticks, window_span);
+        window.prune(input.now.0, input.stale_after_ticks, window_span);
         window.is_live()
     });
     state.received_ogm_info.retain(|originator, by_neighbor| {
@@ -469,7 +469,7 @@ fn prune_receive_windows(
 ) {
     windows.retain(|_, by_neighbor| {
         by_neighbor.retain(|_, window| {
-            window.prune(now, stale_after_ticks, window_span);
+            window.prune(now.0, stale_after_ticks, window_span);
             window.is_live()
         });
         !by_neighbor.is_empty()

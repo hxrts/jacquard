@@ -75,10 +75,10 @@ pub use engine::{
     FieldReducedProtocolSession, FieldReducedQueryKind, FieldReducedRuntimeSearchReplay,
     FieldReducedSearchExecutionPolicy, FieldReducedSearchProjection, FieldReducedSearchQuery,
     FieldReducedSelectedResult, FieldReplaySnapshot, FieldReplaySurfaceClass,
-    FieldRuntimeReplaySurface, FieldRuntimeRoundArtifact, FieldRuntimeRouteArtifact,
-    FieldSearchReplaySurface, FIELD_CAPABILITIES, FIELD_ENGINE_ID,
-    FIELD_POLICY_EVENT_RETENTION_MAX, FIELD_REPLAY_SURFACE_VERSION,
-    FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
+    FieldRouterAnalysisRouteSummary, FieldRouterAnalysisSnapshot, FieldRuntimeReplaySurface,
+    FieldRuntimeRoundArtifact, FieldRuntimeRouteArtifact, FieldSearchReplaySurface,
+    FIELD_CAPABILITIES, FIELD_ENGINE_ID, FIELD_POLICY_EVENT_RETENTION_MAX,
+    FIELD_REPLAY_SURFACE_VERSION, FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
 };
 pub use planner_model::{
     selected_neighbor_from_backend_route_id, FieldPlannerModel, FieldPlannerSeed,

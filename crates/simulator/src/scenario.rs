@@ -320,6 +320,38 @@ impl BoundObjective {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HostTopologyLag {
+    pub local_node_id: NodeId,
+    pub start_round: u32,
+    pub end_round_inclusive: u32,
+    pub lag_rounds: u32,
+}
+
+impl HostTopologyLag {
+    #[must_use]
+    pub fn new(
+        local_node_id: NodeId,
+        start_round: u32,
+        end_round_inclusive: u32,
+        lag_rounds: u32,
+    ) -> Self {
+        Self {
+            local_node_id,
+            start_round,
+            end_round_inclusive,
+            lag_rounds,
+        }
+    }
+
+    #[must_use]
+    pub fn applies_at(&self, local_node_id: NodeId, round_index: u32) -> bool {
+        self.local_node_id == local_node_id
+            && round_index >= self.start_round
+            && round_index <= self.end_round_inclusive
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JacquardScenario {
     name: String,
     seed: SimulationSeed,
@@ -330,6 +362,8 @@ pub struct JacquardScenario {
     bound_objectives: Vec<BoundObjective>,
     round_limit: u32,
     checkpoint_period_rounds: Option<u32>,
+    topology_lags: Vec<HostTopologyLag>,
+    broker_nodes: Vec<NodeId>,
 }
 
 impl JacquardScenario {
@@ -357,6 +391,8 @@ impl JacquardScenario {
             bound_objectives,
             round_limit,
             checkpoint_period_rounds: None,
+            topology_lags: Vec::new(),
+            broker_nodes: Vec::new(),
         }
     }
 
@@ -387,6 +423,26 @@ impl JacquardScenario {
     }
 
     #[must_use]
+    pub fn topology_lags(&self) -> &[HostTopologyLag] {
+        &self.topology_lags
+    }
+
+    #[must_use]
+    pub fn broker_nodes(&self) -> &[NodeId] {
+        &self.broker_nodes
+    }
+
+    #[must_use]
+    pub fn lag_rounds_for(&self, local_node_id: NodeId, round_index: u32) -> u32 {
+        self.topology_lags
+            .iter()
+            .filter(|lag| lag.applies_at(local_node_id, round_index))
+            .map(|lag| lag.lag_rounds)
+            .max()
+            .unwrap_or(0)
+    }
+
+    #[must_use]
     pub fn with_initial_configuration(
         mut self,
         initial_configuration: Observation<Configuration>,
@@ -398,6 +454,18 @@ impl JacquardScenario {
     #[must_use]
     pub fn with_round_limit(mut self, round_limit: u32) -> Self {
         self.round_limit = round_limit;
+        self
+    }
+
+    #[must_use]
+    pub fn with_topology_lags(mut self, topology_lags: Vec<HostTopologyLag>) -> Self {
+        self.topology_lags = topology_lags;
+        self
+    }
+
+    #[must_use]
+    pub fn with_broker_nodes(mut self, broker_nodes: Vec<NodeId>) -> Self {
+        self.broker_nodes = broker_nodes;
         self
     }
 

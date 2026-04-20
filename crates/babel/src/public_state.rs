@@ -9,31 +9,7 @@ use jacquard_core::{
     BackendRouteId, NodeId, RatioPermille, RouteDegradation, RouteEpoch, Tick, TransportKind,
 };
 
-/// Controls how long route entries remain valid before being pruned.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DecayWindow {
-    pub stale_after_ticks: u64,
-    pub next_refresh_within_ticks: u64,
-}
-
-impl DecayWindow {
-    #[must_use]
-    pub const fn new(stale_after_ticks: u64, next_refresh_within_ticks: u64) -> Self {
-        Self {
-            stale_after_ticks,
-            next_refresh_within_ticks,
-        }
-    }
-}
-
-impl Default for DecayWindow {
-    fn default() -> Self {
-        Self {
-            stale_after_ticks: 8,
-            next_refresh_within_ticks: 4,
-        }
-    }
-}
+pub use jacquard_adapter::DecayWindow;
 
 /// Feasibility distance for a destination: the `(seqno, metric)` of the last
 /// feasibly selected route.

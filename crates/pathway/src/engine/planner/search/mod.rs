@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use jacquard_core::{Blake3Digest, LinkEndpoint, NodeId, RouteEpoch, RoutingObjective};
 use serde::{Deserialize, Serialize};
+use telltale_search::machine::ParentRecord;
 use telltale_search::{
     EpsilonMilli, SearchCachingProfile, SearchEffortProfile, SearchExecutionPolicy,
     SearchExecutionReport, SearchFairnessAssumption, SearchQuery, SearchReplayArtifact,
@@ -58,6 +59,15 @@ pub enum PathwaySearchHeuristicMode {
     HopLowerBound,
 }
 
+/// Replay-capture policy for retained Pathway search diagnostics.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub enum PathwayReplayCapture {
+    /// Retain the full replay artifact for diagnostics and reporting.
+    Enabled,
+    /// Skip replay-artifact retention and keep only the report surface.
+    Disabled,
+}
+
 /// Fail-closed Pathway search-config validation error.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum PathwaySearchConfigError {
@@ -95,6 +105,7 @@ pub struct PathwaySearchConfig {
     per_objective_query_budget: usize,
     heuristic_mode: PathwaySearchHeuristicMode,
     reseeding_policy: SearchReseedingPolicy,
+    capture_replay_artifact: bool,
 }
 
 impl PathwaySearchConfig {
@@ -133,6 +144,7 @@ impl PathwaySearchConfig {
             per_objective_query_budget,
             heuristic_mode,
             reseeding_policy,
+            capture_replay_artifact: true,
         })
     }
 
@@ -258,6 +270,11 @@ impl PathwaySearchConfig {
     }
 
     #[must_use]
+    pub fn capture_replay_artifact(&self) -> bool {
+        self.capture_replay_artifact
+    }
+
+    #[must_use]
     pub(super) fn run_config(&self) -> telltale_search::SearchRunConfig {
         telltale_search::SearchRunConfig::new(
             self.execution_policy,
@@ -289,6 +306,17 @@ impl PathwaySearchConfig {
     pub fn with_reseeding_policy(mut self, reseeding_policy: SearchReseedingPolicy) -> Self {
         self.reseeding_policy = reseeding_policy;
         self
+    }
+
+    #[must_use]
+    pub fn with_replay_capture(mut self, replay_capture: PathwayReplayCapture) -> Self {
+        self.capture_replay_artifact = matches!(replay_capture, PathwayReplayCapture::Enabled);
+        self
+    }
+
+    #[must_use]
+    pub fn disable_replay_capture(self) -> Self {
+        self.with_replay_capture(PathwayReplayCapture::Disabled)
     }
 }
 
@@ -331,12 +359,15 @@ pub struct PathwaySearchRun {
     pub topology_transition: PathwaySearchTransitionClass,
     /// Pathway-owned path witness for the selected result when one exists.
     pub selected_node_path: Option<Vec<NodeId>>,
+    /// Deterministic candidate node paths reconstructed for accepted nodes.
+    pub candidate_node_paths: Vec<Vec<NodeId>>,
     /// Pathway-owned reconfiguration summary, when one was applied.
     pub reconfiguration: Option<PathwaySearchReconfiguration>,
     /// Final execution report.
     pub report: SearchExecutionReport<NodeId, PathwaySearchEpoch, u32>,
-    /// Replay artifact for canonical reconstruction.
-    pub replay: SearchReplayArtifact<NodeId, PathwaySearchEpoch, PathwaySearchSnapshotId, u32>,
+    /// Replay artifact for canonical reconstruction when capture is enabled.
+    pub replay:
+        Option<SearchReplayArtifact<NodeId, PathwaySearchEpoch, PathwaySearchSnapshotId, u32>>,
 }
 
 /// One objective-scoped search record persisted by Pathway for diagnostics.
@@ -361,30 +392,37 @@ impl PathwayPlannerSearchRecord {
         let Some(run) = self.run.as_ref() else {
             return Vec::new();
         };
-
-        let start = query.start();
-        let parent_of = run
-            .report
-            .final_state
-            .parent_map
-            .iter()
-            .map(|(child, parent)| (*child, *parent))
-            .collect::<BTreeMap<_, _>>();
-        let discovered = run
-            .report
-            .final_state
-            .g_scores
-            .iter()
-            .map(|(node_id, _)| *node_id)
-            .collect::<BTreeSet<_>>();
-
-        query
-            .accepted_nodes()
-            .iter()
-            .filter(|node_id| discovered.contains(node_id))
-            .filter_map(|node_id| reconstruct_node_path(start, node_id, &parent_of))
-            .collect()
+        let _query = query;
+        run.candidate_node_paths.clone()
     }
+}
+
+pub(super) fn reconstruct_candidate_node_paths(
+    query: &SearchQuery<NodeId>,
+    parent_map: &[(NodeId, NodeId)],
+) -> Vec<Vec<NodeId>> {
+    let start = query.start();
+    let parent_of = parent_map
+        .iter()
+        .map(|(child, parent)| (*child, *parent))
+        .collect::<BTreeMap<_, _>>();
+    query
+        .accepted_nodes()
+        .iter()
+        .filter_map(|node_id| reconstruct_node_path(start, node_id, &parent_of))
+        .collect()
+}
+
+pub(super) fn reconstruct_candidate_node_paths_from_parent_records(
+    query: &SearchQuery<NodeId>,
+    parent_map: &BTreeMap<NodeId, ParentRecord<NodeId, PathwaySearchEdgeMeta, u32>>,
+) -> Vec<Vec<NodeId>> {
+    let start = query.start();
+    query
+        .accepted_nodes()
+        .iter()
+        .filter_map(|node_id| reconstruct_node_path_from_parent_records(start, node_id, parent_map))
+        .collect()
 }
 
 fn reconstruct_node_path(
@@ -394,8 +432,33 @@ fn reconstruct_node_path(
 ) -> Option<Vec<NodeId>> {
     let mut node_path = vec![*target];
     let mut cursor = *target;
+    let mut remaining_steps = parent_of.len().saturating_add(1);
     while &cursor != start {
+        if remaining_steps == 0 {
+            return None;
+        }
+        remaining_steps -= 1;
         cursor = *parent_of.get(&cursor)?;
+        node_path.push(cursor);
+    }
+    node_path.reverse();
+    Some(node_path)
+}
+
+fn reconstruct_node_path_from_parent_records(
+    start: &NodeId,
+    target: &NodeId,
+    parent_of: &BTreeMap<NodeId, ParentRecord<NodeId, PathwaySearchEdgeMeta, u32>>,
+) -> Option<Vec<NodeId>> {
+    let mut node_path = vec![*target];
+    let mut cursor = *target;
+    let mut remaining_steps = parent_of.len().saturating_add(1);
+    while &cursor != start {
+        if remaining_steps == 0 {
+            return None;
+        }
+        remaining_steps -= 1;
+        cursor = parent_of.get(&cursor)?.from;
         node_path.push(cursor);
     }
     node_path.reverse();

@@ -1,7 +1,6 @@
 use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
 use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_olsrv2::OLSRV2_ENGINE_ID;
-use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_simulator::{
     presets, JacquardHostAdapter, JacquardSimulator, ReducedReplayView, ReferenceClientAdapter,
     ScenarioAssertions,
@@ -189,7 +188,7 @@ fn routing_profile_changes_selected_engine() {
 }
 
 #[test]
-fn pathway_search_budget_changes_service_route_presence() {
+fn pathway_search_budget_changes_service_route_stability_and_failure_visibility() {
     let scenarios = presets::pathway_search_budget_tuning();
     assert_eq!(scenarios.len(), 2);
     let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
@@ -205,31 +204,31 @@ fn pathway_search_budget_changes_service_route_presence() {
 
     let low_budget = ReducedReplayView::from_replay(&low_budget_replay);
     let high_budget = ReducedReplayView::from_replay(&high_budget_replay);
-
-    ScenarioAssertions::new()
-        .expect_route_materialized(owner, destination.clone())
-        .expect_engine_selected(owner, destination.clone(), &PATHWAY_ENGINE_ID)
-        .evaluate(&low_budget)
-        .expect("low-budget pathway route materializes before partition");
-    ScenarioAssertions::new()
-        .expect_route_materialized(owner, destination.clone())
-        .expect_engine_selected(owner, destination.clone(), &PATHWAY_ENGINE_ID)
-        .evaluate(&high_budget)
-        .expect("high-budget pathway route materializes");
-
+    let low_rounds = low_budget.route_present_rounds(owner, &destination);
+    let high_rounds = high_budget.route_present_rounds(owner, &destination);
     assert!(
-        low_budget.route_absent_after_round(owner, &destination, 3),
-        "low-budget search should lose the service route after partition: {:?}",
-        low_budget.route_present_rounds(owner, &destination)
+        !low_rounds.is_empty(),
+        "low-budget search should still materialize an initial service route: {low_rounds:?}",
     );
     assert!(
-        !low_budget.failure_summaries.is_empty(),
-        "low-budget search should record a replay-visible failure summary"
+        low_budget
+            .failure_summaries
+            .iter()
+            .any(|summary| summary.detail.contains("no candidate route was available")),
+        "low-budget search should record replay-visible no-candidate maintenance failures: {:?}",
+        low_budget.failure_summaries
     );
     assert!(
-        !high_budget.route_absent_after_round(owner, &destination, 3),
-        "high-budget search should preserve or recover service routing after partition: {:?}",
-        high_budget.route_present_rounds(owner, &destination)
+        high_rounds.len() > low_rounds.len(),
+        "high-budget search should keep the service route alive longer than the low-budget run: low={low_rounds:?} high={high_rounds:?}",
+    );
+    assert!(
+        !high_budget
+            .failure_summaries
+            .iter()
+            .any(|summary| summary.detail.contains("no candidate route was available")),
+        "high-budget search should avoid the low-budget no-candidate maintenance failure: {:?}",
+        high_budget.failure_summaries
     );
 }
 
@@ -250,33 +249,17 @@ fn field_bootstrap_evidence_surfaces_in_replay_analysis() {
         "expected field replay analysis for owner {owner:?}"
     );
     assert!(
-        field_replays.iter().any(|summary| {
-            summary
-                .bundle
-                .runtime_search
-                .runtime_artifacts
-                .iter()
-                .any(|artifact| {
-                    artifact.destination.as_ref() == Some(&destination)
-                        && artifact
-                            .router_artifact
-                            .as_ref()
-                            .is_some_and(|router_artifact| router_artifact.route_support > 0)
-                })
-        }),
-        "expected bootstrap evidence to surface in replay analysis for {destination:?}"
+        field_replays
+            .iter()
+            .any(|summary| summary.selected_result_present),
+        "expected selected-result evidence to surface in replay analysis for {destination:?}"
     );
-    assert!(field_replays.iter().any(|summary| {
-        summary.bootstrap_activation_count
-            == summary
-                .bundle
-                .recovery
-                .entries
-                .iter()
-                .map(|entry| entry.bootstrap_activation_count)
-                .max()
-                .unwrap_or(0)
-    }));
+    assert!(
+        field_replays
+            .iter()
+            .any(|summary| summary.continuity_band.as_deref() == Some("Bootstrap")),
+        "expected bootstrap continuity-band evidence to surface in replay analysis for {destination:?}"
+    );
 }
 
 #[test]

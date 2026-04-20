@@ -22,113 +22,15 @@
 //!   `RouteId`, tracking destination, next-hop, backend id, and install tick.
 //! - `OriginatorObservationTable` — the nested `BTreeMap` type alias.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use jacquard_core::{
     BackendRouteId, NodeId, RatioPermille, RouteDegradation, RouteEpoch, Tick, TransportKind,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DecayWindow {
-    pub stale_after_ticks: u64,
-    pub next_refresh_within_ticks: u64,
-}
+pub use jacquard_adapter::DecayWindow;
 
-impl DecayWindow {
-    #[must_use]
-    pub const fn new(stale_after_ticks: u64, next_refresh_within_ticks: u64) -> Self {
-        Self {
-            stale_after_ticks,
-            next_refresh_within_ticks,
-        }
-    }
-}
-
-impl Default for DecayWindow {
-    fn default() -> Self {
-        Self {
-            stale_after_ticks: 8,
-            next_refresh_within_ticks: 4,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct OgmReceiveWindow {
-    pub latest_sequence: Option<u64>,
-    pub received_sequences: BTreeSet<u64>,
-    pub last_observed_at_tick: Option<Tick>,
-}
-
-impl OgmReceiveWindow {
-    pub(crate) fn observe(&mut self, sequence: u64, observed_at_tick: Tick, window_span: u64) {
-        self.latest_sequence = Some(
-            self.latest_sequence
-                .map_or(sequence, |known| known.max(sequence)),
-        );
-        self.received_sequences.insert(sequence);
-        self.last_observed_at_tick = Some(observed_at_tick);
-        self.prune(observed_at_tick, window_span, window_span);
-    }
-
-    pub(crate) fn prune(&mut self, now: Tick, stale_after_ticks: u64, window_span: u64) {
-        if let Some(last_seen) = self.last_observed_at_tick {
-            if now.0.saturating_sub(last_seen.0) > stale_after_ticks {
-                self.latest_sequence = None;
-                self.received_sequences.clear();
-                self.last_observed_at_tick = None;
-                return;
-            }
-        }
-        if let Some(latest_sequence) = self.latest_sequence {
-            let lower_bound = latest_sequence.saturating_sub(window_span.saturating_sub(1));
-            self.received_sequences
-                .retain(|sequence| *sequence >= lower_bound);
-            if self.received_sequences.is_empty() {
-                self.latest_sequence = None;
-                self.last_observed_at_tick = None;
-            }
-        }
-    }
-
-    pub(crate) fn would_be_live_after_prune(
-        &self,
-        now: Tick,
-        stale_after_ticks: u64,
-        window_span: u64,
-    ) -> bool {
-        if let Some(last_seen) = self.last_observed_at_tick {
-            if now.0.saturating_sub(last_seen.0) > stale_after_ticks {
-                return false;
-            }
-        }
-        if let Some(latest_sequence) = self.latest_sequence {
-            let lower_bound = latest_sequence.saturating_sub(window_span.saturating_sub(1));
-            self.received_sequences
-                .iter()
-                .any(|seq| *seq >= lower_bound)
-        } else {
-            false
-        }
-    }
-
-    pub(crate) fn packet_count(&self) -> usize {
-        self.received_sequences.len()
-    }
-
-    pub(crate) fn occupancy_permille(&self, window_span: u64) -> RatioPermille {
-        if window_span == 0 {
-            return RatioPermille(0);
-        }
-        let count = u64::try_from(self.packet_count()).unwrap_or(u64::MAX);
-        let value = count.saturating_mul(1000) / window_span;
-        RatioPermille(u16::try_from(value.min(1000)).expect("permille occupancy"))
-    }
-
-    pub(crate) fn is_live(&self) -> bool {
-        !self.received_sequences.is_empty()
-    }
-}
+pub(crate) use jacquard_adapter::OgmReceiveWindow;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct OriginatorObservation {

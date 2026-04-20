@@ -38,7 +38,9 @@ use thiserror::Error;
 use crate::{
     environment::{EnvironmentHook, ScheduledEnvironmentHook, ScriptedEnvironmentModel},
     harness::{JacquardHostAdapter, JacquardSimulator, SimulationError},
-    scenario::{BoundObjective, FieldBootstrapSummary, HostSpec, JacquardScenario},
+    scenario::{
+        BoundObjective, FieldBootstrapSummary, HostSpec, HostTopologyLag, JacquardScenario,
+    },
     topology, ReducedReplayView,
 };
 
@@ -65,9 +67,11 @@ use types::*;
 pub use runner::run_suite;
 pub use suite::{
     babel_equivalence_smoke_suite, babel_model_smoke_suite, batman_bellman_model_smoke_suite,
-    batman_classic_model_smoke_suite, field_model_smoke_suite, local_suite,
+    batman_classic_model_smoke_suite, field_model_smoke_suite, local_stage_suite,
+    local_stage_suite_with_seeds, local_stage_suite_with_seeds_and_config, local_suite,
     olsrv2_model_smoke_suite, pathway_model_smoke_suite, scatter_model_smoke_suite, smoke_suite,
 };
+pub use summary::{aggregate_runs, summarize_breakdowns};
 pub use types::{
     ExperimentAggregateSummary, ExperimentArtifacts, ExperimentBreakdownSummary, ExperimentError,
     ExperimentManifest, ExperimentModelArtifact, ExperimentParameterSet, ExperimentRunSummary,

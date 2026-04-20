@@ -11,6 +11,9 @@ from .constants import (
     LARGE_POPULATION_DIFFUSION_FAMILIES,
     LARGE_POPULATION_ROUTE_FAMILIES,
     RECOMMENDATION_PROFILES,
+    ROUTING_FITNESS_CROSSOVER_FAMILIES,
+    ROUTING_FITNESS_MULTI_FLOW_FAMILIES,
+    ROUTING_FITNESS_STALE_FAMILIES,
     ROUTE_VISIBLE_ENGINE_SET_ORDER,
 )
 
@@ -93,6 +96,20 @@ _OPTIONAL_FLOAT_COLUMNS = [
     "route_present_permille_min",
     "route_present_permille_max",
     "route_present_permille_spread",
+    "objective_route_presence_min_permille_mean",
+    "objective_route_presence_max_permille_mean",
+    "objective_route_presence_spread_mean",
+    "objective_starvation_count_mean",
+    "concurrent_route_round_count_mean",
+    "first_disruption_round_mean",
+    "stale_persistence_round_mean",
+    "recovery_success_permille_mean",
+    "unrecovered_after_loss_count_mean",
+    "broker_participation_permille_mean",
+    "broker_concentration_permille_mean",
+    "broker_route_churn_count_mean",
+    "active_route_hop_count_mean",
+    "route_observation_count_mean",
     "batman_bellman_selected_rounds_mean",
     "batman_classic_selected_rounds_mean",
     "babel_selected_rounds_mean",
@@ -1710,6 +1727,18 @@ def _large_population_diffusion_metadata() -> pl.DataFrame:
     return pl.from_dicts(LARGE_POPULATION_DIFFUSION_FAMILIES)
 
 
+def _routing_fitness_crossover_metadata() -> pl.DataFrame:
+    return pl.from_dicts(ROUTING_FITNESS_CROSSOVER_FAMILIES)
+
+
+def _routing_fitness_multi_flow_metadata() -> pl.DataFrame:
+    return pl.from_dicts(ROUTING_FITNESS_MULTI_FLOW_FAMILIES)
+
+
+def _routing_fitness_stale_metadata() -> pl.DataFrame:
+    return pl.from_dicts(ROUTING_FITNESS_STALE_FAMILIES)
+
+
 def large_population_route_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
     if aggregates.is_empty():
         return pl.DataFrame()
@@ -1768,6 +1797,147 @@ def large_population_route_summary_table(aggregates: pl.DataFrame) -> pl.DataFra
             )
         )
         .sort(["topology_label", "engine_order"])
+        .drop("engine_order")
+    )
+
+
+def routing_fitness_crossover_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
+    if aggregates.is_empty():
+        return pl.DataFrame()
+    aggregates = _ensure_optional_columns(aggregates)
+    metadata = _routing_fitness_crossover_metadata()
+    families = metadata["family_id"].to_list()
+    engine_order = {engine: index for index, engine in enumerate(ROUTE_VISIBLE_ENGINE_SET_ORDER)}
+    filtered = aggregates.filter(
+        (pl.col("engine_family") == "head-to-head") & pl.col("family_id").is_in(families)
+    )
+    if filtered.is_empty():
+        return pl.DataFrame()
+    return (
+        filtered.join(metadata, on="family_id", how="inner")
+        .with_columns(
+            pl.col("comparison_engine_set")
+            .replace_strict(engine_order, default=len(engine_order))
+            .alias("engine_order"),
+            pl.coalesce(
+                [
+                    pl.col("route_present_total_window_permille_mean"),
+                    pl.col("route_present_permille_mean"),
+                ]
+            ).alias("route_present_total_window_permille_mean"),
+        )
+        .select(
+            "family_id",
+            "question",
+            "question_label",
+            "band_label",
+            "band_order",
+            "comparison_engine_set",
+            "engine_order",
+            "route_present_total_window_permille_mean",
+            "recovery_success_permille_mean",
+            "first_loss_round_mean",
+            "recovery_round_mean",
+            "route_churn_count_mean",
+            "active_route_hop_count_mean",
+            "route_observation_count_mean",
+        )
+        .sort(["question_label", "band_order", "engine_order"])
+        .drop("engine_order")
+    )
+
+
+def routing_fitness_multiflow_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
+    if aggregates.is_empty():
+        return pl.DataFrame()
+    aggregates = _ensure_optional_columns(aggregates)
+    metadata = _routing_fitness_multi_flow_metadata()
+    families = metadata["family_id"].to_list()
+    engine_order = {engine: index for index, engine in enumerate(ROUTE_VISIBLE_ENGINE_SET_ORDER)}
+    filtered = aggregates.filter(
+        (pl.col("engine_family") == "head-to-head") & pl.col("family_id").is_in(families)
+    )
+    if filtered.is_empty():
+        return pl.DataFrame()
+    return (
+        filtered.join(metadata, on="family_id", how="inner")
+        .with_columns(
+            pl.col("comparison_engine_set")
+            .replace_strict(engine_order, default=len(engine_order))
+            .alias("engine_order"),
+            pl.coalesce(
+                [
+                    pl.col("route_present_total_window_permille_mean"),
+                    pl.col("route_present_permille_mean"),
+                ]
+            ).alias("route_present_total_window_permille_mean"),
+        )
+        .select(
+            "family_id",
+            "family_label",
+            "family_order",
+            "comparison_engine_set",
+            "engine_order",
+            "route_present_total_window_permille_mean",
+            "objective_route_presence_min_permille_mean",
+            "objective_route_presence_max_permille_mean",
+            "objective_route_presence_spread_mean",
+            "objective_starvation_count_mean",
+            "concurrent_route_round_count_mean",
+            "broker_participation_permille_mean",
+            "broker_concentration_permille_mean",
+            "broker_route_churn_count_mean",
+            "route_churn_count_mean",
+            "active_route_hop_count_mean",
+            "route_observation_count_mean",
+        )
+        .sort(["family_order", "engine_order"])
+        .drop("engine_order")
+    )
+
+
+def routing_fitness_stale_repair_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
+    if aggregates.is_empty():
+        return pl.DataFrame()
+    aggregates = _ensure_optional_columns(aggregates)
+    metadata = _routing_fitness_stale_metadata()
+    families = metadata["family_id"].to_list()
+    engine_order = {engine: index for index, engine in enumerate(ROUTE_VISIBLE_ENGINE_SET_ORDER)}
+    filtered = aggregates.filter(
+        (pl.col("engine_family") == "head-to-head") & pl.col("family_id").is_in(families)
+    )
+    if filtered.is_empty():
+        return pl.DataFrame()
+    return (
+        filtered.join(metadata, on="family_id", how="inner")
+        .with_columns(
+            pl.col("comparison_engine_set")
+            .replace_strict(engine_order, default=len(engine_order))
+            .alias("engine_order"),
+            pl.coalesce(
+                [
+                    pl.col("route_present_total_window_permille_mean"),
+                    pl.col("route_present_permille_mean"),
+                ]
+            ).alias("route_present_total_window_permille_mean"),
+        )
+        .select(
+            "family_id",
+            "family_label",
+            "family_order",
+            "comparison_engine_set",
+            "engine_order",
+            "route_present_total_window_permille_mean",
+            "first_disruption_round_mean",
+            "first_loss_round_mean",
+            "stale_persistence_round_mean",
+            "recovery_round_mean",
+            "recovery_success_permille_mean",
+            "unrecovered_after_loss_count_mean",
+            "route_churn_count_mean",
+            "route_observation_count_mean",
+        )
+        .sort(["family_order", "engine_order"])
         .drop("engine_order")
     )
 

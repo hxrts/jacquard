@@ -9,10 +9,10 @@ use super::{
     FieldCommitmentReplayEntry, FieldCommitmentReplaySurface, FieldEngine,
     FieldExportedReplayBundle, FieldForwardSummaryObservation, FieldPolicyEvent,
     FieldProtocolReplaySurface, FieldRecoveryReplayEntry, FieldRecoveryReplaySurface,
-    FieldReplaySnapshot, FieldReplaySurfaceClass, FieldRuntimeReplaySurface,
-    FieldRuntimeRoundArtifact, FieldRuntimeRouteArtifact, FieldSearchReplaySurface,
-    FIELD_POLICY_EVENT_RETENTION_MAX, FIELD_REPLAY_SURFACE_VERSION,
-    FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
+    FieldReplaySnapshot, FieldReplaySurfaceClass, FieldRouterAnalysisRouteSummary,
+    FieldRouterAnalysisSnapshot, FieldRuntimeReplaySurface, FieldRuntimeRoundArtifact,
+    FieldRuntimeRouteArtifact, FieldSearchReplaySurface, FIELD_POLICY_EVENT_RETENTION_MAX,
+    FIELD_REPLAY_SURFACE_VERSION, FIELD_RUNTIME_ROUND_ARTIFACT_RETENTION_MAX,
 };
 use crate::{
     planner::admission::{bootstrap_class_for_state, continuity_band_for_state},
@@ -276,6 +276,180 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     })
                     .collect(),
             },
+        }
+    }
+
+    // long-block-exception: router analysis export intentionally assembles one audited snapshot surface.
+    #[must_use]
+    pub fn router_analysis_snapshot(
+        &self,
+        routes: &[MaterializedRoute],
+    ) -> FieldRouterAnalysisSnapshot
+    where
+        Self: RoutingEngine,
+    {
+        let search = self.last_search_record();
+        let recovery_entries = self.route_recovery_entries();
+        let reconfigurations = self.protocol_runtime.reconfigurations();
+        FieldRouterAnalysisSnapshot {
+            selected_result_present: search
+                .as_ref()
+                .is_some_and(|record| record.selected_continuation.is_some()),
+            search_reconfiguration_present: search.as_ref().is_some_and(|record| {
+                record
+                    .run
+                    .as_ref()
+                    .and_then(|run| run.reconfiguration.clone())
+                    .is_some()
+            }),
+            execution_policy: search
+                .as_ref()
+                .map(|record| format!("{:?}", record.effective_config.scheduler_profile())),
+            bootstrap_active: recovery_entries
+                .iter()
+                .any(|entry| entry.state.bootstrap_active),
+            continuity_band: recovery_entries
+                .iter()
+                .find_map(|entry| entry.state.continuity_band.map(|band| format!("{band:?}"))),
+            last_continuity_transition: recovery_entries.iter().find_map(|entry| {
+                entry
+                    .state
+                    .last_continuity_transition
+                    .map(|transition| format!("{transition:?}"))
+            }),
+            last_promotion_decision: recovery_entries.iter().find_map(|entry| {
+                entry
+                    .state
+                    .last_promotion_decision
+                    .map(|decision| format!("{decision:?}"))
+            }),
+            last_promotion_blocker: recovery_entries.iter().find_map(|entry| {
+                entry
+                    .state
+                    .last_promotion_blocker
+                    .map(|blocker| format!("{blocker:?}"))
+            }),
+            bootstrap_activation_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.bootstrap_activation_count)
+                .max()
+                .unwrap_or(0),
+            bootstrap_hold_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.bootstrap_hold_count)
+                .max()
+                .unwrap_or(0),
+            bootstrap_narrow_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.bootstrap_narrow_count)
+                .max()
+                .unwrap_or(0),
+            bootstrap_upgrade_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.bootstrap_upgrade_count)
+                .max()
+                .unwrap_or(0),
+            bootstrap_withdraw_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.bootstrap_withdraw_count)
+                .max()
+                .unwrap_or(0),
+            degraded_steady_entry_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.degraded_steady_entry_count)
+                .max()
+                .unwrap_or(0),
+            degraded_steady_recovery_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.degraded_steady_recovery_count)
+                .max()
+                .unwrap_or(0),
+            degraded_to_bootstrap_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.degraded_to_bootstrap_count)
+                .max()
+                .unwrap_or(0),
+            degraded_steady_round_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.degraded_steady_round_count)
+                .max()
+                .unwrap_or(0),
+            service_retention_carry_forward_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.service_retention_carry_forward_count)
+                .max()
+                .unwrap_or(0),
+            asymmetric_shift_success_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.asymmetric_shift_success_count)
+                .max()
+                .unwrap_or(0),
+            protocol_reconfiguration_count: reconfigurations.len(),
+            route_bound_reconfiguration_count: reconfigurations
+                .iter()
+                .filter(|step| {
+                    step.prior_session.route_id.is_some() || step.next_session.route_id.is_some()
+                })
+                .count(),
+            continuation_shift_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.continuation_shift_count)
+                .max()
+                .unwrap_or(0),
+            corridor_narrow_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.corridor_narrow_count)
+                .max()
+                .unwrap_or(0),
+            checkpoint_capture_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.checkpoint_capture_count)
+                .max()
+                .unwrap_or(0),
+            checkpoint_restore_count: recovery_entries
+                .iter()
+                .map(|entry| entry.state.checkpoint_restore_count)
+                .max()
+                .unwrap_or(0),
+            reconfiguration_causes: reconfigurations
+                .iter()
+                .map(|entry| format!("{:?}", entry.cause))
+                .collect(),
+            route_summaries: routes
+                .iter()
+                .map(|route| {
+                    let recovery = recovery_entries
+                        .iter()
+                        .find(|entry| entry.route_id == *route.identity.route_id());
+                    FieldRouterAnalysisRouteSummary {
+                        route_id: *route.identity.route_id(),
+                        continuity_band: recovery.and_then(|entry| {
+                            entry.state.continuity_band.map(|band| format!("{band:?}"))
+                        }),
+                        last_outcome: recovery.and_then(|entry| {
+                            entry
+                                .state
+                                .last_outcome
+                                .map(|outcome| format!("{outcome:?}"))
+                        }),
+                        last_promotion_decision: recovery.and_then(|entry| {
+                            entry
+                                .state
+                                .last_promotion_decision
+                                .map(|decision| format!("{decision:?}"))
+                        }),
+                        last_promotion_blocker: recovery.and_then(|entry| {
+                            entry
+                                .state
+                                .last_promotion_blocker
+                                .map(|blocker| format!("{blocker:?}"))
+                        }),
+                        continuation_shift_count: recovery
+                            .map(|entry| entry.state.continuation_shift_count)
+                            .unwrap_or(0),
+                    }
+                })
+                .collect(),
         }
     }
 

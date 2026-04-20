@@ -7,14 +7,12 @@
 // changes between calls, so the underlying `SearchMachine` always operates on a
 // consistent frozen snapshot matched to the current `PathwaySearchEpoch`.
 
-use std::collections::BTreeMap;
-
 use cfg_if::cfg_if;
 use jacquard_core::{Configuration, NodeId, Observation, RoutingObjective};
 use telltale_search::{
-    commit_epoch_reconfiguration, run_with_executor, validate_run_config,
-    EpochReconfigurationRequest, SearchMachine, SearchQuery, SearchSchedulerProfile,
-    SerialProposalExecutor,
+    commit_epoch_reconfiguration, run_with_executor, run_with_executor_report_only,
+    validate_run_config, EpochReconfigurationRequest, SearchMachine, SearchQuery,
+    SearchSchedulerProfile, SerialProposalExecutor,
 };
 
 cfg_if! {
@@ -25,9 +23,11 @@ cfg_if! {
 }
 
 use super::{
-    freeze_snapshot_for_search, snapshot_id_for_configuration, PathwayPlannerSearchRecord,
-    PathwaySearchConfig, PathwaySearchDomain, PathwaySearchEdgeMeta, PathwaySearchEpoch,
-    PathwaySearchReconfiguration, PathwaySearchRun, PathwaySearchTransitionClass,
+    freeze_snapshot_for_search, reconstruct_candidate_node_paths,
+    reconstruct_candidate_node_paths_from_parent_records, snapshot_id_for_configuration,
+    PathwayPlannerSearchRecord, PathwaySearchConfig, PathwaySearchDomain, PathwaySearchEdgeMeta,
+    PathwaySearchEpoch, PathwaySearchReconfiguration, PathwaySearchRun,
+    PathwaySearchTransitionClass,
 };
 use crate::{
     engine::PathwayEngine,
@@ -37,6 +37,7 @@ use crate::{
 
 type PathwaySearchExecutionReport =
     telltale_search::SearchExecutionReport<NodeId, PathwaySearchEpoch, u32>;
+type PathwaySuccessorRow = (NodeId, Vec<(NodeId, PathwaySearchEdgeMeta, u32)>);
 type PathwaySearchReplayArtifact = telltale_search::SearchReplayArtifact<
     NodeId,
     PathwaySearchEpoch,
@@ -44,7 +45,10 @@ type PathwaySearchReplayArtifact = telltale_search::SearchReplayArtifact<
     u32,
 >;
 type PathwaySearchRunResult = Result<
-    (PathwaySearchExecutionReport, PathwaySearchReplayArtifact),
+    (
+        PathwaySearchExecutionReport,
+        Option<PathwaySearchReplayArtifact>,
+    ),
     telltale_search::SearchRunError<&'static str>,
 >;
 
@@ -79,20 +83,19 @@ where
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
     ) -> PathwayPlannerSearchRecord {
+        let current_state = PathwaySearchSnapshotState::from_topology(topology);
         let query = self.resolve_query_for_objective(objective, topology);
         let prior_state = self.search_snapshot_state.borrow().clone();
         let run = query.as_ref().map(|query| {
             self.run_search_for_query(objective, topology, query, prior_state.as_ref())
         });
 
-        *self.search_snapshot_state.borrow_mut() =
-            Some(PathwaySearchSnapshotState::from_topology(topology));
-
         let record = PathwayPlannerSearchRecord {
             objective: objective.clone(),
             query,
             run,
         };
+        *self.search_snapshot_state.borrow_mut() = Some(current_state);
         *self.last_search_record.borrow_mut() = Some(record.clone());
         record
     }
@@ -164,6 +167,7 @@ where
         prior_state: Option<&PathwaySearchSnapshotState>,
     ) -> PathwaySearchRun {
         let current_state = PathwaySearchSnapshotState::from_topology(topology);
+        let capture_replay_artifact = self.search_config.capture_replay_artifact();
         let topology_transition =
             classify_transition(prior_state.map(|state| &state.epoch), &current_state.epoch);
         let reconfiguration = prior_state
@@ -185,6 +189,9 @@ where
             query.clone(),
             self.search_config.epsilon(),
         );
+        if !capture_replay_artifact {
+            machine.set_selected_result_witness_export_enabled(false);
+        }
         if let Some(step) = reconfiguration.as_ref() {
             commit_epoch_reconfiguration(
                 &mut machine,
@@ -197,10 +204,16 @@ where
         let (report, replay) = self
             .execute_search_machine(&mut machine, &self.search_config)
             .expect("pathway search config is validated and domain snapshots are present");
+        let candidate_node_paths = if capture_replay_artifact {
+            reconstruct_candidate_node_paths(query, &report.observation.canonical_parent_map)
+        } else {
+            reconstruct_candidate_node_paths_from_parent_records(query, &machine.state().parent)
+        };
 
         PathwaySearchRun {
             topology_transition,
             selected_node_path: report.observation.selected_result_witness.clone(),
+            candidate_node_paths,
             reconfiguration,
             report,
             replay,
@@ -215,7 +228,7 @@ where
         prior_state: Option<&PathwaySearchSnapshotState>,
     ) -> PathwaySearchDomain {
         let current_state = PathwaySearchSnapshotState::from_topology(topology);
-        let mut snapshots = BTreeMap::new();
+        let mut snapshots = Vec::new();
         if let Some(state) = prior_state.filter(|state| state.epoch != current_state.epoch) {
             let prior_successors = self.freeze_successors_for_search(objective, &state.topology);
             let (prior_epoch, prior_snapshot) = freeze_snapshot_for_search(
@@ -224,7 +237,7 @@ where
                 accepted_node_ids,
                 self.search_config.heuristic_mode(),
             );
-            snapshots.insert(prior_epoch, prior_snapshot);
+            snapshots.push((prior_epoch, prior_snapshot));
         }
 
         let current_successors = self.freeze_successors_for_search(objective, topology);
@@ -234,7 +247,8 @@ where
             accepted_node_ids,
             self.search_config.heuristic_mode(),
         );
-        snapshots.insert(current_epoch, current_snapshot);
+        snapshots.push((current_epoch, current_snapshot));
+        snapshots.sort_unstable_by(|left, right| left.0.cmp(&right.0));
         PathwaySearchDomain::new(snapshots)
     }
 
@@ -242,8 +256,8 @@ where
         &self,
         objective: &RoutingObjective,
         topology: &Observation<Configuration>,
-    ) -> BTreeMap<NodeId, Vec<(NodeId, PathwaySearchEdgeMeta, u32)>> {
-        let mut successors = BTreeMap::new();
+    ) -> Vec<PathwaySuccessorRow> {
+        let mut successors = Vec::new();
         for from_node_id in topology.value.nodes.keys().copied() {
             let mut edges = adjacent_node_ids(&from_node_id, &topology.value)
                 .into_iter()
@@ -264,7 +278,7 @@ where
                 })
                 .collect::<Vec<_>>();
             edges.sort_by(|left, right| left.0.cmp(&right.0));
-            successors.insert(from_node_id, edges);
+            successors.push((from_node_id, edges));
         }
         successors
     }
@@ -277,22 +291,40 @@ where
         let run_config = config.run_config();
         cfg_if! {
             if #[cfg(target_arch = "wasm32")] {
-                validate_run_config::<PathwaySearchDomain, _>(&SerialProposalExecutor, &run_config)
-                    .map_err(telltale_search::SearchRunError::InvalidConfig)?;
-                run_with_executor(machine, &SerialProposalExecutor, run_config)
+                if config.capture_replay_artifact() {
+                    validate_run_config::<PathwaySearchDomain, _>(&SerialProposalExecutor, &run_config)
+                        .map_err(telltale_search::SearchRunError::InvalidConfig)?;
+                    run_with_executor(machine, &SerialProposalExecutor, run_config)
+                        .map(|(report, replay)| (report, Some(replay)))
+                } else {
+                    run_with_executor_report_only(machine, &SerialProposalExecutor, run_config)
+                        .map(|report| (report, None))
+                }
             } else {
                 if config.scheduler_profile() == SearchSchedulerProfile::ThreadedExactSingleLane {
                     let executor = NativeParallelExecutor::new(
                         NonZeroU64::new(config.batch_width()).expect("batch width is non-zero"),
                     )
                     .expect("threaded exact config requires native parallel executor support");
-                    validate_run_config::<PathwaySearchDomain, _>(&executor, &run_config)
-                        .map_err(telltale_search::SearchRunError::InvalidConfig)?;
-                    run_with_executor(machine, &executor, run_config)
+                    if config.capture_replay_artifact() {
+                        validate_run_config::<PathwaySearchDomain, _>(&executor, &run_config)
+                            .map_err(telltale_search::SearchRunError::InvalidConfig)?;
+                        run_with_executor(machine, &executor, run_config)
+                            .map(|(report, replay)| (report, Some(replay)))
+                    } else {
+                        run_with_executor_report_only(machine, &executor, run_config)
+                            .map(|report| (report, None))
+                    }
                 } else {
-                    validate_run_config::<PathwaySearchDomain, _>(&SerialProposalExecutor, &run_config)
-                        .map_err(telltale_search::SearchRunError::InvalidConfig)?;
-                    run_with_executor(machine, &SerialProposalExecutor, run_config)
+                    if config.capture_replay_artifact() {
+                        validate_run_config::<PathwaySearchDomain, _>(&SerialProposalExecutor, &run_config)
+                            .map_err(telltale_search::SearchRunError::InvalidConfig)?;
+                        run_with_executor(machine, &SerialProposalExecutor, run_config)
+                            .map(|(report, replay)| (report, Some(replay)))
+                    } else {
+                        run_with_executor_report_only(machine, &SerialProposalExecutor, run_config)
+                            .map(|report| (report, None))
+                    }
                 }
             }
         }

@@ -205,13 +205,13 @@ pub(super) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
     execution::simulate_diffusion_run(spec)
 }
 
-pub(super) fn aggregate_diffusion_runs(
-    runs: &[DiffusionRunSummary],
-) -> Vec<DiffusionAggregateSummary> {
+#[must_use]
+pub fn aggregate_diffusion_runs(runs: &[DiffusionRunSummary]) -> Vec<DiffusionAggregateSummary> {
     execution::aggregate_diffusion_runs(runs)
 }
 
-pub(super) fn summarize_diffusion_boundaries(
+#[must_use]
+pub fn summarize_diffusion_boundaries(
     aggregates: &[DiffusionAggregateSummary],
 ) -> Vec<DiffusionBoundarySummary> {
     execution::summarize_diffusion_boundaries(aggregates)

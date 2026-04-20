@@ -6,7 +6,6 @@ use jacquard_core::{
     DestinationId, HealthScore, NodeId, Observation, ReachabilityState, RouteEvent,
     RouteEventStamped, RouteId, RouteLifecycleEvent, RouterRoundOutcome, RoutingEngineId, Tick,
 };
-use jacquard_field::FieldExportedReplayBundle;
 use jacquard_mem_link_profile::InMemoryRuntimeEffects;
 
 use crate::{
@@ -45,6 +44,8 @@ pub struct ActiveRouteSummary {
     pub route_id: RouteId,
     pub destination: DestinationId,
     pub engine_id: RoutingEngineId,
+    pub next_hop_node_id: Option<NodeId>,
+    pub hop_count_hint: Option<u8>,
     pub last_lifecycle_event: RouteLifecycleEvent,
     pub reachability_state: ReachabilityState,
     pub stability_score: HealthScore,
@@ -58,7 +59,6 @@ pub struct ActiveRouteSummary {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldReplaySummary {
-    pub bundle: FieldExportedReplayBundle,
     pub selected_result_present: bool,
     pub search_reconfiguration_present: bool,
     pub execution_policy: Option<String>,

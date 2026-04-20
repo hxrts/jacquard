@@ -662,7 +662,7 @@ pub(super) fn node_ids(bytes: &[u8]) -> Vec<NodeId> {
     bytes.iter().copied().map(node_id).collect()
 }
 
-fn topology_from_byte_nodes_and_edges(
+pub(super) fn topology_from_byte_nodes_and_edges(
     byte_nodes: Vec<(u8, Node)>,
     undirected_edges: &[(u8, u8)],
     reachable_neighbor_count: u32,
@@ -694,7 +694,7 @@ fn topology_from_byte_nodes_and_edges(
     })
 }
 
-fn comparison_topology_nodes_for_bytes(
+pub(super) fn comparison_topology_nodes_for_bytes(
     bytes: &[u8],
     comparison_engine_set: Option<ComparisonEngineSet>,
 ) -> Vec<(u8, Node)> {

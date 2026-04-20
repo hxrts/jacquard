@@ -55,30 +55,29 @@ fn search_record_replays_into_the_final_observation() {
         Some(SearchQuery::single_goal(LOCAL_NODE_ID, NodeId([3; 32]))),
     );
     let run = record.run.as_ref().expect("one search run");
+    let replay = run.replay.as_ref().expect("replay artifact");
     assert_eq!(
         run.topology_transition,
         PathwaySearchTransitionClass::InitialSnapshot
     );
-    assert_eq!(run.report.observation, run.replay.final_observation);
+    assert_eq!(run.report.observation, replay.final_observation);
 
     let expectation = ReplayExpectation {
-        expected_epochs: run.replay.epoch_trace.clone(),
-        expected_snapshots: run
-            .replay
+        expected_epochs: replay.epoch_trace.clone(),
+        expected_snapshots: replay
             .rounds
             .iter()
             .map(|round| round.snapshot_id)
             .collect(),
-        expected_phases: run.replay.rounds.iter().map(|round| round.phase).collect(),
-        expected_batch_nodes: run
-            .replay
+        expected_phases: replay.rounds.iter().map(|round| round.phase).collect(),
+        expected_batch_nodes: replay
             .rounds
             .iter()
             .map(|round| round.batch_nodes.clone())
             .collect(),
-        required_fairness: run.replay.fairness_assumptions.clone(),
+        required_fairness: replay.fairness_assumptions.clone(),
     };
-    let replayed = replay_observation(&run.replay, &expectation).expect("replay observation");
+    let replayed = replay_observation(replay, &expectation).expect("replay observation");
     assert_eq!(replayed, run.report.observation);
 }
 
@@ -87,6 +86,7 @@ fn search_record_replays_into_the_final_observation() {
 fn topology_transition_classification_and_reconfiguration_are_explicit() {
     let engine = build_engine();
     let goal = objective(DestinationId::Node(NodeId([3; 32])));
+    let stable_goal = objective(DestinationId::Node(NodeId([4; 32])));
     let policy = profile();
 
     let first_topology = sample_configuration();
@@ -122,11 +122,17 @@ fn topology_transition_classification_and_reconfiguration_are_explicit() {
         SearchReseedingPolicy::PreserveOpenAndIncons,
     );
     assert!(
-        second_run.replay.epoch_trace.len() >= 2,
+        second_run
+            .replay
+            .as_ref()
+            .expect("replay artifact")
+            .epoch_trace
+            .len()
+            >= 2,
         "reconfigured runs should carry the prior and current snapshot epochs",
     );
 
-    std::mem::drop(engine.candidate_routes(&goal, &policy, &second_topology));
+    std::mem::drop(engine.candidate_routes(&stable_goal, &policy, &second_topology));
     let stable = engine.last_search_record().expect("stable search record");
     let stable_run = stable.run.as_ref().expect("stable search run");
     assert_eq!(
@@ -196,11 +202,12 @@ fn selected_result_artifacts_match_query_kind() {
     std::mem::drop(engine.candidate_routes(&exact_goal, &policy, &topology));
     let exact_record = engine.last_search_record().expect("exact search record");
     let exact_run = exact_record.run.as_ref().expect("exact search run");
+    let exact_replay = exact_run.replay.as_ref().expect("replay artifact");
     assert_eq!(
-        exact_run.replay.selected_result_semantics_class,
+        exact_replay.selected_result_semantics_class,
         SearchSelectedResultSemanticsClass::QueryDerived,
     );
-    assert!(exact_run.replay.path_problem.is_some());
+    assert!(exact_replay.path_problem.is_some());
     assert!(exact_run
         .report
         .selected_result_bounds()
@@ -215,11 +222,12 @@ fn selected_result_artifacts_match_query_kind() {
         Some(SearchQuery::CandidateSet { .. }),
     ));
     let service_run = service_record.run.as_ref().expect("service search run");
+    let service_replay = service_run.replay.as_ref().expect("replay artifact");
     assert_eq!(
-        service_run.replay.selected_result_semantics_class,
+        service_replay.selected_result_semantics_class,
         SearchSelectedResultSemanticsClass::QueryDerived,
     );
-    assert!(service_run.replay.path_problem.is_none());
+    assert!(service_replay.path_problem.is_none());
     assert!(service_run
         .report
         .selected_result_bounds()

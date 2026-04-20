@@ -26,7 +26,7 @@ use super::{
         confidence_for_segments, decode_backend_token, degradation_for_candidate,
         node_path_from_plan_token, unique_protocol_mix,
     },
-    PathwayEngine,
+    PathwayEngine, PathwaySearchSnapshotState,
 };
 use crate::{
     engine::{CachedCandidate, PathwaySelectorBounds, PATHWAY_CANDIDATE_COUNT_MAX},
@@ -111,8 +111,30 @@ where
         topology: &Observation<Configuration>,
     ) -> Vec<(jacquard_core::BackendRouteId, CachedCandidate)> {
         let configuration = &topology.value;
-        self.search_record_for_objective(objective, topology)
-            .candidate_node_paths()
+        let current_epoch = PathwaySearchSnapshotState::from_topology(topology).epoch;
+        let candidate_node_paths = {
+            let mut cache = self.candidate_node_path_cache.borrow_mut();
+            if cache
+                .iter()
+                .any(|(_, cached_epoch, _)| *cached_epoch != current_epoch)
+            {
+                cache.clear();
+            }
+            if let Some((_, _, cached_paths)) =
+                cache.iter().find(|(cached_objective, cached_epoch, _)| {
+                    cached_objective == objective && *cached_epoch == current_epoch
+                })
+            {
+                cached_paths.clone()
+            } else {
+                let paths = self
+                    .search_record_for_objective(objective, topology)
+                    .candidate_node_paths();
+                cache.push((objective.clone(), current_epoch, paths.clone()));
+                paths
+            }
+        };
+        candidate_node_paths
             .into_iter()
             .filter_map(|node_path| {
                 if node_path.last().copied() == Some(self.local_node_id) {

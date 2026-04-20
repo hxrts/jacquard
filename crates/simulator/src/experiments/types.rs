@@ -5,6 +5,7 @@
 #![allow(clippy::wildcard_imports)]
 
 use super::*;
+use crate::experiments::catalog::FamilyBuilder;
 use crate::SimulationExecutionLane;
 use jacquard_babel::{
     BabelMaintenanceInputView, BabelMaintenanceStateView, BabelPlannerSeed, BabelRoundInputView,
@@ -568,7 +569,8 @@ impl ExperimentParameterSet {
         Some(
             PathwaySearchConfig::default()
                 .with_per_objective_query_budget(budget)
-                .with_heuristic_mode(heuristic_mode),
+                .with_heuristic_mode(heuristic_mode)
+                .disable_replay_capture(),
         )
     }
 
@@ -583,6 +585,7 @@ impl ExperimentParameterSet {
         let config = FieldSearchConfig::default()
             .with_per_objective_query_budget(budget)
             .with_heuristic_mode(heuristic_mode)
+            .disable_replay_capture()
             .with_service_publication_neighbor_limit(
                 self.field_service_publication_neighbor_limit.unwrap_or(3),
             )
@@ -959,6 +962,17 @@ pub(crate) struct BabelCheckpointRestoreCase {
 pub(crate) type ScatterPlannerDecisionCase = PlannerDecisionCase<ScatterPlannerSeed>;
 
 #[derive(Clone, Debug)]
+pub(crate) enum ExperimentRunWorld {
+    Prepared {
+        scenario: Box<JacquardScenario>,
+        environment: ScriptedEnvironmentModel,
+    },
+    Generated {
+        builder: FamilyBuilder,
+    },
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct ExperimentRunSpec {
     pub run_id: String,
     pub suite_id: String,
@@ -968,9 +982,27 @@ pub(crate) struct ExperimentRunSpec {
     pub seed: SimulationSeed,
     pub regime: RegimeDescriptor,
     pub parameters: ExperimentParameterSet,
-    pub scenario: JacquardScenario,
-    pub environment: ScriptedEnvironmentModel,
+    pub world: ExperimentRunWorld,
     pub model_case: Option<ExperimentModelCase>,
+}
+
+impl ExperimentRunSpec {
+    pub(crate) fn materialize_world(&self) -> (JacquardScenario, ScriptedEnvironmentModel) {
+        match &self.world {
+            ExperimentRunWorld::Prepared {
+                scenario,
+                environment,
+            } => ((**scenario).clone(), environment.clone()),
+            ExperimentRunWorld::Generated { builder } => builder(&self.parameters, self.seed),
+        }
+    }
+
+    pub(crate) fn prepared_scenario(&self) -> Option<&JacquardScenario> {
+        match &self.world {
+            ExperimentRunWorld::Prepared { scenario, .. } => Some(scenario.as_ref()),
+            ExperimentRunWorld::Generated { .. } => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1016,9 +1048,22 @@ pub struct ExperimentRunSummary {
     pub activation_success_permille: u32,
     pub route_present_permille: u32,
     pub route_present_total_window_permille: u32,
+    pub objective_route_presence_min_permille: u32,
+    pub objective_route_presence_max_permille: u32,
+    pub objective_route_presence_spread: u32,
+    pub objective_starvation_count: u32,
+    pub concurrent_route_round_count: u32,
     pub first_materialization_round_mean: Option<u32>,
+    pub first_disruption_round_mean: Option<u32>,
     pub first_loss_round_mean: Option<u32>,
+    pub stale_persistence_round_mean: Option<u32>,
     pub recovery_round_mean: Option<u32>,
+    pub recovery_success_permille: u32,
+    pub unrecovered_after_loss_count: u32,
+    pub broker_participation_permille: Option<u32>,
+    pub broker_concentration_permille: Option<u32>,
+    pub broker_route_churn_count: Option<u32>,
+    pub active_route_hop_count_mean: Option<u32>,
     pub route_churn_count: u32,
     pub engine_handoff_count: u32,
     pub route_observation_count: u32,
@@ -1128,11 +1173,25 @@ pub struct ExperimentAggregateSummary {
     pub route_present_permille_max: u32,
     pub route_present_permille_spread: u32,
     pub route_present_total_window_permille_mean: u32,
+    pub objective_route_presence_min_permille_mean: u32,
+    pub objective_route_presence_max_permille_mean: u32,
+    pub objective_route_presence_spread_mean: u32,
+    pub objective_starvation_count_mean: u32,
+    pub concurrent_route_round_count_mean: u32,
     pub first_materialization_round_mean: Option<u32>,
+    pub first_disruption_round_mean: Option<u32>,
     pub first_loss_round_mean: Option<u32>,
+    pub stale_persistence_round_mean: Option<u32>,
     pub recovery_round_mean: Option<u32>,
+    pub recovery_success_permille_mean: u32,
+    pub unrecovered_after_loss_count_mean: u32,
+    pub broker_participation_permille_mean: Option<u32>,
+    pub broker_concentration_permille_mean: Option<u32>,
+    pub broker_route_churn_count_mean: Option<u32>,
+    pub active_route_hop_count_mean: Option<u32>,
     pub route_churn_count_mean: u32,
     pub engine_handoff_count_mean: u32,
+    pub route_observation_count_mean: u32,
     pub dominant_engine: Option<String>,
     pub batman_bellman_selected_rounds_mean: u32,
     pub batman_classic_selected_rounds_mean: u32,

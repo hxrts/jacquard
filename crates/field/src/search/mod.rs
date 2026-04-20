@@ -52,6 +52,15 @@ pub enum FieldSearchHeuristicMode {
     HopLowerBound,
 }
 
+/// Replay-capture policy for retained field search diagnostics.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub enum FieldReplayCapture {
+    /// Retain the full replay artifact for diagnostics and reporting.
+    Enabled,
+    /// Skip replay-artifact retention and keep only the report surface.
+    Disabled,
+}
+
 /// Fail-closed field search-config validation error.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum FieldSearchConfigError {
@@ -89,6 +98,7 @@ pub struct FieldSearchConfig {
     per_objective_query_budget: usize,
     heuristic_mode: FieldSearchHeuristicMode,
     reseeding_policy: SearchReseedingPolicy,
+    capture_replay_artifact: bool,
     service_publication_neighbor_limit: usize,
     service_freshness_weight: u16,
     service_narrowing_bias: u16,
@@ -134,6 +144,7 @@ impl FieldSearchConfig {
             per_objective_query_budget,
             heuristic_mode,
             reseeding_policy,
+            capture_replay_artifact: true,
             service_publication_neighbor_limit: 3,
             service_freshness_weight: 100,
             service_narrowing_bias: 100,
@@ -251,6 +262,11 @@ impl FieldSearchConfig {
     }
 
     #[must_use]
+    pub fn capture_replay_artifact(&self) -> bool {
+        self.capture_replay_artifact
+    }
+
+    #[must_use]
     pub fn service_publication_neighbor_limit(&self) -> usize {
         self.service_publication_neighbor_limit
     }
@@ -313,6 +329,17 @@ impl FieldSearchConfig {
     pub fn with_reseeding_policy(mut self, reseeding_policy: SearchReseedingPolicy) -> Self {
         self.reseeding_policy = reseeding_policy;
         self
+    }
+
+    #[must_use]
+    pub fn with_replay_capture(mut self, replay_capture: FieldReplayCapture) -> Self {
+        self.capture_replay_artifact = matches!(replay_capture, FieldReplayCapture::Enabled);
+        self
+    }
+
+    #[must_use]
+    pub fn disable_replay_capture(self) -> Self {
+        self.with_replay_capture(FieldReplayCapture::Disabled)
     }
 
     #[must_use]
@@ -463,8 +490,8 @@ pub struct FieldSearchRun {
     pub reconfiguration: Option<FieldSearchReconfiguration>,
     /// Final execution report.
     pub report: SearchExecutionReport<NodeId, FieldSearchEpoch, u32>,
-    /// Replay artifact for canonical reconstruction.
-    pub replay: SearchReplayArtifact<NodeId, FieldSearchEpoch, FieldSearchSnapshotId, u32>,
+    /// Replay artifact for canonical reconstruction when capture is enabled.
+    pub replay: Option<SearchReplayArtifact<NodeId, FieldSearchEpoch, FieldSearchSnapshotId, u32>>,
 }
 
 /// One planner search record persisted by field for diagnostics.

@@ -130,6 +130,12 @@ pub const PATHWAY_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabil
 // It is `RefCell<...>` because the planner trait methods take `&self`.
 // `active_routes` holds the pathway-private runtime state for each
 // materialized route. Canonical identity lives on the router side.
+type CandidateNodePathCacheEntry = (
+    jacquard_core::RoutingObjective,
+    planner::PathwaySearchEpoch,
+    Vec<Vec<NodeId>>,
+);
+
 pub struct PathwayEngine<
     Topology,
     Transport,
@@ -155,6 +161,7 @@ pub struct PathwayEngine<
     search_config: planner::PathwaySearchConfig,
     search_snapshot_state: RefCell<Option<planner::PathwaySearchSnapshotState>>,
     last_search_record: RefCell<Option<planner::PathwayPlannerSearchRecord>>,
+    candidate_node_path_cache: RefCell<Vec<CandidateNodePathCacheEntry>>,
     candidate_cache: RefCell<BTreeMap<jacquard_core::BackendRouteId, CachedCandidate>>,
     active_routes: BTreeMap<RouteId, ActivePathwayRoute>,
 }
@@ -251,6 +258,7 @@ impl<Topology, Transport, Retention, Effects, Hasher>
             search_config: planner::PathwaySearchConfig::default(),
             search_snapshot_state: RefCell::new(None),
             last_search_record: RefCell::new(None),
+            candidate_node_path_cache: RefCell::new(Vec::new()),
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
         }
@@ -290,6 +298,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
             search_config: planner::PathwaySearchConfig::default(),
             search_snapshot_state: RefCell::new(None),
             last_search_record: RefCell::new(None),
+            candidate_node_path_cache: RefCell::new(Vec::new()),
             candidate_cache: RefCell::new(BTreeMap::new()),
             active_routes: BTreeMap::new(),
         }

@@ -27,6 +27,9 @@ PLOT_SPECS = {
     "large_population_route_scaling": (16.4, 8.8),
     "large_population_route_fragility": (16.4, 8.8),
     "large_population_diffusion_transitions": (17.0, 10.6),
+    "routing_fitness_crossover": (16.4, 8.8),
+    "routing_fitness_multiflow": (13.4, 8.0),
+    "routing_fitness_stale_repair": (13.8, 8.2),
 }
 
 ENGINE_COLORS = {
@@ -229,6 +232,87 @@ LARGE_POPULATION_DIFFUSION_FAMILIES = [
         "family_label": "Regional shift continuity",
         "size_band": "high",
         "size_order": 2,
+    },
+]
+
+ROUTING_FITNESS_CROSSOVER_FAMILIES = [
+    {
+        "family_id": "head-to-head-connected-low-loss",
+        "question": "search-burden",
+        "question_label": "Search burden crossover",
+        "band_label": "low",
+        "band_order": 0,
+    },
+    {
+        "family_id": "head-to-head-large-core-periphery-moderate",
+        "question": "search-burden",
+        "question_label": "Search burden crossover",
+        "band_label": "moderate",
+        "band_order": 1,
+    },
+    {
+        "family_id": "head-to-head-large-core-periphery-high",
+        "question": "search-burden",
+        "question_label": "Search burden crossover",
+        "band_label": "high",
+        "band_order": 2,
+    },
+    {
+        "family_id": "head-to-head-medium-bridge-repair",
+        "question": "maintenance-benefit",
+        "question_label": "Maintenance benefit crossover",
+        "band_label": "low",
+        "band_order": 0,
+    },
+    {
+        "family_id": "head-to-head-large-multi-bottleneck-moderate",
+        "question": "maintenance-benefit",
+        "question_label": "Maintenance benefit crossover",
+        "band_label": "moderate",
+        "band_order": 1,
+    },
+    {
+        "family_id": "head-to-head-large-multi-bottleneck-high",
+        "question": "maintenance-benefit",
+        "question_label": "Maintenance benefit crossover",
+        "band_label": "high",
+        "band_order": 2,
+    },
+]
+
+ROUTING_FITNESS_MULTI_FLOW_FAMILIES = [
+    {
+        "family_id": "head-to-head-multi-flow-shared-corridor",
+        "family_label": "Shared corridor",
+        "family_order": 0,
+    },
+    {
+        "family_id": "head-to-head-multi-flow-asymmetric-demand",
+        "family_label": "Asymmetric demand",
+        "family_order": 1,
+    },
+    {
+        "family_id": "head-to-head-multi-flow-detour-choice",
+        "family_label": "Detour choice",
+        "family_order": 2,
+    },
+]
+
+ROUTING_FITNESS_STALE_FAMILIES = [
+    {
+        "family_id": "head-to-head-stale-observation-delay",
+        "family_label": "Delayed observation",
+        "family_order": 0,
+    },
+    {
+        "family_id": "head-to-head-stale-asymmetric-region",
+        "family_label": "Asymmetric stale region",
+        "family_order": 1,
+    },
+    {
+        "family_id": "head-to-head-stale-recovery-window",
+        "family_label": "Recovery window",
+        "family_order": 2,
     },
 ]
 

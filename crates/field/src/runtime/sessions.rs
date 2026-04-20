@@ -108,7 +108,7 @@ where
         &self,
         active_routes: &[jacquard_core::MaterializedRoute],
     ) -> Option<Box<dyn std::any::Any>> {
-        Some(Box::new(self.exported_replay_bundle(active_routes)))
+        Some(Box::new(self.router_analysis_snapshot(active_routes)))
     }
 }
 

@@ -1,6 +1,6 @@
 //! Condensed replay view: per-route presence, materialization, and loss summaries.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use jacquard_core::{DestinationId, NodeId, RouteLifecycleEvent, RoutingEngineId};
 use jacquard_field::FIELD_ENGINE_ID;
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     environment::{AppliedEnvironmentHook, EnvironmentHook},
     replay::{ActiveRouteSummary, DriverStatusEvent, FieldReplaySummary, SimulationFailureSummary},
-    JacquardReplayArtifact,
+    JacquardReplayArtifact, JacquardScenario,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,6 +42,7 @@ pub struct ReducedRouteObservation {
     pub key: ReducedRouteKey,
     pub route_id: jacquard_core::RouteId,
     pub engine_id: RoutingEngineId,
+    pub next_hop_node_id: Option<NodeId>,
     pub first_seen_round: u32,
     pub last_seen_round: u32,
     pub last_lifecycle_event: RouteLifecycleEvent,
@@ -76,45 +77,112 @@ pub struct ReducedEnvironmentHookCounts {
     pub intrinsic_limit: u32,
 }
 
+pub(crate) type ObjectiveRouteFilter = BTreeMap<NodeId, Vec<DestinationId>>;
+
+#[must_use]
+pub(crate) fn objective_route_filter_for(scenario: &JacquardScenario) -> ObjectiveRouteFilter {
+    let mut filter = ObjectiveRouteFilter::new();
+    for binding in scenario.bound_objectives() {
+        filter
+            .entry(binding.owner_node_id)
+            .or_default()
+            .push(binding.objective.destination.clone());
+    }
+    filter
+}
+
+#[must_use]
+pub(crate) fn objective_owner_nodes_for(scenario: &JacquardScenario) -> BTreeSet<NodeId> {
+    scenario
+        .bound_objectives()
+        .iter()
+        .map(|binding| binding.owner_node_id)
+        .collect()
+}
+
+#[must_use]
+pub(crate) fn filter_active_routes(
+    active_routes: impl IntoIterator<Item = ActiveRouteSummary>,
+    objective_routes: &ObjectiveRouteFilter,
+) -> Vec<ActiveRouteSummary> {
+    if objective_routes.is_empty() {
+        return active_routes.into_iter().collect();
+    }
+    active_routes
+        .into_iter()
+        .filter(|route| {
+            objective_routes
+                .get(&route.owner_node_id)
+                .is_some_and(|destinations| {
+                    destinations
+                        .iter()
+                        .any(|destination| destination == &route.destination)
+                })
+        })
+        .collect()
+}
+
+#[must_use]
+pub(crate) fn filter_field_replays(
+    field_replays: impl IntoIterator<Item = ReducedFieldReplayObservation>,
+    objective_owner_nodes: &BTreeSet<NodeId>,
+) -> Vec<ReducedFieldReplayObservation> {
+    if objective_owner_nodes.is_empty() {
+        return field_replays.into_iter().collect();
+    }
+    field_replays
+        .into_iter()
+        .filter(|observation| objective_owner_nodes.contains(&observation.local_node_id))
+        .collect()
+}
+
+#[must_use]
+pub(crate) fn distinct_engine_ids_for(rounds: &[ReducedReplayRound]) -> Vec<RoutingEngineId> {
+    rounds
+        .iter()
+        .flat_map(|round| {
+            round
+                .active_routes
+                .iter()
+                .map(|route| route.engine_id.clone())
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 impl ReducedReplayView {
     #[must_use]
     pub fn from_replay(replay: &JacquardReplayArtifact) -> Self {
+        let objective_routes = objective_route_filter_for(&replay.scenario);
+        let objective_owner_nodes = objective_owner_nodes_for(&replay.scenario);
         let rounds = replay
             .rounds
             .iter()
             .map(|round| ReducedReplayRound {
                 round_index: round.round_index,
-                active_routes: round
-                    .host_rounds
-                    .iter()
-                    .flat_map(|host| host.active_routes.iter().cloned())
-                    .collect(),
+                active_routes: filter_active_routes(
+                    round
+                        .host_rounds
+                        .iter()
+                        .flat_map(|host| host.active_routes.iter().cloned()),
+                    &objective_routes,
+                ),
                 environment_hooks: round.environment_artifacts.clone(),
-                field_replays: round
-                    .host_rounds
-                    .iter()
-                    .filter_map(|host| {
+                field_replays: filter_field_replays(
+                    round.host_rounds.iter().filter_map(|host| {
                         host.field_replay
                             .clone()
                             .map(|summary| ReducedFieldReplayObservation {
                                 local_node_id: host.local_node_id,
                                 summary,
                             })
-                    })
-                    .collect(),
+                    }),
+                    &objective_owner_nodes,
+                ),
             })
             .collect::<Vec<_>>();
-        let distinct_engine_ids = rounds
-            .iter()
-            .flat_map(|round| {
-                round
-                    .active_routes
-                    .iter()
-                    .map(|route| route.engine_id.clone())
-            })
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
+        let distinct_engine_ids = distinct_engine_ids_for(&rounds);
         Self {
             scenario_name: replay.scenario.name().to_owned(),
             round_count: u32::try_from(rounds.len()).unwrap_or(u32::MAX),
@@ -150,6 +218,7 @@ impl ReducedReplayView {
                         key,
                         route_id: route.route_id,
                         engine_id: route.engine_id.clone(),
+                        next_hop_node_id: route.next_hop_node_id,
                         first_seen_round: round.round_index,
                         last_seen_round: round.round_index,
                         last_lifecycle_event: route.last_lifecycle_event,
@@ -198,6 +267,20 @@ impl ReducedReplayView {
                 round.active_routes.iter().filter_map(|route| {
                     (route.owner_node_id == owner_node_id && &route.destination == destination)
                         .then_some(route.stability_score.0)
+                })
+            })
+            .collect()
+    }
+
+    #[must_use]
+    pub fn route_hop_counts(&self, owner_node_id: NodeId, destination: &DestinationId) -> Vec<u32> {
+        self.rounds
+            .iter()
+            .flat_map(|round| {
+                round.active_routes.iter().filter_map(|route| {
+                    (route.owner_node_id == owner_node_id && &route.destination == destination)
+                        .then_some(route.hop_count_hint.map(u32::from))
+                        .flatten()
                 })
             })
             .collect()
@@ -304,6 +387,14 @@ impl ReducedReplayView {
             }
         }
         None
+    }
+
+    #[must_use]
+    pub fn first_round_with_environment_change_at_or_after(&self, round_index: u32) -> Option<u32> {
+        self.rounds
+            .iter()
+            .find(|round| round.round_index >= round_index && !round.environment_hooks.is_empty())
+            .map(|round| round.round_index)
     }
 
     #[must_use]

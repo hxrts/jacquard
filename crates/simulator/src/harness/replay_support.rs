@@ -2,14 +2,33 @@
 
 use super::{
     ActiveRouteSummary, BTreeMap, BoundObjective, BridgeRoundProgress, BridgeRoundReport,
-    ConnectivityPosture, DestinationId, DriverStatusEvent, DurationMs, FieldExportedReplayBundle,
-    FieldReplaySummary, HoldFallbackPolicy, HostCheckpointSnapshot, HostRoundArtifact,
-    HostRoundStatus, IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
+    ConnectivityPosture, DestinationId, DriverStatusEvent, DurationMs, FieldReplaySummary,
+    HoldFallbackPolicy, HostCheckpointSnapshot, HostRoundArtifact, HostRoundStatus,
+    IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
     JacquardSimulationStats, NodeId, PriorityPoints, ReferenceClient, ReferenceRouter,
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass, Router, RoutingControlPlane,
     RoutingObjective, SimulationError, SimulationFailureSummary, Tick, FIELD_ENGINE_ID,
     PATHWAY_ENGINE_ID,
 };
+use jacquard_babel::{
+    selected_neighbor_from_backend_route_id as selected_babel_neighbor, BABEL_ENGINE_ID,
+};
+use jacquard_batman_bellman::{
+    selected_neighbor_from_backend_route_id as selected_batman_bellman_neighbor,
+    BATMAN_BELLMAN_ENGINE_ID,
+};
+use jacquard_batman_classic::{
+    selected_neighbor_from_backend_route_id as selected_batman_classic_neighbor,
+    BATMAN_CLASSIC_ENGINE_ID,
+};
+use jacquard_field::{
+    selected_neighbor_from_backend_route_id as selected_field_neighbor,
+    FieldRouterAnalysisSnapshot, FIELD_ENGINE_ID as FIELD_ROUTER_ENGINE_ID,
+};
+use jacquard_olsrv2::{
+    selected_neighbor_from_backend_route_id as selected_olsr_neighbor, OLSRV2_ENGINE_ID,
+};
+use jacquard_pathway::first_hop_node_id_from_backend_route_id;
 
 pub(super) fn host_artifact(
     local_node_id: NodeId,
@@ -46,197 +65,38 @@ pub(super) fn host_artifact(
 // long-block-exception: this replay projection maps many Field runtime surfaces
 // into one report summary, and keeping it in one pass preserves traceability.
 pub(super) fn summarize_field_replay(router: &ReferenceRouter) -> Option<FieldReplaySummary> {
-    let bundle = router
+    let snapshot = router
         .engine_analysis_snapshot(&FIELD_ENGINE_ID)?
-        .downcast::<FieldExportedReplayBundle>()
+        .downcast::<FieldRouterAnalysisSnapshot>()
         .ok()
         .map(|boxed| *boxed)?;
-    let selected_result_present = bundle
-        .runtime_search
-        .search
-        .as_ref()
-        .is_some_and(|search| search.selected_result.is_some());
-    let search_reconfiguration_present = bundle
-        .runtime_search
-        .search
-        .as_ref()
-        .is_some_and(|search| search.reconfiguration.is_some());
-    let execution_policy = bundle
-        .runtime_search
-        .search
-        .as_ref()
-        .map(|search| search.execution_policy.scheduler_profile.clone());
-    let bootstrap_active = bundle
-        .recovery
-        .entries
-        .iter()
-        .any(|entry| entry.bootstrap_active);
-    let continuity_band = bundle
-        .recovery
-        .entries
-        .iter()
-        .find_map(|entry| entry.continuity_band.clone());
-    let last_continuity_transition = bundle
-        .recovery
-        .entries
-        .iter()
-        .find_map(|entry| entry.last_continuity_transition.clone());
-    let last_promotion_decision = bundle
-        .recovery
-        .entries
-        .iter()
-        .find_map(|entry| entry.last_promotion_decision.clone());
-    let last_promotion_blocker = bundle
-        .recovery
-        .entries
-        .iter()
-        .find_map(|entry| entry.last_promotion_blocker.clone());
-    let bootstrap_activation_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.bootstrap_activation_count)
-        .max()
-        .unwrap_or(0);
-    let bootstrap_hold_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.bootstrap_hold_count)
-        .max()
-        .unwrap_or(0);
-    let bootstrap_narrow_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.bootstrap_narrow_count)
-        .max()
-        .unwrap_or(0);
-    let bootstrap_upgrade_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.bootstrap_upgrade_count)
-        .max()
-        .unwrap_or(0);
-    let bootstrap_withdraw_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.bootstrap_withdraw_count)
-        .max()
-        .unwrap_or(0);
-    let degraded_steady_entry_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.degraded_steady_entry_count)
-        .max()
-        .unwrap_or(0);
-    let degraded_steady_recovery_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.degraded_steady_recovery_count)
-        .max()
-        .unwrap_or(0);
-    let degraded_to_bootstrap_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.degraded_to_bootstrap_count)
-        .max()
-        .unwrap_or(0);
-    let degraded_steady_round_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.degraded_steady_round_count)
-        .max()
-        .unwrap_or(0);
-    let service_retention_carry_forward_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.service_retention_carry_forward_count)
-        .max()
-        .unwrap_or(0);
-    let asymmetric_shift_success_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.asymmetric_shift_success_count)
-        .max()
-        .unwrap_or(0);
-    let protocol_reconfiguration_count = bundle.protocol.reconfigurations.len();
-    let route_bound_reconfiguration_count = bundle
-        .protocol
-        .reconfigurations
-        .iter()
-        .filter(|step| step.route_id.is_some())
-        .count();
-    let continuation_shift_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.continuation_shift_count)
-        .max()
-        .unwrap_or(0);
-    let corridor_narrow_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.corridor_narrow_count)
-        .max()
-        .unwrap_or(0);
-    let checkpoint_capture_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.checkpoint_capture_count)
-        .max()
-        .unwrap_or(0);
-    let checkpoint_restore_count = bundle
-        .recovery
-        .entries
-        .iter()
-        .map(|entry| entry.checkpoint_restore_count)
-        .max()
-        .unwrap_or(0);
-    let reconfiguration_causes = bundle
-        .protocol
-        .reconfigurations
-        .iter()
-        .map(|entry| entry.cause.clone())
-        .collect();
     Some(FieldReplaySummary {
-        bundle,
-        selected_result_present,
-        search_reconfiguration_present,
-        execution_policy,
-        bootstrap_active,
-        continuity_band,
-        last_continuity_transition,
-        last_promotion_decision,
-        last_promotion_blocker,
-        bootstrap_activation_count,
-        bootstrap_hold_count,
-        bootstrap_narrow_count,
-        bootstrap_upgrade_count,
-        bootstrap_withdraw_count,
-        degraded_steady_entry_count,
-        degraded_steady_recovery_count,
-        degraded_to_bootstrap_count,
-        degraded_steady_round_count,
-        service_retention_carry_forward_count,
-        asymmetric_shift_success_count,
-        protocol_reconfiguration_count,
-        route_bound_reconfiguration_count,
-        continuation_shift_count,
-        corridor_narrow_count,
-        checkpoint_capture_count,
-        checkpoint_restore_count,
-        reconfiguration_causes,
+        selected_result_present: snapshot.selected_result_present,
+        search_reconfiguration_present: snapshot.search_reconfiguration_present,
+        execution_policy: snapshot.execution_policy,
+        bootstrap_active: snapshot.bootstrap_active,
+        continuity_band: snapshot.continuity_band,
+        last_continuity_transition: snapshot.last_continuity_transition,
+        last_promotion_decision: snapshot.last_promotion_decision,
+        last_promotion_blocker: snapshot.last_promotion_blocker,
+        bootstrap_activation_count: snapshot.bootstrap_activation_count,
+        bootstrap_hold_count: snapshot.bootstrap_hold_count,
+        bootstrap_narrow_count: snapshot.bootstrap_narrow_count,
+        bootstrap_upgrade_count: snapshot.bootstrap_upgrade_count,
+        bootstrap_withdraw_count: snapshot.bootstrap_withdraw_count,
+        degraded_steady_entry_count: snapshot.degraded_steady_entry_count,
+        degraded_steady_recovery_count: snapshot.degraded_steady_recovery_count,
+        degraded_to_bootstrap_count: snapshot.degraded_to_bootstrap_count,
+        degraded_steady_round_count: snapshot.degraded_steady_round_count,
+        service_retention_carry_forward_count: snapshot.service_retention_carry_forward_count,
+        asymmetric_shift_success_count: snapshot.asymmetric_shift_success_count,
+        protocol_reconfiguration_count: snapshot.protocol_reconfiguration_count,
+        route_bound_reconfiguration_count: snapshot.route_bound_reconfiguration_count,
+        continuation_shift_count: snapshot.continuation_shift_count,
+        corridor_narrow_count: snapshot.corridor_narrow_count,
+        checkpoint_capture_count: snapshot.checkpoint_capture_count,
+        checkpoint_restore_count: snapshot.checkpoint_restore_count,
+        reconfiguration_causes: snapshot.reconfiguration_causes,
     })
 }
 
@@ -277,13 +137,12 @@ pub(super) fn advance_route_event_cursors(
     let mut new_event_count = 0usize;
     for (node_id, host) in hosts {
         let cursor = cursors.entry(*node_id).or_insert(0);
-        let next_len = {
-            let owner = host.bind();
-            owner.router().effects().events.len()
-        };
+        let mut owner = host.bind();
+        let next_len = owner.router().effects().events.len();
         let delta = next_len.saturating_sub(*cursor);
         new_event_count = new_event_count.saturating_add(delta);
-        *cursor = next_len;
+        owner.router_mut().effects_mut().events.clear();
+        *cursor = 0;
     }
     new_event_count
 }
@@ -292,19 +151,19 @@ pub(super) fn summarize_active_routes(
     owner_node_id: NodeId,
     router: &ReferenceRouter,
 ) -> Vec<ActiveRouteSummary> {
-    let field_bundle = router
+    let field_snapshot = router
         .engine_analysis_snapshot(&FIELD_ENGINE_ID)
-        .and_then(|snapshot| snapshot.downcast::<FieldExportedReplayBundle>().ok())
+        .and_then(|snapshot| snapshot.downcast::<FieldRouterAnalysisSnapshot>().ok())
         .map(|boxed| *boxed);
     router
         .active_routes_snapshot()
         .into_iter()
         .map(|route| {
             let route_id = route.identity.stamp.route_id;
-            let recovery_entry = field_bundle.as_ref().and_then(|bundle| {
-                bundle
-                    .recovery
-                    .entries
+            let next_hop_node_id = next_hop_node_id_for_route(&route);
+            let recovery_entry = field_snapshot.as_ref().and_then(|snapshot| {
+                snapshot
+                    .route_summaries
                     .iter()
                     .find(|entry| entry.route_id == route_id)
             });
@@ -313,11 +172,14 @@ pub(super) fn summarize_active_routes(
                 .ok()
                 .and_then(|commitments| commitments.into_iter().next())
                 .map(|commitment| format!("{:?}", commitment.resolution));
+            let hop_count_hint = route.identity.admission.summary.hop_count_hint.value_or(0);
             ActiveRouteSummary {
                 owner_node_id,
                 route_id,
                 destination: route.identity.admission.objective.destination,
                 engine_id: route.identity.admission.summary.engine,
+                next_hop_node_id,
+                hop_count_hint: (hop_count_hint > 0).then_some(hop_count_hint),
                 last_lifecycle_event: route.runtime.last_lifecycle_event,
                 reachability_state: route.runtime.health.reachability_state,
                 stability_score: route.runtime.health.stability_score,
@@ -334,6 +196,19 @@ pub(super) fn summarize_active_routes(
             }
         })
         .collect()
+}
+
+fn next_hop_node_id_for_route(route: &jacquard_core::MaterializedRoute) -> Option<NodeId> {
+    let backend_route_id = &route.identity.admission.backend_ref.backend_route_id;
+    match route.identity.admission.summary.engine {
+        BATMAN_BELLMAN_ENGINE_ID => selected_batman_bellman_neighbor(backend_route_id),
+        BATMAN_CLASSIC_ENGINE_ID => selected_batman_classic_neighbor(backend_route_id),
+        BABEL_ENGINE_ID => selected_babel_neighbor(backend_route_id),
+        OLSRV2_ENGINE_ID => selected_olsr_neighbor(backend_route_id),
+        PATHWAY_ENGINE_ID => first_hop_node_id_from_backend_route_id(backend_route_id),
+        FIELD_ROUTER_ENGINE_ID => selected_field_neighbor(backend_route_id),
+        _ => None,
+    }
 }
 
 pub(super) fn refresh_host_round_routes(

@@ -19,6 +19,9 @@ from .constants import (
     HEURISTIC_COLORS,
     LARGE_POPULATION_STATE_ORDER,
     PLOT_SPECS,
+    ROUTING_FITNESS_CROSSOVER_FAMILIES,
+    ROUTING_FITNESS_MULTI_FLOW_FAMILIES,
+    ROUTING_FITNESS_STALE_FAMILIES,
     ROUTE_VISIBLE_ENGINE_SET_ORDER,
 )
 
@@ -2041,6 +2044,343 @@ def render_large_population_route_fragility(
             header=alt.Header(title=None),
         ),
         columns=2,
+    )
+    return _configure_chart(chart)
+
+
+def render_routing_fitness_crossover(
+    routing_fitness_crossover_summary: pl.DataFrame, total_width: int, total_height: int
+) -> alt.TopLevelMixin | None:
+    if routing_fitness_crossover_summary.is_empty():
+        return None
+    question_order = []
+    for entry in ROUTING_FITNESS_CROSSOVER_FAMILIES:
+        if entry["question_label"] not in question_order:
+            question_order.append(entry["question_label"])
+    band_order = ["low", "moderate", "high"]
+    rows: list[dict[str, object]] = []
+    for row in routing_fitness_crossover_summary.iter_rows(named=True):
+        engine_set = row["comparison_engine_set"]
+        for metric_key, metric_label, value in [
+            (
+                "route",
+                "Route presence",
+                row["route_present_total_window_permille_mean"],
+            ),
+            (
+                "recovery",
+                "Recovery success",
+                row["recovery_success_permille_mean"],
+            ),
+        ]:
+            if value is None:
+                continue
+            rows.append(
+                {
+                    "question_label": row["question_label"],
+                    "band_label": str(row["band_label"]).capitalize(),
+                    "band_order": row["band_order"],
+                    "engine_key": engine_set,
+                    "engine_label": engine_display_label(engine_set),
+                    "metric_key": metric_key,
+                    "metric_label": metric_label,
+                    "value": float(value) / 10.0,
+                    "hover_detail": (
+                        f"loss r{int(row['first_loss_round_mean'])}"
+                        if row["first_loss_round_mean"] is not None
+                        else "no loss"
+                    ),
+                    "churn": float(row["route_churn_count_mean"] or 0.0),
+                    "control_activity": float(row["route_observation_count_mean"] or 0.0),
+                    "hop_count": row["active_route_hop_count_mean"],
+                }
+            )
+    if not rows:
+        return None
+    engine_domain = [
+        engine
+        for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER
+        if engine in {str(row["engine_key"]) for row in rows}
+    ]
+    dataset = alt.InlineData(values=rows)
+    base = alt.Chart(dataset).encode(
+        x=alt.X(
+            "band_label:N",
+            sort=[label.capitalize() for label in band_order],
+            title="Difficulty band",
+        ),
+        y=alt.Y(
+            "value:Q",
+            title="Outcome (%)",
+            scale=alt.Scale(domain=[0, 100]),
+        ),
+        color=_engine_color_scale(
+            engine_domain,
+            HEAD_TO_HEAD_SET_COLORS,
+            field="engine_label:N",
+            field_domain=[engine_display_label(engine) for engine in engine_domain],
+            legend_title="Engine set",
+        ),
+        strokeDash=alt.StrokeDash(
+            "metric_label:N",
+            scale=alt.Scale(
+                domain=["Route presence", "Recovery success"],
+                range=[[1, 0], [7, 4]],
+            ),
+            legend=alt.Legend(title="Metric"),
+        ),
+        tooltip=[
+            alt.Tooltip("question_label:N", title="Question"),
+            alt.Tooltip("band_label:N", title="Band"),
+            alt.Tooltip("engine_label:N", title="Engine"),
+            alt.Tooltip("metric_label:N", title="Metric"),
+            alt.Tooltip("value:Q", title="Value", format=".1f"),
+            alt.Tooltip("hover_detail:N", title="Loss"),
+            alt.Tooltip("churn:Q", title="Churn", format=".1f"),
+            alt.Tooltip("control_activity:Q", title="Control activity", format=".1f"),
+            alt.Tooltip("hop_count:Q", title="Hop mean", format=".1f"),
+        ],
+    )
+    chart = (
+        base.mark_line(strokeWidth=2.2, point=True)
+        .properties(width=(total_width - 30) // 2, height=total_height - 54)
+        .facet(
+            facet=alt.Facet(
+                "question_label:N",
+                sort=question_order,
+                header=alt.Header(title=None),
+            ),
+            columns=2,
+        )
+    )
+    return _configure_chart(chart)
+
+
+def render_routing_fitness_multiflow(
+    routing_fitness_multiflow_summary: pl.DataFrame, total_width: int, total_height: int
+) -> alt.TopLevelMixin | None:
+    if routing_fitness_multiflow_summary.is_empty():
+        return None
+    family_order = [entry["family_label"] for entry in ROUTING_FITNESS_MULTI_FLOW_FAMILIES]
+    available = set(
+        routing_fitness_multiflow_summary["comparison_engine_set"].drop_nulls().unique().to_list()
+    )
+    engine_domain = [engine for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER if engine in available]
+    rows: list[dict[str, object]] = []
+    for row in routing_fitness_multiflow_summary.iter_rows(named=True):
+        min_value = float(row["objective_route_presence_min_permille_mean"] or 0.0) / 10.0
+        max_value = float(row["objective_route_presence_max_permille_mean"] or 0.0) / 10.0
+        spread_value = float(row["objective_route_presence_spread_mean"] or 0.0) / 10.0
+        label_x = min(max_value + 2.5, 103.5)
+        rows.append(
+            {
+                "family_label": row["family_label"],
+                "engine_key": row["comparison_engine_set"],
+                "engine_label": engine_display_label(row["comparison_engine_set"]),
+                "min_route": min_value,
+                "max_route": max_value,
+                "label_x": label_x,
+                "spread_label": f"spread={spread_value:.1f}",
+                "detail_label": (
+                    f"starved={int(round(row['objective_starvation_count_mean'] or 0.0))} "
+                    f"broker={float(row['broker_participation_permille_mean'] or 0.0) / 10.0:.0f}/"
+                    f"{float(row['broker_concentration_permille_mean'] or 0.0) / 10.0:.0f}"
+                ),
+                "concurrent_rounds": float(row["concurrent_route_round_count_mean"] or 0.0),
+                "broker_participation": float(row["broker_participation_permille_mean"] or 0.0)
+                / 10.0,
+                "broker_concentration": float(row["broker_concentration_permille_mean"] or 0.0)
+                / 10.0,
+                "broker_churn": float(row["broker_route_churn_count_mean"] or 0.0),
+                "control_activity": float(row["route_observation_count_mean"] or 0.0),
+            }
+        )
+    dataset = alt.InlineData(values=rows)
+    y_order = [engine_display_label(engine) for engine in engine_domain]
+    base = alt.Chart(dataset).encode(
+        y=alt.Y("engine_label:N", sort=y_order, title="Engine set"),
+        color=_engine_color_scale(
+            engine_domain,
+            HEAD_TO_HEAD_SET_COLORS,
+            field="engine_label:N",
+            field_domain=y_order,
+            legend_title="Engine set",
+        ),
+        tooltip=[
+            alt.Tooltip("family_label:N", title="Family"),
+            alt.Tooltip("engine_label:N", title="Engine"),
+            alt.Tooltip("min_route:Q", title="Min route", format=".1f"),
+            alt.Tooltip("max_route:Q", title="Max route", format=".1f"),
+            alt.Tooltip("concurrent_rounds:Q", title="Concurrent rounds", format=".1f"),
+            alt.Tooltip("broker_participation:Q", title="Broker participation", format=".1f"),
+            alt.Tooltip("broker_concentration:Q", title="Broker concentration", format=".1f"),
+            alt.Tooltip("broker_churn:Q", title="Broker churn", format=".1f"),
+            alt.Tooltip("control_activity:Q", title="Control activity", format=".1f"),
+            alt.Tooltip("detail_label:N", title="Detail"),
+        ],
+    )
+    chart = (
+        alt.layer(
+            base.mark_rule(strokeWidth=3).encode(
+                x=alt.X(
+                    "min_route:Q",
+                    title="Per-flow route presence (%)",
+                    scale=alt.Scale(domain=[0, 106]),
+                ),
+                x2="max_route:Q",
+            ),
+            base.mark_point(
+                filled=True,
+                size=85,
+                stroke="white",
+                strokeWidth=1,
+            ).encode(x="min_route:Q"),
+            base.mark_point(
+                filled=True,
+                size=80,
+                shape="square",
+                stroke="white",
+                strokeWidth=1,
+            ).encode(x="max_route:Q"),
+            base.mark_text(
+                align="left",
+                baseline="bottom",
+                dx=6,
+                dy=-1,
+                font=PLOT_FONT,
+                fontSize=8.5,
+                color=PLOT_TEXT_COLOR,
+                clip=False,
+            ).encode(
+                x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, 106])),
+                text="spread_label:N",
+            ),
+            base.mark_text(
+                align="left",
+                baseline="top",
+                dx=6,
+                dy=1,
+                font=PLOT_FONT,
+                fontSize=8,
+                color=PLOT_MUTED_TEXT_COLOR,
+                clip=False,
+            ).encode(
+                x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, 106])),
+                text="detail_label:N",
+            ),
+        )
+        .properties(width=(total_width - 42) // 3, height=total_height - 62)
+        .facet(
+            facet=alt.Facet(
+                "family_label:N",
+                sort=family_order,
+                header=alt.Header(title=None, labelOrient="bottom"),
+            ),
+            columns=3,
+        )
+    )
+    return _configure_chart(chart)
+
+
+def render_routing_fitness_stale_repair(
+    routing_fitness_stale_repair_summary: pl.DataFrame, total_width: int, total_height: int
+) -> alt.TopLevelMixin | None:
+    if routing_fitness_stale_repair_summary.is_empty():
+        return None
+    family_order = [entry["family_label"] for entry in ROUTING_FITNESS_STALE_FAMILIES]
+    available = set(
+        routing_fitness_stale_repair_summary["comparison_engine_set"].drop_nulls().unique().to_list()
+    )
+    engine_domain = [engine for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER if engine in available]
+    rows: list[dict[str, object]] = []
+    for row in routing_fitness_stale_repair_summary.iter_rows(named=True):
+        persistence = float(row["stale_persistence_round_mean"] or 0.0)
+        label_x = persistence + 0.25
+        rows.append(
+            {
+                "family_label": row["family_label"],
+                "engine_key": row["comparison_engine_set"],
+                "engine_label": engine_display_label(row["comparison_engine_set"]),
+                "stale_persistence": persistence,
+                "label_x": label_x,
+                "recovery_success": float(row["recovery_success_permille_mean"] or 0.0)
+                / 10.0,
+                "recovery_label": (
+                    f"recov={float(row['recovery_success_permille_mean'] or 0.0) / 10.0:.1f}%"
+                ),
+                "detail_label": (
+                    f"unrec={int(round(row['unrecovered_after_loss_count_mean'] or 0.0))} "
+                    f"loss={int(row['first_loss_round_mean']) if row['first_loss_round_mean'] is not None else '–'}"
+                ),
+                "control_activity": float(row["route_observation_count_mean"] or 0.0),
+            }
+        )
+    x_limit = max(1.0, max(float(row["stale_persistence"]) for row in rows) + 1.2)
+    dataset = alt.InlineData(values=rows)
+    y_order = [engine_display_label(engine) for engine in engine_domain]
+    base = alt.Chart(dataset).encode(
+        y=alt.Y("engine_label:N", sort=y_order, title="Engine set"),
+        color=_engine_color_scale(
+            engine_domain,
+            HEAD_TO_HEAD_SET_COLORS,
+            field="engine_label:N",
+            field_domain=y_order,
+            legend_title="Engine set",
+        ),
+        tooltip=[
+            alt.Tooltip("family_label:N", title="Family"),
+            alt.Tooltip("engine_label:N", title="Engine"),
+            alt.Tooltip("stale_persistence:Q", title="Stale persistence", format=".1f"),
+            alt.Tooltip("recovery_success:Q", title="Recovery success", format=".1f"),
+            alt.Tooltip("control_activity:Q", title="Control activity", format=".1f"),
+            alt.Tooltip("detail_label:N", title="Detail"),
+        ],
+    )
+    chart = (
+        alt.layer(
+            base.mark_bar(height=18, cornerRadiusEnd=2).encode(
+                x=alt.X(
+                    "stale_persistence:Q",
+                    title="Bad-route persistence after disruption (rounds)",
+                    scale=alt.Scale(domain=[0, x_limit]),
+                )
+            ),
+            base.mark_text(
+                align="left",
+                baseline="bottom",
+                dx=6,
+                dy=-1,
+                font=PLOT_FONT,
+                fontSize=8.5,
+                color=PLOT_TEXT_COLOR,
+                clip=False,
+            ).encode(
+                x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, x_limit])),
+                text="recovery_label:N",
+            ),
+            base.mark_text(
+                align="left",
+                baseline="top",
+                dx=6,
+                dy=1,
+                font=PLOT_FONT,
+                fontSize=8,
+                color=PLOT_MUTED_TEXT_COLOR,
+                clip=False,
+            ).encode(
+                x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, x_limit])),
+                text="detail_label:N",
+            ),
+        )
+        .properties(width=(total_width - 42) // 3, height=total_height - 62)
+        .facet(
+            facet=alt.Facet(
+                "family_label:N",
+                sort=family_order,
+                header=alt.Header(title=None, labelOrient="bottom"),
+            ),
+            columns=3,
+        )
     )
     return _configure_chart(chart)
 

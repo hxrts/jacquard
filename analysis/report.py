@@ -44,6 +44,9 @@ from .plots import (
     render_pathway_budget_activation,
     render_pathway_budget_route_presence,
     render_recommended_engine_robustness,
+    render_routing_fitness_crossover,
+    render_routing_fitness_multiflow,
+    render_routing_fitness_stale_repair,
     render_scatter_profile_startup,
     render_scatter_profile_route_presence,
     save_plot_artifact,
@@ -70,6 +73,9 @@ from .scoring import (
     head_to_head_summary_table,
     profile_recommendation_table,
     recommendation_table,
+    routing_fitness_crossover_summary_table,
+    routing_fitness_multiflow_summary_table,
+    routing_fitness_stale_repair_summary_table,
     transition_metrics_table,
     write_recommendations,
 )
@@ -181,6 +187,15 @@ def main(argv: list[str] | None = None) -> int:
         diffusion_engine_comparison = diffusion_engine_comparison_table(diffusion_aggregates)
         diffusion_boundary_summary = diffusion_boundary_table(diffusion_boundaries)
         large_population_route_summary = large_population_route_summary_table(aggregates)
+        routing_fitness_crossover_summary = routing_fitness_crossover_summary_table(
+            aggregates
+        )
+        routing_fitness_multiflow_summary = routing_fitness_multiflow_summary_table(
+            aggregates
+        )
+        routing_fitness_stale_repair_summary = routing_fitness_stale_repair_summary_table(
+            aggregates
+        )
         large_population_diffusion_points = large_population_diffusion_state_points_table(
             diffusion_aggregates
         )
@@ -253,6 +268,18 @@ def main(argv: list[str] | None = None) -> int:
         write_csv(
             large_population_route_summary,
             output_report_dir / "large_population_route_summary.csv",
+        )
+        write_csv(
+            routing_fitness_crossover_summary,
+            output_report_dir / "routing_fitness_crossover_summary.csv",
+        )
+        write_csv(
+            routing_fitness_multiflow_summary,
+            output_report_dir / "routing_fitness_multiflow_summary.csv",
+        )
+        write_csv(
+            routing_fitness_stale_repair_summary,
+            output_report_dir / "routing_fitness_stale_repair_summary.csv",
         )
         write_csv(
             large_population_diffusion_points,
@@ -413,6 +440,24 @@ def main(argv: list[str] | None = None) -> int:
         )
         save_plot_artifact(
             output_report_dir,
+            "routing_fitness_crossover",
+            render_routing_fitness_crossover,
+            routing_fitness_crossover_summary,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "routing_fitness_multiflow",
+            render_routing_fitness_multiflow,
+            routing_fitness_multiflow_summary,
+        )
+        save_plot_artifact(
+            output_report_dir,
+            "routing_fitness_stale_repair",
+            render_routing_fitness_stale_repair,
+            routing_fitness_stale_repair_summary,
+        )
+        save_plot_artifact(
+            output_report_dir,
             "large_population_diffusion_transitions",
             render_large_population_diffusion_transitions,
             large_population_diffusion_points,
@@ -440,6 +485,9 @@ def main(argv: list[str] | None = None) -> int:
             diffusion_engine_comparison,
             diffusion_boundary_summary,
             large_population_route_summary,
+            routing_fitness_crossover_summary,
+            routing_fitness_multiflow_summary,
+            routing_fitness_stale_repair_summary,
             large_population_diffusion_transitions,
             field_diffusion_regime_calibration,
             field_vs_best_diffusion_alternative,

@@ -39,13 +39,13 @@ use runtime::{
     execute_diffusion_runs_parallel, execute_diffusion_runs_serial, simulate_diffusion_run,
 };
 
-pub use catalog::{diffusion_local_suite, diffusion_smoke_suite};
+pub use catalog::{diffusion_local_stage_suite, diffusion_local_suite, diffusion_smoke_suite};
 pub use model::{
     DiffusionAggregateSummary, DiffusionArtifacts, DiffusionBoundarySummary,
     DiffusionForwardingStyle, DiffusionManifest, DiffusionPolicyConfig, DiffusionRegimeDescriptor,
     DiffusionRunSummary, DiffusionSuite,
 };
-pub use runtime::run_diffusion_suite;
+pub use runtime::{aggregate_diffusion_runs, run_diffusion_suite, summarize_diffusion_boundaries};
 
 #[cfg(test)]
 mod tests {

@@ -68,6 +68,8 @@ jobs:
         run: ./scripts/toolkit-shell.sh toolkit-xtask check workflow-actions --repo-root . --config toolkit/toolkit.toml
       - name: Trait Purity
         run: cargo xtask check trait-purity
+      - name: Annotation Semantics
+        run: cargo xtask check annotation-semantics
       - name: Crate Boundary
         run: cargo xtask check crate-boundary
       - name: Adapter Boundary

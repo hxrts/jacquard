@@ -442,3 +442,72 @@ def large_population_diffusion_transition_table_rows(
             ]
         )
     return rows
+
+
+def routing_fitness_crossover_table_rows(
+    routing_fitness_crossover_summary: pl.DataFrame,
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in routing_fitness_crossover_summary.iter_rows(named=True):
+        rows.append(
+            [
+                row["question_label"],
+                row["band_label"].capitalize(),
+                engine_display_label(row["comparison_engine_set"]),
+                _format_table_number(row["route_present_total_window_permille_mean"]),
+                _format_table_number(row["recovery_success_permille_mean"]),
+                _format_table_number(row["first_loss_round_mean"]),
+                f"{row['route_churn_count_mean']:.1f}",
+                f"{row['active_route_hop_count_mean']:.1f}"
+                if row["active_route_hop_count_mean"] is not None
+                else "-",
+            ]
+        )
+    return rows
+
+
+def routing_fitness_multiflow_table_rows(
+    routing_fitness_multiflow_summary: pl.DataFrame,
+) -> list[list[str]]:
+    def broker_cell(row: dict[str, object]) -> str:
+        participation = row["broker_participation_permille_mean"]
+        concentration = row["broker_concentration_permille_mean"]
+        if participation is None or concentration is None:
+            return "-"
+        return f"{float(participation) / 10.0:.0f}/{float(concentration) / 10.0:.0f}"
+
+    rows: list[list[str]] = []
+    for row in routing_fitness_multiflow_summary.iter_rows(named=True):
+        rows.append(
+            [
+                row["family_label"],
+                engine_display_label(row["comparison_engine_set"]),
+                _format_table_number(row["objective_route_presence_min_permille_mean"]),
+                _format_table_number(row["objective_route_presence_max_permille_mean"]),
+                _format_table_number(row["objective_route_presence_spread_mean"]),
+                _format_table_number(row["objective_starvation_count_mean"]),
+                broker_cell(row),
+                f"{row['concurrent_route_round_count_mean']:.1f}",
+                f"{row['route_churn_count_mean']:.1f}",
+            ]
+        )
+    return rows
+
+
+def routing_fitness_stale_repair_table_rows(
+    routing_fitness_stale_repair_summary: pl.DataFrame,
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in routing_fitness_stale_repair_summary.iter_rows(named=True):
+        rows.append(
+            [
+                row["family_label"],
+                engine_display_label(row["comparison_engine_set"]),
+                _format_table_number(row["stale_persistence_round_mean"]),
+                _format_table_number(row["recovery_success_permille_mean"]),
+                _format_table_number(row["unrecovered_after_loss_count_mean"]),
+                _format_table_number(row["first_loss_round_mean"]),
+                f"{row['route_churn_count_mean']:.1f}",
+            ]
+        )
+    return rows

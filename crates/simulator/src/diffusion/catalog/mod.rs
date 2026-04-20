@@ -49,7 +49,53 @@ pub fn diffusion_local_suite() -> DiffusionSuite {
     build_diffusion_suite("diffusion-local", &[41, 43, 47, 53], false)
 }
 
+#[must_use]
+pub fn diffusion_local_stage_suite(stage_id: &str) -> Option<DiffusionSuite> {
+    let family_ids: &[&str] = match stage_id {
+        "diffusion-local-stage-1" => &[
+            "random-waypoint-sanity",
+            "partitioned-clusters",
+            "disaster-broadcast",
+            "sparse-long-delay",
+        ],
+        "diffusion-local-stage-2" => &[
+            "high-density-overload",
+            "mobility-shift",
+            "adversarial-observation",
+            "bridge-drought",
+        ],
+        "diffusion-local-stage-3" => &[
+            "energy-starved-relay",
+            "congestion-cascade",
+            "large-sparse-threshold-moderate",
+            "large-congestion-threshold-moderate",
+        ],
+        "diffusion-local-stage-4" => &[
+            "large-regional-shift-moderate",
+            "large-sparse-threshold-high",
+            "large-congestion-threshold-high",
+            "large-regional-shift-high",
+        ],
+        _ => return None,
+    };
+    Some(build_diffusion_suite_filtered(
+        "diffusion-local",
+        &[41, 43, 47, 53],
+        false,
+        family_ids,
+    ))
+}
+
 fn build_diffusion_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> DiffusionSuite {
+    build_diffusion_suite_filtered(suite_id, seeds, smoke, &[])
+}
+
+fn build_diffusion_suite_filtered(
+    suite_id: &str,
+    seeds: &[u64],
+    smoke: bool,
+    family_ids: &[&str],
+) -> DiffusionSuite {
     let mut configs = vec![
         diffusion_engine_profile("batman-bellman"),
         diffusion_engine_profile("batman-classic"),
@@ -61,7 +107,12 @@ fn build_diffusion_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> Diffusio
     ];
     configs.extend(transition_diffusion_profiles(smoke));
     configs.extend(field_diffusion_profiles());
-    let scenarios = diffusion_scenarios(smoke);
+    let scenarios = diffusion_scenarios(smoke)
+        .into_iter()
+        .filter(|scenario| {
+            family_ids.is_empty() || family_ids.contains(&scenario.family_id.as_str())
+        })
+        .collect::<Vec<_>>();
     let mut runs = Vec::new();
     for seed in seeds {
         for scenario in &scenarios {

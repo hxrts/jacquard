@@ -43,6 +43,141 @@ pub fn local_suite() -> ExperimentSuite {
 }
 
 #[must_use]
+pub fn local_stage_suite(stage_id: &str) -> Option<ExperimentSuite> {
+    local_stage_suite_with_seeds_and_config(stage_id, &[41, 43, 47, 53], None)
+}
+
+#[must_use]
+pub fn local_stage_suite_with_seeds(stage_id: &str, seeds: &[u64]) -> Option<ExperimentSuite> {
+    local_stage_suite_with_seeds_and_config(stage_id, seeds, None)
+}
+
+// long-block-exception: stage-to-suite dispatch is kept inline so the maintained local matrix remains easy to audit.
+#[must_use]
+pub fn local_stage_suite_with_seeds_and_config(
+    stage_id: &str,
+    seeds: &[u64],
+    config_id: Option<&str>,
+) -> Option<ExperimentSuite> {
+    let suite_id = "local";
+    let comparative_scale = ComparativeSuiteScale::Full;
+    let mut runs = if let Some(family_id) = comparison_routing_fitness_family(stage_id) {
+        build_comparison_runs_for_families(suite_id, seeds, comparative_scale, &[family_id])
+    } else if let Some(family_id) = head_to_head_routing_fitness_family(stage_id) {
+        build_head_to_head_runs_for_families(suite_id, seeds, comparative_scale, &[family_id])
+    } else {
+        match stage_id {
+            "local-batman-bellman" => build_batman_bellman_runs(suite_id, seeds, false),
+            "local-batman-classic" => build_batman_classic_runs(suite_id, seeds, false),
+            "local-babel" => build_babel_runs(suite_id, seeds, false),
+            "local-olsrv2" => build_olsrv2_runs(suite_id, seeds, false),
+            "local-scatter" => build_scatter_runs(suite_id, seeds, comparative_scale),
+            "local-pathway" => build_pathway_runs(suite_id, seeds, false),
+            "local-field" => build_field_runs(suite_id, seeds, false),
+            "local-comparison-stage-1" => build_comparison_runs_for_families(
+                suite_id,
+                seeds,
+                comparative_scale,
+                &[
+                    "comparison-connected-low-loss",
+                    "comparison-connected-high-loss",
+                    "comparison-bridge-transition",
+                    "comparison-partial-observability-bridge",
+                    "comparison-concurrent-mixed",
+                    "comparison-corridor-continuity-uncertainty",
+                ],
+            ),
+            "local-comparison-stage-2" => build_comparison_runs_for_families(
+                suite_id,
+                seeds,
+                comparative_scale,
+                &[
+                    "comparison-medium-bridge-repair",
+                    "comparison-large-core-periphery-moderate",
+                    "comparison-large-core-periphery-high",
+                    "comparison-large-multi-bottleneck-moderate",
+                    "comparison-large-multi-bottleneck-high",
+                ],
+            ),
+            "local-head-to-head-stage-1" => build_head_to_head_runs_for_families(
+                suite_id,
+                seeds,
+                comparative_scale,
+                &[
+                    "head-to-head-connected-low-loss",
+                    "head-to-head-connected-high-loss",
+                    "head-to-head-bridge-transition",
+                    "head-to-head-partial-observability-bridge",
+                    "head-to-head-concurrent-mixed",
+                    "head-to-head-corridor-continuity-uncertainty",
+                ],
+            ),
+            "local-head-to-head-stage-2" => build_head_to_head_runs_for_families(
+                suite_id,
+                seeds,
+                comparative_scale,
+                &[
+                    "head-to-head-medium-bridge-repair",
+                    "head-to-head-large-core-periphery-moderate",
+                    "head-to-head-large-core-periphery-high",
+                    "head-to-head-large-multi-bottleneck-moderate",
+                    "head-to-head-large-multi-bottleneck-high",
+                ],
+            ),
+            _ => return None,
+        }
+    };
+    if let Some(config_id) = config_id {
+        runs.retain(|run| run.parameters.config_id == config_id);
+    }
+    if runs.is_empty() {
+        return None;
+    }
+    Some(ExperimentSuite {
+        suite_id: suite_id.to_string(),
+        runs,
+    })
+}
+
+fn comparison_routing_fitness_family(stage_id: &str) -> Option<&'static str> {
+    match stage_id {
+        "local-comparison-multi-flow-shared-corridor" => {
+            Some("comparison-multi-flow-shared-corridor")
+        }
+        "local-comparison-multi-flow-asymmetric-demand" => {
+            Some("comparison-multi-flow-asymmetric-demand")
+        }
+        "local-comparison-multi-flow-detour-choice" => Some("comparison-multi-flow-detour-choice"),
+        "local-comparison-stale-observation-delay" => Some("comparison-stale-observation-delay"),
+        "local-comparison-stale-asymmetric-region" => Some("comparison-stale-asymmetric-region"),
+        "local-comparison-stale-recovery-window" => Some("comparison-stale-recovery-window"),
+        _ => None,
+    }
+}
+
+fn head_to_head_routing_fitness_family(stage_id: &str) -> Option<&'static str> {
+    match stage_id {
+        "local-head-to-head-multi-flow-shared-corridor" => {
+            Some("head-to-head-multi-flow-shared-corridor")
+        }
+        "local-head-to-head-multi-flow-asymmetric-demand" => {
+            Some("head-to-head-multi-flow-asymmetric-demand")
+        }
+        "local-head-to-head-multi-flow-detour-choice" => {
+            Some("head-to-head-multi-flow-detour-choice")
+        }
+        "local-head-to-head-stale-observation-delay" => {
+            Some("head-to-head-stale-observation-delay")
+        }
+        "local-head-to-head-stale-asymmetric-region" => {
+            Some("head-to-head-stale-asymmetric-region")
+        }
+        "local-head-to-head-stale-recovery-window" => Some("head-to-head-stale-recovery-window"),
+        _ => None,
+    }
+}
+
+#[must_use]
 pub fn babel_model_smoke_suite() -> ExperimentSuite {
     ExperimentSuite {
         suite_id: "babel-model-smoke".to_string(),
@@ -583,6 +718,20 @@ fn build_comparison_runs(
     expand_runs(suite_id, "comparison", seeds, &configs, &families)
 }
 
+fn build_comparison_runs_for_families(
+    suite_id: &str,
+    seeds: &[u64],
+    scale: ComparativeSuiteScale,
+    family_ids: &[&str],
+) -> Vec<ExperimentRunSpec> {
+    let configs = comparison_configs(scale);
+    let families = comparison_family_descriptors(scale)
+        .into_iter()
+        .filter(|(family_id, _, _)| family_ids.contains(family_id))
+        .collect::<Vec<_>>();
+    expand_runs(suite_id, "comparison", seeds, &configs, &families)
+}
+
 fn build_head_to_head_runs(
     suite_id: &str,
     seeds: &[u64],
@@ -590,6 +739,20 @@ fn build_head_to_head_runs(
 ) -> Vec<ExperimentRunSpec> {
     let configs = head_to_head_configs();
     let families = head_to_head_family_descriptors(scale);
+    expand_runs(suite_id, "head-to-head", seeds, &configs, &families)
+}
+
+fn build_head_to_head_runs_for_families(
+    suite_id: &str,
+    seeds: &[u64],
+    scale: ComparativeSuiteScale,
+    family_ids: &[&str],
+) -> Vec<ExperimentRunSpec> {
+    let configs = head_to_head_configs();
+    let families = head_to_head_family_descriptors(scale)
+        .into_iter()
+        .filter(|(family_id, _, _)| family_ids.contains(family_id))
+        .collect::<Vec<_>>();
     expand_runs(suite_id, "head-to-head", seeds, &configs, &families)
 }
 
@@ -605,7 +768,6 @@ fn expand_runs(
         for parameters in parameter_sets {
             for seed in seeds {
                 let seed = SimulationSeed(*seed);
-                let (scenario, environment) = builder(parameters, seed);
                 runs.push(ExperimentRunSpec {
                     run_id: format!(
                         "{}-{}-{}-{}",
@@ -618,8 +780,7 @@ fn expand_runs(
                     seed,
                     regime: regime.clone(),
                     parameters: parameters.clone(),
-                    scenario,
-                    environment,
+                    world: ExperimentRunWorld::Generated { builder: *builder },
                     model_case: None,
                 });
             }
@@ -688,8 +849,10 @@ fn build_babel_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Exp
                 12,
             )),
             parameters: ExperimentParameterSet::babel(4, 2),
-            scenario: scenario.clone(),
-            environment: environment.clone(),
+            world: ExperimentRunWorld::Prepared {
+                scenario: Box::new(scenario.clone()),
+                environment: environment.clone(),
+            },
             model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Babel(
                 BabelPlannerDecisionCase {
                     fixture_id: "babel-planner-line".to_string(),
@@ -722,8 +885,10 @@ fn build_babel_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Exp
                 12,
             )),
             parameters: ExperimentParameterSet::babel(4, 2),
-            scenario: scenario.clone(),
-            environment: environment.clone(),
+            world: ExperimentRunWorld::Prepared {
+                scenario: Box::new(scenario.clone()),
+                environment: environment.clone(),
+            },
             model_case: Some(ExperimentModelCase::Round(RoundModelCase::Babel(
                 BabelRoundRefreshCase {
                     fixture_id: "babel-round-refresh-line".to_string(),
@@ -767,8 +932,10 @@ fn build_babel_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Exp
                 12,
             )),
             parameters: ExperimentParameterSet::babel(4, 2),
-            scenario: scenario.clone(),
-            environment: environment.clone(),
+            world: ExperimentRunWorld::Prepared {
+                scenario: Box::new(scenario.clone()),
+                environment: environment.clone(),
+            },
             model_case: Some(ExperimentModelCase::Maintenance(
                 MaintenanceModelCase::Babel(BabelMaintenanceCase {
                     fixture_id: "babel-maintenance-line".to_string(),
@@ -828,8 +995,10 @@ fn build_babel_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Exp
                 12,
             )),
             parameters: ExperimentParameterSet::babel(4, 2),
-            scenario,
-            environment,
+            world: ExperimentRunWorld::Prepared {
+                scenario: Box::new(scenario),
+                environment,
+            },
             model_case: Some(ExperimentModelCase::Restore(RestoreModelCase::Babel(
                 Box::new(BabelCheckpointRestoreCase {
                     fixture_id: "babel-checkpoint-line".to_string(),
@@ -885,8 +1054,10 @@ fn build_babel_pilot_equivalence_runs(
                 12,
             )),
             parameters: ExperimentParameterSet::babel(4, 2),
-            scenario: scenario.clone(),
-            environment: environment.clone(),
+            world: ExperimentRunWorld::Prepared {
+                scenario: Box::new(scenario.clone()),
+                environment: environment.clone(),
+            },
             model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Babel(
                 BabelPlannerDecisionCase {
                     fixture_id: "babel-planner-equivalence-line".to_string(),
@@ -919,8 +1090,10 @@ fn build_babel_pilot_equivalence_runs(
                 12,
             )),
             parameters: ExperimentParameterSet::babel(4, 2),
-            scenario,
-            environment,
+            world: ExperimentRunWorld::Prepared {
+                scenario: Box::new(scenario),
+                environment,
+            },
             model_case: Some(ExperimentModelCase::Restore(RestoreModelCase::Babel(
                 Box::new(BabelCheckpointRestoreCase {
                     fixture_id: "babel-checkpoint-equivalence-line".to_string(),
@@ -956,8 +1129,10 @@ fn build_field_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Exp
             12,
         )),
         parameters: ExperimentParameterSet::field(4, FieldSearchHeuristicMode::Zero),
-        scenario,
-        environment,
+        world: ExperimentRunWorld::Prepared {
+            scenario: Box::new(scenario),
+            environment,
+        },
         model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Field(
             FieldPlannerDecisionCase {
                 fixture_id: "field-planner-line".to_string(),
@@ -999,8 +1174,10 @@ fn build_pathway_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<E
             12,
         )),
         parameters: ExperimentParameterSet::pathway(4, PathwaySearchHeuristicMode::Zero),
-        scenario,
-        environment,
+        world: ExperimentRunWorld::Prepared {
+            scenario: Box::new(scenario),
+            environment,
+        },
         model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Pathway(
             PathwayPlannerDecisionCase {
                 fixture_id: "pathway-planner-line".to_string(),
@@ -1043,8 +1220,10 @@ fn build_batman_bellman_pilot_model_runs(
             12,
         )),
         parameters: ExperimentParameterSet::batman_bellman(4, 2),
-        scenario,
-        environment,
+        world: ExperimentRunWorld::Prepared {
+            scenario: Box::new(scenario),
+            environment,
+        },
         model_case: Some(ExperimentModelCase::Planner(
             PlannerModelCase::BatmanBellman(BatmanBellmanPlannerDecisionCase {
                 fixture_id: "batman-bellman-planner-line".to_string(),
@@ -1088,8 +1267,10 @@ fn build_batman_classic_pilot_model_runs(
             12,
         )),
         parameters: ExperimentParameterSet::batman_classic(4, 2),
-        scenario,
-        environment,
+        world: ExperimentRunWorld::Prepared {
+            scenario: Box::new(scenario),
+            environment,
+        },
         model_case: Some(ExperimentModelCase::Planner(
             PlannerModelCase::BatmanClassic(BatmanClassicPlannerDecisionCase {
                 fixture_id: "batman-classic-planner-line".to_string(),
@@ -1130,8 +1311,10 @@ fn build_olsrv2_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<Ex
             12,
         )),
         parameters: ExperimentParameterSet::olsrv2(4, 2),
-        scenario,
-        environment,
+        world: ExperimentRunWorld::Prepared {
+            scenario: Box::new(scenario),
+            environment,
+        },
         model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Olsr(
             OlsrPlannerDecisionCase {
                 fixture_id: "olsrv2-planner-line".to_string(),
@@ -1172,8 +1355,10 @@ fn build_scatter_pilot_model_runs(suite_id: &str, seed: SimulationSeed) -> Vec<E
             12,
         )),
         parameters: ExperimentParameterSet::scatter("balanced"),
-        scenario,
-        environment,
+        world: ExperimentRunWorld::Prepared {
+            scenario: Box::new(scenario),
+            environment,
+        },
         model_case: Some(ExperimentModelCase::Planner(PlannerModelCase::Scatter(
             ScatterPlannerDecisionCase {
                 fixture_id: "scatter-planner-line".to_string(),
@@ -1467,13 +1652,16 @@ fn pilot_scatter_line_scenario(
 
 #[cfg(test)]
 mod tests {
-    use super::smoke_suite;
+    use std::collections::BTreeSet;
+
+    use super::{local_suite, smoke_suite};
     use crate::experiments::runner::{execute_suite_runs_parallel, execute_suite_runs_serial};
     use crate::ReferenceClientAdapter;
 
     #[test]
     fn route_visible_parallel_suite_matches_serial_ordered_runs() {
-        let suite = smoke_suite();
+        let mut suite = smoke_suite();
+        suite.runs.truncate(12);
         let adapter = ReferenceClientAdapter;
         let serial = execute_suite_runs_serial(&adapter, &suite)
             .expect("serial route-visible smoke suite should run");
@@ -1481,5 +1669,35 @@ mod tests {
             .expect("parallel route-visible smoke suite should run");
 
         assert_eq!(serial, parallel.0);
+    }
+
+    #[test]
+    fn local_suite_includes_all_routing_fitness_families() {
+        let suite = local_suite();
+        let family_ids = suite
+            .runs
+            .iter()
+            .map(|run| run.family_id.as_str())
+            .collect::<BTreeSet<_>>();
+
+        for family_id in [
+            "head-to-head-connected-low-loss",
+            "head-to-head-large-core-periphery-moderate",
+            "head-to-head-large-core-periphery-high",
+            "head-to-head-medium-bridge-repair",
+            "head-to-head-large-multi-bottleneck-moderate",
+            "head-to-head-large-multi-bottleneck-high",
+            "head-to-head-multi-flow-shared-corridor",
+            "head-to-head-multi-flow-asymmetric-demand",
+            "head-to-head-multi-flow-detour-choice",
+            "head-to-head-stale-observation-delay",
+            "head-to-head-stale-asymmetric-region",
+            "head-to-head-stale-recovery-window",
+        ] {
+            assert!(
+                family_ids.contains(family_id),
+                "{family_id} missing from local suite"
+            );
+        }
     }
 }

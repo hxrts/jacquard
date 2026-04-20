@@ -7,7 +7,10 @@ use crate::experiments::{
     build_comparison_corridor_continuity_uncertainty, build_comparison_large_core_periphery_high,
     build_comparison_large_core_periphery_moderate, build_comparison_large_multi_bottleneck_high,
     build_comparison_large_multi_bottleneck_moderate, build_comparison_medium_bridge_repair,
-    build_comparison_partial_observability_bridge, RegimeDescriptor,
+    build_comparison_multi_flow_asymmetric_demand, build_comparison_multi_flow_detour_choice,
+    build_comparison_multi_flow_shared_corridor, build_comparison_partial_observability_bridge,
+    build_comparison_stale_asymmetric_region, build_comparison_stale_observation_delay,
+    build_comparison_stale_recovery_window, RegimeDescriptor,
 };
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -173,7 +176,7 @@ const SCATTER_FAMILIES: [FamilyDescriptor; 11] = [
     },
 ];
 
-const COMPARISON_FAMILIES: [FamilyDescriptor; 11] = [
+const COMPARISON_FAMILIES: [FamilyDescriptor; 17] = [
     FamilyDescriptor {
         family_id: "comparison-connected-low-loss",
         regime: (
@@ -328,9 +331,93 @@ const COMPARISON_FAMILIES: [FamilyDescriptor; 11] = [
         ),
         builder: build_comparison_large_multi_bottleneck_high,
     },
+    FamilyDescriptor {
+        family_id: "comparison-multi-flow-shared-corridor",
+        regime: (
+            "shared-broker-corridor",
+            "moderate",
+            "high",
+            "mild",
+            "broker-degradation",
+            "shared-broker",
+            "multi-flow-fairness",
+            68,
+        ),
+        builder: build_comparison_multi_flow_shared_corridor,
+    },
+    FamilyDescriptor {
+        family_id: "comparison-multi-flow-asymmetric-demand",
+        regime: (
+            "shared-broker-corridor",
+            "moderate",
+            "high",
+            "mild",
+            "broker-degradation",
+            "shared-broker",
+            "multi-flow-fairness",
+            74,
+        ),
+        builder: build_comparison_multi_flow_asymmetric_demand,
+    },
+    FamilyDescriptor {
+        family_id: "comparison-multi-flow-detour-choice",
+        regime: (
+            "shared-broker-detour",
+            "moderate",
+            "high",
+            "mild",
+            "corridor-overload",
+            "shared-broker",
+            "multi-flow-fairness",
+            72,
+        ),
+        builder: build_comparison_multi_flow_detour_choice,
+    },
+    FamilyDescriptor {
+        family_id: "comparison-stale-observation-delay",
+        regime: (
+            "bridge-chain",
+            "moderate",
+            "medium",
+            "none",
+            "delayed-observation",
+            "none",
+            "stale-repair",
+            62,
+        ),
+        builder: build_comparison_stale_observation_delay,
+    },
+    FamilyDescriptor {
+        family_id: "comparison-stale-asymmetric-region",
+        regime: (
+            "bridge-chain",
+            "moderate",
+            "medium",
+            "moderate",
+            "asymmetric-stale-view",
+            "none",
+            "stale-repair",
+            70,
+        ),
+        builder: build_comparison_stale_asymmetric_region,
+    },
+    FamilyDescriptor {
+        family_id: "comparison-stale-recovery-window",
+        regime: (
+            "bridge-chain",
+            "moderate",
+            "medium",
+            "none",
+            "stale-recovery-window",
+            "none",
+            "stale-repair",
+            66,
+        ),
+        builder: build_comparison_stale_recovery_window,
+    },
 ];
 
-const HEAD_TO_HEAD_FAMILIES: [FamilyDescriptor; 11] = [
+const HEAD_TO_HEAD_FAMILIES: [FamilyDescriptor; 17] = [
     FamilyDescriptor {
         family_id: "head-to-head-connected-low-loss",
         regime: (
@@ -484,6 +571,90 @@ const HEAD_TO_HEAD_FAMILIES: [FamilyDescriptor; 11] = [
             90,
         ),
         builder: build_comparison_large_multi_bottleneck_high,
+    },
+    FamilyDescriptor {
+        family_id: "head-to-head-multi-flow-shared-corridor",
+        regime: (
+            "shared-broker-corridor",
+            "moderate",
+            "high",
+            "mild",
+            "broker-degradation",
+            "shared-broker",
+            "multi-flow-fairness",
+            68,
+        ),
+        builder: build_comparison_multi_flow_shared_corridor,
+    },
+    FamilyDescriptor {
+        family_id: "head-to-head-multi-flow-asymmetric-demand",
+        regime: (
+            "shared-broker-corridor",
+            "moderate",
+            "high",
+            "mild",
+            "broker-degradation",
+            "shared-broker",
+            "multi-flow-fairness",
+            74,
+        ),
+        builder: build_comparison_multi_flow_asymmetric_demand,
+    },
+    FamilyDescriptor {
+        family_id: "head-to-head-multi-flow-detour-choice",
+        regime: (
+            "shared-broker-detour",
+            "moderate",
+            "high",
+            "mild",
+            "corridor-overload",
+            "shared-broker",
+            "multi-flow-fairness",
+            72,
+        ),
+        builder: build_comparison_multi_flow_detour_choice,
+    },
+    FamilyDescriptor {
+        family_id: "head-to-head-stale-observation-delay",
+        regime: (
+            "bridge-chain",
+            "moderate",
+            "medium",
+            "none",
+            "delayed-observation",
+            "none",
+            "stale-repair",
+            62,
+        ),
+        builder: build_comparison_stale_observation_delay,
+    },
+    FamilyDescriptor {
+        family_id: "head-to-head-stale-asymmetric-region",
+        regime: (
+            "bridge-chain",
+            "moderate",
+            "medium",
+            "moderate",
+            "asymmetric-stale-view",
+            "none",
+            "stale-repair",
+            70,
+        ),
+        builder: build_comparison_stale_asymmetric_region,
+    },
+    FamilyDescriptor {
+        family_id: "head-to-head-stale-recovery-window",
+        regime: (
+            "bridge-chain",
+            "moderate",
+            "medium",
+            "none",
+            "stale-recovery-window",
+            "none",
+            "stale-repair",
+            66,
+        ),
+        builder: build_comparison_stale_recovery_window,
     },
 ];
 

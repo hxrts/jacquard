@@ -217,7 +217,7 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
             .or_default()
             .entry(via_neighbor)
             .or_default()
-            .observe(sequence, observed_at_tick, window_span);
+            .observe(sequence, observed_at_tick.0, window_span);
     }
 
     pub(crate) fn observe_bidirectional_ogm(
@@ -230,7 +230,7 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
         self.bidirectional_receive_windows
             .entry(neighbor)
             .or_default()
-            .observe(sequence, observed_at_tick, window_span);
+            .observe(sequence, observed_at_tick.0, window_span);
     }
 
     pub(crate) fn bidirectional_neighbor_valid(
@@ -274,7 +274,7 @@ impl<Transport, Effects> BatmanBellmanEngine<Transport, Effects> {
 
     fn window_is_live(&self, window: &OgmReceiveWindow, now: Tick) -> bool {
         window.would_be_live_after_prune(
-            now,
+            now.0,
             self.decay_window.stale_after_ticks,
             self.window_span(),
         )
@@ -475,7 +475,7 @@ fn compute_round_transition(
         window_span,
     );
     engine.bidirectional_receive_windows.retain(|_, window| {
-        window.prune(now, stale_after_ticks, window_span);
+        window.prune(now.0, stale_after_ticks, window_span);
         window.is_live()
     });
     let merged_topology = merge_advertisements(
@@ -585,7 +585,7 @@ fn prune_receive_windows(
 ) {
     windows.retain(|_, by_neighbor| {
         by_neighbor.retain(|_, window| {
-            window.prune(now, stale_after_ticks, window_span);
+            window.prune(now.0, stale_after_ticks, window_span);
             window.is_live()
         });
         !by_neighbor.is_empty()

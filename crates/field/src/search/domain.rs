@@ -1,6 +1,6 @@
 //! Search domain for field's telltale-search integration.
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::VecDeque;
 
 use jacquard_core::{Configuration, NodeId, Observation};
 use jacquard_traits::{Blake3Hashing, HashDigestBytes, Hashing};
@@ -14,21 +14,23 @@ use super::{
 const DOMAIN_TAG_FIELD_SEARCH_SNAPSHOT: &[u8] = b"field-search-snapshot";
 
 type SearchSuccessor = (NodeId, FieldSearchEdgeMeta, u32);
+type SuccessorRows = Vec<(NodeId, Vec<SearchSuccessor>)>;
+type HeuristicRows = Vec<(NodeId, Vec<(NodeId, u32)>)>;
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub(super) struct FrozenFieldSearchSnapshot {
-    successors: BTreeMap<NodeId, Vec<SearchSuccessor>>,
-    heuristic_lower_bounds: BTreeMap<NodeId, BTreeMap<NodeId, u32>>,
+    successors: SuccessorRows,
+    heuristic_lower_bounds: HeuristicRows,
 }
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct FieldSearchDomain {
-    snapshots: BTreeMap<FieldSearchEpoch, FrozenFieldSearchSnapshot>,
+    snapshots: Vec<(FieldSearchEpoch, FrozenFieldSearchSnapshot)>,
 }
 
 impl FieldSearchDomain {
     #[must_use]
-    pub(super) fn new(snapshots: BTreeMap<FieldSearchEpoch, FrozenFieldSearchSnapshot>) -> Self {
+    pub(super) fn new(snapshots: Vec<(FieldSearchEpoch, FrozenFieldSearchSnapshot)>) -> Self {
         Self { snapshots }
     }
 }
@@ -49,9 +51,10 @@ impl SearchDomain for FieldSearchDomain {
     ) -> Result<(), Self::Error> {
         let snapshot = self
             .snapshots
-            .get(epoch)
+            .iter()
+            .find_map(|(entry_epoch, snapshot)| (entry_epoch == epoch).then_some(snapshot))
             .ok_or("field search snapshot missing")?;
-        if let Some(successors) = snapshot.successors.get(node) {
+        if let Some(successors) = successor_row_for(&snapshot.successors, node) {
             out.extend(successors.iter().cloned());
         }
         Ok(())
@@ -64,9 +67,10 @@ impl SearchDomain for FieldSearchDomain {
         goal: &Self::Node,
     ) -> Self::Cost {
         self.snapshots
-            .get(epoch)
-            .and_then(|snapshot| snapshot.heuristic_lower_bounds.get(goal))
-            .and_then(|goal_bounds| goal_bounds.get(node).copied())
+            .iter()
+            .find_map(|(entry_epoch, snapshot)| (entry_epoch == epoch).then_some(snapshot))
+            .and_then(|snapshot| heuristic_row_for(&snapshot.heuristic_lower_bounds, goal))
+            .and_then(|goal_bounds| bound_for_node(goal_bounds, node))
             .unwrap_or(0)
     }
 
@@ -97,19 +101,21 @@ pub(super) fn snapshot_id_for_search_snapshot(
 #[must_use]
 pub(super) fn freeze_snapshot_for_search(
     observation: &Observation<Configuration>,
-    successors: BTreeMap<NodeId, Vec<SearchSuccessor>>,
+    successors: SuccessorRows,
     accepted_node_ids: &[NodeId],
     heuristic_mode: FieldSearchHeuristicMode,
 ) -> (FieldSearchEpoch, FrozenFieldSearchSnapshot) {
     let heuristic_lower_bounds = match heuristic_mode {
-        FieldSearchHeuristicMode::Zero => BTreeMap::new(),
-        FieldSearchHeuristicMode::HopLowerBound => accepted_node_ids
-            .iter()
-            .copied()
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .map(|goal_node_id| (goal_node_id, hop_lower_bounds(&successors, goal_node_id)))
-            .collect(),
+        FieldSearchHeuristicMode::Zero => Vec::new(),
+        FieldSearchHeuristicMode::HopLowerBound => {
+            let mut unique_goals = accepted_node_ids.to_vec();
+            unique_goals.sort_unstable();
+            unique_goals.dedup();
+            unique_goals
+                .into_iter()
+                .map(|goal_node_id| (goal_node_id, hop_lower_bounds(&successors, goal_node_id)))
+                .collect()
+        }
     };
     let snapshot = FrozenFieldSearchSnapshot {
         successors,
@@ -125,40 +131,85 @@ pub(super) fn freeze_snapshot_for_search(
     )
 }
 
-fn hop_lower_bounds(
-    successors: &BTreeMap<NodeId, Vec<SearchSuccessor>>,
-    goal_node_id: NodeId,
-) -> BTreeMap<NodeId, u32> {
+fn hop_lower_bounds(successors: &SuccessorRows, goal_node_id: NodeId) -> Vec<(NodeId, u32)> {
     let minimum_edge_cost = successors
-        .values()
-        .flat_map(|edges| edges.iter().map(|(_, _, edge_cost)| *edge_cost))
+        .iter()
+        .flat_map(|(_, edges)| edges.iter().map(|(_, _, edge_cost)| *edge_cost))
         .min()
         .unwrap_or(0);
     if minimum_edge_cost == 0 {
-        return BTreeMap::new();
+        return Vec::new();
     }
 
-    let mut reverse = BTreeMap::<NodeId, Vec<NodeId>>::new();
+    let mut reverse = Vec::<(NodeId, Vec<NodeId>)>::new();
     for (from_node_id, edges) in successors {
         for (to_node_id, _, _) in edges {
-            reverse.entry(*to_node_id).or_default().push(*from_node_id);
+            if let Some((_, predecessors)) = reverse
+                .iter_mut()
+                .find(|(node_id, _)| node_id == to_node_id)
+            {
+                predecessors.push(*from_node_id);
+            } else {
+                reverse.push((*to_node_id, vec![*from_node_id]));
+            }
         }
     }
+    reverse.sort_unstable_by_key(|(node_id, _)| *node_id);
+    for (_, predecessors) in &mut reverse {
+        predecessors.sort_unstable();
+        predecessors.dedup();
+    }
 
-    let mut lower_bounds = BTreeMap::new();
+    let mut lower_bounds = Vec::new();
     let mut queue = VecDeque::from([(goal_node_id, 0_u32)]);
     while let Some((node_id, hop_distance)) = queue.pop_front() {
-        if lower_bounds.contains_key(&node_id) {
+        if lower_bounds
+            .iter()
+            .any(|(seen_node_id, _)| *seen_node_id == node_id)
+        {
             continue;
         }
-        lower_bounds.insert(node_id, hop_distance.saturating_mul(minimum_edge_cost));
-        if let Some(predecessors) = reverse.get(&node_id) {
+        lower_bounds.push((node_id, hop_distance.saturating_mul(minimum_edge_cost)));
+        if let Some(predecessors) = reverse.iter().find_map(|(reverse_node_id, predecessors)| {
+            (reverse_node_id == &node_id).then_some(predecessors)
+        }) {
             for predecessor in predecessors {
-                if !lower_bounds.contains_key(predecessor) {
+                if !lower_bounds
+                    .iter()
+                    .any(|(seen_node_id, _)| seen_node_id == predecessor)
+                {
                     queue.push_back((*predecessor, hop_distance.saturating_add(1)));
                 }
             }
         }
     }
+    lower_bounds.sort_unstable_by_key(|(node_id, _)| *node_id);
     lower_bounds
+}
+
+fn successor_row_for<'a>(
+    successors: &'a SuccessorRows,
+    node_id: &NodeId,
+) -> Option<&'a Vec<SearchSuccessor>> {
+    successors
+        .binary_search_by_key(node_id, |(entry_node_id, _)| *entry_node_id)
+        .ok()
+        .map(|index| &successors[index].1)
+}
+
+fn heuristic_row_for<'a>(
+    heuristic_lower_bounds: &'a HeuristicRows,
+    goal_node_id: &NodeId,
+) -> Option<&'a Vec<(NodeId, u32)>> {
+    heuristic_lower_bounds
+        .binary_search_by_key(goal_node_id, |(entry_goal_id, _)| *entry_goal_id)
+        .ok()
+        .map(|index| &heuristic_lower_bounds[index].1)
+}
+
+fn bound_for_node(goal_bounds: &[(NodeId, u32)], node_id: &NodeId) -> Option<u32> {
+    goal_bounds
+        .binary_search_by_key(node_id, |(entry_node_id, _)| *entry_node_id)
+        .ok()
+        .map(|index| goal_bounds[index].1)
 }

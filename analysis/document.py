@@ -50,6 +50,7 @@ from .sections import (
     pathway_algorithm_lines,
     regime_assumption_lines,
     regime_characterization_lines,
+    routing_fitness_takeaway_lines,
     scatter_algorithm_lines,
     section_lines,
     scoring_lines,
@@ -74,6 +75,9 @@ from .tables import (
     large_population_route_summary_table_rows,
     profile_table_rows,
     recommendation_table_rows,
+    routing_fitness_crossover_table_rows,
+    routing_fitness_multiflow_table_rows,
+    routing_fitness_stale_repair_table_rows,
     transition_table_rows,
     boundary_table_rows,
 )
@@ -301,6 +305,7 @@ FIGURE_LAYOUT_COMPARISON_DIVERGENCE = FigureLayout(16.8 * cm, 9.2 * cm, keep_tog
 FIGURE_LAYOUT_DIFFUSION = FigureLayout(18.0 * cm, 22.0 * cm)
 FIGURE_LAYOUT_LARGE_POP_ROUTE = FigureLayout(16.6 * cm, 9.8 * cm, keep_together=True)
 FIGURE_LAYOUT_LARGE_POP_DIFFUSION = FigureLayout(17.2 * cm, 10.8 * cm, keep_together=True)
+FIGURE_LAYOUT_ROUTING_FITNESS = FigureLayout(16.6 * cm, 9.6 * cm, keep_together=True)
 
 FIGURE_LAYOUTS: dict[str, FigureLayout] = {
     "batman_classic_transition_stability": FIGURE_LAYOUT_STANDARD,
@@ -327,6 +332,9 @@ FIGURE_LAYOUTS: dict[str, FigureLayout] = {
     "large_population_route_scaling": FIGURE_LAYOUT_LARGE_POP_ROUTE,
     "large_population_route_fragility": FIGURE_LAYOUT_LARGE_POP_ROUTE,
     "large_population_diffusion_transitions": FIGURE_LAYOUT_LARGE_POP_DIFFUSION,
+    "routing_fitness_crossover": FIGURE_LAYOUT_ROUTING_FITNESS,
+    "routing_fitness_multiflow": FIGURE_LAYOUT_ROUTING_FITNESS,
+    "routing_fitness_stale_repair": FIGURE_LAYOUT_ROUTING_FITNESS,
 }
 
 PART_I_SETUP_SECTIONS = [
@@ -419,6 +427,12 @@ LARGE_POPULATION_FIGURE_IDS = [
     "large_population_route_scaling",
     "large_population_route_fragility",
     "large_population_diffusion_transitions",
+]
+
+ROUTING_FITNESS_FIGURE_IDS = [
+    "routing_fitness_crossover",
+    "routing_fitness_multiflow",
+    "routing_fitness_stale_repair",
 ]
 
 
@@ -589,6 +603,9 @@ def write_pdf_report(
     diffusion_engine_comparison,
     diffusion_boundary_summary,
     large_population_route_summary,
+    routing_fitness_crossover_summary,
+    routing_fitness_multiflow_summary,
+    routing_fitness_stale_repair_summary,
     large_population_diffusion_transitions,
     field_diffusion_regime_calibration,
     field_vs_best_diffusion_alternative,
@@ -727,13 +744,74 @@ def write_pdf_report(
             ),
         )
 
+    if (
+        not routing_fitness_crossover_summary.is_empty()
+        or not routing_fitness_multiflow_summary.is_empty()
+        or not routing_fitness_stale_repair_summary.is_empty()
+    ):
+        story.append(Paragraph("12. Routing-Fitness Remaining Questions", styles["Section"]))
+        add_paragraphs(story, styles, section_lines("Routing-Fitness Introduction"))
+        if not routing_fitness_crossover_summary.is_empty():
+            crossover_block = asset_block("Routing-Fitness Crossover Summary", "table")
+            add_table_section(
+                story,
+                styles,
+                "Routing-Fitness Crossover Summary",
+                crossover_block.lines,
+                ["Question", "Band", "Engine Set", "Route", "Recov.", "Loss", "Churn", "Hop"],
+                routing_fitness_crossover_table_rows(routing_fitness_crossover_summary),
+                [3.2 * cm, 1.6 * cm, 3.0 * cm, 1.4 * cm, 1.5 * cm, 1.3 * cm, 1.3 * cm, 1.2 * cm],
+                table_counter,
+                crossover_block.description_lines,
+            )
+        if not routing_fitness_multiflow_summary.is_empty():
+            multiflow_block = asset_block("Routing-Fitness Multi-Flow Summary", "table")
+            add_table_section(
+                story,
+                styles,
+                "Routing-Fitness Multi-Flow Summary",
+                multiflow_block.lines,
+                ["Family", "Engine Set", "Min", "Max", "Spread", "Starved", "Broker", "Conc.", "Churn"],
+                routing_fitness_multiflow_table_rows(routing_fitness_multiflow_summary),
+                [2.8 * cm, 2.6 * cm, 1.2 * cm, 1.2 * cm, 1.3 * cm, 1.4 * cm, 1.5 * cm, 1.3 * cm, 1.3 * cm],
+                table_counter,
+                multiflow_block.description_lines,
+            )
+        if not routing_fitness_stale_repair_summary.is_empty():
+            stale_block = asset_block("Routing-Fitness Stale Repair Summary", "table")
+            add_table_section(
+                story,
+                styles,
+                "Routing-Fitness Stale Repair Summary",
+                stale_block.lines,
+                ["Family", "Engine Set", "Persist", "Recov.", "Unrec.", "Loss", "Churn"],
+                routing_fitness_stale_repair_table_rows(routing_fitness_stale_repair_summary),
+                [3.0 * cm, 2.8 * cm, 1.4 * cm, 1.4 * cm, 1.5 * cm, 1.3 * cm, 1.4 * cm],
+                table_counter,
+                stale_block.description_lines,
+            )
+        story.append(Paragraph("Routing-Fitness Figure Context", styles["Subsection"]))
+        add_paragraphs(story, styles, section_lines("Routing-Fitness Figure Context"))
+        for asset_id in ROUTING_FITNESS_FIGURE_IDS:
+            add_figure_asset(story, styles, report_dir, asset_id)
+        story.append(Paragraph("Routing-Fitness Takeaways", styles["Subsection"]))
+        add_paragraphs(
+            story,
+            styles,
+            routing_fitness_takeaway_lines(
+                routing_fitness_crossover_summary,
+                routing_fitness_multiflow_summary,
+                routing_fitness_stale_repair_summary,
+            ),
+        )
+
     if not diffusion_engine_summary.is_empty():
         story.append(Paragraph("Part III. Diffusion Calibration", styles["Section"]))
-        story.append(Paragraph("10. Diffusion Calibration", styles["Section"]))
+        story.append(Paragraph("13. Diffusion Calibration", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Calibration Introduction"))
         add_paragraphs(story, styles, section_lines("Diffusion Calibration Detail Note"))
         story.append(Paragraph("Part IV. Diffusion Engine Comparison", styles["Section"]))
-        story.append(Paragraph("11. Diffusion Engine Comparison", styles["Section"]))
+        story.append(Paragraph("14. Diffusion Engine Comparison", styles["Section"]))
         add_paragraphs(story, styles, section_lines("Diffusion Analysis Introduction"))
         story.append(Spacer(1, FIGURE_BLOCK_SPACER))
         diffusion_regime_block = asset_block("Diffusion Regime Comparison", "table")
@@ -895,6 +973,42 @@ def write_pdf_report(
         [5.6 * cm, 3.2 * cm, 2.0 * cm, 1.8 * cm, 2.1 * cm, 1.4 * cm],
         table_counter,
         h2h_block.description_lines,
+    )
+    crossover_ref_block = asset_block("Routing-Fitness Crossover Summary", "table")
+    add_table_section(
+        story,
+        styles,
+        "Routing-Fitness Crossover Summary",
+        crossover_ref_block.lines,
+        ["Question", "Band", "Engine Set", "Route", "Recov.", "Loss", "Churn", "Hop"],
+        routing_fitness_crossover_table_rows(routing_fitness_crossover_summary),
+        [3.2 * cm, 1.6 * cm, 3.0 * cm, 1.4 * cm, 1.5 * cm, 1.3 * cm, 1.3 * cm, 1.2 * cm],
+        table_counter,
+        crossover_ref_block.description_lines,
+    )
+    multiflow_ref_block = asset_block("Routing-Fitness Multi-Flow Summary", "table")
+    add_table_section(
+        story,
+        styles,
+        "Routing-Fitness Multi-Flow Summary",
+        multiflow_ref_block.lines,
+        ["Family", "Engine Set", "Min", "Max", "Spread", "Starved", "Conc.", "Churn"],
+        routing_fitness_multiflow_table_rows(routing_fitness_multiflow_summary),
+        [3.0 * cm, 2.8 * cm, 1.3 * cm, 1.3 * cm, 1.4 * cm, 1.5 * cm, 1.4 * cm, 1.4 * cm],
+        table_counter,
+        multiflow_ref_block.description_lines,
+    )
+    stale_ref_block = asset_block("Routing-Fitness Stale Repair Summary", "table")
+    add_table_section(
+        story,
+        styles,
+        "Routing-Fitness Stale Repair Summary",
+        stale_ref_block.lines,
+        ["Family", "Engine Set", "Persist", "Recov.", "Unrec.", "Loss", "Churn"],
+        routing_fitness_stale_repair_table_rows(routing_fitness_stale_repair_summary),
+        [3.0 * cm, 2.8 * cm, 1.4 * cm, 1.4 * cm, 1.5 * cm, 1.3 * cm, 1.4 * cm],
+        table_counter,
+        stale_ref_block.description_lines,
     )
 
     if not diffusion_engine_summary.is_empty():

@@ -1,6 +1,7 @@
 //! Suite execution and artifact writing for route-visible experiment runs.
 
 use std::{
+    env,
     fs::{self, File},
     io::{BufWriter, Write},
     path::Path,
@@ -62,21 +63,39 @@ fn execute_full_stack_run<A>(
 where
     A: JacquardHostAdapter + Clone,
 {
+    trace_run_progress(&spec.run_id, "starting full-stack run");
+    let (scenario, environment) = spec.materialize_world();
     let (reduced, _) = simulator
-        .run_scenario_reduced(&spec.scenario, &spec.environment)
+        .run_scenario_reduced(&scenario, &environment)
         .map_err(|source| ExperimentError::SimulationRun {
             run_id: spec.run_id.clone(),
             source,
         })?;
+    trace_run_progress(
+        &spec.run_id,
+        &format!(
+            "reduced replay ready: rounds={} distinct_engines={}",
+            reduced.round_count,
+            reduced.distinct_engine_ids.len()
+        ),
+    );
+    let summary = summarize_run(spec, &scenario, &reduced);
+    trace_run_progress(&spec.run_id, "summary complete");
     Ok(ExecutedRun {
-        summary: summarize_run(spec, &reduced),
+        summary,
         model_artifacts: Vec::new(),
     })
 }
 
 fn execute_model_run(spec: &ExperimentRunSpec) -> Result<ExecutedRun, ExperimentError> {
     let execution = execute_model_case(spec)?;
-    let mut summary = summarize_run(spec, &empty_reduced_view(spec));
+    let scenario =
+        spec.prepared_scenario()
+            .ok_or_else(|| ExperimentError::ModelExpectationFailed {
+                run_id: spec.run_id.clone(),
+                detail: "model run is missing a prepared scenario".to_string(),
+            })?;
+    let mut summary = summarize_run(spec, scenario, &empty_reduced_view(scenario));
     summary.model_artifact_count = u32::try_from(execution.artifacts.len()).unwrap_or(u32::MAX);
     Ok(ExecutedRun {
         summary,
@@ -93,11 +112,12 @@ fn execute_equivalence_run<A>(
 where
     A: JacquardHostAdapter + Clone,
 {
+    let (scenario, environment) = spec.materialize_world();
     let reduced = match spec.model_case.as_ref() {
         Some(ExperimentModelCase::Restore(_)) => {
             let mut resumed_simulator = JacquardSimulator::new(simulator.host_adapter().clone());
             let (replay, _) = resumed_simulator
-                .run_scenario(&spec.scenario, &spec.environment)
+                .run_scenario(&scenario, &environment)
                 .map_err(|source| ExperimentError::SimulationRun {
                     run_id: spec.run_id.clone(),
                     source,
@@ -112,7 +132,7 @@ where
         }
         _ => {
             simulator
-                .run_scenario_reduced(&spec.scenario, &spec.environment)
+                .run_scenario_reduced(&scenario, &environment)
                 .map_err(|source| ExperimentError::SimulationRun {
                     run_id: spec.run_id.clone(),
                     source,
@@ -163,7 +183,7 @@ where
         visible_round: Some(expectation.visible_round),
         equivalence_passed: Some(true),
     });
-    let mut summary = summarize_run(spec, &reduced);
+    let mut summary = summarize_run(spec, &scenario, &reduced);
     summary.model_artifact_count = u32::try_from(execution.artifacts.len()).unwrap_or(u32::MAX);
     summary.equivalence_passed = Some(true);
     Ok(ExecutedRun {
@@ -262,15 +282,22 @@ where
     })
 }
 
-fn empty_reduced_view(spec: &ExperimentRunSpec) -> crate::ReducedReplayView {
+fn empty_reduced_view(scenario: &crate::JacquardScenario) -> crate::ReducedReplayView {
     crate::ReducedReplayView {
-        scenario_name: spec.scenario.name().to_string(),
+        scenario_name: scenario.name().to_string(),
         round_count: 0,
         rounds: Vec::new(),
         distinct_engine_ids: Vec::new(),
         driver_status_events: Vec::new(),
         failure_summaries: Vec::new(),
     }
+}
+
+fn trace_run_progress(run_id: &str, message: &str) {
+    if env::var("JACQUARD_TUNING_PROGRESS").as_deref() != Ok("1") {
+        return;
+    }
+    eprintln!("[tuning-progress] {run_id}: {message}");
 }
 
 fn node_id_hex(node_id: NodeId) -> String {
@@ -300,8 +327,9 @@ mod tests {
     use crate::{
         tuning_babel_equivalence_smoke_suite, tuning_babel_model_smoke_suite,
         tuning_batman_bellman_model_smoke_suite, tuning_batman_classic_model_smoke_suite,
-        tuning_field_model_smoke_suite, tuning_olsrv2_model_smoke_suite,
-        tuning_pathway_model_smoke_suite, tuning_scatter_model_smoke_suite, ReferenceClientAdapter,
+        tuning_field_model_smoke_suite, tuning_local_stage_suite_with_seeds_and_config,
+        tuning_olsrv2_model_smoke_suite, tuning_pathway_model_smoke_suite,
+        tuning_scatter_model_smoke_suite, ReferenceClientAdapter,
     };
 
     static TEMP_DIR_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -502,5 +530,21 @@ mod tests {
         );
 
         remove_temp_output_dir(&output_dir);
+    }
+
+    #[test]
+    #[ignore = "heavy regression for the maintained shared-corridor blocker"]
+    fn shared_corridor_stage_single_seed_config_runs_serially() {
+        let suite = tuning_local_stage_suite_with_seeds_and_config(
+            "local-comparison-multi-flow-shared-corridor",
+            &[41],
+            Some("comparison-b4-2-p3-zero"),
+        )
+        .expect("shared-corridor stage should resolve for the maintained config");
+
+        let runs = execute_suite_runs_serial(&ReferenceClientAdapter, &suite)
+            .expect("shared-corridor stage should execute serially");
+
+        assert_eq!(runs.len(), suite.runs.len());
     }
 }

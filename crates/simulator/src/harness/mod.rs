@@ -1,12 +1,12 @@
 //! Deterministic simulator harness orchestrating scenario execution and round advancement.
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, env, sync::Arc};
 
 use jacquard_core::{
     ConnectivityPosture, DestinationId, DurationMs, HoldFallbackPolicy, NodeId, PriorityPoints,
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RoutingObjective, Tick,
 };
-use jacquard_field::{FieldExportedReplayBundle, FIELD_ENGINE_ID};
+use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_mem_link_profile::SharedInMemoryNetwork;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_reference_client::{
@@ -22,7 +22,11 @@ use thiserror::Error;
 
 use crate::{
     environment::ScriptedEnvironmentModel,
-    reduced_replay::{ReducedFieldReplayObservation, ReducedReplayRound, ReducedReplayView},
+    reduced_replay::{
+        distinct_engine_ids_for, filter_active_routes, filter_field_replays,
+        objective_owner_nodes_for, objective_route_filter_for, ReducedFieldReplayObservation,
+        ReducedReplayRound, ReducedReplayView,
+    },
     replay::{
         ActiveRouteSummary, DriverStatusEvent, FieldReplaySummary, HostCheckpointSnapshot,
         HostRoundArtifact, HostRoundStatus, IngressBatchBoundary, JacquardCheckpointArtifact,
@@ -243,11 +247,14 @@ where
         let mut advanced_round_count = 0u32;
         let mut waiting_round_count = 0u32;
         let mut completed_round_count = 0u32;
+        let reduced_objective_routes = objective_route_filter_for(scenario);
+        let reduced_objective_owner_nodes = objective_owner_nodes_for(scenario);
 
         let mut activated_objectives =
             vec![resume_from.is_some(); scenario.bound_objectives().len()];
         let checkpoint_round_offset =
             resume_from.map_or(0, |checkpoint| checkpoint.completed_rounds);
+        let mut topology_history = vec![topology.clone()];
 
         for round_index in 0..scenario.round_limit() {
             let prior_topology_epoch = topology.value.epoch;
@@ -255,6 +262,7 @@ where
             let (next_topology, environment_artifacts) =
                 environment.advance_environment(&topology.value, at_tick);
             topology = next_topology;
+            topology_history.push(topology.clone());
             let topology_advanced = topology.value.epoch != prior_topology_epoch;
             let shared_topology = Arc::new(topology.clone());
 
@@ -265,7 +273,14 @@ where
                     .get_mut(&host.local_node_id)
                     .ok_or(SimulationError::MissingBridge(host.local_node_id))?;
                 let mut bound = bridge.bind();
-                bound.replace_shared_topology_shared(shared_topology.clone());
+                let lag_rounds = scenario
+                    .lag_rounds_for(host.local_node_id, checkpoint_round_offset + round_index);
+                let history_index = topology_history
+                    .len()
+                    .saturating_sub(1)
+                    .saturating_sub(usize::try_from(lag_rounds).unwrap_or(usize::MAX));
+                let host_topology = Arc::new(topology_history[history_index].clone());
+                bound.replace_shared_topology_shared(host_topology.clone());
                 let progress = bound.advance_round()?;
                 maintain_active_routes(
                     bound.router_mut(),
@@ -349,6 +364,13 @@ where
                 });
             }
 
+            trace_host_state(
+                scenario.name(),
+                checkpoint_round_offset + round_index,
+                &mut hosts,
+                route_event_count,
+            );
+
             if let Some(interval) = scenario.checkpoint_interval() {
                 if interval > 0 && (round_index + 1) % interval == 0 {
                     checkpoint_count = checkpoint_count.saturating_add(1);
@@ -380,22 +402,24 @@ where
                 SimulationCaptureLevel::ReducedReplay => {
                     reduced_rounds.push(ReducedReplayRound {
                         round_index: checkpoint_round_offset + round_index,
-                        active_routes: host_rounds
-                            .iter()
-                            .flat_map(|host| host.active_routes.iter().cloned())
-                            .collect(),
+                        active_routes: filter_active_routes(
+                            host_rounds
+                                .iter()
+                                .flat_map(|host| host.active_routes.iter().cloned()),
+                            &reduced_objective_routes,
+                        ),
                         environment_hooks: environment_artifacts,
-                        field_replays: host_rounds
-                            .iter()
-                            .filter_map(|host| {
+                        field_replays: filter_field_replays(
+                            host_rounds.iter().filter_map(|host| {
                                 host.field_replay.clone().map(|summary| {
                                     ReducedFieldReplayObservation {
                                         local_node_id: host.local_node_id,
                                         summary,
                                     }
                                 })
-                            })
-                            .collect(),
+                            }),
+                            &reduced_objective_owner_nodes,
+                        ),
                     });
                 }
                 SimulationCaptureLevel::SummaryOnly => {}
@@ -449,17 +473,7 @@ where
                 SimulationCaptureArtifact::FullReplay(Box::new(replay))
             }
             SimulationCaptureLevel::ReducedReplay => {
-                let distinct_engine_ids = reduced_rounds
-                    .iter()
-                    .flat_map(|round| {
-                        round
-                            .active_routes
-                            .iter()
-                            .map(|route| route.engine_id.clone())
-                    })
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .into_iter()
-                    .collect();
+                let distinct_engine_ids = distinct_engine_ids_for(&reduced_rounds);
                 SimulationCaptureArtifact::ReducedReplay(Box::new(ReducedReplayView {
                     scenario_name: scenario.name().to_owned(),
                     round_count: completed_round_count,
@@ -538,6 +552,40 @@ where
     ) -> Result<(Self::ReplayArtifact, Self::SimulationStats), Self::Error> {
         self.harness.resume_from_checkpoint(replay)
     }
+}
+
+fn trace_host_state(
+    scenario_name: &str,
+    round_index: u32,
+    hosts: &mut BTreeMap<NodeId, ReferenceClient>,
+    route_event_count: usize,
+) {
+    if env::var("JACQUARD_TUNING_HOST_STATE").as_deref() != Ok("1") {
+        return;
+    }
+    let mut total_events = 0usize;
+    let mut total_storage_entries = 0usize;
+    let mut total_storage_bytes = 0usize;
+    let mut total_active_routes = 0usize;
+    for host in hosts.values_mut() {
+        let binding = host.bind();
+        let router = binding.router();
+        total_events = total_events.saturating_add(router.effects().events.len());
+        total_storage_entries =
+            total_storage_entries.saturating_add(router.effects().storage.len());
+        total_storage_bytes = total_storage_bytes.saturating_add(
+            router
+                .effects()
+                .storage
+                .iter()
+                .map(|(key, value): (&Vec<u8>, &Vec<u8>)| key.len().saturating_add(value.len()))
+                .sum::<usize>(),
+        );
+        total_active_routes = total_active_routes.saturating_add(router.active_route_count());
+    }
+    eprintln!(
+        "[tuning-host-state] scenario={scenario_name} round={round_index} active_routes={total_active_routes} route_events_seen={route_event_count} live_event_log={total_events} storage_entries={total_storage_entries} storage_bytes={total_storage_bytes}"
+    );
 }
 
 impl<A> RoutingReplayView for JacquardSimulator<A> {
