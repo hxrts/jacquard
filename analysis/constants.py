@@ -18,7 +18,7 @@ PLOT_SPECS = {
     "scatter_profile_route_presence": (11.0, 6.8),
     "scatter_profile_runtime": (11.0, 6.8),
     "comparison_dominant_engine": (8.1, 4.8),
-    "head_to_head_route_presence": (9.2, 5.0),
+    "head_to_head_route_presence": (9.8, 5.8),
     "head_to_head_timing_profile": (12.2, 5.2),
     "recommended_engine_robustness": (9.2, 5.2),
     "mixed_vs_standalone_divergence": (10.0, 5.2),

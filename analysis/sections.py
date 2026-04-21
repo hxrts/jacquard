@@ -418,6 +418,26 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
         "head-to-head-corridor-continuity-uncertainty",
         "field",
     )
+    mercator_connected_high_loss = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-connected-high-loss",
+        "mercator",
+    )
+    mercator_bridge_transition = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-bridge-transition",
+        "mercator",
+    )
+    mercator_corridor_uncertainty = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-corridor-continuity-uncertainty",
+        "mercator",
+    )
+    mercator_concurrent_mixed = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-concurrent-mixed",
+        "mercator",
+    )
     if (
         not connected_high_loss_rows
         or not bridge_transition_rows
@@ -427,6 +447,10 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
         or field_connected_high_loss is None
         or field_bridge_transition is None
         or field_corridor_uncertainty is None
+        or mercator_connected_high_loss is None
+        or mercator_bridge_transition is None
+        or mercator_corridor_uncertainty is None
+        or mercator_concurrent_mixed is None
     ):
         return []
 
@@ -474,6 +498,18 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
             "route_present_total_window_permille_mean"
         ],
         field_corridor_uncertainty_route_presence=field_corridor_uncertainty[
+            "route_present_total_window_permille_mean"
+        ],
+        mercator_connected_high_loss_route_presence=mercator_connected_high_loss[
+            "route_present_total_window_permille_mean"
+        ],
+        mercator_bridge_transition_route_presence=mercator_bridge_transition[
+            "route_present_total_window_permille_mean"
+        ],
+        mercator_corridor_uncertainty_route_presence=mercator_corridor_uncertainty[
+            "route_present_total_window_permille_mean"
+        ],
+        mercator_concurrent_mixed_route_presence=mercator_concurrent_mixed[
             "route_present_total_window_permille_mean"
         ],
     )
@@ -525,6 +561,26 @@ def analysis_takeaway_lines(
         "head-to-head-corridor-continuity-uncertainty",
         "field",
     )
+    mercator_connected_high_loss = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-connected-high-loss",
+        "mercator",
+    )
+    mercator_bridge_transition = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-bridge-transition",
+        "mercator",
+    )
+    mercator_corridor_uncertainty = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-corridor-continuity-uncertainty",
+        "mercator",
+    )
+    mercator_concurrent_mixed = head_to_head_row_for_engine(
+        head_to_head_summary,
+        "head-to-head-concurrent-mixed",
+        "mercator",
+    )
     babel = top_recommendation_row(recommendations, "babel")
     olsrv2 = top_recommendation_row(recommendations, "olsrv2")
     if (
@@ -541,6 +597,10 @@ def analysis_takeaway_lines(
         or field_connected_high_loss is None
         or field_bridge_transition is None
         or field_corridor_uncertainty is None
+        or mercator_connected_high_loss is None
+        or mercator_bridge_transition is None
+        or mercator_corridor_uncertainty is None
+        or mercator_concurrent_mixed is None
         or babel is None
         or olsrv2 is None
     ):
@@ -604,6 +664,18 @@ def analysis_takeaway_lines(
             "route_present_total_window_permille_mean"
         ],
         field_corridor_uncertainty_route_presence=field_corridor_uncertainty[
+            "route_present_total_window_permille_mean"
+        ],
+        mercator_connected_high_loss_route_presence=mercator_connected_high_loss[
+            "route_present_total_window_permille_mean"
+        ],
+        mercator_bridge_transition_route_presence=mercator_bridge_transition[
+            "route_present_total_window_permille_mean"
+        ],
+        mercator_corridor_uncertainty_route_presence=mercator_corridor_uncertainty[
+            "route_present_total_window_permille_mean"
+        ],
+        mercator_concurrent_mixed_route_presence=mercator_concurrent_mixed[
             "route_present_total_window_permille_mean"
         ],
         corridor_best_engines=_join_code_names(
@@ -712,6 +784,11 @@ def large_population_takeaway_lines(
         "diameter-fanout",
         "field",
     )
+    core_periphery_mercator = _route_summary_row(
+        large_population_route_summary,
+        "diameter-fanout",
+        "mercator",
+    )
     core_periphery_scatter = _route_summary_row(
         large_population_route_summary,
         "diameter-fanout",
@@ -721,6 +798,11 @@ def large_population_takeaway_lines(
         large_population_route_summary,
         "multi-bottleneck",
         "field",
+    )
+    multi_bottleneck_mercator = _route_summary_row(
+        large_population_route_summary,
+        "multi-bottleneck",
+        "mercator",
     )
     multi_bottleneck_scatter = _route_summary_row(
         large_population_route_summary,
@@ -747,8 +829,10 @@ def large_population_takeaway_lines(
         or congestion_high.is_empty()
         or regional_high.is_empty()
         or core_periphery_field is None
+        or core_periphery_mercator is None
         or core_periphery_scatter is None
         or multi_bottleneck_field is None
+        or multi_bottleneck_mercator is None
         or multi_bottleneck_scatter is None
         or multi_bottleneck_pathway is None
         or multi_bottleneck_pathway_batman is None
@@ -779,8 +863,10 @@ def large_population_takeaway_lines(
         bottleneck_delta=int(round(bottleneck_fragile_row["small_to_high_route_delta"] or 0)),
         core_periphery_scatter_route=int(round(core_periphery_scatter["high_route_present"] or 0)),
         core_periphery_field_route=int(round(core_periphery_field["high_route_present"] or 0)),
+        core_periphery_mercator_route=int(round(core_periphery_mercator["high_route_present"] or 0)),
         multi_bottleneck_scatter_route=int(round(multi_bottleneck_scatter["high_route_present"] or 0)),
         multi_bottleneck_field_route=int(round(multi_bottleneck_field["high_route_present"] or 0)),
+        multi_bottleneck_mercator_route=int(round(multi_bottleneck_mercator["high_route_present"] or 0)),
         multi_bottleneck_pathway_route=int(round(multi_bottleneck_pathway["high_route_present"] or 0)),
         multi_bottleneck_pathway_batman_route=int(round(multi_bottleneck_pathway_batman["high_route_present"] or 0)),
         core_periphery_field_blocker=core_periphery_field.get("high_field_promotion_blocker") or "none",

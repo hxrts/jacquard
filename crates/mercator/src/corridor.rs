@@ -184,16 +184,20 @@ pub fn plan_corridor_with_context(
     evidence: &MercatorEvidenceGraph,
     context: MercatorPlanningContext,
 ) -> MercatorPlanningOutcome {
-    let DestinationId::Node(goal) = objective.destination else {
-        return MercatorPlanningOutcome::NoCandidate;
-    };
-    if !topology.value.nodes.contains_key(&local_node_id)
-        || !topology.value.nodes.contains_key(&goal)
-    {
+    if !topology.value.nodes.contains_key(&local_node_id) {
         return MercatorPlanningOutcome::Inadmissible;
     }
+    let goals = planning_goals_for_objective(local_node_id, topology, objective);
+    if goals.is_empty() {
+        return match objective.destination {
+            DestinationId::Node(_) => MercatorPlanningOutcome::Inadmissible,
+            DestinationId::Service(_) => MercatorPlanningOutcome::NoCandidate,
+            DestinationId::Gateway(_) => MercatorPlanningOutcome::NoCandidate,
+        };
+    }
     let max_hops = planning_max_hops(config, context);
-    let mut realizations = bounded_paths(local_node_id, goal, topology, evidence, max_hops);
+    let mut realizations =
+        bounded_paths_to_goals(local_node_id, &goals, topology, evidence, max_hops);
     if realizations.is_empty() {
         return MercatorPlanningOutcome::NoCandidate;
     }
@@ -262,13 +266,35 @@ pub fn check_candidate(
     config: &MercatorEngineConfig,
     evidence: &MercatorEvidenceGraph,
 ) -> Result<RouteAdmissionCheck, RouteSelectionError> {
+    check_candidate_with_context(
+        local_node_id,
+        topology,
+        objective,
+        profile,
+        candidate,
+        config,
+        evidence,
+        MercatorPlanningContext::default(),
+    )
+}
+
+pub fn check_candidate_with_context(
+    local_node_id: NodeId,
+    topology: &Observation<Configuration>,
+    objective: &RoutingObjective,
+    profile: &SelectedRoutingParameters,
+    candidate: &RouteCandidate,
+    config: &MercatorEngineConfig,
+    evidence: &MercatorEvidenceGraph,
+    context: MercatorPlanningContext,
+) -> Result<RouteAdmissionCheck, RouteSelectionError> {
     let expected = candidate_for_with_context(
         local_node_id,
         topology,
         objective,
         config,
         evidence,
-        MercatorPlanningContext::default(),
+        context,
     )?;
     if expected.backend_ref != candidate.backend_ref || expected.route_id != candidate.route_id {
         return Err(RouteSelectionError::Inadmissible(
@@ -287,13 +313,35 @@ pub fn admit_candidate(
     config: &MercatorEngineConfig,
     evidence: &MercatorEvidenceGraph,
 ) -> Result<RouteAdmission, RouteSelectionError> {
+    admit_candidate_with_context(
+        local_node_id,
+        topology,
+        objective,
+        profile,
+        candidate,
+        config,
+        evidence,
+        MercatorPlanningContext::default(),
+    )
+}
+
+pub fn admit_candidate_with_context(
+    local_node_id: NodeId,
+    topology: &Observation<Configuration>,
+    objective: &RoutingObjective,
+    profile: &SelectedRoutingParameters,
+    candidate: &RouteCandidate,
+    config: &MercatorEngineConfig,
+    evidence: &MercatorEvidenceGraph,
+    context: MercatorPlanningContext,
+) -> Result<RouteAdmission, RouteSelectionError> {
     let expected = candidate_for_with_context(
         local_node_id,
         topology,
         objective,
         config,
         evidence,
-        MercatorPlanningContext::default(),
+        context,
     )?;
     if expected.backend_ref != candidate.backend_ref || expected.route_id != candidate.route_id {
         return Err(RouteSelectionError::Inadmissible(
@@ -383,12 +431,41 @@ pub(crate) fn repair_realization_from_alternates(
     config: &MercatorEngineConfig,
     evidence: &MercatorEvidenceGraph,
 ) -> Option<MercatorRouteRealization> {
-    let DestinationId::Node(goal) = active.destination else {
-        return None;
-    };
-    surviving_alternate_path(active, topology, config, evidence).or_else(|| {
-        searched_alternate_path(local_node_id, goal, active, topology, config, evidence)
-    })
+    let goals = repair_goals_for_active(local_node_id, active, topology);
+    surviving_alternate_path(active, topology, config, evidence)
+        .or_else(|| {
+            searched_alternate_path(local_node_id, &goals, active, topology, config, evidence)
+        })
+        .or_else(|| {
+            searched_current_topology_path(local_node_id, &goals, topology, config, evidence)
+        })
+}
+
+pub(crate) fn alternate_paths_for_repair(
+    local_node_id: NodeId,
+    destination: &DestinationId,
+    primary_path: &[NodeId],
+    topology: &Observation<Configuration>,
+    config: &MercatorEngineConfig,
+    evidence: &MercatorEvidenceGraph,
+) -> Vec<Vec<NodeId>> {
+    let goals = repair_goals_for_destination(local_node_id, destination, primary_path, topology);
+    let mut realizations = bounded_paths_to_goals(
+        local_node_id,
+        &goals,
+        topology,
+        evidence,
+        repair_max_hops(config),
+    );
+    realizations.retain(|realization| realization.path != primary_path);
+    realizations.sort_by_key(|realization| {
+        std::cmp::Reverse(realization_ordering_key_with_config(realization, config))
+    });
+    realizations
+        .into_iter()
+        .take(usize::try_from(config.evidence.corridor_alternate_count_max).unwrap_or(usize::MAX))
+        .map(|realization| realization.path)
+        .collect()
 }
 
 fn bounded_paths(
@@ -423,6 +500,24 @@ fn bounded_paths(
     paths
 }
 
+fn bounded_paths_to_goals(
+    start: NodeId,
+    goals: &[NodeId],
+    topology: &Observation<Configuration>,
+    evidence: &MercatorEvidenceGraph,
+    max_hops: u8,
+) -> Vec<MercatorRouteRealization> {
+    let mut by_path = BTreeMap::<Vec<NodeId>, MercatorRouteRealization>::new();
+    for goal in goals {
+        for realization in bounded_paths(start, *goal, topology, evidence, max_hops) {
+            by_path
+                .entry(realization.path.clone())
+                .or_insert(realization);
+        }
+    }
+    by_path.into_values().collect()
+}
+
 fn surviving_alternate_path(
     active: &ActiveMercatorRoute,
     topology: &Observation<Configuration>,
@@ -439,7 +534,7 @@ fn surviving_alternate_path(
 
 fn searched_alternate_path(
     local_node_id: NodeId,
-    goal: NodeId,
+    goals: &[NodeId],
     active: &ActiveMercatorRoute,
     topology: &Observation<Configuration>,
     config: &MercatorEngineConfig,
@@ -455,7 +550,7 @@ fn searched_alternate_path(
             repair_path_via_next_hop(
                 local_node_id,
                 next_hop,
-                goal,
+                goals,
                 topology,
                 evidence,
                 max_hops,
@@ -468,14 +563,14 @@ fn searched_alternate_path(
 fn repair_path_via_next_hop(
     local_node_id: NodeId,
     next_hop: NodeId,
-    goal: NodeId,
+    goals: &[NodeId],
     topology: &Observation<Configuration>,
     evidence: &MercatorEvidenceGraph,
     max_hops: u8,
     config: &MercatorEngineConfig,
 ) -> Option<MercatorRouteRealization> {
     edge_score(local_node_id, next_hop, topology, evidence)?;
-    bounded_paths(next_hop, goal, topology, evidence, max_hops)
+    bounded_paths_to_goals(next_hop, goals, topology, evidence, max_hops)
         .into_iter()
         .map(|suffix| {
             let mut path = Vec::with_capacity(suffix.path.len().saturating_add(1));
@@ -484,6 +579,124 @@ fn repair_path_via_next_hop(
             realization_for_path(&path, topology, evidence)
         })
         .max_by_key(|realization| realization_ordering_key_with_config(realization, config))
+}
+
+fn searched_current_topology_path(
+    local_node_id: NodeId,
+    goals: &[NodeId],
+    topology: &Observation<Configuration>,
+    config: &MercatorEngineConfig,
+    evidence: &MercatorEvidenceGraph,
+) -> Option<MercatorRouteRealization> {
+    bounded_paths_to_goals(
+        local_node_id,
+        goals,
+        topology,
+        evidence,
+        repair_max_hops(config),
+    )
+    .into_iter()
+    .filter(|realization| path_is_viable(&realization.path, topology, evidence))
+    .max_by_key(|realization| realization_ordering_key_with_config(realization, config))
+}
+
+fn planning_goals_for_objective(
+    local_node_id: NodeId,
+    topology: &Observation<Configuration>,
+    objective: &RoutingObjective,
+) -> Vec<NodeId> {
+    match objective.destination {
+        DestinationId::Node(goal) => topology
+            .value
+            .nodes
+            .contains_key(&goal)
+            .then_some(goal)
+            .into_iter()
+            .collect(),
+        DestinationId::Service(_) => service_provider_goals(
+            local_node_id,
+            topology,
+            objective.service_kind,
+            topology.observed_at_tick,
+        ),
+        DestinationId::Gateway(_) => Vec::new(),
+    }
+}
+
+fn repair_goals_for_active(
+    local_node_id: NodeId,
+    active: &ActiveMercatorRoute,
+    topology: &Observation<Configuration>,
+) -> Vec<NodeId> {
+    repair_goals_for_destination(
+        local_node_id,
+        &active.destination,
+        &active.primary_path,
+        topology,
+    )
+}
+
+fn repair_goals_for_destination(
+    local_node_id: NodeId,
+    destination: &DestinationId,
+    primary_path: &[NodeId],
+    topology: &Observation<Configuration>,
+) -> Vec<NodeId> {
+    match destination {
+        DestinationId::Node(goal) => topology
+            .value
+            .nodes
+            .contains_key(goal)
+            .then_some(*goal)
+            .into_iter()
+            .collect(),
+        DestinationId::Service(_) => {
+            let mut goals = service_provider_goals(
+                local_node_id,
+                topology,
+                jacquard_core::RouteServiceKind::Move,
+                topology.observed_at_tick,
+            );
+            if let Some(current_goal) = primary_path.last().copied() {
+                if current_goal != local_node_id
+                    && topology.value.nodes.contains_key(&current_goal)
+                    && !goals.contains(&current_goal)
+                {
+                    goals.push(current_goal);
+                    goals.sort();
+                }
+            }
+            goals
+        }
+        DestinationId::Gateway(_) => Vec::new(),
+    }
+}
+
+fn service_provider_goals(
+    local_node_id: NodeId,
+    topology: &Observation<Configuration>,
+    service_kind: jacquard_core::RouteServiceKind,
+    now: Tick,
+) -> Vec<NodeId> {
+    topology
+        .value
+        .nodes
+        .iter()
+        .filter_map(|(node_id, node)| {
+            if *node_id == local_node_id {
+                return None;
+            }
+            node.profile
+                .services
+                .iter()
+                .any(|service| {
+                    service.service_kind == service_kind
+                        && service.routing_engines.contains(&MERCATOR_ENGINE_ID)
+                        && service.valid_for.contains(now)
+                })
+                .then_some(*node_id)
+        })
+        .collect()
 }
 
 fn planning_max_hops(config: &MercatorEngineConfig, context: MercatorPlanningContext) -> u8 {

@@ -7,7 +7,9 @@ import polars as pl
 from analysis.constants import ROUTE_VISIBLE_ENGINE_SET_ORDER
 from analysis.plots import (
     render_comparison_summary,
+    render_head_to_head_route_presence,
     render_pathway_budget_route_presence,
+    render_recommended_engine_robustness,
     render_routing_fitness_crossover,
     render_routing_fitness_multiflow,
     render_routing_fitness_stale_repair,
@@ -31,6 +33,7 @@ from analysis.scoring import (
     routing_fitness_crossover_summary_table,
     routing_fitness_multiflow_summary_table,
     routing_fitness_stale_repair_summary_table,
+    transition_metrics_table,
 )
 
 
@@ -710,6 +713,73 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
             ROUTE_VISIBLE_ENGINE_SET_ORDER.index("field"),
         )
 
+    def test_recommended_engine_robustness_renders_mercator(self) -> None:
+        recommendations = pl.from_dicts(
+            [
+                {
+                    "engine_family": "mercator",
+                    "config_id": "mercator",
+                    "mean_score": 100.0,
+                    "max_sustained_stress_score": 90,
+                },
+                {
+                    "engine_family": "pathway",
+                    "config_id": "pathway",
+                    "mean_score": 90.0,
+                    "max_sustained_stress_score": 80,
+                },
+            ]
+        )
+        runs = pl.from_dicts(
+            [
+                {
+                    "engine_family": "mercator",
+                    "config_id": "mercator",
+                    "route_present_total_window_permille": 900.0,
+                    "route_present_permille": 900.0,
+                    "activation_success_permille": 1000.0,
+                    "first_materialization_round_mean": 2.0,
+                    "first_loss_round_mean": None,
+                    "recovery_round_mean": None,
+                    "route_churn_count": 0.0,
+                    "engine_handoff_count": 0.0,
+                },
+                {
+                    "engine_family": "pathway",
+                    "config_id": "pathway",
+                    "route_present_total_window_permille": 800.0,
+                    "route_present_permille": 800.0,
+                    "activation_success_permille": 1000.0,
+                    "first_materialization_round_mean": 3.0,
+                    "first_loss_round_mean": 12.0,
+                    "recovery_round_mean": None,
+                    "route_churn_count": 1.0,
+                    "engine_handoff_count": 0.0,
+                },
+            ]
+        )
+        transition_metrics = transition_metrics_table(runs, recommendations)
+        robustness = (
+            recommendations.group_by("engine_family")
+            .agg(
+                pl.first("config_id").alias("config_id"),
+                pl.first("max_sustained_stress_score").alias("max_sustained_stress_score"),
+            )
+            .join(transition_metrics, on=["engine_family", "config_id"], how="left")
+            .with_columns(
+                pl.col("route_present_mean").alias("route_present_mean_permille"),
+                pl.col("route_present_stddev").alias("route_present_stddev_permille"),
+            )
+        )
+
+        chart = render_recommended_engine_robustness(robustness, 900, 360)
+
+        self.assertIsNotNone(chart)
+        rows = next(iter(chart.to_dict()["datasets"].values()))
+        mercator_rows = [row for row in rows if row["engine_label"] == "Mercator"]
+        self.assertEqual(len(mercator_rows), 1)
+        self.assertEqual(mercator_rows[0]["x"], 900.0)
+
     def test_recommendation_table_prefers_total_window_route_presence(self) -> None:
         common = _field_route_visible_aggregates().row(0, named=True)
         aggregates = pl.from_dicts(
@@ -1339,6 +1409,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                         "olsrv2_selected_rounds_mean": 0,
                         "pathway_selected_rounds_mean": 30,
                         "scatter_selected_rounds_mean": 30,
+                        "mercator_selected_rounds_mean": 0,
                         "field_selected_rounds_mean": 0,
                     }
                 ]
@@ -1353,6 +1424,72 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(rows[0]["engine_key"], "tie")
         self.assertEqual(rows[0]["share"], 50.0)
         self.assertEqual(rows[0]["label"], "Tie 50%")
+
+    def test_comparison_summary_counts_mercator_selected_rounds(self) -> None:
+        chart = render_comparison_summary(
+            pl.from_dicts(
+                [
+                    {
+                        "engine_family": "comparison",
+                        "family_id": "comparison-mercator",
+                        "config_id": "comparison-a",
+                        "route_present_permille_mean": 1000,
+                        "dominant_engine": "mercator",
+                        "batman_bellman_selected_rounds_mean": 0,
+                        "batman_classic_selected_rounds_mean": 0,
+                        "babel_selected_rounds_mean": 0,
+                        "olsrv2_selected_rounds_mean": 0,
+                        "pathway_selected_rounds_mean": 5,
+                        "scatter_selected_rounds_mean": 0,
+                        "mercator_selected_rounds_mean": 15,
+                        "field_selected_rounds_mean": 0,
+                    }
+                ]
+            ),
+            900,
+            300,
+        )
+
+        self.assertIsNotNone(chart)
+        rows = next(iter(chart.to_dict()["datasets"].values()))
+        self.assertEqual(rows[0]["engine_key"], "mercator")
+        self.assertEqual(rows[0]["share"], 75.0)
+        self.assertEqual(rows[0]["label"], "Mercator 75%")
+
+    def test_head_to_head_route_presence_renders_mercator_matrix_cell(self) -> None:
+        chart = render_head_to_head_route_presence(
+            pl.from_dicts(
+                [
+                    {
+                        "engine_family": "head-to-head",
+                        "family_id": "head-to-head-connected-high-loss",
+                        "comparison_engine_set": "pathway",
+                        "route_present_total_window_permille_mean": 900.0,
+                    },
+                    {
+                        "engine_family": "head-to-head",
+                        "family_id": "head-to-head-connected-high-loss",
+                        "comparison_engine_set": "mercator",
+                        "route_present_total_window_permille_mean": 820.0,
+                    },
+                    {
+                        "engine_family": "head-to-head",
+                        "family_id": "head-to-head-connected-high-loss",
+                        "comparison_engine_set": "field",
+                        "route_present_total_window_permille_mean": 700.0,
+                    },
+                ]
+            ),
+            900,
+            360,
+        )
+
+        self.assertIsNotNone(chart)
+        rows = next(iter(chart.to_dict()["datasets"].values()))
+        mercator_rows = [row for row in rows if row["engine_label"] == "Mercator"]
+        self.assertEqual(len(mercator_rows), 1)
+        self.assertEqual(mercator_rows[0]["value"], 82.0)
+        self.assertEqual(mercator_rows[0]["display"], "82")
 
     def test_route_presence_percent_transform_uses_permille_scale(self) -> None:
         chart = render_pathway_budget_route_presence(

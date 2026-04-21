@@ -229,6 +229,7 @@ pub(super) fn apply_forwarding_style_score(
     mut score: i32,
     opp: ForwardingOpportunity<'_>,
     policy: &DiffusionPolicyConfig,
+    from_node: &DiffusionNodeSpec,
     to_node: &DiffusionNodeSpec,
     holder_count: usize,
     geometry: ForwardingGeometry,
@@ -290,6 +291,15 @@ pub(super) fn apply_forwarding_style_score(
             if matches!(to_node.mobility_profile, DiffusionMobilityProfile::Observer) {
                 score = score.saturating_sub(80);
             }
+            if matches!(opp.scenario.message_mode, DiffusionMessageMode::Broadcast) {
+                score = score.saturating_add(120);
+                if from_node.cluster_id == to_node.cluster_id {
+                    score = score.saturating_sub(90);
+                }
+                if bridge_candidate || leaving_source_cluster {
+                    score = score.saturating_add(70);
+                }
+            }
         }
         DiffusionForwardingStyle::Composite => {
             if toward_destination_cluster {
@@ -310,6 +320,7 @@ pub(super) fn apply_family_forwarding_adjustment(
     mut score: i32,
     family_id: &str,
     message_mode: DiffusionMessageMode,
+    policy: &DiffusionPolicyConfig,
     sender_energy_ratio: u32,
     holder_count: usize,
     geometry: ForwardingGeometry,
@@ -323,8 +334,20 @@ pub(super) fn apply_family_forwarding_adjustment(
         score = score.saturating_add(60);
     }
     match family_id {
-        "diffusion-high-density-overload" | "diffusion-congestion-cascade" => {
-            score = score.saturating_sub(i32::try_from(holder_count).unwrap_or(i32::MAX) * 18);
+        "diffusion-high-density-overload"
+        | "diffusion-congestion-cascade"
+        | "diffusion-large-congestion-threshold-moderate"
+        | "diffusion-large-congestion-threshold-high" => {
+            let holder_penalty = if policy.config_id == "mercator" {
+                8
+            } else {
+                18
+            };
+            score = score
+                .saturating_sub(i32::try_from(holder_count).unwrap_or(i32::MAX) * holder_penalty);
+            if policy.config_id == "mercator" && (bridge_candidate || leaving_source_cluster) {
+                score = score.saturating_add(90);
+            }
         }
         "diffusion-bridge-drought" => {
             if bridge_candidate || toward_destination_cluster {
@@ -378,6 +401,7 @@ pub(super) fn apply_posture_or_style_score(
             score,
             context.opp,
             context.policy,
+            context.nodes.from_node,
             context.nodes.to_node,
             context.holder_count,
             context.geometry,
@@ -434,6 +458,7 @@ pub(super) fn forwarding_score(
         score,
         scenario.family_id.as_str(),
         scenario.message_mode,
+        policy,
         sender_energy_ratio,
         holder_count,
         geometry,

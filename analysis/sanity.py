@@ -112,6 +112,7 @@ FIGURE_DATASETS: dict[str, str] = {
     "comparison_dominant_engine": "comparison_summary.csv",
     "head_to_head_route_presence": "head_to_head_summary.csv",
     "head_to_head_timing_profile": "head_to_head_summary.csv",
+    "recommended_engine_robustness": "transition_metrics.csv",
     "large_population_route_scaling": "large_population_route_summary.csv",
     "large_population_route_fragility": "large_population_route_summary.csv",
     "routing_fitness_crossover": "routing_fitness_crossover_summary.csv",
@@ -119,6 +120,19 @@ FIGURE_DATASETS: dict[str, str] = {
     "routing_fitness_stale_repair": "routing_fitness_stale_repair_summary.csv",
     "diffusion_delivery_coverage": "diffusion_engine_comparison.csv",
     "diffusion_resource_boundedness": "diffusion_engine_comparison.csv",
+}
+
+MERCATOR_REQUIRED_FIGURES = {
+    "head_to_head_route_presence",
+    "head_to_head_timing_profile",
+    "recommended_engine_robustness",
+    "large_population_route_scaling",
+    "large_population_route_fragility",
+    "routing_fitness_crossover",
+    "routing_fitness_multiflow",
+    "routing_fitness_stale_repair",
+    "diffusion_delivery_coverage",
+    "diffusion_resource_boundedness",
 }
 
 
@@ -275,10 +289,26 @@ def _check_svg_not_blank(svg_path: Path) -> list[ReportSanityIssue]:
     return []
 
 
+def _dataset_has_mercator_source(df: pl.DataFrame) -> bool:
+    for column in ("comparison_engine_set", "engine_family", "config_id"):
+        if column not in df.columns:
+            continue
+        values = (
+            df[column]
+            .cast(pl.String, strict=False)
+            .str.to_lowercase()
+            .str.contains("mercator")
+        )
+        if df.filter(values.fill_null(False)).height > 0:
+            return True
+    return False
+
+
 def _check_figure_assets(report_dir: Path) -> list[ReportSanityIssue]:
     issues: list[ReportSanityIssue] = []
     for svg_path in sorted(report_dir.glob("*.svg")):
         stem = svg_path.stem
+        svg_text = svg_path.read_text(errors="ignore")
         issues.extend(_check_svg_not_blank(svg_path))
         for suffix in (".png", ".pdf"):
             sibling = report_dir / f"{stem}{suffix}"
@@ -289,6 +319,19 @@ def _check_figure_assets(report_dir: Path) -> list[ReportSanityIssue]:
         dataset = FIGURE_DATASETS.get(stem)
         if dataset and not (report_dir / dataset).exists():
             issues.append(ReportSanityIssue(svg_path.name, f"missing source CSV `{dataset}`"))
+        if dataset and stem in MERCATOR_REQUIRED_FIGURES and (report_dir / dataset).exists():
+            source = load_optional_csv(report_dir / dataset)
+            if (
+                not source.is_empty()
+                and _dataset_has_mercator_source(source)
+                and "Mercator" not in svg_text
+            ):
+                issues.append(
+                    ReportSanityIssue(
+                        svg_path.name,
+                        "source data includes Mercator but figure does not render it",
+                    )
+                )
     stale_svg = report_dir / "routing_fitness_stale_repair.svg"
     if stale_svg.exists():
         text = stale_svg.read_text(errors="ignore")

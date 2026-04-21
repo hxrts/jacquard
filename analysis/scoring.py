@@ -1052,20 +1052,18 @@ def field_diffusion_regime_calibration_table(
     ).sort("field_regime")
 
 
+def _recommendation_engine_family_order() -> list[str]:
+    route_visible_before_field = [
+        engine for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER if engine != "field"
+    ]
+    return [*route_visible_before_field, "comparison", "field"]
+
+
 def leading_recommendation_configs(
     recommendations: pl.DataFrame, limit_per_engine: int = 2
 ) -> pl.DataFrame:
     frames: list[pl.DataFrame] = []
-    for engine_family in [
-        "batman-classic",
-        "batman-bellman",
-        "babel",
-        "olsrv2",
-        "pathway",
-        "scatter",
-        "comparison",
-        "field",
-    ]:
+    for engine_family in _recommendation_engine_family_order():
         family = recommendations.filter(pl.col("engine_family") == engine_family).head(
             limit_per_engine
         )
@@ -1203,16 +1201,7 @@ def baseline_comparison_table(
     baseline = pl.read_csv(baseline_dir / "report" / "recommendations.csv")
     current_frames = []
     prior_frames = []
-    for engine_family in [
-        "batman-classic",
-        "batman-bellman",
-        "babel",
-        "olsrv2",
-        "pathway",
-        "scatter",
-        "comparison",
-        "field",
-    ]:
+    for engine_family in _recommendation_engine_family_order():
         current_family = recommendations.filter(pl.col("engine_family") == engine_family).head(1)
         if not current_family.is_empty():
             current_frames.append(current_family)
@@ -1276,16 +1265,7 @@ def write_recommendations(path: Path, recommendations: pl.DataFrame) -> None:
         "They should be read as robust defaults for this tuning corpus, not as single-scenario winners.",
         "",
     ]
-    for engine_family in [
-        "batman-classic",
-        "batman-bellman",
-        "babel",
-        "olsrv2",
-        "pathway",
-        "scatter",
-        "comparison",
-        "field",
-    ]:
+    for engine_family in _recommendation_engine_family_order():
         rows = top_recommendation_rows(recommendations, engine_family, 3)
         if not rows and engine_family != "field":
             continue

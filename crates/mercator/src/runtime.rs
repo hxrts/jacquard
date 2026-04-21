@@ -272,11 +272,32 @@ impl MercatorEngine {
         runtime: &mut RouteRuntimeState,
         topology: &Observation<Configuration>,
     ) -> Result<u32, RouteError> {
+        let (previous_brokers, destination) = {
+            let active = self
+                .active_routes
+                .get(&route_id)
+                .ok_or(RouteRuntimeError::Invalidated)?;
+            (
+                broker_nodes_for_path(&active.primary_path),
+                active.destination.clone(),
+            )
+        };
+        let refreshed_alternates = corridor::alternate_paths_for_repair(
+            self.local_node_id,
+            &destination,
+            &repair.path,
+            topology,
+            &self.config,
+            &self.evidence,
+        );
+        let refreshed_next_hops = refreshed_alternates
+            .iter()
+            .filter_map(|path| path.get(1).copied())
+            .collect::<Vec<_>>();
         let active = self
             .active_routes
             .get_mut(&route_id)
             .ok_or(RouteRuntimeError::Invalidated)?;
-        let previous_brokers = broker_nodes_for_path(&active.primary_path);
         let next_brokers = broker_nodes_for_path(&repair.path);
         if previous_brokers != next_brokers {
             self.evidence.record_broker_switch();
@@ -288,6 +309,8 @@ impl MercatorEngine {
         active.primary_path = repair.path;
         active.support_score = repair.support_score;
         active.topology_epoch = topology.value.epoch;
+        active.alternate_paths = refreshed_alternates;
+        active.alternate_next_hops = refreshed_next_hops;
         runtime.last_lifecycle_event = RouteLifecycleEvent::Repaired;
         runtime.health.reachability_state = ReachabilityState::Reachable;
         runtime.health.stability_score =

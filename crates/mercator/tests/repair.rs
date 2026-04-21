@@ -175,6 +175,28 @@ fn repair_uses_surviving_corridor_alternate() {
 }
 
 #[test]
+fn repair_researches_current_topology_when_stored_alternates_are_stale() {
+    let initial = topology(1, 1, &[1, 2, 3, 4], &[(1, 2), (2, 4)]);
+    let repaired = topology(2, 2, &[1, 2, 3, 4], &[(1, 3), (3, 4)]);
+    let mut engine = MercatorEngine::new(node(1));
+    let mut route = materialized_route(&mut engine, &initial);
+
+    engine
+        .engine_tick(&RoutingTickContext::new(repaired.clone()))
+        .expect("tick");
+    let result = engine
+        .maintain_route(
+            &route.identity,
+            &mut route.runtime,
+            RouteMaintenanceTrigger::EpochAdvanced,
+        )
+        .expect("maintenance");
+
+    assert_eq!(result.outcome, RouteMaintenanceOutcome::Repaired);
+    assert_eq!(engine.diagnostics().repair_success_count, 1);
+}
+
+#[test]
 fn stale_withdraws_when_no_surviving_support_remains() {
     let initial = topology(1, 1, &[1, 2, 4], &[(1, 2), (2, 4)]);
     let partitioned = topology(2, 3, &[1, 2, 4], &[]);

@@ -163,4 +163,4 @@ If the engine ships in its own crate, consider implementing `RoutingEnginePlanne
 
 For contract enforcement, the `toolkit/checks/rust/routing_invariants.rs` policy check validates engine crates against the shared rules. Run `cargo xtask check routing-invariants` during development.
 
-For integration into experiment suites, see [Running Experiments](502_running_experiments.md). For host composition patterns, see [Client Assembly](503_client_assembly.md) and [Reference Client](407_reference_client.md).
+For integration into experiment suites, see [Running Experiments](502_running_experiments.md). For host composition patterns, see [Client Assembly](503_client_assembly.md) and [Reference Client](408_reference_client.md).

@@ -112,6 +112,27 @@ class ReportSanityTests(unittest.TestCase):
                 rendered,
             )
 
+    def test_detects_missing_mercator_in_engine_set_figure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_dir = Path(tmp)
+            report_dir = artifact_dir / "report"
+            report_dir.mkdir()
+            _write_large(artifact_dir / "router-tuning-report.pdf", b"%PDF")
+            (report_dir / "head_to_head_summary.csv").write_text(
+                "family_id,config_id,comparison_engine_set,"
+                "route_present_total_window_permille_mean\n"
+                "head-to-head-connected-low-loss,head-to-head-mercator,mercator,900\n"
+            )
+            _write_figure(report_dir, "head_to_head_route_presence", "Pathway")
+
+            rendered = [issue.render() for issue in validate_report_artifacts(artifact_dir)]
+
+            self.assertIn(
+                "head_to_head_route_presence.svg: "
+                "source data includes Mercator but figure does not render it",
+                rendered,
+            )
+
     def test_detects_collapsed_mixed_standalone_zero_labels(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             artifact_dir = Path(tmp)

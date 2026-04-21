@@ -2,7 +2,7 @@
 
 This guide is for Rust developers who depend on `jacquard-simulator` as a library and want to script their own deterministic routing scenarios. We assume developers may use the simulator for three main purposes: running an existing preset to observe engine behavior, authoring a custom scenario to probe a specific condition, and driving an experiment suite to sweep parameters across a scenario family. This guide covers the first two, plus the shared tools for inspecting and asserting on replay results.
 
-See [Simulator Architecture](306_simulator_architecture.md) for the architecture this guide sits on top of, [Reference Client](407_reference_client.md) for the host composition the default adapter uses, [Running Experiments](502_running_experiments.md) for the parameter sweep flow, and [Crate Architecture](999_crate_architecture.md) for the ownership and boundary rules.
+See [Simulator Architecture](306_simulator_architecture.md) for the architecture this guide sits on top of, [Reference Client](408_reference_client.md) for the host composition the default adapter uses, [Running Experiments](502_running_experiments.md) for the parameter sweep flow, and [Crate Architecture](999_crate_architecture.md) for the ownership and boundary rules.
 
 ## Adding the Dependency
 

@@ -67,37 +67,17 @@ impl RoutingEnginePlanner for MercatorEngine {
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
         let context = self.planning_context_for(objective);
-        let expected = corridor::candidate_for_with_context(
-            self.local_node_id,
-            topology,
-            objective,
-            &self.config,
-            &self.evidence,
-            context,
-        )?;
-        if expected.backend_ref != candidate.backend_ref || expected.route_id != candidate.route_id
-        {
-            return corridor::check_candidate(
-                self.local_node_id,
-                topology,
-                objective,
-                profile,
-                candidate,
-                &self.config,
-                &self.evidence,
-            )
-            .map_err(RouteError::from);
-        }
-        Ok(corridor::admit_candidate(
+        corridor::check_candidate_with_context(
             self.local_node_id,
             topology,
             objective,
             profile,
-            &expected,
+            candidate,
             &self.config,
             &self.evidence,
-        )?
-        .admission_check)
+            context,
+        )
+        .map_err(RouteError::from)
     }
 
     fn admit_route(
@@ -108,35 +88,15 @@ impl RoutingEnginePlanner for MercatorEngine {
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError> {
         let context = self.planning_context_for(objective);
-        let expected = corridor::candidate_for_with_context(
-            self.local_node_id,
-            topology,
-            objective,
-            &self.config,
-            &self.evidence,
-            context,
-        )?;
-        if expected.backend_ref != candidate.backend_ref || expected.route_id != candidate.route_id
-        {
-            return corridor::admit_candidate(
-                self.local_node_id,
-                topology,
-                objective,
-                profile,
-                &candidate,
-                &self.config,
-                &self.evidence,
-            )
-            .map_err(RouteError::from);
-        }
-        corridor::admit_candidate(
+        corridor::admit_candidate_with_context(
             self.local_node_id,
             topology,
             objective,
             profile,
-            &expected,
+            &candidate,
             &self.config,
             &self.evidence,
+            context,
         )
         .map_err(RouteError::from)
     }

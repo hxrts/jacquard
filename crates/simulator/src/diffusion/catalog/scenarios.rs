@@ -583,7 +583,8 @@ mod tests {
     };
     use super::{
         build_adversarial_observation_scenario, build_bridge_drought_scenario,
-        build_congestion_cascade_scenario, build_energy_starved_relay_scenario,
+        build_congestion_cascade_scenario, build_disaster_broadcast_scenario,
+        build_energy_starved_relay_scenario, build_high_density_overload_scenario,
         build_large_congestion_threshold_high_scenario,
         build_large_congestion_threshold_moderate_scenario,
         build_large_regional_shift_high_scenario, build_large_regional_shift_moderate_scenario,
@@ -1145,6 +1146,46 @@ mod tests {
             scenario,
         });
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn mercator_profile_keeps_broadcast_overload_above_collapse_floor() {
+        let policy = diffusion_engine_profile("mercator");
+        let cases = [
+            (build_disaster_broadcast_scenario(), 500, "viable"),
+            (build_high_density_overload_scenario(), 500, "viable"),
+            (build_congestion_cascade_scenario(), 500, "viable"),
+            (
+                build_large_congestion_threshold_moderate_scenario(),
+                500,
+                "viable",
+            ),
+            (
+                build_large_congestion_threshold_high_scenario(),
+                500,
+                "viable",
+            ),
+        ];
+        for (scenario, floor, expected_state) in cases {
+            let summary = simulate_diffusion_run(&DiffusionRunSpec {
+                suite_id: "test".to_string(),
+                family_id: scenario.family_id.clone(),
+                seed: 41,
+                policy: policy.clone(),
+                scenario,
+            });
+            assert!(
+                summary.delivery_probability_permille >= floor,
+                "{} delivered {} below floor {floor}",
+                summary.family_id,
+                summary.delivery_probability_permille,
+            );
+            assert_eq!(
+                summary.bounded_state, expected_state,
+                "{} bounded state should remain {expected_state}",
+                summary.family_id,
+            );
+        }
     }
 
     #[test]

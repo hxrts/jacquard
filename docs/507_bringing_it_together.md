@@ -8,7 +8,7 @@ A fully custom experiment may replace six components: a routing engine, a transp
 
 The client composition pattern is already covered in [Client Assembly](503_client_assembly.md). Reuse it here with the custom components in place. A `ClientBuilder`-shaped composition wires the custom engine from [Custom Engine](504_custom_engine.md), the custom transport from [Custom Transport](505_custom_transport.md), and the custom device profile from [Custom Device](506_custom_device.md) into one `ReferenceClient` equivalent.
 
-The current reference `ClientBuilder` expects the in-tree engines and the in-memory transport, so a fully custom stack bypasses it. Compose a router, register the custom engine on that router, and wire the custom transport surfaces into a host bridge directly. The minimum host composition is documented in [Reference Client](407_reference_client.md).
+The current reference `ClientBuilder` expects the in-tree engines and the in-memory transport, so a fully custom stack bypasses it. Compose a router, register the custom engine on that router, and wire the custom transport surfaces into a host bridge directly. The minimum host composition is documented in [Reference Client](408_reference_client.md).
 
 ## Driving The Custom Client From The Simulator
 

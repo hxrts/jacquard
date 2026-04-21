@@ -2790,8 +2790,11 @@ mod tests {
 
     use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
     use jacquard_core::Tick;
+    use jacquard_mercator::MercatorEngine;
     use jacquard_olsrv2::OLSRV2_ENGINE_ID;
-    use jacquard_traits::{RoutingEnvironmentModel, RoutingScenario, RoutingSimulator};
+    use jacquard_traits::{
+        RoutingEnginePlanner, RoutingEnvironmentModel, RoutingScenario, RoutingSimulator,
+    };
 
     use super::*;
     use crate::{
@@ -4030,6 +4033,39 @@ mod tests {
     }
 
     #[test]
+    fn head_to_head_mercator_concurrent_mixed_activates_service_objective() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+        let (scenario, environment) =
+            build_comparison_concurrent_mixed(&parameters, SimulationSeed(41));
+        let direct_engine = MercatorEngine::new(NODE_B);
+        let service_goal = service_objective(vec![13; 16]);
+        let direct_candidates = direct_engine.candidate_routes(
+            &service_goal,
+            &best_effort_connected_profile(),
+            scenario.initial_configuration(),
+        );
+        assert_eq!(direct_candidates.len(), 1);
+
+        let reduced = run_reduced_replay(&scenario, &environment);
+        let service_destination = DestinationId::Service(jacquard_core::ServiceId(vec![13; 16]));
+
+        assert!(reduced.route_seen(NODE_A, &DestinationId::Node(NODE_D)));
+        assert!(
+            reduced.route_seen(NODE_B, &service_destination),
+            "Mercator service objective failed with summaries: {:?}",
+            reduced.failure_summaries,
+        );
+        assert!(reduced.route_seen_with_engine(NODE_B, &service_destination, &MERCATOR_ENGINE_ID));
+        assert!(
+            reduced
+                .route_present_rounds(NODE_B, &service_destination)
+                .len()
+                >= 12
+        );
+    }
+
+    #[test]
     fn mercator_connected_smoke_matches_pathway_on_fixed_connected_fixture() {
         let mercator =
             ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
@@ -4091,6 +4127,40 @@ mod tests {
     }
 
     #[test]
+    fn head_to_head_mercator_bridge_and_stale_keep_recovery_windows_visible() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+        let bridge_destination = DestinationId::Node(NODE_D);
+        let stale_destination = DestinationId::Node(node_id(6));
+        let cases: [(&str, ComparisonBuilder, DestinationId, usize); 2] = [
+            (
+                "head-to-head-bridge-transition",
+                build_comparison_bridge_transition,
+                bridge_destination,
+                16,
+            ),
+            (
+                "head-to-head-stale-recovery-window",
+                build_comparison_stale_recovery_window,
+                stale_destination,
+                18,
+            ),
+        ];
+        for (family, builder, destination, minimum_visible_rounds) in cases {
+            let (scenario, environment) = builder(&parameters, SimulationSeed(41));
+            let reduced = run_reduced_replay(&scenario, &environment);
+            let present_rounds = reduced.route_present_rounds(NODE_A, &destination);
+            assert!(
+                present_rounds.len() >= minimum_visible_rounds,
+                "{family} only had {} visible rounds: failures={:?}",
+                present_rounds.len(),
+                reduced.failure_summaries,
+            );
+            assert!(reduced.route_seen_with_engine(NODE_A, &destination, &MERCATOR_ENGINE_ID));
+        }
+    }
+
+    #[test]
     fn head_to_head_mercator_multi_flow_families_avoid_zero_service_tails() {
         let parameters =
             ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
@@ -4125,6 +4195,56 @@ mod tests {
                 ));
             }
         }
+    }
+
+    #[test]
+    fn head_to_head_mercator_large_core_periphery_high_materializes_route() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+        let (scenario, environment) =
+            build_comparison_large_core_periphery_high(&parameters, SimulationSeed(41));
+        let direct_engine = MercatorEngine::new(NODE_A);
+        let direct_candidates = direct_engine.candidate_routes(
+            &connected_objective(node_id(14)),
+            &repairable_connected_profile(),
+            scenario.initial_configuration(),
+        );
+        assert_eq!(direct_candidates.len(), 1);
+        let second_direct_candidates = direct_engine.candidate_routes(
+            &connected_objective(node_id(14)),
+            &repairable_connected_profile(),
+            scenario.initial_configuration(),
+        );
+        assert_eq!(
+            direct_candidates[0].backend_ref,
+            second_direct_candidates[0].backend_ref,
+            "Mercator candidate planning is not idempotent: first len={} second len={}",
+            direct_candidates[0].backend_ref.backend_route_id.0.len(),
+            second_direct_candidates[0]
+                .backend_ref
+                .backend_route_id
+                .0
+                .len()
+        );
+        let direct_admission = direct_engine.admit_route(
+            &connected_objective(node_id(14)),
+            &repairable_connected_profile(),
+            direct_candidates[0].clone(),
+            scenario.initial_configuration(),
+        );
+        assert!(
+            direct_admission.is_ok(),
+            "direct Mercator admission failed: {direct_admission:?}"
+        );
+        let reduced = run_reduced_replay(&scenario, &environment);
+        let destination = DestinationId::Node(node_id(14));
+
+        assert!(
+            reduced.route_seen(NODE_A, &destination),
+            "Mercator high core-periphery route did not materialize: {:?}",
+            reduced.failure_summaries,
+        );
+        assert!(reduced.route_seen_with_engine(NODE_A, &destination, &MERCATOR_ENGINE_ID));
     }
 
     #[test]

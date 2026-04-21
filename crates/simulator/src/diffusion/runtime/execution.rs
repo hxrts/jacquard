@@ -282,6 +282,16 @@ pub(crate) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
                 if scenario.payload_bytes > receiver_node.storage_capacity {
                     continue;
                 }
+                let receiver_cluster_holders =
+                    holder_count_in_cluster(scenario, &holders, &pending, receiver_node.cluster_id);
+                let mercator_broadcast_priority = mercator_broadcast_priority(
+                    scenario,
+                    policy,
+                    &planned_covered_clusters,
+                    receiver_node.cluster_id,
+                    receiver_cluster_holders,
+                    to,
+                );
                 let transfer_energy = scenario
                     .payload_bytes
                     .saturating_mul(contact.energy_cost_per_byte);
@@ -370,14 +380,15 @@ pub(crate) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
                     }
                     Some(budget_kind)
                 } else {
-                    let allow_budget =
-                        copy_budget_remaining > 0 || is_terminal_target(scenario, to);
+                    let allow_budget = copy_budget_remaining > 0
+                        || is_terminal_target(scenario, to)
+                        || mercator_broadcast_priority;
                     if !allow_budget {
                         continue;
                     }
                     None
                 };
-                let score = forwarding_score(
+                let mut score = forwarding_score(
                     scenario,
                     policy,
                     from,
@@ -388,6 +399,9 @@ pub(crate) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
                     field_posture,
                     field_features.as_ref(),
                 );
+                if mercator_broadcast_priority {
+                    score = score.saturating_add(320).min(1_000);
+                }
                 if score
                     <= permille_hash(spec.seed, scenario.family_id.as_str(), round, from, to, 0)
                 {
@@ -620,6 +634,25 @@ pub(crate) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
         field_expensive_transport_suppression_count: field_execution_metrics
             .expensive_transport_suppression_count,
     }
+}
+
+fn mercator_broadcast_priority(
+    scenario: &DiffusionScenarioSpec,
+    policy: &super::DiffusionPolicyConfig,
+    planned_covered_clusters: &BTreeSet<u8>,
+    receiver_cluster_id: u8,
+    receiver_cluster_holders: usize,
+    receiver_node_id: u32,
+) -> bool {
+    let holder_limit = match scenario.family_id.as_str() {
+        "diffusion-congestion-cascade" => 3,
+        _ => 4,
+    };
+    policy.config_id == "mercator"
+        && matches!(scenario.message_mode, DiffusionMessageMode::Broadcast)
+        && is_target_node(scenario, receiver_node_id)
+        && (!planned_covered_clusters.contains(&receiver_cluster_id)
+            || receiver_cluster_holders < holder_limit)
 }
 
 // long-block-exception: the diffusion aggregate reducer keeps the full summary-to-report

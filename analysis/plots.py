@@ -1125,6 +1125,23 @@ def render_comparison_summary(
     data = aggregates.filter(pl.col("engine_family") == "comparison")
     if data.is_empty():
         return None
+    selected_round_columns = {
+        "batman-bellman": "batman_bellman_selected_rounds_mean",
+        "batman-classic": "batman_classic_selected_rounds_mean",
+        "babel": "babel_selected_rounds_mean",
+        "olsrv2": "olsrv2_selected_rounds_mean",
+        "pathway": "pathway_selected_rounds_mean",
+        "scatter": "scatter_selected_rounds_mean",
+        "mercator": "mercator_selected_rounds_mean",
+        "field": "field_selected_rounds_mean",
+    }
+    missing_selected_round_columns = [
+        column for column in selected_round_columns.values() if column not in data.columns
+    ]
+    if missing_selected_round_columns:
+        data = data.with_columns(
+            pl.lit(0.0).alias(column) for column in missing_selected_round_columns
+        )
     summary = (
         data.sort(
             ["family_id", "route_present_permille_mean", "config_id"],
@@ -1143,25 +1160,17 @@ def render_comparison_summary(
             pl.first("olsrv2_selected_rounds_mean").alias("olsrv2_selected_rounds_mean"),
             pl.first("pathway_selected_rounds_mean").alias("pathway_selected_rounds_mean"),
             pl.first("scatter_selected_rounds_mean").alias("scatter_selected_rounds_mean"),
+            pl.first("mercator_selected_rounds_mean").alias("mercator_selected_rounds_mean"),
             pl.first("field_selected_rounds_mean").alias("field_selected_rounds_mean"),
         )
         .sort("family_id")
     )
-    engine_columns = {
-        "batman-bellman": "batman_bellman_selected_rounds_mean",
-        "batman-classic": "batman_classic_selected_rounds_mean",
-        "babel": "babel_selected_rounds_mean",
-        "olsrv2": "olsrv2_selected_rounds_mean",
-        "pathway": "pathway_selected_rounds_mean",
-        "scatter": "scatter_selected_rounds_mean",
-        "field": "field_selected_rounds_mean",
-    }
     rows: list[dict[str, object]] = []
     present_engines: set[str] = set()
     for row in summary.iter_rows(named=True):
         selected_rounds = {
             engine: int(row.get(column) or 0)
-            for engine, column in engine_columns.items()
+            for engine, column in selected_round_columns.items()
         }
         total_selected_rounds = sum(selected_rounds.values())
         dominant_engine = row["dominant_engine"] or "none"
@@ -1256,121 +1265,47 @@ def render_head_to_head_route_presence(
         if "route_present_total_window_permille_mean" in data.columns
         else "route_present_permille_mean"
     )
+    available = set(data["comparison_engine_set"].drop_nulls().unique().to_list())
+    engine_sets = [engine for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER if engine in available]
+    engine_sets.extend(sorted(available.difference(engine_sets)))
+    engine_labels = [compact_engine_label(engine) for engine in engine_sets]
+    families = [
+        wrapped_family_label(family)
+        for family in data["family_id"].unique().sort().to_list()
+    ]
     rows: list[dict[str, object]] = []
-    engine_domain: list[str] = []
     for family in data["family_id"].unique().sort().to_list():
-        family_rows = data.filter(pl.col("family_id") == family).sort(
-            [route_presence_column, "comparison_engine_set"],
-            descending=[True, False],
-        )
-        best_row = family_rows.head(1)
-        best_engine = best_row["comparison_engine_set"].item() or "none"
-        best_value = float(best_row[route_presence_column].item() or 0)
-        distinct_lower = next(
-            (
-                float(value or 0)
-                for value in family_rows[route_presence_column].to_list()
-                if float(value or 0) < best_value
-            ),
-            0.0,
-        )
-        best_percent = best_value / 10.0
-        gap_percent = max(best_value - distinct_lower, 0.0) / 10.0
-        engine_key = best_engine if best_engine in HEAD_TO_HEAD_SET_COLORS else "none"
-        if engine_key not in engine_domain:
-            engine_domain.append(engine_key)
-        rows.append(
-            {
-                "family_label": wrapped_family_label(family),
-                "engine_key": engine_key,
-                "engine_legend": engine_display_label(engine_key),
-                "best_percent": best_percent,
-                "label_inside": best_percent >= 80.0,
-                "label_x": best_percent - 1.6 if best_percent >= 80.0 else min(best_percent + 1.5, 103.5),
-                "engine_label": f"{compact_engine_label(best_engine)} {best_percent:.1f}%",
-                "gap_label": f"next lower gap={gap_percent:.1f} pts",
-            }
-        )
+        family_rows = data.filter(pl.col("family_id") == family)
+        family_display = wrapped_family_label(family)
+        for engine_set, engine_label in zip(engine_sets, engine_labels, strict=False):
+            row = family_rows.filter(pl.col("comparison_engine_set") == engine_set).head(1)
+            value = (
+                float(row[route_presence_column].item()) / 10.0
+                if not row.is_empty() and row[route_presence_column].item() is not None
+                else None
+            )
+            rows.append(
+                {
+                    "family_label": family_display,
+                    "engine_label": engine_label,
+                    "value": value,
+                    "display": f"{value:.0f}" if value is not None else "-",
+                    "engine_set": engine_display_label(engine_set),
+                    "route_presence": value,
+                }
+            )
     if not rows:
         return None
-    legend_domain = [engine_display_label(engine) for engine in engine_domain]
-
-    dataset = alt.InlineData(values=rows)
-    height = max(180, min(total_height, 34 * len(rows) + 40))
-    base = alt.Chart(dataset).encode(
-        y=alt.Y("family_label:N", sort=[row["family_label"] for row in rows], title=None)
+    chart = _metric_heatmap(
+        rows,
+        total_width,
+        total_height,
+        title="Total-window route presence (%)",
+        engine_domain=engine_labels,
+        family_domain=families,
+        range_colors=["#f8fafc", "#2563eb"],
+        reverse_scale=False,
     )
-    chart = alt.layer(
-        base.mark_bar(height=24, cornerRadiusEnd=2).encode(
-            x=alt.X(
-                "best_percent:Q",
-                title="Total-window route presence (%)",
-                scale=alt.Scale(domain=[0, 106]),
-                axis=alt.Axis(values=[0, 25, 50, 75, 100]),
-            ),
-            color=_engine_color_scale(
-                engine_domain,
-                HEAD_TO_HEAD_SET_COLORS,
-                field="engine_legend:N",
-                field_domain=legend_domain,
-                legend_title="Engine set",
-            ),
-        ),
-        base.transform_filter("datum.label_inside == false").mark_text(
-            align="left",
-            baseline="bottom",
-            dx=6,
-            dy=-2,
-            color=PLOT_TEXT_COLOR,
-            font=PLOT_FONT,
-            fontSize=9,
-            fontWeight="bold",
-            clip=False,
-        ).encode(
-            x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, 106])),
-            text="engine_label:N",
-        ),
-        base.transform_filter("datum.label_inside == false").mark_text(
-            align="left",
-            baseline="top",
-            dx=6,
-            dy=2,
-            color=PLOT_MUTED_TEXT_COLOR,
-            font=PLOT_FONT,
-            fontSize=8,
-            clip=False,
-        ).encode(
-            x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, 106])),
-            text="gap_label:N",
-        ),
-        base.transform_filter("datum.label_inside == true").mark_text(
-            align="right",
-            baseline="bottom",
-            dx=-6,
-            dy=-2,
-            color="#ffffff",
-            font=PLOT_FONT,
-            fontSize=9,
-            fontWeight="bold",
-            clip=False,
-        ).encode(
-            x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, 106])),
-            text="engine_label:N",
-        ),
-        base.transform_filter("datum.label_inside == true").mark_text(
-            align="right",
-            baseline="top",
-            dx=-6,
-            dy=2,
-            color="#f8fafc",
-            font=PLOT_FONT,
-            fontSize=8,
-            clip=False,
-        ).encode(
-            x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, 106])),
-            text="gap_label:N",
-        ),
-    ).properties(width=total_width - 18, height=height)
     return _configure_chart(chart)
 
 
