@@ -340,6 +340,11 @@ impl MercatorEvidenceGraph {
     }
 
     #[must_use]
+    pub fn broker_pressure_for(&self, broker: NodeId) -> Option<MercatorBrokerPressure> {
+        self.broker_pressure.get(&broker).copied()
+    }
+
+    #[must_use]
     pub fn route_support(&self) -> Vec<MercatorRouteSupport> {
         self.route_support.values().cloned().collect()
     }

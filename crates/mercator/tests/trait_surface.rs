@@ -110,13 +110,17 @@ fn mercator_implements_router_managed_engine_surface() {
 #[test]
 fn mercator_phase_zero_is_inert_on_connected_and_disconnected_fixtures() {
     let engine = MercatorEngine::new(node(1));
-    for topology in [connected_fixture(), disconnected_fixture()] {
-        assert_eq!(engine.engine_id(), MERCATOR_ENGINE_ID);
-        assert_eq!(engine.capabilities(), MERCATOR_CAPABILITIES);
-        assert!(engine
-            .candidate_routes(&objective(), &profile(), &topology)
-            .is_empty());
-    }
+    assert_eq!(engine.engine_id(), MERCATOR_ENGINE_ID);
+    assert_eq!(engine.capabilities(), MERCATOR_CAPABILITIES);
+    assert_eq!(
+        engine
+            .candidate_routes(&objective(), &profile(), &connected_fixture())
+            .len(),
+        1
+    );
+    assert!(engine
+        .candidate_routes(&objective(), &profile(), &disconnected_fixture())
+        .is_empty());
 }
 
 #[test]

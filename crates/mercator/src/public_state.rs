@@ -1,7 +1,9 @@
 //! Engine-public policy and state types for `MercatorEngine`.
 
-use jacquard_core::{DurationMs, Tick};
+use jacquard_core::{DurationMs, RouteEpoch, Tick};
 use serde::{Deserialize, Serialize};
+
+use crate::evidence::MercatorDiagnostics;
 
 pub(crate) const DEFAULT_ENGINE_TICK_WITHIN_TICKS: u64 = 1;
 pub(crate) const DEFAULT_EVIDENCE_VALIDITY_MS: u32 = 1_000;
@@ -51,4 +53,11 @@ impl Default for MercatorEvidenceBounds {
 pub struct MercatorEngineConfig {
     pub bounds: MercatorOperationalBounds,
     pub evidence: MercatorEvidenceBounds,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MercatorRouterAnalysisSnapshot {
+    pub diagnostics: MercatorDiagnostics,
+    pub active_route_count: u32,
+    pub latest_topology_epoch: Option<RouteEpoch>,
 }

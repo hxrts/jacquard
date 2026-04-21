@@ -5,10 +5,10 @@ use super::{
     ConnectivityPosture, DestinationId, DriverStatusEvent, DurationMs, FieldReplaySummary,
     HoldFallbackPolicy, HostCheckpointSnapshot, HostRoundArtifact, HostRoundStatus,
     IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
-    JacquardSimulationStats, NodeId, PriorityPoints, ReferenceClient, ReferenceRouter,
-    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, Router, RoutingControlPlane,
-    RoutingDataPlane, RoutingObjective, SimulationError, SimulationFailureSummary, Tick,
-    FIELD_ENGINE_ID, PATHWAY_ENGINE_ID,
+    JacquardSimulationStats, MercatorReplaySummary, NodeId, PriorityPoints, ReferenceClient,
+    ReferenceRouter, RoutePartitionClass, RouteProtectionClass, RouteRepairClass, Router,
+    RoutingControlPlane, RoutingDataPlane, RoutingObjective, SimulationError,
+    SimulationFailureSummary, Tick, FIELD_ENGINE_ID, PATHWAY_ENGINE_ID,
 };
 use jacquard_babel::{
     selected_neighbor_from_backend_route_id as selected_babel_neighbor, BABEL_ENGINE_ID,
@@ -26,6 +26,7 @@ use jacquard_field::{
     selected_neighbor_from_backend_route_id as selected_field_neighbor,
     FieldRouterAnalysisSnapshot, FIELD_ENGINE_ID as FIELD_ROUTER_ENGINE_ID,
 };
+use jacquard_mercator::{MercatorRouterAnalysisSnapshot, MERCATOR_ENGINE_ID};
 use jacquard_olsrv2::{
     selected_neighbor_from_backend_route_id as selected_olsr_neighbor, OLSRV2_ENGINE_ID,
 };
@@ -38,6 +39,7 @@ pub(super) fn host_artifact(
     progress: &BridgeRoundProgress,
     active_routes: Vec<ActiveRouteSummary>,
     field_replay: Option<FieldReplaySummary>,
+    mercator_replay: Option<MercatorReplaySummary>,
 ) -> HostRoundArtifact {
     let ingress_batch_boundary = IngressBatchBoundary {
         observed_at_tick: at_tick,
@@ -61,6 +63,7 @@ pub(super) fn host_artifact(
         status,
         active_routes,
         field_replay,
+        mercator_replay,
     }
 }
 
@@ -99,6 +102,24 @@ pub(super) fn summarize_field_replay(router: &ReferenceRouter) -> Option<FieldRe
         checkpoint_capture_count: snapshot.checkpoint_capture_count,
         checkpoint_restore_count: snapshot.checkpoint_restore_count,
         reconfiguration_causes: snapshot.reconfiguration_causes,
+    })
+}
+
+pub(super) fn summarize_mercator_replay(router: &ReferenceRouter) -> Option<MercatorReplaySummary> {
+    let snapshot = router
+        .engine_analysis_snapshot(&MERCATOR_ENGINE_ID)?
+        .downcast::<MercatorRouterAnalysisSnapshot>()
+        .ok()
+        .map(|boxed| *boxed)?;
+    let diagnostics = snapshot.diagnostics;
+    Some(MercatorReplaySummary {
+        selected_result_rounds: diagnostics.selected_result_rounds,
+        no_candidate_attempts: diagnostics.no_candidate_attempts,
+        inadmissible_candidate_attempts: diagnostics.inadmissible_candidate_attempts,
+        support_withdrawal_count: diagnostics.support_withdrawal_count,
+        stale_persistence_rounds: diagnostics.stale_persistence_rounds,
+        active_route_count: snapshot.active_route_count,
+        latest_topology_epoch: snapshot.latest_topology_epoch,
     })
 }
 
@@ -252,6 +273,7 @@ pub(super) fn refresh_host_round_routes(
         let bound = host.bind();
         artifact.active_routes = summarize_active_routes(artifact.local_node_id, bound.router());
         artifact.field_replay = summarize_field_replay(bound.router());
+        artifact.mercator_replay = summarize_mercator_replay(bound.router());
     }
 }
 

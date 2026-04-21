@@ -36,6 +36,7 @@ pub struct HostRoundArtifact {
     pub status: HostRoundStatus,
     pub active_routes: Vec<ActiveRouteSummary>,
     pub field_replay: Option<FieldReplaySummary>,
+    pub mercator_replay: Option<MercatorReplaySummary>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -92,6 +93,17 @@ pub struct FieldReplaySummary {
     pub checkpoint_capture_count: u32,
     pub checkpoint_restore_count: u32,
     pub reconfiguration_causes: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MercatorReplaySummary {
+    pub selected_result_rounds: u32,
+    pub no_candidate_attempts: u32,
+    pub inadmissible_candidate_attempts: u32,
+    pub support_withdrawal_count: u32,
+    pub stale_persistence_rounds: u32,
+    pub active_route_count: u32,
+    pub latest_topology_epoch: Option<jacquard_core::RouteEpoch>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

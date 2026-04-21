@@ -1,13 +1,15 @@
 //! `RoutingEnginePlanner` impl for `MercatorEngine`.
 
 use jacquard_core::{
-    Configuration, Observation, RouteAdmission, RouteAdmissionCheck, RouteAdmissionRejection,
-    RouteCandidate, RouteError, RouteSelectionError, RoutingEngineCapabilities, RoutingEngineId,
-    RoutingObjective, SelectedRoutingParameters,
+    Configuration, Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
+    RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, SelectedRoutingParameters,
 };
 use jacquard_traits::RoutingEnginePlanner;
 
-use crate::{MercatorEngine, MERCATOR_CAPABILITIES, MERCATOR_ENGINE_ID};
+use crate::{
+    corridor::{self, MercatorPlanningOutcome},
+    MercatorEngine, MERCATOR_CAPABILITIES, MERCATOR_ENGINE_ID,
+};
 
 impl RoutingEnginePlanner for MercatorEngine {
     fn engine_id(&self) -> RoutingEngineId {
@@ -20,30 +22,64 @@ impl RoutingEnginePlanner for MercatorEngine {
 
     fn candidate_routes(
         &self,
-        _objective: &RoutingObjective,
+        objective: &RoutingObjective,
         _profile: &SelectedRoutingParameters,
-        _topology: &Observation<Configuration>,
+        topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
-        Vec::new()
+        let outcome = corridor::plan_corridor(
+            self.local_node_id,
+            topology,
+            objective,
+            &self.config,
+            &self.evidence,
+        );
+        self.record_planning_outcome(&outcome);
+        match outcome {
+            MercatorPlanningOutcome::Selected(corridor) => corridor
+                .candidate(objective, topology)
+                .into_iter()
+                .collect(),
+            MercatorPlanningOutcome::NoCandidate | MercatorPlanningOutcome::Inadmissible => {
+                Vec::new()
+            }
+        }
     }
 
     fn check_candidate(
         &self,
-        _objective: &RoutingObjective,
-        _profile: &SelectedRoutingParameters,
-        _candidate: &RouteCandidate,
-        _topology: &Observation<Configuration>,
+        objective: &RoutingObjective,
+        profile: &SelectedRoutingParameters,
+        candidate: &RouteCandidate,
+        topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
-        Err(RouteSelectionError::Inadmissible(RouteAdmissionRejection::BackendUnavailable).into())
+        corridor::check_candidate(
+            self.local_node_id,
+            topology,
+            objective,
+            profile,
+            candidate,
+            &self.config,
+            &self.evidence,
+        )
+        .map_err(RouteError::from)
     }
 
     fn admit_route(
         &self,
-        _objective: &RoutingObjective,
-        _profile: &SelectedRoutingParameters,
-        _candidate: RouteCandidate,
-        _topology: &Observation<Configuration>,
+        objective: &RoutingObjective,
+        profile: &SelectedRoutingParameters,
+        candidate: RouteCandidate,
+        topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError> {
-        Err(RouteSelectionError::Inadmissible(RouteAdmissionRejection::BackendUnavailable).into())
+        corridor::admit_candidate(
+            self.local_node_id,
+            topology,
+            objective,
+            profile,
+            &candidate,
+            &self.config,
+            &self.evidence,
+        )
+        .map_err(RouteError::from)
     }
 }

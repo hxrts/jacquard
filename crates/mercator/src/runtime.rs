@@ -2,20 +2,27 @@
 
 use jacquard_core::{
     Configuration, MaterializedRoute, NodeId, Observation, PublishedRouteRecord, RouteCommitment,
-    RouteError, RouteId, RouteInstallation, RouteMaintenanceResult, RouteMaintenanceTrigger,
-    RouteMaterializationInput, RouteRuntimeError, RouteRuntimeState, RouteSelectionError,
-    RoutingTickChange, RoutingTickContext, RoutingTickHint, RoutingTickOutcome,
+    RouteError, RouteId, RouteInstallation, RouteLifecycleEvent, RouteMaintenanceOutcome,
+    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput, RouteRuntimeError,
+    RouteRuntimeState, RouteSelectionError, RoutingTickChange, RoutingTickContext, RoutingTickHint,
+    RoutingTickOutcome,
 };
 use jacquard_traits::{RouterManagedEngine, RoutingEngine};
 
-use crate::MercatorEngine;
+use crate::{corridor, MercatorEngine, MERCATOR_ENGINE_ID};
 
 impl RoutingEngine for MercatorEngine {
     fn materialize_route(
         &mut self,
-        _input: RouteMaterializationInput,
+        input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError> {
-        Err(RouteRuntimeError::Invalidated.into())
+        let route_id = *input.handle.route_id();
+        let backend_route_id = input.admission.backend_ref.backend_route_id.clone();
+        let active = corridor::active_route_from_backend(backend_route_id)
+            .ok_or(RouteRuntimeError::Invalidated)?;
+        let installation = corridor::materialize_admitted(input)?;
+        self.active_routes.insert(route_id, active);
+        Ok(installation)
     }
 
     fn route_commitments(&self, _route: &MaterializedRoute) -> Vec<RouteCommitment> {
@@ -33,14 +40,22 @@ impl RoutingEngine for MercatorEngine {
 
     fn maintain_route(
         &mut self,
-        _identity: &PublishedRouteRecord,
+        identity: &PublishedRouteRecord,
         _runtime: &mut RouteRuntimeState,
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
-        Err(RouteRuntimeError::Invalidated.into())
+        if !self.active_routes.contains_key(identity.route_id()) {
+            return Err(RouteRuntimeError::Invalidated.into());
+        }
+        Ok(RouteMaintenanceResult {
+            event: RouteLifecycleEvent::Activated,
+            outcome: RouteMaintenanceOutcome::Continued,
+        })
     }
 
-    fn teardown(&mut self, _route_id: &RouteId) {}
+    fn teardown(&mut self, route_id: &RouteId) {
+        self.active_routes.remove(route_id);
+    }
 }
 
 impl RouterManagedEngine for MercatorEngine {
@@ -50,10 +65,14 @@ impl RouterManagedEngine for MercatorEngine {
 
     fn forward_payload_for_router(
         &mut self,
-        _route_id: &RouteId,
+        route_id: &RouteId,
         _payload: &[u8],
     ) -> Result<(), RouteError> {
-        Err(RouteSelectionError::NoCandidate.into())
+        if self.active_routes.contains_key(route_id) {
+            Ok(())
+        } else {
+            Err(RouteSelectionError::NoCandidate.into())
+        }
     }
 
     fn restore_route_runtime_for_router(
@@ -65,10 +84,32 @@ impl RouterManagedEngine for MercatorEngine {
 
     fn restore_route_runtime_with_record_for_router(
         &mut self,
-        _route: &MaterializedRoute,
+        route: &MaterializedRoute,
         topology: &Observation<Configuration>,
     ) -> Result<bool, RouteError> {
+        if route.identity.admission.backend_ref.engine != MERCATOR_ENGINE_ID {
+            return Ok(false);
+        }
+        let Some(active) = corridor::active_route_from_backend(
+            route
+                .identity
+                .admission
+                .backend_ref
+                .backend_route_id
+                .clone(),
+        ) else {
+            return Ok(false);
+        };
         self.latest_topology_epoch = Some(topology.value.epoch);
-        Ok(false)
+        self.active_routes
+            .insert(route.identity.stamp.route_id, active);
+        Ok(true)
+    }
+
+    fn analysis_snapshot_for_router(
+        &self,
+        _active_routes: &[MaterializedRoute],
+    ) -> Option<Box<dyn std::any::Any>> {
+        Some(Box::new(self.router_analysis_snapshot()))
     }
 }

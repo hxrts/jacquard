@@ -3987,7 +3987,7 @@ mod tests {
     }
 
     #[test]
-    fn mercator_smoke_connected_low_loss_is_inert_without_panicking() {
+    fn mercator_connected_smoke_connected_low_loss_activates_route() {
         let parameters =
             ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
         let (scenario, environment) =
@@ -3995,8 +3995,53 @@ mod tests {
         let reduced = run_reduced_replay(&scenario, &environment);
 
         let destination = DestinationId::Node(NODE_C);
-        assert!(!reduced.route_seen(NODE_A, &destination));
-        assert!(!reduced.route_seen_with_engine(NODE_A, &destination, &MERCATOR_ENGINE_ID));
+        assert!(
+            reduced.route_seen(NODE_A, &destination),
+            "mercator connected-low-loss failed with summaries: {:?}",
+            reduced.failure_summaries,
+        );
+        assert!(reduced.route_seen_with_engine(NODE_A, &destination, &MERCATOR_ENGINE_ID));
+    }
+
+    #[test]
+    fn mercator_connected_smoke_bridge_transition_activates_route() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+        let (scenario, environment) =
+            build_comparison_bridge_transition(&parameters, SimulationSeed(41));
+        let reduced = run_reduced_replay(&scenario, &environment);
+
+        let destination = DestinationId::Node(NODE_D);
+        assert!(
+            reduced.route_seen(NODE_A, &destination),
+            "mercator bridge-transition failed with summaries: {:?}",
+            reduced.failure_summaries,
+        );
+        assert!(reduced.route_seen_with_engine(NODE_A, &destination, &MERCATOR_ENGINE_ID));
+    }
+
+    #[test]
+    fn mercator_connected_smoke_matches_pathway_on_fixed_connected_fixture() {
+        let mercator =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+        let pathway =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Pathway, None, None, None);
+        let mercator_reduced = {
+            let (scenario, environment) =
+                build_comparison_connected_low_loss(&mercator, SimulationSeed(41));
+            run_reduced_replay(&scenario, &environment)
+        };
+        let pathway_reduced = {
+            let (scenario, environment) =
+                build_comparison_connected_low_loss(&pathway, SimulationSeed(41));
+            run_reduced_replay(&scenario, &environment)
+        };
+
+        let destination = DestinationId::Node(NODE_C);
+        assert!(pathway_reduced.route_seen(NODE_A, &destination));
+        assert!(pathway_reduced.route_seen_with_engine(NODE_A, &destination, &PATHWAY_ENGINE_ID));
+        assert!(mercator_reduced.route_seen(NODE_A, &destination));
+        assert!(mercator_reduced.route_seen_with_engine(NODE_A, &destination, &MERCATOR_ENGINE_ID));
     }
 
     #[test]

@@ -31,7 +31,7 @@ use crate::{
         ActiveRouteSummary, DriverStatusEvent, FieldReplaySummary, HostCheckpointSnapshot,
         HostRoundArtifact, HostRoundStatus, IngressBatchBoundary, JacquardCheckpointArtifact,
         JacquardReplayArtifact, JacquardRoundArtifact, JacquardSimulationStats,
-        SimulationFailureSummary, TelltaleNativeArtifactRef,
+        MercatorReplaySummary, SimulationFailureSummary, TelltaleNativeArtifactRef,
     },
     scenario::{BoundObjective, JacquardScenario},
 };
@@ -46,7 +46,7 @@ use replay_support::{
     host_artifact, maintain_active_routes, reactivate_missing_objectives,
     refresh_host_round_routes, restore_checkpointed_hosts, stimulate_scatter_routes,
     stitch_replay_from_checkpoint, summarize_active_routes, summarize_field_replay,
-    TopologyAdvance,
+    summarize_mercator_replay, TopologyAdvance,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -319,12 +319,14 @@ where
                 if !matches!(capture_level, SimulationCaptureLevel::SummaryOnly) {
                     let active_routes = summarize_active_routes(host.local_node_id, bound.router());
                     let field_replay = summarize_field_replay(bound.router());
+                    let mercator_replay = summarize_mercator_replay(bound.router());
                     host_rounds.push(host_artifact(
                         host.local_node_id,
                         at_tick,
                         &progress,
                         active_routes,
                         field_replay,
+                        mercator_replay,
                     ));
                 }
             }
