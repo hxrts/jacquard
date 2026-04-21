@@ -2056,6 +2056,17 @@ def routing_fitness_multiflow_summary_table(aggregates: pl.DataFrame) -> pl.Data
                 ]
             ).alias("route_present_total_window_permille_mean"),
         )
+        .with_columns(
+            pl.when(
+                pl.col("broker_participation_permille_mean").is_not_null()
+                & pl.col("broker_concentration_permille_mean").is_not_null()
+            )
+            .then(pl.lit("attributed"))
+            .when(pl.col("route_present_total_window_permille_mean").fill_null(0) == 0)
+            .then(pl.lit("no-visible-route"))
+            .otherwise(pl.lit("non-next-hop-route"))
+            .alias("broker_metric_status")
+        )
         .select(
             "family_id",
             "family_label",
@@ -2071,6 +2082,7 @@ def routing_fitness_multiflow_summary_table(aggregates: pl.DataFrame) -> pl.Data
             "broker_participation_permille_mean",
             "broker_concentration_permille_mean",
             "broker_route_churn_count_mean",
+            "broker_metric_status",
             "route_churn_count_mean",
             "active_route_hop_count_mean",
             "route_observation_count_mean",

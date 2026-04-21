@@ -71,6 +71,7 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
         "comparison_engine_set",
         "objective_route_presence_min_permille_mean",
         "objective_starvation_count_mean",
+        "broker_metric_status",
         "broker_concentration_permille_mean",
     ),
     "routing_fitness_stale_repair_summary.csv": (

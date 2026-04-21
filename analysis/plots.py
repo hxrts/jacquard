@@ -2287,6 +2287,18 @@ def render_routing_fitness_multiflow(
         max_value = float(row["objective_route_presence_max_permille_mean"] or 0.0) / 10.0
         spread_value = float(row["objective_route_presence_spread_mean"] or 0.0) / 10.0
         label_x = min(max_value + 2.5, 103.5)
+        broker_status = row.get("broker_metric_status") or "unknown"
+        if broker_status == "attributed":
+            broker_label = (
+                f"{float(row['broker_participation_permille_mean'] or 0.0) / 10.0:.0f}/"
+                f"{float(row['broker_concentration_permille_mean'] or 0.0) / 10.0:.0f}"
+            )
+        elif broker_status == "no-visible-route":
+            broker_label = "no route"
+        elif broker_status == "non-next-hop-route":
+            broker_label = "not next-hop"
+        else:
+            broker_label = "unknown"
         rows.append(
             {
                 "family_label": row["family_label"],
@@ -2298,14 +2310,14 @@ def render_routing_fitness_multiflow(
                 "spread_label": f"spread={spread_value:.1f}",
                 "detail_label": (
                     f"starved={int(round(row['objective_starvation_count_mean'] or 0.0))} "
-                    f"broker={float(row['broker_participation_permille_mean'] or 0.0) / 10.0:.0f}/"
-                    f"{float(row['broker_concentration_permille_mean'] or 0.0) / 10.0:.0f}"
+                    f"broker={broker_label}"
                 ),
                 "concurrent_rounds": float(row["concurrent_route_round_count_mean"] or 0.0),
                 "broker_participation": float(row["broker_participation_permille_mean"] or 0.0)
                 / 10.0,
                 "broker_concentration": float(row["broker_concentration_permille_mean"] or 0.0)
                 / 10.0,
+                "broker_status": broker_status,
                 "broker_churn": float(row["broker_route_churn_count_mean"] or 0.0),
                 "control_activity": float(row["route_observation_count_mean"] or 0.0),
             }
@@ -2329,6 +2341,7 @@ def render_routing_fitness_multiflow(
             alt.Tooltip("concurrent_rounds:Q", title="Concurrent rounds", format=".1f"),
             alt.Tooltip("broker_participation:Q", title="Broker participation", format=".1f"),
             alt.Tooltip("broker_concentration:Q", title="Broker concentration", format=".1f"),
+            alt.Tooltip("broker_status:N", title="Broker status"),
             alt.Tooltip("broker_churn:Q", title="Broker switch count", format=".1f"),
             alt.Tooltip("control_activity:Q", title="Control activity", format=".1f"),
             alt.Tooltip("detail_label:N", title="Detail"),

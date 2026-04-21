@@ -490,7 +490,7 @@ Compact crossover view for the remaining route-visible design question. Column g
 
 @table routing_fitness_multiflow_summary
 
-Compact fairness view for the shared-broker families. Column guide: Min and Max are the weakest and strongest per-flow route-presence means, Spread is the gap between them, Starved is the mean count of objectives with zero route presence, Broker P/C/S reports broker participation percent, bottleneck concentration percent, and broker switch count as `participation/concentration/switches`, Live is the mean number of rounds where multiple objectives are simultaneously live, and Churn is mean route churn.
+Compact fairness view for the shared-broker families. Column guide: Min and Max are the weakest and strongest per-flow route-presence means, Spread is the gap between them, Starved is the mean count of objectives with zero route presence, Broker P/C/S reports broker participation percent, bottleneck concentration percent, and broker switch count as `participation/concentration/switches`. `no route` means there was no visible route to attribute, while `not next-hop` means the route was visible but the engine does not expose a next-hop route for broker attribution. Live is the mean number of rounds where multiple objectives are simultaneously live, and Churn is mean route churn.
 
 ### Routing-Fitness Stale Repair Summary
 
@@ -513,7 +513,7 @@ Crossover view for the remaining route-visible design boundary. Each panel fixes
 @figure routing_fitness_multiflow
 
 Multi-flow fairness under shared-broker contention. Each row spans the weakest-to-strongest per-flow route-presence results for one engine set in that family. Narrow spans with high left endpoints are good because they mean the weakest flow still gets service instead of the mean hiding a bad tail.
-The broker detail labels summarize how much of the visible route activity still traverses tagged brokers and how concentrated that load becomes on the hottest broker.
+The broker detail labels summarize how much of the visible next-hop-attributable route activity still traverses tagged brokers and how concentrated that load becomes on the hottest broker. Engines that publish visible routes without a concrete next hop are labeled `not next-hop` instead of being folded into zero broker participation.
 
 #### Figure 27
 

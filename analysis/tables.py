@@ -495,6 +495,11 @@ def routing_fitness_multiflow_table_rows(
     routing_fitness_multiflow_summary: pl.DataFrame,
 ) -> list[list[str]]:
     def broker_cell(row: dict[str, object]) -> str:
+        status = row.get("broker_metric_status") or "unknown"
+        if status == "no-visible-route":
+            return "no route"
+        if status == "non-next-hop-route":
+            return "not next-hop"
         participation = row["broker_participation_permille_mean"]
         concentration = row["broker_concentration_permille_mean"]
         if participation is None or concentration is None:

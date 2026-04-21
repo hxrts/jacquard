@@ -1008,6 +1008,52 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(row["broker_participation_permille_mean"], 870.0)
         self.assertEqual(row["broker_concentration_permille_mean"], 640.0)
         self.assertEqual(row["broker_route_churn_count_mean"], 1.0)
+        self.assertEqual(row["broker_metric_status"], "attributed")
+
+    def test_routing_fitness_multiflow_summary_classifies_unattributed_broker_metrics(self) -> None:
+        aggregates = pl.from_dicts(
+            [
+                {
+                    "engine_family": "head-to-head",
+                    "family_id": "head-to-head-multi-flow-detour-choice",
+                    "comparison_engine_set": "scatter",
+                    "route_present_total_window_permille_mean": 933.0,
+                    "route_present_permille_mean": 1000.0,
+                    "objective_route_presence_min_permille_mean": 900.0,
+                    "objective_route_presence_max_permille_mean": 933.0,
+                    "objective_route_presence_spread_mean": 33.0,
+                    "objective_starvation_count_mean": 0.0,
+                    "concurrent_route_round_count_mean": 8.0,
+                    "broker_participation_permille_mean": None,
+                    "broker_concentration_permille_mean": None,
+                    "broker_route_churn_count_mean": None,
+                    "route_churn_count_mean": 0.0,
+                },
+                {
+                    "engine_family": "head-to-head",
+                    "family_id": "head-to-head-multi-flow-detour-choice",
+                    "comparison_engine_set": "field",
+                    "route_present_total_window_permille_mean": 0.0,
+                    "route_present_permille_mean": 0.0,
+                    "objective_route_presence_min_permille_mean": 0.0,
+                    "objective_route_presence_max_permille_mean": 0.0,
+                    "objective_route_presence_spread_mean": 0.0,
+                    "objective_starvation_count_mean": 3.0,
+                    "concurrent_route_round_count_mean": 0.0,
+                    "broker_participation_permille_mean": None,
+                    "broker_concentration_permille_mean": None,
+                    "broker_route_churn_count_mean": None,
+                    "route_churn_count_mean": 0.0,
+                },
+            ]
+        )
+
+        summary = routing_fitness_multiflow_summary_table(aggregates)
+
+        scatter = summary.filter(pl.col("comparison_engine_set") == "scatter").row(0, named=True)
+        field = summary.filter(pl.col("comparison_engine_set") == "field").row(0, named=True)
+        self.assertEqual(scatter["broker_metric_status"], "non-next-hop-route")
+        self.assertEqual(field["broker_metric_status"], "no-visible-route")
 
     def test_routing_fitness_stale_summary_preserves_repair_metrics(self) -> None:
         summary = routing_fitness_stale_repair_summary_table(_routing_fitness_aggregates())
