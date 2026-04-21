@@ -24,6 +24,14 @@ just wasm-test-reference-client # run the reference-client wasm integration test
 just book           # build mdbook docs (default recipe when running bare `just`)
 just ci-dry-run     # run all CI checks locally (format, clippy, tests, toolkit/policy, dylint)
 just install-hooks  # enable .githooks/pre-commit
+just tuning-smoke   # run the small tuning matrix without generating the report
+just tuning-local   # run the full local tuning matrix and generate the analysis report
+just tuning-report <dir> # regenerate CSVs, plots, and the PDF from an existing artifact dir
+just report-sanity  # validate generated analysis report artifacts without rerunning the matrix
+just benchmark-audit # run the benchmark-audit regression surface without the full matrix
+just docs-links     # validate external docs links (markdown-link-check)
+just docs-link-check # validate internal docs link integrity via the toolkit xtask
+just docs-semantic-drift # detect stale backtick references in docs
 ./scripts/toolkit-shell.sh <command> [args...]
 ./scripts/toolkit-shell.sh toolkit-xtask check <name> --repo-root . --config toolkit/toolkit.toml
 ./scripts/toolkit-shell.sh toolkit-install-dylint
@@ -63,9 +71,11 @@ Transport ownership is split deliberately:
 
 `macros` owns syntax-local code generation and annotation-site validation. The flake-input `toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `toolkit/lints/` and `toolkit/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
-`jacquard-field` owns field-private posterior state, mean-field compression, regime/posture control state, and continuation scoring. Like pathway and the batman engines, field-private choreography may supply only observational evidence into the deterministic local controller — canonical route publication remains router-owned.
+`jacquard-field` owns field-private posterior state, mean-field compression, regime/posture control state, and continuation scoring. Like pathway and the batman engines, field-private choreography may supply only observational evidence into the deterministic local controller. Canonical route publication remains router-owned.
 
 `jacquard-batman-bellman` is the enhanced BATMAN engine using local Bellman-Ford over a gossip-merged topology graph with TQ enrichment and a bootstrap shortcut. `jacquard-batman-classic` is the spec-faithful BATMAN IV engine with OGM-carried TQ, TTL-bounded propagation, and echo-only bidirectionality. `jacquard-babel` implements RFC 8966 with bidirectional ETX link cost, additive metric, and a feasibility distance table for loop-free route selection.
+
+`jacquard-olsrv2` implements an OLSRv2-class proactive link-state engine with deterministic MPR election and TC-style topology flooding. `jacquard-scatter` is the bounded deferred-delivery diffusion engine and publishes opaque viability claims. `jacquard-mercator` is a hybrid corridor routing engine skeleton under active development and has no dedicated `docs/` entry yet.
 
 `jacquard-simulator` is the scenario and replay harness above the shared boundaries. It reuses reference-client bridge ownership and round advancement rather than maintaining a simulator-only stack. The `tuning_matrix` binary runs experiment suites and generates analysis reports via `python3 -m analysis.report`. Artifacts land under `artifacts/analysis/{suite}/{timestamp}/` with a `latest` symlink.
 
@@ -75,7 +85,7 @@ Canonical host wiring examples live in `crates/reference-client/tests/e2e_pathwa
 
 ## Documentation layout
 
-`docs/` is organized so every file belongs to one of three categories. Specs (100s through 300s and 999) describe shared shape and contracts. Implementation specs (400s) describe per-engine and per-profile behavior. Guides (500s) walk a 3rd-party developer through using the system. Start at `docs/101_introduction.md` for orientation and `docs/503_client_assembly.md` for the fastest library-use path.
+`docs/` is organized so every file belongs to one of three categories. Specs (100s through 300s and 999) describe shared shape and contracts. Implementation specs (400s) describe per-engine and per-profile behavior. Guides (500s) walk a 3rd-party developer through using the system. Start at `docs/101_introduction.md` for orientation, `docs/503_client_assembly.md` for the fastest library-use path, and `docs/502_running_experiments.md` for the analytical path.
 
 ## Policy checks
 
@@ -117,10 +127,14 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 - `jacquard-batman-bellman`: next-hop ranking, TQ derivation with enrichment, Bellman-Ford path computation, gossip integration, bootstrap transition, and router integration.
 - `jacquard-batman-classic`: spec-faithful OGM-carried TQ, echo-only bidirectionality, receive-window occupancy, and router integration.
 - `jacquard-babel`: ETX link cost, additive metric, feasibility distance table, seqno ordering, and router integration.
+- `jacquard-olsrv2`: HELLO-driven neighbor learning, deterministic MPR election, TC flooding, SPF derivation, and router integration.
 - `jacquard-field`: observer, attractor, search, regime/posture control, and runtime maintenance.
+- `jacquard-scatter`: retained-message expiry, replication budgets, opportunistic forwarding, and bounded custody handoff.
+- `jacquard-mercator`: corridor evidence accumulation and planner skeleton (engine under active development).
 - `jacquard-macros`: proc-macro compile checks and trybuild UI regression tests for annotation contracts.
 - `jacquard-mem-link-profile`: transport, retention, and runtime-effect adapter integration.
 - `jacquard-mem-node-profile`: node profile and capability modeling.
+- `jacquard-testkit`: shared scenario helpers consumed by the simulator and reference-client test suites.
 - `jacquard-simulator`: scenario smoke tests (all seven engines), composition tests, regression tests, tuning parameter sweeps, and replay round-trip.
 
 ## Telltale dependency
@@ -132,8 +146,8 @@ Telltale crates are pinned from crates.io through the workspace `[workspace.depe
 The `model_policy` dylint caps function bodies at 60 source lines (measured
 from the opening brace to the closing brace, inclusive). Long bodies usually
 mean a helper should be extracted. When a body legitimately needs to stay
-long — e.g. a match statement that mirrors a shared enum one-to-one, or a
-fixture constructor that assembles a full world sample — add an exception
+long, for example a match statement that mirrors a shared enum one-to-one or a
+fixture constructor that assembles a full world sample, add an exception
 marker directly above the `fn` signature:
 
 ```rust
