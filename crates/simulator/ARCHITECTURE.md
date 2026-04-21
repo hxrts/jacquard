@@ -6,7 +6,7 @@ It sits above the shared routing boundaries and reuses the real reference-client
 
 This document assumes the runtime-state partitioning design in [work/runtime_state_partitioning.md](../../work/runtime_state_partitioning.md): engines keep protocol-private state, but candidate generation and transition logic move toward explicit planner snapshots and pure reducers that the simulator can drive directly.
 
-For workspace-wide boundary rules, see [docs/999_crate_architecture.md](../../docs/999_crate_architecture.md). For the broader simulator workflow and artifact path, see [docs/501_simulator.md](../../docs/501_simulator.md).
+For workspace-wide boundary rules, see [docs/999_crate_architecture.md](../../docs/999_crate_architecture.md). For the broader simulator architecture and workflow, see [docs/306_simulator_architecture.md](../../docs/306_simulator_architecture.md) and [docs/501_running_simulations.md](../../docs/501_running_simulations.md).
 
 ## Main Structure
 

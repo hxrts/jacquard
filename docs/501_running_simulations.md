@@ -1,8 +1,8 @@
 # Running Simulations
 
-This guide is for Rust developers who depend on `jacquard-simulator` as a library and want to script their own deterministic routing scenarios. A 3rd party uses the simulator for three main purposes: running an existing preset to observe engine behavior, authoring a custom scenario to probe a specific condition, and driving an experiment suite to sweep parameters across a scenario family. This guide covers the first two, plus the shared tools for inspecting and asserting on replay results.
+This guide is for Rust developers who depend on `jacquard-simulator` as a library and want to script their own deterministic routing scenarios. We assume developers may use the simulator for three main purposes: running an existing preset to observe engine behavior, authoring a custom scenario to probe a specific condition, and driving an experiment suite to sweep parameters across a scenario family. This guide covers the first two, plus the shared tools for inspecting and asserting on replay results.
 
-See [Simulator Architecture](306_simulator_architecture.md) for the architecture this guide sits on top of, [Profile Implementations](305_profile_reference.md) for the host profile vocabulary the default adapter uses, [Running Experiments](502_running_experiments.md) for the parameter sweep flow, and [Crate Architecture](999_crate_architecture.md) for the ownership and boundary rules.
+See [Simulator Architecture](306_simulator_architecture.md) for the architecture this guide sits on top of, [Reference Client](407_reference_client.md) for the host composition the default adapter uses, [Running Experiments](502_running_experiments.md) for the parameter sweep flow, and [Crate Architecture](999_crate_architecture.md) for the ownership and boundary rules.
 
 ## Adding the Dependency
 
@@ -189,12 +189,12 @@ impl JacquardHostAdapter for MyAdapter {
 let mut simulator = JacquardSimulator::new(MyAdapter);
 ```
 
-Pass the custom adapter to `JacquardSimulator::new` instead of `ReferenceClientAdapter`. The rest of the scenario flow is identical. The canonical in-tree host wiring example is `crates/reference-client/tests/e2e_multi_layer_routing.rs`.
+Pass the custom adapter to `JacquardSimulator::new` instead of `ReferenceClientAdapter`. The rest of the scenario flow is identical. The canonical in-tree host wiring examples live under `crates/reference-client/tests/`.
 
 ## Going Further
 
 For parameter sweeps across scenario families, see [Running Experiments](502_running_experiments.md). That guide covers both the in-tree `tuning_matrix` binary and custom suite assembly.
 
-For composing the reference client outside the simulator harness, use `crates/reference-client/tests/e2e_multi_layer_routing.rs` as the canonical wiring reference and [Profile Implementations](305_profile_reference.md) for profile vocabulary.
+For composing the reference client outside the simulator harness, use `crates/reference-client/tests/` as the canonical wiring reference and [Profile Implementations](305_profile_reference.md) for profile vocabulary.
 
 For the boundary rules the simulator works within, see [Crate Architecture](999_crate_architecture.md). For the internal dual-lane architecture, see [Simulator Architecture](306_simulator_architecture.md).
