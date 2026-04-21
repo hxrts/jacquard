@@ -18,8 +18,6 @@ Its published route shape is `CorridorEnvelope`. Internally, a corridor contains
 
 Mercator's core state is a bounded evidence graph. It records link support, reverse-link support, route support, broker pressure, service support, custody opportunities, objective accounting, and disruption markers.
 
-Those names are deliberately specific:
-
 - link and reverse-link support describe whether a path is usable in both directions where that matters
 - route support records which candidate routes still have evidence behind them
 - broker pressure tracks whether a bridge-like node is becoming too central
