@@ -189,6 +189,10 @@ Part II uses one repeated figure grammar across the engine sections:
 - dashed lines with square markers show the cost, fragility, or startup view
 - route-visible presence and activation are displayed as percentages
 
+When several series share the same x category, the plot renderer applies a
+small deterministic horizontal offset so coincident lines and markers remain
+visible. The y-position and tooltip values remain the measured values.
+
 This makes the paired figures easier to compare: the first figure in a section
 shows how well the engine performs, and the second shows the cost, fragility,
 or control-motion price associated with that behavior.

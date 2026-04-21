@@ -384,6 +384,15 @@ def _shape_scale(domain: list[str]) -> alt.Scale:
     return alt.Scale(domain=domain, range=[shapes[label] for label in domain])
 
 
+def _categorical_x_offset(field: str, domain: list[str]) -> alt.XOffset:
+    return alt.XOffset(field, sort=domain)
+
+
+def _series_offsets(domain: list[str], step: float) -> dict[str, float]:
+    midpoint = (len(domain) - 1) / 2.0
+    return {label: (index - midpoint) * step for index, label in enumerate(domain)}
+
+
 def _route_presence_percent(value: int | float | None) -> float | None:
     if value is None:
         return None
@@ -546,9 +555,11 @@ def _multi_series_family_sweep(
 
     rows: list[dict[str, object]] = []
     variant_labels = [heuristic_label(variant) for variant in variant_order]
+    variant_offsets = _series_offsets(variant_labels, 0.08)
     for family_id in present_families:
         family_rows = data.filter(pl.col("family_id") == family_id)
         for variant in variant_order:
+            variant_label = heuristic_label(variant)
             rows_for_variant = family_rows.filter(pl.col(variant_column) == variant).sort(x_column)
             if rows_for_variant.is_empty():
                 continue
@@ -560,7 +571,8 @@ def _multi_series_family_sweep(
                     {
                         "family_label": family_label(family_id),
                         "x_value": raw_x,
-                        "variant_label": heuristic_label(variant),
+                        "x_display": float(raw_x) + variant_offsets[variant_label],
+                        "variant_label": variant_label,
                         "y_value": value_transform(raw_y) if value_transform else raw_y,
                     }
                 )
@@ -576,7 +588,7 @@ def _multi_series_family_sweep(
     )
     dataset = alt.InlineData(values=rows)
     base = alt.Chart(dataset).encode(
-        x=alt.X("x_value:Q", title=xlabel, axis=alt.Axis(labelAngle=0, tickMinStep=1)),
+        x=alt.X("x_display:Q", title=xlabel, axis=alt.Axis(labelAngle=0, tickMinStep=1)),
         y=alt.Y("y_value:Q", title=ylabel, scale=alt.Scale(domain=[0, y_top])),
         tooltip=[
             alt.Tooltip("family_label:N", title="Family"),
@@ -952,6 +964,7 @@ def render_scatter_profile_runtime(
                 sort=["balanced", "conservative", "degraded"],
                 title="Profile",
             ),
+            xOffset=_categorical_x_offset("metric_label:N", metric_domain),
             y=alt.Y("rounds:Q", title="Runtime rounds"),
             color=alt.Color(
                 "metric_label:N",
@@ -2038,9 +2051,6 @@ def render_large_population_route_scaling(
 ) -> alt.TopLevelMixin | None:
     if large_population_route_summary.is_empty():
         return None
-    engine_order = {
-        engine: index for index, engine in enumerate(ROUTE_VISIBLE_ENGINE_SET_ORDER)
-    }
     rows: list[dict[str, object]] = []
     for row in large_population_route_summary.iter_rows(named=True):
         for size_band, column in [
@@ -2058,39 +2068,23 @@ def render_large_population_route_scaling(
                     "engine_key": row["comparison_engine_set"],
                     "engine_label": engine_display_label(row["comparison_engine_set"]),
                     "route_present": float(value),
-                    "display_route_present": float(value),
                 }
             )
     if not rows:
         return None
-    tied_groups: dict[tuple[str, str, float], list[dict[str, object]]] = {}
-    for row in rows:
-        tied_groups.setdefault(
-            (row["topology_label"], row["size_band"], row["route_present"]),
-            [],
-        ).append(row)
-    dodge_step = 8.0
-    for group_rows in tied_groups.values():
-        if len(group_rows) <= 1:
-            continue
-        ordered_rows = sorted(
-            group_rows,
-            key=lambda row: engine_order.get(str(row["engine_key"]), len(engine_order)),
-        )
-        midpoint = (len(ordered_rows) - 1) / 2.0
-        for index, row in enumerate(ordered_rows):
-            row["display_route_present"] = row["route_present"] + (index - midpoint) * dodge_step
     engine_domain = [
         engine
         for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER
         if engine in {row["engine_key"] for row in rows}
     ]
+    engine_label_domain = [engine_display_label(engine) for engine in engine_domain]
     size_order = ["Small", "Moderate", "High"]
     dataset = alt.InlineData(values=rows)
     base = alt.Chart(dataset).encode(
         x=alt.X("size_band:N", sort=size_order, title="Size band"),
+        xOffset=_categorical_x_offset("engine_label:N", engine_label_domain),
         y=alt.Y(
-            "display_route_present:Q",
+            "route_present:Q",
             title="Total-window route presence (permille)",
             scale=alt.Scale(domain=[0, 1000]),
         ),
@@ -2098,7 +2092,7 @@ def render_large_population_route_scaling(
             engine_domain,
             HEAD_TO_HEAD_SET_COLORS,
             field="engine_label:N",
-            field_domain=[engine_display_label(engine) for engine in engine_domain],
+            field_domain=engine_label_domain,
             legend_title="Engine set",
         ),
         tooltip=[
@@ -2248,6 +2242,7 @@ def render_routing_fitness_crossover(
         for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER
         if engine in {str(row["engine_key"]) for row in rows}
     ]
+    engine_label_domain = [engine_display_label(engine) for engine in engine_domain]
     dataset = alt.InlineData(values=rows)
     base = alt.Chart(dataset).encode(
         x=alt.X(
@@ -2255,6 +2250,7 @@ def render_routing_fitness_crossover(
             sort=[label.capitalize() for label in band_order],
             title="Difficulty band",
         ),
+        xOffset=_categorical_x_offset("engine_label:N", engine_label_domain),
         y=alt.Y(
             "route_presence:Q",
             title="Total-window route presence (%)",
@@ -2264,7 +2260,7 @@ def render_routing_fitness_crossover(
             engine_domain,
             HEAD_TO_HEAD_SET_COLORS,
             field="engine_label:N",
-            field_domain=[engine_display_label(engine) for engine in engine_domain],
+            field_domain=engine_label_domain,
             legend_title="Engine set",
         ),
         tooltip=[
