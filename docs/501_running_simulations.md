@@ -1,8 +1,8 @@
-# Simulator Developer Guide
+# Running Simulations
 
-This guide is for Rust developers who want to depend on `jacquard-simulator` as a library and script their own deterministic routing scenarios. It walks through dependency setup, the minimal run path, custom scenario construction, environment hook scripting, engine selection per host, replay inspection, assertions, and checkpoint resume.
+This guide is for Rust developers who depend on `jacquard-simulator` as a library and want to script their own deterministic routing scenarios. A 3rd party uses the simulator for three main purposes: running an existing preset to observe engine behavior, authoring a custom scenario to probe a specific condition, and driving an experiment suite to sweep parameters across a scenario family. This guide covers the first two, plus the shared tools for inspecting and asserting on replay results.
 
-See [Simulator](501_simulator.md) for the harness at a glance, [Routing Tuning](502_tuning.md) for the maintained analysis corpus driven by the `tuning_matrix` binary, and [Crate Architecture](999_crate_architecture.md) for the workspace ownership and boundary rules that constrain what the simulator exposes.
+See [Simulator Architecture](306_simulator_architecture.md) for the architecture this guide sits on top of, [Reference Client](407_reference_client.md) for the host composition the default adapter uses, [Running Experiments](502_running_experiments.md) for the parameter sweep flow, and [Crate Architecture](999_crate_architecture.md) for the ownership and boundary rules.
 
 ## Adding the Dependency
 
@@ -37,13 +37,13 @@ let reduced = ReducedReplayView::from_replay(&replay);
 assert!(stats.executed_round_count > 0);
 ```
 
-`presets::pathway_line` returns a three-node line topology, three Pathway hosts, and a scripted environment that applies degradation, intrinsic limits, partition, and mobility relink hooks across seven rounds. `JacquardSimulator::run_scenario` advances the bridge round by round and returns a full `JacquardReplayArtifact` plus a compact `JacquardSimulationStats`. `ReducedReplayView::from_replay` projects the replay into the analysis-facing surface used by assertions and post-run tooling.
+`presets::pathway_line` returns a three-node line topology, three Pathway hosts, and a scripted environment that applies degradation, intrinsic limits, partition, and mobility relink hooks across seven rounds. `run_scenario` advances the bridge round by round and returns a full replay artifact plus a compact stats record. `ReducedReplayView::from_replay` projects the replay into the analysis-facing surface used by assertions and post-run tooling.
 
 The preset set also includes single-engine lines for every in-tree engine, mixed-engine variants such as `all_engines_line` and `mixed_line`, regression fixtures, and composition fixtures. See `crates/simulator/src/presets/` for the full index.
 
 ## Building a Custom Scenario
 
-A scenario takes four pieces. It needs an initial topology observation, an ordered host roster, an ordered list of bound objectives, and a round limit. Topology comes from `jacquard-mem-node-profile` and `jacquard-mem-link-profile` builders documented in [Profile Implementations](305_profile_reference.md). The other three are scenario-level constructs.
+A scenario takes four pieces. It needs an initial topology observation, an ordered host roster, an ordered list of bound objectives, and a round limit. Topology comes from the mem profile crates. The other three are scenario-level constructs.
 
 ```rust
 use jacquard_core::{NodeId, OperatingMode, SimulationSeed};
@@ -113,7 +113,7 @@ Each constructor returns a `HostSpec` with a sensible default overrides bundle. 
 
 ## Inspecting Replay Artifacts
 
-`JacquardReplayArtifact` carries the full per-round record. It holds the scenario, the scripted environment, ordered round artifacts, route events, driver status events, failure summaries, and optional checkpoints. Each `JacquardRoundArtifact` exposes the topology snapshot for that round, the applied environment hooks, and one `HostRoundArtifact` per host.
+`JacquardReplayArtifact` carries the full per-round record. It holds the scenario, the scripted environment, ordered round artifacts, route events, driver status events, failure summaries, and optional checkpoints. Each round artifact exposes the topology snapshot for that round, the applied environment hooks, and one host round artifact per host.
 
 ```rust
 for round in &replay.rounds {
@@ -128,7 +128,7 @@ for round in &replay.rounds {
 }
 ```
 
-For analysis work, convert the full replay into the reduced surface through `ReducedReplayView::from_replay(&replay)`. To trade detail for throughput at capture time, call `JacquardSimulator::run_scenario_with_capture` with `SimulationCaptureLevel::FullReplay`, `ReducedReplay`, or `SummaryOnly`. Summary-only runs still produce `JacquardSimulationStats` without materializing per-round artifacts.
+For analysis work, convert the full replay into the reduced surface through `ReducedReplayView::from_replay(&replay)`. To trade detail for throughput at capture time, call `run_scenario_with_capture` with `SimulationCaptureLevel::FullReplay`, `ReducedReplay`, or `SummaryOnly`. Summary-only runs still produce `JacquardSimulationStats` without materializing per-round artifacts.
 
 ## Asserting Expectations
 
@@ -165,10 +165,36 @@ assert_eq!(
 
 Resume is the primary determinism check. Identical replay tails across the original and resumed runs confirm that nothing in the composed engine state leaked ambient time or host-dependent ordering. The `crates/simulator/tests/phase0_determinism.rs` suite uses this pattern across every preset.
 
+## Swapping the Host Adapter
+
+The default `ReferenceClientAdapter` wires the reference client host into the simulator. Implement `JacquardHostAdapter` when the scenario needs a different host composition, for example a host that carries a custom transport or a different engine set than the reference client exposes.
+
+```rust
+use jacquard_core::NodeId;
+use jacquard_reference_client::ReferenceClient;
+use jacquard_simulator::{JacquardHostAdapter, JacquardScenario, SimulationError};
+use std::collections::BTreeMap;
+
+struct MyAdapter;
+
+impl JacquardHostAdapter for MyAdapter {
+    fn build_hosts(
+        &self,
+        scenario: &JacquardScenario,
+    ) -> Result<BTreeMap<NodeId, ReferenceClient>, SimulationError> {
+        todo!()
+    }
+}
+
+let mut simulator = JacquardSimulator::new(MyAdapter);
+```
+
+Pass the custom adapter to `JacquardSimulator::new` instead of `ReferenceClientAdapter`. The rest of the scenario flow is identical. See [Bringing It Together](507_bringing_it_together.md) for a capstone example that composes a custom adapter with a fully custom client.
+
 ## Going Further
 
-Custom host adapters implement the `JacquardHostAdapter` trait and replace `ReferenceClientAdapter` when the harness needs something other than the reference client composition. Most 3rd-party consumers will not need this seam. Reach for it when testing against a host that already exists outside the standard bridge.
+For parameter sweeps across scenario families, see [Running Experiments](502_running_experiments.md). That guide covers both the in-tree `tuning_matrix` binary and custom suite assembly.
 
-For parameter sweeps, the `tuning_matrix` binary at `crates/simulator/src/bin/tuning_matrix.rs` is the canonical reference. It composes experiment and diffusion suites, runs them in parallel, and writes artifacts to `artifacts/analysis/{suite}/{timestamp}/` for the Python report pipeline described in [Routing Tuning](502_tuning.md).
+For composing the reference client outside the simulator harness, see [Client Assembly](503_client_assembly.md). That guide covers library and binary use of `jacquard-reference-client` for production deployments.
 
-For the boundary rules that the simulator works within, see [Crate Architecture](999_crate_architecture.md). For a deeper discussion of the simulator internals, see `crates/simulator/ARCHITECTURE.md` in the repository.
+For the boundary rules the simulator works within, see [Crate Architecture](999_crate_architecture.md). For the internal dual-lane architecture, see [Simulator Architecture](306_simulator_architecture.md).
