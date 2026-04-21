@@ -234,10 +234,6 @@ pub(super) fn synthesized_node_forward_evidence_from_active_routes_with_policy(
     let mut synthesized =
         active_routes
             .iter()
-            .filter(|active| {
-                active.continuity_band == FieldContinuityBand::DegradedSteady
-                    || active.bootstrap_class == FieldBootstrapClass::Bootstrap
-            })
             .flat_map(|active| {
                 active.continuation_neighbors.iter().enumerate().filter_map(
                     |(index, neighbor_id)| {

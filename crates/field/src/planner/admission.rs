@@ -89,7 +89,9 @@ pub(super) fn admission_check_for(inputs: AdmissionInputs<'_>) -> RouteAdmission
         search_config,
     } = inputs;
 
-    let decision = if !bootstrap_corridor_admissible_with_config(destination_state, search_config) {
+    let bootstrap_admissible =
+        bootstrap_corridor_admissible_with_config(destination_state, search_config);
+    let decision = if !bootstrap_admissible {
         AdmissionDecision::Rejected(RouteAdmissionRejection::CapacityExceeded)
     } else if objective.protection_floor > FIELD_CAPABILITIES.max_protection
         || profile.selected_protection > FIELD_CAPABILITIES.max_protection
@@ -205,7 +207,7 @@ pub(crate) fn bootstrap_corridor_admissible_with_config(
     let service_support_score =
         service_corroborated_support_score(destination_state, &crate::FieldSearchConfig::default());
 
-    if support < support_floor || entropy > entropy_ceiling {
+    if entropy > entropy_ceiling {
         return false;
     }
 
@@ -234,17 +236,18 @@ pub(crate) fn bootstrap_corridor_admissible_with_config(
 
     match evidence_class {
         EvidenceContributionClass::Direct => {
-            top_mass
-                >= if discovery_enabled {
-                    top_mass_floor.saturating_sub(
-                        policy
-                            .bootstrap
-                            .forward_propagated_discovery_top_mass_relief_permille
-                            .saturating_sub(10),
-                    )
-                } else {
-                    top_mass_floor
-                }
+            support >= support_floor
+                && top_mass
+                    >= if discovery_enabled {
+                        top_mass_floor.saturating_sub(
+                            policy
+                                .bootstrap
+                                .forward_propagated_discovery_top_mass_relief_permille
+                                .saturating_sub(10),
+                        )
+                    } else {
+                        top_mass_floor
+                    }
         }
         EvidenceContributionClass::ReverseFeedback => {
             top_mass

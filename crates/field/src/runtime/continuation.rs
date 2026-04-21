@@ -224,15 +224,21 @@ pub(super) fn synthesized_node_carry_forward_ranked(
 ) -> Vec<(NeighborContinuation, SupportBucket)> {
     let policy = &crate::policy::DEFAULT_FIELD_POLICY.continuity.continuation;
     let observer_policy = &crate::policy::DEFAULT_FIELD_POLICY.evidence.observer;
-    let Some(last_summary) = destination_state.publication.last_summary.as_ref() else {
-        return Vec::new();
-    };
-    let Some(last_sent_at) = destination_state.publication.last_sent_at else {
-        return Vec::new();
-    };
-    if now_tick.0.saturating_sub(last_sent_at.0)
-        > FIELD_DEGRADED_STEADY_STALE_TICKS_MAX
-            .saturating_add(observer_policy.synthesized_node_publication_staleness_slack_ticks)
+    let last_summary = destination_state.publication.last_summary.as_ref();
+    let has_reachable_continuation = active
+        .continuation_neighbors
+        .iter()
+        .any(|neighbor_id| neighbor_endpoints.contains_key(neighbor_id));
+    if destination_state
+        .publication
+        .last_sent_at
+        .is_some_and(|last_sent_at| {
+            now_tick.0.saturating_sub(last_sent_at.0)
+                > FIELD_DEGRADED_STEADY_STALE_TICKS_MAX.saturating_add(
+                    observer_policy.synthesized_node_publication_staleness_slack_ticks,
+                )
+        })
+        && !has_reachable_continuation
     {
         return Vec::new();
     }
@@ -244,16 +250,30 @@ pub(super) fn synthesized_node_carry_forward_ranked(
         .corridor_belief
         .delivery_support
         .value()
-        .max(last_summary.delivery_support.value());
+        .max(active.corridor_envelope.delivery_support.value())
+        .max(
+            last_summary
+                .map(|summary| summary.delivery_support.value())
+                .unwrap_or(0),
+        );
     let base_retention = destination_state
         .corridor_belief
         .retention_affinity
         .value()
-        .max(last_summary.retention_support.value());
-    let hop_band = active
-        .corridor_envelope
-        .expected_hop_band
-        .max(last_summary.hop_band);
+        .max(active.corridor_envelope.retention_affinity.value())
+        .max(
+            last_summary
+                .map(|summary| summary.retention_support.value())
+                .unwrap_or(0),
+        );
+    let hop_band = last_summary
+        .map(|summary| {
+            active
+                .corridor_envelope
+                .expected_hop_band
+                .max(summary.hop_band)
+        })
+        .unwrap_or(active.corridor_envelope.expected_hop_band);
     let mut ranked = active
         .continuation_neighbors
         .iter()

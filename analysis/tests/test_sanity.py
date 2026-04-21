@@ -112,6 +112,20 @@ class ReportSanityTests(unittest.TestCase):
                 rendered,
             )
 
+    def test_detects_collapsed_mixed_standalone_zero_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_dir = Path(tmp)
+            report_dir = artifact_dir / "report"
+            report_dir.mkdir()
+            _write_large(artifact_dir / "router-tuning-report.pdf", b"%PDF")
+            _write_figure(report_dir, "mixed_vs_standalone_divergence", "0.0 pts")
+            rendered = [issue.render() for issue in validate_report_artifacts(artifact_dir)]
+            self.assertIn(
+                "mixed_vs_standalone_divergence.svg: "
+                "mixed-vs-standalone divergence labels collapse ties to 0.0 pts",
+                rendered,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

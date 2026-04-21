@@ -174,6 +174,7 @@ _OPTIONAL_FLOAT_COLUMNS = [
     "field_continuation_shift_count_mean",
     "field_corridor_narrow_count_mean",
     "inadmissible_candidate_count_mean",
+    "no_candidate_count_mean",
 ]
 
 _OPTIONAL_STR_COLUMNS = [
@@ -2011,6 +2012,11 @@ def large_population_route_summary_table(aggregates: pl.DataFrame) -> pl.DataFra
             .otherwise(None)
             .max()
             .alias("high_inadmissible_candidate_count"),
+            pl.when(pl.col("size_band") == "high")
+            .then(pl.col("no_candidate_count_mean"))
+            .otherwise(None)
+            .max()
+            .alias("high_no_candidate_count"),
         )
         .with_columns(
             (pl.col("high_route_present") - pl.col("small_route_present")).alias(

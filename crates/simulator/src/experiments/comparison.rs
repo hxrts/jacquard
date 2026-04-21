@@ -4022,8 +4022,9 @@ mod tests {
             "Field selected-result replay must not leak stale planner records after route loss",
         );
         assert!(
-            reduced.failure_class_counts().inadmissible_candidate > 0,
-            "large Field route loss should surface reactivation admission failures",
+            reduced.failure_class_counts().no_candidate > 0
+                || reduced.failure_class_counts().inadmissible_candidate > 0,
+            "large Field route loss should surface bounded reactivation failures",
         );
     }
 

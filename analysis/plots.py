@@ -1693,50 +1693,74 @@ def render_mixed_vs_standalone_divergence(
         best_engine = best["comparison_engine_set"].item() or "none"
         best_score = float(best["standalone_fitness_score"].item() or 0)
         mixed_score = float(row["mixed_fitness_score"] or 0)
-        raw_delta = best_score - mixed_score
-        matched_best = raw_delta <= 0
-        delta = max(0.0, raw_delta)
+        delta = best_score - mixed_score
+        matched_best = abs(delta) < 0.05
+        mixed_advantage = delta < -0.05
+        standalone_advantage = delta > 0.05
         rows.append(
             {
                 "family_label": wrapped_family_label(str(row["family_id"])),
                 "engine_key": (
                     "tie"
                     if matched_best
+                    else "mixed"
+                    if mixed_advantage
                     else best_engine if best_engine in HEAD_TO_HEAD_SET_COLORS else "none"
                 ),
                 "engine_legend": (
-                    "Matched best" if matched_best else engine_display_label(best_engine)
+                    "Matched best"
+                    if matched_best
+                    else "Mixed stronger"
+                    if mixed_advantage
+                    else engine_display_label(best_engine)
                 ),
                 "delta": delta,
                 "transition_label": (
                     "Matched best"
                     if matched_best
+                    else f"{compact_engine_label(row['mixed_engine'])} holds"
+                    if mixed_advantage
                     else (
                         f"{compact_engine_label(row['mixed_engine'])}"
                         f" -> {compact_engine_label(best_engine)}"
                     )
                 ),
-                "value_label": f"{delta:.1f} pts",
+                "value_label": (
+                    "tie"
+                    if matched_best
+                    else f"mixed +{abs(delta):.1f} pts"
+                    if mixed_advantage
+                    else f"standalone +{delta:.1f} pts"
+                ),
             }
         )
     if not rows:
         return None
 
     max_delta = max(float(row["delta"]) for row in rows)
-    x_min = 0.0
-    x_max = 1.0 if max_delta == 0 else max(2.0, max_delta + 1.0)
+    min_delta = min(float(row["delta"]) for row in rows)
+    x_min = min(0.0, min_delta - 0.5)
+    x_max = max(1.0, max_delta + 0.5)
     for row in rows:
         delta = float(row["delta"])
         row["positive"] = delta >= 0
         row["label_x"] = delta
-    divergence_colors = {**HEAD_TO_HEAD_SET_COLORS, "tie": PLOT_MISSING_COLOR}
+    divergence_colors = {
+        **HEAD_TO_HEAD_SET_COLORS,
+        "mixed": PLOT_TEXT_COLOR,
+        "tie": PLOT_MISSING_COLOR,
+    }
     engine_domain = [
         engine
-        for engine in [*ROUTE_VISIBLE_ENGINE_SET_ORDER, "tie"]
+        for engine in [*ROUTE_VISIBLE_ENGINE_SET_ORDER, "mixed", "tie"]
         if engine in {row["engine_key"] for row in rows}
     ]
     field_domain = [
-        "Matched best" if engine == "tie" else engine_display_label(engine)
+        "Matched best"
+        if engine == "tie"
+        else "Mixed stronger"
+        if engine == "mixed"
+        else engine_display_label(engine)
         for engine in engine_domain
     ]
     dataset = alt.InlineData(values=rows)
@@ -1750,7 +1774,7 @@ def render_mixed_vs_standalone_divergence(
         base.mark_bar(height=22, cornerRadiusEnd=2, cornerRadiusTopLeft=2, cornerRadiusBottomLeft=2).encode(
             x=alt.X(
                 "delta:Q",
-                title="Standalone advantage over mixed (fitness pts)",
+                title="Standalone minus mixed fitness (pts)",
                 scale=alt.Scale(domain=[x_min, x_max]),
             ),
             color=_engine_color_scale(
@@ -2534,7 +2558,8 @@ def render_large_population_diffusion_transitions(
             }
         )
     max_reproduction = max(float(row["reproduction"]) for row in rows)
-    x_domain_max = max(1000.0, max_reproduction + 120.0)
+    x_domain_max = max(100.0, max_reproduction + 20.0)
+    x_label_margin = max(18.0, x_domain_max * 0.15)
 
     # Nudge label y positions apart within each panel so labels for nearby
     # points do not stack on top of each other.
@@ -2543,6 +2568,7 @@ def render_large_population_diffusion_transitions(
         panel_indices[row["panel_label"]].append(idx)
     for row in rows:
         row["label_y"] = row["delivery"]
+        row["label_x"] = row["reproduction"]
     text_height_y = 90.0
     overlap_x_threshold = x_domain_max * 0.45
     for indices in panel_indices.values():
@@ -2568,7 +2594,23 @@ def render_large_population_diffusion_transitions(
             if not moved:
                 break
         for idx in indices:
-            rows[idx]["label_y"] = max(40.0, min(960.0, rows[idx]["label_y"]))
+            rows[idx]["label_y"] = max(110.0, min(890.0, rows[idx]["label_y"]))
+            rows[idx]["label_x"] = max(
+                x_domain_max * 0.02,
+                min(x_domain_max - x_label_margin, rows[idx]["label_x"]),
+            )
+        high_delivery = sorted(
+            [idx for idx in indices if rows[idx]["delivery"] >= 900.0],
+            key=lambda idx: (rows[idx]["reproduction"], rows[idx]["bounded_state"], rows[idx]["config_label"]),
+        )
+        for rank, idx in enumerate(high_delivery):
+            rows[idx]["label_y"] = 890.0 - rank * 70.0
+        low_delivery = sorted(
+            [idx for idx in indices if rows[idx]["delivery"] <= 100.0],
+            key=lambda idx: (rows[idx]["reproduction"], rows[idx]["bounded_state"], rows[idx]["config_label"]),
+        )
+        for rank, idx in enumerate(low_delivery):
+            rows[idx]["label_y"] = 110.0 + rank * 70.0
 
     dataset = alt.InlineData(values=rows)
     base = alt.Chart(dataset).encode(
@@ -2608,6 +2650,12 @@ def render_large_population_diffusion_transitions(
             color=PLOT_TEXT_COLOR,
             clip=False,
         ).encode(
+            x=alt.X(
+                "label_x:Q",
+                scale=alt.Scale(domain=[0, x_domain_max]),
+                title=None,
+                axis=None,
+            ),
             text="config_label:N",
             y=alt.Y(
                 "label_y:Q",

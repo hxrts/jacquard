@@ -809,6 +809,36 @@ fn finalize_transition(
                 policy_events: pending_policy_events,
             };
         }
+        if discovery_node_route {
+            if next_active_route.bootstrap_class == FieldBootstrapClass::Bootstrap {
+                next_active_route
+                    .recovery
+                    .note_bootstrap_held(evaluation.promotion_assessment.primary_blocker());
+            } else {
+                next_active_route
+                    .recovery
+                    .note_bootstrap_narrowed(FieldPromotionBlocker::SupportTrend);
+            }
+            pending_policy_events.push(route_policy_event(
+                route_id,
+                &prepared.destination_context.destination,
+                FieldPolicyGate::CarryForward,
+                FieldPolicyReason::EmittedByEvidenceGate,
+                context.now_tick,
+            ));
+            return MaintenanceProjection {
+                next_active_route,
+                pending_coordination_shift: transition.pending_coordination_shift,
+                apply_coordination_shift: false,
+                commit_projection: true,
+                event: RouteLifecycleEvent::Activated,
+                maintenance_outcome: RouteMaintenanceOutcome::HoldFallback {
+                    trigger: context.trigger,
+                    retained_object_count: jacquard_core::HoldItemCount(1),
+                },
+                policy_events: pending_policy_events,
+            };
+        }
         if post_shift_grace {
             next_active_route.recovery.note_continuation_retained();
             pending_policy_events.push(route_policy_event(
@@ -1348,9 +1378,10 @@ mod tests {
     use std::collections::BTreeMap;
 
     use jacquard_core::{
-        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, Environment,
-        FactSourceClass, LinkEndpoint, Observation, OriginAuthenticationClass, PublicationId,
-        RatioPermille, RouteEpoch, RouteHandle, RouteLease, RouteMaterializationInput,
+        ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
+        Environment, FactSourceClass, LinkBuilder, LinkEndpoint, LinkRuntimeState, Observation,
+        OriginAuthenticationClass, PartitionRecoveryClass, PublicationId, RatioPermille,
+        RepairCapability, RouteEpoch, RouteHandle, RouteLease, RouteMaterializationInput,
         RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
         RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick, TimeWindow,
         TransportError,
@@ -1521,6 +1552,34 @@ mod tests {
         engine
     }
 
+    #[test]
+    fn topology_seed_records_owner_adjacent_field_neighbor_endpoints() {
+        let mut engine = FieldEngine::new(node(1), NoopTransport, ());
+        let mut topology = supported_topology().value;
+        topology.links.insert(
+            (node(1), node(3)),
+            LinkBuilder::new(jacquard_adapter::opaque_endpoint(
+                jacquard_core::TransportKind::WifiAware,
+                vec![3],
+                ByteCount(128),
+            ))
+            .with_profile(
+                DurationMs(5),
+                RepairCapability::TransportRetransmit,
+                PartitionRecoveryClass::LocalReconnect,
+            )
+            .with_runtime_state(LinkRuntimeState::Active)
+            .build(),
+        );
+
+        assert!(engine.seed_destinations_from_topology(&topology, Tick(4)));
+        assert!(engine.state.neighbor_endpoints.contains_key(&node(3)));
+
+        topology.links.clear();
+        assert!(engine.seed_destinations_from_topology(&topology, Tick(5)));
+        assert!(!engine.state.neighbor_endpoints.contains_key(&node(3)));
+    }
+
     fn lease() -> RouteLease {
         RouteLease {
             owner_node_id: node(1),
@@ -1687,6 +1746,92 @@ mod tests {
             Some(&projection.next_active_route)
         );
         assert_eq!(wrapper_engine.policy_events(), projection.policy_events);
+    }
+
+    #[test]
+    fn discovery_route_low_support_holds_with_active_continuation() {
+        let mut engine = seeded_engine();
+        engine.search_config = engine.search_config.clone().enable_node_discovery();
+        let (_, route_id) = materialized_route(&mut engine);
+
+        engine.state.note_tick(Tick(5));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&crate::state::DestinationKey::from(&DestinationId::Node(
+                node(2),
+            )))
+            .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(90);
+        state.corridor_belief.retention_affinity = SupportBucket::new(120);
+        state.posterior.top_corridor_mass = SupportBucket::new(100);
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(2),
+            net_value: SupportBucket::new(130),
+            downstream_support: SupportBucket::new(120),
+            expected_hop_band: HopBand::new(1, 2),
+            freshness: Tick(5),
+        });
+
+        let active = engine
+            .active_routes
+            .get(&route_id)
+            .cloned()
+            .expect("active");
+        let prepared = engine
+            .prepare_maintenance(active)
+            .expect("prepare maintenance")
+            .expect("prepared");
+        let projection = reduce_maintenance_projection(
+            &route_id,
+            &prepared,
+            MaintenanceContext {
+                trigger: RouteMaintenanceTrigger::LinkDegraded,
+                now_tick: engine.state.last_tick_processed,
+                current_posture: engine.state.posture.current,
+                current_congestion_price: engine.state.controller.congestion_price.value(),
+            },
+        );
+
+        assert_eq!(projection.event, RouteLifecycleEvent::Activated);
+        assert!(matches!(
+            projection.maintenance_outcome,
+            RouteMaintenanceOutcome::HoldFallback { .. }
+        ));
+    }
+
+    #[test]
+    fn discovery_route_uses_active_envelope_when_publication_is_stale() {
+        let mut engine = seeded_engine();
+        engine.search_config = engine.search_config.clone().enable_node_discovery();
+        let (_, route_id) = materialized_route(&mut engine);
+
+        engine.state.note_tick(Tick(20));
+        let state = engine
+            .state
+            .destinations
+            .get_mut(&crate::state::DestinationKey::from(&DestinationId::Node(
+                node(2),
+            )))
+            .expect("destination");
+        state.corridor_belief.delivery_support = SupportBucket::new(0);
+        state.corridor_belief.retention_affinity = SupportBucket::new(0);
+        state.frontier = crate::state::ContinuationFrontier::default();
+        state.pending_forward_evidence.clear();
+        state.publication.last_summary = None;
+        state.publication.last_sent_at = Some(Tick(1));
+
+        let active = engine
+            .active_routes
+            .get(&route_id)
+            .cloned()
+            .expect("active");
+        let prepared = engine
+            .prepare_maintenance(active)
+            .expect("prepare maintenance")
+            .expect("active envelope should synthesize reachable continuation");
+
+        assert_eq!(prepared.best.neighbor_id, node(2));
     }
 
     #[test]

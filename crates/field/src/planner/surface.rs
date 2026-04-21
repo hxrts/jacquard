@@ -11,8 +11,8 @@ use super::admission::{bootstrap_corridor_admissible, promoted_corridor_admissib
 use super::{
     admission::{
         admission_assumptions, admission_check_for, admission_class_for_state_with_config,
-        delivered_connectivity, delivered_protection, rejected_check, route_cost_for,
-        selected_neighbor_publishable, AdmissionInputs,
+        bootstrap_corridor_admissible_with_config, delivered_connectivity, delivered_protection,
+        rejected_check, route_cost_for, selected_neighbor_publishable, AdmissionInputs,
     },
     publication::{node_publication_neighbors, service_publication_neighbors},
     FieldPlannerSnapshot,
@@ -160,12 +160,20 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         ) {
             return Err(RouteSelectionError::NoCandidate.into());
         }
+        let destination_context =
+            FieldDestinationDecisionContext::new(&destination_key, &snapshot.search_config);
+        if discovery_candidate_is_topology_only_rejection(
+            destination_state,
+            &destination_context,
+            &snapshot.search_config,
+            selected_neighbor,
+        ) {
+            return Err(RouteSelectionError::NoCandidate.into());
+        }
         let mut continuation_neighbors = Vec::with_capacity(MAX_CONTINUATION_NEIGHBOR_COUNT + 1);
         let mut continuation_set = std::collections::BTreeSet::new();
         continuation_neighbors.push(selected_neighbor);
         continuation_set.insert(selected_neighbor);
-        let destination_context =
-            FieldDestinationDecisionContext::new(&destination_key, &snapshot.search_config);
         if destination_context.service_bias() {
             continuation_neighbors.extend(
                 service_publication_neighbors(
@@ -275,6 +283,32 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
     }
 }
 
+fn discovery_candidate_is_topology_only_rejection(
+    destination_state: &DestinationFieldState,
+    destination_context: &FieldDestinationDecisionContext,
+    search_config: &crate::FieldSearchConfig,
+    selected_neighbor: jacquard_core::NodeId,
+) -> bool {
+    destination_context.discovery_node_route()
+        && !bootstrap_corridor_admissible_with_config(destination_state, search_config)
+        && !selected_neighbor_has_field_evidence(destination_state, selected_neighbor)
+}
+
+fn selected_neighbor_has_field_evidence(
+    destination_state: &DestinationFieldState,
+    selected_neighbor: jacquard_core::NodeId,
+) -> bool {
+    destination_state
+        .frontier
+        .as_slice()
+        .iter()
+        .any(|entry| entry.neighbor_id == selected_neighbor)
+        || destination_state
+            .pending_forward_evidence
+            .iter()
+            .any(|evidence| evidence.from_neighbor == selected_neighbor)
+}
+
 #[cfg(test)]
 #[allow(clippy::wildcard_imports)]
 mod tests {
@@ -282,9 +316,11 @@ mod tests {
 
     use jacquard_core::{
         ByteCount, ClaimStrength, Configuration, ConnectivityPosture, ControllerId, DestinationId,
-        Environment, FactSourceClass, Limit, Observation, OriginAuthenticationClass, RatioPermille,
-        RouteDegradation, RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
-        RouteServiceKind, RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick,
+        DurationMs, Environment, FactSourceClass, Limit, LinkBuilder, LinkRuntimeState,
+        Observation, OriginAuthenticationClass, PartitionRecoveryClass, RatioPermille,
+        RepairCapability, RouteDegradation, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
+        RouteRepairClass, RouteServiceKind, RoutingEvidenceClass, RoutingObjective,
+        SelectedRoutingParameters, Tick,
     };
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
     use jacquard_traits::RoutingEnginePlanner;
@@ -385,6 +421,27 @@ mod tests {
         }
     }
 
+    fn active_link(to: u8) -> jacquard_core::Link {
+        LinkBuilder::new(jacquard_adapter::opaque_endpoint(
+            jacquard_core::TransportKind::WifiAware,
+            vec![to],
+            ByteCount(128),
+        ))
+        .with_profile(
+            DurationMs(5),
+            RepairCapability::TransportRetransmit,
+            PartitionRecoveryClass::LocalReconnect,
+        )
+        .with_runtime_state(LinkRuntimeState::Active)
+        .with_quality(
+            RatioPermille(20),
+            RatioPermille(900),
+            RatioPermille(900),
+            Tick(4),
+        )
+        .build()
+    }
+
     fn seeded_engine() -> FieldEngine<(), ()> {
         let mut engine = FieldEngine::new(node(1), (), ());
         let state = engine.state.upsert_destination_interest(
@@ -453,6 +510,36 @@ mod tests {
     }
 
     #[test]
+    fn topology_only_discovery_rejection_is_no_candidate() {
+        let mut engine = FieldEngine::new(node(1), (), ()).with_search_config(
+            crate::FieldSearchConfig::default()
+                .with_node_bootstrap_support_floor(180)
+                .with_node_bootstrap_top_mass_floor(180)
+                .with_node_bootstrap_entropy_ceiling(970)
+                .enable_node_discovery(),
+        );
+        engine.state.upsert_destination_interest(
+            &DestinationId::Node(node(3)),
+            DestinationInterestClass::Propagated,
+            Tick(4),
+        );
+        let mut topology = supported_topology();
+        topology
+            .value
+            .links
+            .insert((node(1), node(2)), active_link(2));
+        topology
+            .value
+            .links
+            .insert((node(2), node(3)), active_link(3));
+
+        let candidates =
+            engine.candidate_routes(&sample_objective(node(3)), &sample_profile(), &topology);
+
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
     fn discovery_config_admits_single_source_node_bootstrap_corridor() {
         let mut engine = FieldEngine::new(node(1), (), ()).with_search_config(
             crate::FieldSearchConfig::default()
@@ -489,6 +576,49 @@ mod tests {
         let admission = engine
             .admit_route(&objective, &sample_profile(), candidate, &topology)
             .expect("discovery bootstrap corridor should admit");
+        assert_eq!(
+            admission.admission_check.decision,
+            AdmissionDecision::Admissible
+        );
+    }
+
+    #[test]
+    fn discovery_config_admits_retained_forward_corridor_below_support_floor() {
+        let mut engine = FieldEngine::new(node(1), (), ()).with_search_config(
+            crate::FieldSearchConfig::default()
+                .with_node_bootstrap_support_floor(180)
+                .with_node_bootstrap_top_mass_floor(180)
+                .with_node_bootstrap_entropy_ceiling(970)
+                .enable_node_discovery(),
+        );
+        let state = engine.state.upsert_destination_interest(
+            &DestinationId::Node(node(2)),
+            DestinationInterestClass::Transit,
+            Tick(4),
+        );
+        state.posterior.top_corridor_mass = SupportBucket::new(120);
+        state.posterior.usability_entropy = crate::state::EntropyBucket::new(940);
+        state.posterior.predicted_observation_class =
+            crate::state::ObservationClass::ForwardPropagated;
+        state.corridor_belief.expected_hop_band = HopBand::new(2, 4);
+        state.corridor_belief.delivery_support = SupportBucket::new(120);
+        state.corridor_belief.retention_affinity = SupportBucket::new(240);
+        state.frontier = state.frontier.clone().insert(NeighborContinuation {
+            neighbor_id: node(2),
+            net_value: SupportBucket::new(260),
+            downstream_support: SupportBucket::new(220),
+            expected_hop_band: HopBand::new(2, 4),
+            freshness: Tick(4),
+        });
+        let topology = supported_topology();
+        let objective = sample_objective(node(2));
+        let candidate = engine
+            .candidate_routes(&objective, &sample_profile(), &topology)
+            .pop()
+            .expect("candidate");
+        let admission = engine
+            .admit_route(&objective, &sample_profile(), candidate, &topology)
+            .expect("retained forward corridor should admit");
         assert_eq!(
             admission.admission_check.decision,
             AdmissionDecision::Admissible

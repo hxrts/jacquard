@@ -310,6 +310,16 @@ def _check_figure_assets(report_dir: Path) -> list[ReportSanityIssue]:
                     "crossover figure still plots non-headline recovery success",
                 )
             )
+    divergence_svg = report_dir / "mixed_vs_standalone_divergence.svg"
+    if divergence_svg.exists():
+        text = divergence_svg.read_text(errors="ignore")
+        if "0.0 pts" in text:
+            issues.append(
+                ReportSanityIssue(
+                    divergence_svg.name,
+                    "mixed-vs-standalone divergence labels collapse ties to 0.0 pts",
+                )
+            )
     return issues
 
 

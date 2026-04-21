@@ -48,6 +48,31 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         now_tick: Tick,
     ) -> bool {
         let mut changed = false;
+        let mut linked_neighbor_endpoints = std::collections::BTreeMap::new();
+        for ((from_node, to_node), link) in &topology.links {
+            if *from_node != self.local_node_id {
+                continue;
+            }
+            let Some(node) = topology.nodes.get(to_node) else {
+                continue;
+            };
+            let supports_field = node
+                .profile
+                .services
+                .iter()
+                .any(|service| service.routing_engines.contains(&crate::FIELD_ENGINE_ID));
+            if supports_field {
+                linked_neighbor_endpoints.insert(*to_node, link.endpoint.clone());
+            }
+        }
+        let previous_neighbor_endpoints = self.state.neighbor_endpoints.clone();
+        self.state
+            .neighbor_endpoints
+            .retain(|node_id, _| linked_neighbor_endpoints.contains_key(node_id));
+        self.state
+            .neighbor_endpoints
+            .extend(linked_neighbor_endpoints);
+        changed |= previous_neighbor_endpoints != self.state.neighbor_endpoints;
         for (node_id, node) in &topology.nodes {
             if *node_id == self.local_node_id {
                 continue;
@@ -430,22 +455,43 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 now_tick,
                 &observer_policy,
             );
-            if forward_input.evidence.is_empty() {
-                let carry_forward =
-                    synthesized_node_forward_evidence_from_active_routes_with_policy(
-                        destination_state,
-                        &destination_active_routes,
-                        &self.state.neighbor_endpoints,
-                        now_tick,
-                        &search_config,
-                        &observer_policy,
-                    );
-                if !carry_forward.is_empty() {
+            let carry_forward = synthesized_node_forward_evidence_from_active_routes_with_policy(
+                destination_state,
+                &destination_active_routes,
+                &self.state.neighbor_endpoints,
+                now_tick,
+                &search_config,
+                &observer_policy,
+            );
+            if !carry_forward.is_empty() {
+                if forward_input.evidence.is_empty() {
                     forward_input = ForwardEvidenceInput {
                         evidence: carry_forward,
                         synthesized: true,
                         service_carry_forward: false,
                     };
+                } else {
+                    forward_input.evidence.extend(carry_forward);
+                    forward_input.evidence.sort_by(|left, right| {
+                        right
+                            .summary
+                            .delivery_support
+                            .value()
+                            .cmp(&left.summary.delivery_support.value())
+                            .then_with(|| {
+                                right
+                                    .summary
+                                    .retention_support
+                                    .value()
+                                    .cmp(&left.summary.retention_support.value())
+                            })
+                            .then_with(|| right.observed_at_tick.cmp(&left.observed_at_tick))
+                            .then_with(|| left.from_neighbor.cmp(&right.from_neighbor))
+                    });
+                    forward_input
+                        .evidence
+                        .dedup_by(|left, right| left.from_neighbor == right.from_neighbor);
+                    forward_input.synthesized = true;
                 }
             }
             let forward_evidence = forward_input.evidence.clone();

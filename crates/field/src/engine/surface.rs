@@ -113,6 +113,11 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             DestinationInterestClass::Propagated,
             observation.observed_at_tick,
         );
+        let retention_support = if service_bias {
+            observation.delivery_support.saturating_sub(40)
+        } else {
+            observation.delivery_support.saturating_sub(80)
+        };
         state
             .pending_forward_evidence
             .push(ForwardPropagatedEvidence {
@@ -124,11 +129,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                     hop_band: HopBand::new(observation.min_hops, observation.max_hops),
                     delivery_support: SupportBucket::new(observation.delivery_support),
                     congestion_penalty: EntropyBucket::default(),
-                    retention_support: SupportBucket::new(if service_bias {
-                        observation.delivery_support.saturating_sub(40)
-                    } else {
-                        0
-                    }),
+                    retention_support: SupportBucket::new(retention_support),
                     uncertainty_penalty: EntropyBucket::default(),
                     evidence_class: EvidenceContributionClass::ForwardPropagated,
                     uncertainty_class: SummaryUncertaintyClass::Low,
@@ -156,7 +157,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
                 .corridor_belief
                 .retention_affinity
                 .value()
-                .max(observation.delivery_support.saturating_sub(80)),
+                .max(retention_support),
         );
         state.corridor_belief.expected_hop_band = HopBand::new(
             observation.min_hops.saturating_add(1),
@@ -747,5 +748,28 @@ mod tests {
             "service fanout should seed strong retention before refresh: {}",
             state.corridor_belief.retention_affinity.value()
         );
+    }
+
+    #[test]
+    fn record_forward_summary_preserves_node_retention_before_refresh() {
+        let mut engine = FieldEngine::new(node(1), NoopTransport, ());
+        let destination = DestinationId::Node(node(14));
+        engine.record_forward_summary(
+            &destination,
+            node(2),
+            FieldForwardSummaryObservation::new(RouteEpoch(1), Tick(1), 940, 5, 6),
+        );
+
+        let state = engine
+            .state
+            .destinations
+            .get(&DestinationKey::Node(node(14)))
+            .expect("tracked node destination");
+        let summary_retention = state.pending_forward_evidence[0]
+            .summary
+            .retention_support
+            .value();
+        assert_eq!(summary_retention, 860);
+        assert_eq!(state.corridor_belief.retention_affinity.value(), 860);
     }
 }
