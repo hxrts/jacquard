@@ -387,7 +387,7 @@ def _shape_scale(domain: list[str]) -> alt.Scale:
 def _route_presence_percent(value: int | float | None) -> float | None:
     if value is None:
         return None
-    return float(value) / 10000.0
+    return float(value) / 10.0
 
 
 def _activation_percent(value: int | float | None) -> float | None:
@@ -859,7 +859,7 @@ def render_scatter_profile_route_presence(
         x_column="scatter_profile_id",
         y_column="route_present_total_window_permille_mean",
         xlabel="Profile",
-        ylabel="Active route presence (%)",
+        ylabel="Total-window route presence (%)",
         color=ENGINE_COLORS["scatter"],
         series_style=OUTCOME_SERIES_STYLE,
         value_transform=_route_presence_percent,
@@ -2195,40 +2195,29 @@ def render_routing_fitness_crossover(
     rows: list[dict[str, object]] = []
     for row in routing_fitness_crossover_summary.iter_rows(named=True):
         engine_set = row["comparison_engine_set"]
-        for metric_key, metric_label, value in [
-            (
-                "route",
-                "Route presence",
-                row["route_present_total_window_permille_mean"],
-            ),
-            (
-                "recovery",
-                "Recovery success",
-                row["recovery_success_permille_mean"],
-            ),
-        ]:
-            if value is None:
-                continue
-            rows.append(
-                {
-                    "question_label": row["question_label"],
-                    "band_label": str(row["band_label"]).capitalize(),
-                    "band_order": row["band_order"],
-                    "engine_key": engine_set,
-                    "engine_label": engine_display_label(engine_set),
-                    "metric_key": metric_key,
-                    "metric_label": metric_label,
-                    "value": float(value) / 10.0,
-                    "hover_detail": (
-                        f"loss r{int(row['first_loss_round_mean'])}"
-                        if row["first_loss_round_mean"] is not None
-                        else "no loss"
-                    ),
-                    "churn": float(row["route_churn_count_mean"] or 0.0),
-                    "control_activity": float(row["route_observation_count_mean"] or 0.0),
-                    "hop_count": row["active_route_hop_count_mean"],
-                }
-            )
+        value = row["route_present_total_window_permille_mean"]
+        if value is None:
+            continue
+        rows.append(
+            {
+                "question_label": row["question_label"],
+                "band_label": str(row["band_label"]).capitalize(),
+                "band_order": row["band_order"],
+                "engine_key": engine_set,
+                "engine_label": engine_display_label(engine_set),
+                "route_presence": float(value) / 10.0,
+                "recovery_success": float(row["recovery_success_permille_mean"] or 0.0)
+                / 10.0,
+                "hover_detail": (
+                    f"loss r{int(row['first_loss_round_mean'])}"
+                    if row["first_loss_round_mean"] is not None
+                    else "no loss"
+                ),
+                "churn": float(row["route_churn_count_mean"] or 0.0),
+                "control_activity": float(row["route_observation_count_mean"] or 0.0),
+                "hop_count": row["active_route_hop_count_mean"],
+            }
+        )
     if not rows:
         return None
     engine_domain = [
@@ -2244,8 +2233,8 @@ def render_routing_fitness_crossover(
             title="Difficulty band",
         ),
         y=alt.Y(
-            "value:Q",
-            title="Outcome (%)",
+            "route_presence:Q",
+            title="Total-window route presence (%)",
             scale=alt.Scale(domain=[0, 100]),
         ),
         color=_engine_color_scale(
@@ -2255,20 +2244,12 @@ def render_routing_fitness_crossover(
             field_domain=[engine_display_label(engine) for engine in engine_domain],
             legend_title="Engine set",
         ),
-        strokeDash=alt.StrokeDash(
-            "metric_label:N",
-            scale=alt.Scale(
-                domain=["Route presence", "Recovery success"],
-                range=[[1, 0], [7, 4]],
-            ),
-            legend=alt.Legend(title="Metric"),
-        ),
         tooltip=[
             alt.Tooltip("question_label:N", title="Question"),
             alt.Tooltip("band_label:N", title="Band"),
             alt.Tooltip("engine_label:N", title="Engine"),
-            alt.Tooltip("metric_label:N", title="Metric"),
-            alt.Tooltip("value:Q", title="Value", format=".1f"),
+            alt.Tooltip("route_presence:Q", title="Route presence", format=".1f"),
+            alt.Tooltip("recovery_success:Q", title="Recovery event success", format=".1f"),
             alt.Tooltip("hover_detail:N", title="Loss"),
             alt.Tooltip("churn:Q", title="Churn", format=".1f"),
             alt.Tooltip("control_activity:Q", title="Control activity", format=".1f"),

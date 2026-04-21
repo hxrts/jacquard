@@ -267,7 +267,7 @@ These two figures put `scatter` on the same tuning-sweep footing as the other en
 
 @figure scatter_profile_route_presence
 
-Scatter active route presence by maintained profile. Higher values are better because the route stays present for more of the objective-active window. Each panel uses the same profile order so the scatter sweep can be compared directly across families.
+Scatter total-window route presence by maintained profile. Higher values are better because the route is available for more of the full scenario window, including startup and repair gaps. Each panel uses the same profile order so the scatter sweep can be compared directly across families.
 
 #### Figure 10
 
@@ -506,7 +506,7 @@ These figures isolate the last three decision questions directly: crossover unde
 
 @figure routing_fitness_crossover
 
-Crossover view for the remaining route-visible design boundary. Each panel fixes one analytical question and moves from low to high difficulty. Solid lines show total-window route presence and dashed lines show recovery success, so the useful operating envelope is where an engine keeps both high as the band hardens.
+Crossover view for the remaining route-visible design boundary. Each panel fixes one analytical question and moves from low to high difficulty. Lines show total-window route presence; first-loss, recovery-event success, churn, and route-observation cost remain in the table and figure hover data because recovery events are not present in every crossover band.
 
 #### Figure 26
 

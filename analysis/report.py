@@ -80,6 +80,7 @@ from .scoring import (
     transition_metrics_table,
     write_recommendations,
 )
+from .sanity import validate_report_artifacts_or_raise
 
 REPORT_PDF_NAME = "router-tuning-report.pdf"
 LEGACY_REPORT_PDF_NAMES = ("report.pdf", "tuning_report.pdf", "routing-tuning-report.pdf")
@@ -511,6 +512,7 @@ def main(argv: list[str] | None = None) -> int:
         if pdf_path.exists():
             pdf_path.unlink()
         shutil.move(str(output_pdf_path), str(pdf_path))
+    validate_report_artifacts_or_raise(artifact_dir)
     print(f"Analysis report artifacts: {report_dir}")
     return 0
 

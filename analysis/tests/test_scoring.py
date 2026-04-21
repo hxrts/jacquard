@@ -6,6 +6,7 @@ import polars as pl
 
 from analysis.constants import ROUTE_VISIBLE_ENGINE_SET_ORDER
 from analysis.plots import (
+    render_pathway_budget_route_presence,
     render_routing_fitness_crossover,
     render_routing_fitness_multiflow,
     render_routing_fitness_stale_repair,
@@ -1188,6 +1189,27 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(stale_rows[0]["family_label"], "Recovery window")
         self.assertEqual(stale_rows[0]["engine_key"], "pathway")
         self.assertIn("route=", stale_rows[0]["route_label"])
+
+    def test_route_presence_percent_transform_uses_permille_scale(self) -> None:
+        chart = render_pathway_budget_route_presence(
+            pl.from_dicts(
+                [
+                    {
+                        "engine_family": "pathway",
+                        "family_id": "pathway-search-budget-pressure",
+                        "pathway_query_budget": 1,
+                        "pathway_heuristic_mode": "zero",
+                        "route_present_permille_mean": 1000.0,
+                    }
+                ]
+            ),
+            900,
+            300,
+        )
+        self.assertIsNotNone(chart)
+        chart_dict = chart.to_dict()
+        rows = next(iter(chart_dict["datasets"].values()))
+        self.assertEqual(rows[0]["y_value"], 100.0)
 
     def test_comparison_config_sensitivity_marks_flat_and_separating_families(self) -> None:
         aggregates = pl.from_dicts(
