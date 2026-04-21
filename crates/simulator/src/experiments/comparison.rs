@@ -4081,6 +4081,42 @@ mod tests {
     }
 
     #[test]
+    fn head_to_head_mercator_multi_flow_families_avoid_zero_service_tails() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+        for (family, builder) in [
+            (
+                "head-to-head-multi-flow-shared-corridor",
+                build_comparison_multi_flow_shared_corridor as ComparisonBuilder,
+            ),
+            (
+                "head-to-head-multi-flow-asymmetric-demand",
+                build_comparison_multi_flow_asymmetric_demand as ComparisonBuilder,
+            ),
+            (
+                "head-to-head-multi-flow-detour-choice",
+                build_comparison_multi_flow_detour_choice as ComparisonBuilder,
+            ),
+        ] {
+            let (scenario, environment) = builder(&parameters, SimulationSeed(41));
+            let reduced = run_reduced_replay(&scenario, &environment);
+            for binding in scenario.bound_objectives() {
+                assert!(
+                    reduced.route_seen(binding.owner_node_id, &binding.objective.destination),
+                    "{family} has a zero-service Mercator tail for {:?}: {:?}",
+                    binding.objective.destination,
+                    reduced.failure_summaries,
+                );
+                assert!(reduced.route_seen_with_engine(
+                    binding.owner_node_id,
+                    &binding.objective.destination,
+                    &MERCATOR_ENGINE_ID
+                ));
+            }
+        }
+    }
+
+    #[test]
     fn head_to_head_field_concurrent_mixed_activates_both_objectives() {
         let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
         let (scenario, environment) =

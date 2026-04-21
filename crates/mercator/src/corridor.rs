@@ -49,6 +49,11 @@ pub enum MercatorPlanningOutcome {
     Inadmissible,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MercatorPlanningContext {
+    pub reserve_for_underserved_objective: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct MercatorBackendToken {
     topology_epoch: RouteEpoch,
@@ -74,6 +79,7 @@ pub(crate) struct ActiveMercatorRoute {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct CorridorOrderingKey {
     freshness_rank: u8,
+    overload_rank: u8,
     support_score: u16,
     broker_pressure_inverse: std::cmp::Reverse<u16>,
     continuity_rank: u8,
@@ -136,6 +142,15 @@ impl MercatorCorridor {
             },
         })
     }
+
+    #[must_use]
+    pub fn avoided_overloaded_broker(&self, overload_threshold: u16) -> bool {
+        self.primary.broker_pressure < overload_threshold
+            && self
+                .alternates
+                .iter()
+                .any(|alternate| alternate.broker_pressure >= overload_threshold)
+    }
 }
 
 #[must_use]
@@ -146,6 +161,25 @@ pub fn plan_corridor(
     config: &MercatorEngineConfig,
     evidence: &MercatorEvidenceGraph,
 ) -> MercatorPlanningOutcome {
+    plan_corridor_with_context(
+        local_node_id,
+        topology,
+        objective,
+        config,
+        evidence,
+        MercatorPlanningContext::default(),
+    )
+}
+
+#[must_use]
+pub fn plan_corridor_with_context(
+    local_node_id: NodeId,
+    topology: &Observation<Configuration>,
+    objective: &RoutingObjective,
+    config: &MercatorEngineConfig,
+    evidence: &MercatorEvidenceGraph,
+    context: MercatorPlanningContext,
+) -> MercatorPlanningOutcome {
     let DestinationId::Node(goal) = objective.destination else {
         return MercatorPlanningOutcome::NoCandidate;
     };
@@ -154,20 +188,14 @@ pub fn plan_corridor(
     {
         return MercatorPlanningOutcome::Inadmissible;
     }
-    let max_hops = u8::try_from(
-        config
-            .evidence
-            .corridor_alternate_count_max
-            .saturating_add(2),
-    )
-    .unwrap_or(u8::MAX)
-    .max(2);
+    let max_hops = planning_max_hops(config, context);
     let mut realizations = bounded_paths(local_node_id, goal, topology, evidence, max_hops);
     if realizations.is_empty() {
         return MercatorPlanningOutcome::NoCandidate;
     }
-    realizations
-        .sort_by_key(|realization| std::cmp::Reverse(realization_ordering_key(realization)));
+    realizations.sort_by_key(|realization| {
+        std::cmp::Reverse(realization_ordering_key_with_config(realization, config))
+    });
     let alternate_cap =
         usize::try_from(config.evidence.corridor_alternate_count_max).unwrap_or(usize::MAX);
     let primary = realizations.remove(0);
@@ -187,7 +215,32 @@ pub fn candidate_for(
     config: &MercatorEngineConfig,
     evidence: &MercatorEvidenceGraph,
 ) -> Result<RouteCandidate, RouteSelectionError> {
-    match plan_corridor(local_node_id, topology, objective, config, evidence) {
+    candidate_for_with_context(
+        local_node_id,
+        topology,
+        objective,
+        config,
+        evidence,
+        MercatorPlanningContext::default(),
+    )
+}
+
+pub fn candidate_for_with_context(
+    local_node_id: NodeId,
+    topology: &Observation<Configuration>,
+    objective: &RoutingObjective,
+    config: &MercatorEngineConfig,
+    evidence: &MercatorEvidenceGraph,
+    context: MercatorPlanningContext,
+) -> Result<RouteCandidate, RouteSelectionError> {
+    match plan_corridor_with_context(
+        local_node_id,
+        topology,
+        objective,
+        config,
+        evidence,
+        context,
+    ) {
         MercatorPlanningOutcome::Selected(corridor) => corridor.candidate(objective, topology),
         MercatorPlanningOutcome::NoCandidate => Err(RouteSelectionError::NoCandidate),
         MercatorPlanningOutcome::Inadmissible => Err(RouteSelectionError::Inadmissible(
@@ -205,7 +258,14 @@ pub fn check_candidate(
     config: &MercatorEngineConfig,
     evidence: &MercatorEvidenceGraph,
 ) -> Result<RouteAdmissionCheck, RouteSelectionError> {
-    let expected = candidate_for(local_node_id, topology, objective, config, evidence)?;
+    let expected = candidate_for_with_context(
+        local_node_id,
+        topology,
+        objective,
+        config,
+        evidence,
+        MercatorPlanningContext::default(),
+    )?;
     if expected.backend_ref != candidate.backend_ref || expected.route_id != candidate.route_id {
         return Err(RouteSelectionError::Inadmissible(
             jacquard_core::RouteAdmissionRejection::BackendUnavailable,
@@ -223,7 +283,14 @@ pub fn admit_candidate(
     config: &MercatorEngineConfig,
     evidence: &MercatorEvidenceGraph,
 ) -> Result<RouteAdmission, RouteSelectionError> {
-    let expected = candidate_for(local_node_id, topology, objective, config, evidence)?;
+    let expected = candidate_for_with_context(
+        local_node_id,
+        topology,
+        objective,
+        config,
+        evidence,
+        MercatorPlanningContext::default(),
+    )?;
     if expected.backend_ref != candidate.backend_ref || expected.route_id != candidate.route_id {
         return Err(RouteSelectionError::Inadmissible(
             jacquard_core::RouteAdmissionRejection::BackendUnavailable,
@@ -315,7 +382,7 @@ pub(crate) fn repair_realization_from_alternates(
     let DestinationId::Node(goal) = active.destination else {
         return None;
     };
-    surviving_alternate_path(active, topology, evidence).or_else(|| {
+    surviving_alternate_path(active, topology, config, evidence).or_else(|| {
         searched_alternate_path(local_node_id, goal, active, topology, config, evidence)
     })
 }
@@ -355,6 +422,7 @@ fn bounded_paths(
 fn surviving_alternate_path(
     active: &ActiveMercatorRoute,
     topology: &Observation<Configuration>,
+    config: &MercatorEngineConfig,
     evidence: &MercatorEvidenceGraph,
 ) -> Option<MercatorRouteRealization> {
     active
@@ -362,7 +430,7 @@ fn surviving_alternate_path(
         .iter()
         .filter(|path| path_is_viable(path, topology, evidence))
         .map(|path| realization_for_path(path, topology, evidence))
-        .max_by_key(realization_ordering_key)
+        .max_by_key(|realization| realization_ordering_key_with_config(realization, config))
 }
 
 fn searched_alternate_path(
@@ -380,9 +448,17 @@ fn searched_alternate_path(
         .copied()
         .take(usize::try_from(config.bounds.repair_attempt_count_max).unwrap_or(usize::MAX))
         .filter_map(|next_hop| {
-            repair_path_via_next_hop(local_node_id, next_hop, goal, topology, evidence, max_hops)
+            repair_path_via_next_hop(
+                local_node_id,
+                next_hop,
+                goal,
+                topology,
+                evidence,
+                max_hops,
+                config,
+            )
         })
-        .max_by_key(realization_ordering_key)
+        .max_by_key(|realization| realization_ordering_key_with_config(realization, config))
 }
 
 fn repair_path_via_next_hop(
@@ -392,6 +468,7 @@ fn repair_path_via_next_hop(
     topology: &Observation<Configuration>,
     evidence: &MercatorEvidenceGraph,
     max_hops: u8,
+    config: &MercatorEngineConfig,
 ) -> Option<MercatorRouteRealization> {
     edge_score(local_node_id, next_hop, topology, evidence)?;
     bounded_paths(next_hop, goal, topology, evidence, max_hops)
@@ -402,7 +479,24 @@ fn repair_path_via_next_hop(
             path.extend(suffix.path);
             realization_for_path(&path, topology, evidence)
         })
-        .max_by_key(realization_ordering_key)
+        .max_by_key(|realization| realization_ordering_key_with_config(realization, config))
+}
+
+fn planning_max_hops(config: &MercatorEngineConfig, context: MercatorPlanningContext) -> u8 {
+    let fairness_budget = if context.reserve_for_underserved_objective {
+        config.bounds.repair_attempt_count_max
+    } else {
+        0
+    };
+    u8::try_from(
+        config
+            .evidence
+            .corridor_alternate_count_max
+            .saturating_add(fairness_budget)
+            .saturating_add(2),
+    )
+    .unwrap_or(u8::MAX)
+    .max(2)
 }
 
 fn repair_max_hops(config: &MercatorEngineConfig) -> u8 {
@@ -494,9 +588,23 @@ fn broker_pressure_for_path(path: &[NodeId], evidence: &MercatorEvidenceGraph) -
         .unwrap_or(0)
 }
 
-fn realization_ordering_key(realization: &MercatorRouteRealization) -> CorridorOrderingKey {
+fn realization_ordering_key_with_config(
+    realization: &MercatorRouteRealization,
+    config: &MercatorEngineConfig,
+) -> CorridorOrderingKey {
+    realization_ordering_key_with_threshold(
+        realization,
+        config.bounds.broker_overload_pressure_threshold,
+    )
+}
+
+fn realization_ordering_key_with_threshold(
+    realization: &MercatorRouteRealization,
+    overload_threshold: u16,
+) -> CorridorOrderingKey {
     CorridorOrderingKey {
         freshness_rank: support_state_rank(MercatorSupportState::Fresh),
+        overload_rank: u8::from(realization.broker_pressure < overload_threshold),
         support_score: realization.support_score,
         broker_pressure_inverse: std::cmp::Reverse(realization.broker_pressure),
         continuity_rank: 0,

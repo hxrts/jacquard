@@ -26,19 +26,31 @@ impl RoutingEnginePlanner for MercatorEngine {
         _profile: &SelectedRoutingParameters,
         topology: &Observation<Configuration>,
     ) -> Vec<RouteCandidate> {
-        let outcome = corridor::plan_corridor(
+        let context = self.planning_context_for(objective);
+        if context.reserve_for_underserved_objective {
+            self.record_weakest_flow_search_reservation();
+        }
+        let outcome = corridor::plan_corridor_with_context(
             self.local_node_id,
             topology,
             objective,
             &self.config,
             &self.evidence,
+            context,
         );
         self.record_planning_outcome(&outcome);
         match outcome {
-            MercatorPlanningOutcome::Selected(corridor) => corridor
-                .candidate(objective, topology)
-                .into_iter()
-                .collect(),
+            MercatorPlanningOutcome::Selected(corridor) => {
+                if corridor.avoided_overloaded_broker(
+                    self.config.bounds.broker_overload_pressure_threshold,
+                ) {
+                    self.record_overloaded_broker_penalty();
+                }
+                corridor
+                    .candidate(objective, topology)
+                    .into_iter()
+                    .collect()
+            }
             MercatorPlanningOutcome::NoCandidate | MercatorPlanningOutcome::Inadmissible => {
                 Vec::new()
             }
@@ -52,16 +64,38 @@ impl RoutingEnginePlanner for MercatorEngine {
         candidate: &RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
-        corridor::check_candidate(
+        let context = self.planning_context_for(objective);
+        let expected = corridor::candidate_for_with_context(
+            self.local_node_id,
+            topology,
+            objective,
+            &self.config,
+            &self.evidence,
+            context,
+        )?;
+        if expected.backend_ref != candidate.backend_ref || expected.route_id != candidate.route_id
+        {
+            return corridor::check_candidate(
+                self.local_node_id,
+                topology,
+                objective,
+                profile,
+                candidate,
+                &self.config,
+                &self.evidence,
+            )
+            .map_err(RouteError::from);
+        }
+        Ok(corridor::admit_candidate(
             self.local_node_id,
             topology,
             objective,
             profile,
-            candidate,
+            &expected,
             &self.config,
             &self.evidence,
-        )
-        .map_err(RouteError::from)
+        )?
+        .admission_check)
     }
 
     fn admit_route(
@@ -71,12 +105,34 @@ impl RoutingEnginePlanner for MercatorEngine {
         candidate: RouteCandidate,
         topology: &Observation<Configuration>,
     ) -> Result<RouteAdmission, RouteError> {
+        let context = self.planning_context_for(objective);
+        let expected = corridor::candidate_for_with_context(
+            self.local_node_id,
+            topology,
+            objective,
+            &self.config,
+            &self.evidence,
+            context,
+        )?;
+        if expected.backend_ref != candidate.backend_ref || expected.route_id != candidate.route_id
+        {
+            return corridor::admit_candidate(
+                self.local_node_id,
+                topology,
+                objective,
+                profile,
+                &candidate,
+                &self.config,
+                &self.evidence,
+            )
+            .map_err(RouteError::from);
+        }
         corridor::admit_candidate(
             self.local_node_id,
             topology,
             objective,
             profile,
-            &candidate,
+            &expected,
             &self.config,
             &self.evidence,
         )

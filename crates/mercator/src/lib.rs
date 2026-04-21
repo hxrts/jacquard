@@ -7,7 +7,10 @@
 
 #![forbid(unsafe_code)]
 
-use std::{cell::Cell, collections::BTreeMap};
+use std::{
+    cell::{Cell, RefCell},
+    collections::{BTreeMap, BTreeSet},
+};
 
 pub mod corridor;
 pub mod evidence;
@@ -16,12 +19,15 @@ mod public_state;
 mod runtime;
 
 pub use corridor::selected_neighbor_from_backend_route_id;
-use corridor::{ActiveMercatorRoute, MercatorPlanningOutcome};
-pub use evidence::{MercatorDiagnostics, MercatorEvidenceGraph};
+use corridor::{ActiveMercatorRoute, MercatorPlanningContext, MercatorPlanningOutcome};
+pub use evidence::{
+    MercatorBrokerPressure, MercatorDiagnostics, MercatorEvidenceGraph, MercatorEvidenceMeta,
+    MercatorObjectiveKey,
+};
 use jacquard_core::{
-    Configuration, ConnectivityPosture, NodeId, Observation, RouteEpoch, RouteId,
-    RoutePartitionClass, RouteProtectionClass, RouteShapeVisibility, RoutingEngineCapabilities,
-    RoutingEngineId,
+    Configuration, ConnectivityPosture, DestinationId, NodeId, Observation, OrderStamp, RouteEpoch,
+    RouteId, RoutePartitionClass, RouteProtectionClass, RouteShapeVisibility,
+    RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, Tick,
 };
 pub use public_state::{
     MercatorEngineConfig, MercatorEvidenceBounds, MercatorOperationalBounds,
@@ -54,7 +60,15 @@ pub struct MercatorEngine {
     latest_topology: Option<Observation<Configuration>>,
     evidence: MercatorEvidenceGraph,
     planner_diagnostics: Cell<MercatorDiagnostics>,
+    objective_accounts: RefCell<BTreeMap<MercatorObjectiveKey, MercatorObjectiveAccount>>,
+    route_objectives: BTreeMap<RouteId, MercatorObjectiveKey>,
     active_routes: BTreeMap<RouteId, ActiveMercatorRoute>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct MercatorObjectiveAccount {
+    active_round_count: u32,
+    materialization_count: u32,
 }
 
 impl MercatorEngine {
@@ -72,6 +86,8 @@ impl MercatorEngine {
             latest_topology: None,
             evidence: MercatorEvidenceGraph::new(config.evidence),
             planner_diagnostics: Cell::new(MercatorDiagnostics::default()),
+            objective_accounts: RefCell::new(BTreeMap::new()),
+            route_objectives: BTreeMap::new(),
             active_routes: BTreeMap::new(),
         }
     }
@@ -170,6 +186,173 @@ impl MercatorEngine {
             recovery_rounds: evidence
                 .recovery_rounds
                 .saturating_add(planner.recovery_rounds),
+            objective_count: evidence
+                .objective_count
+                .saturating_add(planner.objective_count),
+            active_objective_count: evidence
+                .active_objective_count
+                .saturating_add(planner.active_objective_count),
+            weakest_objective_presence_rounds: evidence
+                .weakest_objective_presence_rounds
+                .saturating_add(planner.weakest_objective_presence_rounds),
+            zero_service_objective_count: evidence
+                .zero_service_objective_count
+                .saturating_add(planner.zero_service_objective_count),
+            broker_participation_count: evidence
+                .broker_participation_count
+                .saturating_add(planner.broker_participation_count),
+            hottest_broker_route_count: evidence
+                .hottest_broker_route_count
+                .saturating_add(planner.hottest_broker_route_count),
+            hottest_broker_concentration_permille: evidence
+                .hottest_broker_concentration_permille
+                .saturating_add(planner.hottest_broker_concentration_permille),
+            broker_switch_count: evidence
+                .broker_switch_count
+                .saturating_add(planner.broker_switch_count),
+            overloaded_broker_penalty_count: evidence
+                .overloaded_broker_penalty_count
+                .saturating_add(planner.overloaded_broker_penalty_count),
+            weakest_flow_reserved_search_count: evidence
+                .weakest_flow_reserved_search_count
+                .saturating_add(planner.weakest_flow_reserved_search_count),
         }
     }
+
+    pub(crate) fn planning_context_for(
+        &self,
+        objective: &RoutingObjective,
+    ) -> MercatorPlanningContext {
+        let key = self.register_objective_interest(objective.destination.clone());
+        let active = self
+            .route_objectives
+            .values()
+            .any(|objective| objective == &key);
+        MercatorPlanningContext {
+            reserve_for_underserved_objective: !active,
+        }
+    }
+
+    pub(crate) fn record_weakest_flow_search_reservation(&self) {
+        let mut diagnostics = self.planner_diagnostics.get();
+        diagnostics.weakest_flow_reserved_search_count = diagnostics
+            .weakest_flow_reserved_search_count
+            .saturating_add(1);
+        self.planner_diagnostics.set(diagnostics);
+    }
+
+    pub(crate) fn record_overloaded_broker_penalty(&self) {
+        let mut diagnostics = self.planner_diagnostics.get();
+        diagnostics.overloaded_broker_penalty_count = diagnostics
+            .overloaded_broker_penalty_count
+            .saturating_add(1);
+        self.planner_diagnostics.set(diagnostics);
+    }
+
+    fn register_objective_interest(&self, destination: DestinationId) -> MercatorObjectiveKey {
+        let key = MercatorObjectiveKey::destination(destination);
+        self.objective_accounts
+            .borrow_mut()
+            .entry(key.clone())
+            .or_default();
+        key
+    }
+
+    fn record_route_objective_materialized(
+        &mut self,
+        route_id: RouteId,
+        destination: DestinationId,
+    ) {
+        let key = self.register_objective_interest(destination);
+        self.route_objectives.insert(route_id, key.clone());
+        let mut accounts = self.objective_accounts.borrow_mut();
+        let account = accounts.entry(key).or_default();
+        account.materialization_count = account.materialization_count.saturating_add(1);
+    }
+
+    fn remove_route_objective(&mut self, route_id: &RouteId) {
+        self.route_objectives.remove(route_id);
+    }
+
+    fn refresh_objective_presence_diagnostics(&mut self, count_active_round: bool) {
+        let active_objectives = self
+            .route_objectives
+            .values()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let mut accounts = self.objective_accounts.borrow_mut();
+        if count_active_round {
+            for objective in &active_objectives {
+                let account = accounts.entry(objective.clone()).or_default();
+                account.active_round_count = account.active_round_count.saturating_add(1);
+            }
+        }
+        let objective_count = u32::try_from(accounts.len()).unwrap_or(u32::MAX);
+        let active_objective_count = u32::try_from(active_objectives.len()).unwrap_or(u32::MAX);
+        let weakest = accounts
+            .values()
+            .map(|account| account.active_round_count)
+            .min()
+            .unwrap_or(0);
+        let zero_service_count = u32::try_from(
+            accounts
+                .values()
+                .filter(|account| account.active_round_count == 0)
+                .count(),
+        )
+        .unwrap_or(u32::MAX);
+        self.evidence.record_objective_presence(
+            objective_count,
+            active_objective_count,
+            weakest,
+            zero_service_count,
+        );
+    }
+
+    fn refresh_broker_diagnostics(&mut self, topology_epoch: RouteEpoch, now: Tick) {
+        let mut counts = BTreeMap::<NodeId, u32>::new();
+        for active in self.active_routes.values() {
+            for broker in broker_nodes_for_path(&active.primary_path) {
+                counts
+                    .entry(broker)
+                    .and_modify(|count| *count = count.saturating_add(1))
+                    .or_insert(1);
+            }
+        }
+        let total = counts.values().copied().sum::<u32>();
+        let hottest = counts.values().copied().max().unwrap_or(0);
+        let concentration = if total == 0 {
+            0
+        } else {
+            u16::try_from(hottest.saturating_mul(1_000) / total).unwrap_or(u16::MAX)
+        };
+        for (index, (broker, count)) in counts.iter().enumerate() {
+            self.evidence
+                .record_broker_pressure(MercatorBrokerPressure {
+                    broker: *broker,
+                    participation_count: *count,
+                    pressure_score: broker_pressure_score(*count),
+                    meta: MercatorEvidenceMeta::new(
+                        topology_epoch,
+                        now,
+                        self.config.bounds.evidence_validity,
+                        OrderStamp(u64::try_from(index).unwrap_or(u64::MAX)),
+                    ),
+                });
+        }
+        self.evidence
+            .record_broker_concentration(total, hottest, concentration);
+    }
+}
+
+pub(crate) fn broker_nodes_for_path(path: &[NodeId]) -> Vec<NodeId> {
+    path.iter()
+        .copied()
+        .skip(1)
+        .take(path.len().saturating_sub(2))
+        .collect()
+}
+
+fn broker_pressure_score(route_count: u32) -> u16 {
+    u16::try_from(route_count.saturating_mul(250).min(1_000)).unwrap_or(u16::MAX)
 }

@@ -8,6 +8,7 @@ use crate::evidence::MercatorDiagnostics;
 pub(crate) const DEFAULT_ENGINE_TICK_WITHIN_TICKS: u64 = 1;
 pub(crate) const DEFAULT_EVIDENCE_VALIDITY_MS: u32 = 1_000;
 pub(crate) const DEFAULT_REPAIR_ATTEMPT_COUNT_MAX: u32 = 4;
+pub(crate) const DEFAULT_BROKER_OVERLOAD_PRESSURE_THRESHOLD: u16 = 500;
 pub(crate) const DEFAULT_NEIGHBOR_COUNT_MAX: u32 = 16;
 pub(crate) const DEFAULT_CANDIDATE_BROKER_COUNT_MAX: u32 = 8;
 pub(crate) const DEFAULT_SERVICE_EVIDENCE_COUNT_MAX: u32 = 16;
@@ -19,6 +20,7 @@ pub struct MercatorOperationalBounds {
     pub engine_tick_within: Tick,
     pub evidence_validity: DurationMs,
     pub repair_attempt_count_max: u32,
+    pub broker_overload_pressure_threshold: u16,
 }
 
 impl Default for MercatorOperationalBounds {
@@ -27,6 +29,7 @@ impl Default for MercatorOperationalBounds {
             engine_tick_within: Tick(DEFAULT_ENGINE_TICK_WITHIN_TICKS),
             evidence_validity: DurationMs(DEFAULT_EVIDENCE_VALIDITY_MS),
             repair_attempt_count_max: DEFAULT_REPAIR_ATTEMPT_COUNT_MAX,
+            broker_overload_pressure_threshold: DEFAULT_BROKER_OVERLOAD_PRESSURE_THRESHOLD,
         }
     }
 }

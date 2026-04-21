@@ -20,6 +20,16 @@ pub struct MercatorDiagnostics {
     pub repair_attempt_count: u32,
     pub repair_success_count: u32,
     pub recovery_rounds: u32,
+    pub objective_count: u32,
+    pub active_objective_count: u32,
+    pub weakest_objective_presence_rounds: u32,
+    pub zero_service_objective_count: u32,
+    pub broker_participation_count: u32,
+    pub hottest_broker_route_count: u32,
+    pub hottest_broker_concentration_permille: u16,
+    pub broker_switch_count: u32,
+    pub overloaded_broker_penalty_count: u32,
+    pub weakest_flow_reserved_search_count: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -349,6 +359,11 @@ impl MercatorEvidenceGraph {
     }
 
     #[must_use]
+    pub fn broker_pressure(&self) -> Vec<MercatorBrokerPressure> {
+        self.broker_pressure.values().copied().collect()
+    }
+
+    #[must_use]
     pub fn route_support(&self) -> Vec<MercatorRouteSupport> {
         self.route_support.values().cloned().collect()
     }
@@ -442,6 +457,49 @@ impl MercatorEvidenceGraph {
             .diagnostics
             .recovery_rounds
             .saturating_add(recovery_rounds);
+    }
+
+    pub fn record_weakest_flow_search_reservation(&mut self) {
+        self.diagnostics.weakest_flow_reserved_search_count = self
+            .diagnostics
+            .weakest_flow_reserved_search_count
+            .saturating_add(1);
+    }
+
+    pub fn record_overloaded_broker_penalty(&mut self) {
+        self.diagnostics.overloaded_broker_penalty_count = self
+            .diagnostics
+            .overloaded_broker_penalty_count
+            .saturating_add(1);
+    }
+
+    pub fn record_broker_switch(&mut self) {
+        self.diagnostics.broker_switch_count =
+            self.diagnostics.broker_switch_count.saturating_add(1);
+    }
+
+    pub fn record_objective_presence(
+        &mut self,
+        objective_count: u32,
+        active_objective_count: u32,
+        weakest_objective_presence_rounds: u32,
+        zero_service_objective_count: u32,
+    ) {
+        self.diagnostics.objective_count = objective_count;
+        self.diagnostics.active_objective_count = active_objective_count;
+        self.diagnostics.weakest_objective_presence_rounds = weakest_objective_presence_rounds;
+        self.diagnostics.zero_service_objective_count = zero_service_objective_count;
+    }
+
+    pub fn record_broker_concentration(
+        &mut self,
+        participation_count: u32,
+        hottest_route_count: u32,
+        concentration_permille: u16,
+    ) {
+        self.diagnostics.broker_participation_count = participation_count;
+        self.diagnostics.hottest_broker_route_count = hottest_route_count;
+        self.diagnostics.hottest_broker_concentration_permille = concentration_permille;
     }
 
     pub fn record_active_stale_routes(&mut self, count: u32, stale_rounds: u32) {

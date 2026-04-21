@@ -11,6 +11,7 @@ use jacquard_core::{
 use jacquard_traits::{RouterManagedEngine, RoutingEngine};
 
 use crate::{
+    broker_nodes_for_path,
     corridor::{self, MercatorRouteRealization},
     evidence::{
         MercatorEvidenceMeta, MercatorObjectiveKey, MercatorRouteSupport, MercatorSupportState,
@@ -33,7 +34,17 @@ impl RoutingEngine for MercatorEngine {
             &active,
             installation.health.last_validated_at_tick,
         );
+        self.record_route_objective_materialized(route_id, active.destination.clone());
         self.active_routes.insert(route_id, active);
+        self.refresh_objective_presence_diagnostics(false);
+        self.refresh_broker_diagnostics(
+            installation
+                .materialization_proof
+                .witness
+                .value
+                .topology_epoch,
+            installation.health.last_validated_at_tick,
+        );
         Ok(installation)
     }
 
@@ -44,6 +55,8 @@ impl RoutingEngine for MercatorEngine {
     fn engine_tick(&mut self, tick: &RoutingTickContext) -> Result<RoutingTickOutcome, RouteError> {
         self.latest_topology_epoch = Some(tick.topology.value.epoch);
         self.latest_topology = Some(tick.topology.clone());
+        self.refresh_objective_presence_diagnostics(true);
+        self.refresh_broker_diagnostics(tick.topology.value.epoch, tick.topology.observed_at_tick);
         self.refresh_active_stale_diagnostics(&tick.topology);
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,
@@ -92,6 +105,11 @@ impl RoutingEngine for MercatorEngine {
 
     fn teardown(&mut self, route_id: &RouteId) {
         self.active_routes.remove(route_id);
+        self.remove_route_objective(route_id);
+        if let Some(topology) = self.latest_topology.clone() {
+            self.refresh_objective_presence_diagnostics(false);
+            self.refresh_broker_diagnostics(topology.value.epoch, topology.observed_at_tick);
+        }
     }
 }
 
@@ -139,8 +157,14 @@ impl RouterManagedEngine for MercatorEngine {
         };
         self.latest_topology_epoch = Some(topology.value.epoch);
         self.latest_topology = Some(topology.clone());
+        self.record_route_objective_materialized(
+            route.identity.stamp.route_id,
+            active.destination.clone(),
+        );
         self.active_routes
             .insert(route.identity.stamp.route_id, active);
+        self.refresh_objective_presence_diagnostics(false);
+        self.refresh_broker_diagnostics(topology.value.epoch, topology.observed_at_tick);
         Ok(true)
     }
 
@@ -249,6 +273,11 @@ impl MercatorEngine {
             .active_routes
             .get_mut(&route_id)
             .ok_or(RouteRuntimeError::Invalidated)?;
+        let previous_brokers = broker_nodes_for_path(&active.primary_path);
+        let next_brokers = broker_nodes_for_path(&repair.path);
+        if previous_brokers != next_brokers {
+            self.evidence.record_broker_switch();
+        }
         let started_at = active
             .stale_started_at
             .take()
@@ -271,6 +300,7 @@ impl MercatorEngine {
                 OrderStamp(u64::try_from(self.active_routes.len()).unwrap_or(u64::MAX)),
             ),
         );
+        self.refresh_broker_diagnostics(topology.value.epoch, topology.observed_at_tick);
         Ok(stale_rounds_since(started_at, topology.observed_at_tick))
     }
 }
