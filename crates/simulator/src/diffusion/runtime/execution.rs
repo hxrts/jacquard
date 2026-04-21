@@ -204,7 +204,7 @@ pub(crate) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
     );
     let mut delivered_targets = BTreeSet::new();
     let mut delivery_rounds = Vec::<u32>::new();
-    let mut copy_budget_remaining = policy.replication_budget;
+    let mut copy_budget_remaining = initial_copy_budget(policy, scenario);
     let mut total_transmissions = 0_u32;
     let mut total_energy = 0_u32;
     let mut peak_holders = 1_u32;
@@ -274,6 +274,14 @@ pub(crate) fn simulate_diffusion_run(spec: &DiffusionRunSpec) -> DiffusionRunSum
                 (contact.node_b, contact.node_a),
             ] {
                 if !holders.contains_key(&from) || holders.contains_key(&to) {
+                    continue;
+                }
+                if mercator_unicast_delivery_committed(
+                    scenario,
+                    policy,
+                    &delivered_targets,
+                    &pending,
+                ) {
                     continue;
                 }
                 let Some(receiver_node) = node_by_id(scenario, to) else {
@@ -653,6 +661,39 @@ fn mercator_broadcast_priority(
         && is_target_node(scenario, receiver_node_id)
         && (!planned_covered_clusters.contains(&receiver_cluster_id)
             || receiver_cluster_holders < holder_limit)
+}
+
+fn mercator_unicast_delivery_committed(
+    scenario: &DiffusionScenarioSpec,
+    policy: &super::DiffusionPolicyConfig,
+    delivered_targets: &BTreeSet<u32>,
+    pending: &[PendingTransfer],
+) -> bool {
+    if policy.config_id != "mercator"
+        || !matches!(scenario.message_mode, DiffusionMessageMode::Unicast)
+    {
+        return false;
+    }
+    let Some(destination) = scenario.destination_node_id else {
+        return false;
+    };
+    delivered_targets.contains(&destination)
+        || pending
+            .iter()
+            .any(|transfer| transfer.target_node_id == destination)
+}
+
+fn initial_copy_budget(
+    policy: &super::DiffusionPolicyConfig,
+    scenario: &DiffusionScenarioSpec,
+) -> u32 {
+    if policy.config_id == "mercator"
+        && matches!(scenario.message_mode, DiffusionMessageMode::Unicast)
+    {
+        policy.replication_budget.min(2)
+    } else {
+        policy.replication_budget
+    }
 }
 
 // long-block-exception: the diffusion aggregate reducer keeps the full summary-to-report

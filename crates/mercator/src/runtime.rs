@@ -265,6 +265,7 @@ impl MercatorEngine {
         ))
     }
 
+    // long-block-exception: repair completion is one auditable route-state writeback.
     fn finish_repair(
         &mut self,
         route_id: RouteId,

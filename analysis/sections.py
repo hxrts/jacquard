@@ -726,6 +726,16 @@ def diffusion_takeaway_lines(
     ):
         return []
 
+    def field_delta_phrase(row: dict, regime: str, *, include_status: bool = False) -> str:
+        delta = float(row["regime_score_delta"] or 0.0)
+        status = str(row["selection_status"])
+        prefix = f"is `{status}` in {regime} and " if include_status else ""
+        if delta > 0.0:
+            return f"{prefix}beats the best alternative in {regime} by {delta:.1f}"
+        if delta < 0.0:
+            return f"{prefix}trails the best alternative in {regime} by {abs(delta):.1f}"
+        return f"{prefix}matches the best alternative in {regime}"
+
     return section_lines_formatted(
         "Diffusion Takeaways",
         balanced_winner=balanced["config_id"],
@@ -739,9 +749,11 @@ def diffusion_takeaway_lines(
         ),
         field_balanced_status=field_balanced["selection_status"],
         field_balanced_score_delta=f"{field_balanced['regime_score_delta']:.1f}",
-        field_scarcity_score_delta=f"{field_scarcity['regime_score_delta']:.1f}",
-        field_privacy_score_delta=f"{field_privacy['regime_score_delta']:.1f}",
-        field_continuity_score_delta=f"{field_continuity['regime_score_delta']:.1f}",
+        field_scarcity_phrase=field_delta_phrase(field_scarcity, "scarcity"),
+        field_privacy_phrase=field_delta_phrase(field_privacy, "privacy"),
+        field_continuity_phrase=field_delta_phrase(
+            field_continuity, "continuity", include_status=True
+        ),
         field_congestion_status=field_congestion["selection_status"],
     )
 

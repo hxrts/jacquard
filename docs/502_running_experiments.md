@@ -65,13 +65,17 @@ The practical interpretation is that `2` is the minimum viable budget floor, `3`
 
 The Field sweep produces non-zero activation success and route presence at the router-visible boundary. The tested Field settings cluster closely, so the results should be read as a viable range rather than one sharply preferred point. The continuity profile table is the better place to choose between lower-churn and broader-reselection behavior.
 
+### Mercator
+
+Mercator is now represented on both the route-visible and diffusion surfaces. In route-visible head-to-head runs, it behaves as a corridor-maintenance engine: strong in connected high-loss and corridor-continuity families, viable but visibly constrained by bridge-transition and stale-recovery windows. In diffusion runs, its custody fallback is bounded rather than flood-like; the current corpus shows it can keep the broadcast overload and large congestion-threshold families viable after the protected bridge budget tuning.
+
 ### Mixed Comparison
 
 The comparison regimes inform regime suitability rather than global winners. Low-loss connected-only cases favor the distance-vector stacks. Concurrent mixed workloads favor Pathway. High-loss bridge and some field-favorable comparison cases remain hard failure regimes across every tested stack.
 
 ### Head-To-Head Engine Sets
 
-The head-to-head corpus runs the same regimes under explicit single-engine stacks: `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `pathway`, `field`, or `pathway-batman-bellman`. This is separate from the mixed-engine comparison, which asks which engine a router selects when several are available. Head-to-head asks what happens when only one is available.
+The head-to-head corpus runs the same regimes under explicit single-engine stacks: `batman-bellman`, `batman-classic`, `babel`, `olsrv2`, `scatter`, `mercator`, `pathway`, `field`, or `pathway-batman-bellman`. This is separate from the mixed-engine comparison, which asks which engine a router selects when several are available. Head-to-head asks what happens when only one is available.
 
 ## Assembling A Custom Suite
 

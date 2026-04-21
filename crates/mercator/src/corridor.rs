@@ -10,23 +10,23 @@ use jacquard_core::{
     Fact, FactBasis, Limit, Link, LinkRuntimeState, MessageFlowAssumptionClass, NodeDensityClass,
     NodeId, ObjectiveVsDelivered, Observation, PenaltyPoints, RatioPermille, ReachabilityState,
     RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteCost, RouteDegradation, RouteEpoch,
-    RouteEstimate, RouteHealth, RouteId, RouteInstallation, RouteLifecycleEvent,
-    RouteMaterializationInput, RouteMaterializationProof, RouteProgressContract,
-    RouteProgressState, RouteProtectionClass, RouteRepairClass, RouteRuntimeError,
-    RouteSelectionError, RouteSummary, RouteWitness, RoutingObjective, RuntimeEnvelopeClass,
-    SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
+    RouteEstimate, RouteHealth, RouteInstallation, RouteLifecycleEvent, RouteMaterializationInput,
+    RouteMaterializationProof, RouteProgressContract, RouteProgressState, RouteProtectionClass,
+    RouteRepairClass, RouteRuntimeError, RouteSelectionError, RouteSummary, RouteWitness,
+    RoutingObjective, RuntimeEnvelopeClass, SelectedRoutingParameters, Tick, TimeWindow,
+    TransportKind,
 };
-use jacquard_traits::{Blake3Hashing, Hashing};
 
 use crate::{
+    corridor_token::{
+        decode_backend_token, encode_backend_token, route_id_for_backend, MercatorBackendToken,
+    },
     evidence::{
         support_state_rank, MercatorEvidenceGraph, MercatorObjectiveKey, MercatorSupportState,
     },
     MercatorEngineConfig, MERCATOR_ENGINE_ID,
 };
 
-const MERCATOR_ROUTE_ID_DOMAIN: &[u8] = b"jacquard.mercator.route";
-const MERCATOR_TOKEN_VERSION: u8 = 2;
 const DEFAULT_VALIDITY_TICKS: u64 = 8;
 const DEFAULT_WORK_STEP_BOUND: u32 = 16;
 
@@ -58,14 +58,34 @@ pub struct MercatorPlanningContext {
     pub reserve_for_underserved_objective: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct MercatorBackendToken {
-    topology_epoch: RouteEpoch,
-    destination: DestinationId,
-    primary_path: Vec<NodeId>,
-    alternate_next_hops: Vec<NodeId>,
-    alternate_paths: Vec<Vec<NodeId>>,
-    support_score: u16,
+#[derive(Clone, Copy, Debug)]
+pub struct MercatorPlanningInputs<'a> {
+    pub config: &'a MercatorEngineConfig,
+    pub evidence: &'a MercatorEvidenceGraph,
+    pub context: MercatorPlanningContext,
+}
+
+impl<'a> MercatorPlanningInputs<'a> {
+    #[must_use]
+    pub fn new(
+        config: &'a MercatorEngineConfig,
+        evidence: &'a MercatorEvidenceGraph,
+        context: MercatorPlanningContext,
+    ) -> Self {
+        Self {
+            config,
+            evidence,
+            context,
+        }
+    }
+
+    #[must_use]
+    pub fn default_context(
+        config: &'a MercatorEngineConfig,
+        evidence: &'a MercatorEvidenceGraph,
+    ) -> Self {
+        Self::new(config, evidence, MercatorPlanningContext::default())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -169,9 +189,7 @@ pub fn plan_corridor(
         local_node_id,
         topology,
         objective,
-        config,
-        evidence,
-        MercatorPlanningContext::default(),
+        MercatorPlanningInputs::default_context(config, evidence),
     )
 }
 
@@ -180,9 +198,7 @@ pub fn plan_corridor_with_context(
     local_node_id: NodeId,
     topology: &Observation<Configuration>,
     objective: &RoutingObjective,
-    config: &MercatorEngineConfig,
-    evidence: &MercatorEvidenceGraph,
-    context: MercatorPlanningContext,
+    inputs: MercatorPlanningInputs<'_>,
 ) -> MercatorPlanningOutcome {
     if !topology.value.nodes.contains_key(&local_node_id) {
         return MercatorPlanningOutcome::Inadmissible;
@@ -195,17 +211,20 @@ pub fn plan_corridor_with_context(
             DestinationId::Gateway(_) => MercatorPlanningOutcome::NoCandidate,
         };
     }
-    let max_hops = planning_max_hops(config, context);
+    let max_hops = planning_max_hops(inputs.config, inputs.context);
     let mut realizations =
-        bounded_paths_to_goals(local_node_id, &goals, topology, evidence, max_hops);
+        bounded_paths_to_goals(local_node_id, &goals, topology, inputs.evidence, max_hops);
     if realizations.is_empty() {
         return MercatorPlanningOutcome::NoCandidate;
     }
     realizations.sort_by_key(|realization| {
-        std::cmp::Reverse(realization_ordering_key_with_config(realization, config))
+        std::cmp::Reverse(realization_ordering_key_with_config(
+            realization,
+            inputs.config,
+        ))
     });
     let alternate_cap =
-        usize::try_from(config.evidence.corridor_alternate_count_max).unwrap_or(usize::MAX);
+        usize::try_from(inputs.config.evidence.corridor_alternate_count_max).unwrap_or(usize::MAX);
     let primary = realizations.remove(0);
     let alternates = realizations.into_iter().take(alternate_cap).collect();
     MercatorPlanningOutcome::Selected(MercatorCorridor {
@@ -227,9 +246,7 @@ pub fn candidate_for(
         local_node_id,
         topology,
         objective,
-        config,
-        evidence,
-        MercatorPlanningContext::default(),
+        MercatorPlanningInputs::default_context(config, evidence),
     )
 }
 
@@ -237,18 +254,9 @@ pub fn candidate_for_with_context(
     local_node_id: NodeId,
     topology: &Observation<Configuration>,
     objective: &RoutingObjective,
-    config: &MercatorEngineConfig,
-    evidence: &MercatorEvidenceGraph,
-    context: MercatorPlanningContext,
+    inputs: MercatorPlanningInputs<'_>,
 ) -> Result<RouteCandidate, RouteSelectionError> {
-    match plan_corridor_with_context(
-        local_node_id,
-        topology,
-        objective,
-        config,
-        evidence,
-        context,
-    ) {
+    match plan_corridor_with_context(local_node_id, topology, objective, inputs) {
         MercatorPlanningOutcome::Selected(corridor) => corridor.candidate(objective, topology),
         MercatorPlanningOutcome::NoCandidate => Err(RouteSelectionError::NoCandidate),
         MercatorPlanningOutcome::Inadmissible => Err(RouteSelectionError::Inadmissible(
@@ -272,9 +280,7 @@ pub fn check_candidate(
         objective,
         profile,
         candidate,
-        config,
-        evidence,
-        MercatorPlanningContext::default(),
+        MercatorPlanningInputs::default_context(config, evidence),
     )
 }
 
@@ -284,18 +290,9 @@ pub fn check_candidate_with_context(
     objective: &RoutingObjective,
     profile: &SelectedRoutingParameters,
     candidate: &RouteCandidate,
-    config: &MercatorEngineConfig,
-    evidence: &MercatorEvidenceGraph,
-    context: MercatorPlanningContext,
+    inputs: MercatorPlanningInputs<'_>,
 ) -> Result<RouteAdmissionCheck, RouteSelectionError> {
-    let expected = candidate_for_with_context(
-        local_node_id,
-        topology,
-        objective,
-        config,
-        evidence,
-        context,
-    )?;
+    let expected = candidate_for_with_context(local_node_id, topology, objective, inputs)?;
     if expected.backend_ref != candidate.backend_ref || expected.route_id != candidate.route_id {
         return Err(RouteSelectionError::Inadmissible(
             jacquard_core::RouteAdmissionRejection::BackendUnavailable,
@@ -319,9 +316,7 @@ pub fn admit_candidate(
         objective,
         profile,
         candidate,
-        config,
-        evidence,
-        MercatorPlanningContext::default(),
+        MercatorPlanningInputs::default_context(config, evidence),
     )
 }
 
@@ -331,18 +326,9 @@ pub fn admit_candidate_with_context(
     objective: &RoutingObjective,
     profile: &SelectedRoutingParameters,
     candidate: &RouteCandidate,
-    config: &MercatorEngineConfig,
-    evidence: &MercatorEvidenceGraph,
-    context: MercatorPlanningContext,
+    inputs: MercatorPlanningInputs<'_>,
 ) -> Result<RouteAdmission, RouteSelectionError> {
-    let expected = candidate_for_with_context(
-        local_node_id,
-        topology,
-        objective,
-        config,
-        evidence,
-        context,
-    )?;
+    let expected = candidate_for_with_context(local_node_id, topology, objective, inputs)?;
     if expected.backend_ref != candidate.backend_ref || expected.route_id != candidate.route_id {
         return Err(RouteSelectionError::Inadmissible(
             jacquard_core::RouteAdmissionRejection::BackendUnavailable,
@@ -934,137 +920,4 @@ fn topology_link_score(link: &Link) -> u16 {
 
 fn hop_count_for_path(path: &[NodeId]) -> u8 {
     u8::try_from(path.len().saturating_sub(1)).unwrap_or(u8::MAX)
-}
-
-fn route_id_for_backend(backend_route_id: &BackendRouteId) -> RouteId {
-    RouteId::from(&Blake3Hashing.hash_tagged(MERCATOR_ROUTE_ID_DOMAIN, &backend_route_id.0))
-}
-
-fn encode_backend_token(
-    token: &MercatorBackendToken,
-) -> Result<BackendRouteId, RouteSelectionError> {
-    let mut bytes = Vec::new();
-    bytes.push(MERCATOR_TOKEN_VERSION);
-    bytes.extend_from_slice(&token.topology_epoch.0.to_be_bytes());
-    encode_destination(&token.destination, &mut bytes)?;
-    bytes.push(
-        u8::try_from(token.primary_path.len()).map_err(|_| RouteSelectionError::PolicyConflict)?,
-    );
-    for node in &token.primary_path {
-        bytes.extend_from_slice(&node.0);
-    }
-    bytes.push(
-        u8::try_from(token.alternate_next_hops.len())
-            .map_err(|_| RouteSelectionError::PolicyConflict)?,
-    );
-    for node in &token.alternate_next_hops {
-        bytes.extend_from_slice(&node.0);
-    }
-    bytes.push(
-        u8::try_from(token.alternate_paths.len())
-            .map_err(|_| RouteSelectionError::PolicyConflict)?,
-    );
-    for path in &token.alternate_paths {
-        bytes.push(u8::try_from(path.len()).map_err(|_| RouteSelectionError::PolicyConflict)?);
-        for node in path {
-            bytes.extend_from_slice(&node.0);
-        }
-    }
-    bytes.extend_from_slice(&token.support_score.to_be_bytes());
-    Ok(BackendRouteId(bytes))
-}
-
-fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<MercatorBackendToken> {
-    let bytes = &backend_route_id.0;
-    let mut cursor = 0_usize;
-    if *bytes.get(cursor)? != MERCATOR_TOKEN_VERSION {
-        return None;
-    }
-    cursor = cursor.saturating_add(1);
-    let topology_epoch = RouteEpoch(u64::from_be_bytes(read_array(bytes, &mut cursor)?));
-    let destination = decode_destination(bytes, &mut cursor)?;
-    let primary_len = usize::from(*bytes.get(cursor)?);
-    cursor = cursor.saturating_add(1);
-    let mut primary_path = Vec::with_capacity(primary_len);
-    for _ in 0..primary_len {
-        primary_path.push(NodeId(read_array(bytes, &mut cursor)?));
-    }
-    let alternate_len = usize::from(*bytes.get(cursor)?);
-    cursor = cursor.saturating_add(1);
-    let mut alternate_next_hops = Vec::with_capacity(alternate_len);
-    for _ in 0..alternate_len {
-        alternate_next_hops.push(NodeId(read_array(bytes, &mut cursor)?));
-    }
-    let alternate_path_len = usize::from(*bytes.get(cursor)?);
-    cursor = cursor.saturating_add(1);
-    let mut alternate_paths = Vec::with_capacity(alternate_path_len);
-    for _ in 0..alternate_path_len {
-        let path_len = usize::from(*bytes.get(cursor)?);
-        cursor = cursor.saturating_add(1);
-        let mut path = Vec::with_capacity(path_len);
-        for _ in 0..path_len {
-            path.push(NodeId(read_array(bytes, &mut cursor)?));
-        }
-        alternate_paths.push(path);
-    }
-    let support_score = u16::from_be_bytes(read_array(bytes, &mut cursor)?);
-    Some(MercatorBackendToken {
-        topology_epoch,
-        destination,
-        primary_path,
-        alternate_next_hops,
-        alternate_paths,
-        support_score,
-    })
-}
-
-fn encode_destination(
-    destination: &DestinationId,
-    out: &mut Vec<u8>,
-) -> Result<(), RouteSelectionError> {
-    match destination {
-        DestinationId::Node(node) => {
-            out.push(0);
-            out.extend_from_slice(&node.0);
-        }
-        DestinationId::Service(service) => {
-            out.push(1);
-            let len =
-                u16::try_from(service.0.len()).map_err(|_| RouteSelectionError::PolicyConflict)?;
-            out.extend_from_slice(&len.to_be_bytes());
-            out.extend_from_slice(&service.0);
-        }
-        DestinationId::Gateway(gateway) => {
-            out.push(2);
-            out.extend_from_slice(&gateway.0);
-        }
-    }
-    Ok(())
-}
-
-fn decode_destination(bytes: &[u8], cursor: &mut usize) -> Option<DestinationId> {
-    let kind = *bytes.get(*cursor)?;
-    *cursor = (*cursor).saturating_add(1);
-    match kind {
-        0 => Some(DestinationId::Node(NodeId(read_array(bytes, cursor)?))),
-        1 => {
-            let len = usize::from(u16::from_be_bytes(read_array(bytes, cursor)?));
-            let end = (*cursor).checked_add(len)?;
-            let service = bytes.get(*cursor..end)?.to_vec();
-            *cursor = end;
-            Some(DestinationId::Service(jacquard_core::ServiceId(service)))
-        }
-        2 => Some(DestinationId::Gateway(jacquard_core::GatewayId(
-            read_array(bytes, cursor)?,
-        ))),
-        _ => None,
-    }
-}
-
-fn read_array<const N: usize>(bytes: &[u8], cursor: &mut usize) -> Option<[u8; N]> {
-    let end = cursor.checked_add(N)?;
-    let mut out = [0u8; N];
-    out.copy_from_slice(bytes.get(*cursor..end)?);
-    *cursor = end;
-    Some(out)
 }

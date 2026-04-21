@@ -15,6 +15,7 @@ use std::{
 };
 
 pub mod corridor;
+mod corridor_token;
 pub mod custody;
 pub mod evidence;
 mod planner;

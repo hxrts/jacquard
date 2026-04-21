@@ -9,7 +9,7 @@ use jacquard_core::{
 use jacquard_traits::RoutingEnginePlanner;
 
 use crate::{
-    corridor::{self, MercatorPlanningOutcome},
+    corridor::{self, MercatorPlanningInputs, MercatorPlanningOutcome},
     MercatorEngine, MERCATOR_CAPABILITIES, MERCATOR_ENGINE_ID,
 };
 
@@ -36,9 +36,7 @@ impl RoutingEnginePlanner for MercatorEngine {
             self.local_node_id,
             topology,
             objective,
-            &self.config,
-            &self.evidence,
-            context,
+            MercatorPlanningInputs::new(&self.config, &self.evidence, context),
         );
         self.record_planning_outcome(&outcome);
         match outcome {
@@ -73,9 +71,7 @@ impl RoutingEnginePlanner for MercatorEngine {
             objective,
             profile,
             candidate,
-            &self.config,
-            &self.evidence,
-            context,
+            MercatorPlanningInputs::new(&self.config, &self.evidence, context),
         )
         .map_err(RouteError::from)
     }
@@ -94,9 +90,7 @@ impl RoutingEnginePlanner for MercatorEngine {
             objective,
             profile,
             &candidate,
-            &self.config,
-            &self.evidence,
-            context,
+            MercatorPlanningInputs::new(&self.config, &self.evidence, context),
         )
         .map_err(RouteError::from)
     }

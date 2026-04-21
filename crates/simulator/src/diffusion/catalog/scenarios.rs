@@ -589,7 +589,7 @@ mod tests {
         build_large_congestion_threshold_moderate_scenario,
         build_large_regional_shift_high_scenario, build_large_regional_shift_moderate_scenario,
         build_large_sparse_threshold_high_scenario, build_large_sparse_threshold_moderate_scenario,
-        build_partitioned_clusters_scenario,
+        build_partitioned_clusters_scenario, build_sparse_long_delay_scenario,
     };
     use crate::diffusion::{
         posture::{field_budget_kind, field_forwarding_suppressed},
@@ -597,8 +597,9 @@ mod tests {
             aggregate_diffusion_runs, bounded_state, generate_contacts, simulate_diffusion_run,
         },
         runtime::DiffusionRunSpec,
-        DiffusionFieldPosture, DiffusionForwardingStyle, DiffusionPolicyConfig, FieldBudgetState,
-        FieldExecutionMetrics, FieldSuppressionState, FieldTransferFeatures,
+        DiffusionFieldPosture, DiffusionForwardingStyle, DiffusionPolicyConfig,
+        DiffusionScenarioSpec, FieldBudgetState, FieldExecutionMetrics, FieldSuppressionState,
+        FieldTransferFeatures,
     };
 
     fn transition_profile(config_id: &str) -> DiffusionPolicyConfig {
@@ -1186,6 +1187,86 @@ mod tests {
                 summary.family_id,
             );
         }
+    }
+
+    #[test]
+    fn mercator_profile_keeps_figure_twenty_nine_families_bounded() {
+        let policy = diffusion_engine_profile("mercator");
+        for seed in [41, 43, 47, 53] {
+            for scenario in mercator_figure_twenty_nine_unicast_cases() {
+                assert_mercator_unicast_case_is_bounded(&policy, scenario, seed);
+            }
+        }
+        for seed in [41, 43, 47, 53] {
+            assert_mercator_congestion_case_is_viable(&policy, seed);
+        }
+    }
+
+    fn mercator_figure_twenty_nine_unicast_cases() -> [DiffusionScenarioSpec; 5] {
+        [
+            build_partitioned_clusters_scenario(),
+            build_sparse_long_delay_scenario(),
+            build_adversarial_observation_scenario(),
+            build_bridge_drought_scenario(),
+            build_energy_starved_relay_scenario(),
+        ]
+    }
+
+    fn assert_mercator_unicast_case_is_bounded(
+        policy: &DiffusionPolicyConfig,
+        scenario: DiffusionScenarioSpec,
+        seed: u64,
+    ) {
+        let summary = simulate_diffusion_run(&DiffusionRunSpec {
+            suite_id: "test".to_string(),
+            family_id: scenario.family_id.clone(),
+            seed,
+            policy: policy.clone(),
+            scenario,
+        });
+        assert_eq!(
+            summary.delivery_probability_permille, 1000,
+            "{} seed {seed} should keep unicast delivery",
+            summary.family_id,
+        );
+        assert_eq!(
+            summary.bounded_state, "viable",
+            "{} seed {seed} should stay bounded",
+            summary.family_id,
+        );
+        assert!(
+            summary.total_transmissions <= 4,
+            "{} seed {seed} used {} transmissions",
+            summary.family_id,
+            summary.total_transmissions,
+        );
+        assert_eq!(
+            summary.observer_leakage_permille, 0,
+            "{} seed {seed} should avoid observer leakage",
+            summary.family_id,
+        );
+    }
+
+    fn assert_mercator_congestion_case_is_viable(policy: &DiffusionPolicyConfig, seed: u64) {
+        let congestion = build_congestion_cascade_scenario();
+        let summary = simulate_diffusion_run(&DiffusionRunSpec {
+            suite_id: "test".to_string(),
+            family_id: congestion.family_id.clone(),
+            seed,
+            policy: policy.clone(),
+            scenario: congestion,
+        });
+        assert!(
+            summary.delivery_probability_permille >= 500,
+            "{} seed {} delivered below floor",
+            summary.family_id,
+            summary.seed,
+        );
+        assert_eq!(
+            summary.bounded_state, "viable",
+            "{} seed {} should stay viable",
+            summary.family_id, summary.seed,
+        );
     }
 
     #[test]
