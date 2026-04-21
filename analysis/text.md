@@ -60,7 +60,7 @@ The simulator now also records model-lane snapshot and reducer artifacts for val
 
 #### Matrix Design
 
-The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-classic`, `batman-bellman`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. For `scatter`, the route-visible sweep compares the maintained `balanced`, `conservative`, and `degraded-network` profiles. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
+The tuning matrix changes one small set of conditions at a time. Across the corpus, it varies network density, loss, interference, asymmetry, topology change, node pressure, and objective type. For `batman-classic`, `batman-bellman`, `babel`, and `olsrv2`, the main sweep changes decay-window settings. For `scatter`, the route-visible sweep compares the maintained `balanced`, `conservative`, and `degraded-network` profiles. For `mercator`, the route-visible sweep uses the fixed bounded-custody posture against the same maintained route-visible families. For `pathway` and `field`, the main sweep changes per-objective search budget and heuristic mode.
 
 The recommendations are meant to be good defaults for this modeled corpus, not single winners from one scenario.
 
@@ -122,6 +122,12 @@ The Jacquard engine intentionally simplifies the full RFC surface: it keeps one 
 `scatter` is Jacquard's bounded deferred-delivery diffusion engine. It publishes an opaque, partition-tolerant route claim when the objective is supportable, then performs engine-private store-carry-forward movement with hard copy budgets, scope-relative carrier scoring, local regime selection, and contact-feasibility gates.
 
 Unlike an acknowledgement-driven custody protocol, `scatter` does not assume authoritative transfer. It retains bounded payload custody locally, can split copy budget conservatively across better carriers, and may prefer a better carrier without claiming globally reliable handoff semantics. Its retained state is payload custody plus local diffusion metadata, not a topology graph or explicit path.
+
+#### Mercator Algorithm
+
+`mercator` combines connected corridor search, maintained repair evidence, weakest-flow reservation, broker-pressure accounting, and bounded custody posture. It publishes one connected corridor claim only when connected support exists. When support does not exist, custody remains engine-private and bounded through the shared retention boundary rather than becoming a synthetic connected route.
+
+The route-visible experiments exercise Mercator as a fixed representative engine set. The diffusion experiments use its bounded custody profile to compare strict-improvement carrier selection, protected bridge budget, and suppression behavior against `scatter`, `field`, and proactive baselines.
 
 #### Pathway Algorithm
 
@@ -371,7 +377,7 @@ Column guide: Surface is the comparison surface (`comparison` or `head-to-head`)
 
 @table head-to-head-summary
 
-Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `pathway`, `pathway-batman-bellman`, and `field`. Column guide: Engine Set is the only stack enabled; Activation is objective activation success; Active Route is total-window route presence; Selected Leader is the selected-round leader for that run and may be `tie`; Stress is the regime stress score.
+Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `mercator`, `pathway`, `pathway-batman-bellman`, and `field`. Column guide: Engine Set is the only stack enabled; Activation is objective activation success; Active Route is total-window route presence; Selected Leader is the selected-round leader for that run and may be `tie`; Stress is the regime stress score.
 
 #### Benchmark Profile Audit
 
@@ -904,4 +910,4 @@ The BATMAN Bellman corpus exposes recoverable transition differences, but asymme
 
 The Field corpus reaches the route-visible boundary with an explicit bootstrap phase and working service-corridor path, but tested settings cluster tightly. The bridge anti-entropy and bootstrap-upgrade families allow the report to distinguish between underexercise and real weakness. The remaining limitation is that tested settings cluster closely, leaving room for more discriminating future regime design.
 
-The remaining routing-fitness experiments narrow the route-visible decision to one explicit envelope rather than several open questions. Within the tested search-burden, shared-broker, and stale-observation bands, the hybrid search-plus-maintenance direction is supported as fit for purpose; pure search degrades earlier once diameter and shared bottlenecks both rise. The remaining limitation is now extrapolation beyond this maintained envelope, not uncertainty about the basic direction inside it.
+The remaining routing-fitness experiments narrow the route-visible decision to one explicit envelope rather than several open questions. Within the tested search-burden, shared-broker, and stale-observation bands, the Mercator hybrid search-plus-maintenance direction is supported as fit for purpose; pure search degrades earlier once diameter and shared bottlenecks both rise. The remaining limitation is now extrapolation beyond this maintained envelope, not uncertainty about the basic direction inside it.

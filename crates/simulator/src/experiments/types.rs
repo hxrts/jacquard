@@ -159,6 +159,38 @@ pub struct ExperimentParameterSet {
     pub field_node_discovery_enabled: Option<bool>,
 }
 
+fn no_tuning_fields(
+    engine_family: &str,
+    config_id: &str,
+    comparison_engine_set: Option<ComparisonEngineSet>,
+) -> ExperimentParameterSet {
+    ExperimentParameterSet {
+        engine_family: engine_family.to_string(),
+        config_id: config_id.to_string(),
+        comparison_engine_set,
+        batman_bellman_stale_after_ticks: None,
+        batman_bellman_next_refresh_within_ticks: None,
+        pathway_query_budget: None,
+        pathway_heuristic_mode: None,
+        scatter_profile_id: None,
+        field_query_budget: None,
+        field_heuristic_mode: None,
+        field_service_publication_neighbor_limit: None,
+        field_service_freshness_weight: None,
+        field_service_narrowing_bias: None,
+        field_node_bootstrap_support_floor: None,
+        field_node_bootstrap_top_mass_floor: None,
+        field_node_bootstrap_entropy_ceiling: None,
+        field_node_discovery_enabled: None,
+        batman_classic_stale_after_ticks: None,
+        batman_classic_next_refresh_within_ticks: None,
+        babel_stale_after_ticks: None,
+        babel_next_refresh_within_ticks: None,
+        olsrv2_stale_after_ticks: None,
+        olsrv2_next_refresh_within_ticks: None,
+    }
+}
+
 fn optional_decay_fields(decay_window: Option<(u32, u32)>) -> (Option<u32>, Option<u32>) {
     decay_window.map_or((None, None), |(stale, refresh)| {
         (Some(stale), Some(refresh))
@@ -666,6 +698,11 @@ impl ExperimentParameterSet {
     }
 
     #[must_use]
+    pub fn mercator() -> Self {
+        no_tuning_fields("mercator", "mercator", Some(ComparisonEngineSet::Mercator))
+    }
+
+    #[must_use]
     pub fn scatter_config(&self) -> Option<ScatterEngineConfig> {
         match self.scatter_profile_id.as_deref()? {
             "balanced" => Some(ScatterEngineConfig::default()),
@@ -1102,6 +1139,7 @@ pub struct ExperimentRunSummary {
     pub olsrv2_selected_rounds: u32,
     pub pathway_selected_rounds: u32,
     pub scatter_selected_rounds: u32,
+    pub mercator_selected_rounds: u32,
     pub scatter_sparse_rounds: u32,
     pub scatter_dense_rounds: u32,
     pub scatter_bridging_rounds: u32,
@@ -1237,6 +1275,7 @@ pub struct ExperimentAggregateSummary {
     pub olsrv2_selected_rounds_mean: u32,
     pub pathway_selected_rounds_mean: u32,
     pub scatter_selected_rounds_mean: u32,
+    pub mercator_selected_rounds_mean: u32,
     pub scatter_sparse_rounds_mean: u32,
     pub scatter_dense_rounds_mean: u32,
     pub scatter_bridging_rounds_mean: u32,

@@ -72,6 +72,7 @@ pub fn local_stage_suite_with_seeds_and_config(
             "local-babel" => build_babel_runs(suite_id, seeds, false),
             "local-olsrv2" => build_olsrv2_runs(suite_id, seeds, false),
             "local-scatter" => build_scatter_runs(suite_id, seeds, comparative_scale),
+            "local-mercator" => build_mercator_runs(suite_id, seeds, comparative_scale),
             "local-pathway" => build_pathway_runs(suite_id, seeds, false),
             "local-field" => build_field_runs(suite_id, seeds, false),
             "local-comparison" => build_comparison_runs(suite_id, seeds, comparative_scale),
@@ -727,6 +728,16 @@ fn build_scatter_runs(
     expand_runs(suite_id, "scatter", seeds, &parameter_sets, &families)
 }
 
+fn build_mercator_runs(
+    suite_id: &str,
+    seeds: &[u64],
+    scale: ComparativeSuiteScale,
+) -> Vec<ExperimentRunSpec> {
+    let parameter_sets = vec![ExperimentParameterSet::mercator()];
+    let families = head_to_head_family_descriptors(scale);
+    expand_runs(suite_id, "mercator", seeds, &parameter_sets, &families)
+}
+
 fn build_comparison_runs(
     suite_id: &str,
     seeds: &[u64],
@@ -820,6 +831,7 @@ fn build_suite(suite_id: &str, seeds: &[u64], smoke: bool) -> ExperimentSuite {
     runs.extend(build_babel_runs(suite_id, seeds, smoke));
     runs.extend(build_olsrv2_runs(suite_id, seeds, smoke));
     runs.extend(build_scatter_runs(suite_id, seeds, comparative_scale));
+    runs.extend(build_mercator_runs(suite_id, seeds, comparative_scale));
     runs.extend(build_pathway_runs(suite_id, seeds, smoke));
     runs.extend(build_field_runs(suite_id, seeds, smoke));
     runs.extend(build_comparison_runs(suite_id, seeds, comparative_scale));
@@ -1673,9 +1685,13 @@ fn pilot_scatter_line_scenario(
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{local_stage_suite, local_suite, smoke_suite};
-    use crate::experiments::runner::{execute_suite_runs_parallel, execute_suite_runs_serial};
-    use crate::ReferenceClientAdapter;
+    use super::{
+        local_stage_suite, local_stage_suite_with_seeds_and_config, local_suite, smoke_suite,
+    };
+    use crate::experiments::runner::{
+        execute_suite_runs_parallel, execute_suite_runs_serial, run_suite,
+    };
+    use crate::{JacquardSimulator, ReferenceClientAdapter};
 
     #[test]
     fn route_visible_parallel_suite_matches_serial_ordered_runs() {
@@ -1727,6 +1743,7 @@ mod tests {
             "local-batman-classic",
             "local-babel",
             "local-olsrv2",
+            "local-mercator",
         ] {
             let suite = local_stage_suite(stage_id).expect("standalone local stage should exist");
             let run_ids = suite
@@ -1786,5 +1803,98 @@ mod tests {
                 "{family_id} missing from grouped local head-to-head stage"
             );
         }
+    }
+
+    #[test]
+    fn mercator_matrix_includes_maintained_route_visible_surfaces() {
+        let suite = local_suite();
+        let run_keys = suite
+            .runs
+            .iter()
+            .map(|run| {
+                (
+                    run.engine_family.as_str(),
+                    run.family_id.as_str(),
+                    run.parameters.config_id.as_str(),
+                )
+            })
+            .collect::<BTreeSet<_>>();
+
+        for family_id in [
+            "head-to-head-connected-low-loss",
+            "head-to-head-large-multi-bottleneck-high",
+            "head-to-head-multi-flow-shared-corridor",
+            "head-to-head-stale-recovery-window",
+        ] {
+            assert!(
+                run_keys.contains(&("mercator", family_id, "mercator")),
+                "{family_id} missing from standalone mercator tuning matrix"
+            );
+            assert!(
+                run_keys.contains(&("head-to-head", family_id, "head-to-head-mercator")),
+                "{family_id} missing from head-to-head mercator matrix"
+            );
+        }
+    }
+
+    #[test]
+    fn mercator_full_battery_staged_filters_include_mercator() {
+        let standalone = local_stage_suite("local-mercator")
+            .expect("standalone mercator local stage should exist");
+        assert!(
+            standalone.runs.iter().all(
+                |run| run.engine_family == "mercator" && run.parameters.config_id == "mercator"
+            ),
+            "standalone mercator stage should contain only mercator rows"
+        );
+
+        let head_to_head =
+            local_stage_suite("local-head-to-head").expect("head-to-head local stage should exist");
+        assert!(
+            head_to_head
+                .runs
+                .iter()
+                .any(|run| run.parameters.config_id == "head-to-head-mercator"),
+            "staged full battery should retain mercator head-to-head rows"
+        );
+    }
+
+    #[test]
+    fn mercator_generated_artifacts_include_aggregate_and_breakdown_rows() {
+        let suite = local_stage_suite_with_seeds_and_config(
+            "local-head-to-head-multi-flow-shared-corridor",
+            &[41],
+            Some("head-to-head-mercator"),
+        )
+        .expect("mercator head-to-head stage should exist");
+        let output_dir = std::env::temp_dir().join(format!(
+            "jacquard-mercator-artifacts-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&output_dir);
+
+        let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
+        let artifacts = run_suite(&mut simulator, &suite, &output_dir)
+            .expect("mercator artifact suite should run");
+
+        assert!(artifacts.runs.iter().any(|run| {
+            run.engine_family == "head-to-head"
+                && run.comparison_engine_set.as_deref() == Some("mercator")
+                && run.config_id == "head-to-head-mercator"
+        }));
+        assert!(artifacts.aggregates.iter().any(|aggregate| {
+            aggregate.engine_family == "head-to-head"
+                && aggregate.comparison_engine_set.as_deref() == Some("mercator")
+                && aggregate.config_id == "head-to-head-mercator"
+        }));
+        assert!(artifacts.breakdowns.iter().any(|breakdown| {
+            breakdown.engine_family == "head-to-head"
+                && breakdown.config_id == "head-to-head-mercator"
+        }));
+        assert!(output_dir.join("runs.jsonl").exists());
+        assert!(output_dir.join("aggregates.json").exists());
+        assert!(output_dir.join("breakdowns.json").exists());
+
+        let _ = std::fs::remove_dir_all(output_dir);
     }
 }

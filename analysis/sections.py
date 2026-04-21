@@ -1172,6 +1172,10 @@ def scatter_algorithm_lines() -> list[str]:
     return section_lines("Scatter Algorithm")
 
 
+def mercator_algorithm_lines() -> list[str]:
+    return section_lines("Mercator Algorithm")
+
+
 def pathway_algorithm_lines() -> list[str]:
     return section_lines("Pathway Algorithm")
 

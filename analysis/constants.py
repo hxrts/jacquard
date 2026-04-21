@@ -39,6 +39,7 @@ ENGINE_COLORS = {
     "olsrv2": "#167C72",
     "pathway": "#31976D",
     "scatter": "#C46A1B",
+    "mercator": "#6D5BD0",
     "field": "#C45E8B",
     "pathway-batman-bellman": "#C7A21A",
 }
@@ -126,6 +127,7 @@ ROUTE_VISIBLE_ENGINE_SET_ORDER = [
     "olsrv2",
     "pathway",
     "scatter",
+    "mercator",
     "pathway-batman-bellman",
     "field",
 ]

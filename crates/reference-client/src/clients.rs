@@ -314,6 +314,7 @@ impl ClientBuilder {
             .with_babel()
             .with_olsrv2()
             .with_scatter()
+            .with_mercator()
             .with_queue_config(BridgeQueueConfig::new(320, 320))
     }
 
@@ -930,6 +931,7 @@ mod tests {
         assert!(registered.contains(&OLSRV2_ENGINE_ID));
         assert!(registered.contains(&FIELD_ENGINE_ID));
         assert!(registered.contains(&SCATTER_ENGINE_ID));
+        assert!(registered.contains(&MERCATOR_ENGINE_ID));
     }
 
     #[test]

@@ -18,6 +18,7 @@ def recommendation_table_rows(
         "olsrv2",
         "pathway",
         "scatter",
+        "mercator",
         "comparison",
         "field",
     ]:
@@ -202,6 +203,7 @@ def comparison_engine_round_breakdown_table_rows(
                 str(row["olsrv2_selected_rounds_mean"]),
                 str(row["pathway_selected_rounds_mean"]),
                 str(row["scatter_selected_rounds_mean"]),
+                str(row["mercator_selected_rounds_mean"]),
                 str(row["field_selected_rounds_mean"]),
             ]
         )

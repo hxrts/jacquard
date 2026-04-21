@@ -812,6 +812,7 @@ pub(super) fn summarize_run(
         olsrv2_selected_rounds: *engine_round_counts.get("olsrv2").unwrap_or(&0),
         pathway_selected_rounds: *engine_round_counts.get("pathway").unwrap_or(&0),
         scatter_selected_rounds: *engine_round_counts.get("scatter").unwrap_or(&0),
+        mercator_selected_rounds: *engine_round_counts.get("mercator").unwrap_or(&0),
         scatter_sparse_rounds,
         scatter_dense_rounds,
         scatter_bridging_rounds,
@@ -1044,6 +1045,8 @@ pub fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateS
                 average_u32(group.iter().map(|run| run.pathway_selected_rounds));
             let scatter_selected_rounds_mean =
                 average_u32(group.iter().map(|run| run.scatter_selected_rounds));
+            let mercator_selected_rounds_mean =
+                average_u32(group.iter().map(|run| run.mercator_selected_rounds));
             let scatter_sparse_rounds_mean =
                 average_u32(group.iter().map(|run| run.scatter_sparse_rounds));
             let scatter_dense_rounds_mean =
@@ -1262,6 +1265,7 @@ pub fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateS
                 olsrv2_selected_rounds_mean,
                 pathway_selected_rounds_mean,
                 scatter_selected_rounds_mean,
+                mercator_selected_rounds_mean,
                 scatter_sparse_rounds_mean,
                 scatter_dense_rounds_mean,
                 scatter_bridging_rounds_mean,

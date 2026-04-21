@@ -4049,20 +4049,21 @@ mod tests {
         let parameters =
             ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
         let destination = DestinationId::Node(node_id(6));
-        for (family, builder) in [
+        let cases: [(&str, ComparisonBuilder); 3] = [
             (
                 "head-to-head-stale-observation-delay",
-                build_comparison_stale_observation_delay as ComparisonBuilder,
+                build_comparison_stale_observation_delay,
             ),
             (
                 "head-to-head-stale-asymmetric-region",
-                build_comparison_stale_asymmetric_region as ComparisonBuilder,
+                build_comparison_stale_asymmetric_region,
             ),
             (
                 "head-to-head-stale-recovery-window",
-                build_comparison_stale_recovery_window as ComparisonBuilder,
+                build_comparison_stale_recovery_window,
             ),
-        ] {
+        ];
+        for (family, builder) in cases {
             let (scenario, environment) = builder(&parameters, SimulationSeed(41));
             let reduced = run_reduced_replay(&scenario, &environment);
             let summary = summarize_replay(family, &parameters, &scenario, &reduced);
@@ -4084,20 +4085,21 @@ mod tests {
     fn head_to_head_mercator_multi_flow_families_avoid_zero_service_tails() {
         let parameters =
             ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
-        for (family, builder) in [
+        let cases: [(&str, ComparisonBuilder); 3] = [
             (
                 "head-to-head-multi-flow-shared-corridor",
-                build_comparison_multi_flow_shared_corridor as ComparisonBuilder,
+                build_comparison_multi_flow_shared_corridor,
             ),
             (
                 "head-to-head-multi-flow-asymmetric-demand",
-                build_comparison_multi_flow_asymmetric_demand as ComparisonBuilder,
+                build_comparison_multi_flow_asymmetric_demand,
             ),
             (
                 "head-to-head-multi-flow-detour-choice",
-                build_comparison_multi_flow_detour_choice as ComparisonBuilder,
+                build_comparison_multi_flow_detour_choice,
             ),
-        ] {
+        ];
+        for (family, builder) in cases {
             let (scenario, environment) = builder(&parameters, SimulationSeed(41));
             let reduced = run_reduced_replay(&scenario, &environment);
             for binding in scenario.bound_objectives() {

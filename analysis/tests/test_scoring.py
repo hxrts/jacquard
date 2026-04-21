@@ -669,6 +669,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                     "olsrv2_selected_rounds_mean": 0.0,
                     "pathway_selected_rounds_mean": 10.0,
                     "scatter_selected_rounds_mean": 0.0,
+                    "mercator_selected_rounds_mean": 0.0,
                     "field_selected_rounds_mean": 0.0,
                 },
                 {
@@ -685,6 +686,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                     "olsrv2_selected_rounds_mean": 0.0,
                     "pathway_selected_rounds_mean": 0.0,
                     "scatter_selected_rounds_mean": 0.0,
+                    "mercator_selected_rounds_mean": 4.0,
                     "field_selected_rounds_mean": 10.0,
                 },
             ]
@@ -695,6 +697,18 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         row = breakdown.row(0, named=True)
         self.assertEqual(row["config_id"], "total-window-high")
         self.assertEqual(row["route_present_total_window_permille_mean"], 800.0)
+        self.assertEqual(row["mercator_selected_rounds_mean"], 4.0)
+
+    def test_mercator_is_in_route_visible_engine_order(self) -> None:
+        self.assertIn("mercator", ROUTE_VISIBLE_ENGINE_SET_ORDER)
+        self.assertLess(
+            ROUTE_VISIBLE_ENGINE_SET_ORDER.index("scatter"),
+            ROUTE_VISIBLE_ENGINE_SET_ORDER.index("mercator"),
+        )
+        self.assertLess(
+            ROUTE_VISIBLE_ENGINE_SET_ORDER.index("mercator"),
+            ROUTE_VISIBLE_ENGINE_SET_ORDER.index("field"),
+        )
 
     def test_recommendation_table_prefers_total_window_route_presence(self) -> None:
         common = _field_route_visible_aggregates().row(0, named=True)

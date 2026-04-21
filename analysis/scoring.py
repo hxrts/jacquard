@@ -148,6 +148,7 @@ _OPTIONAL_FLOAT_COLUMNS = [
     "olsrv2_selected_rounds_mean",
     "pathway_selected_rounds_mean",
     "scatter_selected_rounds_mean",
+    "mercator_selected_rounds_mean",
     "scatter_sparse_rounds_mean",
     "scatter_dense_rounds_mean",
     "scatter_bridging_rounds_mean",
@@ -330,6 +331,7 @@ def profile_recommendation_table(
         "babel": ["conservative", "aggressive", "degraded-network"],
         "olsrv2": ["conservative", "aggressive", "degraded-network"],
         "scatter": ["balanced", "conservative", "degraded-network"],
+        "mercator": ["balanced", "degraded-network", "service-heavy"],
         "pathway": ["balanced", "service-heavy", "degraded-network"],
         "field": [
             "balanced",
@@ -1406,6 +1408,7 @@ def comparison_engine_round_breakdown_table(aggregates: pl.DataFrame) -> pl.Data
             pl.first("olsrv2_selected_rounds_mean").alias("olsrv2_selected_rounds_mean"),
             pl.first("pathway_selected_rounds_mean").alias("pathway_selected_rounds_mean"),
             pl.first("scatter_selected_rounds_mean").alias("scatter_selected_rounds_mean"),
+            pl.first("mercator_selected_rounds_mean").alias("mercator_selected_rounds_mean"),
             pl.first("field_selected_rounds_mean").alias("field_selected_rounds_mean"),
         )
         .select(
@@ -1421,6 +1424,7 @@ def comparison_engine_round_breakdown_table(aggregates: pl.DataFrame) -> pl.Data
             "olsrv2_selected_rounds_mean",
             "pathway_selected_rounds_mean",
             "scatter_selected_rounds_mean",
+            "mercator_selected_rounds_mean",
             "field_selected_rounds_mean",
         )
         .sort("family_id")
@@ -1499,6 +1503,7 @@ def comparison_config_sensitivity_table(aggregates: pl.DataFrame) -> pl.DataFram
         "babel_selected_rounds_mean",
         "olsrv2_selected_rounds_mean",
         "scatter_selected_rounds_mean",
+        "mercator_selected_rounds_mean",
         "pathway_selected_rounds_mean",
         "field_selected_rounds_mean",
     ]

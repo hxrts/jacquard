@@ -152,6 +152,7 @@ impl TopologyNodePreset {
             BABEL_ENGINE_ID,
             OLSRV2_ENGINE_ID,
             SCATTER_ENGINE_ID,
+            MERCATOR_ENGINE_ID,
         ])
     }
 
