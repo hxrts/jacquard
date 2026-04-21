@@ -48,10 +48,4 @@ graph LR
 
 The reference end-to-end examples are the split `reference-client` tests in [`crates/reference-client/tests/client_builder.rs`](../crates/reference-client/tests/client_builder.rs), [`crates/reference-client/tests/e2e_pathway_shared_network.rs`](../crates/reference-client/tests/e2e_pathway_shared_network.rs), [`crates/reference-client/tests/e2e_batman_pathway_handoff.rs`](../crates/reference-client/tests/e2e_batman_pathway_handoff.rs), [`crates/reference-client/tests/e2e_olsrv2_shared_network.rs`](../crates/reference-client/tests/e2e_olsrv2_shared_network.rs), and [`crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs`](../crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs), plus the shared scenarios in [`crates/testkit/src/reference_client_scenarios.rs`](../crates/testkit/src/reference_client_scenarios.rs). They show how to add a new client runtime to the same in-memory network without bypassing the bridge-owned ingress path or the router-owned canonical path.
 
-## Extension Guidance
-
-Mirror the existing layering when adding a new device or transport profile. Build node-side world inputs as builders over the shared `NodeProfile`, `NodeState`, and `ServiceDescriptor` types. Build link-side and transport behavior as adapters that implement the shared effect boundaries listed above.
-
-Reuse `jacquard-adapter` only for generic mailbox, peer, or claim ownership support. Compose the new profile with the router and a routing engine through a host harness that looks like `jacquard-reference-client`. Do not introduce a parallel node schema, a pathway-specific transport trait, or transport-specific endpoint constructors inside the mem or reference profile crates.
-
-Keep the ownership boundary strict. Profile crates stay `Observed`. Routers stay the canonical `ActorOwned` route publisher. Routing engines own only route-private runtime state and typed evidence. The [Crate Architecture](999_crate_architecture.md) document has the full dependency graph and ownership rules these crates fit into.
+For walkthroughs on implementing a custom link or a custom node profile, see [Custom Transport](505_custom_transport.md) and [Custom Device](506_custom_device.md). For the full dependency graph and ownership rules the profile crates fit into, see [Crate Architecture](999_crate_architecture.md).
