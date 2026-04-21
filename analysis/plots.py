@@ -1149,11 +1149,12 @@ def render_comparison_summary(
         }
         total_selected_rounds = sum(selected_rounds.values())
         dominant_engine = row["dominant_engine"] or "none"
-        dominant_share = (
-            selected_rounds.get(dominant_engine, 0) * 100.0 / total_selected_rounds
-            if total_selected_rounds > 0
-            else 0.0
-        )
+        if total_selected_rounds == 0:
+            dominant_share = 0.0
+        elif dominant_engine == "tie":
+            dominant_share = max(selected_rounds.values()) * 100.0 / total_selected_rounds
+        else:
+            dominant_share = selected_rounds.get(dominant_engine, 0) * 100.0 / total_selected_rounds
         engine_key = dominant_engine if dominant_engine in COMPARISON_ENGINE_COLORS else "none"
         present_engines.add(engine_key)
         rows.append(

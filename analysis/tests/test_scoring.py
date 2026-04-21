@@ -6,6 +6,7 @@ import polars as pl
 
 from analysis.constants import ROUTE_VISIBLE_ENGINE_SET_ORDER
 from analysis.plots import (
+    render_comparison_summary,
     render_pathway_budget_route_presence,
     render_routing_fitness_crossover,
     render_routing_fitness_multiflow,
@@ -1094,6 +1095,30 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(row["unrecovered_after_loss_count_mean"], 1.0)
         self.assertEqual(row["repair_metric_status"], "unrecovered")
 
+    def test_routing_fitness_stale_summary_marks_pre_disruption_loss(self) -> None:
+        summary = routing_fitness_stale_repair_summary_table(
+            pl.from_dicts(
+                [
+                    {
+                        "engine_family": "head-to-head",
+                        "family_id": "head-to-head-stale-observation-delay",
+                        "comparison_engine_set": "scatter",
+                        "route_present_total_window_permille_mean": 900.0,
+                        "route_present_permille_mean": 900.0,
+                        "first_disruption_round_mean": 5.0,
+                        "first_loss_round_mean": 3.0,
+                        "stale_persistence_round_mean": None,
+                        "recovery_round_mean": None,
+                        "recovery_success_permille_mean": 0.0,
+                        "unrecovered_after_loss_count_mean": 1.0,
+                        "route_churn_count_mean": 0.0,
+                    }
+                ]
+            )
+        )
+
+        self.assertEqual(summary.row(0, named=True)["repair_metric_status"], "pre-disruption-loss")
+
     def test_routing_fitness_takeaways_close_with_tested_envelope(self) -> None:
         lines = routing_fitness_takeaway_lines(
             pl.from_dicts(
@@ -1283,6 +1308,37 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(stale_rows[0]["engine_key"], "pathway")
         self.assertIn("route=", stale_rows[0]["route_label"])
         self.assertIn("repair_status", stale_rows[0])
+
+    def test_comparison_summary_renders_tie_leader_share(self) -> None:
+        chart = render_comparison_summary(
+            pl.from_dicts(
+                [
+                    {
+                        "engine_family": "comparison",
+                        "family_id": "comparison-tie",
+                        "config_id": "comparison-a",
+                        "route_present_permille_mean": 1000,
+                        "dominant_engine": "tie",
+                        "batman_bellman_selected_rounds_mean": 0,
+                        "batman_classic_selected_rounds_mean": 0,
+                        "babel_selected_rounds_mean": 0,
+                        "olsrv2_selected_rounds_mean": 0,
+                        "pathway_selected_rounds_mean": 30,
+                        "scatter_selected_rounds_mean": 30,
+                        "field_selected_rounds_mean": 0,
+                    }
+                ]
+            ),
+            900,
+            300,
+        )
+
+        self.assertIsNotNone(chart)
+        chart_dict = chart.to_dict()
+        rows = next(iter(chart_dict["datasets"].values()))
+        self.assertEqual(rows[0]["engine_key"], "tie")
+        self.assertEqual(rows[0]["share"], 50.0)
+        self.assertEqual(rows[0]["label"], "Tie 50%")
 
     def test_route_presence_percent_transform_uses_permille_scale(self) -> None:
         chart = render_pathway_budget_route_presence(

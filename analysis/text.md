@@ -68,7 +68,7 @@ Methodology note:
 - route-visible `Route` / `Active Route` report total-window route presence in comparison and head-to-head tables, so startup and repair gaps remain visible instead of being hidden by saturated active-window values.
 - the head-to-head route-visible surface is a fixed representative-profile benchmark, while Part I recommendation tables are calibrated-best surfaces.
 - mixed-stack `Selected-Round Leader` means the engine selected for the most active-route rounds inside one shared router policy, not the best standalone engine.
-- generic family-by-family diffusion winners are more provisional than the regime-aware diffusion tables when different generic weightings change the winner.
+- generic family-by-family diffusion winners are still a representative weighted surface, but the current winner-sensitivity audit should be checked first: stable rows can be read with more confidence, while any unstable row remains provisional relative to the regime-aware diffusion tables.
 
 #### Regime Assumptions
 
@@ -403,7 +403,7 @@ The full mixed-engine and head-to-head tables are collected in Appendix B. The m
 - The hard route-visible bridge families are the clearest separators: `connected-high-loss` is led by {connected_high_loss_engine_sets} at {connected_high_loss_route_presence} permille, while `bridge-transition` is shared by {bridge_transition_engine_sets} at {bridge_transition_route_presence} permille.
 - `medium-bridge-repair` also stays broad at the top: {medium_bridge_repair_engine_sets} all reach {medium_bridge_repair_route_presence} permille.
 - Mixed workloads still favor explicit search: `concurrent-mixed` is led by {concurrent_mixed_engine_sets} at {concurrent_mixed_route_presence} permille.
-- `field` stays competitive in the hard bridge families at {field_connected_high_loss_route_presence} permille in `connected-high-loss` and {field_bridge_transition_route_presence} permille in `bridge-transition`, but it drops to {field_corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`.
+- `field` stays competitive in the hard bridge and corridor-continuity families: it reaches {field_connected_high_loss_route_presence} permille in `connected-high-loss`, {field_bridge_transition_route_presence} permille in `bridge-transition`, and {field_corridor_uncertainty_route_presence} permille in `corridor-continuity-uncertainty`.
 
 #### Head-To-Head Findings Empty
 
@@ -414,8 +414,8 @@ No head-to-head summary is available for this artifact set.
 - The routing comparison does not collapse to one universal winner. In the mixed-engine matrix, `connected-low-loss` is led by `{connected_low_loss_engine}`, `connected-high-loss` by `{connected_high_loss_engine}`, and `concurrent-mixed` by `{comparison_concurrent_mixed_engine}`.
 - Among the maintained proactive next-hop defaults, `babel` and `olsrv2` are the strongest contrasting baselines: `{babel_config}` captures the asymmetry-sensitive distance-vector case, while `{olsrv2_config}` is the full-topology baseline when HELLO and TC propagation have time to pay off.
 - Explicit search still matters when the workload is mixed rather than purely hop-by-hop. In the head-to-head matrix, `concurrent-mixed` is led by {concurrent_mixed_engine_sets} at {concurrent_mixed_route_presence} permille route presence.
-- The mixed router leaves large performance on the table in the hardest bridge families: `connected-high-loss` settles on `{mixed_connected_high_loss_engine}` at {mixed_connected_high_loss_route_presence} permille while standalone {head_to_head_connected_high_loss_engines} {head_to_head_connected_high_loss_route_verb} {head_to_head_connected_high_loss_route_presence}, and `bridge-transition` settles on `{mixed_bridge_transition_engine}` at {mixed_bridge_transition_route_presence} while standalone {head_to_head_bridge_transition_engines} {head_to_head_bridge_transition_route_verb} {head_to_head_bridge_transition_route_presence}.
-- `field` is corridor-oriented rather than universal: it stays competitive in `connected-high-loss` at {field_connected_high_loss_route_presence} permille and in `bridge-transition` at {field_bridge_transition_route_presence} permille, but in `corridor-continuity-uncertainty` it drops to {field_corridor_uncertainty_route_presence} permille while {corridor_best_engines} lead at {corridor_best_route_presence}.
+- The mixed router can still leave performance on the table when early durable admissibility is not the same as standalone fitness: `connected-high-loss` settles on `{mixed_connected_high_loss_engine}` at {mixed_connected_high_loss_route_presence} permille while standalone {head_to_head_connected_high_loss_engines} {head_to_head_connected_high_loss_route_verb} {head_to_head_connected_high_loss_route_presence}. In `bridge-transition`, mixed arbitration now aligns with the standalone top tier at {mixed_bridge_transition_route_presence} permille.
+- `field` is corridor-oriented rather than universal: it stays competitive in `connected-high-loss` at {field_connected_high_loss_route_presence} permille, in `bridge-transition` at {field_bridge_transition_route_presence} permille, and in `corridor-continuity-uncertainty` at {field_corridor_uncertainty_route_presence} permille. Its weaker evidence now appears more clearly in the large-population and shared-corridor multi-flow tails than in the single-corridor head-to-head family.
 
 ## Large-Population Findings
 
@@ -466,9 +466,9 @@ Interpret the point positions by quadrant: the useful region is high delivery wi
 
 - In the high large-pop route-visible bands, the core-periphery family is shared by {scaling_best_engines} at {scaling_high_route} permille, while the high multi-bottleneck family is shared by {bottleneck_best_engines} at {bottleneck_high_route} permille.
 - The steepest diameter / fanout drop is `{diameter_sensitive_engine}` at {diameter_delta} permille from the small baseline to the high band, and the steepest multi-bottleneck drop is `{bottleneck_fragile_engine}` at {bottleneck_delta} permille.
-- `scatter` and `field` are the clearest route-visible large-population losers: in the high core-periphery band they fall to {core_periphery_scatter_route} and {core_periphery_field_route} permille, and in the high multi-bottleneck band they reach only {multi_bottleneck_scatter_route} and {multi_bottleneck_field_route} permille.
+- `field` is the clearest route-visible large-population loser: in the high core-periphery band it falls to {core_periphery_field_route} permille, and in the high multi-bottleneck band it reaches only {multi_bottleneck_field_route} permille. `scatter` no longer belongs in that loser bucket on the current route-visible surface, where it stays at {core_periphery_scatter_route} and {multi_bottleneck_scatter_route} permille in those same high bands.
 - The Field large-population failures are not stale selected-search successes: the high core-periphery Field run has {core_periphery_field_selected_results} current selected-result round, {core_periphery_field_no_candidate} no-candidate reactivation attempts, and {core_periphery_field_inadmissible} inadmissible attempts; the high multi-bottleneck run has {multi_bottleneck_field_selected_results} current selected-result round, {multi_bottleneck_field_no_candidate} no-candidate attempts, and {multi_bottleneck_field_inadmissible} inadmissible attempts. The last active-route blocker still reports `{core_periphery_field_blocker}` / `{multi_bottleneck_field_blocker}`, but the post-loss state is now classified as no viable Field-evidence candidate after support withdrawal rather than a simulator activation gap.
-- The combined `pathway-batman-bellman` stack materially closes the multi-bottleneck gap versus plain `pathway`, reaching {multi_bottleneck_pathway_batman_route} permille in the high band versus {multi_bottleneck_pathway_route} for `pathway` alone.
+- The combined `pathway-batman-bellman` stack no longer creates a high-band large-population advantage over plain `pathway`: both sit at {multi_bottleneck_pathway_batman_route} / {multi_bottleneck_pathway_route} permille on the current high multi-bottleneck route-visible surface. Its clearer benefit now appears in the multi-flow fairness surface, where maintenance support fills Pathway's shared-broker starvation tail.
 - The sparse-threshold high band still shows viable `{sparse_viable}` against explosive `{sparse_explosive}`, the congestion-threshold moderate band separates viable `{congestion_viable}` from collapse `{congestion_collapse}`, the congestion-threshold high band is currently only `{congestion_high_states}`, and the regional-shift high band still spans `{regional_states}`.
 
 ## Routing-Fitness Remaining Questions
@@ -497,7 +497,7 @@ Compact fairness view for the shared-broker families. Column guide: Min and Max 
 
 @table routing_fitness_stale_repair_summary
 
-Compact stale-information repair view. Column guide: Persist is the mean bad-route persistence after the first disruptive topology change, Route is total-window route presence, Unrec. is mean unrecovered-after-loss count, Status distinguishes no-loss, recovered, ordinary unrecovered, and store-forward-unrecovered cases, Loss is the first-loss round, and Churn is mean route churn. Recovery-event success is still exported in the CSV, but it is not used as the headline because many stale scenarios never enter a loss/recovery event path.
+Compact stale-information repair view. Column guide: Persist is the mean bad-route persistence after the first disruptive topology change, Route is total-window route presence, Unrec. is mean unrecovered-after-loss count, Status distinguishes no-loss, recovered, ordinary unrecovered, pre-disruption-loss, and store-forward-unrecovered cases, Loss is the first-loss round, and Churn is mean route churn. `pre-disruption-loss` means the route was already lost before the stale-topology disruption, so it should not be counted as stale persistence caused by that disruption. Recovery-event success is still exported in the CSV, but it is not used as the headline because many stale scenarios never enter a loss/recovery event path.
 
 ### Routing-Fitness Figure Context
 
@@ -520,7 +520,7 @@ The broker detail labels summarize how much of the visible next-hop-attributable
 
 @figure routing_fitness_stale_repair
 
-Bad-route persistence after delayed or asymmetric observations. Shorter bars are better because they mean the engine stops trusting stale routing state quickly after disruption. The labels show total-window route presence, repair status, and unrecovered counts so the figure separates fast cleanup from cleanup that still leaves the objective unavailable.
+Bad-route persistence after delayed or asymmetric observations. Shorter bars are better because they mean the engine stops trusting stale routing state quickly after disruption. Blank persistence for `pre-disruption-loss` rows is intentional: those losses happened before the disruptive stale-topology event and are not evidence of post-disruption stale-route overcommit. The labels show total-window route presence, repair status, and unrecovered counts so the figure separates fast cleanup from cleanup that still leaves the objective unavailable.
 
 ### Routing-Fitness Takeaways
 

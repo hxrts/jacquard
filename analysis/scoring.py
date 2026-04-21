@@ -2161,6 +2161,11 @@ def routing_fitness_stale_repair_summary_table(aggregates: pl.DataFrame) -> pl.D
         .with_columns(
             pl.when(pl.col("first_loss_round_mean").is_null())
             .then(pl.lit("no-loss"))
+            .when(
+                pl.col("first_disruption_round_mean").is_not_null()
+                & (pl.col("first_loss_round_mean") < pl.col("first_disruption_round_mean"))
+            )
+            .then(pl.lit("pre-disruption-loss"))
             .when(pl.col("recovery_round_mean").is_not_null())
             .then(pl.lit("recovered"))
             .when(pl.col("comparison_engine_set") == "scatter")

@@ -5,7 +5,9 @@
 
 use super::*;
 use crate::util::stats::min_max_spread_u32;
-use crate::{environment::apply_hook, ActiveRouteSummary, ReducedRouteObservation};
+use crate::{
+    environment::apply_hook, ActiveRouteSummary, ReducedReplayRound, ReducedRouteObservation,
+};
 
 fn objective_active_round_count(round_count: u32, activate_at_round: u32) -> u32 {
     round_count.saturating_sub(activate_at_round)
@@ -157,43 +159,96 @@ fn configuration_path_exists(
     false
 }
 
-fn usable_route_timing_for(
+struct RouteRepairTiming {
+    first_loss_round: Option<u32>,
+    stale_persistence_rounds: Option<u32>,
+    recovery_round: Option<u32>,
+}
+
+fn stale_persistence_rounds_after_disruption(
+    first_loss_round: Option<u32>,
+    first_disruption_round: Option<u32>,
+    stale_persistence_rounds: u32,
+) -> Option<u32> {
+    first_loss_round
+        .zip(first_disruption_round)
+        .filter(|(loss_round, disruption)| loss_round >= disruption)
+        .map(|_| stale_persistence_rounds)
+}
+
+fn route_active_and_usable_in_round(
+    round: &ReducedReplayRound,
+    owner_node_id: NodeId,
+    destination: &DestinationId,
+    configuration: &Configuration,
+) -> (bool, bool) {
+    let mut route_active = false;
+    let route_usable = round.active_routes.iter().any(|route| {
+        let route_matches =
+            route.owner_node_id == owner_node_id && &route.destination == destination;
+        route_active |= route_matches;
+        route_matches && route_usable_in_configuration(route, configuration)
+    });
+    (route_active, route_usable)
+}
+
+fn route_repair_timing_for(
     scenario: &JacquardScenario,
     reduced: &ReducedReplayView,
     owner_node_id: NodeId,
     destination: &DestinationId,
-) -> (Option<u32>, Option<u32>) {
+    first_disruption_round: Option<u32>,
+) -> RouteRepairTiming {
     let mut configuration = scenario.initial_configuration().value.clone();
     let mut seen_usable = false;
     let mut first_unusable_round = None;
     let mut first_loss_round = None;
+    let mut stale_persistence_rounds = 0u32;
 
     for round in &reduced.rounds {
         for applied in &round.environment_hooks {
             apply_hook(&mut configuration, &applied.hook, applied.at_tick);
         }
-        let usable = round.active_routes.iter().any(|route| {
-            route.owner_node_id == owner_node_id
-                && &route.destination == destination
-                && route_usable_in_configuration(route, &configuration)
-        });
+        let (route_active, usable) =
+            route_active_and_usable_in_round(round, owner_node_id, destination, &configuration);
         if usable {
             if let Some(unusable_round) = first_unusable_round {
-                return (
+                return RouteRepairTiming {
                     first_loss_round,
-                    Some(round.round_index.saturating_sub(unusable_round)),
-                );
+                    stale_persistence_rounds: stale_persistence_rounds_after_disruption(
+                        first_loss_round,
+                        first_disruption_round,
+                        stale_persistence_rounds,
+                    ),
+                    recovery_round: Some(round.round_index.saturating_sub(unusable_round)),
+                };
             }
             seen_usable = true;
             continue;
         }
-        if seen_usable && first_unusable_round.is_none() {
+        if !seen_usable {
+            continue;
+        }
+        if first_unusable_round.is_none() {
             first_unusable_round = Some(round.round_index);
             first_loss_round = Some(round.round_index);
         }
+        if route_active
+            && first_disruption_round.is_some_and(|disruption| round.round_index >= disruption)
+        {
+            stale_persistence_rounds = stale_persistence_rounds.saturating_add(1);
+        }
     }
 
-    (first_loss_round, None)
+    RouteRepairTiming {
+        first_loss_round,
+        stale_persistence_rounds: stale_persistence_rounds_after_disruption(
+            first_loss_round,
+            first_disruption_round,
+            stale_persistence_rounds,
+        ),
+        recovery_round: None,
+    }
 }
 
 // long-block-exception: one reducer intentionally computes the stable per-run
@@ -270,12 +325,15 @@ pub(super) fn summarize_run(
         let first_disruption_round =
             reduced.first_round_with_environment_change_at_or_after(binding.activate_at_round);
         first_disruption_rounds.push(first_disruption_round);
-        let (first_loss_round, recovery_round) = usable_route_timing_for(
+        let timing = route_repair_timing_for(
             scenario,
             reduced,
             binding.owner_node_id,
             &binding.objective.destination,
+            first_disruption_round,
         );
+        let first_loss_round = timing.first_loss_round;
+        let recovery_round = timing.recovery_round;
         first_loss_rounds.push(first_loss_round);
         recovery_rounds.push(recovery_round);
         if recovery_round.is_some() {
@@ -283,13 +341,7 @@ pub(super) fn summarize_run(
         } else if first_loss_round.is_some() {
             unrecovered_after_loss_count = unrecovered_after_loss_count.saturating_add(1);
         }
-        stale_persistence_rounds.push(match (first_disruption_round, first_loss_round) {
-            (Some(disruption), Some(loss_round)) if loss_round >= disruption => {
-                Some(loss_round.saturating_sub(disruption))
-            }
-            (Some(_), Some(_)) => Some(0),
-            _ => None,
-        });
+        stale_persistence_rounds.push(timing.stale_persistence_rounds);
         churn_count = churn_count.saturating_add(route_churn_count_for(
             &route_observations,
             binding.owner_node_id,
@@ -1553,7 +1605,7 @@ mod tests {
 
         assert_eq!(summary.first_disruption_round_mean, Some(2));
         assert_eq!(summary.first_loss_round_mean, Some(3));
-        assert_eq!(summary.stale_persistence_round_mean, Some(1));
+        assert_eq!(summary.stale_persistence_round_mean, Some(0));
         assert_eq!(summary.recovery_round_mean, Some(2));
         assert_eq!(summary.recovery_success_permille, 1000);
         assert_eq!(summary.unrecovered_after_loss_count, 0);

@@ -1624,6 +1624,30 @@ fn comparison_hosts_for_bytes(
     })
 }
 
+fn multi_flow_comparison_hosts_for_bytes(
+    bytes: &[u8],
+    comparison_engine_set: Option<ComparisonEngineSet>,
+    owner_bootstraps: &[(NodeId, DestinationId, Vec<FieldBootstrapSeed>)],
+    owner_profile: &SelectedRoutingParameters,
+) -> Vec<HostSpec> {
+    bytes
+        .iter()
+        .copied()
+        .map(|byte| {
+            let local_node_id = node_id(byte);
+            let Some((_, destination, bootstrap)) = owner_bootstraps
+                .iter()
+                .find(|(owner_node_id, _, _)| *owner_node_id == local_node_id)
+            else {
+                return comparison_host_spec(local_node_id, comparison_engine_set);
+            };
+            let host = comparison_host_spec(local_node_id, comparison_engine_set)
+                .with_profile(owner_profile.clone());
+            seed_standalone_field_bootstrap(host, comparison_engine_set, destination, bootstrap)
+        })
+        .collect()
+}
+
 fn mixed_multi_flow_shared_corridor_hosts() -> Vec<HostSpec> {
     vec![
         HostSpec::pathway(node_id(1)).with_profile(best_effort_connected_profile()),
@@ -2094,11 +2118,6 @@ pub(super) fn build_comparison_multi_flow_shared_corridor(
         ]);
         return (scenario, environment);
     }
-    let destination = DestinationId::Node(node_id(8));
-    let bootstrap = [
-        (node_id(4), 860, 3, 4, Some(800)),
-        (node_id(5), 760, 2, 3, Some(700)),
-    ];
     let mut topology = multi_flow_shared_corridor_topology(comparison_engine_set);
     set_environment(&mut topology, 3, RatioPermille(180), RatioPermille(110));
     let scenario = route_visible_template(
@@ -2109,12 +2128,30 @@ pub(super) fn build_comparison_multi_flow_shared_corridor(
         seed,
         jacquard_core::OperatingMode::DenseInteractive,
         topology,
-        comparison_hosts_for_bytes(
+        multi_flow_comparison_hosts_for_bytes(
             &[1, 2, 3, 4, 5, 6, 7, 8],
             comparison_engine_set,
-            &destination,
-            &bootstrap,
-            repairable_connected_profile(),
+            &[
+                (
+                    node_id(1),
+                    DestinationId::Node(node_id(6)),
+                    vec![(node_id(4), 900, 2, 3, Some(840))],
+                ),
+                (
+                    node_id(2),
+                    DestinationId::Node(node_id(7)),
+                    vec![(node_id(4), 880, 2, 3, Some(820))],
+                ),
+                (
+                    node_id(3),
+                    DestinationId::Node(node_id(8)),
+                    vec![
+                        (node_id(4), 900, 2, 3, Some(840)),
+                        (node_id(5), 820, 1, 2, Some(760)),
+                    ],
+                ),
+            ],
+            &repairable_connected_profile(),
         ),
         vec![
             BoundObjective::new(node_id(1), connected_objective(node_id(6)))
@@ -2185,12 +2222,6 @@ pub(super) fn build_comparison_multi_flow_asymmetric_demand(
         ]);
         return (scenario, environment);
     }
-    let destination = DestinationId::Node(node_id(9));
-    let bootstrap = [
-        (node_id(4), 900, 4, 4, Some(840)),
-        (node_id(5), 820, 3, 3, Some(760)),
-        (node_id(6), 720, 2, 2, Some(680)),
-    ];
     let mut topology = multi_flow_asymmetric_demand_topology(comparison_engine_set);
     set_environment(&mut topology, 3, RatioPermille(200), RatioPermille(140));
     let scenario = route_visible_template(
@@ -2201,12 +2232,27 @@ pub(super) fn build_comparison_multi_flow_asymmetric_demand(
         seed,
         jacquard_core::OperatingMode::DenseInteractive,
         topology,
-        comparison_hosts_for_bytes(
+        multi_flow_comparison_hosts_for_bytes(
             &[1, 2, 3, 4, 5, 6, 7, 8, 9],
             comparison_engine_set,
-            &destination,
-            &bootstrap,
-            repairable_connected_profile(),
+            &[
+                (
+                    node_id(1),
+                    DestinationId::Node(node_id(9)),
+                    vec![(node_id(4), 900, 4, 4, Some(840))],
+                ),
+                (
+                    node_id(2),
+                    DestinationId::Node(node_id(8)),
+                    vec![(node_id(4), 860, 3, 3, Some(800))],
+                ),
+                (
+                    node_id(3),
+                    DestinationId::Node(node_id(7)),
+                    vec![(node_id(4), 820, 3, 3, Some(760))],
+                ),
+            ],
+            &repairable_connected_profile(),
         ),
         vec![
             BoundObjective::new(node_id(1), connected_objective(node_id(9)))
@@ -2284,12 +2330,6 @@ pub(super) fn build_comparison_multi_flow_detour_choice(
         ]);
         return (scenario, environment);
     }
-    let destination = DestinationId::Node(node_id(8));
-    let bootstrap = [
-        (node_id(4), 860, 3, 4, Some(800)),
-        (node_id(5), 780, 2, 3, Some(720)),
-        (node_id(10), 720, 2, 2, Some(660)),
-    ];
     let mut topology = multi_flow_detour_topology(comparison_engine_set);
     set_environment(&mut topology, 3, RatioPermille(190), RatioPermille(120));
     let scenario = route_visible_template(
@@ -2300,12 +2340,33 @@ pub(super) fn build_comparison_multi_flow_detour_choice(
         seed,
         jacquard_core::OperatingMode::DenseInteractive,
         topology,
-        comparison_hosts_for_bytes(
+        multi_flow_comparison_hosts_for_bytes(
             &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
             comparison_engine_set,
-            &destination,
-            &bootstrap,
-            repairable_connected_profile(),
+            &[
+                (
+                    node_id(1),
+                    DestinationId::Node(node_id(6)),
+                    vec![(node_id(4), 900, 3, 4, Some(840))],
+                ),
+                (
+                    node_id(2),
+                    DestinationId::Node(node_id(7)),
+                    vec![
+                        (node_id(4), 820, 2, 3, Some(760)),
+                        (node_id(9), 780, 2, 3, Some(720)),
+                    ],
+                ),
+                (
+                    node_id(3),
+                    DestinationId::Node(node_id(8)),
+                    vec![
+                        (node_id(4), 800, 2, 3, Some(740)),
+                        (node_id(10), 760, 2, 3, Some(700)),
+                    ],
+                ),
+            ],
+            &repairable_connected_profile(),
         ),
         vec![
             BoundObjective::new(node_id(1), connected_objective(node_id(6)))
@@ -3762,7 +3823,7 @@ mod tests {
         );
         assert_eq!(summary.first_disruption_round_mean, Some(5));
         assert_eq!(summary.first_loss_round_mean, Some(5));
-        assert_eq!(summary.stale_persistence_round_mean, Some(0));
+        assert_eq!(summary.stale_persistence_round_mean, Some(10));
         assert_eq!(summary.recovery_round_mean, Some(10));
         assert_eq!(summary.recovery_success_permille, 1000);
         assert_eq!(summary.unrecovered_after_loss_count, 0);
@@ -4058,6 +4119,56 @@ mod tests {
                     "{} bootstraps through non-adjacent {:?}",
                     scenario.name(),
                     summary.from_neighbor
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn head_to_head_multi_flow_owners_are_primary_profiled_and_field_seeded() {
+        for build in [
+            build_comparison_multi_flow_shared_corridor,
+            build_comparison_multi_flow_asymmetric_demand,
+            build_comparison_multi_flow_detour_choice,
+        ] {
+            let pathway_parameters = ExperimentParameterSet::head_to_head(
+                ComparisonEngineSet::Pathway,
+                None,
+                None,
+                None,
+            );
+            let (pathway_scenario, _) = build(&pathway_parameters, SimulationSeed(41));
+            for binding in pathway_scenario.bound_objectives() {
+                let host = pathway_scenario
+                    .hosts()
+                    .iter()
+                    .find(|host| host.local_node_id == binding.owner_node_id)
+                    .expect("multi-flow owner should have a host");
+                assert!(
+                    host.overrides.routing_profile.is_some(),
+                    "{} owner {:?} should use the primary routing profile",
+                    pathway_scenario.name(),
+                    binding.owner_node_id
+                );
+            }
+
+            let field_parameters = ExperimentParameterSet::head_to_head_field_low_churn();
+            let (field_scenario, _) = build(&field_parameters, SimulationSeed(41));
+            for binding in field_scenario.bound_objectives() {
+                let host = field_scenario
+                    .hosts()
+                    .iter()
+                    .find(|host| host.local_node_id == binding.owner_node_id)
+                    .expect("multi-flow owner should have a host");
+                assert!(
+                    host.overrides
+                        .field_bootstrap_summaries
+                        .iter()
+                        .any(|summary| { summary.destination == binding.objective.destination }),
+                    "{} owner {:?} should be seeded for {:?}",
+                    field_scenario.name(),
+                    binding.owner_node_id,
+                    binding.objective.destination
                 );
             }
         }
