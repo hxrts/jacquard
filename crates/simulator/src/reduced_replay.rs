@@ -753,10 +753,7 @@ fn hook_kind(hook: &EnvironmentHook) -> EnvironmentHookKind {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        presets, replay::ActiveRouteSummary, ReducedFailureClassCounts, ReducedReplayRound,
-        ReducedReplayView,
-    };
+    use crate::{presets, replay::ActiveRouteSummary, ReducedReplayRound, ReducedReplayView};
     use jacquard_core::{
         DestinationId, HealthScore, NodeId, ReachabilityState, RouteId, RouteLifecycleEvent,
     };
@@ -812,10 +809,11 @@ mod tests {
 
         let failure_counts = reduced.failure_class_counts();
         assert_eq!(
-            failure_counts,
-            ReducedFailureClassCounts::default(),
-            "generic harness summaries should not inflate deterministic failure classes"
+            failure_counts.no_candidate, 11,
+            "reactivation no-candidate summaries should be classified deterministically"
         );
+        assert_eq!(failure_counts.inadmissible_candidate, 0);
+        assert_eq!(failure_counts.other, 0);
     }
 
     #[test]

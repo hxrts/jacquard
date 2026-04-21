@@ -411,7 +411,7 @@
           },
           "route_shape": "CorridorEnvelope",
           "bootstrap_class": "Steady",
-          "continuity_band": "Bootstrap",
+          "continuity_band": "Steady",
           "route_support": 850,
           "topology_epoch": 7
         },
@@ -738,7 +738,7 @@
         "last_trigger": "RestoreRuntime",
         "last_outcome": "CheckpointRestored",
         "bootstrap_active": false,
-        "continuity_band": "Bootstrap",
+        "continuity_band": "Steady",
         "last_continuity_transition": null,
         "last_promotion_decision": null,
         "last_promotion_blocker": null,

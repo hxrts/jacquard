@@ -1,3 +1,4 @@
+// long-file-exception: planner surface and colocated no-candidate coverage stay auditable together.
 use jacquard_core::{
     AdmissionDecision, BackendRouteRef, Configuration, Estimate, ObjectiveVsDelivered, Observation,
     RouteAdmission, RouteAdmissionCheck, RouteAdmissionRejection, RouteCandidate, RouteError,
@@ -421,7 +422,7 @@ mod tests {
         }
     }
 
-    fn active_link(to: u8) -> jacquard_core::Link {
+    fn fixture_link(to: u8) -> jacquard_core::Link {
         LinkBuilder::new(jacquard_adapter::opaque_endpoint(
             jacquard_core::TransportKind::WifiAware,
             vec![to],
@@ -527,11 +528,11 @@ mod tests {
         topology
             .value
             .links
-            .insert((node(1), node(2)), active_link(2));
+            .insert((node(1), node(2)), fixture_link(2));
         topology
             .value
             .links
-            .insert((node(2), node(3)), active_link(3));
+            .insert((node(2), node(3)), fixture_link(3));
 
         let candidates =
             engine.candidate_routes(&sample_objective(node(3)), &sample_profile(), &topology);

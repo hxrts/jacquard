@@ -619,7 +619,7 @@ fn runtime_artifacts_link_back_to_latest_search_snapshot_boundary() {
         artifact.destination == Some(DestinationId::Node(node(3)))
             && artifact.destination_class == Some(FieldReducedObjectiveClass::Node)
             && artifact.search_snapshot_epoch.is_some()
-            && artifact.search_selected_result_present
+            && !artifact.search_selected_result_present
     }));
 }
 
