@@ -67,11 +67,15 @@ Transport ownership is split deliberately:
 
 `jacquard-batman-bellman` is the enhanced BATMAN engine using local Bellman-Ford over a gossip-merged topology graph with TQ enrichment and a bootstrap shortcut. `jacquard-batman-classic` is the spec-faithful BATMAN IV engine with OGM-carried TQ, TTL-bounded propagation, and echo-only bidirectionality. `jacquard-babel` implements RFC 8966 with bidirectional ETX link cost, additive metric, and a feasibility distance table for loop-free route selection.
 
-`jacquard-simulator` is the scenario/replay harness above the shared boundaries. It reuses reference-client bridge ownership and round advancement; it does not maintain a simulator-only stack. The `tuning_matrix` binary runs experiment suites and automatically generates analysis reports via `python3 -m analysis.report`. Artifacts are written to `artifacts/analysis/{suite}/{timestamp}/` with a `latest` symlink.
+`jacquard-simulator` is the scenario and replay harness above the shared boundaries. It reuses reference-client bridge ownership and round advancement rather than maintaining a simulator-only stack. The `tuning_matrix` binary runs experiment suites and generates analysis reports via `python3 -m analysis.report`. Artifacts land under `artifacts/analysis/{suite}/{timestamp}/` with a `latest` symlink.
 
 The `analysis/` directory contains a Python pipeline (polars + Altair + reportlab) that reads simulator artifacts and generates a PDF report with per-engine recommendations, transition metrics, failure boundaries, cross-engine comparisons, and diffusion analysis.
 
-The canonical host wiring reference is `crates/reference-client/tests/e2e_multi_layer_routing.rs`.
+Canonical host wiring examples live in `crates/reference-client/tests/e2e_pathway_shared_network.rs`, `crates/reference-client/tests/e2e_batman_pathway_handoff.rs`, `crates/reference-client/tests/e2e_olsrv2_shared_network.rs`, `crates/reference-client/tests/e2e_olsrv2_pathway_handoff.rs`, and the shared scenarios under `crates/testkit/src/reference_client_scenarios.rs`.
+
+## Documentation layout
+
+`docs/` is organized so every file belongs to one of three categories. Specs (100s through 300s and 999) describe shared shape and contracts. Implementation specs (400s) describe per-engine and per-profile behavior. Guides (500s) walk a 3rd-party developer through using the system. Start at `docs/101_introduction.md` for orientation and `docs/503_client_assembly.md` for the fastest library-use path.
 
 ## Policy checks
 
