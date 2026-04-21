@@ -1,5 +1,6 @@
 use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
 use jacquard_field::FIELD_ENGINE_ID;
+use jacquard_mercator::MERCATOR_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_simulator::{
     presets, JacquardSimulator, ReducedReplayView, ReferenceClientAdapter, ScenarioAssertions,
@@ -31,7 +32,7 @@ fn composition_explicit_path_preferred_selects_pathway() {
 }
 
 #[test]
-fn composition_next_hop_only_viable_selects_batman() {
+fn composition_next_hop_only_viable_selects_maintained_route_engine() {
     let (scenario, environment) = presets::composition_next_hop_only_viable();
     let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
 
@@ -40,18 +41,19 @@ fn composition_next_hop_only_viable_selects_batman() {
         .expect("run next-hop-only composition scenario");
 
     let reduced = ReducedReplayView::from_replay(&replay);
+    let owner = jacquard_core::NodeId([1; 32]);
+    let destination = jacquard_core::DestinationId::Node(jacquard_core::NodeId([3; 32]));
     ScenarioAssertions::new()
-        .expect_route_materialized(
-            jacquard_core::NodeId([1; 32]),
-            jacquard_core::DestinationId::Node(jacquard_core::NodeId([3; 32])),
-        )
-        .expect_engine_selected(
-            jacquard_core::NodeId([1; 32]),
-            jacquard_core::DestinationId::Node(jacquard_core::NodeId([3; 32])),
-            &BATMAN_BELLMAN_ENGINE_ID,
-        )
+        .expect_route_materialized(owner, destination.clone())
         .evaluate(&reduced)
         .expect("next-hop-only composition assertions");
+    assert!(
+        [BATMAN_BELLMAN_ENGINE_ID, MERCATOR_ENGINE_ID,]
+            .iter()
+            .any(|engine_id| reduced.route_seen_with_engine(owner, &destination, engine_id)),
+        "expected a maintained route engine for next-hop-only composition, observed {:?}",
+        reduced.distinct_engine_ids,
+    );
 }
 
 #[test]

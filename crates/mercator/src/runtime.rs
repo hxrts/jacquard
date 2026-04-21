@@ -1,5 +1,7 @@
 //! `RoutingEngine` and `RouterManagedEngine` impls for `MercatorEngine`.
 
+// proc-macro-scope: Mercator runtime behavior stays outside shared model macros.
+
 use jacquard_core::{
     Configuration, MaterializedRoute, NodeId, Observation, OrderStamp, PublishedRouteRecord,
     ReachabilityState, RouteCommitment, RouteError, RouteId, RouteInstallation,

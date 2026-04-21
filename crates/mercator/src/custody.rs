@@ -1,5 +1,7 @@
 //! Bounded custody posture helpers for Mercator.
 
+// proc-macro-scope: Mercator engine-private custody state stays outside #[public_model].
+
 use jacquard_core::{
     Blake3Digest, ContentId, DestinationId, NodeId, OrderStamp, RetentionError, RouteEpoch, Tick,
 };
@@ -161,34 +163,11 @@ impl MercatorEngine {
             self.refresh_custody_diagnostics();
             return MercatorCustodyDecision::Suppressed(reason);
         }
-        let protected_budget_used = {
-            let record = self
-                .custody_records
-                .get_mut(object_id)
-                .expect("custody record checked above");
-            let protected_budget_used = record.copy_budget_remaining == 0;
-            if protected_budget_used {
-                record.protected_bridge_budget_remaining =
-                    record.protected_bridge_budget_remaining.saturating_sub(1);
-            } else {
-                record.copy_budget_remaining = record.copy_budget_remaining.saturating_sub(1);
-            }
-            if !context.receiver_is_terminal_target {
-                record.reproduction_count = record.reproduction_count.saturating_add(1);
-            }
-            record.transmission_count = record.transmission_count.saturating_add(1);
-            record.energy_spent_units = record
-                .energy_spent_units
-                .saturating_add(context.energy_cost_units);
-            record.observer_leakage_permille = record
-                .observer_leakage_permille
-                .max(context.observer_leakage_permille);
-            record.best_improvement_score = record
-                .best_improvement_score
-                .max(opportunity.improvement_score);
-            record.last_progress_at_tick = Some(context.decided_at_tick);
-            protected_budget_used
-        };
+        let record = self
+            .custody_records
+            .get_mut(object_id)
+            .expect("custody record checked above");
+        let protected_budget_used = record_forwarding_progress(record, opportunity, context);
         if protected_budget_used {
             self.evidence.record_custody_protected_bridge_usage();
         }
@@ -213,6 +192,35 @@ impl MercatorEngine {
     fn record_custody_suppression(&mut self, reason: MercatorCustodySuppressionReason) {
         self.evidence.record_custody_suppression(reason);
     }
+}
+
+fn record_forwarding_progress(
+    record: &mut MercatorCustodyRecord,
+    opportunity: &MercatorCustodyOpportunity,
+    context: MercatorCustodyForwardingContext,
+) -> bool {
+    let protected_budget_used = record.copy_budget_remaining == 0;
+    if protected_budget_used {
+        record.protected_bridge_budget_remaining =
+            record.protected_bridge_budget_remaining.saturating_sub(1);
+    } else {
+        record.copy_budget_remaining = record.copy_budget_remaining.saturating_sub(1);
+    }
+    if !context.receiver_is_terminal_target {
+        record.reproduction_count = record.reproduction_count.saturating_add(1);
+    }
+    record.transmission_count = record.transmission_count.saturating_add(1);
+    record.energy_spent_units = record
+        .energy_spent_units
+        .saturating_add(context.energy_cost_units);
+    record.observer_leakage_permille = record
+        .observer_leakage_permille
+        .max(context.observer_leakage_permille);
+    record.best_improvement_score = record
+        .best_improvement_score
+        .max(opportunity.improvement_score);
+    record.last_progress_at_tick = Some(context.decided_at_tick);
+    protected_budget_used
 }
 
 fn custody_suppression_reason(

@@ -1871,6 +1871,7 @@ mod tests {
             "jacquard-mercator-artifacts-{}",
             std::process::id()
         ));
+        // allow-ignored-result: temp artifact cleanup may target a directory that does not exist.
         let _ = std::fs::remove_dir_all(&output_dir);
 
         let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
@@ -1895,6 +1896,7 @@ mod tests {
         assert!(output_dir.join("aggregates.json").exists());
         assert!(output_dir.join("breakdowns.json").exists());
 
+        // allow-ignored-result: temp artifact cleanup must not hide assertion failures.
         let _ = std::fs::remove_dir_all(output_dir);
     }
 }

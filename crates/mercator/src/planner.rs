@@ -1,5 +1,7 @@
 //! `RoutingEnginePlanner` impl for `MercatorEngine`.
 
+// proc-macro-scope: Mercator engine-private planner glue stays outside #[public_model].
+
 use jacquard_core::{
     Configuration, Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
     RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, SelectedRoutingParameters,

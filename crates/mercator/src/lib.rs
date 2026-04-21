@@ -5,6 +5,8 @@
 //! bounded custody. The first implementation phases keep the runtime
 //! deterministic and router-owned while enabling bounded connected corridors.
 
+// proc-macro-scope: Mercator's crate root exposes engine services, not shared model vocabulary.
+
 #![forbid(unsafe_code)]
 
 use std::{
@@ -162,6 +164,16 @@ impl MercatorEngine {
     fn combined_diagnostics(&self) -> MercatorDiagnostics {
         let evidence = self.evidence.diagnostics();
         let planner = self.planner_diagnostics.get();
+        let mut combined = Self::combined_route_diagnostics(evidence, planner);
+        Self::add_route_pressure_diagnostics(&mut combined, evidence, planner);
+        Self::add_custody_diagnostics(&mut combined, evidence, planner);
+        combined
+    }
+
+    fn combined_route_diagnostics(
+        evidence: MercatorDiagnostics,
+        planner: MercatorDiagnostics,
+    ) -> MercatorDiagnostics {
         MercatorDiagnostics {
             selected_result_rounds: evidence
                 .selected_result_rounds
@@ -190,82 +202,97 @@ impl MercatorEngine {
             recovery_rounds: evidence
                 .recovery_rounds
                 .saturating_add(planner.recovery_rounds),
-            objective_count: evidence
-                .objective_count
-                .saturating_add(planner.objective_count),
-            active_objective_count: evidence
-                .active_objective_count
-                .saturating_add(planner.active_objective_count),
-            weakest_objective_presence_rounds: evidence
-                .weakest_objective_presence_rounds
-                .saturating_add(planner.weakest_objective_presence_rounds),
-            zero_service_objective_count: evidence
-                .zero_service_objective_count
-                .saturating_add(planner.zero_service_objective_count),
-            broker_participation_count: evidence
-                .broker_participation_count
-                .saturating_add(planner.broker_participation_count),
-            hottest_broker_route_count: evidence
-                .hottest_broker_route_count
-                .saturating_add(planner.hottest_broker_route_count),
-            hottest_broker_concentration_permille: evidence
-                .hottest_broker_concentration_permille
-                .saturating_add(planner.hottest_broker_concentration_permille),
-            broker_switch_count: evidence
-                .broker_switch_count
-                .saturating_add(planner.broker_switch_count),
-            overloaded_broker_penalty_count: evidence
-                .overloaded_broker_penalty_count
-                .saturating_add(planner.overloaded_broker_penalty_count),
-            weakest_flow_reserved_search_count: evidence
-                .weakest_flow_reserved_search_count
-                .saturating_add(planner.weakest_flow_reserved_search_count),
-            custody_record_count: evidence
-                .custody_record_count
-                .saturating_add(planner.custody_record_count),
-            custody_reproduction_count: evidence
-                .custody_reproduction_count
-                .saturating_add(planner.custody_reproduction_count),
-            custody_copy_budget_spent: evidence
-                .custody_copy_budget_spent
-                .saturating_add(planner.custody_copy_budget_spent),
-            custody_copy_budget_remaining: evidence
-                .custody_copy_budget_remaining
-                .saturating_add(planner.custody_copy_budget_remaining),
-            custody_protected_budget_spent: evidence
-                .custody_protected_budget_spent
-                .saturating_add(planner.custody_protected_budget_spent),
-            custody_protected_budget_remaining: evidence
-                .custody_protected_budget_remaining
-                .saturating_add(planner.custody_protected_budget_remaining),
-            custody_transmission_count: evidence
-                .custody_transmission_count
-                .saturating_add(planner.custody_transmission_count),
-            custody_storage_bytes: evidence
-                .custody_storage_bytes
-                .saturating_add(planner.custody_storage_bytes),
-            custody_energy_spent_units: evidence
-                .custody_energy_spent_units
-                .saturating_add(planner.custody_energy_spent_units),
-            custody_leakage_risk_permille: evidence
-                .custody_leakage_risk_permille
-                .saturating_add(planner.custody_leakage_risk_permille),
-            custody_suppressed_forward_count: evidence
-                .custody_suppressed_forward_count
-                .saturating_add(planner.custody_suppressed_forward_count),
-            custody_same_cluster_suppression_count: evidence
-                .custody_same_cluster_suppression_count
-                .saturating_add(planner.custody_same_cluster_suppression_count),
-            custody_low_gain_suppression_count: evidence
-                .custody_low_gain_suppression_count
-                .saturating_add(planner.custody_low_gain_suppression_count),
-            custody_bridge_opportunity_count: evidence
-                .custody_bridge_opportunity_count
-                .saturating_add(planner.custody_bridge_opportunity_count),
-            custody_protected_bridge_usage_count: evidence
-                .custody_protected_bridge_usage_count
-                .saturating_add(planner.custody_protected_bridge_usage_count),
+            ..MercatorDiagnostics::default()
         }
+    }
+
+    fn add_route_pressure_diagnostics(
+        combined: &mut MercatorDiagnostics,
+        evidence: MercatorDiagnostics,
+        planner: MercatorDiagnostics,
+    ) {
+        combined.objective_count = evidence
+            .objective_count
+            .saturating_add(planner.objective_count);
+        combined.active_objective_count = evidence
+            .active_objective_count
+            .saturating_add(planner.active_objective_count);
+        combined.weakest_objective_presence_rounds = evidence
+            .weakest_objective_presence_rounds
+            .saturating_add(planner.weakest_objective_presence_rounds);
+        combined.zero_service_objective_count = evidence
+            .zero_service_objective_count
+            .saturating_add(planner.zero_service_objective_count);
+        combined.broker_participation_count = evidence
+            .broker_participation_count
+            .saturating_add(planner.broker_participation_count);
+        combined.hottest_broker_route_count = evidence
+            .hottest_broker_route_count
+            .saturating_add(planner.hottest_broker_route_count);
+        combined.hottest_broker_concentration_permille = evidence
+            .hottest_broker_concentration_permille
+            .saturating_add(planner.hottest_broker_concentration_permille);
+        combined.broker_switch_count = evidence
+            .broker_switch_count
+            .saturating_add(planner.broker_switch_count);
+        combined.overloaded_broker_penalty_count = evidence
+            .overloaded_broker_penalty_count
+            .saturating_add(planner.overloaded_broker_penalty_count);
+        combined.weakest_flow_reserved_search_count = evidence
+            .weakest_flow_reserved_search_count
+            .saturating_add(planner.weakest_flow_reserved_search_count);
+    }
+
+    fn add_custody_diagnostics(
+        combined: &mut MercatorDiagnostics,
+        evidence: MercatorDiagnostics,
+        planner: MercatorDiagnostics,
+    ) {
+        combined.custody_record_count = evidence
+            .custody_record_count
+            .saturating_add(planner.custody_record_count);
+        combined.custody_reproduction_count = evidence
+            .custody_reproduction_count
+            .saturating_add(planner.custody_reproduction_count);
+        combined.custody_copy_budget_spent = evidence
+            .custody_copy_budget_spent
+            .saturating_add(planner.custody_copy_budget_spent);
+        combined.custody_copy_budget_remaining = evidence
+            .custody_copy_budget_remaining
+            .saturating_add(planner.custody_copy_budget_remaining);
+        combined.custody_protected_budget_spent = evidence
+            .custody_protected_budget_spent
+            .saturating_add(planner.custody_protected_budget_spent);
+        combined.custody_protected_budget_remaining = evidence
+            .custody_protected_budget_remaining
+            .saturating_add(planner.custody_protected_budget_remaining);
+        combined.custody_transmission_count = evidence
+            .custody_transmission_count
+            .saturating_add(planner.custody_transmission_count);
+        combined.custody_storage_bytes = evidence
+            .custody_storage_bytes
+            .saturating_add(planner.custody_storage_bytes);
+        combined.custody_energy_spent_units = evidence
+            .custody_energy_spent_units
+            .saturating_add(planner.custody_energy_spent_units);
+        combined.custody_leakage_risk_permille = evidence
+            .custody_leakage_risk_permille
+            .saturating_add(planner.custody_leakage_risk_permille);
+        combined.custody_suppressed_forward_count = evidence
+            .custody_suppressed_forward_count
+            .saturating_add(planner.custody_suppressed_forward_count);
+        combined.custody_same_cluster_suppression_count = evidence
+            .custody_same_cluster_suppression_count
+            .saturating_add(planner.custody_same_cluster_suppression_count);
+        combined.custody_low_gain_suppression_count = evidence
+            .custody_low_gain_suppression_count
+            .saturating_add(planner.custody_low_gain_suppression_count);
+        combined.custody_bridge_opportunity_count = evidence
+            .custody_bridge_opportunity_count
+            .saturating_add(planner.custody_bridge_opportunity_count);
+        combined.custody_protected_bridge_usage_count = evidence
+            .custody_protected_bridge_usage_count
+            .saturating_add(planner.custody_protected_bridge_usage_count);
     }
 
     pub(crate) fn planning_context_for(

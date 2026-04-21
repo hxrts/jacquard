@@ -1,5 +1,7 @@
 //! Engine-public policy and state types for `MercatorEngine`.
 
+// proc-macro-scope: Mercator public state uses explicit derives to preserve its engine boundary.
+
 use jacquard_core::{DurationMs, RouteEpoch, Tick};
 use serde::{Deserialize, Serialize};
 

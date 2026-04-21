@@ -1,5 +1,7 @@
 //! Bounded corridor search and router-facing candidate construction.
 
+// proc-macro-scope: Mercator engine-private route planning stays outside #[public_model].
+
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use jacquard_core::{
@@ -17,7 +19,9 @@ use jacquard_core::{
 use jacquard_traits::{Blake3Hashing, Hashing};
 
 use crate::{
-    evidence::{MercatorEvidenceGraph, MercatorObjectiveKey, MercatorSupportState},
+    evidence::{
+        support_state_rank, MercatorEvidenceGraph, MercatorObjectiveKey, MercatorSupportState,
+    },
     MercatorEngineConfig, MERCATOR_ENGINE_ID,
 };
 
@@ -850,14 +854,4 @@ fn read_array<const N: usize>(bytes: &[u8], cursor: &mut usize) -> Option<[u8; N
     out.copy_from_slice(bytes.get(*cursor..end)?);
     *cursor = end;
     Some(out)
-}
-
-fn support_state_rank(state: MercatorSupportState) -> u8 {
-    match state {
-        MercatorSupportState::Fresh => 5,
-        MercatorSupportState::Repairing => 4,
-        MercatorSupportState::Suspect => 3,
-        MercatorSupportState::CustodyOnly => 2,
-        MercatorSupportState::Withdrawn => 1,
-    }
 }

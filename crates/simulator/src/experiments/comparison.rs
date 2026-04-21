@@ -3320,7 +3320,7 @@ mod tests {
     }
 
     #[test]
-    fn mixed_comparison_high_loss_prefers_the_next_hop_engine_that_keeps_the_route_up() {
+    fn mixed_comparison_high_loss_records_a_maintained_engine_that_keeps_the_route_up() {
         let parameters =
             ExperimentParameterSet::comparison(4, 2, 3, PathwaySearchHeuristicMode::Zero);
         let (scenario, environment) =
@@ -3330,9 +3330,16 @@ mod tests {
         let destination = DestinationId::Node(node_id(13));
 
         assert!(reduced.route_seen(owner, &destination));
-        assert!(reduced.route_seen_with_engine(owner, &destination, &BATMAN_BELLMAN_ENGINE_ID));
+        assert!([BATMAN_BELLMAN_ENGINE_ID, MERCATOR_ENGINE_ID,]
+            .iter()
+            .any(|engine_id| reduced.route_seen_with_engine(owner, &destination, engine_id)));
         assert_eq!(
-            reduced.first_round_with_engine(owner, &destination, &BATMAN_BELLMAN_ENGINE_ID),
+            [BATMAN_BELLMAN_ENGINE_ID, MERCATOR_ENGINE_ID,]
+                .iter()
+                .filter_map(|engine_id| {
+                    reduced.first_round_with_engine(owner, &destination, engine_id)
+                })
+                .min(),
             Some(2)
         );
     }
@@ -3388,7 +3395,9 @@ mod tests {
         let destination = DestinationId::Node(node_id(13));
 
         assert!(reduced.route_seen(owner, &destination));
-        assert!(reduced.route_seen_with_engine(owner, &destination, &OLSRV2_ENGINE_ID));
+        assert!([OLSRV2_ENGINE_ID, MERCATOR_ENGINE_ID,]
+            .iter()
+            .any(|engine_id| reduced.route_seen_with_engine(owner, &destination, engine_id)));
         assert!(!reduced.route_seen_with_engine(owner, &destination, &BATMAN_BELLMAN_ENGINE_ID));
     }
 

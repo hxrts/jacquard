@@ -1,5 +1,7 @@
 //! Bounded evidence graph and epoch-safety state for Mercator.
 
+// proc-macro-scope: Mercator engine-private evidence state stays outside #[public_model].
+
 use std::collections::BTreeMap;
 
 use jacquard_core::{
@@ -667,7 +669,7 @@ impl MercatorEvidenceGraph {
     }
 }
 
-fn support_state_rank(state: MercatorSupportState) -> u8 {
+pub(crate) fn support_state_rank(state: MercatorSupportState) -> u8 {
     match state {
         MercatorSupportState::Fresh => 5,
         MercatorSupportState::Repairing => 4,
