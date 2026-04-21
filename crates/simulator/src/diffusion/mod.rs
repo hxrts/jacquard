@@ -50,8 +50,8 @@ pub use runtime::{aggregate_diffusion_runs, run_diffusion_suite, summarize_diffu
 #[cfg(test)]
 mod tests {
     use super::{
-        diffusion_local_stage_suite, diffusion_smoke_suite, execute_diffusion_runs_parallel,
-        execute_diffusion_runs_serial, simulate_diffusion_run,
+        diffusion_local_stage_suite, diffusion_local_suite, diffusion_smoke_suite,
+        execute_diffusion_runs_parallel, execute_diffusion_runs_serial, simulate_diffusion_run,
     };
 
     #[test]
@@ -92,6 +92,38 @@ mod tests {
                     .iter()
                     .all(|run| run.family_id.starts_with("diffusion-")),
                 "{stage_id} should only include diffusion-prefixed family ids"
+            );
+        }
+    }
+
+    #[test]
+    fn diffusion_suites_include_mercator_profile() {
+        let suite = diffusion_smoke_suite();
+        assert!(
+            suite
+                .runs
+                .iter()
+                .any(|run| run.policy.config_id == "mercator"),
+            "diffusion smoke suite should include mercator"
+        );
+    }
+
+    #[test]
+    fn diffusion_mercator_runs_cover_phase_five_fixtures() {
+        let suite = diffusion_local_suite();
+        for family_id in [
+            "diffusion-bridge-drought",
+            "diffusion-energy-starved-relay",
+            "diffusion-congestion-cascade",
+            "diffusion-large-sparse-threshold-moderate",
+            "diffusion-large-regional-shift-moderate",
+        ] {
+            assert!(
+                suite
+                    .runs
+                    .iter()
+                    .any(|run| run.family_id == family_id && run.policy.config_id == "mercator"),
+                "{family_id} should include mercator diffusion rows"
             );
         }
     }

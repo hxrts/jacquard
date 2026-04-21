@@ -102,6 +102,7 @@ fn build_diffusion_suite_filtered(
         diffusion_engine_profile("babel"),
         diffusion_engine_profile("olsrv2"),
         diffusion_engine_profile("scatter"),
+        diffusion_engine_profile("mercator"),
         diffusion_engine_profile("pathway"),
         diffusion_engine_profile("pathway-batman-bellman"),
     ];
@@ -472,6 +473,22 @@ fn diffusion_engine_profile(engine_set: &str) -> DiffusionPolicyConfig {
                 170,
                 140,
                 DiffusionForwardingStyle::ConservativeLocal,
+            ),
+        ),
+        "mercator" => diffusion_policy_profile(
+            "mercator",
+            (
+                4,
+                30,
+                450,
+                320,
+                165,
+                -40,
+                180,
+                80,
+                150,
+                140,
+                DiffusionForwardingStyle::CorridorAware,
             ),
         ),
         "field" => diffusion_policy_profile(

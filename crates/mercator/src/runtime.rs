@@ -57,6 +57,7 @@ impl RoutingEngine for MercatorEngine {
         self.latest_topology = Some(tick.topology.clone());
         self.refresh_objective_presence_diagnostics(true);
         self.refresh_broker_diagnostics(tick.topology.value.epoch, tick.topology.observed_at_tick);
+        self.refresh_custody_diagnostics();
         self.refresh_active_stale_diagnostics(&tick.topology);
         Ok(RoutingTickOutcome {
             topology_epoch: tick.topology.value.epoch,

@@ -13,6 +13,7 @@ use std::{
 };
 
 pub mod corridor;
+pub mod custody;
 pub mod evidence;
 mod planner;
 mod public_state;
@@ -20,14 +21,15 @@ mod runtime;
 
 pub use corridor::selected_neighbor_from_backend_route_id;
 use corridor::{ActiveMercatorRoute, MercatorPlanningContext, MercatorPlanningOutcome};
+use custody::MercatorCustodyRecord;
 pub use evidence::{
     MercatorBrokerPressure, MercatorDiagnostics, MercatorEvidenceGraph, MercatorEvidenceMeta,
     MercatorObjectiveKey,
 };
 use jacquard_core::{
-    Configuration, ConnectivityPosture, DestinationId, NodeId, Observation, OrderStamp, RouteEpoch,
-    RouteId, RoutePartitionClass, RouteProtectionClass, RouteShapeVisibility,
-    RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, Tick,
+    Blake3Digest, Configuration, ConnectivityPosture, ContentId, DestinationId, NodeId,
+    Observation, OrderStamp, RouteEpoch, RouteId, RoutePartitionClass, RouteProtectionClass,
+    RouteShapeVisibility, RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, Tick,
 };
 pub use public_state::{
     MercatorEngineConfig, MercatorEvidenceBounds, MercatorOperationalBounds,
@@ -62,6 +64,7 @@ pub struct MercatorEngine {
     planner_diagnostics: Cell<MercatorDiagnostics>,
     objective_accounts: RefCell<BTreeMap<MercatorObjectiveKey, MercatorObjectiveAccount>>,
     route_objectives: BTreeMap<RouteId, MercatorObjectiveKey>,
+    pub(crate) custody_records: BTreeMap<ContentId<Blake3Digest>, MercatorCustodyRecord>,
     active_routes: BTreeMap<RouteId, ActiveMercatorRoute>,
 }
 
@@ -88,6 +91,7 @@ impl MercatorEngine {
             planner_diagnostics: Cell::new(MercatorDiagnostics::default()),
             objective_accounts: RefCell::new(BTreeMap::new()),
             route_objectives: BTreeMap::new(),
+            custody_records: BTreeMap::new(),
             active_routes: BTreeMap::new(),
         }
     }
@@ -216,6 +220,51 @@ impl MercatorEngine {
             weakest_flow_reserved_search_count: evidence
                 .weakest_flow_reserved_search_count
                 .saturating_add(planner.weakest_flow_reserved_search_count),
+            custody_record_count: evidence
+                .custody_record_count
+                .saturating_add(planner.custody_record_count),
+            custody_reproduction_count: evidence
+                .custody_reproduction_count
+                .saturating_add(planner.custody_reproduction_count),
+            custody_copy_budget_spent: evidence
+                .custody_copy_budget_spent
+                .saturating_add(planner.custody_copy_budget_spent),
+            custody_copy_budget_remaining: evidence
+                .custody_copy_budget_remaining
+                .saturating_add(planner.custody_copy_budget_remaining),
+            custody_protected_budget_spent: evidence
+                .custody_protected_budget_spent
+                .saturating_add(planner.custody_protected_budget_spent),
+            custody_protected_budget_remaining: evidence
+                .custody_protected_budget_remaining
+                .saturating_add(planner.custody_protected_budget_remaining),
+            custody_transmission_count: evidence
+                .custody_transmission_count
+                .saturating_add(planner.custody_transmission_count),
+            custody_storage_bytes: evidence
+                .custody_storage_bytes
+                .saturating_add(planner.custody_storage_bytes),
+            custody_energy_spent_units: evidence
+                .custody_energy_spent_units
+                .saturating_add(planner.custody_energy_spent_units),
+            custody_leakage_risk_permille: evidence
+                .custody_leakage_risk_permille
+                .saturating_add(planner.custody_leakage_risk_permille),
+            custody_suppressed_forward_count: evidence
+                .custody_suppressed_forward_count
+                .saturating_add(planner.custody_suppressed_forward_count),
+            custody_same_cluster_suppression_count: evidence
+                .custody_same_cluster_suppression_count
+                .saturating_add(planner.custody_same_cluster_suppression_count),
+            custody_low_gain_suppression_count: evidence
+                .custody_low_gain_suppression_count
+                .saturating_add(planner.custody_low_gain_suppression_count),
+            custody_bridge_opportunity_count: evidence
+                .custody_bridge_opportunity_count
+                .saturating_add(planner.custody_bridge_opportunity_count),
+            custody_protected_bridge_usage_count: evidence
+                .custody_protected_bridge_usage_count
+                .saturating_add(planner.custody_protected_bridge_usage_count),
         }
     }
 

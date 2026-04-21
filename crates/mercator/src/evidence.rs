@@ -30,6 +30,21 @@ pub struct MercatorDiagnostics {
     pub broker_switch_count: u32,
     pub overloaded_broker_penalty_count: u32,
     pub weakest_flow_reserved_search_count: u32,
+    pub custody_record_count: u32,
+    pub custody_reproduction_count: u32,
+    pub custody_copy_budget_spent: u32,
+    pub custody_copy_budget_remaining: u32,
+    pub custody_protected_budget_spent: u32,
+    pub custody_protected_budget_remaining: u32,
+    pub custody_transmission_count: u32,
+    pub custody_storage_bytes: u32,
+    pub custody_energy_spent_units: u32,
+    pub custody_leakage_risk_permille: u16,
+    pub custody_suppressed_forward_count: u32,
+    pub custody_same_cluster_suppression_count: u32,
+    pub custody_low_gain_suppression_count: u32,
+    pub custody_bridge_opportunity_count: u32,
+    pub custody_protected_bridge_usage_count: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -368,6 +383,11 @@ impl MercatorEvidenceGraph {
         self.route_support.values().cloned().collect()
     }
 
+    #[must_use]
+    pub fn custody_opportunities(&self) -> Vec<MercatorCustodyOpportunity> {
+        self.custody_opportunities.values().cloned().collect()
+    }
+
     pub fn record_link_evidence(&mut self, evidence: MercatorLinkEvidence) {
         self.link_evidence
             .insert((evidence.from, evidence.to), evidence);
@@ -500,6 +520,62 @@ impl MercatorEvidenceGraph {
         self.diagnostics.broker_participation_count = participation_count;
         self.diagnostics.hottest_broker_route_count = hottest_route_count;
         self.diagnostics.hottest_broker_concentration_permille = concentration_permille;
+    }
+
+    pub(crate) fn record_custody_stats(&mut self, stats: crate::custody::MercatorCustodyStats) {
+        self.diagnostics.custody_record_count = stats.record_count;
+        self.diagnostics.custody_reproduction_count = stats.reproduction_count;
+        self.diagnostics.custody_copy_budget_spent = stats.copy_budget_spent;
+        self.diagnostics.custody_copy_budget_remaining = stats.copy_budget_remaining;
+        self.diagnostics.custody_protected_budget_spent = stats.protected_budget_spent;
+        self.diagnostics.custody_protected_budget_remaining = stats.protected_budget_remaining;
+        self.diagnostics.custody_transmission_count = stats.transmission_count;
+        self.diagnostics.custody_storage_bytes = stats.storage_bytes;
+        self.diagnostics.custody_energy_spent_units = stats.energy_spent_units;
+        self.diagnostics.custody_leakage_risk_permille = stats.leakage_risk_permille;
+    }
+
+    pub(crate) fn record_custody_suppression(
+        &mut self,
+        reason: crate::custody::MercatorCustodySuppressionReason,
+    ) {
+        self.diagnostics.custody_suppressed_forward_count = self
+            .diagnostics
+            .custody_suppressed_forward_count
+            .saturating_add(1);
+        match reason {
+            crate::custody::MercatorCustodySuppressionReason::LowGain => {
+                self.diagnostics.custody_low_gain_suppression_count = self
+                    .diagnostics
+                    .custody_low_gain_suppression_count
+                    .saturating_add(1);
+            }
+            crate::custody::MercatorCustodySuppressionReason::SameClusterRedundant => {
+                self.diagnostics.custody_same_cluster_suppression_count = self
+                    .diagnostics
+                    .custody_same_cluster_suppression_count
+                    .saturating_add(1);
+            }
+            crate::custody::MercatorCustodySuppressionReason::UnknownObject
+            | crate::custody::MercatorCustodySuppressionReason::NoStrictImprovement
+            | crate::custody::MercatorCustodySuppressionReason::CopyBudgetExhausted
+            | crate::custody::MercatorCustodySuppressionReason::EnergyPressure
+            | crate::custody::MercatorCustodySuppressionReason::LeakageRisk => {}
+        }
+    }
+
+    pub(crate) fn record_custody_bridge_opportunity(&mut self) {
+        self.diagnostics.custody_bridge_opportunity_count = self
+            .diagnostics
+            .custody_bridge_opportunity_count
+            .saturating_add(1);
+    }
+
+    pub(crate) fn record_custody_protected_bridge_usage(&mut self) {
+        self.diagnostics.custody_protected_bridge_usage_count = self
+            .diagnostics
+            .custody_protected_bridge_usage_count
+            .saturating_add(1);
     }
 
     pub fn record_active_stale_routes(&mut self, count: u32, stale_rounds: u32) {

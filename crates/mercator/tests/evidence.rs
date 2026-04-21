@@ -36,6 +36,7 @@ fn tight_bounds() -> MercatorEvidenceBounds {
         service_evidence_count_max: 2,
         corridor_alternate_count_max: 2,
         custody_opportunity_count_max: 2,
+        custody_record_count_max: 2,
     }
 }
 
