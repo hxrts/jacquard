@@ -251,6 +251,7 @@ pub(super) fn refresh_host_round_routes(
         };
         let bound = host.bind();
         artifact.active_routes = summarize_active_routes(artifact.local_node_id, bound.router());
+        artifact.field_replay = summarize_field_replay(bound.router());
     }
 }
 
@@ -541,12 +542,28 @@ pub(super) fn reactivate_missing_objectives(
             .router_mut()
             .activate_route_without_tick(&binding.objective)
         {
-            if matches!(
-                error,
-                RouteError::Selection(RouteSelectionError::NoCandidate)
-                    | RouteError::Selection(RouteSelectionError::Inadmissible(_))
-            ) {
-                continue;
+            match &error {
+                RouteError::Selection(RouteSelectionError::NoCandidate) => {
+                    failure_summaries.push(SimulationFailureSummary {
+                        round_index: Some(round_index),
+                        detail: format!(
+                            "objective reactivation no candidate for owner {:?} destination {:?}: {}",
+                            binding.owner_node_id, binding.objective.destination, error
+                        ),
+                    });
+                    continue;
+                }
+                RouteError::Selection(RouteSelectionError::Inadmissible(_)) => {
+                    failure_summaries.push(SimulationFailureSummary {
+                        round_index: Some(round_index),
+                        detail: format!(
+                            "objective reactivation inadmissible candidate for owner {:?} destination {:?}: {}",
+                            binding.owner_node_id, binding.objective.destination, error
+                        ),
+                    });
+                    continue;
+                }
+                _ => {}
             }
             failure_summaries.push(SimulationFailureSummary {
                 round_index: Some(round_index),

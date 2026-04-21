@@ -84,6 +84,34 @@ from .sanity import validate_report_artifacts_or_raise
 
 REPORT_PDF_NAME = "router-tuning-report.pdf"
 LEGACY_REPORT_PDF_NAMES = ("report.pdf", "tuning_report.pdf", "routing-tuning-report.pdf")
+RUN_FAILURE_CLASS_COLUMNS = (
+    "no_candidate_count",
+    "inadmissible_candidate_count",
+    "lost_reachability_count",
+    "replacement_loop_count",
+    "maintenance_failure_count",
+    "activation_attempt_failure_count",
+    "persistent_degraded_count",
+    "other_failure_count",
+)
+AGGREGATE_FAILURE_CLASS_COLUMNS = tuple(
+    f"{column}_mean" for column in RUN_FAILURE_CLASS_COLUMNS
+)
+
+
+def normalize_failure_summary_count(
+    frame: pl.DataFrame, *, count_column: str, class_columns: tuple[str, ...]
+) -> pl.DataFrame:
+    if frame.is_empty() or count_column not in frame.columns:
+        return frame
+    terms = [
+        pl.col(column).fill_null(0) if column in frame.columns else pl.lit(0)
+        for column in class_columns
+    ]
+    total = terms[0]
+    for term in terms[1:]:
+        total = total + term
+    return frame.with_columns(total.cast(pl.UInt32).alias(count_column))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -125,6 +153,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     diffusion_boundaries = load_optional_frame(
         "diffusion_boundaries.json", "diffusion_boundaries.csv"
+    )
+    runs = normalize_failure_summary_count(
+        runs,
+        count_column="failure_summary_count",
+        class_columns=RUN_FAILURE_CLASS_COLUMNS,
+    )
+    aggregates = normalize_failure_summary_count(
+        aggregates,
+        count_column="failure_summary_count_mean",
+        class_columns=AGGREGATE_FAILURE_CLASS_COLUMNS,
     )
     if runs.is_empty() or aggregates.is_empty():
         print(

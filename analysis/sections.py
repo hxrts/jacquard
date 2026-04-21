@@ -783,6 +783,14 @@ def large_population_takeaway_lines(
         multi_bottleneck_field_route=int(round(multi_bottleneck_field["high_route_present"] or 0)),
         multi_bottleneck_pathway_route=int(round(multi_bottleneck_pathway["high_route_present"] or 0)),
         multi_bottleneck_pathway_batman_route=int(round(multi_bottleneck_pathway_batman["high_route_present"] or 0)),
+        core_periphery_field_blocker=core_periphery_field.get("high_field_promotion_blocker") or "none",
+        core_periphery_field_resolution=core_periphery_field.get("high_field_commitment_resolution") or "none",
+        core_periphery_field_selected_results=int(round(core_periphery_field.get("high_field_selected_result_rounds") or 0)),
+        core_periphery_field_inadmissible=int(round(core_periphery_field.get("high_inadmissible_candidate_count") or 0)),
+        multi_bottleneck_field_blocker=multi_bottleneck_field.get("high_field_promotion_blocker") or "none",
+        multi_bottleneck_field_resolution=multi_bottleneck_field.get("high_field_commitment_resolution") or "none",
+        multi_bottleneck_field_selected_results=int(round(multi_bottleneck_field.get("high_field_selected_result_rounds") or 0)),
+        multi_bottleneck_field_inadmissible=int(round(multi_bottleneck_field.get("high_inadmissible_candidate_count") or 0)),
         sparse_viable=sparse_row.get("viable_config_id") or "none",
         sparse_explosive=sparse_row.get("explosive_config_id") or "none",
         congestion_viable=congestion_row.get("viable_config_id") or "none",
@@ -804,10 +812,19 @@ def _top_rows(
         subset = subset.filter(pl.col(column) == value)
     if subset.is_empty():
         return []
-    best = subset.sort(sort_columns, descending=descending).head(1).row(0, named=True)
+    available_sort = [
+        (column, direction)
+        for column, direction in zip(sort_columns, descending, strict=True)
+        if column in subset.columns
+    ]
+    available_columns = [column for column, _ in available_sort]
+    available_descending = [direction for _, direction in available_sort]
+    if not available_columns:
+        return list(subset.sort("comparison_engine_set").iter_rows(named=True))
+    best = subset.sort(available_columns, descending=available_descending).head(1).row(0, named=True)
     tied_best_filters = [
         pl.col(column).is_null() if best[column] is None else pl.col(column) == best[column]
-        for column in sort_columns
+        for column in available_columns
     ]
     return list(
         subset.filter(pl.all_horizontal(tied_best_filters))
@@ -833,18 +850,18 @@ def routing_fitness_takeaway_lines(
         filters=[("question", "search-burden"), ("band_label", "high")],
         sort_columns=[
             "route_present_total_window_permille_mean",
-            "recovery_success_permille_mean",
+            "route_churn_count_mean",
         ],
-        descending=[True, True],
+        descending=[True, False],
     )
     maintenance_high_rows = _top_rows(
         routing_fitness_crossover_summary,
         filters=[("question", "maintenance-benefit"), ("band_label", "high")],
         sort_columns=[
             "route_present_total_window_permille_mean",
-            "recovery_success_permille_mean",
+            "route_churn_count_mean",
         ],
-        descending=[True, True],
+        descending=[True, False],
     )
     shared_corridor_rows = _top_rows(
         routing_fitness_multiflow_summary,
@@ -899,14 +916,15 @@ def routing_fitness_takeaway_lines(
         .head(1)
         .row(0, named=True)
     )
+    stale_sort_columns = ["stale_persistence_round_mean", "comparison_engine_set"]
+    stale_sort_descending = [True, False]
+    if "unrecovered_after_loss_count_mean" in routing_fitness_stale_repair_summary.columns:
+        stale_sort_columns.insert(1, "unrecovered_after_loss_count_mean")
+        stale_sort_descending.insert(1, True)
     worst_stale = (
         routing_fitness_stale_repair_summary.sort(
-            [
-                "stale_persistence_round_mean",
-                "recovery_success_permille_mean",
-                "comparison_engine_set",
-            ],
-            descending=[True, False, False],
+            stale_sort_columns,
+            descending=stale_sort_descending,
         )
         .head(1)
         .row(0, named=True)
@@ -926,12 +944,10 @@ def routing_fitness_takeaway_lines(
             [row["comparison_engine_set"] or "none" for row in search_high_rows]
         ),
         search_high_route=search_high["route_present_total_window_permille_mean"],
-        search_high_recovery=search_high["recovery_success_permille_mean"],
         maintenance_high_engines=_join_code_names(
             [row["comparison_engine_set"] or "none" for row in maintenance_high_rows]
         ),
         maintenance_high_route=maintenance_high["route_present_total_window_permille_mean"],
-        maintenance_high_recovery=maintenance_high["recovery_success_permille_mean"],
         shared_corridor_engines=_join_code_names(
             [row["comparison_engine_set"] or "none" for row in shared_corridor_rows]
         ),

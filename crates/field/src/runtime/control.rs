@@ -358,6 +358,9 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             .as_ref()
             .map(|state| state.epoch.clone());
         let last_search_record = self.last_search_record.borrow();
+        let current_search_record = last_search_record
+            .as_ref()
+            .filter(|record| record.observed_at_tick == now_tick);
         self.record_runtime_round_artifact(FieldRuntimeRoundArtifact {
             protocol: session_key.protocol(),
             destination: session_key.destination(),
@@ -372,10 +375,9 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             step_budget_remaining: advance.round.step_budget_remaining,
             execution_policy: advance.round.execution_policy,
             search_snapshot_epoch,
-            search_selected_result_present: last_search_record
-                .as_ref()
+            search_selected_result_present: current_search_record
                 .is_some_and(|record| record.selected_continuation.is_some()),
-            search_reconfiguration_present: last_search_record.as_ref().is_some_and(|record| {
+            search_reconfiguration_present: current_search_record.is_some_and(|record| {
                 record
                     .run
                     .as_ref()

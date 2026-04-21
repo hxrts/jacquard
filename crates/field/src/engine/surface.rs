@@ -289,21 +289,22 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
         Self: RoutingEngine,
     {
         let search = self.last_search_record();
+        let current_search = search
+            .as_ref()
+            .filter(|record| record.observed_at_tick == self.state.last_tick_processed);
         let recovery_entries = self.route_recovery_entries();
         let reconfigurations = self.protocol_runtime.reconfigurations();
         FieldRouterAnalysisSnapshot {
-            selected_result_present: search
-                .as_ref()
+            selected_result_present: current_search
                 .is_some_and(|record| record.selected_continuation.is_some()),
-            search_reconfiguration_present: search.as_ref().is_some_and(|record| {
+            search_reconfiguration_present: current_search.is_some_and(|record| {
                 record
                     .run
                     .as_ref()
                     .and_then(|run| run.reconfiguration.clone())
                     .is_some()
             }),
-            execution_policy: search
-                .as_ref()
+            execution_policy: current_search
                 .map(|record| format!("{:?}", record.effective_config.scheduler_profile())),
             bootstrap_active: recovery_entries
                 .iter()

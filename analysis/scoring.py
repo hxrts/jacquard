@@ -157,6 +157,7 @@ _OPTIONAL_FLOAT_COLUMNS = [
     "scatter_retained_message_peak_mean",
     "scatter_delivered_message_peak_mean",
     "field_selected_rounds_mean",
+    "field_selected_result_rounds_mean",
     "field_bootstrap_activation_permille_mean",
     "field_bootstrap_hold_permille_mean",
     "field_bootstrap_narrow_permille_mean",
@@ -172,6 +173,7 @@ _OPTIONAL_FLOAT_COLUMNS = [
     "field_route_bound_reconfiguration_count_mean",
     "field_continuation_shift_count_mean",
     "field_corridor_narrow_count_mean",
+    "inadmissible_candidate_count_mean",
 ]
 
 _OPTIONAL_STR_COLUMNS = [
@@ -1343,7 +1345,7 @@ def comparison_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
             ],
             descending=[False, True, True],
         )
-        .group_by("family_id")
+        .group_by("family_id", maintain_order=True)
         .agg(
             pl.first("config_id").alias("config_id"),
             pl.first("dominant_engine").alias("dominant_engine"),
@@ -1382,7 +1384,7 @@ def comparison_engine_round_breakdown_table(aggregates: pl.DataFrame) -> pl.Data
             ],
             descending=[False, True, True, False],
         )
-        .group_by("family_id")
+        .group_by("family_id", maintain_order=True)
         .agg(
             pl.first("config_id").alias("config_id"),
             pl.first("dominant_engine").alias("dominant_engine"),
@@ -1752,9 +1754,9 @@ def diffusion_engine_summary_table(diffusion_aggregates: pl.DataFrame) -> pl.Dat
     scored = diffusion_aggregates.with_columns(
         _generic_diffusion_score_expr(_BALANCED_DIFFUSION_WEIGHTS).alias("score")
     )
-    return (
+    winners = (
         scored.sort(["family_id", "score"], descending=[False, True])
-        .group_by("family_id")
+        .group_by("family_id", maintain_order=True)
         .agg(
             pl.first("config_id").alias("config_id"),
             pl.first("density").alias("density"),
@@ -1774,8 +1776,21 @@ def diffusion_engine_summary_table(diffusion_aggregates: pl.DataFrame) -> pl.Dat
             pl.first("bounded_state_mode").alias("bounded_state_mode"),
             pl.first("score").alias("score"),
         )
-        .sort("family_id")
     )
+    leakage_extrema = (
+        scored.sort(
+            ["family_id", "observer_leakage_permille_mean", "config_id"],
+            descending=[False, True, False],
+        )
+        .group_by("family_id", maintain_order=True)
+        .agg(
+            pl.first("config_id").alias("max_observer_leakage_config_id"),
+            pl.first("observer_leakage_permille_mean").alias(
+                "max_observer_leakage_permille_mean"
+            ),
+        )
+    )
+    return winners.join(leakage_extrema, on="family_id", how="left").sort("family_id")
 
 
 def diffusion_engine_comparison_table(diffusion_aggregates: pl.DataFrame) -> pl.DataFrame:
@@ -1974,6 +1989,28 @@ def large_population_route_summary_table(aggregates: pl.DataFrame) -> pl.DataFra
             .otherwise(None)
             .max()
             .alias("high_activation_success"),
+            pl.when(pl.col("size_band") == "high")
+            .then(pl.col("field_commitment_resolution_mode"))
+            .otherwise(None)
+            .drop_nulls()
+            .first()
+            .alias("high_field_commitment_resolution"),
+            pl.when(pl.col("size_band") == "high")
+            .then(pl.col("field_last_promotion_blocker_mode"))
+            .otherwise(None)
+            .drop_nulls()
+            .first()
+            .alias("high_field_promotion_blocker"),
+            pl.when(pl.col("size_band") == "high")
+            .then(pl.col("field_selected_result_rounds_mean"))
+            .otherwise(None)
+            .max()
+            .alias("high_field_selected_result_rounds"),
+            pl.when(pl.col("size_band") == "high")
+            .then(pl.col("inadmissible_candidate_count_mean"))
+            .otherwise(None)
+            .max()
+            .alias("high_inadmissible_candidate_count"),
         )
         .with_columns(
             (pl.col("high_route_present") - pl.col("small_route_present")).alias(
@@ -2019,9 +2056,7 @@ def routing_fitness_crossover_summary_table(aggregates: pl.DataFrame) -> pl.Data
             "comparison_engine_set",
             "engine_order",
             "route_present_total_window_permille_mean",
-            "recovery_success_permille_mean",
             "first_loss_round_mean",
-            "recovery_round_mean",
             "route_churn_count_mean",
             "active_route_hop_count_mean",
             "route_observation_count_mean",
@@ -2117,6 +2152,16 @@ def routing_fitness_stale_repair_summary_table(aggregates: pl.DataFrame) -> pl.D
                 ]
             ).alias("route_present_total_window_permille_mean"),
         )
+        .with_columns(
+            pl.when(pl.col("first_loss_round_mean").is_null())
+            .then(pl.lit("no-loss"))
+            .when(pl.col("recovery_round_mean").is_not_null())
+            .then(pl.lit("recovered"))
+            .when(pl.col("comparison_engine_set") == "scatter")
+            .then(pl.lit("store-forward-unrecovered"))
+            .otherwise(pl.lit("unrecovered"))
+            .alias("repair_metric_status")
+        )
         .select(
             "family_id",
             "family_label",
@@ -2130,6 +2175,7 @@ def routing_fitness_stale_repair_summary_table(aggregates: pl.DataFrame) -> pl.D
             "recovery_round_mean",
             "recovery_success_permille_mean",
             "unrecovered_after_loss_count_mean",
+            "repair_metric_status",
             "route_churn_count_mean",
             "route_observation_count_mean",
         )

@@ -115,6 +115,7 @@ impl<Transport, Effects> FieldEngine<Transport, Effects> {
             selected_continuation_from_record(query.as_ref(), run.as_ref());
 
         let record = FieldPlannerSearchRecord {
+            observed_at_tick: topology.observed_at_tick,
             objective: objective.clone(),
             effective_config,
             query,

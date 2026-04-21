@@ -9,7 +9,7 @@ mod runner;
 
 use std::collections::BTreeSet;
 
-use jacquard_core::{Blake3Digest, NodeId, RouteEpoch, RoutingObjective};
+use jacquard_core::{Blake3Digest, NodeId, RouteEpoch, RoutingObjective, Tick};
 use serde::{Deserialize, Serialize};
 use telltale_search::{
     EpsilonMilli, SearchCachingProfile, SearchEffortProfile, SearchExecutionPolicy,
@@ -497,6 +497,8 @@ pub struct FieldSearchRun {
 /// One planner search record persisted by field for diagnostics.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldPlannerSearchRecord {
+    /// Engine tick/topology observation tick that produced this planner record.
+    pub observed_at_tick: Tick,
     /// Objective resolved into one v13-native search query.
     pub objective: RoutingObjective,
     /// Effective field-owned execution config used for this planner request.

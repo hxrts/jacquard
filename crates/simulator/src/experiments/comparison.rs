@@ -1021,27 +1021,19 @@ fn large_population_bootstrap(
     size_band: LargePopulationSizeBand,
 ) -> Vec<FieldBootstrapSeed> {
     match (family, size_band) {
-        ("core-periphery", LargePopulationSizeBand::Moderate) => vec![
-            (node_id(4), 920, 4, 5, Some(860)),
-            (node_id(6), 820, 3, 4, Some(780)),
-            (node_id(8), 720, 2, 3, Some(680)),
-        ],
-        ("core-periphery", LargePopulationSizeBand::High) => vec![
-            (node_id(5), 940, 5, 6, Some(900)),
-            (node_id(7), 860, 4, 5, Some(820)),
-            (node_id(10), 760, 3, 4, Some(720)),
-            (node_id(12), 700, 2, 3, Some(660)),
-        ],
+        ("core-periphery", LargePopulationSizeBand::Moderate) => {
+            vec![(node_id(2), 920, 4, 5, Some(860))]
+        }
+        ("core-periphery", LargePopulationSizeBand::High) => {
+            vec![(node_id(2), 940, 5, 6, Some(900))]
+        }
         ("multi-bottleneck", LargePopulationSizeBand::Moderate) => vec![
-            (node_id(4), 900, 4, 4, Some(840)),
-            (node_id(7), 780, 3, 3, Some(740)),
-            (node_id(9), 700, 2, 2, Some(660)),
+            (node_id(2), 900, 4, 4, Some(840)),
+            (node_id(3), 860, 4, 4, Some(820)),
         ],
         ("multi-bottleneck", LargePopulationSizeBand::High) => vec![
-            (node_id(4), 920, 5, 5, Some(860)),
-            (node_id(8), 820, 4, 4, Some(780)),
-            (node_id(12), 720, 3, 3, Some(680)),
-            (node_id(13), 660, 2, 2, Some(620)),
+            (node_id(2), 920, 5, 5, Some(860)),
+            (node_id(3), 880, 5, 5, Some(840)),
         ],
         _ => Vec::new(),
     }
@@ -4005,11 +3997,69 @@ mod tests {
             build_comparison_large_core_periphery_high(&parameters, SimulationSeed(41));
         let reduced = run_reduced_replay(&scenario, &environment);
         let destination = DestinationId::Node(node_id(14));
+        let first_loss_round = reduced
+            .first_round_without_route_after_presence(NODE_A, &destination)
+            .expect("large Field route should expose the post-loss replay window");
 
         assert!(reduced.route_seen(NODE_A, &destination));
         assert!(!reduced
             .route_present_rounds(NODE_A, &destination)
             .is_empty());
+        assert!(
+            reduced
+                .rounds
+                .iter()
+                .filter(|round| round.round_index >= first_loss_round)
+                .all(|round| {
+                    let route_active = round.active_routes.iter().any(|route| {
+                        route.owner_node_id == NODE_A && route.destination == destination
+                    });
+                    let selected_result = round.field_replays.iter().any(|field| {
+                        field.local_node_id == NODE_A && field.summary.selected_result_present
+                    });
+                    route_active || !selected_result
+                }),
+            "Field selected-result replay must not leak stale planner records after route loss",
+        );
+        assert!(
+            reduced.failure_class_counts().inadmissible_candidate > 0,
+            "large Field route loss should surface reactivation admission failures",
+        );
+    }
+
+    #[test]
+    fn large_population_field_bootstrap_uses_owner_adjacent_neighbors() {
+        let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
+        for build in [
+            build_comparison_large_core_periphery_moderate,
+            build_comparison_large_core_periphery_high,
+            build_comparison_large_multi_bottleneck_moderate,
+            build_comparison_large_multi_bottleneck_high,
+        ] {
+            let (scenario, _) = build(&parameters, SimulationSeed(41));
+            let primary = scenario
+                .hosts()
+                .iter()
+                .find(|host| host.local_node_id == NODE_A)
+                .expect("large-population Field scenario should include the owner host");
+            assert!(
+                !primary.overrides.field_bootstrap_summaries.is_empty(),
+                "{} should seed Field bootstrap evidence",
+                scenario.name()
+            );
+            for summary in &primary.overrides.field_bootstrap_summaries {
+                assert!(
+                    scenario
+                        .initial_configuration()
+                        .value
+                        .links
+                        .contains_key(&(NODE_A, summary.from_neighbor)),
+                    "{} bootstraps through non-adjacent {:?}",
+                    scenario.name(),
+                    summary.from_neighbor
+                );
+            }
+        }
     }
 
     #[test]

@@ -81,6 +81,7 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
         "stale_persistence_round_mean",
         "recovery_success_permille_mean",
         "unrecovered_after_loss_count_mean",
+        "repair_metric_status",
     ),
 }
 

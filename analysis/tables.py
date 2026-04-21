@@ -271,6 +271,11 @@ def diffusion_engine_summary_table_rows(diffusion_engine_summary: pl.DataFrame) 
                 if row["delivery_latency_rounds_mean"] is not None
                 else "-",
                 str(row["bounded_state_mode"]),
+                str(row["observer_leakage_permille_mean"]),
+                (
+                    f"{row['max_observer_leakage_permille_mean']}"
+                    f" (`{row['max_observer_leakage_config_id']}`)"
+                ),
                 str(row["stress_score"]),
             ]
         )
@@ -480,7 +485,6 @@ def routing_fitness_crossover_table_rows(
                 row["band_label"].capitalize(),
                 engine_display_label(row["comparison_engine_set"]),
                 _format_table_number(row["route_present_total_window_permille_mean"]),
-                _format_table_number(row["recovery_success_permille_mean"]),
                 _format_table_number(row["first_loss_round_mean"]),
                 f"{row['route_churn_count_mean']:.1f}",
                 f"{row['active_route_hop_count_mean']:.1f}"
@@ -541,6 +545,7 @@ def routing_fitness_stale_repair_table_rows(
                 _format_table_number(row["stale_persistence_round_mean"]),
                 _format_table_number(row["route_present_total_window_permille_mean"]),
                 _format_table_number(row["unrecovered_after_loss_count_mean"]),
+                str(row["repair_metric_status"]).replace("-", " "),
                 _format_table_number(row["first_loss_round_mean"]),
                 f"{row['route_churn_count_mean']:.1f}",
             ]

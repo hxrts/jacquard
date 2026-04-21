@@ -990,8 +990,8 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
             ["pathway", "pathway-batman-bellman"],
         )
         best = high_rows.sort(
-            ["route_present_total_window_permille_mean", "recovery_success_permille_mean"],
-            descending=[True, True],
+            ["route_present_total_window_permille_mean", "route_churn_count_mean"],
+            descending=[True, False],
         ).row(0, named=True)
         self.assertEqual(best["comparison_engine_set"], "pathway-batman-bellman")
         self.assertEqual(best["route_present_total_window_permille_mean"], 920.0)
@@ -1064,6 +1064,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(row["stale_persistence_round_mean"], 2.0)
         self.assertEqual(row["recovery_success_permille_mean"], 900.0)
         self.assertEqual(row["unrecovered_after_loss_count_mean"], 0.0)
+        self.assertEqual(row["repair_metric_status"], "recovered")
 
     def test_routing_fitness_stale_summary_keeps_no_recovery_rows(self) -> None:
         summary = routing_fitness_stale_repair_summary_table(
@@ -1091,6 +1092,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(row["stale_persistence_round_mean"], 3.0)
         self.assertEqual(row["recovery_round_mean"], None)
         self.assertEqual(row["unrecovered_after_loss_count_mean"], 1.0)
+        self.assertEqual(row["repair_metric_status"], "unrecovered")
 
     def test_routing_fitness_takeaways_close_with_tested_envelope(self) -> None:
         lines = routing_fitness_takeaway_lines(
@@ -1280,6 +1282,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         self.assertEqual(stale_rows[0]["family_label"], "Recovery window")
         self.assertEqual(stale_rows[0]["engine_key"], "pathway")
         self.assertIn("route=", stale_rows[0]["route_label"])
+        self.assertIn("repair_status", stale_rows[0])
 
     def test_route_presence_percent_transform_uses_permille_scale(self) -> None:
         chart = render_pathway_budget_route_presence(

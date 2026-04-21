@@ -2206,8 +2206,6 @@ def render_routing_fitness_crossover(
                 "engine_key": engine_set,
                 "engine_label": engine_display_label(engine_set),
                 "route_presence": float(value) / 10.0,
-                "recovery_success": float(row["recovery_success_permille_mean"] or 0.0)
-                / 10.0,
                 "hover_detail": (
                     f"loss r{int(row['first_loss_round_mean'])}"
                     if row["first_loss_round_mean"] is not None
@@ -2249,7 +2247,6 @@ def render_routing_fitness_crossover(
             alt.Tooltip("band_label:N", title="Band"),
             alt.Tooltip("engine_label:N", title="Engine"),
             alt.Tooltip("route_presence:Q", title="Route presence", format=".1f"),
-            alt.Tooltip("recovery_success:Q", title="Recovery event success", format=".1f"),
             alt.Tooltip("hover_detail:N", title="Loss"),
             alt.Tooltip("churn:Q", title="Churn", format=".1f"),
             alt.Tooltip("control_activity:Q", title="Control activity", format=".1f"),
@@ -2435,12 +2432,12 @@ def render_routing_fitness_stale_repair(
                 / 10.0,
                 "stale_persistence": persistence,
                 "label_x": label_x,
-                "recovery_success": float(row["recovery_success_permille_mean"] or 0.0)
-                / 10.0,
+                "repair_status": row["repair_metric_status"],
                 "route_label": (
                     f"route={float(row['route_present_total_window_permille_mean'] or 0.0) / 10.0:.1f}%"
                 ),
                 "detail_label": (
+                    f"{row['repair_metric_status']} "
                     f"unrec={int(round(row['unrecovered_after_loss_count_mean'] or 0.0))} "
                     f"loss={int(row['first_loss_round_mean']) if row['first_loss_round_mean'] is not None else '–'}"
                 ),
@@ -2464,7 +2461,7 @@ def render_routing_fitness_stale_repair(
             alt.Tooltip("engine_label:N", title="Engine"),
             alt.Tooltip("stale_persistence:Q", title="Stale persistence", format=".1f"),
             alt.Tooltip("route_presence:Q", title="Route presence", format=".1f"),
-            alt.Tooltip("recovery_success:Q", title="Recovery event success", format=".1f"),
+            alt.Tooltip("repair_status:N", title="Repair status"),
             alt.Tooltip("control_activity:Q", title="Control activity", format=".1f"),
             alt.Tooltip("detail_label:N", title="Detail"),
         ],

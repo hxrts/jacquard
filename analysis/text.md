@@ -467,6 +467,7 @@ Interpret the point positions by quadrant: the useful region is high delivery wi
 - In the high large-pop route-visible bands, the core-periphery family is shared by {scaling_best_engines} at {scaling_high_route} permille, while the high multi-bottleneck family is shared by {bottleneck_best_engines} at {bottleneck_high_route} permille.
 - The steepest diameter / fanout drop is `{diameter_sensitive_engine}` at {diameter_delta} permille from the small baseline to the high band, and the steepest multi-bottleneck drop is `{bottleneck_fragile_engine}` at {bottleneck_delta} permille.
 - `scatter` and `field` are the clearest route-visible large-population losers: in the high core-periphery band they fall to {core_periphery_scatter_route} and {core_periphery_field_route} permille, and in the high multi-bottleneck band they reach only {multi_bottleneck_scatter_route} and {multi_bottleneck_field_route} permille.
+- The Field large-population failures are not stale selected-search successes: the high core-periphery Field run has {core_periphery_field_selected_results} current selected-result round and {core_periphery_field_inadmissible} inadmissible reactivation attempts, while the high multi-bottleneck run has {multi_bottleneck_field_selected_results} current selected-result round and {multi_bottleneck_field_inadmissible} inadmissible reactivation attempts. The last active-route blocker still reports `{core_periphery_field_blocker}` / `{multi_bottleneck_field_blocker}`, but the post-loss state is admission failure after support withdrawal rather than a simulator activation gap.
 - The combined `pathway-batman-bellman` stack materially closes the multi-bottleneck gap versus plain `pathway`, reaching {multi_bottleneck_pathway_batman_route} permille in the high band versus {multi_bottleneck_pathway_route} for `pathway` alone.
 - The sparse-threshold high band still shows viable `{sparse_viable}` against explosive `{sparse_explosive}`, the congestion-threshold moderate band separates viable `{congestion_viable}` from collapse `{congestion_collapse}`, the congestion-threshold high band is currently only `{congestion_high_states}`, and the regional-shift high band still spans `{regional_states}`.
 
@@ -484,7 +485,7 @@ Across these summaries, route churn is the report-primary cost metric and the ro
 
 @table routing_fitness_crossover_summary
 
-Compact crossover view for the remaining route-visible design question. Column guide: Question is the analytical axis, Band is the maintained difficulty band, Engine Set is the standalone routing stack, Route is total-window route presence, Recov. is recovery success after a loss, Loss is the first-loss round, Churn is mean route churn, and Hop is the active-route hop-count proxy.
+Compact crossover view for the remaining route-visible design question. Column guide: Question is the analytical axis, Band is the maintained difficulty band, Engine Set is the standalone routing stack, Route is total-window route presence, Loss is the first-loss round, Churn is mean route churn, and Hop is the active-route hop-count proxy.
 
 ### Routing-Fitness Multi-Flow Summary
 
@@ -496,7 +497,7 @@ Compact fairness view for the shared-broker families. Column guide: Min and Max 
 
 @table routing_fitness_stale_repair_summary
 
-Compact stale-information repair view. Column guide: Persist is the mean bad-route persistence after the first disruptive topology change, Route is total-window route presence, Unrec. is mean unrecovered-after-loss count, Loss is the first-loss round, and Churn is mean route churn. Recovery-event success is still exported in the CSV, but it is not used as the headline because many stale scenarios never enter a loss/recovery event path.
+Compact stale-information repair view. Column guide: Persist is the mean bad-route persistence after the first disruptive topology change, Route is total-window route presence, Unrec. is mean unrecovered-after-loss count, Status distinguishes no-loss, recovered, ordinary unrecovered, and store-forward-unrecovered cases, Loss is the first-loss round, and Churn is mean route churn. Recovery-event success is still exported in the CSV, but it is not used as the headline because many stale scenarios never enter a loss/recovery event path.
 
 ### Routing-Fitness Figure Context
 
@@ -506,7 +507,7 @@ These figures isolate the last three decision questions directly: crossover unde
 
 @figure routing_fitness_crossover
 
-Crossover view for the remaining route-visible design boundary. Each panel fixes one analytical question and moves from low to high difficulty. Lines show total-window route presence; first-loss, recovery-event success, churn, and route-observation cost remain in the table and figure hover data because recovery events are not present in every crossover band.
+Crossover view for the remaining route-visible design boundary. Each panel fixes one analytical question and moves from low to high difficulty. Lines show total-window route presence; first-loss, churn, and route-observation cost remain in the table and figure hover data because recovery events are not present in every crossover band.
 
 #### Figure 26
 
@@ -519,12 +520,12 @@ The broker detail labels summarize how much of the visible next-hop-attributable
 
 @figure routing_fitness_stale_repair
 
-Bad-route persistence after delayed or asymmetric observations. Shorter bars are better because they mean the engine stops trusting stale routing state quickly after disruption. The labels show total-window route presence and unrecovered counts so the figure separates fast cleanup from cleanup that still leaves the objective unavailable.
+Bad-route persistence after delayed or asymmetric observations. Shorter bars are better because they mean the engine stops trusting stale routing state quickly after disruption. The labels show total-window route presence, repair status, and unrecovered counts so the figure separates fast cleanup from cleanup that still leaves the objective unavailable.
 
 ### Routing-Fitness Takeaways
 
-- In the high search-burden crossover band, {search_high_engines} lead at {search_high_route} permille total-window route presence with {search_high_recovery} permille recovery success.
-- In the high maintenance-benefit crossover band, {maintenance_high_engines} lead at {maintenance_high_route} permille total-window route presence with {maintenance_high_recovery} permille recovery success.
+- In the high search-burden crossover band, {search_high_engines} lead at {search_high_route} permille total-window route presence.
+- In the high maintenance-benefit crossover band, {maintenance_high_engines} lead at {maintenance_high_route} permille total-window route presence.
 - Under shared-broker contention, `Shared corridor` is best handled by {shared_corridor_engines} at {shared_corridor_min_route} permille minimum per-flow route presence, while `Detour choice` is best handled by {detour_choice_engines} at {detour_choice_min_route} permille.
 - The harshest fairness tail is currently `{worst_starvation_family}`, where `{worst_starvation_engine}` still records {worst_starvation_value} starved objectives on average.
 - In the stale-repair surface, `Recovery window` is best handled by {stale_best_engines} at {stale_best_persistence} rounds of stale persistence and {stale_best_route} permille route presence, while the worst stale overcommit is `{worst_stale_family}` under `{worst_stale_engine}` at {worst_stale_persistence} rounds and only {worst_stale_route} permille route presence.
@@ -555,7 +556,7 @@ The maintained diffusion families are:
 
 @table diffusion-engine-summary
 
-Best-performing engine set per maintained diffusion family. Column guide: Engine Set, Delivery (fraction of targets reached), Coverage (fraction of reachable nodes), Latency (mean delivery delay), State (boundedness classification), Stress.
+Best-performing engine set per maintained diffusion family. Column guide: Engine Set, Delivery (fraction of targets reached), Coverage (fraction of reachable nodes), Latency (mean delivery delay), State (boundedness classification), Leak (observer leakage for the selected winner), Max Leak (worst observed leakage and responsible configuration in the same family), Stress.
 
 Here, `collapse` means the engine falls below the basic viability floor for delivery or coverage, while `explosive` means it preserves delivery only by driving reproduction, transmission, storage, or energy cost into an unbounded regime.
 

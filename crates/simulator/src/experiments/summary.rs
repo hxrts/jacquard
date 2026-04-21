@@ -379,6 +379,15 @@ pub(super) fn summarize_run(
         .count();
     let hook_counts = reduced.environment_hook_counts();
     let failure_counts = reduced.failure_class_counts();
+    let classified_failure_count = failure_counts
+        .no_candidate
+        .saturating_add(failure_counts.inadmissible_candidate)
+        .saturating_add(failure_counts.lost_reachability)
+        .saturating_add(failure_counts.replacement_loop)
+        .saturating_add(failure_counts.maintenance_failure)
+        .saturating_add(failure_counts.activation_failure)
+        .saturating_add(failure_counts.persistent_degraded)
+        .saturating_add(failure_counts.other);
     let activation_failure_count = objective_count.saturating_sub(activation_successes);
     let stability_first = stability_scores.first().copied();
     let stability_last = stability_scores.last().copied();
@@ -829,7 +838,7 @@ pub(super) fn summarize_run(
         stability_max: stability_scores.iter().copied().max(),
         stability_total,
         maintenance_failure_count: reduced.maintenance_failure_count(),
-        failure_summary_count: u32::try_from(reduced.failure_summaries.len()).unwrap_or(u32::MAX),
+        failure_summary_count: classified_failure_count,
         no_candidate_count: failure_counts.no_candidate,
         inadmissible_candidate_count: failure_counts.inadmissible_candidate,
         lost_reachability_count: failure_counts.lost_reachability,
@@ -1631,13 +1640,21 @@ mod tests {
             .prepared_scenario()
             .expect("synthetic summary spec should retain a prepared scenario");
         let mut replay = synthetic_reduced_replay();
-        replay.failure_summaries = vec![SimulationFailureSummary {
-            round_index: Some(0),
-            detail: "objective activation failed for owner NodeId(1) destination NodeId(2): no candidate"
-                .to_string(),
-        }];
+        replay.failure_summaries = vec![
+            SimulationFailureSummary {
+                round_index: None,
+                detail: "run completed without any route lifecycle events".to_string(),
+            },
+            SimulationFailureSummary {
+                round_index: Some(0),
+                detail:
+                    "objective activation failed for owner NodeId(1) destination NodeId(2): no candidate"
+                        .to_string(),
+            },
+        ];
 
         let summary = summarize_run(&spec, scenario, &replay);
+        assert_eq!(summary.failure_summary_count, 1);
         assert_eq!(summary.activation_attempt_failure_count, 1);
         assert_eq!(summary.activation_failure_count, 0);
         assert_eq!(summary.activation_success_permille, 1000);
