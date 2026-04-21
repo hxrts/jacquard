@@ -16,6 +16,10 @@ pub struct MercatorDiagnostics {
     pub inadmissible_candidate_attempts: u32,
     pub support_withdrawal_count: u32,
     pub stale_persistence_rounds: u32,
+    pub active_stale_route_count: u32,
+    pub repair_attempt_count: u32,
+    pub repair_success_count: u32,
+    pub recovery_rounds: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -424,6 +428,64 @@ impl MercatorEvidenceGraph {
             .diagnostics
             .inadmissible_candidate_attempts
             .saturating_add(1);
+    }
+
+    pub fn record_repair_attempt(&mut self) {
+        self.diagnostics.repair_attempt_count =
+            self.diagnostics.repair_attempt_count.saturating_add(1);
+    }
+
+    pub fn record_repair_success(&mut self, recovery_rounds: u32) {
+        self.diagnostics.repair_success_count =
+            self.diagnostics.repair_success_count.saturating_add(1);
+        self.diagnostics.recovery_rounds = self
+            .diagnostics
+            .recovery_rounds
+            .saturating_add(recovery_rounds);
+    }
+
+    pub fn record_active_stale_routes(&mut self, count: u32, stale_rounds: u32) {
+        self.diagnostics.active_stale_route_count = count;
+        self.diagnostics.stale_persistence_rounds = stale_rounds;
+    }
+
+    pub fn mark_route_support_fresh(
+        &mut self,
+        route_id: RouteId,
+        support_score: u16,
+        meta: MercatorEvidenceMeta,
+    ) {
+        if let Some(support) = self.route_support.get_mut(&route_id) {
+            support.state = MercatorSupportState::Fresh;
+            support.support_score = support_score;
+            support.last_loss_epoch = None;
+            support.stale_started_at = None;
+            support.meta = meta;
+        }
+    }
+
+    pub fn withdraw_route_support(
+        &mut self,
+        route_id: RouteId,
+        disruption_epoch: RouteEpoch,
+        now: Tick,
+    ) {
+        if let Some(support) = self.route_support.get_mut(&route_id) {
+            let was_active = matches!(
+                support.state,
+                MercatorSupportState::Fresh
+                    | MercatorSupportState::Suspect
+                    | MercatorSupportState::Repairing
+            );
+            support.support_score = 0;
+            support.state = MercatorSupportState::Withdrawn;
+            support.last_loss_epoch = Some(disruption_epoch);
+            support.stale_started_at = Some(now);
+            if was_active {
+                self.diagnostics.support_withdrawal_count =
+                    self.diagnostics.support_withdrawal_count.saturating_add(1);
+            }
+        }
     }
 
     pub fn invalidate_disruption_epoch(&mut self, disruption_epoch: RouteEpoch, now: Tick) {

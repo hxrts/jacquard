@@ -700,6 +700,7 @@ fn head_to_head_configs() -> Vec<ExperimentParameterSet> {
         ExperimentParameterSet::head_to_head(ComparisonEngineSet::Babel, Some((4, 2)), None, None),
         ExperimentParameterSet::head_to_head(ComparisonEngineSet::OlsrV2, Some((4, 2)), None, None),
         ExperimentParameterSet::head_to_head(ComparisonEngineSet::Scatter, None, None, None),
+        ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None),
         ExperimentParameterSet::head_to_head(
             ComparisonEngineSet::Pathway,
             None,

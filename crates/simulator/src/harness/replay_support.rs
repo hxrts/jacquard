@@ -26,7 +26,10 @@ use jacquard_field::{
     selected_neighbor_from_backend_route_id as selected_field_neighbor,
     FieldRouterAnalysisSnapshot, FIELD_ENGINE_ID as FIELD_ROUTER_ENGINE_ID,
 };
-use jacquard_mercator::{MercatorRouterAnalysisSnapshot, MERCATOR_ENGINE_ID};
+use jacquard_mercator::{
+    selected_neighbor_from_backend_route_id as selected_mercator_neighbor,
+    MercatorRouterAnalysisSnapshot, MERCATOR_ENGINE_ID,
+};
 use jacquard_olsrv2::{
     selected_neighbor_from_backend_route_id as selected_olsr_neighbor, OLSRV2_ENGINE_ID,
 };
@@ -118,6 +121,10 @@ pub(super) fn summarize_mercator_replay(router: &ReferenceRouter) -> Option<Merc
         inadmissible_candidate_attempts: diagnostics.inadmissible_candidate_attempts,
         support_withdrawal_count: diagnostics.support_withdrawal_count,
         stale_persistence_rounds: diagnostics.stale_persistence_rounds,
+        active_stale_route_count: diagnostics.active_stale_route_count,
+        repair_attempt_count: diagnostics.repair_attempt_count,
+        repair_success_count: diagnostics.repair_success_count,
+        recovery_rounds: diagnostics.recovery_rounds,
         active_route_count: snapshot.active_route_count,
         latest_topology_epoch: snapshot.latest_topology_epoch,
     })
@@ -258,6 +265,7 @@ fn next_hop_node_id_for_route(route: &jacquard_core::MaterializedRoute) -> Optio
         OLSRV2_ENGINE_ID => selected_olsr_neighbor(backend_route_id),
         PATHWAY_ENGINE_ID => first_hop_node_id_from_backend_route_id(backend_route_id),
         FIELD_ROUTER_ENGINE_ID => selected_field_neighbor(backend_route_id),
+        MERCATOR_ENGINE_ID => selected_mercator_neighbor(backend_route_id),
         _ => None,
     }
 }

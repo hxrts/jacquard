@@ -4045,6 +4045,42 @@ mod tests {
     }
 
     #[test]
+    fn head_to_head_mercator_stale_families_emit_repair_rows() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+        let destination = DestinationId::Node(node_id(6));
+        for (family, builder) in [
+            (
+                "head-to-head-stale-observation-delay",
+                build_comparison_stale_observation_delay as ComparisonBuilder,
+            ),
+            (
+                "head-to-head-stale-asymmetric-region",
+                build_comparison_stale_asymmetric_region as ComparisonBuilder,
+            ),
+            (
+                "head-to-head-stale-recovery-window",
+                build_comparison_stale_recovery_window as ComparisonBuilder,
+            ),
+        ] {
+            let (scenario, environment) = builder(&parameters, SimulationSeed(41));
+            let reduced = run_reduced_replay(&scenario, &environment);
+            let summary = summarize_replay(family, &parameters, &scenario, &reduced);
+
+            assert!(
+                reduced.route_seen(NODE_A, &destination),
+                "{family} did not materialize a Mercator route: {:?}",
+                reduced.failure_summaries,
+            );
+            assert!(reduced.route_seen_with_engine(NODE_A, &destination, &MERCATOR_ENGINE_ID));
+            assert!(
+                summary.route_present_total_window_permille > 0,
+                "{family} did not emit route-visible stale-family summary rows"
+            );
+        }
+    }
+
+    #[test]
     fn head_to_head_field_concurrent_mixed_activates_both_objectives() {
         let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
         let (scenario, environment) =

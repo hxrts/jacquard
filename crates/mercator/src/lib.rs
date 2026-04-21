@@ -15,11 +15,13 @@ mod planner;
 mod public_state;
 mod runtime;
 
+pub use corridor::selected_neighbor_from_backend_route_id;
 use corridor::{ActiveMercatorRoute, MercatorPlanningOutcome};
 pub use evidence::{MercatorDiagnostics, MercatorEvidenceGraph};
 use jacquard_core::{
-    ConnectivityPosture, NodeId, RouteEpoch, RouteId, RoutePartitionClass, RouteProtectionClass,
-    RouteShapeVisibility, RoutingEngineCapabilities, RoutingEngineId,
+    Configuration, ConnectivityPosture, NodeId, Observation, RouteEpoch, RouteId,
+    RoutePartitionClass, RouteProtectionClass, RouteShapeVisibility, RoutingEngineCapabilities,
+    RoutingEngineId,
 };
 pub use public_state::{
     MercatorEngineConfig, MercatorEvidenceBounds, MercatorOperationalBounds,
@@ -33,10 +35,10 @@ pub const MERCATOR_CAPABILITIES: RoutingEngineCapabilities = RoutingEngineCapabi
     engine: MERCATOR_ENGINE_ID,
     max_protection: RouteProtectionClass::LinkProtected,
     max_connectivity: ConnectivityPosture {
-        repair: jacquard_core::RouteRepairClass::BestEffort,
+        repair: jacquard_core::RouteRepairClass::Repairable,
         partition: RoutePartitionClass::ConnectedOnly,
     },
-    repair_support: jacquard_core::RepairSupport::Unsupported,
+    repair_support: jacquard_core::RepairSupport::Supported,
     hold_support: jacquard_core::HoldSupport::Unsupported,
     decidable_admission: jacquard_core::DecidableSupport::Supported,
     quantitative_bounds: jacquard_core::QuantitativeBoundSupport::Unsupported,
@@ -49,6 +51,7 @@ pub struct MercatorEngine {
     local_node_id: NodeId,
     config: MercatorEngineConfig,
     latest_topology_epoch: Option<RouteEpoch>,
+    latest_topology: Option<Observation<Configuration>>,
     evidence: MercatorEvidenceGraph,
     planner_diagnostics: Cell<MercatorDiagnostics>,
     active_routes: BTreeMap<RouteId, ActiveMercatorRoute>,
@@ -66,6 +69,7 @@ impl MercatorEngine {
             local_node_id,
             config,
             latest_topology_epoch: None,
+            latest_topology: None,
             evidence: MercatorEvidenceGraph::new(config.evidence),
             planner_diagnostics: Cell::new(MercatorDiagnostics::default()),
             active_routes: BTreeMap::new(),
@@ -154,6 +158,18 @@ impl MercatorEngine {
             stale_persistence_rounds: evidence
                 .stale_persistence_rounds
                 .saturating_add(planner.stale_persistence_rounds),
+            active_stale_route_count: evidence
+                .active_stale_route_count
+                .saturating_add(planner.active_stale_route_count),
+            repair_attempt_count: evidence
+                .repair_attempt_count
+                .saturating_add(planner.repair_attempt_count),
+            repair_success_count: evidence
+                .repair_success_count
+                .saturating_add(planner.repair_success_count),
+            recovery_rounds: evidence
+                .recovery_rounds
+                .saturating_add(planner.recovery_rounds),
         }
     }
 }

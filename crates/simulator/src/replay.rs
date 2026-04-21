@@ -102,6 +102,10 @@ pub struct MercatorReplaySummary {
     pub inadmissible_candidate_attempts: u32,
     pub support_withdrawal_count: u32,
     pub stale_persistence_rounds: u32,
+    pub active_stale_route_count: u32,
+    pub repair_attempt_count: u32,
+    pub repair_success_count: u32,
+    pub recovery_rounds: u32,
     pub active_route_count: u32,
     pub latest_topology_epoch: Option<jacquard_core::RouteEpoch>,
 }

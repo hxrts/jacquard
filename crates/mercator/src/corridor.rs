@@ -22,7 +22,7 @@ use crate::{
 };
 
 const MERCATOR_ROUTE_ID_DOMAIN: &[u8] = b"jacquard.mercator.route";
-const MERCATOR_TOKEN_VERSION: u8 = 1;
+const MERCATOR_TOKEN_VERSION: u8 = 2;
 const DEFAULT_VALIDITY_TICKS: u64 = 8;
 const DEFAULT_WORK_STEP_BOUND: u32 = 16;
 
@@ -55,6 +55,7 @@ struct MercatorBackendToken {
     destination: DestinationId,
     primary_path: Vec<NodeId>,
     alternate_next_hops: Vec<NodeId>,
+    alternate_paths: Vec<Vec<NodeId>>,
     support_score: u16,
 }
 
@@ -64,8 +65,10 @@ pub(crate) struct ActiveMercatorRoute {
     pub(crate) topology_epoch: RouteEpoch,
     pub(crate) primary_path: Vec<NodeId>,
     pub(crate) alternate_next_hops: Vec<NodeId>,
+    pub(crate) alternate_paths: Vec<Vec<NodeId>>,
     pub(crate) backend_route_id: BackendRouteId,
     pub(crate) support_score: u16,
+    pub(crate) stale_started_at: Option<Tick>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -93,6 +96,11 @@ impl MercatorCorridor {
                 .iter()
                 .filter_map(|alternate| alternate.path.get(1).copied())
                 .collect(),
+            alternate_paths: self
+                .alternates
+                .iter()
+                .map(|alternate| alternate.path.clone())
+                .collect(),
             support_score: self.primary.support_score,
         })?;
         let route_id = route_id_for_backend(&backend_route_id);
@@ -103,7 +111,7 @@ impl MercatorCorridor {
                 engine: MERCATOR_ENGINE_ID,
                 protection: RouteProtectionClass::LinkProtected,
                 connectivity: ConnectivityPosture {
-                    repair: RouteRepairClass::BestEffort,
+                    repair: RouteRepairClass::Repairable,
                     partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
                 },
                 protocol_mix: protocol_mix_for_path(topology, &self.primary.path),
@@ -114,7 +122,7 @@ impl MercatorCorridor {
                 RouteEstimate {
                     estimated_protection: RouteProtectionClass::LinkProtected,
                     estimated_connectivity: ConnectivityPosture {
-                        repair: RouteRepairClass::BestEffort,
+                        repair: RouteRepairClass::Repairable,
                         partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
                     },
                     topology_epoch: topology.value.epoch,
@@ -273,8 +281,42 @@ pub(crate) fn active_route_from_backend(
         topology_epoch: token.topology_epoch,
         primary_path: token.primary_path,
         alternate_next_hops: token.alternate_next_hops,
+        alternate_paths: token.alternate_paths,
         backend_route_id,
         support_score: token.support_score,
+        stale_started_at: None,
+    })
+}
+
+pub fn selected_neighbor_from_backend_route_id(
+    backend_route_id: &BackendRouteId,
+) -> Option<NodeId> {
+    decode_backend_token(backend_route_id).and_then(|token| token.primary_path.get(1).copied())
+}
+
+pub(crate) fn path_is_viable(
+    path: &[NodeId],
+    topology: &Observation<Configuration>,
+    evidence: &MercatorEvidenceGraph,
+) -> bool {
+    !path.is_empty()
+        && path.windows(2).all(|edge| {
+            edge_score(edge[0], edge[1], topology, evidence).is_some_and(|score| score > 0)
+        })
+}
+
+pub(crate) fn repair_realization_from_alternates(
+    local_node_id: NodeId,
+    active: &ActiveMercatorRoute,
+    topology: &Observation<Configuration>,
+    config: &MercatorEngineConfig,
+    evidence: &MercatorEvidenceGraph,
+) -> Option<MercatorRouteRealization> {
+    let DestinationId::Node(goal) = active.destination else {
+        return None;
+    };
+    surviving_alternate_path(active, topology, evidence).or_else(|| {
+        searched_alternate_path(local_node_id, goal, active, topology, config, evidence)
     })
 }
 
@@ -308,6 +350,71 @@ fn bounded_paths(
         }
     }
     paths
+}
+
+fn surviving_alternate_path(
+    active: &ActiveMercatorRoute,
+    topology: &Observation<Configuration>,
+    evidence: &MercatorEvidenceGraph,
+) -> Option<MercatorRouteRealization> {
+    active
+        .alternate_paths
+        .iter()
+        .filter(|path| path_is_viable(path, topology, evidence))
+        .map(|path| realization_for_path(path, topology, evidence))
+        .max_by_key(realization_ordering_key)
+}
+
+fn searched_alternate_path(
+    local_node_id: NodeId,
+    goal: NodeId,
+    active: &ActiveMercatorRoute,
+    topology: &Observation<Configuration>,
+    config: &MercatorEngineConfig,
+    evidence: &MercatorEvidenceGraph,
+) -> Option<MercatorRouteRealization> {
+    let max_hops = repair_max_hops(config);
+    active
+        .alternate_next_hops
+        .iter()
+        .copied()
+        .take(usize::try_from(config.bounds.repair_attempt_count_max).unwrap_or(usize::MAX))
+        .filter_map(|next_hop| {
+            repair_path_via_next_hop(local_node_id, next_hop, goal, topology, evidence, max_hops)
+        })
+        .max_by_key(realization_ordering_key)
+}
+
+fn repair_path_via_next_hop(
+    local_node_id: NodeId,
+    next_hop: NodeId,
+    goal: NodeId,
+    topology: &Observation<Configuration>,
+    evidence: &MercatorEvidenceGraph,
+    max_hops: u8,
+) -> Option<MercatorRouteRealization> {
+    edge_score(local_node_id, next_hop, topology, evidence)?;
+    bounded_paths(next_hop, goal, topology, evidence, max_hops)
+        .into_iter()
+        .map(|suffix| {
+            let mut path = Vec::with_capacity(suffix.path.len().saturating_add(1));
+            path.push(local_node_id);
+            path.extend(suffix.path);
+            realization_for_path(&path, topology, evidence)
+        })
+        .max_by_key(realization_ordering_key)
+}
+
+fn repair_max_hops(config: &MercatorEngineConfig) -> u8 {
+    u8::try_from(
+        config
+            .evidence
+            .corridor_alternate_count_max
+            .saturating_add(config.bounds.repair_attempt_count_max)
+            .saturating_add(2),
+    )
+    .unwrap_or(u8::MAX)
+    .max(2)
 }
 
 fn usable_neighbors(
@@ -432,7 +539,7 @@ fn admission_for(
             connectivity: ObjectiveVsDelivered {
                 objective: profile.selected_connectivity,
                 delivered: ConnectivityPosture {
-                    repair: RouteRepairClass::BestEffort,
+                    repair: RouteRepairClass::Repairable,
                     partition: jacquard_core::RoutePartitionClass::ConnectedOnly,
                 },
             },
@@ -528,6 +635,16 @@ fn encode_backend_token(
     for node in &token.alternate_next_hops {
         bytes.extend_from_slice(&node.0);
     }
+    bytes.push(
+        u8::try_from(token.alternate_paths.len())
+            .map_err(|_| RouteSelectionError::PolicyConflict)?,
+    );
+    for path in &token.alternate_paths {
+        bytes.push(u8::try_from(path.len()).map_err(|_| RouteSelectionError::PolicyConflict)?);
+        for node in path {
+            bytes.extend_from_slice(&node.0);
+        }
+    }
     bytes.extend_from_slice(&token.support_score.to_be_bytes());
     Ok(BackendRouteId(bytes))
 }
@@ -553,12 +670,25 @@ fn decode_backend_token(backend_route_id: &BackendRouteId) -> Option<MercatorBac
     for _ in 0..alternate_len {
         alternate_next_hops.push(NodeId(read_array(bytes, &mut cursor)?));
     }
+    let alternate_path_len = usize::from(*bytes.get(cursor)?);
+    cursor = cursor.saturating_add(1);
+    let mut alternate_paths = Vec::with_capacity(alternate_path_len);
+    for _ in 0..alternate_path_len {
+        let path_len = usize::from(*bytes.get(cursor)?);
+        cursor = cursor.saturating_add(1);
+        let mut path = Vec::with_capacity(path_len);
+        for _ in 0..path_len {
+            path.push(NodeId(read_array(bytes, &mut cursor)?));
+        }
+        alternate_paths.push(path);
+    }
     let support_score = u16::from_be_bytes(read_array(bytes, &mut cursor)?);
     Some(MercatorBackendToken {
         topology_epoch,
         destination,
         primary_path,
         alternate_next_hops,
+        alternate_paths,
         support_score,
     })
 }
