@@ -209,6 +209,8 @@ impl ReducedReplayView {
                             entry.key == key
                                 && entry.route_id == route.route_id
                                 && entry.engine_id == route.engine_id
+                                && entry.next_hop_node_id == route.next_hop_node_id
+                                && entry.last_seen_round.saturating_add(1) == round.round_index
                         })
                 {
                     existing.last_seen_round = round.round_index;
@@ -487,7 +489,12 @@ impl ReducedReplayView {
         let mut counts = ReducedFailureClassCounts::default();
         for summary in &self.failure_summaries {
             let detail = summary.detail.to_ascii_lowercase();
-            if detail.contains("objective activation failed") {
+            if detail.contains("no deterministic checkpoints were emitted during the run")
+                || detail.contains("run completed without any route lifecycle events")
+                || detail.contains("driver surfaced ")
+            {
+                continue;
+            } else if detail.contains("objective activation failed") {
                 counts.activation_failure = counts.activation_failure.saturating_add(1);
             } else if detail.contains("route maintenance failed") {
                 counts.maintenance_failure = counts.maintenance_failure.saturating_add(1);
@@ -675,8 +682,46 @@ fn hook_kind(hook: &EnvironmentHook) -> EnvironmentHookKind {
 
 #[cfg(test)]
 mod tests {
-    use crate::{presets, ReducedReplayView};
+    use crate::{
+        presets, replay::ActiveRouteSummary, ReducedFailureClassCounts, ReducedReplayRound,
+        ReducedReplayView,
+    };
+    use jacquard_core::{
+        DestinationId, HealthScore, NodeId, ReachabilityState, RouteId, RouteLifecycleEvent,
+    };
+    use jacquard_pathway::PATHWAY_ENGINE_ID;
     use jacquard_traits::RoutingSimulator;
+
+    fn node(byte: u8) -> NodeId {
+        NodeId([byte; 32])
+    }
+
+    fn active_route(round_next_hop: NodeId) -> ActiveRouteSummary {
+        ActiveRouteSummary {
+            owner_node_id: node(1),
+            route_id: RouteId([7; 16]),
+            destination: DestinationId::Node(node(9)),
+            engine_id: PATHWAY_ENGINE_ID,
+            next_hop_node_id: Some(round_next_hop),
+            hop_count_hint: Some(2),
+            last_lifecycle_event: RouteLifecycleEvent::Activated,
+            reachability_state: ReachabilityState::Reachable,
+            stability_score: HealthScore(900),
+            commitment_resolution: None,
+            field_continuity_band: None,
+            field_last_outcome: None,
+            field_last_promotion_decision: None,
+            field_last_promotion_blocker: None,
+            field_continuation_shift_count: None,
+            scatter_current_regime: None,
+            scatter_last_action: None,
+            scatter_retained_message_count: None,
+            scatter_delivered_message_count: None,
+            scatter_contact_rate: None,
+            scatter_diversity_score: None,
+            scatter_resource_pressure_permille: None,
+        }
+    }
 
     #[test]
     fn reducers_classify_failures_and_hooks_deterministically() {
@@ -695,12 +740,50 @@ mod tests {
         assert_eq!(hook_counts.replace_topology, 1);
 
         let failure_counts = reduced.failure_class_counts();
-        assert!(
-            failure_counts
-                .other
-                .saturating_add(failure_counts.maintenance_failure)
-                >= 1,
-            "expected deterministic failure classification: {failure_counts:?}"
+        assert_eq!(
+            failure_counts,
+            ReducedFailureClassCounts::default(),
+            "generic harness summaries should not inflate deterministic failure classes"
         );
+    }
+
+    #[test]
+    fn route_observations_split_continuous_routes_on_next_hop_change() {
+        let replay = ReducedReplayView {
+            scenario_name: "next-hop-churn".to_string(),
+            round_count: 3,
+            rounds: vec![
+                ReducedReplayRound {
+                    round_index: 0,
+                    active_routes: vec![active_route(node(3))],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 1,
+                    active_routes: vec![active_route(node(3))],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 2,
+                    active_routes: vec![active_route(node(4))],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+            ],
+            distinct_engine_ids: vec![PATHWAY_ENGINE_ID],
+            driver_status_events: Vec::new(),
+            failure_summaries: Vec::new(),
+        };
+
+        let observations = replay.route_observations();
+        assert_eq!(observations.len(), 2);
+        assert_eq!(observations[0].next_hop_node_id, Some(node(3)));
+        assert_eq!(observations[0].first_seen_round, 0);
+        assert_eq!(observations[0].last_seen_round, 1);
+        assert_eq!(observations[1].next_hop_node_id, Some(node(4)));
+        assert_eq!(observations[1].first_seen_round, 2);
+        assert_eq!(observations[1].last_seen_round, 2);
     }
 }

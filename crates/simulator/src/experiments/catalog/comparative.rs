@@ -9,8 +9,10 @@ use crate::experiments::{
     build_comparison_large_multi_bottleneck_moderate, build_comparison_medium_bridge_repair,
     build_comparison_multi_flow_asymmetric_demand, build_comparison_multi_flow_detour_choice,
     build_comparison_multi_flow_shared_corridor, build_comparison_partial_observability_bridge,
-    build_comparison_stale_asymmetric_region, build_comparison_stale_observation_delay,
-    build_comparison_stale_recovery_window, RegimeDescriptor,
+    build_comparison_pathway_budget_boundary, build_comparison_stale_asymmetric_region,
+    build_comparison_stale_observation_delay, build_comparison_stale_recovery_window,
+    build_scatter_conservative_constrained_threshold, build_scatter_low_rate_transfer_threshold,
+    build_scatter_stability_window_threshold, RegimeDescriptor,
 };
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -19,7 +21,7 @@ pub(in crate::experiments) enum ComparativeSuiteScale {
     Full,
 }
 
-const SCATTER_FAMILIES: [FamilyDescriptor; 11] = [
+const SCATTER_FAMILIES: [FamilyDescriptor; 14] = [
     FamilyDescriptor {
         family_id: "scatter-connected-low-loss",
         regime: (
@@ -89,6 +91,48 @@ const SCATTER_FAMILIES: [FamilyDescriptor; 11] = [
             48,
         ),
         builder: build_comparison_concurrent_mixed,
+    },
+    FamilyDescriptor {
+        family_id: "scatter-low-rate-transfer-threshold",
+        regime: (
+            "narrow-chain",
+            "moderate",
+            "low-rate",
+            "none",
+            "static",
+            "none",
+            "repairable-connected",
+            52,
+        ),
+        builder: build_scatter_low_rate_transfer_threshold,
+    },
+    FamilyDescriptor {
+        family_id: "scatter-stability-window-threshold",
+        regime: (
+            "narrow-chain",
+            "low",
+            "stable-window-boundary",
+            "none",
+            "static",
+            "none",
+            "repairable-connected",
+            56,
+        ),
+        builder: build_scatter_stability_window_threshold,
+    },
+    FamilyDescriptor {
+        family_id: "scatter-conservative-constrained-threshold",
+        regime: (
+            "fanout-boundary",
+            "low",
+            "medium",
+            "none",
+            "static",
+            "relay-pressure-boundary",
+            "repairable-connected",
+            60,
+        ),
+        builder: build_scatter_conservative_constrained_threshold,
     },
     FamilyDescriptor {
         family_id: "scatter-corridor-continuity-uncertainty",
@@ -176,7 +220,7 @@ const SCATTER_FAMILIES: [FamilyDescriptor; 11] = [
     },
 ];
 
-const COMPARISON_FAMILIES: [FamilyDescriptor; 17] = [
+const COMPARISON_FAMILIES: [FamilyDescriptor; 18] = [
     FamilyDescriptor {
         family_id: "comparison-connected-low-loss",
         regime: (
@@ -246,6 +290,20 @@ const COMPARISON_FAMILIES: [FamilyDescriptor; 17] = [
             48,
         ),
         builder: build_comparison_concurrent_mixed,
+    },
+    FamilyDescriptor {
+        family_id: "comparison-pathway-budget-boundary",
+        regime: (
+            "service-candidate-boundary",
+            "low",
+            "low",
+            "none",
+            "static",
+            "candidate-pruning",
+            "service-budget-boundary",
+            44,
+        ),
+        builder: build_comparison_pathway_budget_boundary,
     },
     FamilyDescriptor {
         family_id: "comparison-corridor-continuity-uncertainty",

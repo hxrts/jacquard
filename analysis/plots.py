@@ -66,6 +66,36 @@ SCATTER_FIGURE_FAMILIES = [
     "scatter-medium-bridge-repair",
 ]
 
+SCATTER_RUNTIME_THRESHOLD_FAMILIES = [
+    "scatter-low-rate-transfer-threshold",
+    "scatter-stability-window-threshold",
+    "scatter-conservative-constrained-threshold",
+]
+
+MIXED_STANDALONE_DIVERGENCE_EXCLUDED_FAMILIES = {
+    "comparison-concurrent-mixed",
+    "comparison-connected-high-loss",
+    "comparison-multi-flow-asymmetric-demand",
+    "comparison-multi-flow-detour-choice",
+    "comparison-multi-flow-shared-corridor",
+    "comparison-partial-observability-bridge",
+    "comparison-pathway-budget-boundary",
+}
+
+
+def _mixed_standalone_fitness_expr() -> pl.Expr:
+    route = pl.col("route_present_total_window_permille_mean").fill_null(0)
+    activation = pl.col("activation_success_permille_mean").fill_null(0)
+    first_materialization = pl.col("first_materialization_round_mean").fill_null(0)
+    churn = pl.col("route_churn_count_mean").fill_null(0)
+    activation_failures = pl.col("activation_failure_count_mean").fill_null(0)
+    return (
+        (route + activation) / 20.0
+        - churn * 0.5
+        - first_materialization * 0.1
+        - activation_failures
+    )
+
 
 def family_label(family_id: str) -> str:
     return (
@@ -827,7 +857,7 @@ def render_scatter_profile_route_presence(
         total_width,
         total_height,
         x_column="scatter_profile_id",
-        y_column="route_present_permille_mean",
+        y_column="route_present_total_window_permille_mean",
         xlabel="Profile",
         ylabel="Active route presence (%)",
         color=ENGINE_COLORS["scatter"],
@@ -864,6 +894,91 @@ def render_scatter_profile_startup(
         }.get(str(value), str(value)),
         columns=4,
     )
+
+
+def render_scatter_profile_runtime(
+    aggregates: pl.DataFrame, total_width: int, total_height: int
+) -> alt.TopLevelMixin | None:
+    data = aggregates.filter(
+        (pl.col("engine_family") == "scatter")
+        & pl.col("family_id").is_in(SCATTER_RUNTIME_THRESHOLD_FAMILIES)
+    )
+    if data.is_empty():
+        return None
+    metric_specs = [
+        ("scatter_handoff_rounds_mean", "Handoff", "#C46A1B"),
+        ("scatter_constrained_rounds_mean", "Constrained", "#7B3D57"),
+        ("scatter_bridging_rounds_mean", "Bridging", "#167C72"),
+        ("scatter_sparse_rounds_mean", "Sparse", "#58A7D8"),
+    ]
+    profile_labels = {
+        "balanced": "balanced",
+        "conservative": "conservative",
+        "degraded-network": "degraded",
+    }
+    rows: list[dict[str, object]] = []
+    for row in data.iter_rows(named=True):
+        profile_id = str(row["scatter_profile_id"])
+        for column, metric_label, _ in metric_specs:
+            rows.append(
+                {
+                    "family_id": row["family_id"],
+                    "family_label": wrapped_family_label(row["family_id"]),
+                    "profile_label": profile_labels.get(profile_id, profile_id),
+                    "metric_label": metric_label,
+                    "rounds": float(row.get(column) or 0.0),
+                    "route_presence": float(
+                        row.get("route_present_total_window_permille_mean") or 0.0
+                    )
+                    / 10.0,
+                    "retained_peak": float(
+                        row.get("scatter_retained_message_peak_mean") or 0.0
+                    ),
+                    "delivered_peak": float(
+                        row.get("scatter_delivered_message_peak_mean") or 0.0
+                    ),
+                }
+            )
+    dataset = alt.InlineData(values=rows)
+    metric_domain = [label for _, label, _ in metric_specs]
+    metric_range = [color for _, _, color in metric_specs]
+    family_order = [wrapped_family_label(family) for family in SCATTER_RUNTIME_THRESHOLD_FAMILIES]
+    chart = (
+        alt.Chart(dataset)
+        .mark_line(point=True, strokeWidth=2.3)
+        .encode(
+            x=alt.X(
+                "profile_label:N",
+                sort=["balanced", "conservative", "degraded"],
+                title="Profile",
+            ),
+            y=alt.Y("rounds:Q", title="Runtime rounds"),
+            color=alt.Color(
+                "metric_label:N",
+                scale=alt.Scale(domain=metric_domain, range=metric_range),
+                title="Signal",
+            ),
+            tooltip=[
+                alt.Tooltip("family_id:N", title="Family"),
+                alt.Tooltip("profile_label:N", title="Profile"),
+                alt.Tooltip("metric_label:N", title="Signal"),
+                alt.Tooltip("rounds:Q", title="Rounds", format=".1f"),
+                alt.Tooltip("route_presence:Q", title="Route presence", format=".1f"),
+                alt.Tooltip("retained_peak:Q", title="Retained peak", format=".1f"),
+                alt.Tooltip("delivered_peak:Q", title="Delivered peak", format=".1f"),
+            ],
+        )
+        .properties(width=(total_width - 36) // 3, height=total_height - 70)
+        .facet(
+            facet=alt.Facet(
+                "family_label:N",
+                sort=family_order,
+                header=alt.Header(title=None),
+            ),
+            columns=3,
+        )
+    )
+    return _configure_chart(chart)
 
 
 def render_pathway_budget_route_presence(
@@ -1436,7 +1551,7 @@ def render_recommended_engine_robustness(
             label_y[right_index] = max(lower_bound, label_y[left_index] - min_sep)
     for entry, y_value in zip(entries, label_y, strict=False):
         entry["label_y"] = y_value
-        entry["label_x"] = min(float(entry["x"]) + 42.0, 1115.0)
+        entry["label_x"] = min(float(entry["x"]) + 28.0, 980.0)
         entry["sub_label"] = (
             f"stress={entry['stress']} "
             f"loss={int(entry['loss']) if entry['loss'] is not None else '–'}"
@@ -1444,9 +1559,10 @@ def render_recommended_engine_robustness(
     engine_domain = [engine for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER if engine in {entry["engine_key"] for entry in entries}]
     dataset = alt.InlineData(values=entries)
     base = alt.Chart(dataset)
+    x_scale = alt.Scale(domain=[0, 1000])
     chart = alt.layer(
         base.mark_rule(color=PLOT_GRID_COLOR, strokeWidth=1).encode(
-            x=alt.X("x:Q", scale=alt.Scale(domain=[0, 1180])),
+            x=alt.X("x:Q", scale=x_scale),
             x2="label_x:Q",
             y=alt.Y(
                 "y:Q",
@@ -1464,7 +1580,7 @@ def render_recommended_engine_robustness(
             x=alt.X(
                 "x:Q",
                 title="Route presence (permille)",
-                scale=alt.Scale(domain=[0, 1180]),
+                scale=x_scale,
             ),
             y=alt.Y(
                 "y:Q",
@@ -1495,7 +1611,7 @@ def render_recommended_engine_robustness(
             fontWeight="bold",
             clip=False,
         ).encode(
-            x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, 1180])),
+            x=alt.X("label_x:Q", scale=x_scale),
             y="label_y:Q",
             text="engine_label:N",
         ),
@@ -1509,7 +1625,7 @@ def render_recommended_engine_robustness(
             color=PLOT_MUTED_TEXT_COLOR,
             clip=False,
         ).encode(
-            x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, 1180])),
+            x=alt.X("label_x:Q", scale=x_scale),
             y="label_y:Q",
             text="sub_label:N",
         ),
@@ -1521,15 +1637,25 @@ def render_mixed_vs_standalone_divergence(
     aggregates: pl.DataFrame, total_width: int, total_height: int
 ) -> alt.TopLevelMixin | None:
     comparison_rows = (
-        aggregates.filter(pl.col("engine_family") == "comparison")
+        aggregates.filter(
+            (pl.col("engine_family") == "comparison")
+            & ~pl.col("family_id").is_in(MIXED_STANDALONE_DIVERGENCE_EXCLUDED_FAMILIES)
+        )
+        .with_columns(_mixed_standalone_fitness_expr().alias("mixed_fitness_score"))
         .sort(
-            ["family_id", "route_present_total_window_permille_mean", "config_id"],
-            descending=[False, True, False],
+            [
+                "family_id",
+                "mixed_fitness_score",
+                "route_present_total_window_permille_mean",
+                "config_id",
+            ],
+            descending=[False, True, True, False],
         )
         .group_by("family_id")
         .agg(
             pl.first("dominant_engine").alias("mixed_engine"),
             pl.first("route_present_total_window_permille_mean").alias("mixed_route_presence"),
+            pl.first("mixed_fitness_score").alias("mixed_fitness_score"),
         )
         .sort("family_id")
     )
@@ -1545,6 +1671,7 @@ def render_mixed_vs_standalone_divergence(
         family_id = f"head-to-head-{suffix}"
         family_head = (
             head_rows.filter(pl.col("family_id") == family_id)
+            .with_columns(_mixed_standalone_fitness_expr().alias("standalone_fitness_score"))
             .with_columns(
                 pl.col("comparison_engine_set")
                 .replace_strict(preferred_order, default=len(preferred_order))
@@ -1552,21 +1679,23 @@ def render_mixed_vs_standalone_divergence(
             )
             .sort(
                 [
+                    "standalone_fitness_score",
                     "route_present_total_window_permille_mean",
                     "activation_success_permille_mean",
                     "engine_order",
                 ],
-                descending=[True, True, False],
+                descending=[True, True, True, False],
             )
         )
         if family_head.is_empty():
             continue
         best = family_head.head(1)
         best_engine = best["comparison_engine_set"].item() or "none"
-        best_route_presence = float(best["route_present_total_window_permille_mean"].item() or 0)
-        mixed_route_presence = float(row["mixed_route_presence"] or 0)
-        delta = (best_route_presence - mixed_route_presence) / 10.0
-        matched_best = best_route_presence == mixed_route_presence
+        best_score = float(best["standalone_fitness_score"].item() or 0)
+        mixed_score = float(row["mixed_fitness_score"] or 0)
+        raw_delta = best_score - mixed_score
+        matched_best = raw_delta <= 0
+        delta = max(0.0, raw_delta)
         rows.append(
             {
                 "family_label": wrapped_family_label(str(row["family_id"])),
@@ -1595,15 +1724,20 @@ def render_mixed_vs_standalone_divergence(
 
     max_delta = max(float(row["delta"]) for row in rows)
     x_min = 0.0
-    x_max = max(2.0, max_delta + 12.0)
+    x_max = 1.0 if max_delta == 0 else max(2.0, max_delta + 1.0)
     for row in rows:
         delta = float(row["delta"])
         row["positive"] = delta >= 0
         row["label_x"] = delta
+    divergence_colors = {**HEAD_TO_HEAD_SET_COLORS, "tie": PLOT_MISSING_COLOR}
     engine_domain = [
         engine
-        for engine in ROUTE_VISIBLE_ENGINE_SET_ORDER
+        for engine in [*ROUTE_VISIBLE_ENGINE_SET_ORDER, "tie"]
         if engine in {row["engine_key"] for row in rows}
+    ]
+    field_domain = [
+        "Matched best" if engine == "tie" else engine_display_label(engine)
+        for engine in engine_domain
     ]
     dataset = alt.InlineData(values=rows)
     base = alt.Chart(dataset).encode(
@@ -1616,14 +1750,14 @@ def render_mixed_vs_standalone_divergence(
         base.mark_bar(height=22, cornerRadiusEnd=2, cornerRadiusTopLeft=2, cornerRadiusBottomLeft=2).encode(
             x=alt.X(
                 "delta:Q",
-                title="Standalone advantage over mixed (pts)",
+                title="Standalone advantage over mixed (fitness pts)",
                 scale=alt.Scale(domain=[x_min, x_max]),
             ),
             color=_engine_color_scale(
                 engine_domain,
-                HEAD_TO_HEAD_SET_COLORS,
+                divergence_colors,
                 field="engine_legend:N",
-                field_domain=[engine_display_label(engine) for engine in engine_domain],
+                field_domain=field_domain,
                 legend_title="Standalone winner",
             ),
         ),
@@ -2214,7 +2348,7 @@ def render_routing_fitness_multiflow(
             alt.Tooltip("concurrent_rounds:Q", title="Concurrent rounds", format=".1f"),
             alt.Tooltip("broker_participation:Q", title="Broker participation", format=".1f"),
             alt.Tooltip("broker_concentration:Q", title="Broker concentration", format=".1f"),
-            alt.Tooltip("broker_churn:Q", title="Broker churn", format=".1f"),
+            alt.Tooltip("broker_churn:Q", title="Broker switch count", format=".1f"),
             alt.Tooltip("control_activity:Q", title="Control activity", format=".1f"),
             alt.Tooltip("detail_label:N", title="Detail"),
         ],
@@ -2506,7 +2640,7 @@ def save_plot_artifact(
     total_width, total_height = _plot_pixels(key)
     chart = render_fn(aggregates, total_width, total_height)
     if chart is None:
-        chart = _placeholder_chart(total_width, total_height, "No data available")
+        return
 
     svg_path = report_dir / f"{key}.svg"
     png_path = report_dir / f"{key}.png"

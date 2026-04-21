@@ -47,13 +47,14 @@ from .plots import (
     render_routing_fitness_crossover,
     render_routing_fitness_multiflow,
     render_routing_fitness_stale_repair,
-    render_scatter_profile_startup,
+    render_scatter_profile_runtime,
     render_scatter_profile_route_presence,
     save_plot_artifact,
 )
 from .scoring import (
     baseline_comparison_table,
     benchmark_profile_audit_table,
+    comparison_config_sensitivity_table,
     comparison_engine_round_breakdown_table,
     boundary_summary_table,
     comparison_summary_table,
@@ -162,8 +163,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             .join(transition_metrics, on=["engine_family", "config_id"], how="left")
             .with_columns(
-                (pl.col("route_present_mean") / 1000.0).alias("route_present_mean_permille"),
-                (pl.col("route_present_stddev") / 1000.0).alias("route_present_stddev_permille"),
+                pl.col("route_present_mean").alias("route_present_mean_permille"),
+                pl.col("route_present_stddev").alias("route_present_stddev_permille"),
             )
             .sort("engine_family")
         )
@@ -175,6 +176,7 @@ def main(argv: list[str] | None = None) -> int:
         comparison_engine_round_breakdown = comparison_engine_round_breakdown_table(
             aggregates
         )
+        comparison_config_sensitivity = comparison_config_sensitivity_table(aggregates)
         head_to_head_summary = head_to_head_summary_table(aggregates)
         diffusion_engine_summary = diffusion_engine_summary_table(diffusion_aggregates)
         diffusion_baseline_audit = diffusion_baseline_audit_table(diffusion_aggregates)
@@ -237,6 +239,10 @@ def main(argv: list[str] | None = None) -> int:
         write_csv(
             comparison_engine_round_breakdown,
             output_report_dir / "comparison_engine_round_breakdown.csv",
+        )
+        write_csv(
+            comparison_config_sensitivity,
+            output_report_dir / "comparison_config_sensitivity.csv",
         )
         write_csv(head_to_head_summary, output_report_dir / "head_to_head_summary.csv")
         write_csv(diffusion_runs, output_report_dir / "diffusion_runs.csv")
@@ -355,8 +361,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         save_plot_artifact(
             output_report_dir,
-            "scatter_profile_startup",
-            render_scatter_profile_startup,
+            "scatter_profile_runtime",
+            render_scatter_profile_runtime,
             aggregates,
         )
         save_plot_artifact(
@@ -477,6 +483,7 @@ def main(argv: list[str] | None = None) -> int:
             aggregates,
             comparison_summary,
             comparison_engine_round_breakdown,
+            comparison_config_sensitivity,
             head_to_head_summary,
             diffusion_engine_summary,
             diffusion_baseline_audit,

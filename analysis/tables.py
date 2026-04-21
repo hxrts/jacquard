@@ -208,8 +208,32 @@ def comparison_engine_round_breakdown_table_rows(
     return rows
 
 
+def comparison_config_sensitivity_table_rows(
+    comparison_config_sensitivity: pl.DataFrame,
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    if comparison_config_sensitivity.is_empty():
+        return rows
+    for row in comparison_config_sensitivity.sort(
+        ["engine_family", "sensitivity_class", "family_id"]
+    ).iter_rows(named=True):
+        rows.append(
+            [
+                row["engine_family"],
+                break_tick_label(row["family_id"]).replace("\n", " / "),
+                row["sensitivity_class"],
+                str(row["config_count"]),
+                str(row["topline_signature_count"]),
+                str(row["selection_signature_count"]),
+            ]
+        )
+    return rows
+
+
 def head_to_head_table_rows(head_to_head_summary: pl.DataFrame) -> list[list[str]]:
     rows: list[list[str]] = []
+    if head_to_head_summary.is_empty() or "family_id" not in head_to_head_summary.columns:
+        return rows
     for family_id in head_to_head_summary["family_id"].unique().sort().to_list():
         family_rows = head_to_head_summary.filter(pl.col("family_id") == family_id).sort(
             [
@@ -474,7 +498,12 @@ def routing_fitness_multiflow_table_rows(
         concentration = row["broker_concentration_permille_mean"]
         if participation is None or concentration is None:
             return "-"
-        return f"{float(participation) / 10.0:.0f}/{float(concentration) / 10.0:.0f}"
+        switches = float(row["broker_route_churn_count_mean"] or 0.0)
+        return (
+            f"{float(participation) / 10.0:.0f}/"
+            f"{float(concentration) / 10.0:.0f}/"
+            f"{switches:.1f}"
+        )
 
     rows: list[list[str]] = []
     for row in routing_fitness_multiflow_summary.iter_rows(named=True):

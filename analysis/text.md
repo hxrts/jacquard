@@ -261,7 +261,7 @@ OLSRv2 loss timing across topology and churn families. Higher values mean the fi
 
 #### Scatter Profile Figures Intro
 
-These two figures put `scatter` on the same tuning-sweep footing as the other engines. The first figure is the outcome view, and the second is the startup-cost view for the same maintained `balanced`, `conservative`, and `degraded-network` profiles.
+These two figures put `scatter` on the same tuning-sweep footing as the other engines without pretending that route presence is the whole story. The first figure shows the route-visible tie, and the second shows the threshold-runtime behavior that now separates the maintained `balanced`, `conservative`, and `degraded-network` profiles.
 
 #### Figure 9
 
@@ -271,9 +271,9 @@ Scatter active route presence by maintained profile. Higher values are better be
 
 #### Figure 10
 
-@figure scatter_profile_startup
+@figure scatter_profile_runtime
 
-Scatter startup timing by maintained profile. Lower values are better because routes materialize earlier. The dashed family lines use the same profile order as Figure 9 so startup cost can be compared directly across families.
+Scatter threshold-runtime behavior by maintained profile. Higher values are not universally better: the point is to show which profiles spend rounds in handoff, constrained, bridging, or sparse regimes under the new threshold families. This is the informative Scatter tuning surface when route-visible outcomes tie.
 
 #### Pathway Budget Figures Intro
 
@@ -335,7 +335,7 @@ Robustness view for the current recommended defaults. This figure shows which en
 
 @figure mixed_vs_standalone_divergence
 
-Direct gap between what the mixed router achieved and what the best standalone engine would have achieved in the same regime. Longer bars are larger gaps, and bar color identifies the standalone winner defining that gap. This is the explicit bridge between the arbitration story in Figure 15 and the capability story in Figure 16.
+Direct fitness gap between what the mixed router achieved and what the best standalone engine would have achieved for the same named family. Longer bars are larger gaps after accounting for activation success, total-window route presence, materialization delay, route churn, and activation failures; bar color identifies the standalone winner defining that gap. This is the explicit bridge between the arbitration story in Figure 15 and the capability story in Figure 16.
 
 ### Comparison And Head-To-Head
 
@@ -354,6 +354,14 @@ The mixed comparison surface is a single-router arbitration benchmark, not an or
 Each row reports the best maintained mixed comparison config for that family. The per-engine columns show average selected-route rounds under one shared router policy, so this table explains why the mixed stack leader is not an oracle best-of-engines result.
 
 Column guide: Family is the comparison regime. Leader is the selected-round leader. Active Route is active-window route presence. Handoffs is mean engine handoff count. The remaining columns show mean selected-route rounds per engine under the shared router policy.
+
+#### Comparison Config Sensitivity Audit
+
+@table comparison-config-sensitivity
+
+Audit of whether the maintained configs separate each comparison family. `topline-and-selection` means both route outcomes and selected-engine behavior differ across configs. `selection-only` means route outcomes are identical but arbitration differs. `flat-control` means the family behaves identically under the maintained configs and should be read as a scenario/control row rather than a parameter-separation row.
+
+Column guide: Surface is the comparison surface (`comparison` or `head-to-head`). Family is the regime. Class is the sensitivity classification. Configs is the number of configs observed. Topline Sigs and Selection Sigs are the counts of distinct outcome and arbitration signatures.
 
 #### Head-To-Head Results
 
@@ -482,7 +490,7 @@ Compact crossover view for the remaining route-visible design question. Column g
 
 @table routing_fitness_multiflow_summary
 
-Compact fairness view for the shared-broker families. Column guide: Min and Max are the weakest and strongest per-flow route-presence means, Spread is the gap between them, Starved is the mean count of objectives with zero route presence, Broker reports broker participation and bottleneck concentration as `participation/concentration` percentages, Conc. is the mean number of rounds where multiple objectives are simultaneously live, and Churn is mean route churn.
+Compact fairness view for the shared-broker families. Column guide: Min and Max are the weakest and strongest per-flow route-presence means, Spread is the gap between them, Starved is the mean count of objectives with zero route presence, Broker P/C/S reports broker participation percent, bottleneck concentration percent, and broker switch count as `participation/concentration/switches`, Live is the mean number of rounds where multiple objectives are simultaneously live, and Churn is mean route churn.
 
 ### Routing-Fitness Stale Repair Summary
 
@@ -765,7 +773,7 @@ Budgets at and above `{config_id}` form the stable floor.
 
 #### Engine Section Scatter Best
 
-Scatter separates most clearly in `{family_id}`, where its bounded carry and hold fallback keep route presence at {route_presence} permille without pretending to expose an explicit path.
+Scatter separates most clearly in `{family_id}`, where the owner-side runtime surface records handoff {handoff}, constrained occupancy {constrained}, and bridging {bridging} while normalized route presence stays at {route_presence} permille.
 
 #### Engine Section Scatter Closing
 
@@ -858,6 +866,14 @@ The main justification is the hard low-budget cliff: `pathway-1-zero` fails in t
 #### Recommendation Rationale Pathway 2
 
 The recommendation chooses the lowest stable floor rather than spending more search budget after the curve flattens.
+
+#### Recommendation Rationale Scatter 1
+
+The Scatter recommendation is now driven by maintained runtime behavior as well as route presence. Measured runtime profile: handoff {handoff}, constrained occupancy {constrained}, bridging {bridging}.
+
+#### Recommendation Rationale Scatter 2
+
+The Scatter corpus is still mostly route-flat, so the useful differentiators are custody and regime signals rather than path-optimality. Retained-message peak {retained}, delivered-message peak {delivered}.
 
 #### Recommendation Rationale Field 1
 

@@ -58,6 +58,7 @@ def cleanup_report_dir(report_dir: Path) -> None:
         "scatter_profile_route_presence.png",
         "scatter_profile_activation.png",
         "scatter_profile_startup.png",
+        "scatter_profile_runtime.png",
         "batman_bellman_transition_loss.png",
         "batman_bellman_transition_stability.png",
         "batman_classic_transition_loss.png",

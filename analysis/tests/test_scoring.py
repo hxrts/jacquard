@@ -13,6 +13,7 @@ from analysis.plots import (
 from analysis.sections import routing_fitness_takeaway_lines
 from analysis.scoring import (
     benchmark_profile_audit_table,
+    comparison_config_sensitivity_table,
     diffusion_baseline_audit_table,
     diffusion_family_weight_sensitivity_table,
     field_diffusion_regime_calibration_table,
@@ -95,6 +96,123 @@ def _field_breakdowns() -> pl.DataFrame:
             {
                 "engine_family": "field",
                 "config_id": BROAD_RESELECTION_CONFIG,
+                "max_sustained_stress_score": 60,
+            },
+        ]
+    )
+
+
+def _scatter_runtime_aggregates() -> pl.DataFrame:
+    common = {
+        "engine_family": "scatter",
+        "activation_success_permille_mean": 1000.0,
+        "route_present_permille_mean": 900.0,
+        "route_present_total_window_permille_mean": 900.0,
+        "stability_total_mean": 0.0,
+        "stress_score": 60,
+        "objective_regime": "repairable-connected",
+        "first_materialization_round_mean": 0.0,
+        "recovery_round_mean": 0.0,
+        "route_churn_count_mean": 0.0,
+        "maintenance_failure_count_mean": 0.0,
+        "lost_reachability_count_mean": 0.0,
+        "persistent_degraded_count_mean": 0.0,
+        "scatter_sparse_rounds_mean": 0.0,
+        "scatter_dense_rounds_mean": 16.0,
+        "scatter_bridging_rounds_mean": 0.0,
+        "scatter_constrained_rounds_mean": 0.0,
+        "scatter_replicate_rounds_mean": 0.0,
+        "scatter_handoff_rounds_mean": 0.0,
+        "scatter_retained_message_peak_mean": 14.0,
+        "scatter_delivered_message_peak_mean": 0.0,
+    }
+    return pl.from_dicts(
+        [
+            {
+                **common,
+                "config_id": "scatter-balanced",
+                "family_id": "scatter-low-rate-transfer-threshold",
+                "scatter_constrained_rounds_mean": 16.0,
+                "scatter_handoff_rounds_mean": 14.0,
+            },
+            {
+                **common,
+                "config_id": "scatter-balanced",
+                "family_id": "scatter-stability-window-threshold",
+                "scatter_constrained_rounds_mean": 16.0,
+                "scatter_handoff_rounds_mean": 14.0,
+            },
+            {
+                **common,
+                "config_id": "scatter-balanced",
+                "family_id": "scatter-conservative-constrained-threshold",
+                "scatter_dense_rounds_mean": 16.0,
+            },
+            {
+                **common,
+                "config_id": "scatter-conservative",
+                "family_id": "scatter-low-rate-transfer-threshold",
+                "scatter_dense_rounds_mean": 0.0,
+                "scatter_constrained_rounds_mean": 16.0,
+            },
+            {
+                **common,
+                "config_id": "scatter-conservative",
+                "family_id": "scatter-stability-window-threshold",
+                "scatter_dense_rounds_mean": 0.0,
+                "scatter_constrained_rounds_mean": 16.0,
+            },
+            {
+                **common,
+                "config_id": "scatter-conservative",
+                "family_id": "scatter-conservative-constrained-threshold",
+                "scatter_dense_rounds_mean": 0.0,
+                "scatter_constrained_rounds_mean": 16.0,
+            },
+            {
+                **common,
+                "config_id": "scatter-degraded-network",
+                "family_id": "scatter-low-rate-transfer-threshold",
+                "scatter_dense_rounds_mean": 0.0,
+                "scatter_sparse_rounds_mean": 16.0,
+                "scatter_handoff_rounds_mean": 14.0,
+            },
+            {
+                **common,
+                "config_id": "scatter-degraded-network",
+                "family_id": "scatter-stability-window-threshold",
+                "scatter_dense_rounds_mean": 0.0,
+                "scatter_sparse_rounds_mean": 16.0,
+                "scatter_handoff_rounds_mean": 14.0,
+            },
+            {
+                **common,
+                "config_id": "scatter-degraded-network",
+                "family_id": "scatter-conservative-constrained-threshold",
+                "scatter_dense_rounds_mean": 0.0,
+                "scatter_bridging_rounds_mean": 16.0,
+                "scatter_replicate_rounds_mean": 14.0,
+            },
+        ]
+    )
+
+
+def _scatter_breakdowns() -> pl.DataFrame:
+    return pl.from_dicts(
+        [
+            {
+                "engine_family": "scatter",
+                "config_id": "scatter-balanced",
+                "max_sustained_stress_score": 60,
+            },
+            {
+                "engine_family": "scatter",
+                "config_id": "scatter-conservative",
+                "max_sustained_stress_score": 60,
+            },
+            {
+                "engine_family": "scatter",
+                "config_id": "scatter-degraded-network",
                 "max_sustained_stress_score": 60,
             },
         ]
@@ -531,6 +649,51 @@ def _large_population_diffusion_aggregates() -> pl.DataFrame:
 
 
 class FieldRoutingRecommendationTests(unittest.TestCase):
+    def test_recommendation_table_prefers_total_window_route_presence(self) -> None:
+        common = _field_route_visible_aggregates().row(0, named=True)
+        aggregates = pl.from_dicts(
+            [
+                {
+                    **common,
+                    "engine_family": "pathway",
+                    "family_id": "pathway-budget-pressure",
+                    "config_id": "pathway-a",
+                    "route_present_permille_mean": 1000000.0,
+                    "route_present_total_window_permille_mean": 700.0,
+                },
+                {
+                    **common,
+                    "engine_family": "pathway",
+                    "family_id": "pathway-budget-pressure",
+                    "config_id": "pathway-b",
+                    "route_present_permille_mean": 500000.0,
+                    "route_present_total_window_permille_mean": 900.0,
+                },
+            ]
+        )
+        breakdowns = pl.from_dicts(
+            [
+                {
+                    "engine_family": "pathway",
+                    "config_id": "pathway-a",
+                    "max_sustained_stress_score": 40,
+                },
+                {
+                    "engine_family": "pathway",
+                    "config_id": "pathway-b",
+                    "max_sustained_stress_score": 40,
+                },
+            ]
+        )
+
+        recommendations = recommendation_table(aggregates, breakdowns, "balanced")
+
+        top_pathway = recommendations.filter(pl.col("engine_family") == "pathway").row(
+            0, named=True
+        )
+        self.assertEqual(top_pathway["config_id"], "pathway-b")
+        self.assertEqual(top_pathway["route_present_mean"], 900.0)
+
     def test_balanced_recommendation_prefers_low_churn_when_route_presence_ties(self) -> None:
         recommendations = recommendation_table(
             _field_route_visible_aggregates(), _field_breakdowns(), "balanced"
@@ -550,6 +713,36 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         }
         self.assertEqual(rows["field-low-churn"], LOW_CHURN_CONFIG)
         self.assertEqual(rows["field-broad-reselection"], BROAD_RESELECTION_CONFIG)
+
+    def test_scatter_profiles_use_runtime_surface_when_route_metrics_tie(self) -> None:
+        balanced = recommendation_table(
+            _scatter_runtime_aggregates(), _scatter_breakdowns(), "balanced"
+        )
+        conservative = recommendation_table(
+            _scatter_runtime_aggregates(), _scatter_breakdowns(), "conservative"
+        )
+        degraded = recommendation_table(
+            _scatter_runtime_aggregates(), _scatter_breakdowns(), "degraded-network"
+        )
+
+        self.assertEqual(
+            balanced.filter(pl.col("engine_family") == "scatter").row(0, named=True)[
+                "config_id"
+            ],
+            "scatter-balanced",
+        )
+        self.assertEqual(
+            conservative.filter(pl.col("engine_family") == "scatter").row(0, named=True)[
+                "config_id"
+            ],
+            "scatter-conservative",
+        )
+        self.assertEqual(
+            degraded.filter(pl.col("engine_family") == "scatter").row(0, named=True)[
+                "config_id"
+            ],
+            "scatter-degraded-network",
+        )
 
     def test_field_routing_regime_calibration_uses_stable_mode_tie_break(self) -> None:
         calibration = field_routing_regime_calibration_table(
@@ -990,6 +1183,105 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         stale_rows = stale["datasets"][stale["data"]["name"]]
         self.assertEqual(stale_rows[0]["family_label"], "Recovery window")
         self.assertEqual(stale_rows[0]["engine_key"], "pathway")
+
+    def test_comparison_config_sensitivity_marks_flat_and_separating_families(self) -> None:
+        aggregates = pl.from_dicts(
+            [
+                {
+                    "engine_family": "comparison",
+                    "family_id": "comparison-flat",
+                    "config_id": "comparison-a",
+                    "activation_success_permille_mean": 1000,
+                    "route_present_total_window_permille_mean": 900,
+                    "first_materialization_round_mean": 2,
+                    "first_loss_round_mean": None,
+                    "recovery_success_permille_mean": 0,
+                    "route_churn_count_mean": 0,
+                    "dominant_engine": "tie",
+                },
+                {
+                    "engine_family": "comparison",
+                    "family_id": "comparison-flat",
+                    "config_id": "comparison-b",
+                    "activation_success_permille_mean": 1000,
+                    "route_present_total_window_permille_mean": 900,
+                    "first_materialization_round_mean": 2,
+                    "first_loss_round_mean": None,
+                    "recovery_success_permille_mean": 0,
+                    "route_churn_count_mean": 0,
+                    "dominant_engine": "tie",
+                },
+                {
+                    "engine_family": "comparison",
+                    "family_id": "comparison-separating",
+                    "config_id": "comparison-a",
+                    "activation_success_permille_mean": 1000,
+                    "route_present_total_window_permille_mean": 900,
+                    "first_materialization_round_mean": 2,
+                    "first_loss_round_mean": None,
+                    "recovery_success_permille_mean": 0,
+                    "route_churn_count_mean": 0,
+                    "dominant_engine": "tie",
+                },
+                {
+                    "engine_family": "comparison",
+                    "family_id": "comparison-separating",
+                    "config_id": "comparison-b",
+                    "activation_success_permille_mean": 1000,
+                    "route_present_total_window_permille_mean": 760,
+                    "first_materialization_round_mean": 4,
+                    "first_loss_round_mean": 8,
+                    "recovery_success_permille_mean": 0,
+                    "route_churn_count_mean": 1,
+                    "dominant_engine": "pathway",
+                },
+                {
+                    "engine_family": "comparison",
+                    "family_id": "comparison-selection-only",
+                    "config_id": "comparison-a",
+                    "activation_success_permille_mean": 1000,
+                    "route_present_total_window_permille_mean": 900,
+                    "first_materialization_round_mean": 2,
+                    "first_loss_round_mean": None,
+                    "recovery_success_permille_mean": 0,
+                    "route_churn_count_mean": 0,
+                    "dominant_engine": "batman-bellman",
+                },
+                {
+                    "engine_family": "comparison",
+                    "family_id": "comparison-selection-only",
+                    "config_id": "comparison-b",
+                    "activation_success_permille_mean": 1000,
+                    "route_present_total_window_permille_mean": 900,
+                    "first_materialization_round_mean": 2,
+                    "first_loss_round_mean": None,
+                    "recovery_success_permille_mean": 0,
+                    "route_churn_count_mean": 0,
+                    "dominant_engine": "pathway",
+                },
+            ],
+            infer_schema_length=None,
+        )
+
+        table = comparison_config_sensitivity_table(aggregates)
+        flat = table.filter(pl.col("family_id") == "comparison-flat").row(0, named=True)
+        separating = table.filter(pl.col("family_id") == "comparison-separating").row(
+            0, named=True
+        )
+        selection_only = table.filter(
+            pl.col("family_id") == "comparison-selection-only"
+        ).row(0, named=True)
+        self.assertEqual(flat["config_count"], 2)
+        self.assertTrue(flat["topline_flat"])
+        self.assertTrue(flat["selection_flat"])
+        self.assertEqual(flat["sensitivity_class"], "flat-control")
+        self.assertEqual(separating["topline_signature_count"], 2)
+        self.assertFalse(separating["topline_flat"])
+        self.assertFalse(separating["selection_flat"])
+        self.assertEqual(separating["sensitivity_class"], "topline-and-selection")
+        self.assertTrue(selection_only["topline_flat"])
+        self.assertFalse(selection_only["selection_flat"])
+        self.assertEqual(selection_only["sensitivity_class"], "selection-only")
 
 
 if __name__ == "__main__":

@@ -7,8 +7,8 @@ use super::{
     IngressBatchBoundary, JacquardCheckpointArtifact, JacquardReplayArtifact,
     JacquardSimulationStats, NodeId, PriorityPoints, ReferenceClient, ReferenceRouter,
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass, Router, RoutingControlPlane,
-    RoutingObjective, SimulationError, SimulationFailureSummary, Tick, FIELD_ENGINE_ID,
-    PATHWAY_ENGINE_ID,
+    RoutingDataPlane, RoutingObjective, SimulationError, SimulationFailureSummary, Tick,
+    FIELD_ENGINE_ID, PATHWAY_ENGINE_ID,
 };
 use jacquard_babel::{
     selected_neighbor_from_backend_route_id as selected_babel_neighbor, BABEL_ENGINE_ID,
@@ -21,6 +21,7 @@ use jacquard_batman_classic::{
     selected_neighbor_from_backend_route_id as selected_batman_classic_neighbor,
     BATMAN_CLASSIC_ENGINE_ID,
 };
+use jacquard_core::{RouteError, RouteSelectionError};
 use jacquard_field::{
     selected_neighbor_from_backend_route_id as selected_field_neighbor,
     FieldRouterAnalysisSnapshot, FIELD_ENGINE_ID as FIELD_ROUTER_ENGINE_ID,
@@ -29,6 +30,7 @@ use jacquard_olsrv2::{
     selected_neighbor_from_backend_route_id as selected_olsr_neighbor, OLSRV2_ENGINE_ID,
 };
 use jacquard_pathway::first_hop_node_id_from_backend_route_id;
+use jacquard_scatter::{ScatterRouterAnalysisSnapshot, SCATTER_ENGINE_ID};
 
 pub(super) fn host_artifact(
     local_node_id: NodeId,
@@ -147,6 +149,7 @@ pub(super) fn advance_route_event_cursors(
     new_event_count
 }
 
+// long-block-exception: active-route summaries merge router state with engine-specific snapshots deterministically.
 pub(super) fn summarize_active_routes(
     owner_node_id: NodeId,
     router: &ReferenceRouter,
@@ -155,6 +158,10 @@ pub(super) fn summarize_active_routes(
         .engine_analysis_snapshot(&FIELD_ENGINE_ID)
         .and_then(|snapshot| snapshot.downcast::<FieldRouterAnalysisSnapshot>().ok())
         .map(|boxed| *boxed);
+    let scatter_snapshot = router
+        .engine_analysis_snapshot(&SCATTER_ENGINE_ID)
+        .and_then(|snapshot| snapshot.downcast::<ScatterRouterAnalysisSnapshot>().ok())
+        .map(|boxed| *boxed);
     router
         .active_routes_snapshot()
         .into_iter()
@@ -162,6 +169,12 @@ pub(super) fn summarize_active_routes(
             let route_id = route.identity.stamp.route_id;
             let next_hop_node_id = next_hop_node_id_for_route(&route);
             let recovery_entry = field_snapshot.as_ref().and_then(|snapshot| {
+                snapshot
+                    .route_summaries
+                    .iter()
+                    .find(|entry| entry.route_id == route_id)
+            });
+            let scatter_entry = scatter_snapshot.as_ref().and_then(|snapshot| {
                 snapshot
                     .route_summaries
                     .iter()
@@ -193,6 +206,23 @@ pub(super) fn summarize_active_routes(
                     .and_then(|entry| entry.last_promotion_blocker.clone()),
                 field_continuation_shift_count: recovery_entry
                     .map(|entry| entry.continuation_shift_count),
+                scatter_current_regime: scatter_snapshot
+                    .as_ref()
+                    .map(|snapshot| format!("{:?}", snapshot.current_regime)),
+                scatter_last_action: scatter_entry.map(|entry| format!("{:?}", entry.last_action)),
+                scatter_retained_message_count: scatter_entry
+                    .map(|entry| entry.retained_message_count),
+                scatter_delivered_message_count: scatter_entry
+                    .map(|entry| entry.delivered_message_count),
+                scatter_contact_rate: scatter_snapshot
+                    .as_ref()
+                    .map(|snapshot| snapshot.last_local_summary.contact_rate),
+                scatter_diversity_score: scatter_snapshot
+                    .as_ref()
+                    .map(|snapshot| snapshot.last_local_summary.diversity_score),
+                scatter_resource_pressure_permille: scatter_snapshot
+                    .as_ref()
+                    .map(|snapshot| snapshot.last_local_summary.resource_pressure_permille),
             }
         })
         .collect()
@@ -221,6 +251,33 @@ pub(super) fn refresh_host_round_routes(
         };
         let bound = host.bind();
         artifact.active_routes = summarize_active_routes(artifact.local_node_id, bound.router());
+    }
+}
+
+pub(super) fn stimulate_scatter_routes(
+    router: &mut ReferenceRouter,
+    round_index: u32,
+    failure_summaries: &mut Vec<SimulationFailureSummary>,
+) {
+    const SCATTER_STIMULUS_LEN: usize = 160;
+
+    let route_ids = router
+        .active_routes_snapshot()
+        .into_iter()
+        .filter(|route| route.identity.admission.summary.engine == SCATTER_ENGINE_ID)
+        .map(|route| route.identity.stamp.route_id)
+        .collect::<Vec<_>>();
+    for route_id in route_ids {
+        let payload = vec![u8::try_from(round_index & 0xff).unwrap_or(0); SCATTER_STIMULUS_LEN];
+        if let Err(error) = router.forward_payload(&route_id, &payload) {
+            failure_summaries.push(SimulationFailureSummary {
+                round_index: Some(round_index),
+                detail: format!(
+                    "scatter stimulus forwarding failed for route {:?}: {}",
+                    route_id, error
+                ),
+            });
+        }
     }
 }
 
@@ -447,6 +504,62 @@ pub(super) fn activate_ready_objectives(
         activated_any = true;
     }
     activated_any
+}
+
+pub(super) fn reactivate_missing_objectives(
+    objectives: &[BoundObjective],
+    round_index: u32,
+    activated: &[bool],
+    hosts: &mut BTreeMap<NodeId, ReferenceClient>,
+    failure_summaries: &mut Vec<SimulationFailureSummary>,
+) -> bool {
+    let mut reactivated_any = false;
+    for (index, binding) in objectives.iter().enumerate() {
+        if !activated.get(index).copied().unwrap_or(false)
+            || round_index < binding.activate_at_round
+        {
+            continue;
+        }
+        let Some(bridge) = hosts.get_mut(&binding.owner_node_id) else {
+            failure_summaries.push(SimulationFailureSummary {
+                round_index: Some(round_index),
+                detail: format!(
+                    "objective activation failed for owner {:?}: missing host bridge during reactivation",
+                    binding.owner_node_id
+                ),
+            });
+            continue;
+        };
+        let mut bound = bridge.bind();
+        let route_active = bound.router().active_routes_snapshot().iter().any(|route| {
+            route.identity.admission.objective.destination == binding.objective.destination
+        });
+        if route_active {
+            continue;
+        }
+        if let Err(error) = bound
+            .router_mut()
+            .activate_route_without_tick(&binding.objective)
+        {
+            if matches!(
+                error,
+                RouteError::Selection(RouteSelectionError::NoCandidate)
+                    | RouteError::Selection(RouteSelectionError::Inadmissible(_))
+            ) {
+                continue;
+            }
+            failure_summaries.push(SimulationFailureSummary {
+                round_index: Some(round_index),
+                detail: format!(
+                    "objective activation failed for owner {:?} destination {:?} during reactivation: {}",
+                    binding.owner_node_id, binding.objective.destination, error
+                ),
+            });
+            continue;
+        }
+        reactivated_any = true;
+    }
+    reactivated_any
 }
 
 pub(crate) fn default_objective(destination: NodeId) -> RoutingObjective {

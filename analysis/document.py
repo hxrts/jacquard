@@ -58,6 +58,7 @@ from .sections import (
 )
 from .tables import (
     benchmark_profile_audit_table_rows,
+    comparison_config_sensitivity_table_rows,
     comparison_engine_round_breakdown_table_rows,
     comparison_table_rows,
     diffusion_baseline_audit_table_rows,
@@ -317,7 +318,7 @@ FIGURE_LAYOUTS: dict[str, FigureLayout] = {
     "olsrv2_decay_stability": FIGURE_LAYOUT_TALL,
     "olsrv2_decay_loss": FIGURE_LAYOUT_TALL,
     "scatter_profile_route_presence": FIGURE_LAYOUT_SCATTER,
-    "scatter_profile_startup": FIGURE_LAYOUT_SCATTER,
+    "scatter_profile_runtime": FIGURE_LAYOUT_SCATTER,
     "pathway_budget_route_presence": FIGURE_LAYOUT_STANDARD,
     "pathway_budget_activation": FIGURE_LAYOUT_STANDARD,
     "field_budget_route_presence": FIGURE_LAYOUT_FIELD,
@@ -392,7 +393,7 @@ ENGINE_ANALYSIS_SECTIONS = [
         "engine_family": "scatter",
         "context_heading": None,
         "context_section": "Scatter Profile Figures Intro",
-        "figure_ids": ("scatter_profile_route_presence", "scatter_profile_startup"),
+        "figure_ids": ("scatter_profile_route_presence", "scatter_profile_runtime"),
     },
     {
         "title": "8. Pathway Analysis",
@@ -434,6 +435,14 @@ ROUTING_FITNESS_FIGURE_IDS = [
     "routing_fitness_multiflow",
     "routing_fitness_stale_repair",
 ]
+
+
+def has_figure_asset(report_dir: Path, asset_id: str) -> bool:
+    return (report_dir / f"{asset_id}.svg").exists() or (report_dir / f"{asset_id}.png").exists()
+
+
+def available_figure_ids(report_dir: Path, asset_ids: list[str] | tuple[str, ...]) -> list[str]:
+    return [asset_id for asset_id in asset_ids if has_figure_asset(report_dir, asset_id)]
 
 
 def caption_lines_with_label(label: str, lines: list[str]) -> list[str]:
@@ -595,6 +604,7 @@ def write_pdf_report(
     aggregates,
     comparison_summary,
     comparison_engine_round_breakdown,
+    comparison_config_sensitivity,
     head_to_head_summary,
     diffusion_engine_summary,
     diffusion_baseline_audit,
@@ -674,7 +684,7 @@ def write_pdf_report(
         if section_spec["context_heading"] is not None:
             story.append(Paragraph(section_spec["context_heading"], styles["Subsection"]))
         add_paragraphs(story, styles, section_lines(section_spec["context_section"]))
-        for asset_id in section_spec["figure_ids"]:
+        for asset_id in available_figure_ids(report_dir, section_spec["figure_ids"]):
             add_figure_asset(story, styles, report_dir, asset_id)
 
     story.append(Paragraph("10. Comparative Analysis", styles["Section"]))
@@ -689,7 +699,7 @@ def write_pdf_report(
     add_paragraphs(story, styles, limitations_lines())
     add_paragraphs(story, styles, section_lines("Comparison Detail Note"))
     story.append(Spacer(1, FIGURE_BLOCK_SPACER))
-    for asset_id in COMPARISON_FIGURE_IDS:
+    for asset_id in available_figure_ids(report_dir, COMPARISON_FIGURE_IDS):
         add_figure_asset(story, styles, report_dir, asset_id)
         story.append(Spacer(1, FIGURE_BLOCK_SPACER))
     add_paragraphs(story, styles, head_to_head_takeaway_lines(head_to_head_summary))
@@ -733,7 +743,7 @@ def write_pdf_report(
             )
         story.append(Paragraph("Large-Population Figure Context", styles["Subsection"]))
         add_paragraphs(story, styles, section_lines("Large-Population Figure Context"))
-        for asset_id in LARGE_POPULATION_FIGURE_IDS:
+        for asset_id in available_figure_ids(report_dir, LARGE_POPULATION_FIGURE_IDS):
             add_figure_asset(story, styles, report_dir, asset_id)
         story.append(Paragraph("Large-Population Takeaways", styles["Subsection"]))
         add_paragraphs(
@@ -771,7 +781,7 @@ def write_pdf_report(
                 styles,
                 "Routing-Fitness Multi-Flow Summary",
                 multiflow_block.lines,
-                ["Family", "Engine Set", "Min", "Max", "Spread", "Starved", "Broker", "Conc.", "Churn"],
+                ["Family", "Engine Set", "Min", "Max", "Spread", "Starved", "Broker P/C/S", "Live", "Churn"],
                 routing_fitness_multiflow_table_rows(routing_fitness_multiflow_summary),
                 [2.8 * cm, 2.6 * cm, 1.2 * cm, 1.2 * cm, 1.3 * cm, 1.4 * cm, 1.5 * cm, 1.3 * cm, 1.3 * cm],
                 table_counter,
@@ -792,7 +802,7 @@ def write_pdf_report(
             )
         story.append(Paragraph("Routing-Fitness Figure Context", styles["Subsection"]))
         add_paragraphs(story, styles, section_lines("Routing-Fitness Figure Context"))
-        for asset_id in ROUTING_FITNESS_FIGURE_IDS:
+        for asset_id in available_figure_ids(report_dir, ROUTING_FITNESS_FIGURE_IDS):
             add_figure_asset(story, styles, report_dir, asset_id)
         story.append(Paragraph("Routing-Fitness Takeaways", styles["Subsection"]))
         add_paragraphs(
@@ -836,7 +846,7 @@ def write_pdf_report(
         story.append(Spacer(1, FIGURE_BLOCK_SPACER))
         story.append(Paragraph("Diffusion Figure Context", styles["Subsection"]))
         add_paragraphs(story, styles, section_lines("Diffusion Figure Context"))
-        for asset_id in DIFFUSION_FIGURE_IDS:
+        for asset_id in available_figure_ids(report_dir, DIFFUSION_FIGURE_IDS):
             add_figure_asset(story, styles, report_dir, asset_id)
         story.append(Paragraph("Diffusion Takeaways", styles["Subsection"]))
         add_paragraphs(
@@ -950,6 +960,18 @@ def write_pdf_report(
         table_counter,
         comparison_breakdown_block.description_lines,
     )
+    sensitivity_block = asset_block("Comparison Config Sensitivity Audit", "table")
+    add_table_section(
+        story,
+        styles,
+        "Comparison Config Sensitivity Audit",
+        sensitivity_block.lines,
+        ["Surface", "Family", "Class", "Configs", "Topline Sigs", "Selection Sigs"],
+        comparison_config_sensitivity_table_rows(comparison_config_sensitivity),
+        [2.0 * cm, 5.4 * cm, 3.0 * cm, 1.3 * cm, 2.0 * cm, 2.0 * cm],
+        table_counter,
+        sensitivity_block.description_lines,
+    )
     benchmark_block = asset_block("Benchmark Profile Audit", "table")
     add_table_section(
         story,
@@ -992,9 +1014,9 @@ def write_pdf_report(
         styles,
         "Routing-Fitness Multi-Flow Summary",
         multiflow_ref_block.lines,
-        ["Family", "Engine Set", "Min", "Max", "Spread", "Starved", "Conc.", "Churn"],
+        ["Family", "Engine Set", "Min", "Max", "Spread", "Starved", "Broker P/C/S", "Live", "Churn"],
         routing_fitness_multiflow_table_rows(routing_fitness_multiflow_summary),
-        [3.0 * cm, 2.8 * cm, 1.3 * cm, 1.3 * cm, 1.4 * cm, 1.5 * cm, 1.4 * cm, 1.4 * cm],
+        [3.0 * cm, 2.8 * cm, 1.3 * cm, 1.3 * cm, 1.4 * cm, 1.5 * cm, 1.4 * cm, 1.4 * cm, 1.2 * cm],
         table_counter,
         multiflow_ref_block.description_lines,
     )

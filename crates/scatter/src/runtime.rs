@@ -1,5 +1,7 @@
 //! `RoutingEngine` and `RouterManagedEngine` impls for `ScatterEngine`.
 
+// long-file-exception: scatter runtime keeps route lifecycle, public snapshots, and router trait impls together for auditability.
+
 use std::collections::BTreeSet;
 
 use jacquard_core::{
@@ -14,7 +16,10 @@ use jacquard_core::{
 use jacquard_traits::{RouterManagedEngine, RoutingEngine, TimeEffects, TransportSenderEffects};
 
 use crate::{
-    public_state::{ScatterAction, ScatterLocalSummary, ScatterRegime, ScatterRouteProgress},
+    public_state::{
+        ScatterAction, ScatterLocalSummary, ScatterRegime, ScatterRouteProgress,
+        ScatterRouterAnalysisRouteSummary, ScatterRouterAnalysisSnapshot,
+    },
     support::{
         action_for_delta, classify_regime, contact_supports_payload, decode_backend_token,
         decode_packet, direct_neighbors, encode_packet, expiry_for_urgency,
@@ -438,6 +443,31 @@ where
         };
         progress
     }
+
+    fn router_analysis_snapshot(
+        &self,
+        active_routes: &[MaterializedRoute],
+    ) -> ScatterRouterAnalysisSnapshot {
+        let route_summaries = active_routes
+            .iter()
+            .filter_map(|route| {
+                self.active_routes
+                    .get(route.identity.route_id())
+                    .map(|active| ScatterRouterAnalysisRouteSummary {
+                        route_id: route.identity.stamp.route_id,
+                        retained_message_count: active.progress.retained_message_count,
+                        delivered_message_count: active.progress.delivered_message_count,
+                        last_action: active.progress.last_action,
+                        last_regime: active.progress.last_regime,
+                    })
+            })
+            .collect();
+        ScatterRouterAnalysisSnapshot {
+            current_regime: self.current_regime,
+            last_local_summary: self.last_local_summary,
+            route_summaries,
+        }
+    }
 }
 
 impl<Transport, Effects> RoutingEngine for ScatterEngine<Transport, Effects>
@@ -648,6 +678,13 @@ where
         self.active_routes
             .insert(route.identity.stamp.route_id, active_route);
         Ok(true)
+    }
+
+    fn analysis_snapshot_for_router(
+        &self,
+        active_routes: &[MaterializedRoute],
+    ) -> Option<Box<dyn std::any::Any>> {
+        Some(Box::new(self.router_analysis_snapshot(active_routes)))
     }
 }
 

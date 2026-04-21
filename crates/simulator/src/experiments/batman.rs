@@ -750,3 +750,65 @@ pub(super) fn build_olsrv2_asymmetric_relink_transition(
     ]);
     (scenario, environment)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{JacquardSimulator, ReducedReplayView, ReferenceClientAdapter};
+    use jacquard_core::DestinationId;
+
+    fn run_reduced_replay(
+        scenario: &JacquardScenario,
+        environment: &ScriptedEnvironmentModel,
+    ) -> ReducedReplayView {
+        let simulator = JacquardSimulator::new(ReferenceClientAdapter);
+        let (reduced, _) = simulator
+            .run_scenario_reduced(scenario, environment)
+            .expect("run BATMAN scenario");
+        reduced
+    }
+
+    #[test]
+    fn batman_bellman_partition_recovery_restores_route_after_topology_restore() {
+        let parameters = ExperimentParameterSet::batman_bellman(4, 2);
+        let (scenario, environment) =
+            build_batman_bellman_partition_recovery(&parameters, SimulationSeed(41));
+        let reduced = run_reduced_replay(&scenario, &environment);
+        let destination = DestinationId::Node(NODE_C);
+
+        assert_eq!(
+            reduced.first_round_without_route_after_presence(NODE_A, &destination),
+            Some(8)
+        );
+        assert!(
+            reduced
+                .recovery_delta_rounds(NODE_A, &destination)
+                .is_some(),
+            "expected route recovery after restore hook, rounds: {:?}",
+            reduced.route_present_rounds(NODE_A, &destination)
+        );
+        assert!(reduced.route_churn_count(NODE_A, &destination) >= 1);
+    }
+
+    #[test]
+    fn olsrv2_partition_recovery_restores_route_after_topology_restore() {
+        let parameters = ExperimentParameterSet::olsrv2(4, 2);
+        let (scenario, environment) =
+            build_olsrv2_partition_recovery(&parameters, SimulationSeed(41));
+        let reduced = run_reduced_replay(&scenario, &environment);
+        let destination = DestinationId::Node(NODE_C);
+
+        assert_eq!(
+            reduced.first_round_without_route_after_presence(NODE_A, &destination),
+            Some(8)
+        );
+        assert!(
+            reduced
+                .recovery_delta_rounds(NODE_A, &destination)
+                .is_some(),
+            "expected route recovery after restore hook, rounds: {:?}",
+            reduced.route_present_rounds(NODE_A, &destination)
+        );
+        assert!(reduced.route_churn_count(NODE_A, &destination) >= 1);
+    }
+}

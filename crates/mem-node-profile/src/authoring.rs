@@ -23,7 +23,12 @@ use crate::{NodeStateSnapshot, SimulatedNodeProfile};
 /// preset.
 pub const DEFAULT_ROUTE_SERVICE_SCOPE_ID: [u8; 16] = DiscoveryScopeId([7; 16]).0;
 /// Default route-service window length used by the standard node preset.
-pub const DEFAULT_ROUTE_SERVICE_WINDOW_TICKS: u64 = 20;
+///
+/// Simulator and reference-client scenarios routinely run well past 20 ticks,
+/// and the short default was causing engines that faithfully re-check service
+/// validity during maintenance to lose routes because the synthetic service
+/// advertisement expired mid-scenario.
+pub const DEFAULT_ROUTE_SERVICE_WINDOW_TICKS: u64 = 128;
 
 #[must_use]
 pub fn default_route_service_window(observed_at_tick: Tick) -> TimeWindow {

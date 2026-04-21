@@ -193,15 +193,6 @@ fn run_tuning_mode(
     Ok(())
 }
 
-fn run_default_smoke_tuning(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let mut simulator = JacquardSimulator::new(ReferenceClientAdapter);
-    let artifacts = run_tuning_suite(&mut simulator, &tuning_smoke_suite(), output_dir)?;
-    print_tuning_summary(&artifacts);
-    remove_report_dir(output_dir);
-    update_latest_symlink(output_dir);
-    Ok(())
-}
-
 const LOCAL_TUNING_STAGE_IDS: &[&str] = &[
     "local-batman-bellman",
     "local-batman-classic",
@@ -638,7 +629,7 @@ fn run_selected_suite(
             &diffusion_local_stage_suite(suite).expect("checked is_some above"),
             output_dir,
         ),
-        _ => run_default_smoke_tuning(output_dir),
+        _ => Err(std::io::Error::other(format!("unknown suite '{suite}'")).into()),
     }
 }
 
@@ -803,7 +794,7 @@ fn remove_report_dir(output_dir: &Path) {
 mod tests {
     use super::{
         default_parallel_jobs, parse_args_from, parse_positive_usize, resolve_parallel_jobs,
-        CliArgs,
+        run_selected_suite, CliArgs,
     };
     use std::path::PathBuf;
 
@@ -886,5 +877,13 @@ mod tests {
     fn default_parallel_jobs_stays_bounded() {
         let jobs = default_parallel_jobs();
         assert!((1..=4).contains(&jobs));
+    }
+
+    #[test]
+    fn run_selected_suite_rejects_unknown_suite_ids() {
+        let output_dir = std::env::temp_dir().join("jacquard-unknown-suite-rejects");
+        let error = run_selected_suite("definitely-not-a-suite", &output_dir, 1, None, None)
+            .expect_err("unknown suite ids should be rejected");
+        assert!(error.to_string().contains("unknown suite"));
     }
 }

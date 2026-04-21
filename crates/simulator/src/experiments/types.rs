@@ -487,6 +487,7 @@ impl ExperimentParameterSet {
         }
     }
 
+    // long-block-exception: this constructor maps each engine-specific head-to-head parameter surface into one config id.
     #[must_use]
     pub fn head_to_head(
         comparison_engine_set: ComparisonEngineSet,
@@ -500,7 +501,7 @@ impl ExperimentParameterSet {
             pathway_search,
             field_search,
         );
-        let (batman_bellman_stale_after_ticks, batman_bellman_next_refresh_within_ticks) =
+        let (stale_after_ticks, next_refresh_within_ticks) =
             optional_decay_fields(batman_bellman_decay_window);
         let (pathway_query_budget, pathway_heuristic_mode) =
             optional_pathway_search_fields(pathway_search);
@@ -519,14 +520,39 @@ impl ExperimentParameterSet {
             engine_family: "head-to-head".to_string(),
             config_id: format!("head-to-head-{}", config_suffix),
             comparison_engine_set: Some(comparison_engine_set),
-            batman_bellman_stale_after_ticks,
-            batman_bellman_next_refresh_within_ticks,
-            batman_classic_stale_after_ticks: None,
-            batman_classic_next_refresh_within_ticks: None,
-            babel_stale_after_ticks: None,
-            babel_next_refresh_within_ticks: None,
-            olsrv2_stale_after_ticks: batman_bellman_stale_after_ticks,
-            olsrv2_next_refresh_within_ticks: batman_bellman_next_refresh_within_ticks,
+            batman_bellman_stale_after_ticks: matches!(
+                comparison_engine_set,
+                ComparisonEngineSet::BatmanBellman | ComparisonEngineSet::PathwayAndBatmanBellman
+            )
+            .then_some(stale_after_ticks)
+            .flatten(),
+            batman_bellman_next_refresh_within_ticks: matches!(
+                comparison_engine_set,
+                ComparisonEngineSet::BatmanBellman | ComparisonEngineSet::PathwayAndBatmanBellman
+            )
+            .then_some(next_refresh_within_ticks)
+            .flatten(),
+            batman_classic_stale_after_ticks: (comparison_engine_set
+                == ComparisonEngineSet::BatmanClassic)
+                .then_some(stale_after_ticks)
+                .flatten(),
+            batman_classic_next_refresh_within_ticks: (comparison_engine_set
+                == ComparisonEngineSet::BatmanClassic)
+                .then_some(next_refresh_within_ticks)
+                .flatten(),
+            babel_stale_after_ticks: (comparison_engine_set == ComparisonEngineSet::Babel)
+                .then_some(stale_after_ticks)
+                .flatten(),
+            babel_next_refresh_within_ticks: (comparison_engine_set == ComparisonEngineSet::Babel)
+                .then_some(next_refresh_within_ticks)
+                .flatten(),
+            olsrv2_stale_after_ticks: (comparison_engine_set == ComparisonEngineSet::OlsrV2)
+                .then_some(stale_after_ticks)
+                .flatten(),
+            olsrv2_next_refresh_within_ticks: (comparison_engine_set
+                == ComparisonEngineSet::OlsrV2)
+                .then_some(next_refresh_within_ticks)
+                .flatten(),
             pathway_query_budget,
             pathway_heuristic_mode,
             scatter_profile_id: None,
@@ -1073,6 +1099,14 @@ pub struct ExperimentRunSummary {
     pub olsrv2_selected_rounds: u32,
     pub pathway_selected_rounds: u32,
     pub scatter_selected_rounds: u32,
+    pub scatter_sparse_rounds: u32,
+    pub scatter_dense_rounds: u32,
+    pub scatter_bridging_rounds: u32,
+    pub scatter_constrained_rounds: u32,
+    pub scatter_replicate_rounds: u32,
+    pub scatter_handoff_rounds: u32,
+    pub scatter_retained_message_peak: Option<u32>,
+    pub scatter_delivered_message_peak: Option<u32>,
     pub field_selected_rounds: u32,
     pub field_selected_result_rounds: u32,
     pub field_search_reconfiguration_rounds: u32,
@@ -1113,6 +1147,7 @@ pub struct ExperimentRunSummary {
     pub inadmissible_candidate_count: u32,
     pub lost_reachability_count: u32,
     pub replacement_loop_count: u32,
+    pub activation_attempt_failure_count: u32,
     pub activation_failure_count: u32,
     pub persistent_degraded_count: u32,
     pub other_failure_count: u32,
@@ -1199,6 +1234,14 @@ pub struct ExperimentAggregateSummary {
     pub olsrv2_selected_rounds_mean: u32,
     pub pathway_selected_rounds_mean: u32,
     pub scatter_selected_rounds_mean: u32,
+    pub scatter_sparse_rounds_mean: u32,
+    pub scatter_dense_rounds_mean: u32,
+    pub scatter_bridging_rounds_mean: u32,
+    pub scatter_constrained_rounds_mean: u32,
+    pub scatter_replicate_rounds_mean: u32,
+    pub scatter_handoff_rounds_mean: u32,
+    pub scatter_retained_message_peak_mean: Option<u32>,
+    pub scatter_delivered_message_peak_mean: Option<u32>,
     pub field_selected_rounds_mean: u32,
     pub field_selected_result_rounds_mean: u32,
     pub field_search_reconfiguration_rounds_mean: u32,
@@ -1235,7 +1278,12 @@ pub struct ExperimentAggregateSummary {
     pub inadmissible_candidate_count_mean: u32,
     pub lost_reachability_count_mean: u32,
     pub replacement_loop_count_mean: u32,
+    pub activation_attempt_failure_count_mean: u32,
+    pub activation_failure_count_mean: u32,
     pub persistent_degraded_count_mean: u32,
+    pub other_failure_count_mean: u32,
+    pub cascade_partition_count_mean: u32,
+    pub intrinsic_limit_count_mean: u32,
     pub model_artifact_count_mean: u32,
     pub equivalence_pass_count: u32,
     pub acceptable: bool,
@@ -1310,4 +1358,69 @@ pub struct ExperimentModelArtifact {
     pub backend_route_id_hex: Option<String>,
     pub visible_round: Option<u32>,
     pub equivalence_passed: Option<bool>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn head_to_head_decay_knobs_are_written_to_the_selected_engine_family() {
+        let classic = ExperimentParameterSet::head_to_head(
+            ComparisonEngineSet::BatmanClassic,
+            Some((5, 2)),
+            None,
+            None,
+        );
+        assert_eq!(classic.batman_classic_stale_after_ticks, Some(5));
+        assert_eq!(classic.batman_classic_next_refresh_within_ticks, Some(2));
+        assert_eq!(classic.batman_bellman_stale_after_ticks, None);
+        assert_eq!(classic.babel_stale_after_ticks, None);
+        assert_eq!(classic.olsrv2_stale_after_ticks, None);
+
+        let babel = ExperimentParameterSet::head_to_head(
+            ComparisonEngineSet::Babel,
+            Some((6, 3)),
+            None,
+            None,
+        );
+        assert_eq!(babel.babel_stale_after_ticks, Some(6));
+        assert_eq!(babel.babel_next_refresh_within_ticks, Some(3));
+        assert_eq!(babel.batman_bellman_stale_after_ticks, None);
+        assert_eq!(babel.batman_classic_stale_after_ticks, None);
+        assert_eq!(babel.olsrv2_stale_after_ticks, None);
+
+        let olsrv2 = ExperimentParameterSet::head_to_head(
+            ComparisonEngineSet::OlsrV2,
+            Some((7, 4)),
+            None,
+            None,
+        );
+        assert_eq!(olsrv2.olsrv2_stale_after_ticks, Some(7));
+        assert_eq!(olsrv2.olsrv2_next_refresh_within_ticks, Some(4));
+        assert_eq!(olsrv2.batman_bellman_stale_after_ticks, None);
+        assert_eq!(olsrv2.batman_classic_stale_after_ticks, None);
+        assert_eq!(olsrv2.babel_stale_after_ticks, None);
+    }
+
+    #[test]
+    fn head_to_head_hybrid_keeps_batman_bellman_and_pathway_knobs() {
+        let hybrid = ExperimentParameterSet::head_to_head(
+            ComparisonEngineSet::PathwayAndBatmanBellman,
+            Some((6, 3)),
+            Some((8, PathwaySearchHeuristicMode::HopLowerBound)),
+            None,
+        );
+
+        assert_eq!(hybrid.batman_bellman_stale_after_ticks, Some(6));
+        assert_eq!(hybrid.batman_bellman_next_refresh_within_ticks, Some(3));
+        assert_eq!(hybrid.pathway_query_budget, Some(8));
+        assert_eq!(
+            hybrid.pathway_heuristic_mode.as_deref(),
+            Some("hop-lower-bound")
+        );
+        assert_eq!(hybrid.batman_classic_stale_after_ticks, None);
+        assert_eq!(hybrid.babel_stale_after_ticks, None);
+        assert_eq!(hybrid.olsrv2_stale_after_ticks, None);
+    }
 }

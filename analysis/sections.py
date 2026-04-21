@@ -1345,25 +1345,31 @@ def engine_section_lines(
         pressure = family_rows.filter(
             pl.col("family_id").is_in(
                 [
-                    "scatter-connected-high-loss",
-                    "scatter-bridge-transition",
-                    "scatter-partial-observability-bridge",
-                    "scatter-concurrent-mixed",
-                    "scatter-corridor-continuity-uncertainty",
+                    "scatter-low-rate-transfer-threshold",
+                    "scatter-stability-window-threshold",
+                    "scatter-conservative-constrained-threshold",
                 ]
             )
         )
         if not pressure.is_empty():
             best = pressure.sort(
-                ["route_present_permille_mean", "activation_success_permille_mean"],
-                descending=[True, True],
+                [
+                    "scatter_handoff_rounds_mean",
+                    "scatter_constrained_rounds_mean",
+                    "scatter_bridging_rounds_mean",
+                    "route_present_total_window_permille_mean",
+                ],
+                descending=[True, True, True, True],
             ).head(1)
             best_row = best.iter_rows(named=True).__next__()
             lines.extend(
                 section_lines_formatted(
                     "Engine Section Scatter Best",
                     family_id=best_row["family_id"],
-                    route_presence=best_row["route_present_permille_mean"],
+                    route_presence=best_row["route_present_total_window_permille_mean"],
+                    handoff=best_row["scatter_handoff_rounds_mean"],
+                    constrained=best_row["scatter_constrained_rounds_mean"],
+                    bridging=best_row["scatter_bridging_rounds_mean"],
                 )
             )
         lines.extend(section_lines("Engine Section Scatter Closing"))
@@ -1472,6 +1478,22 @@ def recommendation_rationale_lines(
     if engine_family == "pathway":
         lines.extend(section_lines("Recommendation Rationale Pathway 1"))
         lines.extend(section_lines("Recommendation Rationale Pathway 2"))
+    if engine_family == "scatter":
+        lines.extend(
+            section_lines_formatted(
+                "Recommendation Rationale Scatter 1",
+                handoff=f"{(top['scatter_handoff_mean'] or 0):.1f}",
+                constrained=f"{(top['scatter_constrained_mean'] or 0):.1f}",
+                bridging=f"{(top['scatter_bridging_mean'] or 0):.1f}",
+            )
+        )
+        lines.extend(
+            section_lines_formatted(
+                "Recommendation Rationale Scatter 2",
+                retained=f"{(top['scatter_retained_peak_mean'] or 0):.1f}",
+                delivered=f"{(top['scatter_delivered_peak_mean'] or 0):.1f}",
+            )
+        )
     if engine_family == "field":
         lines.extend(section_lines("Recommendation Rationale Field 1"))
         lines.extend(

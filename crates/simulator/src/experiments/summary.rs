@@ -87,11 +87,13 @@ fn broker_route_churn_count_for(
     let count = observations
         .windows(2)
         .filter(|window| {
-            window.iter().any(|observation| {
-                observation
-                    .next_hop_node_id
-                    .is_some_and(|next_hop_node_id| broker_nodes.contains(&next_hop_node_id))
-            })
+            let left = window[0]
+                .next_hop_node_id
+                .filter(|next_hop_node_id| broker_nodes.contains(next_hop_node_id));
+            let right = window[1]
+                .next_hop_node_id
+                .filter(|next_hop_node_id| broker_nodes.contains(next_hop_node_id));
+            (left.is_some() || right.is_some()) && left != right
         })
         .count();
     u32::try_from(count).unwrap_or(u32::MAX)
@@ -245,6 +247,7 @@ pub(super) fn summarize_run(
         objective_route_presence_max_permille,
         objective_route_presence_spread,
     ) = min_max_spread_u32(objective_route_presence_permille.iter().copied());
+    let route_present_permille = average_u32(objective_route_presence_permille.iter().copied());
     let concurrent_route_round_count = u32::try_from(
         reduced
             .rounds
@@ -274,11 +277,20 @@ pub(super) fn summarize_run(
         .count();
     let hook_counts = reduced.environment_hook_counts();
     let failure_counts = reduced.failure_class_counts();
+    let activation_failure_count = objective_count.saturating_sub(activation_successes);
     let stability_first = stability_scores.first().copied();
     let stability_last = stability_scores.last().copied();
     let stability_total = stability_scores
         .iter()
         .fold(0u32, |acc, score| acc.saturating_add(*score));
+    let mut scatter_sparse_rounds = 0u32;
+    let mut scatter_dense_rounds = 0u32;
+    let mut scatter_bridging_rounds = 0u32;
+    let mut scatter_constrained_rounds = 0u32;
+    let mut scatter_replicate_rounds = 0u32;
+    let mut scatter_handoff_rounds = 0u32;
+    let mut scatter_retained_message_peak = None;
+    let mut scatter_delivered_message_peak = None;
     let mut field_selected_result_rounds = 0u32;
     let mut field_search_reconfiguration_rounds = 0u32;
     let mut field_bootstrap_active_rounds = 0u32;
@@ -304,6 +316,60 @@ pub(super) fn summarize_run(
     let mut field_continuation_shift_count = 0u32;
     let mut field_corridor_narrow_count = 0u32;
     let mut field_checkpoint_restore_count = 0u32;
+    for round in &reduced.rounds {
+        let scatter_routes = round
+            .active_routes
+            .iter()
+            .filter(|route| route.engine_id == SCATTER_ENGINE_ID)
+            .collect::<Vec<_>>();
+        if scatter_routes.is_empty() {
+            continue;
+        }
+        match scatter_routes
+            .iter()
+            .find_map(|route| route.scatter_current_regime.as_deref())
+        {
+            Some("Sparse") => {
+                scatter_sparse_rounds = scatter_sparse_rounds.saturating_add(1);
+            }
+            Some("Dense") => {
+                scatter_dense_rounds = scatter_dense_rounds.saturating_add(1);
+            }
+            Some("Bridging") => {
+                scatter_bridging_rounds = scatter_bridging_rounds.saturating_add(1);
+            }
+            Some("Constrained") => {
+                scatter_constrained_rounds = scatter_constrained_rounds.saturating_add(1);
+            }
+            _ => {}
+        }
+        if scatter_routes
+            .iter()
+            .any(|route| route.scatter_last_action.as_deref() == Some("Replicate"))
+        {
+            scatter_replicate_rounds = scatter_replicate_rounds.saturating_add(1);
+        }
+        if scatter_routes
+            .iter()
+            .any(|route| route.scatter_last_action.as_deref() == Some("PreferentialHandoff"))
+        {
+            scatter_handoff_rounds = scatter_handoff_rounds.saturating_add(1);
+        }
+        scatter_retained_message_peak = scatter_routes
+            .iter()
+            .filter_map(|route| route.scatter_retained_message_count)
+            .max()
+            .into_iter()
+            .chain(scatter_retained_message_peak)
+            .max();
+        scatter_delivered_message_peak = scatter_routes
+            .iter()
+            .filter_map(|route| route.scatter_delivered_message_count)
+            .max()
+            .into_iter()
+            .chain(scatter_delivered_message_peak)
+            .max();
+    }
     for owner_node_id in owner_nodes {
         let field_replays = reduced.field_replays_for(owner_node_id);
         field_selected_result_rounds = field_selected_result_rounds.saturating_add(
@@ -552,7 +618,7 @@ pub(super) fn summarize_run(
         stress_score: spec.regime.stress_score,
         objective_count,
         activation_success_permille: ratio_permille(activation_successes, objective_count),
-        route_present_permille: ratio_permille(present_round_total, objective_count.max(1)),
+        route_present_permille,
         route_present_total_window_permille: ratio_permille(
             present_round_total_window_total,
             objective_count.saturating_mul(reduced.round_count.max(1)),
@@ -583,6 +649,14 @@ pub(super) fn summarize_run(
         olsrv2_selected_rounds: *engine_round_counts.get("olsrv2").unwrap_or(&0),
         pathway_selected_rounds: *engine_round_counts.get("pathway").unwrap_or(&0),
         scatter_selected_rounds: *engine_round_counts.get("scatter").unwrap_or(&0),
+        scatter_sparse_rounds,
+        scatter_dense_rounds,
+        scatter_bridging_rounds,
+        scatter_constrained_rounds,
+        scatter_replicate_rounds,
+        scatter_handoff_rounds,
+        scatter_retained_message_peak,
+        scatter_delivered_message_peak,
         field_selected_rounds: *engine_round_counts.get("field").unwrap_or(&0),
         field_selected_result_rounds,
         field_search_reconfiguration_rounds,
@@ -658,7 +732,8 @@ pub(super) fn summarize_run(
         inadmissible_candidate_count: failure_counts.inadmissible_candidate,
         lost_reachability_count: failure_counts.lost_reachability,
         replacement_loop_count: failure_counts.replacement_loop,
-        activation_failure_count: failure_counts.activation_failure,
+        activation_attempt_failure_count: failure_counts.activation_failure,
+        activation_failure_count,
         persistent_degraded_count: failure_counts.persistent_degraded,
         other_failure_count: failure_counts.other,
         replace_topology_count: hook_counts.replace_topology,
@@ -806,6 +881,24 @@ pub fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateS
                 average_u32(group.iter().map(|run| run.pathway_selected_rounds));
             let scatter_selected_rounds_mean =
                 average_u32(group.iter().map(|run| run.scatter_selected_rounds));
+            let scatter_sparse_rounds_mean =
+                average_u32(group.iter().map(|run| run.scatter_sparse_rounds));
+            let scatter_dense_rounds_mean =
+                average_u32(group.iter().map(|run| run.scatter_dense_rounds));
+            let scatter_bridging_rounds_mean =
+                average_u32(group.iter().map(|run| run.scatter_bridging_rounds));
+            let scatter_constrained_rounds_mean =
+                average_u32(group.iter().map(|run| run.scatter_constrained_rounds));
+            let scatter_replicate_rounds_mean =
+                average_u32(group.iter().map(|run| run.scatter_replicate_rounds));
+            let scatter_handoff_rounds_mean =
+                average_u32(group.iter().map(|run| run.scatter_handoff_rounds));
+            let scatter_retained_message_peak_mean = average_option_u32_from_iter(
+                group.iter().map(|run| run.scatter_retained_message_peak),
+            );
+            let scatter_delivered_message_peak_mean = average_option_u32_from_iter(
+                group.iter().map(|run| run.scatter_delivered_message_peak),
+            );
             let field_selected_rounds_mean =
                 average_u32(group.iter().map(|run| run.field_selected_rounds));
             let field_search_reconfiguration_rounds_mean = average_u32(
@@ -915,10 +1008,20 @@ pub fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateS
                 average_u32(group.iter().map(|run| run.lost_reachability_count));
             let replacement_loop_count_mean =
                 average_u32(group.iter().map(|run| run.replacement_loop_count));
+            let activation_attempt_failure_count_mean =
+                average_u32(group.iter().map(|run| run.activation_attempt_failure_count));
+            let activation_failure_count_mean =
+                average_u32(group.iter().map(|run| run.activation_failure_count));
             let persistent_degraded_count_mean =
                 average_u32(group.iter().map(|run| run.persistent_degraded_count));
+            let other_failure_count_mean =
+                average_u32(group.iter().map(|run| run.other_failure_count));
+            let cascade_partition_count_mean =
+                average_u32(group.iter().map(|run| run.cascade_partition_count));
+            let intrinsic_limit_count_mean =
+                average_u32(group.iter().map(|run| run.intrinsic_limit_count));
             let acceptable = activation_success_permille_mean >= 900
-                && route_present_permille_mean >= 500
+                && route_present_total_window_permille_mean >= 500
                 && lost_reachability_count_mean == 0
                 && maintenance_failure_count_mean == 0;
 
@@ -996,6 +1099,14 @@ pub fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateS
                 olsrv2_selected_rounds_mean,
                 pathway_selected_rounds_mean,
                 scatter_selected_rounds_mean,
+                scatter_sparse_rounds_mean,
+                scatter_dense_rounds_mean,
+                scatter_bridging_rounds_mean,
+                scatter_constrained_rounds_mean,
+                scatter_replicate_rounds_mean,
+                scatter_handoff_rounds_mean,
+                scatter_retained_message_peak_mean,
+                scatter_delivered_message_peak_mean,
                 field_selected_rounds_mean,
                 field_selected_result_rounds_mean,
                 field_search_reconfiguration_rounds_mean,
@@ -1032,7 +1143,12 @@ pub fn aggregate_runs(runs: &[ExperimentRunSummary]) -> Vec<ExperimentAggregateS
                 inadmissible_candidate_count_mean,
                 lost_reachability_count_mean,
                 replacement_loop_count_mean,
+                activation_attempt_failure_count_mean,
+                activation_failure_count_mean,
                 persistent_degraded_count_mean,
+                other_failure_count_mean,
+                cascade_partition_count_mean,
+                intrinsic_limit_count_mean,
                 model_artifact_count_mean,
                 equivalence_pass_count,
                 acceptable,
@@ -1072,12 +1188,14 @@ pub fn summarize_breakdowns(
             let breakdown_reason = first_failed.map(|aggregate| {
                 if aggregate.activation_success_permille_mean < 900 {
                     "activation-success".to_string()
-                } else if aggregate.route_present_permille_mean < 500 {
+                } else if aggregate.route_present_total_window_permille_mean < 500 {
                     "route-presence".to_string()
                 } else if aggregate.lost_reachability_count_mean > 0 {
                     "lost-reachability".to_string()
                 } else if aggregate.maintenance_failure_count_mean > 0 {
                     "maintenance-failure".to_string()
+                } else if aggregate.unrecovered_after_loss_count_mean > 0 {
+                    "unrecovered-loss".to_string()
                 } else {
                     "failure-density".to_string()
                 }
@@ -1105,7 +1223,8 @@ mod tests {
     use super::*;
     use crate::{
         environment::AppliedEnvironmentHook, ActiveRouteSummary, ReducedReplayRound,
-        SimulationExecutionLane,
+        ReducedRouteKey, ReducedRouteObservation, SimulationExecutionLane,
+        SimulationFailureSummary,
     };
     use jacquard_core::{HealthScore, RouteId, RouteLifecycleEvent};
 
@@ -1185,6 +1304,13 @@ mod tests {
             field_last_promotion_decision: None,
             field_last_promotion_blocker: None,
             field_continuation_shift_count: None,
+            scatter_current_regime: None,
+            scatter_last_action: None,
+            scatter_retained_message_count: None,
+            scatter_delivered_message_count: None,
+            scatter_contact_rate: None,
+            scatter_diversity_score: None,
+            scatter_resource_pressure_permille: None,
         };
         ReducedReplayView {
             scenario_name: "summary-synthetic-recovery".to_string(),
@@ -1291,7 +1417,343 @@ mod tests {
         assert_eq!(summary.broker_participation_permille, Some(1000));
         assert_eq!(summary.broker_concentration_permille, Some(1000));
         assert_eq!(summary.broker_route_churn_count, Some(0));
-        assert_eq!(summary.route_churn_count, 0);
-        assert_eq!(summary.route_observation_count, 1);
+        assert_eq!(summary.route_present_permille, 600);
+        assert_eq!(summary.route_present_total_window_permille, 500);
+        assert_eq!(summary.route_churn_count, 1);
+        assert_eq!(summary.route_observation_count, 2);
+    }
+
+    #[test]
+    fn aggregate_runs_uses_window_normalized_route_presence_for_acceptance() {
+        let spec = synthetic_summary_spec();
+        let scenario = spec
+            .prepared_scenario()
+            .expect("synthetic summary spec should retain a prepared scenario");
+        let mut run = summarize_run(&spec, scenario, &synthetic_reduced_replay());
+        run.route_present_permille = 600;
+        run.route_present_total_window_permille = 400;
+        let aggregate = aggregate_runs(&[run])
+            .into_iter()
+            .next()
+            .expect("single run should yield one aggregate");
+
+        assert_eq!(aggregate.route_present_permille_mean, 600);
+        assert_eq!(aggregate.route_present_total_window_permille_mean, 400);
+        assert!(!aggregate.acceptable);
+    }
+
+    #[test]
+    fn summarize_breakdowns_reports_route_presence_from_normalized_window_metric() {
+        let spec = synthetic_summary_spec();
+        let scenario = spec
+            .prepared_scenario()
+            .expect("synthetic summary spec should retain a prepared scenario");
+        let mut run = summarize_run(&spec, scenario, &synthetic_reduced_replay());
+        run.route_present_permille = 600;
+        run.route_present_total_window_permille = 400;
+        let aggregate = aggregate_runs(&[run])
+            .into_iter()
+            .next()
+            .expect("single run should yield one aggregate");
+        let breakdown = summarize_breakdowns(&[aggregate])
+            .into_iter()
+            .next()
+            .expect("single aggregate should yield one breakdown");
+
+        assert_eq!(
+            breakdown.breakdown_reason.as_deref(),
+            Some("route-presence")
+        );
+    }
+
+    #[test]
+    fn reduced_failure_class_counts_ignore_generic_harness_summaries() {
+        let mut replay = synthetic_reduced_replay();
+        replay.failure_summaries = vec![
+            SimulationFailureSummary {
+                round_index: None,
+                detail: "run completed without any route lifecycle events".to_string(),
+            },
+            SimulationFailureSummary {
+                round_index: None,
+                detail: "driver surfaced 2 status event(s) during the run".to_string(),
+            },
+            SimulationFailureSummary {
+                round_index: None,
+                detail: "objective activation failed for owner NodeId(1): missing host bridge"
+                    .to_string(),
+            },
+        ];
+
+        let counts = replay.failure_class_counts();
+        assert_eq!(counts.activation_failure, 1);
+        assert_eq!(counts.other, 0);
+    }
+
+    #[test]
+    fn summarize_run_separates_activation_attempt_failures_from_terminal_failures() {
+        let spec = synthetic_summary_spec();
+        let scenario = spec
+            .prepared_scenario()
+            .expect("synthetic summary spec should retain a prepared scenario");
+        let mut replay = synthetic_reduced_replay();
+        replay.failure_summaries = vec![SimulationFailureSummary {
+            round_index: Some(0),
+            detail: "objective activation failed for owner NodeId(1) destination NodeId(2): no candidate"
+                .to_string(),
+        }];
+
+        let summary = summarize_run(&spec, scenario, &replay);
+        assert_eq!(summary.activation_attempt_failure_count, 1);
+        assert_eq!(summary.activation_failure_count, 0);
+        assert_eq!(summary.activation_success_permille, 1000);
+    }
+
+    #[test]
+    fn broker_route_churn_counts_only_broker_identity_changes() {
+        let broker_a = node_id(3);
+        let broker_b = node_id(4);
+        let owner_node_id = node_id(1);
+        let destination = DestinationId::Node(node_id(9));
+        let observations = [
+            ReducedRouteObservation {
+                key: ReducedRouteKey {
+                    owner_node_id,
+                    destination: destination.clone(),
+                },
+                route_id: RouteId([1; 16]),
+                engine_id: PATHWAY_ENGINE_ID,
+                next_hop_node_id: Some(broker_a),
+                first_seen_round: 1,
+                last_seen_round: 2,
+                last_lifecycle_event: RouteLifecycleEvent::Activated,
+            },
+            ReducedRouteObservation {
+                key: ReducedRouteKey {
+                    owner_node_id,
+                    destination,
+                },
+                route_id: RouteId([2; 16]),
+                engine_id: PATHWAY_ENGINE_ID,
+                next_hop_node_id: Some(broker_b),
+                first_seen_round: 4,
+                last_seen_round: 5,
+                last_lifecycle_event: RouteLifecycleEvent::Repaired,
+            },
+        ];
+
+        let refs = observations.iter().collect::<Vec<_>>();
+        let brokers = BTreeSet::from([broker_a, broker_b]);
+        assert_eq!(broker_route_churn_count_for(&refs, &brokers), 1);
+    }
+
+    #[test]
+    fn summarize_run_counts_broker_churn_inside_continuous_route_lifetime() {
+        let spec = synthetic_summary_spec();
+        let (scenario, _) = spec.materialize_world();
+        let scenario = scenario.with_broker_nodes(vec![node_id(3), node_id(4)]);
+        let owner_node_id = node_id(1);
+        let destination = DestinationId::Node(node_id(2));
+        let route = ActiveRouteSummary {
+            owner_node_id,
+            route_id: RouteId([7; 16]),
+            destination: destination.clone(),
+            engine_id: PATHWAY_ENGINE_ID,
+            next_hop_node_id: Some(node_id(3)),
+            hop_count_hint: Some(2),
+            last_lifecycle_event: RouteLifecycleEvent::Activated,
+            reachability_state: jacquard_core::ReachabilityState::Reachable,
+            stability_score: HealthScore(900),
+            commitment_resolution: None,
+            field_continuity_band: None,
+            field_last_outcome: None,
+            field_last_promotion_decision: None,
+            field_last_promotion_blocker: None,
+            field_continuation_shift_count: None,
+            scatter_current_regime: None,
+            scatter_last_action: None,
+            scatter_retained_message_count: None,
+            scatter_delivered_message_count: None,
+            scatter_contact_rate: None,
+            scatter_diversity_score: None,
+            scatter_resource_pressure_permille: None,
+        };
+        let mut switched = route.clone();
+        switched.next_hop_node_id = Some(node_id(4));
+        let replay = ReducedReplayView {
+            scenario_name: "summary-synthetic-broker-churn".to_string(),
+            round_count: 2,
+            rounds: vec![
+                ReducedReplayRound {
+                    round_index: 0,
+                    active_routes: vec![route],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 1,
+                    active_routes: vec![switched],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+            ],
+            distinct_engine_ids: vec![PATHWAY_ENGINE_ID],
+            driver_status_events: Vec::new(),
+            failure_summaries: Vec::new(),
+        };
+
+        let summary = summarize_run(&spec, &scenario, &replay);
+        assert_eq!(summary.broker_participation_permille, Some(1000));
+        assert_eq!(summary.broker_concentration_permille, Some(500));
+        assert_eq!(summary.broker_route_churn_count, Some(1));
+    }
+
+    // long-block-exception: this regression fixture exercises every scatter runtime counter in one replay summary.
+    #[test]
+    fn summarize_run_tracks_scatter_runtime_regimes_actions_and_peaks() {
+        let mut spec = synthetic_summary_spec();
+        spec.engine_family = "scatter".to_string();
+        spec.parameters = ExperimentParameterSet::scatter("balanced");
+        let scenario = spec
+            .prepared_scenario()
+            .expect("synthetic summary spec should retain a prepared scenario");
+        let owner_node_id = node_id(1);
+        let destination = DestinationId::Node(node_id(2));
+        let replay = ReducedReplayView {
+            scenario_name: "summary-synthetic-scatter".to_string(),
+            round_count: 4,
+            rounds: vec![
+                ReducedReplayRound {
+                    round_index: 0,
+                    active_routes: vec![ActiveRouteSummary {
+                        owner_node_id,
+                        route_id: RouteId([1; 16]),
+                        destination: destination.clone(),
+                        engine_id: SCATTER_ENGINE_ID,
+                        next_hop_node_id: Some(node_id(2)),
+                        hop_count_hint: Some(1),
+                        last_lifecycle_event: RouteLifecycleEvent::Activated,
+                        reachability_state: jacquard_core::ReachabilityState::Reachable,
+                        stability_score: HealthScore(900),
+                        commitment_resolution: None,
+                        field_continuity_band: None,
+                        field_last_outcome: None,
+                        field_last_promotion_decision: None,
+                        field_last_promotion_blocker: None,
+                        field_continuation_shift_count: None,
+                        scatter_current_regime: Some("Sparse".to_string()),
+                        scatter_last_action: Some("Replicate".to_string()),
+                        scatter_retained_message_count: Some(3),
+                        scatter_delivered_message_count: Some(1),
+                        scatter_contact_rate: Some(7),
+                        scatter_diversity_score: Some(2),
+                        scatter_resource_pressure_permille: Some(150),
+                    }],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 1,
+                    active_routes: vec![ActiveRouteSummary {
+                        owner_node_id,
+                        route_id: RouteId([2; 16]),
+                        destination: destination.clone(),
+                        engine_id: SCATTER_ENGINE_ID,
+                        next_hop_node_id: Some(node_id(2)),
+                        hop_count_hint: Some(1),
+                        last_lifecycle_event: RouteLifecycleEvent::Repaired,
+                        reachability_state: jacquard_core::ReachabilityState::Reachable,
+                        stability_score: HealthScore(910),
+                        commitment_resolution: None,
+                        field_continuity_band: None,
+                        field_last_outcome: None,
+                        field_last_promotion_decision: None,
+                        field_last_promotion_blocker: None,
+                        field_continuation_shift_count: None,
+                        scatter_current_regime: Some("Dense".to_string()),
+                        scatter_last_action: Some("KeepCarrying".to_string()),
+                        scatter_retained_message_count: Some(5),
+                        scatter_delivered_message_count: Some(2),
+                        scatter_contact_rate: Some(8),
+                        scatter_diversity_score: Some(3),
+                        scatter_resource_pressure_permille: Some(180),
+                    }],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 2,
+                    active_routes: vec![ActiveRouteSummary {
+                        owner_node_id,
+                        route_id: RouteId([3; 16]),
+                        destination: destination.clone(),
+                        engine_id: SCATTER_ENGINE_ID,
+                        next_hop_node_id: Some(node_id(2)),
+                        hop_count_hint: Some(1),
+                        last_lifecycle_event: RouteLifecycleEvent::Repaired,
+                        reachability_state: jacquard_core::ReachabilityState::Reachable,
+                        stability_score: HealthScore(920),
+                        commitment_resolution: None,
+                        field_continuity_band: None,
+                        field_last_outcome: None,
+                        field_last_promotion_decision: None,
+                        field_last_promotion_blocker: None,
+                        field_continuation_shift_count: None,
+                        scatter_current_regime: Some("Bridging".to_string()),
+                        scatter_last_action: Some("PreferentialHandoff".to_string()),
+                        scatter_retained_message_count: Some(4),
+                        scatter_delivered_message_count: Some(6),
+                        scatter_contact_rate: Some(9),
+                        scatter_diversity_score: Some(4),
+                        scatter_resource_pressure_permille: Some(210),
+                    }],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 3,
+                    active_routes: vec![ActiveRouteSummary {
+                        owner_node_id,
+                        route_id: RouteId([4; 16]),
+                        destination,
+                        engine_id: SCATTER_ENGINE_ID,
+                        next_hop_node_id: Some(node_id(2)),
+                        hop_count_hint: Some(1),
+                        last_lifecycle_event: RouteLifecycleEvent::Repaired,
+                        reachability_state: jacquard_core::ReachabilityState::Reachable,
+                        stability_score: HealthScore(930),
+                        commitment_resolution: None,
+                        field_continuity_band: None,
+                        field_last_outcome: None,
+                        field_last_promotion_decision: None,
+                        field_last_promotion_blocker: None,
+                        field_continuation_shift_count: None,
+                        scatter_current_regime: Some("Constrained".to_string()),
+                        scatter_last_action: Some("Replicate".to_string()),
+                        scatter_retained_message_count: Some(2),
+                        scatter_delivered_message_count: Some(4),
+                        scatter_contact_rate: Some(6),
+                        scatter_diversity_score: Some(1),
+                        scatter_resource_pressure_permille: Some(900),
+                    }],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+            ],
+            distinct_engine_ids: vec![SCATTER_ENGINE_ID],
+            driver_status_events: Vec::new(),
+            failure_summaries: Vec::new(),
+        };
+
+        let summary = summarize_run(&spec, scenario, &replay);
+        assert_eq!(summary.scatter_selected_rounds, 4);
+        assert_eq!(summary.scatter_sparse_rounds, 1);
+        assert_eq!(summary.scatter_dense_rounds, 1);
+        assert_eq!(summary.scatter_bridging_rounds, 1);
+        assert_eq!(summary.scatter_constrained_rounds, 1);
+        assert_eq!(summary.scatter_replicate_rounds, 2);
+        assert_eq!(summary.scatter_handoff_rounds, 1);
+        assert_eq!(summary.scatter_retained_message_peak, Some(5));
+        assert_eq!(summary.scatter_delivered_message_peak, Some(6));
     }
 }

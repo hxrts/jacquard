@@ -74,6 +74,8 @@ pub fn local_stage_suite_with_seeds_and_config(
             "local-scatter" => build_scatter_runs(suite_id, seeds, comparative_scale),
             "local-pathway" => build_pathway_runs(suite_id, seeds, false),
             "local-field" => build_field_runs(suite_id, seeds, false),
+            "local-comparison" => build_comparison_runs(suite_id, seeds, comparative_scale),
+            "local-head-to-head" => build_head_to_head_runs(suite_id, seeds, comparative_scale),
             "local-comparison-stage-1" => build_comparison_runs_for_families(
                 suite_id,
                 seeds,
@@ -84,6 +86,7 @@ pub fn local_stage_suite_with_seeds_and_config(
                     "comparison-bridge-transition",
                     "comparison-partial-observability-bridge",
                     "comparison-concurrent-mixed",
+                    "comparison-pathway-budget-boundary",
                     "comparison-corridor-continuity-uncertainty",
                 ],
             ),
@@ -137,6 +140,21 @@ pub fn local_stage_suite_with_seeds_and_config(
         suite_id: suite_id.to_string(),
         runs,
     })
+}
+
+fn unique_parameter_sets(
+    parameter_sets: Vec<ExperimentParameterSet>,
+) -> Vec<ExperimentParameterSet> {
+    let mut unique = Vec::new();
+    for parameter_set in parameter_sets {
+        if unique
+            .iter()
+            .all(|existing: &ExperimentParameterSet| existing.config_id != parameter_set.config_id)
+        {
+            unique.push(parameter_set);
+        }
+    }
+    unique
 }
 
 fn comparison_routing_fitness_family(stage_id: &str) -> Option<&'static str> {
@@ -266,7 +284,7 @@ fn build_batman_bellman_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<
     let parameter_sets = if smoke {
         vec![coarse[1].clone(), coarse[3].clone()]
     } else {
-        coarse.into_iter().chain(fine).collect()
+        unique_parameter_sets(coarse.into_iter().chain(fine).collect())
     };
 
     let families = materialize_families(&BATMAN_BELLMAN_FAMILIES);
@@ -296,7 +314,7 @@ fn build_batman_classic_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<
     let parameter_sets = if smoke {
         vec![coarse[1].clone(), coarse[2].clone()]
     } else {
-        coarse.into_iter().chain(fine).collect()
+        unique_parameter_sets(coarse.into_iter().chain(fine).collect())
     };
     let families = materialize_families(&BATMAN_CLASSIC_FAMILIES);
     expand_runs(
@@ -323,7 +341,7 @@ fn build_babel_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experimen
     let parameter_sets = if smoke {
         vec![coarse[1].clone(), coarse[2].clone()]
     } else {
-        coarse.into_iter().chain(fine).collect()
+        unique_parameter_sets(coarse.into_iter().chain(fine).collect())
     };
     let families = materialize_families(&BABEL_FAMILIES);
     expand_runs(suite_id, "babel", seeds, &parameter_sets, &families)
@@ -344,7 +362,7 @@ fn build_olsrv2_runs(suite_id: &str, seeds: &[u64], smoke: bool) -> Vec<Experime
     let parameter_sets = if smoke {
         vec![coarse[1].clone(), coarse[2].clone()]
     } else {
-        coarse.into_iter().chain(fine).collect()
+        unique_parameter_sets(coarse.into_iter().chain(fine).collect())
     };
     let families = materialize_families(&OLSRV2_FAMILIES);
     expand_runs(suite_id, "olsrv2", seeds, &parameter_sets, &families)
@@ -1654,7 +1672,7 @@ fn pilot_scatter_line_scenario(
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{local_suite, smoke_suite};
+    use super::{local_stage_suite, local_suite, smoke_suite};
     use crate::experiments::runner::{execute_suite_runs_parallel, execute_suite_runs_serial};
     use crate::ReferenceClientAdapter;
 
@@ -1697,6 +1715,74 @@ mod tests {
             assert!(
                 family_ids.contains(family_id),
                 "{family_id} missing from local suite"
+            );
+        }
+    }
+
+    #[test]
+    fn standalone_local_stage_suites_do_not_repeat_run_ids() {
+        for stage_id in [
+            "local-batman-bellman",
+            "local-batman-classic",
+            "local-babel",
+            "local-olsrv2",
+        ] {
+            let suite = local_stage_suite(stage_id).expect("standalone local stage should exist");
+            let run_ids = suite
+                .runs
+                .iter()
+                .map(|run| run.run_id.as_str())
+                .collect::<BTreeSet<_>>();
+            assert_eq!(
+                run_ids.len(),
+                suite.runs.len(),
+                "{stage_id} should not emit duplicate run ids"
+            );
+        }
+    }
+
+    #[test]
+    fn grouped_local_comparison_stage_suite_exists() {
+        let suite = local_stage_suite("local-comparison")
+            .expect("grouped local comparison stage should exist");
+        let family_ids = suite
+            .runs
+            .iter()
+            .map(|run| run.family_id.as_str())
+            .collect::<BTreeSet<_>>();
+
+        for family_id in [
+            "comparison-connected-low-loss",
+            "comparison-large-multi-bottleneck-high",
+            "comparison-multi-flow-shared-corridor",
+            "comparison-stale-recovery-window",
+        ] {
+            assert!(
+                family_ids.contains(family_id),
+                "{family_id} missing from grouped local comparison stage"
+            );
+        }
+    }
+
+    #[test]
+    fn grouped_local_head_to_head_stage_suite_exists() {
+        let suite = local_stage_suite("local-head-to-head")
+            .expect("grouped local head-to-head stage should exist");
+        let family_ids = suite
+            .runs
+            .iter()
+            .map(|run| run.family_id.as_str())
+            .collect::<BTreeSet<_>>();
+
+        for family_id in [
+            "head-to-head-connected-low-loss",
+            "head-to-head-large-multi-bottleneck-high",
+            "head-to-head-multi-flow-shared-corridor",
+            "head-to-head-stale-recovery-window",
+        ] {
+            assert!(
+                family_ids.contains(family_id),
+                "{family_id} missing from grouped local head-to-head stage"
             );
         }
     }

@@ -1,5 +1,6 @@
 //! Engine-public policy and state types for `ScatterEngine`.
 
+use jacquard_core::RouteId;
 use jacquard_core::{ByteCount, DurationMs, NodeId, Tick};
 use serde::{Deserialize, Serialize};
 
@@ -223,4 +224,20 @@ pub(crate) struct ScatterPlannerSnapshot {
     pub config: ScatterEngineConfig,
     pub current_regime: ScatterRegime,
     pub last_local_summary: ScatterLocalSummary,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScatterRouterAnalysisRouteSummary {
+    pub route_id: RouteId,
+    pub retained_message_count: u32,
+    pub delivered_message_count: u32,
+    pub last_action: ScatterAction,
+    pub last_regime: ScatterRegime,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScatterRouterAnalysisSnapshot {
+    pub current_regime: ScatterRegime,
+    pub last_local_summary: ScatterLocalSummary,
+    pub route_summaries: Vec<ScatterRouterAnalysisRouteSummary>,
 }

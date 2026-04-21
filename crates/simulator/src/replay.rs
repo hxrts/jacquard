@@ -55,6 +55,13 @@ pub struct ActiveRouteSummary {
     pub field_last_promotion_decision: Option<String>,
     pub field_last_promotion_blocker: Option<String>,
     pub field_continuation_shift_count: Option<u32>,
+    pub scatter_current_regime: Option<String>,
+    pub scatter_last_action: Option<String>,
+    pub scatter_retained_message_count: Option<u32>,
+    pub scatter_delivered_message_count: Option<u32>,
+    pub scatter_contact_rate: Option<u32>,
+    pub scatter_diversity_score: Option<u32>,
+    pub scatter_resource_pressure_permille: Option<u16>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

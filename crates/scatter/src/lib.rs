@@ -37,8 +37,8 @@ use public_state::ScatterPlannerSnapshot;
 pub use public_state::{
     ScatterAction, ScatterBudgetPolicy, ScatterDecisionThresholds, ScatterEngineConfig,
     ScatterExpiryPolicy, ScatterLocalSummary, ScatterOperationalBounds, ScatterRegime,
-    ScatterRegimeThresholds, ScatterRouteProgress, ScatterSizeClass, ScatterTransportPolicy,
-    ScatterUrgencyClass,
+    ScatterRegimeThresholds, ScatterRouteProgress, ScatterRouterAnalysisRouteSummary,
+    ScatterRouterAnalysisSnapshot, ScatterSizeClass, ScatterTransportPolicy, ScatterUrgencyClass,
 };
 use support::{ActiveScatterRoute, PeerObservationState, ScatterMessageId, StoredScatterMessage};
 

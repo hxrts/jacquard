@@ -31,9 +31,17 @@ def score_expression(profile_id: str) -> pl.Expr:
     field_narrow_reward = profile.get("field_narrow_reward", 0.0)
     field_continuity_narrow_penalty = profile.get("field_narrow_penalty", 0.0)
     field_degraded_round_penalty = profile.get("field_degraded_round_penalty", 0.0)
+    scatter_handoff_reward = profile.get("scatter_handoff_reward", 0.0)
+    scatter_replicate_reward = profile.get("scatter_replicate_reward", 0.0)
+    scatter_bridging_reward = profile.get("scatter_bridging_reward", 0.0)
+    scatter_constrained_reward = profile.get("scatter_constrained_reward", 0.0)
+    scatter_handoff_penalty = profile.get("scatter_handoff_penalty", 0.0)
+    scatter_constrained_penalty = profile.get("scatter_constrained_penalty", 0.0)
+    scatter_sparse_penalty = profile.get("scatter_sparse_penalty", 0.0)
+    scatter_bridging_penalty = profile.get("scatter_bridging_penalty", 0.0)
     return (
         pl.col("activation_success_permille_mean") * profile["activation_weight"]
-        + pl.col("route_present_permille_mean") * profile["route_weight"]
+        + _aggregate_route_presence_expr() * profile["route_weight"]
         + (pl.col("stability_total_mean") * profile["stability_weight"])
         + pl.col("max_sustained_stress_score").fill_null(0) * profile["stress_weight"]
         + pl.when(pl.col("engine_family") == "field")
@@ -50,6 +58,18 @@ def score_expression(profile_id: str) -> pl.Expr:
         .otherwise(0)
         + pl.when(pl.col("engine_family") == "field")
         .then(pl.col("field_corridor_narrow_count_mean") * field_narrow_reward)
+        .otherwise(0)
+        + pl.when(pl.col("engine_family") == "scatter")
+        .then(pl.col("scatter_handoff_rounds_mean") * scatter_handoff_reward)
+        .otherwise(0)
+        + pl.when(pl.col("engine_family") == "scatter")
+        .then(pl.col("scatter_replicate_rounds_mean") * scatter_replicate_reward)
+        .otherwise(0)
+        + pl.when(pl.col("engine_family") == "scatter")
+        .then(pl.col("scatter_bridging_rounds_mean") * scatter_bridging_reward)
+        .otherwise(0)
+        + pl.when(pl.col("engine_family") == "scatter")
+        .then(pl.col("scatter_constrained_rounds_mean") * scatter_constrained_reward)
         .otherwise(0)
         - pl.col("first_materialization_round_mean").fill_null(0)
         * profile["materialization_weight"]
@@ -85,6 +105,18 @@ def score_expression(profile_id: str) -> pl.Expr:
             * field_degraded_round_penalty
         )
         .otherwise(0)
+        - pl.when(pl.col("engine_family") == "scatter")
+        .then(pl.col("scatter_handoff_rounds_mean") * scatter_handoff_penalty)
+        .otherwise(0)
+        - pl.when(pl.col("engine_family") == "scatter")
+        .then(pl.col("scatter_constrained_rounds_mean") * scatter_constrained_penalty)
+        .otherwise(0)
+        - pl.when(pl.col("engine_family") == "scatter")
+        .then(pl.col("scatter_sparse_rounds_mean") * scatter_sparse_penalty)
+        .otherwise(0)
+        - pl.when(pl.col("engine_family") == "scatter")
+        .then(pl.col("scatter_bridging_rounds_mean") * scatter_bridging_penalty)
+        .otherwise(0)
     )
 
 
@@ -116,13 +148,27 @@ _OPTIONAL_FLOAT_COLUMNS = [
     "olsrv2_selected_rounds_mean",
     "pathway_selected_rounds_mean",
     "scatter_selected_rounds_mean",
+    "scatter_sparse_rounds_mean",
+    "scatter_dense_rounds_mean",
+    "scatter_bridging_rounds_mean",
+    "scatter_constrained_rounds_mean",
+    "scatter_replicate_rounds_mean",
+    "scatter_handoff_rounds_mean",
+    "scatter_retained_message_peak_mean",
+    "scatter_delivered_message_peak_mean",
     "field_selected_rounds_mean",
+    "field_bootstrap_activation_permille_mean",
+    "field_bootstrap_hold_permille_mean",
+    "field_bootstrap_narrow_permille_mean",
+    "field_bootstrap_upgrade_permille_mean",
+    "field_bootstrap_withdraw_permille_mean",
     "field_degraded_steady_entry_permille_mean",
     "field_degraded_steady_recovery_permille_mean",
     "field_degraded_to_bootstrap_permille_mean",
     "field_degraded_steady_round_permille_mean",
     "field_service_retention_carry_forward_permille_mean",
     "field_asymmetric_shift_success_permille_mean",
+    "field_protocol_reconfiguration_count_mean",
     "field_route_bound_reconfiguration_count_mean",
     "field_continuation_shift_count_mean",
     "field_corridor_narrow_count_mean",
@@ -133,6 +179,8 @@ _OPTIONAL_STR_COLUMNS = [
     "field_commitment_resolution_mode",
     "field_last_outcome_mode",
     "field_last_continuity_transition_mode",
+    "field_last_promotion_decision_mode",
+    "field_last_promotion_blocker_mode",
 ]
 
 
@@ -148,6 +196,24 @@ def _ensure_optional_columns(df: pl.DataFrame) -> pl.DataFrame:
 
 def _stable_mode_expr(column: str) -> pl.Expr:
     return pl.col(column).drop_nulls().mode().sort().first().alias(column)
+
+
+def _aggregate_route_presence_expr() -> pl.Expr:
+    return pl.coalesce(
+        [
+            pl.col("route_present_total_window_permille_mean"),
+            pl.col("route_present_permille_mean"),
+        ]
+    )
+
+
+def _run_route_presence_expr() -> pl.Expr:
+    return pl.coalesce(
+        [
+            pl.col("route_present_total_window_permille"),
+            pl.col("route_present_permille"),
+        ]
+    )
 
 
 def recommendation_table(
@@ -174,7 +240,7 @@ def recommendation_table(
             pl.col("activation_success_permille_mean")
             .mean()
             .alias("activation_success_mean"),
-            pl.col("route_present_permille_mean").mean().alias("route_present_mean"),
+            _aggregate_route_presence_expr().mean().alias("route_present_mean"),
             pl.col("field_bootstrap_activation_permille_mean")
             .mean()
             .alias("field_bootstrap_activation_mean"),
@@ -214,6 +280,17 @@ def recommendation_table(
             pl.col("field_corridor_narrow_count_mean")
             .mean()
             .alias("field_corridor_narrow_mean"),
+            pl.col("scatter_sparse_rounds_mean").mean().alias("scatter_sparse_mean"),
+            pl.col("scatter_bridging_rounds_mean").mean().alias("scatter_bridging_mean"),
+            pl.col("scatter_constrained_rounds_mean").mean().alias("scatter_constrained_mean"),
+            pl.col("scatter_replicate_rounds_mean").mean().alias("scatter_replicate_mean"),
+            pl.col("scatter_handoff_rounds_mean").mean().alias("scatter_handoff_mean"),
+            pl.col("scatter_retained_message_peak_mean")
+            .mean()
+            .alias("scatter_retained_peak_mean"),
+            pl.col("scatter_delivered_message_peak_mean")
+            .mean()
+            .alias("scatter_delivered_peak_mean"),
             _stable_mode_expr("field_continuity_band_mode"),
             _stable_mode_expr("field_commitment_resolution_mode"),
             _stable_mode_expr("field_last_outcome_mode"),
@@ -279,6 +356,13 @@ def profile_recommendation_table(
         "field_service_retention_carry_forward_mean",
         "field_corridor_narrow_mean",
         "field_degraded_steady_round_mean",
+        "scatter_sparse_mean",
+        "scatter_bridging_mean",
+        "scatter_constrained_mean",
+        "scatter_replicate_mean",
+        "scatter_handoff_mean",
+        "scatter_retained_peak_mean",
+        "scatter_delivered_peak_mean",
         "max_sustained_stress_score",
     )
 
@@ -385,7 +469,7 @@ def field_routing_regime_calibration_table(aggregates: pl.DataFrame) -> pl.DataF
     if field_rows.is_empty():
         return pl.DataFrame()
     grouped = field_rows.group_by("field_regime", "config_id").agg(
-        pl.col("route_present_permille_mean").mean().alias("route_present_mean"),
+        _aggregate_route_presence_expr().mean().alias("route_present_mean"),
         pl.col("activation_success_permille_mean").mean().alias("activation_success_mean"),
         pl.col("stress_score").max().alias("stress_envelope"),
         pl.col("field_bootstrap_upgrade_permille_mean").mean().alias("bootstrap_upgrade_mean"),
@@ -993,8 +1077,8 @@ def transition_metrics_table(
         runs.join(top_configs, on=["engine_family", "config_id"], how="inner")
         .group_by("engine_family", "config_id")
         .agg(
-            pl.col("route_present_permille").mean().alias("route_present_mean"),
-            pl.col("route_present_permille")
+            _run_route_presence_expr().mean().alias("route_present_mean"),
+            _run_route_presence_expr()
             .std()
             .fill_null(0)
             .round(1)
@@ -1226,6 +1310,14 @@ def write_recommendations(path: Path, recommendations: pl.DataFrame) -> None:
                 f"upgrade={top['field_bootstrap_upgrade_mean']:.1f} permille, "
                 f"withdrawal={top['field_bootstrap_withdraw_mean']:.1f} permille."
             )
+        if engine_family == "scatter":
+            lines.append(
+                "Scatter runtime profile: "
+                f"handoff={top['scatter_handoff_mean']:.1f}, "
+                f"constrained={top['scatter_constrained_mean']:.1f}, "
+                f"bridging={top['scatter_bridging_mean']:.1f}, "
+                f"retained_peak={top['scatter_retained_peak_mean']:.1f}."
+            )
         lines.append("")
         lines.append("Nearby acceptable range:")
         for row in rows:
@@ -1318,9 +1410,15 @@ def comparison_engine_round_breakdown_table(aggregates: pl.DataFrame) -> pl.Data
 
 def head_to_head_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
     aggregates = _ensure_optional_columns(aggregates)
+    head_to_head_rows = aggregates.filter(
+        (pl.col("engine_family") == "head-to-head")
+        & pl.col("comparison_engine_set").is_not_null()
+    )
+    if head_to_head_rows.is_empty():
+        return pl.DataFrame()
     engine_order = {engine: index for index, engine in enumerate(ROUTE_VISIBLE_ENGINE_SET_ORDER)}
     return (
-        aggregates.filter(pl.col("engine_family") == "head-to-head")
+        head_to_head_rows
         .with_columns(
             pl.col("comparison_engine_set")
             .replace_strict(engine_order, default=len(engine_order))
@@ -1354,15 +1452,84 @@ def head_to_head_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def comparison_config_sensitivity_table(aggregates: pl.DataFrame) -> pl.DataFrame:
+    if aggregates.is_empty():
+        return pl.DataFrame()
+    aggregates = _ensure_optional_columns(aggregates)
+    rows: list[dict[str, object]] = []
+    grouped: dict[tuple[str, str], list[dict[str, object]]] = {}
+    for row in aggregates.iter_rows(named=True):
+        engine_family = row.get("engine_family")
+        if engine_family not in {"comparison", "head-to-head"}:
+            continue
+        key = (str(engine_family), str(row.get("family_id")))
+        grouped.setdefault(key, []).append(row)
+    topline_columns = [
+        "activation_success_permille_mean",
+        "route_present_total_window_permille_mean",
+        "first_materialization_round_mean",
+        "first_loss_round_mean",
+        "recovery_success_permille_mean",
+        "route_churn_count_mean",
+    ]
+    selection_columns = [
+        "dominant_engine",
+        "batman_bellman_selected_rounds_mean",
+        "batman_classic_selected_rounds_mean",
+        "babel_selected_rounds_mean",
+        "olsrv2_selected_rounds_mean",
+        "scatter_selected_rounds_mean",
+        "pathway_selected_rounds_mean",
+        "field_selected_rounds_mean",
+    ]
+    for (engine_family, family_id), family_rows in sorted(grouped.items()):
+        config_ids = sorted(str(row.get("config_id")) for row in family_rows)
+        topline_signatures = {
+            tuple(row.get(column) for column in topline_columns) for row in family_rows
+        }
+        selection_signatures = {
+            tuple(row.get(column) for column in selection_columns) for row in family_rows
+        }
+        topline_flat = len(topline_signatures) <= 1
+        selection_flat = len(selection_signatures) <= 1
+        if topline_flat and selection_flat:
+            sensitivity_class = "flat-control"
+        elif topline_flat:
+            sensitivity_class = "selection-only"
+        elif selection_flat:
+            sensitivity_class = "topline-only"
+        else:
+            sensitivity_class = "topline-and-selection"
+        rows.append(
+            {
+                "engine_family": engine_family,
+                "family_id": family_id,
+                "config_count": len(set(config_ids)),
+                "topline_signature_count": len(topline_signatures),
+                "selection_signature_count": len(selection_signatures),
+                "topline_flat": topline_flat,
+                "selection_flat": selection_flat,
+                "sensitivity_class": sensitivity_class,
+            }
+        )
+    return pl.from_dicts(rows, infer_schema_length=None) if rows else pl.DataFrame()
+
+
 def benchmark_profile_audit_table(
     aggregates: pl.DataFrame, profile_recommendations: pl.DataFrame
 ) -> pl.DataFrame:
     if aggregates.is_empty():
         return pl.DataFrame()
     aggregates = _ensure_optional_columns(aggregates)
+    head_to_head_rows = aggregates.filter(
+        (pl.col("engine_family") == "head-to-head")
+        & pl.col("comparison_engine_set").is_not_null()
+    )
+    if head_to_head_rows.is_empty():
+        return pl.DataFrame()
     order = {engine: index for index, engine in enumerate(ROUTE_VISIBLE_ENGINE_SET_ORDER)}
     representative = (
-        aggregates.filter(pl.col("engine_family") == "head-to-head")
+        head_to_head_rows
         .with_columns(
             pl.col("comparison_engine_set")
             .replace_strict(order, default=len(order))
@@ -1371,7 +1538,7 @@ def benchmark_profile_audit_table(
         .select(
             pl.col("comparison_engine_set").alias("engine_set"),
             pl.col("config_id").alias("representative_config_id"),
-            pl.col("route_present_permille_mean").alias("representative_route_present_mean"),
+            _aggregate_route_presence_expr().alias("representative_route_present_mean"),
             pl.col("activation_success_permille_mean").alias(
                 "representative_activation_mean"
             ),

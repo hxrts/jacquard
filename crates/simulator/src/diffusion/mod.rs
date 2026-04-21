@@ -50,8 +50,8 @@ pub use runtime::{aggregate_diffusion_runs, run_diffusion_suite, summarize_diffu
 #[cfg(test)]
 mod tests {
     use super::{
-        diffusion_smoke_suite, execute_diffusion_runs_parallel, execute_diffusion_runs_serial,
-        simulate_diffusion_run,
+        diffusion_local_stage_suite, diffusion_smoke_suite, execute_diffusion_runs_parallel,
+        execute_diffusion_runs_serial, simulate_diffusion_run,
     };
 
     #[test]
@@ -70,5 +70,29 @@ mod tests {
         let second = simulate_diffusion_run(&suite.runs[0]);
 
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn diffusion_local_stage_suites_materialize_runs() {
+        for stage_id in [
+            "diffusion-local-stage-1",
+            "diffusion-local-stage-2",
+            "diffusion-local-stage-3",
+            "diffusion-local-stage-4",
+        ] {
+            let suite =
+                diffusion_local_stage_suite(stage_id).expect("diffusion local stage should exist");
+            assert!(
+                !suite.runs.is_empty(),
+                "{stage_id} should include diffusion runs"
+            );
+            assert!(
+                suite
+                    .runs
+                    .iter()
+                    .all(|run| run.family_id.starts_with("diffusion-")),
+                "{stage_id} should only include diffusion-prefixed family ids"
+            );
+        }
     }
 }

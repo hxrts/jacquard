@@ -14,8 +14,8 @@ use jacquard_reference_client::{
     ReferenceRouter,
 };
 use jacquard_traits::{
-    purity, Router, RoutingControlPlane, RoutingEnvironmentModel, RoutingReplayView,
-    RoutingScenario, RoutingSimulator,
+    purity, Router, RoutingControlPlane, RoutingDataPlane, RoutingEnvironmentModel,
+    RoutingReplayView, RoutingScenario, RoutingSimulator,
 };
 use telltale_simulator::{BatchConfig, SimRng};
 use thiserror::Error;
@@ -43,7 +43,8 @@ use build_plan::host_build_plans;
 pub(crate) use replay_support::default_objective;
 use replay_support::{
     activate_ready_objectives, capture_host_snapshots, collect_route_events, failure_summaries_for,
-    host_artifact, maintain_active_routes, refresh_host_round_routes, restore_checkpointed_hosts,
+    host_artifact, maintain_active_routes, reactivate_missing_objectives,
+    refresh_host_round_routes, restore_checkpointed_hosts, stimulate_scatter_routes,
     stitch_replay_from_checkpoint, summarize_active_routes, summarize_field_replay,
     TopologyAdvance,
 };
@@ -292,6 +293,11 @@ where
                     checkpoint_round_offset + round_index,
                     &mut failure_summaries,
                 );
+                stimulate_scatter_routes(
+                    bound.router_mut(),
+                    checkpoint_round_offset + round_index,
+                    &mut failure_summaries,
+                );
                 let dropped_transport_observations = match &progress {
                     BridgeRoundProgress::Advanced(report) => {
                         advanced_round_count = advanced_round_count.saturating_add(1);
@@ -338,13 +344,21 @@ where
                 }
             });
 
-            if activate_ready_objectives(
+            let activated_any = activate_ready_objectives(
                 scenario.bound_objectives(),
                 checkpoint_round_offset + round_index,
                 &mut activated_objectives,
                 &mut hosts,
                 &mut failure_summaries,
-            ) {
+            );
+            let reactivated_any = reactivate_missing_objectives(
+                scenario.bound_objectives(),
+                checkpoint_round_offset + round_index,
+                &activated_objectives,
+                &mut hosts,
+                &mut failure_summaries,
+            );
+            if activated_any || reactivated_any {
                 if !matches!(capture_level, SimulationCaptureLevel::SummaryOnly) {
                     refresh_host_round_routes(&mut host_rounds, &mut hosts);
                 }
