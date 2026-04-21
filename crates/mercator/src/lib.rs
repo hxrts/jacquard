@@ -8,15 +8,17 @@
 
 #![forbid(unsafe_code)]
 
+pub mod evidence;
 mod planner;
 mod public_state;
 mod runtime;
 
+pub use evidence::{MercatorDiagnostics, MercatorEvidenceGraph};
 use jacquard_core::{
     ConnectivityPosture, NodeId, RouteEpoch, RoutePartitionClass, RouteProtectionClass,
     RouteShapeVisibility, RoutingEngineCapabilities, RoutingEngineId,
 };
-pub use public_state::{MercatorEngineConfig, MercatorOperationalBounds};
+pub use public_state::{MercatorEngineConfig, MercatorEvidenceBounds, MercatorOperationalBounds};
 
 pub const MERCATOR_ENGINE_ID: RoutingEngineId =
     RoutingEngineId::from_contract_bytes(*b"jacquard.mercatr");
@@ -41,6 +43,7 @@ pub struct MercatorEngine {
     local_node_id: NodeId,
     config: MercatorEngineConfig,
     latest_topology_epoch: Option<RouteEpoch>,
+    evidence: MercatorEvidenceGraph,
 }
 
 impl MercatorEngine {
@@ -55,6 +58,7 @@ impl MercatorEngine {
             local_node_id,
             config,
             latest_topology_epoch: None,
+            evidence: MercatorEvidenceGraph::new(config.evidence),
         }
     }
 
@@ -71,5 +75,15 @@ impl MercatorEngine {
     #[must_use]
     pub fn latest_topology_epoch(&self) -> Option<RouteEpoch> {
         self.latest_topology_epoch
+    }
+
+    #[must_use]
+    pub fn evidence(&self) -> &MercatorEvidenceGraph {
+        &self.evidence
+    }
+
+    #[must_use]
+    pub fn diagnostics(&self) -> MercatorDiagnostics {
+        self.evidence.diagnostics()
     }
 }
