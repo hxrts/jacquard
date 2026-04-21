@@ -1,16 +1,8 @@
 # Introduction
 
-Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction and seven in-tree routing engines: `pathway` for explicit-path routing, `field` for corridor-envelope routing over a continuously updated field model, `batman-bellman` for Bellman-Ford-enhanced next-hop routing, `batman-classic` for spec-faithful BATMAN IV next-hop routing, `babel` for RFC 8966 distance-vector routing with bidirectional ETX and feasibility distances, `olsrv2` for OLSRv2 link-state routing, and `scatter` for bounded deferred-delivery diffusion routing. It is designed so a host can add external routing engines through the same contract.
+Jacquard is a deterministic routing system for ad hoc shaped networks. It provides a stable routing abstraction above the concrete routing algorithm. A host composes one or several engines behind the same contract, whether those engines ship with Jacquard or come from a 3rd party.
 
-These engines differ in what they publish. Pathway exposes an explicit path, field a corridor envelope, the proactive engines only next-hop visibility, and scatter an opaque viability claim. The shared routing contract carries canonical identity and lifecycle regardless of that published shape.
-
-Related documents cover the rest of the system:
-
-- [Core Types](201_core_types.md) describes the model objects, pipeline, observation, and world-extension surfaces.
-- [Time Model](202_time.md) defines the deterministic time rules.
-- [Routing Engines](303_routing_engines.md) specifies the engine contract, host runtime-effect boundary, and links to the in-tree engine pages.
-- [Router Control Plane](304_router_control_plane.md) explains how a route moves from objective through materialization, maintenance, and teardown.
-- [Crate Architecture](999_crate_architecture.md) lists the separation of concerns and implementation policies.
+The docs are grouped numerically. The 200s cover the shared model and time. The 300s specify contract surfaces, simulator architecture, and experimental methodology. 400s contain one implementation spec per in-tree engine plus the reference client composition. 500s are 3rd-party developer guides for running simulations, assembling clients, and building custom components. [Crate Architecture](999_crate_architecture.md) is the workspace architecture reference.
 
 ## Scope
 
@@ -35,6 +27,20 @@ The top-level routing contract is routing-engine-neutral. A routing engine produ
 When a routing engine needs local coordination, Jacquard allows it to expose a shared coordination result such as a committee selection. Jacquard does not require that every routing engine use committees, and it does not require that a committee have a distinguished leader. The shared layer standardizes the result shape, not the formation process. Formation may be engine-local, host-local, provisioned, or otherwise out of band.
 
 Jacquard also allows a host-owned policy engine to compose routing engines through a neutral substrate contract. That means multiple routing engines may be used together, but the shared layer does not treat one canonical route as simultaneously owned by several unrelated engines. Composition happens through explicit carrier leases and layer parameters above the routing-engine boundary.
+
+## In-Tree Engines
+
+Jacquard ships seven in-tree routing engines as concrete demonstrations of the contract:
+
+- `pathway` for explicit-path routing
+- `field` for corridor-envelope routing over a continuously updated field model
+- `batman-bellman` for Bellman-Ford-enhanced next-hop routing
+- `batman-classic` for spec-faithful BATMAN IV next-hop routing
+- `babel` for RFC 8966 distance-vector routing with bidirectional ETX and feasibility distances
+- `olsrv2` for OLSRv2 link-state routing
+- `scatter` for bounded deferred-delivery diffusion routing
+
+These engines differ in what they publish. Pathway exposes an explicit path, field a corridor envelope, the proactive engines only next-hop visibility, and scatter an opaque viability claim. The shared routing contract carries canonical identity and lifecycle regardless of that published shape.
 
 ## Design Commitments
 
