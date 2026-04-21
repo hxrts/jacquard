@@ -17,7 +17,7 @@ fn field_docs_reference_current_pages_and_parity_ledger() {
     let crate_docs = repo_text("crates/field/src/lib.rs");
     let guide = repo_text("verification/Field/Docs/Guide.md");
 
-    assert!(summary.contains("405_field_routing.md"));
+    assert!(summary.contains("406_field_routing.md"));
     assert!(summary.contains("305_profile_reference.md"));
     assert!(!summary.contains("404_field_routing.md"));
     assert!(!summary.contains("403_field_routing.md"));
@@ -30,7 +30,7 @@ fn field_docs_reference_current_pages_and_parity_ledger() {
 
 #[test]
 fn field_docs_keep_the_current_proof_boundary_explicit() {
-    let field_routing = repo_text("docs/405_field_routing.md");
+    let field_routing = repo_text("docs/406_field_routing.md");
     let adequacy = repo_text("verification/Field/Docs/Adequacy.md");
     let parity = repo_text("verification/Field/Docs/Parity.md");
     let protocol = repo_text("verification/Field/Docs/Protocol.md");
@@ -69,7 +69,7 @@ fn field_surfaces_ban_stale_route_vocabulary() {
         repo_text("crates/field/src/runtime/routing.rs"),
         repo_text("crates/field/src/runtime/sessions.rs"),
         repo_text("crates/field/src/state.rs"),
-        repo_text("docs/405_field_routing.md"),
+        repo_text("docs/406_field_routing.md"),
     ];
 
     for source in &sources {
@@ -81,7 +81,7 @@ fn field_surfaces_ban_stale_route_vocabulary() {
 
 #[test]
 fn field_docs_keep_runtime_boundary_reduced() {
-    let field_routing = repo_text("docs/405_field_routing.md");
+    let field_routing = repo_text("docs/406_field_routing.md");
     let adequacy = repo_text("verification/Field/Docs/Adequacy.md");
     let parity = repo_text("verification/Field/Docs/Parity.md");
 
