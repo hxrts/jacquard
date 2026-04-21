@@ -12,7 +12,7 @@ The current reference `ClientBuilder` expects the in-tree engines and the in-mem
 
 ## Driving The Custom Client From The Simulator
 
-Lift the custom client into the simulator harness by implementing `JacquardHostAdapter`. The adapter's `build_hosts` method constructs one client per scenario host. Pass the adapter to `JacquardSimulator::new` instead of the default `ReferenceClientAdapter`. The walkthrough for the host adapter lives under [Running Simulations](501_running_simulations.md) in the "Swapping the Host Adapter" section.
+Lift the custom stack into the simulator harness by implementing `JacquardHostAdapter`. The adapter's `build_hosts` method returns one host runtime per scenario host. Pass the adapter to `JacquardSimulator::new` instead of the default `ReferenceClientAdapter`. The walkthrough for the host adapter lives under [Running Simulations](501_running_simulations.md) in the "Swapping the Host Adapter" section.
 
 ```rust
 use jacquard_simulator::{JacquardHostAdapter, JacquardScenario, JacquardSimulator, SimulationError};
@@ -68,7 +68,7 @@ The call shape and the data frames follow the conventions already used for the i
 
 ## Artifact Schema Stability
 
-The Rust simulator guarantees stable schemas for `runs.jsonl`, `aggregate_summary.json`, `breakdown_summary.json`, `diffusion_runs.jsonl`, and the diffusion aggregate and boundary summaries. Schema changes go through explicit versioning. A 3rd party can rely on the shape across patch releases and plan migrations for minor releases.
+The Rust simulator guarantees stable schemas for the per-run JSONL logs plus aggregate, breakdown, diffusion aggregate, and diffusion boundary JSON summaries. Schema changes go through explicit versioning. A 3rd party can rely on the shape across patch releases and plan migrations for minor releases.
 
 Model-lane artifacts are additive and subject to looser guarantees. They serve as a validation companion rather than a scoring input. Consumers who need long-term stability of their custom reductions should target the full-stack artifacts first.
 

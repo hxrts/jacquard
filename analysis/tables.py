@@ -533,7 +533,7 @@ def routing_fitness_stale_repair_table_rows(
                 row["family_label"],
                 engine_display_label(row["comparison_engine_set"]),
                 _format_table_number(row["stale_persistence_round_mean"]),
-                _format_table_number(row["recovery_success_permille_mean"]),
+                _format_table_number(row["route_present_total_window_permille_mean"]),
                 _format_table_number(row["unrecovered_after_loss_count_mean"]),
                 _format_table_number(row["first_loss_round_mean"]),
                 f"{row['route_churn_count_mean']:.1f}",

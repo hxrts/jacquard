@@ -2435,12 +2435,16 @@ def render_routing_fitness_stale_repair(
                 "family_label": row["family_label"],
                 "engine_key": row["comparison_engine_set"],
                 "engine_label": engine_display_label(row["comparison_engine_set"]),
+                "route_presence": float(
+                    row["route_present_total_window_permille_mean"] or 0.0
+                )
+                / 10.0,
                 "stale_persistence": persistence,
                 "label_x": label_x,
                 "recovery_success": float(row["recovery_success_permille_mean"] or 0.0)
                 / 10.0,
-                "recovery_label": (
-                    f"recov={float(row['recovery_success_permille_mean'] or 0.0) / 10.0:.1f}%"
+                "route_label": (
+                    f"route={float(row['route_present_total_window_permille_mean'] or 0.0) / 10.0:.1f}%"
                 ),
                 "detail_label": (
                     f"unrec={int(round(row['unrecovered_after_loss_count_mean'] or 0.0))} "
@@ -2465,7 +2469,8 @@ def render_routing_fitness_stale_repair(
             alt.Tooltip("family_label:N", title="Family"),
             alt.Tooltip("engine_label:N", title="Engine"),
             alt.Tooltip("stale_persistence:Q", title="Stale persistence", format=".1f"),
-            alt.Tooltip("recovery_success:Q", title="Recovery success", format=".1f"),
+            alt.Tooltip("route_presence:Q", title="Route presence", format=".1f"),
+            alt.Tooltip("recovery_success:Q", title="Recovery event success", format=".1f"),
             alt.Tooltip("control_activity:Q", title="Control activity", format=".1f"),
             alt.Tooltip("detail_label:N", title="Detail"),
         ],
@@ -2490,7 +2495,7 @@ def render_routing_fitness_stale_repair(
                 clip=False,
             ).encode(
                 x=alt.X("label_x:Q", scale=alt.Scale(domain=[0, x_limit])),
-                text="recovery_label:N",
+                text="route_label:N",
             ),
             base.mark_text(
                 align="left",

@@ -38,7 +38,7 @@ The same discipline applies to policy parameters when a comparison covers polici
 
 ## The Pipeline From Experiment To Report
 
-A simulator run produces `runs.jsonl`, `aggregate_summary.json`, and `breakdown_summary.json` under the run directory. Diffusion runs add `diffusion_runs.jsonl` plus the diffusion aggregate and boundary summaries. Head-to-head runs add `head_to_head_summary.csv`. Model-lane runs add `model_artifacts.jsonl` as a validation companion rather than a scoring input.
+A simulator run produces a per-run log plus aggregate and breakdown JSON files under the run directory. Diffusion runs add their own per-run log plus diffusion aggregate and boundary summaries. Head-to-head reductions are exported into the generated report directory. Model-lane runs add model artifacts as validation companions rather than scoring inputs.
 
 The `analysis/` Python package reads those artifacts. `data.py` loads them into Polars frames. `scoring.py` derives per-run metrics. `tables.py` produces CSV tables. `plots.py` produces vector plots. `sections.py` composes report sections. `report.py` is the entry that assembles the PDF.
 

@@ -861,7 +861,7 @@ def routing_fitness_takeaway_lines(
         routing_fitness_stale_repair_summary,
         filters=[("family_label", "Recovery window")],
         sort_columns=[
-            "recovery_success_permille_mean",
+            "route_present_total_window_permille_mean",
             "stale_persistence_round_mean",
         ],
         descending=[True, False],
@@ -908,7 +908,8 @@ def routing_fitness_takeaway_lines(
         "fit-for-purpose inside the tested search-plus-maintenance envelope"
         if (
             maintenance_high["comparison_engine_set"] == "pathway-batman-bellman"
-            and float(stale_best["recovery_success_permille_mean"] or 0.0) >= 700.0
+            and float(stale_best["route_present_total_window_permille_mean"] or 0.0)
+            >= 900.0
         )
         else "directionally supported, but still carrying one unresolved routing-risk regime"
     )
@@ -939,11 +940,11 @@ def routing_fitness_takeaway_lines(
             [row["comparison_engine_set"] or "none" for row in stale_best_rows]
         ),
         stale_best_persistence=f"{float(stale_best['stale_persistence_round_mean'] or 0.0):.1f}",
-        stale_best_recovery=stale_best["recovery_success_permille_mean"],
+        stale_best_route=stale_best["route_present_total_window_permille_mean"],
         worst_stale_family=worst_stale["family_label"],
         worst_stale_engine=worst_stale["comparison_engine_set"] or "none",
         worst_stale_persistence=f"{float(worst_stale['stale_persistence_round_mean'] or 0.0):.1f}",
-        worst_stale_recovery=worst_stale["recovery_success_permille_mean"],
+        worst_stale_route=worst_stale["route_present_total_window_permille_mean"],
         routing_fitness_envelope=envelope,
     )
 

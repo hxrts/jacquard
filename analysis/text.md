@@ -496,7 +496,7 @@ Compact fairness view for the shared-broker families. Column guide: Min and Max 
 
 @table routing_fitness_stale_repair_summary
 
-Compact stale-information repair view. Column guide: Persist is the mean bad-route persistence after the first disruptive topology change, Recov. is recovery success, Unrec. is mean unrecovered-after-loss count, Loss is the first-loss round, and Churn is mean route churn.
+Compact stale-information repair view. Column guide: Persist is the mean bad-route persistence after the first disruptive topology change, Route is total-window route presence, Unrec. is mean unrecovered-after-loss count, Loss is the first-loss round, and Churn is mean route churn. Recovery-event success is still exported in the CSV, but it is not used as the headline because many stale scenarios never enter a loss/recovery event path.
 
 ### Routing-Fitness Figure Context
 
@@ -519,7 +519,7 @@ The broker detail labels summarize how much of the visible route activity still 
 
 @figure routing_fitness_stale_repair
 
-Bad-route persistence after delayed or asymmetric observations. Shorter bars are better because they mean the engine stops trusting stale routing state quickly after disruption. The labels show recovery success and unrecovered counts so the figure separates fast cleanup from cleanup that still fails to recover.
+Bad-route persistence after delayed or asymmetric observations. Shorter bars are better because they mean the engine stops trusting stale routing state quickly after disruption. The labels show total-window route presence and unrecovered counts so the figure separates fast cleanup from cleanup that still leaves the objective unavailable.
 
 ### Routing-Fitness Takeaways
 
@@ -527,7 +527,7 @@ Bad-route persistence after delayed or asymmetric observations. Shorter bars are
 - In the high maintenance-benefit crossover band, {maintenance_high_engines} lead at {maintenance_high_route} permille total-window route presence with {maintenance_high_recovery} permille recovery success.
 - Under shared-broker contention, `Shared corridor` is best handled by {shared_corridor_engines} at {shared_corridor_min_route} permille minimum per-flow route presence, while `Detour choice` is best handled by {detour_choice_engines} at {detour_choice_min_route} permille.
 - The harshest fairness tail is currently `{worst_starvation_family}`, where `{worst_starvation_engine}` still records {worst_starvation_value} starved objectives on average.
-- In the stale-repair surface, `Recovery window` is best handled by {stale_best_engines} at {stale_best_persistence} rounds of stale persistence and {stale_best_recovery} permille recovery success, while the worst stale overcommit is `{worst_stale_family}` under `{worst_stale_engine}` at {worst_stale_persistence} rounds and only {worst_stale_recovery} permille recovery success.
+- In the stale-repair surface, `Recovery window` is best handled by {stale_best_engines} at {stale_best_persistence} rounds of stale persistence and {stale_best_route} permille route presence, while the worst stale overcommit is `{worst_stale_family}` under `{worst_stale_engine}` at {worst_stale_persistence} rounds and only {worst_stale_route} permille route presence.
 - Taken together, the new evidence says the candidate direction is {routing_fitness_envelope}.
 
 ## Part III. Diffusion Calibration

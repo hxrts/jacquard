@@ -1049,12 +1049,14 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                     {
                         "family_label": "Recovery window",
                         "comparison_engine_set": "pathway-batman-bellman",
+                        "route_present_total_window_permille_mean": 930.0,
                         "stale_persistence_round_mean": 2.0,
                         "recovery_success_permille_mean": 900.0,
                     },
                     {
                         "family_label": "Delayed observation",
                         "comparison_engine_set": "pathway",
+                        "route_present_total_window_permille_mean": 640.0,
                         "stale_persistence_round_mean": 4.0,
                         "recovery_success_permille_mean": 600.0,
                     },
@@ -1136,12 +1138,14 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
                     {
                         "family_label": "Recovery window",
                         "comparison_engine_set": "pathway-batman-bellman",
+                        "route_present_total_window_permille_mean": 930.0,
                         "stale_persistence_round_mean": 2.0,
                         "recovery_success_permille_mean": 900.0,
                     },
                     {
                         "family_label": "Delayed observation",
                         "comparison_engine_set": "pathway",
+                        "route_present_total_window_permille_mean": 640.0,
                         "stale_persistence_round_mean": 4.0,
                         "recovery_success_permille_mean": 600.0,
                     },
@@ -1183,6 +1187,7 @@ class FieldRoutingRecommendationTests(unittest.TestCase):
         stale_rows = stale["datasets"][stale["data"]["name"]]
         self.assertEqual(stale_rows[0]["family_label"], "Recovery window")
         self.assertEqual(stale_rows[0]["engine_key"], "pathway")
+        self.assertIn("route=", stale_rows[0]["route_label"])
 
     def test_comparison_config_sensitivity_marks_flat_and_separating_families(self) -> None:
         aggregates = pl.from_dicts(

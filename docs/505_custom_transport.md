@@ -104,4 +104,4 @@ The composed profile plugs into the reference client's `ClientBuilder` or into a
 
 The minimum composition wires three things together. First, a router that owns canonical route publication. Second, one or more engines registered on that router, each holding a queue-backed `TransportSenderEffects` handle. Third, a host bridge that owns the `TransportDriver`, drains ingress, stamps `Tick`, and advances the router through synchronous rounds.
 
-For the full capstone that composes a custom transport, a custom engine, and a custom device profile end to end, see [Bringing It Together](507_bringing_it_together.md).
+For end-to-end host composition patterns, see [Client Assembly](503_client_assembly.md) and [Crate Architecture](999_crate_architecture.md).

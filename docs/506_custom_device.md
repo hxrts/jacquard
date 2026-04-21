@@ -51,7 +51,7 @@ let node = NodePreset::route_capable(options, &PATHWAY_ENGINE_ID).build();
 
 Engine eligibility is encoded through the node's service descriptors. Only engines whose `RoutingEngineId` appears in the node's service surface are eligible to produce route candidates toward that node. A custom device that implements a custom engine tags the engine id in its service descriptor; see [Custom Engine](504_custom_engine.md).
 
-For a device profile to advertise multiple services or multi-engine eligibility, compose the descriptors manually through `SimulatedServiceDescriptor` builders. `ServiceKind` distinguishes `Discover`, `Move`, `Hold`, and other service classes.
+For a device profile to advertise multiple services or multi-engine eligibility, compose the descriptors manually through `SimulatedServiceDescriptor` builders. `RouteServiceKind` distinguishes `Discover`, `Move`, `Hold`, and other service classes.
 
 ## Node State
 
