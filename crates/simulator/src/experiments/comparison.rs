@@ -3987,6 +3987,19 @@ mod tests {
     }
 
     #[test]
+    fn mercator_smoke_connected_low_loss_is_inert_without_panicking() {
+        let parameters =
+            ExperimentParameterSet::head_to_head(ComparisonEngineSet::Mercator, None, None, None);
+        let (scenario, environment) =
+            build_comparison_connected_low_loss(&parameters, SimulationSeed(41));
+        let reduced = run_reduced_replay(&scenario, &environment);
+
+        let destination = DestinationId::Node(NODE_C);
+        assert!(!reduced.route_seen(NODE_A, &destination));
+        assert!(!reduced.route_seen_with_engine(NODE_A, &destination, &MERCATOR_ENGINE_ID));
+    }
+
+    #[test]
     fn head_to_head_field_concurrent_mixed_activates_both_objectives() {
         let parameters = ExperimentParameterSet::head_to_head_field_low_churn();
         let (scenario, environment) =

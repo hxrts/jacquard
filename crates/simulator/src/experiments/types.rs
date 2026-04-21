@@ -108,6 +108,8 @@ pub enum ComparisonEngineSet {
     Field,
     #[serde(rename = "scatter")]
     Scatter,
+    #[serde(rename = "mercator")]
+    Mercator,
     #[serde(rename = "pathway-batman-bellman")]
     PathwayAndBatmanBellman,
 }
@@ -124,6 +126,7 @@ impl ComparisonEngineSet {
             Self::Pathway => "pathway",
             Self::Field => "field",
             Self::Scatter => "scatter",
+            Self::Mercator => "mercator",
             Self::PathwayAndBatmanBellman => "pathway-batman-bellman",
         }
     }
@@ -290,9 +293,9 @@ impl ExperimentParameterSet {
                     heuristic_mode_label(heuristic_mode)
                 )
             }
-            ComparisonEngineSet::Scatter | ComparisonEngineSet::AllEngines => {
-                comparison_engine_set.label().to_string()
-            }
+            ComparisonEngineSet::Scatter
+            | ComparisonEngineSet::Mercator
+            | ComparisonEngineSet::AllEngines => comparison_engine_set.label().to_string(),
         }
     }
 

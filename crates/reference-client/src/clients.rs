@@ -20,6 +20,7 @@ use jacquard_field::{FieldEngine, FieldForwardSummaryObservation, FieldSearchCon
 use jacquard_mem_link_profile::{
     InMemoryRetentionStore, InMemoryRuntimeEffects, InMemoryTransport, SharedInMemoryNetwork,
 };
+use jacquard_mercator::MercatorEngine;
 use jacquard_olsrv2::{DecayWindow as OlsrV2DecayWindow, OlsrV2Engine};
 use jacquard_pathway::{DeterministicPathwayTopologyModel, PathwayEngine, PathwaySearchConfig};
 use jacquard_router::{FixedPolicyEngine, MultiEngineRouter};
@@ -44,10 +45,11 @@ pub enum EngineKind {
     Babel,
     Field,
     Scatter,
+    Mercator,
 }
 
 impl EngineKind {
-    const CANONICAL_REGISTRATION_ORDER: [Self; 7] = [
+    const CANONICAL_REGISTRATION_ORDER: [Self; 8] = [
         Self::Pathway,
         Self::BatmanBellman,
         Self::BatmanClassic,
@@ -55,6 +57,7 @@ impl EngineKind {
         Self::Babel,
         Self::Field,
         Self::Scatter,
+        Self::Mercator,
     ];
 
     fn label(self) -> &'static str {
@@ -66,6 +69,7 @@ impl EngineKind {
             Self::Babel => "babel",
             Self::Field => "field",
             Self::Scatter => "scatter",
+            Self::Mercator => "mercator",
         }
     }
 }
@@ -231,6 +235,22 @@ impl ClientBuilder {
             network,
             now,
             singleton_engine(EngineKind::Scatter),
+        )
+    }
+
+    #[must_use]
+    pub fn mercator(
+        local_node_id: NodeId,
+        topology: Observation<Configuration>,
+        network: SharedInMemoryNetwork,
+        now: Tick,
+    ) -> Self {
+        Self::with_engine_set(
+            local_node_id,
+            topology,
+            network,
+            now,
+            singleton_engine(EngineKind::Mercator),
         )
     }
 
@@ -436,6 +456,12 @@ impl ClientBuilder {
     #[must_use]
     pub fn with_scatter(mut self) -> Self {
         self.engines.insert(EngineKind::Scatter);
+        self
+    }
+
+    #[must_use]
+    pub fn with_mercator(mut self) -> Self {
+        self.engines.insert(EngineKind::Mercator);
         self
     }
 
@@ -670,6 +696,14 @@ impl ClientBuilder {
                             source,
                         })?;
                 }
+                EngineKind::Mercator => {
+                    router
+                        .register_engine(Box::new(MercatorEngine::new(self.local_node_id)))
+                        .map_err(|source| ReferenceClientBuildError::EngineRegistration {
+                            engine: engine.label(),
+                            source,
+                        })?;
+                }
             }
         }
 
@@ -817,6 +851,7 @@ mod tests {
         RatioPermille, RouteEpoch, RoutingEvidenceClass, Tick,
     };
     use jacquard_field::FIELD_ENGINE_ID;
+    use jacquard_mercator::MERCATOR_ENGINE_ID;
     use jacquard_olsrv2::OLSRV2_ENGINE_ID;
     use jacquard_pathway::PATHWAY_ENGINE_ID;
     use jacquard_scatter::SCATTER_ENGINE_ID;
@@ -895,5 +930,20 @@ mod tests {
         assert!(registered.contains(&OLSRV2_ENGINE_ID));
         assert!(registered.contains(&FIELD_ENGINE_ID));
         assert!(registered.contains(&SCATTER_ENGINE_ID));
+    }
+
+    #[test]
+    fn mercator_builder_registers_explicit_engine() {
+        let mut client = ClientBuilder::mercator(
+            jacquard_core::NodeId([1; 32]),
+            sample_topology(),
+            SharedInMemoryNetwork::default(),
+            Tick(1),
+        )
+        .build()
+        .expect("build mercator client");
+        let registered = client.bind().router().registered_engine_ids();
+
+        assert_eq!(registered, vec![MERCATOR_ENGINE_ID]);
     }
 }

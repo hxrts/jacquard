@@ -148,6 +148,9 @@ fn base_builder(
         EngineLane::Scatter => {
             ClientBuilder::scatter(local_node_id, topology, network, observed_at_tick)
         }
+        EngineLane::Mercator => {
+            ClientBuilder::mercator(local_node_id, topology, network, observed_at_tick)
+        }
         EngineLane::PathwayAndBatmanBellman => ClientBuilder::pathway_and_batman_bellman(
             local_node_id,
             topology,

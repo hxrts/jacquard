@@ -68,6 +68,7 @@ pub(super) fn comparison_topology_node(
         ComparisonEngineSet::Pathway => topology::node(node_byte).pathway().build(),
         ComparisonEngineSet::Field => topology::node(node_byte).field().build(),
         ComparisonEngineSet::Scatter => topology::node(node_byte).scatter().build(),
+        ComparisonEngineSet::Mercator => topology::node(node_byte).mercator().build(),
         ComparisonEngineSet::PathwayAndBatmanBellman => topology::node(node_byte)
             .pathway_and_batman_bellman()
             .build(),
@@ -87,6 +88,7 @@ pub(super) fn comparison_host_spec(
         ComparisonEngineSet::Pathway => HostSpec::pathway(local_node_id),
         ComparisonEngineSet::Field => HostSpec::field(local_node_id),
         ComparisonEngineSet::Scatter => HostSpec::scatter(local_node_id),
+        ComparisonEngineSet::Mercator => HostSpec::mercator(local_node_id),
         ComparisonEngineSet::PathwayAndBatmanBellman => {
             HostSpec::pathway_and_batman_bellman(local_node_id)
         }

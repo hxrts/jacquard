@@ -28,6 +28,8 @@ use jacquard_core::{
 use jacquard_field::{
     FieldForwardSummaryObservation, FieldSearchConfig, FieldSearchHeuristicMode, FIELD_ENGINE_ID,
 };
+#[cfg(test)]
+use jacquard_mercator::MERCATOR_ENGINE_ID;
 use jacquard_olsrv2::{DecayWindow as OlsrV2DecayWindow, OLSRV2_ENGINE_ID};
 use jacquard_pathway::{PathwaySearchConfig, PathwaySearchHeuristicMode, PATHWAY_ENGINE_ID};
 use jacquard_scatter::SCATTER_ENGINE_ID;

@@ -672,6 +672,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-mercator"
+version = "0.6.0"
+dependencies = [
+ "jacquard-adapter",
+ "jacquard-core",
+ "jacquard-mem-link-profile",
+ "jacquard-mem-node-profile",
+ "jacquard-traits",
+ "serde",
+]
+
+[[package]]
 name = "jacquard-olsrv2"
 version = "0.6.0"
 dependencies = [
@@ -713,6 +725,7 @@ dependencies = [
  "jacquard-field",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
+ "jacquard-mercator",
  "jacquard-olsrv2",
  "jacquard-pathway",
  "jacquard-router",
@@ -764,6 +777,7 @@ dependencies = [
  "jacquard-field",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
+ "jacquard-mercator",
  "jacquard-olsrv2",
  "jacquard-pathway",
  "jacquard-reference-client",

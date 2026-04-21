@@ -23,6 +23,7 @@ pub enum EngineLane {
     OlsrV2,
     Field,
     Scatter,
+    Mercator,
     PathwayAndBatmanBellman,
     PathwayAndBabel,
     PathwayAndOlsrV2,
@@ -144,6 +145,15 @@ impl HostSpec {
         Self {
             local_node_id,
             lane: EngineLane::Scatter,
+            overrides: HostOverrides::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn mercator(local_node_id: NodeId) -> Self {
+        Self {
+            local_node_id,
+            lane: EngineLane::Mercator,
             overrides: HostOverrides::default(),
         }
     }

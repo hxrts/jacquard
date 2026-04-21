@@ -18,6 +18,7 @@ use jacquard_core::{
 use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
+use jacquard_mercator::MERCATOR_ENGINE_ID;
 use jacquard_olsrv2::OLSRV2_ENGINE_ID;
 use jacquard_pathway::PATHWAY_ENGINE_ID;
 use jacquard_scatter::SCATTER_ENGINE_ID;
@@ -134,6 +135,11 @@ impl TopologyNodePreset {
     #[must_use]
     pub(crate) fn scatter(self) -> Self {
         self.for_engine(&SCATTER_ENGINE_ID)
+    }
+
+    #[must_use]
+    pub(crate) fn mercator(self) -> Self {
+        self.for_engine(&MERCATOR_ENGINE_ID)
     }
 
     #[must_use]

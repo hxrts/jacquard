@@ -21,6 +21,7 @@ jacquard-core = { path = "../core", version = "0.6.0" }
 jacquard-field = { path = "../field", version = "0.6.0" }
 jacquard-mem-link-profile = { path = "../mem-link-profile", version = "0.6.0" }
 jacquard-mem-node-profile = { path = "../mem-node-profile", version = "0.6.0" }
+jacquard-mercator = { path = "../mercator", version = "0.6.0" }
 jacquard-olsrv2 = { path = "../olsrv2", version = "0.6.0" }
 jacquard-pathway = { path = "../pathway", version = "0.6.0" }
 jacquard-router = { path = "../router", version = "0.6.0" }
