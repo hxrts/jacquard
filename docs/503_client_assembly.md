@@ -46,7 +46,7 @@ The built `ReferenceClient` bundles a router, the configured engines, and the ho
 A minimal binary wraps the library. The `main` function constructs the builder, binds the bridge, and drives rounds on a cadence the application chooses.
 
 ```rust
-use jacquard_core::{Tick};
+use jacquard_core::Tick;
 use jacquard_reference_client::{ClientBuilder, SharedInMemoryNetwork};
 use std::thread::sleep;
 use std::time::Duration;
@@ -55,11 +55,9 @@ fn main() -> anyhow::Result<()> {
     let network = SharedInMemoryNetwork::default();
     let mut client = ClientBuilder::pathway(node_id, topology, network, Tick(0))
         .build()?;
-    let mut bridge = client.bind();
-    let mut tick = Tick(0);
+    let mut bound = client.bind();
     loop {
-        bridge.advance_round(tick)?;
-        tick = Tick(tick.0 + 1);
+        bound.advance_round()?;
         sleep(Duration::from_millis(100));
     }
 }

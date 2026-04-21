@@ -140,19 +140,20 @@ The `RouterManagedEngine` trait fills in the remaining router-side hooks. Implem
 An engine enters a live routing stack through either `MultiEngineRouter::register_engine` (manual composition) or through the engine-specific `ClientBuilder` entry point (reference client composition).
 
 ```rust
-use jacquard_reference_client::{ClientBuilder, MultiEngineRouter};
+use jacquard_router::MultiEngineRouter;
 
-// Manual composition:
-let mut router = MultiEngineRouter::default();
-router.register_engine(Box::new(OpaqueNoopEngine::new(local_node_id)));
+// Manual composition: construct the router with the host's effects and
+// policy, then register the engine on it.
+let mut router = MultiEngineRouter::new(/* policy, effects, ... */);
+router.register_engine(Box::new(OpaqueNoopEngine::new(local_node_id)))?;
 
-// Reference client composition expects the in-tree constructors.
+// Reference-client composition expects the in-tree engine constructors.
 // A custom engine either lives inside a downstream fork of ClientBuilder,
 // or the caller composes the router and engines manually and wraps them
 // in a custom host harness.
 ```
 
-Nodes advertise engine eligibility in their `ServiceDescriptor`. A destination that tags the custom engine's `RoutingEngineId` becomes eligible for candidate production from that engine. Tagging happens through the node profile, documented in [Custom Device](506_custom_device.md).
+Nodes advertise engine eligibility in their `ServiceDescriptor`. A destination that tags the custom engine's `RoutingEngineId` becomes eligible for candidate production from that engine. Tagging belongs in node profile authoring; see [Profile Implementations](305_profile_reference.md).
 
 If the engine ships in its own crate, consider implementing `RoutingEnginePlannerModel` as well. The simulator drives model-lane fixtures through that trait, which lets the engine participate in the maintained experiment corpus without full-stack wiring. See [Simulator Architecture](306_simulator_architecture.md) for the model-lane design.
 
@@ -160,4 +161,4 @@ If the engine ships in its own crate, consider implementing `RoutingEnginePlanne
 
 For contract enforcement, the `toolkit/checks/rust/routing_invariants.rs` policy check validates engine crates against the shared rules. Run `cargo xtask check routing-invariants` during development.
 
-For integration into experiment suites, see [Running Experiments](502_running_experiments.md). For a capstone that threads a custom engine through the simulator and the report pipeline, see [Bringing It Together](507_bringing_it_together.md).
+For integration into experiment suites, see [Running Experiments](502_running_experiments.md). For host composition patterns, see [Client Assembly](503_client_assembly.md) and [Reference Client](407_reference_client.md).
