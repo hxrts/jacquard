@@ -26,7 +26,7 @@ Shared transport vocabulary follows the same rule. `core` keeps a small observed
 
 ## Dependency Graph
 
-The workspace contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-batman-bellman`, `jacquard-batman-classic`, `jacquard-babel`, `jacquard-olsrv2`, `jacquard-scatter`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-reference-client`, `jacquard-testkit`, and `jacquard-simulator`.
+The workspace contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-mercator`, `jacquard-batman-bellman`, `jacquard-batman-classic`, `jacquard-babel`, `jacquard-olsrv2`, `jacquard-scatter`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-reference-client`, `jacquard-testkit`, and `jacquard-simulator`.
 
 ```
 jacquard-core
@@ -39,6 +39,7 @@ jacquard-mem-link-profile
       │
 jacquard-pathway ─────────┐
 jacquard-field   ─────────┤
+jacquard-mercator ────────┤
 jacquard-batman-bellman ──┤
 jacquard-batman-classic ──┤
 jacquard-babel ───────────┼──→ jacquard-router ←── jacquard-reference-client
@@ -121,6 +122,7 @@ Each crate owns a narrow slice of runtime state.
 | `jacquard-adapter` | Generic adapter-side ingress mailboxes, peer identity bookkeeping, claim ownership helpers, transport-neutral endpoint conveniences, and host-side observational read models. No route truth, no transport-specific protocol logic, no router actions, no time/order stamping. |
 | `jacquard-pathway` | Pathway-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
 | `jacquard-field` | Field-private posterior state, mean-field compression, regime/posture control state, Telltale-backed frozen-snapshot search, bounded runtime-round diagnostics, continuation scoring, and any field-private choreography runtime used only for observational summary exchange. |
+| `jacquard-mercator` | Mercator-private evidence graph, corridor planner, stale-safe repair state, weakest-flow accounting, broker-pressure accounting, bounded custody records, and route-visible diagnostics. |
 | `jacquard-batman-bellman` | BATMAN Bellman-private originator observations, gossip-merged topology, Bellman-Ford path computation, TQ enrichment, next-hop ranking tables, and active next-hop forwarding records. |
 | `jacquard-batman-classic` | BATMAN Classic-private OGM-carried TQ state, receive windows, echo-based bidirectionality tables, learned advertisement state, next-hop ranking tables, and active next-hop forwarding records. |
 | `jacquard-babel` | Babel-private route table, feasibility-distance state, additive-metric scoring, seqno management, and active next-hop forwarding records. |

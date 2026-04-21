@@ -6,7 +6,7 @@ The docs are grouped numerically. The 200s cover the shared model and time. The 
 
 ## Scope
 
-Jacquard owns the shared routing contract and seven in-tree routing engines. The router control plane, runtime adapters, and simulation harness are implemented crates. Protection-versus-connectivity policy may be supplied by a host, but Jacquard itself stays routing-engine-neutral at the contract layer.
+Jacquard owns the shared routing contract and eight in-tree routing engines. The router control plane, runtime adapters, and simulation harness are implemented crates. Protection-versus-connectivity policy may be supplied by a host, but Jacquard itself stays routing-engine-neutral at the contract layer.
 
 The central split is between shared facts and local runtime state. Service descriptors, topology observations, admission checks, and route witnesses are explicit shared objects. Adaptive policy, selected routing actions, installed-route ownership, and engine-private runtime state stay local.
 
@@ -30,7 +30,7 @@ Jacquard also allows a host-owned policy engine to compose routing engines throu
 
 ## In-Tree Engines
 
-Jacquard ships seven in-tree routing engines as concrete demonstrations of the contract:
+Jacquard ships eight in-tree routing engines as concrete demonstrations of the contract:
 
 - `pathway` for explicit-path routing
 - `field` for corridor-envelope routing over a continuously updated field model
@@ -39,8 +39,9 @@ Jacquard ships seven in-tree routing engines as concrete demonstrations of the c
 - `babel` for RFC 8966 distance-vector routing with bidirectional ETX and feasibility distances
 - `olsrv2` for OLSRv2 link-state routing
 - `scatter` for bounded deferred-delivery diffusion routing
+- `mercator` for hybrid corridor routing with stale-safe repair and bounded custody posture
 
-These engines differ in what they publish. Pathway exposes an explicit path, field a corridor envelope, the proactive engines only next-hop visibility, and scatter an opaque viability claim. The shared routing contract carries canonical identity and lifecycle regardless of that published shape.
+These engines differ in what they publish. Pathway exposes an explicit path, field and mercator publish corridor envelopes, the proactive engines only next-hop visibility, and scatter an opaque viability claim. The shared routing contract carries canonical identity and lifecycle regardless of that published shape.
 
 ## Design Commitments
 

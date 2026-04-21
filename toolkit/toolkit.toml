@@ -253,6 +253,7 @@ planned_crates = [
   "jacquard-pathway",
   "jacquard-router",
   "jacquard-simulator",
+  "jacquard-mercator",
 ]
 
 [checks.crate_root_policy]
