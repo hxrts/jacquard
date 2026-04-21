@@ -220,7 +220,7 @@ def comparison_findings_lines(comparison_summary: pl.DataFrame) -> list[str]:
     for family_id in comparison_summary["family_id"].unique().sort().to_list():
         family = (
             comparison_summary.filter(pl.col("family_id") == family_id)
-            .sort("route_present_active_window_permille_mean", descending=True)
+            .sort("route_present_total_window_permille_mean", descending=True)
             .head(1)
         )
         if family.is_empty():
@@ -230,7 +230,7 @@ def comparison_findings_lines(comparison_summary: pl.DataFrame) -> list[str]:
         lines.append(
             f"`{family_id}`: selected_rounds_leader={dominant}, "
             f"activation={row['activation_success_permille_mean']}, "
-            f"active_route_presence={row['route_present_active_window_permille_mean']}"
+            f"total_route_presence={row['route_present_total_window_permille_mean']}"
         )
     return lines
 
@@ -244,10 +244,11 @@ def head_to_head_findings_lines(head_to_head_summary: pl.DataFrame) -> list[str]
             head_to_head_summary.filter(pl.col("family_id") == family_id)
             .sort(
                 [
+                    "route_present_total_window_permille_mean",
                     "route_present_active_window_permille_mean",
                     "activation_success_permille_mean",
                 ],
-                descending=[True, True],
+                descending=[True, True, True],
             )
             .head(1)
         )
@@ -255,7 +256,7 @@ def head_to_head_findings_lines(head_to_head_summary: pl.DataFrame) -> list[str]
             continue
         row = family.iter_rows(named=True).__next__()
         lines.append(
-            f"`{family_id}`: best engine set=`{row['comparison_engine_set'] or 'none'}`, activation={row['activation_success_permille_mean']} permille, active route presence={row['route_present_active_window_permille_mean']} permille."
+            f"`{family_id}`: best engine set=`{row['comparison_engine_set'] or 'none'}`, activation={row['activation_success_permille_mean']} permille, total-window route presence={row['route_present_total_window_permille_mean']} permille."
         )
     return lines
 
@@ -271,10 +272,11 @@ def best_head_to_head_rows(head_to_head_summary: pl.DataFrame) -> dict[str, dict
             head_to_head_summary.filter(pl.col("family_id") == family_id)
             .sort(
                 [
+                    "route_present_total_window_permille_mean",
                     "route_present_active_window_permille_mean",
                     "activation_success_permille_mean",
                 ],
-                descending=[True, True],
+                descending=[True, True, True],
             )
             .head(1)
         )
@@ -319,11 +321,12 @@ def _top_head_to_head_rows(
     best = (
         family.sort(
             [
+                "route_present_total_window_permille_mean",
                 "route_present_active_window_permille_mean",
                 "activation_success_permille_mean",
                 "comparison_engine_set",
             ],
-            descending=[True, True, False],
+            descending=[True, True, True, False],
         )
         .head(1)
         .row(0, named=True)
@@ -333,6 +336,10 @@ def _top_head_to_head_rows(
             (
                 pl.col("route_present_active_window_permille_mean")
                 == best["route_present_active_window_permille_mean"]
+            )
+            & (
+                pl.col("route_present_total_window_permille_mean")
+                == best["route_present_total_window_permille_mean"]
             )
             & (
                 pl.col("activation_success_permille_mean")
@@ -434,40 +441,40 @@ def head_to_head_takeaway_lines(head_to_head_summary: pl.DataFrame) -> list[str]
             [row["comparison_engine_set"] or "none" for row in connected_high_loss_rows]
         ),
         connected_high_loss_route_presence=connected_high_loss[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         bridge_transition_engine_sets=_join_code_names(
             [row["comparison_engine_set"] or "none" for row in bridge_transition_rows]
         ),
         bridge_transition_route_presence=bridge_transition[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         medium_bridge_repair_engine_sets=_join_code_names(
             [row["comparison_engine_set"] or "none" for row in medium_bridge_repair_rows]
         ),
         medium_bridge_repair_route_presence=medium_bridge_repair[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         partial_bridge_engine_sets=_join_code_names(
             [row["comparison_engine_set"] or "none" for row in partial_bridge_rows]
         ),
         partial_bridge_route_presence=partial_bridge[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         concurrent_mixed_engine_sets=_join_code_names(
             [row["comparison_engine_set"] or "none" for row in concurrent_mixed_rows]
         ),
         concurrent_mixed_route_presence=concurrent_mixed[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         field_connected_high_loss_route_presence=field_connected_high_loss[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         field_bridge_transition_route_presence=field_bridge_transition[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         field_corridor_uncertainty_route_presence=field_corridor_uncertainty[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
     )
 
@@ -556,11 +563,11 @@ def analysis_takeaway_lines(
             [row["comparison_engine_set"] or "none" for row in concurrent_mixed_rows]
         ),
         concurrent_mixed_route_presence=concurrent_mixed[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         mixed_connected_high_loss_engine=connected_high_loss["dominant_engine"] or "none",
         mixed_connected_high_loss_route_presence=connected_high_loss[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         head_to_head_connected_high_loss_engines=_join_code_names(
             [
@@ -569,14 +576,14 @@ def analysis_takeaway_lines(
             ]
         ),
         head_to_head_connected_high_loss_route_presence=head_to_head_connected_high_loss[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         head_to_head_connected_high_loss_route_verb=(
             "reaches" if len(head_to_head_connected_high_loss_rows) == 1 else "reach"
         ),
         mixed_bridge_transition_engine=bridge_transition["dominant_engine"] or "none",
         mixed_bridge_transition_route_presence=bridge_transition[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         head_to_head_bridge_transition_engines=_join_code_names(
             [
@@ -585,25 +592,25 @@ def analysis_takeaway_lines(
             ]
         ),
         head_to_head_bridge_transition_route_presence=head_to_head_bridge_transition[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         head_to_head_bridge_transition_route_verb=(
             "reaches" if len(head_to_head_bridge_transition_rows) == 1 else "reach"
         ),
         field_connected_high_loss_route_presence=field_connected_high_loss[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         field_bridge_transition_route_presence=field_bridge_transition[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         field_corridor_uncertainty_route_presence=field_corridor_uncertainty[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
         corridor_best_engines=_join_code_names(
             [row["comparison_engine_set"] or "none" for row in head_to_head_corridor_rows]
         ),
         corridor_best_route_presence=head_to_head_corridor[
-            "route_present_active_window_permille_mean"
+            "route_present_total_window_permille_mean"
         ],
     )
 

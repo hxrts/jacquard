@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::util::stats::min_max_spread_u32;
-use crate::ReducedRouteObservation;
+use crate::{environment::apply_hook, ActiveRouteSummary, ReducedRouteObservation};
 
 fn objective_active_round_count(round_count: u32, activate_at_round: u32) -> u32 {
     round_count.saturating_sub(activate_at_round)
@@ -59,16 +59,16 @@ fn engine_handoff_count_for(
     u32::try_from(distinct.saturating_sub(1)).unwrap_or(u32::MAX)
 }
 
-fn broker_observation_counts_for(
-    observations: &[&ReducedRouteObservation],
+fn broker_active_route_counts_for(
+    routes: &[&ActiveRouteSummary],
     broker_nodes: &BTreeSet<NodeId>,
 ) -> (u32, u32, BTreeMap<NodeId, u32>) {
     let mut visible_count = 0u32;
     let mut broker_count = 0u32;
     let mut usage_counts = BTreeMap::new();
 
-    for observation in observations {
-        if let Some(next_hop_node_id) = observation.next_hop_node_id {
+    for route in routes {
+        if let Some(next_hop_node_id) = route.next_hop_node_id {
             visible_count = visible_count.saturating_add(1);
             if broker_nodes.contains(&next_hop_node_id) {
                 broker_count = broker_count.saturating_add(1);
@@ -81,10 +81,10 @@ fn broker_observation_counts_for(
 }
 
 fn broker_route_churn_count_for(
-    observations: &[&ReducedRouteObservation],
+    routes: &[&ActiveRouteSummary],
     broker_nodes: &BTreeSet<NodeId>,
 ) -> u32 {
-    let count = observations
+    let count = routes
         .windows(2)
         .filter(|window| {
             let left = window[0]
@@ -97,6 +97,103 @@ fn broker_route_churn_count_for(
         })
         .count();
     u32::try_from(count).unwrap_or(u32::MAX)
+}
+
+fn active_routes_for<'a>(
+    reduced: &'a ReducedReplayView,
+    owner_node_id: NodeId,
+    destination: &DestinationId,
+) -> Vec<&'a ActiveRouteSummary> {
+    reduced
+        .rounds
+        .iter()
+        .flat_map(|round| {
+            round.active_routes.iter().filter(move |route| {
+                route.owner_node_id == owner_node_id && &route.destination == destination
+            })
+        })
+        .collect()
+}
+
+fn route_usable_in_configuration(
+    route: &ActiveRouteSummary,
+    configuration: &Configuration,
+) -> bool {
+    if route.reachability_state == jacquard_core::ReachabilityState::Unreachable {
+        return false;
+    }
+    match &route.destination {
+        DestinationId::Node(destination_node_id) => {
+            configuration_path_exists(configuration, route.owner_node_id, *destination_node_id)
+        }
+        DestinationId::Gateway(_) | DestinationId::Service(_) => true,
+    }
+}
+
+fn configuration_path_exists(
+    configuration: &Configuration,
+    source: NodeId,
+    destination: NodeId,
+) -> bool {
+    let mut visited = BTreeSet::from([source]);
+    let mut frontier = vec![source];
+    while let Some(current) = frontier.pop() {
+        if current == destination {
+            return true;
+        }
+        let mut neighbors = configuration
+            .links
+            .keys()
+            .filter_map(|(left, right)| (*left == current).then_some(*right))
+            .collect::<Vec<_>>();
+        neighbors.sort();
+        neighbors.reverse();
+        for neighbor in neighbors {
+            if visited.insert(neighbor) {
+                frontier.push(neighbor);
+            }
+        }
+    }
+    false
+}
+
+fn usable_route_timing_for(
+    scenario: &JacquardScenario,
+    reduced: &ReducedReplayView,
+    owner_node_id: NodeId,
+    destination: &DestinationId,
+) -> (Option<u32>, Option<u32>) {
+    let mut configuration = scenario.initial_configuration().value.clone();
+    let mut seen_usable = false;
+    let mut first_unusable_round = None;
+    let mut first_loss_round = None;
+
+    for round in &reduced.rounds {
+        for applied in &round.environment_hooks {
+            apply_hook(&mut configuration, &applied.hook, applied.at_tick);
+        }
+        let usable = round.active_routes.iter().any(|route| {
+            route.owner_node_id == owner_node_id
+                && &route.destination == destination
+                && route_usable_in_configuration(route, &configuration)
+        });
+        if usable {
+            if let Some(unusable_round) = first_unusable_round {
+                return (
+                    first_loss_round,
+                    Some(round.round_index.saturating_sub(unusable_round)),
+                );
+            }
+            seen_usable = true;
+            continue;
+        }
+        if seen_usable && first_unusable_round.is_none() {
+            first_unusable_round = Some(round.round_index);
+            first_loss_round = Some(round.round_index);
+        }
+    }
+
+    (first_loss_round, None)
 }
 
 // long-block-exception: one reducer intentionally computes the stable per-run
@@ -173,13 +270,13 @@ pub(super) fn summarize_run(
         let first_disruption_round =
             reduced.first_round_with_environment_change_at_or_after(binding.activate_at_round);
         first_disruption_rounds.push(first_disruption_round);
-        let first_loss_round = reduced.first_round_without_route_after_presence(
+        let (first_loss_round, recovery_round) = usable_route_timing_for(
+            scenario,
+            reduced,
             binding.owner_node_id,
             &binding.objective.destination,
         );
         first_loss_rounds.push(first_loss_round);
-        let recovery_round =
-            reduced.recovery_delta_rounds(binding.owner_node_id, &binding.objective.destination);
         recovery_rounds.push(recovery_round);
         if recovery_round.is_some() {
             recovery_success_count = recovery_success_count.saturating_add(1);
@@ -206,8 +303,13 @@ pub(super) fn summarize_run(
         route_observation_count = route_observation_count
             .saturating_add(u32::try_from(objective_route_observations.len()).unwrap_or(u32::MAX));
         if !broker_nodes.is_empty() {
+            let objective_active_routes = active_routes_for(
+                reduced,
+                binding.owner_node_id,
+                &binding.objective.destination,
+            );
             let (visible_count, participation_count, usage_counts) =
-                broker_observation_counts_for(&objective_route_observations, &broker_nodes);
+                broker_active_route_counts_for(&objective_active_routes, &broker_nodes);
             broker_visible_observation_count =
                 broker_visible_observation_count.saturating_add(visible_count);
             broker_participating_observation_count =
@@ -216,7 +318,7 @@ pub(super) fn summarize_run(
                 *broker_usage_counts.entry(broker_node_id).or_insert(0) += count;
             }
             broker_route_churn_count = broker_route_churn_count.saturating_add(
-                broker_route_churn_count_for(&objective_route_observations, &broker_nodes),
+                broker_route_churn_count_for(&objective_active_routes, &broker_nodes),
             );
         }
         hop_counts.extend(
@@ -1223,8 +1325,7 @@ mod tests {
     use super::*;
     use crate::{
         environment::AppliedEnvironmentHook, ActiveRouteSummary, ReducedReplayRound,
-        ReducedRouteKey, ReducedRouteObservation, SimulationExecutionLane,
-        SimulationFailureSummary,
+        SimulationExecutionLane, SimulationFailureSummary,
     };
     use jacquard_core::{HealthScore, RouteId, RouteLifecycleEvent};
 
@@ -1280,6 +1381,39 @@ mod tests {
                 environment: ScriptedEnvironmentModel::default(),
             },
             model_case: None,
+        }
+    }
+
+    fn broker_test_route(
+        owner_node_id: NodeId,
+        destination: DestinationId,
+        route_id_byte: u8,
+        next_hop_node_id: NodeId,
+        last_lifecycle_event: RouteLifecycleEvent,
+    ) -> ActiveRouteSummary {
+        ActiveRouteSummary {
+            owner_node_id,
+            route_id: RouteId([route_id_byte; 16]),
+            destination,
+            engine_id: PATHWAY_ENGINE_ID,
+            next_hop_node_id: Some(next_hop_node_id),
+            last_lifecycle_event,
+            hop_count_hint: Some(2),
+            reachability_state: jacquard_core::ReachabilityState::Reachable,
+            stability_score: HealthScore(900),
+            commitment_resolution: None,
+            field_continuity_band: None,
+            field_last_outcome: None,
+            field_last_promotion_decision: None,
+            field_last_promotion_blocker: None,
+            field_continuation_shift_count: None,
+            scatter_current_regime: None,
+            scatter_last_action: None,
+            scatter_retained_message_count: None,
+            scatter_delivered_message_count: None,
+            scatter_contact_rate: None,
+            scatter_diversity_score: None,
+            scatter_resource_pressure_permille: None,
         }
     }
 
@@ -1515,34 +1649,24 @@ mod tests {
         let broker_b = node_id(4);
         let owner_node_id = node_id(1);
         let destination = DestinationId::Node(node_id(9));
-        let observations = [
-            ReducedRouteObservation {
-                key: ReducedRouteKey {
-                    owner_node_id,
-                    destination: destination.clone(),
-                },
-                route_id: RouteId([1; 16]),
-                engine_id: PATHWAY_ENGINE_ID,
-                next_hop_node_id: Some(broker_a),
-                first_seen_round: 1,
-                last_seen_round: 2,
-                last_lifecycle_event: RouteLifecycleEvent::Activated,
-            },
-            ReducedRouteObservation {
-                key: ReducedRouteKey {
-                    owner_node_id,
-                    destination,
-                },
-                route_id: RouteId([2; 16]),
-                engine_id: PATHWAY_ENGINE_ID,
-                next_hop_node_id: Some(broker_b),
-                first_seen_round: 4,
-                last_seen_round: 5,
-                last_lifecycle_event: RouteLifecycleEvent::Repaired,
-            },
+        let routes = [
+            broker_test_route(
+                owner_node_id,
+                destination.clone(),
+                1,
+                broker_a,
+                RouteLifecycleEvent::Activated,
+            ),
+            broker_test_route(
+                owner_node_id,
+                destination,
+                2,
+                broker_b,
+                RouteLifecycleEvent::Repaired,
+            ),
         ];
 
-        let refs = observations.iter().collect::<Vec<_>>();
+        let refs = routes.iter().collect::<Vec<_>>();
         let brokers = BTreeSet::from([broker_a, broker_b]);
         assert_eq!(broker_route_churn_count_for(&refs, &brokers), 1);
     }

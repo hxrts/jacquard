@@ -157,7 +157,8 @@ pub(super) fn build_comparison_connected_high_loss(
             ],
             24,
         )
-        .into_scenario(parameters);
+        .into_scenario(parameters)
+        .with_broker_nodes(vec![node_id(13), node_id(14), node_id(18), node_id(19)]);
         return (
             scenario,
             connected_high_loss_environment(node_id(10), node_id(11), node_id(12)),
@@ -194,7 +195,8 @@ pub(super) fn build_comparison_connected_high_loss(
         vec![BoundObjective::new(NODE_A, connected_objective(NODE_D)).with_activation_round(2)],
         24,
     )
-    .into_scenario(parameters);
+    .into_scenario(parameters)
+    .with_broker_nodes(vec![node_id(4), node_id(5), node_id(9), node_id(10)]);
     (
         scenario,
         connected_high_loss_environment(NODE_A, NODE_B, NODE_C),
@@ -2267,7 +2269,8 @@ pub(super) fn build_comparison_multi_flow_detour_choice(
             mixed_multi_flow_detour_objectives(),
             30,
         )
-        .into_scenario(parameters);
+        .into_scenario(parameters)
+        .with_broker_nodes(vec![node_id(13), node_id(14), node_id(18), node_id(19)]);
         let environment = ScriptedEnvironmentModel::new(vec![
             asymmetric_degradation_hook(
                 9,
@@ -2322,7 +2325,8 @@ pub(super) fn build_comparison_multi_flow_detour_choice(
         ],
         30,
     )
-    .into_scenario(parameters);
+    .into_scenario(parameters)
+    .with_broker_nodes(vec![node_id(4), node_id(5), node_id(9), node_id(10)]);
     let environment = ScriptedEnvironmentModel::new(vec![
         asymmetric_degradation_hook(
             9,
@@ -2556,7 +2560,6 @@ pub(super) fn build_comparison_stale_recovery_window(
         let mut topology = mixed_service_plus_topology(&[1, 2, 3, 4, 5, 6], STALE_BRIDGE_EDGES, 2);
         set_environment(&mut topology, 2, RatioPermille(180), RatioPermille(120));
         restore_pathway_service_budget_branch(&mut topology);
-        let alternate = shifted_alternate(&topology, &[(3, 6)], &[(2, 5)]);
         let restore = topology.value.clone();
         let scenario = route_visible_template(
             format!("comparison-stale-recovery-window-{}", parameters.config_id),
@@ -2578,7 +2581,15 @@ pub(super) fn build_comparison_stale_recovery_window(
             HostTopologyLag::new(shifted_node_id(3), 8, 11, 2),
         ]);
         let environment = ScriptedEnvironmentModel::new(vec![
-            replace_topology_hook(8, &alternate),
+            cascade_partition_hook(
+                8,
+                &[
+                    (shifted_node_id(2), shifted_node_id(3)),
+                    (shifted_node_id(3), shifted_node_id(2)),
+                    (shifted_node_id(3), shifted_node_id(6)),
+                    (shifted_node_id(6), shifted_node_id(3)),
+                ],
+            ),
             replace_topology_hook(18, &restore),
         ]);
         return (scenario, environment);
@@ -2590,7 +2601,6 @@ pub(super) fn build_comparison_stale_recovery_window(
     ];
     let mut topology = stale_bridge_topology(comparison_engine_set);
     set_environment(&mut topology, 2, RatioPermille(180), RatioPermille(120));
-    let alternate = stale_bridge_alternate(&topology);
     let restore = topology.value.clone();
     let scenario = route_visible_template(
         format!("comparison-stale-recovery-window-{}", parameters.config_id),
@@ -2611,7 +2621,15 @@ pub(super) fn build_comparison_stale_recovery_window(
         HostTopologyLag::new(node_id(3), 8, 11, 2),
     ]);
     let environment = ScriptedEnvironmentModel::new(vec![
-        replace_topology_hook(8, &alternate),
+        cascade_partition_hook(
+            8,
+            &[
+                (node_id(2), node_id(3)),
+                (node_id(3), node_id(2)),
+                (node_id(3), node_id(6)),
+                (node_id(6), node_id(3)),
+            ],
+        ),
         replace_topology_hook(18, &restore),
     ]);
     (scenario, environment)
@@ -3056,7 +3074,7 @@ mod tests {
         );
         assert_eq!(
             applied_hook_labels(&stale_recovery_window.0, &stale_recovery_window.1),
-            vec![(8, "replace-topology"), (18, "replace-topology")]
+            vec![(8, "cascade-partition"), (18, "replace-topology")]
         );
     }
 
@@ -3300,6 +3318,10 @@ mod tests {
             wider_summary.route_present_total_window_permille
                 > narrow_summary.route_present_total_window_permille
         );
+        assert_eq!(narrow_summary.broker_participation_permille, Some(0));
+        assert_eq!(wider_summary.broker_participation_permille, Some(0));
+        assert_eq!(narrow_summary.broker_route_churn_count, Some(0));
+        assert_eq!(wider_summary.broker_route_churn_count, Some(0));
     }
 
     #[test]
@@ -3746,12 +3768,11 @@ mod tests {
             &scenario,
             &reduced,
         );
-
         assert_eq!(summary.first_disruption_round_mean, Some(5));
-        assert_eq!(summary.first_loss_round_mean, None);
-        assert_eq!(summary.stale_persistence_round_mean, None);
-        assert_eq!(summary.recovery_round_mean, None);
-        assert_eq!(summary.recovery_success_permille, 0);
+        assert_eq!(summary.first_loss_round_mean, Some(5));
+        assert_eq!(summary.stale_persistence_round_mean, Some(0));
+        assert_eq!(summary.recovery_round_mean, Some(10));
+        assert_eq!(summary.recovery_success_permille, 1000);
         assert_eq!(summary.unrecovered_after_loss_count, 0);
     }
 

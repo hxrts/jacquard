@@ -1335,7 +1335,14 @@ def comparison_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
     aggregates = _ensure_optional_columns(aggregates)
     return (
         aggregates.filter(pl.col("engine_family") == "comparison")
-        .sort(["family_id", "route_present_permille_mean"], descending=[False, True])
+        .sort(
+            [
+                "family_id",
+                "route_present_total_window_permille_mean",
+                "route_present_permille_mean",
+            ],
+            descending=[False, True, True],
+        )
         .group_by("family_id")
         .agg(
             pl.first("config_id").alias("config_id"),
@@ -1367,8 +1374,13 @@ def comparison_engine_round_breakdown_table(aggregates: pl.DataFrame) -> pl.Data
     return (
         aggregates.filter(pl.col("engine_family") == "comparison")
         .sort(
-            ["family_id", "route_present_permille_mean", "config_id"],
-            descending=[False, True, False],
+            [
+                "family_id",
+                "route_present_total_window_permille_mean",
+                "route_present_permille_mean",
+                "config_id",
+            ],
+            descending=[False, True, True, False],
         )
         .group_by("family_id")
         .agg(
@@ -1376,6 +1388,9 @@ def comparison_engine_round_breakdown_table(aggregates: pl.DataFrame) -> pl.Data
             pl.first("dominant_engine").alias("dominant_engine"),
             pl.first("route_present_permille_mean").alias(
                 "route_present_active_window_permille_mean"
+            ),
+            pl.first("route_present_total_window_permille_mean").alias(
+                "route_present_total_window_permille_mean"
             ),
             pl.first("engine_handoff_count_mean").alias("engine_handoff_count_mean"),
             pl.first("batman_bellman_selected_rounds_mean").alias(
@@ -1395,6 +1410,7 @@ def comparison_engine_round_breakdown_table(aggregates: pl.DataFrame) -> pl.Data
             "config_id",
             "dominant_engine",
             "route_present_active_window_permille_mean",
+            "route_present_total_window_permille_mean",
             "engine_handoff_count_mean",
             "batman_bellman_selected_rounds_mean",
             "batman_classic_selected_rounds_mean",
@@ -1442,11 +1458,12 @@ def head_to_head_summary_table(aggregates: pl.DataFrame) -> pl.DataFrame:
         .sort(
             [
                 "family_id",
+                "route_present_total_window_permille_mean",
                 "route_present_active_window_permille_mean",
                 "activation_success_permille_mean",
                 "comparison_engine_order",
             ],
-            descending=[False, True, True, False],
+            descending=[False, True, True, True, False],
         )
         .drop("comparison_engine_order")
     )

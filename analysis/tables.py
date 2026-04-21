@@ -167,7 +167,7 @@ def comparison_table_rows(comparison_summary: pl.DataFrame) -> list[list[str]]:
     for family_id in comparison_summary["family_id"].unique().sort().to_list():
         family = (
             comparison_summary.filter(pl.col("family_id") == family_id)
-            .sort("route_present_active_window_permille_mean", descending=True)
+            .sort("route_present_total_window_permille_mean", descending=True)
             .head(1)
         )
         if family.is_empty():
@@ -178,7 +178,7 @@ def comparison_table_rows(comparison_summary: pl.DataFrame) -> list[list[str]]:
                 break_tick_label(family_id).replace("\n", " / "),
                 str(row["dominant_engine"] or "none"),
                 str(row["activation_success_permille_mean"]),
-                str(row["route_present_active_window_permille_mean"]),
+                str(row["route_present_total_window_permille_mean"]),
                 str(row["stress_score"]),
             ]
         )
@@ -194,7 +194,7 @@ def comparison_engine_round_breakdown_table_rows(
             [
                 break_tick_label(row["family_id"]).replace("\n", " / "),
                 str(row["dominant_engine"] or "none"),
-                str(row["route_present_active_window_permille_mean"]),
+                str(row["route_present_total_window_permille_mean"]),
                 str(row["engine_handoff_count_mean"]),
                 str(row["batman_classic_selected_rounds_mean"]),
                 str(row["batman_bellman_selected_rounds_mean"]),
@@ -237,10 +237,11 @@ def head_to_head_table_rows(head_to_head_summary: pl.DataFrame) -> list[list[str
     for family_id in head_to_head_summary["family_id"].unique().sort().to_list():
         family_rows = head_to_head_summary.filter(pl.col("family_id") == family_id).sort(
             [
+                "route_present_total_window_permille_mean",
                 "route_present_active_window_permille_mean",
                 "activation_success_permille_mean",
             ],
-            descending=[True, True],
+            descending=[True, True, True],
         )
         for index, row in enumerate(family_rows.iter_rows(named=True)):
             engine_set = row["comparison_engine_set"] or "none"
@@ -249,7 +250,7 @@ def head_to_head_table_rows(head_to_head_summary: pl.DataFrame) -> list[list[str
                     break_tick_label(family_id).replace("\n", " / ") if index == 0 else "",
                     f"`{engine_set}`",
                     str(row["activation_success_permille_mean"]),
-                    str(row["route_present_active_window_permille_mean"]),
+                    str(row["route_present_total_window_permille_mean"]),
                     str(row["dominant_engine"] or "none"),
                     str(row["stress_score"]),
                 ]

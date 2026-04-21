@@ -141,7 +141,7 @@ impl RoutingEnvironmentModel for ScriptedEnvironmentModel {
 
 // long-block-exception: one environment hook dispatcher keeps the directed-link
 // simulation semantics explicit and replay-auditable in a single match.
-fn apply_hook(configuration: &mut Configuration, hook: &EnvironmentHook, at_tick: Tick) {
+pub(crate) fn apply_hook(configuration: &mut Configuration, hook: &EnvironmentHook, at_tick: Tick) {
     match hook {
         EnvironmentHook::ReplaceTopology {
             configuration: replacement,

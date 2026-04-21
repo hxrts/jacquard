@@ -2,7 +2,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use jacquard_core::{DestinationId, NodeId, RouteLifecycleEvent, RoutingEngineId};
+use jacquard_core::{
+    DestinationId, NodeId, ReachabilityState, RouteLifecycleEvent, RoutingEngineId,
+};
 use jacquard_field::FIELD_ENGINE_ID;
 use jacquard_traits::RoutingScenario;
 use serde::{Deserialize, Serialize};
@@ -258,6 +260,25 @@ impl ReducedReplayView {
     }
 
     #[must_use]
+    pub fn route_usable_rounds(
+        &self,
+        owner_node_id: NodeId,
+        destination: &DestinationId,
+    ) -> Vec<u32> {
+        self.rounds
+            .iter()
+            .filter(|round| {
+                round.active_routes.iter().any(|route| {
+                    route.owner_node_id == owner_node_id
+                        && &route.destination == destination
+                        && route.reachability_state != ReachabilityState::Unreachable
+                })
+            })
+            .map(|round| round.round_index)
+            .collect()
+    }
+
+    #[must_use]
     pub fn route_stability_scores(
         &self,
         owner_node_id: NodeId,
@@ -370,6 +391,32 @@ impl ReducedReplayView {
     }
 
     #[must_use]
+    pub fn usable_recovery_delta_rounds(
+        &self,
+        owner_node_id: NodeId,
+        destination: &DestinationId,
+    ) -> Option<u32> {
+        let mut seen_usable = false;
+        let mut first_unusable_round = None;
+        for round in &self.rounds {
+            let usable = round.active_routes.iter().any(|route| {
+                route.owner_node_id == owner_node_id
+                    && &route.destination == destination
+                    && route.reachability_state != ReachabilityState::Unreachable
+            });
+            if usable {
+                if let Some(unusable_round) = first_unusable_round {
+                    return Some(round.round_index.saturating_sub(unusable_round));
+                }
+                seen_usable = true;
+            } else if seen_usable && first_unusable_round.is_none() {
+                first_unusable_round = Some(round.round_index);
+            }
+        }
+        None
+    }
+
+    #[must_use]
     pub fn first_round_without_route_after_presence(
         &self,
         owner_node_id: NodeId,
@@ -385,6 +432,30 @@ impl ReducedReplayView {
                 continue;
             }
             if seen_active {
+                return Some(round.round_index);
+            }
+        }
+        None
+    }
+
+    #[must_use]
+    pub fn first_round_without_usable_route_after_presence(
+        &self,
+        owner_node_id: NodeId,
+        destination: &DestinationId,
+    ) -> Option<u32> {
+        let mut seen_usable = false;
+        for round in &self.rounds {
+            let usable = round.active_routes.iter().any(|route| {
+                route.owner_node_id == owner_node_id
+                    && &route.destination == destination
+                    && route.reachability_state != ReachabilityState::Unreachable
+            });
+            if usable {
+                seen_usable = true;
+                continue;
+            }
+            if seen_usable {
                 return Some(round.round_index);
             }
         }
@@ -785,5 +856,62 @@ mod tests {
         assert_eq!(observations[1].next_hop_node_id, Some(node(4)));
         assert_eq!(observations[1].first_seen_round, 2);
         assert_eq!(observations[1].last_seen_round, 2);
+    }
+
+    #[test]
+    fn usable_route_loss_counts_unreachable_active_routes() {
+        let mut unreachable = active_route(node(3));
+        unreachable.reachability_state = ReachabilityState::Unreachable;
+        let replay = ReducedReplayView {
+            scenario_name: "usable-loss".to_string(),
+            round_count: 4,
+            rounds: vec![
+                ReducedReplayRound {
+                    round_index: 0,
+                    active_routes: vec![active_route(node(3))],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 1,
+                    active_routes: vec![unreachable.clone()],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 2,
+                    active_routes: vec![unreachable],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+                ReducedReplayRound {
+                    round_index: 3,
+                    active_routes: vec![active_route(node(3))],
+                    environment_hooks: Vec::new(),
+                    field_replays: Vec::new(),
+                },
+            ],
+            distinct_engine_ids: vec![PATHWAY_ENGINE_ID],
+            driver_status_events: Vec::new(),
+            failure_summaries: Vec::new(),
+        };
+        let destination = DestinationId::Node(node(9));
+
+        assert_eq!(
+            replay.route_present_rounds(node(1), &destination),
+            vec![0, 1, 2, 3]
+        );
+        assert_eq!(
+            replay.route_usable_rounds(node(1), &destination),
+            vec![0, 3]
+        );
+        assert_eq!(
+            replay.first_round_without_usable_route_after_presence(node(1), &destination),
+            Some(1)
+        );
+        assert_eq!(
+            replay.usable_recovery_delta_rounds(node(1), &destination),
+            Some(2)
+        );
     }
 }

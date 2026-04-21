@@ -65,7 +65,7 @@ The tuning matrix changes one small set of conditions at a time. Across the corp
 The recommendations are meant to be good defaults for this modeled corpus, not single winners from one scenario.
 
 Methodology note:
-- route-visible `Active Route` means active-window route presence from objective activation onward, not total scenario-round presence.
+- route-visible `Route` / `Active Route` report total-window route presence in comparison and head-to-head tables, so startup and repair gaps remain visible instead of being hidden by saturated active-window values.
 - the head-to-head route-visible surface is a fixed representative-profile benchmark, while Part I recommendation tables are calibrated-best surfaces.
 - mixed-stack `Selected-Round Leader` means the engine selected for the most active-route rounds inside one shared router policy, not the best standalone engine.
 - generic family-by-family diffusion winners are more provisional than the regime-aware diffusion tables when different generic weightings change the winner.
@@ -343,7 +343,7 @@ Direct fitness gap between what the mixed router achieved and what the best stan
 
 @table comparison-summary
 
-Selected-round leader per maintained comparison family. Column guide: Selected-Round Leader means the engine selected for the most active-route rounds in one shared mixed stack, not necessarily the best standalone performer. Activation is objective activation success, Active Route is active-window route presence, and Stress is the scenario stress score.
+Selected-round leader per maintained comparison family. Column guide: Selected-Round Leader means the engine selected for the most active-route rounds in one shared mixed stack, not necessarily the best standalone performer. Activation is objective activation success, Active Route is total-window route presence, and Stress is the scenario stress score.
 
 The mixed comparison surface is a single-router arbitration benchmark, not an oracle ensemble. The router gathers candidates across engines, publishes one canonical route per objective, and only reselects when maintenance or expiry requires it. Figure 15 therefore answers “which engine does the router actually use?” rather than “which engine is intrinsically best?” A mixed stack can legitimately underperform the best standalone engine in a family if the first durable admissible route comes from a weaker constituent engine.
 
@@ -353,7 +353,7 @@ The mixed comparison surface is a single-router arbitration benchmark, not an or
 
 Each row reports the best maintained mixed comparison config for that family. The per-engine columns show average selected-route rounds under one shared router policy, so this table explains why the mixed stack leader is not an oracle best-of-engines result.
 
-Column guide: Family is the comparison regime. Leader is the selected-round leader. Active Route is active-window route presence. Handoffs is mean engine handoff count. The remaining columns show mean selected-route rounds per engine under the shared router policy.
+Column guide: Family is the comparison regime. Leader is the selected-round leader. Active Route is total-window route presence. Handoffs is mean engine handoff count. The remaining columns show mean selected-route rounds per engine under the shared router policy.
 
 #### Comparison Config Sensitivity Audit
 
@@ -367,7 +367,7 @@ Column guide: Surface is the comparison surface (`comparison` or `head-to-head`)
 
 @table head-to-head-summary
 
-Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `pathway`, `pathway-batman-bellman`, and `field`. Column guide: Engine Set is the only stack enabled; Activation is objective activation success; Active Route is active-window route presence; Selected Leader is the selected-round leader for that run and may be `tie`; Stress is the regime stress score.
+Direct stack-to-stack comparison: `batman-classic`, `batman-bellman`, `babel`, `olsrv2`, `scatter`, `pathway`, `pathway-batman-bellman`, and `field`. Column guide: Engine Set is the only stack enabled; Activation is objective activation success; Active Route is total-window route presence; Selected Leader is the selected-round leader for that run and may be `tie`; Stress is the regime stress score.
 
 #### Benchmark Profile Audit
 
@@ -399,7 +399,7 @@ The full mixed-engine and head-to-head tables are collected in Appendix B. The m
 
 #### Head-To-Head Takeaways
 
-- `connected-low-loss` and `partial-observability-bridge` are broad tie regimes; in the latter, {partial_bridge_engine_sets} all reach {partial_bridge_route_presence} permille active-window route presence.
+- `connected-low-loss` and `partial-observability-bridge` are broad tie regimes; in the latter, {partial_bridge_engine_sets} all reach {partial_bridge_route_presence} permille total-window route presence.
 - The hard route-visible bridge families are the clearest separators: `connected-high-loss` is led by {connected_high_loss_engine_sets} at {connected_high_loss_route_presence} permille, while `bridge-transition` is shared by {bridge_transition_engine_sets} at {bridge_transition_route_presence} permille.
 - `medium-bridge-repair` also stays broad at the top: {medium_bridge_repair_engine_sets} all reach {medium_bridge_repair_route_presence} permille.
 - Mixed workloads still favor explicit search: `concurrent-mixed` is led by {concurrent_mixed_engine_sets} at {concurrent_mixed_route_presence} permille.

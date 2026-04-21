@@ -15,6 +15,7 @@ from analysis.sections import routing_fitness_takeaway_lines
 from analysis.scoring import (
     benchmark_profile_audit_table,
     comparison_config_sensitivity_table,
+    comparison_engine_round_breakdown_table,
     diffusion_baseline_audit_table,
     diffusion_family_weight_sensitivity_table,
     field_diffusion_regime_calibration_table,
@@ -650,6 +651,50 @@ def _large_population_diffusion_aggregates() -> pl.DataFrame:
 
 
 class FieldRoutingRecommendationTests(unittest.TestCase):
+    def test_comparison_engine_round_breakdown_uses_total_window_route_presence(self) -> None:
+        aggregates = pl.from_dicts(
+            [
+                {
+                    "engine_family": "comparison",
+                    "family_id": "comparison-connected",
+                    "config_id": "active-window-high",
+                    "dominant_engine": "pathway",
+                    "route_present_permille_mean": 1000.0,
+                    "route_present_total_window_permille_mean": 600.0,
+                    "engine_handoff_count_mean": 1.0,
+                    "batman_bellman_selected_rounds_mean": 0.0,
+                    "batman_classic_selected_rounds_mean": 0.0,
+                    "babel_selected_rounds_mean": 0.0,
+                    "olsrv2_selected_rounds_mean": 0.0,
+                    "pathway_selected_rounds_mean": 10.0,
+                    "scatter_selected_rounds_mean": 0.0,
+                    "field_selected_rounds_mean": 0.0,
+                },
+                {
+                    "engine_family": "comparison",
+                    "family_id": "comparison-connected",
+                    "config_id": "total-window-high",
+                    "dominant_engine": "field",
+                    "route_present_permille_mean": 900.0,
+                    "route_present_total_window_permille_mean": 800.0,
+                    "engine_handoff_count_mean": 2.0,
+                    "batman_bellman_selected_rounds_mean": 0.0,
+                    "batman_classic_selected_rounds_mean": 0.0,
+                    "babel_selected_rounds_mean": 0.0,
+                    "olsrv2_selected_rounds_mean": 0.0,
+                    "pathway_selected_rounds_mean": 0.0,
+                    "scatter_selected_rounds_mean": 0.0,
+                    "field_selected_rounds_mean": 10.0,
+                },
+            ]
+        )
+
+        breakdown = comparison_engine_round_breakdown_table(aggregates)
+
+        row = breakdown.row(0, named=True)
+        self.assertEqual(row["config_id"], "total-window-high")
+        self.assertEqual(row["route_present_total_window_permille_mean"], 800.0)
+
     def test_recommendation_table_prefers_total_window_route_presence(self) -> None:
         common = _field_route_visible_aggregates().row(0, named=True)
         aggregates = pl.from_dicts(
