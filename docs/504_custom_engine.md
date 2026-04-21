@@ -15,7 +15,8 @@ Define the engine struct and any private state first. The no-op example carries 
 ```rust
 use jacquard_core::{NodeId, RoutingEngineId};
 
-pub const OPAQUE_NOOP_ENGINE_ID: RoutingEngineId = RoutingEngineId::new(*b"jacquard.opnoop.");
+pub const OPAQUE_NOOP_ENGINE_ID: RoutingEngineId =
+    RoutingEngineId::from_contract_bytes(*b"jacquard.opnoop.");
 
 pub struct OpaqueNoopEngine {
     local_node_id: NodeId,
@@ -64,7 +65,7 @@ The planner surface takes a routing objective, a profile, and a topology observa
 ```rust
 use jacquard_core::{
     Configuration, Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
-    RoutingObjective, SelectedRoutingParameters,
+    RouteSelectionError, RoutingObjective, SelectedRoutingParameters,
 };
 use jacquard_traits::RoutingEnginePlanner;
 
@@ -87,7 +88,7 @@ impl RoutingEnginePlanner for OpaqueNoopEngine {
         _candidate: &RouteCandidate,
         _topology: &Observation<Configuration>,
     ) -> Result<RouteAdmissionCheck, RouteError> {
-        Err(RouteError::UnknownEngine)
+        Err(RouteError::Selection(RouteSelectionError::NoCandidate))
     }
 }
 ```
@@ -101,8 +102,9 @@ The effectful surface completes the engine. Materialization installs runtime sta
 ```rust
 use jacquard_core::{
     MaterializedRoute, PublishedRouteRecord, RouteCommitment, RouteId, RouteInstallation,
-    RouteMaintenanceFailure, RouteMaintenanceOutcome, RouteMaintenanceResult,
-    RouteMaintenanceTrigger, RouteMaterializationInput, RouteRuntimeState,
+    RouteLifecycleEvent, RouteMaintenanceFailure, RouteMaintenanceOutcome,
+    RouteMaintenanceResult, RouteMaintenanceTrigger, RouteMaterializationInput,
+    RouteRuntimeState,
 };
 use jacquard_traits::RoutingEngine;
 
@@ -111,7 +113,7 @@ impl RoutingEngine for OpaqueNoopEngine {
         &mut self,
         _input: RouteMaterializationInput,
     ) -> Result<RouteInstallation, RouteError> {
-        Err(RouteError::NoCandidate)
+        Err(RouteError::Selection(RouteSelectionError::NoCandidate))
     }
     fn route_commitments(&self, _route: &MaterializedRoute) -> Vec<RouteCommitment> {
         Vec::new()
@@ -123,7 +125,7 @@ impl RoutingEngine for OpaqueNoopEngine {
         _trigger: RouteMaintenanceTrigger,
     ) -> Result<RouteMaintenanceResult, RouteError> {
         Ok(RouteMaintenanceResult {
-            event: Default::default(),
+            event: RouteLifecycleEvent::Expired,
             outcome: RouteMaintenanceOutcome::Failed(RouteMaintenanceFailure::LostReachability),
         })
     }

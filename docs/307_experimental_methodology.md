@@ -40,6 +40,6 @@ The same discipline applies to policy parameters when a comparison covers polici
 
 A simulator run produces a per-run log plus aggregate and breakdown JSON files under the run directory. Diffusion runs add their own per-run log plus diffusion aggregate and boundary summaries. Head-to-head reductions are exported into the generated report directory. Model-lane runs add model artifacts as validation companions rather than scoring inputs.
 
-The `analysis/` Python package reads those artifacts. `data.py` loads them into Polars frames. `scoring.py` derives per-run metrics. `tables.py` produces CSV tables. `plots.py` produces vector plots. `sections.py` composes report sections. `report.py` is the entry that assembles the PDF.
+The `analysis/` Python package reads those artifacts. `data.py` loads them into Polars frames. `scoring.py` derives per-run metrics. `tables.py` produces CSV tables. `plots.py` produces vector plots. `sections.py` and `document.py` compose report sections and lay them out. `report.py` is the entry that assembles the PDF.
 
 Report outputs are stable across releases subject to explicit schema versioning. A 3rd party can rely on the artifact shape to build custom reductions or alternate reports without waiting on changes to the included pipeline.

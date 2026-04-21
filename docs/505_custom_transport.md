@@ -33,7 +33,7 @@ impl TransportSenderEffects for ChannelSender {
     ) -> Result<(), TransportError> {
         self.outbound
             .send((endpoint.clone(), payload.to_vec()))
-            .map_err(|_| TransportError::Closed)
+            .map_err(|_| TransportError::Unavailable)
     }
 }
 ```
