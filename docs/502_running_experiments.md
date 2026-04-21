@@ -37,7 +37,7 @@ Regenerate the report without rerunning the simulator:
 nix develop --command python3 -m analysis.report artifacts/analysis/local/latest
 ```
 
-The report lands at `artifacts/analysis/{suite}/latest/router-tuning-report.pdf`. On `main`, GitHub Pages also publishes the latest CI-built copy under the docs site root.
+The report lands at `artifacts/analysis/{suite}/latest/router-tuning-report.pdf`.
 
 ## Engine Takeaways From The Current Corpus
 
