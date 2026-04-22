@@ -98,6 +98,14 @@ The profile does not itself implement the effect traits. It bundles individual i
 
 For the retention store, either reuse `InMemoryRetentionStore` from `jacquard-mem-link-profile` or implement `RetentionStore` against persistent storage. Retention is independent of transport, so a custom transport paired with the in-memory retention store is a reasonable first pass.
 
+## Shaping Cast Evidence
+
+Custom transports own physical transport facts. A LoRa profile owns spreading factor, duty cycle, gateway behavior, and acknowledgement limits. A BLE profile owns scan windows and advertising behavior. A satellite profile owns contact schedules. These facts stay in the transport-owned profile crate.
+
+Use `jacquard-cast-profile` when the profile needs to shape those facts into bounded unicast, multicast, or broadcast evidence. The helper crate sorts receiver sets deterministically, enforces explicit bounds, carries typed freshness and capacity fields, and keeps directional support separate from reverse confirmation. The helper does not implement a transport.
+
+`jacquard-adapter` remains host plumbing. Use it for mailbox, peer-directory, endpoint convenience, and claim-ownership support. Do not put profile evidence logic there.
+
 ## Composing With A Host Bridge
 
 The composed profile plugs into the reference client's `ClientBuilder` or into a custom host bridge. The default builder currently expects the in-memory network, so a non-default transport requires composing the router and engines directly or forking the builder. See [Reference Client](408_reference_client.md) for the composition the reference client exposes.
