@@ -89,7 +89,7 @@ Trait purity and routing invariants are enforced by the lint suite. The stable-t
 
 The routing core does not call platform APIs directly. Hashing, storage, route-event logging, transport send capability, host-owned transport drivers, time, and ordering all cross explicit shared boundaries in `traits`.
 
-`jacquard-host-support` sits alongside that boundary, not inside it. Reusable host-side ingress mailboxes, unresolved and resolved peer bookkeeping, claim guards, transport-neutral endpoint conveniences, and host-side topology projectors live there so `core` stays data-only and `traits` stays contract-only. The router consumes explicit ingress and advances through synchronous rounds rather than polling transports ambiently. That is how native execution, tests, and simulation share one semantic model.
+`jacquard-host-support` sits alongside that boundary, not inside it. Reusable host-side ingress mailboxes, unresolved and resolved peer bookkeeping, claim guards, transport-neutral endpoint conveniences, and host-side topology projectors live there so `core` stays data-only and `traits` stays contract-only. The ingress mailbox separates bounded storage from change notification. The default host path uses blocking notification where the target supports it, and the portable path exposes generation snapshots plus a `Future` wake surface for executor-owned scheduling. The router consumes explicit ingress and advances through synchronous rounds rather than polling transports ambiently. That is how native execution, tests, and simulation share one semantic model.
 
 ## Portability Profiles
 
@@ -158,6 +158,6 @@ A host-owned policy engine above the router may own cross-engine migration polic
 
 The extension surface is split across [Core Types](201_core_types.md), [Routing Engines](303_routing_engines.md), and [Pathway Routing](404_pathway_routing.md).
 
-For first-party pathway specifically, Telltale stays an internal implementation substrate. Shared crates remain runtime-free. The future router may drive pathway through shared planning, tick, maintenance, and checkpoint orchestration. It must not depend on pathway-private choreography payloads, protocol session keys, or guest-runtime internals.
+For first-party pathway specifically, Telltale stays an internal implementation substrate. Shared crates remain runtime-free. Router integration drives pathway through shared planning, tick, maintenance, and checkpoint orchestration. It must not depend on pathway-private choreography payloads, protocol session keys, or guest-runtime internals.
 
 For first-party field, the proof and ownership boundary is even stricter. Field-private choreography may supply only observational evidence into the deterministic local controller. It must not publish canonical route truth or leak field-private session semantics into shared router surfaces.

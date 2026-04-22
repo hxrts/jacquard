@@ -10,7 +10,7 @@ A transport in Jacquard has two surfaces. Engines send payloads through `Transpo
 
 Engines must not own async I/O directly. They must not poll the transport driver. They must not attach time. A 3rd party implementing a new transport replaces the two trait surfaces and hands the result to the bridge, which keeps those ownership boundaries.
 
-Reuse `jacquard-host-support` for generic mailbox, peer-directory, or claim-ownership scaffolding when the transport needs those primitives. Do not introduce a pathway-specific or engine-specific transport trait. Keep the transport transport-neutral.
+Reuse `jacquard-host-support` for generic mailbox, peer-directory, or claim-ownership scaffolding when the transport needs those primitives. Its ingress mailbox keeps storage bounded and exposes both generation snapshots and a wakeable changed future, so host bridges can pair it with a native blocking loop or an executor-owned embedded loop. Do not introduce a pathway-specific or engine-specific transport trait. Keep the transport transport-neutral.
 
 ## Implementing TransportSenderEffects
 

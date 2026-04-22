@@ -30,6 +30,9 @@
 //! behavior all stay outside this crate.
 
 #![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
 
 mod claims;
 mod decay_window;

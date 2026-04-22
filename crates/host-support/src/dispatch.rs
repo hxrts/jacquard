@@ -9,11 +9,15 @@
 //! The mailbox is generic over `T` and stays transport-neutral. It does not
 //! assign Jacquard time or ordering and it does not interpret the queued work.
 
-use std::{
-    collections::VecDeque,
-    fmt,
-    sync::{Arc, Mutex},
-};
+use alloc::{collections::VecDeque, vec::Vec};
+use core::fmt;
+
+#[cfg(not(feature = "std"))]
+use alloc::rc::Rc;
+#[cfg(not(feature = "std"))]
+use core::cell::RefCell;
+#[cfg(feature = "std")]
+use std::sync::{Arc, Mutex};
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
@@ -34,32 +38,73 @@ impl fmt::Display for DispatchOverflow {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for DispatchOverflow {}
 
 struct SharedDispatch<T> {
-    queue: Mutex<VecDeque<T>>,
+    queue: DispatchQueue<T>,
     capacity: usize,
 }
 
+#[cfg(feature = "std")]
+type SharedDispatchHandle<T> = Arc<SharedDispatch<T>>;
+
+#[cfg(not(feature = "std"))]
+type SharedDispatchHandle<T> = Rc<SharedDispatch<T>>;
+
+#[cfg(feature = "std")]
+type DispatchQueue<T> = Mutex<VecDeque<T>>;
+
+#[cfg(not(feature = "std"))]
+type DispatchQueue<T> = RefCell<VecDeque<T>>;
+
 #[derive(Clone)]
 pub struct DispatchSender<T> {
-    shared: Arc<SharedDispatch<T>>,
+    shared: SharedDispatchHandle<T>,
 }
 
 pub struct DispatchReceiver<T> {
-    shared: Arc<SharedDispatch<T>>,
+    shared: SharedDispatchHandle<T>,
+}
+
+#[cfg(feature = "std")]
+fn new_queue<T>() -> DispatchQueue<T> {
+    Mutex::new(VecDeque::new())
+}
+
+#[cfg(not(feature = "std"))]
+fn new_queue<T>() -> DispatchQueue<T> {
+    RefCell::new(VecDeque::new())
+}
+
+#[cfg(feature = "std")]
+fn with_queue<T, Output>(
+    queue: &DispatchQueue<T>,
+    operation: impl FnOnce(&mut VecDeque<T>) -> Output,
+) -> Output {
+    let mut guard = queue.lock().expect("dispatch queue lock");
+    operation(&mut guard)
+}
+
+#[cfg(not(feature = "std"))]
+fn with_queue<T, Output>(
+    queue: &DispatchQueue<T>,
+    operation: impl FnOnce(&mut VecDeque<T>) -> Output,
+) -> Output {
+    let mut guard = queue.borrow_mut();
+    operation(&mut guard)
 }
 
 #[must_use]
 pub fn dispatch_mailbox<T>(capacity: usize) -> (DispatchSender<T>, DispatchReceiver<T>) {
     assert!(capacity > 0, "dispatch mailbox capacity must be non-zero");
-    let shared = Arc::new(SharedDispatch {
-        queue: Mutex::new(VecDeque::new()),
+    let shared = SharedDispatchHandle::new(SharedDispatch {
+        queue: new_queue(),
         capacity,
     });
     (
         DispatchSender {
-            shared: Arc::clone(&shared),
+            shared: shared.clone(),
         },
         DispatchReceiver { shared },
     )
@@ -67,29 +112,25 @@ pub fn dispatch_mailbox<T>(capacity: usize) -> (DispatchSender<T>, DispatchRecei
 
 impl<T> DispatchSender<T> {
     pub fn send(&self, item: T) -> Result<DispatchSendOutcome, DispatchOverflow> {
-        let mut guard = self.shared.queue.lock().expect("dispatch queue lock");
-        if guard.len() >= self.shared.capacity {
-            return Err(DispatchOverflow);
-        }
-        guard.push_back(item);
-        Ok(DispatchSendOutcome::Enqueued)
+        with_queue(&self.shared.queue, |queue| {
+            if queue.len() >= self.shared.capacity {
+                return Err(DispatchOverflow);
+            }
+            queue.push_back(item);
+            Ok(DispatchSendOutcome::Enqueued)
+        })
     }
 }
 
 impl<T> DispatchReceiver<T> {
     #[must_use]
     pub fn drain(&mut self) -> Vec<T> {
-        self.shared
-            .queue
-            .lock()
-            .expect("dispatch queue lock")
-            .drain(..)
-            .collect()
+        with_queue(&self.shared.queue, |queue| queue.drain(..).collect())
     }
 
     #[must_use]
     pub fn pending_len(&self) -> usize {
-        self.shared.queue.lock().expect("dispatch queue lock").len()
+        with_queue(&self.shared.queue, |queue| queue.len())
     }
 }
 

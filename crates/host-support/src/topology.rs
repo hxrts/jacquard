@@ -10,7 +10,7 @@
 //! - no router or engine logic
 //! - no canonical publication
 
-use std::collections::BTreeMap;
+use alloc::{collections::BTreeMap, vec::Vec};
 
 use jacquard_core::{
     Configuration, DestinationId, Link, MaterializedRoute, Node, NodeId, Observation, RouteEvent,

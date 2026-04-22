@@ -16,7 +16,7 @@
 //! Resolution and removal both clean up both indexes atomically to keep the
 //! directory consistent under address migration and reconnection.
 
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use jacquard_core::NodeId;
 use jacquard_macros::public_model;

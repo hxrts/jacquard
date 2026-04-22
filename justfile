@@ -93,6 +93,7 @@ no-std-check:
     cargo check -p jacquard-core --no-default-features
     cargo check -p jacquard-traits --no-default-features
     cargo check -p jacquard-cast-support --no-default-features
+    cargo check -p jacquard-host-support --no-default-features
     cargo check -p jacquard-mercator --no-default-features
     cargo check -p jacquard-router --no-default-features
 

@@ -5,6 +5,8 @@
 //! full `LinkEndpoint::new(TransportKind, EndpointLocator, ByteCount)` shape
 //! for the common opaque-locator path.
 
+use alloc::vec::Vec;
+
 use jacquard_core::{ByteCount, EndpointLocator, LinkEndpoint, TransportKind};
 
 /// Build a shared `LinkEndpoint` with an opaque locator payload.

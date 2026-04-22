@@ -15,11 +15,15 @@
 //! The key type is generic over any `Clone + Ord` value so hosts can use
 //! transport addresses, node identifiers, or composite keys without wrapping.
 
-use std::{
-    collections::BTreeSet,
-    fmt,
-    sync::{Arc, Mutex},
-};
+use alloc::collections::BTreeSet;
+use core::fmt;
+
+#[cfg(not(feature = "std"))]
+use alloc::rc::Rc;
+#[cfg(not(feature = "std"))]
+use core::cell::RefCell;
+#[cfg(feature = "std")]
+use std::sync::{Arc, Mutex};
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
@@ -34,24 +38,59 @@ impl fmt::Display for ClaimRejected {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for ClaimRejected {}
+
+#[cfg(feature = "std")]
+type SharedClaims<Key> = Arc<Mutex<BTreeSet<Key>>>;
+
+#[cfg(not(feature = "std"))]
+type SharedClaims<Key> = Rc<RefCell<BTreeSet<Key>>>;
 
 #[derive(Clone)]
 pub struct PendingClaims<Key: Ord> {
-    claimed: Arc<Mutex<BTreeSet<Key>>>,
+    claimed: SharedClaims<Key>,
 }
 
 impl<Key: Ord> Default for PendingClaims<Key> {
     fn default() -> Self {
         Self {
-            claimed: Arc::new(Mutex::new(BTreeSet::new())),
+            claimed: new_claim_set(),
         }
     }
 }
 
 pub struct ClaimGuard<Key: Ord> {
-    claimed: Arc<Mutex<BTreeSet<Key>>>,
+    claimed: SharedClaims<Key>,
     key: Option<Key>,
+}
+
+#[cfg(feature = "std")]
+fn new_claim_set<Key>() -> SharedClaims<Key> {
+    Arc::new(Mutex::new(BTreeSet::new()))
+}
+
+#[cfg(not(feature = "std"))]
+fn new_claim_set<Key>() -> SharedClaims<Key> {
+    Rc::new(RefCell::new(BTreeSet::new()))
+}
+
+#[cfg(feature = "std")]
+fn with_claims<Key, Output>(
+    claims: &SharedClaims<Key>,
+    operation: impl FnOnce(&mut BTreeSet<Key>) -> Output,
+) -> Output {
+    let mut guard = claims.lock().expect("pending claims lock");
+    operation(&mut guard)
+}
+
+#[cfg(not(feature = "std"))]
+fn with_claims<Key, Output>(
+    claims: &SharedClaims<Key>,
+    operation: impl FnOnce(&mut BTreeSet<Key>) -> Output,
+) -> Output {
+    let mut guard = claims.borrow_mut();
+    operation(&mut guard)
 }
 
 impl<Key> PendingClaims<Key>
@@ -64,22 +103,18 @@ where
     }
 
     pub fn try_claim(&self, key: Key) -> Result<ClaimGuard<Key>, ClaimRejected> {
-        let mut guard = self.claimed.lock().expect("pending claims lock");
-        if !guard.insert(key.clone()) {
+        if !with_claims(&self.claimed, |claimed| claimed.insert(key.clone())) {
             return Err(ClaimRejected);
         }
         Ok(ClaimGuard {
-            claimed: Arc::clone(&self.claimed),
+            claimed: self.claimed.clone(),
             key: Some(key),
         })
     }
 
     #[must_use]
     pub fn contains(&self, key: &Key) -> bool {
-        self.claimed
-            .lock()
-            .expect("pending claims lock")
-            .contains(key)
+        with_claims(&self.claimed, |claimed| claimed.contains(key))
     }
 }
 
@@ -93,10 +128,7 @@ impl<Key: Ord> ClaimGuard<Key> {
 impl<Key: Ord> Drop for ClaimGuard<Key> {
     fn drop(&mut self) {
         if let Some(key) = self.key.take() {
-            self.claimed
-                .lock()
-                .expect("pending claims lock")
-                .remove(&key);
+            with_claims(&self.claimed, |claimed| claimed.remove(&key));
         }
     }
 }

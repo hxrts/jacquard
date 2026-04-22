@@ -5,7 +5,7 @@
 //! quality as an occupancy permille.
 // proc-macro-scope: host support primitive intentionally stays outside #[public_model].
 
-use std::collections::BTreeSet;
+use alloc::collections::BTreeSet;
 
 use jacquard_core::RatioPermille;
 use serde::{Deserialize, Serialize};

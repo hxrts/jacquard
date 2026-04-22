@@ -18,26 +18,30 @@
 //! Control overflow is fail-closed: `ControlIngressOverflow` is returned so
 //! the caller can take corrective action.
 
-use std::{
-    collections::VecDeque,
+use alloc::{collections::VecDeque, vec::Vec};
+use core::{
     fmt,
     future::Future,
+    mem,
     pin::Pin,
-    sync::{Arc, Mutex},
     task::{Context, Poll, Waker},
 };
 
-use cfg_if::cfg_if;
+#[cfg(not(feature = "std"))]
+use alloc::rc::Rc;
+#[cfg(not(feature = "std"))]
+use core::cell::RefCell;
+#[cfg(all(feature = "std", not(target_arch = "wasm32")))]
+use std::sync::Condvar;
+#[cfg(feature = "std")]
+use std::sync::{Arc, Mutex};
+
 use jacquard_core::TransportIngressEvent;
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 
-cfg_if! {
-    if #[cfg(not(target_arch = "wasm32"))] {
-        use std::sync::Condvar;
-        use jacquard_core::DurationMs;
-    }
-}
+#[cfg(all(feature = "std", not(target_arch = "wasm32")))]
+use jacquard_core::DurationMs;
 
 #[public_model]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,6 +74,7 @@ impl fmt::Display for ControlIngressOverflow {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for ControlIngressOverflow {}
 
 #[derive(Default)]
@@ -80,11 +85,51 @@ struct MailboxState {
     waiters: Vec<Waker>,
 }
 
+#[cfg(feature = "std")]
+type SharedMailboxHandle = Arc<SharedMailbox>;
+
+#[cfg(not(feature = "std"))]
+type SharedMailboxHandle = Rc<SharedMailbox>;
+
 struct SharedMailbox {
-    state: Mutex<MailboxState>,
+    storage: MailboxStorage,
     capacity: usize,
-    #[cfg(not(target_arch = "wasm32"))]
+    notifier: MailboxChangeNotifier,
+}
+
+#[cfg(feature = "std")]
+struct MailboxStorage {
+    state: Mutex<MailboxState>,
+}
+
+#[cfg(not(feature = "std"))]
+struct MailboxStorage {
+    state: RefCell<MailboxState>,
+}
+
+#[cfg(all(feature = "std", not(target_arch = "wasm32")))]
+struct MailboxChangeNotifier {
     changed: Condvar,
+}
+
+#[cfg(not(all(feature = "std", not(target_arch = "wasm32"))))]
+#[derive(Clone, Copy, Debug, Default)]
+struct MailboxChangeNotifier;
+
+trait TransportIngressWake {
+    fn wake_ingress_waiters(&self);
+}
+
+#[cfg(all(feature = "std", not(target_arch = "wasm32")))]
+impl TransportIngressWake for MailboxChangeNotifier {
+    fn wake_ingress_waiters(&self) {
+        self.changed.notify_all();
+    }
+}
+
+#[cfg(not(all(feature = "std", not(target_arch = "wasm32"))))]
+impl TransportIngressWake for MailboxChangeNotifier {
+    fn wake_ingress_waiters(&self) {}
 }
 
 impl SharedMailbox {
@@ -93,7 +138,7 @@ impl SharedMailbox {
     }
 
     fn take_waiters(state: &mut MailboxState) -> Vec<Waker> {
-        std::mem::take(&mut state.waiters)
+        mem::take(&mut state.waiters)
     }
 
     fn wake_waiters(waiters: Vec<Waker>) {
@@ -102,37 +147,44 @@ impl SharedMailbox {
         }
     }
 
-    cfg_if! {
-        if #[cfg(not(target_arch = "wasm32"))] {
-            #[expect(
-                clippy::disallowed_types,
-                reason = "Condvar and thread-parking APIs require std::time::Duration internally"
-            )]
-            fn std_duration(duration_ms: DurationMs) -> std::time::Duration {
-                std::time::Duration::from_millis(u64::from(duration_ms.0))
-            }
+    fn notify_changed(&self) {
+        self.notifier.wake_ingress_waiters();
+    }
 
-            fn notify_changed(shared: &Arc<Self>) {
-                shared.changed.notify_all();
-            }
-        } else {
-            fn notify_changed(_shared: &Arc<Self>) {}
-        }
+    #[cfg(feature = "std")]
+    fn with_state<Output>(&self, operation: impl FnOnce(&mut MailboxState) -> Output) -> Output {
+        let mut guard = self.storage.state.lock().expect("transport ingress lock");
+        operation(&mut guard)
+    }
+
+    #[cfg(not(feature = "std"))]
+    fn with_state<Output>(&self, operation: impl FnOnce(&mut MailboxState) -> Output) -> Output {
+        let mut guard = self.storage.state.borrow_mut();
+        operation(&mut guard)
+    }
+
+    #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
+    #[expect(
+        clippy::disallowed_types,
+        reason = "Condvar and thread-parking APIs require std::time::Duration internally"
+    )]
+    fn std_duration(duration_ms: DurationMs) -> std::time::Duration {
+        std::time::Duration::from_millis(u64::from(duration_ms.0))
     }
 }
 
 #[derive(Clone)]
 pub struct TransportIngressSender {
-    shared: Arc<SharedMailbox>,
+    shared: SharedMailboxHandle,
 }
 
 pub struct TransportIngressReceiver {
-    shared: Arc<SharedMailbox>,
+    shared: SharedMailboxHandle,
 }
 
 #[derive(Clone)]
 pub struct TransportIngressNotifier {
-    shared: Arc<SharedMailbox>,
+    shared: SharedMailboxHandle,
 }
 
 pub struct TransportIngressChanged<'a> {
@@ -152,29 +204,50 @@ pub fn transport_ingress_mailbox(
         capacity > 0,
         "transport ingress mailbox capacity must be non-zero"
     );
-    cfg_if! {
-        if #[cfg(not(target_arch = "wasm32"))] {
-            let shared = Arc::new(SharedMailbox {
-                state: Mutex::new(MailboxState::default()),
-                capacity,
-                changed: Condvar::new(),
-            });
-        } else {
-            let shared = Arc::new(SharedMailbox {
-                state: Mutex::new(MailboxState::default()),
-                capacity,
-            });
-        }
-    }
+    let shared = new_shared_mailbox(capacity);
     (
         TransportIngressSender {
-            shared: Arc::clone(&shared),
+            shared: shared.clone(),
         },
         TransportIngressReceiver {
-            shared: Arc::clone(&shared),
+            shared: shared.clone(),
         },
         TransportIngressNotifier { shared },
     )
+}
+
+#[cfg(feature = "std")]
+fn new_shared_mailbox(capacity: usize) -> SharedMailboxHandle {
+    Arc::new(SharedMailbox {
+        storage: MailboxStorage {
+            state: Mutex::new(MailboxState::default()),
+        },
+        capacity,
+        notifier: new_change_notifier(),
+    })
+}
+
+#[cfg(all(feature = "std", not(target_arch = "wasm32")))]
+fn new_change_notifier() -> MailboxChangeNotifier {
+    MailboxChangeNotifier {
+        changed: Condvar::new(),
+    }
+}
+
+#[cfg(all(feature = "std", target_arch = "wasm32"))]
+fn new_change_notifier() -> MailboxChangeNotifier {
+    MailboxChangeNotifier
+}
+
+#[cfg(not(feature = "std"))]
+fn new_shared_mailbox(capacity: usize) -> SharedMailboxHandle {
+    Rc::new(SharedMailbox {
+        storage: MailboxStorage {
+            state: RefCell::new(MailboxState::default()),
+        },
+        capacity,
+        notifier: MailboxChangeNotifier,
+    })
 }
 
 impl TransportIngressSender {
@@ -183,51 +256,44 @@ impl TransportIngressSender {
         class: TransportIngressClass,
         event: TransportIngressEvent,
     ) -> Result<TransportIngressSendOutcome, ControlIngressOverflow> {
-        let mut guard = self.shared.state.lock().expect("transport ingress lock");
-        if guard.events.len() >= self.shared.capacity {
-            if class == TransportIngressClass::Payload {
-                guard.dropped_payload_count = guard.dropped_payload_count.saturating_add(1);
-                SharedMailbox::bump_generation(&mut guard);
-                let waiters = SharedMailbox::take_waiters(&mut guard);
-                drop(guard);
-                SharedMailbox::notify_changed(&self.shared);
-                SharedMailbox::wake_waiters(waiters);
-                return Ok(TransportIngressSendOutcome::DroppedPayload);
+        let (result, waiters) = self.shared.with_state(|state| {
+            if state.events.len() >= self.shared.capacity {
+                if class == TransportIngressClass::Payload {
+                    state.dropped_payload_count = state.dropped_payload_count.saturating_add(1);
+                    SharedMailbox::bump_generation(state);
+                    let waiters = SharedMailbox::take_waiters(state);
+                    return (Ok(TransportIngressSendOutcome::DroppedPayload), waiters);
+                }
+                return (Err(ControlIngressOverflow), Vec::new());
             }
-            return Err(ControlIngressOverflow);
-        }
 
-        guard.events.push_back(event);
-        SharedMailbox::bump_generation(&mut guard);
-        let waiters = SharedMailbox::take_waiters(&mut guard);
-        drop(guard);
-        SharedMailbox::notify_changed(&self.shared);
+            state.events.push_back(event);
+            SharedMailbox::bump_generation(state);
+            let waiters = SharedMailbox::take_waiters(state);
+            (Ok(TransportIngressSendOutcome::Enqueued), waiters)
+        });
+        if !waiters.is_empty() || result.is_ok() {
+            self.shared.notify_changed();
+        }
         SharedMailbox::wake_waiters(waiters);
-        Ok(TransportIngressSendOutcome::Enqueued)
+        result
     }
 }
 
 impl TransportIngressReceiver {
     #[must_use]
     pub fn drain(&mut self) -> TransportIngressDrain {
-        let mut guard = self.shared.state.lock().expect("transport ingress lock");
-        let events = guard.events.drain(..).collect();
-        let dropped_payload_count = std::mem::take(&mut guard.dropped_payload_count);
-        TransportIngressDrain {
-            events,
-            dropped_payload_count,
-        }
+        self.shared.with_state(|state| TransportIngressDrain {
+            events: state.events.drain(..).collect(),
+            dropped_payload_count: mem::take(&mut state.dropped_payload_count),
+        })
     }
 }
 
 impl TransportIngressNotifier {
     #[must_use]
     pub fn snapshot(&self) -> u64 {
-        self.shared
-            .state
-            .lock()
-            .expect("transport ingress lock")
-            .generation
+        self.shared.with_state(|state| state.generation)
     }
 
     #[must_use]
@@ -235,35 +301,41 @@ impl TransportIngressNotifier {
         self.snapshot() != snapshot
     }
 
-    cfg_if! {
-        if #[cfg(not(target_arch = "wasm32"))] {
-            pub fn wait_for_change(&self, snapshot: u64) {
-                let mut guard = self.shared.state.lock().expect("transport ingress lock");
-                while guard.generation == snapshot {
-                    guard = self
-                        .shared
-                        .changed
-                        .wait(guard)
-                        .expect("transport ingress condvar");
-                }
-            }
-
-            #[must_use]
-            pub fn wait_for_change_within_ms(
-                &self,
-                snapshot: u64,
-                wait_ms: DurationMs,
-            ) -> bool {
-                let guard = self.shared.state.lock().expect("transport ingress lock");
-                let std_wait = SharedMailbox::std_duration(wait_ms);
-                let (guard, _) = self
-                    .shared
-                    .changed
-                    .wait_timeout_while(guard, std_wait, |state| state.generation == snapshot)
-                    .expect("transport ingress condvar");
-                guard.generation != snapshot
-            }
+    #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
+    pub fn wait_for_change(&self, snapshot: u64) {
+        let mut guard = self
+            .shared
+            .storage
+            .state
+            .lock()
+            .expect("transport ingress lock");
+        while guard.generation == snapshot {
+            guard = self
+                .shared
+                .notifier
+                .changed
+                .wait(guard)
+                .expect("transport ingress condvar");
         }
+    }
+
+    #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
+    #[must_use]
+    pub fn wait_for_change_within_ms(&self, snapshot: u64, wait_ms: DurationMs) -> bool {
+        let guard = self
+            .shared
+            .storage
+            .state
+            .lock()
+            .expect("transport ingress lock");
+        let std_wait = SharedMailbox::std_duration(wait_ms);
+        let (guard, _) = self
+            .shared
+            .notifier
+            .changed
+            .wait_timeout_while(guard, std_wait, |state| state.generation == snapshot)
+            .expect("transport ingress condvar");
+        guard.generation != snapshot
     }
 
     #[must_use]
@@ -279,24 +351,20 @@ impl Future for TransportIngressChanged<'_> {
     type Output = u64;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut guard = self
-            .notifier
-            .shared
-            .state
-            .lock()
-            .expect("transport ingress lock");
-        if guard.generation != self.snapshot {
-            return Poll::Ready(guard.generation);
-        }
+        self.notifier.shared.with_state(|state| {
+            if state.generation != self.snapshot {
+                return Poll::Ready(state.generation);
+            }
 
-        if !guard
-            .waiters
-            .iter()
-            .any(|waiter| waiter.will_wake(cx.waker()))
-        {
-            guard.waiters.push(cx.waker().clone());
-        }
-        Poll::Pending
+            if !state
+                .waiters
+                .iter()
+                .any(|waiter| waiter.will_wake(cx.waker()))
+            {
+                state.waiters.push(cx.waker().clone());
+            }
+            Poll::Pending
+        })
     }
 }
 
