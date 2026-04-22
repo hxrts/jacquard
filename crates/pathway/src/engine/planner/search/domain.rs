@@ -97,7 +97,8 @@ impl SearchDomain for PathwaySearchDomain {
 pub(super) fn snapshot_id_for_configuration(
     configuration: &Configuration,
 ) -> PathwaySearchSnapshotId {
-    let bytes = bincode::serialize(configuration).expect("configuration serialization is stable");
+    let bytes =
+        postcard::to_allocvec(configuration).expect("configuration serialization is stable");
     let digest = Blake3Hashing.hash_tagged(DOMAIN_TAG_SEARCH_SNAPSHOT, &bytes);
     let mut raw = [0_u8; 32];
     raw.copy_from_slice(digest.as_bytes());

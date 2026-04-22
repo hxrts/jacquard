@@ -7,7 +7,6 @@
 //! side effects through `PathwayProtocolRuntime` instead of scattering those
 //! calls across imperative engine helpers.
 
-use bincode::Options;
 use jacquard_core::{
     Blake3Digest, ContentId, HealthScore, LinkEndpoint, NodeId, RouteEpoch, RouteError, RouteId,
     RouteRuntimeError, Tick, TransportObservation,
@@ -621,9 +620,7 @@ fn checkpoint_bytes(checkpoint: &PathwayProtocolCheckpoint) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(32);
     bytes.push(1);
     bytes.extend(
-        bincode::DefaultOptions::new()
-            .with_fixint_encoding()
-            .serialize(checkpoint)
+        postcard::to_allocvec(checkpoint)
             .expect("pathway protocol checkpoints are always serializable"),
     );
     bytes
@@ -658,17 +655,13 @@ fn decode_checkpoint_bytes(bytes: &[u8]) -> Option<PathwayProtocolCheckpoint> {
     if *version != 1 {
         return None;
     }
-    bincode::DefaultOptions::new()
-        .with_fixint_encoding()
-        .deserialize(body)
-        .ok()
+    postcard::from_bytes(body).ok()
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
-    use bincode::Options;
     use jacquard_core::{
         Blake3Digest, ContentId, RouteEpoch, RouteError, RouteId, RouteRuntimeError, StorageError,
         Tick,
@@ -860,9 +853,6 @@ mod tests {
         if *version != 1 {
             return None;
         }
-        bincode::DefaultOptions::new()
-            .with_fixint_encoding()
-            .deserialize(rest)
-            .ok()
+        postcard::from_bytes(rest).ok()
     }
 }

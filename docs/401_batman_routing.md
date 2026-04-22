@@ -33,7 +33,7 @@ OriginatorAdvertisement {
 }
 ```
 
-No per-link state is included. Quality information travels as the `tq` scalar, which each re-broadcasting node updates before forwarding. Advertisements are framed with the eight-byte magic prefix `JQBATMNC` and bincode-serialized.
+No per-link state is included. Quality information travels as the `tq` scalar, which each re-broadcasting node updates before forwarding. Advertisements are framed with the eight-byte magic prefix `JQBATMNC` and postcard-serialized.
 
 ### Flooding and TTL
 

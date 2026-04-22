@@ -91,7 +91,7 @@ pub(super) fn snapshot_id_for_search_snapshot(
     snapshot: &FrozenFieldSearchSnapshot,
 ) -> FieldSearchSnapshotId {
     let bytes =
-        bincode::serialize(snapshot).expect("field search snapshot serialization is stable");
+        postcard::to_allocvec(snapshot).expect("field search snapshot serialization is stable");
     let digest = Blake3Hashing.hash_tagged(DOMAIN_TAG_FIELD_SEARCH_SNAPSHOT, &bytes);
     let mut raw = [0_u8; 32];
     raw.copy_from_slice(digest.as_bytes());

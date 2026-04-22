@@ -80,7 +80,9 @@ fn with_claims<Key, Output>(
     claims: &SharedClaims<Key>,
     operation: impl FnOnce(&mut BTreeSet<Key>) -> Output,
 ) -> Output {
-    let mut guard = claims.lock().expect("pending claims lock");
+    let mut guard = claims
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     operation(&mut guard)
 }
 

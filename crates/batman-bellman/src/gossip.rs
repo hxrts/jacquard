@@ -3,7 +3,7 @@
 //! `OriginatorAdvertisement` carries a node's self-reported link state: its
 //! originator ID, a sequence number, and a list of `AdvertisedLink` entries
 //! for each directly reachable neighbor. Advertisements are framed with the
-//! eight-byte magic prefix `JQBATMAN` and bincode-serialized by
+//! eight-byte magic prefix `JQBATMAN` and postcard-serialized by
 //! `encode_advertisement`, then validated and deserialized by
 //! `decode_advertisement`. `local_advertisement` builds the advertisement for
 //! the local node from the current topology observation. `merge_advertisements`
@@ -53,8 +53,8 @@ impl LearnedAdvertisement {
 
 pub(crate) fn encode_advertisement(
     advertisement: &OriginatorAdvertisement,
-) -> Result<Vec<u8>, bincode::Error> {
-    let payload = bincode::serialize(advertisement)?;
+) -> Result<Vec<u8>, postcard::Error> {
+    let payload = postcard::to_allocvec(advertisement)?;
     let mut framed = Vec::with_capacity(GOSSIP_MAGIC.len() + payload.len());
     framed.extend_from_slice(GOSSIP_MAGIC);
     framed.extend_from_slice(&payload);
@@ -65,7 +65,7 @@ pub(crate) fn decode_advertisement(payload: &[u8]) -> Option<OriginatorAdvertise
     if !payload.starts_with(GOSSIP_MAGIC) {
         return None;
     }
-    bincode::deserialize(&payload[GOSSIP_MAGIC.len()..]).ok()
+    postcard::from_bytes(&payload[GOSSIP_MAGIC.len()..]).ok()
 }
 
 pub(crate) fn local_advertisement(

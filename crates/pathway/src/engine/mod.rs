@@ -386,7 +386,7 @@ impl<Topology, Transport, Retention, Effects, Hasher, Selector>
         let Some(bytes) = self.effects.load_bytes(&key).storage_invalid()? else {
             return Ok(None);
         };
-        // Epoch is stored as raw LE bytes (not bincode) for cheap comparison.
+        // Epoch is stored as raw LE bytes for cheap comparison.
         // A wrong length means storage corruption; fail closed.
         if bytes.len() != std::mem::size_of::<u64>() {
             return Err(RouteError::Runtime(RouteRuntimeError::Invalidated));

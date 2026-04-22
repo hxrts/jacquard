@@ -381,20 +381,19 @@ where
                 route: route.clone(),
                 commitments: commitments.clone(),
             };
-            if let Err(error) = self
-                .runtime_adapter()
-                .persist_route(&record)
-                .and_then(|()| {
-                    self.runtime_adapter().record_route_event(
-                        jacquard_core::RouteEvent::RouteMaterialized {
-                            handle: jacquard_core::RouteHandle {
-                                stamp: route.identity.stamp.clone(),
-                            },
-                            proof: route.identity.proof.clone(),
-                        },
-                    )
-                })
-            {
+            if let Err(error) = self.runtime_adapter().persist_route(&record) {
+                self.engine_for_id_mut(&engine_id)?.teardown(&route_id);
+                return Err(error);
+            }
+            if let Err(error) = self.runtime_adapter().record_route_event(
+                jacquard_core::RouteEvent::RouteMaterialized {
+                    handle: jacquard_core::RouteHandle {
+                        stamp: route.identity.stamp.clone(),
+                    },
+                    proof: route.identity.proof.clone(),
+                },
+            ) {
+                let _rollback_failed = self.runtime_adapter().remove_route(&route_id).is_err();
                 self.engine_for_id_mut(&engine_id)?.teardown(&route_id);
                 return Err(error);
             }
@@ -551,6 +550,7 @@ where
         handoff: &RouteSemanticHandoff,
         result: &RouteMaintenanceResult,
     ) -> Result<RouterCanonicalMutation, RouteError> {
+        let rollback_record = self.checkpoint_record_for_active_route(route_id)?;
         let mut route = self
             .active_routes
             .get(route_id)
@@ -560,7 +560,13 @@ where
         route.identity.lease.owner_node_id = handoff.to_node_id;
         route.identity.lease.lease_epoch = handoff.handoff_epoch;
         let commitments = self.route_commitments_for(&route)?;
-        self.persist_route_with_event(route_id, route.clone(), commitments, result)?;
+        self.persist_route_with_event(
+            route_id,
+            route.clone(),
+            commitments,
+            result,
+            Some(rollback_record),
+        )?;
         Ok(RouterCanonicalMutation::LeaseTransferred {
             route_id: *route_id,
             handoff: handoff.clone(),
@@ -574,14 +580,21 @@ where
         result: &RouteMaintenanceResult,
     ) -> Result<RouterCanonicalMutation, RouteError> {
         let engine_id = self.route_engine_id(route_id)?;
-        self.engine_for_id_mut(&engine_id)?.teardown(route_id);
+        let rollback_record = self.checkpoint_record_for_active_route(route_id)?;
         self.runtime_adapter().remove_route(route_id)?;
-        self.runtime_adapter().record_route_event(
+        if let Err(error) = self.runtime_adapter().record_route_event(
             jacquard_core::RouteEvent::RouteMaintenanceCompleted {
                 route_id: *route_id,
                 result: result.clone(),
             },
-        )?;
+        ) {
+            let _rollback_failed = self
+                .runtime_adapter()
+                .restore_route_record(&rollback_record)
+                .is_err();
+            return Err(error);
+        }
+        self.engine_for_id_mut(&engine_id)?.teardown(route_id);
         self.active_routes.remove(route_id);
         self.published_commitments.remove(route_id);
         Ok(RouterCanonicalMutation::RouteExpired {
@@ -595,6 +608,7 @@ where
         next_runtime: jacquard_core::RouteRuntimeState,
         result: &RouteMaintenanceResult,
     ) -> Result<RouterCanonicalMutation, RouteError> {
+        let rollback_record = self.checkpoint_record_for_active_route(route_id)?;
         let mut route = self
             .active_routes
             .get(route_id)
@@ -602,8 +616,25 @@ where
             .ok_or(RouteSelectionError::NoCandidate)?;
         route.runtime = next_runtime;
         let commitments = self.route_commitments_for(&route)?;
-        self.persist_route_with_event(route_id, route, commitments, result)?;
+        self.persist_route_with_event(route_id, route, commitments, result, Some(rollback_record))?;
         Ok(RouterCanonicalMutation::None)
+    }
+
+    fn checkpoint_record_for_active_route(
+        &self,
+        route_id: &RouteId,
+    ) -> Result<RouterCheckpointRecord, RouteError> {
+        let route = self
+            .active_routes
+            .get(route_id)
+            .cloned()
+            .ok_or(RouteSelectionError::NoCandidate)?;
+        let commitments = self
+            .published_commitments
+            .get(route_id)
+            .cloned()
+            .ok_or(RouteSelectionError::NoCandidate)?;
+        Ok(RouterCheckpointRecord { route, commitments })
     }
 
     fn persist_route_with_event(
@@ -612,18 +643,29 @@ where
         route: MaterializedRoute,
         commitments: Vec<RouteCommitment>,
         result: &RouteMaintenanceResult,
+        rollback_record: Option<RouterCheckpointRecord>,
     ) -> Result<(), RouteError> {
         self.runtime_adapter()
             .persist_route(&RouterCheckpointRecord {
                 route: route.clone(),
                 commitments: commitments.clone(),
             })?;
-        self.runtime_adapter().record_route_event(
+        if let Err(error) = self.runtime_adapter().record_route_event(
             jacquard_core::RouteEvent::RouteMaintenanceCompleted {
                 route_id: *route_id,
                 result: result.clone(),
             },
-        )?;
+        ) {
+            if let Some(record) = rollback_record {
+                let _rollback_failed = self
+                    .runtime_adapter()
+                    .restore_route_record(&record)
+                    .is_err();
+            } else {
+                let _rollback_failed = self.runtime_adapter().remove_route(route_id).is_err();
+            }
+            return Err(error);
+        }
         self.active_routes.insert(*route_id, route);
         self.published_commitments.insert(*route_id, commitments);
         Ok(())

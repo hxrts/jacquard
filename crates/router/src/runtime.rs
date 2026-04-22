@@ -43,6 +43,8 @@ impl<T, E> StorageResultExt<T> for Result<T, E> {
 }
 use serde::{Deserialize, Serialize};
 
+const ROUTER_CHECKPOINT_BYTES_MAX: usize = 1_048_576;
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct RouterCheckpointRecord {
     pub(crate) route: MaterializedRoute,
@@ -96,6 +98,13 @@ where
         Ok(())
     }
 
+    pub(crate) fn restore_route_record(
+        &mut self,
+        record: &RouterCheckpointRecord,
+    ) -> Result<(), RouteError> {
+        self.persist_route(record)
+    }
+
     pub(crate) fn remove_route(&mut self, route_id: &RouteId) -> Result<(), RouteError> {
         let route_key = route_storage_key(&self.local_node_id, route_id);
         self.effects.remove_bytes(&route_key).storage_invalid()?;
@@ -116,8 +125,18 @@ where
                 pruned_registry.remove(&route_id);
                 continue;
             };
-            let record = decode_checkpoint_value::<RouterCheckpointRecord>(&bytes)?;
-            recovered.push((route_id, record));
+            if bytes.len() > ROUTER_CHECKPOINT_BYTES_MAX {
+                pruned_registry.remove(&route_id);
+                let _remove_failed = self.effects.remove_bytes(&route_key).is_err();
+                continue;
+            }
+            match decode_checkpoint_value::<RouterCheckpointRecord>(&bytes) {
+                Ok(record) => recovered.push((route_id, record)),
+                Err(_) => {
+                    pruned_registry.remove(&route_id);
+                    let _remove_failed = self.effects.remove_bytes(&route_key).is_err();
+                }
+            }
         }
         if pruned_registry != self.load_route_registry()? {
             self.store_route_registry(&pruned_registry)?;
@@ -147,6 +166,9 @@ where
 
     fn store_route_registry(&mut self, registry: &BTreeSet<RouteId>) -> Result<(), RouteError> {
         let registry_key = route_registry_storage_key(&self.local_node_id);
+        if registry.is_empty() {
+            return self.effects.remove_bytes(&registry_key).storage_invalid();
+        }
         let registry_bytes = encode_checkpoint_value(registry)?;
         self.effects
             .store_bytes(&registry_key, &registry_bytes)
@@ -169,15 +191,6 @@ fn route_storage_key(local_node_id: &NodeId, route_id: &RouteId) -> Vec<u8> {
     key
 }
 
-#[cfg(feature = "std")]
-fn encode_checkpoint_value<T>(value: &T) -> Result<Vec<u8>, RouteError>
-where
-    T: Serialize,
-{
-    bincode::serialize(value).storage_invalid()
-}
-
-#[cfg(not(feature = "std"))]
 fn encode_checkpoint_value<T>(value: &T) -> Result<Vec<u8>, RouteError>
 where
     T: Serialize,
@@ -185,18 +198,12 @@ where
     postcard::to_allocvec(value).storage_invalid()
 }
 
-#[cfg(feature = "std")]
 fn decode_checkpoint_value<T>(bytes: &[u8]) -> Result<T, RouteError>
 where
     T: for<'de> Deserialize<'de>,
 {
-    bincode::deserialize(bytes).storage_invalid()
-}
-
-#[cfg(not(feature = "std"))]
-fn decode_checkpoint_value<T>(bytes: &[u8]) -> Result<T, RouteError>
-where
-    T: for<'de> Deserialize<'de>,
-{
+    if bytes.len() > ROUTER_CHECKPOINT_BYTES_MAX {
+        return Err(RouteError::Runtime(RouteRuntimeError::Invalidated));
+    }
     postcard::from_bytes(bytes).storage_invalid()
 }

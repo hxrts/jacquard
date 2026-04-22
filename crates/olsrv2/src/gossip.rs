@@ -28,12 +28,12 @@ pub(crate) enum OlsrMessage {
     Tc(TcMessage),
 }
 
-pub(crate) fn encode_message(message: &OlsrMessage) -> Result<Vec<u8>, bincode::Error> {
-    bincode::serialize(message)
+pub(crate) fn encode_message(message: &OlsrMessage) -> Result<Vec<u8>, postcard::Error> {
+    postcard::to_allocvec(message)
 }
 
 pub(crate) fn decode_message(payload: &[u8]) -> Option<OlsrMessage> {
-    bincode::deserialize(payload).ok()
+    postcard::from_bytes(payload).ok()
 }
 
 pub(crate) fn originated_hello(
@@ -77,7 +77,7 @@ mod tests {
     }
 
     #[test]
-    fn hello_round_trips_through_bincode() {
+    fn hello_round_trips_through_postcard() {
         let message = originated_hello(node(1), 7, [node(2), node(3)], [node(2)]);
         let payload = encode_message(&message).expect("encode hello");
         let decoded = decode_message(&payload).expect("decode hello");
@@ -86,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn tc_round_trips_through_bincode() {
+    fn tc_round_trips_through_postcard() {
         let message = originated_tc(node(4), 9, [node(2), node(5), node(3)]);
         let payload = encode_message(&message).expect("encode tc");
         let decoded = decode_message(&payload).expect("decode tc");

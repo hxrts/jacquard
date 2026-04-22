@@ -49,9 +49,9 @@ pub(crate) fn originated_update(local_node_id: NodeId, seqno: u16) -> BabelUpdat
 }
 
 /// Encode an update for transmission: prepend the eight-byte magic prefix, then
-/// bincode-serialize the update.
-pub(crate) fn encode_update(update: &BabelUpdate) -> Result<Vec<u8>, bincode::Error> {
-    let payload = bincode::serialize(update)?;
+/// postcard-serialize the update.
+pub(crate) fn encode_update(update: &BabelUpdate) -> Result<Vec<u8>, postcard::Error> {
+    let payload = postcard::to_allocvec(update)?;
     let mut framed = Vec::with_capacity(GOSSIP_MAGIC.len() + payload.len());
     framed.extend_from_slice(GOSSIP_MAGIC);
     framed.extend_from_slice(&payload);
@@ -63,5 +63,5 @@ pub(crate) fn decode_update(payload: &[u8]) -> Option<BabelUpdate> {
     if !payload.starts_with(GOSSIP_MAGIC) {
         return None;
     }
-    bincode::deserialize(&payload[GOSSIP_MAGIC.len()..]).ok()
+    postcard::from_bytes(&payload[GOSSIP_MAGIC.len()..]).ok()
 }

@@ -25,7 +25,7 @@ BabelUpdate {
 }
 ```
 
-The originator sets `metric=0` and assigns a monotonically increasing `seqno`. Each relay node adds the local link cost to the metric before re-advertising. The `router_id` identifies the originator of the route entry. Updates are framed with the eight-byte magic prefix `JQBABEL.` and bincode-serialized.
+The originator sets `metric=0` and assigns a monotonically increasing `seqno`. Each relay node adds the local link cost to the metric before re-advertising. The `router_id` identifies the originator of the route entry. Updates are framed with the eight-byte magic prefix `JQBABEL.` and postcard-serialized.
 
 No TTL field is present. Propagation depth is controlled by the decay window: stale entries are pruned when `observed_at_tick` exceeds `stale_after_ticks`. No hop-count bound is needed because only the selected route per destination is re-advertised, and infeasible routes are rejected by the feasibility condition.
 

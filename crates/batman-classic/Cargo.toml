@@ -13,10 +13,10 @@ description = "Spec-faithful classic BATMAN next-hop routing engine for Jacquard
 workspace = true
 
 [dependencies]
-bincode = { workspace = true }
 jacquard-host-support = { path = "../host-support", version = "0.8.0" }
 jacquard-core = { path = "../core", version = "0.8.0" }
 jacquard-traits = { path = "../traits", version = "0.8.0" }
+postcard = { workspace = true }
 serde = { workspace = true, default-features = false }
 
 [dev-dependencies]

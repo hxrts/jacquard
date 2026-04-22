@@ -18,7 +18,6 @@ use std::{
     convert::TryFrom,
 };
 
-use bincode::Options;
 #[allow(unused_imports)]
 use jacquard_core::{
     BackendRouteId, Belief, ByteCount, CommitteeSelection, Configuration, DegradationReason,
@@ -141,22 +140,11 @@ pub(super) fn committee_status(
     }
 }
 
-// `allow_trailing_bytes` is required because decode_versioned strips the
-// leading version byte before passing the rest to bincode, which would
-// otherwise reject the slice as oversized.
-fn canonical_options() -> impl Options {
-    bincode::DefaultOptions::new()
-        .with_fixint_encoding()
-        .allow_trailing_bytes()
-}
-
 fn encode_versioned<T: Serialize>(version: u8, value: &T) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(32);
     bytes.push(version);
     bytes.extend(
-        canonical_options()
-            .serialize(value)
-            .expect("pathway canonical bytes are always serializable"),
+        postcard::to_allocvec(value).expect("pathway canonical bytes are always serializable"),
     );
     bytes
 }
@@ -166,7 +154,7 @@ fn decode_versioned<T: for<'de> Deserialize<'de>>(bytes: &[u8], version: u8) -> 
     if *encoded_version != version {
         return None;
     }
-    canonical_options().deserialize(rest).ok()
+    postcard::from_bytes(rest).ok()
 }
 
 // Unweighted BFS. Returns the shortest node path from the local node
@@ -848,6 +836,12 @@ mod tests {
         bytes.iter().map(|byte| format!("{byte:02x}")).collect()
     }
 
+    fn encoding_digest_hex(bytes: &[u8]) -> String {
+        let digest =
+            jacquard_traits::Blake3Hashing.hash_tagged(b"pathway-canonical-encoding-test", bytes);
+        hex(digest.as_bytes())
+    }
+
     #[test]
     fn canonical_encodings_round_trip() {
         let plan = sample_plan_token();
@@ -876,25 +870,31 @@ mod tests {
     }
 
     #[test]
-    fn canonical_bytes_snapshot_values() {
+    fn canonical_encoding_digests_are_stable() {
         let plan = sample_plan_token();
         let checkpointed_route = sample_active_route();
+        let backend_token = encode_backend_token(&plan);
         let route_identity = encode_route_identity_bytes(&plan);
+        let checkpoint = checkpoint_bytes(&checkpointed_route);
         let route_id_digest =
             jacquard_traits::Blake3Hashing.hash_tagged(DOMAIN_TAG_ROUTE_ID, &route_identity);
         let route_id = &route_id_digest.as_bytes()[..16];
+
+        assert_eq!(backend_token.0.len(), 265);
+        assert_eq!(route_identity.len(), 171);
+        assert_eq!(checkpoint.len(), 96);
         assert_eq!(
-            hex(&encode_backend_token(&plan).0),
-            "01020000000000000001010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000010000000300000000000000626c6511000000000000000202020202020202020202020202020202400000000000000003030303030303030303030303030303030303030303030303030303030303030300000000000000070000000000000072656c61792d33c80f780500000000000002000000000000000e000000000000000300000001000000090909090909090909090909090909090200000000000000020000000000000002000000000000000a000000000000000100000001000000010000000101000000000000000202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020200000000"
+            encoding_digest_hex(&backend_token.0),
+            "a799e1175cf11957094ae35f7bf357d1a47e2daf663caf06ebdb77f139dd3906"
         );
         assert_eq!(
-            hex(&route_identity),
-            "0101010101010101010101010101010101010101010101010101010101010101010000000003030303030303030303030303030303030303030303030303030303030303030200000000000000020202020202020202020202020202020202020202020202020202020202020200000000010000000300000000000000626c6511000000000000000202020202020202020202020202020202400000000000000003030303030303030303030303030303030303030303030303030303030303030300000000000000070000000000000072656c61792d33c80f780500000000000003000000"
+            encoding_digest_hex(&route_identity),
+            "794aca5688918110e91000cfc4f1715a4befa79244da3af2f7bae1d36ff5a130"
         );
-        assert_eq!(hex(route_id), "1e935e11a0b1c424705ee0d6502f47ee");
+        assert_eq!(hex(route_id), "ca0b57c68788596c1a166617929531ef");
         assert_eq!(
-            hex(&checkpoint_bytes(&checkpointed_route)),
-            "010200000000000000010101010101010101010101010101010101010101010101010101010101010101020000000103000000000000000300000001040000000000000001050505050505050505050505050505050105000000000000000101000000000000000606060606060606060606060606060606060606060606060606060606060606010600000000000000"
+            encoding_digest_hex(&checkpoint),
+            "bcbb29716ee52e0cb1dd0005d0b3a34aadd2c3b9c9f5763be0fb5ff77668a78b"
         );
     }
 

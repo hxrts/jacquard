@@ -585,13 +585,13 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 name = "jacquard-babel"
 version = "0.8.0"
 dependencies = [
- "bincode",
  "jacquard-core",
  "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-testkit",
  "jacquard-traits",
+ "postcard",
  "serde",
 ]
 
@@ -599,13 +599,13 @@ dependencies = [
 name = "jacquard-batman-bellman"
 version = "0.8.0"
 dependencies = [
- "bincode",
  "jacquard-core",
  "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-router",
  "jacquard-traits",
+ "postcard",
  "serde",
 ]
 
@@ -613,13 +613,13 @@ dependencies = [
 name = "jacquard-batman-classic"
 version = "0.8.0"
 dependencies = [
- "bincode",
  "jacquard-core",
  "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-testkit",
  "jacquard-traits",
+ "postcard",
  "serde",
 ]
 
@@ -645,13 +645,13 @@ dependencies = [
 name = "jacquard-field"
 version = "0.8.0"
 dependencies = [
- "bincode",
  "cfg-if",
  "jacquard-core",
  "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-traits",
+ "postcard",
  "serde",
  "serde_json",
  "telltale-search",
@@ -717,13 +717,13 @@ dependencies = [
 name = "jacquard-olsrv2"
 version = "0.8.0"
 dependencies = [
- "bincode",
  "jacquard-core",
  "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-router",
  "jacquard-traits",
+ "postcard",
  "serde",
 ]
 
@@ -731,12 +731,12 @@ dependencies = [
 name = "jacquard-pathway"
 version = "0.8.0"
 dependencies = [
- "bincode",
  "cfg-if",
  "jacquard-core",
  "jacquard-mem-link-profile",
  "jacquard-testkit",
  "jacquard-traits",
+ "postcard",
  "serde",
  "serde_json",
  "telltale",
@@ -771,7 +771,6 @@ dependencies = [
 name = "jacquard-router"
 version = "0.8.0"
 dependencies = [
- "bincode",
  "jacquard-batman-bellman",
  "jacquard-core",
  "jacquard-field",
@@ -787,13 +786,13 @@ dependencies = [
 name = "jacquard-scatter"
 version = "0.8.0"
 dependencies = [
- "bincode",
  "jacquard-core",
  "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-router",
  "jacquard-traits",
+ "postcard",
  "serde",
 ]
 

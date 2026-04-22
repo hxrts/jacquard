@@ -66,6 +66,65 @@ fn activation_fails_closed_when_router_event_logging_fails() {
     ));
     assert_eq!(router.active_route_count(), 0);
     assert!(router.effects().events.is_empty());
+    assert!(router.effects().storage.is_empty());
+}
+
+#[test]
+fn maintenance_event_failure_preserves_previous_checkpoint() {
+    let mut router = build_router(Tick(2));
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation");
+    let storage_before = router.effects().storage.clone();
+    let events_before = router.effects().events.clone();
+
+    router.effects_mut().fail_record_route_event = true;
+    let error = router
+        .maintain_route(
+            &route.identity.stamp.route_id,
+            RouteMaintenanceTrigger::AntiEntropyRequired,
+        )
+        .expect_err("maintenance must fail closed when event logging fails");
+
+    assert!(matches!(
+        error,
+        jacquard_core::RouteError::Runtime(jacquard_core::RouteRuntimeError::Invalidated)
+    ));
+    assert_eq!(router.effects().storage, storage_before);
+    assert_eq!(router.effects().events, events_before);
+    assert!(router
+        .active_route(&route.identity.stamp.route_id)
+        .is_some());
+}
+
+#[test]
+fn lease_expiry_event_failure_preserves_route_checkpoint_and_engine_state() {
+    let mut router = build_router(Tick(2));
+    let route = Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation");
+    let storage_before = router.effects().storage.clone();
+    let events_before = router.effects().events.clone();
+
+    router.effects_mut().now = Tick(50);
+    router.effects_mut().fail_record_route_event = true;
+    let error = router
+        .maintain_route(
+            &route.identity.stamp.route_id,
+            RouteMaintenanceTrigger::AntiEntropyRequired,
+        )
+        .expect_err("expiry maintenance must fail closed when event logging fails");
+
+    assert!(matches!(
+        error,
+        jacquard_core::RouteError::Runtime(jacquard_core::RouteRuntimeError::Invalidated)
+    ));
+    assert_eq!(router.effects().storage, storage_before);
+    assert_eq!(router.effects().events, events_before);
+    assert!(router
+        .active_route(&route.identity.stamp.route_id)
+        .is_some());
+    router
+        .forward_payload(&route.identity.stamp.route_id, b"still-active")
+        .expect("failed expiry must not tear down engine-private state");
 }
 
 #[test]
@@ -136,6 +195,43 @@ fn recovery_restores_router_and_pathway_state_from_router_owned_registry() {
     recovered
         .forward_payload(&route.identity.stamp.route_id, b"recovered")
         .expect("recovered router forwards using restored engine-private state");
+}
+
+#[test]
+fn recovery_prunes_corrupt_checkpoint_records_without_aborting() {
+    let shared_state = Arc::new(Mutex::new(BTreeSet::new()));
+    let mut router = build_router_with_recoverable_engine(
+        Tick(2),
+        InMemoryRuntimeEffects {
+            now: Tick(2),
+            ..Default::default()
+        },
+        shared_state.clone(),
+    );
+    Router::activate_route(&mut router, objective(DestinationId::Node(FAR_NODE_ID)))
+        .expect("activation");
+    let mut persisted_router_effects = router.effects().clone();
+    let route_key = persisted_router_effects
+        .storage
+        .keys()
+        .find(|key| {
+            key.windows(b"/route/".len())
+                .any(|window| window == b"/route/")
+        })
+        .cloned()
+        .expect("route checkpoint key");
+    persisted_router_effects
+        .storage
+        .insert(route_key.clone(), b"corrupt-checkpoint".to_vec());
+
+    let mut recovered =
+        build_router_with_recoverable_engine(Tick(2), persisted_router_effects, shared_state);
+    let restored_count = recovered
+        .recover_checkpointed_routes()
+        .expect("corrupt route checkpoint is pruned");
+
+    assert_eq!(restored_count, 0);
+    assert!(!recovered.effects().storage.contains_key(&route_key));
 }
 
 #[test]

@@ -34,7 +34,7 @@ use core::cell::RefCell;
 #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
 use std::sync::Condvar;
 #[cfg(feature = "std")]
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use jacquard_core::TransportIngressEvent;
 use jacquard_macros::public_model;
@@ -82,7 +82,7 @@ struct MailboxState {
     events: VecDeque<TransportIngressEvent>,
     dropped_payload_count: u64,
     generation: u64,
-    waiters: Vec<Waker>,
+    waiter: Option<Waker>,
 }
 
 #[cfg(feature = "std")]
@@ -137,12 +137,12 @@ impl SharedMailbox {
         state.generation = state.generation.saturating_add(1);
     }
 
-    fn take_waiters(state: &mut MailboxState) -> Vec<Waker> {
-        mem::take(&mut state.waiters)
+    fn take_waiter(state: &mut MailboxState) -> Option<Waker> {
+        state.waiter.take()
     }
 
-    fn wake_waiters(waiters: Vec<Waker>) {
-        for waiter in waiters {
+    fn wake_waiter(waiter: Option<Waker>) {
+        if let Some(waiter) = waiter {
             waiter.wake();
         }
     }
@@ -153,8 +153,16 @@ impl SharedMailbox {
 
     #[cfg(feature = "std")]
     fn with_state<Output>(&self, operation: impl FnOnce(&mut MailboxState) -> Output) -> Output {
-        let mut guard = self.storage.state.lock().expect("transport ingress lock");
+        let mut guard = self.lock_state();
         operation(&mut guard)
+    }
+
+    #[cfg(feature = "std")]
+    fn lock_state(&self) -> MutexGuard<'_, MailboxState> {
+        self.storage
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     #[cfg(not(feature = "std"))]
@@ -256,26 +264,26 @@ impl TransportIngressSender {
         class: TransportIngressClass,
         event: TransportIngressEvent,
     ) -> Result<TransportIngressSendOutcome, ControlIngressOverflow> {
-        let (result, waiters) = self.shared.with_state(|state| {
+        let (result, waiter) = self.shared.with_state(|state| {
             if state.events.len() >= self.shared.capacity {
                 if class == TransportIngressClass::Payload {
                     state.dropped_payload_count = state.dropped_payload_count.saturating_add(1);
                     SharedMailbox::bump_generation(state);
-                    let waiters = SharedMailbox::take_waiters(state);
-                    return (Ok(TransportIngressSendOutcome::DroppedPayload), waiters);
+                    let waiter = SharedMailbox::take_waiter(state);
+                    return (Ok(TransportIngressSendOutcome::DroppedPayload), waiter);
                 }
-                return (Err(ControlIngressOverflow), Vec::new());
+                return (Err(ControlIngressOverflow), None);
             }
 
             state.events.push_back(event);
             SharedMailbox::bump_generation(state);
-            let waiters = SharedMailbox::take_waiters(state);
-            (Ok(TransportIngressSendOutcome::Enqueued), waiters)
+            let waiter = SharedMailbox::take_waiter(state);
+            (Ok(TransportIngressSendOutcome::Enqueued), waiter)
         });
-        if !waiters.is_empty() || result.is_ok() {
+        if waiter.is_some() || result.is_ok() {
             self.shared.notify_changed();
         }
-        SharedMailbox::wake_waiters(waiters);
+        SharedMailbox::wake_waiter(waiter);
         result
     }
 }
@@ -303,38 +311,28 @@ impl TransportIngressNotifier {
 
     #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
     pub fn wait_for_change(&self, snapshot: u64) {
-        let mut guard = self
-            .shared
-            .storage
-            .state
-            .lock()
-            .expect("transport ingress lock");
+        let mut guard = self.shared.lock_state();
         while guard.generation == snapshot {
             guard = self
                 .shared
                 .notifier
                 .changed
                 .wait(guard)
-                .expect("transport ingress condvar");
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
         }
     }
 
     #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
     #[must_use]
     pub fn wait_for_change_within_ms(&self, snapshot: u64, wait_ms: DurationMs) -> bool {
-        let guard = self
-            .shared
-            .storage
-            .state
-            .lock()
-            .expect("transport ingress lock");
+        let guard = self.shared.lock_state();
         let std_wait = SharedMailbox::std_duration(wait_ms);
         let (guard, _) = self
             .shared
             .notifier
             .changed
             .wait_timeout_while(guard, std_wait, |state| state.generation == snapshot)
-            .expect("transport ingress condvar");
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         guard.generation != snapshot
     }
 
@@ -356,12 +354,11 @@ impl Future for TransportIngressChanged<'_> {
                 return Poll::Ready(state.generation);
             }
 
-            if !state
-                .waiters
-                .iter()
-                .any(|waiter| waiter.will_wake(cx.waker()))
-            {
-                state.waiters.push(cx.waker().clone());
+            match &state.waiter {
+                Some(waiter) if waiter.will_wake(cx.waker()) => {}
+                _ => {
+                    state.waiter = Some(cx.waker().clone());
+                }
             }
             Poll::Pending
         })
@@ -560,5 +557,37 @@ mod tests {
             changed.as_mut().poll(&mut context),
             Poll::Ready(_)
         ));
+    }
+
+    #[test]
+    fn changed_future_keeps_single_waiter_slot() {
+        #[derive(Debug)]
+        struct NoopWaker;
+
+        impl Wake for NoopWaker {
+            fn wake(self: Arc<Self>) {}
+        }
+
+        let (_, _, notifier) = transport_ingress_mailbox(1);
+        let snapshot = notifier.snapshot();
+        let first_waker = Waker::from(Arc::new(NoopWaker));
+        let second_waker = Waker::from(Arc::new(NoopWaker));
+        let mut first_context = Context::from_waker(&first_waker);
+        let mut second_context = Context::from_waker(&second_waker);
+        let mut first = Box::pin(notifier.changed(snapshot));
+        let mut second = Box::pin(notifier.changed(snapshot));
+
+        assert!(matches!(
+            first.as_mut().poll(&mut first_context),
+            Poll::Pending
+        ));
+        assert!(matches!(
+            second.as_mut().poll(&mut second_context),
+            Poll::Pending
+        ));
+
+        notifier.shared.with_state(|state| {
+            assert!(state.waiter.is_some());
+        });
     }
 }

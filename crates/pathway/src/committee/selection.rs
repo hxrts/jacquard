@@ -10,7 +10,6 @@
 use core::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
-use bincode::Options;
 use jacquard_core::{
     CommitteeId, CommitteeMember, CommitteeRole, CommitteeSelection, Configuration, ControllerId,
     FactBasis, IdentityAssuranceClass, NodeId, Observation, QuorumThreshold, RouteEpoch,
@@ -445,13 +444,11 @@ where
             epoch: RouteEpoch,
         }
 
-        let payload = bincode::DefaultOptions::new()
-            .with_fixint_encoding()
-            .serialize(&CommitteeSeed {
-                destination: &objective.destination,
-                epoch,
-            })
-            .expect("committee seed is always serializable");
+        let payload = postcard::to_allocvec(&CommitteeSeed {
+            destination: &objective.destination,
+            epoch,
+        })
+        .expect("committee seed is always serializable");
         let digest = self
             .hashing
             .hash_tagged(crate::engine::DOMAIN_TAG_COMMITTEE_ID, &payload);

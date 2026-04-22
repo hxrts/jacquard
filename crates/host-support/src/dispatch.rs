@@ -82,7 +82,9 @@ fn with_queue<T, Output>(
     queue: &DispatchQueue<T>,
     operation: impl FnOnce(&mut VecDeque<T>) -> Output,
 ) -> Output {
-    let mut guard = queue.lock().expect("dispatch queue lock");
+    let mut guard = queue
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     operation(&mut guard)
 }
 

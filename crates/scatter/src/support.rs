@@ -2,7 +2,6 @@
 
 use std::collections::BTreeSet;
 
-use bincode::Options;
 use jacquard_core::{
     AdmissionAssumptions, AdversaryRegime, BackendRouteId, BackendRouteRef, Belief, ByteCount,
     ClaimStrength, Configuration, ConnectivityPosture, ConnectivityRegime, DegradationReason,
@@ -582,11 +581,7 @@ pub(crate) fn route_id_for_backend(backend_route_id: &BackendRouteId) -> jacquar
 pub(crate) fn encode_backend_token(token: &ScatterBackendToken) -> BackendRouteId {
     let mut bytes = Vec::with_capacity(32);
     bytes.push(BACKEND_TOKEN_ENCODING_VERSION);
-    bytes.extend(
-        canonical_options()
-            .serialize(token)
-            .expect("serialize backend token"),
-    );
+    bytes.extend(postcard::to_allocvec(token).expect("serialize backend token"));
     BackendRouteId(bytes)
 }
 
@@ -600,11 +595,7 @@ pub(crate) fn encode_packet(packet: &ScatterWirePacket) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(packet.payload.len().saturating_add(32));
     bytes.extend_from_slice(SCATTER_PACKET_MAGIC);
     bytes.push(SCATTER_WIRE_PACKET_ENCODING_VERSION);
-    bytes.extend(
-        canonical_options()
-            .serialize(packet)
-            .expect("serialize packet"),
-    );
+    bytes.extend(postcard::to_allocvec(packet).expect("serialize packet"));
     bytes
 }
 
@@ -616,9 +607,7 @@ pub(crate) fn decode_packet(payload: &[u8]) -> Option<ScatterWirePacket> {
     if version != SCATTER_WIRE_PACKET_ENCODING_VERSION {
         return None;
     }
-    canonical_options()
-        .deserialize(&payload[SCATTER_PACKET_MAGIC.len().saturating_add(1)..])
-        .ok()
+    postcard::from_bytes(&payload[SCATTER_PACKET_MAGIC.len().saturating_add(1)..]).ok()
 }
 
 pub(crate) fn packet_expired(packet: &ScatterWirePacket, current_tick: Tick) -> bool {
@@ -750,16 +739,10 @@ pub(crate) fn urgency_from_payload_len(payload_len: usize) -> ScatterUrgencyClas
     }
 }
 
-fn canonical_options() -> impl Options {
-    bincode::DefaultOptions::new()
-        .with_fixint_encoding()
-        .allow_trailing_bytes()
-}
-
 fn decode_versioned<T: for<'de> Deserialize<'de>>(bytes: &[u8], version: u8) -> Option<T> {
     let (encoded_version, rest) = bytes.split_first()?;
     if *encoded_version != version {
         return None;
     }
-    canonical_options().deserialize(rest).ok()
+    postcard::from_bytes(rest).ok()
 }
