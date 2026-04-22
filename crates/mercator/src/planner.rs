@@ -2,6 +2,8 @@
 
 // proc-macro-scope: Mercator engine-private planner glue stays outside #[public_model].
 
+use alloc::vec::Vec;
+
 use jacquard_core::{
     Configuration, Observation, RouteAdmission, RouteAdmissionCheck, RouteCandidate, RouteError,
     RoutingEngineCapabilities, RoutingEngineId, RoutingObjective, SelectedRoutingParameters,

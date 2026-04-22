@@ -12,6 +12,9 @@
 //! - success-bearing mutations are proof-gated by typed engine evidence
 
 #![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
 
 mod delivery;
 mod middleware;

@@ -97,7 +97,7 @@ The default workspace profile is a `std` profile. It supports native host builds
 
 The wasm profile is a target compatibility check for selected `std` crates on `wasm32-unknown-unknown`. It does not prove that a crate is `no_std`. A crate can compile for wasm while still using the standard library surface available on that target.
 
-The embedded profile is a `no_std` plus `alloc` profile for the deterministic model, route, cast, host-support, and Mercator path needed by MCU transport adapters such as jq-lora. That profile avoids direct thread, blocking wait, wall-clock, filesystem, and host I/O APIs. Platform behavior enters through explicit host or executor adapters.
+The embedded profile is a `no_std` plus `alloc` profile for the deterministic model, route, cast, host-support, and Mercator path needed by MCU transport adapters such as jq-lora. Mercator is the in-tree engine path for this profile. That profile avoids direct thread, blocking wait, wall-clock, filesystem, and host I/O APIs. Platform behavior enters through explicit host or executor adapters.
 
 `jacquard-cast-support` sits alongside profile and host-integration crates as deterministic evidence and delivery support. It is part of the portable `no_std` plus `alloc` profile. It normalizes unicast, multicast, and broadcast cast inputs into bounded, ordered helper records, then can derive route-neutral delivery support from those records and an explicit delivery objective. Profiles can map that support into route-visible `TransportDeliverySupport` without flattening multicast or broadcast into fake unicast links. It leaves transport send/receive, endpoint authoring, retry scheduling, custody storage, and route publication to their owning crates.
 

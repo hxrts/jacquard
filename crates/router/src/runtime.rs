@@ -19,7 +19,7 @@
 //!   `RouteError::Runtime(Invalidated)` so that middleware can enforce
 //!   fail-closed semantics uniformly at the activation boundary.
 
-use std::collections::BTreeSet;
+use alloc::{collections::BTreeSet, vec::Vec};
 
 use jacquard_core::{
     MaterializedRoute, NodeId, RouteCommitment, RouteError, RouteEvent, RouteEventStamped, RouteId,

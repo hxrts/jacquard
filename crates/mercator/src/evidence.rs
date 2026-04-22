@@ -2,7 +2,8 @@
 
 // proc-macro-scope: Mercator engine-private evidence state stays outside #[public_model].
 
-use std::collections::BTreeMap;
+use alloc::{collections::BTreeMap, vec::Vec};
+use core::cmp::Reverse;
 
 use jacquard_core::{
     DestinationId, DurationMs, GatewayId, NodeId, OrderStamp, RouteEpoch, RouteId, ServiceId, Tick,
@@ -117,11 +118,11 @@ pub struct MercatorLinkEvidence {
 
 impl MercatorLinkEvidence {
     #[must_use]
-    pub fn pruning_key(&self) -> (u8, u16, std::cmp::Reverse<u16>, Tick, OrderStamp, NodeId) {
+    pub fn pruning_key(&self) -> (u8, u16, Reverse<u16>, Tick, OrderStamp, NodeId) {
         (
             1,
             self.bidirectional_confidence,
-            std::cmp::Reverse(self.asymmetric_penalty),
+            Reverse(self.asymmetric_penalty),
             self.meta.observed_at_tick,
             self.meta.order,
             self.to,
@@ -231,9 +232,9 @@ pub struct MercatorBrokerPressure {
 
 impl MercatorBrokerPressure {
     #[must_use]
-    pub fn pruning_key(&self) -> (std::cmp::Reverse<u16>, u32, Tick, OrderStamp, NodeId) {
+    pub fn pruning_key(&self) -> (Reverse<u16>, u32, Tick, OrderStamp, NodeId) {
         (
-            std::cmp::Reverse(self.pressure_score),
+            Reverse(self.pressure_score),
             self.participation_count,
             self.meta.observed_at_tick,
             self.meta.order,
@@ -295,7 +296,7 @@ impl MercatorCustodyOpportunity {
         &self,
     ) -> (
         u16,
-        std::cmp::Reverse<u16>,
+        Reverse<u16>,
         Tick,
         OrderStamp,
         MercatorObjectiveKey,
@@ -303,7 +304,7 @@ impl MercatorCustodyOpportunity {
     ) {
         (
             self.improvement_score,
-            std::cmp::Reverse(self.custody_pressure),
+            Reverse(self.custody_pressure),
             self.meta.observed_at_tick,
             self.meta.order,
             self.objective.clone(),

@@ -15,7 +15,11 @@
 //! - canonical route mutations and registry-level engine dispatch happen here
 //! - registered engines return typed evidence and opaque private runtime state
 
-use std::{any::Any, cmp::Reverse, collections::BTreeMap, sync::Arc};
+use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use core::{any::Any, cmp::Reverse};
+
+#[cfg(feature = "std")]
+use std::sync::Arc;
 
 use jacquard_core::{
     AdmissionDecision, Belief, CapabilityError, Configuration, FactSourceClass, MaterializedRoute,
@@ -71,7 +75,7 @@ pub struct MultiEngineRouter<Policy, Effects> {
     registered_engines: BTreeMap<RoutingEngineId, RegisteredEngine>,
     policy_engine: Policy,
     effects: Effects,
-    topology: Arc<Observation<Configuration>>,
+    topology: Observation<Configuration>,
     policy_inputs: RoutingPolicyInputs,
     active_routes: BTreeMap<RouteId, MaterializedRoute>,
     published_commitments: BTreeMap<RouteId, Vec<RouteCommitment>>,
@@ -95,7 +99,7 @@ where
             registered_engines: BTreeMap::new(),
             policy_engine,
             effects,
-            topology: Arc::new(topology),
+            topology,
             policy_inputs,
             active_routes: BTreeMap::new(),
             published_commitments: BTreeMap::new(),
@@ -124,15 +128,16 @@ where
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     pub fn ingest_shared_topology_observation(
         &mut self,
         topology: Arc<Observation<Configuration>>,
     ) {
-        self.topology = topology;
+        self.topology = topology.as_ref().clone();
     }
 
     pub fn ingest_topology_observation(&mut self, topology: Observation<Configuration>) {
-        self.ingest_shared_topology_observation(Arc::new(topology));
+        self.topology = topology;
     }
 
     pub fn ingest_policy_inputs(&mut self, inputs: RoutingPolicyInputs) {
@@ -158,10 +163,9 @@ where
         for (route_id, record) in records {
             let engine_id = record.route.identity.admission.summary.engine.clone();
             let restored = match self.registered_engines.get_mut(&engine_id) {
-                Some(entry) => entry.engine.restore_route_runtime_with_record_for_router(
-                    &record.route,
-                    self.topology.as_ref(),
-                )?,
+                Some(entry) => entry
+                    .engine
+                    .restore_route_runtime_with_record_for_router(&record.route, &self.topology)?,
                 None => false,
             };
             if !restored {
@@ -287,7 +291,7 @@ where
     }
 
     fn advance_all_engines(&mut self) -> Result<(RoutingTickChange, RoutingTickHint), RouteError> {
-        let tick = RoutingTickContext::new(self.topology.as_ref().clone());
+        let tick = RoutingTickContext::new(self.topology.clone());
         let mut aggregate = RoutingTickChange::NoChange;
         let mut hint = RoutingTickHint::HostDefault;
         for entry in self.registered_engines.values_mut() {

@@ -8,11 +8,15 @@
 // proc-macro-scope: Mercator's crate root exposes engine services, not shared model vocabulary.
 
 #![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
-use std::{
-    cell::{Cell, RefCell},
+extern crate alloc;
+
+use alloc::{
     collections::{BTreeMap, BTreeSet},
+    vec::Vec,
 };
+use core::cell::{Cell, RefCell};
 
 pub mod corridor;
 mod corridor_token;

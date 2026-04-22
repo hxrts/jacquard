@@ -2,6 +2,8 @@
 
 // proc-macro-scope: Mercator engine-private custody state stays outside #[public_model].
 
+use alloc::vec::Vec;
+
 use jacquard_core::{
     Blake3Digest, ContentId, DestinationId, NodeId, OrderStamp, RetentionError, RouteEpoch, Tick,
 };

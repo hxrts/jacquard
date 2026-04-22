@@ -2,7 +2,12 @@
 
 // proc-macro-scope: Mercator engine-private route planning stays outside #[public_model].
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use alloc::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    vec,
+    vec::Vec,
+};
+use core::cmp::Reverse;
 
 use jacquard_core::{
     AdmissionAssumptions, AdmissionDecision, AdversaryRegime, BackendRouteId, BackendRouteRef,
@@ -105,9 +110,9 @@ struct CorridorOrderingKey {
     freshness_rank: u8,
     overload_rank: u8,
     support_score: u16,
-    broker_pressure_inverse: std::cmp::Reverse<u16>,
+    broker_pressure_inverse: Reverse<u16>,
     continuity_rank: u8,
-    hop_count_inverse: std::cmp::Reverse<u8>,
+    hop_count_inverse: Reverse<u8>,
     tie_break: NodeId,
 }
 
@@ -218,7 +223,7 @@ pub fn plan_corridor_with_context(
         return MercatorPlanningOutcome::NoCandidate;
     }
     realizations.sort_by_key(|realization| {
-        std::cmp::Reverse(realization_ordering_key_with_config(
+        Reverse(realization_ordering_key_with_config(
             realization,
             inputs.config,
         ))
@@ -445,7 +450,7 @@ pub(crate) fn alternate_paths_for_repair(
     );
     realizations.retain(|realization| realization.path != primary_path);
     realizations.sort_by_key(|realization| {
-        std::cmp::Reverse(realization_ordering_key_with_config(realization, config))
+        Reverse(realization_ordering_key_with_config(realization, config))
     });
     realizations
         .into_iter()
@@ -736,7 +741,7 @@ fn usable_neighbors(
         }
     }
     let mut ranked = neighbors.into_iter().collect::<Vec<_>>();
-    ranked.sort_by_key(|(neighbor, score)| (std::cmp::Reverse(*score), *neighbor));
+    ranked.sort_by_key(|(neighbor, score)| (Reverse(*score), *neighbor));
     ranked.into_iter().map(|(neighbor, _)| neighbor).collect()
 }
 
@@ -809,9 +814,9 @@ fn realization_ordering_key_with_threshold(
         freshness_rank: support_state_rank(MercatorSupportState::Fresh),
         overload_rank: u8::from(realization.broker_pressure < overload_threshold),
         support_score: realization.support_score,
-        broker_pressure_inverse: std::cmp::Reverse(realization.broker_pressure),
+        broker_pressure_inverse: Reverse(realization.broker_pressure),
         continuity_rank: 0,
-        hop_count_inverse: std::cmp::Reverse(hop_count_for_path(&realization.path)),
+        hop_count_inverse: Reverse(hop_count_for_path(&realization.path)),
         tie_break: realization.path.last().copied().unwrap_or(NodeId([0; 32])),
     }
 }

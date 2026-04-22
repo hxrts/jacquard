@@ -2,6 +2,8 @@
 
 // proc-macro-scope: Mercator engine-private token encoding stays outside #[public_model].
 
+use alloc::vec::Vec;
+
 use jacquard_core::{
     BackendRouteId, DestinationId, GatewayId, NodeId, RouteEpoch, RouteId, RouteSelectionError,
     ServiceId,

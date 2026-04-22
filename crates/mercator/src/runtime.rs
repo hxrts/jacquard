@@ -2,6 +2,9 @@
 
 // proc-macro-scope: Mercator runtime behavior stays outside shared model macros.
 
+use alloc::{boxed::Box, vec::Vec};
+use core::any::Any;
+
 use jacquard_core::{
     Configuration, MaterializedRoute, NodeId, Observation, OrderStamp, PublishedRouteRecord,
     ReachabilityState, RouteCommitment, RouteError, RouteId, RouteInstallation,
@@ -174,7 +177,7 @@ impl RouterManagedEngine for MercatorEngine {
     fn analysis_snapshot_for_router(
         &self,
         _active_routes: &[MaterializedRoute],
-    ) -> Option<Box<dyn std::any::Any>> {
+    ) -> Option<Box<dyn Any>> {
         Some(Box::new(self.router_analysis_snapshot()))
     }
 }
