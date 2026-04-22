@@ -12,9 +12,13 @@ description = "Deterministic hybrid corridor routing engine skeleton for Jacquar
 [lints]
 workspace = true
 
+[features]
+default = ["std"]
+std = ["jacquard-core/std", "jacquard-traits/std", "serde/std"]
+
 [dependencies]
-jacquard-core = { path = "../core", version = "0.8.0" }
-jacquard-traits = { path = "../traits", version = "0.8.0" }
+jacquard-core = { path = "../core", version = "0.8.0", default-features = false }
+jacquard-traits = { path = "../traits", version = "0.8.0", default-features = false }
 serde = { workspace = true, default-features = false }
 
 [dev-dependencies]

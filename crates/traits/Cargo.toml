@@ -12,10 +12,14 @@ description = "Routing trait definitions for Jacquard"
 [lints]
 workspace = true
 
+[features]
+default = ["std"]
+std = ["blake3/std", "jacquard-core/std"]
+
 [dependencies]
-jacquard-core = { path = "../core", version = "0.8.0" }
+jacquard-core = { path = "../core", version = "0.8.0", default-features = false }
 jacquard-macros = { path = "../macros", version = "0.8.0" }
-blake3 = "1"
+blake3 = { version = "1", default-features = false }
 rust-toolkit-effects = { workspace = true }
 
 [dev-dependencies]
