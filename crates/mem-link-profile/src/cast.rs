@@ -6,7 +6,8 @@
 //! remains caller-owned through an explicit resolver closure.
 
 use jacquard_cast_support::{
-    BroadcastDeliverySupport, MulticastDeliverySupport, UnicastDeliverySupport,
+    BroadcastDeliverySupport, MulticastDeliverySupport, ReceiverCoverageEvidence,
+    UnicastDeliverySupport,
 };
 use jacquard_core::{ByteCount, Link, LinkEndpoint, NodeId, RatioPermille, Tick};
 
@@ -42,20 +43,7 @@ impl CastLinkPreset {
         support: &MulticastDeliverySupport,
         mut endpoint_for: impl FnMut(NodeId, ByteCount) -> LinkEndpoint,
     ) -> Vec<CastLinkObservation> {
-        support
-            .receivers
-            .iter()
-            .map(|receiver| {
-                directed_link(
-                    support.sender,
-                    receiver.receiver,
-                    support.confidence_permille,
-                    support.payload_bytes_max,
-                    support.meta.observed_at_tick,
-                    &mut endpoint_for,
-                )
-            })
-            .collect()
+        receiver_support_links(support, &mut endpoint_for)
     }
 
     #[must_use]
@@ -63,21 +51,80 @@ impl CastLinkPreset {
         support: &BroadcastDeliverySupport,
         mut endpoint_for: impl FnMut(NodeId, ByteCount) -> LinkEndpoint,
     ) -> Vec<CastLinkObservation> {
-        support
-            .receivers
-            .iter()
-            .map(|receiver| {
-                directed_link(
-                    support.sender,
-                    receiver.receiver,
-                    support.confidence_permille,
-                    support.payload_bytes_max,
-                    support.meta.observed_at_tick,
-                    &mut endpoint_for,
-                )
-            })
-            .collect()
+        receiver_support_links(support, &mut endpoint_for)
     }
+}
+
+trait ReceiverDeliverySupport {
+    fn sender(&self) -> NodeId;
+    fn receivers(&self) -> &[ReceiverCoverageEvidence];
+    fn confidence_permille(&self) -> RatioPermille;
+    fn payload_bytes_max(&self) -> ByteCount;
+    fn observed_at_tick(&self) -> Tick;
+}
+
+impl ReceiverDeliverySupport for MulticastDeliverySupport {
+    fn sender(&self) -> NodeId {
+        self.sender
+    }
+
+    fn receivers(&self) -> &[ReceiverCoverageEvidence] {
+        &self.receivers
+    }
+
+    fn confidence_permille(&self) -> RatioPermille {
+        self.confidence_permille
+    }
+
+    fn payload_bytes_max(&self) -> ByteCount {
+        self.payload_bytes_max
+    }
+
+    fn observed_at_tick(&self) -> Tick {
+        self.meta.observed_at_tick
+    }
+}
+
+impl ReceiverDeliverySupport for BroadcastDeliverySupport {
+    fn sender(&self) -> NodeId {
+        self.sender
+    }
+
+    fn receivers(&self) -> &[ReceiverCoverageEvidence] {
+        &self.receivers
+    }
+
+    fn confidence_permille(&self) -> RatioPermille {
+        self.confidence_permille
+    }
+
+    fn payload_bytes_max(&self) -> ByteCount {
+        self.payload_bytes_max
+    }
+
+    fn observed_at_tick(&self) -> Tick {
+        self.meta.observed_at_tick
+    }
+}
+
+fn receiver_support_links(
+    support: &impl ReceiverDeliverySupport,
+    endpoint_for: &mut impl FnMut(NodeId, ByteCount) -> LinkEndpoint,
+) -> Vec<CastLinkObservation> {
+    support
+        .receivers()
+        .iter()
+        .map(|receiver| {
+            directed_link(
+                support.sender(),
+                receiver.receiver,
+                support.confidence_permille(),
+                support.payload_bytes_max(),
+                support.observed_at_tick(),
+                endpoint_for,
+            )
+        })
+        .collect()
 }
 
 fn directed_link(
