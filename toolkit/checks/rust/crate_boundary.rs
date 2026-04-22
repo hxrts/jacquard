@@ -77,6 +77,14 @@ const FORBIDDEN_DEPENDENCIES: &[(&str, &[&str])] = &[
         "jacquard-transport",
         &["jacquard-pathway", "jacquard-router"],
     ),
+    ("jacquard-pathway", &["jacquard-cast-support"]),
+    ("jacquard-babel", &["jacquard-cast-support"]),
+    ("jacquard-batman-bellman", &["jacquard-cast-support"]),
+    ("jacquard-batman-classic", &["jacquard-cast-support"]),
+    ("jacquard-olsrv2", &["jacquard-cast-support"]),
+    ("jacquard-field", &["jacquard-cast-support"]),
+    ("jacquard-scatter", &["jacquard-cast-support"]),
+    ("jacquard-mercator", &["jacquard-cast-support"]),
 ];
 
 pub fn run() -> Result<()> {

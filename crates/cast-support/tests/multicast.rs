@@ -4,7 +4,9 @@ use jacquard_cast_support::{
     shape_multicast_evidence, CastEvidenceBounds, CastEvidenceMeta, CastEvidencePolicy,
     CastGroupId, MulticastObservation, ReceiverCoverageObservation,
 };
-use jacquard_core::{ByteCount, DurationMs, NodeId, OrderStamp, RatioPermille, Tick};
+use jacquard_core::{
+    ByteCount, DurationMs, MulticastGroupId, NodeId, OrderStamp, RatioPermille, Tick,
+};
 
 fn node(byte: u8) -> NodeId {
     NodeId([byte; 32])
@@ -39,12 +41,12 @@ fn receiver(byte: u8, confidence: u16) -> ReceiverCoverageObservation {
     }
 }
 
-fn group(name: &[u8]) -> CastGroupId {
-    CastGroupId(name.to_vec())
+fn group(byte: u8) -> CastGroupId {
+    CastGroupId::new(MulticastGroupId([byte; 16]))
 }
 
 fn observation(
-    name: &[u8],
+    group_byte: u8,
     receivers: Vec<ReceiverCoverageObservation>,
     pressure: u16,
     fanout: u32,
@@ -52,7 +54,7 @@ fn observation(
 ) -> MulticastObservation {
     MulticastObservation {
         sender: node(1),
-        group_id: group(name),
+        group_id: group(group_byte),
         receivers,
         group_pressure_permille: RatioPermille(pressure),
         fanout_limit: fanout,
@@ -65,7 +67,7 @@ fn observation(
 fn multicast_full_and_partial_coverage_are_explicit() {
     let (evidence, _report) = shape_multicast_evidence(
         [observation(
-            b"team",
+            1,
             vec![receiver(2, 800), receiver(3, 700)],
             100,
             2,
@@ -86,26 +88,23 @@ fn multicast_full_and_partial_coverage_are_explicit() {
 fn multicast_group_pressure_reduces_ranking() {
     let (evidence, _report) = shape_multicast_evidence(
         [
-            observation(b"quiet", vec![receiver(2, 800)], 100, 1, 1),
-            observation(b"loaded", vec![receiver(3, 800)], 900, 1, 2),
+            observation(1, vec![receiver(2, 800)], 100, 1, 1),
+            observation(2, vec![receiver(3, 800)], 900, 1, 2),
         ],
         policy(),
     );
 
-    assert_eq!(evidence[0].group_id, group(b"quiet"));
-    assert_eq!(evidence[1].group_id, group(b"loaded"));
+    assert_eq!(evidence[0].group_id, group(1));
+    assert_eq!(evidence[1].group_id, group(2));
 }
 
 #[test]
 fn multicast_stale_group_evidence_and_bounded_fanout_are_omitted() {
-    let mut stale = observation(b"stale", vec![receiver(2, 800)], 100, 1, 1);
+    let mut stale = observation(1, vec![receiver(2, 800)], 100, 1, 1);
     stale.meta = meta(1_001, 1);
 
     let (evidence, report) = shape_multicast_evidence(
-        [
-            stale,
-            observation(b"wide", vec![receiver(3, 800)], 100, 4, 2),
-        ],
+        [stale, observation(2, vec![receiver(3, 800)], 100, 4, 2)],
         policy(),
     );
 
@@ -117,14 +116,14 @@ fn multicast_stale_group_evidence_and_bounded_fanout_are_omitted() {
 #[test]
 fn multicast_receiver_order_is_stable_across_input_ordering() {
     let first = observation(
-        b"group",
+        1,
         vec![receiver(4, 700), receiver(2, 900), receiver(3, 800)],
         100,
         3,
         1,
     );
     let second = observation(
-        b"group",
+        1,
         vec![receiver(3, 800), receiver(2, 900), receiver(4, 700)],
         100,
         3,
@@ -149,7 +148,7 @@ fn multicast_receiver_order_is_stable_across_input_ordering() {
 fn multicast_low_confidence_receivers_do_not_force_all_or_nothing_delivery() {
     let (evidence, _report) = shape_multicast_evidence(
         [observation(
-            b"mixed",
+            1,
             vec![receiver(2, 800), receiver(3, 400), receiver(4, 700)],
             100,
             3,
@@ -166,5 +165,25 @@ fn multicast_low_confidence_receivers_do_not_force_all_or_nothing_delivery() {
             .map(|receiver| receiver.receiver)
             .collect::<Vec<_>>(),
         vec![node(2), node(4)]
+    );
+}
+
+#[test]
+fn route_group_identity_is_direct_and_stable() {
+    let id = MulticastGroupId([9; 16]);
+
+    assert_eq!(CastGroupId::new(id).to_route_group_id(), id);
+}
+
+#[test]
+fn route_group_identity_distinguishes_explicit_ids_with_shared_prefix() {
+    let mut left = [7; 16];
+    let mut right = [7; 16];
+    left[15] = 1;
+    right[15] = 2;
+
+    assert_ne!(
+        CastGroupId::new(MulticastGroupId(left)).to_route_group_id(),
+        CastGroupId::new(MulticastGroupId(right)).to_route_group_id()
     );
 }

@@ -27,6 +27,8 @@ super::bytes_newtype!(DiscoveryScopeId, 16);
 super::bytes_newtype!(HomeId, 16);
 super::bytes_newtype!(ClusterId, 16);
 super::bytes_newtype!(GatewayId, 16);
+super::bytes_newtype!(MulticastGroupId, 16);
+super::bytes_newtype!(BroadcastDomainId, 16);
 super::bytes_newtype!(RouteId, 16);
 super::bytes_newtype!(RoutingEngineContractId, 16);
 super::bytes_newtype!(RouteOperationId, 16);

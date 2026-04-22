@@ -16,6 +16,7 @@ use jacquard_core::{
     Configuration, DestinationId, Link, MaterializedRoute, Node, NodeId, Observation, RouteEvent,
     RouteEventStamped, RouteHealth, RouteId, RouteLifecycleEvent, RouteShapeVisibility,
     RouterCanonicalMutation, RouterRoundOutcome, RoutingEngineCapabilities, RoutingEngineId, Tick,
+    TransportDeliveryMode,
 };
 use serde::{Deserialize, Serialize};
 
@@ -61,6 +62,7 @@ pub struct ObservedRoute {
     pub destination: DestinationId,
     pub engine_id: RoutingEngineId,
     pub route_shape: ObservedRouteShape,
+    pub delivery_mode: TransportDeliveryMode,
     pub hop_count_hint: jacquard_core::Belief<u8>,
     pub topology_epoch: jacquard_core::RouteEpoch,
     pub publication_id: jacquard_core::PublicationId,
@@ -227,6 +229,9 @@ impl TopologyProjector {
             destination: route.identity.admission.objective.destination.clone(),
             engine_id: summary.engine.clone(),
             route_shape: self.project_shape(&summary.engine),
+            delivery_mode: delivery_mode_for_destination(
+                &route.identity.admission.objective.destination,
+            ),
             hop_count_hint: summary.hop_count_hint,
             topology_epoch: route.identity.topology_epoch(),
             publication_id: *route.identity.publication_id(),
@@ -248,6 +253,13 @@ impl TopologyProjector {
                 caps.route_shape_visibility
             });
         ObservedRouteShape::from_visibility(visibility)
+    }
+}
+
+fn delivery_mode_for_destination(destination: &DestinationId) -> TransportDeliveryMode {
+    match destination {
+        DestinationId::Node(_) => TransportDeliveryMode::Unicast,
+        DestinationId::Service(_) | DestinationId::Gateway(_) => TransportDeliveryMode::Unicast,
     }
 }
 
@@ -629,6 +641,7 @@ mod tests {
             .expect("projected route");
         assert_eq!(projected.engine_id, ENGINE_A);
         assert_eq!(projected.route_shape, ObservedRouteShape::Opaque);
+        assert_eq!(projected.delivery_mode, TransportDeliveryMode::Unicast);
         assert_eq!(projected.hop_count_hint, Belief::certain(2, Tick(5)));
     }
 

@@ -1,15 +1,19 @@
 //! Cast delivery-support adapters for in-memory link authoring.
 //!
 //! `jacquard-cast-support` shapes profile-owned physical facts into
-//! route-neutral delivery support. This module turns that support into ordinary
-//! in-memory directed links for tests and reference fixtures. Endpoint authoring
-//! remains caller-owned through an explicit resolver closure.
+//! route-neutral delivery support. This module preserves the shaped delivery
+//! mode while also offering ordinary in-memory directed links for tests and
+//! reference fixtures. Endpoint authoring remains caller-owned through an
+//! explicit resolver closure.
 
 use jacquard_cast_support::{
-    BroadcastDeliverySupport, MulticastDeliverySupport, ReceiverCoverageEvidence,
-    UnicastDeliverySupport,
+    BroadcastDeliverySupport, BroadcastSupportKind, MulticastDeliverySupport,
+    ReceiverCoverageEvidence, UnicastDeliverySupport,
 };
-use jacquard_core::{ByteCount, Link, LinkEndpoint, NodeId, RatioPermille, Tick};
+use jacquard_core::{
+    ByteCount, Link, LinkEndpoint, NodeId, RatioPermille, ReverseDeliveryConfirmation, Tick,
+    TransportDeliverySupport,
+};
 
 use crate::{LinkPreset, LinkPresetOptions};
 
@@ -18,6 +22,7 @@ pub struct CastLinkObservation {
     pub from: NodeId,
     pub to: NodeId,
     pub link: Link,
+    pub delivery_support: TransportDeliverySupport,
 }
 
 pub struct CastLinkPreset;
@@ -28,12 +33,17 @@ impl CastLinkPreset {
         support: &UnicastDeliverySupport,
         mut endpoint_for: impl FnMut(NodeId, ByteCount) -> LinkEndpoint,
     ) -> CastLinkObservation {
+        let mut delivery_support_for = |endpoint| TransportDeliverySupport::IsolatedUnicast {
+            endpoint,
+            receiver: support.receiver,
+        };
         directed_link(
             support.sender,
             support.receiver,
             support.confidence_permille,
             support.payload_bytes_max,
             support.meta.observed_at_tick,
+            &mut delivery_support_for,
             &mut endpoint_for,
         )
     }
@@ -43,7 +53,17 @@ impl CastLinkPreset {
         support: &MulticastDeliverySupport,
         mut endpoint_for: impl FnMut(NodeId, ByteCount) -> LinkEndpoint,
     ) -> Vec<CastLinkObservation> {
-        receiver_support_links(support, &mut endpoint_for)
+        receiver_support_links(support, &mut endpoint_for, |endpoint| {
+            TransportDeliverySupport::Multicast {
+                endpoint,
+                group_id: support.group_id.to_route_group_id(),
+                receivers: support
+                    .receivers
+                    .iter()
+                    .map(|receiver| receiver.receiver)
+                    .collect(),
+            }
+        })
     }
 
     #[must_use]
@@ -51,7 +71,24 @@ impl CastLinkPreset {
         support: &BroadcastDeliverySupport,
         mut endpoint_for: impl FnMut(NodeId, ByteCount) -> LinkEndpoint,
     ) -> Vec<CastLinkObservation> {
-        receiver_support_links(support, &mut endpoint_for)
+        receiver_support_links(support, &mut endpoint_for, |endpoint| {
+            TransportDeliverySupport::Broadcast {
+                endpoint,
+                domain_id: support.domain_id,
+                receivers: support
+                    .receivers
+                    .iter()
+                    .map(|receiver| receiver.receiver)
+                    .collect(),
+                reverse_confirmation: if support.support
+                    == BroadcastSupportKind::DirectReverseConfirmed
+                {
+                    ReverseDeliveryConfirmation::Confirmed
+                } else {
+                    ReverseDeliveryConfirmation::Unconfirmed
+                },
+            }
+        })
     }
 }
 
@@ -110,6 +147,7 @@ impl ReceiverDeliverySupport for BroadcastDeliverySupport {
 fn receiver_support_links(
     support: &impl ReceiverDeliverySupport,
     endpoint_for: &mut impl FnMut(NodeId, ByteCount) -> LinkEndpoint,
+    mut delivery_support_for: impl FnMut(LinkEndpoint) -> TransportDeliverySupport,
 ) -> Vec<CastLinkObservation> {
     support
         .receivers()
@@ -121,6 +159,7 @@ fn receiver_support_links(
                 support.confidence_permille(),
                 support.payload_bytes_max(),
                 support.observed_at_tick(),
+                &mut delivery_support_for,
                 endpoint_for,
             )
         })
@@ -133,14 +172,21 @@ fn directed_link(
     confidence: RatioPermille,
     payload_bytes_max: ByteCount,
     observed_at_tick: Tick,
+    delivery_support_for: &mut impl FnMut(LinkEndpoint) -> TransportDeliverySupport,
     endpoint_for: &mut impl FnMut(NodeId, ByteCount) -> LinkEndpoint,
 ) -> CastLinkObservation {
     let endpoint = endpoint_for(to, payload_bytes_max);
+    let delivery_support = delivery_support_for(endpoint.clone());
     let link = LinkPreset::lossy(
         LinkPresetOptions::new(endpoint, observed_at_tick).with_confidence(confidence),
     )
     .build();
-    CastLinkObservation { from, to, link }
+    CastLinkObservation {
+        from,
+        to,
+        link,
+        delivery_support,
+    }
 }
 
 #[cfg(test)]
@@ -149,7 +195,10 @@ mod tests {
         BroadcastDeliverySupport, BroadcastSupportKind, CastDeliveryResourceUse, CastEvidenceMeta,
         MulticastDeliverySupport, ReceiverCoverageEvidence, UnicastDeliverySupport,
     };
-    use jacquard_core::{ByteCount, DurationMs, LinkEndpoint, OrderStamp, TransportKind};
+    use jacquard_core::{
+        BroadcastDomainId, ByteCount, DurationMs, LinkEndpoint, MulticastGroupId, OrderStamp,
+        TransportDeliveryMode, TransportKind,
+    };
     use jacquard_host_support::opaque_endpoint;
 
     use super::*;
@@ -205,13 +254,17 @@ mod tests {
             RatioPermille(850)
         );
         assert_eq!(observation.link.endpoint.mtu_bytes, ByteCount(512));
+        assert_eq!(
+            observation.delivery_support.mode(),
+            TransportDeliveryMode::Unicast
+        );
     }
 
     #[test]
     fn multicast_support_builds_stable_receiver_links() {
         let support = MulticastDeliverySupport {
             sender: node(1),
-            group_id: jacquard_cast_support::CastGroupId(b"team".to_vec()),
+            group_id: jacquard_cast_support::CastGroupId::new(MulticastGroupId([1; 16])),
             receivers: vec![
                 ReceiverCoverageEvidence {
                     receiver: node(2),
@@ -251,12 +304,16 @@ mod tests {
                 .value_or(RatioPermille(0))
                 == RatioPermille(720)
         }));
+        assert!(observations.iter().all(|observation| {
+            observation.delivery_support.mode() == TransportDeliveryMode::Multicast
+        }));
     }
 
     #[test]
     fn broadcast_support_preserves_profile_side_delivery_confidence() {
         let support = BroadcastDeliverySupport {
             sender: node(1),
+            domain_id: BroadcastDomainId([9; 16]),
             receivers: vec![ReceiverCoverageEvidence {
                 receiver: node(4),
                 confidence_permille: RatioPermille(750),
@@ -281,6 +338,10 @@ mod tests {
                 .delivery_confidence_permille
                 .value_or(RatioPermille(0)),
             RatioPermille(600)
+        );
+        assert_eq!(
+            observations[0].delivery_support.mode(),
+            TransportDeliveryMode::Broadcast
         );
     }
 }

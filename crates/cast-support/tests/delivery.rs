@@ -6,7 +6,10 @@ use jacquard_cast_support::{
     CastEvidencePolicy, CastGroupId, CastReceiverSet, MulticastObservation,
     ReceiverCoverageObservation, UnicastObservation,
 };
-use jacquard_core::{ByteCount, DurationMs, NodeId, OrderStamp, RatioPermille, Tick};
+use jacquard_core::{
+    BroadcastDomainId, ByteCount, DurationMs, MulticastGroupId, NodeId, OrderStamp, RatioPermille,
+    Tick,
+};
 
 fn node(byte: u8) -> NodeId {
     NodeId([byte; 32])
@@ -62,8 +65,12 @@ fn unicast_observation(to: u8, confidence: u16, reverse: Option<u16>) -> Unicast
     }
 }
 
-fn group(name: &[u8]) -> CastGroupId {
-    CastGroupId(name.to_vec())
+fn group(byte: u8) -> CastGroupId {
+    CastGroupId::new(MulticastGroupId([byte; 16]))
+}
+
+fn domain(byte: u8) -> BroadcastDomainId {
+    BroadcastDomainId([byte; 16])
 }
 
 #[test]
@@ -106,7 +113,7 @@ fn multicast_delivery_respects_partial_coverage_policy() {
     let (evidence, _) = shape_multicast_evidence(
         [MulticastObservation {
             sender: node(1),
-            group_id: group(b"team"),
+            group_id: group(1),
             receivers: vec![receiver(2, 900), receiver(3, 800)],
             group_pressure_permille: RatioPermille(100),
             fanout_limit: 3,
@@ -117,7 +124,7 @@ fn multicast_delivery_respects_partial_coverage_policy() {
     );
     let objective = CastDeliveryObjective::multicast(
         node(1),
-        group(b"team"),
+        group(1),
         [node(2), node(4)],
         CastCoverageObjective::AnyReceiver,
     );
@@ -168,8 +175,12 @@ fn broadcast_delivery_can_reject_gateway_assisted_reverse_support() {
         ],
         evidence_policy(),
     );
-    let objective =
-        CastDeliveryObjective::broadcast(node(1), [node(2)], CastCoverageObjective::AllReceivers);
+    let objective = CastDeliveryObjective::broadcast_in_domain(
+        node(1),
+        domain(1),
+        [node(2)],
+        CastCoverageObjective::AllReceivers,
+    );
     let policy = CastDeliveryPolicy {
         require_bidirectional: true,
         allow_gateway_assisted_broadcast: false,
@@ -214,8 +225,9 @@ fn broadcast_delivery_ordering_is_deterministic() {
         ],
         evidence_policy(),
     );
-    let objective = CastDeliveryObjective::broadcast(
+    let objective = CastDeliveryObjective::broadcast_in_domain(
         node(1),
+        domain(1),
         [node(2), node(3)],
         CastCoverageObjective::AnyReceiver,
     );

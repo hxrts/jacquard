@@ -4,7 +4,9 @@ use jacquard_cast_support::{
     CastEvidencePolicy, CastGroupId, MulticastObservation, ReceiverCoverageObservation,
     UnicastObservation, UnicastSupportKind,
 };
-use jacquard_core::{ByteCount, DurationMs, NodeId, OrderStamp, RatioPermille, Tick};
+use jacquard_core::{
+    ByteCount, DurationMs, MulticastGroupId, NodeId, OrderStamp, RatioPermille, Tick,
+};
 
 fn node(byte: u8) -> NodeId {
     NodeId([byte; 32])
@@ -79,7 +81,7 @@ fn multicast_surface_enforces_group_coverage_bounds() {
     let (evidence, report) = shape_multicast_evidence(
         [MulticastObservation {
             sender: node(1),
-            group_id: CastGroupId(b"group".to_vec()),
+            group_id: CastGroupId::new(MulticastGroupId([1; 16])),
             receivers,
             group_pressure_permille: RatioPermille(100),
             fanout_limit: 2,

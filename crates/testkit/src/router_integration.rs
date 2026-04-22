@@ -182,7 +182,7 @@ where
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OutboundFrame {
-    pub endpoint: LinkEndpoint,
+    pub intent: jacquard_core::TransportDeliveryIntent,
     pub payload: Vec<u8>,
 }
 
@@ -200,7 +200,21 @@ impl TransportSenderEffects for QueuedTransportSender {
     ) -> Result<(), TransportError> {
         self.outbound
             .send(OutboundFrame {
-                endpoint: endpoint.clone(),
+                intent: jacquard_core::TransportDeliveryIntent::unicast(endpoint.clone()),
+                payload: payload.to_vec(),
+            })
+            .map(|_| ())
+            .map_err(|_| TransportError::Unavailable)
+    }
+
+    fn send_transport_to(
+        &mut self,
+        intent: &jacquard_core::TransportDeliveryIntent,
+        payload: &[u8],
+    ) -> Result<(), TransportError> {
+        self.outbound
+            .send(OutboundFrame {
+                intent: intent.clone(),
                 payload: payload.to_vec(),
             })
             .map(|_| ())
@@ -288,7 +302,7 @@ impl RouterIntegrationHost {
         self.router.advance_round().expect("advance router round");
         for frame in self.outbound.drain() {
             self.driver
-                .send_transport(&frame.endpoint, &frame.payload)
+                .send_transport_to(&frame.intent, &frame.payload)
                 .expect("flush outbound frame");
         }
     }

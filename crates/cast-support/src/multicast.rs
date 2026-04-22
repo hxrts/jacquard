@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use jacquard_core::{ByteCount, NodeId, RatioPermille};
+use jacquard_core::{ByteCount, MulticastGroupId, NodeId, RatioPermille};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -13,7 +13,19 @@ use crate::{
 // proc-macro-scope: Multicast profile evidence shaping is plain helper logic.
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct CastGroupId(pub Vec<u8>);
+pub struct CastGroupId(pub MulticastGroupId);
+
+impl CastGroupId {
+    #[must_use]
+    pub const fn new(group_id: MulticastGroupId) -> Self {
+        Self(group_id)
+    }
+
+    #[must_use]
+    pub const fn to_route_group_id(&self) -> MulticastGroupId {
+        self.0
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MulticastObservation {

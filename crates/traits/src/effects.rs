@@ -22,7 +22,7 @@
 
 use jacquard_core::{
     Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError, RouteEventStamped,
-    StorageError, Tick, TransportError,
+    StorageError, Tick, TransportDeliveryIntent, TransportError,
 };
 use jacquard_macros::{effect_trait, purity};
 pub use rust_toolkit_effects::Effect;
@@ -82,6 +82,19 @@ pub trait TransportSenderEffects {
         endpoint: &jacquard_core::LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), TransportError>;
+
+    #[must_use = "unchecked send_transport_to result silently discards send failures"]
+    fn send_transport_to(
+        &mut self,
+        intent: &TransportDeliveryIntent,
+        payload: &[u8],
+    ) -> Result<(), TransportError> {
+        match intent {
+            TransportDeliveryIntent::Unicast { endpoint } => self.send_transport(endpoint, payload),
+            TransportDeliveryIntent::Multicast { .. }
+            | TransportDeliveryIntent::Broadcast { .. } => Err(TransportError::Rejected),
+        }
+    }
 }
 
 #[effect_trait]
@@ -128,7 +141,9 @@ impl<T> RoutingRuntimeEffects for T where
 #[cfg(test)]
 mod tests {
     use jacquard_core::{
-        OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick, TransportError,
+        BroadcastDomainId, ByteCount, EndpointLocator, LinkEndpoint, MulticastGroupId, NodeId,
+        OrderStamp, RouteEventLogError, RouteEventStamped, StorageError, Tick,
+        TransportDeliveryIntent, TransportError, TransportKind,
     };
 
     use super::{
@@ -213,5 +228,36 @@ mod tests {
     #[test]
     fn aggregate_runtime_effects_track_supported_effect_sets() {
         assert_runtime::<DummyRuntime>();
+    }
+
+    fn endpoint(byte: u8) -> LinkEndpoint {
+        LinkEndpoint::new(
+            TransportKind::BleGatt,
+            EndpointLocator::Opaque(vec![byte]),
+            ByteCount(128),
+        )
+    }
+
+    #[test]
+    fn default_send_intent_rejects_non_unicast_delivery() {
+        let mut runtime = DummyRuntime;
+        let multicast = TransportDeliveryIntent::Multicast {
+            endpoint: endpoint(1),
+            group_id: MulticastGroupId([2; 16]),
+            receivers: vec![NodeId([3; 32])],
+        };
+        let broadcast = TransportDeliveryIntent::Broadcast {
+            endpoint: endpoint(4),
+            domain_id: BroadcastDomainId([5; 16]),
+        };
+
+        assert_eq!(
+            runtime.send_transport_to(&multicast, b"frame"),
+            Err(TransportError::Rejected)
+        );
+        assert_eq!(
+            runtime.send_transport_to(&broadcast, b"frame"),
+            Err(TransportError::Rejected)
+        );
     }
 }

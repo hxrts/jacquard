@@ -13,7 +13,9 @@
 
 #![forbid(unsafe_code)]
 
+mod delivery;
 mod middleware;
 mod runtime;
 
+pub use delivery::admitted_delivery_intent;
 pub use middleware::{FixedPolicyEngine, MultiEngineRouter};

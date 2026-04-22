@@ -9,9 +9,9 @@ use jacquard_cast_support::{
 };
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
-    Environment, FactSourceClass, Limit, LinkEndpoint, Node, NodeId, Observation, OperatingMode,
-    OrderStamp, OriginAuthenticationClass, PriorityPoints, RatioPermille, RouteEpoch,
-    RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
+    Environment, FactSourceClass, Limit, LinkEndpoint, MulticastGroupId, Node, NodeId, Observation,
+    OperatingMode, OrderStamp, OriginAuthenticationClass, PriorityPoints, RatioPermille,
+    RouteEpoch, RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
     RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick, TransportKind,
 };
 use jacquard_host_support::opaque_endpoint;
@@ -163,7 +163,7 @@ fn multicast_fixture() -> MulticastFixtureProfile {
     MulticastFixtureProfile {
         observations: vec![MulticastObservation {
             sender: node(1),
-            group_id: CastGroupId(b"team".to_vec()),
+            group_id: CastGroupId::new(MulticastGroupId([1; 16])),
             receivers: vec![
                 ReceiverCoverageObservation {
                     receiver: node(2),

@@ -13,8 +13,8 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use jacquard_core::{
-    Configuration, LinkEndpoint, Observation, RouteError, RouterRoundOutcome, Tick, TransportError,
-    TransportIngressEvent, TransportObservation,
+    Configuration, LinkEndpoint, Observation, RouteError, RouterRoundOutcome, Tick,
+    TransportDeliveryIntent, TransportError, TransportIngressEvent, TransportObservation,
 };
 use jacquard_host_support::{dispatch_mailbox, DispatchOverflow, DispatchReceiver, DispatchSender};
 use jacquard_mem_link_profile::InMemoryTransport;
@@ -51,7 +51,7 @@ impl Default for BridgeQueueConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct OutboundTransportCommand {
-    endpoint: LinkEndpoint,
+    intent: TransportDeliveryIntent,
     payload: Vec<u8>,
 }
 
@@ -78,7 +78,21 @@ impl TransportSenderEffects for QueuedTransportSender {
     ) -> Result<(), TransportError> {
         self.queue
             .send(OutboundTransportCommand {
-                endpoint: endpoint.clone(),
+                intent: TransportDeliveryIntent::unicast(endpoint.clone()),
+                payload: payload.to_vec(),
+            })
+            .map(|_| ())
+            .map_err(|DispatchOverflow| TransportError::Unavailable)
+    }
+
+    fn send_transport_to(
+        &mut self,
+        intent: &TransportDeliveryIntent,
+        payload: &[u8],
+    ) -> Result<(), TransportError> {
+        self.queue
+            .send(OutboundTransportCommand {
+                intent: intent.clone(),
                 payload: payload.to_vec(),
             })
             .map(|_| ())
@@ -119,7 +133,7 @@ impl BridgeTransport {
         let commands = self.outbound_receiver.drain();
         for command in &commands {
             self.driver
-                .send_transport(&command.endpoint, &command.payload)?;
+                .send_transport_to(&command.intent, &command.payload)?;
         }
         Ok(commands.len())
     }

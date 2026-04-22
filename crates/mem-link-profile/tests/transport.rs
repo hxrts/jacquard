@@ -1,4 +1,7 @@
-use jacquard_core::{ByteCount, EndpointLocator, NodeId, TransportIngressEvent, TransportKind};
+use jacquard_core::{
+    BroadcastDomainId, ByteCount, EndpointLocator, NodeId, TransportDeliveryIntent,
+    TransportDeliveryMode, TransportIngressEvent, TransportKind,
+};
 use jacquard_mem_link_profile::{InMemoryTransport, SharedInMemoryNetwork};
 use jacquard_traits::{TransportDriver, TransportSenderEffects};
 
@@ -56,4 +59,38 @@ fn shared_adapter_mailbox_drains_multiple_ingress_frames() {
         .expect("drain transport ingress");
 
     assert_eq!(ingress.len(), 2);
+}
+
+#[test]
+fn in_memory_transport_records_explicit_delivery_intent() {
+    let network = SharedInMemoryNetwork::default();
+    let mut sender = InMemoryTransport::attach(NodeId([1; 32]), [endpoint(1)], network.clone());
+    let mut receiver = InMemoryTransport::attach(NodeId([2; 32]), [endpoint(2)], network.clone());
+    let mut other = InMemoryTransport::attach(NodeId([3; 32]), [endpoint(3)], network);
+    let intent = TransportDeliveryIntent::Broadcast {
+        endpoint: endpoint(2),
+        domain_id: BroadcastDomainId([7; 16]),
+    };
+
+    sender
+        .send_transport_to(&intent, b"broadcast")
+        .expect("send broadcast intent");
+
+    assert_eq!(sender.sent_intents.len(), 1);
+    assert_eq!(
+        sender.sent_intents[0].0.mode(),
+        TransportDeliveryMode::Broadcast
+    );
+    assert_eq!(sender.sent_intents[0].1, b"broadcast");
+    assert_eq!(
+        receiver
+            .drain_transport_ingress()
+            .expect("drain receiver ingress")
+            .len(),
+        1
+    );
+    assert!(other
+        .drain_transport_ingress()
+        .expect("drain other ingress")
+        .is_empty());
 }

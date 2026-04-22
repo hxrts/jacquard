@@ -11,8 +11,15 @@
 //! It is intentionally reference-only and in-memory. It exists to support
 //! tests, examples, and the reference client, not to model a production
 //! transport backend.
+//!
+//! Non-unicast `send_transport_to` calls are recorded in `sent_intents` with
+//! their requested delivery mode. The backing `SharedInMemoryNetwork` still
+//! delivers to the single endpoint embedded in the intent; it does not model
+//! multicast or broadcast fanout.
 
-use jacquard_core::{LinkEndpoint, NodeId, TransportError, TransportIngressEvent};
+use jacquard_core::{
+    LinkEndpoint, NodeId, TransportDeliveryIntent, TransportError, TransportIngressEvent,
+};
 use jacquard_host_support::{
     transport_ingress_mailbox, TransportIngressClass, TransportIngressReceiver,
     TransportIngressSender,
@@ -28,6 +35,7 @@ pub struct InMemoryTransport {
     local_node_id: Option<NodeId>,
     network: Option<SharedInMemoryNetwork>,
     pub sent_frames: Vec<(jacquard_core::LinkEndpoint, Vec<u8>)>,
+    pub sent_intents: Vec<(TransportDeliveryIntent, Vec<u8>)>,
     ingress_sender: TransportIngressSender,
     ingress_receiver: TransportIngressReceiver,
 }
@@ -47,6 +55,7 @@ impl InMemoryTransport {
             local_node_id: None,
             network: None,
             sent_frames: Vec::new(),
+            sent_intents: Vec::new(),
             ingress_sender,
             ingress_receiver,
         }
@@ -74,6 +83,7 @@ impl InMemoryTransport {
             local_node_id: Some(local_node_id),
             network: Some(network),
             sent_frames: Vec::new(),
+            sent_intents: Vec::new(),
             ingress_sender,
             ingress_receiver,
         }
@@ -97,6 +107,15 @@ impl InMemoryTransport {
             .emit(TransportIngressClass::Payload, event)
             .expect("push ingress event to in-memory transport mailbox");
     }
+
+    fn send_intent(&mut self, intent: &TransportDeliveryIntent, payload: &[u8]) {
+        let endpoint = intent.endpoint().clone();
+        self.sent_frames.push((endpoint.clone(), payload.to_vec()));
+        self.sent_intents.push((intent.clone(), payload.to_vec()));
+        if let (Some(network), Some(local_node_id)) = (&self.network, self.local_node_id) {
+            network.deliver(local_node_id, endpoint, payload.to_vec());
+        }
+    }
 }
 
 #[effect_handler]
@@ -106,10 +125,16 @@ impl TransportSenderEffects for InMemoryTransport {
         endpoint: &jacquard_core::LinkEndpoint,
         payload: &[u8],
     ) -> Result<(), TransportError> {
-        self.sent_frames.push((endpoint.clone(), payload.to_vec()));
-        if let (Some(network), Some(local_node_id)) = (&self.network, self.local_node_id) {
-            network.deliver(local_node_id, endpoint.clone(), payload.to_vec());
-        }
+        self.send_intent(&TransportDeliveryIntent::unicast(endpoint.clone()), payload);
+        Ok(())
+    }
+
+    fn send_transport_to(
+        &mut self,
+        intent: &TransportDeliveryIntent,
+        payload: &[u8],
+    ) -> Result<(), TransportError> {
+        self.send_intent(intent, payload);
         Ok(())
     }
 }

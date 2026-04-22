@@ -35,6 +35,7 @@ exclude_files = [
   "crates/core/src/model/mod.rs",
   "crates/core/src/routing/mod.rs",
   "crates/macros/src/model/mod.rs",
+  "crates/router/src/delivery.rs",
   "crates/traits/src/lib.rs",
   "crates/pathway/src/committee/mod.rs",
   "crates/pathway/src/committee/selection.rs",

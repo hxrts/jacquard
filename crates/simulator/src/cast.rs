@@ -13,7 +13,8 @@ use jacquard_cast_support::{
     UnicastObservation,
 };
 use jacquard_core::{
-    ByteCount, DurationMs, NodeId, OrderStamp as CastOrderStamp, RatioPermille, Tick,
+    ByteCount, DurationMs, MulticastGroupId, NodeId, OrderStamp as CastOrderStamp, RatioPermille,
+    Tick,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,7 +150,7 @@ fn unicast_observation() -> UnicastObservation {
 fn multicast_observation() -> MulticastObservation {
     MulticastObservation {
         sender: node(1),
-        group_id: CastGroupId(b"partial".to_vec()),
+        group_id: CastGroupId::new(MulticastGroupId([1; 16])),
         receivers: vec![receiver(4, 700), receiver(2, 850), receiver(3, 400)],
         group_pressure_permille: RatioPermille(100),
         fanout_limit: 2,

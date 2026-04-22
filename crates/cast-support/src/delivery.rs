@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use jacquard_core::{ByteCount, NodeId, RatioPermille};
+use jacquard_core::{BroadcastDomainId, ByteCount, NodeId, RatioPermille};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -81,6 +81,7 @@ pub struct CastDeliveryObjective {
     pub sender: NodeId,
     pub receivers: CastReceiverSet,
     pub group_id: Option<CastGroupId>,
+    pub broadcast_domain_id: Option<BroadcastDomainId>,
     pub coverage: CastCoverageObjective,
 }
 
@@ -92,6 +93,7 @@ impl CastDeliveryObjective {
             sender,
             receivers: CastReceiverSet::one(receiver),
             group_id: None,
+            broadcast_domain_id: None,
             coverage: CastCoverageObjective::AllReceivers,
         }
     }
@@ -108,13 +110,15 @@ impl CastDeliveryObjective {
             sender,
             receivers: CastReceiverSet::new(receivers),
             group_id: Some(group_id),
+            broadcast_domain_id: None,
             coverage,
         }
     }
 
     #[must_use]
-    pub fn broadcast(
+    pub fn broadcast_in_domain(
         sender: NodeId,
+        domain_id: BroadcastDomainId,
         receivers: impl IntoIterator<Item = NodeId>,
         coverage: CastCoverageObjective,
     ) -> Self {
@@ -123,6 +127,7 @@ impl CastDeliveryObjective {
             sender,
             receivers: CastReceiverSet::new(receivers),
             group_id: None,
+            broadcast_domain_id: Some(domain_id),
             coverage,
         }
     }
@@ -224,6 +229,7 @@ pub struct MulticastDeliverySupport {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BroadcastDeliverySupport {
     pub sender: NodeId,
+    pub domain_id: BroadcastDomainId,
     pub receivers: Vec<ReceiverCoverageEvidence>,
     pub support: BroadcastSupportKind,
     pub confidence_permille: RatioPermille,
@@ -398,6 +404,7 @@ fn broadcast_delivery_support(
     }
     Some(BroadcastDeliverySupport {
         sender: evidence.sender,
+        domain_id: objective.broadcast_domain_id?,
         receivers,
         support: evidence.support,
         confidence_permille: confidence,
