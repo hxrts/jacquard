@@ -99,7 +99,38 @@ The wasm profile is a target compatibility check for selected `std` crates on `w
 
 The embedded profile is a `no_std` plus `alloc` profile for the deterministic model, route, cast, host-support, and Mercator path needed by MCU transport adapters such as jq-lora. Mercator is the in-tree engine path for this profile. That profile avoids direct thread, blocking wait, wall-clock, filesystem, and host I/O APIs. Platform behavior enters through explicit host or executor adapters.
 
-Embedded verification uses `thumbv7em-none-eabihf` by default. Run `just no-std-check` to check the portable crate set on the host with default features disabled and on the embedded target. Set the NO_STD_TARGET environment variable to use a different installed target.
+The portable embedded crate set is:
+
+- `jacquard-core`
+- `jacquard-traits`
+- `jacquard-cast-support`
+- `jacquard-host-support`
+- `jacquard-mercator`
+- `jacquard-router`
+
+Downstream embedded adapters depend on these crates with default features disabled. The profile still assumes `alloc`; it is not a no-allocation profile.
+
+```toml
+[dependencies]
+jacquard-core = { version = "0.8.0", default-features = false }
+jacquard-traits = { version = "0.8.0", default-features = false }
+jacquard-host-support = { version = "0.8.0", default-features = false }
+jacquard-cast-support = { version = "0.8.0", default-features = false }
+jacquard-router = { version = "0.8.0", default-features = false }
+jacquard-mercator = { version = "0.8.0", default-features = false }
+```
+
+Embedded verification uses `thumbv7em-none-eabihf` by default. Run the portable check to validate the crate set on the host with default features disabled and on the embedded target:
+
+```bash
+just no-std-check
+```
+
+Set the NO_STD_TARGET environment variable to use a different installed target. Run the wasm check separately when validating browser or wasm host compatibility:
+
+```bash
+just wasm-check
+```
 
 `jacquard-cast-support` sits alongside profile and host-integration crates as deterministic evidence and delivery support. It is part of the portable `no_std` plus `alloc` profile. It normalizes unicast, multicast, and broadcast cast inputs into bounded, ordered helper records, then can derive route-neutral delivery support from those records and an explicit delivery objective. Profiles can map that support into route-visible `TransportDeliverySupport` without flattening multicast or broadcast into fake unicast links. It leaves transport send/receive, endpoint authoring, retry scheduling, custody storage, and route publication to their owning crates.
 

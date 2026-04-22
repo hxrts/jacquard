@@ -47,6 +47,8 @@ These engines differ in what they publish. Pathway exposes an explicit path, fie
 
 Jacquard is fully deterministic. It uses typed time, typed ordering, explicit bounds, and explicit ownership objects instead of ambient runtime assumptions.
 
+Jacquard supports distinct portability profiles. The default profile uses `std` for native host builds, the simulator, the reference client, and in-memory profiles. The wasm profile checks selected `std` crates on `wasm32-unknown-unknown`. The embedded profile builds the portable core, host-support, cast-support, router, and Mercator path with `no_std` plus `alloc` for MCU transport adapters.
+
 Observation scopes are kept explicit. Local node state, peer estimates, link estimates, and neighborhood aggregates are separate model surfaces. This split keeps routing logic honest about what is known unequivocally, what is inferred about a peer, and what is an aggregate local view.
 
 Jacquard is intentionally not opinionated about engine-local scoring, committee formation policy, or trust heuristics. The shared layer commits to the result shapes, evidence classes, ownership rules, and canonical transition path. The routing-engine layer owns the scoring rules, diversity logic, and misbehavior handling that depend on its routing semantics.

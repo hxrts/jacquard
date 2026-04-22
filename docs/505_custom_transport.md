@@ -12,6 +12,8 @@ Engines must not own async I/O directly. They must not poll the transport driver
 
 Reuse `jacquard-host-support` for generic mailbox, peer-directory, or claim-ownership scaffolding when the transport needs those primitives. Its ingress mailbox keeps storage bounded and exposes both generation snapshots and a wakeable changed future, so host bridges can pair it with a native blocking loop or an executor-owned embedded loop. Do not introduce a pathway-specific or engine-specific transport trait. Keep the transport transport-neutral.
 
+Embedded transports use the same ownership split. A LoRa adapter running under Embassy owns the radio task, queues tick-free ingress into the mailbox, wakes the bridge through the portable changed-future surface, and lets the bridge stamp `Tick` before router ingestion. `jacquard-host-support` does not depend on Embassy directly; the adapter supplies that executor integration at the edge.
+
 ## Implementing TransportSenderEffects
 
 `TransportSenderEffects` is the synchronous send capability the router hands to each engine. An implementation takes a `LinkEndpoint` and a payload, dispatches it through the runtime-specific carrier, and returns an error on failure.

@@ -17,6 +17,8 @@ jacquard-traits = "0.8.0"
 
 The reference client re-exports node and link profile types from `jacquard-mem-node-profile` and `jacquard-mem-link-profile`, so most consumers do not need direct dependencies on those crates.
 
+The reference client is a `std` host composition. Embedded integrations use the portable crates directly with default features disabled: `jacquard-core`, `jacquard-traits`, `jacquard-host-support`, `jacquard-cast-support`, `jacquard-router`, and `jacquard-mercator`. That path keeps round advancement and `Tick` stamping in the bridge while an executor-owned adapter, such as an Embassy LoRa task, owns radio I/O.
+
 ## Building A Client As A Library
 
 `ClientBuilder` exposes one constructor per engine choice. Call the constructor for the lane needed, apply optional overrides through the `with_*` builder methods, then call `build` to produce a `ReferenceClient`.
@@ -97,7 +99,7 @@ The custom policy replaces the default during composition. The routing pipeline 
 
 ## Swapping The Committee Selector
 
-`CommitteeSelector` chooses the committee for an objective that requires coordinated membership. Pathway is the only current consumer through `CommitteeCoordinatedEngine`. A custom selector returns `Option<CommitteeSelection>` or `None` when no committee applies.
+`CommitteeSelector` chooses the committee for an objective that requires coordinated membership. Pathway consumes it through `CommitteeCoordinatedEngine`. A custom selector returns `Option<CommitteeSelection>` or `None` when no committee applies.
 
 ```rust
 use jacquard_core::{CommitteeSelection, Observation, RoutingObjective, SelectedRoutingParameters};
