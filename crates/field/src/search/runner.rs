@@ -5,13 +5,13 @@ use jacquard_core::{Configuration, NodeId, Observation, RoutingObjective};
 use telltale_search::{
     commit_epoch_reconfiguration, run_with_executor, run_with_executor_report_only,
     validate_run_config, EpochReconfigurationRequest, SearchMachine, SearchQuery,
-    SearchSchedulerProfile, SerialProposalExecutor,
+    SerialProposalExecutor,
 };
 
 cfg_if! {
     if #[cfg(not(target_arch = "wasm32"))] {
         use std::num::NonZeroU64;
-        use telltale_search::NativeParallelExecutor;
+        use telltale_search::{NativeParallelExecutor, SearchSchedulerProfile};
     }
 }
 
