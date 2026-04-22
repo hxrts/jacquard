@@ -6,13 +6,13 @@ See [Simulator Architecture](306_simulator_architecture.md) for the architecture
 
 ## Adding the Dependency
 
-`jacquard-simulator` tracks the workspace version `0.6.0`. Add it alongside the core and trait crates a consumer typically imports types from.
+`jacquard-simulator` tracks the workspace version `0.7.0`. Add it alongside the core and trait crates a consumer typically imports types from.
 
 ```toml
 [dependencies]
-jacquard-simulator = "0.6.0"
-jacquard-core = "0.6.0"
-jacquard-traits = "0.6.0"
+jacquard-simulator = "0.7.0"
+jacquard-core = "0.7.0"
+jacquard-traits = "0.7.0"
 ```
 
 Building topology and profile observations also requires `jacquard-mem-node-profile` and `jacquard-mem-link-profile`. These crates provide the `NodePreset`, `NodeIdentity`, and `LinkPreset` builders documented in [Profile Implementations](305_profile_reference.md).

@@ -13,8 +13,8 @@ description = "Routing trait definitions for Jacquard"
 workspace = true
 
 [dependencies]
-jacquard-core = { path = "../core", version = "0.6.0" }
-jacquard-macros = { path = "../macros", version = "0.6.0" }
+jacquard-core = { path = "../core", version = "0.7.0" }
+jacquard-macros = { path = "../macros", version = "0.7.0" }
 blake3 = "1"
 rust-toolkit-effects = { workspace = true }
 

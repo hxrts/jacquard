@@ -13,12 +13,12 @@ description = "Deterministic hybrid corridor routing engine skeleton for Jacquar
 workspace = true
 
 [dependencies]
-jacquard-core = { path = "../core", version = "0.6.0" }
-jacquard-traits = { path = "../traits", version = "0.6.0" }
+jacquard-core = { path = "../core", version = "0.7.0" }
+jacquard-traits = { path = "../traits", version = "0.7.0" }
 serde = { workspace = true, default-features = false }
 
 [dev-dependencies]
-jacquard-cast-support = { path = "../cast-support", version = "0.6.0" }
+jacquard-cast-support = { path = "../cast-support", version = "0.7.0" }
 jacquard-host-support = { path = "../host-support" }
 jacquard-mem-link-profile = { path = "../mem-link-profile" }
 jacquard-mem-node-profile = { path = "../mem-node-profile" }
