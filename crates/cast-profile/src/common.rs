@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use jacquard_core::{ByteCount, DurationMs, NodeId, OrderStamp, RatioPermille, Tick};
 use serde::{Deserialize, Serialize};
 
@@ -119,4 +121,32 @@ pub(crate) fn meets_confidence(confidence: RatioPermille, policy: CastEvidencePo
 pub(crate) fn permille_product(left: RatioPermille, right: RatioPermille) -> RatioPermille {
     let product = u32::from(left.0).saturating_mul(u32::from(right.0));
     RatioPermille(u16::try_from(product / 1_000).unwrap_or(1_000))
+}
+
+#[must_use]
+pub(crate) fn eligible_receivers(
+    receivers: Vec<ReceiverCoverageObservation>,
+    policy: CastEvidencePolicy,
+) -> Vec<ReceiverCoverageEvidence> {
+    let mut by_receiver = BTreeMap::new();
+    for receiver in receivers {
+        if !meets_confidence(receiver.confidence_permille, policy) {
+            continue;
+        }
+        by_receiver
+            .entry(receiver.receiver)
+            .and_modify(|current: &mut ReceiverCoverageObservation| {
+                if receiver.confidence_permille > current.confidence_permille {
+                    *current = receiver;
+                }
+            })
+            .or_insert(receiver);
+    }
+    by_receiver
+        .into_values()
+        .map(|receiver| ReceiverCoverageEvidence {
+            receiver: receiver.receiver,
+            confidence_permille: receiver.confidence_permille,
+        })
+        .collect()
 }

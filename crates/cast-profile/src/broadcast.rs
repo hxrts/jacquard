@@ -1,11 +1,10 @@
-use std::collections::BTreeMap;
-
 use jacquard_core::{ByteCount, NodeId, RatioPermille};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     common::{
-        bounded_len, meets_confidence, permille_product, supports_payload, CastEvidenceReport,
+        bounded_len, eligible_receivers, meets_confidence, permille_product, supports_payload,
+        CastEvidenceReport,
     },
     CastEvidenceMeta, CastEvidencePolicy, ReceiverCoverageEvidence, ReceiverCoverageObservation,
 };
@@ -114,33 +113,6 @@ fn broadcast_bounds_hold(
         return false;
     }
     true
-}
-
-fn eligible_receivers(
-    receivers: Vec<ReceiverCoverageObservation>,
-    policy: CastEvidencePolicy,
-) -> Vec<ReceiverCoverageEvidence> {
-    let mut by_receiver = BTreeMap::new();
-    for receiver in receivers {
-        if !meets_confidence(receiver.confidence_permille, policy) {
-            continue;
-        }
-        by_receiver
-            .entry(receiver.receiver)
-            .and_modify(|current: &mut ReceiverCoverageObservation| {
-                if receiver.confidence_permille > current.confidence_permille {
-                    *current = receiver;
-                }
-            })
-            .or_insert(receiver);
-    }
-    by_receiver
-        .into_values()
-        .map(|receiver| ReceiverCoverageEvidence {
-            receiver: receiver.receiver,
-            confidence_permille: receiver.confidence_permille,
-        })
-        .collect()
 }
 
 impl BroadcastEvidence {

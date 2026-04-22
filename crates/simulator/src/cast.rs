@@ -12,7 +12,9 @@ use jacquard_cast_profile::{
     CastEvidencePolicy, CastGroupId, MulticastObservation, ReceiverCoverageObservation,
     UnicastObservation,
 };
-use jacquard_core::{ByteCount, DurationMs, NodeId, OrderStamp, RatioPermille, Tick};
+use jacquard_core::{
+    ByteCount, DurationMs, NodeId, OrderStamp as CastOrderStamp, RatioPermille, Tick,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CastEvidenceScenarioKind {
@@ -121,7 +123,7 @@ fn meta(order: u64) -> CastEvidenceMeta {
         Tick(1),
         DurationMs(10),
         DurationMs(1_000),
-        OrderStamp(order),
+        CastOrderStamp { 0: order },
     )
 }
 
