@@ -13,7 +13,7 @@ description = "In-memory node profile and node state builders for Jacquard tests
 workspace = true
 
 [dependencies]
-jacquard-host-support = { path = "../host-support", version = "0.7.1" }
-jacquard-core = { path = "../core", version = "0.7.1" }
+jacquard-host-support = { path = "../host-support", version = "0.8.0" }
+jacquard-core = { path = "../core", version = "0.8.0" }
 serde = { workspace = true, default-features = false }
 serde_json = { workspace = true }
