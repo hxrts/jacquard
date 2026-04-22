@@ -25,6 +25,7 @@
 #![forbid(unsafe_code)]
 
 mod assertions;
+mod cast;
 mod diffusion;
 mod environment;
 mod experiments;
@@ -39,6 +40,11 @@ mod util;
 pub mod presets;
 
 pub use assertions::{AssertionFailure, ScenarioAssertions};
+pub use cast::{
+    broadcast_cast_evidence_scenario, cast_report_surface_decision,
+    multicast_cast_evidence_scenario, unicast_cast_evidence_scenario, CastEvidenceScenarioKind,
+    CastEvidenceScenarioOutcome,
+};
 pub use diffusion::{
     aggregate_diffusion_runs, diffusion_local_stage_suite, diffusion_local_suite,
     diffusion_smoke_suite, run_diffusion_suite, summarize_diffusion_boundaries,

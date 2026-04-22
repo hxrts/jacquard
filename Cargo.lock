@@ -783,6 +783,7 @@ dependencies = [
  "jacquard-babel",
  "jacquard-batman-bellman",
  "jacquard-batman-classic",
+ "jacquard-cast-profile",
  "jacquard-core",
  "jacquard-field",
  "jacquard-mem-link-profile",
