@@ -83,7 +83,7 @@ fn shape_one_broadcast(
         report.record_low_confidence();
         return None;
     }
-    Some(BroadcastEvidence::from_observation(observation, receivers))
+    Some(BroadcastEvidence::from_observation(&observation, receivers))
 }
 
 fn broadcast_bounds_hold(
@@ -143,7 +143,7 @@ fn eligible_receivers(
 impl BroadcastEvidence {
     #[must_use]
     fn from_observation(
-        observation: BroadcastObservation,
+        observation: &BroadcastObservation,
         receivers: Vec<ReceiverCoverageEvidence>,
     ) -> Self {
         Self {
