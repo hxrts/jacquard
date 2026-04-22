@@ -1,5 +1,7 @@
 use jacquard_core::DurationMs;
 
+// proc-macro-scope: Cast bounds are helper constants and do not need proc macros.
+
 pub const CAST_RECEIVER_COUNT_MAX: u32 = 32;
 pub const CAST_GROUP_COVERAGE_COUNT_MAX: u32 = 32;
 pub const CAST_FANOUT_COUNT_MAX: u32 = 8;

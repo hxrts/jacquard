@@ -23,6 +23,12 @@ required_markers = [
 ]
 exclude_files = [
   "crates/adapter/src/lib.rs",
+  "crates/cast-profile/src/bounds.rs",
+  "crates/cast-profile/src/broadcast.rs",
+  "crates/cast-profile/src/common.rs",
+  "crates/cast-profile/src/lib.rs",
+  "crates/cast-profile/src/multicast.rs",
+  "crates/cast-profile/src/unicast.rs",
   "crates/core/src/lib.rs",
   "crates/core/src/base/constants.rs",
   "crates/core/src/model/mod.rs",
@@ -184,6 +190,7 @@ exclude_files = [
   "crates/simulator/src/scenario.rs",
   "crates/simulator/src/bin/tuning_matrix.rs",
   "crates/simulator/src/assertions.rs",
+  "crates/simulator/src/cast.rs",
   "crates/simulator/src/reduced_replay.rs",
   "crates/simulator/src/topology.rs",
   "crates/simulator/src/util/mod.rs",

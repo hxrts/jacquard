@@ -4,6 +4,8 @@
 //! a transport-specific simulator lane. The report surface remains Mercator and
 //! diffusion outcomes because the helpers are profile evidence shaping support.
 
+// proc-macro-scope: Cast simulator scenarios use plain helper outputs.
+
 use jacquard_cast_profile::{
     shape_broadcast_evidence, shape_multicast_evidence, shape_unicast_evidence,
     BroadcastObservation, BroadcastReverseConfirmation, CastEvidenceBounds, CastEvidenceMeta,
@@ -31,10 +33,12 @@ pub struct CastEvidenceScenarioOutcome {
     pub deterministic_receivers: Vec<NodeId>,
 }
 
+#[must_use]
 pub fn cast_report_surface_decision() -> &'static str {
     "cast helpers are surfaced through Mercator and diffusion outcomes"
 }
 
+#[must_use]
 pub fn unicast_cast_evidence_scenario() -> CastEvidenceScenarioOutcome {
     let (evidence, _report) =
         shape_unicast_evidence([unicast_observation()], policy(ByteCount(128)));
@@ -51,6 +55,7 @@ pub fn unicast_cast_evidence_scenario() -> CastEvidenceScenarioOutcome {
     }
 }
 
+#[must_use]
 pub fn multicast_cast_evidence_scenario() -> CastEvidenceScenarioOutcome {
     let (evidence, _report) =
         shape_multicast_evidence([multicast_observation()], policy(ByteCount(128)));
@@ -71,6 +76,7 @@ pub fn multicast_cast_evidence_scenario() -> CastEvidenceScenarioOutcome {
     }
 }
 
+#[must_use]
 pub fn broadcast_cast_evidence_scenario() -> CastEvidenceScenarioOutcome {
     let (evidence, _report) =
         shape_broadcast_evidence([broadcast_observation()], policy(ByteCount(128)));

@@ -10,6 +10,8 @@
 //! host ingress plumbing, transport endpoint authoring, router state, or
 //! Mercator-specific routing behavior.
 
+// proc-macro-scope: Cast profile helpers use plain data shapes and no local proc macros.
+
 #![forbid(unsafe_code)]
 
 mod bounds;

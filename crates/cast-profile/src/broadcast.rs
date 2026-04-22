@@ -10,6 +10,8 @@ use crate::{
     CastEvidenceMeta, CastEvidencePolicy, ReceiverCoverageEvidence, ReceiverCoverageObservation,
 };
 
+// proc-macro-scope: Broadcast profile evidence shaping is plain helper logic.
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum BroadcastReverseConfirmation {
     Unavailable,
@@ -50,6 +52,7 @@ pub struct BroadcastEvidence {
     pub meta: CastEvidenceMeta,
 }
 
+#[must_use]
 pub fn shape_broadcast_evidence(
     observations: impl IntoIterator<Item = BroadcastObservation>,
     policy: CastEvidencePolicy,

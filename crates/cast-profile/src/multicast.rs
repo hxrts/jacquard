@@ -10,6 +10,8 @@ use crate::{
     CastEvidenceMeta, CastEvidencePolicy, ReceiverCoverageEvidence, ReceiverCoverageObservation,
 };
 
+// proc-macro-scope: Multicast profile evidence shaping is plain helper logic.
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct CastGroupId(pub Vec<u8>);
 
@@ -37,6 +39,7 @@ pub struct MulticastEvidence {
     pub meta: CastEvidenceMeta,
 }
 
+#[must_use]
 pub fn shape_multicast_evidence(
     observations: impl IntoIterator<Item = MulticastObservation>,
     policy: CastEvidencePolicy,

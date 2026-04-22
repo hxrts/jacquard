@@ -8,6 +8,8 @@ use crate::{
     CastEvidenceMeta, CastEvidencePolicy,
 };
 
+// proc-macro-scope: Unicast profile evidence shaping is plain helper logic.
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnicastObservation {
     pub from: NodeId,
@@ -36,6 +38,7 @@ pub struct UnicastEvidence {
     pub meta: CastEvidenceMeta,
 }
 
+#[must_use]
 pub fn shape_unicast_evidence(
     observations: impl IntoIterator<Item = UnicastObservation>,
     policy: CastEvidencePolicy,

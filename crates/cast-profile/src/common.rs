@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::CastEvidenceBounds;
 
+// proc-macro-scope: Cast evidence helper types stay plain and crate-local.
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CastEvidenceMeta {
     pub observed_at_tick: Tick,
