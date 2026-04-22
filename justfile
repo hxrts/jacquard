@@ -90,12 +90,30 @@ wasm-check:
 
 # verify the shared portable crates compile without std
 no-std-check:
-    cargo check -p jacquard-core --no-default-features
-    cargo check -p jacquard-traits --no-default-features
-    cargo check -p jacquard-cast-support --no-default-features
-    cargo check -p jacquard-host-support --no-default-features
-    cargo check -p jacquard-mercator --no-default-features
-    cargo check -p jacquard-router --no-default-features
+    #!/usr/bin/env bash
+    set -euo pipefail
+    target="${NO_STD_TARGET:-thumbv7em-none-eabihf}"
+    crates=(
+      jacquard-core
+      jacquard-traits
+      jacquard-cast-support
+      jacquard-host-support
+      jacquard-mercator
+      jacquard-router
+    )
+    if command -v rustup >/dev/null 2>&1; then
+      toolchain="${NO_STD_TOOLCHAIN:-stable}"
+      if ! rustup target list --toolchain "$toolchain" --installed | grep -Fxq "$target"; then
+        rustup target add --toolchain "$toolchain" "$target"
+      fi
+      toolchain_bin="$(dirname "$(rustup which --toolchain "$toolchain" cargo)")"
+      export PATH="$toolchain_bin:$PATH"
+      export RUSTUP_TOOLCHAIN="$toolchain"
+    fi
+    for crate in "${crates[@]}"; do
+      cargo check -p "$crate" --no-default-features
+      cargo check -p "$crate" --target "$target" --no-default-features
+    done
 
 # execute the wasm reference-client integration test under wasm-bindgen-test
 wasm-test-reference-client:
@@ -202,6 +220,7 @@ ci-dry-run:
     add_step "Benchmark Audit"           "just benchmark-audit"
     add_step "Report Sanity"             "just report-sanity"
     add_step "Lean Style"                 "just lean-style"
+    add_step "No Std Check"               "just no-std-check"
     add_step "Wasm Check"                 "just wasm-check"
     add_step "Wasm Reference Client Test" "just wasm-test-reference-client"
     add_step "Docs Links"                 "npx --yes markdown-link-check -q -c .github/config/markdown-link-check.json docs"

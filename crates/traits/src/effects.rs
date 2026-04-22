@@ -27,7 +27,6 @@ use jacquard_core::{
     StorageError, Tick, TransportDeliveryIntent, TransportError,
 };
 use jacquard_macros::{effect_trait, purity};
-pub use rust_toolkit_effects::Effect;
 
 #[effect_trait]
 /// Read-only runtime capability for monotonic logical time.
@@ -149,10 +148,10 @@ mod tests {
     };
 
     use super::{
-        Effect, OrderEffects, RouteEventLogEffects, RoutingRuntimeEffects, StorageEffects,
-        TimeEffects, TransportSenderEffects,
+        OrderEffects, RouteEventLogEffects, RoutingRuntimeEffects, StorageEffects, TimeEffects,
+        TransportSenderEffects,
     };
-    use crate::effect_handler;
+    use crate::{effect_handler, Effect};
 
     struct DummyRuntime;
 

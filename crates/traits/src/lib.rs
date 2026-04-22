@@ -85,5 +85,13 @@ pub use world::*;
 // exactly the effect vocabulary it claims to handle.
 #[doc(hidden)]
 pub mod __private {
-    pub use rust_toolkit_effects::__private::{EffectDefinition, HandlerDefinition, HandlerToken};
+    use core::marker::PhantomData;
+
+    pub trait EffectDefinition {}
+
+    pub trait HandlerDefinition<E: ?Sized> {}
+
+    // fn() -> (*const T, *const E) makes both T and E invariant without
+    // introducing the Send/Sync implications of raw pointers.
+    pub struct HandlerToken<T: ?Sized, E: ?Sized>(pub PhantomData<fn() -> (*const T, *const E)>);
 }

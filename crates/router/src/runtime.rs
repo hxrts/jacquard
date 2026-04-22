@@ -81,7 +81,7 @@ where
     ) -> Result<(), RouteError> {
         let route_key =
             route_storage_key(&self.local_node_id, &record.route.identity.stamp.route_id);
-        let route_bytes = bincode::serialize(record).storage_invalid()?;
+        let route_bytes = encode_checkpoint_value(record)?;
         self.effects
             .store_bytes(&route_key, &route_bytes)
             .storage_invalid()?;
@@ -116,8 +116,7 @@ where
                 pruned_registry.remove(&route_id);
                 continue;
             };
-            let record =
-                bincode::deserialize::<RouterCheckpointRecord>(&bytes).storage_invalid()?;
+            let record = decode_checkpoint_value::<RouterCheckpointRecord>(&bytes)?;
             recovered.push((route_id, record));
         }
         if pruned_registry != self.load_route_registry()? {
@@ -143,12 +142,12 @@ where
         let Some(bytes) = self.effects.load_bytes(&registry_key).storage_invalid()? else {
             return Ok(BTreeSet::new());
         };
-        bincode::deserialize(&bytes).storage_invalid()
+        decode_checkpoint_value(&bytes)
     }
 
     fn store_route_registry(&mut self, registry: &BTreeSet<RouteId>) -> Result<(), RouteError> {
         let registry_key = route_registry_storage_key(&self.local_node_id);
-        let registry_bytes = bincode::serialize(registry).storage_invalid()?;
+        let registry_bytes = encode_checkpoint_value(registry)?;
         self.effects
             .store_bytes(&registry_key, &registry_bytes)
             .storage_invalid()
@@ -168,4 +167,36 @@ fn route_storage_key(local_node_id: &NodeId, route_id: &RouteId) -> Vec<u8> {
     key.extend_from_slice(b"/route/");
     key.extend_from_slice(&route_id.0);
     key
+}
+
+#[cfg(feature = "std")]
+fn encode_checkpoint_value<T>(value: &T) -> Result<Vec<u8>, RouteError>
+where
+    T: Serialize,
+{
+    bincode::serialize(value).storage_invalid()
+}
+
+#[cfg(not(feature = "std"))]
+fn encode_checkpoint_value<T>(value: &T) -> Result<Vec<u8>, RouteError>
+where
+    T: Serialize,
+{
+    postcard::to_allocvec(value).storage_invalid()
+}
+
+#[cfg(feature = "std")]
+fn decode_checkpoint_value<T>(bytes: &[u8]) -> Result<T, RouteError>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    bincode::deserialize(bytes).storage_invalid()
+}
+
+#[cfg(not(feature = "std"))]
+fn decode_checkpoint_value<T>(bytes: &[u8]) -> Result<T, RouteError>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    postcard::from_bytes(bytes).storage_invalid()
 }

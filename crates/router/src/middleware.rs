@@ -131,7 +131,7 @@ where
     #[cfg(feature = "std")]
     pub fn ingest_shared_topology_observation(
         &mut self,
-        topology: Arc<Observation<Configuration>>,
+        topology: &Arc<Observation<Configuration>>,
     ) {
         self.topology = topology.as_ref().clone();
     }

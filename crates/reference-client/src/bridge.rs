@@ -288,7 +288,7 @@ impl BoundHostBridge<'_, ReferenceRouter> {
     pub fn replace_shared_topology_shared(&mut self, topology: Arc<Observation<Configuration>>) {
         self.bridge
             .router
-            .ingest_shared_topology_observation(topology.clone());
+            .ingest_shared_topology_observation(&topology);
         self.bridge.topology = topology;
     }
 

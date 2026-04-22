@@ -19,6 +19,7 @@ just fmt            # toolkit-owned nightly rustfmt policy
 just fmt-check      # toolkit-owned nightly rustfmt policy with --check
 just lean-style     # toolkit-owned Lean source-style policy over verification/Field
 just lean-check     # lean-style, lean setup, then lake build
+just no-std-check   # check portable no_std crates on host and thumbv7em-none-eabihf
 just wasm-check     # build jacquard-pathway and jacquard-reference-client for wasm32-unknown-unknown
 just wasm-test-reference-client # run the reference-client wasm integration test under wasm-bindgen-test
 just book           # build mdbook docs (default recipe when running bare `just`)

@@ -67,6 +67,7 @@ async-trait = "0.1"
 serde      = { version = "1", default-features = false, features = ["alloc", "derive"] }
 serde_json = "1"
 bincode    = "1"
+postcard   = { version = "1.1.3", default-features = false, features = ["alloc"] }
 
 # error handling
 thiserror = "1"
@@ -84,5 +85,4 @@ cfg-if = "1"
 wasm-bindgen-test = "0.3"
 
 # toolkit
-rust-toolkit-effects = "0.3.0"
-rust-toolkit-trait-contracts = "0.3.0"
+rust-toolkit-trait-contracts = "0.4.1"
