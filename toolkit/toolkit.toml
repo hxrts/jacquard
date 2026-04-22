@@ -61,6 +61,7 @@ exclude_files = [
   "crates/pathway/src/lib.rs",
   "crates/pathway/src/validation.rs",
   "crates/mem-link-profile/src/authoring.rs",
+  "crates/mem-link-profile/src/cast.rs",
   "crates/mem-link-profile/src/lib.rs",
   "crates/mem-link-profile/src/network.rs",
   "crates/mem-link-profile/src/state.rs",

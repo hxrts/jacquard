@@ -663,6 +663,7 @@ dependencies = [
 name = "jacquard-mem-link-profile"
 version = "0.6.0"
 dependencies = [
+ "jacquard-cast-support",
  "jacquard-core",
  "jacquard-host-support",
  "jacquard-traits",

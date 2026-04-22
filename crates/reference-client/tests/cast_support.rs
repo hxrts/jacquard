@@ -1,20 +1,21 @@
 use std::collections::BTreeMap;
 
 use jacquard_cast_support::{
-    shape_broadcast_evidence, shape_multicast_evidence, shape_unicast_evidence, BroadcastEvidence,
-    BroadcastObservation, BroadcastReverseConfirmation, CastEvidenceMeta, CastEvidencePolicy,
-    CastGroupId, MulticastEvidence, MulticastObservation, ReceiverCoverageObservation,
-    UnicastEvidence, UnicastObservation,
+    shape_broadcast_evidence, shape_multicast_evidence, shape_unicast_delivery_support,
+    shape_unicast_evidence, BroadcastEvidence, BroadcastObservation, BroadcastReverseConfirmation,
+    CastDeliveryObjective, CastDeliveryPolicy, CastEvidenceMeta, CastEvidencePolicy, CastGroupId,
+    MulticastEvidence, MulticastObservation, ReceiverCoverageObservation, UnicastEvidence,
+    UnicastObservation,
 };
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
-    Environment, FactSourceClass, Limit, Link, Node, NodeId, Observation, OperatingMode,
+    Environment, FactSourceClass, Limit, LinkEndpoint, Node, NodeId, Observation, OperatingMode,
     OrderStamp, OriginAuthenticationClass, PriorityPoints, RatioPermille, RouteEpoch,
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
     RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick, TransportKind,
 };
 use jacquard_host_support::opaque_endpoint;
-use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
+use jacquard_mem_link_profile::{CastLinkObservation, CastLinkPreset};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_mercator::MERCATOR_ENGINE_ID;
 use jacquard_reference_client::{ClientBuilder, SharedInMemoryNetwork};
@@ -28,6 +29,14 @@ fn endpoint(byte: u8) -> jacquard_core::LinkEndpoint {
     opaque_endpoint(TransportKind::WifiAware, vec![byte], ByteCount(512))
 }
 
+fn endpoint_for(node_id: NodeId, payload_bytes_max: ByteCount) -> LinkEndpoint {
+    opaque_endpoint(
+        TransportKind::WifiAware,
+        vec![node_id.0[0]],
+        payload_bytes_max,
+    )
+}
+
 fn mercator_node(byte: u8) -> Node {
     NodePreset::route_capable(
         NodePresetOptions::new(
@@ -36,13 +45,6 @@ fn mercator_node(byte: u8) -> Node {
             Tick(1),
         ),
         &MERCATOR_ENGINE_ID,
-    )
-    .build()
-}
-
-fn link(to: NodeId, confidence: RatioPermille) -> Link {
-    LinkPreset::lossy(
-        LinkPresetOptions::new(endpoint(to.0[0]), Tick(1)).with_confidence(confidence),
     )
     .build()
 }
@@ -59,7 +61,7 @@ fn meta(order: u64) -> CastEvidenceMeta {
 #[derive(Clone, Debug)]
 struct FixtureTopology {
     nodes: Vec<NodeId>,
-    links: Vec<(NodeId, NodeId, RatioPermille)>,
+    links: Vec<CastLinkObservation>,
 }
 
 impl FixtureTopology {
@@ -75,7 +77,9 @@ impl FixtureTopology {
                 links: self
                     .links
                     .iter()
-                    .map(|(from, to, confidence)| ((*from, *to), link(*to, *confidence)))
+                    .map(|observation| {
+                        ((observation.from, observation.to), observation.link.clone())
+                    })
                     .collect(),
                 environment: Environment {
                     reachable_neighbor_count: u32::try_from(self.links.len()).unwrap_or(u32::MAX),
@@ -102,18 +106,19 @@ impl UnicastFixtureProfile {
     }
 
     fn topology(&self) -> FixtureTopology {
+        let evidence = self.shape();
+        let objective = CastDeliveryObjective::unicast(node(1), node(2));
+        let (support, _report) = shape_unicast_delivery_support(
+            evidence.iter(),
+            &objective,
+            CastDeliveryPolicy::default(),
+        );
+
         FixtureTopology {
             nodes: vec![node(1), node(2)],
-            links: self
-                .shape()
-                .into_iter()
-                .map(|evidence| {
-                    (
-                        evidence.from,
-                        evidence.to,
-                        evidence.directional_confidence_permille,
-                    )
-                })
+            links: support
+                .iter()
+                .map(|support| CastLinkPreset::from_unicast_support(support, endpoint_for))
                 .collect(),
         }
     }

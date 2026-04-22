@@ -16,12 +16,14 @@ Canonical route ownership remains on the router, and engine-private runtime stat
 | --- | --- | --- |
 | `jacquard-host-support` | `TransportIngressSender`, `TransportIngressReceiver`, `TransportIngressNotifier`, `TransportIngressDrain`, `PeerDirectory`, `PendingClaims`, `ClaimGuard` | none. It provides transport-neutral host support primitives over `jacquard-core` vocabulary |
 | `jacquard-mem-node-profile` | `SimulatedNodeProfile`, `NodeStateSnapshot`, `SimulatedServiceDescriptor` builders | none. It only emits `jacquard-core` model values |
-| `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportSenderEffects`, `TransportDriver`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
+| `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `CastLinkPreset`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportSenderEffects`, `TransportDriver`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
 | `jacquard-reference-client` | `ClientBuilder`, `HostBridge`, `ReferenceRouter`/`ReferenceClient` aliases, plus `NodePreset`, `NodePresetOptions`, `NodeIdentity`, `LinkPreset`, and `LinkPresetOptions` re-exported from the mem profile crates | none. It is pure composition over the crates above |
 
 The `mem-*` crates stay routing-engine-neutral and transport-neutral. They carry frames, emit observations, and build shared model values. They do not mint route truth, interpret routing policy, or own BLE or IP-specific authoring helpers.
 
 `jacquard-host-support` likewise stays transport-neutral. It owns generic ownership scaffolding only, not endpoint constructors, protocol state, or driver traits.
+
+`jacquard-mem-link-profile` can adapt `jacquard-cast-support` delivery support into ordinary in-memory directed `Link` observations through `CastLinkPreset`. Endpoint authoring still belongs to the caller through an explicit resolver closure.
 
 Reference-client fixtures are the single place where a service descriptor picks up engine-specific routing-engine tags such as `PATHWAY_ENGINE_ID`, `BATMAN_BELLMAN_ENGINE_ID`, or `BABEL_ENGINE_ID`. That decision is composition, not profile. The reference-client bridge is also the only sanctioned place where transport ingress is drained and stamped before delivery to the router.
 

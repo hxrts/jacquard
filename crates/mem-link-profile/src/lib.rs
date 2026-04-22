@@ -6,6 +6,7 @@
 //!
 //! Module map:
 //! - [`authoring`]: human-facing link authoring presets
+//! - [`cast`]: cast delivery-support to in-memory link presets
 //! - [`state`]: low-level link profile/state builder
 //! - `transport`: in-memory transport sender + driver implementation
 //! - `network`: shared in-memory carrier fabric
@@ -56,6 +57,7 @@
 #![forbid(unsafe_code)]
 
 pub mod authoring;
+pub mod cast;
 mod effect;
 mod network;
 mod retention;
@@ -63,6 +65,7 @@ mod state;
 mod transport;
 
 pub use authoring::{LinkPreset, LinkPresetOptions, DEFAULT_REFERENCE_TRANSFER_RATE_BYTES_PER_SEC};
+pub use cast::{CastLinkObservation, CastLinkPreset};
 pub use effect::InMemoryRuntimeEffects;
 pub use network::SharedInMemoryNetwork;
 pub use retention::InMemoryRetentionStore;
