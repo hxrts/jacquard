@@ -104,6 +104,33 @@ Custom transports own physical transport facts. A LoRa profile owns spreading fa
 
 Use `jacquard-cast-support` when the profile needs to shape those facts into bounded unicast, multicast, or broadcast evidence, or when profile/host integration needs deterministic route-neutral delivery support for an explicit delivery objective. The helper crate sorts receiver sets deterministically, enforces explicit bounds, carries typed freshness and capacity fields, and keeps directional support separate from reverse confirmation. The helper does not implement a transport, endpoint, retry loop, or send driver.
 
+The in-memory profile shows the intended fixture path. `jacquard-cast-support` derives delivery support from explicit facts and an objective. `jacquard-mem-link-profile` can then adapt that support into ordinary directed `Link` observations, while the caller still owns endpoint authoring:
+
+```rust
+use jacquard_cast_support::{
+    shape_unicast_delivery_support, CastDeliveryObjective, CastDeliveryPolicy, UnicastEvidence,
+};
+use jacquard_core::{ByteCount, LinkEndpoint, NodeId, TransportKind};
+use jacquard_host_support::opaque_endpoint;
+use jacquard_mem_link_profile::{CastLinkObservation, CastLinkPreset};
+
+fn endpoint_for(node: NodeId, payload_bytes_max: ByteCount) -> LinkEndpoint {
+    // Transport-owned endpoint authoring stays here.
+    opaque_endpoint(TransportKind::WifiAware, vec![node.0[0]], payload_bytes_max)
+}
+
+fn links_from_unicast(evidence: &[UnicastEvidence], sender: NodeId, receiver: NodeId) -> Vec<CastLinkObservation> {
+    let objective = CastDeliveryObjective::unicast(sender, receiver);
+    let (support, _report) =
+        shape_unicast_delivery_support(evidence.iter(), &objective, CastDeliveryPolicy::default());
+
+    support
+        .iter()
+        .map(|support| CastLinkPreset::from_unicast_support(support, endpoint_for))
+        .collect()
+}
+```
+
 `jacquard-host-support` remains host plumbing. Use it for mailbox, peer-directory, endpoint convenience, and claim-ownership support. Do not put profile evidence logic there.
 
 ## Composing With A Host Bridge
