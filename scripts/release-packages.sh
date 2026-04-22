@@ -6,7 +6,7 @@
 # Dependency order:
 #   macros → core → traits, host-support, cast-support
 #   host-support → mem-node-profile, mem-link-profile
-#   core/traits → pathway, field, scatter, babel, batman-classic, batman-bellman, olsrv2
+#   core/traits → pathway, field, scatter, babel, batman-classic, batman-bellman, olsrv2, mercator
 #   router depends on shared crates; reference-client and simulator depend on router + engines
 #   testkit comes last because it depends on most of the publishable surface
 RELEASE_PACKAGES=(
@@ -24,6 +24,7 @@ RELEASE_PACKAGES=(
   "jacquard-pathway"
   "jacquard-scatter"
   "jacquard-field"
+  "jacquard-mercator"
   "jacquard-router"
   "jacquard-reference-client"
   "jacquard-simulator"
@@ -47,6 +48,7 @@ manifest_path() {
     jacquard-pathway)          echo "crates/pathway/Cargo.toml" ;;
     jacquard-scatter)          echo "crates/scatter/Cargo.toml" ;;
     jacquard-field)            echo "crates/field/Cargo.toml" ;;
+    jacquard-mercator)         echo "crates/mercator/Cargo.toml" ;;
     jacquard-router)           echo "crates/router/Cargo.toml" ;;
     jacquard-reference-client) echo "crates/reference-client/Cargo.toml" ;;
     jacquard-simulator)        echo "crates/simulator/Cargo.toml" ;;
