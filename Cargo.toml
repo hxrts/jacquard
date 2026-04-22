@@ -6,6 +6,7 @@ members = [
   "crates/babel",
   "crates/batman-bellman",
   "crates/batman-classic",
+  "crates/cast-profile",
   "crates/core",
   "crates/field",
   "crates/macros",

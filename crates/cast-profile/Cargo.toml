@@ -1,0 +1,17 @@
+[package]
+name = "jacquard-cast-profile"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+documentation.workspace = true
+description = "Deterministic cast profile evidence helpers for Jacquard transport profiles"
+
+[lints]
+workspace = true
+
+[dependencies]
+jacquard-core = { path = "../core", version = "0.6.0" }
+serde = { workspace = true, default-features = false }

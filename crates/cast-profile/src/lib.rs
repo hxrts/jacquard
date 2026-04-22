@@ -1,0 +1,38 @@
+//! Deterministic cast profile evidence helpers.
+//!
+//! This crate is the shared home for unicast, multicast, and broadcast profile
+//! evidence shaping. Transport-owned profile crates record physical facts and
+//! pass bounded observations into these helpers. The helpers sort, filter, and
+//! cap those observations into deterministic evidence that routing engines can
+//! consume through their own conversion layer.
+//!
+//! The crate intentionally depends only on `jacquard-core`. It does not own
+//! host ingress plumbing, transport endpoint authoring, router state, or
+//! Mercator-specific routing behavior.
+
+#![forbid(unsafe_code)]
+
+mod bounds;
+mod broadcast;
+mod common;
+mod multicast;
+mod unicast;
+
+pub use bounds::{
+    CastEvidenceBounds, CAST_COPY_BUDGET_MAX, CAST_EVIDENCE_AGE_MS_MAX, CAST_FANOUT_COUNT_MAX,
+    CAST_GROUP_COVERAGE_COUNT_MAX, CAST_RECEIVER_COUNT_MAX,
+};
+pub use broadcast::{
+    shape_broadcast_evidence, BroadcastEvidence, BroadcastObservation,
+    BroadcastReverseConfirmation, BroadcastSupportKind,
+};
+pub use common::{
+    CastEvidenceError, CastEvidenceMeta, CastEvidencePolicy, CastEvidenceReport,
+    ReceiverCoverageEvidence, ReceiverCoverageObservation,
+};
+pub use multicast::{
+    shape_multicast_evidence, CastGroupId, MulticastEvidence, MulticastObservation,
+};
+pub use unicast::{
+    shape_unicast_evidence, UnicastEvidence, UnicastObservation, UnicastSupportKind,
+};

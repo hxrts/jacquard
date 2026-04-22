@@ -613,6 +613,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "jacquard-cast-profile"
+version = "0.6.0"
+dependencies = [
+ "jacquard-core",
+ "serde",
+]
+
+[[package]]
 name = "jacquard-core"
 version = "0.6.0"
 dependencies = [
