@@ -13,7 +13,7 @@ description = "Shared identifiers, types, and constants for Jacquard routing"
 workspace = true
 
 [dependencies]
-jacquard-macros = { path = "../macros", version = "0.7.0" }
+jacquard-macros = { path = "../macros", version = "0.7.1" }
 serde      = { workspace = true, default-features = false }
 thiserror  = { workspace = true }
 

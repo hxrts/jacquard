@@ -6,13 +6,13 @@ See [Reference Client](408_reference_client.md) for the implementation spec this
 
 ## Adding The Dependency
 
-`jacquard-reference-client` tracks the workspace version `0.7.0`. Add it alongside the core and trait crates a consumer typically imports types from.
+`jacquard-reference-client` tracks the workspace version `0.7.1`. Add it alongside the core and trait crates a consumer typically imports types from.
 
 ```toml
 [dependencies]
-jacquard-reference-client = "0.7.0"
-jacquard-core = "0.7.0"
-jacquard-traits = "0.7.0"
+jacquard-reference-client = "0.7.1"
+jacquard-core = "0.7.1"
+jacquard-traits = "0.7.1"
 ```
 
 The reference client re-exports node and link profile types from `jacquard-mem-node-profile` and `jacquard-mem-link-profile`, so most consumers do not need direct dependencies on those crates.

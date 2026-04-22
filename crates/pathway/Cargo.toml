@@ -13,8 +13,8 @@ description = "First-party deterministic pathway routing engine for Jacquard"
 workspace = true
 
 [dependencies]
-jacquard-core = { path = "../core", version = "0.7.0" }
-jacquard-traits = { path = "../traits", version = "0.7.0" }
+jacquard-core = { path = "../core", version = "0.7.1" }
+jacquard-traits = { path = "../traits", version = "0.7.1" }
 cfg-if = { workspace = true }
 telltale = { workspace = true }
 serde = { workspace = true, default-features = false }
