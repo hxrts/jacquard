@@ -684,6 +684,7 @@ name = "jacquard-mercator"
 version = "0.6.0"
 dependencies = [
  "jacquard-adapter",
+ "jacquard-cast-profile",
  "jacquard-core",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
