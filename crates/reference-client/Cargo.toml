@@ -30,6 +30,7 @@ jacquard-traits = { path = "../traits", version = "0.6.0" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+jacquard-cast-profile = { path = "../cast-profile", version = "0.6.0" }
 jacquard-testkit = { path = "../testkit", features = ["reference-client-e2e", "topology-full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
