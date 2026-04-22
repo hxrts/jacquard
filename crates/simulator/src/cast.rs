@@ -118,6 +118,7 @@ fn node(byte: u8) -> NodeId {
     NodeId([byte; 32])
 }
 
+#[allow(clippy::init_numbered_fields)]
 fn meta(order: u64) -> CastEvidenceMeta {
     CastEvidenceMeta::new(
         Tick(1),
