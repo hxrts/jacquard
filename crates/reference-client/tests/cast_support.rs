@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
-use jacquard_adapter::opaque_endpoint;
-use jacquard_cast_profile::{
+use jacquard_cast_support::{
     shape_broadcast_evidence, shape_multicast_evidence, shape_unicast_evidence, BroadcastEvidence,
     BroadcastObservation, BroadcastReverseConfirmation, CastEvidenceMeta, CastEvidencePolicy,
     CastGroupId, MulticastEvidence, MulticastObservation, ReceiverCoverageObservation,
@@ -14,6 +13,7 @@ use jacquard_core::{
     RoutePartitionClass, RouteProtectionClass, RouteRepairClass, RouteServiceKind,
     RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick, TransportKind,
 };
+use jacquard_host_support::opaque_endpoint;
 use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_mercator::MERCATOR_ENGINE_ID;

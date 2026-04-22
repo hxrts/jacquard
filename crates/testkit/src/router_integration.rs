@@ -2,7 +2,6 @@
 
 #![allow(dead_code, unused_imports, unused_macros)]
 
-use jacquard_adapter::{dispatch_mailbox, opaque_endpoint, DispatchReceiver, DispatchSender};
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
     HealthScore, IdentityAssuranceClass, Link, LinkEndpoint, Node, NodeId, Observation,
@@ -10,6 +9,7 @@ use jacquard_core::{
     RouteRepairClass, RouteReplacementPolicy, RoutingEngineFallbackPolicy, RoutingObjective,
     RoutingPolicyInputs, SelectedRoutingParameters, Tick, TransportError,
 };
+use jacquard_host_support::{dispatch_mailbox, opaque_endpoint, DispatchReceiver, DispatchSender};
 use jacquard_mem_link_profile::{
     InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions, SharedInMemoryNetwork,
 };

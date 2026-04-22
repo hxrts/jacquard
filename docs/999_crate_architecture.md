@@ -26,13 +26,13 @@ Shared transport vocabulary follows the same rule. `core` keeps a small observed
 
 ## Dependency Graph
 
-The workspace contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-adapter`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-mercator`, `jacquard-batman-bellman`, `jacquard-batman-classic`, `jacquard-babel`, `jacquard-olsrv2`, `jacquard-scatter`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-reference-client`, `jacquard-testkit`, and `jacquard-simulator`.
+The workspace contains repo-local policy tooling in `jacquard-toolkit-xtask` plus the routing crates `jacquard-core`, `jacquard-traits`, `jacquard-host-support`, `jacquard-cast-support`, `jacquard-macros`, `jacquard-pathway`, `jacquard-field`, `jacquard-mercator`, `jacquard-batman-bellman`, `jacquard-batman-classic`, `jacquard-babel`, `jacquard-olsrv2`, `jacquard-scatter`, `jacquard-router`, `jacquard-mem-node-profile`, `jacquard-mem-link-profile`, `jacquard-reference-client`, `jacquard-testkit`, and `jacquard-simulator`.
 
 ```
 jacquard-core
     ↑             ↑
-jacquard-traits jacquard-adapter
-    ↑             ↑
+jacquard-traits jacquard-host-support jacquard-cast-support
+    ↑             ↑                    ↑
 jacquard-mem-node-profile
       │
 jacquard-mem-link-profile
@@ -53,9 +53,9 @@ jacquard-simulator reuses reference-client composition rather than a simulator-o
 jacquard-toolkit-xtask
 ```
 
-Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits` only when they need behavioral boundaries. `jacquard-adapter` depends only on `jacquard-core` plus proc-macro and serialization support because it owns reusable mailbox, ownership, endpoint-convenience, and host-side observational projector helpers, not runtime traits or router semantics. `jacquard-router` depends on registered engines only through shared traits, not through pathway or BATMAN internals.
+Every crate depends on `jacquard-core`. Every crate except `jacquard-core` depends on `jacquard-traits` only when they need behavioral boundaries. `jacquard-host-support` depends only on `jacquard-core` plus proc-macro and serialization support because it owns reusable mailbox, ownership, endpoint-convenience, and host-side observational projector helpers, not runtime traits or router semantics. `jacquard-cast-support` depends only on `jacquard-core` plus serialization support because it owns bounded cast evidence helper shapes, not transport implementations or router semantics. `jacquard-router` depends on registered engines only through shared traits, not through pathway or BATMAN internals.
 
-`jacquard-mem-node-profile` depends on `jacquard-core` and `jacquard-adapter` plus serialization support. `jacquard-mem-link-profile` depends on `jacquard-core`, `jacquard-traits`, and `jacquard-adapter` because it implements shared transport, retention, and effect traits while reusing the canonical raw-ingress mailbox. `jacquard-core` and `jacquard-traits` remain runtime-free.
+`jacquard-mem-node-profile` depends on `jacquard-core` and `jacquard-host-support` plus serialization support. `jacquard-mem-link-profile` depends on `jacquard-core`, `jacquard-traits`, and `jacquard-host-support` because it implements shared transport, retention, and effect traits while reusing the canonical raw-ingress mailbox. `jacquard-core` and `jacquard-traits` remain runtime-free.
 
 ## Crate Layout
 
@@ -89,7 +89,9 @@ Trait purity and routing invariants are enforced by the lint suite. The stable-t
 
 The routing core does not call platform APIs directly. Hashing, storage, route-event logging, transport send capability, host-owned transport drivers, time, and ordering all cross explicit shared boundaries in `traits`.
 
-`jacquard-adapter` sits alongside that boundary, not inside it. Reusable adapter-side ingress mailboxes, unresolved and resolved peer bookkeeping, claim guards, transport-neutral endpoint conveniences, and host-side topology projectors live there so `core` stays data-only and `traits` stays contract-only. The router consumes explicit ingress and advances through synchronous rounds rather than polling adapters ambiently. That is how native execution, tests, and simulation share one semantic model.
+`jacquard-host-support` sits alongside that boundary, not inside it. Reusable host-side ingress mailboxes, unresolved and resolved peer bookkeeping, claim guards, transport-neutral endpoint conveniences, and host-side topology projectors live there so `core` stays data-only and `traits` stays contract-only. The router consumes explicit ingress and advances through synchronous rounds rather than polling transports ambiently. That is how native execution, tests, and simulation share one semantic model.
+
+`jacquard-cast-support` sits alongside profile and host-integration crates as deterministic evidence and delivery support. It normalizes unicast, multicast, and broadcast cast inputs into bounded, ordered helper records, then can derive route-neutral delivery support from those records and an explicit delivery objective. It leaves transport send/receive, endpoint authoring, retry scheduling, custody storage, and route publication to their owning crates.
 
 The effect traits are narrower than the higher-level component traits. They model runtime capabilities, not whole subsystems. `RoutingEngine`, `Router`, and `RetentionStore` are larger behavioral contracts and should not be forced through the effect layer.
 
@@ -119,7 +121,8 @@ Each crate owns a narrow slice of runtime state.
 | `jacquard-core` | Shared vocabulary. No live state. |
 | `jacquard-traits` | Compile-time boundaries. No runtime state. |
 | `jacquard-macros` | Annotation-site validation and syntax-local code generation for effect, handler, and purity attributes. No runtime state. |
-| `jacquard-adapter` | Generic adapter-side ingress mailboxes, peer identity bookkeeping, claim ownership helpers, transport-neutral endpoint conveniences, and host-side observational read models. No route truth, no transport-specific protocol logic, no router actions, no time/order stamping. |
+| `jacquard-host-support` | Generic host-side ingress mailboxes, peer identity bookkeeping, claim ownership helpers, transport-neutral endpoint conveniences, and host-side observational read models. No route truth, no transport-specific protocol logic, no router actions, no time/order stamping. |
+| `jacquard-cast-support` | Deterministic bounded unicast, multicast, and broadcast evidence helper records plus route-neutral delivery support shaping. No transport implementation, endpoint constructors, retry scheduling, route truth, router actions, or time/order stamping. |
 | `jacquard-pathway` | Pathway-private forwarding state, topology caches, repair state, retention state, engine-local committee scoring, and the private choreography guest runtime plus its protocol checkpoints. |
 | `jacquard-field` | Field-private posterior state, mean-field compression, regime/posture control state, Telltale-backed frozen-snapshot search, bounded runtime-round diagnostics, continuation scoring, and any field-private choreography runtime used only for observational summary exchange. |
 | `jacquard-mercator` | Mercator-private evidence graph, corridor planner, stale-safe repair state, weakest-flow accounting, broker-pressure accounting, bounded custody records, and route-visible diagnostics. |

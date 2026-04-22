@@ -150,8 +150,8 @@ impl NodePreset {
 
 #[cfg(test)]
 mod tests {
-    use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{ByteCount, LinkEndpoint, NodeId, RoutingEngineId, Tick, TransportKind};
+    use jacquard_host_support::opaque_endpoint;
 
     use super::*;
 

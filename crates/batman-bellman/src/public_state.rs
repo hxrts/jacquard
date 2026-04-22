@@ -28,9 +28,9 @@ use jacquard_core::{
     BackendRouteId, NodeId, RatioPermille, RouteDegradation, RouteEpoch, Tick, TransportKind,
 };
 
-pub use jacquard_adapter::DecayWindow;
+pub use jacquard_host_support::DecayWindow;
 
-pub(crate) use jacquard_adapter::OgmReceiveWindow;
+pub(crate) use jacquard_host_support::OgmReceiveWindow;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct OriginatorObservation {

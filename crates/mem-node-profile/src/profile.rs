@@ -195,10 +195,10 @@ impl SimulatedNodeProfile {
 
 #[cfg(test)]
 mod tests {
-    use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{
         ByteCount, ControllerId, DiscoveryScopeId, NodeId, ServiceScope, TransportKind,
     };
+    use jacquard_host_support::opaque_endpoint;
 
     use super::*;
 

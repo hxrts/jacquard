@@ -4,8 +4,8 @@
 # Mirrors the production dependency graph — dev-only deps do not appear here.
 #
 # Dependency order:
-#   macros → core → traits, adapter
-#   adapter → mem-node-profile, mem-link-profile
+#   macros → core → traits, host-support, cast-support
+#   host-support → mem-node-profile, mem-link-profile
 #   core/traits → pathway, field, scatter, babel, batman-classic, batman-bellman, olsrv2
 #   router depends on shared crates; reference-client and simulator depend on router + engines
 #   testkit comes last because it depends on most of the publishable surface
@@ -13,7 +13,8 @@ RELEASE_PACKAGES=(
   "jacquard-macros"
   "jacquard-core"
   "jacquard-traits"
-  "jacquard-adapter"
+  "jacquard-host-support"
+  "jacquard-cast-support"
   "jacquard-mem-node-profile"
   "jacquard-mem-link-profile"
   "jacquard-babel"
@@ -35,7 +36,8 @@ manifest_path() {
     jacquard-macros)           echo "crates/macros/Cargo.toml" ;;
     jacquard-core)             echo "crates/core/Cargo.toml" ;;
     jacquard-traits)           echo "crates/traits/Cargo.toml" ;;
-    jacquard-adapter)          echo "crates/adapter/Cargo.toml" ;;
+    jacquard-host-support)     echo "crates/host-support/Cargo.toml" ;;
+    jacquard-cast-support)     echo "crates/cast-support/Cargo.toml" ;;
     jacquard-mem-node-profile) echo "crates/mem-node-profile/Cargo.toml" ;;
     jacquard-mem-link-profile) echo "crates/mem-link-profile/Cargo.toml" ;;
     jacquard-babel)            echo "crates/babel/Cargo.toml" ;;

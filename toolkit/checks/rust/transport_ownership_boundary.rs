@@ -10,7 +10,7 @@
 //!   `DurationMs`) internally; time assignment belongs to the host bridge.
 //!
 //! Scans: the effect-capability file, the driver-contract file, driver
-//! implementations, and adapter helpers across the workspace.
+//! implementations, and host-support helpers across the workspace.
 //! Registered as: `cargo xtask check transport-ownership-boundary`
 
 use anyhow::{bail, Context, Result};
@@ -43,7 +43,7 @@ pub fn run() -> Result<()> {
 }
 
 fn scan_adapter_helpers(root: &std::path::Path) -> Result<Vec<Violation>> {
-    let adapter_path = root.join("crates/adapter/src");
+    let adapter_path = root.join("crates/host-support/src");
     let mut violations = Vec::new();
     if !adapter_path.exists() {
         return Ok(violations);
@@ -54,7 +54,7 @@ fn scan_adapter_helpers(root: &std::path::Path) -> Result<Vec<Violation>> {
             continue;
         }
         let rel = normalize_rel_path(root, &path);
-        if rel == "crates/adapter/src/topology.rs" {
+        if rel == "crates/host-support/src/topology.rs" {
             continue;
         }
         let contents = std::fs::read_to_string(&path)
@@ -74,7 +74,7 @@ fn scan_adapter_helpers(root: &std::path::Path) -> Result<Vec<Violation>> {
                 violations.push(Violation::with_layer(
                     rel.clone(),
                     index + 1,
-                    "adapter helpers must stay free of Jacquard time and ordering assignment",
+                    "host-support helpers must stay free of Jacquard time and ordering assignment",
                     layer_for_rel_path(&rel),
                 ));
             }

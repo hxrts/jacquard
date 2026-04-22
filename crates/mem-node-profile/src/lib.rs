@@ -10,7 +10,7 @@
 //! - [`state`]: low-level node state builder
 //!
 //! ```rust
-//! use jacquard_adapter::opaque_endpoint;
+//! use jacquard_host_support::opaque_endpoint;
 //! use jacquard_core::{
 //!     ByteCount, ControllerId, NodeId, RoutingEngineId, Tick, TransportKind,
 //! };
@@ -32,7 +32,7 @@
 //! ```
 //!
 //! Starter path:
-//! 1. Construct an endpoint with `jacquard_adapter::opaque_endpoint`.
+//! 1. Construct an endpoint with `jacquard_host_support::opaque_endpoint`.
 //! 2. Construct `NodePresetOptions` from a `NodeIdentity`, endpoint, and tick.
 //! 3. Choose `NodePreset::route_capable(...)` or
 //!    `NodePreset::route_capable_for_engines(...)`.

@@ -5,18 +5,18 @@
 //! `InMemoryTransport` attaches one local node to a
 //! [`SharedInMemoryNetwork`](crate::SharedInMemoryNetwork), records sent frames
 //! for inspection, and exposes raw ingress events through the shared
-//! `jacquard-adapter` mailbox primitives so the host bridge can stamp them with
+//! `jacquard-host-support` mailbox primitives so the host bridge can stamp them with
 //! Jacquard time.
 //!
 //! It is intentionally reference-only and in-memory. It exists to support
 //! tests, examples, and the reference client, not to model a production
 //! transport backend.
 
-use jacquard_adapter::{
+use jacquard_core::{LinkEndpoint, NodeId, TransportError, TransportIngressEvent};
+use jacquard_host_support::{
     transport_ingress_mailbox, TransportIngressClass, TransportIngressReceiver,
     TransportIngressSender,
 };
-use jacquard_core::{LinkEndpoint, NodeId, TransportError, TransportIngressEvent};
 use jacquard_traits::{effect_handler, TransportDriver, TransportSenderEffects};
 
 use crate::network::SharedInMemoryNetwork;

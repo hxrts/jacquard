@@ -20,7 +20,8 @@ const FORBIDDEN_DEPENDENCIES: &[(&str, &[&str])] = &[
     (
         "jacquard-core",
         &[
-            "jacquard-adapter",
+            "jacquard-host-support",
+            "jacquard-cast-support",
             "jacquard-traits",
             "jacquard-pathway",
             "jacquard-router",
@@ -32,7 +33,8 @@ const FORBIDDEN_DEPENDENCIES: &[(&str, &[&str])] = &[
     (
         "jacquard-traits",
         &[
-            "jacquard-adapter",
+            "jacquard-host-support",
+            "jacquard-cast-support",
             "jacquard-pathway",
             "jacquard-router",
             "jacquard-simulator",
@@ -41,8 +43,24 @@ const FORBIDDEN_DEPENDENCIES: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "jacquard-adapter",
+        "jacquard-host-support",
         &[
+            "jacquard-traits",
+            "jacquard-pathway",
+            "jacquard-batman",
+            "jacquard-router",
+            "jacquard-reference-client",
+            "jacquard-mem-link-profile",
+            "jacquard-mem-node-profile",
+            "jacquard-simulator",
+            "jacquard-transport",
+            "telltale-runtime",
+        ],
+    ),
+    (
+        "jacquard-cast-support",
+        &[
+            "jacquard-host-support",
             "jacquard-traits",
             "jacquard-pathway",
             "jacquard-batman",

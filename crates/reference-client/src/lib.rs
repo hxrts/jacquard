@@ -45,7 +45,7 @@
 //!                             jacquard_core::NodeId([1; 32]),
 //!                             jacquard_core::ControllerId([1; 32]),
 //!                         ),
-//!                         jacquard_adapter::opaque_endpoint(
+//!                         jacquard_host_support::opaque_endpoint(
 //!                             jacquard_core::TransportKind::WifiAware,
 //!                             vec![1],
 //!                             jacquard_core::ByteCount(256),
@@ -64,7 +64,7 @@
 //!                             jacquard_core::NodeId([2; 32]),
 //!                             jacquard_core::ControllerId([2; 32]),
 //!                         ),
-//!                         jacquard_adapter::opaque_endpoint(
+//!                         jacquard_host_support::opaque_endpoint(
 //!                             jacquard_core::TransportKind::WifiAware,
 //!                             vec![2],
 //!                             jacquard_core::ByteCount(256),
@@ -82,7 +82,7 @@
 //!                 jacquard_core::NodeId([2; 32]),
 //!             ),
 //!             LinkPreset::lossy(LinkPresetOptions::new(
-//!                 jacquard_adapter::opaque_endpoint(
+//!                 jacquard_host_support::opaque_endpoint(
 //!                     jacquard_core::TransportKind::WifiAware,
 //!                     vec![2],
 //!                     jacquard_core::ByteCount(256),
@@ -135,7 +135,7 @@ pub use clients::{
     ClientBuilder, EngineKind, FieldBootstrapSummary, ReferenceClient, ReferenceClientBuildError,
     ReferenceRouter,
 };
-pub use jacquard_adapter::{
+pub use jacquard_host_support::{
     ObservedLink, ObservedNode, ObservedRoute, ObservedRouteShape, TopologyProjector,
     TopologySnapshot,
 };

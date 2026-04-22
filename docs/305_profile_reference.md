@@ -1,6 +1,6 @@
 # Profile Implementations
 
-`jacquard-mem-node-profile`, `jacquard-mem-link-profile`, and `jacquard-reference-client` are Jacquard's in-tree profile and composition crates. The two `mem-*` crates model node and link inputs without importing routing logic. `jacquard-adapter` sits beside them as the reusable support crate for transport/profile implementers. The reference client composes those profile implementations with `jacquard-router` and the in-tree routing engines to exercise the full shared routing path in tests.
+`jacquard-mem-node-profile`, `jacquard-mem-link-profile`, and `jacquard-reference-client` are Jacquard's in-tree profile and composition crates. The two `mem-*` crates model node and link inputs without importing routing logic. `jacquard-host-support` sits beside them as the reusable support crate for transport/profile implementers. The reference client composes those profile implementations with `jacquard-router` and the in-tree routing engines to exercise the full shared routing path in tests.
 
 ## Ownership Boundary
 
@@ -14,14 +14,14 @@ Canonical route ownership remains on the router, and engine-private runtime stat
 
 | Crate | Provides | Shared boundary it implements |
 | --- | --- | --- |
-| `jacquard-adapter` | `TransportIngressSender`, `TransportIngressReceiver`, `TransportIngressNotifier`, `TransportIngressDrain`, `PeerDirectory`, `PendingClaims`, `ClaimGuard` | none. It provides transport-neutral adapter support primitives over `jacquard-core` vocabulary |
+| `jacquard-host-support` | `TransportIngressSender`, `TransportIngressReceiver`, `TransportIngressNotifier`, `TransportIngressDrain`, `PeerDirectory`, `PendingClaims`, `ClaimGuard` | none. It provides transport-neutral host support primitives over `jacquard-core` vocabulary |
 | `jacquard-mem-node-profile` | `SimulatedNodeProfile`, `NodeStateSnapshot`, `SimulatedServiceDescriptor` builders | none. It only emits `jacquard-core` model values |
 | `jacquard-mem-link-profile` | `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, `InMemoryRuntimeEffects`, transport-neutral reference defaults | `TransportSenderEffects`, `TransportDriver`, `RetentionStore`, `TimeEffects`, `OrderEffects`, `StorageEffects`, `RouteEventLogEffects` |
 | `jacquard-reference-client` | `ClientBuilder`, `HostBridge`, `ReferenceRouter`/`ReferenceClient` aliases, plus `NodePreset`, `NodePresetOptions`, `NodeIdentity`, `LinkPreset`, and `LinkPresetOptions` re-exported from the mem profile crates | none. It is pure composition over the crates above |
 
 The `mem-*` crates stay routing-engine-neutral and transport-neutral. They carry frames, emit observations, and build shared model values. They do not mint route truth, interpret routing policy, or own BLE or IP-specific authoring helpers.
 
-`jacquard-adapter` likewise stays transport-neutral. It owns generic ownership scaffolding only, not endpoint constructors, protocol state, or driver traits.
+`jacquard-host-support` likewise stays transport-neutral. It owns generic ownership scaffolding only, not endpoint constructors, protocol state, or driver traits.
 
 Reference-client fixtures are the single place where a service descriptor picks up engine-specific routing-engine tags such as `PATHWAY_ENGINE_ID`, `BATMAN_BELLMAN_ENGINE_ID`, or `BABEL_ENGINE_ID`. That decision is composition, not profile. The reference-client bridge is also the only sanctioned place where transport ingress is drained and stamped before delivery to the router.
 

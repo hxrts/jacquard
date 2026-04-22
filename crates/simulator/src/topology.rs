@@ -7,7 +7,6 @@
 
 #![allow(dead_code)]
 
-use jacquard_adapter::opaque_endpoint;
 use jacquard_babel::BABEL_ENGINE_ID;
 use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
 use jacquard_batman_classic::BATMAN_CLASSIC_ENGINE_ID;
@@ -16,6 +15,7 @@ use jacquard_core::{
     TransportKind,
 };
 use jacquard_field::FIELD_ENGINE_ID;
+use jacquard_host_support::opaque_endpoint;
 use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_mercator::MERCATOR_ENGINE_ID;

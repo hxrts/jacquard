@@ -345,12 +345,12 @@ mod tests {
         sync::{Arc, Mutex},
     };
 
-    use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{
         ByteCount, Configuration, ControllerId, Environment, FactSourceClass, LinkEndpoint,
         Observation, OriginAuthenticationClass, RatioPermille, RouteEpoch, RoutingEvidenceClass,
         RoutingTickContext, Tick, TransportError, TransportKind,
     };
+    use jacquard_host_support::opaque_endpoint;
     use jacquard_mem_link_profile::{
         InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions,
     };

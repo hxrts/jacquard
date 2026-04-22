@@ -1,22 +1,22 @@
-//! Enforces the adapter-support crate split.
+//! Enforces the host-support crate split.
 //!
-//! `jacquard-adapter` provides transport-neutral adapter helpers and
+//! `jacquard-host-support` provides transport-neutral host helpers and
 //! observational read-model utilities shared by host bridges. Its boundary
 //! rules:
-//! - `jacquard-adapter` must stay transport-neutral: no BLE, GATT, L2CAP, Wi-Fi
+//! - `jacquard-host-support` must stay transport-neutral: no BLE, GATT, L2CAP, Wi-Fi
 //!   Aware, or socket-specific terms may appear in its source.
-//! - `jacquard-adapter` may host pure observational projectors, but it must not
+//! - `jacquard-host-support` may host pure observational projectors, but it must not
 //!   implement router actions, engine actions, or default async watch/broadcast
 //!   frameworks.
-//! - Adapter helper shapes (`TransportIngressSender`, `PeerDirectory`, etc.)
+//! - Host helper shapes (`TransportIngressSender`, `PeerDirectory`, etc.)
 //!   must not be reintroduced into `jacquard-core` or `jacquard-traits`; they
-//!   belong exclusively in the adapter crate.
+//!   belong exclusively in the host-support crate.
 //! - `jacquard-reference-client` and `jacquard-simulator` must not define new
-//!   local mailbox/dispatch helper abstractions when shared adapter surfaces
+//!   local mailbox/dispatch helper abstractions when shared host-support surfaces
 //!   already exist.
 //!
-//! Scans: `crates/adapter/src/` for transport-specific terms, and
-//! `crates/core/src/` and `crates/traits/src/` for adapter helper names.
+//! Scans: `crates/host-support/src/` for transport-specific terms, and
+//! `crates/core/src/` and `crates/traits/src/` for host helper names.
 //! Registered as: `cargo xtask check adapter-boundary`
 
 use std::path::Path;
@@ -82,7 +82,7 @@ pub fn run() -> Result<()> {
         bail!("adapter-boundary failed");
     }
 
-    println!("adapter-boundary: adapter split is valid");
+    println!("adapter-boundary: host-support split is valid");
     Ok(())
 }
 
@@ -117,7 +117,7 @@ fn scan_host_layers_for_local_helper_duplicates(root: &Path) -> Result<Vec<Viola
                     violations.push(Violation::new(
                         rel.clone(),
                         index + 1,
-                        "host/simulator helper duplicates mailbox or dispatch support that belongs in jacquard-adapter",
+                        "host/simulator helper duplicates mailbox or dispatch support that belongs in jacquard-host-support",
                     ));
                 }
             }
@@ -162,7 +162,7 @@ fn defined_name(trimmed: &str) -> Option<&str> {
 }
 
 fn scan_adapter_for_transport_specific_terms(root: &Path) -> Result<Vec<Violation>> {
-    let adapter_src = root.join("crates/adapter/src");
+    let adapter_src = root.join("crates/host-support/src");
     let mut violations = Vec::new();
 
     for entry in walkdir::WalkDir::new(&adapter_src)
@@ -180,7 +180,7 @@ fn scan_adapter_for_transport_specific_terms(root: &Path) -> Result<Vec<Violatio
             &rel,
             &contents,
             TRANSPORT_SPECIFIC_TERMS,
-            "jacquard-adapter must stay transport-neutral",
+            "jacquard-host-support must stay transport-neutral",
         ));
     }
 
@@ -188,7 +188,7 @@ fn scan_adapter_for_transport_specific_terms(root: &Path) -> Result<Vec<Violatio
 }
 
 fn scan_adapter_for_forbidden_logic_terms(root: &Path) -> Result<Vec<Violation>> {
-    let adapter_src = root.join("crates/adapter/src");
+    let adapter_src = root.join("crates/host-support/src");
     let mut violations = Vec::new();
 
     for entry in walkdir::WalkDir::new(&adapter_src)
@@ -206,7 +206,7 @@ fn scan_adapter_for_forbidden_logic_terms(root: &Path) -> Result<Vec<Violation>>
             &rel,
             &contents,
             FORBIDDEN_ADAPTER_LOGIC_TERMS,
-            "jacquard-adapter must stay observational and must not own router actions or watch/broadcast runtime frameworks",
+            "jacquard-host-support must stay observational and must not own router actions or watch/broadcast runtime frameworks",
         ));
     }
 
@@ -244,7 +244,7 @@ fn scan_core_and_traits_for_adapter_helpers(root: &Path) -> Result<Vec<Violation
                     violations.push(Violation::new(
                         rel.clone(),
                         index + 1,
-                        "adapter-support helpers belong in jacquard-adapter, not in core or traits",
+                        "host-support helpers belong in jacquard-host-support, not in core or traits",
                     ));
                 }
             }
@@ -322,10 +322,10 @@ mod tests {
 "#;
 
         let violations = scan_non_test_lines(
-            "crates/adapter/src/example.rs",
+            "crates/host-support/src/example.rs",
             contents,
             &["Ble"],
-            "adapter must stay transport-neutral",
+            "host-support must stay transport-neutral",
         );
 
         assert!(violations.is_empty());

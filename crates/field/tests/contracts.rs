@@ -9,7 +9,6 @@
 //! against_shared_routing_traits` confirms the tick and planner APIs accept
 //! the standard context and objective shapes without panicking.
 
-use jacquard_adapter::opaque_endpoint;
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
     Environment, FactSourceClass, Observation, OriginAuthenticationClass, RatioPermille,
@@ -18,6 +17,7 @@ use jacquard_core::{
     TransportKind,
 };
 use jacquard_field::{FieldEngine, FIELD_ENGINE_ID};
+use jacquard_host_support::opaque_endpoint;
 use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_traits::{RoutingEngine, RoutingEnginePlanner};

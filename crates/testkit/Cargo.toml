@@ -18,7 +18,7 @@ reference-client-e2e = ["dep:jacquard-reference-client"]
 topology-full = ["dep:jacquard-batman-classic", "dep:jacquard-field", "dep:jacquard-scatter"]
 
 [dependencies]
-jacquard-adapter = { path = "../adapter", version = "0.6.0" }
+jacquard-host-support = { path = "../host-support", version = "0.6.0" }
 jacquard-babel = { path = "../babel", version = "0.6.0" }
 jacquard-core = { path = "../core", version = "0.6.0" }
 jacquard-mem-link-profile = { path = "../mem-link-profile", version = "0.6.0" }

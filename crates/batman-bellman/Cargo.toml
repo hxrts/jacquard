@@ -14,7 +14,7 @@ workspace = true
 
 [dependencies]
 bincode = { workspace = true }
-jacquard-adapter = { path = "../adapter", version = "0.6.0" }
+jacquard-host-support = { path = "../host-support", version = "0.6.0" }
 jacquard-core = { path = "../core", version = "0.6.0" }
 jacquard-traits = { path = "../traits", version = "0.6.0" }
 serde = { workspace = true, default-features = false }

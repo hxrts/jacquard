@@ -12,11 +12,11 @@
 
 use std::{collections::VecDeque, sync::Arc};
 
-use jacquard_adapter::{dispatch_mailbox, DispatchOverflow, DispatchReceiver, DispatchSender};
 use jacquard_core::{
     Configuration, LinkEndpoint, Observation, RouteError, RouterRoundOutcome, Tick, TransportError,
     TransportIngressEvent, TransportObservation,
 };
+use jacquard_host_support::{dispatch_mailbox, DispatchOverflow, DispatchReceiver, DispatchSender};
 use jacquard_mem_link_profile::InMemoryTransport;
 use jacquard_traits::{
     effect_handler, RoutingControlPlane, TransportDriver, TransportSenderEffects,

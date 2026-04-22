@@ -1,18 +1,18 @@
-//! Peer identity bookkeeping for transport adapters.
+//! Peer identity bookkeeping for host-owned transport integrations.
 //!
-//! Transport adapters often discover neighbors by their transport address
+//! Transport integrations often discover neighbors by their transport address
 //! before the full `NodeId` is known. This module provides `PeerDirectory`, a
 //! bidirectional map that tracks the lifecycle of a peer from initial hint to
 //! resolved identity, and `PeerIdentityState`, which names each lifecycle
 //! stage.
 //!
-//! `PeerIdentityState::Hint` holds an adapter-supplied discovery hint (e.g. a
+//! `PeerIdentityState::Hint` holds a transport-supplied discovery hint (e.g. a
 //! raw address or announcement payload) while the node identity is pending.
 //! `PeerIdentityState::Resolved` records the canonical `NodeId` once the
-//! adapter has confirmed the peer's identity through the control protocol.
+//! host integration has confirmed the peer's identity through the control protocol.
 //!
 //! `PeerDirectory` maintains two concurrent indexes — by transport address and
-//! by resolved `NodeId` — so adapters can look up peers in either direction.
+//! by resolved `NodeId` — so hosts can look up peers in either direction.
 //! Resolution and removal both clean up both indexes atomically to keep the
 //! directory consistent under address migration and reconnection.
 

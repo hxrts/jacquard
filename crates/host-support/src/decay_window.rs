@@ -4,7 +4,7 @@
 //! remains fresh and how soon the next engine refresh should run. Proactive
 //! next-hop engines (BATMAN variants, Babel, OLSRv2) use this primitive to
 //! prune stale per-neighbor evidence and keep refresh cadence legible.
-// proc-macro-scope: adapter support primitive intentionally stays outside #[public_model].
+// proc-macro-scope: host support primitive intentionally stays outside #[public_model].
 
 use serde::{Deserialize, Serialize};
 

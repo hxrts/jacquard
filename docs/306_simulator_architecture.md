@@ -22,7 +22,7 @@ All engines share one host bridge per node. The bridge owns ingress draining and
 
 The simulator reuses existing Jacquard composition surfaces. It does not maintain a simulator-only stack.
 
-`jacquard-reference-client` provides host bridge ownership and round advancement. `jacquard-adapter` provides queueing and adapter support primitives. `jacquard-mem-link-profile` provides in-memory transport composition. `jacquard-mem-node-profile` provides node profile authoring.
+`jacquard-reference-client` provides host bridge ownership and round advancement. `jacquard-host-support` provides queueing and host support primitives. `jacquard-mem-link-profile` provides in-memory transport composition. `jacquard-mem-node-profile` provides node profile authoring.
 
 ## Environment Model
 

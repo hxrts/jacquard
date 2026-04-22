@@ -96,7 +96,7 @@ fn forward_payload_switches_realization_inside_continuation_envelope() {
     engine.state.neighbor_endpoints.remove(&node(2));
     engine.state.neighbor_endpoints.insert(
         node(3),
-        jacquard_adapter::opaque_endpoint(
+        jacquard_host_support::opaque_endpoint(
             jacquard_core::TransportKind::WifiAware,
             vec![3],
             ByteCount(128),
@@ -650,7 +650,7 @@ fn discovery_node_observer_refresh_synthesizes_carry_forward_from_active_route()
 
     engine.state.neighbor_endpoints.insert(
         node(3),
-        jacquard_adapter::opaque_endpoint(
+        jacquard_host_support::opaque_endpoint(
             jacquard_core::TransportKind::WifiAware,
             vec![3],
             ByteCount(128),

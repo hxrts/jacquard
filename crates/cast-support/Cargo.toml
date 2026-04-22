@@ -1,5 +1,5 @@
 [package]
-name = "jacquard-cast-profile"
+name = "jacquard-cast-support"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,7 +7,7 @@ authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
 documentation.workspace = true
-description = "Deterministic cast profile evidence helpers for Jacquard transport profiles"
+description = "Deterministic cast support helpers for Jacquard transport profiles"
 
 [lints]
 workspace = true

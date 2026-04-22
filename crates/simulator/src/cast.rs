@@ -1,12 +1,12 @@
 //! Simulator-facing cast evidence scenarios.
 //!
-//! These scenarios exercise the shared cast profile helpers without introducing
+//! These scenarios exercise the shared cast support helpers without introducing
 //! a transport-specific simulator lane. The report surface remains Mercator and
 //! diffusion outcomes because the helpers are profile evidence shaping support.
 
 // proc-macro-scope: Cast simulator scenarios use plain helper outputs.
 
-use jacquard_cast_profile::{
+use jacquard_cast_support::{
     shape_broadcast_evidence, shape_multicast_evidence, shape_unicast_evidence,
     BroadcastObservation, BroadcastReverseConfirmation, CastEvidenceBounds, CastEvidenceMeta,
     CastEvidencePolicy, CastGroupId, MulticastObservation, ReceiverCoverageObservation,

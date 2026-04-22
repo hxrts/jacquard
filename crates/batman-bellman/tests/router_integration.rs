@@ -18,7 +18,6 @@
 
 use std::collections::BTreeMap;
 
-use jacquard_adapter::{dispatch_mailbox, opaque_endpoint, DispatchReceiver, DispatchSender};
 use jacquard_batman_bellman::{BatmanBellmanEngine, BATMAN_BELLMAN_ENGINE_ID};
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
@@ -27,6 +26,7 @@ use jacquard_core::{
     RoutingEngineFallbackPolicy, RoutingPolicyInputs, RoutingTickChange, SelectedRoutingParameters,
     Tick, TransportError, TransportIngressEvent, TransportKind,
 };
+use jacquard_host_support::{dispatch_mailbox, opaque_endpoint, DispatchReceiver, DispatchSender};
 use jacquard_mem_link_profile::{
     InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions, SharedInMemoryNetwork,
 };

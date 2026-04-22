@@ -10,11 +10,11 @@ documentation.workspace = true
 description = "Scenario and replay harness for deterministic Jacquard routing analysis"
 
 [dependencies]
-jacquard-adapter = { version = "0.6.0", path = "../adapter" }
+jacquard-host-support = { version = "0.6.0", path = "../host-support" }
 jacquard-babel = { version = "0.6.0", path = "../babel" }
 jacquard-batman-bellman = { version = "0.6.0", path = "../batman-bellman" }
 jacquard-batman-classic = { version = "0.6.0", path = "../batman-classic" }
-jacquard-cast-profile = { version = "0.6.0", path = "../cast-profile" }
+jacquard-cast-support = { version = "0.6.0", path = "../cast-support" }
 jacquard-core = { version = "0.6.0", path = "../core" }
 jacquard-field = { version = "0.6.0", path = "../field" }
 jacquard-mem-link-profile = { version = "0.6.0", path = "../mem-link-profile" }

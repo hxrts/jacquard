@@ -25,7 +25,7 @@ let identity = NodeIdentity::new(
     ControllerId([1; 32]),
 );
 
-let endpoint = jacquard_adapter::opaque_endpoint(
+let endpoint = jacquard_host_support::opaque_endpoint(
     TransportKind::WifiAware,
     vec![1],
     ByteCount(256),

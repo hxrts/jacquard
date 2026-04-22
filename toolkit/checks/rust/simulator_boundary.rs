@@ -1,6 +1,6 @@
 //! Enforces the simulator ownership boundary.
 //!
-//! `jacquard-simulator` must reuse the host bridge and adapter helpers rather
+//! `jacquard-simulator` must reuse the host bridge and host-support helpers rather
 //! than reaching into transport-driver internals or assigning ordering/event
 //! stamps itself.
 //!

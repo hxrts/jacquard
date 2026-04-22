@@ -13,7 +13,7 @@
 //! - `effect`: in-memory runtime-effect implementations
 //!
 //! ```rust
-//! use jacquard_adapter::opaque_endpoint;
+//! use jacquard_host_support::opaque_endpoint;
 //! use jacquard_core::{ByteCount, Tick, TransportKind};
 //! use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 //!
@@ -42,7 +42,7 @@
 //! ```
 //!
 //! Starter path:
-//! 1. Construct an endpoint with `jacquard_adapter::opaque_endpoint`.
+//! 1. Construct an endpoint with `jacquard_host_support::opaque_endpoint`.
 //! 2. Choose a `LinkPreset` constructor such as `active`, `lossy`, or
 //!    `recoverable`.
 //! 3. Use `LinkPresetOptions` for the common setup path.

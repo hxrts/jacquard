@@ -100,7 +100,7 @@ impl TestDestinationSeed {
         for neighbor_id in &self.endpoint_neighbors {
             engine.state.neighbor_endpoints.insert(
                 *neighbor_id,
-                jacquard_adapter::opaque_endpoint(
+                jacquard_host_support::opaque_endpoint(
                     jacquard_core::TransportKind::WifiAware,
                     vec![neighbor_id.0[0]],
                     ByteCount(128),
@@ -165,7 +165,7 @@ fn supported_topology() -> Observation<Configuration> {
                     NodePreset::route_capable(
                         NodePresetOptions::new(
                             NodeIdentity::new(node(1), ControllerId([1; 32])),
-                            jacquard_adapter::opaque_endpoint(
+                            jacquard_host_support::opaque_endpoint(
                                 jacquard_core::TransportKind::WifiAware,
                                 vec![1],
                                 ByteCount(128),
@@ -181,7 +181,7 @@ fn supported_topology() -> Observation<Configuration> {
                     NodePreset::route_capable(
                         NodePresetOptions::new(
                             NodeIdentity::new(node(2), ControllerId([2; 32])),
-                            jacquard_adapter::opaque_endpoint(
+                            jacquard_host_support::opaque_endpoint(
                                 jacquard_core::TransportKind::WifiAware,
                                 vec![2],
                                 ByteCount(128),

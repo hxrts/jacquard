@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 
-use jacquard_adapter::opaque_endpoint;
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
     Environment, FactSourceClass, Link, MaterializedRoute, Node, Observation,
@@ -16,6 +15,7 @@ use jacquard_field::{
     FieldRuntimeRoundArtifact, FieldSearchPlanningFailure, FieldSearchTransitionClass,
     FIELD_ENGINE_ID,
 };
+use jacquard_host_support::opaque_endpoint;
 use jacquard_mem_link_profile::{
     InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions,
 };

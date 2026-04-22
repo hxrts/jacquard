@@ -1,5 +1,5 @@
 [package]
-name = "jacquard-adapter"
+name = "jacquard-host-support"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,7 +7,7 @@ authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
 documentation.workspace = true
-description = "Reusable adapter-support primitives for Jacquard transport/profile implementers"
+description = "Reusable host-support primitives for Jacquard transport/profile implementers"
 
 [lints]
 workspace = true

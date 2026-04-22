@@ -10,7 +10,7 @@ See [Crate Architecture](docs/999_crate_architecture.md) for the dependency grap
 
 Enter the dev shell with `nix develop` or direnv (`direnv allow`).
 
-```
+```bash
 just check          # cargo check --workspace
 just build          # cargo build --workspace
 just test           # cargo test --workspace
@@ -49,12 +49,12 @@ Run a single test: `cargo test -p <crate> <test_name>`
 
 The routing pipeline flows: `observation → estimate → fact → candidate → admission → materialization → publication`. Only the first three stages live in the shared world model. Candidate production and above happen through router and engine contracts.
 
-`adapter` exists for transport-neutral adapter support primitives only:
+`jacquard-host-support` exists for transport-neutral host support primitives only:
 - bounded raw-ingress mailbox helpers
 - unresolved/resolved peer bookkeeping
 - in-flight claim ownership guards
 
-`adapter` must not grow:
+`jacquard-host-support` must not grow:
 - world-model vocabulary that belongs in `core`
 - capability or driver traits that belong in `traits`
 - transport-specific protocol logic or endpoint constructors
@@ -67,7 +67,7 @@ Transport ownership is split deliberately:
 - Routers and engines must not own transport streams or assign `Tick`.
 - Routers consume explicit ingress through router-owned ingestion APIs and advance synchronously through `advance_round`.
 - Host bridges own ingress draining, batching, and time attachment.
-- Transport-specific endpoint authoring belongs in transport-owned profile crates, not in `core`, `adapter`, or the mem profile crates.
+- Transport-specific endpoint authoring belongs in transport-owned profile crates, not in `core`, `jacquard-host-support`, `jacquard-cast-support`, or the mem profile crates.
 
 `macros` owns syntax-local code generation and annotation-site validation. The flake-input `toolkit` dependency owns portable nightly compiler-backed policy checks and generic fast-path checks. `toolkit/lints/` and `toolkit/xtask` own Jacquard-specific policy used by `just`, CI, and the pre-commit hook. Do not hide broad policy in generic proc macros when the rule belongs in an explicit lint or xtask check.
 
@@ -120,7 +120,8 @@ Unit tests co-locate with the module they cover. Higher-level tests go in `tests
 
 - `jacquard-core`: type invariants, canonical encoding, boundedness, deterministic ordering, content-addressing stability.
 - `jacquard-traits`: compile-only surface checks, trait-object and generic-boundary tests.
-- `jacquard-adapter`: transport-neutral ingress mailbox, peer-directory, and claim-guard helpers with explicit ownership semantics.
+- `jacquard-host-support`: transport-neutral ingress mailbox, peer-directory, and claim-guard helpers with explicit ownership semantics.
+- `jacquard-cast-support`: deterministic bounded unicast, multicast, and broadcast evidence helpers shared by transport profiles and cast-capable engines.
 - `jacquard-pathway`: deterministic candidate production, admission/materialization, commitment tracking, forwarding, repair, topology-change, observation handling.
 - `jacquard-router`: control-plane selection, ownership, capability enforcement, canonical handle issuance, lease expiry, explicit ingress, synchronous round advancement, fallback legality, adaptive-profile derivation.
 - `jacquard-reference-client`: host-side bridge composition of router + pathway/batman + in-memory profiles for end-to-end tests.

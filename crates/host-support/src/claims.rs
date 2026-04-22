@@ -1,6 +1,6 @@
-//! In-flight claim guards for adapter-side concurrent operations.
+//! In-flight claim guards for host-side concurrent operations.
 //!
-//! Transport adapters frequently need to ensure that at most one concurrent
+//! Host integrations frequently need to ensure that at most one concurrent
 //! operation targets a given key — for example, a single in-flight handshake
 //! per peer address, or a single active resolution per node identity. This
 //! module provides `PendingClaims`, a cloneable shared claim set, and
@@ -12,7 +12,7 @@
 //! whether normally or on unwinding — the key is removed from the shared set,
 //! allowing the next attempt to succeed.
 //!
-//! The key type is generic over any `Clone + Ord` value so adapters can use
+//! The key type is generic over any `Clone + Ord` value so hosts can use
 //! transport addresses, node identifiers, or composite keys without wrapping.
 
 use std::{

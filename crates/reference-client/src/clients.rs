@@ -769,7 +769,7 @@ pub(crate) fn policy_inputs_for_empty(local_node_id: NodeId) -> RoutingPolicyInp
                 local_node_id,
                 jacquard_core::ControllerId(local_node_id.0),
             ),
-            jacquard_adapter::opaque_endpoint(
+            jacquard_host_support::opaque_endpoint(
                 jacquard_core::TransportKind::Custom("reference".to_owned()),
                 vec![0],
                 jacquard_core::ByteCount(64),

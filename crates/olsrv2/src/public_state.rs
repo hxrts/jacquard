@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use jacquard_core::{BackendRouteId, NodeId, RouteDegradation, RouteEpoch, Tick, TransportKind};
 
-pub use jacquard_adapter::DecayWindow;
+pub use jacquard_host_support::DecayWindow;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct HoldWindow {

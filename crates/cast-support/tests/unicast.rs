@@ -1,4 +1,4 @@
-use jacquard_cast_profile::{
+use jacquard_cast_support::{
     shape_unicast_evidence, CastEvidenceBounds, CastEvidenceMeta, CastEvidencePolicy,
     UnicastObservation, UnicastSupportKind,
 };

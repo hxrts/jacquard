@@ -2,7 +2,7 @@
 //! they are stamped with Jacquard logical time.
 //!
 //! The mailbox is created via `transport_ingress_mailbox(capacity)`, which
-//! returns three handles that together cover the full adapter-side lifecycle:
+//! returns three handles that together cover the full host-side lifecycle:
 //! - `TransportIngressSender` — cloneable write handle used by the transport
 //!   driver to emit raw ingress events from any thread.
 //! - `TransportIngressReceiver` — single-owner drain handle used by the host

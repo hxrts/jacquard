@@ -1,4 +1,4 @@
-//! Transport-neutral endpoint construction helpers for adapter/profile authors.
+//! Transport-neutral endpoint construction helpers for host/profile authors.
 //!
 //! These helpers are intentionally small conveniences around shared core types.
 //! They exist so human-facing profile/client examples do not need to repeat the

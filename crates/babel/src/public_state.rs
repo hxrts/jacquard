@@ -9,7 +9,7 @@ use jacquard_core::{
     BackendRouteId, NodeId, RatioPermille, RouteDegradation, RouteEpoch, Tick, TransportKind,
 };
 
-pub use jacquard_adapter::DecayWindow;
+pub use jacquard_host_support::DecayWindow;
 
 /// Feasibility distance for a destination: the `(seqno, metric)` of the last
 /// feasibly selected route.

@@ -561,22 +561,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
-name = "jacquard-adapter"
-version = "0.6.0"
-dependencies = [
- "cfg-if",
- "jacquard-core",
- "jacquard-macros",
- "serde",
-]
-
-[[package]]
 name = "jacquard-babel"
 version = "0.6.0"
 dependencies = [
  "bincode",
- "jacquard-adapter",
  "jacquard-core",
+ "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-testkit",
@@ -589,8 +579,8 @@ name = "jacquard-batman-bellman"
 version = "0.6.0"
 dependencies = [
  "bincode",
- "jacquard-adapter",
  "jacquard-core",
+ "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-router",
@@ -603,8 +593,8 @@ name = "jacquard-batman-classic"
 version = "0.6.0"
 dependencies = [
  "bincode",
- "jacquard-adapter",
  "jacquard-core",
+ "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-testkit",
@@ -613,7 +603,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "jacquard-cast-profile"
+name = "jacquard-cast-support"
 version = "0.6.0"
 dependencies = [
  "jacquard-core",
@@ -637,14 +627,24 @@ version = "0.6.0"
 dependencies = [
  "bincode",
  "cfg-if",
- "jacquard-adapter",
  "jacquard-core",
+ "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-traits",
  "serde",
  "serde_json",
  "telltale-search",
+]
+
+[[package]]
+name = "jacquard-host-support"
+version = "0.6.0"
+dependencies = [
+ "cfg-if",
+ "jacquard-core",
+ "jacquard-macros",
+ "serde",
 ]
 
 [[package]]
@@ -663,8 +663,8 @@ dependencies = [
 name = "jacquard-mem-link-profile"
 version = "0.6.0"
 dependencies = [
- "jacquard-adapter",
  "jacquard-core",
+ "jacquard-host-support",
  "jacquard-traits",
  "serde",
 ]
@@ -673,8 +673,8 @@ dependencies = [
 name = "jacquard-mem-node-profile"
 version = "0.6.0"
 dependencies = [
- "jacquard-adapter",
  "jacquard-core",
+ "jacquard-host-support",
  "serde",
  "serde_json",
 ]
@@ -683,9 +683,9 @@ dependencies = [
 name = "jacquard-mercator"
 version = "0.6.0"
 dependencies = [
- "jacquard-adapter",
- "jacquard-cast-profile",
+ "jacquard-cast-support",
  "jacquard-core",
+ "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-traits",
@@ -697,8 +697,8 @@ name = "jacquard-olsrv2"
 version = "0.6.0"
 dependencies = [
  "bincode",
- "jacquard-adapter",
  "jacquard-core",
+ "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-router",
@@ -726,13 +726,13 @@ dependencies = [
 name = "jacquard-reference-client"
 version = "0.6.0"
 dependencies = [
- "jacquard-adapter",
  "jacquard-babel",
  "jacquard-batman-bellman",
  "jacquard-batman-classic",
- "jacquard-cast-profile",
+ "jacquard-cast-support",
  "jacquard-core",
  "jacquard-field",
+ "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-mercator",
@@ -766,8 +766,8 @@ name = "jacquard-scatter"
 version = "0.6.0"
 dependencies = [
  "bincode",
- "jacquard-adapter",
  "jacquard-core",
+ "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-router",
@@ -779,13 +779,13 @@ dependencies = [
 name = "jacquard-simulator"
 version = "0.6.0"
 dependencies = [
- "jacquard-adapter",
  "jacquard-babel",
  "jacquard-batman-bellman",
  "jacquard-batman-classic",
- "jacquard-cast-profile",
+ "jacquard-cast-support",
  "jacquard-core",
  "jacquard-field",
+ "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-mercator",
@@ -806,12 +806,12 @@ dependencies = [
 name = "jacquard-testkit"
 version = "0.6.0"
 dependencies = [
- "jacquard-adapter",
  "jacquard-babel",
  "jacquard-batman-bellman",
  "jacquard-batman-classic",
  "jacquard-core",
  "jacquard-field",
+ "jacquard-host-support",
  "jacquard-mem-link-profile",
  "jacquard-mem-node-profile",
  "jacquard-olsrv2",

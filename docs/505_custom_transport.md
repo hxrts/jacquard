@@ -10,7 +10,7 @@ A transport in Jacquard has two surfaces. Engines send payloads through `Transpo
 
 Engines must not own async I/O directly. They must not poll the transport driver. They must not attach time. A 3rd party implementing a new transport replaces the two trait surfaces and hands the result to the bridge, which keeps those ownership boundaries.
 
-Reuse `jacquard-adapter` for generic mailbox, peer-directory, or claim-ownership scaffolding when the transport needs those primitives. Do not introduce a pathway-specific or engine-specific transport trait. Keep the transport transport-neutral.
+Reuse `jacquard-host-support` for generic mailbox, peer-directory, or claim-ownership scaffolding when the transport needs those primitives. Do not introduce a pathway-specific or engine-specific transport trait. Keep the transport transport-neutral.
 
 ## Implementing TransportSenderEffects
 
@@ -102,9 +102,9 @@ For the retention store, either reuse `InMemoryRetentionStore` from `jacquard-me
 
 Custom transports own physical transport facts. A LoRa profile owns spreading factor, duty cycle, gateway behavior, and acknowledgement limits. A BLE profile owns scan windows and advertising behavior. A satellite profile owns contact schedules. These facts stay in the transport-owned profile crate.
 
-Use `jacquard-cast-profile` when the profile needs to shape those facts into bounded unicast, multicast, or broadcast evidence. The helper crate sorts receiver sets deterministically, enforces explicit bounds, carries typed freshness and capacity fields, and keeps directional support separate from reverse confirmation. The helper does not implement a transport.
+Use `jacquard-cast-support` when the profile needs to shape those facts into bounded unicast, multicast, or broadcast evidence, or when profile/host integration needs deterministic route-neutral delivery support for an explicit delivery objective. The helper crate sorts receiver sets deterministically, enforces explicit bounds, carries typed freshness and capacity fields, and keeps directional support separate from reverse confirmation. The helper does not implement a transport, endpoint, retry loop, or send driver.
 
-`jacquard-adapter` remains host plumbing. Use it for mailbox, peer-directory, endpoint convenience, and claim-ownership support. Do not put profile evidence logic there.
+`jacquard-host-support` remains host plumbing. Use it for mailbox, peer-directory, endpoint convenience, and claim-ownership support. Do not put profile evidence logic there.
 
 ## Composing With A Host Bridge
 

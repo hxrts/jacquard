@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use jacquard_cast_profile::{
+use jacquard_cast_support::{
     shape_multicast_evidence, CastEvidenceBounds, CastEvidenceMeta, CastEvidencePolicy,
     CastGroupId, MulticastObservation, ReceiverCoverageObservation,
 };

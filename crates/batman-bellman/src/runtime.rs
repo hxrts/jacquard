@@ -390,7 +390,6 @@ where
 mod tests {
     use std::collections::BTreeMap;
 
-    use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{
         Belief, ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId,
         DurationMs, Environment, Link, LinkEndpoint, LinkProfile, LinkRuntimeState, LinkState,
@@ -398,6 +397,7 @@ mod tests {
         RouteMaintenanceTrigger, RoutePartitionClass, RouteProtectionClass, RouteRepairClass,
         RoutingTickContext, SelectedRoutingParameters, Tick, TimeWindow, TransportKind,
     };
+    use jacquard_host_support::opaque_endpoint;
     use jacquard_mem_link_profile::{InMemoryRuntimeEffects, InMemoryTransport};
     use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
     use jacquard_traits::{RoutingEngine, RoutingEnginePlanner};

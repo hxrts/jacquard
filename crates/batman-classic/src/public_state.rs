@@ -15,9 +15,9 @@ use jacquard_core::{
     BackendRouteId, NodeId, RatioPermille, RouteDegradation, RouteEpoch, Tick, TransportKind,
 };
 
-pub use jacquard_adapter::DecayWindow;
+pub use jacquard_host_support::DecayWindow;
 
-pub(crate) use jacquard_adapter::OgmReceiveWindow;
+pub(crate) use jacquard_host_support::OgmReceiveWindow;
 
 /// Path-quality data extracted from a received OGM for a single
 /// `(originator, via_neighbor)` pair.

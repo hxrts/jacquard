@@ -1,4 +1,4 @@
-use jacquard_cast_profile::{
+use jacquard_cast_support::{
     shape_broadcast_evidence, BroadcastObservation, BroadcastReverseConfirmation,
     BroadcastSupportKind, CastEvidenceBounds, CastEvidenceMeta, CastEvidencePolicy,
     ReceiverCoverageObservation,

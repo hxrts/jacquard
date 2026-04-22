@@ -3,7 +3,6 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use jacquard_adapter::opaque_endpoint;
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
     Environment, FactSourceClass, Link, MaterializedRoute, Node, Observation,
@@ -13,6 +12,7 @@ use jacquard_core::{
     ServiceId, Tick, TimeWindow, TransportKind,
 };
 use jacquard_field::{FieldEngine, FieldExportedReplayBundle, FieldForwardSummaryObservation};
+use jacquard_host_support::opaque_endpoint;
 use jacquard_mem_link_profile::{
     InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions,
 };

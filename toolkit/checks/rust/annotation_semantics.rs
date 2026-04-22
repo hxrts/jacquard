@@ -6,7 +6,7 @@
 //! - `#[effect_handler]` belongs on impls of actual effect traits, and effect
 //!   trait impls must use it consistently
 //! - `#[public_model]` belongs on shared public model vocabulary in `core` and
-//!   the small transport-neutral adapter vocabulary in `adapter`
+//!   the small transport-neutral host-support vocabulary in `jacquard-host-support`
 //! - `#[id_type]` belongs on shared identifier/time vocabulary in `core`
 //! - `#[must_use_handle]` belongs on shared routing capability/handle types and
 //!   must travel with `#[public_model]`
@@ -269,7 +269,7 @@ fn check_modelish_item<T: syn::spanned::Spanned>(
         violations.push(v(
             rel_path,
             item,
-            "`#[public_model]` is reserved for shared vocabulary under `core` and transport-neutral adapter model surfaces",
+            "`#[public_model]` is reserved for shared vocabulary under `core` and transport-neutral host-support model surfaces",
         ));
     }
 
@@ -310,10 +310,10 @@ fn public_model_scope_ok(rel_path: &str) -> bool {
     rel_path.starts_with("crates/core/src/")
         || matches!(
             rel_path,
-            "crates/adapter/src/claims.rs"
-                | "crates/adapter/src/dispatch.rs"
-                | "crates/adapter/src/mailbox.rs"
-                | "crates/adapter/src/peers.rs"
+            "crates/host-support/src/claims.rs"
+                | "crates/host-support/src/dispatch.rs"
+                | "crates/host-support/src/mailbox.rs"
+                | "crates/host-support/src/peers.rs"
         )
 }
 

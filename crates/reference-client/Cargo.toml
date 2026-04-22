@@ -13,7 +13,7 @@ description = "Reference in-memory Jacquard client composition"
 workspace = true
 
 [dependencies]
-jacquard-adapter = { path = "../adapter", version = "0.6.0" }
+jacquard-host-support = { path = "../host-support", version = "0.6.0" }
 jacquard-babel = { path = "../babel", version = "0.6.0" }
 jacquard-batman-bellman = { path = "../batman-bellman", version = "0.6.0" }
 jacquard-batman-classic = { path = "../batman-classic", version = "0.6.0" }
@@ -30,7 +30,7 @@ jacquard-traits = { path = "../traits", version = "0.6.0" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-jacquard-cast-profile = { path = "../cast-profile", version = "0.6.0" }
+jacquard-cast-support = { path = "../cast-support", version = "0.6.0" }
 jacquard-testkit = { path = "../testkit", features = ["reference-client-e2e", "topology-full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]

@@ -227,7 +227,6 @@ fn destination_supports_objective(
 mod tests {
     use std::collections::BTreeMap;
 
-    use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{
         ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
         Environment, FactSourceClass, LinkEndpoint, NodeId, Observation, OriginAuthenticationClass,
@@ -235,6 +234,7 @@ mod tests {
         RouteServiceKind, RoutingEngineId, RoutingEvidenceClass, RoutingObjective,
         RoutingTickContext, SelectedRoutingParameters, Tick, TransportKind,
     };
+    use jacquard_host_support::opaque_endpoint;
     use jacquard_mem_link_profile::{
         InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions,
     };

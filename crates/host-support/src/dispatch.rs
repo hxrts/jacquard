@@ -1,6 +1,6 @@
 //! Bounded fail-closed dispatch mailbox for host-owned outbound work.
 //!
-//! This helper complements the raw ingress mailbox: adapters or bridges that
+//! This helper complements the raw ingress mailbox: hosts or bridges that
 //! need to enqueue outbound commands from synchronous capability handlers can
 //! use `dispatch_mailbox(capacity)` to obtain:
 //! - `DispatchSender<T>` — cloneable bounded enqueue handle

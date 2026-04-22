@@ -2,11 +2,11 @@
 resolver = "2"
 members = [
   "toolkit/xtask",
-  "crates/adapter",
+  "crates/host-support",
   "crates/babel",
   "crates/batman-bellman",
   "crates/batman-classic",
-  "crates/cast-profile",
+  "crates/cast-support",
   "crates/core",
   "crates/field",
   "crates/macros",

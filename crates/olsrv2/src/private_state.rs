@@ -503,12 +503,12 @@ pub(crate) fn link_metric(link: &Link) -> u32 {
 mod tests {
     use std::collections::BTreeMap;
 
-    use jacquard_adapter::opaque_endpoint;
     use jacquard_core::{
         ByteCount, Configuration, ControllerId, Environment, FactSourceClass, LinkEndpoint,
         Observation, OriginAuthenticationClass, RatioPermille, RouteEpoch, RoutingEvidenceClass,
         Tick, TransportKind,
     };
+    use jacquard_host_support::opaque_endpoint;
     use jacquard_mem_link_profile::{
         InMemoryRuntimeEffects, InMemoryTransport, LinkPreset, LinkPresetOptions,
     };

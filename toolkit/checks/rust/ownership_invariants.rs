@@ -72,7 +72,7 @@ const TRAITS_REQUIREMENTS: &[DocRequirement] = &[
 
 const ADAPTER_REQUIREMENTS: &[DocRequirement] = &[
     DocRequirement {
-        heading: "## Adapter Support Surface",
+        heading: "## Host Support Surface",
         required_terms: &["transport-neutral", "peer", "claim"],
     },
     DocRequirement {
@@ -91,7 +91,7 @@ const REQUIRED_FILES: &[FileRequirement] = &[
         requirements: TRAITS_REQUIREMENTS,
     },
     FileRequirement {
-        rel_path: "crates/adapter/src/lib.rs",
+        rel_path: "crates/host-support/src/lib.rs",
         requirements: ADAPTER_REQUIREMENTS,
     },
 ];

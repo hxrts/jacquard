@@ -141,9 +141,9 @@ fn partial_delivery_confidence(receivers: &[ReceiverCoverageEvidence]) -> RatioP
         })
 }
 
-fn replace_if_better(current: &mut MulticastEvidence, candidate: MulticastEvidence) {
-    if multicast_rank(&candidate) > multicast_rank(current) {
-        *current = candidate;
+fn replace_if_better(current: &mut MulticastEvidence, proposed: MulticastEvidence) {
+    if multicast_rank(&proposed) > multicast_rank(current) {
+        *current = proposed;
     }
 }
 

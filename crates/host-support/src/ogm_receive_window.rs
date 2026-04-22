@@ -3,7 +3,7 @@
 //! Used by the classic B.A.T.M.A.N.-style engines to track per-neighbor
 //! originator sequences inside a bounded staleness window and report receive
 //! quality as an occupancy permille.
-// proc-macro-scope: adapter support primitive intentionally stays outside #[public_model].
+// proc-macro-scope: host support primitive intentionally stays outside #[public_model].
 
 use std::collections::BTreeSet;
 

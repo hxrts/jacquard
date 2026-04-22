@@ -1,4 +1,3 @@
-use jacquard_adapter::opaque_endpoint;
 use jacquard_core::{
     ByteCount, Configuration, ConnectivityPosture, ControllerId, DestinationId, DurationMs,
     Environment, FactSourceClass, Limit, NodeId, Observation, OperatingMode,
@@ -7,6 +6,7 @@ use jacquard_core::{
     RouteServiceKind, RoutingEvidenceClass, RoutingObjective, SelectedRoutingParameters, Tick,
     TimeWindow, TransportKind,
 };
+use jacquard_host_support::opaque_endpoint;
 use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_mercator::{

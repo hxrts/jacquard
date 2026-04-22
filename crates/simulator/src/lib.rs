@@ -1,6 +1,6 @@
 //! Deterministic Jacquard simulator harness.
 //!
-//! This crate reuses the existing Jacquard host bridge, adapter helpers, and
+//! This crate reuses the existing Jacquard host bridge, host-support helpers, and
 //! in-memory transport surfaces to run deterministic multi-host routing
 //! scenarios. It models its top-level integration after Telltale's simulator
 //! harness shape:

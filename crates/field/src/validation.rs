@@ -117,7 +117,7 @@ mod tests {
                         NodePreset::route_capable(
                             NodePresetOptions::new(
                                 NodeIdentity::new(node(1), ControllerId([1; 32])),
-                                jacquard_adapter::opaque_endpoint(
+                                jacquard_host_support::opaque_endpoint(
                                     jacquard_core::TransportKind::WifiAware,
                                     vec![1],
                                     ByteCount(128),
@@ -133,7 +133,7 @@ mod tests {
                         NodePreset::route_capable(
                             NodePresetOptions::new(
                                 NodeIdentity::new(node(2), ControllerId([2; 32])),
-                                jacquard_adapter::opaque_endpoint(
+                                jacquard_host_support::opaque_endpoint(
                                     jacquard_core::TransportKind::WifiAware,
                                     vec![2],
                                     ByteCount(128),
@@ -149,7 +149,7 @@ mod tests {
                         NodePreset::route_capable(
                             NodePresetOptions::new(
                                 NodeIdentity::new(node(3), ControllerId([3; 32])),
-                                jacquard_adapter::opaque_endpoint(
+                                jacquard_host_support::opaque_endpoint(
                                     jacquard_core::TransportKind::WifiAware,
                                     vec![3],
                                     ByteCount(128),
@@ -166,7 +166,7 @@ mod tests {
                         (node(1), node(2)),
                         LinkPreset::lossy(
                             LinkPresetOptions::new(
-                                jacquard_adapter::opaque_endpoint(
+                                jacquard_host_support::opaque_endpoint(
                                     jacquard_core::TransportKind::WifiAware,
                                     vec![2],
                                     ByteCount(128),
@@ -181,7 +181,7 @@ mod tests {
                         (node(2), node(1)),
                         LinkPreset::lossy(
                             LinkPresetOptions::new(
-                                jacquard_adapter::opaque_endpoint(
+                                jacquard_host_support::opaque_endpoint(
                                     jacquard_core::TransportKind::WifiAware,
                                     vec![1],
                                     ByteCount(128),
@@ -196,7 +196,7 @@ mod tests {
                         (node(2), node(3)),
                         LinkPreset::lossy(
                             LinkPresetOptions::new(
-                                jacquard_adapter::opaque_endpoint(
+                                jacquard_host_support::opaque_endpoint(
                                     jacquard_core::TransportKind::WifiAware,
                                     vec![3],
                                     ByteCount(128),
@@ -211,7 +211,7 @@ mod tests {
                         (node(3), node(2)),
                         LinkPreset::lossy(
                             LinkPresetOptions::new(
-                                jacquard_adapter::opaque_endpoint(
+                                jacquard_host_support::opaque_endpoint(
                                     jacquard_core::TransportKind::WifiAware,
                                     vec![2],
                                     ByteCount(128),

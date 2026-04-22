@@ -5,7 +5,6 @@
 //! - `node(byte).for_engines(&[...]).build()`
 //! - `link(byte).with_confidence(...).build()`
 
-use jacquard_adapter::opaque_endpoint;
 use jacquard_babel::BABEL_ENGINE_ID;
 use jacquard_batman_bellman::BATMAN_BELLMAN_ENGINE_ID;
 #[cfg(feature = "topology-full")]
@@ -16,6 +15,7 @@ use jacquard_core::{
 };
 #[cfg(feature = "topology-full")]
 use jacquard_field::FIELD_ENGINE_ID;
+use jacquard_host_support::opaque_endpoint;
 use jacquard_mem_link_profile::{LinkPreset, LinkPresetOptions};
 use jacquard_mem_node_profile::{NodeIdentity, NodePreset, NodePresetOptions};
 use jacquard_olsrv2::OLSRV2_ENGINE_ID;
