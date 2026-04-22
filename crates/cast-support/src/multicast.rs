@@ -1,4 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    vec::Vec,
+};
+use core::{cmp::Reverse, mem};
 
 use jacquard_core::{ByteCount, MulticastGroupId, NodeId, RatioPermille};
 use serde::{Deserialize, Serialize};
@@ -68,7 +72,7 @@ pub fn shape_multicast_evidence(
             .or_insert(evidence);
     }
     let mut evidence = by_group.into_values().collect::<Vec<_>>();
-    evidence.sort_by_key(|item| std::cmp::Reverse(multicast_rank(item)));
+    evidence.sort_by_key(|item| Reverse(multicast_rank(item)));
     (evidence, report)
 }
 
@@ -80,7 +84,7 @@ fn shape_one_multicast(
     if !multicast_bounds_hold(&observation, policy, report) {
         return None;
     }
-    let receivers = eligible_receivers(std::mem::take(&mut observation.receivers), policy);
+    let receivers = eligible_receivers(mem::take(&mut observation.receivers), policy);
     if receivers.is_empty() {
         report.record_low_confidence();
         return None;
@@ -164,7 +168,7 @@ fn multicast_rank(
 ) -> (
     u32,
     RatioPermille,
-    std::cmp::Reverse<RatioPermille>,
+    Reverse<RatioPermille>,
     ByteCount,
     jacquard_core::Tick,
     jacquard_core::OrderStamp,
@@ -174,7 +178,7 @@ fn multicast_rank(
     (
         evidence.covered_receiver_count,
         evidence.partial_delivery_confidence_permille,
-        std::cmp::Reverse(evidence.group_pressure_permille),
+        Reverse(evidence.group_pressure_permille),
         evidence.payload_bytes_max,
         evidence.meta.observed_at_tick,
         evidence.meta.order,

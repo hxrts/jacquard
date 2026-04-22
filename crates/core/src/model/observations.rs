@@ -15,6 +15,8 @@
 //! authentication provenance. [`ObservedValue`] is the self-describing payload
 //! enum that world extensions emit.
 
+use alloc::string::String;
+
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 

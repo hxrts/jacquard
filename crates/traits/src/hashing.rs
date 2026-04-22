@@ -17,6 +17,8 @@
 //! Domain-tagged hashing (`hash_tagged`) length-prefixes the domain tag to
 //! prevent ambiguous collisions between different (domain, payload) pairs.
 
+use alloc::vec::Vec;
+
 use jacquard_core::{Blake3Digest, ContentEncodingError, ContentId};
 use jacquard_macros::purity;
 

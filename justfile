@@ -88,6 +88,12 @@ wasm-check:
       exit 1
     fi
 
+# verify the shared portable crates compile without std
+no-std-check:
+    cargo check -p jacquard-core --no-default-features
+    cargo check -p jacquard-traits --no-default-features
+    cargo check -p jacquard-cast-support --no-default-features
+
 # execute the wasm reference-client integration test under wasm-bindgen-test
 wasm-test-reference-client:
     #!/usr/bin/env bash

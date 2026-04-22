@@ -13,6 +13,8 @@
 //! standard routing model derives. `From<&Blake3Digest>` impls for the 16-byte
 //! routing id types live at the bottom of this file.
 
+use alloc::vec::Vec;
+
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 

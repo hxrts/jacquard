@@ -15,9 +15,11 @@
 //! [`RouteDegradation`] and [`DegradationReason`] represent cases where the
 //! admitted route falls short of the objective protection or connectivity.
 
+use alloc::vec::Vec;
+use core::fmt;
+
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::{
     BackendRouteId, Belief, ConnectivityPosture, Estimate, Limit, RouteCost, RouteEpoch,
@@ -204,25 +206,35 @@ pub enum AdmissionDecision {
 }
 
 #[public_model]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Error, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RouteAdmissionRejection {
-    #[error("protection floor unsatisfied")]
     ProtectionFloorUnsatisfied,
-    #[error("delivery model unsupported")]
     DeliveryAssumptionUnsupported,
-    #[error("capacity exceeded")]
     CapacityExceeded,
-    #[error("budget exceeded")]
     BudgetExceeded,
-    #[error("branching infeasible")]
     BranchingInfeasible,
-    #[error("crash tolerance unsatisfied")]
     CrashToleranceUnsatisfied,
-    #[error("reconfiguration unsafe")]
     ReconfigurationUnsafe,
-    #[error("backend unavailable")]
     BackendUnavailable,
 }
+
+impl fmt::Display for RouteAdmissionRejection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ProtectionFloorUnsatisfied => f.write_str("protection floor unsatisfied"),
+            Self::DeliveryAssumptionUnsupported => f.write_str("delivery model unsupported"),
+            Self::CapacityExceeded => f.write_str("capacity exceeded"),
+            Self::BudgetExceeded => f.write_str("budget exceeded"),
+            Self::BranchingInfeasible => f.write_str("branching infeasible"),
+            Self::CrashToleranceUnsatisfied => f.write_str("crash tolerance unsatisfied"),
+            Self::ReconfigurationUnsafe => f.write_str("reconfiguration unsafe"),
+            Self::BackendUnavailable => f.write_str("backend unavailable"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for RouteAdmissionRejection {}
 
 #[public_model]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

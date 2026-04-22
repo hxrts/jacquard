@@ -14,6 +14,8 @@
 //! Exported types: [`LinkBuilder`], [`ServiceDescriptorBuilder`],
 //! [`NodeProfileBuilder`], [`NodeStateBuilder`], [`NodeBuilder`].
 
+use alloc::{vec, vec::Vec};
+
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
 

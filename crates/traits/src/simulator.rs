@@ -8,6 +8,8 @@
 //!   checkpoints, resumes, and emits replay-visible artifacts.
 //! - `RoutingReplayView` is a read-only artifact inspection surface.
 
+use alloc::vec::Vec;
+
 use jacquard_core::{
     Configuration, Observation, OperatingMode, RouteEvent, RouteEventStamped, RoutingObjective,
     SimulationSeed, Tick,

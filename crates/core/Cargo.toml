@@ -19,7 +19,6 @@ std = ["serde/std"]
 [dependencies]
 jacquard-macros = { path = "../macros", version = "0.8.0" }
 serde      = { workspace = true, default-features = false }
-thiserror  = { workspace = true }
 
 [dev-dependencies]
 jacquard-traits = { path = "../traits" }

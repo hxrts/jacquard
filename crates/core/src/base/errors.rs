@@ -2,9 +2,9 @@
 //!
 //! This module defines the shared error-enum hierarchy used across all
 //! routing, transport, storage, and hold subsystems. The top-level
-//! [`RouteError`] composes the domain-specific error enums via `#[from]`
+//! [`RouteError`] composes the domain-specific error enums via explicit
 //! conversions. Each domain enum is generated with `define_error_enum!`, which
-//! attaches the standard shared-model derives and `thiserror` support.
+//! attaches the standard shared-model derives and portable display support.
 //!
 //! Error enums defined here: [`RouteError`], [`RouteSelectionError`],
 //! [`RouteRuntimeError`], [`RoutePolicyError`], [`CapabilityError`],
@@ -15,150 +15,161 @@
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::RouteAdmissionRejection;
 
-/// Generates the shared error-enum header: `#[public_model]`, all standard
-/// error derives, and the `pub enum` declaration. Variants are passed verbatim
-/// so thiserror attributes (`#[error("...")]`, `#[from]`) work normally.
+/// Generates a shared error enum with portable `Display` and optional
+/// `std::error::Error` support.
 macro_rules! define_error_enum {
-    ($name:ident { $($body:tt)* }) => {
+    ($name:ident { $($variant:ident => $message:literal),+ $(,)? }) => {
         #[public_model]
-        #[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
+        #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
         pub enum $name {
-            $($body)*
+            $($variant,)+
+        }
+
+        impl core::fmt::Display for $name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                match self {
+                    $(Self::$variant => f.write_str($message),)+
+                }
+            }
+        }
+
+        #[cfg(feature = "std")]
+        impl std::error::Error for $name {}
+    };
+}
+
+macro_rules! impl_route_error_from {
+    ($source:ty, $variant:ident) => {
+        impl From<$source> for RouteError {
+            fn from(error: $source) -> Self {
+                Self::$variant(error)
+            }
         }
     };
 }
 
 #[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RouteError {
-    #[error("route selection error: {0}")]
-    Selection(#[from] RouteSelectionError),
-    #[error("route runtime error: {0}")]
-    Runtime(#[from] RouteRuntimeError),
-    #[error("route policy error: {0}")]
-    Policy(#[from] RoutePolicyError),
-    #[error("capability error: {0}")]
-    Capability(#[from] CapabilityError),
-    #[error("transport error: {0}")]
-    Transport(#[from] TransportError),
+    Selection(RouteSelectionError),
+    Runtime(RouteRuntimeError),
+    Policy(RoutePolicyError),
+    Capability(CapabilityError),
+    Transport(TransportError),
 }
 
-define_error_enum!(RouteSelectionError {
-    #[error("no candidate route was available")]
+impl core::fmt::Display for RouteError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Selection(error) => write!(f, "route selection error: {error}"),
+            Self::Runtime(error) => write!(f, "route runtime error: {error}"),
+            Self::Policy(error) => write!(f, "route policy error: {error}"),
+            Self::Capability(error) => write!(f, "capability error: {error}"),
+            Self::Transport(error) => write!(f, "transport error: {error}"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for RouteError {}
+
+impl_route_error_from!(RouteSelectionError, Selection);
+impl_route_error_from!(RouteRuntimeError, Runtime);
+impl_route_error_from!(RoutePolicyError, Policy);
+impl_route_error_from!(CapabilityError, Capability);
+impl_route_error_from!(TransportError, Transport);
+
+#[public_model]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RouteSelectionError {
     NoCandidate,
-    #[error("protection floor was not satisfied")]
     ProtectionFloorUnsatisfied,
-    #[error("candidate was inadmissible: {0}")]
     Inadmissible(RouteAdmissionRejection),
-    #[error("routing policy conflict")]
     PolicyConflict,
-});
+}
+
+impl core::fmt::Display for RouteSelectionError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoCandidate => f.write_str("no candidate route was available"),
+            Self::ProtectionFloorUnsatisfied => f.write_str("protection floor was not satisfied"),
+            Self::Inadmissible(error) => write!(f, "candidate was inadmissible: {error}"),
+            Self::PolicyConflict => f.write_str("routing policy conflict"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for RouteSelectionError {}
 
 define_error_enum!(RouteRuntimeError {
-    #[error("route lease expired")]
-    LeaseExpired,
-    #[error("stale owner attempted a mutation")]
-    StaleOwner,
-    #[error("route lifecycle event was rejected")]
-    LifecycleEventRejected,
-    #[error("route maintenance failed")]
-    MaintenanceFailed,
-    #[error("route operation timed out")]
-    TimedOut,
-    #[error("route state was invalidated")]
-    Invalidated,
+    LeaseExpired => "route lease expired",
+    StaleOwner => "stale owner attempted a mutation",
+    LifecycleEventRejected => "route lifecycle event was rejected",
+    MaintenanceFailed => "route maintenance failed",
+    TimedOut => "route operation timed out",
+    Invalidated => "route state was invalidated",
 });
 
 define_error_enum!(RoutePolicyError {
-    #[error("fallback is forbidden")]
-    FallbackForbidden,
-    #[error("profile is unsupported")]
-    ProfileUnsupported,
-    #[error("budget exceeded")]
-    BudgetExceeded,
+    FallbackForbidden => "fallback is forbidden",
+    ProfileUnsupported => "profile is unsupported",
+    BudgetExceeded => "budget exceeded",
 });
 
 define_error_enum!(CapabilityError {
-    #[error("capability is unsupported")]
-    Unsupported,
-    #[error("capability was rejected")]
-    Rejected,
-    #[error("capability budget exceeded")]
-    BudgetExceeded,
+    Unsupported => "capability is unsupported",
+    Rejected => "capability was rejected",
+    BudgetExceeded => "capability budget exceeded",
 });
 
 define_error_enum!(TransportError {
-    #[error("transport is unavailable")]
-    Unavailable,
-    #[error("transport operation timed out")]
-    TimedOut,
-    #[error("transport rejected the operation")]
-    Rejected,
+    Unavailable => "transport is unavailable",
+    TimedOut => "transport operation timed out",
+    Rejected => "transport rejected the operation",
 });
 
 define_error_enum!(MediumError {
-    #[error("medium rejected the frame")]
-    Rejected,
-    #[error("medium data was corrupted")]
-    Corrupted,
-    #[error("medium operation timed out")]
-    TimedOut,
+    Rejected => "medium rejected the frame",
+    Corrupted => "medium data was corrupted",
+    TimedOut => "medium operation timed out",
 });
 
 define_error_enum!(RetentionError {
-    #[error("retention store is unavailable")]
-    Unavailable,
-    #[error("retention store is full")]
-    Full,
-    #[error("retention operation was rejected")]
-    Rejected,
+    Unavailable => "retention store is unavailable",
+    Full => "retention store is full",
+    Rejected => "retention operation was rejected",
 });
 
 define_error_enum!(HoldError {
-    #[error("hold service is unavailable")]
-    Unavailable,
-    #[error("held object expired")]
-    Expired,
-    #[error("hold operation was rejected")]
-    Rejected,
+    Unavailable => "hold service is unavailable",
+    Expired => "held object expired",
+    Rejected => "hold operation was rejected",
 });
 
 define_error_enum!(StorageError {
-    #[error("storage is unavailable")]
-    Unavailable,
-    #[error("storage key was missing")]
-    Missing,
-    #[error("storage write was rejected")]
-    Rejected,
+    Unavailable => "storage is unavailable",
+    Missing => "storage key was missing",
+    Rejected => "storage write was rejected",
 });
 
 define_error_enum!(RouteEventLogError {
-    #[error("route-event log is unavailable")]
-    Unavailable,
-    #[error("route-event log entry was rejected")]
-    Rejected,
+    Unavailable => "route-event log is unavailable",
+    Rejected => "route-event log entry was rejected",
 });
 
 define_error_enum!(WorldError {
-    #[error("world extension is unavailable")]
-    Unavailable,
-    #[error("world extension timed out")]
-    TimedOut,
-    #[error("world observation was rejected")]
-    Rejected,
-    #[error("world observation was invalid")]
-    Invalid,
+    Unavailable => "world extension is unavailable",
+    TimedOut => "world extension timed out",
+    Rejected => "world observation was rejected",
+    Invalid => "world observation was invalid",
 });
 
 define_error_enum!(PathSetupError {
-    #[error("path setup is unsupported")]
-    Unsupported,
-    #[error("path setup was rejected")]
-    Rejected,
-    #[error("path setup was invalid")]
-    Invalid,
+    Unsupported => "path setup is unsupported",
+    Rejected => "path setup was rejected",
+    Invalid => "path setup was invalid",
 });

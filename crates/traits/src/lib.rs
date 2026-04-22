@@ -39,7 +39,10 @@
 //! boundaries. Observational crates may supply world facts and effect handlers,
 //! but they must not publish canonical route truth.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
+
+extern crate alloc;
 
 /// Expands to `#[must_use = "unread {name} result silently discards
 /// {description}"]` applied to the following item.

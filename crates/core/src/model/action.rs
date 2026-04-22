@@ -13,6 +13,8 @@
 //! host-defined deployment posture for the current routing action), and
 //! [`DiversityFloor`] (the minimum path diversity the policy requires).
 
+use alloc::string::String;
+
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 

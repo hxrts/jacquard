@@ -15,6 +15,8 @@
 //! count is bounded by
 //! [`PROVIDER_CANDIDATE_COUNT_MAX`](crate::PROVIDER_CANDIDATE_COUNT_MAX).
 
+use alloc::vec::Vec;
+
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 

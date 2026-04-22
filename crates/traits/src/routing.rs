@@ -20,7 +20,8 @@
 //! - Forward-looking substrate and layering traits for multi-engine
 //!   composition.
 
-use std::any::Any;
+use alloc::{boxed::Box, vec::Vec};
+use core::any::Any;
 
 use jacquard_core::{
     CommitteeSelection, Configuration, LayerParameters, MaterializedRoute, NodeId, Observation,

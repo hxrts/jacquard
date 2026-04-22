@@ -14,7 +14,7 @@
 //! bounded by the constants in `base/constants.rs`. Runtime state fields use
 //! `Belief<T>` to represent observations that may be absent or estimated.
 
-use std::collections::BTreeMap;
+use alloc::{collections::BTreeMap, vec::Vec};
 
 use jacquard_macros::public_model;
 use serde::{Deserialize, Serialize};
@@ -122,7 +122,7 @@ pub struct Configuration {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use alloc::{collections::BTreeMap, vec, vec::Vec};
 
     use super::*;
     use crate::{Estimate, NodeId};

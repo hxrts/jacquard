@@ -20,6 +20,8 @@
 //! - [`Effect`] — sealed marker that every effect trait automatically
 //!   satisfies.
 
+use alloc::vec::Vec;
+
 use jacquard_core::{
     Blake3Digest, ContentId, OrderStamp, RetentionError, RouteEventLogError, RouteEventStamped,
     StorageError, Tick, TransportDeliveryIntent, TransportError,

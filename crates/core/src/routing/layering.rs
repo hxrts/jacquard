@@ -15,6 +15,8 @@
 //! per-layer adaptation hints downward from upper-layer or host-level policy
 //! engines into a substrate-aware lower-layer engine.
 
+use alloc::{string::String, vec::Vec};
+
 use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 

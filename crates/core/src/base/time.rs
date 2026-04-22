@@ -16,14 +16,13 @@
 //! `[start_tick, end_tick)` lease intervals. [`TimeoutPolicy`] packages retry
 //! and backoff parameters without referencing wall time.
 
-use std::{
+use core::{
     fmt,
     ops::{Add, Sub},
 };
 
 use jacquard_macros::{bounded_value, id_type, public_model};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 /// Generates an `#[id_type]` newtype over a primitive integer, and adds
 /// `Display`, `From<$inner>`, `Add`, and `Sub` delegating impls.
@@ -102,11 +101,23 @@ pub struct TimeWindow {
     end_tick: Tick,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Error)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimeWindowError {
-    #[error("time window end tick must be greater than start tick")]
     EndNotAfterStart,
 }
+
+impl fmt::Display for TimeWindowError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EndNotAfterStart => {
+                f.write_str("time window end tick must be greater than start tick")
+            }
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for TimeWindowError {}
 
 impl TimeWindow {
     pub fn new(start_tick: Tick, end_tick: Tick) -> Result<Self, TimeWindowError> {

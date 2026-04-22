@@ -21,6 +21,9 @@
 //! [`RouteInvalidationReason`]. Tick machinery: [`RoutingTickContext`],
 //! [`RoutingTickOutcome`], [`RoutingTickHint`], [`RouterRoundOutcome`].
 
+use alloc::boxed::Box;
+use core::cmp;
+
 use jacquard_macros::{must_use_handle, public_model};
 use serde::{Deserialize, Serialize};
 
@@ -100,7 +103,7 @@ impl RoutingTickHint {
         match (self, other) {
             (Self::Immediate, _) | (_, Self::Immediate) => Self::Immediate,
             (Self::WithinTicks(left), Self::WithinTicks(right)) => {
-                Self::WithinTicks(std::cmp::min(left, right))
+                Self::WithinTicks(cmp::min(left, right))
             }
             (Self::WithinTicks(left), Self::HostDefault)
             | (Self::HostDefault, Self::WithinTicks(left)) => Self::WithinTicks(left),

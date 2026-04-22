@@ -1,3 +1,6 @@
+use alloc::vec::Vec;
+use core::{cmp::Reverse, mem};
+
 use jacquard_core::{ByteCount, NodeId, RatioPermille};
 use serde::{Deserialize, Serialize};
 
@@ -64,7 +67,7 @@ pub fn shape_broadcast_evidence(
         };
         evidence.push(shaped);
     }
-    evidence.sort_by_key(|item| std::cmp::Reverse(broadcast_rank(item)));
+    evidence.sort_by_key(|item| Reverse(broadcast_rank(item)));
     (evidence, report)
 }
 
@@ -80,7 +83,7 @@ fn shape_one_broadcast(
         report.record_low_confidence();
         return None;
     }
-    let receivers = eligible_receivers(std::mem::take(&mut observation.receivers), policy);
+    let receivers = eligible_receivers(mem::take(&mut observation.receivers), policy);
     if receivers.is_empty() {
         report.record_low_confidence();
         return None;
@@ -192,7 +195,7 @@ fn broadcast_rank(
     u8,
     RatioPermille,
     RatioPermille,
-    std::cmp::Reverse<RatioPermille>,
+    Reverse<RatioPermille>,
     ByteCount,
     jacquard_core::Tick,
     jacquard_core::OrderStamp,
@@ -202,7 +205,7 @@ fn broadcast_rank(
         support_rank(evidence.support),
         evidence.coverage_confidence_permille,
         evidence.transmission_window_quality_permille,
-        std::cmp::Reverse(evidence.channel_pressure_permille),
+        Reverse(evidence.channel_pressure_permille),
         evidence.payload_bytes_max,
         evidence.meta.observed_at_tick,
         evidence.meta.order,

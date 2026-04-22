@@ -618,7 +618,6 @@ dependencies = [
  "jacquard-traits",
  "serde",
  "serde_json",
- "thiserror",
 ]
 
 [[package]]

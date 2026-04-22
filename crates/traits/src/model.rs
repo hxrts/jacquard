@@ -5,6 +5,8 @@
 //! turning the simulator into a second runtime stack. Engines keep ownership of
 //! private protocol state and expose only the typed model surfaces they support.
 
+use alloc::vec::Vec;
+
 use jacquard_core::{
     Configuration, MaterializedRoute, Observation, RouteError, RoutingObjective,
     SelectedRoutingParameters,

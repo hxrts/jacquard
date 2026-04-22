@@ -35,7 +35,10 @@
 //! `jacquard-host-support`, not here. Canonical route ownership remains above this
 //! crate.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
+
+extern crate alloc;
 
 pub use jacquard_macros::{bounded_value, id_type, must_use_handle, public_model};
 

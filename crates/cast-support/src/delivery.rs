@@ -1,4 +1,5 @@
-use std::collections::BTreeSet;
+use alloc::{collections::BTreeSet, vec, vec::Vec};
+use core::cmp::Reverse;
 
 use jacquard_core::{BroadcastDomainId, ByteCount, NodeId, RatioPermille};
 use serde::{Deserialize, Serialize};
@@ -262,7 +263,7 @@ pub fn shape_unicast_delivery_support<'a>(
         };
         support.push(item_support);
     }
-    support.sort_by_key(|item| std::cmp::Reverse(unicast_delivery_support_rank(*item)));
+    support.sort_by_key(|item| Reverse(unicast_delivery_support_rank(*item)));
     (support, report)
 }
 
@@ -281,7 +282,7 @@ pub fn shape_multicast_delivery_support<'a>(
         };
         support.push(item_support);
     }
-    support.sort_by_key(|item| std::cmp::Reverse(multicast_delivery_support_rank(item)));
+    support.sort_by_key(|item| Reverse(multicast_delivery_support_rank(item)));
     (support, report)
 }
 
@@ -300,7 +301,7 @@ pub fn shape_broadcast_delivery_support<'a>(
         };
         support.push(item_support);
     }
-    support.sort_by_key(|item| std::cmp::Reverse(broadcast_delivery_support_rank(item)));
+    support.sort_by_key(|item| Reverse(broadcast_delivery_support_rank(item)));
     (support, report)
 }
 
@@ -602,7 +603,7 @@ fn multicast_delivery_support_rank(
 ) -> (
     u32,
     RatioPermille,
-    std::cmp::Reverse<RatioPermille>,
+    Reverse<RatioPermille>,
     ByteCount,
     jacquard_core::Tick,
     jacquard_core::OrderStamp,
@@ -612,7 +613,7 @@ fn multicast_delivery_support_rank(
     (
         support.resource_use.receiver_count,
         support.confidence_permille,
-        std::cmp::Reverse(support.group_pressure_permille),
+        Reverse(support.group_pressure_permille),
         support.payload_bytes_max,
         support.meta.observed_at_tick,
         support.meta.order,
@@ -626,7 +627,7 @@ fn broadcast_delivery_support_rank(
 ) -> (
     u8,
     RatioPermille,
-    std::cmp::Reverse<RatioPermille>,
+    Reverse<RatioPermille>,
     ByteCount,
     jacquard_core::Tick,
     jacquard_core::OrderStamp,
@@ -635,7 +636,7 @@ fn broadcast_delivery_support_rank(
     (
         broadcast_support_rank(support.support),
         support.confidence_permille,
-        std::cmp::Reverse(support.channel_pressure_permille),
+        Reverse(support.channel_pressure_permille),
         support.payload_bytes_max,
         support.meta.observed_at_tick,
         support.meta.order,

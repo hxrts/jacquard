@@ -16,6 +16,8 @@
 //! deliver events to the router through explicit ingestion APIs. Engines and
 //! routers never own a transport driver directly.
 
+use alloc::vec::Vec;
+
 use jacquard_core::{TransportError, TransportIngressEvent};
 use jacquard_macros::purity;
 

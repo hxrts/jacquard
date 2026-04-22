@@ -13,6 +13,8 @@
 //! transport-owned profile crates, not here. `jacquard-core` owns only the
 //! shared structural shapes that all engines and routers work against.
 
+use alloc::{string::String, vec::Vec};
+
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
 

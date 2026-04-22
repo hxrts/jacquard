@@ -13,7 +13,10 @@
 
 // proc-macro-scope: Cast support helpers use plain data shapes and no local proc macros.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
+
+extern crate alloc;
 
 mod bounds;
 mod broadcast;

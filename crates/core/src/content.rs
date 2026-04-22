@@ -17,7 +17,6 @@ use core::fmt;
 
 use jacquard_macros::{id_type, public_model};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::base::bytes_newtype;
 
@@ -38,13 +37,25 @@ pub struct ContentId<D> {
 pub struct BloomFilter;
 
 #[public_model]
-#[derive(Clone, Debug, PartialEq, Eq, Error, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ContentEncodingError {
-    #[error("artifact is still open and cannot be canonically addressed")]
     OpenArtifact,
-    #[error("artifact bytes are not in canonical form")]
     InvalidCanonicalForm,
 }
+
+impl fmt::Display for ContentEncodingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::OpenArtifact => {
+                f.write_str("artifact is still open and cannot be canonically addressed")
+            }
+            Self::InvalidCanonicalForm => f.write_str("artifact bytes are not in canonical form"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for ContentEncodingError {}
 
 impl fmt::Display for Blake3Digest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

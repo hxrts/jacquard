@@ -1,4 +1,5 @@
-use std::collections::BTreeMap;
+use alloc::{collections::BTreeMap, vec::Vec};
+use core::cmp::Reverse;
 
 use jacquard_core::{ByteCount, NodeId, RatioPermille};
 use serde::{Deserialize, Serialize};
@@ -59,7 +60,7 @@ pub fn shape_unicast_evidence(
             .or_insert(evidence);
     }
     let mut evidence = by_link.into_values().collect::<Vec<_>>();
-    evidence.sort_by_key(|item| std::cmp::Reverse(unicast_rank(*item)));
+    evidence.sort_by_key(|item| Reverse(unicast_rank(*item)));
     prune(&mut evidence, policy.bounds.receiver_count_max, &mut report);
     (evidence, report)
 }

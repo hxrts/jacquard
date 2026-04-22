@@ -93,13 +93,13 @@ The routing core does not call platform APIs directly. Hashing, storage, route-e
 
 ## Portability Profiles
 
-The default workspace profile is a `std` profile. It supports native host builds, the simulator, the reference client, and existing in-memory profiles.
+The default workspace profile is a `std` profile. It supports native host builds, the simulator, the reference client, and in-memory profiles.
 
 The wasm profile is a target compatibility check for selected `std` crates on `wasm32-unknown-unknown`. It does not prove that a crate is `no_std`. A crate can compile for wasm while still using the standard library surface available on that target.
 
-The planned embedded profile is a `no_std` plus `alloc` profile for the deterministic model, route, cast, host-support, and Mercator path needed by MCU transport adapters such as jq-lora. That profile must avoid direct thread, blocking wait, wall-clock, filesystem, and host I/O APIs. Platform behavior enters through explicit host or executor adapters.
+The embedded profile is a `no_std` plus `alloc` profile for the deterministic model, route, cast, host-support, and Mercator path needed by MCU transport adapters such as jq-lora. That profile avoids direct thread, blocking wait, wall-clock, filesystem, and host I/O APIs. Platform behavior enters through explicit host or executor adapters.
 
-`jacquard-cast-support` sits alongside profile and host-integration crates as deterministic evidence and delivery support. It normalizes unicast, multicast, and broadcast cast inputs into bounded, ordered helper records, then can derive route-neutral delivery support from those records and an explicit delivery objective. Profiles can map that support into route-visible `TransportDeliverySupport` without flattening multicast or broadcast into fake unicast links. It leaves transport send/receive, endpoint authoring, retry scheduling, custody storage, and route publication to their owning crates.
+`jacquard-cast-support` sits alongside profile and host-integration crates as deterministic evidence and delivery support. It is part of the portable `no_std` plus `alloc` profile. It normalizes unicast, multicast, and broadcast cast inputs into bounded, ordered helper records, then can derive route-neutral delivery support from those records and an explicit delivery objective. Profiles can map that support into route-visible `TransportDeliverySupport` without flattening multicast or broadcast into fake unicast links. It leaves transport send/receive, endpoint authoring, retry scheduling, custody storage, and route publication to their owning crates.
 
 Cast objective admission stays above engines. Profiles expose delivery support, router-owned compatibility helpers compare that support with `RouteDeliveryObjective`, and host effects receive the admitted `TransportDeliveryIntent`. Broadcast objectives name an explicit `BroadcastDomainId` plus receiver coverage requirements; there is no implicit default broadcast domain. Engines continue to produce generic route candidates and must not depend on `jacquard-cast-support` to understand multicast, broadcast, BLE fanout, or endpoint materialization.
 

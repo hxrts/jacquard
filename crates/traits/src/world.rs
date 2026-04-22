@@ -20,6 +20,8 @@
 //! Extensions must not publish canonical route truth. They provide raw
 //! observational input; the router and engines decide what to do with it.
 
+use alloc::vec::Vec;
+
 use jacquard_core::{
     Environment, EnvironmentObservation, Link, LinkObservation, Node, NodeObservation, Observation,
     ServiceDescriptor, ServiceObservation, TransportKind, TransportObservation, WorldError,
