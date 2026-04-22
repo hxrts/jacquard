@@ -12,7 +12,7 @@ This page describes the crate layout, the boundary rules, and the implementation
 
 Shared transport vocabulary follows the same rule. `core` keeps a small observed-world transport schema in `TransportKind`, `EndpointLocator`, `LinkEndpoint`, `TransportDeliveryIntent`, `TransportDeliverySupport`, and `RouteDeliveryObjective` because those types appear in shared link, service, send-intent, and admission surfaces. Jacquard intentionally does not force those types fully opaque.
 
-`EndpointLocator` keeps only the neutral locator families the shared model actually needs. Endpoint identity and delivery intent are separate: a `LinkEndpoint` names the carrier, while `TransportDeliveryIntent` says whether an admitted send is unicast, multicast, or broadcast. Transport-specific endpoint builders belong in transport-owned profile crates rather than in `core` or the transport-neutral mem profile crates.
+`EndpointLocator` keeps only the neutral locator families the shared model actually needs. Endpoint identity and delivery intent are separate: a `LinkEndpoint` names the carrier, while `TransportDeliveryIntent` says whether an admitted send is unicast, multicast, or broadcast. `TransportKind::LoraP2p` names raw LoRa peer-to-peer links in the shared taxonomy, and those endpoints use `EndpointLocator::ScopedBytes` with scope `lora`. Transport-specific endpoint builders belong in transport-owned profile crates rather than in `core` or the transport-neutral mem profile crates.
 
 | Category | Traits |
 |---|---|

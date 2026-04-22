@@ -1,6 +1,6 @@
 # Custom Transport
 
-This guide walks through adding a custom link: the byte-carrying transport surface engines send through, plus the link-level profile that wraps it. It targets 3rd parties replacing the in-memory transport with something runtime-specific, for example a TCP, BLE, or LoRa carrier.
+This guide walks through adding a custom link: the byte-carrying transport surface engines send through, plus the link-level profile that wraps it. It targets 3rd parties replacing the in-memory transport with something runtime-specific, for example a TCP, BLE, or raw LoRa P2P carrier.
 
 See [Profile Implementations](305_profile_reference.md) for the shared profile boundary. See [Reference Client](408_reference_client.md) for the host bridge composition the custom transport plugs into. See [Crate Architecture](999_crate_architecture.md) for the ownership rules the transport layer must respect.
 
@@ -72,6 +72,8 @@ The bridge attaches `Tick` to each event before delivery. The driver must not po
 ## Building A Link Profile
 
 A link profile wraps the transport surfaces with the pieces the shared `Link`, `LinkEndpoint`, and `LinkState` vocabulary needs. `jacquard-mem-link-profile` is the canonical example. It provides `SimulatedLinkProfile`, `SharedInMemoryNetwork`, `InMemoryTransport`, `InMemoryRetentionStore`, and `InMemoryRuntimeEffects`.
+
+`TransportKind` names the concrete carrier surface in the shared taxonomy. Use `TransportKind::LoraP2p` for raw LoRa peer-to-peer links because the variant names the link mode that Jacquard routes over, not the whole LoRa radio family. Use `EndpointLocator::ScopedBytes { scope: "lora".to_owned(), bytes }` for LoRa endpoint identity, with the byte payload defined by the transport-owned profile crate. Other LoRa operating modes remain custom transports until they have a shared, concrete routing surface.
 
 ```rust
 use jacquard_core::{Link, LinkEndpoint};

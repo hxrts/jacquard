@@ -53,6 +53,9 @@ pub enum TransportKind {
     Quic,
     TcpRelay,
     Custom(String),
+    /// Raw LoRa peer-to-peer links. Endpoint locators use
+    /// `EndpointLocator::ScopedBytes` with scope `lora`.
+    LoraP2p,
 }
 
 #[public_model]
@@ -734,5 +737,42 @@ mod tests {
         let encoded = serde_json::to_string(&support).expect("serialize support");
 
         assert!(encoded.contains("IsolatedUnicast"));
+    }
+
+    #[test]
+    fn lora_p2p_serializes_with_stable_variant_label() {
+        let encoded = serde_json::to_string(&TransportKind::LoraP2p).expect("serialize kind");
+
+        assert_eq!(encoded, "\"LoraP2p\"");
+    }
+
+    #[test]
+    fn custom_transport_serialization_remains_unchanged() {
+        let kind = TransportKind::Custom("reference-hop".to_owned());
+
+        let encoded = serde_json::to_string(&kind).expect("serialize custom kind");
+
+        assert_eq!(encoded, "{\"Custom\":\"reference-hop\"}");
+    }
+
+    #[test]
+    fn lora_p2p_endpoint_uses_scoped_lora_locator() {
+        let endpoint = LinkEndpoint::new(
+            TransportKind::LoraP2p,
+            EndpointLocator::ScopedBytes {
+                scope: "lora".to_owned(),
+                bytes: vec![0x12, 0x34],
+            },
+            ByteCount(64),
+        );
+
+        assert_eq!(endpoint.transport_kind, TransportKind::LoraP2p);
+        assert_eq!(
+            endpoint.locator,
+            EndpointLocator::ScopedBytes {
+                scope: "lora".to_owned(),
+                bytes: vec![0x12, 0x34],
+            }
+        );
     }
 }

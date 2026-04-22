@@ -34,7 +34,7 @@ let endpoint = jacquard_host_support::opaque_endpoint(
 let options = NodePresetOptions::new(identity, endpoint, Tick(1));
 ```
 
-`TransportKind` names the carrier the endpoint speaks. Custom transports add new variants when a runtime needs one not already in core. `opaque_endpoint` keeps the endpoint opaque at the shared boundary; transport-specific endpoint builders belong in transport-owned profile crates.
+`TransportKind` names the carrier the endpoint speaks. Built-in variants cover shared routing surfaces such as BLE, Wi-Fi, TCP relay, QUIC, and raw LoRa P2P. Use `TransportKind::Custom` when a runtime needs a carrier not already in core. `opaque_endpoint` keeps the endpoint opaque at the shared boundary; transport-specific endpoint builders belong in transport-owned profile crates.
 
 Observation timing is explicit. Every built object carries `observed_at_tick`, which is the bridge-stamped time at which the profile observed this state. A profile that loses track of observation timing cannot drive deterministic scenarios.
 
